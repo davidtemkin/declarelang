@@ -1,0 +1,298 @@
+//
+// weather.neolzx — the weather app in idiomatic neo-LZX.
+//
+// A functional mirror of examples/weather/weather.lzx (the OpenLaszlo
+// original, de-Yahoo'd and self-contained), rebuilt from scratch in the
+// language as it stands after the styling and animation rungs — NOT a
+// line-for-line port. This is the reference for "where the language wants you
+// to land." Every construct here is a decided one; where a capability is
+// ruled but not yet built (animated states, a Schema-typed response), the
+// comment says so and shows the v1 form that stands in.
+//
+// It is a reading artifact, not the buildable app — that is
+// neolang/apps/neoweather/. What it exercises:
+//   · PREVAILING typography — the App root sets the dominant font once;
+//     descendants follow, so every font attribute written below is a real
+//     local difference (the old Cap/HelvCap helper classes are gone).
+//   · DECORATION — fill / stroke / shadow / textShadow, typed values, not CSS.
+//   · A v1 ANIMATOR — the tab slide, driven imperatively from the click
+//     (animation.md §1, the ruled worked example).
+//   · STATES — reversible, predicate-driven modes (§10).
+//   · DATA — one DataSource as the single source of truth; :path datapaths;
+//     replication over :item.forecast[]; a two-way-bound zip field.
+//
+
+
+// The condition-icon URL — a stateless helper bound inline, no wrapper class.
+
+script {
+    function iconUrl(code: number): string {
+        return code != null ? `resources/icons/${code}.gif` : ""
+        }
+    }
+
+
+// ── WeatherTab — one tab: a 25px header, content that slides open when
+// selected. The original extended basetabelement (one element of a
+// basetabslider — see TabSlider below); here selection is the single fact
+// `sel`, the selected look is a plain state, and the motion is a v1 Animator.
+// `clip` reveals the body as the height grows.
+
+class WeatherTab extends View [ width = 100%, clip = true,
+
+    label: string = "",
+    sel: boolean = false,
+    openHeight: number = 255,
+
+    // `height` is the declarative REST state — open when selected, 25 when not
+    // — so the initially-selected tab is open at load with no motion. The
+    // `slide` Animator supplies the MOTION on top: the TabSlider starts it on a
+    // switch, it displaces this constraint for the 300ms run, and the
+    // constraint resumes (re-evaluated, same value) on completion — animation
+    // §2's displace-and-resume. Rest state declared, motion imperative.
+
+    height = { sel ? openHeight : 25 },
+
+    slide: Animator [ attribute = height, duration = 300, motion = easeBoth ],
+
+    header: View [ width = { parent.width }, height = 25,
+        onClick() { classroot.parent.select(classroot) },
+
+        bg: Image [ source = "resources/tab.png", width = { parent.width },
+            height = 25, stretches = width ],
+        icon: Image [ source = "resources/slider_icon2.png", x = 2, y = 3 ],
+        caption: Text [ text = { classroot.label }, x = 15, y = 4, textColor = #CAD0EC,
+            textShadow = shadow(1, 1, 0, #3B4057) ],
+        ],
+
+    // The selected look — a reversible state: the header tints, the caption
+    // brightens. Adding MOTION to this arrival is the parked animated-states
+    // form; the height slide above is the v1 imperative Animator that moves.
+
+    state selected when { sel } [
+        header.bg.opacity = 0.33,
+        header.caption.textColor = #FFFFFF,
+        ],
+    ]
+
+
+// ── TabSlider — the container (the original's basetabslider): a vertical
+// stack of tabs, exactly one open at a time. Selection lives here; each tab
+// owns its own slide. Naming it — rather than a bare `View` — makes the tab
+// set a real, reusable component, as it was in the original.
+
+class TabSlider extends View [ width = 100%,
+    layout: SimpleLayout [ axis = y ],
+
+    // Open `tab`, collapse the rest — each tab animates its own height from
+    // wherever it is now to its new rest value.
+
+    select(tab: WeatherTab) {
+        for (const t of children) {
+            t.sel = (t == tab)
+            t.slide.to = t.sel ? t.openHeight : 25
+            t.slide.start()
+            }
+        },
+    ]
+
+
+// ── StatRow — one label/value row of the current-conditions detail block.
+// Fonts arrive prevailing through the App root; only the value's normal weight
+// is a local difference.
+
+class StatRow extends View [
+    label: string = "",
+    value: string = "",
+
+    layout: SimpleLayout [ axis = x, spacing = -10 ],
+
+    Text [ width = 90, text = { classroot.label } ],
+    Text [ width = 160, fontWeight = normal, text = { classroot.value } ],
+    ]
+
+
+// ── WeatherSummary — one forecast row, replicated over :item.forecast[]. The
+// class provides Helvetica/12 once; the leaves follow (desc keeps 11px).
+
+class WeatherSummary extends View [ width = 34, height = 34, x = 10, fill = #000000,
+    fontFamily = "Helvetica", fontSize = 12,
+
+    icon: Image [ x = 1, y = 1, width = 32, height = 32, stretches = both,
+        source = { iconUrl(:code) } ],
+
+    day: Text [ x = 42, width = 140, text = :day ],
+    desc: Text [ x = 42, y = 14, width = 120, fontSize = 11, fontWeight = normal, text = :text ],
+    hi: Text [ x = 165, text = { "Hi: " + :high } ],
+    lo: Text [ x = 165, y = 14, text = { "Lo: " + :low } ],
+    ]
+
+
+// ── Screen — a full-bleed layer whose presence DERIVES from `shown` (the two
+// screens don't toggle each other; each reads the resource). The cross-FADE
+// the original did here is an animated-states concern (parked); the v1 form is
+// the instant end-state below.
+
+class Screen extends View [ width = 100%, height = 100%,
+    shown: boolean = false,
+    opacity = { shown ? 1 : 0 },
+    visible = { opacity > 0 },
+    ]
+
+
+App [ width = 240, height = 320, fill = #EAEAEA,
+
+    // PREVAILING typography — set once, followed everywhere below.
+
+    fontFamily = "Tahoma,Geneva,sans-serif", fontSize = 9, fontWeight = bold,
+    textColor = #FFFFFF,
+
+    zip: string = "94403",
+
+    // The single source of truth — .idle/.loading/.loaded/.failed/.value/.error.
+    // The URL reads `zip`, so the request is genuinely per-zip (the mock
+    // endpoint returns the same San Francisco payload for now). `schema` is the
+    // response's shape — a Schema value the compiler reads to type every :path
+    // and validate the payload on arrival (the typed-data goal): `[ ]` is
+    // structural, and `forecast[]:` marks the array the `:item.forecast[]` walk reads.
+
+    weatherData: DataSource [ url = { `/api/weather?zip=${zip}` },
+        schema = [
+            rss: [ channel: [
+                location: [ city: string, region: string ],
+                atmosphere: [ humidity: number, pressure: number ],
+                wind: [ speed: number, chill: number ],
+                astronomy: [ sunrise: string, sunset: string ],
+                item: [
+                    condition: [ code: number, temp: number, text: string ],
+                    forecast[]: [ day: string, code: number, text: string, high: number, low: number ],
+                    ],
+                ] ],
+            ],
+        ],
+
+    bg: Image [ source = "resources/weather_bg.jpg" ],
+
+    // ── entry screen — shown until data loads; loading + error inline ──
+
+    splash: Screen [ shown = { !weatherData.loaded },
+
+        art: Image [ source = "resources/weather_splash2.jpg" ],
+
+        status: Text [ x = 15, y = 230, width = 240, textColor = #000099,
+            text = { weatherData.failed ? "Server error: " + weatherData.error
+                   : weatherData.loading ? "Loading weather data…" : "" } ],
+
+        zipBtn: View [ x = 0, y = 245,
+
+            bkgnd: Image [ source = "resources/zipbutton0001.png", opacity = 0.7,
+                onClick() { weatherData.fetch() } ],
+
+            caption: Text [ text = "Enter Zip Code:", x = 15, y = 7,
+                textShadow = shadow(1, 0, 0, #222222) ],
+
+            // A real text field, two-way-bound to `zip` — edits flow straight
+            // into the attribute the request reads (§9). Enter or OK commits.
+
+            field: EditText [ x = 120, y = 5, width = 80, height = 20, value <-> zip,
+                fill = #FFFFFF, stroke = stroke(2, #1A1A1A), textColor = #000000,
+                onEnter() { weatherData.fetch() } ],
+
+            ok: Text [ text = "OK", x = 205, y = 7, textShadow = shadow(1, 0, 0, #222222),
+                onClick() { weatherData.fetch() } ],
+
+            // Off-screen while the request is in flight — a plain state (the
+            // slide-away motion is the parked animated-states form).
+
+            state busy when { weatherData.loading } [ x = -2000 ],
+            ],
+        ],
+
+    // ── report screen — its datapath roots every :path below into the response ──
+
+    report: Screen [ shown = { weatherData.loaded },
+        datapath = { weatherData.value?.rss?.channel },
+
+        topBar: Image [ source = "resources/weather_topbar2.gif",
+            onMouseUp() { weatherData.clear() },   // back to the entry screen, declaratively
+            zip: Text [ x = 194, width = 100, text = { App.zip }, textColor = #CAD0EC ],
+            ],
+
+        // The three tabs live in a TabSlider (the original's basetabslider),
+        // which owns selection; each WeatherTab clips and slides its own
+        // content open.
+
+        slider: TabSlider [ y = 15, width = 100%, height = 305,
+
+            current: WeatherTab [ label = "Current Conditions", sel = true,
+
+                body: View [ y = 35, width = 240,
+                    layout: SimpleLayout [ axis = y, spacing = 10 ],
+
+                    form: View [ width = 240, fontFamily = "Helvetica", fontSize = 14,
+
+                        where: Text [ x = 15, width = 240,
+                            text = { :location.city + ", " + :location.region } ],
+
+                        // The white box is the essential backdrop for the
+                        // mostly-transparent condition icon.
+
+                        iconBox: View [ x = 26, y = 28, width = 52, height = 52, fill = #FFFFFF ],
+                        icon: Image [ x = 26, y = 28, width = 64, height = 64,
+                            source = { iconUrl(:item.condition.code) } ],
+
+                        temp: Text [ x = 95, y = 20, width = 240, fontSize = 60,
+                            text = :item.condition.temp ],
+                        desc: Text [ x = 15, y = 90, width = 240, text = :item.condition.text ],
+                        ],
+
+                    detail: View [ x = 15,
+                        layout: SimpleLayout [ axis = y, spacing = 1 ],
+                        StatRow [ label = "Humidity:", value = :atmosphere.humidity ],
+                        StatRow [ label = "Barometer:", value = :atmosphere.pressure ],
+                        StatRow [ label = "Windspeed:", value = :wind.speed ],
+                        StatRow [ label = "Sunrise:", value = :astronomy.sunrise ],
+                        StatRow [ label = "Sunset:", value = :astronomy.sunset ],
+                        StatRow [ label = "Wind Chill:", value = :wind.chill ],
+                        ],
+                    ],
+                ],
+
+            radar: WeatherTab [ label = "Radar Maps",
+
+                body: View [ y = 35, width = 240, height = 162,
+
+                    // The radar art is ~98% transparent map lines; the `fill` is
+                    // the backdrop it composites over and the `shadow` is the 3px
+                    // drop strip — both said directly on the image.
+
+                    scan: Image [ x = 20, y = 20, width = 200, height = 135, stretches = both,
+                        source = "resources/radar_us.png",
+                        fill = #00000054, shadow = shadow(3, 3, 0, #00000054) ],
+                    ],
+                ],
+
+            forecast: WeatherTab [ label = "Forecast",
+
+                body: View [ y = 35,
+                    layout: SimpleLayout [ axis = y, spacing = 10 ],
+                    WeatherSummary [ datapath = :item.forecast[] ],   // one row per record
+                    ],
+                ],
+            ],
+        ],
+
+    // Up/down arrows walk the tab selection — a lifetime-managed subscription
+    // to the global key source (§8), the neo replacement for a focus manager.
+
+    keyup(k: number) <- Keys {
+        const tabs = report.slider.children
+        for (let i = 0; i < tabs.length; i++) {
+            if (tabs[i].sel) {
+                const step = k == 40 ? 1 : k == 38 ? -1 : 0
+                if (step != 0) report.slider.select(tabs[(i + step + tabs.length) % tabs.length])
+                return
+                }
+            }
+        },
+    ]

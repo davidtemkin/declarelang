@@ -1,0 +1,83 @@
+/** Is a computation currently recording reads? Callers (attributes.ts) check
+ *  this before materializing a Cell, so unobserved slots never allocate one. */
+export declare function isTracking(): boolean;
+/** One observable slot's dependency node: just its subscribers. The value
+ *  itself lives wherever it lives (a view field); a Cell exists only once
+ *  something tracked a read of the slot — pay-per-use by construction. */
+export declare class Cell {
+    private readonly subs;
+    /** Record that the running computation read this slot (no-op untracked). */
+    track(): void;
+    /** The write half: invalidate every subscriber. Subscribers only get
+     *  queued here — re-evaluation is the scheduler's, in batch. */
+    changed(): void;
+    /** @internal Constraint.run re-tracks from scratch each run. */
+    unlink(c: Constraint): void;
+}
+/** Which flush pass a constraint runs in: values first, then draw
+ *  re-records — so a draw body always records against settled attributes. */
+export type Phase = 0 | 1;
+/** A standing computation: `compute` runs with read-tracking on, `apply`
+ *  lands the result with tracking off (its writes *invalidate* dependents;
+ *  they must never register as dependencies). Dependencies are rebuilt from
+ *  scratch every run, so they are precise even under conditional reads —
+ *  a branch not taken this run is not a dependency this run. */
+export declare class Constraint {
+    /** For error messages: "View.width", "Text.draw", … */
+    readonly label: string;
+    private readonly compute;
+    private readonly apply;
+    readonly phase: Phase;
+    /** A yielding constraint is runtime-supplied (auto-size): a direct write
+     *  to its slot quietly replaces it. A non-yielding one is author-declared
+     *  (`{ }`, a percent): a direct write is an error (see attributes.ts). */
+    readonly yielding: boolean;
+    private deps;
+    private queued;
+    private dead;
+    /** Suspended: inert but alive — dependency edges dropped and waking
+     *  refused, so an animator can drive this constraint's slot without it
+     *  fighting back, then resume() re-runs it against current state
+     *  (animation.md §2 rules 2–4, the supersede/restore kernel service). */
+    private suspended;
+    private stamp;
+    private runs;
+    constructor(
+    /** For error messages: "View.width", "Text.draw", … */
+    label: string, compute: () => unknown, apply: (value: unknown) => void, phase?: Phase, 
+    /** A yielding constraint is runtime-supplied (auto-size): a direct write
+     *  to its slot quietly replaces it. A non-yielding one is author-declared
+     *  (`{ }`, a percent): a direct write is an error (see attributes.ts). */
+    yielding?: boolean);
+    /** Evaluate now: drop last run's edges, compute under tracking, apply. */
+    run(): void;
+    /** @internal Called by Cell.track for the active computation. */
+    reads(cell: Cell): void;
+    /** Queue for the next settle. Coalesces: already-queued, disposed, or
+     *  suspended constraints are a no-op, so N invalidations cost one run. */
+    invalidate(): void;
+    /** Permanently retire (a yielding owner displaced by a direct write). */
+    dispose(): void;
+    /** Displace this constraint without killing it: drop its dependency edges
+     *  and refuse to wake, so an animator may drive its slot every tick while
+     *  the constraint sits inert (animation.md §2 rule 2). It keeps owning the
+     *  slot (the ownership diagnostic still protects it from author writes) but
+     *  writes nothing until resumed. Idempotent. */
+    suspend(): void;
+    /** Resume from suspension and re-evaluate against current state now — the
+     *  displaced driver taking its slot back on the animator's completion
+     *  (animation.md §2 rule 4: resumed, not reinstated with a stale output). */
+    resume(): void;
+    /** @internal The scheduler's entry: un-queue, count against the cycle
+     *  guard, re-run. Clearing `queued` *before* running is what lets a run
+     *  that dirties itself (via another constraint) re-enter the queue. */
+    runQueued(settleStamp: number): void;
+    /** @internal An aborted settle clears flags so later writes can requeue. */
+    abandon(): void;
+}
+/** Re-evaluate everything invalidated, to quiescence: all value constraints
+ *  (phase 0), then draw re-records (phase 1) — looping back if a draw body
+ *  wrote reactive state. Runs automatically as a microtask after any write;
+ *  exported so tests (and later, tooling) can force a deterministic settle.
+ *  Throws NeoError on a constraint cycle. */
+export declare function settle(): void;

@@ -1,0 +1,18 @@
+{
+  "name": "neolzx",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "neo-LZX — a clean-slate successor to OpenLaszlo. A single self-contained distro: the compiler (.neolzx → JS), the browser runtime, a component library, examples, and docs. Runs a dev server with dynamic compilation, or host the whole tree statically for in-browser compilation.",
+  "scripts": {
+    "build": "tsc -b",
+    "start": "node server/index.mjs",
+    "test": "npm run build && node test/unit.test.mjs && node test/perceptual.test.mjs && node test/scaffold.test.mjs"
+  },
+  "dependencies": {
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^23.11.1"
+  }
+}

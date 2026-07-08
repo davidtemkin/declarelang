@@ -1,0 +1,8 @@
+{
+  "//": "solution file — `tsc -b` builds runtime, then compiler (which references it)",
+  "files": [],
+  "references": [
+    { "path": "./runtime" },
+    { "path": "./compiler" }
+  ]
+}

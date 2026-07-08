@@ -1,0 +1,15 @@
+# dependencies
+node_modules/
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# porting scratch area (OL5 references + comparison goldens): local-only, deletable
+workshop/
+
+# misc
+*.log
+.DS_Store
+
+# NOTE: dist/ is intentionally committed (per-area compiler/dist, runtime/dist) so the
+# whole tree hosts and runs as-is, no build step — the OpenLaszlo distribution model.

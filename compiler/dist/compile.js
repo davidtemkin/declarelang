@@ -1,0 +1,362 @@
+// compile — the source-level front-end: parse + check + compile-time scope
+// resolution, producing a *resolved* program source whose `{ }` bodies read
+// enclosing-scope members through explicit paths. This is where bare names
+// (language §11) become meaning:
+//
+//   Bare names resolve up the BRACKET NESTING, innermost first — the brackets
+//   are the scope exactly as they are the tree. Each enclosing element is a
+//   level whose surface is its full member set (its class chain's attributes,
+//   methods, and named children, plus anything declared inline); the nearest
+//   level owning the name wins, and the rewrite is the explicit read the R4
+//   ruling demands (compile-time resolution, never runtime `with`/Proxy
+//   scoping): `this.x` at the code's own node, `parent.…x` at an intermediate
+//   ancestor, `classroot.x` at the enclosing body root (a class root, or the
+//   App root — the whole main tree is the anonymous App class of §5). Writes
+//   rewrite identically, so `count = count + 1` in a class handler mutates
+//   classroot state through the reactive setter.
+//
+//   Because every View level carries the built-in attributes, a bare `width`
+//   always means `this.width` — outer built-ins are unreachable by shadowing,
+//   which makes the doc's `opacity = { shown ? 1 : 0 }` (Screen, Appendix A)
+//   work while keeping bare geometry predictable. A *user-declared* outer
+//   member shadowed by a nearer resolution is the confusable case, and warns,
+//   naming the qualified spelling. A name no level, parameter, or global
+//   answers is a positioned error — the typo'd `lable` dies at compile time.
+//
+//   `App.zip` (§11's qualified form) resolves lexically: `App` names the root
+//   level wherever the main tree encloses the code. Inside a named class's
+//   body the App is NOT in scope — classes are lexically top-level (the
+//   App-as-global question is recorded in HANDOFF §R6).
+//
+// Identifier classification rides the TypeScript parser (free-idents.ts —
+// sanctioned reuse; see that file's header), which is exactly why this module
+// is NOT part of the runtime graph: dist/index.js stays zero-dependency and
+// browser-loadable, and the browser path consumes this module's *output* (a
+// resolved source), compiling on the Node side of the pipeline — the same
+// place the APPROACH §5 tsc front-end will live. Import it as
+// `neolang/dist/compile.js`.
+//
+// The output is source-to-source: the input with each bare occurrence spliced
+// to its explicit path (object-literal shorthand `{ count }` becomes
+// `count: classroot.count`). Diagnostics always carry ORIGINAL positions —
+// resolution runs on the un-rewritten tree. Resolution runs only once check()
+// is clean: under an unknown tag or member the scope surfaces would be
+// guesses, and phased diagnostics (syntax → types → resolution) beat noisy
+// ones.
+import { parseProgram } from "../../runtime/dist/parser.js";
+import { NeoError } from "../../runtime/dist/errors.js";
+import { check, programSchemas } from "../../runtime/dist/check.js";
+import { freeIdentifiers } from "./free-idents.js";
+import { fillDatapaths } from "../../runtime/dist/datapath.js";
+import { CONSTRUCTOR_NAMES } from "../../runtime/dist/expr.js";
+import { resolveIncludes, exciseSpans } from "../../runtime/dist/include.js";
+import { nodeIncludeHost } from "./include-node.js";
+import { Diag, toDiagnostic } from "../../runtime/dist/diagnostics.js";
+import { typecheckBodies } from "./typecheck.js";
+/** The value-constructor names (styling rung): in CALLEE position they are
+ *  the constructors expr.ts scopes into every body — `stroke(…)` builds a
+ *  Stroke while bare `stroke` is still the slot — so resolution leaves them
+ *  alone there. */
+const CONSTRUCTORS = new Set(CONSTRUCTOR_NAMES);
+/** Assemble the unified diagnostic list: each error/warning becomes a coded
+ *  Diagnostic (its own catalog code if a factory set one, else the phase
+ *  fallback). Errors precede warnings; a caller wanting source order can sort
+ *  on `pos`. */
+function diagnosticsFrom(errors, warnings, errPhase, warnPhase = "name") {
+    return [
+        ...errors.map((e) => toDiagnostic(e, "error", errPhase)),
+        ...warnings.map((w) => toDiagnostic(w, "warning", warnPhase)),
+    ];
+}
+/** Names bound in every body without being members: the pronoun arguments of
+ *  the compiled Function (expr.ts) and its own `arguments`. `this` is not an
+ *  identifier and needs no entry. */
+const BOUND = ["parent", "classroot", "arguments"];
+// Browser globals a body may reasonably touch that a Node-side compile does
+// not have in ITS globalThis. A curated list, not magic: the tsc compiler
+// path replaces this whole global story with lib.dom types.
+const BROWSER_GLOBALS = new Set([
+    "window", "document", "navigator", "location", "history", "screen",
+    "devicePixelRatio", "innerWidth", "innerHeight", "requestAnimationFrame",
+    "cancelAnimationFrame", "getComputedStyle", "matchMedia", "localStorage",
+    "sessionStorage", "alert", "confirm", "prompt",
+]);
+const isKnownGlobal = (name) => name in globalThis || BROWSER_GLOBALS.has(name);
+/** Compile a neo-LZX source: full diagnostics (include resolve + check + scope
+ *  resolution), and a SELF-CONTAINED resolved source the zero-dependency
+ *  runtime consumes with NO include host. Included libraries are spliced in
+ *  (each with its own `include` directives excised, dependency-first so a base
+ *  is declared above its subclass) ahead of the main file (its directives
+ *  excised too), producing ONE merged source: parse → check → scope-resolve →
+ *  emit all run over its identical offsets, so the output contains every
+ *  included class/stylesheet/style, carries no `include` directive, and has
+ *  every body — the main file's AND the included files' — bare-name-resolved.
+ *
+ *  Diagnostics trade-off (composition.md §1): the file-named collision /
+ *  missing-file / stray-root reports come from the include walk (before the
+ *  merge). Everything after — check and scope-resolution — runs on the merged
+ *  source, so a type error inside an INCLUDED file is positioned within the
+ *  merged text, not its own file. This is the v1 reading §1 already defers
+ *  (multi-file `Pos`); it keeps the emit path drift-free — one source feeds
+ *  check, the Resolver, and the output, so their offsets cannot disagree. */
+export function compile(source, opts = {}) {
+    let main;
+    try {
+        main = parseProgram(source);
+    }
+    catch (e) {
+        if (e instanceof NeoError)
+            return { source: null, errors: [e], warnings: [], diagnostics: diagnosticsFrom([e], [], "syntax") };
+        throw e;
+    }
+    const resolved = resolveIncludes(main, opts.host ?? nodeIncludeHost(), opts.originDir ?? "");
+    if (resolved.errors.length > 0) {
+        return { source: null, errors: resolved.errors, warnings: [], diagnostics: diagnosticsFrom(resolved.errors, [], "module") };
+    }
+    // The one self-contained source: every included library (dependency-first,
+    // its own directives cut) then the main file (its directives cut). With no
+    // includes this is `source` unchanged, so single-file offsets are identical.
+    const mainSource = exciseSpans(source, main.includeSpans);
+    const merged = resolved.sources.length > 0
+        ? resolved.sources.join("\n") + "\n" + mainSource
+        : mainSource;
+    // Re-parse the merged source so every later phase indexes into ONE text.
+    // (Each piece parsed cleanly on its own as a library / program, and a run of
+    // top-level declarations followed by the main root is itself a valid program.)
+    let program;
+    try {
+        program = parseProgram(merged);
+    }
+    catch (e) {
+        if (e instanceof NeoError)
+            return { source: null, errors: [e], warnings: [], diagnostics: diagnosticsFrom([e], [], "syntax") };
+        throw e;
+    }
+    const errors = check(program);
+    if (errors.length > 0)
+        return { source: null, errors, warnings: [], diagnostics: diagnosticsFrom(errors, [], "structure") };
+    // Resolve EVERY body — the main tree's and every included class/stylesheet/
+    // style's — so no unresolved bare name reaches the self-contained output.
+    const r = new Resolver(merged, program);
+    for (const cls of program.classes)
+        r.resolveElement(cls.body, [], null);
+    for (const s of program.stylesheets)
+        r.resolveStylesheet(s.body);
+    for (const s of program.styles)
+        r.resolveBundle(s.body);
+    r.resolveElement(program.root, [], program.root);
+    const byPos = (a, b) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0);
+    r.errors.sort(byPos);
+    r.warnings.sort(byPos);
+    if (r.errors.length > 0) {
+        return { source: null, errors: r.errors, warnings: r.warnings, diagnostics: diagnosticsFrom(r.errors, r.warnings, "name") };
+    }
+    // Splice highest-offset first so earlier offsets stay valid. Identifier
+    // spans never overlap, so order within a body is immaterial beyond that.
+    r.edits.sort((a, b) => b.start - a.start);
+    let out = merged;
+    for (const e of r.edits)
+        out = out.slice(0, e.start) + e.text + out.slice(e.end);
+    // Final phase (opt-in): tsc over the resolved `{ }` bodies. A type error
+    // blocks emission like any other, mapped to its `.neolzx` line (NEO6001).
+    if (opts.typecheck) {
+        const typeErrors = typecheckBodies(out, program);
+        if (typeErrors.length > 0) {
+            return { source: null, errors: typeErrors, warnings: r.warnings, diagnostics: diagnosticsFrom(typeErrors, r.warnings, "typecheck") };
+        }
+    }
+    return { source: out, errors: [], warnings: r.warnings, diagnostics: diagnosticsFrom([], r.warnings, "name") };
+}
+class Resolver {
+    errors = [];
+    warnings = [];
+    edits = [];
+    schemas;
+    /** Per-class inherited method/named-child members (attributes already ride
+     *  the schema chain) and the user-declared name set, both accumulated
+     *  through user bases — bases precede subclasses, so one pass suffices. */
+    classExtras = new Map();
+    surfaces = new Map();
+    lineStarts = [0];
+    constructor(source, program) {
+        this.schemas = programSchemas(program.classes).schemas; // check-clean: no errors
+        for (let i = 0; i < source.length; i++) {
+            if (source[i] === "\n")
+                this.lineStarts.push(i + 1);
+        }
+        for (const cls of program.classes) {
+            const base = this.classExtras.get(cls.base);
+            const members = new Set(base?.members);
+            const declared = new Set(base?.declared);
+            for (const d of cls.body.decls)
+                declared.add(d.name);
+            for (const m of cls.body.methods) {
+                members.add(m.name);
+                declared.add(m.name);
+            }
+            for (const c of cls.body.children) {
+                if (c.name !== null) {
+                    members.add(c.name);
+                    declared.add(c.name);
+                }
+            }
+            this.classExtras.set(cls.name, { members, declared });
+        }
+    }
+    /** Walk one body root (a class body, or the main tree — `mainRoot` set
+     *  there enables the lexical `App` self-name). `ancestors` is innermost
+     *  first and ends at the body root. */
+    resolveElement(el, ancestors, mainRoot) {
+        const levels = [el, ...ancestors];
+        for (const a of el.attrs) {
+            if (a.value.kind === "code")
+                this.resolveBody(a.value.src, a.value.pos, true, [], levels, mainRoot);
+        }
+        // A declaration default that is a binding (the styling rung's ruled R6
+        // unlock — `labelColor: Color = { theme.buttonText }`) resolves at the
+        // same levels an attribute body here does: the runtime evaluates it with
+        // `this` = the instance (attributes.ts evalDefault), so `theme` means
+        // `this.theme` exactly as it would in a set.
+        for (const d of el.decls) {
+            if (d.def?.kind === "code")
+                this.resolveBody(d.def.src, d.def.pos, true, [], levels, mainRoot);
+        }
+        for (const m of el.methods)
+            this.resolveBody(m.body, m.bodyPos, false, m.params, levels, mainRoot);
+        for (const child of el.children)
+            this.resolveElement(child, levels, mainRoot);
+    }
+    /** A stylesheet body (styling rung): each class-keyed entry's `{ }` fields
+     *  resolve at ONE level — the keyed class itself (the applier evaluates a
+     *  field with `this` = the styled view, the ruled bundle rule), so `theme`
+     *  becomes `this.theme` and resolves through that view's prevailing chain.
+     *  The theme record is literal-only (checked) — nothing to resolve. */
+    resolveStylesheet(body) {
+        for (const child of body.children) {
+            if (child.entry !== true)
+                continue;
+            for (const a of child.attrs) {
+                if (a.value.kind === "code")
+                    this.resolveBody(a.value.src, a.value.pos, true, [], [child], null);
+            }
+        }
+    }
+    /** A style bundle's `{ }` fields apply to arbitrary views, so bare names
+     *  resolve against the one surface every application is guaranteed to have
+     *  — View's (`theme`, the decoration slots, the prevailing quartet all
+     *  rewrite to `this.…`); a class-specific member must be written
+     *  `this.member` (the conservative reading — recorded in HANDOFF). */
+    resolveBundle(body) {
+        for (const a of body.attrs) {
+            if (a.value.kind === "code")
+                this.resolveBody(a.value.src, a.value.pos, true, [], [VIEW_LEVEL], null);
+        }
+    }
+    resolveBody(src, brace, expression, params, levels, mainRoot) {
+        const bodyStart = brace.offset + 1; // the body begins just after `{`
+        // Datapath islands (R8) are not TypeScript: neutralize each with a
+        // same-length, identifier-free filler so the TS parse sees valid source
+        // and every offset stays true. The islands themselves pass through to
+        // the output untouched — `:path` is language surface; the runtime
+        // rewrites it (expr.ts), keeping resolve-twice a fixpoint.
+        const idents = freeIdentifiers(fillDatapaths(src), { expression, bound: [...BOUND, ...params] });
+        if (idents === null)
+            return; // TS could not parse what new Function did — leave the body alone
+        for (const id of idents) {
+            if (id.callee && CONSTRUCTORS.has(id.name))
+                continue; // a value constructor, not a member
+            const pos = this.posAt(bodyStart + id.start);
+            let k = levels.findIndex((lv) => this.surfaceOf(lv).all.has(id.name));
+            let selfName = false;
+            if (k === -1 && mainRoot !== null && id.name === "App") {
+                k = levels.length - 1; // the root level itself — `App.zip` reads the anonymous App class
+                selfName = true;
+            }
+            if (k === -1) {
+                if (!isKnownGlobal(id.name)) {
+                    this.errors.push(Diag.unresolved(id.name, levels.map(describe).join(" → "), pos));
+                }
+                continue;
+            }
+            const path = this.pathTo(k, levels.length);
+            const expr = selfName ? path : `${path}.${id.name}`;
+            this.edits.push({
+                start: bodyStart + id.start,
+                end: bodyStart + id.end,
+                text: id.shorthand ? `${id.name}: ${expr}` : expr,
+            });
+            for (let j = k + 1; j < levels.length; j++) {
+                if (this.surfaceOf(levels[j]).declared.has(id.name)) {
+                    const outer = `${this.pathTo(j, levels.length)}.${id.name}`;
+                    this.warnings.push(Diag.shadowing(`bare '${id.name}' means ${describe(levels[k])}'s here, shadowing ${describe(levels[j])}'s '${id.name}' — write ${outer} to reach the outer one`, pos));
+                    break;
+                }
+            }
+        }
+    }
+    /** The explicit path to level `k` of `count` levels: the node itself, a
+     *  parent chain, or the body-root pronoun (depth-independent, and the
+     *  doc's own idiom for reaching the class instance). */
+    pathTo(k, count) {
+        if (k === 0)
+            return "this";
+        if (k === count - 1)
+            return "classroot";
+        return Array(k).fill("parent").join(".");
+    }
+    /** A level's member surface (cached per element — a class body's elements
+     *  are consulted once per body they appear over). */
+    surfaceOf(el) {
+        let s = this.surfaces.get(el);
+        if (s !== undefined)
+            return s;
+        const all = new Set();
+        // The tag's schema chain: built-in attributes and every class-declared
+        // attribute, user chains included (check-clean ⇒ the tag is known).
+        for (let sc = this.schemas[el.tag]; sc !== null; sc = sc.base) {
+            for (const name of Object.keys(sc.attrs))
+                all.add(name);
+        }
+        const extras = this.classExtras.get(el.tag);
+        for (const name of extras?.members ?? [])
+            all.add(name);
+        const declared = new Set(extras?.declared);
+        for (const d of el.decls) {
+            all.add(d.name);
+            declared.add(d.name);
+        }
+        for (const m of el.methods) {
+            all.add(m.name);
+            declared.add(m.name);
+        }
+        for (const c of el.children) {
+            if (c.name !== null) {
+                all.add(c.name);
+                declared.add(c.name);
+            }
+        }
+        s = { all, declared };
+        this.surfaces.set(el, s);
+        return s;
+    }
+    posAt(offset) {
+        let lo = 0;
+        let hi = this.lineStarts.length - 1;
+        while (lo < hi) {
+            const mid = (lo + hi + 1) >> 1;
+            if (this.lineStarts[mid] <= offset)
+                lo = mid;
+            else
+                hi = mid - 1;
+        }
+        return { line: lo + 1, col: offset - this.lineStarts[lo] + 1, offset };
+    }
+}
+const describe = (el) => (el.name !== null ? `${el.name}: ${el.tag}` : el.tag);
+/** The synthetic single level a bundle body resolves at (resolveBundle):
+ *  View's member surface, `this`-pathed. */
+const VIEW_LEVEL = {
+    tag: "View", name: null, attrs: [], decls: [], methods: [], children: [],
+    pos: { line: 0, col: 0, offset: 0 },
+};
+//# sourceMappingURL=compile.js.map
