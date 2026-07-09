@@ -158,7 +158,8 @@ export class View extends Node {
     }
     /** Install auto-extent derives for whichever never-set, unowned size slots
      *  qualify — only on views with View children (a childless view keeps its
-     *  zero-cost default; Dataset children are not geometry). */
+     *  zero-cost default; Dataset children are not geometry). Protected so the
+     *  stage (App) can retarget it from content to the viewport. */
     bindExtent() {
         if (!this.children.some((c) => c instanceof View))
             return;
@@ -185,6 +186,16 @@ export class View extends Node {
         }
         return max;
     }
+    /** The bounding-box extent of this view's visible children on each axis — the
+     *  same value auto-extent derives into an *unset* size slot (`extentOf`),
+     *  surfaced as read-only reactive attributes (schema.ts marks them readOnly,
+     *  so a set is a compile error) so a constraint can CLAMP a size:
+     *  `height = { Math.min(classroot.contentHeight, 480) }`. Reading either from
+     *  a size constraint is loop-free — `extentOf` excludes percent-bound children
+     *  on the derived axis, the same cycle guard auto-extent relies on. Always
+     *  live, and independent of this view's own width/height. */
+    get contentWidth() { return this.extentOf("width"); }
+    get contentHeight() { return this.extentOf("height"); }
     /** The default focus-traversal members of this view: its visible View
      *  children in source order (design-docs/input.md, Layer 2). The focus
      *  service descends into each; a view whose `tabOrder()` is not overridden
@@ -260,6 +271,8 @@ export class View extends Node {
         s.setVisible(this.visible);
         s.setOpacity(this.opacity);
         this.applyClip(this.clip);
+        if (this.scrolls)
+            s.setScroll(true, (y) => { this.scrollY = y; });
         const sink = this.inputSink();
         if (sink !== null)
             s.setInput(sink);
@@ -347,6 +360,11 @@ defineAttributes(View, {
     focusable: { def: false },
     focustrap: { def: false },
     clip: { def: null, push: (v, c) => v.applyClip(c) },
+    // Scroll container: enabling it wires the backend's native scroll and feeds
+    // the user's offset back into `scrollY` (a plain reactive write — no push, so
+    // it never echoes to the surface; reads drive fades/reveals).
+    scrolls: { def: false, push: (v, on) => v.surface?.setScroll(on, (y) => { v.scrollY = y; }) },
+    scrollY: { def: 0 },
     // The prevailing built-ins: model-side on View (no push — Text's style
     // derive is the consumer that crosses the seam). Defaults are the
     // browser-native text defaults Text carried through R3–R9.
@@ -412,5 +430,54 @@ export function fireEvent(view, event, arg) {
  *  (OpenLaszlo's `<canvas>`). R0 treats it as the root View; its stage-level
  *  behavior and singleton identity grow in later rungs. */
 export class App extends View {
+    /** The stage's auto-extent is the VIEWPORT, not its content: an unset width/
+     *  height follows stageWidth/stageHeight (reactive on resize), so the root app
+     *  fills its host with no declaration — the near-universal case. An explicit
+     *  `width = …` still wins (isSet skips the derive), and there is no children
+     *  guard: the stage fills its host even while empty. Reuses the same reactive
+     *  derive the content path uses, so a resize repaints like any dependency. */
+    bindExtent() {
+        let derives = EXTENT.get(this);
+        for (const size of ["width", "height"]) {
+            if (isSet(this, size) || ownerOf(this, size) !== null)
+                continue;
+            if (derives === undefined)
+                EXTENT.set(this, (derives = {}));
+            derives[size] = bindDerived(this, size, () => (size === "width" ? this.stageWidth : this.stageHeight));
+        }
+    }
 }
+defineAttributes(App, {
+    stageWidth: { def: 0 },
+    stageHeight: { def: 0 },
+    scrollY: { def: 0 },
+    pointerX: { def: 0 },
+    pointerY: { def: 0 },
+    hovering: { def: false },
+    pointerOverText: { def: false },
+    pageWeight: { def: 0 },
+    sourceLines: { def: 0 },
+    editing: { def: false },
+    editSource: { def: "" },
+    demoSources: { def: {} },
+    liveCard: { def: "" },
+    liveSource: { def: "" },
+});
+/** HTML — a foreign-content island (design: the `HTML [ … ]` view). A leaf View
+ *  whose box neo lays out and constrains normally, but whose interior is
+ *  host-managed DOM: the `slot` key is reflected onto the element (DOM backend)
+ *  so the host can mount an iframe / textarea / any element into the neo-sized
+ *  box — its width/height follow this view's constraints with no coordinate
+ *  sync. (Canvas backend realizes the same island as a positioned DOM overlay
+ *  — setEmbed is a no-op there for now.) */
+export class Html extends View {
+    flush(s) {
+        super.flush(s);
+        if (this.slot !== "")
+            s.setEmbed(this.slot);
+    }
+}
+defineAttributes(Html, {
+    slot: { def: "", push: (v, id) => v.surface?.setEmbed(id) },
+});
 //# sourceMappingURL=view.js.map

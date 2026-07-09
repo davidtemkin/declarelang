@@ -26,7 +26,7 @@ function measurer() {
 /** A style as a canvas font string — the one font encoding the measurer and
  *  both backends share, so they cannot disagree about which font they mean. */
 export function fontString(style) {
-    return `${cssWeight(style.fontWeight)} ${style.fontSize}px ${style.fontFamily}`;
+    return `${style.italic ? "italic " : ""}${cssWeight(style.fontWeight)} ${style.fontSize}px ${style.fontFamily}`;
 }
 /** The advance width of `text` in `font`, in px (fractional), including
  *  `letterSpacing` tracking (canvas-native; the shared measurer is reset). */
@@ -48,5 +48,35 @@ export function fontMetrics(font) {
     m.font = font;
     const t = m.measureText("");
     return { ascent: t.fontBoundingBoxAscent, descent: t.fontBoundingBoxDescent };
+}
+/** `text` broken into the lines it wraps to within `width` px in `font` —
+ *  greedy soft-break at spaces, hard-break at "\n", via the shared measurer.
+ *  The DOM backend wraps natively; this is the shared breaker the Canvas
+ *  backend paints and the model measures its auto-extent height from. A word
+ *  longer than the box stays on its own line (no mid-word break), matching the
+ *  default `word-break: normal`. */
+export function wrapLines(text, font, width, letterSpacing = 0) {
+    if (width <= 0)
+        return text.split("\n");
+    const m = measurer();
+    m.font = font;
+    const ls = m;
+    ls.letterSpacing = `${letterSpacing}px`;
+    const out = [];
+    for (const seg of text.split("\n")) {
+        let cur = "";
+        for (const word of seg.split(" ")) {
+            const trial = cur === "" ? word : cur + " " + word;
+            if (cur !== "" && m.measureText(trial).width > width) {
+                out.push(cur);
+                cur = word;
+            }
+            else
+                cur = trial;
+        }
+        out.push(cur);
+    }
+    ls.letterSpacing = "0px"; // the measurer is shared — leave it neutral
+    return out.length === 0 ? [""] : out;
 }
 //# sourceMappingURL=measure.js.map

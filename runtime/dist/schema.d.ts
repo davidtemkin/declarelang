@@ -9,6 +9,11 @@ export interface ComponentSchema {
      *  its type (a subclass can neither redeclare nor change it). Absent =
      *  none of its own. */
     readonly prevailing?: readonly string[];
+    /** Which of this schema's OWN attrs are `readonly` — a computed/intrinsic
+     *  value a constraint may READ but nothing may set (checkAttr refuses an
+     *  assignment; the runtime accessor's setter throws). Like prevailing, it is
+     *  part of the slot's identity. Absent = none of its own. */
+    readonly readOnly?: readonly string[];
     /** Events this component itself fires — a handler member `on<Event>` must
      *  answer one (language §8: a class *declares* the events it fires, and
      *  the checker verifies against the declaration, so a typo'd handler is a
@@ -30,6 +35,10 @@ export declare function descendsFrom(schema: ComponentSchema, ancestor: string):
  *  null when no ancestor declares it. Own-key lookups, so an attribute named
  *  `toString` can't resolve through Object.prototype. */
 export declare function attrType(schema: ComponentSchema, name: string): AttrType | null;
+/** Is `name` a read-only attribute anywhere on this schema's base chain — a
+ *  computed/intrinsic slot a constraint may read but nothing may set? Walks the
+ *  chain exactly like attrType (a subclass inherits its base's read-only slots). */
+export declare function isReadOnly(schema: ComponentSchema, name: string): boolean;
 /** Is `name` a prevailing attribute on `schema` (or its chain)? Asked of the
  *  schema that DECLARES the name — being prevailing is part of the slot's
  *  identity, so the declaring schema's word is the whole answer. */

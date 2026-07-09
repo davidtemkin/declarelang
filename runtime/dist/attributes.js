@@ -70,6 +70,7 @@ export function defineAttributes(ctor, specs) {
         const follows = spec.prevailing === true;
         const defBinding = spec.defBinding;
         const defOuter = spec.defOuter === true;
+        const readOnly = spec.readOnly === true;
         Object.defineProperty(ctor.prototype, name, {
             get() {
                 const self = this;
@@ -97,6 +98,9 @@ export function defineAttributes(ctor, specs) {
                 return (self.$attrs ?? defaults)[name];
             },
             set(v) {
+                if (readOnly) {
+                    throw new NeoError(`${this.constructor.name}.${name} is read-only — it is computed from its declaration and cannot be assigned`);
+                }
                 const self = this;
                 // A first write to a prevailing slot changes what it MEANS (following
                 // → providing) even when the written value equals the stored default,

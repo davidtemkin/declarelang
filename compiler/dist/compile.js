@@ -49,10 +49,8 @@ import { check, programSchemas } from "../../runtime/dist/check.js";
 import { freeIdentifiers } from "./free-idents.js";
 import { fillDatapaths } from "../../runtime/dist/datapath.js";
 import { CONSTRUCTOR_NAMES } from "../../runtime/dist/expr.js";
-import { resolveIncludes, exciseSpans } from "../../runtime/dist/include.js";
-import { nodeIncludeHost } from "./include-node.js";
+import { resolveIncludes, resolveAutoIncludes, exciseSpans, NO_INCLUDES } from "../../runtime/dist/include.js";
 import { Diag, toDiagnostic } from "../../runtime/dist/diagnostics.js";
-import { typecheckBodies } from "./typecheck.js";
 /** The value-constructor names (styling rung): in CALLEE position they are
  *  the constructors expr.ts scopes into every body — `stroke(…)` builds a
  *  Stroke while bare `stroke` is still the slot — so resolution leaves them
@@ -109,16 +107,27 @@ export function compile(source, opts = {}) {
             return { source: null, errors: [e], warnings: [], diagnostics: diagnosticsFrom([e], [], "syntax") };
         throw e;
     }
-    const resolved = resolveIncludes(main, opts.host ?? nodeIncludeHost(), opts.originDir ?? "");
+    const host = opts.host ?? NO_INCLUDES;
+    const resolved = resolveIncludes(main, host, opts.originDir ?? "");
     if (resolved.errors.length > 0) {
         return { source: null, errors: resolved.errors, warnings: [], diagnostics: diagnosticsFrom(resolved.errors, [], "module") };
     }
-    // The one self-contained source: every included library (dependency-first,
-    // its own directives cut) then the main file (its directives cut). With no
-    // includes this is `source` unchanged, so single-file offsets are identical.
+    // Auto-include: pull the libraries that define the program's bare component
+    // tags (`Bar [ … ]` with no `include`, no inline class) — after explicit
+    // includes, sharing their visited set so the two dedup. A no-op on a host
+    // without the manifest (single-file compiles stay byte-identical).
+    const auto = resolveAutoIncludes(resolved.program, main.root, host, resolved.visited);
+    if (auto.errors.length > 0) {
+        return { source: null, errors: auto.errors, warnings: [], diagnostics: diagnosticsFrom(auto.errors, [], "module") };
+    }
+    // The one self-contained source: explicit-include libraries, then auto-
+    // included component libraries (both dependency-first, their own directives
+    // cut), then the main file (its directives cut). With no includes and no
+    // magic tags this is `source` unchanged, so single-file offsets are identical.
     const mainSource = exciseSpans(source, main.includeSpans);
-    const merged = resolved.sources.length > 0
-        ? resolved.sources.join("\n") + "\n" + mainSource
+    const libSources = [...resolved.sources, ...auto.sources];
+    const merged = libSources.length > 0
+        ? libSources.join("\n") + "\n" + mainSource
         : mainSource;
     // Re-parse the merged source so every later phase indexes into ONE text.
     // (Each piece parsed cleanly on its own as a library / program, and a run of
@@ -159,8 +168,8 @@ export function compile(source, opts = {}) {
         out = out.slice(0, e.start) + e.text + out.slice(e.end);
     // Final phase (opt-in): tsc over the resolved `{ }` bodies. A type error
     // blocks emission like any other, mapped to its `.neolzx` line (NEO6001).
-    if (opts.typecheck) {
-        const typeErrors = typecheckBodies(out, program);
+    if (opts.typecheckBodies) {
+        const typeErrors = opts.typecheckBodies(out, program);
         if (typeErrors.length > 0) {
             return { source: null, errors: typeErrors, warnings: r.warnings, diagnostics: diagnosticsFrom(typeErrors, r.warnings, "typecheck") };
         }

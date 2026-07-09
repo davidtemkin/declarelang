@@ -37,6 +37,8 @@ export declare class View extends Node {
     shadow: Shadow | null;
     visible: boolean;
     opacity: number;
+    scrolls: boolean;
+    scrollY: number;
     /** Keyboard focus (design-docs/input.md, Layer 2). `focusable` = a tab stop;
      *  `focustrap` = a self-contained focus group. Traversal order is the tree,
      *  overridable per view by defining a `tabOrder()` method. */
@@ -158,9 +160,20 @@ export declare class View extends Node {
     protected contentExtent(_size: "width" | "height"): number;
     /** Install auto-extent derives for whichever never-set, unowned size slots
      *  qualify — only on views with View children (a childless view keeps its
-     *  zero-cost default; Dataset children are not geometry). */
-    private bindExtent;
+     *  zero-cost default; Dataset children are not geometry). Protected so the
+     *  stage (App) can retarget it from content to the viewport. */
+    protected bindExtent(): void;
     private extentOf;
+    /** The bounding-box extent of this view's visible children on each axis — the
+     *  same value auto-extent derives into an *unset* size slot (`extentOf`),
+     *  surfaced as read-only reactive attributes (schema.ts marks them readOnly,
+     *  so a set is a compile error) so a constraint can CLAMP a size:
+     *  `height = { Math.min(classroot.contentHeight, 480) }`. Reading either from
+     *  a size constraint is loop-free — `extentOf` excludes percent-bound children
+     *  on the derived axis, the same cycle guard auto-extent relies on. Always
+     *  live, and independent of this view's own width/height. */
+    get contentWidth(): number;
+    get contentHeight(): number;
     /** The default focus-traversal members of this view: its visible View
      *  children in source order (design-docs/input.md, Layer 2). The focus
      *  service descends into each; a view whose `tabOrder()` is not overridden
@@ -229,4 +242,56 @@ export declare function fireEvent(view: View, event: string, arg?: unknown): voi
  *  (OpenLaszlo's `<canvas>`). R0 treats it as the root View; its stage-level
  *  behavior and singleton identity grow in later rungs. */
 export declare class App extends View {
+    /** The viewport size, page scroll, and free pointer — the reactive stage
+     *  environment, fed by the runtime at mount (index.ts wireStage). Read from
+     *  anywhere via `classroot`: `width = { classroot.stageWidth }`. */
+    stageWidth: number;
+    stageHeight: number;
+    scrollY: number;
+    pointerX: number;
+    pointerY: number;
+    hovering: boolean;
+    /** True while the free pointer is over a native text-editing surface (a text
+     *  input / textarea / contenteditable — e.g. an editable HTML island). A
+     *  custom app cursor reads it to YIELD to the I-beam over a text field:
+     *  `cursor: View [ visible = { !classroot.pointerOverText } ]`. */
+    pointerOverText: boolean;
+    /** The shipping page's over-the-wire size in KB (gzipped) and its neo-LZX
+     *  source line count — provided by the host/build (see wireStage note), 0
+     *  until set. Reactive reads: a stat bound to them settles when they land. */
+    pageWeight: number;
+    sourceLines: number;
+    /** Set true by the page (a "view source" affordance) to ask the host to open
+     *  its whole-page source editor — the one sanctioned app→host signal, kept a
+     *  plain reactive flag so bodies stay DOM-free. */
+    editing: boolean;
+    /** Names which source the host loads when `editing` opens: a demo key (a
+     *  card's "View & Edit Source" sets it) or "" for the whole page. Read by the
+     *  host, reset on close — same DOM-free app→host channel as `editing`. */
+    editSource: string;
+    /** Host↔app data channel for the live demo cards (bodies stay DOM-free):
+     *  `demoSources` = a name→source map the host seeds every editor from;
+     *  `liveSource`/`liveCard` = the text an edit publishes for the host to
+     *  recompile that card's preview. See design/language-learnings.md §11–12. */
+    demoSources: Record<string, unknown>;
+    liveCard: string;
+    liveSource: string;
+    /** The stage's auto-extent is the VIEWPORT, not its content: an unset width/
+     *  height follows stageWidth/stageHeight (reactive on resize), so the root app
+     *  fills its host with no declaration — the near-universal case. An explicit
+     *  `width = …` still wins (isSet skips the derive), and there is no children
+     *  guard: the stage fills its host even while empty. Reuses the same reactive
+     *  derive the content path uses, so a resize repaints like any dependency. */
+    protected bindExtent(): void;
+}
+/** HTML — a foreign-content island (design: the `HTML [ … ]` view). A leaf View
+ *  whose box neo lays out and constrains normally, but whose interior is
+ *  host-managed DOM: the `slot` key is reflected onto the element (DOM backend)
+ *  so the host can mount an iframe / textarea / any element into the neo-sized
+ *  box — its width/height follow this view's constraints with no coordinate
+ *  sync. (Canvas backend realizes the same island as a positioned DOM overlay
+ *  — setEmbed is a no-op there for now.) */
+export declare class Html extends View {
+    slot: string;
+    protected flush(s: Surface): void;
 }

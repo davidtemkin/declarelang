@@ -51,10 +51,8 @@ import type { ComponentSchema } from "../../runtime/dist/schema.js";
 import { freeIdentifiers } from "./free-idents.js";
 import { fillDatapaths } from "../../runtime/dist/datapath.js";
 import { CONSTRUCTOR_NAMES } from "../../runtime/dist/expr.js";
-import { resolveIncludes, exciseSpans, type IncludeHost } from "../../runtime/dist/include.js";
-import { nodeIncludeHost } from "./include-node.js";
+import { resolveIncludes, resolveAutoIncludes, exciseSpans, NO_INCLUDES, type IncludeHost } from "../../runtime/dist/include.js";
 import { Diag, toDiagnostic, type Diagnostic, type DiagPhase } from "../../runtime/dist/diagnostics.js";
-import { typecheckBodies } from "./typecheck.js";
 
 /** The value-constructor names (styling rung): in CALLEE position they are
  *  the constructors expr.ts scopes into every body — `stroke(…)` builds a
@@ -134,6 +132,12 @@ export interface CompileOptions {
    *  disk (Node-only). A type error blocks emission like any other, reported
    *  as an NEO6001 diagnostic mapped to its `.neolzx` line. */
   typecheck?: boolean;
+  /** The typechecker, INJECTED — Node-only (it loads TypeScript + lib.d.ts),
+   *  so keeping it out of this module's imports is what makes `compile`
+   *  browser-loadable for in-browser compilation. The Node front-end
+   *  (compile-node.ts) wires the real `typecheckBodies` when `typecheck` is
+   *  set; the browser omits it. */
+  typecheckBodies?: (resolved: string, program: Program) => NeoError[];
 }
 
 /** Compile a neo-LZX source: full diagnostics (include resolve + check + scope
@@ -161,17 +165,29 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
     if (e instanceof NeoError) return { source: null, errors: [e], warnings: [], diagnostics: diagnosticsFrom([e], [], "syntax") };
     throw e;
   }
-  const resolved = resolveIncludes(main, opts.host ?? nodeIncludeHost(), opts.originDir ?? "");
+  const host = opts.host ?? NO_INCLUDES;
+  const resolved = resolveIncludes(main, host, opts.originDir ?? "");
   if (resolved.errors.length > 0) {
     return { source: null, errors: resolved.errors, warnings: [], diagnostics: diagnosticsFrom(resolved.errors, [], "module") };
   }
 
-  // The one self-contained source: every included library (dependency-first,
-  // its own directives cut) then the main file (its directives cut). With no
-  // includes this is `source` unchanged, so single-file offsets are identical.
+  // Auto-include: pull the libraries that define the program's bare component
+  // tags (`Bar [ … ]` with no `include`, no inline class) — after explicit
+  // includes, sharing their visited set so the two dedup. A no-op on a host
+  // without the manifest (single-file compiles stay byte-identical).
+  const auto = resolveAutoIncludes(resolved.program, main.root, host, resolved.visited);
+  if (auto.errors.length > 0) {
+    return { source: null, errors: auto.errors, warnings: [], diagnostics: diagnosticsFrom(auto.errors, [], "module") };
+  }
+
+  // The one self-contained source: explicit-include libraries, then auto-
+  // included component libraries (both dependency-first, their own directives
+  // cut), then the main file (its directives cut). With no includes and no
+  // magic tags this is `source` unchanged, so single-file offsets are identical.
   const mainSource = exciseSpans(source, main.includeSpans);
-  const merged = resolved.sources.length > 0
-    ? resolved.sources.join("\n") + "\n" + mainSource
+  const libSources = [...resolved.sources, ...auto.sources];
+  const merged = libSources.length > 0
+    ? libSources.join("\n") + "\n" + mainSource
     : mainSource;
 
   // Re-parse the merged source so every later phase indexes into ONE text.
@@ -208,8 +224,8 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
 
   // Final phase (opt-in): tsc over the resolved `{ }` bodies. A type error
   // blocks emission like any other, mapped to its `.neolzx` line (NEO6001).
-  if (opts.typecheck) {
-    const typeErrors = typecheckBodies(out, program);
+  if (opts.typecheckBodies) {
+    const typeErrors = opts.typecheckBodies(out, program);
     if (typeErrors.length > 0) {
       return { source: null, errors: typeErrors, warnings: r.warnings, diagnostics: diagnosticsFrom(typeErrors, r.warnings, "typecheck") };
     }

@@ -1,0 +1,15 @@
+// Bar — a horizontal value bar: an optional label, then a rounded track that
+// fills to `value` (0–100). A PLACEHOLDER component (see composition.md §1a):
+// coherent and restyleable — override `tint` for the fill — but not the final
+// widget; the real component library is a later, dedicated effort.
+class Bar extends View [ height = 28,
+    label: string = "",
+    value: number = 0,
+    tint:  Color  = #4C8DFF,
+    lead:  number = { classroot.label == "" ? 0 : 96 },
+    cap: Text [ y = 5, fontSize = 14, textColor = #8A9BA6, text = { classroot.label } ],
+    rail: View [ x = { classroot.lead }, width = { parent.width - classroot.lead },
+                 height = { parent.height }, cornerRadius = 6, fill = #0A1119,
+        bar: View [ height = { parent.height }, cornerRadius = 6, fill = { classroot.tint },
+                    width = { parent.width * classroot.value / 100 } ] ],
+    ]

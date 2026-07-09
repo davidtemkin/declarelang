@@ -45,6 +45,24 @@ export declare class SimpleLayout extends Layout {
     spacing: number;
     protected install(view: View): () => void;
 }
+/** WrappingLayout — a horizontal flow that WRAPS: children run left-to-right
+ *  `spacing` apart, and when the next child would overflow the view's width it
+ *  drops to a new row (`lineSpacing` down, default = `spacing`). With room for
+ *  one row it is identical to `SimpleLayout[axis=x]`; as the view narrows it
+ *  stacks — the whole point (cards that reflow on a phone with no media query).
+ *  It owns BOTH axes of each child (a flow is 2-D), each child's position a pure
+ *  function of the view's width and the predecessors' sizes, so a resize or a
+ *  child growing re-flows through the ordinary reactive wake. */
+export declare class WrappingLayout extends Layout {
+    spacing: number;
+    /** Row-to-row gap; the sentinel −1 means "same as `spacing`" (the common case). */
+    lineSpacing: number;
+    /** The placed position of every child, computed in one left-to-right pass —
+     *  the shared read the per-child x/y constraints call (reads the view width,
+     *  spacings, and each child's size/visibility, so all are tracked deps). */
+    private positions;
+    protected install(view: View): () => void;
+}
 /** The geometry a TweenLayout places one child in: its box plus a visibility
  *  flag (the reveal rule reads it). `w`/`h` name the sizes so a box is a plain
  *  record, distinct from the child's live `width`/`height` slots the layout

@@ -1,4 +1,4 @@
-import { type Program, type Span } from "./parser.js";
+import { type Program, type Span, type Element } from "./parser.js";
 import { NeoError } from "./errors.js";
 /** Cut a source's `include [ … ]` directives out of its text, leaving the rest
  *  byte-for-byte (offsets after each cut shift left by its length). Splicing
@@ -39,6 +39,39 @@ export declare const NO_INCLUDES: IncludeHost;
  *  above its subclass. compile() concatenates `sources` ahead of the excised
  *  main source to emit ONE self-contained program the hostless runtime runs. */
 export declare function resolveIncludes(program: Program, host: IncludeHost, originDir: string): {
+    program: Program;
+    sources: string[];
+    errors: NeoError[];
+    visited: Set<string>;
+};
+/** A host that ALSO auto-includes component libraries by bare tag — the LZX
+ *  `lzx-autoincludes` mechanism, ported (composition.md §1a). Using `Bar [ … ]`
+ *  with no `include` and no inline `class Bar` pulls in the library that
+ *  declares `Bar`. `autoincludes()` is the tag→library-path manifest;
+ *  `resolveLibrary(path)` reads a library file, keyed the SAME canonical way
+ *  `resolve` is so an explicit include and an auto-include of one file dedup
+ *  through the shared visited set. A plain IncludeHost lacks these, so
+ *  auto-include is a no-op there (single-file compiles stay byte-identical). */
+export interface AutoIncludeHost extends IncludeHost {
+    autoincludes(): Record<string, string>;
+    resolveLibrary(path: string): {
+        canonical: string;
+        dir: string;
+        source: string;
+    } | null;
+}
+/** Pull the libraries that define a program's bare component tags — the
+ *  auto-include phase, run AFTER explicit includes (composition.md §1a). A
+ *  referenced tag that is neither provided (main or explicit include) nor a
+ *  built-in is looked up in the manifest; if found, its library is spliced in
+ *  exactly like an explicit include — dependency-first (a library's own magic
+ *  bases/children are pulled before it is emitted), include-once through the
+ *  shared `visited` set. A tag absent from the manifest is left alone: it is a
+ *  genuine unknown component the checker reports after the merge.
+ *
+ *  Backends without the auto-include methods (NO_INCLUDES, a plain fs host)
+ *  make this a no-op returning the program unchanged. */
+export declare function resolveAutoIncludes(program: Program, root: Element, host: IncludeHost, visited: Set<string>): {
     program: Program;
     sources: string[];
     errors: NeoError[];

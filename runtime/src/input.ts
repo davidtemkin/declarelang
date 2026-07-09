@@ -45,6 +45,11 @@ export function routeInput(
   // capture a drag needs. Move coordinates are in ROOT space (app-relative),
   // so a handler can hit-test the whole tree; down/up stay view-local.
   let held: HitTarget | null = null;
+  // Hover: the sink the pointer was last OVER, so a move that crosses into a
+  // different sink (or off all of them) fires mouseOut on the old + mouseOver on
+  // the new — the rollover pair, resolved by the same seam as click.
+  let hoveredKey: object | null = null;
+  let hoveredSink: InputSink | null = null;
   const listen = (
     type: "mousedown" | "mouseup" | "mousemove",
     handle: (e: MouseEvent) => void,
@@ -64,6 +69,16 @@ export function routeInput(
     if (t !== null) t.sink("mouseDown", t.x, t.y);
   });
   listen("mousemove", (e) => {
+    // Hover tracking runs on every move (not just while dragging): resolve the
+    // sink under the pointer and, when it changes, fire the out/over pair.
+    const t = resolve(e);
+    const key = t !== null ? t.key : null;
+    if (key !== hoveredKey) {
+      if (hoveredSink !== null) hoveredSink("mouseOut", 0, 0);
+      hoveredKey = key;
+      hoveredSink = t !== null ? t.sink : null;
+      if (t !== null) t.sink("mouseOver", t.x, t.y);
+    }
     if (held === null || rootPoint === undefined) return;
     const p = rootPoint(e);
     held.sink("mouseMove", p.x, p.y);

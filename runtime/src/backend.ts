@@ -21,8 +21,8 @@ export type Stretch = "none" | "width" | "height" | "both";
  *  `onClick`). A click is not a platform event here — the shared router
  *  (input.ts) synthesizes it as "press and release resolved to the same
  *  view", so both backends decide it identically by construction. */
-export type PointerType = "mouseDown" | "mouseUp" | "click" | "mouseMove";
-export const POINTER_TYPES: readonly PointerType[] = ["mouseDown", "mouseUp", "click", "mouseMove"];
+export type PointerType = "mouseDown" | "mouseUp" | "click" | "mouseMove" | "mouseOver" | "mouseOut";
+export const POINTER_TYPES: readonly PointerType[] = ["mouseDown", "mouseUp", "click", "mouseMove", "mouseOver", "mouseOut"];
 
 /** A view's input route across the seam — one call per delivered event,
  *  with the point in the receiving view's own coordinates. Having a sink is
@@ -41,6 +41,14 @@ export type InputSink = (type: PointerType, x: number, y: number) => void;
 export interface EditableSpec {
   value: string;
   multiline: boolean;
+  /** Native spellcheck/red-squiggle underlines — off for a code field. */
+  spellcheck: boolean;
+  /** Soft-wrap long lines (true) vs. keep them on one line and scroll
+   *  horizontally (false) — a code field wants no-wrap + h-scroll. */
+  wrap: boolean;
+  /** Inner text inset in px (all four sides) — a code field wants breathing
+   *  room off the box edge. 0 = flush (the default). */
+  padding: number;
   placeholder: string;
   style: TextStyle;
   /** The user typed — carry the native element's value to the model. */
@@ -89,6 +97,18 @@ export interface Surface {
    *  coordinates); null = unclipped. Applied at composite time — moving or
    *  re-clipping never re-rasterizes content (rendering model rule 3). */
   setClip(pathData: string | null): void;
+
+  /** Make this surface a scroll container (`on`) or a plain one. When on, it
+   *  clips to its box and scrolls the vertical overflow; `onScroll` is called
+   *  with the current offset whenever the user scrolls it (DOM: the native
+   *  scroll event; canvas: the wheel/touch the compositor routes here), so the
+   *  runtime can mirror it into the view's reactive `scrollY`. */
+  setScroll(on: boolean, onScroll: (y: number) => void): void;
+  /** Reflect an `embed` marker onto the surface so a HOST can find this view's
+   *  element (data attribute on DOM) and mount foreign content (an editor, a
+   *  preview iframe) inside it — the sanctioned seam for embedding non-neo UI
+   *  that must track the view as the page scrolls. No-op off the DOM. */
+  setEmbed(id: string): void;
 
   /** The view's recorded drawing (draw.ts); null clears it. The Canvas
    *  backend replays it during the composite walk; the DOM backend

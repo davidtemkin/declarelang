@@ -12,7 +12,7 @@
 
 import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
-import { compile } from "../compiler/dist/compile.js";
+import { compile, compileTracked, isUpToDate, diskProbe } from "../compiler/dist/compile-node.js";
 import { KeysService } from "../runtime/dist/keys.js";
 import { Focus, deliverKeys } from "../runtime/dist/focus.js";
 import {
@@ -24,6 +24,7 @@ import {
   checkMethod,
   instantiate,
   build,
+  Html,
   Node,
   View,
   App,
@@ -262,6 +263,42 @@ await test("build() makes a typed tree with coerced attributes", () => {
   assert.equal(child.height, 60);
   assert.equal(child.fill, 0xffffff);
   assert.equal(child.parent, app);
+});
+
+await test("HTML — a foreign-content island: a View sized by constraints, carrying a slot", () => {
+  const app = build(`App [ w: number = 200,
+    island: HTML [ x = 20, y = 10, width = { parent.w }, height = 120, slot = "edit:reactivity" ] ]`);
+  const island = app.children[0];
+  assert.ok(island instanceof Html);
+  assert.ok(island instanceof View);          // it lays out and constrains like any view
+  assert.equal(island.slot, "edit:reactivity");
+  assert.equal(island.width, 200);            // driven by the constraint on parent.w
+  assert.equal(island.height, 120);
+  app.w = 340;                                 // the box follows neo's constraints
+  settle();
+  assert.equal(island.width, 340);
+});
+
+await test("App fills its stage by default: unset width/height follow stageWidth/stageHeight, reactively", () => {
+  // A child would make a plain view auto-size to CONTENT (40+10); the App
+  // retargets auto-extent to the viewport instead.
+  const app = build(`App [ View [ x = 10, y = 10, width = 40, height = 20 ] ]`);
+  app.attach(mockBackend([]), null);           // installs App.bindExtent (stage-tracking derive)
+  app.stageWidth = 500; app.stageHeight = 360;
+  settle();
+  assert.equal(app.width, 500, "unset width follows stageWidth, not content (50)");
+  assert.equal(app.height, 360, "unset height follows stageHeight");
+  app.stageWidth = 720;                          // reactive: a resize moves it
+  settle();
+  assert.equal(app.width, 720, "width tracks stageWidth on resize");
+
+  // An explicit size still wins — the derive is skipped for a set slot.
+  const fixed = build(`App [ width = 480, height = 320, View [ width = 40 ] ]`);
+  fixed.attach(mockBackend([]), null);
+  fixed.stageWidth = 500; fixed.stageHeight = 500;
+  settle();
+  assert.equal(fixed.width, 480, "an explicit width overrides the stage default");
+  assert.equal(fixed.height, 320, "an explicit height overrides the stage default");
 });
 
 await test("build() coerces every color literal form (case-insensitive names)", () => {
@@ -815,7 +852,9 @@ await test("check() accepts handlers for View's declared events, incl. inherited
 
 await test("check() rejects a typo'd handler, naming the handlers it knows", () => {
   const [err] = check(parse("View [ onClik() { } ]"));
-  assert.match(err.message, /View has no 'onClik' event — its handlers: onClick, onMouseDown, onMouseUp, onMouseMove, onInit/);
+  // names the typo and lists the handlers it knows (the set grows with the
+  // schema — pin the stable leading pointer handlers, not the whole tail)
+  assert.match(err.message, /View has no 'onClik' event — its handlers: onClick, onMouseDown, onMouseUp, onMouseMove/);
   assert.equal(err.pos.col, 8);
 });
 
@@ -1323,6 +1362,40 @@ App [ width=1, height=1, a: Tally [ ], b: Tally [ count = 5 ] ]`));
   settle();
   assert.deepEqual([app.a.count, app.b.count], [2, 6], "each handler reached its own classroot");
   assert.deepEqual([app.a.cap.text, app.b.cap.text], ["n2", "n6"], "and the bound Text followed");
+});
+
+// ── auto-include: a bare component tag pulls its library (composition.md §1a) ─
+
+await test("compile(): a bare component tag auto-includes its library — no include, no inline class", () => {
+  const r = compile(`App [ width = 360, height = 80, Bar [ x = 20, y = 20, width = 300, value = 62 ] ]`);
+  assert.equal(r.errors.length, 0, "Bar resolves from the bundled library (library/autoincludes.json)");
+  assert.ok(r.source, "compiled to a self-contained source");
+  assert.match(r.source, /class Bar extends View/, "the library's source is spliced into the merged program");
+  assert.doesNotThrow(() => { const app = build(r.source); settle(); void app; }, "the merged source is hostless and instantiates");
+});
+
+await test("compile(): a tag absent from the manifest stays a genuine unknown-component error", () => {
+  const r = compile(`App [ width = 8, height = 8, Nonesuch [ ] ]`);
+  assert.equal(r.source, null, "auto-include leaves real unknowns to the checker");
+  assert.match(r.errors.map((e) => e.message).join(" "), /Nonesuch/);
+});
+
+await test("compile(): a program with no magic tags splices nothing (auto-include is a no-op)", () => {
+  const out = compile(`App [ width = 8, height = 8, Text [ text = "hi" ] ]`).source;
+  assert.ok(out);
+  assert.doesNotMatch(out, /class Bar/, "nothing is auto-included when nothing references a magic tag");
+});
+
+await test("compileTracked(): the closure captures the auto-included library + manifest; isUpToDate detects change", () => {
+  const r = compileTracked(`App [ width = 40, height = 40, Bar [ width = 30, value = 50 ] ]`, { props: { backend: "dom" } });
+  assert.ok(r.source, "compiled");
+  const ids = r.closure.entries.map((e) => e.id);
+  assert.ok(ids.some((i) => i.endsWith("/library/src/bar.neolzx")), "the auto-included Bar library is a tracked dependency");
+  assert.ok(ids.some((i) => i.endsWith("/library/autoincludes.json")), "the manifest is a tracked dependency");
+  assert.equal(isUpToDate(r.closure, { backend: "dom" }, diskProbe), true, "unchanged → fresh");
+  assert.equal(isUpToDate(r.closure, { backend: "canvas" }, diskProbe), false, "a compiler-prop change → stale");
+  const bumped = (e) => ({ ...diskProbe(e), mtime: (diskProbe(e).mtime || 0) + 1 });
+  assert.equal(isUpToDate(r.closure, { backend: "dom" }, bumped), false, "a dependency change → stale");
 });
 
 // ── R7: layout — the attribute, the stacking strategy, ownership, precision ─
@@ -2276,6 +2349,53 @@ await test("auto-extent: childrenMutated re-derives — and installs lazily", ()
   p.insertChild(kid2, 1);
   p.childrenMutated();
   assert.equal(p.width, 80, "each mutation burst re-derives once");
+});
+
+// ── contentWidth/contentHeight + the `readonly` modifier ───────────────────
+// The auto-extent computation, surfaced as read-only reactive attributes so a
+// constraint can CLAMP a size — and the general `readonly` modifier a user
+// class declares with (contentWidth/Height are the framework's first users).
+
+await test("contentHeight: read-only intrinsic, clampable via a constraint", () => {
+  const app = attachedExtent(`
+    class Panel extends View [
+      height = { Math.min(classroot.contentHeight, 60) } ]
+    App [ width=200, height=400,
+      p: Panel [ width=100,
+        a: View [ y=0,  width=10, height=30 ],
+        b: View [ y=30, width=10, height=90 ] ] ]`);
+  assert.equal(app.p.contentHeight, 120, "contentHeight is the raw child bounding-box extent");
+  assert.equal(app.p.height, 60, "height clamps to the cap — grow-to-a-limit-then-stop");
+  assert.equal(app.p.contentWidth, 10, "contentWidth is live, independent of the set width");
+  app.p.b.height = 20;
+  settle();
+  assert.equal(app.p.contentHeight, 50, "contentHeight tracks child geometry");
+  assert.equal(app.p.height, 50, "…and the clamp follows it once below the cap");
+});
+
+await test("readonly: setting a computed intrinsic is a compile error", () => {
+  const errs = check(parse(`App [ v: View [ contentHeight = 40 ] ]`));
+  assert.ok(errs.some((e) => /read-only/.test(e.message)), "contentHeight cannot be assigned");
+});
+
+await test("readonly: a user-declared computed attribute reads, and refuses writes", () => {
+  const app = attachedExtent(`
+    class Gauge extends View [ value: number = 30, max: number = 100,
+      readonly percent: number = { classroot.value / classroot.max } ]
+    App [ width=200, height=100, g: Gauge [ value = 40 ] ]`);
+  assert.equal(app.g.percent, 0.4, "percent computes from its declaration");
+  app.g.value = 80;
+  settle();
+  assert.equal(app.g.percent, 0.8, "…and re-computes when its inputs change");
+  assert.throws(() => { app.g.percent = 0.5; }, /read-only/, "an imperative write throws");
+});
+
+await test("readonly: assigning a user readonly attribute is a compile error", () => {
+  const errs = check(parseProgram(`
+    class Gauge extends View [ value: number = 30, max: number = 100,
+      readonly percent: number = { classroot.value / classroot.max } ]
+    App [ g: Gauge [ percent = 0.5 ] ]`));
+  assert.ok(errs.some((e) => /read-only/.test(e.message)), "setting percent is refused");
 });
 
 await test("Node.insertChild / removeChild keep links straight", () => {
@@ -4368,7 +4488,19 @@ await test("textinput: installs a native editable spec and is focusable by defau
   assert.equal(spec.value, "hi");
   assert.equal(spec.placeholder, "name");
   assert.equal(spec.multiline, false);
+  assert.equal(spec.spellcheck, true, "spellcheck defaults on (prose field)");
   assert.equal(app.inp.focusable, true, "a TextInput is a tab stop by default");
+});
+
+await test("textinput: spellcheck = false carries to the editable spec (code field)", () => {
+  const log = [];
+  const app = build(`App [ width = 100, height = 100,
+    code: TextInput [ text = "x", multiline = true, spellcheck = false ],
+  ]`);
+  app.attach(mockBackend(log), null);
+  const spec = lastSpec(log);
+  assert.equal(spec.multiline, true);
+  assert.equal(spec.spellcheck, false, "a code field turns native squiggles off");
 });
 
 await test("textinput: a native edit updates the model text and fires input", () => {

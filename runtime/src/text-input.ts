@@ -16,7 +16,7 @@
 
 import { View, fireEvent, onDiscard } from "./view.js";
 import type { RenderBackend, Surface, EditableSpec } from "./backend.js";
-import { defineAttributes, isSet, ownerOf } from "./attributes.js";
+import { bindDerived, defineAttributes, isSet, ownerOf } from "./attributes.js";
 import { Constraint } from "./reactive.js";
 import { Focus } from "./focus.js";
 import type { TextStyle } from "./measure.js";
@@ -25,12 +25,24 @@ export class TextInput extends View {
   declare text: string;
   declare placeholder: string;
   declare multiline: boolean;
+  declare spellcheck: boolean;
+  declare wrap: boolean;
+  declare padding: number;
+  declare initial: string;
 
   override attach(backend: RenderBackend, parentSurface: Surface | null): void {
     // A text field is a tab stop by default; an explicit `focusable = false`
     // (was-set) opts out untouched, exactly like Text's auto-size.
     if (!isSet(this, "focusable") && ownerOf(this, "focusable") === null) this.focusable = true;
     super.attach(backend, parentSurface);
+    // Uncontrolled seed: when the author gives an `initial` (and hasn't
+    // hard-set `text`), `text` follows it via a YIELDING derive — reactive, so
+    // a source that arrives late fills the field, and disposed on the first
+    // edit (onNativeInput) so typing takes over. A bound `text` is untouched.
+    if ((isSet(this, "initial") || ownerOf(this, "initial") !== null) &&
+        !isSet(this, "text") && ownerOf(this, "text") === null) {
+      bindDerived(this, "text", () => this.initial);
+    }
   }
 
   protected override flush(s: Surface): void {
@@ -69,6 +81,9 @@ export class TextInput extends View {
     const spec: EditableSpec = {
       value: this.text,
       multiline: this.multiline,
+      spellcheck: this.spellcheck,
+      wrap: this.wrap,
+      padding: this.padding,
       placeholder: this.placeholder,
       style: this.editStyle(),
       onInput: (v) => this.onNativeInput(v),
@@ -81,11 +96,15 @@ export class TextInput extends View {
     s.setEditable(spec);
   }
 
-  /** The native element's value changed. A writable `text` takes the edit (the
-   *  push re-syncs, guarded against a caret reset); a constraint-owned `text`
-   *  is controlled — revert the element to the model value. */
+  /** The native element's value changed. A writable `text` takes the edit; a
+   *  HARD constraint makes text a controlled, read-only field — revert the
+   *  element to the model. A YIELDING default (a `{ }` the field merely STARTS
+   *  from — a theme value, a pristine source) is overridable: the edit disposes
+   *  it, exactly like any author write (attributes.ts set path), so a field can
+   *  be seeded from a binding yet stay editable. */
   private onNativeInput(v: string): void {
-    if (ownerOf(this, "text") !== null) {
+    const owner = ownerOf(this, "text");
+    if (owner !== null && !owner.yielding) {
       this.syncEditable();
       return;
     }
@@ -104,4 +123,8 @@ defineAttributes(TextInput, {
   text: { def: "", push: (t) => t.syncEditable() },
   placeholder: { def: "", push: (t) => t.syncEditable() },
   multiline: { def: false, push: (t) => t.syncEditable() },
+  spellcheck: { def: true, push: (t) => t.syncEditable() },
+  wrap: { def: true, push: (t) => t.syncEditable() },
+  padding: { def: 0, push: (t) => t.syncEditable() },
+  initial: { def: "" },
 });

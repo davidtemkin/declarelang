@@ -134,6 +134,138 @@ export function resolveIncludes(program, host, originDir) {
         program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], root: program.root },
         sources,
         errors,
+        visited,
+    };
+}
+/** The component TAGS a tree references — every child element's tag (named and
+ *  anonymous alike live in `children`), plus each class's `extends` base.
+ *  Attribute declarations (`decls`) carry value-type names, not component tags,
+ *  so they are not references. Deduped, in encounter order. */
+function referencedTags(root, classes) {
+    const out = [];
+    const seen = new Set();
+    const add = (tag, pos) => {
+        if (tag !== "" && !seen.has(tag)) {
+            seen.add(tag);
+            out.push({ tag, pos });
+        }
+    };
+    const walk = (el) => {
+        for (const child of el.children) {
+            add(child.tag, child.pos);
+            walk(child);
+        }
+    };
+    if (root !== null)
+        walk(root);
+    for (const c of classes) {
+        add(c.base, c.basePos);
+        walk(c.body);
+    }
+    return out;
+}
+/** Pull the libraries that define a program's bare component tags — the
+ *  auto-include phase, run AFTER explicit includes (composition.md §1a). A
+ *  referenced tag that is neither provided (main or explicit include) nor a
+ *  built-in is looked up in the manifest; if found, its library is spliced in
+ *  exactly like an explicit include — dependency-first (a library's own magic
+ *  bases/children are pulled before it is emitted), include-once through the
+ *  shared `visited` set. A tag absent from the manifest is left alone: it is a
+ *  genuine unknown component the checker reports after the merge.
+ *
+ *  Backends without the auto-include methods (NO_INCLUDES, a plain fs host)
+ *  make this a no-op returning the program unchanged. */
+export function resolveAutoIncludes(program, root, host, visited) {
+    const auto = host;
+    if (typeof auto.autoincludes !== "function" || typeof auto.resolveLibrary !== "function") {
+        return { program, sources: [], errors: [] };
+    }
+    const manifest = auto.autoincludes();
+    const errors = [];
+    const classes = [...program.classes];
+    const stylesheets = [...program.stylesheets];
+    const styles = [...program.styles];
+    const fonts = [...program.fonts];
+    const sources = [];
+    // name → the file that declared it (main + explicit includes seed it). A
+    // referenced tag not present here and present in the manifest gets pulled;
+    // built-in tags are never in the manifest, so they need no separate registry.
+    const origin = new Map();
+    for (const c of program.classes)
+        origin.set(c.name, "the app");
+    for (const s of program.stylesheets)
+        origin.set(s.name, "the app");
+    for (const s of program.styles)
+        origin.set(s.name, "the app");
+    for (const f of program.fonts)
+        origin.set(f.name, "the app");
+    const foldOne = (name, pos, from) => {
+        const prev = origin.get(name);
+        if (prev !== undefined) {
+            errors.push(Diag.includeCollision(`'${name}' is declared twice — in "${from}" and "${prev}"`, pos));
+            return false;
+        }
+        origin.set(name, from);
+        return true;
+    };
+    // Post-order: a library's OWN referenced magic tags are pulled before it is
+    // emitted, so a base is declared above its subclass (dependency-first, like
+    // explicit includes). `origin` reserves the file's names before recursion so
+    // a self/mutual reference does not re-pull.
+    const pull = (tag, pos) => {
+        if (origin.has(tag))
+            return;
+        const path = manifest[tag];
+        if (path === undefined)
+            return; // not a magic tag → unknownComponent, post-merge
+        const resolved = auto.resolveLibrary(path);
+        if (resolved === null) {
+            errors.push(Diag.missingInclude(path, pos));
+            origin.set(tag, path); // don't re-report per reference
+            return;
+        }
+        if (visited.has(resolved.canonical)) {
+            origin.set(tag, path);
+            return;
+        }
+        visited.add(resolved.canonical);
+        let lib;
+        try {
+            lib = parseLibrary(resolved.source);
+        }
+        catch (e) {
+            if (e instanceof NeoError) {
+                errors.push(e);
+                return;
+            }
+            throw e;
+        }
+        const mine = [];
+        for (const c of lib.classes)
+            if (foldOne(c.name, c.pos, path))
+                mine.push(c);
+        // dependency-first: pull what this library references, then emit it
+        for (const r of referencedTags(null, lib.classes))
+            pull(r.tag, r.pos);
+        for (const c of mine)
+            classes.push(c);
+        for (const s of lib.stylesheets)
+            if (foldOne(s.name, s.pos, path))
+                stylesheets.push(s);
+        for (const s of lib.styles)
+            if (foldOne(s.name, s.pos, path))
+                styles.push(s);
+        for (const f of lib.fonts)
+            if (foldOne(f.name, f.pos, path))
+                fonts.push(f);
+        sources.push(exciseSpans(resolved.source, lib.includeSpans));
+    };
+    for (const r of referencedTags(root, program.classes))
+        pull(r.tag, r.pos);
+    return {
+        program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], root: program.root },
+        sources,
+        errors,
     };
 }
 //# sourceMappingURL=include.js.map

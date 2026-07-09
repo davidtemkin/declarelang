@@ -1,0 +1,543 @@
+// site — the neo-LZX homepage. Clean rewrite (design/site-spec.md +
+// design/sizing.md): the design tokens live ONCE as semantic type components,
+// and the page is a vertical FLOW of auto-sizing sections — no absolute-y.
+// Each section's height falls out of its content (contentHeight), so the page
+// stacks and re-flows on its own, at any width. The full-bleed chrome (grid,
+// sticky header, pointer) sits absolutely around the centered column.
+//
+// `{ }` bodies are TypeScript → `0x…` colors and `Math.…`; `[ ]` literal slots
+// take `#…` colors. Palette: text #E7EEF2 · muted #8A9BA6 · accent #4C8DFF ·
+// accent-2 #37E0C8 · surface #101E28 · line #263D4C · grid #172A38.
+
+font Sans [ family = "system-ui" ]
+font Mono [ family = "ui-monospace" ]
+
+// ── tokens, as semantic type components ──────────────────────────────────────
+// Headings are semibold with -0.02em tracking that scales with the size (React
+// parity); eyebrows are mono with wide tracking; lead/body carry the muted tone.
+
+class Heading extends Text [ fontWeight = semibold, textColor = { theme.text },
+    letterSpacing = { -0.02 * classroot.fontSize } ]
+
+class Eyebrow extends Text [ fontFamily = [Mono, "monospace"], fontSize = 13,
+    fontWeight = semibold, letterSpacing = 1.6, textColor = { theme.muted } ]
+
+class Marker extends Eyebrow [ textColor = { theme.accent } ]   // the accent section number
+
+class Lead extends Text [ fontSize = 19, fontWeight = normal, textColor = { theme.muted } ]
+
+class Body extends Text [ fontSize = 17, fontWeight = normal, textColor = { theme.muted } ]
+
+// nav links brighten muted→bright on hover (React parity); the base carries the
+// rollover so the header nav and the footer source-link share it
+// header nav link — a padded pill that fills with surface-2 on hover, matching
+// the React rollover (a rounded RECT behind the text, not just a colour change).
+// Width auto-fits the label (its contentWidth) plus 12px of padding each side.
+
+class NavLink extends View [ height = 33, cornerRadius = 8,
+    label:   string = "",
+    hovered: boolean = false,
+    fill = { hovered ? 0x1C2D39 : null },
+    onMouseOver() { hovered = true },
+    onMouseOut()  { hovered = false },
+    lbl: Text [ x = 12, y = 8, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14,
+                text = { classroot.label },
+                textColor = { classroot.hovered ? theme.text : theme.muted } ],
+    width = { this.lbl.width + 24 },
+    ]
+
+
+// ── an idea card (§01 / §04) ──────────────────────────────────────────────────
+
+class Card extends View [ width = { Math.min(357, parent.width) }, height = 172, cornerRadius = 10,
+    stroke = stroke(1, #263D4C),
+    title: string = "",
+    body:  string = "",
+    muted: boolean = false,
+    fill = { muted ? 0x0D1922 : 0x101E28 },
+    pad: View [ x = 22, y = 22, width = { parent.width - 44 },
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        Heading [ fontSize = 19, text = { classroot.title } ],
+        Body    [ fontSize = 15, width = { parent.width }, text = { classroot.body } ],
+        ],
+    ]
+
+// ── a performance point (§02): an accent top-rule, title, muted body ──────────
+
+class Point extends View [ width = { Math.min(357, parent.width) },
+    ptitle: string = "",
+    body:   string = "",
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+    rule: View [ width = { parent.width }, height = 2, fill = #345B84 ],
+    txt: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 8 ],
+        Heading [ fontSize = 17, text = { classroot.ptitle } ],
+        Body    [ fontSize = 15, width = { parent.width }, text = { classroot.body } ],
+        ],
+    ]
+
+// ── a headline metric (§02): a big gradient number over a small label ─────────
+// width/fontSize key off parent.width (the real available width in the row) —
+// a class body's `classroot` is the instance itself, so it can't see the stage.
+
+class Metric extends View [ width = { parent.width < 560 ? parent.width : (parent.width - 48) / 2 },
+    value: string = "",
+    note:  string = "",
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    Heading [ fontSize = { parent.width < 420 ? 54 : 92 }, width = { parent.width }, textAlign = center,
+              textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) }, text = { classroot.value } ],
+    Body [ fontSize = 14, width = { parent.width }, textAlign = center, text = { classroot.note } ],
+    ]
+
+// ── a footer separator dot ────────────────────────────────────────────────────
+
+class Dot extends Body [ fontSize = 14, textColor = #556673, text = "·" ]
+
+// ── a button ─────────────────────────────────────────────────────────────────
+
+class Button extends View [ height = 46, cornerRadius = 9,
+    label:   string = "",
+    primary: boolean = true,
+    hovered: boolean = false,
+
+    // hover rollover (React parity): primary brightens, secondary lifts to
+    // surface-2. `hovered` is driven by the view's own over/out handlers.
+
+    fill = { primary ? (hovered ? 0x63A0FF : 0x4C8DFF) : (hovered ? 0x162A36 : 0x101E28) },
+    stroke = { primary ? stroke(0, 0x4C8DFF) : stroke(1, 0x263D4C) },
+    onMouseOver() { hovered = true },
+    onMouseOut()  { hovered = false },
+
+    // label centered in the button box (textAlign over the full width)
+
+    caption: Text [ y = 14, width = { parent.width }, textAlign = center, fontSize = 15, fontWeight = semibold,
+                    text = { classroot.label },
+                    textColor = { classroot.primary ? 0x0B141B : 0xE7EEF2 } ],
+    ]
+
+// ── a small mono panel label (AMOUNT / SOURCE · NEO-LZX / …) ──────────────────
+
+class Tag extends Text [ fontFamily = [Mono, "monospace"], fontSize = 11,
+    fontWeight = semibold, letterSpacing = 1.4, textColor = { theme.dim } ]
+
+// ── the code editor: a NEO-NATIVE editable field (no host textarea) ───────────
+// A TextInput seeded (uncontrolled, `initial`) from the demo's source `src` —
+// it follows the source until you type, then holds the edit. Each edit publishes
+// the new text on App.liveSource/liveCard for the host to recompile the preview.
+
+class CodeField extends TextInput [ multiline = true, spellcheck = false,
+    fontFamily = [Mono, "monospace"], fontSize = 11, textColor = #C7D3DC,
+    editName: string = "",  src: string = "",
+    initial = { classroot.src },
+    onInput() { this.root.liveCard = classroot.editName; this.root.liveSource = classroot.text } ]
+
+// ── the SOURCE panel: an all-neo card (frame · header · Revert · code) ────────
+// No HTML island — the editor is the neo CodeField above; only the PREVIEW is a
+// foreign island. `height` is set per demo (at the use site) to sit just above
+// what the code / preview needs. Revert restores the pristine `src` and asks the
+// host to recompile.
+
+class SourcePanel extends View [ width = { parent.width < 760 ? parent.width : Math.floor((parent.width - 20) * 0.58) },
+    editName: string = "",  src: string = "",
+    fill = { theme.panel }, cornerRadius = 12, stroke = stroke(1, #1E313C),
+    fname: Text [ x = 12, y = 9, fontFamily = [Mono, "monospace"], fontSize = 11, fontWeight = semibold,
+                  textColor = #B7C6D2, text = { classroot.editName + ".neolzx" } ],
+    hint: Text [ y = 9, fontFamily = [Sans, "system-ui"], fontSize = 11, italic = true, textColor = #5B6B78,
+                 text = "edit — preview runs live",
+                 x = { parent.width - parent.revert.width - this.width - 22 } ],
+    revert: View [ y = 5, height = 20, cornerRadius = 6, stroke = stroke(1, #26414F),
+        hovered: boolean = false,
+        x = { parent.width - this.width - 10 },
+        width = { this.rlbl.width + 16 },
+        fill = { hovered ? 0x162A36 : null },
+        onMouseOver() { hovered = true },
+        onMouseOut()  { hovered = false },
+        onClick() { classroot.field.text = classroot.src
+                    this.root.liveCard = classroot.editName
+                    this.root.liveSource = classroot.src },
+        rlbl: Text [ x = 8, y = 3, fontFamily = [Sans, "system-ui"], fontSize = 11, fontWeight = semibold,
+                     textColor = { parent.hovered ? 0xE7EEF2 : 0x9DB0BC }, text = "Revert" ] ],
+    hairline: View [ y = 31, width = { parent.width }, height = 1, fill = #1E313C ],
+    field: CodeField [ x = 12, y = 40, width = { parent.width - 24 }, height = { parent.height - 48 },
+                       editName = { classroot.editName }, src = { classroot.src } ],
+    ]
+
+// ── the PREVIEW panel: an island hosting the compiled app as an EMBEDDED CHILD ─
+// The preview IS the app (a neo child app rendered into the island box, no iframe),
+// so it can't drift from the source. `active` gates the island slot: when false the
+// slot is empty and the host renders NOTHING into it — this is what bounds the
+// full-page-editor recursion (a closed editor's preview renders nothing, so the
+// page source containing this very editor only descends one level per user click).
+
+class PreviewFrame extends View [ width = { parent.width < 760 ? parent.width : Math.floor((parent.width - 20) * 0.42) },
+    runName: string = "",
+    active: boolean = true,
+    run: HTML [ width = { parent.width }, height = { parent.height },
+                slot = { classroot.active ? "run:" + classroot.runName : "" } ],
+    ]
+
+// ── the whole-page source editor: the SAME CodeField + embedded preview as the
+// demo cards, at page scale — the page's own source on the left, the page it
+// compiles to on the right. An overlay filling the stage, shown when App.editing.
+// The preview island is `active` only while open, so it renders nothing until you
+// open it — which makes the recursion (this editor is part of the page source it
+// previews) bounded by clicks: one level per "view & edit source". `pageSource`
+// is threaded in from the host (App.demoSources.__page__ = the page's own text).
+// stageW/stageH are threaded in from the use-site (a class body's `classroot` is
+// the instance, which has no stage attrs — §8); everything sizes off them.
+
+class FullPageEditor extends View [ width = { classroot.stageW }, height = { classroot.stageH },
+    open: boolean = false,  pageSource: string = "",
+    stageW: number = 0,  stageH: number = 0,
+
+    // the divider x: 0 = not dragged yet (use the 46% default); the grip writes it.
+
+    split: number = 0,
+    splitX: number = { classroot.split > 0 ? classroot.split : Math.floor(classroot.stageW * 0.46) },
+    visible = { classroot.open },
+    fill = { theme.ink },
+    bar: View [ width = { parent.width }, height = 44, fill = { theme.surface },
+        edge: View [ y = 43, width = { parent.width }, height = 1, fill = { theme.line } ],
+        name: Text [ x = 22, y = 14, fontFamily = [Mono, "monospace"], fontSize = 13, fontWeight = semibold,
+                     textColor = { theme.text }, text = "site.neolzx" ],
+        hint: Text [ x = 132, y = 15, fontSize = 12, italic = true, textColor = { theme.dim },
+                     text = "the whole page — edit and it re-renders live" ],
+        close: View [ y = 8, height = 28, cornerRadius = 8, stroke = stroke(1, #263D4C),
+            hovered: boolean = false,
+            x = { parent.width - this.width - 16 },
+            width = { this.lbl.width + 26 },
+            fill = { hovered ? 0x162A36 : 0x101E28 },
+            onMouseOver() { hovered = true },
+            onMouseOut()  { hovered = false },
+            onClick()     { this.root.editing = false },
+            lbl: Text [ x = 13, y = 6, fontSize = 13, textColor = { theme.text }, text = "Close ✕" ] ],
+        ],
+
+    // source: no wrap (long lines scroll horizontally) + 16px inset off the edge
+
+    code: CodeField [ x = 0, y = 44, width = { classroot.splitX }, height = { parent.height - 44 },
+                      wrap = false, padding = 16,
+                      editName = "__page__", src = { classroot.pageSource } ],
+
+    // draggable divider — captures the pointer on press, writes `split` as it moves
+
+    grip: View [ x = { classroot.splitX }, y = 44, width = 6, height = { parent.height - 44 },
+        dragging: boolean = false,  hovered: boolean = false,
+        fill = { dragging || hovered ? theme.accent2 : theme.line },
+        onMouseOver()  { hovered = true },
+        onMouseOut()   { hovered = false },
+        onMouseDown()  { dragging = true },
+        onMouseMove(e) { if (dragging) classroot.split = Math.max(240, Math.min(classroot.stageW - 320, e.x)) },
+        onMouseUp()    { dragging = false } ],
+    preview: PreviewFrame [ x = { classroot.splitX + 6 }, y = 44,
+                            width = { parent.width - classroot.splitX - 6 }, height = { parent.height - 44 },
+                            runName = "__page__", active = { classroot.open } ],
+    ]
+
+// ── the blueprint grid background ────────────────────────────────────────────
+
+class GridBg extends View [
+    draw(d) {
+        d.fillStyle = theme.grid
+        for (let gx = 0; gx <= width;  gx += 32) d.fillRect(gx, 0, 1, height)
+        for (let gy = 0; gy <= height; gy += 32) d.fillRect(0, gy, width, 1)
+        },
+    ]
+
+// ── a numbered section header (number · heading · lead), tight rhythm ─────────
+
+class SectionHead extends View [ width = { parent.width },
+    num:  string = "",
+    head: string = "",
+    lead: string = "",
+    layout: SimpleLayout [ axis = y, spacing = 14 ],
+    Marker  [ text = { classroot.num } ],
+    Heading [ fontSize = 40, width = { Math.min(900, parent.width) }, text = { classroot.head } ],
+    Lead    [ width = { Math.min(760, parent.width) }, text = { classroot.lead } ],
+    ]
+
+// ── the page ─────────────────────────────────────────────────────────────────
+// The palette lives ONCE as a prevailing `theme` token record — every semantic
+// type class (Heading/Lead/Body/…) defaults its colour to `{ theme.… }`, so the
+// whole page reskins from this one place. Bodies are TypeScript ⇒ `0x` here.
+
+App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8DFF,
+                 accent2: 0x37E0C8, surface: 0x101E28, line: 0x263D4C, grid: 0x172A38,
+                 ink: 0x0B141B, panel: 0x0C1620 }) },
+    fill = { theme.ink },
+    fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 17, fontWeight = normal,
+    textColor = { theme.text },
+
+    // the scroll region — fills the viewport and scrolls its taller content
+    // NATIVELY. The chrome further down (header, cursor) are its SIBLINGS, not
+    // its children, so they never move: no reposition, no jitter.
+
+    scroller: View [ width = { classroot.stageWidth }, height = { classroot.stageHeight }, scrolls = true,
+
+        // full-bleed blueprint behind the column, sized to the page (a percent
+        // height stays out of the page's own auto-extent, so no cycle)
+
+        grid: GridBg [ x = 0, y = 0, width = { classroot.stageWidth }, height = { parent.page.height } ],
+
+        // the centered content column: a fixed measure, and a VERTICAL FLOW of
+        // sections — each auto-sizes, the page stacks them
+
+        page: View [ width = { Math.min(1120, classroot.stageWidth - 48) },
+                     x = { Math.max(24, (classroot.stageWidth - 1120) / 2) }, y = 96,
+            layout: SimpleLayout [ axis = y, spacing = 112 ],
+
+            // ── hero ──────────────────────────────────────────────────────────
+
+            hero: View [ width = { parent.width },
+                layout: SimpleLayout [ axis = y, spacing = 24 ],
+                top: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 22 ],
+                    Eyebrow [ text = "NEO — LZX", textColor = #37E0C8 ],
+                    Heading [ fontSize = { classroot.stageWidth < 700 ? 46 : 78 },
+                              width = { Math.min(980, parent.width) },
+                              text = "The UI language for the AI era." ],
+                    Lead    [ width = { Math.min(640, parent.width) }, textColor = #B7C4CC,
+                              text = "A declarative language for dynamic web apps — reactive by construction, compiled live in the browser, small enough to hold in your head. This whole page is written in it." ],
+                    ],
+                buttons: View [ layout: SimpleLayout [ axis = x, spacing = 14 ],
+                    Button [ width = 150, label = "Get started →" ],
+                    Button [ width = 132, label = "See it run", primary = false ],
+                    ],
+                ],
+
+            // ── 01 — Read it. Generate it. Run it. ─────────────────────────────
+
+            s1: View [ width = { parent.width }, opacity = 0,
+                reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
+                    to = { classroot.scroller.scrollY + classroot.stageHeight > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
+                layout: SimpleLayout [ axis = y, spacing = 40 ],
+                SectionHead [ num = "01", head = "Read it. Generate it. Run it.",
+                    lead = "The relationships that matter — structure, data, reactivity — are explicit in the language, not hidden in imperative steps or a runtime graph." ],
+                cards: View [ width = { parent.width }, layout: WrappingLayout [ spacing = 24, lineSpacing = 24 ],
+                    Card [ title = "Analyzable", body = "The compiler reads a program's data-flow statically. So can a model." ],
+                    Card [ title = "Generable", body = "No ceremony, no magic. No dependency arrays or keys to get subtly wrong." ],
+                    Card [ title = "Runnable on the spot", body = "It compiles in the browser. Generated code runs the instant it exists." ],
+                    ],
+                pull: Heading [ fontSize = 28, width = { parent.width }, textAlign = center,
+                                text = "Everything that makes it legible to a model makes it legible to you." ],
+                trust: Body [ fontFamily = [Mono, "monospace"], fontSize = 14, width = { parent.width }, textAlign = center,
+                              text = "The declarative parts are neo. The logic is ordinary, typed TypeScript — nothing to relearn, and everything an editor or a model already understands." ],
+                ],
+
+            // ── 02 — Small. Fast. Own-pixel when you want it. ──────────────────
+
+            s2: View [ width = { parent.width }, opacity = 0,
+                reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
+                    to = { classroot.scroller.scrollY + classroot.stageHeight > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
+                layout: SimpleLayout [ axis = y, spacing = 44 ],
+                SectionHead [ num = "02", head = "Small. Fast. Own-pixel when you want it." ],
+
+                // two headline metrics — the real production figures the host
+                // injects (pageWeight = gzipped over-the-wire, sourceLines = LOC).
+                // They stack on a phone (WrappingLayout) and read as a concision proof.
+
+                stat: View [ width = { parent.width }, layout: WrappingLayout [ spacing = 48, lineSpacing = 40 ],
+                    Metric [ value = { classroot.pageWeight > 0 ? "≈ " + classroot.pageWeight + " KB" : "≈ — KB" },
+                             note = "over the wire, gzipped — vs the 2.3 MB median page" ],
+                    Metric [ value = { classroot.sourceLines > 0 ? classroot.sourceLines + "" : "—" },
+                             note = "lines of neo-LZX — this entire page" ],
+                    ],
+                points: View [ width = { parent.width }, layout: WrappingLayout [ spacing = 24, lineSpacing = 32 ],
+                    Point [ ptitle = "Small", body = "the whole thing — runtime, your app, and a compiler — is smaller than most sites' hero image." ],
+                    Point [ ptitle = "Fast reactivity", body = "dependencies are compiled statically, not tracked at runtime — no reactive-graph tax." ],
+                    Point [ ptitle = "Own-pixel rendering", body = "a canvas engine renders the same program when you want the ceiling." ],
+                    ],
+                ],
+
+            // ── 03 — Describe it. It runs. (excerpt + a real running preview) ──
+
+            s3: View [ width = { parent.width },
+                layout: SimpleLayout [ axis = y, spacing = 36 ],
+                SectionHead [ num = "03", head = "Describe it. It runs. It stays true.",
+                    lead = "A binding isn't a callback you remember to re-run — it's a standing relationship the runtime keeps true, re-derived the moment its inputs change." ],
+                demo3: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 14 ],
+                    caption: Body [ fontSize = 15, width = { parent.width },
+                        text = "Three bindings track one value: the big number, the bar's width, and its colour. Click to bump v — all three update together, and the colour crosses cool to warm at the halfway mark." ],
+                    cards: View [ width = { parent.width },
+                        layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ],
+                        SourcePanel  [ editName = "reactivity", height = 226,
+                                       src = { classroot.demoSources.reactivity || "" } ],
+                        PreviewFrame [ runName  = "reactivity", height = 226 ],
+                        ],
+                    strip: View [ width = { parent.width }, height = 44, cornerRadius = 10, fill = #0C1620, stroke = stroke(1, #1E313C),
+                        Tag [ x = 18, y = 16, textColor = #556673, text = "REACTIVE CONSTRAINTS · ONE VALUE, MANY BINDINGS · CLICK THE PREVIEW" ] ],
+                    ],
+                ],
+
+            // ── 04 — Compose it from data. ─────────────────────────────────────
+
+            s4: View [ width = { parent.width },
+                layout: SimpleLayout [ axis = y, spacing = 36 ],
+                SectionHead [ num = "04", head = "Compose it from data.",
+                    lead = "A view can be built from data instead of laid out by hand — the shape written once, the data deciding how many there are and what each one says." ],
+                demo4: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 14 ],
+                    caption: Body [ fontSize = 15, width = { parent.width },
+                        text = "One Bar, instanced once per row of the data. Edit a number or add a row and the list rebuilds itself — no loop, no keys. And Bar is auto-included: no import, no definition, just use it." ],
+                    cards: View [ width = { parent.width },
+                        layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ],
+                        SourcePanel  [ editName = "components", height = 184,
+                                       src = { classroot.demoSources.components || "" } ],
+                        PreviewFrame [ runName  = "components", height = 184 ],
+                        ],
+                    strip: View [ width = { parent.width }, height = 44, cornerRadius = 10, fill = #0C1620, stroke = stroke(1, #1E313C),
+                        Tag [ x = 18, y = 16, textColor = #556673, text = "COMPONENTS & DATA · ONE Bar PER RECORD · DATA DRIVES THE VIEW" ] ],
+                    ],
+                ],
+
+            // ── 05 — Motion you declare, not schedule. ─────────────────────────
+
+            s5: View [ width = { parent.width },
+                layout: SimpleLayout [ axis = y, spacing = 36 ],
+                SectionHead [ num = "05", head = "Motion you declare, not schedule.",
+                    lead = "You say where a thing belongs; a Spring finds the path there and settles by physics — motion you declare, not a timeline you sequence." ],
+                demo5: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 14 ],
+                    caption: Body [ fontSize = 15, width = { parent.width },
+                        text = "Click to toggle the ball's target between two positions. The Spring follows and settles by physics — no timeline, no frames driven by hand." ],
+                    cards: View [ width = { parent.width },
+                        layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ],
+                        SourcePanel  [ editName = "spring", height = 184,
+                                       src = { classroot.demoSources.spring || "" } ],
+                        PreviewFrame [ runName  = "spring", height = 184 ],
+                        ],
+                    strip: View [ width = { parent.width }, height = 44, cornerRadius = 10, fill = #0C1620, stroke = stroke(1, #1E313C),
+                        Tag [ x = 18, y = 16, textColor = #556673, text = "DECLARATIVE MOTION · A SPRING FOLLOWS A REACTIVE TARGET · CLICK TO TOGGLE" ] ],
+                    ],
+                ],
+
+            // ── 06 — Modes, not manual wiring. ─────────────────────────────────
+
+            s6: View [ width = { parent.width },
+                layout: SimpleLayout [ axis = y, spacing = 36 ],
+                SectionHead [ num = "06", head = "Declared states, not manual wiring.",
+                    lead = "A State is a named bundle of overrides — a whole configuration you can apply as one. The mode is the unit of change, not each property by hand." ],
+                demo6: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 14 ],
+                    caption: Body [ fontSize = 15, width = { parent.width },
+                        text = "Click to flip one boolean. The card's height, its colour, and an extra line of text swap in together — and revert the instant the mode turns off." ],
+                    cards: View [ width = { parent.width },
+                        layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ],
+                        SourcePanel  [ editName = "states", height = 230,
+                                       src = { classroot.demoSources.states || "" } ],
+                        PreviewFrame [ runName  = "states", height = 230 ],
+                        ],
+                    strip: View [ width = { parent.width }, height = 44, cornerRadius = 10, fill = #0C1620, stroke = stroke(1, #1E313C),
+                        Tag [ x = 18, y = 16, textColor = #556673, text = "DECLARATIVE STATES · ONE BOOLEAN, ONE BUNDLE OF OVERRIDES · CLICK TO TOGGLE" ] ],
+                    ],
+                ],
+
+            // ── manifesto band — centered, an accent rule above and below ──────
+
+            manifesto: View [ width = { parent.width }, opacity = 0,
+                reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
+                    to = { classroot.scroller.scrollY + classroot.stageHeight > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
+                layout: SimpleLayout [ axis = y, spacing = 40 ],
+                ruleTop: View [ x = { (parent.width - 140) / 2 }, width = 140, height = 2, fill = #4C8DFF ],
+                Heading [ fontSize = { classroot.stageWidth < 700 ? 30 : 44 }, width = { parent.width },
+                          textAlign = center,
+                          text = "The last framework was built for browsers. This one's built for what's next." ],
+                ruleBot: View [ x = { (parent.width - 140) / 2 }, width = 140, height = 2, fill = #4C8DFF ],
+                ],
+
+            // ── 07 — The workshop. ─────────────────────────────────────────────
+
+            s7: View [ width = { parent.width }, opacity = 0,
+                reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
+                    to = { classroot.scroller.scrollY + classroot.stageHeight > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
+                layout: SimpleLayout [ axis = y, spacing = 36 ],
+                SectionHead [ num = "07", head = "The workshop.",
+                    lead = "Every panel above compiles in the browser and runs where you read it — the same path your own apps will take. This is the whole surface, being built in the open." ],
+                whatsComing: Eyebrow [ fontSize = 13, text = "WHAT'S COMING" ],
+                coming: View [ width = { parent.width }, layout: WrappingLayout [ spacing = 24, lineSpacing = 24 ],
+                    Card [ muted = true, title = "Explorer gallery",   body = "early — being built in the open." ],
+                    Card [ muted = true, title = "Component library",  body = "early — being built in the open." ],
+                    Card [ muted = true, title = "Docs",               body = "early — being built in the open." ],
+                    ],
+                ],
+
+            // ── footer ─────────────────────────────────────────────────────────
+
+            footer: View [ width = { parent.width },
+                layout: SimpleLayout [ axis = y, spacing = 16 ],
+                rule: View [ width = { parent.width }, height = 1, fill = #263D4C ],
+                row: View [ width = { parent.width }, layout: WrappingLayout [ spacing = 12, lineSpacing = 8 ],
+                    Eyebrow [ fontSize = 13, text = "BUILT IN NEO-LZX" ],
+                    Eyebrow [ fontSize = 13, textColor = #556673, text = "·" ],
+
+                    // source affordance in the same eyebrow treatment — inline so its
+                    // onClick can reach App.editing (App resolves in use-site bodies)
+
+                    src: Eyebrow [ fontSize = 13, hovered: boolean = false,
+                        textColor = { hovered ? 0x37E0C8 : 0x8A9BA6 },
+                        onMouseOver() { hovered = true },
+                        onMouseOut()  { hovered = false },
+                        onClick()     { this.root.editing = true },
+                        text = "VIEW & EDIT SOURCE" ],
+                    ],
+
+                // breathing room below the footer line
+
+                tail: View [ width = { parent.width }, height = 28 ],
+                ],
+          ],
+        ],
+
+    // ── fixed chrome — SIBLINGS of the scroller, so they never scroll ─────────
+    // The translucent top bar. It starts hidden (opacity 0, nudged up 8px) and
+    // SPRINGS into view once you scroll past the hero — the entrance is two
+    // Springs each following a reactive target, the declarative neo form of a
+    // timed transition (no scroll-scrub, no imperative trigger).
+
+    header: View [ width = { classroot.stageWidth }, height = 56, y = -8, opacity = 0, fill = #101E28,
+        fadeIn:  Spring [ attribute = opacity, to = { classroot.scroller.scrollY > 80 ? 1 : 0 },
+                          stiffness = 220, damping = 30, epsilon = 0.004 ],
+        slideIn: Spring [ attribute = y,       to = { classroot.scroller.scrollY > 80 ? 0 : -8 },
+                          stiffness = 220, damping = 30, epsilon = 0.05 ],
+        hairline: View [ y = 55, width = { classroot.stageWidth }, height = 1, fill = #263D4C ],
+
+        // wordmark neo·-·LZX, the dash in accent-2 — mono, like the React header
+
+        brand: View [ x = { Math.max(24, (classroot.stageWidth - 1120) / 2) }, y = 18,
+            layout: SimpleLayout [ axis = x, spacing = 0 ],
+            Text [ fontFamily = [Mono, "monospace"], fontSize = 15, fontWeight = semibold, textColor = #E7EEF2, text = "neo" ],
+            Text [ fontFamily = [Mono, "monospace"], fontSize = 15, fontWeight = semibold, textColor = #37E0C8, text = "-" ],
+            Text [ fontFamily = [Mono, "monospace"], fontSize = 15, fontWeight = semibold, textColor = #E7EEF2, text = "LZX" ],
+            ],
+
+        // primary nav, right-aligned to the same gutter the content ends at
+        // auto-width, right-aligned to the same gutter the content ends at
+        // (x = right edge − own content width); the padded pills carry the spacing
+
+        nav: View [ y = 11, x = { classroot.stageWidth - Math.max(24, (classroot.stageWidth - 1120) / 2) - this.width },
+            layout: SimpleLayout [ axis = x, spacing = 2 ],
+            NavLink [ label = "Docs" ],
+            NavLink [ label = "Examples" ],
+            NavLink [ label = "Playground" ],
+            NavLink [ label = "GitHub" ],
+            ],
+        ],
+
+    // the whole-page source editor — an overlay above the page, shown when
+    // App.editing (flipped by "VIEW & EDIT SOURCE"). Same CodeField + embedded
+    // preview as the demo cards; its preview is active only while open.
+
+    editor: FullPageEditor [ open = { classroot.editing },
+                             stageW = { classroot.stageWidth }, stageH = { classroot.stageHeight },
+                             pageSource = { classroot.demoSources.__page__ || "" } ],
+
+    // pointer dot — a 10px accent-2 dot in VIEWPORT space that SPRINGS after the
+    // pointer (loose + low-mass = the slower, longer trail). Two position
+    // Springs; the native cursor stays visible and leads, the dot follows.
+
+    cursor: View [ width = 10, height = 10, cornerRadius = 5, fill = #37E0C8, opacity = 0.9,
+        shadow = { shadow(0, 0, 12, 0x37E0C8) },
+
+        // yield to the native I-beam when the pointer is over an editable field
+
+        visible = { !classroot.pointerOverText },
+        followX: Spring [ attribute = x, to = { classroot.pointerX - 5 },
+                          stiffness = 120, damping = 14, mass = 0.6, epsilon = 0.05 ],
+        followY: Spring [ attribute = y, to = { classroot.pointerY - 5 },
+                          stiffness = 120, damping = 14, mass = 0.6, epsilon = 0.05 ] ],
+    ]

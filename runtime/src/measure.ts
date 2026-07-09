@@ -7,7 +7,7 @@
 // baseline) — so both backends place identical glyph geometry and differ
 // only in the rasterizer that inks it.
 
-import type { Color, Shadow } from "./value.js";
+import type { Color, Fill, Shadow } from "./value.js";
 
 export type FontWeight =
   | "thin" | "extralight" | "light" | "regular" | "normal"
@@ -36,6 +36,13 @@ export interface TextStyle {
   readonly letterSpacing: number; // px tracking, 0 = natural
   readonly color: Color;
   readonly shadow?: Shadow | null;
+  /** Run wraps within its box width (`pre-wrap`) vs a single line (`pre`). */
+  readonly wrap?: boolean;
+  readonly align?: "left" | "center" | "right";
+  readonly italic?: boolean;
+  /** Fill the glyphs with a gradient (or solid Fill) — overrides `color` when
+   *  set. Canvas realizes it over the text box; DOM clips a background to text. */
+  readonly textFill?: Fill | null;
 }
 
 // Created on first use — never at import or instantiation time — so the
@@ -48,8 +55,8 @@ function measurer(): CanvasRenderingContext2D {
 
 /** A style as a canvas font string — the one font encoding the measurer and
  *  both backends share, so they cannot disagree about which font they mean. */
-export function fontString(style: { fontFamily: string; fontSize: number; fontWeight: FontWeight }): string {
-  return `${cssWeight(style.fontWeight)} ${style.fontSize}px ${style.fontFamily}`;
+export function fontString(style: { fontFamily: string; fontSize: number; fontWeight: FontWeight; italic?: boolean }): string {
+  return `${style.italic ? "italic " : ""}${cssWeight(style.fontWeight)} ${style.fontSize}px ${style.fontFamily}`;
 }
 
 /** The advance width of `text` in `font`, in px (fractional), including
@@ -73,4 +80,30 @@ export function fontMetrics(font: string): { ascent: number; descent: number } {
   m.font = font;
   const t = m.measureText("");
   return { ascent: t.fontBoundingBoxAscent, descent: t.fontBoundingBoxDescent };
+}
+
+/** `text` broken into the lines it wraps to within `width` px in `font` —
+ *  greedy soft-break at spaces, hard-break at "\n", via the shared measurer.
+ *  The DOM backend wraps natively; this is the shared breaker the Canvas
+ *  backend paints and the model measures its auto-extent height from. A word
+ *  longer than the box stays on its own line (no mid-word break), matching the
+ *  default `word-break: normal`. */
+export function wrapLines(text: string, font: string, width: number, letterSpacing = 0): string[] {
+  if (width <= 0) return text.split("\n");
+  const m = measurer();
+  m.font = font;
+  const ls = m as unknown as { letterSpacing: string };
+  ls.letterSpacing = `${letterSpacing}px`;
+  const out: string[] = [];
+  for (const seg of text.split("\n")) {
+    let cur = "";
+    for (const word of seg.split(" ")) {
+      const trial = cur === "" ? word : cur + " " + word;
+      if (cur !== "" && m.measureText(trial).width > width) { out.push(cur); cur = word; }
+      else cur = trial;
+    }
+    out.push(cur);
+  }
+  ls.letterSpacing = "0px"; // the measurer is shared — leave it neutral
+  return out.length === 0 ? [""] : out;
 }

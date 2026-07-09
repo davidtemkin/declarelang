@@ -25,7 +25,7 @@ import http from "node:http";
 import path from "node:path";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { compile } from "../../compiler/dist/compile.js";
+import { compile } from "../../compiler/dist/compile-node.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));    // tools/gallery
 const ROOT = path.resolve(HERE, "../..");                     // the neolzx distro root

@@ -87,6 +87,39 @@ reference (`weather.neolzx`) and the landed app (`neoweather.neolzx`), so they
 **stop drifting apart** — the divergence that motivated this note dissolves
 because they share the actual component source.
 
+### 1a. Auto-include — magic component tags (implemented)
+
+The tightest form drops even the `include`. Using a bare component tag —
+`Bar [ … ]`, `Button [ … ]` — with no `include` directive and no inline
+`class Bar` pulls in the library that defines it. This is LZX's
+`lzx-autoincludes` mechanism ported: LZX shipped its whole widget set this way
+(a generated tag→file manifest; using `<button>` auto-included `button.lzx`).
+
+The pieces:
+
+- **`library/autoincludes.json`** — the manifest, `{ "Bar": "bar.neolzx", … }`
+  (tag → file path, relative to `library/src`).
+- **`library/src/*.neolzx`** — ordinary neo libraries, each a `class Bar …`.
+- **`resolveAutoIncludes`** (runtime/`include.ts`) runs *after* explicit
+  `include`s, sharing their visited set: it collects the program's referenced
+  tags, and for any that is neither provided nor a built-in but *is* in the
+  manifest, splices in its library exactly like an explicit include —
+  dependency-first, include-once. A tag absent from the manifest is left to the
+  checker as a genuine unknown-component error. On a host without the manifest
+  (the zero-dependency runtime, a single-file compile) it is a no-op, so
+  offset-for-offset output is unchanged.
+
+The payoff is the demo/site brevity goal: a sample reads as *just its logic*,
+the component appearing from nowhere — and the sample and the page share the
+one component source, so they cannot drift.
+
+> **These bundled components are simple PLACEHOLDERS, to be revisited.** They
+> exist to implement the current samples, with baseline styleability (override a
+> colour, a size) and a dead-easy-to-read body — not to be a real component set.
+> A proper library (the widget vocabulary, its theming contract, its API
+> surface) is its own dedicated design + research effort, to follow. Until then,
+> treat `library/src/*.neolzx` as scaffolding: coherent, but not load-bearing.
+
 
 ## 2. `import` — composing JS modules
 

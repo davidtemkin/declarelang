@@ -23,7 +23,7 @@
 // multiline is a ruled open question (HANDOFF) — a run never wraps.
 import { View, onDiscard } from "./view.js";
 import { shadowEqual } from "./value.js";
-import { fontMetrics, fontString, textWidth } from "./measure.js";
+import { fontMetrics, fontString, textWidth, wrapLines } from "./measure.js";
 import { bindDerived, defineAttributes, isSet, ownerOf } from "./attributes.js";
 import { Constraint } from "./reactive.js";
 export class Text extends View {
@@ -37,7 +37,15 @@ export class Text extends View {
         if (!isSet(this, "height") && ownerOf(this, "height") === null) {
             bindDerived(this, "height", () => {
                 const m = fontMetrics(fontString(this));
-                return Math.ceil(m.ascent + m.descent);
+                const lineH = m.ascent + m.descent;
+                // A bounded width wraps (unless wrap=false) → height extends to the
+                // wrapped line count. Reading `width` keeps this reactive, so a
+                // container/viewport resize re-wraps and re-flows — baseline.
+                const bounded = (isSet(this, "width") || ownerOf(this, "width") !== null) && this.width > 0;
+                const lines = bounded && this.wrap
+                    ? wrapLines(this.text, fontString(this), this.width, this.letterSpacing).length
+                    : 1;
+                return Math.ceil(lineH * lines);
             });
         }
         super.attach(backend, parentSurface);
@@ -56,6 +64,10 @@ export class Text extends View {
             letterSpacing: this.letterSpacing,
             color: this.textColor,
             shadow: this.textShadow,
+            wrap: this.wrap && (isSet(this, "width") || ownerOf(this, "width") !== null) && this.width > 0,
+            align: this.textAlign,
+            italic: this.italic,
+            textFill: this.textFill,
         }), 
         // Constraint is deliberately untyped across compute→apply; this
         // apply's input is exactly its compute's output.
@@ -68,5 +80,9 @@ export class Text extends View {
 defineAttributes(Text, {
     text: { def: "", push: (t, v) => t.surface?.setText(v) },
     textShadow: { def: null, equal: shadowEqual },
+    wrap: { def: true },
+    textAlign: { def: "left" },
+    italic: { def: false },
+    textFill: { def: null },
 });
 //# sourceMappingURL=text.js.map

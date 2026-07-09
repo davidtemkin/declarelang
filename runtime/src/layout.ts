@@ -180,6 +180,78 @@ defineAttributes(SimpleLayout, {
   spacing: { def: 0 },
 });
 
+/** WrappingLayout — a horizontal flow that WRAPS: children run left-to-right
+ *  `spacing` apart, and when the next child would overflow the view's width it
+ *  drops to a new row (`lineSpacing` down, default = `spacing`). With room for
+ *  one row it is identical to `SimpleLayout[axis=x]`; as the view narrows it
+ *  stacks — the whole point (cards that reflow on a phone with no media query).
+ *  It owns BOTH axes of each child (a flow is 2-D), each child's position a pure
+ *  function of the view's width and the predecessors' sizes, so a resize or a
+ *  child growing re-flows through the ordinary reactive wake. */
+export class WrappingLayout extends Layout {
+  declare spacing: number;
+  /** Row-to-row gap; the sentinel −1 means "same as `spacing`" (the common case). */
+  declare lineSpacing: number;
+
+  /** The placed position of every child, computed in one left-to-right pass —
+   *  the shared read the per-child x/y constraints call (reads the view width,
+   *  spacings, and each child's size/visibility, so all are tracked deps). */
+  private positions(kids: View[]): { x: number; y: number }[] {
+    const w = this.view!.width;
+    const sp = this.spacing;
+    const ls = this.lineSpacing < 0 ? sp : this.lineSpacing;
+    const out: { x: number; y: number }[] = [];
+    let cx = 0, cy = 0, rowH = 0, firstInRow = true;
+    for (const c of kids) {
+      if (!c.visible) { out.push({ x: cx, y: cy }); continue; } // skipped: reclaim its slot
+      const cw = c.width, ch = c.height;
+      // wrap when this child (with its leading gap) would overflow — never on
+      // the first child of a row, so one over-wide child just overflows its row
+      if (!firstInRow && cx + sp + cw > w) { cx = 0; cy += rowH + ls; rowH = 0; firstInRow = true; }
+      if (!firstInRow) cx += sp;
+      out.push({ x: cx, y: cy });
+      cx += cw;
+      rowH = Math.max(rowH, ch);
+      firstInRow = false;
+    }
+    return out;
+  }
+
+  protected install(view: View): () => void {
+    const kids = view.children.filter((c): c is View => c instanceof View);
+    const label = `${view.constructor.name}'s WrappingLayout`;
+    const installed: { child: View; slot: "x" | "y"; k: Constraint }[] = [];
+    const detach = () => {
+      for (const o of installed) { o.k.dispose(); release(o.child, o.slot, o.k); }
+    };
+    try {
+      kids.forEach((child, i) => {
+        for (const slot of ["x", "y"] as const) {
+          const prior = ownerOf(child, slot);
+          if (prior !== null) {
+            throw new NeoError(
+              `${child.constructor.name}.${slot} is already bound (by ${prior.label}), but ${label} arranges its children — drop one of the two`
+            );
+          }
+          const k = new Constraint(label, () => this.positions(kids)[i][slot], (v) => setBound(child, slot, v));
+          own(child, slot, k);
+          installed.push({ child, slot, k });
+        }
+      });
+      for (const o of installed) o.k.run();
+    } catch (e) {
+      detach();
+      throw e;
+    }
+    return detach;
+  }
+}
+
+defineAttributes(WrappingLayout, {
+  spacing: { def: 0 },
+  lineSpacing: { def: -1 },
+});
+
 /** The geometry a TweenLayout places one child in: its box plus a visibility
  *  flag (the reveal rule reads it). `w`/`h` name the sizes so a box is a plain
  *  record, distinct from the child's live `width`/`height` slots the layout

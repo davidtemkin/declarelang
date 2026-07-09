@@ -45,6 +45,11 @@ export class DomBackend {
         return new DomSurface();
     }
     attachRoot(host, root) {
+        // Is this app EMBEDDED inside another neo app (rendered into an island box
+        // that lives in an outer app's marked tree)? An embedded app owns only its
+        // box: it must NOT repaint the page's <body> background, and the outer app's
+        // input router must ignore events inside it (see the boundary check below).
+        const embedded = typeof host.closest === "function" && host.closest("[data-neo-app]") !== null;
         // Every surface is absolutely positioned (see DomSurface), so the tree
         // needs a positioned ancestor to anchor to; otherwise the root would
         // position against the viewport instead of `host` on a plain (static)
@@ -53,6 +58,10 @@ export class DomBackend {
         if (getComputedStyle(host).position === "static")
             host.style.position = "relative";
         const rootEl = root.element;
+        // Mark the app root: the ONE DOM signal a child reads to know it is embedded
+        // (index.ts isEmbedded), and the boundary the input router stops at so an
+        // outer app never double-handles a click that belongs to an embedded child.
+        rootEl.dataset.neoApp = "";
         // Views are a painted UI, not a document: a press-drag (event drag, and any
         // future gesture) must not start a native text/element selection. Suppress
         // it once at the root — `user-select` inherits, so every view div is covered
@@ -62,6 +71,21 @@ export class DomBackend {
         rootEl.style.webkitUserSelect = "none";
         rootEl.style.touchAction = "none";
         host.appendChild(rootEl);
+        // Paint the page BEHIND the app with the app's own background — so Safari's
+        // rubber-band overscroll and any sub-pixel edge match the app instead of
+        // flashing white. Automatic for any TOP-LEVEL app: we read the root's realized
+        // background (fill was applied at attach(), before attachRoot). `html`
+        // height:100% + margin:0 keep the fill covering the whole frame. An embedded
+        // app fills only its box, so it must not touch the shared page <body>.
+        const doc = host.ownerDocument;
+        const bg = getComputedStyle(rootEl).backgroundColor;
+        if (!embedded && bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent") {
+            doc.documentElement.style.background = bg;
+            doc.body.style.background = bg;
+            doc.documentElement.style.height = "100%";
+            doc.body.style.height = "100%";
+            doc.body.style.margin = "0";
+        }
         // Input: the browser's own hit-test picks the target (only sinked
         // surface elements accept pointer events — everything else is
         // pointer-inert, see DomSurface), so resolution is just "walk up to the
@@ -69,8 +93,16 @@ export class DomBackend {
         // pairing/click rule is the shared router's (input.ts).
         routeInput(() => rootEl.isConnected, (e) => {
             let el = e.target instanceof HTMLElement && rootEl.contains(e.target) ? e.target : null;
-            while (el !== null && !SINKS.has(el))
+            while (el !== null) {
+                // Stop at a nested app root: an embedded child's tree is inside THIS
+                // rootEl, so without this guard the outer router would walk up into the
+                // child, find its (globally-shared) sink, and fire it a second time.
+                if (el !== rootEl && el.hasAttribute("data-neo-app"))
+                    return null;
+                if (SINKS.has(el))
+                    break;
                 el = el === rootEl ? null : el.parentElement;
+            }
             if (el === null)
                 return null;
             const r = el.getBoundingClientRect();
@@ -80,6 +112,25 @@ export class DomBackend {
             return { x: e.clientX - r.left, y: e.clientY - r.top };
         });
     }
+}
+// A legible dark-theme scrollbar for `.neo-scroll` elements, injected once per
+// document. macOS overlay scrollbars are near-invisible and never widen on
+// hover; a `::-webkit-scrollbar` rule opts into a classic, always-present one
+// (transparent track, translucent thumb that brightens + fattens on hover).
+const SCROLLBAR_STYLE_ID = "neo-scrollbar-style";
+function installScrollbarStyle(doc) {
+    if (doc.getElementById(SCROLLBAR_STYLE_ID) !== null)
+        return;
+    const style = doc.createElement("style");
+    style.id = SCROLLBAR_STYLE_ID;
+    style.textContent =
+        ".neo-scroll::-webkit-scrollbar{width:12px;height:12px}" +
+            ".neo-scroll::-webkit-scrollbar-track{background:transparent}" +
+            ".neo-scroll::-webkit-scrollbar-thumb{background:rgba(230,238,242,.16);border-radius:7px;" +
+            "border:3px solid transparent;background-clip:padding-box}" +
+            ".neo-scroll::-webkit-scrollbar-thumb:hover{background:rgba(230,238,242,.34);border-width:2px}" +
+            ".neo-scroll{scrollbar-color:rgba(230,238,242,.28) transparent}";
+    (doc.head ?? doc.documentElement).appendChild(style);
 }
 class DomSurface {
     element;
@@ -261,6 +312,88 @@ class DomSurface {
         // subtraction the canvas walk's isPointInPath makes.
         this.element.style.clipPath = d === null ? "" : `path("${d}")`;
     }
+    scrollListener;
+    wheelListener;
+    setScroll(on, onScroll) {
+        const el = this.element;
+        if (on) {
+            // The box clips + owns a real scroll offset; siblings stay compositor-
+            // pinned. Horizontal overflow is hidden (a horizontal scroller is nearly
+            // always a bug).
+            el.style.overflowY = "auto";
+            el.style.overflowX = "hidden";
+            // A styled, always-there scrollbar (not the near-invisible macOS overlay):
+            // legible on dark, and it widens on hover. `overscroll-behavior: none`
+            // stops a scroll-past from chaining to the document (rubber-band flash).
+            installScrollbarStyle(el.ownerDocument);
+            el.classList.add("neo-scroll");
+            el.style.overscrollBehavior = "none";
+            // A scroll container is interactive (like a sink): it must ACCEPT the
+            // wheel, or the pointer-inert content passes it straight to the document
+            // and nothing scrolls. Its own children stay inert, so clicks still
+            // resolve to the sink under the pointer (native-target routing above).
+            el.style.pointerEvents = "auto";
+            if (this.scrollListener === undefined) {
+                // Fires for wheel, scrollbar-drag, and programmatic scrollTop alike.
+                this.scrollListener = () => onScroll(el.scrollTop);
+                el.addEventListener("scroll", this.scrollListener, { passive: true });
+            }
+            if (this.wheelListener === undefined) {
+                // Every neo view is position:absolute, so the scroller's content is
+                // out of normal flow: the browser reports the overflow and honors a
+                // programmatic scrollTop, but the WHEEL won't drive it (nothing
+                // in-flow to scroll). So we advance scrollTop ourselves. macOS delivers
+                // trackpad inertia as a wheel-event stream, so momentum survives; we
+                // preventDefault only when we actually consumed the delta, leaving
+                // overscroll to fall through to an outer scroller.
+                this.wheelListener = (e) => {
+                    const before = el.scrollTop;
+                    el.scrollTop = before + e.deltaY;
+                    if (el.scrollTop !== before)
+                        e.preventDefault();
+                };
+                el.addEventListener("wheel", this.wheelListener, { passive: false });
+            }
+        }
+        else {
+            if (this.scrollListener !== undefined) {
+                el.removeEventListener("scroll", this.scrollListener);
+                this.scrollListener = undefined;
+            }
+            if (this.wheelListener !== undefined) {
+                el.removeEventListener("wheel", this.wheelListener);
+                this.wheelListener = undefined;
+            }
+            el.style.overflowY = "";
+            el.style.overflowX = "";
+            el.style.pointerEvents = "none";
+        }
+    }
+    setEmbed(id) {
+        // An HTML island: the host queries `[data-neo-slot="…"]` and mounts foreign
+        // content inside this neo-sized element; the tenant fills the box (100%), so
+        // neo's width/height constraints drive its size with no coordinate sync.
+        const s = this.element.style;
+        const webkit = s;
+        if (id === "") {
+            delete this.element.dataset.neoSlot;
+            // Back to the painted-UI defaults: pointer-inert, unselectable.
+            s.pointerEvents = "none";
+            s.userSelect = "";
+            webkit.webkitUserSelect = "";
+        }
+        else {
+            this.element.dataset.neoSlot = id;
+            // A live foreign surface, not painted UI: its interior owns hits and
+            // native text selection. neo's model makes every view pointer-inert
+            // (pointerEvents:none) and unselectable (user-select:none inherits from
+            // the root) — an island opts BACK in for both, so an iframe receives
+            // clicks and a text field selects, whether or not the View has a sink.
+            s.pointerEvents = "auto";
+            s.userSelect = "text";
+            webkit.webkitUserSelect = "text";
+        }
+    }
     setInput(sink) {
         if (sink !== null) {
             SINKS.set(this.element, sink);
@@ -304,6 +437,10 @@ class DomSurface {
             s.touchAction = "auto";
             s.resize = "none";
             s.pointerEvents = "auto";
+            // A styled, always-there scrollbar (like a neo scroller) — not the
+            // near-invisible macOS overlay — so a scrolling code field shows one.
+            installScrollbarStyle(el.ownerDocument);
+            el.classList.add("neo-scroll");
             const self = el;
             el.addEventListener("input", () => this.edit?.onInput(self.value));
             el.addEventListener("focus", () => this.edit?.onFocus());
@@ -318,6 +455,15 @@ class DomSurface {
         this.edit = spec;
         if (el.value !== spec.value)
             el.value = spec.value; // guard: don't reset the caret on an echo
+        el.spellcheck = spec.spellcheck; // code fields turn the red squiggles off
+        el.style.padding = spec.padding > 0 ? `${spec.padding}px` : "0";
+        // no-wrap = one line per line + horizontal scroll (both native to a textarea
+        // whose wrap attribute is "off"); soft = the wrapping default.
+        if (el instanceof HTMLTextAreaElement) {
+            el.wrap = spec.wrap ? "soft" : "off";
+            el.style.whiteSpace = spec.wrap ? "pre-wrap" : "pre";
+            el.style.overflow = "auto";
+        }
         el.placeholder = spec.placeholder;
         applyEditStyle(el, spec.style);
     }
@@ -337,10 +483,34 @@ class DomSurface {
         s.fontFamily = st.fontFamily;
         s.fontSize = st.fontSize + "px";
         s.fontWeight = cssWeight(st.fontWeight);
+        s.fontStyle = st.italic ? "italic" : "normal";
         s.letterSpacing = st.letterSpacing === 0 ? "normal" : st.letterSpacing + "px";
-        s.color = colorToCss(st.color);
+        // A gradient text-fill clips a background to the glyphs (the canvas backend
+        // realizes the same ramp over the box); a solid fill is the plain color.
+        const tf = st.textFill;
+        if (tf != null && isGradient(tf)) {
+            s.backgroundImage = `linear-gradient(${tf.angle}deg, ${tf.stops
+                .map((g) => colorToCss(g.color) + (g.offset === null ? "" : ` ${g.offset * 100}%`))
+                .join(", ")})`;
+            s.webkitBackgroundClip = "text";
+            s.backgroundClip = "text";
+            s.webkitTextFillColor = "transparent";
+            s.color = "transparent";
+        }
+        else {
+            s.backgroundImage = "";
+            s.backgroundClip = "";
+            s.webkitTextFillColor = "";
+            s.color = colorToCss(st.color);
+        }
         const sh = st.shadow ?? null;
         s.textShadow = sh === null ? "" : `${sh.dx}px ${sh.dy}px ${sh.blur}px ${colorToCss(sh.color)}`;
+        // Wrapping: a bounded box wraps (`pre-wrap`) and the run fills the box
+        // width so the browser breaks lines; an unbounded run stays a single line
+        // (`pre`) and shrinks to content. (Canvas wrapping via pretext is its own rung.)
+        s.whiteSpace = st.wrap ? "pre-wrap" : "pre";
+        s.width = st.wrap ? "100%" : "";
+        s.textAlign = st.align ?? "left";
         // Pin the first baseline to the font ascent: a line-height of exactly
         // ascent+descent leaves no half-leading, so DOM text and the Canvas
         // backend's fillText(…, ascent) place identical glyph geometry.

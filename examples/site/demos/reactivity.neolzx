@@ -1,0 +1,11 @@
+App [ textColor = whitesmoke,
+    v: number = 42,
+    cool: Color = dodgerblue,
+    warm: Color = turquoise,
+    onMouseDown() { v = (v + 17) % 100 },
+    View [ x = 28, y = 26, layout: SimpleLayout [ axis = y, spacing = 18 ],
+        Text [ textColor = slategray, text = "click anywhere to change v" ],
+        Text [ fontSize = 72, fontWeight = bold, text = { classroot.v + "" } ],
+        Bar [ width = 300, value = { classroot.v },
+              tint = { classroot.v < 50 ? classroot.cool : classroot.warm } ] ],
+    ]

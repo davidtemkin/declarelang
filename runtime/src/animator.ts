@@ -166,7 +166,7 @@ export class Animator extends Node implements Animatable {
    *  that is not itself an animator/group. For an ungrouped animator this is
    *  just its parent (a View). Matches the checker's target context, which
    *  threads the group's PARENT schema through to its members. */
-  private resolveTarget(): Node | null {
+  protected resolveTarget(): Node | null {
     let t = this.parent;
     while (t !== null && (t instanceof Animator || t instanceof AnimatorGroup)) t = t.parent;
     return t;

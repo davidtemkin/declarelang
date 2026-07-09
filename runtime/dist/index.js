@@ -44,18 +44,114 @@ export function render(source, host, backend, opts = {}) {
     const app = build(source, opts);
     app.attach(backend, null);
     backend.attachRoot(host, app.surface);
-    wireInput(app);
+    wireInput(app, host);
     return app;
 }
-/** Wire the runtime input services to a freshly-rooted app: the focus tree root
- *  (for Tab from nothing focused), the keyboard adapter (self-retiring once the
- *  app's surface is gone), and Keys→Focus delivery. Single-root by design — the
- *  runtime hosts one App per page. */
-function wireInput(app) {
+/** Is this mount host EMBEDDED inside another neo app? A top-level app roots on
+ *  a bare host (document.body's child); an embedded app is rendered into an
+ *  `HTML []` island's box, which lives inside the outer app's marked tree
+ *  (attachRoot stamps every app root `data-neo-app`). The child reads that ONE
+ *  DOM signal to configure itself — no explicit "embedded" flag threads through.
+ *  The mark is on the app ROOT element (a child of `host`), so `closest` from
+ *  `host` sees only ANCESTOR apps, never this app's own just-attached root. */
+function isEmbedded(host) {
+    return typeof document !== "undefined" && typeof host.closest === "function"
+        && host.closest("[data-neo-app]") !== null;
+}
+/** Per-app teardown for an EMBEDDED app's stage listeners (a top-level app lives
+ *  for the page and needs none). The host calls disposeApp() before it re-renders
+ *  a preview so the old app's ResizeObserver/pointer listeners don't linger. */
+const TEARDOWN = new WeakMap();
+/** Tear down an embedded app's stage wiring (ResizeObserver + pointer listeners).
+ *  Its rendered DOM is removed by the caller (clearing the island box); its input
+ *  router self-retires once the root element is disconnected. A no-op for a
+ *  top-level app. */
+export function disposeApp(app) {
+    TEARDOWN.get(app)?.();
+    TEARDOWN.delete(app);
+}
+/** Wire the runtime input services to a freshly-rooted app. A TOP-LEVEL app owns
+ *  the page: it takes the focus-tree root (Tab from nothing focused), the keyboard
+ *  adapter, and window-fed stage attributes. An EMBEDDED app (a preview inside an
+ *  island) owns only its box — it takes its stage from that element and does NOT
+ *  seize the page's global focus/keys singletons (the outer app keeps them). */
+function wireInput(app, host) {
+    const embedded = isEmbedded(host);
+    wireStage(app, host, embedded);
+    if (embedded)
+        return;
     Focus.setRoot(app);
     Keys.listen(() => app.surface !== null);
     deliverKeys(Keys, Focus);
 }
+/** Feed the App's reactive stage attributes. A top-level app reads the WINDOW
+ *  (viewport size on resize, page scroll, the free pointer); an embedded app
+ *  reads its CONTAINER ELEMENT instead (size via ResizeObserver, pointer relative
+ *  to the box) so "fill the stage" means "fill my island", and many apps coexist
+ *  in one document. Guarded so a Node host (unit tests) is a no-op. Writes batch
+ *  through the reactive scheduler like any attribute, settling once before paint. */
+function wireStage(app, host, embedded) {
+    if (typeof window === "undefined")
+        return;
+    if (embedded)
+        return wireStageEmbedded(app, host);
+    const w = window;
+    const size = () => { app.stageWidth = w.innerWidth; app.stageHeight = w.innerHeight; };
+    const scroll = () => { app.scrollY = w.scrollY; };
+    const move = (e) => {
+        app.pointerX = e.clientX;
+        app.pointerY = e.clientY;
+        app.hovering = true;
+        // Over a native text field the app's custom cursor should yield to the
+        // I-beam (see App.pointerOverText).
+        const t = e.target;
+        app.pointerOverText =
+            t instanceof HTMLElement && (t.isContentEditable || t.tagName === "INPUT" || t.tagName === "TEXTAREA");
+    };
+    const out = (e) => { if (e.relatedTarget === null) {
+        app.hovering = false;
+        app.pointerOverText = false;
+    } };
+    size();
+    scroll();
+    w.addEventListener("resize", size);
+    w.addEventListener("scroll", scroll, { passive: true });
+    w.addEventListener("mousemove", move, { passive: true });
+    w.addEventListener("mouseout", out);
+}
+/** Stage wiring for an embedded app: size follows the container ELEMENT (its
+ *  island box), the pointer is box-relative, and there is no page scroll to own.
+ *  Registers a teardown so a re-render (disposeApp) drops the observer/listeners. */
+function wireStageEmbedded(app, host) {
+    const sync = () => { app.stageWidth = host.clientWidth; app.stageHeight = host.clientHeight; };
+    const move = (e) => {
+        const r = host.getBoundingClientRect();
+        app.pointerX = e.clientX - r.left;
+        app.pointerY = e.clientY - r.top;
+        app.hovering = true;
+        const t = e.target;
+        app.pointerOverText =
+            t instanceof HTMLElement && (t.isContentEditable || t.tagName === "INPUT" || t.tagName === "TEXTAREA");
+    };
+    const leave = () => { app.hovering = false; app.pointerOverText = false; };
+    sync();
+    host.addEventListener("mousemove", move, { passive: true });
+    host.addEventListener("mouseleave", leave);
+    let ro = null;
+    if (typeof ResizeObserver !== "undefined") {
+        ro = new ResizeObserver(sync);
+        ro.observe(host);
+    }
+    TEARDOWN.set(app, () => {
+        host.removeEventListener("mousemove", move);
+        host.removeEventListener("mouseleave", leave);
+        ro?.disconnect();
+    });
+}
+// NOTE: `pageWeight` (production over-the-wire KB, gzipped) and `sourceLines`
+// are set by the HOST/build, not measured from the dev page — a dev page loads
+// unbundled ES modules and would read ~10× the shipping size. The build that
+// produces the shipping bundle knows the real figure and provides it.
 /** Like render(), but first loads the web faces of the program's own `font`
  *  declarations (those with a URL/woff2 source), so first paint measures
  *  against the real metrics. The declarative counterpart to a manual
@@ -66,7 +162,7 @@ export async function renderAsync(source, host, backend, opts = {}) {
     await loadFonts(fontFacesOf(app));
     app.attach(backend, null);
     backend.attachRoot(host, app.surface);
-    wireInput(app);
+    wireInput(app, host);
     return app;
 }
 /** Load web fonts into the document so BOTH backends see them — one FontFace
@@ -96,7 +192,7 @@ export { resolveIncludes, NO_INCLUDES } from "./include.js";
 export { check, checkAttr, checkMethod, checkDecl, checkComponentValue, programSchemas } from "./check.js";
 export { instantiate } from "./instantiate.js";
 export { Node } from "./node.js";
-export { View, App, inheritedCursor, onDiscard } from "./view.js";
+export { View, App, Html, inheritedCursor, onDiscard } from "./view.js";
 export { Text } from "./text.js";
 export { Image } from "./image.js";
 export { TextInput } from "./text-input.js";

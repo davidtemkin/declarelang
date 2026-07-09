@@ -388,7 +388,7 @@ Three pronouns, because the node a piece of code is *attached to* is not always 
 
 - **`this`** — the node the code is on.
 - **`parent`** — that node's parent in the view tree.
-- **`classroot`** — the enclosing class *instance*. You need it when `this` ≠ the component root, e.g. a handler on a nested child that must reach the component it is part of:
+- **`classroot`** — the instance of the class *in whose body the code is written* (the meaning LZX gave it: "the node that is an instance of the `<class>` where this node is defined"). You reach for it when `this` ≠ the component root, e.g. a handler on a nested child that must act on the component it is part of:
 
 ```
 class WeatherTab extends BaseTabElement [
@@ -398,7 +398,13 @@ class WeatherTab extends BaseTabElement [
     ]
 ```
 
-Inside a `{ }` body or constraint, a child reads the enclosing class's attributes by bare name (`label`, `count`) — until a nearer name shadows it, at which point the qualified form (`classroot.label`, `App.zip`) disambiguates.
+`classroot` resolves by **where the code is lexically written** — its *member origin* — in three cases:
+
+- **In a class body** (a method, handler, or `{ }` default written inside `class C [ … ]`) → `classroot` is the **`C` instance itself**. So `classroot.foo` reads `C`'s own `foo`; a stage value like `classroot.stageWidth` is **`undefined`** inside a component (a `View` has no `stageWidth`). To use App/stage values in a component, **thread them in** as attributes at the use site.
+- **In the App's own body** → `classroot` is the App, so it *works* — but for the App's *own* attributes it is redundant noise: write bare `{ stageWidth }` (or `{ this.stageWidth }`), never `{ classroot.stageWidth }`.
+- **At a use site / on a child element's binding** (`c: C [ x = { classroot.foo } ]`, or a binding on a child written outside `C`) → `classroot` is the **enclosing** class instance — skipping anonymous views up to the nearest real class, reaching the App at the top. This is how a child deep in the page reads an App attribute through `classroot`.
+
+Inside a `{ }` body or constraint, a child reads the enclosing class's attributes by **bare name** (`label`, `count`) — until a nearer name shadows it, at which point the qualified `classroot.label` disambiguates. There is **no ambient `App` pronoun**: a bare `App.foo` resolves only in a use-site binding, and errors inside a class body — so reach the running App through `this.root` (the tree top), or thread the value you need in as an attribute.
 
 ---
 

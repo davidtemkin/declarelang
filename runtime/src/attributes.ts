@@ -48,6 +48,11 @@ export interface AttrSpec<S, V> {
    *  outward, a class-body declaration binds the instance itself (R6's
    *  member-origin rule, applied to declarations). */
   defOuter?: boolean;
+  /** A `readonly` declaration (schema.readOnly): the accessor's setter throws —
+   *  the slot's value comes only from its `{ }` default (`defBinding`), read
+   *  live and never overridden. checkAttr already refuses a declarative
+   *  assignment; this is the runtime backstop for an imperative write. */
+  readOnly?: boolean;
 }
 
 type Push = (self: object, v: unknown) => void;
@@ -117,6 +122,7 @@ export function defineAttributes<S extends object>(
     const follows = spec.prevailing === true;
     const defBinding = spec.defBinding;
     const defOuter = spec.defOuter === true;
+    const readOnly = spec.readOnly === true;
     Object.defineProperty(ctor.prototype, name, {
       get(this: object): unknown {
         const self = this as Carrier;
@@ -142,6 +148,11 @@ export function defineAttributes<S extends object>(
         return (self.$attrs ?? defaults)[name];
       },
       set(this: object, v: unknown): void {
+        if (readOnly) {
+          throw new NeoError(
+            `${this.constructor.name}.${name} is read-only — it is computed from its declaration and cannot be assigned`
+          );
+        }
         const self = this as Carrier;
         // A first write to a prevailing slot changes what it MEANS (following
         // → providing) even when the written value equals the stored default,

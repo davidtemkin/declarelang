@@ -18,7 +18,7 @@ import path from "node:path";
 import os from "node:os";
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { compile } from "../../compiler/dist/compile.js";
+import { compile } from "../../compiler/dist/compile-node.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));   // examples/neoweather
 const ROOT = path.resolve(HERE, "../..");                    // the neolzx distro root

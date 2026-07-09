@@ -19,6 +19,11 @@ export interface AttrSpec<S, V> {
      *  outward, a class-body declaration binds the instance itself (R6's
      *  member-origin rule, applied to declarations). */
     defOuter?: boolean;
+    /** A `readonly` declaration (schema.readOnly): the accessor's setter throws —
+     *  the slot's value comes only from its `{ }` default (`defBinding`), read
+     *  live and never overridden. checkAttr already refuses a declarative
+     *  assignment; this is the runtime backstop for an imperative write. */
+    readOnly?: boolean;
 }
 /** Declare a class's reactive attributes: defaults + pushes, installed as
  *  prototype accessors. Call once per class, at module load, right under the

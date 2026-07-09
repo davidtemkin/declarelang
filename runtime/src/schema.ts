@@ -21,6 +21,11 @@ export interface ComponentSchema {
    *  its type (a subclass can neither redeclare nor change it). Absent =
    *  none of its own. */
   readonly prevailing?: readonly string[];
+  /** Which of this schema's OWN attrs are `readonly` — a computed/intrinsic
+   *  value a constraint may READ but nothing may set (checkAttr refuses an
+   *  assignment; the runtime accessor's setter throws). Like prevailing, it is
+   *  part of the slot's identity. Absent = none of its own. */
+  readonly readOnly?: readonly string[];
   /** Events this component itself fires — a handler member `on<Event>` must
    *  answer one (language §8: a class *declares* the events it fires, and
    *  the checker verifies against the declaration, so a typo'd handler is a
@@ -60,6 +65,13 @@ const ViewSchema: ComponentSchema = {
     visible: { kind: "boolean" },
     opacity: { kind: "number" },
     clip: { kind: "shape" },
+    // Scroll: a view that scrolls its overflowing content — clips to its box and
+    // scrolls the vertical overflow, exposing `scrollY` (reactive: read it for
+    // scroll-driven effects — a fading header, reveals). Chrome stays fixed for
+    // free simply by being a SIBLING of the scroller, not a child of it. Both
+    // backends realize it natively (DOM `overflow`; canvas clip+translate+wheel).
+    scrolls: { kind: "boolean" },
+    scrollY: { kind: "number" },
     // Styling: the ruled prevailing built-ins — the four text-style slots
     // (declared on View so any container can provide them; Text renders with
     // the effective values) and the theme token record. NOT prevailing, by
@@ -99,22 +111,56 @@ const ViewSchema: ComponentSchema = {
     // customized by overriding the `tabOrder()` method.
     focusable: { kind: "boolean" },
     focustrap: { kind: "boolean" },
+    // Read-only intrinsics — the auto-extent computation (view.ts), surfaced:
+    // the bounding-box extent of this view's visible children on each axis. A
+    // constraint may READ them to clamp a size (`height = { Math.min(
+    // contentHeight, 480) }`); they are never set (see readOnly below — the
+    // runtime backs them with getters, not stored slots).
+    contentWidth: { kind: "length" },
+    contentHeight: { kind: "length" },
   },
   prevailing: ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing", "theme", "stylesheet"],
+  readOnly: ["contentWidth", "contentHeight"],
   // R5: the pointer trio (click = press and release on the same view — the
   // shared router's rule, input.ts) plus the construction-complete lifecycle
   // event `init` (Appendix A's onInit). Hover (mouseOver/Out) waits for its
   // consuming rung — it needs retained enter/leave tracking, not just a
   // per-event hit test.
-  events: ["click", "mouseDown", "mouseUp", "mouseMove", "init", "focus", "blur", "escapeFocus", "keyDown", "keyUp"],
+  events: ["click", "mouseDown", "mouseUp", "mouseMove", "mouseOver", "mouseOut", "init", "focus", "blur", "escapeFocus", "keyDown", "keyUp"],
 };
 
 // App is a View with stage-level behavior; it declares nothing extra yet
 // (its title/stage attributes arrive with the rungs that give them meaning).
+// App is the stage: beyond a root View it carries the reactive environment a
+// full-window app reads — the viewport size (responsive layout), the page
+// scroll offset (reveal/parallax/appearing chrome), and the free pointer
+// (cursor effects, hover-at-a-distance). All are plain reactive attributes,
+// so `{ classroot.stageWidth }` / `{ classroot.scrollY }` just work; the
+// runtime feeds them from window listeners at mount (index.ts wireStage).
 const AppSchema: ComponentSchema = {
   name: "App",
   base: ViewSchema,
-  attrs: {},
+  attrs: {
+    stageWidth: { kind: "number" },
+    stageHeight: { kind: "number" },
+    scrollY: { kind: "number" },
+    pointerX: { kind: "number" },
+    pointerY: { kind: "number" },
+    hovering: { kind: "boolean" },
+    pointerOverText: { kind: "boolean" },
+    pageWeight: { kind: "number" },
+    sourceLines: { kind: "number" },
+    editing: { kind: "boolean" },
+    editSource: { kind: "string" },
+    // Host↔app data channel for the live demo cards: the host seeds every
+    // editor from `demoSources` (a name→source map), and an edit publishes the
+    // new text on `liveSource`/`liveCard` for the host to recompile that preview.
+    // (Typed as the open `Theme` record for `{ }` reads — see language-learnings
+    // §11: neo lacks a purpose-named map attr kind yet.)
+    demoSources: { kind: "record", name: "Theme" },
+    liveCard: { kind: "string" },
+    liveSource: { kind: "string" },
+  },
 };
 
 // Text (R3): a text run sized by native browser metrics when width/height
@@ -131,6 +177,14 @@ const TextSchema: ComponentSchema = {
     text: { kind: "string" },
     // The glyphs' drop shadow — the same shadow(…) value as the box slot.
     textShadow: { kind: "shadow" },
+    // Wrapping (design/text-and-markdown.md): a bounded-width run wraps by
+    // default; `wrap = false` forces a single line. `textAlign` pairs with it.
+    wrap: { kind: "boolean" },
+    textAlign: enumType("TextAlign", "left", "center", "right"),
+    italic: { kind: "boolean" },
+    // Fill the glyphs with a gradient (or solid Fill), like the box `fill` —
+    // overrides `textColor` when set. `textFill = { gradient("90deg", …) }`.
+    textFill: { kind: "fill" },
   },
 };
 
@@ -147,6 +201,22 @@ const ImageSchema: ComponentSchema = {
   },
 };
 
+// HTML (foreign-content island): a leaf View whose BOX is owned by neo — it
+// lays out and obeys constraints like any view — but whose INTERIOR is
+// host-managed foreign DOM (an iframe, a textarea, a <video>, a map widget).
+// `slot` is a host key: the DOM backend reflects it as `data-neo-slot`, the
+// host mounts DOM into the neo-sized div, and neo's width/height drive the
+// tenant's size with no coordinate sync (canvas realizes it as a positioned
+// DOM overlay — deferred). The one sanctioned escape to raw DOM, kept behind a
+// named view so bodies stay DOM-free.
+const HtmlSchema: ComponentSchema = {
+  name: "HTML",
+  base: ViewSchema,
+  attrs: {
+    slot: { kind: "string" },
+  },
+};
+
 // TextInput (Layer 3, design-docs/input.md): an editable text field. A focus
 // client whose `text` is the model source of truth (no two-way operator — D-6
 // dropped), realized as a native editable element (DOM in-box, canvas overlay)
@@ -159,8 +229,28 @@ const TextInputSchema: ComponentSchema = {
     text: { kind: "string" },
     placeholder: { kind: "string" },
     multiline: { kind: "boolean" },
+    spellcheck: { kind: "boolean" },
+    wrap: { kind: "boolean" },
+    padding: { kind: "number" },
+    // The UNCONTROLLED seed (cf. React's defaultValue vs value): `text` follows
+    // `initial` until the user edits, then holds the edit — for a field started
+    // from a value (a pristine source) that must stay writable. A bound `text`
+    // stays the CONTROLLED form (edits revert).
+    initial: { kind: "string" },
   },
   events: ["input", "enter"],
+};
+
+// Markdown (design/text-and-markdown.md): rich content authored in Markdown.
+// `text` is parsed (md.ts) to a block tree and rendered as a vertical stack of
+// wrapped, prose-styled views — literal or computed/streamed, rendered
+// reactively. A View subclass, so it carries the box/layout surface too.
+const MarkdownSchema: ComponentSchema = {
+  name: "Markdown",
+  base: ViewSchema,
+  attrs: {
+    text: { kind: "string" },
+  },
 };
 
 // Layout strategies (R7). The abstract base is deliberately NOT in the name
@@ -180,6 +270,17 @@ const SimpleLayoutSchema: ComponentSchema = {
   attrs: {
     axis: enumType("Axis", "x", "y"),
     spacing: { kind: "number" },
+  },
+};
+
+// WrappingLayout — a horizontal flow that wraps to new rows as the view narrows
+// (SimpleLayout[x] when there's room). `lineSpacing` defaults to `spacing`.
+const WrappingLayoutSchema: ComponentSchema = {
+  name: "WrappingLayout",
+  base: LayoutSchema,
+  attrs: {
+    spacing: { kind: "number" },
+    lineSpacing: { kind: "number" },
   },
 };
 
@@ -286,6 +387,22 @@ const AnimatorGroupSchema: ComponentSchema = {
   events: ["start", "stop", "repeat"],
 };
 
+// Spring (the follow half of the animation family) — a twin-table component
+// that DESCENDS FROM Animator (base below), so the checker validates its
+// `attribute` slotref against the target through the same animator path and it
+// inherits `attribute`/`to`. Unlike Animator it drives its slot toward a LIVE,
+// reactive `to` via spring physics; its own controls are the spring constants.
+const SpringSchema: ComponentSchema = {
+  name: "Spring",
+  base: AnimatorSchema,
+  attrs: {
+    stiffness: { kind: "number" },
+    damping: { kind: "number" },
+    mass: { kind: "number" },
+    epsilon: { kind: "number" },
+  },
+};
+
 // State (design-docs/states.md) — a twin-table component like Animator:
 // non-visual (base null; family test descendsFrom(schema, "State")), carrying
 // the one control attribute `applied` and the built-in verbs apply()/remove()/
@@ -312,13 +429,17 @@ export const SCHEMAS: Readonly<Record<string, ComponentSchema>> = {
   App: AppSchema,
   Text: TextSchema,
   Image: ImageSchema,
+  HTML: HtmlSchema,
   TextInput: TextInputSchema,
+  Markdown: MarkdownSchema,
   SimpleLayout: SimpleLayoutSchema,
+  WrappingLayout: WrappingLayoutSchema,
   TweenLayout: TweenLayoutSchema,
   Dataset: DatasetSchema,
   DataSource: DataSourceSchema,
   Animator: AnimatorSchema,
   AnimatorGroup: AnimatorGroupSchema,
+  Spring: SpringSchema,
   State: StateSchema,
   Node: NodeSchema,
 };
@@ -342,6 +463,16 @@ export function attrType(schema: ComponentSchema, name: string): AttrType | null
     if (Object.hasOwn(s.attrs, name)) return s.attrs[name];
   }
   return null;
+}
+
+/** Is `name` a read-only attribute anywhere on this schema's base chain — a
+ *  computed/intrinsic slot a constraint may read but nothing may set? Walks the
+ *  chain exactly like attrType (a subclass inherits its base's read-only slots). */
+export function isReadOnly(schema: ComponentSchema, name: string): boolean {
+  for (let s: ComponentSchema | null = schema; s !== null; s = s.base) {
+    if (s.readOnly?.includes(name)) return true;
+  }
+  return false;
 }
 
 /** Is `name` a prevailing attribute on `schema` (or its chain)? Asked of the

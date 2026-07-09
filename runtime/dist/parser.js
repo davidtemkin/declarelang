@@ -57,6 +57,25 @@ const isDigit = (c) => c >= "0" && c <= "9";
 const isIdentStart = (c) => (c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || c === "_";
 const isIdentPart = (c) => isIdentStart(c) || isDigit(c);
 const isHex = (c) => isDigit(c) || (c >= "a" && c <= "f") || (c >= "A" && c <= "F");
+/** A `"""…"""` text block's content, dedented like a Swift/Java text block:
+ *  drop the newline right after the opening delimiter, strip the least common
+ *  leading indentation from every line, and drop the final line if it holds
+ *  only the closing delimiter's indentation. Source layout stays cosmetic. */
+function dedent(raw) {
+    let s = raw.replace(/\r\n?/g, "\n");
+    if (s[0] === "\n")
+        s = s.slice(1); // opening-delimiter line
+    const lines = s.split("\n");
+    let min = Infinity;
+    for (const ln of lines) {
+        if (ln.trim() === "")
+            continue;
+        min = Math.min(min, ln.length - ln.trimStart().length);
+    }
+    if (!Number.isFinite(min))
+        min = 0;
+    return lines.map((ln) => ln.slice(min)).join("\n").replace(/\n[ \t]*$/, "");
+}
 function tokenize(src) {
     const tokens = [];
     let i = 0, line = 1, col = 1;
@@ -164,6 +183,29 @@ function tokenize(src) {
         if (punct[c]) {
             advance();
             tokens.push({ kind: punct[c], text: c, pos: start });
+            continue;
+        }
+        // triple-quoted text block: raw, multi-line, common indentation stripped
+        // (design/text-and-markdown.md). Pleasant hand-authored Markdown without
+        // `\n` noise; the language stays content-agnostic — this is just a
+        // dedented RAW string (no escape processing, so Markdown's own `\` is its
+        // own), and the dedent keeps source indentation cosmetic.
+        if (c === '"' && src[i + 1] === '"' && src[i + 2] === '"') {
+            advance();
+            advance();
+            advance();
+            let raw = "";
+            while (i < src.length && !(src[i] === '"' && src[i + 1] === '"' && src[i + 2] === '"')) {
+                raw += src[i];
+                advance();
+            }
+            if (i >= src.length)
+                throw new NeoError('unterminated text block (""")', start);
+            advance();
+            advance();
+            advance();
+            const v = dedent(raw);
+            tokens.push({ kind: "string", text: v, pos: start, str: v });
             continue;
         }
         // string
@@ -328,9 +370,18 @@ class Parser {
             // only when what follows is itself a declaration head (`name :`), so a
             // member actually named `prevailing` still parses everywhere else.
             let prevailing = false;
+            let readOnly = false;
             const declPos = name.pos;
-            if (name.text === "prevailing" && this.peek().kind === "ident" && this.peekAt(1).kind === "colon") {
-                prevailing = true;
+            // Contextual declaration modifiers (`prevailing` / `readonly`): recognized
+            // ONLY when a declaration head (`name :`) follows, so a member actually
+            // named `prevailing` / `readonly` still parses everywhere else. One at a
+            // time — the two never combine (a computed slot does not also follow).
+            if ((name.text === "prevailing" || name.text === "readonly") &&
+                this.peek().kind === "ident" && this.peekAt(1).kind === "colon") {
+                if (name.text === "readonly")
+                    readOnly = true;
+                else
+                    prevailing = true;
                 name = this.next();
             }
             if (this.peek().kind === "eq") {
@@ -359,8 +410,8 @@ class Parser {
                 }
                 const type = this.expect("ident", "a type or component name");
                 if (this.peek().kind === "lbracket") {
-                    if (prevailing) {
-                        throw new NeoError(`'prevailing' marks an attribute declaration — a child instance cannot be prevailing`, declPos);
+                    if (prevailing || readOnly) {
+                        throw new NeoError(`'${readOnly ? "readonly" : "prevailing"}' marks an attribute declaration — a child instance cannot carry it`, declPos);
                     }
                     const child = { tag: type.text, name: name.text, attrs: [], decls: [], methods: [], children: [], pos: name.pos };
                     this.next();
@@ -372,8 +423,8 @@ class Parser {
                     // `events: Dataset { …json… }` — a named child with an embedded raw
                     // body (language §9). Pure syntax here; the checker owns whether
                     // the tag admits one and whether the text is valid JSON.
-                    if (prevailing) {
-                        throw new NeoError(`'prevailing' marks an attribute declaration — a child instance cannot be prevailing`, declPos);
+                    if (prevailing || readOnly) {
+                        throw new NeoError(`'${readOnly ? "readonly" : "prevailing"}' marks an attribute declaration — a child instance cannot carry it`, declPos);
                     }
                     const body = this.next();
                     el.children.push({
@@ -387,7 +438,7 @@ class Parser {
                         this.next();
                         def = this.parseLiteral();
                     }
-                    el.decls.push({ name: name.text, type: type.text, typePos: type.pos, def, prevailing, pos: declPos });
+                    el.decls.push({ name: name.text, type: type.text, typePos: type.pos, def, prevailing, readOnly, pos: declPos });
                 }
             }
             else if (this.peek().kind === "lparen") {

@@ -26,7 +26,7 @@
 // element an anonymous schema, and named children join the one member
 // namespace.
 import { NeoError } from "./errors.js";
-import { SCHEMAS, attrType, descendsFrom, eventOfHandler, eventsOf, handlerName } from "./schema.js";
+import { SCHEMAS, attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName } from "./schema.js";
 import { Diag } from "./diagnostics.js";
 import { coerce, declaredType, describeLiteral, DECLARED_TYPE_NAMES } from "./value.js";
 import { compileExpr, compileBody, CONSTRUCTOR_NAMES } from "./expr.js";
@@ -112,6 +112,7 @@ export function programSchemas(classes) {
         const attrs = {};
         const defaults = {};
         const prevailing = [];
+        const readOnly = [];
         for (const d of decl.body.decls) {
             const r = checkDecl(base, d, decl.name);
             if (!r.ok) {
@@ -124,8 +125,10 @@ export function programSchemas(classes) {
             defaults[d.name] = r.value;
             if (d.prevailing)
                 prevailing.push(d.name);
+            if (d.readOnly)
+                readOnly.push(d.name);
         }
-        const schema = { name: decl.name, base, attrs, prevailing };
+        const schema = { name: decl.name, base, attrs, prevailing, readOnly };
         schemas[decl.name] = schema;
         infos.push({ decl, schema, defaults });
     }
@@ -706,11 +709,15 @@ classRoot = false) {
         }
     }
     // An unknown parent doesn't silence its subtree — child tags stand on
-    // their own, so one typo can't mask every error beneath it. `schema` (this
-    // element) is the children's target context for the animation check.
+    // their own, so one typo can't mask every error beneath it. The children's
+    // target context for the animation check is the parent's EFFECTIVE schema —
+    // base + its inline attribute declarations — so a Spring/animator can target
+    // a user-declared numeric attribute, not only a built-in slot. (A class body
+    // already absorbed its decls into `schema`; an unknown parent stays null.)
+    const childCtx = schema !== null && !declsOwned ? withDecls(schema, el.decls) : schema;
     for (const child of el.children) {
         if (!consumed.has(child))
-            checkElement(child, errors, schemas, false, env, schema);
+            checkElement(child, errors, schemas, false, env, childCtx);
     }
 }
 /** Validate a data node (R8: Dataset / DataSource — descendsFrom "Dataset").
@@ -1011,6 +1018,9 @@ export function checkAttr(schema, attr) {
     const type = attrType(schema, attr.name);
     if (type === null) {
         return { ok: false, error: new NeoError(`${schema.name} has no attribute '${attr.name}'`, attr.pos) };
+    }
+    if (isReadOnly(schema, attr.name)) {
+        return { ok: false, error: new NeoError(`${schema.name}.${attr.name} is read-only — it is computed, so a constraint may read it but nothing may set it`, attr.pos) };
     }
     if (attr.value.kind === "code" && type.kind === "component") {
         // The doc promises a swappable/constrainable layout slot; the swap is a

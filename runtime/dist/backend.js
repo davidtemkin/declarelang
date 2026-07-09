@@ -8,5 +8,5 @@
 // which one it has; the runtime injects the backend, so the application never
 // names a substrate (APPROACH §4) — the property that lets a later optimizing
 // runtime choose a backend per view / per hierarchy.
-export const POINTER_TYPES = ["mouseDown", "mouseUp", "click", "mouseMove"];
+export const POINTER_TYPES = ["mouseDown", "mouseUp", "click", "mouseMove", "mouseOver", "mouseOut"];
 //# sourceMappingURL=backend.js.map

@@ -74,7 +74,7 @@ export declare class Animator extends Node implements Animatable {
      *  that is not itself an animator/group. For an ungrouped animator this is
      *  just its parent (a View). Matches the checker's target context, which
      *  threads the group's PARENT schema through to its members. */
-    private resolveTarget;
+    protected resolveTarget(): Node | null;
     /** Auto-start at init if `started` (the initTree hook — once per lifetime,
      *  after the tree is linked and every binding has evaluated, so `from`
      *  samples a settled target value). A grouped animator is never reached here

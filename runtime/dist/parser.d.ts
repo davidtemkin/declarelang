@@ -75,6 +75,10 @@ export interface AttrDecl {
      *  follows the nearest providing ancestor's value, live. Part of the
      *  slot's identity, like its type. */
     prevailing: boolean;
+    /** Declared `readonly name: Type = { … }`: a computed slot a constraint may
+     *  read but nothing may set — the checker refuses an assignment and the
+     *  runtime setter throws. Part of the slot's identity, like its type. */
+    readOnly: boolean;
     pos: Pos;
 }
 /** A component instance: a tag with attributes, declarations, methods, and

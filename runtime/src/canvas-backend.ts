@@ -28,8 +28,8 @@
 import { NeoError } from "./errors.js";
 import type { EditableSpec, InputSink, RenderBackend, Stretch, Surface } from "./backend.js";
 import { colorToCss, isGradient, type Fill, type Gradient, type Shadow, type Stroke } from "./value.js";
-import { paintBox } from "./boxpaint.js";
-import { cssWeight, fontMetrics, fontString, type TextStyle } from "./measure.js";
+import { paintBox, realizeGradient } from "./boxpaint.js";
+import { cssWeight, fontMetrics, fontString, textWidth, wrapLines, type TextStyle } from "./measure.js";
 import { replay, type DisplayList } from "./draw.js";
 import { onDprChange } from "./dpr.js";
 import { routeInput, type HitTarget } from "./input.js";
@@ -144,6 +144,16 @@ class Compositor {
         return { x: e.clientX - r.left, y: e.clientY - r.top };
       }
     );
+    // Wheel → the scrolling surface under the pointer (own pixels means own
+    // scroll); the clamp uses the content extent, and the compositor repaints.
+    canvas.addEventListener("wheel", (e) => {
+      if (this.canvas === null || this.root === null) return;
+      const r = this.canvas.getBoundingClientRect();
+      if (this.root.scrollBy(e.clientX - r.left, e.clientY - r.top, e.deltaY)) {
+        e.preventDefault();
+        this.invalidate();
+      }
+    }, { passive: false });
     this.invalidate();
   }
 
@@ -223,6 +233,9 @@ class CanvasSurface implements Surface {
   private box: Path2D | null = null;
   visible = true;
   opacity = 1;
+  scrolls = false;
+  scrollOffset = 0;
+  private onScrollCb: ((y: number) => void) | null = null;
   parent: CanvasSurface | null = null;
   readonly children: CanvasSurface[] = [];
 
@@ -236,9 +249,19 @@ class CanvasSurface implements Surface {
    *  measuring or formatting. */
   private font = "";
   private textFill = "";
+  private textGradient: Gradient | null = null;
   private ascent = 0;
+  /** The natural line height (ascent+descent) — the wrapped-line stride, and
+   *  what the DOM backend sets as `line-height`, so multi-line agrees. */
+  private lineHeight = 0;
   private textShadow: Shadow | null = null;
   private letterSpacing = 0;
+  /** Wrapping (set-time): whether this run wraps within `width`, its alignment,
+   *  and the cached line break — recomputed when text/style/width change so the
+   *  paint walk stays measure-free after the first frame. */
+  private wrap = false;
+  private align: "left" | "center" | "right" = "left";
+  private textLines: string[] | null = null;
   private image: HTMLImageElement | null = null;
   private stretch: Stretch = "none";
   /** The view's input route; null = transparent to the pointer (hit walk). */
@@ -252,7 +275,7 @@ class CanvasSurface implements Surface {
 
   setX(v: number): void { this.x = v; this.compositor.invalidate(); }
   setY(v: number): void { this.y = v; this.compositor.invalidate(); }
-  setWidth(v: number): void { this.width = v; this.box = null; this.compositor.invalidate(); }
+  setWidth(v: number): void { this.width = v; this.box = null; this.textLines = null; this.compositor.invalidate(); }
   setHeight(v: number): void { this.height = v; this.box = null; this.compositor.invalidate(); }
   setVisible(v: boolean): void { this.visible = v; this.compositor.invalidate(); }
   setOpacity(o: number): void { this.opacity = o; this.compositor.invalidate(); }
@@ -297,15 +320,22 @@ class CanvasSurface implements Surface {
 
   setText(text: string): void {
     this.text = text;
+    this.textLines = null;
     this.compositor.invalidate();
   }
 
   setTextStyle(st: TextStyle): void {
     this.font = fontString(st);
     this.textFill = colorToCss(st.color);
-    this.ascent = fontMetrics(this.font).ascent;
+    this.textGradient = st.textFill != null && isGradient(st.textFill) ? st.textFill : null;
+    const fm = fontMetrics(this.font);
+    this.ascent = fm.ascent;
+    this.lineHeight = fm.ascent + fm.descent;
     this.textShadow = st.shadow ?? null;
     this.letterSpacing = st.letterSpacing;
+    this.wrap = st.wrap ?? false;
+    this.align = st.align ?? "left";
+    this.textLines = null;
     this.compositor.invalidate();
   }
 
@@ -426,14 +456,60 @@ class CanvasSurface implements Surface {
       this.clipPath ??= new Path2D(this.clipData);
       if (!hitCtx().isPointInPath(this.clipPath, lx, ly)) return null;
     }
+    // A scroll container clips to its box and offsets its content — hit-test
+    // children in the SAME frame the paint walk draws them.
+    const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
+    if (this.scrolls && !inBox) return null;
+    const cy = this.scrolls ? ly + this.scrollOffset : ly;
     for (let i = this.children.length - 1; i >= 0; i--) {
-      const t = this.children[i].hit(lx, ly);
+      const t = this.children[i].hit(lx, cy);
       if (t !== null) return t;
     }
-    if (this.sink !== null && lx >= 0 && ly >= 0 && lx < this.width && ly < this.height) {
+    if (this.sink !== null && inBox) {
       return { key: this, sink: this.sink, x: lx, y: ly };
     }
     return null;
+  }
+
+  setScroll(on: boolean, onScroll: (y: number) => void): void {
+    this.scrolls = on;
+    this.onScrollCb = on ? onScroll : null;
+    if (!on) this.scrollOffset = 0;
+  }
+
+  // Canvas has no per-view DOM element to mark — foreign embedding is DOM-only
+  // (the editable-demo host runs on the DOM backend; canvas is parked).
+  setEmbed(_id: string): void {}
+
+  /** Route a wheel delta to the innermost scrolling surface under (px,py) in
+   *  PARENT-local space; true when consumed. Mirrors hit's transform so it
+   *  targets exactly what the user sees; the compositor requests the repaint. */
+  scrollBy(px: number, py: number, dy: number): boolean {
+    if (!this.visible || this.opacity <= 0) return false;
+    const lx = px - this.x;
+    const ly = py - this.y;
+    if (this.clipData !== null) {
+      this.clipPath ??= new Path2D(this.clipData);
+      if (!hitCtx().isPointInPath(this.clipPath, lx, ly)) return false;
+    }
+    const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
+    if (this.scrolls && !inBox) return false;
+    const cy = this.scrolls ? ly + this.scrollOffset : ly;
+    for (let i = this.children.length - 1; i >= 0; i--) {
+      if (this.children[i].scrollBy(lx, cy, dy)) return true;
+    }
+    if (this.scrolls && inBox) {
+      let extent = 0;
+      for (const c of this.children) if (c.visible) extent = Math.max(extent, c.y + c.height);
+      const max = Math.max(0, extent - this.height);
+      const next = Math.min(max, Math.max(0, this.scrollOffset + dy));
+      if (next !== this.scrollOffset) {
+        this.scrollOffset = next;
+        this.onScrollCb?.(next);
+      }
+      return true;
+    }
+    return false;
   }
 
   insertChild(child: Surface, before: Surface | null): void {
@@ -513,13 +589,18 @@ class CanvasSurface implements Surface {
     if (this.drawing !== null) replay(ctx, this.drawing);
     if (this.text !== "" && this.font !== "") {
       ctx.font = this.font;
-      ctx.fillStyle = this.textFill;
+      // A gradient text-fill is realized over the view box, so multi-line runs
+      // share one continuous ramp (like the DOM's background-clip:text).
+      ctx.fillStyle = this.textGradient !== null
+        ? realizeGradient(ctx, this.textGradient, this.width, this.height)
+        : this.textFill;
       ctx.textBaseline = "alphabetic";
       // Tracking (canvas-native) — set for this run, reset after so the shared
       // ctx stays neutral for siblings/children.
       const lsCtx = ctx as unknown as { letterSpacing: string };
       if (this.letterSpacing !== 0) lsCtx.letterSpacing = this.letterSpacing + "px";
       const sh = this.textShadow;
+      let restoreShadow = false;
       if (sh !== null) {
         // The glyph shadow paints beneath its own glyphs (CSS text-shadow's
         // meaning — canvas shadows do exactly this). Offsets/blur live in
@@ -531,14 +612,47 @@ class CanvasSurface implements Surface {
         ctx.shadowOffsetX = sh.dx * m.a;
         ctx.shadowOffsetY = sh.dy * m.d;
         ctx.shadowBlur = sh.blur * m.a;
-        ctx.fillText(this.text, 0, this.ascent);
-        ctx.restore();
+        restoreShadow = true;
+      }
+      if (this.wrap && this.width > 0) {
+        // Wrapping: break at the set-time-cached points and stack the lines at
+        // the shared stride (the DOM backend's `line-height`), aligning each
+        // within the box. The greedy breaker (measure.ts) is the one BOTH
+        // backends share, so the DOM's native wrap and this agree.
+        if (this.textLines === null) {
+          this.textLines = wrapLines(this.text, this.font, this.width, this.letterSpacing);
+        }
+        const lines = this.textLines;
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          let x = 0;
+          if (this.align !== "left") {
+            const lw = textWidth(line, this.font, this.letterSpacing);
+            x = this.align === "center" ? (this.width - lw) / 2 : this.width - lw;
+          }
+          ctx.fillText(line, x, this.ascent + i * this.lineHeight);
+        }
       } else {
         ctx.fillText(this.text, 0, this.ascent);
       }
+      if (restoreShadow) ctx.restore();
       if (this.letterSpacing !== 0) lsCtx.letterSpacing = "0px";
     }
-    for (const child of this.children) child.paint(ctx);
+    if (this.scrolls) {
+      // Scroll container: clip to the box and offset the content — the canvas
+      // realization of native `overflow`. Siblings outside this surface are
+      // untouched, so fixed chrome draws at its own coordinates: no reposition,
+      // no jitter. (Mirror this transform in `hit` and `scrollBy`.)
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, this.width, this.height);
+      ctx.clip();
+      ctx.translate(0, -this.scrollOffset);
+      for (const child of this.children) child.paint(ctx);
+      ctx.restore();
+    } else {
+      for (const child of this.children) child.paint(ctx);
+    }
   }
 
   /** The box paint — the SHARED painter (boxpaint.ts; the DOM backend

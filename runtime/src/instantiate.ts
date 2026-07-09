@@ -47,14 +47,16 @@
 
 import type { Element, Attr, Method, Program } from "./parser.js";
 import { NeoError } from "./errors.js";
-import { View, App, fireEvent } from "./view.js";
+import { View, App, Html, fireEvent } from "./view.js";
 import { Node } from "./node.js";
 import { Text } from "./text.js";
 import { Image } from "./image.js";
 import { TextInput } from "./text-input.js";
-import { Layout, SimpleLayout, TweenLayout } from "./layout.js";
+import { Markdown } from "./markdown.js";
+import { Layout, SimpleLayout, WrappingLayout, TweenLayout } from "./layout.js";
 import { Dataset, DataSource } from "./data.js";
 import { Animator, AnimatorGroup } from "./animator.js";
+import { Spring } from "./spring.js";
 import { State, type Override } from "./state.js";
 import { Constraint } from "./reactive.js";
 import { attrType, descendsFrom, type ComponentSchema } from "./schema.js";
@@ -81,14 +83,14 @@ type ViewCtor = new () => View;
  *  — all Node-level); having no visual incarnation, every attach / paint walk
  *  skips it. Node is a Node, not a View, hence the one cast. */
 const TAGS: Readonly<Record<string, ViewCtor>> = {
-  App, View, Text, Image, TextInput,
+  App, View, Text, Image, HTML: Html, TextInput, Markdown,
   Node: Node as unknown as ViewCtor,
 };
 
 /** Tag → layout-strategy class (R7) — the twin of schema.ts's layout entries.
  *  Separate from TAGS on purpose: a strategy is not a View and never enters
  *  the tree; it is built only as a component-typed attribute's value. */
-const LAYOUTS: Readonly<Record<string, new () => Layout>> = { SimpleLayout };
+const LAYOUTS: Readonly<Record<string, new () => Layout>> = { SimpleLayout, WrappingLayout };
 
 /** Layout classes by name, for BASE resolution + user-layout synthesis: the
  *  buildable strategies plus the abstract bases a user layout extends
@@ -105,7 +107,7 @@ const DATA: Readonly<Record<string, new () => Dataset>> = { Dataset, DataSource 
  *  entry. Separate from DATA/TAGS: an animator IS tree structure (a named or
  *  anonymous member) but is neither a View nor a data node — its construct
  *  path installs the on* handlers + built-in start()/stop(). */
-const ANIMATORS: Readonly<Record<string, new () => Animator>> = { Animator };
+const ANIMATORS: Readonly<Record<string, new () => Animator>> = { Animator, Spring };
 
 /** Tag → animator-group class (animation.md §1, §4) — the twin of schema.ts's
  *  AnimatorGroup entry. A group IS tree structure (holding its member animators
@@ -391,8 +393,11 @@ function synthesize(
       specs[d.name] = {
         def: Object.hasOwn(defs, d.name) ? defs[d.name] : undefined,
         // The runtime half of the slot's identity: a prevailing declaration
-        // makes the accessor's unset branch the follow walk (attributes.ts).
+        // makes the accessor's unset branch the follow walk (attributes.ts);
+        // a readonly one makes its setter throw (its `{ }` default is the
+        // value, evaluated live and un-overridable).
         prevailing: d.prevailing || undefined,
+        readOnly: d.readOnly || undefined,
         defBinding,
         defOuter: outer || undefined,
       };

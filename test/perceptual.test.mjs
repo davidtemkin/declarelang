@@ -29,7 +29,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer-core";
 import { test, summarize } from "./harness.mjs";
-import { compile } from "../compiler/dist/compile.js";
+import { compile } from "../compiler/dist/compile-node.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.dirname(here); // neolang/
@@ -858,7 +858,7 @@ function assertColorNear(actual, expected, label, tolerance = 4) {
 
 const server = await serveDist();
 const port = server.address().port;
-const browser = await puppeteer.launch({ executablePath: findChrome(), headless: true });
+const browser = await puppeteer.launch({ executablePath: findChrome(), headless: true, args: ["--no-sandbox"] });
 const artifactsDir = path.join(here, "artifacts");
 await mkdir(artifactsDir, { recursive: true });
 

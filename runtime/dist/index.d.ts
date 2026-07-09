@@ -17,6 +17,11 @@ export declare function build(source: string, opts?: BuildOptions): App;
 /** Parse, resolve includes, check, instantiate, and render a neo-LZX source
  *  into `host` via `backend`. */
 export declare function render(source: string, host: HTMLElement, backend: RenderBackend, opts?: BuildOptions): App;
+/** Tear down an embedded app's stage wiring (ResizeObserver + pointer listeners).
+ *  Its rendered DOM is removed by the caller (clearing the island box); its input
+ *  router self-retires once the root element is disconnected. A no-op for a
+ *  top-level app. */
+export declare function disposeApp(app: App): void;
 /** Like render(), but first loads the web faces of the program's own `font`
  *  declarations (those with a URL/woff2 source), so first paint measures
  *  against the real metrics. The declarative counterpart to a manual
@@ -46,7 +51,7 @@ export type { IncludeHost } from "./include.js";
 export { check, checkAttr, checkMethod, checkDecl, checkComponentValue, programSchemas } from "./check.js";
 export { instantiate } from "./instantiate.js";
 export { Node } from "./node.js";
-export { View, App, inheritedCursor, onDiscard } from "./view.js";
+export { View, App, Html, inheritedCursor, onDiscard } from "./view.js";
 export { Text } from "./text.js";
 export { Image } from "./image.js";
 export { TextInput } from "./text-input.js";
