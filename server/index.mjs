@@ -69,115 +69,28 @@ function hostPage(name, backendClass) {
   // page's compiled JS, gzipped; LOC = the Declare source, code lines only.
   const wireKB = Math.round((RUNTIME_GZ_BYTES + gzipSync(r.source).length) / 1024);
   const loc = src.split("\n").filter((l) => { const t = l.trim(); return t !== "" && !t.startsWith("//"); }).length;
-  // <base> so the app's relative resources/… and data/… resolve under the example.
+  // Demo editor seeds — comment-stripped SERVER-side now (so the dynamic and the
+  // static/precompiled host agree on the seed text), plus the page's own source.
+  const stripComments = (s) => s.split("\n").filter((l) => !l.trim().startsWith("//"))
+    .join("\n").replace(/^\s+/, "").replace(/\n{3,}/g, "\n\n").replace(/\s+$/, "") + "\n";
+  const seeds = {};
+  for (const k in demos) seeds[k] = stripComments(demos[k]);
+  seeds.__page__ = src;
+  const cfg = { backend: backendClass, source: r.source, pageWeight: wireKB, sourceLines: loc, seeds };
   // The homepage gets a real page title; other examples keep the debug backend tag.
   const pageTitle = name === "site" ? "Declare — the UI language for the AI era" : `${name} (${backendClass})`;
+  // <base> resolves the app's relative resources + data under the example. The client
+  // is the shared web/host-client.js (one code path, dynamic + static); here compile()
+  // delegates a live recompile to POST /compile.
   return `<!doctype html><meta charset="utf-8"><title>${pageTitle}</title>
 <base href="/examples/${name}/">
-<style>html,body{margin:0;padding:0}
-/* Nothing to style: the live demo previews AND the whole-page source editor are
-   all neo now — the source fields are neo CodeFields and every preview is an
-   embedded neo child app rendered into its island box (no iframe, no host CSS). */</style>
+<style>html,body{margin:0;padding:0}</style>
 <div id="host"></div>
 <script type="module">
-  import { renderAsync, disposeApp, DomBackend${backendClass === "DomBackend" ? "" : `, ${backendClass}`} } from "/runtime/dist/index.js";
-  window.__source = ${JSON.stringify(src)};
-  const app = window.__app = await renderAsync(${JSON.stringify(r.source)}, document.getElementById("host"), new ${backendClass}());
-  app.pageWeight = ${wireKB};       // real production over-the-wire size (KB, gzipped)
-  app.sourceLines = ${loc};         // this page's Declare line count
-
-  // The whole-page source editor is now NEO: a FullPageEditor view shown when
-  // App.editing (flipped by "VIEW & EDIT SOURCE"), with a CodeField for the page
-  // source and an embedded-child preview — the same machinery as the demo cards
-  // (its source rides App.demoSources.__page__ + App.liveCard/liveSource below).
-  // The only host bit is Escape-to-close: neo delivers keys to the focused view
-  // only, so a page-level Escape has no neo-native form yet.
-  addEventListener("keydown", (e) => { if (e.key === "Escape") app.editing = false; });
-
-  // app→host navigation: a link/button sets App.navigate to a URL; open it and
-  // clear the flag. Same-document location nav (not window.open) so it is not
-  // popup-blocked when it fires a frame after the click.
-  const navTick = () => {
-    if (app.navigate) { const u = app.navigate; app.navigate = ""; location.href = u; }
-    requestAnimationFrame(navTick);
-  };
-  requestAnimationFrame(navTick);
-
-  // ── live demo cards ─────────────────────────────────────────────────────────
-  // The editor is a NEO-NATIVE CodeField (a TextInput in the neo tree) — the host
-  // supplies nothing for it but the source text. It flows in through App.demoSources
-  // (host→neo, keyed by demo name); typing publishes App.liveCard + App.liveSource
-  // (neo→host), which we recompile and re-render into that demo's preview island.
-  //
-  // NO IFRAME: the preview is a CHILD neo app rendered straight into the island's
-  // box (slot "run:<demo>"). Because that box lives inside THIS app's marked tree,
-  // the child auto-detects it is embedded (runtime isEmbedded) — it sizes to the
-  // box, scopes its focus/pointer, and does not touch the page. Same document, no
-  // cross-frame handshake — which is what WebKit was choking on.
-  window.__demos = ${JSON.stringify(demos)};
-  const stripComments = (s) => s.split("\\n").filter((l) => !l.trim().startsWith("//"))
-    .join("\\n").replace(/^\\s+/, "").replace(/\\n{3,}/g, "\\n\\n").replace(/\\s+$/, "") + "\\n";
-  const HOST = document.getElementById("host");
-  // runIsland returns the FIRST match = the top-level one (a whole-page-editor
-  // copy's islands are nested inside run:__page__, so they come later in document
-  // order); live edits from the top editor therefore target the top preview.
-  const runIsland = (demo) => HOST.querySelector('[data-neo-slot="run:' + demo + '"]');
-
-  // seed the neo editors: each demo's comment-stripped source, PLUS the page's own
-  // source under "__page__" (shown verbatim by the whole-page editor's CodeField)
-  const seeds = {};
-  for (const k in window.__demos) seeds[k] = stripComments(window.__demos[k]);
-  seeds.__page__ = window.__source;
-  app.demoSources = seeds;
-
-  // Compile <source> and (re)render it as an embedded child app inside <box>.
-  // Compile is server-side (the browser can't self-compile yet); on a typo we
-  // keep the last good render. Old child is disposed first (stage listeners) and
-  // its DOM cleared, so a live edit swaps cleanly.
-  async function renderChild(box, source) {
-    let out;
-    try { out = await (await fetch("/compile", { method: "POST", body: source })).json(); } catch (e) { return; }
-    if (!out.source) return;                       // keep the last good render on a compile error
-    if (box.__childApp) { disposeApp(box.__childApp); box.__childApp = null; }
-    box.innerHTML = "";
-    try {
-      box.__childApp = await renderAsync(out.source, box, new DomBackend());
-      // seed the child with the same sources, so an embedded copy's own demo cards
-      // and whole-page editor are populated too — the recursion stays faithful.
-      if (box.__childApp) box.__childApp.demoSources = seeds;
-    } catch (e) {}
-  }
-
-  // Wire EVERY unwired "run:" island to its source — including islands that appear
-  // inside a whole-page-editor preview (its embedded copy of the page has its own
-  // demo cards, and its own editor if the user opens one). This recurses, but only
-  // as deep as the user clicks: a preview island is only present when its editor is
-  // OPEN, and every copied editor starts CLOSED, so nothing renders a level deeper
-  // until someone opens it. No user action ⇒ no growth.
-  function mountPreviews() {
-    HOST.querySelectorAll('[data-neo-slot^="run:"]').forEach((box) => {
-      if (box.dataset.wired) return; box.dataset.wired = "1";
-      renderChild(box, seeds[box.dataset.neoSlot.split(":")[1]] || "");
-    });
-  }
-  // Runs for the life of the page (not a bounded burst): a preview island can
-  // appear at any time (the user opens the whole-page editor, or drills in).
-  const mtick = () => { mountPreviews(); requestAnimationFrame(mtick); };
-  requestAnimationFrame(mtick);
-
-  // re-render a preview when its neo editor publishes an edit (or a Revert)
-  let liveSig = app.liveCard + "\\x00" + app.liveSource, liveTimer;
-  const liveTick = () => {
-    const sig = app.liveCard + "\\x00" + app.liveSource;
-    if (sig !== liveSig) {
-      liveSig = sig;
-      const box = runIsland(app.liveCard), body = app.liveSource;
-      clearTimeout(liveTimer);
-      if (box) liveTimer = setTimeout(() => renderChild(box, body), 180);
-    }
-    requestAnimationFrame(liveTick);
-  };
-  requestAnimationFrame(liveTick);
+import { bootHost } from "/web/host-client.js";
+const cfg = ${JSON.stringify(cfg)};
+cfg.compile = async (s) => { try { return (await (await fetch("/compile", { method: "POST", body: s })).json()).source; } catch (e) { return null; } };
+bootHost(cfg);
 </script>`;
 }
 

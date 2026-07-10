@@ -1,36 +1,23 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>Declare</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-  :root { color-scheme: light dark; }
-  body { font: 15px/1.6 system-ui, -apple-system, sans-serif; max-width: 42rem;
-         margin: 3rem auto; padding: 0 1.25rem; }
-  h1 { font-weight: 600; letter-spacing: -.02em; margin: 0 0 .2rem; }
-  .sub { color: #888; margin: 0 0 2rem; }
-  h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .08em;
-       color: #888; font-weight: 600; margin: 2rem 0 .5rem; }
-  a { color: #3366cc; text-decoration: none; } a:hover { text-decoration: underline; }
-  ul { list-style: none; padding: 0; margin: 0; } li { margin: .4rem 0; }
-  code { font: 13px ui-monospace, monospace; color: #888; }
-</style>
-
-<h1>Declare</h1>
-<p class="sub">A clean-slate successor to OpenLaszlo — declarative <code>.declare</code>, compiled to JavaScript.</p>
-
-<h2>Examples</h2>
-<ul>
-  <li><a href="examples/neocalendar/">neocalendar</a> &middot; <a href="examples/neocalendar/canvas">canvas backend</a></li>
-  <li><a href="examples/neoweather/">neoweather</a> &middot; <a href="examples/neoweather/canvas">canvas backend</a></li>
-</ul>
-
-<h2>Read</h2>
-<ul>
-  <li><a href="docs/">docs</a> — guide &amp; reference</li>
-  <li><a href="design/">design</a> — language &amp; implementation notes</li>
-</ul>
-
-<p style="margin-top:2.5rem;color:#888">
-  Run <code>npm start</code> for the dynamic-compilation dev server, or host this whole
-  tree statically — see <a href="design/hosting.md">design/hosting.md</a>.
-</p>
+<title>Declare — the UI language for the AI era</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="Declare — the declarative UI language for the AI era. Reactive by construction, compiled live in the browser. This whole page is written in it.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%234C8DFF'/><stop offset='1' stop-color='%2337E0C8'/></linearGradient></defs><rect width='32' height='32' rx='7' fill='url(%23g)'/><path d='M13 9h-3v14h3M19 9h3v14h-3' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<style>html,body{margin:0;padding:0;background:#0B141B}</style>
+<div id="host"></div>
+<script type="module">
+  // The homepage IS a Declare app. On a static host (GitHub Pages) boot-static.js:
+  //   1. renders NOW from the committed precompiled artifact — no compiler download;
+  //   2. re-probes the compile's dependency closure to see if the source moved since
+  //      the prebuild (pure, ~5 KB of closure.js — no TypeScript, no bundle);
+  //   3. warm-loads the ~1 MB in-browser compiler in the BACKGROUND, used only for a
+  //      stale recompile or a live edit ("Edit this page", the demo editors).
+  //
+  // All paths are relative to this file → the whole tree is subpath-portable
+  // (a project page lives under /<repo>/).
+  import boot from "./web/boot-static.js";
+  import artifact from "./examples/site/prebuilt/site.js";
+  boot(artifact);
+</script>

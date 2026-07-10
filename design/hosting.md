@@ -9,27 +9,48 @@ Declare runs the same build two ways.
 Canvas). Compile-on-request means an edit + reload shows immediately. That is the
 server's entire job — no chat, no persistent connection, no data API.
 
-## Static hosting (in-browser compilation)
+## Static hosting (GitHub Pages)
 
-The compiler and runtime are plain ES modules (`compiler/dist/*.js`,
-`runtime/dist/*.js`, no bundler) and are committed, so the whole tree can be served
-from any dumb static host as-is and apps can compile in the browser.
+The whole tree is served from a dumb static host (GitHub Pages, `.nojekyll`) with no
+Node and no compiler on the critical path. Every path is relative, so it is
+subpath-portable — a project page under `/<repo>/` resolves everything the same.
 
-`compile()` is already parameterized by an `IncludeHost` (defaulting to the
-Node/filesystem host). The remaining work to make in-browser compilation turnkey:
+The model is **precompile-by-default, verify-in-the-background**:
 
-1. **A fetch-based `IncludeHost`** — resolve `<include>`s over HTTP instead of `fs`.
-2. **Make the `node:` imports lazy.** `compiler/include-node.ts` (`node:fs`) and
-   `compiler/typecheck.ts` (`node:path`, `node:module`) are pulled in by static
-   import today, which stops `compiler/dist/compile.js` from loading in a browser.
-   Move them behind the host seam / dynamic `import()` so the browser build is
-   Node-free.
-3. **A service worker** (`service-worker.js`) that intercepts `/examples/<name>/`,
-   compiles with the browser build, serves the host page, and caches static assets
-   for offline use.
+1. **Render now.** `tools/prebuild.mjs` compiles each `examples/<name>/<name>.declare`
+   into a committed artifact (`examples/<name>/prebuilt/<name>.js`) — the compiled
+   program, the demo previews (site), the auto-include library, and the compile's
+   **dependency closure**. The page (`index.html` for the site; a generated
+   `examples/<name>/index.html` for the rest) loads it via `web/boot-static.js` and
+   renders instantly. Previews are present and running at load time.
+2. **Freshness — no compiler needed.** `boot-static.js` re-probes the baked closure:
+   each dependency is re-fetched and hashed, and `closure.js`'s `isUpToDate()`
+   compares against the validators baked at prebuild. This is a pure ~4.6 KB module
+   (BigInt only) — it answers "is the source newer than the artifact?" without
+   TypeScript. On a static host there is no mtime, so the validator is a content
+   hash (the universal floor); the same closure model degrades to ETag/Last-Modified
+   where a host supplies them.
+3. **Warm-load the compiler in the background.** The in-browser compiler
+   (`dist-browser/declare-compiler.js`, ~1 MB gzipped — the Declare core plus the
+   TypeScript expression parser `free-idents` needs, bundled by
+   `tools/build-compiler.mjs`) is `import()`ed lazily, even if never used. It is
+   needed only to (a) recompile when step 2 reports the source moved, or (b) serve a
+   live edit ("Edit this page", the demo editors). In the common case it is never
+   touched.
 
-Until then, static deployment uses **precompilation**: compile each example at
-build time and ship the JS (see `examples/neoweather/deploy-build.mjs`).
+`compile()` is parameterized by an `IncludeHost`; the browser front-end
+(`compiler/compile-browser.ts`) injects a **synchronous in-memory host** over a
+prefetched file map (fetch is async, the include seam is sync — so the fixed library
+set is prefetched up front). It runs **without typecheck**, exactly like the dev
+server's `POST /compile`, so tsc's program/checker never enters the bundle — only the
+parser does.
+
+### Remaining (Phase 3)
+
+A **service worker** that lets you browse *arbitrary* `/examples/<name>/` — and any
+`.declare` — offline: intercept the request, compile in-browser, serve the host page,
+cache for offline. The precompiled artifacts already cover the shipped examples; the
+SW generalizes it to anything and adds an offline cache.
 
 ## Why the parser lives in `runtime/`, not `compiler/`
 

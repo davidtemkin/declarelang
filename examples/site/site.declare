@@ -291,22 +291,12 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                 layout: SimpleLayout [ axis = y, spacing = 24 ],
                 top: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 22 ],
 
-                    // headline in two runs: the name in the blue→teal gradient, the
-                    // claim in white — one sentence, wrapping after the name
+                    // headline: the product name in the blue→teal gradient on its own
+                    // line, the claim stacked below it (wrapping when the window is
+                    // narrow). One rendition at every width — no wide/narrow split to
+                    // keep in sync, and nothing duplicated for the live editor to miss.
 
-                    // headline: ONE LINE on wide screens (name + claim as two colour
-                    // runs, side by side); STACKED on narrow (name over the claim, which
-                    // wraps). A two-colour line can't wrap yet (no inline rich-text
-                    // facility), so narrow gets the stack instead — two containers, one
-                    // shown per width, the invisible one skipped by the parent layout.
-
-                    wide: View [ width = { parent.width }, visible = { classroot.stageWidth >= 1080 },
-                        layout: SimpleLayout [ axis = x, spacing = 0 ],
-                        Heading [ fontSize = 48, textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) }, text = "Declare " ],
-                        Heading [ fontSize = 48, text = "is the UI language for the AI era." ],
-                        ],
-                    narrow: View [ width = { parent.width }, visible = { classroot.stageWidth < 1080 },
-                        layout: SimpleLayout [ axis = y, spacing = 2 ],
+                    headline: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 2 ],
                         Heading [ fontSize = { classroot.stageWidth < 700 ? 44 : 60 },
                                   textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) }, text = "Declare" ],
                         Heading [ fontSize = { classroot.stageWidth < 700 ? 44 : 60 }, width = { parent.width },
@@ -332,7 +322,7 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                 SectionHead [ num = "01", head = "Read it. Generate it. Run it.",
                     lead = "The relationships that matter — structure, data, reactivity — are explicit in the language, not hidden in imperative steps or a runtime graph." ],
                 cards: View [ width = { parent.width }, layout: WrappingLayout [ spacing = 24, lineSpacing = 24 ],
-                    Card [ title = "Analyzable", body = "The compiler reads a program's data-flow statically. So can a model." ],
+                    Card [ title = "Analyzable", body = "The compiler reads a program’s data-flow statically. So can a model." ],
                     Card [ title = "Generable", body = "No ceremony, no magic. No dependency arrays or keys to get subtly wrong." ],
                     Card [ title = "Runnable", body = "It compiles in the browser. Generated code runs the instant it exists." ],
                     ],
@@ -372,10 +362,10 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
             s3: View [ width = { parent.width },
                 layout: SimpleLayout [ axis = y, spacing = 36 ],
                 SectionHead [ num = "03", head = "Declare it. It runs. It stays true.",
-                    lead = "A binding isn't a callback you remember to re-run — it's a standing relationship the runtime keeps true, re-derived the moment its inputs change." ],
+                    lead = "A binding isn’t a callback you remember to re-run — it’s a standing relationship the runtime keeps true, re-derived the moment its inputs change." ],
                 demo3: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 14 ],
                     caption: Body [ fontSize = 15, width = { parent.width },
-                        text = "Three bindings track one value: the big number, the bar's width, and its colour. Click to bump v — all three update together, and the colour crosses cool to warm at the halfway mark." ],
+                        text = "Three bindings track one value: the big number, the bar’s width, and its color. Click to bump v — all three update together, and the color crosses cool to warm at the halfway mark." ],
                     cards: View [ width = { parent.width },
                         layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ],
                         SourcePanel  [ editName = "reactivity", height = 226,
@@ -415,7 +405,7 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                     lead = "You say where a thing belongs; a Spring finds the path there and settles by physics — motion you declare, not a timeline you sequence." ],
                 demo5: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 14 ],
                     caption: Body [ fontSize = 15, width = { parent.width },
-                        text = "Click to toggle the ball's target between two positions. The Spring follows and settles by physics — no timeline, no frames driven by hand." ],
+                        text = "Click to toggle the ball’s target between two positions. The Spring follows and settles by physics — no timeline, no frames driven by hand." ],
                     cards: View [ width = { parent.width },
                         layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ],
                         SourcePanel  [ editName = "spring", height = 184,
@@ -435,7 +425,7 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                     lead = "A State is a named bundle of overrides — a whole configuration you can apply as one. The mode is the unit of change, not each property by hand." ],
                 demo6: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 14 ],
                     caption: Body [ fontSize = 15, width = { parent.width },
-                        text = "Click to flip one boolean. The card's height, its colour, and an extra line of text swap in together — and revert the instant the mode turns off." ],
+                        text = "Click to flip one boolean. The card’s height, its color, and an extra line of text swap in together — and revert the instant the mode turns off." ],
                     cards: View [ width = { parent.width },
                         layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ],
                         SourcePanel  [ editName = "states", height = 230,
@@ -457,7 +447,7 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                 Heading [ fontSize = { classroot.stageWidth < 700 ? 26 : 38 },
                           width = { Math.min(900, parent.width) }, x = { (parent.width - Math.min(900, parent.width)) / 2 },
                           textAlign = center,
-                          text = "The last generation of frameworks was layered onto the browser's document model. Declare is built differently — cleaner, faster, and made for what's next." ],
+                          text = "The previous generation of frameworks were built on top of the browser’s document-oriented core.\n\nDeclare is different: app-focused, cleaner, faster, and ready for what comes next." ],
                 explain: Lead [ width = { Math.min(720, parent.width) }, x = { (parent.width - Math.min(720, parent.width)) / 2 },
                           textAlign = center, textColor = { theme.muted },
                           text = "That difference is render independence: one program, painted to the DOM or a canvas — your choice today, WebGL on the horizon — and no rewrite, no code changes. You declare what the UI is; the runtime decides how to draw it." ],
@@ -470,7 +460,8 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                 layout: SimpleLayout [ axis = y, spacing = 16 ],
                 rule: View [ width = { parent.width }, height = 1, fill = #263D4C ],
                 row: View [ width = { parent.width }, layout: WrappingLayout [ spacing = 12, lineSpacing = 8 ],
-                    Eyebrow [ fontSize = 13, text = "BUILT IN DECLARE" ],
+                    Eyebrow [ fontSize = 13, text = "Built in" ],
+                    Eyebrow [ fontSize = 13, textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) }, text = "Declare" ],
                     Eyebrow [ fontSize = 13, textColor = #556673, text = "·" ],
 
                     // source affordance in the same eyebrow treatment — inline so its
@@ -481,7 +472,7 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                         onMouseOver() { hovered = true },
                         onMouseOut()  { hovered = false },
                         onClick()     { this.root.editing = true },
-                        text = "VIEW & EDIT SOURCE" ],
+                        text = "View & Edit Source" ],
                     ],
 
                 // breathing room below the footer line
