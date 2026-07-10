@@ -3,7 +3,7 @@
 // string, and structural enums (named unions like `value Stretch = none |
 // width | height | both`). The coercion that turns `navy` into an integer or
 // `50%` into a Percent is deliberately imperative and lives here, never in
-// neo-LZX source. Each type's `coerce` case owns its "expects …" wording, so
+// Declare source. Each type's `coerce` case owns its "expects …" wording, so
 // a type and its diagnostics are one thing and cannot drift apart.
 import { CSS_COLORS } from "./css-colors.js";
 import { validatePathData } from "./shape.js";

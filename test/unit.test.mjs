@@ -1390,7 +1390,7 @@ await test("compileTracked(): the closure captures the auto-included library + m
   const r = compileTracked(`App [ width = 40, height = 40, Bar [ width = 30, value = 50 ] ]`, { props: { backend: "dom" } });
   assert.ok(r.source, "compiled");
   const ids = r.closure.entries.map((e) => e.id);
-  assert.ok(ids.some((i) => i.endsWith("/library/src/bar.neolzx")), "the auto-included Bar library is a tracked dependency");
+  assert.ok(ids.some((i) => i.endsWith("/library/src/bar.declare")), "the auto-included Bar library is a tracked dependency");
   assert.ok(ids.some((i) => i.endsWith("/library/autoincludes.json")), "the manifest is a tracked dependency");
   assert.equal(isUpToDate(r.closure, { backend: "dom" }, diskProbe), true, "unchanged → fresh");
   assert.equal(isUpToDate(r.closure, { backend: "canvas" }, diskProbe), false, "a compiler-prop change → stale");
@@ -3937,10 +3937,10 @@ const memHost = (files) => ({
 
 await test("include resolves a class declared in another file", () => {
   const host = memHost({
-    "/components.neolzx": "class Card extends View [ ]",
+    "/components.declare": "class Card extends View [ ]",
   });
   const app = build(
-    'include [ "components.neolzx" ]\nApp [ width=10, height=10, Card [ ] ]',
+    'include [ "components.declare" ]\nApp [ width=10, height=10, Card [ ] ]',
     { host, originDir: "/" }
   );
   assert.equal(app.children.length, 1, "the included class instantiated as a child");
@@ -3950,11 +3950,11 @@ await test("include resolves a class declared in another file", () => {
 
 await test("include is a flat namespace: an included class extends another included class", () => {
   const host = memHost({
-    "/base.neolzx": "class Card extends View [ ]",
-    "/derived.neolzx": 'include [ "base.neolzx" ]\nclass Fancy extends Card [ ]',
+    "/base.declare": "class Card extends View [ ]",
+    "/derived.declare": 'include [ "base.declare" ]\nclass Fancy extends Card [ ]',
   });
   const { program, errors } = resolveIncludes(
-    parseProgram('include [ "derived.neolzx" ]\nApp [ ]'),
+    parseProgram('include [ "derived.declare" ]\nApp [ ]'),
     host,
     "/"
   );
@@ -3965,13 +3965,13 @@ await test("include is a flat namespace: an included class extends another inclu
 
 await test("include diamond loads the shared file once (no false collision)", () => {
   const host = memHost({
-    "/d.neolzx": "class Shared extends View [ ]",
-    "/b.neolzx": 'include [ "d.neolzx" ]\nclass B extends View [ ]',
-    "/c.neolzx": 'include [ "d.neolzx" ]\nclass C extends View [ ]',
-    "/a.neolzx": 'include [ "b.neolzx", "c.neolzx" ]',
+    "/d.declare": "class Shared extends View [ ]",
+    "/b.declare": 'include [ "d.declare" ]\nclass B extends View [ ]',
+    "/c.declare": 'include [ "d.declare" ]\nclass C extends View [ ]',
+    "/a.declare": 'include [ "b.declare", "c.declare" ]',
   });
   const { program, errors } = resolveIncludes(
-    parseProgram('include [ "a.neolzx" ]\nApp [ ]'),
+    parseProgram('include [ "a.declare" ]\nApp [ ]'),
     host,
     "/"
   );
@@ -3982,11 +3982,11 @@ await test("include diamond loads the shared file once (no false collision)", ()
 
 await test("include cycle (A↔B) terminates", () => {
   const host = memHost({
-    "/a.neolzx": 'include [ "b.neolzx" ]\nclass A extends View [ ]',
-    "/b.neolzx": 'include [ "a.neolzx" ]\nclass B extends View [ ]',
+    "/a.declare": 'include [ "b.declare" ]\nclass A extends View [ ]',
+    "/b.declare": 'include [ "a.declare" ]\nclass B extends View [ ]',
   });
   const { program, errors } = resolveIncludes(
-    parseProgram('include [ "a.neolzx" ]\nApp [ ]'),
+    parseProgram('include [ "a.declare" ]\nApp [ ]'),
     host,
     "/"
   );
@@ -3996,36 +3996,36 @@ await test("include cycle (A↔B) terminates", () => {
 
 await test("include collision: two files defining Foo is a positioned error naming both", () => {
   const host = memHost({
-    "/a.neolzx": "class Foo extends View [ ]",
-    "/b.neolzx": "class Foo extends View [ ]",
+    "/a.declare": "class Foo extends View [ ]",
+    "/b.declare": "class Foo extends View [ ]",
   });
   const { errors } = resolveIncludes(
-    parseProgram('include [ "a.neolzx", "b.neolzx" ]\nApp [ ]'),
+    parseProgram('include [ "a.declare", "b.declare" ]\nApp [ ]'),
     host,
     "/"
   );
   assert.equal(errors.length, 1, "exactly one collision reported");
   assert.match(errors[0].message, /'Foo' is declared twice/);
-  assert.match(errors[0].message, /"b\.neolzx"/, "names the later file");
-  assert.match(errors[0].message, /"a\.neolzx"/, "names the earlier file");
+  assert.match(errors[0].message, /"b\.declare"/, "names the later file");
+  assert.match(errors[0].message, /"a\.declare"/, "names the earlier file");
   assert.ok(errors[0].pos, "the collision is positioned");
 });
 
 await test("include collision against the main program names 'the app'", () => {
-  const host = memHost({ "/lib.neolzx": "class Foo extends View [ ]" });
+  const host = memHost({ "/lib.declare": "class Foo extends View [ ]" });
   const { errors } = resolveIncludes(
-    parseProgram('include [ "lib.neolzx" ]\nclass Foo extends View [ ]\nApp [ ]'),
+    parseProgram('include [ "lib.declare" ]\nclass Foo extends View [ ]\nApp [ ]'),
     host,
     "/"
   );
   assert.equal(errors.length, 1);
-  assert.match(errors[0].message, /'Foo' is declared twice — in "lib\.neolzx" and "the app"/);
+  assert.match(errors[0].message, /'Foo' is declared twice — in "lib\.declare" and "the app"/);
 });
 
 await test("an included file with a root is an error (library, not App)", () => {
-  const host = memHost({ "/bad.neolzx": "class Card extends View [ ]\nApp [ ]" });
+  const host = memHost({ "/bad.declare": "class Card extends View [ ]\nApp [ ]" });
   const { errors } = resolveIncludes(
-    parseProgram('include [ "bad.neolzx" ]\nApp [ ]'),
+    parseProgram('include [ "bad.declare" ]\nApp [ ]'),
     host,
     "/"
   );
@@ -4036,25 +4036,25 @@ await test("an included file with a root is an error (library, not App)", () => 
 
 await test("a missing include is a positioned error naming the path", () => {
   const { errors } = resolveIncludes(
-    parseProgram('include [ "nope.neolzx" ]\nApp [ ]'),
+    parseProgram('include [ "nope.declare" ]\nApp [ ]'),
     memHost({}),
     "/"
   );
   assert.equal(errors.length, 1);
-  assert.match(errors[0].message, /cannot find include "nope\.neolzx"/);
+  assert.match(errors[0].message, /cannot find include "nope\.declare"/);
   assert.ok(errors[0].pos, "positioned at the include string");
 });
 
 await test("include resolves relative to the including file's directory (subdir)", () => {
   const host = memHost({
-    "/app/main.neolzx": 'include [ "lib/parts.neolzx" ]',
-    "/app/lib/parts.neolzx": 'include [ "shared.neolzx" ]\nclass Part extends View [ ]',
-    "/app/lib/shared.neolzx": "class Shared extends View [ ]",
+    "/app/main.declare": 'include [ "lib/parts.declare" ]',
+    "/app/lib/parts.declare": 'include [ "shared.declare" ]\nclass Part extends View [ ]',
+    "/app/lib/shared.declare": "class Shared extends View [ ]",
   });
-  // main.neolzx (in /app) includes lib/parts.neolzx; parts (in /app/lib)
-  // includes "shared.neolzx", which must resolve against /app/lib.
+  // main.declare (in /app) includes lib/parts.declare; parts (in /app/lib)
+  // includes "shared.declare", which must resolve against /app/lib.
   const { program, errors } = resolveIncludes(
-    parseProgram('include [ "main.neolzx" ]\nApp [ ]'),
+    parseProgram('include [ "main.declare" ]\nApp [ ]'),
     host,
     "/app"
   );
@@ -4081,9 +4081,9 @@ await test("compile() emits a self-contained source: no include directive, inclu
   const host = memHost({
     // an included class whose method body uses a bare name — it must be
     // resolved in the emitted source, not left for a host that won't exist.
-    "/lib.neolzx": "class Card extends View [ w: Length = 5, tint(other) { w = other } ]",
+    "/lib.declare": "class Card extends View [ w: Length = 5, tint(other) { w = other } ]",
   });
-  const r = compile('include [ "lib.neolzx" ]\nApp [ width=10, height=10, Card [ ] ]', { host, originDir: "/" });
+  const r = compile('include [ "lib.declare" ]\nApp [ width=10, height=10, Card [ ] ]', { host, originDir: "/" });
   assert.equal(r.errors.length, 0, "compiles clean");
   assert.ok(!/include\s*\[/.test(r.source), "(2) the include directive is gone");
   assert.match(r.source, /class Card extends View/, "(1) the included class is present");
@@ -4096,12 +4096,12 @@ await test("compile() emits a self-contained source: no include directive, inclu
 
 await test("compile() emit: a diamond splices the shared file's class exactly once", () => {
   const host = memHost({
-    "/d.neolzx": "class Shared extends View [ ]",
-    "/b.neolzx": 'include [ "d.neolzx" ]\nclass B extends Shared [ ]',
-    "/c.neolzx": 'include [ "d.neolzx" ]\nclass C extends Shared [ ]',
-    "/a.neolzx": 'include [ "b.neolzx", "c.neolzx" ]',
+    "/d.declare": "class Shared extends View [ ]",
+    "/b.declare": 'include [ "d.declare" ]\nclass B extends Shared [ ]',
+    "/c.declare": 'include [ "d.declare" ]\nclass C extends Shared [ ]',
+    "/a.declare": 'include [ "b.declare", "c.declare" ]',
   });
-  const r = compile('include [ "a.neolzx" ]\nApp [ width=1, height=1, B [ ], C [ ] ]', { host, originDir: "/" });
+  const r = compile('include [ "a.declare" ]\nApp [ width=1, height=1, B [ ], C [ ] ]', { host, originDir: "/" });
   assert.equal(r.errors.length, 0, "diamond compiles clean");
   assert.equal((r.source.match(/class Shared extends View/g) ?? []).length, 1, "Shared appears exactly once");
   // dependency-first order: the base Shared precedes its subclasses B and C.
@@ -4112,9 +4112,9 @@ await test("compile() emit: a diamond splices the shared file's class exactly on
 
 await test("compile() emit: an included body's bare name is fully resolved (nothing unresolved reaches output)", () => {
   const host = memHost({
-    "/lib.neolzx": "class Box extends View [ gap: number = 3,\n  Text [ text = { gap } ] ]",
+    "/lib.declare": "class Box extends View [ gap: number = 3,\n  Text [ text = { gap } ] ]",
   });
-  const r = compile('include [ "lib.neolzx" ]\nApp [ width=1, height=1, Box [ ] ]', { host, originDir: "/" });
+  const r = compile('include [ "lib.declare" ]\nApp [ width=1, height=1, Box [ ] ]', { host, originDir: "/" });
   assert.equal(r.errors.length, 0, "compiles clean");
   // `gap` inside the named child's body means the enclosing class root's gap.
   assert.match(r.source, /text = \{ classroot\.gap \}/, "the included nested body resolved to classroot.gap");
@@ -4123,22 +4123,22 @@ await test("compile() emit: an included body's bare name is fully resolved (noth
 
 await test("compile() emit: collision across included files still reports (file-named)", () => {
   const host = memHost({
-    "/a.neolzx": "class Foo extends View [ ]",
-    "/b.neolzx": "class Foo extends View [ ]",
+    "/a.declare": "class Foo extends View [ ]",
+    "/b.declare": "class Foo extends View [ ]",
   });
-  const r = compile('include [ "a.neolzx", "b.neolzx" ]\nApp [ ]', { host, originDir: "/" });
+  const r = compile('include [ "a.declare", "b.declare" ]\nApp [ ]', { host, originDir: "/" });
   assert.equal(r.source, null, "a collision blocks emission");
   assert.equal(r.errors.length, 1, "one collision reported");
   assert.match(r.errors[0].message, /'Foo' is declared twice/);
-  assert.match(r.errors[0].message, /"a\.neolzx"/, "names both files");
-  assert.match(r.errors[0].message, /"b\.neolzx"/);
+  assert.match(r.errors[0].message, /"a\.declare"/, "names both files");
+  assert.match(r.errors[0].message, /"b\.declare"/);
 });
 
 await test("compile() emit: a missing include still reports (file-named), no source", () => {
-  const r = compile('include [ "nope.neolzx" ]\nApp [ ]', { host: memHost({}), originDir: "/" });
+  const r = compile('include [ "nope.declare" ]\nApp [ ]', { host: memHost({}), originDir: "/" });
   assert.equal(r.source, null, "a missing include blocks emission");
   assert.equal(r.errors.length, 1);
-  assert.match(r.errors[0].message, /cannot find include "nope\.neolzx"/);
+  assert.match(r.errors[0].message, /cannot find include "nope\.declare"/);
 });
 
 // ── States (design-docs/states.md): overrides, precedence, child subtree ───
@@ -4280,7 +4280,7 @@ await test("state: a gated state rejects the verbs (gate XOR verbs)", () => {
 
 // ── Typecheck (tsc over { } bodies) + unified diagnostics ──────────────────
 
-await test("typecheck: a cross-boundary type error is caught, mapped to its .neolzx line", () => {
+await test("typecheck: a cross-boundary type error is caught, mapped to its .declare line", () => {
   const src = [
     "class Card extends View [ width = 80,", // line 1
     "  flag: boolean = false,", //             line 2

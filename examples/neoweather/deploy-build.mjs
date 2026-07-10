@@ -1,5 +1,5 @@
-// deploy-build.mjs — assemble the static /neolzx bundle (the four-app side-by-side +
-// source page) for Firebase Hosting under davidtemkin.com/neolzx.
+// deploy-build.mjs — assemble the static /declarelang bundle (the four-app side-by-side +
+// source page) for Firebase Hosting under davidtemkin.com/declarelang.
 //
 // Bakes a live comparison into a self-contained static tree:
 //   - the two neo apps (DOM + Canvas) = the neo runtime (runtime/dist/) + the compiled
@@ -12,7 +12,7 @@
 // Root-absolute OL paths (/runtime) are rewritten to the deploy base so the tree is
 // subpath-portable.
 //
-//   node examples/neoweather/deploy-build.mjs [outDir]   # default: ~/Code/Mesa/deploy/neolzx
+//   node examples/neoweather/deploy-build.mjs [outDir]   # default: ~/Code/Mesa/deploy/declarelang
 
 import path from "node:path";
 import os from "node:os";
@@ -21,13 +21,13 @@ import { fileURLToPath } from "node:url";
 import { compile } from "../../compiler/dist/compile-node.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));   // examples/neoweather
-const ROOT = path.resolve(HERE, "../..");                    // the neolzx distro root
+const ROOT = path.resolve(HERE, "../..");                    // the Declare distro root
 const OL5 = path.resolve(ROOT, "../openlaszlo-5.0");         // the sibling OpenLaszlo 5.0 distro
 const WORKSHOP = path.resolve(ROOT, "workshop/neoweather");  // the OL reference builds (dhtml + canvas)
 const ORIGINAL_SRC = path.join(WORKSHOP, "original");        // the OL weather bundle (has weather.lzx, for the src link)
 
-const BASE = "/neolzx"; // deploy subpath (davidtemkin.com/neolzx)
-const OUT = process.argv[2] ?? path.join(os.homedir(), "Code/Mesa/deploy/neolzx");
+const BASE = "/declarelang"; // deploy subpath (davidtemkin.com/declarelang)
+const OUT = process.argv[2] ?? path.join(os.homedir(), "Code/Mesa/deploy/declarelang");
 
 // fail early with a clear message if a required input is missing (the OL refs live in the
 // git-ignored workshop/; regenerate them there if this fires).
@@ -50,7 +50,7 @@ copy(path.join(HERE, "data"), path.join(OUT, "data"));           // weather.json
 
 // compile the program; inline it into a page per backend. Its data/… and resources/…
 // refs are already relative to the page, so nothing to rewrite.
-const compiled = compile(readFileSync(path.join(HERE, "neoweather.neolzx"), "utf8"), { originDir: HERE });
+const compiled = compile(readFileSync(path.join(HERE, "neoweather.declare"), "utf8"), { originDir: HERE });
 if (compiled.errors.length || compiled.warnings.length)
   throw new Error("neoweather did not compile clean:\n" + [...compiled.errors, ...compiled.warnings].map((e) => "  " + e.message).join("\n"));
 const NEO_SOURCE = compiled.source;
@@ -89,7 +89,7 @@ rmSync(path.join(OUT, "runtime/lfc-src"), { recursive: true, force: true });
 
 // ── the two source files, linked under the columns ──────────────────────────
 copy(path.join(ORIGINAL_SRC, "weather.lzx"), path.join(OUT, "src/weather.lzx"));
-copy(path.join(HERE, "neoweather.neolzx"), path.join(OUT, "src/neoweather.neolzx"));
+copy(path.join(HERE, "neoweather.declare"), path.join(OUT, "src/neoweather.declare"));
 
 // ── the index page: the four columns + the two source links ─────────────────
 const WIDTH = 240, HEIGHT = 320, gap = 16;
@@ -115,7 +115,7 @@ write("index.html", `<!doctype html><meta charset="utf-8"><title>neoweather side
 </div>
 <div class="row srcs">
   <a style="width:${lzxW}px" href="src/weather.lzx" target="_blank">View source: &nbsp; examples/weather/weather.lzx &nbsp; <small>LZX</small></a>
-  <a style="width:${neoW}px" href="src/neoweather.neolzx" target="_blank">View source: &nbsp; examples/neoweather/neoweather.neolzx &nbsp; <small>neo-LZX</small></a>
+  <a style="width:${neoW}px" href="src/neoweather.declare" target="_blank">View source: &nbsp; examples/neoweather/neoweather.declare &nbsp; <small>Declare</small></a>
 </div>`);
 
 console.log("built:", OUT);

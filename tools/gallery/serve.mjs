@@ -1,4 +1,4 @@
-// serve.mjs — ONE local server for the neo-LZX ⟷ LZX app gallery.
+// serve.mjs — ONE local server for the Declare ⟷ LZX app gallery.
 //
 // A build-time comparison harness: the live counterpart to
 // examples/neoweather/deploy-build.mjs (which bakes the same comparison static).
@@ -7,7 +7,7 @@
 // Canvas kernels, and neoweather on both neo backends. Below: a neocalendar section —
 // the four calendar renderings and all source, opened in popups.
 //
-// What it reads (all in the neolzx tree + the sibling openlaszlo-5.0):
+// What it reads (all in the Declare tree + the sibling openlaszlo-5.0):
 //   • the NEO apps            examples/{neoweather,neocalendar}/  (compiled in-process)
 //   • the neo runtime         runtime/dist/                       (mounted at /dist/)
 //   • the OL reference apps    workshop/{neoweather,neocalendar}/  (precompiled bundles)
@@ -28,7 +28,7 @@ import { fileURLToPath } from "node:url";
 import { compile } from "../../compiler/dist/compile-node.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));    // tools/gallery
-const ROOT = path.resolve(HERE, "../..");                     // the neolzx distro root
+const ROOT = path.resolve(HERE, "../..");                     // the Declare distro root
 const OL5 = path.resolve(ROOT, "../openlaszlo-5.0");          // the sibling OpenLaszlo 5.0 distro
 const NW = path.join(ROOT, "examples/neoweather");            // neo weather source + assets
 const NC = path.join(ROOT, "examples/neocalendar");           // neo calendar source + assets
@@ -93,9 +93,9 @@ const srcPage = (title, abs) => {
 // f → an on-disk source path (whitelisted; the calendar includes live in CAL).
 const resolveSrc = (f) => {
   if (!f || f.includes("..")) return null;
-  if (f === "neoweather") return path.join(NW, "neoweather.neolzx");
+  if (f === "neoweather") return path.join(NW, "neoweather.declare");
   if (f === "weather") return path.join(OLW, "original", "weather.lzx");
-  if (f === "neocal") return path.join(NC, "neocalendar.neolzx");
+  if (f === "neocal") return path.join(NC, "neocalendar.declare");
   if (/^cal\/[\w.-]+\.lzx$/.test(f)) return path.join(CAL, f.slice(4));
   return null;
 };
@@ -122,7 +122,7 @@ const srcBtn = (label, f, kind) => `<a href="#" onclick="return pop('/src?f=${f}
 
 const indexPage = () => {
   const inc = calIncludes().map((h) => srcBtn(h, `cal/${h}`)).join("");
-  return `<!doctype html><meta charset=utf-8><title>neo-LZX · apps</title>
+  return `<!doctype html><meta charset=utf-8><title>Declare · apps</title>
 <style>
   :root{color-scheme:dark}
   body{font:14px/1.5 system-ui,sans-serif;background:#2b2b2b;color:#e6e6e6;margin:0;padding:22px 24px 60px}
@@ -146,7 +146,7 @@ const indexPage = () => {
   .apps a{min-width:150px;text-align:center}
 </style>
 
-<h1>neo-LZX · app gallery</h1>
+<h1>Declare · app gallery</h1>
 
 <section>
   <h2>neoweather &mdash; side by side</h2>
@@ -156,7 +156,7 @@ const indexPage = () => {
     <figure><iframe src="/w/neo-dom"></iframe><figcaption>neo &middot; DOM</figcaption></figure>
     <figure><iframe src="/w/neo-canvas"></iframe><figcaption>neo &middot; Canvas</figcaption></figure>
   </div>
-  <div class=srcs>${srcBtn("weather.lzx", "weather", "LZX")}${srcBtn("neoweather.neolzx", "neoweather", "neo")}</div>
+  <div class=srcs>${srcBtn("weather.lzx", "weather", "LZX")}${srcBtn("neoweather.declare", "neoweather", "neo")}</div>
 </section>
 
 <section>
@@ -175,8 +175,8 @@ const indexPage = () => {
       <div class=inc>${inc}</div>
     </div>
     <div class=srccol>
-      <div class=lbl>neo-LZX source</div>
-      ${srcBtn("neocalendar.neolzx", "neocal", "main")}
+      <div class=lbl>Declare source</div>
+      ${srcBtn("neocalendar.declare", "neocal", "main")}
       <div class=inc><span class=muted>single file &mdash; no includes</span></div>
     </div>
   </div>
@@ -193,10 +193,10 @@ http.createServer((req, res) => {
     if (p === "/") return html(res, indexPage());
 
     // neo apps (compiled per backend)
-    if (p === "/w/neo-dom") return html(res, neoPage(NW, "neoweather.neolzx", "DomBackend", "#EAEAEA"));
-    if (p === "/w/neo-canvas") return html(res, neoPage(NW, "neoweather.neolzx", "CanvasBackend", "#EAEAEA"));
-    if (p === "/c/neo-dom") return html(res, neoPage(NC, "neocalendar.neolzx", "DomBackend", "#1E3A49"));
-    if (p === "/c/neo-canvas") return html(res, neoPage(NC, "neocalendar.neolzx", "CanvasBackend", "#1E3A49"));
+    if (p === "/w/neo-dom") return html(res, neoPage(NW, "neoweather.declare", "DomBackend", "#EAEAEA"));
+    if (p === "/w/neo-canvas") return html(res, neoPage(NW, "neoweather.declare", "CanvasBackend", "#EAEAEA"));
+    if (p === "/c/neo-dom") return html(res, neoPage(NC, "neocalendar.declare", "DomBackend", "#1E3A49"));
+    if (p === "/c/neo-canvas") return html(res, neoPage(NC, "neocalendar.declare", "CanvasBackend", "#1E3A49"));
 
     // source viewer
     if (p === "/src") {

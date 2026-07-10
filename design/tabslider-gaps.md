@@ -1,4 +1,4 @@
-# neo-LZX weather — tabslider & reveal-animation gaps
+# Declare weather — tabslider & reveal-animation gaps
 
 Frame-by-frame comparison (puppeteer filmstrips) of `examples/weather` (the LZX
 original, via `basetabslider`/`basetabelement`) vs `neoweather` surfaced three
@@ -53,9 +53,9 @@ placement mechanism and no window subview**. `contentvisible` falls out for free
   **recomputed when width/height change** so it tracks the animating height every
   frame. This is a framework primitive that owns its own subscription
   (constraints.md §3), not a user constraint.
-- **App:** add `clip = true` to `WeatherTab` (components.neolzx); drop the
+- **App:** add `clip = true` to `WeatherTab` (components.declare); drop the
   `visible = { parent.sel }` on `currentData` / `radarData` / `forecastData`
-  (neoweather.neolzx) — the clip now conceals them.
+  (neoweather.declare) — the clip now conceals them.
 
 ### Gaps 2 & 3 → imperative animator drives (LZX vocabulary, like the tab slide)
 `DataSource.fetch()` is `async` (`data.ts:272`), so the OK handler can sequence
@@ -139,7 +139,7 @@ has none.
 - **A — box-clip runtime (`src/`):** LANDED. `clip = true` clips a view's subtree
   (paint + hit-test) to its box via a framework-internal reactive derive of the
   box rect, recomputed on width/height; new perceptual test. Gate green.
-- **C — topBar + zip animators (`neoweather.neolzx`):** LANDED. `comein`/`goout`
+- **C — topBar + zip animators (`neoweather.declare`):** LANDED. `comein`/`goout`
   groups (topBar) + `slideOut`/`slideIn` (zip), driven from the fetch / clear
   paths — all `started = false` (see above).
 - **B — `WeatherTab clip = true` + drop the content `visible` pops:** LANDED.

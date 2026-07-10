@@ -1,7 +1,7 @@
 // typecheck — the tsc-over-{ }-bodies phase (APPROACH §5). The scaffold
 // (scaffold.ts) turns the component schemas into an ambient TypeScript surface;
 // this module appends a CHECK-BLOCK per resolved `{ }` body and runs stock tsc
-// over the whole, then maps each TS diagnostic back to a `.neolzx` LINE through
+// over the whole, then maps each TS diagnostic back to a `.declare` LINE through
 // the diagnostics mechanism (diagnostics.ts, code NEO6001). Node-only (it
 // imports `typescript` and reads the real lib.d.ts from disk), so it lives on
 // the compile front-end, never in the zero-dependency runtime.

@@ -1,4 +1,4 @@
-// parity-sweep.mjs — VISUAL (pixel) parity of the neo-LZX *canvas* kernel vs the stock
+// parity-sweep.mjs — VISUAL (pixel) parity of the Declare *canvas* kernel vs the stock
 // *DHTML* kernel across a LARGE set of OpenLaszlo apps, at dpr=2 (Retina).
 //
 // KEY FACT: both kernels run the SAME compiled `.lzx.js`; only the LFC differs. So each app is

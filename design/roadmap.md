@@ -1,4 +1,4 @@
-# neo-LZX — roadmap to "Foundation Complete"
+# Declare — roadmap to "Foundation Complete"
 
 The forward-looking companion to the `design/` rulings and `design/history/build-journey.md`
 (the *how we got here*). This is the *how we finish* — the path from "it works for us" to a
@@ -72,7 +72,7 @@ Surfaced *by* the apps, so they resolve alongside M1–M3 — then freeze v1. By
   while animating out). *The piece the cut criterion hinges on* (`animation.md`). Dashboard
   window-close, calendar info-panel.
 - **Heterogeneous replication** — one-component-per-element by discriminant (feeds/CMS/chat).
-  *The open question with the deepest reach* (`neolzx-language.md`).
+  *The open question with the deepest reach* (`declare-language.md`).
 - **Lazy / deferred instantiation** — `initstage`-style; ties to list virtualization + perf.
 - **State collision lattice** + **declarative transitions** on state change (seams left).
 - **Module resolution** (with the dev-env rung).

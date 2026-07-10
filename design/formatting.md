@@ -1,19 +1,19 @@
-# neo-LZX formatting — the canonical spec
+# Declare formatting — the canonical spec
 
 This is the canon: the human style the language is written in, and the
 implementation contract for the tool that enforces it. It **supersedes**
 the earlier `indent.txt` sketch (since removed).
-[§12 of neolzx-language.md](neolzx-language.md#12-formatting-and-naming) states
+[§12 of declare-language.md](declare-language.md#12-formatting-and-naming) states
 the load-bearing rules in brief (members comma-separated with a trailing
 comma, one attribute-name vocabulary, camelCase); this document is the full
 canon those rules extend into, plus the prettyprinter that enforces it.
 
 The reference artifact is
-[weather.neolzx](weather.neolzx) — every rule below is
+[weather.declare](weather.declare) — every rule below is
 extracted from its rhythm, not invented in the abstract. Where an example is
 needed that uses landed grammar only, it is redrawn from
-[neolang/apps/neoweather/neoweather.neolzx](../neolang/apps/neoweather/neoweather.neolzx),
-the one real formatted app. (weather.neolzx itself still carries
+[neolang/apps/neoweather/neoweather.declare](../neolang/apps/neoweather/neoweather.declare),
+the one real formatted app. (weather.declare itself still carries
 unlanded/rejected surface — bare-string `Text [ "OK", … ]`, `<->`, `schema`,
 `state`, `<-` — see "v1 scope" below for what that means for the tool.)
 
@@ -30,7 +30,7 @@ everything else follows from the reference artifact's own practice.
 Members are comma-separated and order-inert (§7's constraint model, §12's
 "clean reordering and diffs") — which means *nothing* in the grammar forces
 a particular layout. Two authors can write semantically identical markup
-that looks nothing alike. neo-LZX's readability bet — that a UI tree reads
+that looks nothing alike. Declare's readability bet — that a UI tree reads
 like the picture it draws — only pays off if the tree is laid out the same
 way everywhere. So: one house style, one tool that enforces it, and authors
 spend zero attention on it once the tool exists.
@@ -57,9 +57,9 @@ Top-level declarations — `script { }`, `class`, `App`, a future
 declaration sits directly above it, itself preceded and followed by a blank
 line (so there are effectively two blank lines above a commented
 declaration: one closing off the previous item, one opening the comment).
-From weather.neolzx:
+From weather.declare:
 
-```neolzx
+```Declare
 class Screen extends View [ shown: boolean = false,
     width = 100%, height = 100%,
     opacity = { shown ? 1 : 0 },
@@ -72,7 +72,7 @@ class WeatherSummary extends View [ fontSize = 12, fontFamily = "Helvetica", …
 
 and with a comment above the next declaration:
 
-```neolzx
+```Declare
     ]
 
 
@@ -89,7 +89,7 @@ before the body drops to its own lines. Declarations (`label: string = …`),
 methods, states, layout, and child instances each get a line of their own;
 they never share the header line with plain config. From neoweather:
 
-```neolzx
+```Declare
 class WeatherSummary extends View [ backgroundColor = #000000, width = 34, height = 34, x = 10,
 
     icon: Image [ x = 1, y = 1, width = 32, height = 32, stretches = both,
@@ -113,7 +113,7 @@ multi-line child, then states, then handler clusters), and a blank line
 before the hanging close. This is what makes a class body scannable as an
 outline rather than a wall.
 
-```neolzx
+```Declare
 App [ width = 240, height = 320, backgroundColor = #EAEAEA,
 
     zip: string = "94403",
@@ -135,7 +135,7 @@ are all one-line leaves gets no interior blanks — the leaves are close
 enough kin that whitespace between them would just be noise. Compare the
 label/value StatRow calls in neoweather:
 
-```neolzx
+```Declare
 StatRow [ label = "Humidity:", value = :atmosphere.humidity ],
 StatRow [ label = "Barometer:", value = :atmosphere.pressure ],
 StatRow [ label = "Windspeed:", value = :wind.speed ],
@@ -163,7 +163,7 @@ happens to render on one source line.
 Leaf, wrapped attributes, still closes inline (the bracket rides the last
 attribute's line):
 
-```neolzx
+```Declare
 icon: Image [ x = 1, y = 1, width = 32, height = 32, stretches = both,
     source = { :code != null ? `resources/icons/${:code}.gif` : "" } ],
 ```
@@ -172,7 +172,7 @@ A leaf that contains even one non-attribute member stops being a leaf and
 hangs — `container` below is otherwise plain config, but its `details`
 child forces the hang:
 
-```neolzx
+```Declare
 container: View [ width = { parent.width }, visible = { classroot.contentvisible },
     options = releasetolayout, y = 25, clip = true,
     details: View [ width = { parent.width } ],
@@ -182,7 +182,7 @@ container: View [ width = { parent.width }, visible = { classroot.contentvisible
 And a body with several non-attribute members hangs the same way, whether
 those members are themselves one line or many:
 
-```neolzx
+```Declare
 class WeatherTab extends View [ width = 100%,
 
     label: string = "default title",
@@ -220,7 +220,7 @@ inline.
 `class`, and `App` always close hanging, whatever they contain — including
 a class as plain as `Screen`, whose body is nothing but attributes:
 
-```neolzx
+```Declare
 class Screen extends View [ shown: boolean = false,
     width = 100%, height = 100%,
     opacity = { shown ? 1 : 0 },
@@ -244,7 +244,7 @@ order the author wrote them; the formatter never reorders them (order is
 semantically inert, but it's the author's call, and reordering would make
 diffs noisy for no gain):
 
-```neolzx
+```Declare
 icon: Image [ x = 1, y = 1, width = 32, height = 32, stretches = both,
     source = { :code != null ? `resources/icons/${:code}.gif` : "" } ],
 ```
@@ -262,7 +262,7 @@ enough.
 
 A short, single-statement body inlines on the signature line:
 
-```neolzx
+```Declare
 onClick() { select() },
 onInit() { Focus.setFocus(this) },
 ```
@@ -270,7 +270,7 @@ onInit() { Focus.setFocus(this) },
 A multi-statement body puts its statements at +1 indent, closing with a
 hanging `},`:
 
-```neolzx
+```Declare
 select() {
     for (const t of parent.children) t.sel = (t === this)
     },
@@ -299,7 +299,7 @@ App-level region banners use a heavier double-em-dash form and are
 preserved verbatim by the formatter (it never rewrites banner *text*, only
 re-indents/re-blanks around it per the comment rule):
 
-```neolzx
+```Declare
 // ── entry screen — shown until data loads; carries loading + error inline ──
 
 Screen [ shown = { !weatherData.loaded }, resource = weather_splash,
@@ -312,7 +312,7 @@ Screen [ shown = { !weatherData.loaded }, resource = weather_splash,
 **Values are single-spaced, and columns are never aligned across sibling
 rows.** A run of similar members is *not* padded into a table:
 
-```neolzx
+```Declare
 StatRow [ label = "Humidity:", value = :atmosphere.humidity ],
 StatRow [ label = "Barometer:", value = :atmosphere.pressure ],
 StatRow [ label = "Wind Chill:", value = :wind.chill ],
@@ -320,7 +320,7 @@ StatRow [ label = "Wind Chill:", value = :wind.chill ],
 
 not
 
-```neolzx
+```Declare
 StatRow [ label = "Humidity:",   value = :atmosphere.humidity ],
 StatRow [ label = "Barometer:",  value = :atmosphere.pressure ],
 StatRow [ label = "Wind Chill:", value = :wind.chill ],
@@ -355,11 +355,11 @@ for the same reasons. One rule: single space, everywhere.
 would be opt-in and reset at every blank line, keeping its churn local. The
 default is simply off.
 
-> **Landed apps predate this ruling.** `neoweather.neolzx` is still written
+> **Landed apps predate this ruling.** `neoweather.declare` is still written
 > in the aligned style and now diverges from canon; it awaits a single-space
 > reformat pass (a mechanical, semantics-preserving change — §5.6 gates it).
 > The single-space examples above are drawn from
-> [weather.neolzx](weather.neolzx), which this session's edits already bring
+> [weather.declare](weather.declare), which this session's edits already bring
 > into conformance.
 
 ---
@@ -441,7 +441,7 @@ gap to apologize for.
 ### 5.4 v1 scope: the landed grammar only
 
 v1 targets the **landed** grammar — the constructs `neolang/src/parser.ts`
-actually accepts today. Stated honestly: **weather.neolzx itself is
+actually accepts today. Stated honestly: **weather.declare itself is
 not v1-formattable**, because it deliberately showcases surface that is
 either unlanded or since rejected — bare-string `Text [ "OK", … ]`
 (rejected, HANDOFF.md R3), `<->` two-way binding (deferred to the
@@ -457,12 +457,12 @@ value like any other) — it is simply that the *tool* cannot exercise those
 paths until the grammar lands them.
 
 The **test corpus** is therefore the landed programs:
-`neolang/apps/neoweather/neoweather.neolzx` first (the one real formatted
+`neolang/apps/neoweather/neoweather.declare` first (the one real formatted
 app, and the source of every "landed-grammar" example in this document),
-then whatever else lands as neo-LZX apps accumulate. As `state`/`<->`/`event`
+then whatever else lands as Declare apps accumulate. As `state`/`<->`/`event`
 land in the grammar, they join the corpus and the worked examples above
 that had to be redrawn from neoweather can be redrawn again from
-weather.neolzx directly, closing the gap between "canon" and
+weather.declare directly, closing the gap between "canon" and
 "the reference artifact" for good.
 
 ### 5.5 Semantic no-op, by construction

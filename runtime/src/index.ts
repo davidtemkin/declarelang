@@ -1,4 +1,4 @@
-// neo-LZX runtime — public surface for R0–R8.
+// Declare runtime — public surface for R0–R8.
 //
 // The pipeline: parse the source (classes + root) → typecheck it against the
 // component schemas (reporting every error, not just the first) → instantiate
@@ -35,7 +35,7 @@ export interface BuildOptions {
   originDir?: string;
 }
 
-/** Parse, resolve `include`s, typecheck, and instantiate a neo-LZX source into
+/** Parse, resolve `include`s, typecheck, and instantiate a Declare source into
  *  its App tree (no rendering). Raises a NeoErrors carrying *every* error at
  *  once (include-resolution + type). */
 export function build(source: string, opts: BuildOptions = {}): App {
@@ -51,7 +51,7 @@ export function build(source: string, opts: BuildOptions = {}): App {
   return root;
 }
 
-/** Parse, resolve includes, check, instantiate, and render a neo-LZX source
+/** Parse, resolve includes, check, instantiate, and render a Declare source
  *  into `host` via `backend`. */
 export function render(source: string, host: HTMLElement, backend: RenderBackend, opts: BuildOptions = {}): App {
   const app = build(source, opts);

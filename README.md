@@ -1,6 +1,6 @@
-# neolzx
+# Declare
 
-A clean-slate successor to OpenLaszlo: write declarative `.neolzx`, compile it to
+A clean-slate successor to OpenLaszlo: write declarative `.declare`, compile it to
 JavaScript, render to the DOM or an own-pixels Canvas backend.
 
 One self-contained tree — everything needed to build from source, run, and host is here.
@@ -9,9 +9,9 @@ One self-contained tree — everything needed to build from source, run, and hos
 
 | dir | what |
 |-----|------|
-| `compiler/` | the `.neolzx` → JS compiler (Node-side build orchestration) — `src/` (TypeScript) + committed `dist/` (built JS) |
+| `compiler/` | the `.declare` → JS compiler (Node-side build orchestration) — `src/` (TypeScript) + committed `dist/` (built JS) |
 | `runtime/`  | the browser framework — parser, reactive core, layout, animation, DOM/Canvas backends (`src/` + committed `dist/`). Zero external deps; the compiler builds on it |
-| `library/`  | bundled components authored in `.neolzx` (built on the runtime) |
+| `library/`  | bundled components authored in `.declare` (built on the runtime) |
 | `examples/` | runnable sample apps — `neoweather`, `neocalendar` |
 | `docs/`     | browsable documentation: authored `guide/` + generated `reference/` |
 | `design/`   | design documentation (language, implementation, constraints, hosting, …) |
@@ -30,7 +30,7 @@ npm test               # unit + perceptual + scaffold
 
 ## Two ways to run an app
 
-- **Dynamic (dev):** `npm start`. The server compiles each example's `.neolzx` on
+- **Dynamic (dev):** `npm start`. The server compiles each example's `.declare` on
   request — edit and reload. Nothing else runs (no chat, no persistent connection,
   no data API).
 - **Static hosting:** serve the whole tree from any static host. The built `.js` are

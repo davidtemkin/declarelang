@@ -1,6 +1,6 @@
 # Site build spec — framework-neutral
 
-The precise, implementation-agnostic contract for the neo-LZX homepage/Explorer: **copy,
+The precise, implementation-agnostic contract for the Declare homepage/Explorer: **copy,
 layout, dimensions, design tokens, interactions, motion, responsive behavior.** No framework,
 no library, no technology is named or assumed. Two independent implementations built to this
 spec should look and behave the same.
@@ -46,7 +46,7 @@ gutter `24px`. A faint grid background (`grid` lines every `32px`, ~`0.5px`) spa
 ## 1. Structure & copy (sections in order)
 
 ### Hero (full viewport height)
-- Small mono eyebrow, top-left of content: `NEO-LZX`
+- Small mono eyebrow, top-left of content: `DECLARE`
 - H1: **The UI language for the AI era.**
 - Subhead (lead): *A declarative language for dynamic web apps — reactive by construction,
   compiled live in the browser, small enough to hold in your head. **This whole page is
@@ -107,13 +107,13 @@ gutter `24px`. A faint grid background (`grid` lines every `32px`, ~`0.5px`) spa
 
 ### Header (appears on scroll)
 - Absent/transparent at the top. After scrolling past `80px`, a slim sticky bar fades+slides
-  down: wordmark left (`neo-LZX`), links right (**Docs · Examples · Playground · GitHub**).
+  down: wordmark left (`Declare`), links right (**Docs · Examples · Playground · GitHub**).
   Height `56px`, `surface` bg with bottom `line`, slight backdrop blur.
 - Below `720px`: links collapse to a **hamburger**; tapping opens a **drawer** (slides from
   the right, covers ~80% width, dim scrim behind, close on scrim tap / esc).
 
 ### Footer
-- Muted, single row → wrap on mobile: `built in neo-LZX` · the measured weight · links
+- Muted, single row → wrap on mobile: `built in Declare` · the measured weight · links
   (GitHub, Docs). Thin top `line`.
 
 ## 2. Interactions & motion (precise)

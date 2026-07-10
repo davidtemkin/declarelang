@@ -1,4 +1,4 @@
-# neo-LZX sizing — content-extent, clamping, and the `readonly` modifier
+# Declare sizing — content-extent, clamping, and the `readonly` modifier
 
 A view's size is one of three things on each axis, chosen by what the source
 says — nothing hidden, no layout "modes":

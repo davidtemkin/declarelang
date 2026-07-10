@@ -1,6 +1,6 @@
-# neo-LZX imperative instantiation — the contract
+# Declare imperative instantiation — the contract
 
-A **hard requirement**: a developer can create instances of neo-LZX
+A **hard requirement**: a developer can create instances of Declare
 (declaratively-declared) classes at runtime, from inside a `{ }` TS block, by
 the **same name** the class has in markup:
 

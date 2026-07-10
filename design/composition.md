@@ -1,6 +1,6 @@
-# neo-LZX composition — `include` and modules
+# Declare composition — `include` and modules
 
-How a neo-LZX file relates to *other* files. There are two mechanisms, and
+How a Declare file relates to *other* files. There are two mechanisms, and
 they do genuinely different jobs, so they compose rather than compete:
 
 - **`include`** composes neo *declarations* (classes, `script`, stylesheets) —
@@ -26,7 +26,7 @@ neo's list grammar, so it reads as another `keyword [ … ]` heading alongside
 `App [ … ]` and `class X [ … ]`:
 
 ```
-include [ "weather-components.neolzx" ]
+include [ "weather-components.declare" ]
 
 App [ width = 240, height = 320, … ]
 ```
@@ -35,8 +35,8 @@ or, for several:
 
 ```
 include [
-    "tabs.neolzx",
-    "forms.neolzx",
+    "tabs.declare",
+    "forms.declare",
     ]
 ```
 
@@ -80,10 +80,10 @@ likely indefinitely.
 
 ### Readability payoff
 
-A shared `components.neolzx` holds the reusable classes (TabSlider, WeatherTab,
+A shared `components.declare` holds the reusable classes (TabSlider, WeatherTab,
 StatRow, WeatherSummary, Screen); an app file becomes `include [ … ]` + its
 `App`, and reads as *the app*. The same components file can back both the design
-reference (`weather.neolzx`) and the landed app (`neoweather.neolzx`), so they
+reference (`weather.declare`) and the landed app (`neoweather.declare`), so they
 **stop drifting apart** — the divergence that motivated this note dissolves
 because they share the actual component source.
 
@@ -97,9 +97,9 @@ The tightest form drops even the `include`. Using a bare component tag —
 
 The pieces:
 
-- **`library/autoincludes.json`** — the manifest, `{ "Bar": "bar.neolzx", … }`
+- **`library/autoincludes.json`** — the manifest, `{ "Bar": "bar.declare", … }`
   (tag → file path, relative to `library/src`).
-- **`library/src/*.neolzx`** — ordinary neo libraries, each a `class Bar …`.
+- **`library/src/*.declare`** — ordinary neo libraries, each a `class Bar …`.
 - **`resolveAutoIncludes`** (runtime/`include.ts`) runs *after* explicit
   `include`s, sharing their visited set: it collects the program's referenced
   tags, and for any that is neither provided nor a built-in but *is* in the
@@ -118,7 +118,7 @@ one component source, so they cannot drift.
 > colour, a size) and a dead-easy-to-read body — not to be a real component set.
 > A proper library (the widget vocabulary, its theming contract, its API
 > surface) is its own dedicated design + research effort, to follow. Until then,
-> treat `library/src/*.neolzx` as scaffolding: coherent, but not load-bearing.
+> treat `library/src/*.declare` as scaffolding: coherent, but not load-bearing.
 
 
 ## 2. `import` — composing JS modules
@@ -181,10 +181,10 @@ surprise.
      zero-dep). `compile()` emits ONE **self-contained** source — each library's
      own `include` directives excised, concatenated dependency-first ahead of the
      main file — so the hostless browser `render()` runs the merge with no host;
-  3. a shared `apps/neoweather/components.neolzx` with a simple `TabSlider` (a
+  3. a shared `apps/neoweather/components.declare` with a simple `TabSlider` (a
      plain `class TabSlider extends View` owning `select(tab)`) alongside
      `StatRow` / `WeatherTab` / `WeatherSummary` / `Screen`;
-  4. `neoweather.neolzx` refactored to `include [ "components.neolzx" ]` + its
+  4. `neoweather.declare` refactored to `include [ "components.declare" ]` + its
      `App`, and A1b (the tab-slide `Animator`) landed onto the `TabSlider` —
      verified: acceptance 18/18, and a live-DOM probe confirms the eased slide
      (animation.md §1).

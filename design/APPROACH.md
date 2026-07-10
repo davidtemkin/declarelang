@@ -1,6 +1,6 @@
-# neo-LZX — Build Approach
+# Declare — Build Approach
 
-*How the neo-LZX system is built, and **why**. This is the working agreement for the `neolang/` effort and the first thing every contributing agent reads. It complements the product docs in [`../design-docs/`](../design-docs) (vision, language, implementation); those describe *what* neo-LZX is, this describes the *method and architecture* for building it.*
+*How the Declare system is built, and **why**. This is the working agreement for the `neolang/` effort and the first thing every contributing agent reads. It complements the product docs in [`../design-docs/`](../design-docs) (vision, language, implementation); those describe *what* Declare is, this describes the *method and architecture* for building it.*
 
 ---
 
@@ -13,7 +13,7 @@ Two things are co-equal and non-negotiable: **elegance/clarity of the source** a
 
 *Why:* the entire value proposition is a concise, analyzable, fast system. Source clarity and the absence of legacy overhead are not polish applied later — they *are* the product, as much as behavior and speed.
 
-## 1. What neo-LZX is (and isn't)
+## 1. What Declare is (and isn't)
 
 A **new system** that closely resembles — but **is not** — OpenLaszlo. It shares LZX's feel and the kinds of apps it builds. In the end it **will not compile LZX** and **will work differently at runtime**.
 
@@ -54,7 +54,7 @@ The compiler parses the `[ ]` declarative layer and **hands `{ }` bodies and typ
 ## 6. Reuse posture: primitives yes, model no
 
 - **Reuse only at the primitive / substrate level** — a Canvas2D painter, font metrics, hit-test math, easing. Language-agnostic, genuinely hard to beat, zero LZX semantics, no deadweight.
-- **Rewrite everything at the model level** — node/view/attribute/constraint/event/data, the render model, the components. That is where LZX's semantics *and its deadweight* live, and where neo-LZX's elegance has to come from.
+- **Rewrite everything at the model level** — node/view/attribute/constraint/event/data, the render model, the components. That is where LZX's semantics *and its deadweight* live, and where Declare's elegance has to come from.
 - **Default to new.** Justify each reuse ("this is the best code for the job, and it is clean"). If you reuse to move fast, record it as **debt** in `HANDOFF.md` with a replacement note — provisional scaffolds ossify into permanent deadweight otherwise.
 
 ## 7. The ladder, and the apps that drive it

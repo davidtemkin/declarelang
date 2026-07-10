@@ -28,6 +28,6 @@ Worker owns the canonical scene and renders into a persistent `OffscreenCanvas`;
 
 **Visual debt**: the fraction of the viewport showing background because the reprojected stale bitmap no longer covers it, accumulated as fraction×dt with a peak stat, emitted on motion-stop (`shell-core.ts:480-531`). Turns "feels laggy" into a metric that says when reprojection stops being good enough.
 
-## Deltas for neo-LZX
+## Deltas for Declare
 
 Mesa ships *pixels* because its worker owns the scene. In neo the recording (display list) is the transferable artifact and the main thread owns state — so our handoff can be ops-down / bitmaps-up (`ImageBitmap` or buffer, cost-measured per lesson 3), and Mesa's reprojection trick maps to our composite-time transform: a stale layer bitmap composites at the *current* transform by construction (the rendering model's lock-in #3 buys Mesa's `positionLayer` behavior for free). The single-slot/one-in-flight/latest-wins pacing and all six failure modes carry over directly.

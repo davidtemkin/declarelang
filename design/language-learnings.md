@@ -1,4 +1,4 @@
-# neo-LZX language learnings — friction & gaps found while building
+# Declare language learnings — friction & gaps found while building
 
 A running log of things that were **confusing, surprising, or broken** while
 building real UI (the homepage demo cards). Each is a candidate for a language /

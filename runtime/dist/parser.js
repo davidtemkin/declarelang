@@ -1,5 +1,5 @@
 // The parser for the `[ ]` declarative layer — pure syntax, no semantics.
-// It turns neo-LZX source into an Element tree of raw literals; deciding what
+// It turns Declare source into an Element tree of raw literals; deciding what
 // a literal *means* (which type it coerces to) is the attribute schema's job
 // (instantiate.ts), keeping the closed value vocabulary out of the grammar.
 //
@@ -644,7 +644,7 @@ function parseTopDecls(p) {
     }
     return { classes, stylesheets, styles, fonts, includes, includeSpans };
 }
-/** Parse a whole neo-LZX source: `include`s and top-level declarations
+/** Parse a whole Declare source: `include`s and top-level declarations
  *  (classes, stylesheets, style bundles — in any order), then the root
  *  instance. */
 export function parseProgram(source) {

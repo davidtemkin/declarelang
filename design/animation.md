@@ -1,4 +1,4 @@
-# neo-LZX Animation — the ruled design (2026-07-02)
+# Declare Animation — the ruled design (2026-07-02)
 
 *This document supersedes the 13-question motion design proposal (also dated 2026-07-02, written earlier the same day). It is not a proposal — it is the record of the human's ruling, delivered in a live walk-through, on every question that proposal raised. Where the proposal recommended new grammar (a `transition` member, a `Spring`/`Motion` class family, reactive retargeting), the ruling took the simpler path: **v1 is LZX's animation vocabulary, unmodified, applied imperatively** — zero new keywords, zero new member forms. Two genuinely new capabilities (a destination-less "follow" form, and animation woven into `state`) were examined in depth and PARKED, each for a stated reason, not rejected. See [`neolang/HANDOFF.md`](../neolang/HANDOFF.md) for the dated entry pointing here.*
 
@@ -12,7 +12,7 @@ Motion can attach to a slot at three different points, and the ruling resolves a
 2. **The change/mode** — "here's a new mode, animate every difference it implies, coming and going" (SwiftUI's state-driven transitions). **Ruled: parked, with an explicit cut criterion (§5b).**
 3. **The slot standing** — "this slot always arrives smoothly, no matter what drives it" (a CSS `transition` rule; a destination-less spring that just smooths whatever shows up). **Ruled: parked (§5a).**
 
-These are not three competing designs for the same feature — they are three different places motion can live, and neo-LZX now has a definite answer at each: landed, parked, parked. The two parked forms share machinery (§5a explicitly reduces to a special case of §5b's requirements), so closing one materially de-risks the other.
+These are not three competing designs for the same feature — they are three different places motion can live, and Declare now has a definite answer at each: landed, parked, parked. The two parked forms share machinery (§5a explicitly reduces to a special case of §5b's requirements), so closing one materially de-risks the other.
 
 ---
 

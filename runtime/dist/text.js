@@ -68,6 +68,7 @@ export class Text extends View {
             align: this.textAlign,
             italic: this.italic,
             textFill: this.textFill,
+            selectable: this.selectable,
         }), 
         // Constraint is deliberately untyped across compute→apply; this
         // apply's input is exactly its compute's output.
@@ -84,5 +85,6 @@ defineAttributes(Text, {
     textAlign: { def: "left" },
     italic: { def: false },
     textFill: { def: null },
+    selectable: { def: false },
 });
 //# sourceMappingURL=text.js.map

@@ -1,4 +1,4 @@
-# gallery — neo-LZX ⟷ LZX side-by-side
+# gallery — Declare ⟷ LZX side-by-side
 
 A build-time comparison harness: one local server that shows each app rendered four ways
 — the original LZX app on OpenLaszlo's **DHTML** and **Canvas** kernels, and the neo app

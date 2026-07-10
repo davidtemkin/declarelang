@@ -1,6 +1,6 @@
-# neo-LZX Styling — the ruled design (2026-07-02)
+# Declare Styling — the ruled design (2026-07-02)
 
-*This is the single canonical styling document — the exploration that first asked whether neo-LZX should adopt CSS, and the concretization that worked out the mechanism, consolidated into one file. It carries analysis (Part I, the WHY), the settled design (Part II, the WHAT), the mechanism (Part III, the HOW — including edge cases and the neoweather worked example), and validation (Part IV). Every ruling below was closed in a single live human walk-through plus two follow-up ruling batches, all dated 2026-07-02, except two implementation leans the leads carry forward (`cornerRadius`'s clip behavior, and whether same-named prevailing attributes on unrelated classes unify) — both flagged explicitly where they occur. The implementing rung is in flight; see [`neolang/HANDOFF.md`](../neolang/HANDOFF.md) §"The styling rung — the task" for the live record. For the language surface see [neolzx-language.md](neolzx-language.md); for the vision, [neolzx.md](neolzx.md); for the runtime, [neolzx-implementation.md](neolzx-implementation.md); for the parallel ruled design this one is designed to interoperate with, [animation.md](animation.md).*
+*This is the single canonical styling document — the exploration that first asked whether Declare should adopt CSS, and the concretization that worked out the mechanism, consolidated into one file. It carries analysis (Part I, the WHY), the settled design (Part II, the WHAT), the mechanism (Part III, the HOW — including edge cases and the neoweather worked example), and validation (Part IV). Every ruling below was closed in a single live human walk-through plus two follow-up ruling batches, all dated 2026-07-02, except two implementation leans the leads carry forward (`cornerRadius`'s clip behavior, and whether same-named prevailing attributes on unrelated classes unify) — both flagged explicitly where they occur. The implementing rung is in flight; see [`neolang/HANDOFF.md`](../neolang/HANDOFF.md) §"The styling rung — the task" for the live record. For the language surface see [declare-language.md](declare-language.md); for the vision, [declare.md](declare.md); for the runtime, [declare-implementation.md](declare-implementation.md); for the parallel ruled design this one is designed to interoperate with, [animation.md](animation.md).*
 
 ---
 
@@ -10,7 +10,7 @@
 
 ### The question, and how to make it tractable
 
-OpenLaszlo 4 adopted CSS — a customer-demanded implementation still in the 4.9 source. The short answer this part argues is **no, neo-LZX should not adopt CSS** — but the reasons clarify what we *should* build instead.
+OpenLaszlo 4 adopted CSS — a customer-demanded implementation still in the 4.9 source. The short answer this part argues is **no, Declare should not adopt CSS** — but the reasons clarify what we *should* build instead.
 
 The key move is to separate three things people conflate under "CSS":
 
@@ -22,9 +22,9 @@ The *model* is the only part that colonizes. The *vocabulary* is just notation. 
 
 ### 1. What is CSS (and Tailwind) actually *for* — and does LZX's semantics cover it?
 
-Strip familiarity away and ask what *jobs* CSS and Tailwind do, and whether neo-LZX's existing semantics — composition via `class`, reactivity via constraints, `state`, layout-as-attribute — already solve them:
+Strip familiarity away and ask what *jobs* CSS and Tailwind do, and whether Declare's existing semantics — composition via `class`, reactivity via constraints, `state`, layout-as-attribute — already solve them:
 
-| Job | CSS / Tailwind | neo-LZX's answer | Adequate? |
+| Job | CSS / Tailwind | Declare's answer | Adequate? |
 |-----|----------------|------------------|-----------|
 | **Reuse / DRY** ("style many things alike") | classes, `@apply` | `class` — a real component (behavior + structure + style), not a style bag | **Superior** — this is the core of the model |
 | **Conditional / variant** (props → style) | `clsx` / `cva` class-juggling | a constraint: `fill = { selected ? a : b }` | **Superior** — real reactive expressions |
@@ -60,7 +60,7 @@ So OL4 imported CSS's **model** (the cascade — the problematic half) and skipp
 
 The one genuine *semantic* gap. OL decoration was **image-based** — rounded corners, gradients, borders, shadows, window chrome all shipped as PNGs, because the SWF/early-DHTML substrate couldn't draw them cheaply. An own-pixels Canvas/WebGL kernel draws them natively, so neo needs a way to *declare* decoration.
 
-The tension: canvas drawing is *imperative* (a stream of context commands); neo-LZX is *declarative and reactive*. OL4's drawing extension (an imperative `LzGraphics`/drawview context, hand-invalidated, Flash-derived) resolved that by not resolving it — an escape hatch wearing the costume of the API.
+The tension: canvas drawing is *imperative* (a stream of context commands); Declare is *declarative and reactive*. OL4's drawing extension (an imperative `LzGraphics`/drawview context, hand-invalidated, Flash-derived) resolved that by not resolving it — an escape hatch wearing the costume of the API.
 
 Neo inverts it — **declarative-first, imperative-escape** — in three tiers:
 
@@ -164,7 +164,7 @@ The semantics, as the human ruled them:
 - `inherited` / `ancestral` — **rejected**: both collide with OOP class inheritance, which still applies to these attributes' *defaults*. The two are orthogonal axes — the class chain answers *"what am I"* (a Text has a fontSize, default 12); the instance tree answers *"where do I sit"* (this Text sits in a Tahoma-9 app).
 - `ambient` (the working keyword up to this point) — **rejected**: it connotes "all over the place" — diffuse, everywhere-at-once — when the semantics is exactly the opposite: hierarchical and regional, a value in force *in this subtree*, overridable by anything more local.
 - `environment` / `context` — **rejected**: long, and both are already overloaded terms — though SwiftUI's `Environment` and React's `Context` are the audience's precise recognition anchors for this mechanism, which is why the doc states that connection once (Part III §0), rather than chasing it into the name itself.
-- The flow-down family — `cascading`, `propagating`, `flowing`, `standing`, `settling` — **rejected** for CSS toxicity plus internal vocabulary collisions: `cascading`/`flowing` read as importing CSS's own model (the thing this design pointedly is not); `propagating` collides with dispatch (events do *not* propagate in neo-LZX — target-only, R5); `standing` collides with "a standing computation" (the constraint-graph vocabulary); `settling` collides with "the settle" (the one-frame reactive-update vocabulary used throughout for the render pipeline itself).
+- The flow-down family — `cascading`, `propagating`, `flowing`, `standing`, `settling` — **rejected** for CSS toxicity plus internal vocabulary collisions: `cascading`/`flowing` read as importing CSS's own model (the thing this design pointedly is not); `propagating` collides with dispatch (events do *not* propagate in Declare — target-only, R5); `standing` collides with "a standing computation" (the constraint-graph vocabulary); `settling` collides with "the settle" (the one-frame reactive-update vocabulary used throughout for the render pipeline itself).
 - **`prevailing` won.** Transparent English with exactly the right regime semantics — a *prevailing wage*, a *prevailing rate*, a *prevailing law*: the value in force in this region, until overridden more locally. It reads naturally at every site it appears — the declaration (`prevailing fontSize: number = 9`), an error message ("following the prevailing value, set on `report`"), ordinary prose ("swap the prevailing theme") — with zero collisions against the rest of the vocabulary. Its one real weakness, no direct software-framework precedent, is neutralized by stating the recognition anchor once: **this is the same mechanism as SwiftUI's `Environment` and React's `Context`: the nearest provider above wins, live.**
 
 **Reading always yields the effective value.** No API hands back "unset"; only `isSet`-introspection distinguishes a local value from a followed one — author code and constraints never care. And resolution is **per-attribute independent**: one instance can follow *different* ancestors for different attributes.
@@ -404,7 +404,7 @@ Three things to notice:
 
 1. **Providing takes no keyword.** Setting a prevailing attribute anywhere (`sidebar`'s `fontSize = 11`) makes that view the source for everything below it. Setting it on a leaf just styles the leaf.
 2. **Each attribute travels on its own.** `nav` takes its font *family* from `App` and its *size* from `sidebar` — every prevailing attribute independently follows its own nearest provider.
-3. **It's live.** Change `App.fontSize` at runtime and every view still following it updates, in the same frame. A prevailing attribute is a standing relationship, like everything else in neo-LZX — not a value copied at startup.
+3. **It's live.** Change `App.fontSize` at runtime and every view still following it updates, in the same frame. A prevailing attribute is a standing relationship, like everything else in Declare — not a value copied at startup.
 
 If no ancestor sets it, the attribute simply has its declared default (`12` above). And a view can always tell the difference between "I set this" and "I'm following" — but code that just *reads* the value never needs to care.
 
@@ -487,7 +487,7 @@ App [ fontFamily = "Inter,sans-serif", fontSize = 13, theme = light,
 
 ### 1. The two-axis model
 
-Styling in neo-LZX composes **two orthogonal inheritance axes** that must never be confused, plus a local override that beats both:
+Styling in Declare composes **two orthogonal inheritance axes** that must never be confused, plus a local override that beats both:
 
 | axis | question it answers | mechanism | example |
 |---|---|---|---|

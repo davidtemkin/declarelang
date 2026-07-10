@@ -1,6 +1,6 @@
 # The documentation system
 
-The plan for neo-LZX's documentation — two artifacts (a generated **reference** and
+The plan for Declare's documentation — two artifacts (a generated **reference** and
 a hand-authored **developer's guide**), the machinery behind the reference, and
 the decisions that pin it down. Both artifacts serve a human adopter *and* an LLM
 authoring neo; that dual audience shapes several choices below.
@@ -57,11 +57,11 @@ pure drift-bait, no benefit, and it throws away neo's first-class API model.
 Bundled libraries only — you document what you **ship**, not what users write:
 
 - the core runtime's public surface (**TypeScript**),
-- the platform **component set** (**neolzx**, with some TS primitives).
+- the platform **component set** (**Declare**, with some TS primitives).
 
 **User app classes are out of scope** — but reachable for free later. Platform
-components are authored the same way a user class would be (neolzx `class …
-extends View`), so the neolzx extractor that documents them already handles the
+components are authored the same way a user class would be (Declare `class …
+extends View`), so the Declare extractor that documents them already handles the
 user-class case. "Support user classes" becomes a *scope flip* (point the doc
 build at user code too), not new machinery.
 
@@ -73,11 +73,11 @@ This replaces the heavy js2doc machinery with a walk of things neo already compu
   decoration table (defaults) ⨝ the TypeScript compiler API (method signatures,
   params, returns). The modern "reuse the compiler's parser" — neo *is* TS, so it
   introspects itself.
-- **neolzx sources** → neo's own parser. A `class`/attr/method declaration
+- **Declare sources** → neo's own parser. A `class`/attr/method declaration
   already carries name, type, and default *in the grammar* (unlike LZX, which
   needed `@type`/`@keywords`), so structure comes free; prose is the only add.
 
-One unified model. A component whose surface spans both (a TS base + neolzx
+One unified model. A component whose surface spans both (a TS base + Declare
 composition) joins **by class identity** — the same `schema.ts ⨝ view.ts` join
 the built-ins already use, generalized.
 
@@ -89,7 +89,7 @@ subclass boundaries, against reactive/prevailing slots — and neo exposes much 
 design: `root` reach, prevailing attributes). Instead:
 
 - **`@api` in a doc-comment marks an element as the public surface** — `/** …
-  @api */` in TS, `/// @api …` in neolzx. Marked = public = must-document;
+  @api */` in TS, `/// @api …` in Declare. Marked = public = must-document;
   absence = internal, excluded from the reference.
 - **Opt-in** (default-internal), because the runtime is mostly plumbing and
   densely maintainer-commented — so presence-of-comment can't mean public, and
@@ -102,7 +102,7 @@ design: `root` reach, prevailing attributes). Instead:
 ## Prose — wherever it reads best; the gate makes it safe
 
 The reference prose for an `@api` element is **its doc-comment body if present**
-(co-located — natural for small, self-contained neolzx components), **else a
+(co-located — natural for small, self-contained Declare components), **else a
 keyed entry in a prose file** (natural for the split, plumbing-dense TS core).
 Author's choice per element; the model doesn't care. Prose in files is also the
 **AI-safe editing surface** — an LLM (or contributor) can improve it without
@@ -125,7 +125,7 @@ file" safe and "documented = public" true.
 ## Output
 
 One **structured JSON reference** (core + components, no visible seam between TS-
-and neolzx-authored surfaces) as the single source of truth → an **HTML** site
+and Declare-authored surfaces) as the single source of truth → an **HTML** site
 for humans and an **LLM bundle** (`llms.txt`-style concatenation + the JSON) for
 machines. HTML is a *view* of the JSON, not the source.
 
@@ -154,7 +154,7 @@ examples) — but the guide is a third thing that reshapes both for teaching.
 
 ## Doc-comment conventions
 
-- **neolzx**: `///` is a doc-comment (echoing OL's third-hyphen `<!---` trick with
+- **Declare**: `///` is a doc-comment (echoing OL's third-hyphen `<!---` trick with
   a third slash); `//` is an ordinary aside. `@api` in a `///` marks public
   surface; the `///` body is co-located prose.
 - **TS**: existing `/** … */`; add `@api` to mark public surface. The block's
@@ -164,6 +164,6 @@ examples) — but the guide is a third thing that reshapes both for teaching.
 
 1. **Marker spelling** — `@api` (names the surface; avoids implying access
    semantics) vs `@doc` (names the requirement). Leaning `@api`.
-2. **neolzx default** — whether platform components default to co-located prose
+2. **Declare default** — whether platform components default to co-located prose
    (`/// @api Bumps the counter.`) so a component ships self-contained. Leaning yes.
 3. **Terminology** — ratify "declarations" / "classes" (above) as the public words.

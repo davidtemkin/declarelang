@@ -1,4 +1,4 @@
-# neo-LZX constraints — static dependency analysis
+# Declare constraints — static dependency analysis
 
 A `{ }` constraint is a **statically-analyzable expression**. The compiler reads
 it, extracts the exact set of reactive slots it depends on, and *prewires* those
@@ -159,10 +159,10 @@ run" is not "strictly fewer runs."
 ## 7. Grounding — the audit
 
 Across every neo source today (44 constraints): **42 are pure analyzable
-expressions**, and the landed app (`neoweather.neolzx` + `components.neolzx`) is
+expressions**, and the landed app (`neoweather.declare` + `components.declare`) is
 **100 % analyzable**. The only two constraints with a call —
 `{ iconUrl(:code) }` and `{ iconUrl(:item.condition.code) }`, both in the *design
-sketch* `weather.neolzx` — are the §2 pure-formatter-with-dep-as-argument
+sketch* `weather.declare` — are the §2 pure-formatter-with-dep-as-argument
 pattern, which **is** analyzable. **Zero aggregations, zero dynamic indexing**
 appear in any real program. So the rule is near-zero-churn to adopt, and the
 dynamic cases §3 legislates for are — today — entirely theoretical, which is the

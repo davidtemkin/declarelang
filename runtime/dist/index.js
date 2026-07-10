@@ -1,4 +1,4 @@
-// neo-LZX runtime — public surface for R0–R8.
+// Declare runtime — public surface for R0–R8.
 //
 // The pipeline: parse the source (classes + root) → typecheck it against the
 // component schemas (reporting every error, not just the first) → instantiate
@@ -22,7 +22,7 @@ import { fontFacesOf } from "./font.js";
 import { NeoError, NeoErrors } from "./errors.js";
 import { Keys } from "./keys.js";
 import { Focus, deliverKeys } from "./focus.js";
-/** Parse, resolve `include`s, typecheck, and instantiate a neo-LZX source into
+/** Parse, resolve `include`s, typecheck, and instantiate a Declare source into
  *  its App tree (no rendering). Raises a NeoErrors carrying *every* error at
  *  once (include-resolution + type). */
 export function build(source, opts = {}) {
@@ -38,7 +38,7 @@ export function build(source, opts = {}) {
     }
     return root;
 }
-/** Parse, resolve includes, check, instantiate, and render a neo-LZX source
+/** Parse, resolve includes, check, instantiate, and render a Declare source
  *  into `host` via `backend`. */
 export function render(source, host, backend, opts = {}) {
     const app = build(source, opts);

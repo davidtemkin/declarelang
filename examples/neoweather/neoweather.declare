@@ -1,4 +1,4 @@
-// neoweather — a small but complete weather app in neo-LZX, mirroring the
+// neoweather — a small but complete weather app in Declare, mirroring the
 // classic examples/weather/weather.lzx. Its data is the bundled static file
 // data/weather.json. It's one file; the classes below are all specific to it.
 

@@ -43,6 +43,9 @@ export interface TextStyle {
   /** Fill the glyphs with a gradient (or solid Fill) — overrides `color` when
    *  set. Canvas realizes it over the text box; DOM clips a background to text. */
   readonly textFill?: Fill | null;
+  /** Opt back into native text selection (the app root suppresses it): the run
+   *  becomes a selection/pointer target. Off by default (app feel). */
+  readonly selectable?: boolean;
 }
 
 // Created on first use — never at import or instantiation time — so the

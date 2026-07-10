@@ -176,7 +176,7 @@ export interface Library {
  *  entry tools and tests use for pieces; a whole source goes through
  *  parseProgram (which build()/render() call). */
 export declare function parse(source: string): Element;
-/** Parse a whole neo-LZX source: `include`s and top-level declarations
+/** Parse a whole Declare source: `include`s and top-level declarations
  *  (classes, stylesheets, style bundles — in any order), then the root
  *  instance. */
 export declare function parseProgram(source: string): Program;

@@ -3,7 +3,7 @@
 This directory holds everything related to benchmarking OpenLaszlo app **startup** —
 "where does the time go between navigation and the app being on screen."
 
-> **Note (2026-07-08):** now lives at **`neolzx/tools/benchmarks/`** as tracked, reusable
+> **Note (2026-07-08):** now lives at **`declarelang/tools/benchmarks/`** as tracked, reusable
 > machinery — the tools are flattened into this dir; the `apps/` bench variants and captured
 > outputs (screenshots, snapshots) below are regenerable and are **not** kept. See `README.md`
 > for the current layout. The methodology itself is unchanged.

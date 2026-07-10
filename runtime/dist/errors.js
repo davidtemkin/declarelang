@@ -1,8 +1,8 @@
-// A source position and the error types neo-LZX raises for bad source.
+// A source position and the error types Declare raises for bad source.
 // Every syntax / unknown-component / unknown-attribute / bad-value failure
 // carries a position so messages point at the offending text; NeoErrors
 // aggregates a whole check pass into one throw.
-/** An error in neo-LZX source. `pos`, when present, is folded into the message
+/** An error in Declare source. `pos`, when present, is folded into the message
  *  so callers get a legible "… (line 2, col 12)" without extra plumbing.
  *  `rawMessage` keeps the message WITHOUT that suffix (the Diagnostic carries
  *  position separately and re-renders it), and `code`/`hint` are the catalog

@@ -130,7 +130,7 @@ export interface CompileOptions {
   /** Run the tsc-over-`{ }`-bodies typecheck (typecheck.ts) as a final phase —
    *  opt-in because it loads the TypeScript compiler and the lib.d.ts from
    *  disk (Node-only). A type error blocks emission like any other, reported
-   *  as an NEO6001 diagnostic mapped to its `.neolzx` line. */
+   *  as an NEO6001 diagnostic mapped to its `.declare` line. */
   typecheck?: boolean;
   /** The typechecker, INJECTED — Node-only (it loads TypeScript + lib.d.ts),
    *  so keeping it out of this module's imports is what makes `compile`
@@ -140,7 +140,7 @@ export interface CompileOptions {
   typecheckBodies?: (resolved: string, program: Program) => NeoError[];
 }
 
-/** Compile a neo-LZX source: full diagnostics (include resolve + check + scope
+/** Compile a Declare source: full diagnostics (include resolve + check + scope
  *  resolution), and a SELF-CONTAINED resolved source the zero-dependency
  *  runtime consumes with NO include host. Included libraries are spliced in
  *  (each with its own `include` directives excised, dependency-first so a base
@@ -223,7 +223,7 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
   for (const e of r.edits) out = out.slice(0, e.start) + e.text + out.slice(e.end);
 
   // Final phase (opt-in): tsc over the resolved `{ }` bodies. A type error
-  // blocks emission like any other, mapped to its `.neolzx` line (NEO6001).
+  // blocks emission like any other, mapped to its `.declare` line (NEO6001).
   if (opts.typecheckBodies) {
     const typeErrors = opts.typecheckBodies(out, program);
     if (typeErrors.length > 0) {

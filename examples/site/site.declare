@@ -1,4 +1,4 @@
-// site — the neo-LZX homepage. Clean rewrite (design/site-spec.md +
+// site — the Declare homepage. Clean rewrite (design/site-spec.md +
 // design/sizing.md): the design tokens live ONCE as semantic type components,
 // and the page is a vertical FLOW of auto-sizing sections — no absolute-y.
 // Each section's height falls out of its content (contentHeight), so the page
@@ -17,16 +17,16 @@ font Mono [ family = "ui-monospace" ]
 // parity); eyebrows are mono with wide tracking; lead/body carry the muted tone.
 
 class Heading extends Text [ fontWeight = semibold, textColor = { theme.text },
-    letterSpacing = { -0.02 * classroot.fontSize } ]
+    letterSpacing = { -0.02 * classroot.fontSize }, selectable = true ]
 
 class Eyebrow extends Text [ fontFamily = [Mono, "monospace"], fontSize = 13,
-    fontWeight = semibold, letterSpacing = 1.6, textColor = { theme.muted } ]
+    fontWeight = semibold, letterSpacing = 1.6, textColor = { theme.muted }, selectable = true ]
 
 class Marker extends Eyebrow [ textColor = { theme.accent } ]   // the accent section number
 
-class Lead extends Text [ fontSize = 19, fontWeight = normal, textColor = { theme.muted } ]
+class Lead extends Text [ fontSize = 19, fontWeight = normal, textColor = { theme.muted }, selectable = true ]
 
-class Body extends Text [ fontSize = 17, fontWeight = normal, textColor = { theme.muted } ]
+class Body extends Text [ fontSize = 17, fontWeight = normal, textColor = { theme.muted }, selectable = true ]
 
 // nav links brighten muted→bright on hover (React parity); the base carries the
 // rollover so the header nav and the footer source-link share it
@@ -114,10 +114,10 @@ class Button extends View [ height = 46, cornerRadius = 9,
                     textColor = { classroot.primary ? 0x0B141B : 0xE7EEF2 } ],
     ]
 
-// ── a small mono panel label (AMOUNT / SOURCE · NEO-LZX / …) ──────────────────
+// ── a small mono panel label (AMOUNT / SOURCE · DECLARE / …) ──────────────────
 
 class Tag extends Text [ fontFamily = [Mono, "monospace"], fontSize = 11,
-    fontWeight = semibold, letterSpacing = 1.4, textColor = { theme.dim } ]
+    fontWeight = semibold, letterSpacing = 1.4, textColor = { theme.dim }, selectable = true ]
 
 // ── the code editor: a NEO-NATIVE editable field (no host textarea) ───────────
 // A TextInput seeded (uncontrolled, `initial`) from the demo's source `src` —
@@ -140,7 +140,7 @@ class SourcePanel extends View [ width = { parent.width < 760 ? parent.width : M
     editName: string = "",  src: string = "",
     fill = { theme.panel }, cornerRadius = 12, stroke = stroke(1, #1E313C),
     fname: Text [ x = 12, y = 9, fontFamily = [Mono, "monospace"], fontSize = 11, fontWeight = semibold,
-                  textColor = #B7C6D2, text = { classroot.editName + ".neolzx" } ],
+                  textColor = #B7C6D2, text = { classroot.editName + ".declare" } ],
     hint: Text [ y = 9, fontFamily = [Sans, "system-ui"], fontSize = 11, italic = true, textColor = #5B6B78,
                  text = "edit — preview runs live",
                  x = { parent.width - parent.revert.width - this.width - 22 } ],
@@ -198,7 +198,7 @@ class FullPageEditor extends View [ width = { classroot.stageW }, height = { cla
     bar: View [ width = { parent.width }, height = 44, fill = { theme.surface },
         edge: View [ y = 43, width = { parent.width }, height = 1, fill = { theme.line } ],
         name: Text [ x = 22, y = 14, fontFamily = [Mono, "monospace"], fontSize = 13, fontWeight = semibold,
-                     textColor = { theme.text }, text = "site.neolzx" ],
+                     textColor = { theme.text }, text = "site.declare" ],
         hint: Text [ x = 132, y = 15, fontSize = 12, italic = true, textColor = { theme.dim },
                      text = "the whole page — edit and it re-renders live" ],
         close: View [ y = 8, height = 28, cornerRadius = 8, stroke = stroke(1, #263D4C),
@@ -290,16 +290,36 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
             hero: View [ width = { parent.width },
                 layout: SimpleLayout [ axis = y, spacing = 24 ],
                 top: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 22 ],
-                    Eyebrow [ text = "NEO — LZX", textColor = #37E0C8 ],
-                    Heading [ fontSize = { classroot.stageWidth < 700 ? 46 : 78 },
-                              width = { Math.min(980, parent.width) },
-                              text = "The UI language for the AI era." ],
-                    Lead    [ width = { Math.min(640, parent.width) }, textColor = #B7C4CC,
-                              text = "A declarative language for dynamic web apps — reactive by construction, compiled live in the browser, small enough to hold in your head. This whole page is written in it." ],
+
+                    // headline in two runs: the name in the blue→teal gradient, the
+                    // claim in white — one sentence, wrapping after the name
+
+                    // headline: ONE LINE on wide screens (name + claim as two colour
+                    // runs, side by side); STACKED on narrow (name over the claim, which
+                    // wraps). A two-colour line can't wrap yet (no inline rich-text
+                    // facility), so narrow gets the stack instead — two containers, one
+                    // shown per width, the invisible one skipped by the parent layout.
+
+                    wide: View [ width = { parent.width }, visible = { classroot.stageWidth >= 1080 },
+                        layout: SimpleLayout [ axis = x, spacing = 0 ],
+                        Heading [ fontSize = 48, textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) }, text = "Declare " ],
+                        Heading [ fontSize = 48, text = "is the UI language for the AI era." ],
+                        ],
+                    narrow: View [ width = { parent.width }, visible = { classroot.stageWidth < 1080 },
+                        layout: SimpleLayout [ axis = y, spacing = 2 ],
+                        Heading [ fontSize = { classroot.stageWidth < 700 ? 44 : 60 },
+                                  textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) }, text = "Declare" ],
+                        Heading [ fontSize = { classroot.stageWidth < 700 ? 44 : 60 }, width = { parent.width },
+                                  text = "is the UI language for the AI era." ],
+                        ],
+                    Lead [ width = { Math.min(660, parent.width) }, textColor = #B7C4CC,
+                           text = "A declarative language for real, dynamic web apps — reactive by construction, compiled live in the browser, small enough to hold in your head. This whole page is written in it." ],
                     ],
                 buttons: View [ layout: SimpleLayout [ axis = x, spacing = 14 ],
-                    Button [ width = 150, label = "Get started →" ],
-                    Button [ width = 132, label = "See it run", primary = false ],
+                    Button [ width = 128, label = "GitHub →",
+                             onClick() { this.root.navigate = "https://github.com/davidtemkin/declarelang" } ],
+                    Button [ width = 184, label = "Edit this page →", primary = false,
+                             onClick() { this.root.editing = true } ],
                     ],
                 ],
 
@@ -314,12 +334,12 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                 cards: View [ width = { parent.width }, layout: WrappingLayout [ spacing = 24, lineSpacing = 24 ],
                     Card [ title = "Analyzable", body = "The compiler reads a program's data-flow statically. So can a model." ],
                     Card [ title = "Generable", body = "No ceremony, no magic. No dependency arrays or keys to get subtly wrong." ],
-                    Card [ title = "Runnable on the spot", body = "It compiles in the browser. Generated code runs the instant it exists." ],
+                    Card [ title = "Runnable", body = "It compiles in the browser. Generated code runs the instant it exists." ],
                     ],
                 pull: Heading [ fontSize = 28, width = { parent.width }, textAlign = center,
                                 text = "Everything that makes it legible to a model makes it legible to you." ],
                 trust: Body [ fontFamily = [Mono, "monospace"], fontSize = 14, width = { parent.width }, textAlign = center,
-                              text = "The declarative parts are neo. The logic is ordinary, typed TypeScript — nothing to relearn, and everything an editor or a model already understands." ],
+                              text = "The declarative layer is Declare. The logic is ordinary, typed TypeScript — nothing to relearn, and everything an editor or a model already understands." ],
                 ],
 
             // ── 02 — Small. Fast. Own-pixel when you want it. ──────────────────
@@ -328,7 +348,7 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                 reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
                     to = { classroot.scroller.scrollY + classroot.stageHeight > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
                 layout: SimpleLayout [ axis = y, spacing = 44 ],
-                SectionHead [ num = "02", head = "Small. Fast. Own-pixel when you want it." ],
+                SectionHead [ num = "02", head = "Small. Fast. Renderer-independent." ],
 
                 // two headline metrics — the real production figures the host
                 // injects (pageWeight = gzipped over-the-wire, sourceLines = LOC).
@@ -338,12 +358,12 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                     Metric [ value = { classroot.pageWeight > 0 ? "≈ " + classroot.pageWeight + " KB" : "≈ — KB" },
                              note = "over the wire, gzipped — vs the 2.3 MB median page" ],
                     Metric [ value = { classroot.sourceLines > 0 ? classroot.sourceLines + "" : "—" },
-                             note = "lines of neo-LZX — this entire page" ],
+                             note = "lines of Declare — this entire page" ],
                     ],
                 points: View [ width = { parent.width }, layout: WrappingLayout [ spacing = 24, lineSpacing = 32 ],
                     Point [ ptitle = "Small", body = "the whole thing — runtime, your app, and a compiler — is smaller than most sites' hero image." ],
                     Point [ ptitle = "Fast reactivity", body = "dependencies are compiled statically, not tracked at runtime — no reactive-graph tax." ],
-                    Point [ ptitle = "Own-pixel rendering", body = "a canvas engine renders the same program when you want the ceiling." ],
+                    Point [ ptitle = "Renderer-independent", body = "The same program paints to the DOM or to a canvas — your choice — so you can reach for raw pixel speed exactly where it matters." ],
                     ],
                 ],
 
@@ -351,7 +371,7 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
 
             s3: View [ width = { parent.width },
                 layout: SimpleLayout [ axis = y, spacing = 36 ],
-                SectionHead [ num = "03", head = "Describe it. It runs. It stays true.",
+                SectionHead [ num = "03", head = "Declare it. It runs. It stays true.",
                     lead = "A binding isn't a callback you remember to re-run — it's a standing relationship the runtime keeps true, re-derived the moment its inputs change." ],
                 demo3: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 14 ],
                     caption: Body [ fontSize = 15, width = { parent.width },
@@ -371,7 +391,7 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
 
             s4: View [ width = { parent.width },
                 layout: SimpleLayout [ axis = y, spacing = 36 ],
-                SectionHead [ num = "04", head = "Compose it from data.",
+                SectionHead [ num = "04", head = "Declare the shape, not the loop.",
                     lead = "A view can be built from data instead of laid out by hand — the shape written once, the data deciding how many there are and what each one says." ],
                 demo4: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 14 ],
                     caption: Body [ fontSize = 15, width = { parent.width },
@@ -432,28 +452,16 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
             manifesto: View [ width = { parent.width }, opacity = 0,
                 reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
                     to = { classroot.scroller.scrollY + classroot.stageHeight > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
-                layout: SimpleLayout [ axis = y, spacing = 40 ],
+                layout: SimpleLayout [ axis = y, spacing = 30 ],
                 ruleTop: View [ x = { (parent.width - 140) / 2 }, width = 140, height = 2, fill = #4C8DFF ],
-                Heading [ fontSize = { classroot.stageWidth < 700 ? 30 : 44 }, width = { parent.width },
+                Heading [ fontSize = { classroot.stageWidth < 700 ? 26 : 38 },
+                          width = { Math.min(900, parent.width) }, x = { (parent.width - Math.min(900, parent.width)) / 2 },
                           textAlign = center,
-                          text = "The last framework was built for browsers. This one's built for what's next." ],
+                          text = "The last generation of frameworks was layered onto the browser's document model. Declare is built differently — cleaner, faster, and made for what's next." ],
+                explain: Lead [ width = { Math.min(720, parent.width) }, x = { (parent.width - Math.min(720, parent.width)) / 2 },
+                          textAlign = center, textColor = { theme.muted },
+                          text = "That difference is render independence: one program, painted to the DOM or a canvas — your choice today, WebGL on the horizon — and no rewrite, no code changes. You declare what the UI is; the runtime decides how to draw it." ],
                 ruleBot: View [ x = { (parent.width - 140) / 2 }, width = 140, height = 2, fill = #4C8DFF ],
-                ],
-
-            // ── 07 — The workshop. ─────────────────────────────────────────────
-
-            s7: View [ width = { parent.width }, opacity = 0,
-                reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
-                    to = { classroot.scroller.scrollY + classroot.stageHeight > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
-                layout: SimpleLayout [ axis = y, spacing = 36 ],
-                SectionHead [ num = "07", head = "The workshop.",
-                    lead = "Every panel above compiles in the browser and runs where you read it — the same path your own apps will take. This is the whole surface, being built in the open." ],
-                whatsComing: Eyebrow [ fontSize = 13, text = "WHAT'S COMING" ],
-                coming: View [ width = { parent.width }, layout: WrappingLayout [ spacing = 24, lineSpacing = 24 ],
-                    Card [ muted = true, title = "Explorer gallery",   body = "early — being built in the open." ],
-                    Card [ muted = true, title = "Component library",  body = "early — being built in the open." ],
-                    Card [ muted = true, title = "Docs",               body = "early — being built in the open." ],
-                    ],
                 ],
 
             // ── footer ─────────────────────────────────────────────────────────
@@ -462,7 +470,7 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                 layout: SimpleLayout [ axis = y, spacing = 16 ],
                 rule: View [ width = { parent.width }, height = 1, fill = #263D4C ],
                 row: View [ width = { parent.width }, layout: WrappingLayout [ spacing = 12, lineSpacing = 8 ],
-                    Eyebrow [ fontSize = 13, text = "BUILT IN NEO-LZX" ],
+                    Eyebrow [ fontSize = 13, text = "BUILT IN DECLARE" ],
                     Eyebrow [ fontSize = 13, textColor = #556673, text = "·" ],
 
                     // source affordance in the same eyebrow treatment — inline so its
@@ -496,13 +504,12 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                           stiffness = 220, damping = 30, epsilon = 0.05 ],
         hairline: View [ y = 55, width = { classroot.stageWidth }, height = 1, fill = #263D4C ],
 
-        // wordmark neo·-·LZX, the dash in accent-2 — mono, like the React header
+        // wordmark — the product name in the blue→teal gradient, mono, echoing the hero
 
         brand: View [ x = { Math.max(24, (classroot.stageWidth - 1120) / 2) }, y = 18,
             layout: SimpleLayout [ axis = x, spacing = 0 ],
-            Text [ fontFamily = [Mono, "monospace"], fontSize = 15, fontWeight = semibold, textColor = #E7EEF2, text = "neo" ],
-            Text [ fontFamily = [Mono, "monospace"], fontSize = 15, fontWeight = semibold, textColor = #37E0C8, text = "-" ],
-            Text [ fontFamily = [Mono, "monospace"], fontSize = 15, fontWeight = semibold, textColor = #E7EEF2, text = "LZX" ],
+            Text [ fontFamily = [Mono, "monospace"], fontSize = 15, fontWeight = semibold,
+                   textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) }, text = "Declare" ],
             ],
 
         // primary nav, right-aligned to the same gutter the content ends at

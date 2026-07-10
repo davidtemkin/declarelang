@@ -1,6 +1,6 @@
-# neo-LZX — the build journey
+# Declare — the build journey
 
-A narrative summary of how neo-LZX was built, distilled from the working docs of the
+A narrative summary of how Declare was built, distilled from the working docs of the
 `openlaszlo-neo/neolang` effort (`APPROACH.md`, `HANDOFF.md`, `PLAN.md`, the animation
 relay, and the session-resume notes). Those were process scaffolding — checkpoints,
 relays, and decision logs written for the agents building each rung. This is the story
@@ -9,7 +9,7 @@ they add up to, kept for provenance. The enduring *design* rulings live in the s
 
 ## What we set out to build
 
-A **clean-slate successor to OpenLaszlo** — not a port. neo-LZX keeps LZX's feel and
+A **clean-slate successor to OpenLaszlo** — not a port. Declare keeps LZX's feel and
 the kinds of apps it builds, but it does not compile LZX and works differently at
 runtime. LZX (and the OpenLaszlo 5.0 distro) served throughout as a **reference for
 "what good looks like,"** never as code to translate.
@@ -65,7 +65,7 @@ diff (delta 0) was a standing gate — the two backends must agree.
 
 ## Compiler as a declarative front-end over TypeScript
 
-The compiler is a thin, declarative front-end: it parses `.neolzx`, typechecks against
+The compiler is a thin, declarative front-end: it parses `.declare`, typechecks against
 the schemas, extracts constraint dependencies statically, and emits JavaScript. The
 runtime stays browser-pure and zero-dependency — and, because neo instantiates and
 compiles *in the browser*, the parser and checker live in the runtime, with the compiler
@@ -98,5 +98,5 @@ the original — geometry-exact, chrome improved, bugs fixed rather than replica
 
 The ladder and the two flagships proved the language, runtime, and compiler end to end.
 The work then graduated out of the `neolang` build tree into a clean, self-contained
-distribution — `neolzx/` — with the compiler, runtime, component library, examples,
+distribution — `declarelang/` — with the compiler, runtime, component library, examples,
 docs, and design notes in one hostable tree. That is the project you're reading this in.

@@ -1,4 +1,4 @@
-// scaffold — the typed-scaffolding generator: the FIRST slice of neo-LZX's
+// scaffold — the typed-scaffolding generator: the FIRST slice of Declare's
 // compile-time typechecker. APPROACH §5 commits the compiler to hand `{ }`
 // bodies and typechecking to the TypeScript compiler API *as a library* — it
 // does not reimplement TypeScript, and "typechecking largely falls out given

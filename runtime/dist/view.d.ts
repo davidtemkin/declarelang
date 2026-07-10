@@ -256,7 +256,7 @@ export declare class App extends View {
      *  custom app cursor reads it to YIELD to the I-beam over a text field:
      *  `cursor: View [ visible = { !classroot.pointerOverText } ]`. */
     pointerOverText: boolean;
-    /** The shipping page's over-the-wire size in KB (gzipped) and its neo-LZX
+    /** The shipping page's over-the-wire size in KB (gzipped) and its Declare
      *  source line count — provided by the host/build (see wireStage note), 0
      *  until set. Reactive reads: a stat bound to them settles when they land. */
     pageWeight: number;
@@ -276,6 +276,9 @@ export declare class App extends View {
     demoSources: Record<string, unknown>;
     liveCard: string;
     liveSource: string;
+    /** app→host navigation: set to a URL by a link/button; the host opens it and
+     *  resets to "" — same DOM-free app→host channel as `editing`. */
+    navigate: string;
     /** The stage's auto-extent is the VIEWPORT, not its content: an unset width/
      *  height follows stageWidth/stageHeight (reactive on resize), so the root app
      *  fills its host with no declaration — the near-universal case. An explicit

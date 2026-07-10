@@ -1,7 +1,7 @@
 // Diagnostics — the compiler-wide mechanism and template catalog for EVERY
 // compile-time error, across every phase (syntax, structure, type, name
 // resolution, module/include, and the tsc typecheck). Not a typecheck-only
-// facility: it is the single home for how a neo-LZX compile reports a problem.
+// facility: it is the single home for how a Declare compile reports a problem.
 //
 // A `Diagnostic` is a structured error — a stable CODE (NEO####), a severity, a
 // phase, the message, a source position, and an optional fix hint — rendered by

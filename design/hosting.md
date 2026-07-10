@@ -1,11 +1,11 @@
 # Running & hosting
 
-neolzx runs the same build two ways.
+Declare runs the same build two ways.
 
 ## Dynamic (dev server)
 
 `npm start` runs `server/index.mjs`. It serves the tree and compiles each example's
-`.neolzx` on request (`/examples/<name>/` for DOM, `/examples/<name>/canvas` for
+`.declare` on request (`/examples/<name>/` for DOM, `/examples/<name>/canvas` for
 Canvas). Compile-on-request means an edit + reload shows immediately. That is the
 server's entire job — no chat, no persistent connection, no data API.
 

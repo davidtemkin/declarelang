@@ -25,7 +25,7 @@ Every compile-time error — syntax, structure, type, name resolution, module/in
 
 ## 2. Typecheck (tsc over `{ }` bodies)
 
-APPROACH §5: hand `{ }` bodies to the TypeScript compiler *as a library*, against the typed scaffolding `scaffold.ts` already generates. `typecheck.ts` is the "next slice" that file named — emit a check-block per resolved body, run stock tsc, map diagnostics back to `.neolzx`. Node-only (imports `typescript`, reads real `lib.d.ts` from disk); it lives on the compile front-end, never in the zero-dependency runtime. **Opt-in** via `compile(src, { typecheck: true })` — a type error blocks emission like any other, reported as NEO6001 at its `.neolzx` line.
+APPROACH §5: hand `{ }` bodies to the TypeScript compiler *as a library*, against the typed scaffolding `scaffold.ts` already generates. `typecheck.ts` is the "next slice" that file named — emit a check-block per resolved body, run stock tsc, map diagnostics back to `.declare`. Node-only (imports `typescript`, reads real `lib.d.ts` from disk); it lives on the compile front-end, never in the zero-dependency runtime. **Opt-in** via `compile(src, { typecheck: true })` — a type error blocks emission like any other, reported as NEO6001 at its `.declare` line.
 
 **The check-block SHAPE** (per `scaffold.ts`), for a resolved body whose bare names are already `this.slot` / `parent.…` / `classroot.…`:
 

@@ -1,6 +1,6 @@
 # Canvas kernel vs DHTML kernel — visual (pixel) parity sweep @dpr=2
 
-**Question.** Where does the neo-LZX **own-pixels canvas** kernel diverge visually from the stock **DHTML** kernel, across a large app set? Both kernels run the **same compiled `.lzx.js`** — only the LFC differs (canvas = `LFCcanvas.js`, dhtml = `lfc.js`) — so each app is compiled **once** and rendered under **both**. This data gates promoting the canvas kernel into the 5.0 distro.
+**Question.** Where does the Declare **own-pixels canvas** kernel diverge visually from the stock **DHTML** kernel, across a large app set? Both kernels run the **same compiled `.lzx.js`** — only the LFC differs (canvas = `LFCcanvas.js`, dhtml = `lfc.js`) — so each app is compiled **once** and rendered under **both**. This data gates promoting the canvas kernel into the 5.0 distro.
 
 - **Apps swept:** 80 measured · 3 compile/capture-failed · 17 backend-skipped.
 - **dpr = 2 (Retina) only.** Captures settle to two byte-identical frames (`capture.mjs`).

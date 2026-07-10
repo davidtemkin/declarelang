@@ -1,4 +1,4 @@
-// neocalendar — the Laszlo Calendar rewritten from the ground up in neo-LZX.
+// neocalendar — the Laszlo Calendar rewritten from the ground up in Declare.
 // The contract is SPEC.md (extracted from the running original + its source
 // read for intent); this file implements the spec, not the original's
 // structure. Stage 3: the three view modes (month / week / day) + the open
@@ -345,7 +345,7 @@ class DayName extends View [
     ]
 
 
-// ── CalendarGrid — the grid layout (SPEC §2), a custom layout in neo-LZX ────
+// ── CalendarGrid — the grid layout (SPEC §2), a custom layout in Declare ────
 // Extends TweenLayout: the layout OWNS every cell's x/y/width/height/visible
 // and glides them between two whole layouts through one scalar `t` (the
 // original's gridsliderlayout idiom, rebuilt declaratively). `place()` is the

@@ -23,7 +23,7 @@ export interface CompileOptions {
     /** Run the tsc-over-`{ }`-bodies typecheck (typecheck.ts) as a final phase —
      *  opt-in because it loads the TypeScript compiler and the lib.d.ts from
      *  disk (Node-only). A type error blocks emission like any other, reported
-     *  as an NEO6001 diagnostic mapped to its `.neolzx` line. */
+     *  as an NEO6001 diagnostic mapped to its `.declare` line. */
     typecheck?: boolean;
     /** The typechecker, INJECTED — Node-only (it loads TypeScript + lib.d.ts),
      *  so keeping it out of this module's imports is what makes `compile`
@@ -32,7 +32,7 @@ export interface CompileOptions {
      *  set; the browser omits it. */
     typecheckBodies?: (resolved: string, program: Program) => NeoError[];
 }
-/** Compile a neo-LZX source: full diagnostics (include resolve + check + scope
+/** Compile a Declare source: full diagnostics (include resolve + check + scope
  *  resolution), and a SELF-CONTAINED resolved source the zero-dependency
  *  runtime consumes with NO include host. Included libraries are spliced in
  *  (each with its own `include` directives excised, dependency-first so a base

@@ -10,11 +10,11 @@ export interface BuildOptions {
     host?: IncludeHost;
     originDir?: string;
 }
-/** Parse, resolve `include`s, typecheck, and instantiate a neo-LZX source into
+/** Parse, resolve `include`s, typecheck, and instantiate a Declare source into
  *  its App tree (no rendering). Raises a NeoErrors carrying *every* error at
  *  once (include-resolution + type). */
 export declare function build(source: string, opts?: BuildOptions): App;
-/** Parse, resolve includes, check, instantiate, and render a neo-LZX source
+/** Parse, resolve includes, check, instantiate, and render a Declare source
  *  into `host` via `backend`. */
 export declare function render(source: string, host: HTMLElement, backend: RenderBackend, opts?: BuildOptions): App;
 /** Tear down an embedded app's stage wiring (ResizeObserver + pointer listeners).

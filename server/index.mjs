@@ -1,8 +1,8 @@
-// server/index.mjs — the neolzx dev server.
+// server/index.mjs — the Declare dev server.
 //
 // Two jobs, nothing else (no chat, no persistent connection, no data API):
 //   1. serve the distro tree statically   (compiler/dist, runtime/dist, examples, docs, …)
-//   2. compile an example's .neolzx ON REQUEST and serve a host page that renders it
+//   2. compile an example's .declare ON REQUEST and serve a host page that renders it
 //
 //   npm start                         # http://127.0.0.1:8200/
 //   /examples/neocalendar/            # DOM backend
@@ -21,6 +21,9 @@ import { compile } from "../compiler/dist/compile-node.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const EXAMPLES = path.join(ROOT, "examples");
+// The sibling React build (site-compare/react/dist) — a second implementation of
+// the SAME spec (site-compare/SPEC.md), served on this origin for comparison.
+const COMPARE = path.resolve(ROOT, "..", "site-compare", "react", "dist");
 const PORT = Number(process.env.PORT ?? process.argv[2] ?? 8200);
 
 const MIME = {
@@ -31,10 +34,10 @@ const MIME = {
 };
 const mime = (p) => MIME[path.extname(p).toLowerCase()] ?? "application/octet-stream";
 
-// an example is any examples/<name>/ that contains <name>.neolzx
+// an example is any examples/<name>/ that contains <name>.declare
 const examples = () =>
   existsSync(EXAMPLES)
-    ? readdirSync(EXAMPLES).filter((n) => existsSync(path.join(EXAMPLES, n, `${n}.neolzx`)))
+    ? readdirSync(EXAMPLES).filter((n) => existsSync(path.join(EXAMPLES, n, `${n}.declare`)))
     : [];
 
 const esc = (s) => s.replace(/[<&]/g, (c) => (c === "<" ? "&lt;" : "&amp;"));
@@ -44,17 +47,17 @@ const esc = (s) => s.replace(/[<&]/g, (c) => (c === "<" ? "&lt;" : "&amp;"));
 // loads it unbundled, so we compute the PRODUCTION figure here instead.
 const RUNTIME_GZ_BYTES = 45 * 1024;
 
-// compile examples/<name>/<name>.neolzx and wrap it in a render-host page
+// compile examples/<name>/<name>.declare and wrap it in a render-host page
 function hostPage(name, backendClass) {
   const dir = path.join(EXAMPLES, name);
-  const src = readFileSync(path.join(dir, `${name}.neolzx`), "utf8");
-  // Editable inline demos: each examples/<name>/demos/<demo>.neolzx is a full
+  const src = readFileSync(path.join(dir, `${name}.declare`), "utf8");
+  // Editable inline demos: each examples/<name>/demos/<demo>.declare is a full
   // app the page mounts (editable source + live-compiling preview) into a neo
   // slot marked `embed = "demo:<demo>:src|preview"`.
   const demoDir = path.join(dir, "demos");
   const demos = {};
   if (existsSync(demoDir)) for (const f of readdirSync(demoDir)) {
-    if (f.endsWith(".neolzx")) demos[f.slice(0, -7)] = readFileSync(path.join(demoDir, f), "utf8");
+    if (f.endsWith(".declare")) demos[f.slice(0, -8)] = readFileSync(path.join(demoDir, f), "utf8");
   }
   const r = compile(src, { originDir: dir });
   if (r.errors.length) {
@@ -63,11 +66,13 @@ function hostPage(name, backendClass) {
       esc(r.errors.map((e) => e.message).join("\n"))}</pre>`;
   }
   // Real production figures the page displays: over-the-wire = runtime + this
-  // page's compiled JS, gzipped; LOC = the neo-LZX source, code lines only.
+  // page's compiled JS, gzipped; LOC = the Declare source, code lines only.
   const wireKB = Math.round((RUNTIME_GZ_BYTES + gzipSync(r.source).length) / 1024);
   const loc = src.split("\n").filter((l) => { const t = l.trim(); return t !== "" && !t.startsWith("//"); }).length;
-  // <base> so the app's relative resources/… and data/… resolve under the example
-  return `<!doctype html><meta charset="utf-8"><title>${name} (${backendClass})</title>
+  // <base> so the app's relative resources/… and data/… resolve under the example.
+  // The homepage gets a real page title; other examples keep the debug backend tag.
+  const pageTitle = name === "site" ? "Declare — the UI language for the AI era" : `${name} (${backendClass})`;
+  return `<!doctype html><meta charset="utf-8"><title>${pageTitle}</title>
 <base href="/examples/${name}/">
 <style>html,body{margin:0;padding:0}
 /* Nothing to style: the live demo previews AND the whole-page source editor are
@@ -79,7 +84,7 @@ function hostPage(name, backendClass) {
   window.__source = ${JSON.stringify(src)};
   const app = window.__app = await renderAsync(${JSON.stringify(r.source)}, document.getElementById("host"), new ${backendClass}());
   app.pageWeight = ${wireKB};       // real production over-the-wire size (KB, gzipped)
-  app.sourceLines = ${loc};         // this page's neo-LZX line count
+  app.sourceLines = ${loc};         // this page's Declare line count
 
   // The whole-page source editor is now NEO: a FullPageEditor view shown when
   // App.editing (flipped by "VIEW & EDIT SOURCE"), with a CodeField for the page
@@ -88,6 +93,15 @@ function hostPage(name, backendClass) {
   // The only host bit is Escape-to-close: neo delivers keys to the focused view
   // only, so a page-level Escape has no neo-native form yet.
   addEventListener("keydown", (e) => { if (e.key === "Escape") app.editing = false; });
+
+  // app→host navigation: a link/button sets App.navigate to a URL; open it and
+  // clear the flag. Same-document location nav (not window.open) so it is not
+  // popup-blocked when it fires a frame after the click.
+  const navTick = () => {
+    if (app.navigate) { const u = app.navigate; app.navigate = ""; location.href = u; }
+    requestAnimationFrame(navTick);
+  };
+  requestAnimationFrame(navTick);
 
   // ── live demo cards ─────────────────────────────────────────────────────────
   // The editor is a NEO-NATIVE CodeField (a TextInput in the neo tree) — the host
@@ -170,11 +184,11 @@ function hostPage(name, backendClass) {
 function landing() {
   const links = examples().map((n) =>
     `<li><a href="/examples/${n}/">${n}</a> &middot; <a href="/examples/${n}/canvas">canvas</a></li>`).join("\n");
-  return `<!doctype html><meta charset="utf-8"><title>neolzx</title>
+  return `<!doctype html><meta charset="utf-8"><title>Declare</title>
 <style>body{font:15px/1.6 system-ui,sans-serif;max-width:40rem;margin:3rem auto;padding:0 1rem}
 h1{font-weight:600;letter-spacing:-.01em}a{color:#3366cc;text-decoration:none}a:hover{text-decoration:underline}
 li{margin:.35rem 0}</style>
-<h1>neolzx</h1>
+<h1>Declare</h1>
 <p>Dynamic-compilation dev server — each example compiles on request.</p>
 <ul>${links || "<li><em>no examples yet</em></li>"}</ul>
 <p style="margin-top:2rem"><a href="/docs/">docs</a> &middot; <a href="/design/">design notes</a></p>`;
@@ -184,6 +198,18 @@ const send = (res, code, body, type) => {
   res.writeHead(code, { "content-type": type ?? "text/html; charset=utf-8" });
   res.end(body);
 };
+
+// Serve a file from an arbitrary base dir (the React build lives outside ROOT),
+// with the same no-escape guard as the main static branch.
+function serveFrom(res, baseDir, rel) {
+  const abs = path.join(baseDir, rel.replace(/^\/+/, ""));
+  if (!(abs === baseDir || abs.startsWith(baseDir + path.sep))) return send(res, 403, "forbidden", "text/plain");
+  if (existsSync(abs) && statSync(abs).isFile()) {
+    res.writeHead(200, { "content-type": mime(abs) });
+    return res.end(readFileSync(abs));
+  }
+  return send(res, 404, "not found", "text/plain");
+}
 
 http.createServer((req, res) => {
   let p;
@@ -215,6 +241,14 @@ http.createServer((req, res) => {
   // /_demorun preview-frame routes are gone. See hostPage's renderChild/recompile.)
 
   try {
+    // ── React comparison build (sibling site-compare/react/dist) ──────────
+    // Served at its own /react/ URL, on this origin. Vite built it with the
+    // default base "/", so its index.html asks for /assets/* at the root — we
+    // map /assets/* to the React dist too (the Declare tree never uses a root
+    // /assets, so there's no collision).
+    if (p === "/react" || p === "/react/") return serveFrom(res, COMPARE, "index.html");
+    if (p.startsWith("/assets/")) return serveFrom(res, COMPARE, p);
+
     if (p === "/") {
       const idx = path.join(ROOT, "index.html");
       if (existsSync(idx)) { res.writeHead(200, { "content-type": "text/html; charset=utf-8" }); return res.end(readFileSync(idx)); }
@@ -239,4 +273,4 @@ http.createServer((req, res) => {
   }
   send(res, 404, "not found", "text/plain");
 }).listen(PORT, "127.0.0.1", () =>
-  console.log(`neolzx dev server → http://127.0.0.1:${PORT}/`));
+  console.log(`Declare dev server → http://127.0.0.1:${PORT}/`));

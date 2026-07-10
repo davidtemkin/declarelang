@@ -160,6 +160,10 @@ const AppSchema: ComponentSchema = {
     demoSources: { kind: "record", name: "Theme" },
     liveCard: { kind: "string" },
     liveSource: { kind: "string" },
+    // app→host navigation: a link/button sets `navigate` to a URL; the host
+    // opens it and clears the flag (bodies are DOM-free, so navigation rides a
+    // flag like `editing`, not window.location).
+    navigate: { kind: "string" },
   },
 };
 
@@ -185,6 +189,9 @@ const TextSchema: ComponentSchema = {
     // Fill the glyphs with a gradient (or solid Fill), like the box `fill` —
     // overrides `textColor` when set. `textFill = { gradient("90deg", …) }`.
     textFill: { kind: "fill" },
+    // Opt back into native text selection: `selectable = true` makes this run
+    // selectable/copyable; off by default so the app doesn't feel like a document.
+    selectable: { kind: "boolean" },
   },
 };
 

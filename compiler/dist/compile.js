@@ -80,7 +80,7 @@ const BROWSER_GLOBALS = new Set([
     "sessionStorage", "alert", "confirm", "prompt",
 ]);
 const isKnownGlobal = (name) => name in globalThis || BROWSER_GLOBALS.has(name);
-/** Compile a neo-LZX source: full diagnostics (include resolve + check + scope
+/** Compile a Declare source: full diagnostics (include resolve + check + scope
  *  resolution), and a SELF-CONTAINED resolved source the zero-dependency
  *  runtime consumes with NO include host. Included libraries are spliced in
  *  (each with its own `include` directives excised, dependency-first so a base
@@ -167,7 +167,7 @@ export function compile(source, opts = {}) {
     for (const e of r.edits)
         out = out.slice(0, e.start) + e.text + out.slice(e.end);
     // Final phase (opt-in): tsc over the resolved `{ }` bodies. A type error
-    // blocks emission like any other, mapped to its `.neolzx` line (NEO6001).
+    // blocks emission like any other, mapped to its `.declare` line (NEO6001).
     if (opts.typecheckBodies) {
         const typeErrors = opts.typecheckBodies(out, program);
         if (typeErrors.length > 0) {

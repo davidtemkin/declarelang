@@ -1,7 +1,7 @@
-# neo-LZX homepage / Explorer — design brief
+# Declare homepage / Explorer — design brief
 
 The project's front door and the seed of a Laszlo-Explorer-equivalent showcase. It is
-**built in neo-LZX** and its flourishes are live demonstrations of the language — the page
+**built in Declare** and its flourishes are live demonstrations of the language — the page
 *is* the proof. Strategically it's the next flagship: greenfield and design-forward, so it
 *demands* the modern conventions (states, responsive layout, transitions, tokens) that the
 parity-driven neocalendar never exercised. The page is the forcing function; **the
@@ -26,7 +26,7 @@ strategy*.
 **The justification (first section below the hero — earns the headline):**
 > ## Read it. Generate it. Run it.
 > The relationships that matter — structure, data, reactivity — are **explicit in the
-> language**, not hidden in imperative steps or a runtime graph. So a neo-LZX program is
+> language**, not hidden in imperative steps or a runtime graph. So a Declare program is
 > **analyzable** (the compiler reads its data-flow statically — so can a model),
 > **generable** (no ceremony, no magic; no dependency arrays or keys to get subtly wrong),
 > and **runnable on the spot** (it compiles in the browser). *Everything that makes it
@@ -71,7 +71,7 @@ exactly the conventions we must establish:
 
 ## 3. See / edit / run — staged
 
-- **Now (pre-M5):** every example has a **source peek** — the running thing and its `.neolzx`
+- **Now (pre-M5):** every example has a **source peek** — the running thing and its `.declare`
   side by side (read-only, but real). The reveal is itself a neo transition.
 - **At M5 (in-browser compile):** source becomes **editable → recompiles in the browser →
   runs live**, with the **CompileReadout**. The site both showcases and *drives* M5.

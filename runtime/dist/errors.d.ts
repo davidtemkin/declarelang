@@ -13,7 +13,7 @@ export interface DiagMeta {
     code?: string;
     hint?: string;
 }
-/** An error in neo-LZX source. `pos`, when present, is folded into the message
+/** An error in Declare source. `pos`, when present, is folded into the message
  *  so callers get a legible "… (line 2, col 12)" without extra plumbing.
  *  `rawMessage` keeps the message WITHOUT that suffix (the Diagnostic carries
  *  position separately and re-renders it), and `code`/`hint` are the catalog

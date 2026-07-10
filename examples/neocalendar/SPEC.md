@@ -250,7 +250,7 @@ get exercised — this is the showcase app.
 1. **Shell + data**: frame, top bar, month title/nav, `CalendarStore` + test data. ✅ spec
 2. **The grid**: 42-cell `GridSlider`, month rendering imageless, day cells + closed event lists;
    month navigation. Perceptual gate vs `oracle/00`. ✅ **DONE 2026-07-05** —
-   `neocalendar.neolzx` (311 lines): store = one `Dataset` days array rebuilt per month
+   `neocalendar.declare` (311 lines): store = one `Dataset` days array rebuilt per month
    (replication reconciles 35↔42), cells position by pure constraints (`:col`/`:row` × grid `cw`/`ch`),
    events pre-sorted with display labels in data. Gate: cell frames/colors **pixel-identical** (sampled),
    bar text row-aligned; residual diff = selected-day chrome (Stage 4) + text AA + drawn-chrome

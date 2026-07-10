@@ -4,7 +4,7 @@
 // no invented names, no behavior. Keywords are matched case-insensitively
 // (CSS semantics; see value.ts). `transparent` and `currentcolor` are
 // deliberately absent — they are CSS-wide keywords, not `<named-color>`s,
-// and neo-LZX spells "no color" as `null` (language §6).
+// and Declare spells "no color" as `null` (language §6).
 export const CSS_COLORS = {
     aliceblue: 0xf0f8ff, antiquewhite: 0xfaebd7, aqua: 0x00ffff, aquamarine: 0x7fffd4,
     azure: 0xf0ffff, beige: 0xf5f5dc, bisque: 0xffe4c4, black: 0x000000,

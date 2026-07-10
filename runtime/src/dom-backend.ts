@@ -530,6 +530,14 @@ class DomSurface implements Surface {
     // backend's fillText(…, ascent) place identical glyph geometry.
     const m = fontMetrics(fontString(st));
     s.lineHeight = m.ascent + m.descent + "px";
+    // Selection: the app root sets `user-select: none` (a UI, not a document);
+    // `selectable` opts THIS run back in — user-select plus a real pointer target
+    // (the run is otherwise pointer-inert so hits fall through to the box). Off
+    // ⇒ restore the inert default.
+    const sel = st.selectable === true;
+    s.userSelect = sel ? "text" : "";
+    (s as CSSStyleDeclaration & { webkitUserSelect: string }).webkitUserSelect = sel ? "text" : "";
+    s.pointerEvents = sel ? "auto" : "none";
   }
 
   /** The text run element, created on first use. A positioned <span> — not a
