@@ -38,8 +38,10 @@ npm test               # unit + perceptual + scaffold
   (`examples/<name>/prebuilt/<name>.js`) via `web/boot-static.js` and renders
   instantly — no server. At load it re-probes the compile's dependency closure to
   confirm the source hasn't moved, and warm-loads the in-browser compiler in the
-  background (`dist-browser/declare-compiler.js`) for live edits. See
-  [`design/hosting.md`](design/hosting.md).
+  background (`dist-browser/declare-compiler.js`) for live edits. A root
+  `service-worker.js` adds cache-busting (a redeployed compiler/runtime can never
+  serve stale) and lets visitors browse straight to any `…/<name>.declare` and run it
+  in-browser. See [`design/hosting.md`](design/hosting.md).
 
 > **Project rule — regenerate artifacts after editing an example.** The precompiled
 > artifacts under `examples/<name>/prebuilt/` are committed and loaded by default, so
@@ -48,6 +50,16 @@ npm test               # unit + perceptual + scaffold
 > commit** as the source change. Skip it and the static site ships a stale render —
 > visitors get the old artifact plus a slower in-browser recompile until it catches up
 > (the browser console logs a staleness warning when this happens).
+
+> **Project rule — stamp the build before deploying.** The content-hash `BUILD_ID` in
+> `service-worker.js` (over the platform: runtime + compiler bundle + web client) is what
+> arms cache-busting and the SW self-update — a changed `BUILD_ID` makes the browser install
+> the fresh worker, which drops the old cache bucket and reloads open tabs onto the new
+> platform. A committed **pre-commit hook** (`tools/hooks/pre-commit`) re-stamps it on every
+> commit, so any pushed deploy is current automatically; `npm install` wires the hook up (via
+> the `prepare` script), or activate it by hand with `git config core.hooksPath tools/hooks`.
+> To stamp manually: `node tools/stamp-version.mjs` (idempotent — no-op unless the platform
+> moved; app-*source* changes never need it).
 
 ## The compiler / runtime seam
 
