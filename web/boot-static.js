@@ -16,6 +16,7 @@
 // All sibling assets import RELATIVE to THIS module's URL (…/web/), so the whole
 // tree is subpath-portable — a project page under /<repo>/ resolves them the same.
 import { bootHost } from "./host-client.js";
+import { registerServiceWorker } from "./register-sw.js";
 import { fnv1a, isUpToDate } from "../compiler/dist/closure.js";
 
 // Repo root as an absolute URL, derived from this module's own location (…/web/ →
@@ -50,6 +51,10 @@ async function isArtifactFresh(closure) {
  * @param artifact.mainId  root-relative URL of the page's own .declare (recompiled if stale)
  */
 export default async function boot(artifact) {
+  // Register the distro Service Worker (cache-busting + browse-to-`.declare`). Fire-and-forget:
+  // it must not gate first render, and a failure (e.g. plain-http LAN IP) is non-fatal.
+  registerServiceWorker();
+
   const lib = artifact.library ?? {};
 
   // 1 — render immediately from the artifact; edits keep the last render until (2) swaps the compiler in.
