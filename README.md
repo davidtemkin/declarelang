@@ -12,7 +12,7 @@ One self-contained tree — everything needed to build from source, run, and hos
 | `compiler/` | the `.declare` → JS compiler (Node-side build orchestration) — `src/` (TypeScript) + committed `dist/` (built JS) |
 | `runtime/`  | the browser framework — parser, reactive core, layout, animation, DOM/Canvas backends (`src/` + committed `dist/`). Zero external deps; the compiler builds on it |
 | `library/`  | bundled components authored in `.declare` (built on the runtime) |
-| `examples/` | runnable sample apps — `neoweather`, `neocalendar` |
+| `examples/` | runnable apps — the `site` homepage, `neoweather`, `neocalendar`; each ships a committed `prebuilt/` artifact for static hosting |
 | `docs/`     | browsable documentation: authored `guide/` + generated `reference/` |
 | `design/`   | design documentation (language, implementation, constraints, hosting, …) |
 | `server/`   | the dev server — dynamic compilation + static serving, nothing else |
@@ -33,10 +33,21 @@ npm test               # unit + perceptual + scaffold
 - **Dynamic (dev):** `npm start`. The server compiles each example's `.declare` on
   request — edit and reload. Nothing else runs (no chat, no persistent connection,
   no data API).
-- **Static hosting:** serve the whole tree from any static host. The built `.js` are
-  committed (in each area's `dist/`), so the tree runs as-is; the compiler and
-  runtime are plain ES modules, so apps can compile in the browser. See
+- **Static hosting (GitHub Pages):** serve the whole tree from any static host
+  (`.nojekyll` is committed). Each page loads a committed **precompiled artifact**
+  (`examples/<name>/prebuilt/<name>.js`) via `web/boot-static.js` and renders
+  instantly — no server. At load it re-probes the compile's dependency closure to
+  confirm the source hasn't moved, and warm-loads the in-browser compiler in the
+  background (`dist-browser/declare-compiler.js`) for live edits. See
   [`design/hosting.md`](design/hosting.md).
+
+> **Project rule — regenerate artifacts after editing an example.** The precompiled
+> artifacts under `examples/<name>/prebuilt/` are committed and loaded by default, so
+> regenerate them whenever you change an example's `.declare` (or the runtime it
+> compiles against): run `node tools/prebuild.mjs` and commit the result **in the same
+> commit** as the source change. Skip it and the static site ships a stale render —
+> visitors get the old artifact plus a slower in-browser recompile until it catches up
+> (the browser console logs a staleness warning when this happens).
 
 ## The compiler / runtime seam
 
