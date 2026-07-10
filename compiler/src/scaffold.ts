@@ -27,8 +27,8 @@
 //   2. One `declare class` per schema — built-ins and user classes — with each
 //      attribute typed through the AttrType → TS map, the base wired via
 //      `extends`, and (for user classes) the declared methods. The view-tree
-//      pronouns (language §11: parent / classroot / children) live on View and
-//      reach every View-derived class through `extends`.
+//      nouns (language §11: parent / classroot / root / children) live on View
+//      and reach every View-derived class through `extends`.
 //
 // ── The settled check-block SHAPE (how a body is checked against this) ───────
 //
@@ -144,7 +144,7 @@ function methodSig(m: Method): string {
 }
 
 /** One schema → its `declare class`. Attributes come first (in schema order),
- *  then — on View alone — the three pronoun members (every View-derived class
+ *  then — on View alone — the view-tree noun members (every View-derived class
  *  inherits them via `extends`), then a user class's declared methods. Absent
  *  base (View / Layout / Dataset / Animator / AnimatorGroup roots) → no
  *  `extends`; an empty class → `{}`. */
@@ -153,12 +153,16 @@ function emitClass(s: ComponentSchema, decl: ClassDecl | undefined): string {
   const lines: string[] = [];
   for (const [name, t] of Object.entries(s.attrs)) lines.push(`  ${name}: ${tsType(t)};`);
   if (s.name === "View") {
-    // The view-tree pronouns (language §11). `classroot` is typed `View` — the
+    // The view-tree nouns (language §11). `classroot` is typed `View` — the
     // "not tracked" default; a check-block pins the true enclosing class per
     // body through its `this: <Class>` wrapper (header). Non-View roots carry
-    // no pronouns in this slice (their bodies are a later concern).
+    // no nouns in this slice (their bodies are a later concern).
     lines.push(`  parent: View;`);
     lines.push(`  classroot: View;`);
+    // `root` — the App at the top of the tree. The `app` noun compiles to
+    // `this.root`; typing it `App` here makes `app.hostWidth` etc. check
+    // against the App/stage surface rather than the bare View one.
+    lines.push(`  root: App;`);
     lines.push(`  readonly children: View[];`);
   }
   if (decl !== undefined) for (const m of decl.body.methods) lines.push(methodSig(m));

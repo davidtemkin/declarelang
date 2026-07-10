@@ -129,20 +129,21 @@ const ViewSchema: ComponentSchema = {
   events: ["click", "mouseDown", "mouseUp", "mouseMove", "mouseOver", "mouseOut", "init", "focus", "blur", "escapeFocus", "keyDown", "keyUp"],
 };
 
-// App is a View with stage-level behavior; it declares nothing extra yet
-// (its title/stage attributes arrive with the rungs that give them meaning).
-// App is the stage: beyond a root View it carries the reactive environment a
-// full-window app reads — the viewport size (responsive layout), the page
-// scroll offset (reveal/parallax/appearing chrome), and the free pointer
-// (cursor effects, hover-at-a-distance). All are plain reactive attributes,
-// so `{ classroot.stageWidth }` / `{ classroot.scrollY }` just work; the
-// runtime feeds them from window listeners at mount (index.ts wireStage).
+// App is the root View plus the app's reactive environment. `hostWidth`/
+// `hostHeight` are its enclosing extent — the window at top level, the container
+// element when embedded — READ-ONLY intrinsics (see readOnly below) that the
+// App's own width/height DEFAULT to (view.ts bindExtent), so a plain app fills
+// its host and an aspect-locked one reads them. The rest is the free environment
+// a full-window app reads — the page scroll offset (reveal/parallax/appearing
+// chrome) and the free pointer (cursor effects, hover-at-a-distance). All are
+// plain reactive attributes fed from window/container listeners at mount
+// (index.ts); read the App from any depth via the `app` noun (`app.scrollY`).
 const AppSchema: ComponentSchema = {
   name: "App",
   base: ViewSchema,
   attrs: {
-    stageWidth: { kind: "number" },
-    stageHeight: { kind: "number" },
+    hostWidth: { kind: "number" },
+    hostHeight: { kind: "number" },
     scrollY: { kind: "number" },
     pointerX: { kind: "number" },
     pointerY: { kind: "number" },
@@ -165,6 +166,9 @@ const AppSchema: ComponentSchema = {
     // flag like `editing`, not window.location).
     navigate: { kind: "string" },
   },
+  // hostWidth/hostHeight are read-only to user code (the runtime feeds them; a
+  // set is a compile error) — like View's contentWidth/contentHeight.
+  readOnly: ["hostWidth", "hostHeight"],
 };
 
 // Text (R3): a text run sized by native browser metrics when width/height

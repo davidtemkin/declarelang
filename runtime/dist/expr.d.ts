@@ -3,7 +3,7 @@
  *  attribute names. */
 export declare const CONSTRUCTOR_NAMES: readonly string[];
 /** A compiled body. Called with `this` bound to the owning node and its
- *  parent and classroot as arguments, so all three pronouns resolve
+ *  parent and classroot as arguments, so all three scope nouns resolve
  *  naturally. */
 export type ExprFn = (this: unknown, parent: unknown, classroot: unknown) => unknown;
 /** Compile a body's source to a function, or say why it can't be. The

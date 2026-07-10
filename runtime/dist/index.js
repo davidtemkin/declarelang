@@ -58,11 +58,12 @@ function isEmbedded(host) {
     return typeof document !== "undefined" && typeof host.closest === "function"
         && host.closest("[data-neo-app]") !== null;
 }
-/** Per-app teardown for an EMBEDDED app's stage listeners (a top-level app lives
- *  for the page and needs none). The host calls disposeApp() before it re-renders
- *  a preview so the old app's ResizeObserver/pointer listeners don't linger. */
+/** Per-app teardown for an EMBEDDED app's environment listeners (a top-level app
+ *  lives for the page and needs none). The host calls disposeApp() before it
+ *  re-renders a preview so the old app's ResizeObserver/pointer listeners don't
+ *  linger. */
 const TEARDOWN = new WeakMap();
-/** Tear down an embedded app's stage wiring (ResizeObserver + pointer listeners).
+/** Tear down an embedded app's environment wiring (ResizeObserver + pointer listeners).
  *  Its rendered DOM is removed by the caller (clearing the island box); its input
  *  router self-retires once the root element is disconnected. A no-op for a
  *  top-level app. */
@@ -72,36 +73,40 @@ export function disposeApp(app) {
 }
 /** Wire the runtime input services to a freshly-rooted app. A TOP-LEVEL app owns
  *  the page: it takes the focus-tree root (Tab from nothing focused), the keyboard
- *  adapter, and window-fed stage attributes. An EMBEDDED app (a preview inside an
- *  island) owns only its box — it takes its stage from that element and does NOT
+ *  adapter, and window-fed environment attributes. An EMBEDDED app (a preview in
+ *  an island) owns only its box — it takes its host from that element and does NOT
  *  seize the page's global focus/keys singletons (the outer app keeps them). */
 function wireInput(app, host) {
     const embedded = isEmbedded(host);
-    wireStage(app, host, embedded);
+    wireEnvironment(app, host, embedded);
     if (embedded)
         return;
     Focus.setRoot(app);
     Keys.listen(() => app.surface !== null);
     deliverKeys(Keys, Focus);
 }
-/** Feed the App's reactive stage attributes. A top-level app reads the WINDOW
- *  (viewport size on resize, page scroll, the free pointer); an embedded app
- *  reads its CONTAINER ELEMENT instead (size via ResizeObserver, pointer relative
- *  to the box) so "fill the stage" means "fill my island", and many apps coexist
- *  in one document. Guarded so a Node host (unit tests) is a no-op. Writes batch
- *  through the reactive scheduler like any attribute, settling once before paint. */
-function wireStage(app, host, embedded) {
+/** Feed the App's reactive environment. A top-level app reads the WINDOW (host
+ *  size on resize, page scroll, the free pointer); an embedded app reads its
+ *  CONTAINER ELEMENT instead (size via ResizeObserver, pointer relative to the
+ *  box) so "fill my host" means "fill my island", and many apps coexist in one
+ *  document. `hostWidth`/`hostHeight` are the App's enclosing extent — width/
+ *  height default to them. Guarded so a Node host (unit tests) is a no-op. Writes
+ *  batch through the reactive scheduler like any attribute, settling before paint. */
+function wireEnvironment(app, host, embedded) {
     if (typeof window === "undefined")
         return;
     if (embedded)
-        return wireStageEmbedded(app, host);
+        return wireEnvironmentEmbedded(app, host);
     const w = window;
-    const size = () => { app.stageWidth = w.innerWidth; app.stageHeight = w.innerHeight; };
+    const size = () => { app.hostWidth = w.innerWidth; app.hostHeight = w.innerHeight; };
     const scroll = () => { app.scrollY = w.scrollY; };
     const move = (e) => {
         app.pointerX = e.clientX;
         app.pointerY = e.clientY;
-        app.hovering = true;
+        // A touch has no hover — keep `hovering` false for it so a desktop custom
+        // cursor (which reads it) stays off mobile; the coordinates still update so a
+        // drag can track the finger.
+        app.hovering = e.pointerType !== "touch";
         // Over a native text field the app's custom cursor should yield to the
         // I-beam (see App.pointerOverText).
         const t = e.target;
@@ -116,35 +121,36 @@ function wireStage(app, host, embedded) {
     scroll();
     w.addEventListener("resize", size);
     w.addEventListener("scroll", scroll, { passive: true });
-    w.addEventListener("mousemove", move, { passive: true });
-    w.addEventListener("mouseout", out);
+    w.addEventListener("pointermove", move, { passive: true });
+    w.addEventListener("pointerout", out);
 }
-/** Stage wiring for an embedded app: size follows the container ELEMENT (its
- *  island box), the pointer is box-relative, and there is no page scroll to own.
- *  Registers a teardown so a re-render (disposeApp) drops the observer/listeners. */
-function wireStageEmbedded(app, host) {
-    const sync = () => { app.stageWidth = host.clientWidth; app.stageHeight = host.clientHeight; };
+/** Environment wiring for an embedded app: host size follows the container
+ *  ELEMENT (its island box), the pointer is box-relative, and there is no page
+ *  scroll to own. Registers a teardown so a re-render (disposeApp) drops the
+ *  observer/listeners. */
+function wireEnvironmentEmbedded(app, host) {
+    const sync = () => { app.hostWidth = host.clientWidth; app.hostHeight = host.clientHeight; };
     const move = (e) => {
         const r = host.getBoundingClientRect();
         app.pointerX = e.clientX - r.left;
         app.pointerY = e.clientY - r.top;
-        app.hovering = true;
+        app.hovering = e.pointerType !== "touch"; // a touch has no hover (see wireEnvironment)
         const t = e.target;
         app.pointerOverText =
             t instanceof HTMLElement && (t.isContentEditable || t.tagName === "INPUT" || t.tagName === "TEXTAREA");
     };
     const leave = () => { app.hovering = false; app.pointerOverText = false; };
     sync();
-    host.addEventListener("mousemove", move, { passive: true });
-    host.addEventListener("mouseleave", leave);
+    host.addEventListener("pointermove", move, { passive: true });
+    host.addEventListener("pointerleave", leave);
     let ro = null;
     if (typeof ResizeObserver !== "undefined") {
         ro = new ResizeObserver(sync);
         ro.observe(host);
     }
     TEARDOWN.set(app, () => {
-        host.removeEventListener("mousemove", move);
-        host.removeEventListener("mouseleave", leave);
+        host.removeEventListener("pointermove", move);
+        host.removeEventListener("pointerleave", leave);
         ro?.disconnect();
     });
 }

@@ -131,6 +131,18 @@ class Compositor {
             const r = this.canvas.getBoundingClientRect();
             return { x: e.clientX - r.left, y: e.clientY - r.top };
         });
+        // Tap-to-dismiss for native editable overlays: a pointerdown that lands on the
+        // CANVAS is by definition outside every overlay (they are separate sibling
+        // elements), so blur the focused field — mobile Safari won't drop it (and the
+        // keyboard) on a tap of non-focusable pixels the way desktop does.
+        canvas.addEventListener("pointerdown", () => {
+            const active = document.activeElement;
+            if (active instanceof HTMLElement &&
+                (active.tagName === "INPUT" || active.tagName === "TEXTAREA") &&
+                host.contains(active)) {
+                active.blur();
+            }
+        });
         // Wheel → the scrolling surface under the pointer (own pixels means own
         // scroll); the clamp uses the content extent, and the compositor repaints.
         canvas.addEventListener("wheel", (e) => {

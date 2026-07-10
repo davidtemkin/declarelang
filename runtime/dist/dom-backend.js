@@ -111,6 +111,27 @@ export class DomBackend {
             const r = rootEl.getBoundingClientRect();
             return { x: e.clientX - r.left, y: e.clientY - r.top };
         });
+        // Tap-to-dismiss for native editable fields. Desktop blurs a focused
+        // input/textarea when you press a non-focusable element, but mobile Safari
+        // keeps focus (and the keyboard) up when a plain view is tapped — so blur it
+        // explicitly. A pointerdown that lands OUTSIDE the focused field blurs it;
+        // capture phase runs before the field could re-assert focus, and a tap ON a
+        // field (this one or another) is left to native focus handling. The listener
+        // is scoped to this app's rootEl (an embedded app won't dismiss for taps in
+        // its neighbours) and dies with the element — no teardown needed.
+        rootEl.addEventListener("pointerdown", (e) => {
+            const active = doc.activeElement;
+            if (!(active instanceof HTMLElement))
+                return;
+            if (active.tagName !== "INPUT" && active.tagName !== "TEXTAREA")
+                return;
+            if (!rootEl.contains(active))
+                return;
+            const t = e.target;
+            if (t instanceof Element && t.closest("input,textarea") !== null)
+                return;
+            active.blur();
+        }, true);
     }
 }
 // A legible dark-theme scrollbar for `.neo-scroll` elements, injected once per

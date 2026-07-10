@@ -8,7 +8,7 @@
 //
 // The check-block SHAPE (scaffold.ts documents it): a resolved body has had its
 // bare names rewritten to `this.slot` / `parent.…` / `classroot.…` (compile.ts),
-// so each pronoun is typed as the function's `this` and two params:
+// so each scope noun is typed as the function's `this` and two params:
 //
 //     const _cN: <SlotTsType> = (function (this: <Self>, parent: <Parent>, classroot: <Root>) {
 //       return ( <resolved expression body> );
@@ -22,7 +22,7 @@
 //     from the tree (immediate parent precise; deeper `parent.parent` rides
 //     View). A method (statement) body drops the `return (…)` and slot type.
 //   • `.call(inst, …)` — RELIES on strictBindCallApply (tsconfig `strict`) to
-//     type the return against the slot and check the pronouns.
+//     type the return against the slot and check the scope nouns.
 //
 // LINE MAPPING. Scope resolution only splices identifiers INLINE — it never
 // adds or removes a newline — so a resolved body has the same line structure as

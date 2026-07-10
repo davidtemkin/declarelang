@@ -38,34 +38,45 @@ Reading `contentHeight` in a constraint is a textbook analyzable dependency
 (constraints.md §2): one visible reactive read, plus a pure `Math.*` call that
 adds none.
 
-## The App fills its stage by default
+## The App fills its host by default
 
 The rule above ("unset ⇒ auto-size to content") is right for an ordinary view,
-but wrong for the **root**: the stage is sized by its *host*, not by what happens
-to be inside it. So `App` retargets the same auto-extent derive — an unset
-`width`/`height` follows **`stageWidth`/`stageHeight`** (the hosting window's
-viewport, fed reactively at mount by `wireStage`, `index.ts`) instead of the
-child bounding box:
+but wrong for the **root**: the App is sized by its *host*, not by what happens to
+be inside it. So `App` retargets the same auto-extent derive — an unset
+`width`/`height` follows **`hostWidth`/`hostHeight`**, the App's enclosing extent,
+fed reactively at mount (`index.ts`) — instead of the child bounding box:
 
 ```
-App [ … ]                         // fills its host, resizes with it — no declaration
-App [ width = 480, height = 320 ] // an explicit size still wins (isSet skips the derive)
+App [ … ]                          // fills its host, resizes with it — no declaration
+App [ width = 480, height = 320 ]  // fixed widget — an explicit size overrides the default
+App [ width  = { Math.min(hostWidth, hostHeight * 1.6) },  // aspect-locked: a size that
+      height = { width / 1.6 } ]                            //   is a function of the host
 ```
 
-It's the *same* reactive derive the content path uses (`view.ts` `App.bindExtent`
-over `View.bindExtent`), so a resize repaints like any other dependency, and an
-explicit `width`/`height` overrides it exactly as it overrides content auto-extent.
-This is why demo apps and the site read `App [ … ]` with no size line — the
-near-universal "the root fills the window" is the default, not boilerplate every
-app repeats. (`stageWidth`/`stageHeight` remain readable anywhere via `classroot`
-for the cases that *do* key off the viewport — a centered column's gutter, a
-responsive font size.)
+It's the *same* yielding-default derive the content path uses (`view.ts`
+`App.bindExtent` over `View.bindExtent`), so a resize repaints like any other
+dependency, and an explicit `width`/`height` overrides it exactly as it overrides
+content auto-extent. This is why demo apps and the site read `App [ … ]` with no
+size line — "the root fills its host" is the default, not boilerplate every app
+repeats.
 
-Note the reference is the **window viewport**, not the mount element's box; they
-coincide for a full-window mount and for an app in its own iframe (each preview
-on the site is one), which covers current usage. Keying the stage to the mount
-element (a `ResizeObserver` on the host) is the generalization for an app embedded
-in a sub-region of a larger page — deferred until a real embed needs it.
+**`hostWidth`/`hostHeight` are read-only reactive intrinsics** — the exact parallel
+of a View's `contentWidth`/`contentHeight`. One rule spans the whole system: *a
+box's size defaults to a read-only extent — content for a view, host for the App —
+and you override with a literal (fixed) or a constraint that may READ that extent.*
+A set of `hostWidth` is a compile error (the runtime feeds it); you read it only
+for the third shape above (aspect-locked / "as large as fits" apps).
+
+In the common case you never name the host at all: because a filling app's
+`width` *is* its host width, responsive reads key off **`app.width`** (a centered
+column's gutter, a breakpoint font size) — the `app` noun reaches the root from any
+depth. `hostWidth` is reserved for the rare app whose own box is a non-trivial
+function of the host that `app.width` can't give (a pinned or aspect-locked app).
+
+The host is the **window** for a top-level app and the **container element** (via a
+`ResizeObserver`, box-relative pointer) for an embedded one — an app auto-detects
+which at mount (`index.ts`), so "fill my host" is literal in both. Each preview on
+the site is an embedded app filling its island.
 
 ## `readonly` — the general modifier
 

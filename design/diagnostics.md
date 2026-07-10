@@ -38,7 +38,7 @@ const _cN: <SlotTsType> = (function (this: <Self>, parent: <Parent>, classroot: 
 - `this: <Self>` — the element the body is on: its whole inherited slot set is in scope, so `this.openHeightX` is a TS2339.
 - `: <SlotTsType>` — the slot's declared type, via `attrType` + the AttrType→TS map (`tsType`): a boolean flowing into a `Length` slot is a TS2322 across the `[ ]`/`{ }` seam. **This is the whole point.**
 - `parent` / `classroot` — the enclosing element and the body root, typed from the tree (immediate parent precise; deeper `parent.parent` rides `View`). A method (statement) body drops the `return (…)` and slot type.
-- `.call(inst, …)` — relies on `strictBindCallApply` (tsconfig `strict`) to type the return against the slot and check the pronouns.
+- `.call(inst, …)` — relies on `strictBindCallApply` (tsconfig `strict`) to type the return against the slot and check the scope nouns.
 
 **Line mapping.** Scope resolution splices identifiers *inline* only — never adding/removing a newline — so a resolved body has the same line structure as the source. Each block reproduces the body's lines verbatim; a TS diagnostic's line maps to (block's source start line + its offset within the body), **clamped** into the body's range so an assignment error that tsc reports on the wrapper line lands on the body's first line. v1 reports at **line** granularity (what APPROACH asks).
 

@@ -7,12 +7,13 @@
 // dependencies, and a real syntax check the checker can report at check time
 // with a source position.
 //
-// Scope inside a body: the three pronouns of language §11 — `this` (the node
-// the code is on), `parent` (its view-tree parent), and `classroot` (the
-// enclosing class instance, R6). Bare reads of enclosing-scope attributes
-// (`count`, `label`) are COMPILE-TIME scope resolution (compile.ts rewrites
-// them to explicit reads through these pronouns — never runtime `with`-style
-// scoping, per the R4 ruling); a body that skipped the compile step and kept
+// Scope inside a body: the three injected scope nouns of language §11 — `this`
+// (the node the code is on), `parent` (its view-tree parent), and `classroot`
+// (the enclosing class instance, R6). (The `app` noun needs no runtime binding
+// — compile.ts rewrites it to `this.root`.) Bare reads of enclosing-scope
+// attributes (`count`, `label`) are COMPILE-TIME scope resolution (compile.ts
+// rewrites them to explicit reads through these nouns — never runtime
+// `with`-style scoping, per the R4 ruling); a body that skipped the compile step and kept
 // a bare name fails loudly here as a ReferenceError on first evaluation.
 //
 // Runtime-free on purpose (this module may import the lexical layers only):

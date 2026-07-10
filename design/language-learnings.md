@@ -35,7 +35,9 @@ Nothing below is settled. Decisions already *implemented* this session are marke
   literal where it matters (previews, playground). Open tail: should a *top-level*
   app also size to its mount element rather than the window? (§7)
 - **D7 — `classroot` in a class body reads App/stage attrs as `undefined`.**
-  Warn, or add a real `app` pronoun? (§8)
+  ✓ RESOLVED (2026-07-10, §8): added the **`app`** scope noun (§11) — sugar for
+  `this.root`, typed `App` — so App/stage state is reached explicitly from any
+  depth (`app.hostWidth`) instead of relying on `classroot` coinciding with the App.
 - **D8 — HTML-island content measurement.** Let neo auto-size to foreign content
   (a reported extent), or accept explicit island sizes? (§9)
 
@@ -117,23 +119,32 @@ making `setEmbed` opt the island back in (`pointer-events:auto` +
 by nature — the inert-by-default rule shouldn't apply to it (now it doesn't).
 
 ### 6. The root App didn't fill its host by default
-Every app had to write `App [ width = { stageWidth }, height = { stageHeight } ]`
+Every app had to write `App [ width = { hostWidth }, height = { hostHeight } ]`
 — boilerplate, and the longest line in every demo. The root's auto-extent
-defaulted to its *content* (like any view) rather than the *stage*. Fixed: App
-retargets auto-extent to the viewport. **Learning:** the root is special (it IS
-the stage); its sensible default differs from a child's.
+defaulted to its *content* (like any view) rather than its *host*. Fixed: App
+retargets auto-extent to its host. **Learning:** the root is special (it fills its
+host); its sensible default differs from a child's. **Renamed 2026-07-10:** the
+host extent is `hostWidth`/`hostHeight` (was `stageWidth`/`stageHeight`) — read-only
+intrinsics that width/height default to; "stage" is retired ([sizing.md](sizing.md)).
 
-### 7. `stageWidth`/`stageHeight` are the WINDOW, not the containing element
-They read `window.innerWidth/innerHeight`. Coincides with the container for a
-full-window mount or an app in its own iframe (our previews), but an app embedded
-in a *sub-region* of a page would wrongly fill the window. **Candidate:** stage
-size from a `ResizeObserver` on the mount host, so "fill my container" is literal.
+### 7. `hostWidth`/`hostHeight` are the WINDOW, not the containing element
+They read `window.innerWidth/innerHeight` at top level. Coincides with the
+container for a full-window mount or an app in its own iframe (our previews), but
+an app embedded in a *sub-region* of a page would wrongly fill the window.
+**RESOLVED:** an embedded app auto-detects its container and reads `hostWidth`/
+`hostHeight` from it via a `ResizeObserver` (index.ts), so "fill my container" is
+literal. (Was: `stageWidth`/`stageHeight`, window-only.)
 
-### 8. `classroot` in a class body silently reads `undefined` for stage attrs
-(Carried from earlier, re-hit.) A component body's `classroot.stageWidth` is
-`undefined` (classroot there = the instance, which has no stage attrs) with no
-error — a silent bug. You must thread stage/App attrs in explicitly. **Candidate:**
-warn on a class-body read of an App-only attr, or a real `app` pronoun.
+### 8. `classroot` in a class body silently reads `undefined` for App attrs
+(Carried from earlier, re-hit.) A component body's `classroot.scrollY` is
+`undefined` (classroot there = the instance, which has no App attrs) with no
+error — a silent bug. You must thread App attrs in explicitly. **RESOLVED
+(2026-07-10):** added the **`app`** scope noun (§11) — a compile-time rewrite to
+`this.root`, typed `App` in the scaffold. It reaches the running App from any
+depth (`app.hostWidth`), so App/host state no longer rides `classroot`
+happening to be the App; the examples were swept off `classroot`/`this.root` onto
+`app`. (A class-body read of an App-only attr through `classroot` is still not
+*warned* — that stricter check remains a candidate.)
 
 ### 9. neo can't measure an HTML island's foreign content
 Auto-extent measures neo children, not host DOM inside an island. So the editable

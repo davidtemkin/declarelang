@@ -8,7 +8,7 @@ export interface HitTarget {
     x: number;
     y: number;
 }
-/** Start routing window mouse input through `resolve`. `alive` gates the
+/** Start routing window pointer input through `resolve`. `alive` gates the
  *  whole route (false = the tree is gone; the listeners remove themselves
  *  on the next event). */
 export declare function routeInput(alive: () => boolean, resolve: (e: MouseEvent) => HitTarget | null, rootPoint?: (e: MouseEvent) => {

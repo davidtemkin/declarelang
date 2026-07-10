@@ -40,8 +40,10 @@ const UNSTYLABLE = {
     styles: "a bundle list cannot arrive through the styling channels",
     stylesheet: "a stylesheet cannot set the stylesheet",
 };
-/** The pronouns of language §11 — never legal as member or parameter names. */
-const PRONOUNS = ["this", "parent", "classroot"];
+/** The scope nouns of language §11 — never legal as member or parameter names.
+ *  `app` is the running-App noun (compiles to `this.root`); reserving it here
+ *  keeps it un-shadowable, so `app.hostWidth` always means the App. */
+const NOUNS = ["this", "parent", "classroot", "app"];
 /** The value-constructor names (styling rung) are reserved as member names:
  *  in call position a body's `gradient(…)` is always the constructor, so a
  *  member wearing the name would be unreachable there. (`fill`/`stroke`/
@@ -470,8 +472,8 @@ export function coerceToken(lit) {
 }
 export function checkDecl(schema, d, owner = schema.name) {
     const err = (message, pos) => ({ ok: false, error: new NeoError(message, pos) });
-    if (PRONOUNS.includes(d.name)) {
-        return err(`'${d.name}' is a pronoun (language §11) — it cannot be declared`, d.pos);
+    if (NOUNS.includes(d.name)) {
+        return err(`'${d.name}' is a scope noun (language §11) — it cannot be declared`, d.pos);
     }
     if (RESERVED.includes(d.name)) {
         return err(`'${d.name}' is a value constructor (gradient/stroke/shadow/stop) — it cannot be a member name`, d.pos);
@@ -700,8 +702,8 @@ classRoot = false) {
             }
             // A named child is a member of THIS element (language §4: "reachable
             // as `bg` / `this.bg`") — so its name obeys the member namespace.
-            if (PRONOUNS.includes(child.name)) {
-                errors.push(new NeoError(`'${child.name}' is a pronoun (language §11) — a child cannot take its name`, child.pos));
+            if (NOUNS.includes(child.name)) {
+                errors.push(new NeoError(`'${child.name}' is a scope noun (language §11) — a child cannot take its name`, child.pos));
             }
             else if (declared !== null) {
                 errors.push(new NeoError(`${schema.name}.${child.name} is an attribute — a child may not take an attribute's name`, child.pos));
@@ -1073,7 +1075,7 @@ export function checkAttr(schema, attr) {
  *  (not an attribute's — methods and attributes are one member namespace,
  *  language §4), a handler-shaped name must answer a declared event (the
  *  typo'd-handler compile error §8 promises), a parameter may not shadow
- *  a pronoun, and the body must be valid statement syntax. Like checkAttr,
+ *  a scope noun, and the body must be valid statement syntax. Like checkAttr,
  *  check() collects these and instantiate() throws them — one message
  *  source. */
 export function checkMethod(schema, m) {
@@ -1091,9 +1093,9 @@ export function checkMethod(schema, m) {
             ? `${schema.name} has no '${m.name}' event — its handlers: ${known.join(", ")}`
             : `${schema.name} declares no events, so '${m.name}' can answer nothing`, m.pos);
     }
-    const pronoun = m.params.find((p) => p === "parent" || p === "classroot");
-    if (pronoun !== undefined) {
-        return err(`${schema.name}.${m.name}: a parameter may not be named '${pronoun}' — it is the enclosing-scope pronoun (language §11)`, m.pos);
+    const noun = m.params.find((p) => p === "parent" || p === "classroot" || p === "app");
+    if (noun !== undefined) {
+        return err(`${schema.name}.${m.name}: a parameter may not be named '${noun}' — it is a scope noun (language §11)`, m.pos);
     }
     const c = compileBody(m.params, m.body);
     if ("error" in c) {

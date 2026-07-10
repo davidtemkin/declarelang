@@ -11,7 +11,7 @@ export class Node {
   parent: Node | null = null;
   readonly children: Node[] = [];
 
-  /** The scope pronoun (R6) for members declared in THIS node's body — the
+  /** The scope noun (R6) for members declared in THIS node's body — the
    *  enclosing class instance, set at construction. It lives here, on Node, not
    *  on View: a node's members have a scope whether or not the node is visual
    *  (a controller node's members resolve `classroot` to the controller). */

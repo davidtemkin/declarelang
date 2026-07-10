@@ -136,7 +136,7 @@ await test("scaffold: enum-typed attributes emit named string-literal unions", (
   assert.ok(s.includes(`type Axis = "x" | "y";`), "Axis enum alias");
 });
 
-await test("scaffold: View declares its attrs (AttrType→TS map) + the §11 pronouns", () => {
+await test("scaffold: View declares its attrs (AttrType→TS map) + the §11 nouns", () => {
   const s = scaffoldFor(PROGRAM);
   const view = classBlock(s, "View");
   // The AttrType → TS decisions, one per kind present on View:
@@ -155,10 +155,11 @@ await test("scaffold: View declares its attrs (AttrType→TS map) + the §11 pro
   assert.ok(view.includes("stylesheet: string | null;"), "stylesheet → string | null");
   assert.ok(view.includes("layout: Layout | null;"), "component → <of> | null");
   assert.ok(view.includes("datapath: Cursor;"), "cursor → Cursor (deferred placeholder)");
-  // The pronouns (language §11), on View, inherited by View-derived classes.
-  assert.ok(view.includes("parent: View;"), "parent pronoun");
-  assert.ok(view.includes("classroot: View;"), "classroot pronoun");
-  assert.ok(view.includes("readonly children: View[];"), "children pronoun");
+  // The view-tree nouns (language §11), on View, inherited by View-derived classes.
+  assert.ok(view.includes("parent: View;"), "parent noun");
+  assert.ok(view.includes("classroot: View;"), "classroot noun");
+  assert.ok(view.includes("root: App;"), "root noun typed App (backs the `app` noun)");
+  assert.ok(view.includes("readonly children: View[];"), "children noun");
   assert.ok(s.startsWith("type Percent"), "prelude leads the scaffold");
 });
 

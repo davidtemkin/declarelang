@@ -382,9 +382,9 @@ States declare *where* a mode goes, not *how* it gets there: the runtime, or the
 
 ---
 
-## 11. Scope: `this`, `parent`, `classroot`
+## 11. Scope: `this`, `parent`, `classroot`, `app`
 
-Three pronouns, because the node a piece of code is *attached to* is not always the component it *belongs to*:
+Four scope nouns, because the node a piece of code is *attached to* is not always the component it *belongs to* — nor the running App it lives in:
 
 - **`this`** — the node the code is on.
 - **`parent`** — that node's parent in the view tree.
@@ -400,11 +400,15 @@ class WeatherTab extends BaseTabElement [
 
 `classroot` resolves by **where the code is lexically written** — its *member origin* — in three cases:
 
-- **In a class body** (a method, handler, or `{ }` default written inside `class C [ … ]`) → `classroot` is the **`C` instance itself**. So `classroot.foo` reads `C`'s own `foo`; a stage value like `classroot.stageWidth` is **`undefined`** inside a component (a `View` has no `stageWidth`). To use App/stage values in a component, **thread them in** as attributes at the use site.
-- **In the App's own body** → `classroot` is the App, so it *works* — but for the App's *own* attributes it is redundant noise: write bare `{ stageWidth }` (or `{ this.stageWidth }`), never `{ classroot.stageWidth }`.
-- **At a use site / on a child element's binding** (`c: C [ x = { classroot.foo } ]`, or a binding on a child written outside `C`) → `classroot` is the **enclosing** class instance — skipping anonymous views up to the nearest real class, reaching the App at the top. This is how a child deep in the page reads an App attribute through `classroot`.
+- **In a class body** (a method, handler, or `{ }` default written inside `class C [ … ]`) → `classroot` is the **`C` instance itself**. So `classroot.foo` reads `C`'s own `foo`; an App value like `classroot.scrollY` is **`undefined`** inside a component (a `View` has no `scrollY`). To reach App-level values from a component, use the **`app`** noun (below) — or thread the value in as an attribute at the use site.
+- **In the App's own body** → `classroot` is the App, so it *works* — but for the App's *own* attributes it is redundant noise: write bare `{ scrollY }` (or `{ this.scrollY }`), never `{ classroot.scrollY }`.
+- **At a use site / on a child element's binding** (`c: C [ x = { classroot.foo } ]`, or a binding on a child written outside `C`) → `classroot` is the **enclosing** class instance — skipping anonymous views up to the nearest real class, reaching the App at the top.
 
-Inside a `{ }` body or constraint, a child reads the enclosing class's attributes by **bare name** (`label`, `count`) — until a nearer name shadows it, at which point the qualified `classroot.label` disambiguates. There is **no ambient `App` pronoun**: a bare `App.foo` resolves only in a use-site binding, and errors inside a class body — so reach the running App through `this.root` (the tree top), or thread the value you need in as an attribute.
+The fourth noun reaches the App directly, without leaning on where the code happens to be written:
+
+- **`app`** — the running App at the top of the tree (its root). It is exactly `this.root`, but reads as a noun: `app.scrollY`, `app.navigate("/docs")`. Use it to reach App-level state — scroll position, the free pointer, the host size, page-wide actions — from **any** depth. Prefer `app.scrollY` over `classroot.scrollY`: `classroot` reaches the App only *because* the enclosing class happens to be the App, and silently means something else (or `undefined`) the moment the same code is reused inside a real component; `app` always means the App. (Because a filling app's `width` *is* its host, responsive layout usually reads `app.width` rather than the host directly — see [sizing.md](sizing.md).)
+
+Inside a `{ }` body or constraint, a child reads the enclosing class's attributes by **bare name** (`label`, `count`) — until a nearer name shadows it, at which point the qualified `classroot.label` disambiguates. The bare capital **`App`** is the *class*, not the instance — `App.foo` resolves only in a use-site binding and errors inside a class body; write **`app.foo`** for the running instance. The four scope nouns are reserved: none may be an attribute, child, or parameter name.
 
 ---
 

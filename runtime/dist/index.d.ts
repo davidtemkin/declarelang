@@ -17,7 +17,7 @@ export declare function build(source: string, opts?: BuildOptions): App;
 /** Parse, resolve includes, check, instantiate, and render a Declare source
  *  into `host` via `backend`. */
 export declare function render(source: string, host: HTMLElement, backend: RenderBackend, opts?: BuildOptions): App;
-/** Tear down an embedded app's stage wiring (ResizeObserver + pointer listeners).
+/** Tear down an embedded app's environment wiring (ResizeObserver + pointer listeners).
  *  Its rendered DOM is removed by the caller (clearing the island box); its input
  *  router self-retires once the root element is disconnected. A no-op for a
  *  top-level app. */

@@ -159,7 +159,7 @@ export class View extends Node {
     /** Install auto-extent derives for whichever never-set, unowned size slots
      *  qualify — only on views with View children (a childless view keeps its
      *  zero-cost default; Dataset children are not geometry). Protected so the
-     *  stage (App) can retarget it from content to the viewport. */
+     *  App can retarget it from content to its host. */
     bindExtent() {
         if (!this.children.some((c) => c instanceof View))
             return;
@@ -426,16 +426,17 @@ export function fireEvent(view, event, arg) {
     if (typeof h === "function")
         h.call(view, arg);
 }
-/** The application root — the single visible tree, mapped to the stage
- *  (OpenLaszlo's `<canvas>`). R0 treats it as the root View; its stage-level
- *  behavior and singleton identity grow in later rungs. */
+/** The application root — the single visible tree at the top (OpenLaszlo's
+ *  `<canvas>`). R0 treats it as the root View; it fills its host by default and
+ *  carries the app's reactive environment (host extent, scroll, pointer). */
 export class App extends View {
-    /** The stage's auto-extent is the VIEWPORT, not its content: an unset width/
-     *  height follows stageWidth/stageHeight (reactive on resize), so the root app
-     *  fills its host with no declaration — the near-universal case. An explicit
+    /** The App's auto-extent is the HOST, not its content: an unset width/height
+     *  follows hostWidth/hostHeight (reactive on resize), so the root app fills its
+     *  enclosing area with no declaration — the near-universal case. An explicit
      *  `width = …` still wins (isSet skips the derive), and there is no children
-     *  guard: the stage fills its host even while empty. Reuses the same reactive
-     *  derive the content path uses, so a resize repaints like any dependency. */
+     *  guard: the app fills its host even while empty. This is the exact yielding
+     *  default the content path uses (View.bindExtent), retargeted from content to
+     *  host — so a resize repaints like any dependency. */
     bindExtent() {
         let derives = EXTENT.get(this);
         for (const size of ["width", "height"]) {
@@ -443,13 +444,17 @@ export class App extends View {
                 continue;
             if (derives === undefined)
                 EXTENT.set(this, (derives = {}));
-            derives[size] = bindDerived(this, size, () => (size === "width" ? this.stageWidth : this.stageHeight));
+            derives[size] = bindDerived(this, size, () => (size === "width" ? this.hostWidth : this.hostHeight));
         }
     }
 }
 defineAttributes(App, {
-    stageWidth: { def: 0 },
-    stageHeight: { def: 0 },
+    // Stored reactive slots the runtime feeds (index.ts). Read-only to USER code
+    // via schema.readOnly (a compile error) — not `readOnly: true` here, which
+    // would throw the setter the runtime feed needs. `width`/`height` default to
+    // these (bindExtent above).
+    hostWidth: { def: 0 },
+    hostHeight: { def: 0 },
     scrollY: { def: 0 },
     pointerX: { def: 0 },
     pointerY: { def: 0 },

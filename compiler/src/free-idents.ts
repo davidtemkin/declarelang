@@ -30,7 +30,7 @@ export interface FreeIdent {
  *  when the body does not parse (the checker's compileExpr gate owns
  *  reporting syntax errors; resolution has nothing sound to say about a
  *  broken tree). `expression` bodies are parsed parenthesized, exactly as
- *  expr.ts evaluates them. `bound` seeds the outermost scope: the pronouns,
+ *  expr.ts evaluates them. `bound` seeds the outermost scope: the scope nouns,
  *  and a method's parameters. */
 export function freeIdentifiers(
   src: string,

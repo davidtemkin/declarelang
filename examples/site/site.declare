@@ -17,7 +17,7 @@ font Mono [ family = "ui-monospace" ]
 // parity); eyebrows are mono with wide tracking; lead/body carry the muted tone.
 
 class Heading extends Text [ fontWeight = semibold, textColor = { theme.text },
-    letterSpacing = { -0.02 * classroot.fontSize }, selectable = true ]
+    letterSpacing = { -0.02 * fontSize }, selectable = true ]
 
 class Eyebrow extends Text [ fontFamily = [Mono, "monospace"], fontSize = 13,
     fontWeight = semibold, letterSpacing = 1.6, textColor = { theme.muted }, selectable = true ]
@@ -37,12 +37,17 @@ class Body extends Text [ fontSize = 17, fontWeight = normal, textColor = { them
 class NavLink extends View [ height = 33, cornerRadius = 8,
     label:   string = "",
     hovered: boolean = false,
-    fill = { hovered ? 0x1C2D39 : null },
+    pressed: boolean = false,
+    // pressed deepens the pill + lights the label — the tap feedback a touch
+    // device gets in place of hover (mouseDown/Up fire on a tap, hover does not).
+    fill = { pressed ? 0x24384A : hovered ? 0x1C2D39 : null },
     onMouseOver() { hovered = true },
-    onMouseOut()  { hovered = false },
+    onMouseOut()  { hovered = false; pressed = false },
+    onMouseDown() { pressed = true },
+    onMouseUp()   { pressed = false },
     lbl: Text [ x = 12, y = 8, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14,
                 text = { classroot.label },
-                textColor = { classroot.hovered ? theme.text : theme.muted } ],
+                textColor = { classroot.hovered || classroot.pressed ? theme.text : theme.muted } ],
     width = { this.lbl.width + 24 },
     ]
 
@@ -77,7 +82,7 @@ class Point extends View [ width = { Math.min(357, parent.width) },
 
 // ── a headline metric (§02): a big gradient number over a small label ─────────
 // width/fontSize key off parent.width (the real available width in the row) —
-// a class body's `classroot` is the instance itself, so it can't see the stage.
+// a component sizes off its parent, not the app; `app.width` is the whole page.
 
 class Metric extends View [ width = { parent.width < 560 ? parent.width : (parent.width - 48) / 2 },
     value: string = "",
@@ -98,14 +103,20 @@ class Button extends View [ height = 46, cornerRadius = 9,
     label:   string = "",
     primary: boolean = true,
     hovered: boolean = false,
+    pressed: boolean = false,
 
     // hover rollover (React parity): primary brightens, secondary lifts to
-    // surface-2. `hovered` is driven by the view's own over/out handlers.
+    // surface-2. PRESS feedback (pressed) is what a touch device sees in place of
+    // hover — primary darkens on the way in, secondary deepens with an accent
+    // ring. Both are driven by the view's own over/out/down/up handlers.
 
-    fill = { primary ? (hovered ? 0x63A0FF : 0x4C8DFF) : (hovered ? 0x162A36 : 0x101E28) },
-    stroke = { primary ? stroke(0, 0x4C8DFF) : stroke(1, 0x263D4C) },
+    fill = { primary ? (pressed ? 0x3D7BE0 : hovered ? 0x63A0FF : 0x4C8DFF)
+                     : (pressed ? 0x0C1922 : hovered ? 0x162A36 : 0x101E28) },
+    stroke = { primary ? stroke(0, 0x4C8DFF) : stroke(1, pressed ? 0x37E0C8 : 0x263D4C) },
     onMouseOver() { hovered = true },
-    onMouseOut()  { hovered = false },
+    onMouseOut()  { hovered = false; pressed = false },
+    onMouseDown() { pressed = true },
+    onMouseUp()   { pressed = false },
 
     // label centered in the button box (textAlign over the full width)
 
@@ -127,8 +138,8 @@ class Tag extends Text [ fontFamily = [Mono, "monospace"], fontSize = 11,
 class CodeField extends TextInput [ multiline = true, spellcheck = false,
     fontFamily = [Mono, "monospace"], fontSize = 11, textColor = #C7D3DC,
     editName: string = "",  src: string = "",
-    initial = { classroot.src },
-    onInput() { this.root.liveCard = classroot.editName; this.root.liveSource = classroot.text } ]
+    initial = { src },
+    onInput() { app.liveCard = editName; app.liveSource = text } ]
 
 // ── the SOURCE panel: an all-neo card (frame · header · Revert · code) ────────
 // No HTML island — the editor is the neo CodeField above; only the PREVIEW is a
@@ -152,8 +163,8 @@ class SourcePanel extends View [ width = { parent.width < 760 ? parent.width : M
         onMouseOver() { hovered = true },
         onMouseOut()  { hovered = false },
         onClick() { classroot.field.text = classroot.src
-                    this.root.liveCard = classroot.editName
-                    this.root.liveSource = classroot.src },
+                    app.liveCard = classroot.editName
+                    app.liveSource = classroot.src },
         rlbl: Text [ x = 8, y = 3, fontFamily = [Sans, "system-ui"], fontSize = 11, fontWeight = semibold,
                      textColor = { parent.hovered ? 0xE7EEF2 : 0x9DB0BC }, text = "Revert" ] ],
     hairline: View [ y = 31, width = { parent.width }, height = 1, fill = #1E313C ],
@@ -177,23 +188,22 @@ class PreviewFrame extends View [ width = { parent.width < 760 ? parent.width : 
 
 // ── the whole-page source editor: the SAME CodeField + embedded preview as the
 // demo cards, at page scale — the page's own source on the left, the page it
-// compiles to on the right. An overlay filling the stage, shown when App.editing.
+// compiles to on the right. An overlay filling the app, shown when app.editing.
 // The preview island is `active` only while open, so it renders nothing until you
 // open it — which makes the recursion (this editor is part of the page source it
 // previews) bounded by clicks: one level per "view & edit source". `pageSource`
 // is threaded in from the host (App.demoSources.__page__ = the page's own text).
-// stageW/stageH are threaded in from the use-site (a class body's `classroot` is
-// the instance, which has no stage attrs — §8); everything sizes off them.
+// A full-window overlay: it reads the App's own size directly through the `app`
+// noun, so it always fills whatever the page fills — no threaded-in dimensions.
 
-class FullPageEditor extends View [ width = { classroot.stageW }, height = { classroot.stageH },
+class FullPageEditor extends View [ width = { app.width }, height = { app.height },
     open: boolean = false,  pageSource: string = "",
-    stageW: number = 0,  stageH: number = 0,
 
     // the divider x: 0 = not dragged yet (use the 46% default); the grip writes it.
 
     split: number = 0,
-    splitX: number = { classroot.split > 0 ? classroot.split : Math.floor(classroot.stageW * 0.46) },
-    visible = { classroot.open },
+    splitX: number = { split > 0 ? split : Math.floor(app.width * 0.46) },
+    visible = { open },
     fill = { theme.ink },
     bar: View [ width = { parent.width }, height = 44, fill = { theme.surface },
         edge: View [ y = 43, width = { parent.width }, height = 1, fill = { theme.line } ],
@@ -208,7 +218,7 @@ class FullPageEditor extends View [ width = { classroot.stageW }, height = { cla
             fill = { hovered ? 0x162A36 : 0x101E28 },
             onMouseOver() { hovered = true },
             onMouseOut()  { hovered = false },
-            onClick()     { this.root.editing = false },
+            onClick()     { app.editing = false },
             lbl: Text [ x = 13, y = 6, fontSize = 13, textColor = { theme.text }, text = "Close ✕" ] ],
         ],
 
@@ -226,7 +236,7 @@ class FullPageEditor extends View [ width = { classroot.stageW }, height = { cla
         onMouseOver()  { hovered = true },
         onMouseOut()   { hovered = false },
         onMouseDown()  { dragging = true },
-        onMouseMove(e) { if (dragging) classroot.split = Math.max(240, Math.min(classroot.stageW - 320, e.x)) },
+        onMouseMove(e) { if (dragging) classroot.split = Math.max(240, Math.min(app.width - 320, e.x)) },
         onMouseUp()    { dragging = false } ],
     preview: PreviewFrame [ x = { classroot.splitX + 6 }, y = 44,
                             width = { parent.width - classroot.splitX - 6 }, height = { parent.height - 44 },
@@ -271,18 +281,18 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
     // NATIVELY. The chrome further down (header, cursor) are its SIBLINGS, not
     // its children, so they never move: no reposition, no jitter.
 
-    scroller: View [ width = { classroot.stageWidth }, height = { classroot.stageHeight }, scrolls = true,
+    scroller: View [ width = { app.width }, height = { app.height }, scrolls = true,
 
         // full-bleed blueprint behind the column, sized to the page (a percent
         // height stays out of the page's own auto-extent, so no cycle)
 
-        grid: GridBg [ x = 0, y = 0, width = { classroot.stageWidth }, height = { parent.page.height } ],
+        grid: GridBg [ x = 0, y = 0, width = { app.width }, height = { parent.page.height } ],
 
         // the centered content column: a fixed measure, and a VERTICAL FLOW of
         // sections — each auto-sizes, the page stacks them
 
-        page: View [ width = { Math.min(1120, classroot.stageWidth - 48) },
-                     x = { Math.max(24, (classroot.stageWidth - 1120) / 2) }, y = 96,
+        page: View [ width = { Math.min(1120, app.width - 48) },
+                     x = { Math.max(24, (app.width - 1120) / 2) }, y = 96,
             layout: SimpleLayout [ axis = y, spacing = 112 ],
 
             // ── hero ──────────────────────────────────────────────────────────
@@ -297,9 +307,9 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                     // keep in sync, and nothing duplicated for the live editor to miss.
 
                     headline: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 2 ],
-                        Heading [ fontSize = { classroot.stageWidth < 700 ? 44 : 60 },
+                        Heading [ fontSize = { app.width < 700 ? 44 : 60 },
                                   textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) }, text = "Declare" ],
-                        Heading [ fontSize = { classroot.stageWidth < 700 ? 44 : 60 }, width = { parent.width },
+                        Heading [ fontSize = { app.width < 700 ? 44 : 60 }, width = { parent.width },
                                   text = "is the UI language for the AI era." ],
                         ],
                     Lead [ width = { Math.min(660, parent.width) }, textColor = #B7C4CC,
@@ -307,9 +317,9 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                     ],
                 buttons: View [ layout: SimpleLayout [ axis = x, spacing = 14 ],
                     Button [ width = 128, label = "GitHub →",
-                             onClick() { this.root.navigate = "https://github.com/davidtemkin/declarelang" } ],
+                             onClick() { app.navigate = "https://github.com/davidtemkin/declarelang" } ],
                     Button [ width = 184, label = "Edit this page →", primary = false,
-                             onClick() { this.root.editing = true } ],
+                             onClick() { app.editing = true } ],
                     ],
                 ],
 
@@ -317,7 +327,7 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
 
             s1: View [ width = { parent.width }, opacity = 0,
                 reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
-                    to = { classroot.scroller.scrollY + classroot.stageHeight > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
+                    to = { app.scroller.scrollY + app.height > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
                 layout: SimpleLayout [ axis = y, spacing = 40 ],
                 SectionHead [ num = "01", head = "Read it. Generate it. Run it.",
                     lead = "The relationships that matter — structure, data, reactivity — are explicit in the language, not hidden in imperative steps or a runtime graph." ],
@@ -336,7 +346,7 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
 
             s2: View [ width = { parent.width }, opacity = 0,
                 reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
-                    to = { classroot.scroller.scrollY + classroot.stageHeight > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
+                    to = { app.scroller.scrollY + app.height > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
                 layout: SimpleLayout [ axis = y, spacing = 44 ],
                 SectionHead [ num = "02", head = "Small. Fast. Renderer-independent." ],
 
@@ -345,9 +355,9 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                 // They stack on a phone (WrappingLayout) and read as a concision proof.
 
                 stat: View [ width = { parent.width }, layout: WrappingLayout [ spacing = 48, lineSpacing = 40 ],
-                    Metric [ value = { classroot.pageWeight > 0 ? "≈ " + classroot.pageWeight + " KB" : "≈ — KB" },
+                    Metric [ value = { app.pageWeight > 0 ? "≈ " + app.pageWeight + " KB" : "≈ — KB" },
                              note = "over the wire, gzipped — vs the 2.3 MB median page" ],
-                    Metric [ value = { classroot.sourceLines > 0 ? classroot.sourceLines + "" : "—" },
+                    Metric [ value = { app.sourceLines > 0 ? app.sourceLines + "" : "—" },
                              note = "lines of Declare — this entire page" ],
                     ],
                 points: View [ width = { parent.width }, layout: WrappingLayout [ spacing = 24, lineSpacing = 32 ],
@@ -369,7 +379,7 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                     cards: View [ width = { parent.width },
                         layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ],
                         SourcePanel  [ editName = "reactivity", height = 226,
-                                       src = { classroot.demoSources.reactivity || "" } ],
+                                       src = { app.demoSources.reactivity || "" } ],
                         PreviewFrame [ runName  = "reactivity", height = 226 ],
                         ],
                     strip: View [ width = { parent.width }, height = 44, cornerRadius = 10, fill = #0C1620, stroke = stroke(1, #1E313C),
@@ -389,7 +399,7 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                     cards: View [ width = { parent.width },
                         layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ],
                         SourcePanel  [ editName = "components", height = 184,
-                                       src = { classroot.demoSources.components || "" } ],
+                                       src = { app.demoSources.components || "" } ],
                         PreviewFrame [ runName  = "components", height = 184 ],
                         ],
                     strip: View [ width = { parent.width }, height = 44, cornerRadius = 10, fill = #0C1620, stroke = stroke(1, #1E313C),
@@ -409,7 +419,7 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                     cards: View [ width = { parent.width },
                         layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ],
                         SourcePanel  [ editName = "spring", height = 184,
-                                       src = { classroot.demoSources.spring || "" } ],
+                                       src = { app.demoSources.spring || "" } ],
                         PreviewFrame [ runName  = "spring", height = 184 ],
                         ],
                     strip: View [ width = { parent.width }, height = 44, cornerRadius = 10, fill = #0C1620, stroke = stroke(1, #1E313C),
@@ -429,7 +439,7 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                     cards: View [ width = { parent.width },
                         layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ],
                         SourcePanel  [ editName = "states", height = 230,
-                                       src = { classroot.demoSources.states || "" } ],
+                                       src = { app.demoSources.states || "" } ],
                         PreviewFrame [ runName  = "states", height = 230 ],
                         ],
                     strip: View [ width = { parent.width }, height = 44, cornerRadius = 10, fill = #0C1620, stroke = stroke(1, #1E313C),
@@ -441,10 +451,10 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
 
             manifesto: View [ width = { parent.width }, opacity = 0,
                 reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
-                    to = { classroot.scroller.scrollY + classroot.stageHeight > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
+                    to = { app.scroller.scrollY + app.height > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
                 layout: SimpleLayout [ axis = y, spacing = 30 ],
                 ruleTop: View [ x = { (parent.width - 140) / 2 }, width = 140, height = 2, fill = #4C8DFF ],
-                Heading [ fontSize = { classroot.stageWidth < 700 ? 26 : 38 },
+                Heading [ fontSize = { app.width < 700 ? 26 : 38 },
                           width = { Math.min(900, parent.width) }, x = { (parent.width - Math.min(900, parent.width)) / 2 },
                           textAlign = center,
                           text = "The previous generation of frameworks were built on top of the browser’s document-oriented core.\n\nDeclare is different: app-focused, cleaner, faster, and ready for what comes next." ],
@@ -464,14 +474,17 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                     Eyebrow [ fontSize = 13, textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) }, text = "Declare" ],
                     Eyebrow [ fontSize = 13, textColor = #556673, text = "·" ],
 
-                    // source affordance in the same eyebrow treatment — inline so its
-                    // onClick can reach App.editing (App resolves in use-site bodies)
+                    // source affordance in the same eyebrow treatment — its onClick
+                    // flips app.editing (the `app` noun reaches it from anywhere)
 
-                    src: Eyebrow [ fontSize = 13, hovered: boolean = false,
-                        textColor = { hovered ? 0x37E0C8 : 0x8A9BA6 },
+                    src: Eyebrow [ fontSize = 13, hovered: boolean = false, pressed: boolean = false,
+                        // pressed brightens past the hover teal — the tap feedback on touch
+                        textColor = { pressed ? 0x9BF2E4 : hovered ? 0x37E0C8 : 0x8A9BA6 },
                         onMouseOver() { hovered = true },
-                        onMouseOut()  { hovered = false },
-                        onClick()     { this.root.editing = true },
+                        onMouseOut()  { hovered = false; pressed = false },
+                        onMouseDown() { pressed = true },
+                        onMouseUp()   { pressed = false },
+                        onClick()     { app.editing = true },
                         text = "View & Edit Source" ],
                     ],
 
@@ -488,16 +501,16 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
     // Springs each following a reactive target, the declarative neo form of a
     // timed transition (no scroll-scrub, no imperative trigger).
 
-    header: View [ width = { classroot.stageWidth }, height = 56, y = -8, opacity = 0, fill = #101E28,
-        fadeIn:  Spring [ attribute = opacity, to = { classroot.scroller.scrollY > 80 ? 1 : 0 },
+    header: View [ width = { app.width }, height = 56, y = -8, opacity = 0, fill = #101E28,
+        fadeIn:  Spring [ attribute = opacity, to = { app.scroller.scrollY > 80 ? 1 : 0 },
                           stiffness = 220, damping = 30, epsilon = 0.004 ],
-        slideIn: Spring [ attribute = y,       to = { classroot.scroller.scrollY > 80 ? 0 : -8 },
+        slideIn: Spring [ attribute = y,       to = { app.scroller.scrollY > 80 ? 0 : -8 },
                           stiffness = 220, damping = 30, epsilon = 0.05 ],
-        hairline: View [ y = 55, width = { classroot.stageWidth }, height = 1, fill = #263D4C ],
+        hairline: View [ y = 55, width = { app.width }, height = 1, fill = #263D4C ],
 
         // wordmark — the product name in the blue→teal gradient, mono, echoing the hero
 
-        brand: View [ x = { Math.max(24, (classroot.stageWidth - 1120) / 2) }, y = 18,
+        brand: View [ x = { Math.max(24, (app.width - 1120) / 2) }, y = 18,
             layout: SimpleLayout [ axis = x, spacing = 0 ],
             Text [ fontFamily = [Mono, "monospace"], fontSize = 15, fontWeight = semibold,
                    textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) }, text = "Declare" ],
@@ -507,7 +520,7 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
         // auto-width, right-aligned to the same gutter the content ends at
         // (x = right edge − own content width); the padded pills carry the spacing
 
-        nav: View [ y = 11, x = { classroot.stageWidth - Math.max(24, (classroot.stageWidth - 1120) / 2) - this.width },
+        nav: View [ y = 11, x = { app.width - Math.max(24, (app.width - 1120) / 2) - this.width },
             layout: SimpleLayout [ axis = x, spacing = 2 ],
             NavLink [ label = "Docs" ],
             NavLink [ label = "Examples" ],
@@ -517,12 +530,11 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
         ],
 
     // the whole-page source editor — an overlay above the page, shown when
-    // App.editing (flipped by "VIEW & EDIT SOURCE"). Same CodeField + embedded
+    // app.editing (flipped by "VIEW & EDIT SOURCE"). Same CodeField + embedded
     // preview as the demo cards; its preview is active only while open.
 
-    editor: FullPageEditor [ open = { classroot.editing },
-                             stageW = { classroot.stageWidth }, stageH = { classroot.stageHeight },
-                             pageSource = { classroot.demoSources.__page__ || "" } ],
+    editor: FullPageEditor [ open = { app.editing },
+                             pageSource = { app.demoSources.__page__ || "" } ],
 
     // pointer dot — a 10px accent-2 dot in VIEWPORT space that SPRINGS after the
     // pointer (loose + low-mass = the slower, longer trail). Two position
@@ -531,11 +543,14 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
     cursor: View [ width = 10, height = 10, cornerRadius = 5, fill = #37E0C8, opacity = 0.9,
         shadow = { shadow(0, 0, 12, 0x37E0C8) },
 
-        // yield to the native I-beam when the pointer is over an editable field
+        // Only for a HOVERING pointer (mouse / trackpad) — `app.hovering` is false
+        // for touch, so the dot never appears on a phone, yet an iPad trackpad
+        // (which reports a "mouse" pointer) still gets it. Also yields to the
+        // native I-beam when the pointer is over an editable field.
 
-        visible = { !classroot.pointerOverText },
-        followX: Spring [ attribute = x, to = { classroot.pointerX - 5 },
+        visible = { app.hovering && !app.pointerOverText },
+        followX: Spring [ attribute = x, to = { app.pointerX - 5 },
                           stiffness = 120, damping = 14, mass = 0.6, epsilon = 0.05 ],
-        followY: Spring [ attribute = y, to = { classroot.pointerY - 5 },
+        followY: Spring [ attribute = y, to = { app.pointerY - 5 },
                           stiffness = 120, damping = 14, mass = 0.6, epsilon = 0.05 ] ],
     ]

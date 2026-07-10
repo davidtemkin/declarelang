@@ -15,6 +15,7 @@ import { test, summarize } from "./harness.mjs";
 import { compile, compileTracked, isUpToDate, diskProbe } from "../compiler/dist/compile-node.js";
 import { KeysService } from "../runtime/dist/keys.js";
 import { Focus, deliverKeys } from "../runtime/dist/focus.js";
+import { routeInput } from "../runtime/dist/input.js";
 import {
   parse,
   parseProgram,
@@ -279,26 +280,28 @@ await test("HTML — a foreign-content island: a View sized by constraints, carr
   assert.equal(island.width, 340);
 });
 
-await test("App fills its stage by default: unset width/height follow stageWidth/stageHeight, reactively", () => {
+await test("App fills its host by default: unset width/height follow hostWidth/hostHeight, reactively", () => {
   // A child would make a plain view auto-size to CONTENT (40+10); the App
-  // retargets auto-extent to the viewport instead.
+  // retargets auto-extent to its host instead. (hostWidth is the runtime-fed
+  // enclosing extent — read-only to user code, but the runtime writes it here
+  // exactly as index.ts does.)
   const app = build(`App [ View [ x = 10, y = 10, width = 40, height = 20 ] ]`);
-  app.attach(mockBackend([]), null);           // installs App.bindExtent (stage-tracking derive)
-  app.stageWidth = 500; app.stageHeight = 360;
+  app.attach(mockBackend([]), null);           // installs App.bindExtent (host-tracking derive)
+  app.hostWidth = 500; app.hostHeight = 360;
   settle();
-  assert.equal(app.width, 500, "unset width follows stageWidth, not content (50)");
-  assert.equal(app.height, 360, "unset height follows stageHeight");
-  app.stageWidth = 720;                          // reactive: a resize moves it
+  assert.equal(app.width, 500, "unset width follows hostWidth, not content (50)");
+  assert.equal(app.height, 360, "unset height follows hostHeight");
+  app.hostWidth = 720;                          // reactive: a resize moves it
   settle();
-  assert.equal(app.width, 720, "width tracks stageWidth on resize");
+  assert.equal(app.width, 720, "width tracks hostWidth on resize");
 
   // An explicit size still wins — the derive is skipped for a set slot.
   const fixed = build(`App [ width = 480, height = 320, View [ width = 40 ] ]`);
   fixed.attach(mockBackend([]), null);
-  fixed.stageWidth = 500; fixed.stageHeight = 500;
+  fixed.hostWidth = 500; fixed.hostHeight = 500;
   settle();
-  assert.equal(fixed.width, 480, "an explicit width overrides the stage default");
-  assert.equal(fixed.height, 320, "an explicit height overrides the stage default");
+  assert.equal(fixed.width, 480, "an explicit width overrides the host default");
+  assert.equal(fixed.height, 320, "an explicit height overrides the host default");
 });
 
 await test("build() coerces every color literal form (case-insensitive names)", () => {
@@ -877,7 +880,7 @@ await test("check() reports method-body syntax errors at the body, one per metho
   assert.equal(errors[0].pos.col, 12);
 });
 
-await test("check(): a parameter may not shadow the 'parent' pronoun", () => {
+await test("check(): a parameter may not shadow the 'parent' scope noun", () => {
   const [err] = check(parse("View [ m(parent) { } ]"));
   assert.match(err.message, /a parameter may not be named 'parent'/);
 });
@@ -975,6 +978,40 @@ await test("dispatch: the sink calls the right handler with view-local {x,y}", (
   assert.deepEqual(globalThis.__ev, [["down", 7, 8], ["click", 3, 4]]);
   assert.equal(app.children[0].x, 3, "handler writes land through the reactive setter");
   assert.ok(log.some(([m, v]) => m === "setX" && v === 3), "and push their Surface call");
+});
+
+await test("routeInput: POINTER events drive the sink protocol (down/up/click; cancel = no click)", () => {
+  // Mock window so the router's listeners can be driven with synthetic pointer
+  // events — this locks the touch-capable wire (a tap is pointerdown+pointerup,
+  // not a synthesized mouse pair) without a browser.
+  const handlers = {};
+  const realWindow = globalThis.window;
+  globalThis.window = {
+    addEventListener: (type, fn) => { (handlers[type] ??= []).push(fn); },
+    removeEventListener: (type, fn) => { handlers[type] = (handlers[type] ?? []).filter((h) => h !== fn); },
+  };
+  try {
+    const log = [];
+    const mk = (name) => ({ key: { name }, sink: (type) => log.push([name, type]), x: 1, y: 2 });
+    const targets = { A: mk("A"), B: mk("B") };
+    routeInput(() => true, (e) => targets[e.k] ?? null, (e) => ({ x: e.clientX, y: e.clientY }));
+    const fire = (type, k, pointerType = "touch") =>
+      (handlers[type] ?? []).forEach((h) => h({ k, clientX: 10, clientY: 20, pointerType }));
+
+    fire("pointerdown", "A"); fire("pointerup", "A");
+    assert.deepEqual(log.map((e) => e[1]), ["mouseDown", "mouseUp", "click"], "a tap fires down, up, then click");
+    assert.equal(log[2][0], "A", "click resolves to the pressed view");
+
+    log.length = 0;
+    fire("pointerdown", "A"); fire("pointerup", "B");
+    assert.deepEqual(log.map((e) => e[1]), ["mouseDown", "mouseUp"], "release over another view clicks nothing");
+
+    log.length = 0;
+    fire("pointerdown", "A"); fire("pointercancel", "A");
+    assert.deepEqual(log.map((e) => e[1]), ["mouseDown", "mouseUp"], "a canceled press releases without a click (drag can finalize)");
+  } finally {
+    globalThis.window = realWindow;
+  }
 });
 
 await test("draw(d) { … } — the language surface — rides the recorded-draw machinery", () => {
@@ -1178,12 +1215,19 @@ await test("check(): declarations, methods, and named children share one member 
   assert.ok(msgs.some((m) => /App\.k: 'k' is already a child/.test(m)));
 });
 
-await test("check(): pronouns cannot be declared, named, or shadowed by parameters", () => {
+await test("check(): scope nouns cannot be declared, named, or shadowed by parameters", () => {
   const msgs = check(parseProgram("App [ width=1, parent: number = 1, classroot: View [ ], m(classroot) { } ]"))
     .map((e) => e.message);
-  assert.match(msgs[0], /'parent' is a pronoun .* cannot be declared/);
-  assert.match(msgs[1], /'classroot' is a pronoun .* a child cannot take its name/);
+  assert.match(msgs[0], /'parent' is a scope noun .* cannot be declared/);
+  assert.match(msgs[1], /'classroot' is a scope noun .* a child cannot take its name/);
   assert.match(msgs[2], /a parameter may not be named 'classroot'/);
+});
+
+await test("check(): 'app' is a scope noun — not declarable, nameable, or a parameter", () => {
+  const msgs = check(parseProgram("App [ width=1, app: number = 1, k: View [ ], m(app) { } ]"))
+    .map((e) => e.message);
+  assert.match(msgs[0], /'app' is a scope noun .* cannot be declared/);
+  assert.match(msgs[1], /a parameter may not be named 'app'/);
 });
 
 await test("check(): a named child may not take an attribute's name", () => {
@@ -1283,6 +1327,18 @@ App [ width=1, height=1, W [ ] ]`);
   assert.match(out, /grow\(\) \{ this\.count = this\.count \+ 1 \}/, "level 0 (the class root's own member) is this");
   assert.match(out, /\$\{parent\.now\}/, "an intermediate member-carrying ancestor is a parent chain");
   assert.match(out, /\$\{classroot\.count\}/, "the body root is classroot, depth-independent");
+});
+
+await test("compile(): the 'app' noun rewrites to this.root anywhere in the tree", () => {
+  // hostWidth and editing are App's own attributes — `app` reaches them from
+  // any depth without a parent chain or a classroot that happens to be the App.
+  const out = resolved(`App [ width=1, height=1,
+    deep: View [ mid: View [ leaf: View [
+      width = { app.hostWidth / 2 },
+      onClick() { app.editing = true } ] ] ] ]`);
+  assert.match(out, /width = \{ this\.root\.hostWidth \/ 2 \}/, "app.X → this.root.X regardless of depth");
+  assert.match(out, /this\.root\.editing = true/, "app in a handler resolves too");
+  assert.doesNotMatch(out, /\bapp\./, "no bare 'app' survives the rewrite");
 });
 
 await test("compile(): the anonymous-App top level — bare names in app-level bodies, App.zip lexically", () => {
@@ -1783,7 +1839,7 @@ await test("check: a data node may bind url with { } — and a class may not ext
   assert.match(errs[0].message, /subclassing 'DataSource' is not wired yet/);
 });
 
-// A small data-backed tree, without the compile layer: pronouns are written
+// A small data-backed tree, without the compile layer: scope nouns are written
 // explicitly (classroot = the App for use-site members), exactly what
 // compile() would emit.
 const dataApp = (extra = "") => build(`App [ width=10, height=10,

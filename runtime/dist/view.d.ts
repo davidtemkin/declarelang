@@ -161,7 +161,7 @@ export declare class View extends Node {
     /** Install auto-extent derives for whichever never-set, unowned size slots
      *  qualify — only on views with View children (a childless view keeps its
      *  zero-cost default; Dataset children are not geometry). Protected so the
-     *  stage (App) can retarget it from content to the viewport. */
+     *  App can retarget it from content to its host. */
     protected bindExtent(): void;
     private extentOf;
     /** The bounding-box extent of this view's visible children on each axis — the
@@ -238,15 +238,22 @@ export declare class View extends Node {
 export declare function inheritedCursor(node: Node | null): Cursor | null;
 export declare function setFocusDiscardHook(fn: (view: View) => void): void;
 export declare function fireEvent(view: View, event: string, arg?: unknown): void;
-/** The application root — the single visible tree, mapped to the stage
- *  (OpenLaszlo's `<canvas>`). R0 treats it as the root View; its stage-level
- *  behavior and singleton identity grow in later rungs. */
+/** The application root — the single visible tree at the top (OpenLaszlo's
+ *  `<canvas>`). R0 treats it as the root View; it fills its host by default and
+ *  carries the app's reactive environment (host extent, scroll, pointer). */
 export declare class App extends View {
-    /** The viewport size, page scroll, and free pointer — the reactive stage
-     *  environment, fed by the runtime at mount (index.ts wireStage). Read from
-     *  anywhere via `classroot`: `width = { classroot.stageWidth }`. */
-    stageWidth: number;
-    stageHeight: number;
+    /** `hostWidth`/`hostHeight` — the App's enclosing extent (the window at top
+     *  level, the container element when embedded), fed by the runtime at mount
+     *  (index.ts). READ-ONLY intrinsics (schema.ts marks them so; a set is a
+     *  compile error) — the App's own `width`/`height` DEFAULT to them (bindExtent
+     *  below), so the common app just fills, and a size that is a function of the
+     *  host (aspect-locked, "as large as fits") reads them: `width = { Math.min(
+     *  hostWidth, hostHeight * 1.6) }`. Parallels View's `contentWidth`/
+     *  `contentHeight` — a box's size defaults to a read-only extent, content for a
+     *  view, host for the App. `scrollY`/`pointer*` are the app's scroll+pointer
+     *  environment, also fed at mount. */
+    hostWidth: number;
+    hostHeight: number;
     scrollY: number;
     pointerX: number;
     pointerY: number;
@@ -257,7 +264,7 @@ export declare class App extends View {
      *  `cursor: View [ visible = { !classroot.pointerOverText } ]`. */
     pointerOverText: boolean;
     /** The shipping page's over-the-wire size in KB (gzipped) and its Declare
-     *  source line count — provided by the host/build (see wireStage note), 0
+     *  source line count — provided by the host/build (see index.ts note), 0
      *  until set. Reactive reads: a stat bound to them settles when they land. */
     pageWeight: number;
     sourceLines: number;
@@ -279,12 +286,13 @@ export declare class App extends View {
     /** app→host navigation: set to a URL by a link/button; the host opens it and
      *  resets to "" — same DOM-free app→host channel as `editing`. */
     navigate: string;
-    /** The stage's auto-extent is the VIEWPORT, not its content: an unset width/
-     *  height follows stageWidth/stageHeight (reactive on resize), so the root app
-     *  fills its host with no declaration — the near-universal case. An explicit
+    /** The App's auto-extent is the HOST, not its content: an unset width/height
+     *  follows hostWidth/hostHeight (reactive on resize), so the root app fills its
+     *  enclosing area with no declaration — the near-universal case. An explicit
      *  `width = …` still wins (isSet skips the derive), and there is no children
-     *  guard: the stage fills its host even while empty. Reuses the same reactive
-     *  derive the content path uses, so a resize repaints like any dependency. */
+     *  guard: the app fills its host even while empty. This is the exact yielding
+     *  default the content path uses (View.bindExtent), retargeted from content to
+     *  host — so a resize repaints like any dependency. */
     protected bindExtent(): void;
 }
 /** HTML — a foreign-content island (design: the `HTML [ … ]` view). A leaf View

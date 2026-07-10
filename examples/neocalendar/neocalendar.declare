@@ -54,10 +54,10 @@ class EventBar extends View [
                   width = { parent.width - this.x - 2 }, fontSize = 10,
                   textColor = #4B5D6C, text = :title ],
 
-    onMouseDown() { this.root.startDrag(:id) },
-    onMouseMove(e) { this.root.dragMove(e.x, e.y) },
-    onMouseUp()   { this.root.endDrag() },
-    onClick() { if (!this.root.dragOccurred) this.root.selectEvent(:id, this.dayKey) },
+    onMouseDown() { app.startDrag(:id) },
+    onMouseMove(e) { app.dragMove(e.x, e.y) },
+    onMouseUp()   { app.endDrag() },
+    onClick() { if (!app.dragOccurred) app.selectEvent(:id, this.dayKey) },
     ]
 
 
@@ -73,7 +73,7 @@ class InfoButton extends View [
     glyph: Text [ x = 5, y = 2, fontSize = 9, fontWeight = bold,
                   textColor = #4B5D6C, text = "i" ],
 
-    onClick() { this.root.showInfo(:id) },
+    onClick() { app.showInfo(:id) },
     ]
 
 
@@ -94,8 +94,8 @@ class PlusMinus extends View [
         },
 
     onClick() {
-        if (isOpen) this.root.closeDay()
-        else this.root.openDay(this.root.selectedKey)
+        if (isOpen) app.closeDay()
+        else app.openDay(app.selectedKey)
         },
     ]
 
@@ -117,12 +117,12 @@ class Stepper extends View [
         fill = gradient(stop(0, 0xE6EAEA), stop(1, 0x99A5AD)),
         draw(d) { d.fillStyle = 0x33454F
                   d.beginPath(); d.moveTo(8, 3); d.lineTo(4, 7); d.lineTo(8, 11); d.fill() },
-        onClick() { this.root.stepField(classroot.field, -1) } ],
+        onClick() { app.stepField(classroot.field, -1) } ],
     right: View [ x = { parent.width - 14 }, y = 1, width = 13, height = 14, cornerRadius = 2,
         fill = gradient(stop(0, 0xE6EAEA), stop(1, 0x99A5AD)),
         draw(d) { d.fillStyle = 0x33454F
                   d.beginPath(); d.moveTo(5, 3); d.lineTo(9, 7); d.lineTo(5, 11); d.fill() },
-        onClick() { this.root.stepField(classroot.field, 1) } ],
+        onClick() { app.stepField(classroot.field, 1) } ],
     ]
 
 
@@ -135,27 +135,27 @@ class AccordionSection extends View [
     idx: number = 0,
     label: string = "",
     width = 197,
-    y = { 90 + this.idx * 20 + (this.idx > this.root.openTab ? 330 : 0) },
+    y = { 90 + this.idx * 20 + (this.idx > app.openTab ? 330 : 0) },
 
     hdr: View [ width = { parent.width }, height = 20,
-        fill = { this.root.openTab == classroot.idx ? 0xE2E4DF : 0xEEF0EB },
+        fill = { app.openTab == classroot.idx ? 0xE2E4DF : 0xEEF0EB },
         draw(d) {
             d.fillStyle = 0xFDFFFF; d.fillRect(0, 0, width, 1)
             d.fillStyle = 0xC6C7C4; d.fillRect(0, height - 1, width, 1)
             d.fillStyle = 0x5A6A72
             d.beginPath()
-            if (this.root.openTab == classroot.idx) {
+            if (app.openTab == classroot.idx) {
                 d.moveTo(width - 14, 7); d.lineTo(width - 6, 7); d.lineTo(width - 10, 13)
                 }
             else { d.moveTo(width - 12, 6); d.lineTo(width - 6, 9.5); d.lineTo(width - 12, 13) }
             d.fill()
             },
         lbl: Text [ x = 6, y = 5, fontSize = 10, textColor = #3A4A50, text = { classroot.label } ],
-        onClick() { this.root.setTab(classroot.idx) } ],
+        onClick() { app.setTab(classroot.idx) } ],
 
     area: TextInput [ x = 2, y = 20, width = { parent.width - 4 }, height = 326,
         multiline = true, fill = #FFFFFF, fontSize = 10, textColor = #333333,
-        visible = { this.root.openTab == classroot.idx } ],
+        visible = { app.openTab == classroot.idx } ],
     ]
 
 
@@ -222,10 +222,10 @@ class TimeEvent extends View [
     title: Text [ x = { classroot.selected ? 36 : 10 }, y = 4, fontSize = 10,
                   textColor = #4B5D6C, width = { parent.width - this.x - 2 }, text = :title ],
 
-    onMouseDown() { this.root.startDrag(:id) },
-    onMouseMove(e) { this.root.dragMove(e.x, e.y) },
-    onMouseUp()   { this.root.endDrag() },
-    onClick() { if (!this.root.dragOccurred) this.root.selectEvent(:id, this.dayKey) },
+    onMouseDown() { app.startDrag(:id) },
+    onMouseMove(e) { app.dragMove(e.x, e.y) },
+    onMouseUp()   { app.endDrag() },
+    onClick() { if (!app.dragOccurred) app.selectEvent(:id, this.dayKey) },
     ]
 
 
@@ -278,14 +278,14 @@ class DayCell extends View [
 
     body: View [ x = 3, y = 19, width = { parent.width - 8 }, height = { parent.height - 26 },
         clip = true,
-        fill = { classroot.selected || this.root.dragOverKey == classroot.dayKey ? 0xD3D3D3
+        fill = { classroot.selected || app.dragOverKey == classroot.dayKey ? 0xD3D3D3
                : :inMonth ? (:weekend ? 0x879BA8 : 0x9BA9B1) : 0x768A97 },
 
         // Closed form: the sorted event list (hidden the moment the cell opens).
         list: View [ width = { parent.width }, visible = { !classroot.open },
             layout: SimpleLayout [ axis = y ],
             EventBar [ datapath = :events[], category = :category,
-                dayKey = { classroot.dayKey }, selected = { this.root.selectedEvent == :id } ],
+                dayKey = { classroot.dayKey }, selected = { app.selectedEvent == :id } ],
             ],
 
         // Open form: an hour timeline, built only while the cell is open. The
@@ -310,7 +310,7 @@ class DayCell extends View [
                     ],
                 events: View [ x = 28, width = { parent.width - 38 },
                     TimeEvent [ datapath = :events[], category = :category,
-                        dayKey = { classroot.dayKey }, selected = { this.root.selectedEvent == :id } ],
+                        dayKey = { classroot.dayKey }, selected = { app.selectedEvent == :id } ],
                     ],
                 ],
 
@@ -1030,28 +1030,28 @@ App [ width = 835, height = 600, fill = #1E3A49,
                     d.beginPath(); d.moveTo(2, 2); d.lineTo(9, 9)
                     d.moveTo(9, 2); d.lineTo(2, 9); d.stroke()
                     },
-                onClick() { this.root.closePanel() } ],
+                onClick() { app.closePanel() } ],
             ],
 
         titleF: TextInput [ x = 6, y = 24, width = 193, height = 17, fill = #FFFFFF,
             fontSize = 11, textColor = #333333 ],
 
         dateStep:  Stepper [ x = 8, y = 47, width = 189, field = "date",
-            label = { this.root.monthName(:m) + " " + :d + ", " + :y } ],
+            label = { app.monthName(:m) + " " + :d + ", " + :y } ],
         startStep: Stepper [ x = 8, y = 66, width = 82, field = "start",
-            label = { this.root.longTime(:start) } ],
+            label = { app.longTime(:start) } ],
         toLbl:     Text [ x = 94, y = 68, fontSize = 10, textColor = #2E3E48, text = "to" ],
         endStep:   Stepper [ x = 115, y = 66, width = 82, field = "end",
-            label = { this.root.longTime(:end) } ],
+            label = { app.longTime(:end) } ],
 
         notesSec: AccordionSection [ x = 4, idx = 0, label = "Notes" ],
         locSec:   AccordionSection [ x = 4, idx = 1, label = "Location" ],
         attSec:   AccordionSection [ x = 4, idx = 2, label = "Attendees" ],
 
         applyBtn:  CalButton [ x = 8, y = 486, width = 82, label = "Apply",
-            onClick() { this.root.apply() } ],
+            onClick() { app.apply() } ],
         deleteBtn: CalButton [ x = 115, y = 486, width = 82, label = "Delete",
-            onClick() { this.root.deleteEvent(); this.root.closePanel() } ],
+            onClick() { app.deleteEvent(); app.closePanel() } ],
         ],
 
     // A ghost of the dragged event that follows the pointer (SPEC §6) — the top

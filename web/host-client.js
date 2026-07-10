@@ -93,12 +93,24 @@ export async function bootHost(cfg) {
   // output; otherwise it compiles the seed. Recurses only as deep as the user clicks:
   // a preview island exists only when its editor is OPEN, and every copied editor
   // starts CLOSED — no action ⇒ no growth.
+  //
+  // The island for a live-compiled program (e.g. the whole-page "__page__" editor,
+  // which has no precompiled artifact) can appear BEFORE the ~1 MB in-browser compiler
+  // has warm-loaded — most likely on a slow device (an iPad opening the editor with a
+  // quick tap). Until it lands `compile` is a stub returning null, so we must NOT
+  // commit `wired` on a null result: mark the box in-flight (`wiring`) to suppress
+  // duplicate compiles, and only set `wired` once we actually have output. A null keeps
+  // the box eligible so the next rAF tick retries — the preview mounts the moment the
+  // compiler is ready, whether the editor was opened before or after it loaded.
   function mountPreviews() {
     host.querySelectorAll('[data-neo-slot^="run:"]').forEach(async (box) => {
-      if (box.dataset.wired) return;
-      box.dataset.wired = "1";
+      if (box.dataset.wired || box.dataset.wiring) return;
+      box.dataset.wiring = "1";                              // in-flight: one compile at a time
       const name = box.dataset.neoSlot.split(":")[1];
       const compiled = precompiled[name] ?? (await compile(seeds[name] || ""));
+      delete box.dataset.wiring;
+      if (!compiled) return;                                 // compiler not warm yet (or failed) — retry next tick
+      box.dataset.wired = "1";                               // committed: don't remount
       renderChild(box, compiled);
     });
   }

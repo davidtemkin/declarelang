@@ -88,7 +88,7 @@ function diagnosticsFrom(
   ];
 }
 
-/** Names bound in every body without being members: the pronoun arguments of
+/** Names bound in every body without being members: the scope-noun arguments of
  *  the compiled Function (expr.ts) and its own `arguments`. `this` is not an
  *  identifier and needs no entry. */
 const BOUND = ["parent", "classroot", "arguments"];
@@ -326,6 +326,21 @@ class Resolver {
     if (idents === null) return; // TS could not parse what new Function did — leave the body alone
     for (const id of idents) {
       if (id.callee && CONSTRUCTORS.has(id.name)) continue; // a value constructor, not a member
+      if (id.name === "app") {
+        // `app` (language §11) — the running App at the top of the tree. Sugar
+        // for `this.root` (the `root` getter walks parent links to the top),
+        // so it reads as a noun anywhere — `app.hostWidth`, `app.navigate(…)`
+        // — and typechecks as `App` via View's `root: App` in the scaffold. A
+        // scope noun, never a member, so it is intercepted before the surface
+        // search; a param named `app` is forbidden (check.ts) so it cannot be
+        // shadowed here.
+        this.edits.push({
+          start: bodyStart + id.start,
+          end: bodyStart + id.end,
+          text: id.shorthand ? `${id.name}: this.root` : "this.root",
+        });
+        continue;
+      }
       const pos = this.posAt(bodyStart + id.start);
       let k = levels.findIndex((lv) => this.surfaceOf(lv).all.has(id.name));
       let selfName = false;
@@ -360,8 +375,8 @@ class Resolver {
   }
 
   /** The explicit path to level `k` of `count` levels: the node itself, a
-   *  parent chain, or the body-root pronoun (depth-independent, and the
-   *  doc's own idiom for reaching the class instance). */
+   *  parent chain, or the body-root noun `classroot` (depth-independent, and
+   *  the doc's own idiom for reaching the class instance). */
   private pathTo(k: number, count: number): string {
     if (k === 0) return "this";
     if (k === count - 1) return "classroot";

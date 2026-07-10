@@ -21,7 +21,7 @@
 // class's body gets that class's instance; code written at the use site gets
 // the *outer* scope's instance (the enclosing class root, or the App root —
 // the anonymous App class). So the class instance's own `classroot` property
-// points outward, while its class-body members' pronoun points at itself.
+// points outward, while its class-body members' `classroot` points at itself.
 //
 // Two passes since R4, plus init since R5. Pass one constructs the tree,
 // installs method members (compiled closures over the instance), and assigns
@@ -467,14 +467,14 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
   const user = ctx.classes.get(el.tag);
   const view = new (ctorWithDecls(el, baseCtor, schema))();
   view.classroot = outer;
-  // The pronoun for members written at THIS element's site: the enclosing
+  // The `classroot` for members written at THIS element's site: the enclosing
   // scope — or, at the tree root, the root itself (its members are written
   // in its own body: the anonymous App class's).
   const croot = outer ?? view;
   const eff = withDecls(schema, el.decls);
 
-  // Merge the member sources: class-body chain base→leaf (pronoun = this
-  // instance), then the use site (pronoun = the outer scope). Same-named
+  // Merge the member sources: class-body chain base→leaf (classroot = this
+  // instance), then the use site (classroot = the outer scope). Same-named
   // members: the nearest provider wins — a derived body overrides its base's,
   // the instance overrides the class's — and only the winner installs, so a
   // class-body `{ }` binding and an instance literal on one slot never fight
@@ -500,7 +500,7 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
       throw new NeoError(`no style named '${name}' — this program declares ${ctx.bundles.size > 0 ? [...ctx.bundles.keys()].join(", ") : "no style bundles"}`, el.pos);
     }
     // A bundle's { } fields evaluate with `this` = the styled view (the
-    // ruled bundle rule) — the pronoun binds the view itself.
+    // ruled bundle rule) — `classroot` binds the view itself.
     for (const a of bundle.attrs) attrs.set(a.name, { attr: a, croot: view });
   }
   for (const a of el.attrs) attrs.set(a.name, { attr: a, croot });
