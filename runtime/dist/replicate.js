@@ -51,20 +51,29 @@ export class Replicator {
     items = [];
     template;
     constraint;
+    /** The record field that identifies an instance across re-derivations
+     *  (`key = :field`), split into segments — or null to reconcile by object
+     *  identity (===), the default. A derived collection produces FRESH record
+     *  objects every recompute, so identity would rebuild all of them; a key
+     *  pools by a stable field, so only genuinely changed records rebuild. */
+    keyPath;
     constructor(parent, element, path, classroot, make, 
     /** The block's position anchor: the sibling just before it — a Node, a
      *  preceding Replicator (possibly empty), or null at the front. */
-    prev) {
+    prev, key = null) {
         this.parent = parent;
         this.path = path;
         this.classroot = classroot;
         this.make = make;
         this.prev = prev;
-        // The instances' element is the template MINUS its many-path attribute:
-        // each instance gets its record's cursor instead (written by reconcile).
+        this.keyPath = key === null ? null : splitPath(key);
+        // The instances' element is the template MINUS its many-path attribute
+        // (each instance gets its record's cursor instead, written by reconcile)
+        // and its `key` attribute (replication metadata, consumed here).
         this.template = {
             ...element,
-            attrs: element.attrs.filter((a) => !(a.name === "datapath" && a.value.kind === "path" && a.value.many)),
+            attrs: element.attrs.filter((a) => !(a.name === "datapath" && a.value.kind === "path" && a.value.many) &&
+                !(a.name === "key" && a.value.kind === "path")),
         };
         this.constraint = new Constraint(`${parent.constructor.name}'s replication (:${path}[])`, () => this.match(), (m) => this.reconcile(m));
     }
@@ -85,20 +94,34 @@ export class Replicator {
         const arr = base.data.read(arrayPath);
         return { data: base.data, arrayPath, items: Array.isArray(arr) ? arr : [] };
     }
+    /** A record's pooling identity: the value at `keyPath` when a key is set
+     *  (stable across re-derivations), else the record object itself (===). */
+    idOf(item) {
+        if (this.keyPath === null)
+            return item;
+        let cur = item;
+        for (const seg of this.keyPath) {
+            if (cur === null || typeof cur !== "object")
+                return undefined;
+            cur = cur[seg];
+        }
+        return cur;
+    }
     reconcile({ data, arrayPath, items }) {
         // Match records to existing instances by identity, first-fit in order.
         const pool = new Map();
         this.items.forEach((item, i) => {
-            const q = pool.get(item);
+            const id = this.idOf(item);
+            const q = pool.get(id);
             if (q !== undefined)
                 q.push(this.views[i]);
             else
-                pool.set(item, [this.views[i]]);
+                pool.set(id, [this.views[i]]);
         });
         const next = [];
         const fresh = new Map();
         for (const item of items) {
-            const reuse = pool.get(item)?.shift();
+            const reuse = pool.get(this.idOf(item))?.shift();
             if (reuse !== undefined) {
                 next.push(reuse);
             }

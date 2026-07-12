@@ -714,16 +714,25 @@ function constructData(el: Element, schema: ComponentSchema, outer: View | null,
     }
   }
   if (el.tag === "Dataset") {
-    if (el.raw === undefined) {
-      throw new NeoError(`a Dataset carries its JSON body: '${el.name ?? "events"}: Dataset { … }'`, el.pos);
-    }
-    try {
-      node.value = JSON.parse(el.raw.src);
-    } catch (e) {
+    // A literal `{ }` body OR a derived `contents = { … }` (bound above via
+    // pass two) — one or the other. The derived case leaves value null until
+    // the contents constraint first runs, which mirrors it into value.
+    const derived = el.attrs.some((a) => a.name === "contents");
+    if (el.raw === undefined && !derived) {
       throw new NeoError(
-        `${el.name ?? el.tag}: the Dataset body is not valid JSON — ${(e as Error).message}`,
-        el.raw.pos
+        `a Dataset needs data — a JSON body '{ … }' or a derived 'contents = { … }'`,
+        el.pos
       );
+    }
+    if (el.raw !== undefined) {
+      try {
+        node.value = JSON.parse(el.raw.src);
+      } catch (e) {
+        throw new NeoError(
+          `${el.name ?? el.tag}: the Dataset body is not valid JSON — ${(e as Error).message}`,
+          el.raw.pos
+        );
+      }
     }
   } else if (el.raw !== undefined) {
     throw new NeoError(`a ${el.tag}'s data arrives from its url — only a Dataset embeds a { } body`, el.raw.pos);
@@ -1059,7 +1068,11 @@ function appendChildren(from: Element, parentView: View, croot: View, ctx: Ctx, 
           childEl.pos
         );
       }
-      const replicator = new Replicator(parentView, childEl, many.value.path, croot, materializer(ctx), slot.prev);
+      // `key = :field` (optional): reconcile by this stable field instead of
+      // object identity, so a re-derived collection reuses instances by key.
+      const keyAttr = childEl.attrs.find((a) => a.name === "key" && a.value.kind === "path");
+      const keyPath = keyAttr !== undefined ? (keyAttr.value as { path: string }).path : null;
+      const replicator = new Replicator(parentView, childEl, many.value.path, croot, materializer(ctx), slot.prev, keyPath);
       ctx.pending.push({ replicator });
       slot.prev = replicator;
       continue;

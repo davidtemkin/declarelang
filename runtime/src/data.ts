@@ -113,6 +113,10 @@ export class Dataset extends Node {
    *  `:path` read tracks this slot too, so arrival/clear wakes them all. */
   declare value: unknown;
 
+  /** A derived Dataset's write slot: `contents = { … }` binds here and its
+   *  push mirrors the computed value into `value` (see defineAttributes). */
+  declare contents: unknown;
+
   private readonly cursors = new Map<string, Cursor>();
 
   /** The interned cursor for `path` — one object per distinct place, so a
@@ -241,6 +245,12 @@ defineAttributes(Dataset, {
   // places. The write itself is ordinary reactive machinery: every data read
   // tracked this slot, so replacement wakes them all.
   value: { def: null, push: (d, v) => tagTree(d, v, []) },
+  // A derived Dataset's `contents = { … }` binds here; its push mirrors the
+  // computed value into `value` through value's own reactive setter — so a
+  // recompute tags the new tree and wakes every `:path` reader and replicator,
+  // exactly as a wholesale `.value` replacement does. `contents` itself is
+  // never read back (nothing tracks it); it is the author-facing write slot.
+  contents: { def: null, push: (d: Dataset, v: unknown) => { d.value = v; } },
 });
 
 /** A DataSource is a Dataset whose value arrives over HTTP (language §9): a

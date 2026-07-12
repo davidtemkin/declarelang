@@ -15,6 +15,9 @@ export declare class Dataset extends Node {
     /** The data itself. Replacing it wholesale is one reactive write: every
      *  `:path` read tracks this slot too, so arrival/clear wakes them all. */
     value: unknown;
+    /** A derived Dataset's write slot: `contents = { … }` binds here and its
+     *  push mirrors the computed value into `value` (see defineAttributes). */
+    contents: unknown;
     private readonly cursors;
     /** The interned cursor for `path` — one object per distinct place, so a
      *  re-derived cursor is `===` the old one and the equality gate holds. */

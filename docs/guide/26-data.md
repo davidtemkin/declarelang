@@ -37,8 +37,9 @@ forecastData: View [ layout: SimpleLayout [ axis = y, spacing = 10 ],
 
 `WeatherSummary` is written **once**, against an abstract cursor (`:day`, `:high`,
 `:low`), and reused for every element. Add a record to the data and a new instance
-appears; remove one and its instance leaves — no keys, no reconciliation, no list
-component. The homepage's data demo is the whole pattern in eight lines:
+appears; remove one and its instance leaves — reconciled by identity, no list
+component (a *derived* list adds a `key`, below). The homepage's data demo is the
+whole pattern in eight lines:
 
 ```declare
 App [ facts: Dataset { { "rows": [
@@ -107,6 +108,52 @@ ok: Text [ text = "OK",
 `.fetch()` returns a promise you can chain (here, to branch on success vs.
 failure). The lifecycle flags update reactively as it runs, so most of the UI just
 reads `.loading` / `.loaded` / `.failed` and never touches the promise.
+
+## A derived `Dataset`: `contents = { }`
+
+A third kind of source computes its data from other reactive state. Instead of a
+JSON body, give a `Dataset` a **`contents`** constraint — a `{ }` that returns the
+value:
+
+```declare
+App [ q: string = "",
+    people: Dataset { { "rows": [ /* … */ ] } },        // the source of truth
+    matches: Dataset [ contents = { app.filter() } ],   // DERIVED from it
+    filter() {
+        const rows = app.people.read(["rows"]) ?? []
+        return { rows: rows.filter(r => r.name.includes(app.q)) }
+    },
+]
+```
+
+`matches.value` recomputes **exactly when what `filter()` reads changes** — the
+query `app.q`, or the `people` rows (read through the tracked region API
+`read([...])`, so an edit to a person wakes the derivation). It is an ordinary
+constraint: dep-gated, coalesced into one settle, no manual "rebuild" to call.
+
+> **Read for reactivity.** In a method, `data.read([ "rows" ])` is a *tracked*
+> read — the derivation re-runs when that region changes (including in-place
+> `.set` edits). `data.value.rows` reads the same data but only tracks the whole
+> value, so it re-runs on a wholesale replacement, not on a field edit. Reach for
+> `read` when a derivation must follow edits.
+
+### `key = :field` — reconcile a derived list by identity
+
+A derivation produces **fresh** record objects every time it recomputes. Plain
+replication reconciles by object identity (`===`), so fresh objects would rebuild
+*every* instance on *every* recompute. Add a **`key`** naming each record's stable
+field, and replication pools by that key instead — unchanged records keep their
+instance, only genuinely different ones rebuild:
+
+```declare
+list: View [ datapath = { app.matches.value },
+    Row [ datapath = :rows[], key = :id ] ],     // reconcile by :id, not identity
+```
+
+Now a recompute is O(*changed*): a filter keystroke, an edit, a re-sort moves and
+updates live subtrees rather than tearing the list down. `key` is optional — a
+static `Dataset` list needs none — and only meaningful on a replicated child; use
+it whenever the list is *derived* (`contents = { }`) or re-sorted in place.
 
 ## Schema — typing and validation, optional
 

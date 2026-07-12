@@ -221,6 +221,12 @@ defineAttributes(Dataset, {
     // places. The write itself is ordinary reactive machinery: every data read
     // tracked this slot, so replacement wakes them all.
     value: { def: null, push: (d, v) => tagTree(d, v, []) },
+    // A derived Dataset's `contents = { … }` binds here; its push mirrors the
+    // computed value into `value` through value's own reactive setter — so a
+    // recompute tags the new tree and wakes every `:path` reader and replicator,
+    // exactly as a wholesale `.value` replacement does. `contents` itself is
+    // never read back (nothing tracks it); it is the author-facing write slot.
+    contents: { def: null, push: (d, v) => { d.value = v; } },
 });
 /** A DataSource is a Dataset whose value arrives over HTTP (language §9): a
  *  reactive remote resource whose LIFECYCLE is reactive state — screens

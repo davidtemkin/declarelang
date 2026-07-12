@@ -1815,7 +1815,7 @@ await test("check: data nodes — named, attribute-only, JSON-validated", () => 
   const badJson = check(parse(`App [ d: Dataset { [1,] } ]`));
   assert.match(badJson[0].message, /not valid JSON/);
   const noBody = check(parse(`App [ d: Dataset [ ] ]`));
-  assert.match(noBody[0].message, /carries its JSON body/);
+  assert.match(noBody[0].message, /a Dataset needs data/);
   const srcRaw = check(parse(`App [ s: DataSource { [1] } ]`));
   assert.match(srcRaw[0].message, /data arrives from its url/);
   const members = check(parse(`App [ s: DataSource [ url = "/d.json", n: number, go() { 1 }, View [ ] ] ]`));
@@ -1831,6 +1831,49 @@ await test("check: data nodes — named, attribute-only, JSON-validated", () => 
   assert.ok(unknown.some((e) => /Dataset has no attribute 'url'/.test(e.message)));
   const rawElsewhere = check(parse(`App [ v: View { [1] } ]`));
   assert.match(rawElsewhere[0].message, /only a Dataset carries a { } body/);
+});
+
+await test("check: a derived Dataset takes `contents = { }` INSTEAD of a body", () => {
+  // valid: a derived dataset, no body
+  assert.deepEqual(check(parse(`App [ d: Dataset [ contents = { this.parent.width } ] ]`)), []);
+  // contents must be a { } — not a literal, not a :path
+  const lit = check(parse(`App [ d: Dataset [ contents = 5 ] ]`));
+  assert.match(lit[0].message, /contents is a derived value — write 'contents = \{/);
+  const path = check(parse(`App [ d: Dataset [ contents = :items ] ]`));
+  assert.match(path[0].message, /contents is a derived value/);
+});
+
+await test("check: `key = :field` is replication metadata, refused off a template", () => {
+  // valid on a replicated child (has a many datapath)
+  assert.deepEqual(
+    check(parse(`App [ d: Dataset { {"rows":[]} }, list: View [ datapath = { classroot.d.value }, View [ datapath = :rows[], key = :id ] ] ]`)),
+    []
+  );
+  // key that is not a single :path
+  const many = check(parse(`App [ d: Dataset { {"rows":[]} }, list: View [ datapath = { classroot.d.value }, View [ datapath = :rows[], key = :id[] ] ] ]`));
+  assert.match(many.find((e) => /key/.test(e.message)).message, /names each record's identity field/);
+  // `key` on a NON-replicated element is just an unknown attribute (no magic)
+  const plain = check(parse(`App [ v: View [ key = :id ] ]`));
+  assert.ok(plain.some((e) => /has no attribute 'key'|data lives/.test(e.message)));
+});
+
+await test("run: a derived Dataset recomputes, keyed replication reuses instances", () => {
+  const app = build(`App [ width = 10, height = 10,
+    n: number = 1,
+    src: Dataset { {"rows": [{"id":"a"},{"id":"b"}]} },
+    grid: Dataset [ contents = { classroot.make() } ],
+    list: View [ datapath = { classroot.grid.value },
+      View [ datapath = :rows[], key = :id ] ],
+    make() { const r = this.src.read(["rows"]) ?? []; return { rows: r.map((x) => ({ id: x.id, v: this.n })) }; },
+  ]`);
+  const rows = () => app.list.children.filter((c) => c.constructor.name === "View");
+  assert.equal(rows().length, 2, "derived collection produced two instances");
+  const before = rows();
+  app.n = 2;
+  assert.deepEqual(rows(), before, "keyed reconcile reused the SAME instances across a recompute");
+  // a granular in-place edit to the source retriggers the derivation
+  app.src.set("rows.0.id", "a2");
+  assert.equal(rows().length, 2, "still two instances after a keyed edit");
 });
 
 await test("check: a data node may bind url with { } — and a class may not extend one", () => {

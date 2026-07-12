@@ -687,7 +687,23 @@ function checkElement(
       eff = withDecls(schema, el.decls);
     }
     checkNamespace(el, eff, errors);
+    // `key = :field` is replication metadata (language §9): on a child whose
+    // datapath matches many, it names each record's STABLE identity so a
+    // re-derived collection reconciles by that key (reusing instances) instead
+    // of by object identity (rebuilding every fresh object). It is magic ONLY
+    // on a replication template — elsewhere `key` is an ordinary attribute
+    // name — so the special case can't collide with a real `key` slot.
+    const replicated = manyPathOf(el, schemas) !== null;
     for (const attr of el.attrs) {
+      if (attr.name === "key" && replicated) {
+        if (attr.value.kind !== "path" || attr.value.many) {
+          errors.push(new NeoError(
+            `key = :field names each record's identity field (e.g. 'key = :id') — a single :path, not ${attr.value.kind === "path" ? "a many-path" : "a literal"}`,
+            attr.value.pos
+          ));
+        }
+        continue;
+      }
       const t = attrType(eff, attr.name);
       // The two styling-channel slots resolve against PROGRAM declarations,
       // which the runtime-free coercion cannot see — routed here.
@@ -822,12 +838,20 @@ function checkDataNode(el: Element, schema: ComponentSchema, errors: NeoError[])
     ));
   }
   if (el.tag === "Dataset") {
-    if (el.raw === undefined) {
+    // A Dataset's value comes from EITHER a literal `{ }` JSON body OR a
+    // derived `contents = { … }` constraint — one, not both, not neither.
+    const derived = el.attrs.some((a) => a.name === "contents");
+    if (el.raw === undefined && !derived) {
       errors.push(new NeoError(
-        `a Dataset carries its JSON body: '${el.name ?? "events"}: Dataset { … }'`,
+        `a Dataset needs data — a literal JSON body ('${el.name ?? "events"}: Dataset { … }') or a derived 'contents = { … }'`,
         el.pos
       ));
-    } else {
+    } else if (el.raw !== undefined && derived) {
+      errors.push(new NeoError(
+        `${el.name ?? el.tag}: a Dataset is EITHER a literal '{ … }' body OR a derived 'contents = { … }', not both`,
+        el.raw.pos
+      ));
+    } else if (el.raw !== undefined) {
       try {
         JSON.parse(el.raw.src);
       } catch (e) {
@@ -856,6 +880,15 @@ function checkDataNode(el: Element, schema: ComponentSchema, errors: NeoError[])
     errors.push(new NeoError(`a data node has no children — its structure is its data`, c.pos));
   }
   for (const a of el.attrs) {
+    if (a.name === "contents" && a.value.kind !== "code") {
+      // A derived value is a constraint over other state, not a literal or a
+      // cursor into itself: `contents = { app.buildGrid() }`.
+      errors.push(new NeoError(
+        `${el.tag}.contents is a derived value — write 'contents = { … }' (a constraint over your reactive state)`,
+        a.value.pos
+      ));
+      continue;
+    }
     if (a.value.kind === "path") {
       errors.push(new NeoError(
         `${el.tag}.${a.name} = :${a.value.path}: a data node is where data lives — a :path reads a view's cursor`,

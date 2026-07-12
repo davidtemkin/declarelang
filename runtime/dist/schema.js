@@ -358,16 +358,24 @@ const TweenLayoutSchema = {
     },
 };
 // Data nodes (R8, language §9). A Dataset holds embedded JSON — its body is
-// the raw `{ }` region, so it declares no attributes; a DataSource is a
-// Dataset whose value arrives from `url`. Their lifecycle state (value,
-// status, error) is runtime surface read from bindings, not author-settable
-// attributes — hence absent here. Neither is a View: they sit in the tree as
-// named members with no visual incarnation (descendsFrom "Dataset" is the
-// checker's data-node test, like "Layout" for strategies).
+// the raw `{ }` region — OR derives its value from `contents = { … }`, a
+// constraint over other reactive state (a derived collection: recompute is
+// dep-gated, and keyed replication turns the new value into O(changed) view
+// work). A DataSource is a Dataset whose value arrives from `url`. Their
+// lifecycle state (value, status, error) is runtime surface read from
+// bindings, not author-settable — hence absent here. Neither is a View: they
+// sit in the tree as named members with no visual incarnation (descendsFrom
+// "Dataset" is the checker's data-node test, like "Layout" for strategies).
 const DatasetSchema = {
     name: "Dataset",
     base: null,
-    attrs: {},
+    // `contents` is a derived Dataset's value, always a `{ }` constraint (the
+    // JSON body is the literal alternative). checkDataNode enforces the `{ }`
+    // form and a code value bypasses `kind` in checkAttr, so the kind here is a
+    // formality — bare `string` keeps the schema simple.
+    attrs: {
+        contents: { kind: "string" },
+    },
 };
 // Node — the plain object-graph atom, exposed as a user-subclassable base. A
 // `class X [ … ]` (base defaulting to Node) or `class X extends Node [ … ]` is

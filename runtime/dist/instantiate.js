@@ -654,14 +654,20 @@ function constructData(el, schema, outer, ctx) {
         }
     }
     if (el.tag === "Dataset") {
-        if (el.raw === undefined) {
-            throw new NeoError(`a Dataset carries its JSON body: '${el.name ?? "events"}: Dataset { … }'`, el.pos);
+        // A literal `{ }` body OR a derived `contents = { … }` (bound above via
+        // pass two) — one or the other. The derived case leaves value null until
+        // the contents constraint first runs, which mirrors it into value.
+        const derived = el.attrs.some((a) => a.name === "contents");
+        if (el.raw === undefined && !derived) {
+            throw new NeoError(`a Dataset needs data — a JSON body '{ … }' or a derived 'contents = { … }'`, el.pos);
         }
-        try {
-            node.value = JSON.parse(el.raw.src);
-        }
-        catch (e) {
-            throw new NeoError(`${el.name ?? el.tag}: the Dataset body is not valid JSON — ${e.message}`, el.raw.pos);
+        if (el.raw !== undefined) {
+            try {
+                node.value = JSON.parse(el.raw.src);
+            }
+            catch (e) {
+                throw new NeoError(`${el.name ?? el.tag}: the Dataset body is not valid JSON — ${e.message}`, el.raw.pos);
+            }
         }
     }
     else if (el.raw !== undefined) {
@@ -991,7 +997,11 @@ function appendChildren(from, parentView, croot, ctx, eff, slot) {
             if (childEl.name !== null) {
                 throw new NeoError(`a replicated child cannot be named — ':${many.value.path}[]' makes one instance per record, and '${childEl.name}' can only name one; reach the instances through their data`, childEl.pos);
             }
-            const replicator = new Replicator(parentView, childEl, many.value.path, croot, materializer(ctx), slot.prev);
+            // `key = :field` (optional): reconcile by this stable field instead of
+            // object identity, so a re-derived collection reuses instances by key.
+            const keyAttr = childEl.attrs.find((a) => a.name === "key" && a.value.kind === "path");
+            const keyPath = keyAttr !== undefined ? keyAttr.value.path : null;
+            const replicator = new Replicator(parentView, childEl, many.value.path, croot, materializer(ctx), slot.prev, keyPath);
             ctx.pending.push({ replicator });
             slot.prev = replicator;
             continue;

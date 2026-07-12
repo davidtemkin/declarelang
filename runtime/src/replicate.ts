@@ -66,6 +66,13 @@ export class Replicator {
   private readonly template: Element;
   private readonly constraint: Constraint;
 
+  /** The record field that identifies an instance across re-derivations
+   *  (`key = :field`), split into segments — or null to reconcile by object
+   *  identity (===), the default. A derived collection produces FRESH record
+   *  objects every recompute, so identity would rebuild all of them; a key
+   *  pools by a stable field, so only genuinely changed records rebuild. */
+  private readonly keyPath: readonly string[] | null;
+
   constructor(
     private readonly parent: View,
     element: Element,
@@ -74,13 +81,20 @@ export class Replicator {
     private readonly make: Materialize,
     /** The block's position anchor: the sibling just before it — a Node, a
      *  preceding Replicator (possibly empty), or null at the front. */
-    private readonly prev: Node | Replicator | null
+    private readonly prev: Node | Replicator | null,
+    key: string | null = null
   ) {
-    // The instances' element is the template MINUS its many-path attribute:
-    // each instance gets its record's cursor instead (written by reconcile).
+    this.keyPath = key === null ? null : splitPath(key);
+    // The instances' element is the template MINUS its many-path attribute
+    // (each instance gets its record's cursor instead, written by reconcile)
+    // and its `key` attribute (replication metadata, consumed here).
     this.template = {
       ...element,
-      attrs: element.attrs.filter((a) => !(a.name === "datapath" && a.value.kind === "path" && a.value.many)),
+      attrs: element.attrs.filter(
+        (a) =>
+          !(a.name === "datapath" && a.value.kind === "path" && a.value.many) &&
+          !(a.name === "key" && a.value.kind === "path")
+      ),
     };
     this.constraint = new Constraint(
       `${parent.constructor.name}'s replication (:${path}[])`,
@@ -107,18 +121,31 @@ export class Replicator {
     return { data: base.data, arrayPath, items: Array.isArray(arr) ? arr : [] };
   }
 
+  /** A record's pooling identity: the value at `keyPath` when a key is set
+   *  (stable across re-derivations), else the record object itself (===). */
+  private idOf(item: unknown): unknown {
+    if (this.keyPath === null) return item;
+    let cur: unknown = item;
+    for (const seg of this.keyPath) {
+      if (cur === null || typeof cur !== "object") return undefined;
+      cur = (cur as Record<string, unknown>)[seg];
+    }
+    return cur;
+  }
+
   private reconcile({ data, arrayPath, items }: Match): void {
     // Match records to existing instances by identity, first-fit in order.
     const pool = new Map<unknown, View[]>();
     this.items.forEach((item, i) => {
-      const q = pool.get(item);
+      const id = this.idOf(item);
+      const q = pool.get(id);
       if (q !== undefined) q.push(this.views[i]);
-      else pool.set(item, [this.views[i]]);
+      else pool.set(id, [this.views[i]]);
     });
     const next: View[] = [];
     const fresh = new Map<View, () => void>();
     for (const item of items) {
-      const reuse = pool.get(item)?.shift();
+      const reuse = pool.get(this.idOf(item))?.shift();
       if (reuse !== undefined) {
         next.push(reuse);
       } else {

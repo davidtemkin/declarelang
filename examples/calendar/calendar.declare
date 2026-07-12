@@ -66,7 +66,7 @@ class Cell extends View [
                 text = { "" + :num } ],
     dow: Text [ x = 34, y = 8, fontSize = 11, wrap = false,
                 opacity = { classroot.bf }, textColor = { :current ? theme.currentDayText : theme.textMuted }, text = { :dow } ],
-    Ev [ datapath = :events[] ],
+    Ev [ datapath = :events[], key = :id ],
     onClick() { app.pickDay(:key) },
 ]
 
@@ -187,7 +187,7 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
     mode: string = "month",
     year: number = 2026, month: number = 7,      // month is 1-based
     anchorKey: string = "", todayKey: string = "",
-    monthRows: number = 6, builtYear: number = -1,
+    monthRows: number = { app.computeMonthRows() }, yearSeen: boolean = false,
     selectedId: number = -1, openSection: number = 0,
 
     // drag: the event being dragged, a snapshot of its look for the ghost, and
@@ -197,7 +197,19 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
     grabDX: number = 0, grabDY: number = 0, downX: number = 0, downY: number = 0,
 
     data: DataSource [ url = "data/events.json" ],
-    cal: Dataset { { "grid": [], "months": [], "cols": [], "hours": [] } },
+    // The model is DERIVED, not built: `contents` recomputes whenever what it
+    // reads changes — the visible month (year/month/anchorKey/todayKey, plain
+    // reactive attrs) or the events themselves (read through the dataset's
+    // tracked region API, so an edit — a `<->` title change, a drag-reschedule —
+    // wakes it). Keyed replication (`key = :key` on the cells, `:id` on the
+    // events) turns each recompute into O(changed) view work: unchanged days
+    // keep their instances, only genuinely different records rebuild. No
+    // rebuild() to call, no onInput handler to refresh a copy — the copy IS the
+    // data, derived. The year grid is its own derivation, deferred until first
+    // visited (`yearSeen`) and memoized on the year alone (its only tracked
+    // input), so switching views never rebuilds its 504 cells.
+    cal: Dataset [ contents = { app.buildModel() } ],
+    yearCal: Dataset [ contents = { app.yearSeen ? app.buildMonths() : app.emptyYear() } ],
 
     // the detail panel's width, springed 0→340: the body shrinks and the panel
     // rides the same value in, so they move as one gesture.
@@ -311,40 +323,48 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
                   .map((e, i) => Object.assign({}, e, { timeLabel: app.shortTime(e.start), idx: i, dur: e.end - e.start }))
         },
 
-    // ── model builder — one pass into the Dataset (called on load + navigation,
-    //    NOT on a view switch, so cells persist and morph) ──
-    rebuild() {
-        const all = app.data.value != null ? app.data.value.events : []
-        this.cal.set("cols", [0,1,2,3,4,5,6].map(i => ({ name: app.dowName(i), col: i })))
-        this.cal.set("hours", Array.from({ length: 24 }, (_, h) => ({ h: h, label: app.hourLabel(h) })))
+    // How many week-rows this month spans — derived from year+month, so the
+    // row-span springs (nrTo/nr) follow a page turn on their own.
+    computeMonthRows() {
+        const first = new Date(this.year, this.month - 1, 1)
+        return Math.ceil((first.getDay() + new Date(this.year, this.month, 0).getDate()) / 7)
+        },
 
+    // ── the model, DERIVED — `cal.contents = { app.buildModel() }` calls this,
+    //    so it recomputes exactly when what it reads changes: the visible month
+    //    (year/month/anchorKey/todayKey) or the events (read through the tracked
+    //    region API `data.read`, so a title edit or a drag-reschedule wakes it).
+    //    Each day carries a COPY of its events (a fresh object per event, tagged
+    //    with its grid row for the block-morph); keyed replication reuses the
+    //    instances, so a recompute repaints only what actually changed. ──
+    buildModel() {
+        const all = app.data.read(["events"]) ?? []
+        const cols = [0,1,2,3,4,5,6].map(i => ({ name: app.dowName(i), col: i }))
+        const hours = Array.from({ length: 24 }, (_, h) => ({ h: h, label: app.hourLabel(h) }))
         const first = new Date(this.year, this.month - 1, 1)
         const start = new Date(this.year, this.month - 1, 1 - first.getDay())
-        this.monthRows = Math.ceil((first.getDay() + new Date(this.year, this.month, 0).getDate()) / 7)
+        const rows = app.computeMonthRows()
         const grid = []
-        for (let i = 0; i < this.monthRows * 7; i++) {
+        for (let i = 0; i < rows * 7; i++) {
             const dt = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i)
             const row = Math.floor(i / 7)
             grid.push({ key: app.keyOf(dt), num: dt.getDate(), dow: app.dowName(dt.getDay()), col: i % 7, row: row,
                         inMonth: dt.getMonth() == this.month - 1, weekend: dt.getDay() == 0 || dt.getDay() == 6,
                         today: app.keyOf(dt) == this.todayKey, current: app.keyOf(dt) == this.anchorKey,
-                        // tag each event with its grid row so only the focused row morphs to blocks
-                        events: app.eventsOn(all, dt.getFullYear(), dt.getMonth() + 1, dt.getDate()).map(e => Object.assign(e, { crow: row })) })
+                        // tag each event copy with its grid row so only the focused row morphs to blocks
+                        events: app.eventsOn(all, dt.getFullYear(), dt.getMonth() + 1, dt.getDate()).map(e => Object.assign({}, e, { crow: row })) })
             }
-        this.cal.set("grid", grid)
-        // Year data (12 mini-months × 42 cells) is built LAZILY — only while Year is
-        // on screen. In Day/Week/Month the yearView replicates over an empty months
-        // array (zero instances), so ~1550 hidden nodes never instantiate at startup.
-        if (this.mode == "year") this.ensureYear()
+        return { grid: grid, cols: cols, hours: hours }
         },
 
-    // The twelve mini-months (504 cells) depend ONLY on the year, so build them
-    // once per year — NOT on every Year visit. That is what keeps switching in and
-    // out of Year from churning (and leaking) 500 views. The current-month accent
-    // is read reactively (`:m == app.month`), so it updates without a rebuild.
-    ensureYear() {
-        if (this.year == this.builtYear) return
-        this.builtYear = this.year
+    // ── the year grid, DERIVED but deferred + memoized. `yearCal.contents`
+    //    calls emptyYear() until Year is first visited (`yearSeen`), then this;
+    //    its only TRACKED input is `this.year` (events are read wholesale, which
+    //    a field edit does not wake), so the 504 mini-cells rebuild once per
+    //    year and never on a view switch — the old ensureYear guard, but as a
+    //    plain dependency. The current-month accent stays reactive (`:m ==
+    //    app.month`), so it follows a page turn without a rebuild. ──
+    buildMonths() {
         const all = app.data.value != null ? app.data.value.events : []
         const months = []
         for (let m = 1; m <= 12; m++) {
@@ -358,21 +378,23 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
                 }
             months.push({ m: m, name: app.monthName(m), mcol: (m - 1) % 4, mrow: Math.floor((m - 1) / 4), cells: cells })
             }
-        this.cal.set("months", months)
+        return { months: months }
         },
+    emptyYear() { return { months: [] } },
 
-    // ── navigation — a view switch is just a new `mode` (the focus rect springs);
-    //    only paging rebuilds the model ──
-    // a view switch is just a new `mode` — the focus rect springs and the cells
-    // (already built) morph. Only Year needs a build, and only Year pays for it.
-    goMode(m)   { this.selectedId = -1; this.mode = m; if (m == "year") this.ensureYear() },
+    // ── navigation — a view switch is just a new `mode` (the focus rect springs)
+    //    and a page turn is just new year/month/anchorKey. The model derives from
+    //    those, so navigation only sets state — nothing to rebuild. Keyed cells
+    //    persist across a page turn (same date key → same instance), so the zoom
+    //    morph flows through them. Year marks itself SEEN on first visit, which
+    //    is what lets its 504-cell derivation start. ──
+    goMode(m)   { this.selectedId = -1; this.mode = m; if (m == "year") this.yearSeen = true },
     pickDay(key) {
-        const d = app.parseKey(key), crossed = d.getMonth() + 1 != this.month || d.getFullYear() != this.year
+        const d = app.parseKey(key)
         this.anchorKey = key; this.year = d.getFullYear(); this.month = d.getMonth() + 1; this.selectedId = -1; this.mode = "day"
-        if (crossed) this.rebuild()      // in-month day: keep cells so the zoom morphs
         },
-    pickMonth(m)  { this.month = m; this.selectedId = -1; this.mode = "month"; this.rebuild() },
-    today()       { const n = new Date(); this.year = n.getFullYear(); this.month = n.getMonth() + 1; this.anchorKey = this.todayKey; this.rebuild() },
+    pickMonth(m)  { this.month = m; this.selectedId = -1; this.mode = "month" },
+    today()       { const n = new Date(); this.year = n.getFullYear(); this.month = n.getMonth() + 1; this.anchorKey = this.todayKey },
     step(dir) {
         // paging keeps the CURRENT day (anchorKey) coherent, so its indicator —
         // and the day a zoom pivots on — moves with you.
@@ -389,7 +411,6 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
             const n = new Date(a.getFullYear(), a.getMonth(), a.getDate() + dir * (this.mode == "week" ? 7 : 1))
             this.anchorKey = app.keyOf(n); this.year = n.getFullYear(); this.month = n.getMonth() + 1
             }
-        this.rebuild()
         },
 
     // Just note the selection — the panel points its datapath at this event and
@@ -428,24 +449,27 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
         return this.cal.value.grid[app.clamp(row, 0, this.monthRows - 1) * 7 + app.clamp(col, 0, 6)]
         },
     commitDrop(px, py) {
-        const ev = (app.data.value != null ? app.data.value.events : []).find(e => e.id == this.dragId)
-        if (ev == null) return
+        // Reschedule THROUGH the dataset's mutation API (not a raw field write),
+        // so the edit wakes the derived model exactly like a `<->` title edit —
+        // one settle, the changed day repaints, no rebuild() to call.
+        const events = app.data.value != null ? app.data.value.events : []
+        const idx = events.findIndex(e => e.id == this.dragId)
+        if (idx < 0) return
+        const ev = events[idx], p = "events." + idx + "."
         const cell = this.cellAt(px, py)
-        if (cell != null) { const d = app.parseKey(cell.key); ev.y = d.getFullYear(); ev.m = d.getMonth() + 1; ev.d = d.getDate() }
+        if (cell != null) { const d = app.parseKey(cell.key); app.data.set(p + "y", d.getFullYear()); app.data.set(p + "m", d.getMonth() + 1); app.data.set(p + "d", d.getDate()) }
         if (this.blockness > 0.5) {          // a time view: also reschedule from the drop height
             const dur = ev.end - ev.start
             let s = Math.round(((py - this.barH - this.headH - this.grabDY) / this.rowH * 1440) / 15) * 15
-            s = app.clamp(s, 0, 1440 - dur); ev.start = s; ev.end = s + dur
+            s = app.clamp(s, 0, 1440 - dur); app.data.set(p + "start", s); app.data.set(p + "end", s + dur)
             }
-        this.rebuild()
         },
 
     onInit() {
         const n = new Date()
         this.todayKey = this.keyOf(n); this.year = n.getFullYear(); this.month = n.getMonth() + 1; this.anchorKey = this.todayKey
-        this.rebuild()
         this.nr = this.monthRows        // start the row-span on the real count so the month just shows (no squish-in)
-        this.data.fetch().then(() => { app.builtYear = -1; app.rebuild() })   // events arrived: refresh grid + let Year rebuild once
+        this.data.fetch()              // events arrive as one reactive write — the derived model recomputes itself
         // OS theme (Auto mode) rides the runtime's reactive `app.dark` — nothing to wire here.
         },
 
@@ -495,14 +519,14 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
         scale = { app.lerp(1, app.miniW / app.bodyW, app.yz) }, pivotX = 0, pivotY = 0,
         // month weekday header — belongs only to the zoomed-out view, so it fades
         weekdays: View [ opacity = { 1 - app.blockness }, datapath = { app.cal.value },
-            View [ datapath = :cols[], x = { app.pad + :col * (app.bodyW - 2 * app.pad) / 7 + 11 },
+            View [ datapath = :cols[], key = :col, x = { app.pad + :col * (app.bodyW - 2 * app.pad) / 7 + 11 },
                 l: Text [ y = 9, fontSize = 11, wrap = false, textColor = { theme.textMuted }, text = { :name } ] ] ],
         // the hour grid — belongs only to the zoomed-in views, so it fades in
         hours: View [ opacity = { app.blockness }, datapath = { app.cal.value },
-            View [ datapath = :hours[], y = { app.headH + :h / 24 * (app.bodyH - app.headH) }, width = { app.bodyW }, height = 1, fill = { theme.gridLine },
+            View [ datapath = :hours[], key = :h, y = { app.headH + :h / 24 * (app.bodyH - app.headH) }, width = { app.bodyW }, height = 1, fill = { theme.gridLine },
                 lbl: Text [ x = 6, y = 1, fontSize = 10, wrap = false, textColor = { theme.hourLabel }, text = { :label } ] ] ],
         // the day-grid itself — every cell is one slot mapped through the moving focus span
-        grid: View [ datapath = { app.cal.value }, Cell [ datapath = :grid[] ] ],
+        grid: View [ datapath = { app.cal.value }, Cell [ datapath = :grid[], key = :key ] ],
         ],
 
     // ═══════════════════════════ year — the same surface, one level further out ═══════════════════════════
@@ -511,7 +535,7 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
     // months sweep in around the shrinking board.
     yearView: View [ y = { app.barH }, width = { app.bodyW }, height = { app.bodyH }, clip = true, visible = { app.yz > 0.02 },
         scale = { app.lerp(app.bodyW / app.miniW, 1, app.yz) }, pivotX = { app.slotX + app.miniW / 2 }, pivotY = { app.slotY + app.miniH / 2 },
-        grid: View [ width = { parent.width }, height = { parent.height }, datapath = { app.cal.value }, MiniMonth [ datapath = :months[] ] ] ],
+        grid: View [ width = { parent.width }, height = { parent.height }, datapath = { app.yearCal.value }, MiniMonth [ datapath = :months[], key = :m ] ] ],
 
     // ═══════════════ event-detail panel (rides `panelInset` in from the right) ═══════════════
     // The panel points its datapath at the SELECTED EVENT itself (the real
@@ -524,11 +548,12 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
         close: Text [ x = { parent.width - 36 }, y = 16, fontSize = 22, wrap = false, textColor = { theme.textFaint }, text = "×", onClick() { app.closeDetail() } ],
         rail:  View [ x = 26, y = 30, width = 4, height = 46, cornerRadius = 2, fill = { app.catText(:category) } ],
         time:  Text [ x = 40, y = 62, fontSize = 13, wrap = false, textColor = { theme.accentSoft }, text = { app.shortTime(:start) + " – " + app.shortTime(:end) } ],
-        // `text <-> :title` shows the event's title and commits edits back to it;
-        // the extra onInput just refreshes the grid, whose chips are a built copy.
+        // `text <-> :title` shows the event's title and commits edits back to it —
+        // and because the grid is DERIVED from the events (not a built copy), the
+        // chip on the day updates itself as you type. No onInput handler.
         title: TextInput [ x = 38, y = 26, width = { parent.width - 76 }, height = 30, wrap = true, fontSize = 18, fontWeight = bold,
                            textColor = { theme.textPrimary }, placeholder = "Untitled event",
-                           text <-> :title, onInput(v) { app.rebuild() } ],
+                           text <-> :title ],
         secs: View [ x = 22, y = 104, width = { parent.width - 44 }, layout: SimpleLayout [ axis = y, spacing = 8 ],
             DetailSection [ idx = 0, label = "NOTES",     field = "notes" ],
             DetailSection [ idx = 1, label = "LOCATION",  field = "location" ],
