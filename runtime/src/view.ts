@@ -128,6 +128,14 @@ export class View extends Node {
   declare fontWeight: FontWeight;
   /** Letter tracking in px (canvas-native), 0 = natural advances. */
   declare letterSpacing: number;
+  /** Rich-text STRUCTURE style, prevailing: a `Markdown`/`HTMLText` renders its
+   *  headings/links/inline-code from these; a plain View just carries them for
+   *  its rich-text descendants. Colours are `null` = the theme-aware house token;
+   *  `headingWeight` defaults to the house `bold`. */
+  declare headingColor: Color;
+  declare headingWeight: FontWeight;
+  declare linkColor: Color;
+  declare codeColor: Color;
   /** Native text selection, prevailing: `selectable = true` on a container opts
    *  its whole subtree back into browser selection/copy (Text acts on it; a
    *  `Markdown` component's runs inherit it). Off by default — the app is a UI. */
@@ -524,6 +532,12 @@ defineAttributes(View, {
   fontFamily: { def: "sans-serif", prevailing: true },
   fontWeight: { def: "normal", prevailing: true },
   letterSpacing: { def: 0, prevailing: true },
+  // Rich-text structure overrides — consumed by Markdown/HTMLText (null colour =
+  // the theme-aware house token; headingWeight = the house bold).
+  headingColor: { def: null, prevailing: true },
+  headingWeight: { def: "bold", prevailing: true },
+  linkColor: { def: null, prevailing: true },
+  codeColor: { def: null, prevailing: true },
   theme: { def: DEFAULT_THEME, prevailing: true },
   styles: { def: null },
   // The pusher installs appliers under a newly-providing view (existing

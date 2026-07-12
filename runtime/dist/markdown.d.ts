@@ -1,24 +1,9 @@
 import { View } from "./view.js";
-import type { RenderBackend, RichBlock, Surface } from "./backend.js";
+import type { RenderBackend, Surface } from "./backend.js";
 import { type Block } from "./md.js";
 import { type Unsupported } from "./html.js";
 import type { Fill } from "./value.js";
-/** A flowing block of styled text. `content` (resolved runs) and `flowWidth`
- *  are set by its owner before attach; it renders natively (DOM) or manually
- *  (canvas) and auto-sizes its height to the flowed content. */
-export declare class RichText extends View {
-    content: RichBlock[];
-    flowWidth: number;
-    onLink: ((href: string) => void) | null;
-    private manual;
-    attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
-    private clearManual;
-    /** The backend re-measured the native flow (font load, or becoming visible
-     *  after attaching under a zero-sized ancestor). Track it so the stack re-flows. */
-    private onMeasured;
-    private render;
-}
-declare abstract class FlowMarkup extends View {
+export declare abstract class RichText extends View {
     lineHeight: number;
     bodyColor: number | null;
     scale: number;
@@ -42,7 +27,7 @@ declare abstract class FlowMarkup extends View {
     private rebuild;
 }
 /** Rich content authored in Markdown (`text`). */
-export declare class Markdown extends FlowMarkup {
+export declare class Markdown extends RichText {
     text: string;
     protected sourceKey(): string;
     protected parseSource(): Block[];
@@ -51,7 +36,7 @@ export declare class Markdown extends FlowMarkup {
  *  render time. `unsupported` decides what a tag outside the set does — `strip`
  *  (unwrap, keep text) or `error` (throw) — so LOADED content has defined
  *  behaviour, never silent corruption. Same flow engine as Markdown. */
-export declare class HTMLText extends FlowMarkup {
+export declare class HTMLText extends RichText {
     html: string;
     unsupported: Unsupported;
     accents: Record<string, Fill>;
@@ -59,4 +44,3 @@ export declare class HTMLText extends FlowMarkup {
     protected parseSource(): Block[];
     protected accentsOf(): Record<string, Fill>;
 }
-export {};

@@ -45,17 +45,5 @@ What a tag **outside the whitelist** does — the reason this is safe for loaded
 - `error` — the first unsupported tag **throws**, naming it. Use this when unexpected markup
   should be a hard failure rather than silently pruned.
 
-## lineHeight
-Leading multiplier on the natural line height — `1` (the default) is tight, `1.5` airy.
-Tune prose density without touching the font size.
-
-## bodyColor
-Overrides the built-in body-text colour (`null` = the default). Headings and inline code
-keep their own tokens, so this dims **running text only** — the hierarchy stays crisp.
-
-## onLink
-An `<a href>` was activated — you get its `href`, and you decide what it means: scroll to an
-anchor, set an in-app route, or open externally. The runtime only delivers the click. Left
-unhandled, a link falls back to `app.navigate` (so external links work with no wiring);
-declaring `onLink` overrides that. It stays a real `<a>` on the DOM, so modifier/middle
-clicks open a new tab natively. Same on both backends.
+(`lineHeight`, `bodyColor`, and `onLink` — the shared prose styling and the link event — come
+from the `RichText` base.)

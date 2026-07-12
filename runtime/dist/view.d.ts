@@ -69,6 +69,14 @@ export declare class View extends Node {
     fontWeight: FontWeight;
     /** Letter tracking in px (canvas-native), 0 = natural advances. */
     letterSpacing: number;
+    /** Rich-text STRUCTURE style, prevailing: a `Markdown`/`HTMLText` renders its
+     *  headings/links/inline-code from these; a plain View just carries them for
+     *  its rich-text descendants. Colours are `null` = the theme-aware house token;
+     *  `headingWeight` defaults to the house `bold`. */
+    headingColor: Color;
+    headingWeight: FontWeight;
+    linkColor: Color;
+    codeColor: Color;
     /** Native text selection, prevailing: `selectable = true` on a container opts
      *  its whole subtree back into browser selection/copy (Text acts on it; a
      *  `Markdown` component's runs inherit it). Off by default — the app is a UI. */

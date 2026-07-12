@@ -406,6 +406,12 @@ defineAttributes(View, {
     fontFamily: { def: "sans-serif", prevailing: true },
     fontWeight: { def: "normal", prevailing: true },
     letterSpacing: { def: 0, prevailing: true },
+    // Rich-text structure overrides — consumed by Markdown/HTMLText (null colour =
+    // the theme-aware house token; headingWeight = the house bold).
+    headingColor: { def: null, prevailing: true },
+    headingWeight: { def: "bold", prevailing: true },
+    linkColor: { def: null, prevailing: true },
+    codeColor: { def: null, prevailing: true },
     theme: { def: DEFAULT_THEME, prevailing: true },
     styles: { def: null },
     // The pusher installs appliers under a newly-providing view (existing

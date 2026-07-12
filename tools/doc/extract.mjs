@@ -17,12 +17,16 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync } from
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
-import { SCHEMAS } from "../../runtime/dist/schema.js";
+import { SCHEMAS, RichTextSchema } from "../../runtime/dist/schema.js";
 import { compile } from "../../compiler/dist/compile-node.js";
+
+// RichText is the abstract base of Markdown/HTMLText — documented, but not in the
+// instantiable SCHEMAS registry (like Layout). Fold it in for the extractor only.
+const DOC_SCHEMAS = { ...SCHEMAS, RichText: RichTextSchema };
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const TARGETS = [                                        // the documented component surface
-  "View", "App", "Text", "Image", "Markdown", "HTMLText", "HTML", "TextInput",
+  "View", "App", "Text", "Image", "RichText", "Markdown", "HTMLText", "HTML", "TextInput",
   "SimpleLayout", "WrappingLayout", "TweenLayout",
   "Dataset", "DataSource",
   "Animator", "AnimatorGroup", "Spring", "State", "Node",
@@ -236,7 +240,7 @@ function readExample(name) {
 }
 
 for (const name of TARGETS) {
-  const schema = SCHEMAS[name];
+  const schema = DOC_SCHEMAS[name];
   if (!schema) throw new Error(`extract: no schema for ${name}`);
   const prose = readProse(name);
   const decor = DECOR[name] ?? {};

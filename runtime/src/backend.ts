@@ -17,7 +17,7 @@ import type { DisplayList } from "./draw.js";
  *  RichText component bakes the effective font/colour into each run so a backend
  *  just realizes what it is told (no palette knowledge across the seam). */
 export type RichRun =
-  | { text: string; size: number; weight: FontWeight; italic: boolean; family: string; strike: boolean; color: number; fill?: Fill; chipBg?: number; href?: string }
+  | { text: string; size: number; weight: FontWeight; italic: boolean; family: string; strike: boolean; color: number; tracking: number; fill?: Fill; chipBg?: number; href?: string }
   | { br: true };
 /** One block of a rich-text flow — a paragraph or heading (`tag` = "p" | "h1"…
  *  "h6" for native semantics), its inline runs, the space above it, and its line

@@ -54,6 +54,16 @@ const COLORS_LIGHT = {
 let C = COLORS_DARK; // active set; set at the top of each rebuild
 let SCALE = 1; // font-size multiplier (the `scale` attr), set per rebuild
 let ACCENTS = {}; // named text fills (HTMLText `accents`), set per rebuild
+// The running-text style pulled from the prevailing text slots (fontSize/
+// fontWeight/letterSpacing), set per rebuild — so ALL prose body (paragraphs
+// AND list/quote/table text) obeys the ambient text style, like a `Text`.
+let BODY = { size: 16, weight: "normal", tracking: 0 };
+// The rich-text STRUCTURE style, resolved per rebuild from the prevailing
+// structural slots (headingColor/headingWeight/linkColor/codeColor) with the
+// theme-aware house token as the fallback — so headings/links/inline-code obey
+// an app-wide override but look right with zero config.
+let HEADINGW = "bold";
+let HEADINGC = 0, LINKC = 0, CODEC = 0;
 /** Resolve a `<span class="…">` name to a themed fill: the whole class, else its
  *  first matching token (`"accent big"`); no match ⇒ undefined (plain text). */
 function resolveAccent(name) {
@@ -66,8 +76,8 @@ function resolveAccent(name) {
 }
 const sz = (n) => Math.round(n * SCALE); // scale a prose size, keeping whole pixels
 const FALLBACK_FAMILY = "system-ui, sans-serif";
-function base(size, weight, color) {
-    return { size: sz(size), weight, italic: false, mono: false, strike: false, color };
+function base(size, weight, color, tracking = 0) {
+    return { size: sz(size), weight, italic: false, mono: false, strike: false, color, tracking };
 }
 function fontOf(s, family) {
     return fontString({ fontFamily: s.mono ? PROSE.mono : family, fontSize: s.size, fontWeight: s.weight, italic: s.italic });
@@ -80,7 +90,7 @@ function flatten(ns, style, out) {
                 out.push({ text: n.value, style });
                 break;
             case "code":
-                out.push({ text: n.value, style: { ...style, mono: true, color: C.code } });
+                out.push({ text: n.value, style: { ...style, mono: true, color: CODEC } });
                 break;
             case "br":
                 out.push({ br: true });
@@ -95,7 +105,7 @@ function flatten(ns, style, out) {
                 flatten(n.inline, { ...style, strike: true }, out);
                 break;
             case "link":
-                flatten(n.inline, { ...style, color: C.link, link: n.href }, out);
+                flatten(n.inline, { ...style, color: LINKC, link: n.href }, out);
                 break;
             case "fill": {
                 const f = resolveAccent(n.name);
@@ -117,7 +127,7 @@ function layoutInline(runs, style, family, width, align = "left", lineHeightMul 
     const lineH = Math.ceil(bm.ascent + bm.descent); // the glyph box (chip height)
     const adv = Math.ceil(lineH * lineHeightMul); // the line stride, incl. leading
     const halfLead = Math.round((adv - lineH) / 2); // centre each line in its slot
-    const spaceW = textWidth(" ", baseFont);
+    const spaceW = textWidth(" ", baseFont, style.tracking);
     const tokens = [];
     let word = [];
     const flushWord = () => { if (word.length) {
@@ -140,7 +150,7 @@ function layoutInline(runs, style, family, width, align = "left", lineHeightMul 
                     tokens.push({ sp: true }); // one space between words, none leading
             }
             else {
-                word.push({ text: part, style: a.style, w: textWidth(part, fontOf(a.style, family)) });
+                word.push({ text: part, style: a.style, w: textWidth(part, fontOf(a.style, family), a.style.tracking) });
             }
         }
     }
@@ -243,6 +253,8 @@ class Column {
             t.fontFamily = p.style.mono ? PROSE.mono : this.family;
             t.textColor = p.style.color;
             t.text = p.text;
+            if (p.style.tracking !== 0)
+                t.letterSpacing = p.style.tracking;
             if (p.style.fill !== undefined)
                 t.textFill = p.style.fill;
             if (p.style.link !== undefined && this.onLink) {
@@ -297,7 +309,7 @@ function richRunsOf(inline, style, family) {
         const s = a.style;
         const run = {
             text: a.text, size: s.size, weight: s.weight, italic: s.italic,
-            family: s.mono ? PROSE.mono : family, strike: s.strike, color: s.color,
+            family: s.mono ? PROSE.mono : family, strike: s.strike, color: s.color, tracking: s.tracking,
         };
         if (s.mono)
             run.chipBg = C.codeChip;
@@ -345,7 +357,7 @@ function flowRichCanvas(blocks, width, onLink) {
                         toks.push({ sp: true });
                 }
                 else
-                    word.push({ text: part, run: r, w: textWidth(part, f) });
+                    word.push({ text: part, run: r, w: textWidth(part, f, r.tracking) });
             }
         }
         flush();
@@ -389,6 +401,8 @@ function flowRichCanvas(blocks, width, onLink) {
                 t.fontFamily = r.family;
                 t.textColor = r.color;
                 t.text = p.text;
+                if (r.tracking !== 0)
+                    t.letterSpacing = r.tracking;
                 if (r.fill !== undefined)
                     t.textFill = r.fill; // themed accent (gradient/solid) — same ramp as the DOM path
                 if (r.href !== undefined && onLink) {
@@ -405,10 +419,11 @@ function flowRichCanvas(blocks, width, onLink) {
     }
     return { views, height: y };
 }
-/** A flowing block of styled text. `content` (resolved runs) and `flowWidth`
- *  are set by its owner before attach; it renders natively (DOM) or manually
- *  (canvas) and auto-sizes its height to the flowed content. */
-export class RichText extends View {
+/** TextFlow — the internal native-flow renderer (NOT a user component; see the
+ *  RichText family below). A flowing block of styled text: `content` (resolved
+ *  runs) and `flowWidth` are set by its owner before attach; it renders natively
+ *  (DOM) or manually (canvas) and auto-sizes its height to the flowed content. */
+class TextFlow extends View {
     content = [];
     flowWidth = 0;
     onLink = null;
@@ -416,7 +431,7 @@ export class RichText extends View {
     attach(backend, parentSurface, before = null) {
         super.attach(backend, parentSurface, before);
         // Re-flow when the width or the prevailing `selectable` changes.
-        const c = new Constraint("RichText.flow", () => `${this.flowWidth} ${this.selectable}`, () => this.render(), 0);
+        const c = new Constraint("TextFlow.flow", () => `${this.flowWidth} ${this.selectable}`, () => this.render(), 0);
         c.run();
         onDiscard(this, () => c.dispose());
     }
@@ -466,10 +481,10 @@ function renderBlocks(blocks, col, x0, width, textColor = C.bodyColor) {
         const b = blocks[bi];
         switch (b.t) {
             case "heading":
-                col.flow(b.inline, x0, width, base(PROSE.heading[b.level - 1], "bold", C.headingColor));
+                col.flow(b.inline, x0, width, base(PROSE.heading[b.level - 1], HEADINGW, HEADINGC));
                 break;
             case "paragraph":
-                col.flow(b.inline, x0, width, base(PROSE.body, "normal", textColor));
+                col.flow(b.inline, x0, width, base(BODY.size, BODY.weight, textColor, BODY.tracking));
                 break;
             case "rule":
                 col.place(rectView(width, 1, C.rule), x0, 1);
@@ -510,8 +525,8 @@ function renderBlocks(blocks, col, x0, width, textColor = C.bodyColor) {
                     // x0 beside the first line. (Previously the marker was inline and wraps
                     // fell back to x0 — the "continuation left of the text" margin bug.)
                     const y0 = col.y;
-                    col.flow(lead, x0 + PROSE.indent, width - PROSE.indent, base(PROSE.body, "normal", textColor));
-                    col.mark(marker, x0, y0, base(PROSE.body, "normal", textColor));
+                    col.flow(lead, x0 + PROSE.indent, width - PROSE.indent, base(BODY.size, BODY.weight, textColor, BODY.tracking));
+                    col.mark(marker, x0, y0, base(BODY.size, BODY.weight, textColor, BODY.tracking));
                     const tail = head && (head.t === "paragraph" || head.t === "heading") ? rest : it.blocks;
                     if (tail.length) {
                         col.gap(PROSE.itemGap);
@@ -537,13 +552,13 @@ function renderTable(b, col, x0, width, bodyColor = C.bodyColor) {
         let h = 0;
         for (let c = 0; c < cols; c++) {
             const cell = cells[c] ?? [];
-            const f = layoutInline(cell, base(PROSE.body, weight, color), col.family, colW, b.align[c] ?? "left", col.lineHeight);
+            const f = layoutInline(cell, base(BODY.size, weight, color, BODY.tracking), col.family, colW, b.align[c] ?? "left", col.lineHeight);
             col.put(f, colX(c), top);
             h = Math.max(h, f.height);
         }
         col.y = top + h;
     };
-    row(b.header, "bold", C.headingColor);
+    row(b.header, HEADINGW, HEADINGC);
     col.gap(PROSE.itemGap);
     col.place(rectView(width, 1, C.rule), x0, 1);
     for (const r of b.rows) {
@@ -552,11 +567,14 @@ function renderTable(b, col, x0, width, bodyColor = C.bodyColor) {
     }
 }
 // ── the components ───────────────────────────────────────────────────────────
-// The rendering engine is source-agnostic: it takes a parsed block tree and
-// stacks it. `Markdown` and `HTMLText` differ ONLY in how they get that tree —
-// the flow layer (RichText for prose, Column for structure) is shared. So the
-// base owns the reactive render, and each concrete component supplies a parser.
-class FlowMarkup extends View {
+// `RichText` is the ABSTRACT family: flowing, structured, styled text. You never
+// write `RichText [ ]` (like `Layout`, it names no format) — you write `Markdown`
+// or `HTMLText`, which differ ONLY in how they parse their source into the block
+// tree. The rendering engine is shared here (TextFlow for prose, Column for
+// structure); the base owns the reactive render, each concrete class supplies a
+// parser. Shared attributes (lineHeight/bodyColor/scale) and the `link` event
+// live on the base, so both formats inherit them.
+export class RichText extends View {
     built = [];
     /** Named text fills a source can reference (HTMLText's `accents`); none by
      *  default — Markdown has no syntax to name one. */
@@ -605,6 +623,18 @@ class FlowMarkup extends View {
         const family = this.fontFamily || FALLBACK_FAMILY;
         const lead = this.lineHeight || 1;
         const bodyColor = this.bodyColor ?? C.bodyColor;
+        // Running text obeys the ambient (prevailing) text style, exactly like a
+        // `Text` does — so rich text is no longer the one text in the language that
+        // ignores its inherited style. Size/weight/tracking follow fontSize/fontWeight/
+        // letterSpacing; their View defaults (16/normal/0) match the house body, so
+        // prose that sets nothing renders unchanged. Colour stays on the theme-aware
+        // `bodyColor` house default (textColor's default is opaque black, which would
+        // break dark-mode prose), overridable via `bodyColor`.
+        BODY = { size: this.fontSize || PROSE.body, weight: this.fontWeight || "normal", tracking: this.letterSpacing || 0 };
+        HEADINGW = this.headingWeight || "bold";
+        HEADINGC = this.headingColor ?? C.headingColor;
+        LINKC = this.linkColor ?? C.link;
+        CODEC = this.codeColor ?? C.code;
         const onLink = (href) => this.dispatchLink(href); // click on a link run → app policy
         // Group consecutive paragraphs and headings into ONE native RichText (so
         // their selection, baselines and copy are the platform's, contiguously);
@@ -615,7 +645,7 @@ class FlowMarkup extends View {
         const flushGroup = () => {
             if (group.length === 0)
                 return;
-            const rt = new RichText();
+            const rt = new TextFlow();
             rt.width = width;
             rt.flowWidth = width;
             rt.content = group;
@@ -627,8 +657,8 @@ class FlowMarkup extends View {
             if (b.t === "paragraph" || b.t === "heading") {
                 const gapBefore = group.length === 0 ? 0 : PROSE.blockGap;
                 group.push(b.t === "heading"
-                    ? { tag: `h${b.level}`, runs: richRunsOf(b.inline, base(PROSE.heading[b.level - 1], "bold", C.headingColor), family), gapBefore, lineHeight: 1.2, fontSize: sz(PROSE.heading[b.level - 1]) }
-                    : { tag: "p", runs: richRunsOf(b.inline, base(PROSE.body, "normal", bodyColor), family), gapBefore, lineHeight: lead, fontSize: sz(PROSE.body) });
+                    ? { tag: `h${b.level}`, runs: richRunsOf(b.inline, base(PROSE.heading[b.level - 1], HEADINGW, HEADINGC), family), gapBefore, lineHeight: 1.2, fontSize: sz(PROSE.heading[b.level - 1]) }
+                    : { tag: "p", runs: richRunsOf(b.inline, base(BODY.size, BODY.weight, bodyColor, BODY.tracking), family), gapBefore, lineHeight: lead, fontSize: sz(BODY.size) });
             }
             else {
                 flushGroup();
@@ -661,7 +691,7 @@ class FlowMarkup extends View {
     }
 }
 /** Rich content authored in Markdown (`text`). */
-export class Markdown extends FlowMarkup {
+export class Markdown extends RichText {
     sourceKey() { return this.text; }
     parseSource() { return parse(this.text); }
 }
@@ -669,13 +699,15 @@ export class Markdown extends FlowMarkup {
  *  render time. `unsupported` decides what a tag outside the set does — `strip`
  *  (unwrap, keep text) or `error` (throw) — so LOADED content has defined
  *  behaviour, never silent corruption. Same flow engine as Markdown. */
-export class HTMLText extends FlowMarkup {
+export class HTMLText extends RichText {
     // `accents` folded into the key (as a signature) so a re-themed fill re-renders.
     sourceKey() { return this.html + " " + this.unsupported + " " + JSON.stringify(this.accents ?? {}); }
     parseSource() { return parseHtml(this.html, this.unsupported); }
     accentsOf() { return this.accents ?? {}; }
 }
-const FLOW_ATTRS = { lineHeight: { def: 1 }, bodyColor: { def: null }, scale: { def: 1 } };
-defineAttributes(Markdown, { text: { def: "" }, ...FLOW_ATTRS });
-defineAttributes(HTMLText, { html: { def: "" }, unsupported: { def: "strip" }, accents: { def: {} }, ...FLOW_ATTRS });
+// Shared attributes live on the RichText base; Markdown/HTMLText inherit them
+// and add only their own source attribute(s).
+defineAttributes(RichText, { lineHeight: { def: 1 }, bodyColor: { def: null }, scale: { def: 1 } });
+defineAttributes(Markdown, { text: { def: "" } });
+defineAttributes(HTMLText, { html: { def: "" }, unsupported: { def: "strip" }, accents: { def: {} } });
 //# sourceMappingURL=markdown.js.map

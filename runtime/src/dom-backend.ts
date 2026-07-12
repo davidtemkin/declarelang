@@ -503,6 +503,7 @@ class DomSurface implements Surface {
             rs.color = colorToCss(r.fill);
           }
         }
+        if (r.tracking !== 0) rs.letterSpacing = r.tracking + "px";
         if (r.strike) rs.textDecoration = "line-through";
         if (r.chipBg !== undefined) {
           rs.backgroundColor = colorToCss(r.chipBg);

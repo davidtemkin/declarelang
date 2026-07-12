@@ -21,6 +21,7 @@ export interface ComponentSchema {
      *  `base` chain; absent = declares none of its own. */
     readonly events?: readonly string[];
 }
+export declare const RichTextSchema: ComponentSchema;
 /** Tag → schema: the checker's component registry. Must stay in step with
  *  instantiate.ts's tag → class table (layout strategies with its layout
  *  table, data nodes with its data table, animators with its animator table);

@@ -9,6 +9,9 @@
 // front-end (APPROACH §5) reuses check — and therefore these schemas — with
 // no runtime import. instantiate.ts keeps the twin tag → class table.
 import { enumType } from "./value.js";
+// The formalized weight vocabulary (CSS 100–900 tokens + normal/bold aliases),
+// shared by View's `fontWeight`/`headingWeight` and the `font` face keys.
+const FONT_WEIGHT = enumType("FontWeight", "thin", "extralight", "light", "regular", "normal", "medium", "semibold", "bold", "extrabold", "black");
 // View's literal attributes (the language reference's View header, §6):
 // Length for the geometry — px, or a percent awaiting R4's resolution —
 // plain number/boolean for the rest. `clip` (R3) is the first Shape-typed
@@ -65,14 +68,23 @@ const ViewSchema = {
         textColor: { kind: "color" },
         fontSize: { kind: "number" },
         fontFamily: { kind: "font" },
-        // The formalized weight vocabulary (shared with the `font` declaration's
-        // face keys): the CSS 100–900 tokens plus the `normal`/`bold` aliases.
-        // fontString maps each to its numeric CSS weight, which also PICKS the
-        // matching web face when a `font` provides several.
-        fontWeight: enumType("FontWeight", "thin", "extralight", "light", "regular", "normal", "medium", "semibold", "bold", "extrabold", "black"),
+        // fontString maps each weight token to its numeric CSS weight, which also
+        // PICKS the matching web face when a `font` provides several.
+        fontWeight: FONT_WEIGHT,
         // Tracking (canvas-native: ctx.letterSpacing / CSS letter-spacing), in px;
         // 0 = the browser's natural advances (the Flash auto-tracking stays shed).
         letterSpacing: { kind: "number" },
+        // Rich-text STRUCTURE overrides (the prose-specific styling slots — the twin
+        // of the text-style slots above, for the parts a `Text` doesn't have). A
+        // `Markdown`/`HTMLText` renders its headings/links/inline-code from these;
+        // like the text slots they are prevailing (set once on a container → all
+        // prose below picks them up) and declared on View so any ancestor provides
+        // them. Colours default `null` = the theme-aware house token; `headingWeight`
+        // defaults to the house `bold`.
+        headingColor: { kind: "color" },
+        headingWeight: FONT_WEIGHT,
+        linkColor: { kind: "color" },
+        codeColor: { kind: "color" },
         theme: { kind: "record", name: "Theme" },
         // Native text selection — a prevailing slot so a whole subtree opts in from
         // one place: `selectable = true` on a container makes all its Text (including
@@ -109,7 +121,7 @@ const ViewSchema = {
         contentWidth: { kind: "length" },
         contentHeight: { kind: "length" },
     },
-    prevailing: ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing", "theme", "stylesheet", "selectable"],
+    prevailing: ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing", "headingColor", "headingWeight", "linkColor", "codeColor", "theme", "stylesheet", "selectable"],
     readOnly: ["contentWidth", "contentHeight"],
     // R5: the pointer trio (click = press and release on the same view — the
     // shared router's rule, input.ts) plus the construction-complete lifecycle
@@ -252,40 +264,48 @@ const TextInputSchema = {
     },
     events: ["input", "enter"],
 };
-// Markdown (design/text-and-markdown.md): rich content authored in Markdown.
-// `text` is parsed (md.ts) to a block tree and rendered as a vertical stack of
-// wrapped, prose-styled views — literal or computed/streamed, rendered
-// reactively. A View subclass, so it carries the box/layout surface too.
-const MarkdownSchema = {
-    name: "Markdown",
+// RichText (design/text-and-markdown.md): the ABSTRACT family of flowing,
+// structured, styled text. Like `Layout`, it names no format — `RichText [ ]` is
+// deliberately NOT in the name table (writing it reports "unknown component") —
+// but it anchors the chain and holds what `Markdown` and `HTMLText` share: the
+// prose tuning attributes and the `link` event. You always write one of its two
+// concrete formats, which differ ONLY in how they parse their source.
+export const RichTextSchema = {
+    name: "RichText",
     base: ViewSchema,
     attrs: {
-        text: { kind: "string" },
-        // Prose tuning (design/text-and-markdown.md): `lineHeight` is a leading
-        // multiplier on the natural line box (1 = tight, the default; 1.5 = airy),
-        // and `bodyColor` overrides the built-in prose body colour (null = the
-        // PROSE default). Headings/code keep their own tokens — only running text
-        // dims/loosens, so hierarchy stays crisp.
+        // Prose tuning: `lineHeight` is a leading multiplier on the natural line box
+        // (1 = tight, the default; 1.5 = airy); `bodyColor` overrides the running-text
+        // colour (null = the theme-aware house body). Body size/weight/tracking follow
+        // the ambient text style (fontSize/fontWeight/letterSpacing), like a `Text`.
         lineHeight: { kind: "number" },
         bodyColor: { kind: "color" },
-        // `scale` multiplies every prose size (headings, body, code) — a font-size
-        // zoom knob a reader control can drive; 1 = the natural sizes.
+        // `scale` multiplies the house structure sizes (headings, code) — a font-size
+        // zoom a reader control can drive; 1 = the natural sizes.
         scale: { kind: "number" },
     },
-    // A link (`[text](url)`) in the prose was clicked — `onLink(href)`. The runtime
+    // A link (`[text](url)` / `<a href>`) was clicked — `onLink(href)`. The runtime
     // supplies mechanism only (the click + href); the app dispatches policy (scroll,
     // route, or `app.navigate`). Unhandled links fall back to `app.navigate`.
     events: ["link"],
+};
+// Markdown: rich content authored in Markdown (`text`), parsed (md.ts) to the
+// block tree the RichText engine renders — literal or computed/streamed, reactive.
+const MarkdownSchema = {
+    name: "Markdown",
+    base: RichTextSchema,
+    attrs: {
+        text: { kind: "string" },
+    },
 };
 // HTMLText: the sibling of Markdown for content authored (or LOADED) as a
 // WHITELISTED HTML subset. `html` is parsed at render time against a fixed tag
 // set (html.ts) into the SAME block tree Markdown renders. `unsupported` chooses
 // the behaviour for a tag outside the set — `strip` (unwrap, keep text) or
-// `error` (throw) — so loaded/untrusted content is never silently mangled. The
-// prose knobs (lineHeight/bodyColor/scale) are shared with Markdown.
+// `error` (throw) — so loaded/untrusted content is never silently mangled.
 const HTMLTextSchema = {
     name: "HTMLText",
-    base: ViewSchema,
+    base: RichTextSchema,
     attrs: {
         html: { kind: "string" },
         unsupported: enumType("Unsupported", "strip", "error"),
@@ -293,13 +313,7 @@ const HTMLTextSchema = {
         // (`accents = { { accent: gradient("90deg", 0x…, 0x…) } }`). The one styling
         // hook: content names a fill the app defines; it never carries CSS itself.
         accents: { kind: "record", name: "Accents" },
-        lineHeight: { kind: "number" },
-        bodyColor: { kind: "color" },
-        scale: { kind: "number" },
     },
-    // A link (`<a href>`) was clicked — `onLink(href)`; same mechanism/policy split
-    // as Markdown. Unhandled links fall back to `app.navigate`.
-    events: ["link"],
 };
 // Layout strategies (R7). The abstract base is deliberately NOT in the name
 // table — `layout: Layout [ ]` names no arrangement, so writing it reports

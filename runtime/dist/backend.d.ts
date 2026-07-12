@@ -12,6 +12,7 @@ export type RichRun = {
     family: string;
     strike: boolean;
     color: number;
+    tracking: number;
     fill?: Fill;
     chipBg?: number;
     href?: string;
