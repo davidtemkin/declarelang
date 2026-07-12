@@ -135,6 +135,14 @@ function extractBody(sf: ts.Node, locals: Set<string>): BodyDeps {
     let pathEnd: ts.Node = base;
     for (const s of ordered) {
       if (ts.isPropertyAccessExpression(s) && s.parent && ts.isCallExpression(s.parent) && s.parent.expression === s) continue;
+      if (ts.isPropertyAccessExpression(s) && COMPUTED_DEFAULTS.has(s.name.text)) {
+        // A read of a computed `{ }` default is a formula, not a subscribable slot:
+        // inline it like a method call so its (branch-union) deps become ours, rather
+        // than recording the slot itself (which has no cell to fire).
+        calls.push({ name: s.name.text, receiver: s.expression.getText() });
+        pathEnd = base;
+        break;
+      }
       if (ts.isPropertyAccessExpression(s)) { pathEnd = s; }
       else if (ts.isElementAccessExpression(s)) {
         const idx = s.argumentExpression;
@@ -188,6 +196,14 @@ function extractBody(sf: ts.Node, locals: Set<string>): BodyDeps {
 
 let USER_METHODS = new Map<string, { params: string[]; body: string }>();
 
+// Computed `{ }` DECL DEFAULTS (`name: type = { … }`) by name. Unlike a `name =
+// { … }` ATTRIBUTE (a standing constraint that owns a cell), a computed default has
+// NO cell — it is evaluated inline on each read, its reads flowing to the reader.
+// So reading one is not a subscribable edge; it must be INLINED like a zero-arg
+// method call, unioning its (branch-union) deps. Keyed by name (as methods are);
+// same-named defaults on different elements union — a sound over-approximation.
+let COMPUTED_DEFAULTS = new Map<string, string[]>();
+
 interface Summaries { own: Map<string, BodyDeps>; trans: (name: string, receiver: string) => { reads: Set<string>; errors: DepError[] } }
 
 function buildMethodSummaries(): Summaries {
@@ -196,6 +212,17 @@ function buildMethodSummaries(): Summaries {
     const sf = parseBody(body, false);
     if (!sf) { own.set(name, { reads: new Set(), calls: [], errors: [] }); continue; }
     own.set(name, extractBody(sf, collectLocals(sf, params)));
+  }
+  // Computed `{ }` defaults join the same callable graph — a default's body is an
+  // EXPRESSION (parseBody expr-mode), and same-named defaults union into one summary.
+  for (const [name, bodies] of COMPUTED_DEFAULTS) {
+    for (const body of bodies) {
+      const sf = parseBody(body, true);
+      const d: BodyDeps = sf ? extractBody(sf, collectLocals(sf, [])) : { reads: new Set(), calls: [], errors: [] };
+      const ex = own.get(name);
+      if (ex) { for (const r of d.reads) ex.reads.add(r); ex.calls.push(...d.calls); ex.errors.push(...d.errors); }
+      else own.set(name, d);
+    }
   }
   const memo = new Map<string, { reads: Set<string>; errors: DepError[] }>();
   const trans = (name: string, receiver: string, stack: Set<string> = new Set()): { reads: Set<string>; errors: DepError[] } => {
@@ -234,11 +261,22 @@ export interface ExtractedConstraint {
 /** Extract deps for every constraint in a RESOLVED program. */
 export function extractProgram(program: Program): ExtractedConstraint[] {
   USER_METHODS = new Map();
+  COMPUTED_DEFAULTS = new Map();
   const constraints: { tag: string; name: string | null; attr: string; src: string; offset: number; node: CodeValue }[] = [];
   const collect = (el: Element): void => {
     for (const m of el.methods as Method[]) USER_METHODS.set(m.name, { params: m.params, body: m.body ?? "" });
     for (const a of el.attrs as Attr[]) { const v = asCode(a.value); if (v) constraints.push({ tag: el.tag, name: el.name ?? null, attr: a.name, src: v.src, offset: v.pos?.offset ?? 0, node: v }); }
-    for (const d of el.decls as AttrDecl[]) { const v = asCode(d.def); if (v) constraints.push({ tag: el.tag, name: el.name ?? null, attr: d.name, src: v.src, offset: v.pos?.offset ?? 0, node: v }); }
+    for (const d of el.decls as AttrDecl[]) {
+      const v = asCode(d.def);
+      if (v) {
+        constraints.push({ tag: el.tag, name: el.name ?? null, attr: d.name, src: v.src, offset: v.pos?.offset ?? 0, node: v });
+        // a `{ }` DECL default is an inline formula, not a cell — register it so reads
+        // of it are inlined (a `name = { }` attribute is a standing constraint, so it
+        // stays a normal subscribable read-path and is NOT registered here).
+        const prev = COMPUTED_DEFAULTS.get(d.name);
+        if (prev) prev.push(v.src); else COMPUTED_DEFAULTS.set(d.name, [v.src]);
+      }
+    }
     for (const c of el.children) collect(c);
   };
   collect(program.root);

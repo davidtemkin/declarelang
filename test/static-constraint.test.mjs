@@ -121,5 +121,52 @@ test("dev path (build with opts.deps) takes the static path and stays reactive",
   assert.equal(app.v.width, 30, "dev static edge propagated");
 });
 
+// ── reading a computed `{ }` DECL default (regression) ────────────────────────
+// A computed default (`name: type = { }`) has no cell — it is evaluated inline, its
+// reads flowing to the reader. The extractor must INLINE a read of one (like a method
+// call) and union its BRANCH-UNION deps; otherwise the reader wires only the branch
+// live at boot and permanently misses cells read in the default's other branches.
+// (This broke calendar day/week paging: the focus targets r0To/c0To and the period
+// title read `anchorKey` only in a non-boot branch, so stepping never updated them.)
+test("reader of a computed { } default inlines its branch-union deps — conditional reactivity", () => {
+  const app = run(`App [
+      mode: string = "a", alpha: number = 1, beta: number = 2,
+      pick: number = { app.mode == "a" ? app.alpha : app.beta },
+      v: View [ width = { app.pick } ] ]`);
+  assert.equal(owner(app.v, "width").isStatic, true, "reader stays on the static path");
+  assert.equal(app.v.width, 1, "boot branch (mode=a) → alpha");
+  app.mode = "b"; settle(); assert.equal(app.v.width, 2, "switches to the other branch → beta");
+  // beta is read ONLY in the non-boot branch — the bug wired the reader without it.
+  app.beta = 9; settle();
+  assert.equal(app.v.width, 9, "a dep read only in the default's non-boot branch still propagates");
+});
+
+test("computed default whose BOOT branch reads no cell still wires the other branch's dep", () => {
+  // Mirrors the focus targets: `r0To = { app.mode==\"week\" ? app.aRow : 0 }` — at boot
+  // the ternary is false, so it returns 0 without reading aRow at all.
+  const app = run(`App [
+      on: boolean = false, val: number = 5,
+      gate: number = { app.on ? app.val : 0 },
+      v: View [ width = { app.gate } ] ]`);
+  assert.equal(owner(app.v, "width").isStatic, true);
+  assert.equal(app.v.width, 0, "boot: gate false → 0, val never read");
+  app.on = true; settle(); assert.equal(app.v.width, 5, "gate true → val");
+  app.val = 12; settle(); assert.equal(app.v.width, 12, "val (read only when on) propagates on the static path");
+});
+
+test("computed-default inlining is transitive (default → default → method → cell)", () => {
+  const app = run(`App [
+      k: string = "z",
+      idx(s) { return s == "z" ? this.base : 0 },
+      base: number = 3,
+      aRow: number = { app.idx(app.k) },
+      r0To: number = { app.aRow + 1 },
+      v: View [ width = { app.r0To } ] ]`);
+  assert.equal(owner(app.v, "width").isStatic, true);
+  assert.equal(app.v.width, 4);
+  app.base = 10; settle();
+  assert.equal(app.v.width, 11, "a cell reached only through nested defaults + a method propagates");
+});
+
 console.log(`\nstatic-constraint: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
