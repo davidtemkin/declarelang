@@ -67,7 +67,7 @@ class AttrRow extends View [ width = { parent.width },
 
     // the captured doc — prose + any inline runnable islands; dimmed for the reference
     Segment [ datapath = :docSegs[], width = { parent.width },
-              live = { classroot.live }, tone = { theme.refDim }, lead = 1.5 ],
+              live = { classroot.live }, tone = { theme.refDim }, lead = 1.6 ],
     ]
 
 // ── one method's reference row: full signature (name emphasized) then its prose ──
@@ -88,7 +88,7 @@ class MethodRow extends View [ width = { parent.width },
         ],
 
     Segment [ datapath = :docSegs[], width = { parent.width },
-              live = { classroot.live }, tone = { theme.refDim }, lead = 1.5 ],
+              live = { classroot.live }, tone = { theme.refDim }, lead = 1.6 ],
     ]
 
 // ── one event's reference row: the handler signature (`onClick()`) then its prose ──
@@ -101,7 +101,7 @@ class EventRow extends View [ width = { parent.width },
     sig: Mono [ fontSize = { 15 * app.fontScale }, fontWeight = semibold, textColor = { theme.text }, text = { :signature } ],
 
     Segment [ datapath = :docSegs[], width = { parent.width },
-              live = { classroot.live }, tone = { theme.refDim }, lead = 1.5 ],
+              live = { classroot.live }, tone = { theme.refDim }, lead = 1.6 ],
     ]
 
 // ── the live example: an editable source field beside a running preview ───────
@@ -194,7 +194,7 @@ class RunBlock extends View [ width = { parent.width },
 class Segment extends View [ width = { parent.width },
     live: boolean = false,
     tone: Color   = { theme.body },
-    lead: number  = 1.5,
+    lead: number  = 1.6,
     layout: SimpleLayout [ axis = y, spacing = 14 ],
     md: Markdown [ width = { parent.width }, lineHeight = { classroot.lead }, bodyColor = { classroot.tone }, scale = { app.fontScale },
                    visible = { :md != "" }, text = { :md } ],
@@ -264,7 +264,7 @@ class ClassDetail extends View [ width = { parent.width },
 
     // the class prose — dimmed, with any inline runnable examples woven in
     Segment [ datapath = :docSegs[], width = { parent.width },
-              live = { classroot.pageLive }, tone = { theme.refDim }, lead = 1.5 ],
+              live = { classroot.pageLive }, tone = { theme.refDim }, lead = 1.6 ],
 
     // attributes (hidden for a class that documents none — e.g. Dataset)
     attrsHead: View [ width = { parent.width }, visible = { :attributes.length > 0 },
@@ -382,8 +382,8 @@ class SizeBtn extends View [ width = 34, height = 30, cornerRadius = 6,
     fill = { hovered ? theme.hover : null },
     onMouseOver() { hovered = true },
     onMouseOut()  { hovered = false },
-    onClick() { app.fontScale = classroot.delta == 0 ? 0.85
-                    : Math.max(0.7, Math.min(1.5, Math.round((app.fontScale + classroot.delta) * 100) / 100)) },
+    onClick() { app.fontScale = classroot.delta == 0 ? 1.0
+                    : Math.max(0.8, Math.min(1.6, Math.round((app.fontScale + classroot.delta) * 100) / 100)) },
     lbl: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontWeight = semibold,
                 fontSize = { classroot.glyph }, textColor = { theme.muted }, text = "A",
                 x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 } ],
@@ -392,7 +392,7 @@ class SizeBtn extends View [ width = 34, height = 30, cornerRadius = 6,
 // ── the app: a fixed left rail + a scrolling detail pane, over the model ──────
 
 App [ fill = { theme.bg }, mode: string = "guide", chapter: string = "00-overview", selected: string = "View",
-    fontScale: number = 0.85,                  // reader font-size zoom (default = small); the A stepper drives it
+    fontScale: number = 1.0,                   // reader font-size zoom; the A stepper drives it
 
     // the whole palette in one prevailing record, switched by the OS colour scheme
     // (`app.dark`, fed live by the runtime) — every colour below reads `theme.<token>`,
@@ -451,7 +451,7 @@ App [ fill = { theme.bg }, mode: string = "guide", chapter: string = "00-overvie
     // `selectable` (prevailing) opts the whole right pane into ordinary browser
     // text selection — prose, signatures, Markdown runs — while the rail stays chrome.
     detail: View [ x = 248, y = 0, width = { app.hostWidth - 248 }, height = { app.hostHeight }, scrolls = true, selectable = true,
-        col: View [ x = 48, y = 40, width = { Math.min(680, parent.width - 96) },
+        col: View [ x = 48, y = 40, width = { Math.min(620, parent.width - 96) },
             guideCol: View [ width = { parent.width }, visible = { app.mode == "guide" },
                 ChapterDetail [ datapath = :guide[], cid = :id ],
                 ],

@@ -54,10 +54,28 @@ export async function bootHost(cfg) {
   const raf = {};
   const onKey = (e) => { if (e.key === "Escape") app.editing = false; };
   addEventListener("keydown", onKey);
+
+  // in-app routing ⟷ URL hash (#why): only for an app that declares `route` (the
+  // site). Deep-link on load, mirror route→hash on change, honour the back button.
+  const routeFromHash = () => (location.hash === "#why" ? "why" : "home");
+  const onPop = () => { if (!stopped && app.route !== undefined) app.route = routeFromHash(); };
+  if (app.route !== undefined) {
+    app.route = routeFromHash();
+    addEventListener("popstate", onPop);
+    const routeTick = () => {
+      if (stopped) return;
+      if (app.route === "why" && location.hash !== "#why") history.pushState(null, "", "#why");
+      else if (app.route !== "why" && location.hash === "#why") history.pushState(null, "", location.pathname + location.search);
+      raf.route = requestAnimationFrame(routeTick);
+    };
+    raf.route = requestAnimationFrame(routeTick);
+  }
+
   app.__teardown = () => {
     stopped = true;
     for (const k in raf) cancelAnimationFrame(raf[k]);
     removeEventListener("keydown", onKey);
+    removeEventListener("popstate", onPop);
     host.querySelectorAll('[data-neo-slot^="run:"]').forEach((box) => {
       if (box.__childApp) { disposeApp(box.__childApp); box.__childApp = null; }
     });

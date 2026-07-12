@@ -25,7 +25,9 @@ import { parseHtml } from "./html.js";
 // The role → style map that makes rendered Markdown look good with zero author
 // effort, on the theme tokens. A design artifact, deliberately data (not code).
 const PROSE = {
-    heading: [30, 24, 20, 18, 16, 15], // px by level 1..6
+    heading: [32, 24, 20, 18, 16, 15], // px by level 1..6
+    headingGap: [40, 38, 30, 24, 20, 18], // space ABOVE a heading (not first), by level
+    headingBelow: 10, // space below a heading, before its content
     body: 16,
     codeSize: 14,
     codeRadius: 8,
@@ -44,12 +46,12 @@ const PROSE = {
 // `bodyColor` attribute, so a caller can dim prose independently of the scheme.
 const COLORS_DARK = {
     headingColor: 0xffffff, bodyColor: 0xc7d0d6,
-    code: 0xd6e2ea, codeChip: 0x172b39, codeFg: 0xb8c4cc, codeBg: 0x0e1922,
+    code: 0xb8cfef, codeChip: 0x172b39, codeFg: 0xb8c4cc, codeBg: 0x121f2a,
     rule: 0x24394a, link: 0x6aa4ff, quoteRule: 0x2f4a5c, quoteColor: 0x9fb0ba,
 };
 const COLORS_LIGHT = {
     headingColor: 0x111c24, bodyColor: 0x33424e,
-    code: 0x2c5578, codeChip: 0xe6edf3, codeFg: 0x2e3b46, codeBg: 0xeef3f8,
+    code: 0x2c5578, codeChip: 0xe6edf3, codeFg: 0x2e3b46, codeBg: 0xe6ecf2,
     rule: 0xd3dce4, link: 0x2f6fe0, quoteRule: 0xc4d0da, quoteColor: 0x5a6874,
 };
 let C = COLORS_DARK; // active set; set at the top of each rebuild
@@ -167,8 +169,7 @@ function richRunsOf(inline, style, family) {
             text: a.text, size: s.size, weight: s.weight, italic: s.italic,
             family: s.mono ? PROSE.mono : family, strike: s.strike, color: s.color, tracking: s.tracking,
         };
-        if (s.mono)
-            run.chipBg = C.codeChip;
+        // inline code reads as a coloured mono word, not a filled chip/button
         if (s.link !== undefined)
             run.href = s.link;
         if (s.fill !== undefined)
@@ -425,13 +426,22 @@ function proseBlock(b, gapBefore, bodyColor, ctx) {
 function layoutBlocks(blocks, width, bodyColor, ctx) {
     const out = [];
     let group = [];
+    let prevProse = null; // previous prose block in this group
     const flush = () => { if (group.length) {
         out.push(flowView(group, width, ctx));
         group = [];
+        prevProse = null;
     } };
     for (const b of blocks) {
         if (b.t === "paragraph" || b.t === "heading") {
-            group.push(proseBlock(b, group.length === 0 ? 0 : PROSE.blockGap, bodyColor, ctx));
+            // headings get generous space above and tight space below, so a section
+            // groups with its own content instead of floating in an even column
+            const gap = group.length === 0 ? 0
+                : b.t === "heading" ? PROSE.headingGap[b.level - 1]
+                    : prevProse === "heading" ? PROSE.headingBelow
+                        : PROSE.blockGap;
+            group.push(proseBlock(b, gap, bodyColor, ctx));
+            prevProse = b.t;
             continue;
         }
         flush();

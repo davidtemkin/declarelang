@@ -24,7 +24,7 @@ class Eyebrow extends Text [ fontFamily = [Mono, "monospace"], fontSize = 13,
 
 class Marker extends Eyebrow [ textColor = { theme.accent } ]   // the accent section number
 
-class Lead extends Text [ fontSize = 19, fontWeight = normal, textColor = { theme.muted }, selectable = true ]
+class Lead extends Text [ fontSize = 19, fontWeight = normal, textColor = #9DB0BC, selectable = true ]
 
 class Body extends Text [ fontSize = 17, fontWeight = normal, textColor = { theme.muted }, selectable = true ]
 
@@ -36,6 +36,8 @@ class Body extends Text [ fontSize = 17, fontWeight = normal, textColor = { them
 
 class NavLink extends View [ height = 33, cornerRadius = 8,
     label:   string = "",
+    url:     string = "",
+    route:   string = "",
     hovered: boolean = false,
     pressed: boolean = false,
     // pressed deepens the pill + lights the label — the tap feedback a touch
@@ -45,6 +47,7 @@ class NavLink extends View [ height = 33, cornerRadius = 8,
     onMouseOut()  { hovered = false; pressed = false },
     onMouseDown() { pressed = true },
     onMouseUp()   { pressed = false },
+    onClick()     { if (classroot.route != "") app.route = classroot.route; else if (classroot.url != "") app.navigate = classroot.url },
     lbl: Text [ x = 12, y = 8, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14,
                 text = { classroot.label },
                 textColor = { classroot.hovered || classroot.pressed ? theme.text : theme.muted } ],
@@ -136,7 +139,7 @@ class Tag extends Text [ fontFamily = [Mono, "monospace"], fontSize = 11,
 // the new text on App.liveSource/liveCard for the host to recompile the preview.
 
 class CodeField extends TextInput [ multiline = true, spellcheck = false,
-    fontFamily = [Mono, "monospace"], fontSize = 11, textColor = #C7D3DC,
+    fontFamily = [Mono, "monospace"], fontSize = 11, textColor = #9DB0BC,
     editName: string = "",  src: string = "",
     initial = { src },
     onInput() { app.liveCard = editName; app.liveSource = text } ]
@@ -265,14 +268,6 @@ class SectionHead extends View [ width = { parent.width },
     Lead    [ width = { Math.min(760, parent.width) }, text = { classroot.lead } ],
     ]
 
-// ── a neutral reference-comparison row (metric · Declare · the React build) ────
-class RefRow extends View [ width = { parent.width }, height = 26,
-    metric: string = "", dval: string = "", rval: string = "",
-    m: Body [ x = 0,   y = 3, width = 150, fontSize = 14, textColor = { theme.muted }, text = { classroot.metric } ],
-    d: Body [ x = 168, y = 3, width = 110, fontSize = 14, fontWeight = semibold, textColor = { theme.text }, text = { classroot.dval } ],
-    r: Body [ x = 288, y = 3, width = 260, fontSize = 14, textColor = { theme.dim },  text = { classroot.rval } ],
-    ]
-
 // ── the page ─────────────────────────────────────────────────────────────────
 // The palette lives ONCE as a prevailing `theme` token record — every semantic
 // type class (Heading/Lead/Body/…) defaults its colour to `{ theme.… }`, so the
@@ -285,11 +280,15 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
     fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 17, fontWeight = normal,
     textColor = { theme.text },
 
+    // in-app route: "home" (the scrolling page) or "why" (the mini-article). The host
+    // mirrors this to the URL hash (#why) so it deep-links and honours the back button.
+    route: string = "home",
+
     // the scroll region — fills the viewport and scrolls its taller content
     // NATIVELY. The chrome further down (header, cursor) are its SIBLINGS, not
     // its children, so they never move: no reposition, no jitter.
 
-    scroller: View [ width = { app.width }, height = { app.height }, scrolls = true,
+    scroller: View [ width = { app.width }, height = { app.height }, scrolls = true, visible = { app.route == "home" },
 
         // full-bleed blueprint behind the column, sized to the page (a percent
         // height stays out of the page's own auto-extent, so no cycle)
@@ -307,21 +306,30 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
 
             hero: View [ width = { parent.width },
                 layout: SimpleLayout [ axis = y, spacing = 24 ],
-                top: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 22 ],
+                top: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 26 ],
 
-                    // headline: the product name in the blue→teal gradient on its own
-                    // line, the claim stacked below it (wrapping when the window is
-                    // narrow). One rendition at every width — no wide/narrow split to
-                    // keep in sync, and nothing duplicated for the live editor to miss.
+                    // the title: product name in the blue→teal gradient, the claim on the
+                    // next line, and a quiet one-line descriptor subhead under both. One
+                    // rendition at every width — no wide/narrow split to keep in sync.
 
-                    headline: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 2 ],
-                        Heading [ fontSize = { app.width < 700 ? 44 : 60 },
-                                  textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) }, text = "Declare" ],
-                        Heading [ fontSize = { app.width < 700 ? 44 : 60 }, width = { parent.width },
-                                  text = "is the UI language for the AI era." ],
+                    titleGroup: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 12 ],
+                        headline: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 2 ],
+                            Heading [ fontSize = { app.width < 700 ? 44 : 60 },
+                                      textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) }, text = "Declare" ],
+                            Heading [ fontSize = { app.width < 700 ? 44 : 60 }, width = { parent.width },
+                                      text = "is the UI language for the AI era." ],
+                            ],
+                        subhead: Text [ fontSize = { app.width < 700 ? 20 : 24 }, fontWeight = normal,
+                                        width = { Math.min(560, parent.width) }, textColor = #9DB0BC,
+                                        text = "A declarative language for dynamic web apps" ],
                         ],
-                    Lead [ width = { Math.min(660, parent.width) }, textColor = #B7C4CC,
-                           text = "A declarative language for real, dynamic web apps — reactive by construction, compiled live in the browser, small enough to hold in your head. This whole page is written in it." ],
+                    paras: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 12 ],
+                        HTMLText [ width = { Math.min(680, parent.width) }, fontSize = 19, bodyColor = #9DB0BC, selectable = true,
+                                   accents = { ({ g: gradient("90deg", 0x4C8DFF, 0x37E0C8) }) },
+                                   html = "Just as SQL is a domain-specific language for database queries, <span class='g'>Declare</span> is a domain-specific language for user interfaces. Its whole surface fits in your head — and inside an LLM's context window." ],
+                        Lead [ width = { Math.min(680, parent.width) },
+                               text = "This page is written in it. By an LLM." ],
+                        ],
                     ],
                 buttons: View [ layout: SimpleLayout [ axis = x, spacing = 14 ],
                     Button [ width = 128, label = "GitHub →",
@@ -329,6 +337,8 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                     Button [ width = 184, label = "Edit this page →", primary = false,
                              onClick() { app.editing = true } ],
                     ],
+                learn: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
+                              textColor = #4C8DFF, text = "Why a new language, now? →", onClick() { app.route = "why" } ],
                 ],
 
             // ── 01 — Read it. Generate it. Run it. ─────────────────────────────
@@ -340,14 +350,14 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                 SectionHead [ num = "01", head = "Read it. Generate it. Run it.",
                     lead = "The relationships that matter — structure, data, reactivity — are explicit in the language, not hidden in imperative steps or a runtime graph." ],
                 cards: View [ width = { parent.width }, layout: WrappingLayout [ spacing = 24, lineSpacing = 24 ],
-                    Card [ title = "Analyzable", body = "The compiler reads a program’s data-flow statically. So can a model." ],
-                    Card [ title = "Generable", body = "No ceremony, no magic. No dependency arrays or keys to get subtly wrong." ],
-                    Card [ title = "Runnable", body = "It compiles in the browser. Generated code runs the instant it exists." ],
+                    Card [ title = "Analyzable", body = "A program's whole structure — components, data, what reacts to what — is right there in the source. The compiler reads it statically; so can an LLM." ],
+                    Card [ title = "Predictable", body = "One clear way to write each thing, and the compiler rejects the rest — no dependency arrays, no keys, no stale-value bugs. An LLM gets it right the first time." ],
+                    Card [ title = "Runnable", body = "The compiler runs in the browser, so code renders the moment it exists — no build, no deploy. Write it and it's live." ],
                     ],
                 pull: Heading [ fontSize = 28, width = { parent.width }, textAlign = center,
-                                text = "Everything that makes it legible to a model makes it legible to you." ],
+                                text = "Everything that makes it legible to an LLM makes it legible to you." ],
                 trust: Body [ fontFamily = [Mono, "monospace"], fontSize = 14, width = { parent.width }, textAlign = center,
-                              text = "The declarative layer is Declare. The logic is ordinary, typed TypeScript — nothing to relearn, and everything an editor or a model already understands." ],
+                              text = "The declarative layer is Declare. The logic is ordinary, typed TypeScript — nothing to relearn, and everything an editor or an LLM already understands." ],
                 ],
 
             // ── 02 — Declare Calendar: a real app, small and fast ──────────────
@@ -360,8 +370,8 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                     lead = "Declare Calendar: four views that are one surface seen through a moving, zooming rectangle — event chips that morph into time-blocks, drag-to-reschedule, an editable detail panel, light and dark. The kind of continuous, animated UI that's usually a project of its own — here it's the reference app." ],
 
                 // the app itself: a prominent Run, a quiet source link, and the two
-                // numbers that matter (over-the-wire size + lines of code), beside the
-                // same app built in React + Framer Motion — a reference point, not a scoreboard.
+                // numbers that matter — over-the-wire size and lines of Declare — rendered
+                // as two big gradient figures (no comparison; the numbers stand on their own).
                 panel: View [ width = { parent.width }, height = { this.pad.height + 52 }, cornerRadius = 14, clip = true,
                     fill = { theme.panel }, stroke = { stroke(1, theme.line) },
                     pad: View [ x = 30, y = 26, width = { parent.width - 60 }, layout: SimpleLayout [ axis = y, spacing = 24 ],
@@ -372,23 +382,17 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                                      textColor = { theme.dim }, text = "or read the source →",
                                      onClick() { app.navigate = "https://github.com/davidtemkin/declarelang/blob/main/examples/calendar/calendar.declare" } ],
                             ],
-                        ref: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 12 ],
-                            Eyebrow [ text = "FOR REFERENCE — THE SAME APP IN REACT + FRAMER MOTION" ],
-                            table: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 3 ],
-                                cols: View [ width = { parent.width }, height = 22,
-                                    Tag [ x = 168, y = 4, textColor = { theme.dim }, text = "DECLARE" ],
-                                    Tag [ x = 288, y = 4, textColor = { theme.dim }, text = "REACT + FRAMER MOTION" ] ],
-                                RefRow [ metric = "Over the wire, gzipped", dval = "46 KB",    rval = "98 KB" ],
-                                RefRow [ metric = "Lines of code",          dval = "393 lines", rval = "845 lines" ],
-                                ],
+                        stat: View [ width = { parent.width }, layout: WrappingLayout [ spacing = 48, lineSpacing = 40 ],
+                            Metric [ value = "46 KB", note = "over the wire, gzipped — the whole app and its runtime" ],
+                            Metric [ value = "421",   note = "lines of Declare — four views, continuous zoom, drag, and edit" ],
                             ],
                         ],
                     ],
 
                 points: View [ width = { parent.width }, layout: WrappingLayout [ spacing = 24, lineSpacing = 32 ],
-                    Point [ ptitle = "Small", body = "The app, the runtime, and everything the browser downloads to run it — smaller than most sites' hero image." ],
-                    Point [ ptitle = "Fast", body = "Dependencies are compiled statically, not tracked at runtime, so the continuous zoom holds framerate with no reactive-graph tax." ],
-                    Point [ ptitle = "Renderer-independent", body = "The same program paints to the DOM or to a canvas — your choice — so you can reach for raw pixel speed exactly where it matters." ],
+                    Point [ ptitle = "Holds framerate", body = "Reactive dependencies are compiled, not tracked at runtime, and motion is declarative springs — so the continuous zoom stays smooth, with no animation library and no reactive-graph tax." ],
+                    Point [ ptitle = "Type-checked bindings", body = "Events, selection, the editable panel: the data flow is declarative, type-checked bindings, not a state manager wired by hand. Change a value and everything derived from it follows — a type mismatch is a compile error, not a runtime surprise." ],
+                    Point [ ptitle = "Easy to reason about", body = "A zooming, drag-to-reschedule, edit-in-place calendar is normally a thicket of imperative view-syncing and animation state. Declared, it's a fraction of the code — and legible to you, the compiler, and an LLM alike." ],
                     ],
                 ],
 
@@ -482,10 +486,10 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                 Heading [ fontSize = { app.width < 700 ? 26 : 38 },
                           width = { Math.min(900, parent.width) }, x = { (parent.width - Math.min(900, parent.width)) / 2 },
                           textAlign = center,
-                          text = "The previous generation of frameworks were built on top of the browser’s document-oriented core.\n\nDeclare is different: app-focused, cleaner, faster, and ready for what comes next." ],
+                          text = "The last generation of frameworks was built on the browser’s document model.\n\nDeclare abstracts the renderer away — you declare what the UI is, and the runtime draws it." ],
                 explain: Lead [ width = { Math.min(720, parent.width) }, x = { (parent.width - Math.min(720, parent.width)) / 2 },
-                          textAlign = center, textColor = { theme.muted },
-                          text = "That difference is render independence: one program, painted to the DOM or a canvas — your choice today, WebGL on the horizon — and no rewrite, no code changes. You declare what the UI is; the runtime decides how to draw it." ],
+                          textAlign = center, textColor = #9DB0BC,
+                          text = "The same program paints to the DOM or to a canvas today, WebGL next, with no rewrite. And you never touch the render layer — no DOM to poke, no paint loop to run — so the code stays small: what you write is the interface itself, not the machinery that shows it." ],
                 ruleBot: View [ x = { (parent.width - 140) / 2 }, width = 140, height = 2, fill = #4C8DFF ],
                 ],
 
@@ -520,6 +524,33 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
           ],
         ],
 
+    // ── the "Why" route — an in-app view (app.route == "why"), same skin as the
+    // page: theme, graph-paper grid, and the menu bar (the header renders on this
+    // route too). Sits over the homepage; the host mirrors app.route to the URL hash
+    // (#why), so it deep-links and honours the back button.
+    whyView: View [ visible = { app.route == "why" }, width = { app.width }, height = { app.height }, fill = { theme.ink },
+        grid: GridBg [ x = 0, y = 0, width = { app.width }, height = { app.height } ],
+        body: View [ y = 56, width = { app.width }, height = { app.height - 56 }, scrolls = true, selectable = true,
+            col: View [ width = { Math.min(720, app.width - 48) }, x = { Math.max(24, (app.width - 720) / 2) }, y = 52,
+                layout: SimpleLayout [ axis = y, spacing = 22 ],
+                Marker  [ text = "WHY DECLARE" ],
+                Heading [ fontSize = { app.width < 700 ? 32 : 42 }, width = { parent.width },
+                          text = "Why a new language, now?" ],
+                Body [ fontSize = 18, width = { parent.width }, textColor = #9DB0BC,
+                       text = "You can describe an interface in English and let an LLM write it. So why a new language — and an unfamiliar one, when LLMs are best at the languages with the biggest followings?" ],
+                Body [ fontSize = 18, width = { parent.width }, textColor = #9DB0BC,
+                       text = "Because a language isn't only a cost to learn. It's a lens. A user interface has a real structure — components, the state they hold, views that must stay current, layout relating them in space. In a general-purpose language none of those are language concepts, so the compiler can't see them; they're kept correct by hand. A domain-specific language makes them first-class — and what the compiler can see, it can check, before anything runs." ],
+                Body [ fontSize = 18, width = { parent.width }, textColor = #9DB0BC,
+                       text = "That's the trade, plainly. Generality buys a vast training corpus and shallow domain insight; specificity buys deep insight and a small corpus. Declare takes the second and pays the corpus cost down twice: the logic inside it is ordinary TypeScript — already everywhere — and the declarative layer around it is small enough to learn from a page, and precise enough that the compiler enforces what an LLM would otherwise have to remember. Familiarity is how you get correct code in a language that can't check itself; a language that checks itself needs far less of it." ],
+                Body [ fontSize = 18, width = { parent.width }, textColor = #9DB0BC,
+                       text = "And there's no wall — the domain layer is the language; the logic within it is plain TypeScript. Specific where that pays, general everywhere else." ],
+                Body [ fontSize = 18, width = { parent.width }, textColor = #9DB0BC,
+                       text = "The whole surface fits in your head, and comfortably inside an LLM's context window. You don't teach an LLM Declare with a million examples — you hand it the language and let the compiler keep it honest." ],
+                tail: View [ width = 8, height = 80 ],
+                ],
+            ],
+        ],
+
     // ── fixed chrome — SIBLINGS of the scroller, so they never scroll ─────────
     // The translucent top bar. It starts hidden (opacity 0, nudged up 8px) and
     // SPRINGS into view once you scroll past the hero — the entrance is two
@@ -527,16 +558,17 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
     // timed transition (no scroll-scrub, no imperative trigger).
 
     header: View [ width = { app.width }, height = 56, y = -8, opacity = 0, fill = #101E28,
-        fadeIn:  Spring [ attribute = opacity, to = { app.scroller.scrollY > 80 ? 1 : 0 },
+        fadeIn:  Spring [ attribute = opacity, to = { app.route == "why" || app.scroller.scrollY > 80 ? 1 : 0 },
                           stiffness = 220, damping = 30, epsilon = 0.004 ],
-        slideIn: Spring [ attribute = y,       to = { app.scroller.scrollY > 80 ? 0 : -8 },
+        slideIn: Spring [ attribute = y,       to = { app.route == "why" || app.scroller.scrollY > 80 ? 0 : -8 },
                           stiffness = 220, damping = 30, epsilon = 0.05 ],
         hairline: View [ y = 55, width = { app.width }, height = 1, fill = #263D4C ],
 
         // wordmark — the product name in the blue→teal gradient, mono, echoing the hero
 
-        brand: View [ x = { Math.max(24, (app.width - 1120) / 2) }, y = 18,
+        brand: View [ x = { Math.max(24, (app.width - 1120) / 2) }, y = 18, height = 22,
             layout: SimpleLayout [ axis = x, spacing = 0 ],
+            onClick() { app.route = "home" },
             Text [ fontFamily = [Mono, "monospace"], fontSize = 15, fontWeight = semibold,
                    textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) }, text = "Declare" ],
             ],
@@ -547,10 +579,10 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
 
         nav: View [ y = 11, x = { app.width - Math.max(24, (app.width - 1120) / 2) - this.width },
             layout: SimpleLayout [ axis = x, spacing = 2 ],
-            NavLink [ label = "Docs" ],
-            NavLink [ label = "Examples" ],
-            NavLink [ label = "Playground" ],
-            NavLink [ label = "GitHub" ],
+            NavLink [ label = "Why Declare", route = "why" ],
+            NavLink [ label = "Declare Calendar", url = "/examples/calendar/" ],
+            NavLink [ label = "Docs", url = "/examples/docs/" ],
+            NavLink [ label = "GitHub", url = "https://github.com/davidtemkin/declarelang" ],
             ],
         ],
 

@@ -24,21 +24,26 @@ class Segment extends View [ kind: string = "",
 
     width = { parent.width },
 
-    prose: Markdown [ visible = { classroot.kind == "prose" }, x = { app.proseInset }, width = { parent.width - 2 * app.proseInset },
-        text = { classroot.md }, scale = { app.fontScale },
+    // prose reads like a book: left-aligned to the shared spine, capped at the
+    // reading measure, with space above it that becomes the section break
+    prose: Markdown [ visible = { classroot.kind == "prose" }, x = 0, y = { app.proseTopPad },
+        width = { Math.min(parent.width, app.proseMeasure) },
+        text = { classroot.md }, scale = { app.fontScale }, lineHeight = 1.6,
         bodyColor = { app.theme.text }, dark = { app.isDark }, selectable = true ],
 
-    // code sits on a bordered panel; its height is the flow plus symmetric padding
-    // (contentHeight is the child bounding box, so + top-pad gives an even inset).
-    // The code font is smaller than the prose (codeScale) and the <pre> does NOT
-    // wrap — long lines scroll horizontally inside the panel.
+    // code is the specimen: borderless, on a quiet tint, bonded to the comment
+    // above it, running the full width with a teal spine on the shared left edge.
+    // The <pre> never wraps — long constraint lines scroll horizontally.
     code: View [ visible = { classroot.kind == "code" }, width = { parent.width },
-        fill = { app.theme.codeBg }, stroke = { stroke(1, app.theme.codeLine) }, cornerRadius = 8,
-        height = { this.contentHeight + 14 },
+        fill = { app.theme.codeBg }, cornerRadius = 8, clip = true,
+        height = { this.body.height + 32 },
 
-        HTMLText [ x = 16, y = 14, width = { parent.width - 32 },
-            html = { classroot.html }, scale = { app.fontScale * app.codeScale },
-            accents = { app.codeAccents() }, bodyColor = { app.codeFg() }, selectable = true ],
+        spine: View [ x = 0, y = 0, width = 2, height = { parent.height }, fill = { app.theme.accentTeal } ],
+        body: View [ x = 20, y = 16, width = { parent.width - 40 }, scrollsX = true, height = { this.contentHeight },
+            HTMLText [ x = 0, y = 0, width = { parent.width },
+                html = { classroot.html }, scale = { app.fontScale * app.codeScale },
+                accents = { app.codeAccents() }, bodyColor = { app.codeFg() }, selectable = true ],
+            ],
         ],
     ]
 
@@ -54,8 +59,8 @@ class SizeBtn extends View [ width = 34, height = 30, cornerRadius = 6,
 
     onMouseOver() { hovered = true },
     onMouseOut() { hovered = false },
-    onClick() { app.fontScale = classroot.delta == 0 ? 0.85
-        : Math.max(0.7, Math.min(1.6, Math.round((app.fontScale + classroot.delta) * 100) / 100)) },
+    onClick() { app.fontScale = classroot.delta == 0 ? 1.0
+        : Math.max(0.8, Math.min(1.6, Math.round((app.fontScale + classroot.delta) * 100) / 100)) },
 
     lbl: Text [ fontWeight = semibold, fontSize = { classroot.glyph }, textColor = { app.theme.muted },
         text = "A", wrap = false,
@@ -109,10 +114,12 @@ App [ fill = { app.theme.bg },
 
     barH: number = 52,
     topM: number = 40,   // reader top margin (foot matches it at the bottom)
+    headH: number = { 46 * app.fontScale },   // filename title + rule, above the body
     mode: string = "reader",   // "reader" = highlighted + Markdown, "source" = verbatim
-    fontScale: number = 0.85,   // reader font zoom — small by default; the A stepper drives it
-    codeScale: number = 0.85,   // code font as a fraction of prose (code reads denser)
-    proseInset: number = 44,   // prose is inset both sides; code spans full width
+    fontScale: number = 1.0,   // reader font zoom; the A stepper drives it
+    codeScale: number = 0.82,   // code font as a fraction of prose (code reads denser)
+    proseMeasure: number = 640,   // prose reading measure; code runs wider off the same left edge
+    proseTopPad: number = 22,   // space above a prose block — reads as the section break
     themeMode: string = "auto",
     isDark: boolean = { app.themeMode == "auto" ? app.dark : app.themeMode == "dark" },
     theme = { app.isDark ? app.darkTheme() : app.lightTheme() },
@@ -135,6 +142,11 @@ App [ fill = { app.theme.bg },
         return "<pre>" + e + "</pre>"
         },
 
+    // the file's tree-relative path, split so the header can bold the filename
+    filePath() { return (app.demoSources && app.demoSources["__path__"]) || "source" },
+    dirName()  { const p = app.filePath(); const i = p.lastIndexOf("/"); return i < 0 ? "" : p.slice(0, i + 1) },
+    baseName() { const p = app.filePath(); const i = p.lastIndexOf("/"); return i < 0 ? p : p.slice(i + 1) },
+
     // the editor foreground (plain text / punctuation) behind the accent spans
     codeFg() { return app.isDark ? 0xABB2BF : 0x24292F },
 
@@ -148,12 +160,14 @@ App [ fill = { app.theme.bg },
         },
 
     darkTheme() {
-        return ({ bg: 0x0D1117, surface: 0x161B22, codeBg: 0x161B22, codeLine: 0x21262D, line: 0x30363D,
-            text: 0xC9D1D9, muted: 0x8B949E, hover: 0x21262D, track: 0x010409, pill: 0x274B74 })
+        return ({ bg: 0x0D1117, surface: 0x161B22, codeBg: 0x1A2029, codeLine: 0x21262D, line: 0x30363D,
+            text: 0xC9D1D9, muted: 0x8B949E, hover: 0x21262D, track: 0x010409, pill: 0x274B74,
+            accent: 0x4C8DFF, accentTeal: 0x37E0C8 })
         },
     lightTheme() {
-        return ({ bg: 0xFFFFFF, surface: 0xF6F8FA, codeBg: 0xFBFCFD, codeLine: 0xD8DEE4, line: 0xD0D7DE,
-            text: 0x1F2328, muted: 0x656D76, hover: 0xEAEEF2, track: 0xEEF1F4, pill: 0xDDEEFF })
+        return ({ bg: 0xFFFFFF, surface: 0xF6F8FA, codeBg: 0xF4F6F9, codeLine: 0xD8DEE4, line: 0xD0D7DE,
+            text: 0x1F2328, muted: 0x656D76, hover: 0xEAEEF2, track: 0xEEF1F4, pill: 0xDDEEFF,
+            accent: 0x2E6FE0, accentTeal: 0x12A594 })
         },
 
     // scrolling reader; the column is centred and capped for line length. `foot`
@@ -161,63 +175,73 @@ App [ fill = { app.theme.bg },
     content: View [ x = 0, y = { app.barH }, width = { app.hostWidth }, height = { app.hostHeight - app.barH },
         scrolls = true, selectable = true, fill = { app.theme.bg },
 
+        // the filename as a page title — the directory muted, the file bold — with
+        // a rule under it; the body starts below (headH)
+        head: View [ y = { app.topM }, width = { Math.min(app.hostWidth - 96, 900) },
+            x = { Math.max(24, (parent.width - this.width) / 2) },
+            title: View [ layout: SimpleLayout [ axis = x, spacing = 0 ],
+                d: Text [ fontSize = { 21 * app.fontScale }, wrap = false, textColor = { app.theme.muted }, text = { app.dirName() } ],
+                n: Text [ fontSize = { 21 * app.fontScale }, fontWeight = bold, wrap = false, textColor = { app.theme.text }, text = { app.baseName() } ],
+                ],
+            // a blue→teal thread of the brand accent, the origin of the code spine
+            rule: View [ y = { 34 * app.fontScale }, width = { parent.width }, height = 2, cornerRadius = 1,
+                opacity = { app.isDark ? 0.72 : 1 },
+                fill = { gradient("90deg", app.theme.accent, app.theme.accentTeal) } ],
+            ],
+
         // highlighted view: prose + coloured code segments
-        col: View [ visible = { app.mode == "reader" }, y = { app.topM }, width = { Math.min(app.hostWidth - 48, 820) },
+        col: View [ visible = { app.mode == "reader" }, y = { app.topM + app.headH }, width = { Math.min(app.hostWidth - 96, 900) },
             x = { Math.max(24, (parent.width - this.width) / 2) },
             datapath = { app.doc.value },
-            layout: SimpleLayout [ axis = y, spacing = 18 ],
+            layout: SimpleLayout [ axis = y, spacing = 12 ],
             Segment [ datapath = :segments[], kind = :kind, md = :md, html = :html ],
             ],
 
         // plain view: the verbatim source as one monospace flow (same size/theme)
-        plain: View [ visible = { app.mode == "source" }, y = { app.topM }, width = { Math.min(app.hostWidth - 48, 820) },
+        plain: View [ visible = { app.mode == "source" }, y = { app.topM + app.headH }, width = { Math.min(app.hostWidth - 96, 900) },
             x = { Math.max(24, (parent.width - this.width) / 2) },
-            fill = { app.theme.codeBg }, stroke = { stroke(1, app.theme.codeLine) }, cornerRadius = 8,
-            height = { this.contentHeight + 14 },
+            fill = { app.theme.codeBg }, cornerRadius = 8, clip = true,
+            height = { this.body.height + 32 },
+            spine: View [ x = 0, y = 0, width = 2, height = { parent.height }, fill = { app.theme.accentTeal } ],
             // full reader size (not codeScale): the source is the PRIMARY surface
             // here, not an embedded snippet, so it reads at the prose size.
-            HTMLText [ x = 16, y = 14, width = { parent.width - 32 }, html = { app.plainHtml() },
-                scale = { app.fontScale }, bodyColor = { app.codeFg() }, selectable = true ],
+            body: View [ x = 20, y = 16, width = { parent.width - 40 }, scrollsX = true, height = { this.contentHeight },
+                HTMLText [ x = 0, y = 0, width = { parent.width }, html = { app.plainHtml() },
+                    scale = { app.fontScale }, bodyColor = { app.codeFg() }, selectable = true ],
+                ],
             ],
 
         // bottom margin: a spacer just past the active view's bottom edge
         foot: View [ width = 8, height = 48,
-            y = { app.topM + (app.mode == "reader" ? parent.col.height : parent.plain.height) } ],
+            y = { app.topM + app.headH + (app.mode == "reader" ? parent.col.height : parent.plain.height) } ],
         ],
 
-    // top bar: file path on the left; the view / size / theme controls on the right
+    // top bar: type-size stepper (left) · Reader / Source (centre) · theme (right)
     bar: View [ x = 0, y = 0, width = { app.hostWidth }, height = { app.barH }, fill = { app.theme.surface },
 
         hair: View [ x = 0, y = { app.barH - 1 }, width = { parent.width }, height = 1, fill = { app.theme.line } ],
-        path: Text [ x = 20, y = { (app.barH - 15) / 2 }, fontSize = 13, wrap = false,
-            fontFamily = ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
-            textColor = { app.theme.muted },
-            text = { (app.demoSources && app.demoSources["__path__"]) || "source" } ],
 
-        tools: View [ y = { (app.barH - 30) / 2 }, x = { app.hostWidth - this.width - 16 }, height = 30,
-            width = { this.contentWidth },
-            layout: SimpleLayout [ axis = x, spacing = 12 ],
+        size: View [ y = { (app.barH - 30) / 2 }, x = 16, height = 30, width = { this.contentWidth },
+            cornerRadius = 8, fill = { app.theme.surface }, stroke = { stroke(1, app.theme.line) },
+            layout: SimpleLayout [ axis = x, spacing = 0 ],
+            SizeBtn [ glyph = 11, delta = -0.1 ],
+            d1: View [ width = 1, height = 18, y = 6, fill = { app.theme.line } ],
+            SizeBtn [ glyph = 15, delta = 0 ],
+            d2: View [ width = 1, height = 18, y = 6, fill = { app.theme.line } ],
+            SizeBtn [ glyph = 19, delta = 0.1 ],
+            ],
 
-            modeSwitch: View [ height = 30, width = 194, cornerRadius = 8, fill = { app.theme.track },
-                r: ModeSeg [ x = 2, m = "reader", lbl = "Reader view" ],
-                s: ModeSeg [ x = 98, m = "source", lbl = "Source text" ],
-                ],
+        modeSwitch: View [ y = { (app.barH - 30) / 2 }, x = { (app.hostWidth - 194) / 2 }, height = 30, width = 194,
+            cornerRadius = 8, fill = { app.theme.track },
+            r: ModeSeg [ x = 2, m = "reader", lbl = "Reader view" ],
+            s: ModeSeg [ x = 98, m = "source", lbl = "Source text" ],
+            ],
 
-            size: View [ height = 30, cornerRadius = 8, fill = { app.theme.surface }, stroke = { stroke(1, app.theme.line) },
-                layout: SimpleLayout [ axis = x, spacing = 0 ],
-                SizeBtn [ glyph = 11, delta = -0.1 ],
-                d1: View [ width = 1, height = 18, y = 6, fill = { app.theme.line } ],
-                SizeBtn [ glyph = 15, delta = 0 ],
-                d2: View [ width = 1, height = 18, y = 6, fill = { app.theme.line } ],
-                SizeBtn [ glyph = 19, delta = 0.1 ],
-                width = { this.contentWidth },
-                ],
-
-            themeSwitch: View [ height = 30, width = 94, cornerRadius = 8, fill = { app.theme.track },
-                s1: ThemeSeg [ x = 2, m = "light", glyph = "☀" ],
-                s2: ThemeSeg [ x = 32, m = "auto", glyph = "◐" ],
-                s3: ThemeSeg [ x = 62, m = "dark", glyph = "☾" ],
-                ],
+        themeSwitch: View [ y = { (app.barH - 30) / 2 }, x = { app.hostWidth - 94 - 16 }, height = 30, width = 94,
+            cornerRadius = 8, fill = { app.theme.track },
+            s1: ThemeSeg [ x = 2, m = "light", glyph = "☀" ],
+            s2: ThemeSeg [ x = 32, m = "auto", glyph = "◐" ],
+            s3: ThemeSeg [ x = 62, m = "dark", glyph = "☾" ],
             ],
         ],
     ]
