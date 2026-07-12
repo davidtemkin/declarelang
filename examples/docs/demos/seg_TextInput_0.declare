@@ -1,0 +1,5 @@
+App [
+    form: View [ datapath = { app.contact.value },
+        email: TextInput [ text <-> :email,
+            validate(v) { return v.includes("@") ? null : "not an email" } ] ]
+]

@@ -18,7 +18,7 @@
 import { Node } from "./node.js";
 import { View } from "./view.js";
 import { Constraint } from "./reactive.js";
-import { defineAttributes, disown, own, ownerOf, setBound } from "./attributes.js";
+import { defineAttributes, disown, disposeBindings, own, ownerOf, setBound } from "./attributes.js";
 import { NeoError } from "./errors.js";
 import type { Element } from "./parser.js";
 import type { Surface } from "./backend.js";
@@ -244,6 +244,17 @@ export class State extends Node {
       }
     }
     this.builtChildren = [];
+  }
+
+  /** Retire with the host view (View.discard reaches every child now): dispose
+   *  our `applied` gate binding — else it lingers, subscribed to whatever it
+   *  gated on (`applied = { app.openSection … }`), keeping this state and its
+   *  view alive. The state's EFFECTS (override constraints owned by the target,
+   *  built children spliced into the target) are torn down by the target view's
+   *  own discard, so there is nothing else to undo here. */
+  override discard(): void {
+    disposeBindings(this);
+    super.discard();
   }
 
   /** Fire a carried handler if installed (onApply / onRemove) — a plain Node

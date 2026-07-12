@@ -1,0 +1,7 @@
+App [
+    form: View [ x = 20, y = 20, layout: SimpleLayout [ axis = y, spacing = 8 ],
+        name:  TextInput [ width = 200, focusable = true, placeholder = "Name" ],
+        email: TextInput [ width = 200, focusable = true, placeholder = "Email" ],
+        zip:   TextInput [ width = 200, focusable = true, placeholder = "Zip" ],
+        ]
+]

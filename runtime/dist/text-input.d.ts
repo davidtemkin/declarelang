@@ -1,6 +1,6 @@
-import { View } from "./view.js";
 import type { RenderBackend, Surface } from "./backend.js";
-export declare class TextInput extends View {
+import { Editor } from "./editor.js";
+export declare class TextInput extends Editor {
     text: string;
     placeholder: string;
     multiline: boolean;
@@ -8,6 +8,7 @@ export declare class TextInput extends View {
     wrap: boolean;
     padding: number;
     initial: string;
+    protected draftSlot(): string;
     attach(backend: RenderBackend, parentSurface: Surface | null): void;
     protected flush(s: Surface): void;
     private editStyle;

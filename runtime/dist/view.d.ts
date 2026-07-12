@@ -37,7 +37,14 @@ export declare class View extends Node {
     shadow: Shadow | null;
     visible: boolean;
     opacity: number;
+    /** Uniform paint-only scale about (pivotX, pivotY), the view's own
+     *  coordinates (default the top-left corner); 1 = no transform. Spring it for
+     *  zoom effects — it never affects layout, exactly like opacity. */
+    scale: number;
+    pivotX: number;
+    pivotY: number;
     scrolls: boolean;
+    scrollsX: boolean;
     scrollY: number;
     /** Keyboard focus (design-docs/input.md, Layer 2). `focusable` = a tab stop;
      *  `focustrap` = a self-contained focus group. Traversal order is the tree,
@@ -62,6 +69,10 @@ export declare class View extends Node {
     fontWeight: FontWeight;
     /** Letter tracking in px (canvas-native), 0 = natural advances. */
     letterSpacing: number;
+    /** Native text selection, prevailing: `selectable = true` on a container opts
+     *  its whole subtree back into browser selection/copy (Text acts on it; a
+     *  `Markdown` component's runs inherit it). Off by default — the app is a UI. */
+    selectable: boolean;
     /** The prevailing design-token record (ruled, v1): a plain immutable
      *  record, wholesale-swapped — components opt in by reading tokens
      *  (`fill = { theme.buttonFill }`); re-skinning a subtree is one set. */
@@ -147,6 +158,13 @@ export declare class View extends Node {
      *  binding wakes when exactly this region — or any datapath on the chain
      *  above — changes. An unresolved path yields null (language §9). */
     $data(path: string): unknown;
+    /** Write `v` to `path` relative to this view's inherited cursor — the write
+     *  twin of `$data`, the runtime half of a two-way `<->` binding (language §9,
+     *  the leaf-input exception). Lands through `Dataset.set` (equality-gated →
+     *  the read side that fed the field re-reads the same value and stops at the
+     *  gate, so committing a draft is a no-op round-trip, not a loop). A datapath
+     *  that resolves to no dataset is a no-op — there is nowhere to write. */
+    $setData(path: string, v: unknown): void;
     /** The tree-mutation entry (R8): children were inserted/removed/reordered
      *  as a unit — re-arm the installed arrangement and re-derive auto-extent,
      *  once per burst (the replicator calls this once per reconcile, not per
@@ -198,6 +216,13 @@ export declare class View extends Node {
      *  attach, so a backend that keeps content in arrival order (the DOM) gets
      *  exactly the paint order the Canvas walk uses: content, then children. */
     protected flush(s: Surface): void;
+    /** Scroll this view to the top of its nearest scrolling ancestor — the
+     *  imperative companion to the reactive `scrolls`/`scrollY` pair (a click
+     *  handler calls it to jump to a target). Both backends do the work in their
+     *  Surface; a no-op before attach or with nothing scrolling above. (Named for
+     *  the platform primitive — `reveal` is deliberately left free as a member name,
+     *  e.g. a `reveal:` fade-in Spring.) */
+    scrollIntoView(): void;
     /** This view's input route, or null when it answers no pointer event —
      *  interactivity *derives* from declared handlers (Decisions §R5): a view
      *  with none is never wired (pay-per-use) and stays transparent to input,
@@ -263,6 +288,10 @@ export declare class App extends View {
      *  custom app cursor reads it to YIELD to the I-beam over a text field:
      *  `cursor: View [ visible = { !classroot.pointerOverText } ]`. */
     pointerOverText: boolean;
+    /** The OS colour-scheme preference (`prefers-color-scheme: dark`), fed live by
+     *  the runtime. Theme an app off it: `fill = { app.dark ? 0x0B141B : 0xFFFFFF }`
+     *  or drive a `theme` record from it. Read-only to user code. */
+    dark: boolean;
     /** The shipping page's over-the-wire size in KB (gzipped) and its Declare
      *  source line count — provided by the host/build (see index.ts note), 0
      *  until set. Reactive reads: a stat bound to them settles when they land. */

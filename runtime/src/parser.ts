@@ -82,6 +82,10 @@ export interface Attr {
   name: string;
   value: Literal;
   pos: Pos;
+  /** `two` when written with the two-way arrow `name <-> :path` (language §9,
+   *  the leaf-input exception): the slot both READS the datapath and WRITES
+   *  edits back to it. Absent = an ordinary one-way `name = value`. */
+  bind?: "two";
 }
 
 /** `name(params) { body }` — a method member (language §4's shorthand; the
@@ -217,7 +221,7 @@ export interface Library {
 
 type TokKind =
   | "lbracket" | "rbracket" | "lparen" | "rparen" | "eq" | "comma" | "colon" | "dot"
-  | "ident" | "number" | "percent" | "string" | "hexColor" | "code" | "eof";
+  | "bindtwo" | "ident" | "number" | "percent" | "string" | "hexColor" | "code" | "eof";
 
 interface Token {
   kind: TokKind;
@@ -314,6 +318,14 @@ function tokenize(src: string): Token[] {
     if (c === "/" && src[i + 1] === "/") { while (i < src.length && src[i] !== "\n") advance(); continue; }
 
     const start = here();
+
+    // two-way data-binding arrow (language §9, the leaf-input exception):
+    // `name <-> :path`. Multi-char, so it is lexed before the single-char table.
+    if (c === "<" && src[i + 1] === "-" && src[i + 2] === ">") {
+      advance(); advance(); advance();
+      tokens.push({ kind: "bindtwo", text: "<->", pos: start });
+      continue;
+    }
 
     // single-character punctuation
     const punct: Record<string, TokKind> = {
@@ -490,6 +502,12 @@ class Parser {
       if (this.peek().kind === "eq") {
         this.next();
         el.attrs.push({ name: name.text, value: this.parseLiteral(), pos: name.pos });
+      } else if (this.peek().kind === "bindtwo") {
+        // `name <-> :path` — two-way: the slot reads the datapath AND writes
+        // edits back to it. The value must be a `:path` (checked); the parser
+        // just tags the attribute so instantiate wires both directions.
+        this.next();
+        el.attrs.push({ name: name.text, value: this.parseLiteral(), pos: name.pos, bind: "two" });
       } else if (this.peek().kind === "colon") {
         // `name: Type …` — a declaration (R6): with `[ ]` it is a named child
         // instance; without, an attribute declaration (optionally defaulted).

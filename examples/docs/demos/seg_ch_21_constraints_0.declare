@@ -1,0 +1,6 @@
+App [
+    View [ width  = 100%,          // a Length — percent
+           height = 60,            // a Length — pixels
+           fill   = navy,          // a Color — named
+           opacity = 0.5 ]
+]

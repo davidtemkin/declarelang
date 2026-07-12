@@ -11,8 +11,6 @@ export declare class Text extends View {
     textAlign: "left" | "center" | "right";
     italic: boolean;
     textFill: Fill | null;
-    /** Opt back into native selection/copy for this run (app root suppresses it). */
-    selectable: boolean;
     attach(backend: RenderBackend, parentSurface: Surface | null): void;
     protected flush(s: Surface): void;
 }

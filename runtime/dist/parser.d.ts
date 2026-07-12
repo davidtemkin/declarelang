@@ -48,6 +48,10 @@ export interface Attr {
     name: string;
     value: Literal;
     pos: Pos;
+    /** `two` when written with the two-way arrow `name <-> :path` (language §9,
+     *  the leaf-input exception): the slot both READS the datapath and WRITES
+     *  edits back to it. Absent = an ordinary one-way `name = value`. */
+    bind?: "two";
 }
 /** `name(params) { body }` — a method member (language §4's shorthand; the
  *  canonical typed form waits for the type surface). The body is raw TS

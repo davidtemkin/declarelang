@@ -1024,6 +1024,25 @@ export function checkAttr(schema, attr) {
     if (isReadOnly(schema, attr.name)) {
         return { ok: false, error: new NeoError(`${schema.name}.${attr.name} is read-only — it is computed, so a constraint may read it but nothing may set it`, attr.pos) };
     }
+    if (attr.bind === "two") {
+        // `name <-> :path` — a two-way binding (language §9, the leaf-input
+        // exception): only on an EDITOR's value slot, and only to a single writable
+        // datapath. Caught here so misuse is a clear compile error, not a silent
+        // one-way (or literal) degrade.
+        if (!descendsFrom(schema, "Editor")) {
+            return { ok: false, error: new NeoError(`${schema.name}.${attr.name} <-> …: the two-way arrow edits a dataset value through an editor's value slot (e.g. 'TextInput.text') — ${schema.name} is not an editor`, attr.pos) };
+        }
+        // The bound field: a static datapath (`:field`) or a `{ }` that NAMES one at
+        // runtime (a generic editor over `classroot.field`). Not a literal.
+        if (attr.value.kind !== "path" && attr.value.kind !== "code") {
+            return { ok: false, error: new NeoError(`${schema.name}.${attr.name} <-> …: two-way binds a datapath — write '${attr.name} <-> :field' (or '<-> { expr }' for a runtime-named field)`, attr.value.pos) };
+        }
+        if (attr.value.kind === "path" && attr.value.many) {
+            return { ok: false, error: new NeoError(`${schema.name}.${attr.name} <-> :${attr.value.path}[]: a two-way binding edits one field, not a many-path`, attr.value.pos) };
+        }
+        // Valid — fall through to the ordinary :path handling, which returns the
+        // datapath; instantiate.ts routes a two-way attr to the editor wiring.
+    }
     if (attr.value.kind === "code" && type.kind === "component") {
         // The doc promises a swappable/constrainable layout slot; the swap is a
         // plain assignment today, the `{ }` form is a recorded open question.

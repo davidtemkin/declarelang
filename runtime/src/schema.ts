@@ -64,6 +64,15 @@ const ViewSchema: ComponentSchema = {
     shadow: { kind: "shadow" },
     visible: { kind: "boolean" },
     opacity: { kind: "number" },
+    // Uniform scale transform (painted only — never layout, like opacity): the
+    // view's subtree renders scaled about the pivot point (pivotX/pivotY, in the
+    // view's own coordinates; default the top-left corner). Animate it with a
+    // Spring for zoom effects; 1 = no transform. Both backends realize it (DOM
+    // CSS transform, canvas ctx.scale), and hit-testing follows the visible
+    // geometry so a scaled view stays correctly clickable.
+    scale: { kind: "number" },
+    pivotX: { kind: "number" },
+    pivotY: { kind: "number" },
     clip: { kind: "shape" },
     // Scroll: a view that scrolls its overflowing content — clips to its box and
     // scrolls the vertical overflow, exposing `scrollY` (reactive: read it for
@@ -71,6 +80,7 @@ const ViewSchema: ComponentSchema = {
     // free simply by being a SIBLING of the scroller, not a child of it. Both
     // backends realize it natively (DOM `overflow`; canvas clip+translate+wheel).
     scrolls: { kind: "boolean" },
+    scrollsX: { kind: "boolean" },
     scrollY: { kind: "number" },
     // Styling: the ruled prevailing built-ins — the four text-style slots
     // (declared on View so any container can provide them; Text renders with
@@ -90,6 +100,12 @@ const ViewSchema: ComponentSchema = {
     // 0 = the browser's natural advances (the Flash auto-tracking stays shed).
     letterSpacing: { kind: "number" },
     theme: { kind: "record", name: "Theme" },
+    // Native text selection — a prevailing slot so a whole subtree opts in from
+    // one place: `selectable = true` on a container makes all its Text (including
+    // a `Markdown` component's rendered runs) selectable/copyable; off by default
+    // (the app is a UI, not a document). Declared on View so any container provides
+    // it, like the text-style slots; only Text acts on the effective value.
+    selectable: { kind: "boolean" },
     // The other two styling channels: an ordered bundle list (static, ruled
     // v1 — consumed at construction) and the prevailing stylesheet slot
     // (provide it anywhere → that subtree reskins; swap = one settle).
@@ -119,7 +135,7 @@ const ViewSchema: ComponentSchema = {
     contentWidth: { kind: "length" },
     contentHeight: { kind: "length" },
   },
-  prevailing: ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing", "theme", "stylesheet"],
+  prevailing: ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing", "theme", "stylesheet", "selectable"],
   readOnly: ["contentWidth", "contentHeight"],
   // R5: the pointer trio (click = press and release on the same view — the
   // shared router's rule, input.ts) plus the construction-complete lifecycle
@@ -149,6 +165,9 @@ const AppSchema: ComponentSchema = {
     pointerY: { kind: "number" },
     hovering: { kind: "boolean" },
     pointerOverText: { kind: "boolean" },
+    // the OS colour-scheme, `prefers-color-scheme: dark` — the runtime feeds it and
+    // keeps it live as the system theme flips, so an app themes off `app.dark`.
+    dark: { kind: "boolean" },
     pageWeight: { kind: "number" },
     sourceLines: { kind: "number" },
     editing: { kind: "boolean" },
@@ -168,7 +187,7 @@ const AppSchema: ComponentSchema = {
   },
   // hostWidth/hostHeight are read-only to user code (the runtime feeds them; a
   // set is a compile error) — like View's contentWidth/contentHeight.
-  readOnly: ["hostWidth", "hostHeight"],
+  readOnly: ["hostWidth", "hostHeight", "dark"],
 };
 
 // Text (R3): a text run sized by native browser metrics when width/height
@@ -193,9 +212,6 @@ const TextSchema: ComponentSchema = {
     // Fill the glyphs with a gradient (or solid Fill), like the box `fill` —
     // overrides `textColor` when set. `textFill = { gradient("90deg", …) }`.
     textFill: { kind: "fill" },
-    // Opt back into native text selection: `selectable = true` makes this run
-    // selectable/copyable; off by default so the app doesn't feel like a document.
-    selectable: { kind: "boolean" },
   },
 };
 
@@ -228,14 +244,30 @@ const HtmlSchema: ComponentSchema = {
   },
 };
 
-// TextInput (Layer 3, design-docs/input.md): an editable text field. A focus
-// client whose `text` is the model source of truth (no two-way operator — D-6
-// dropped), realized as a native editable element (DOM in-box, canvas overlay)
-// so caret/selection/IME/a11y are native (D-5). Fires `input` on each edit and
-// `enter` on a single-line submit; inherits View's focus/keyboard events.
+// TextInput (Layer 3, design-docs/input.md): an editable text field — the first
+// EDITOR (language §9, the leaf-input exception). `text` is the model/draft slot,
+// realized as a native editable element (DOM in-box, canvas overlay) so
+// caret/selection/IME/a11y are native (D-5). Two-way bound with `text <-> :path`:
+// the draft reads the datapath and commits edits back into the dataset. Fires
+// `input` on each edit and `enter` on a single-line submit.
+// Editor (language §9, the leaf-input exception): the base for a component that
+// two-way edits a dataset value via `<->`. Carries the edit-session surface — the
+// draft's validity/error/dirtiness and WHEN it commits — so any editor (TextInput
+// today, a Picker/DatePopup tomorrow) inherits it. Not written directly.
+const EditorSchema: ComponentSchema = {
+  name: "Editor",
+  base: ViewSchema,
+  attrs: {
+    commitOn: { kind: "string" }, // "input" (live) | "blur" | "enter" | "manual"
+    error: { kind: "string" },    // the current validation error, "" when valid
+    valid: { kind: "boolean" },   // does the draft pass validate()?
+    dirty: { kind: "boolean" },   // does the draft differ from the committed value?
+  },
+};
+
 const TextInputSchema: ComponentSchema = {
   name: "TextInput",
-  base: ViewSchema,
+  base: EditorSchema,
   attrs: {
     text: { kind: "string" },
     placeholder: { kind: "string" },
@@ -246,7 +278,8 @@ const TextInputSchema: ComponentSchema = {
     // The UNCONTROLLED seed (cf. React's defaultValue vs value): `text` follows
     // `initial` until the user edits, then holds the edit — for a field started
     // from a value (a pristine source) that must stay writable. A bound `text`
-    // stays the CONTROLLED form (edits revert).
+    // stays the CONTROLLED form (edits revert). Prefer `text <-> :path` for a
+    // field editing a dataset record.
     initial: { kind: "string" },
   },
   events: ["input", "enter"],
@@ -261,7 +294,46 @@ const MarkdownSchema: ComponentSchema = {
   base: ViewSchema,
   attrs: {
     text: { kind: "string" },
+    // Prose tuning (design/text-and-markdown.md): `lineHeight` is a leading
+    // multiplier on the natural line box (1 = tight, the default; 1.5 = airy),
+    // and `bodyColor` overrides the built-in prose body colour (null = the
+    // PROSE default). Headings/code keep their own tokens — only running text
+    // dims/loosens, so hierarchy stays crisp.
+    lineHeight: { kind: "number" },
+    bodyColor: { kind: "color" },
+    // `scale` multiplies every prose size (headings, body, code) — a font-size
+    // zoom knob a reader control can drive; 1 = the natural sizes.
+    scale: { kind: "number" },
   },
+  // A link (`[text](url)`) in the prose was clicked — `onLink(href)`. The runtime
+  // supplies mechanism only (the click + href); the app dispatches policy (scroll,
+  // route, or `app.navigate`). Unhandled links fall back to `app.navigate`.
+  events: ["link"],
+};
+
+// HTMLText: the sibling of Markdown for content authored (or LOADED) as a
+// WHITELISTED HTML subset. `html` is parsed at render time against a fixed tag
+// set (html.ts) into the SAME block tree Markdown renders. `unsupported` chooses
+// the behaviour for a tag outside the set — `strip` (unwrap, keep text) or
+// `error` (throw) — so loaded/untrusted content is never silently mangled. The
+// prose knobs (lineHeight/bodyColor/scale) are shared with Markdown.
+const HTMLTextSchema: ComponentSchema = {
+  name: "HTMLText",
+  base: ViewSchema,
+  attrs: {
+    html: { kind: "string" },
+    unsupported: enumType("Unsupported", "strip", "error"),
+    // Named text fills a `<span class="…">` can reference — a map of name → Fill
+    // (`accents = { { accent: gradient("90deg", 0x…, 0x…) } }`). The one styling
+    // hook: content names a fill the app defines; it never carries CSS itself.
+    accents: { kind: "record", name: "Accents" },
+    lineHeight: { kind: "number" },
+    bodyColor: { kind: "color" },
+    scale: { kind: "number" },
+  },
+  // A link (`<a href>`) was clicked — `onLink(href)`; same mechanism/policy split
+  // as Markdown. Unhandled links fall back to `app.navigate`.
+  events: ["link"],
 };
 
 // Layout strategies (R7). The abstract base is deliberately NOT in the name
@@ -443,6 +515,7 @@ export const SCHEMAS: Readonly<Record<string, ComponentSchema>> = {
   HTML: HtmlSchema,
   TextInput: TextInputSchema,
   Markdown: MarkdownSchema,
+  HTMLText: HTMLTextSchema,
   SimpleLayout: SimpleLayoutSchema,
   WrappingLayout: WrappingLayoutSchema,
   TweenLayout: TweenLayoutSchema,

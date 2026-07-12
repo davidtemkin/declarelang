@@ -13,11 +13,15 @@
 // wiring here — deliverKeys (Layer 2) already routes keys to the focused view;
 // the native element consumes character input directly while it holds the
 // caret.
-import { View, fireEvent, onDiscard } from "./view.js";
+import { fireEvent, onDiscard } from "./view.js";
 import { bindDerived, defineAttributes, isSet, ownerOf } from "./attributes.js";
 import { Constraint } from "./reactive.js";
 import { Focus } from "./focus.js";
-export class TextInput extends View {
+import { isTwoWay, edited, commitDraft, Editor } from "./editor.js";
+export class TextInput extends Editor {
+    // The editor session (commitOn / error / valid / dirty + commit()/revert())
+    // is inherited from Editor; `text` is this editor's draft slot.
+    draftSlot() { return "text"; }
     attach(backend, parentSurface) {
         // A text field is a tab stop by default; an explicit `focusable = false`
         // (was-set) opts out untouched, exactly like Text's auto-size.
@@ -73,8 +77,14 @@ export class TextInput extends View {
             onBlur: () => {
                 if (Focus.getFocus() === this)
                     Focus.blur();
+                if (this.commitOn === "blur" && isTwoWay(this, "text"))
+                    commitDraft(this, "text");
             },
-            onEnter: () => fireEvent(this, "enter"),
+            onEnter: () => {
+                if (this.commitOn === "enter" && isTwoWay(this, "text"))
+                    commitDraft(this, "text");
+                fireEvent(this, "enter");
+            },
         };
         s.setEditable(spec);
     }
@@ -92,6 +102,12 @@ export class TextInput extends View {
         }
         if (this.text !== v)
             this.text = v;
+        // A two-way (`<->`) field runs its edit session FIRST — refresh
+        // dirty/valid/error and commit the draft to the dataset per `commitOn`
+        // (editor.ts) — so the user's `onInput` handler below sees the model already
+        // settled (the committed value in the dataset), not a value about to change.
+        if (isTwoWay(this, "text"))
+            edited(this, "text", this.commitOn);
         fireEvent(this, "input", v);
     }
     /** Neo focus arrived/left — give or take the platform caret (Layer 2 hook,
@@ -108,5 +124,6 @@ defineAttributes(TextInput, {
     wrap: { def: true, push: (t) => t.syncEditable() },
     padding: { def: 0, push: (t) => t.syncEditable() },
     initial: { def: "" },
+    // commitOn / error / valid / dirty are declared on the Editor base.
 });
 //# sourceMappingURL=text-input.js.map

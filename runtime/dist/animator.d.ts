@@ -89,6 +89,12 @@ export declare class Animator extends Node implements Animatable {
      *  running. Leaves the ledger (resuming the displaced driver when it was the
      *  last animator), without landing an end value (animation.md §2). */
     stop(): void;
+    /** Retire with the host view (View.discard reaches us now): drop off the
+     *  clock and dispose our own `{ }` bindings (`to`, `attribute`, …). Without
+     *  this a discarded Spring's `to` binding stays subscribed to what it read —
+     *  the leak — and the spring keeps ticking. Bindings first, so a stop() that
+     *  fires onStop cannot re-target through a live binding. */
+    discard(): void;
     /** One clock frame (the Ticker contract): advance by real elapsed time,
      *  write the eased DELTA additively, handle repeat / completion. `frozen`
      *  (an enclosing group's pause) freezes progression while keeping `lastNow`
@@ -164,6 +170,9 @@ export declare class AnimatorGroup extends Node implements Animatable {
     /** Stop the group (LZX stop): halt every still-running member in place, drop
      *  the group ticker, fire onStop. Idempotent. */
     stop(): void;
+    /** Retire with the host view: drop the group ticker + own bindings, then
+     *  recurse so each member animator disposes its own bindings too. */
+    discard(): void;
     /** One group frame: drive the active members with the shared `now`, retire
      *  the finished, replay or finish when all are done. `sequential` advances
      *  only the head member per frame; `simultaneous` advances all. A `frozen`

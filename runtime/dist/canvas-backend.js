@@ -234,6 +234,11 @@ class CanvasSurface {
     box = null;
     visible = true;
     opacity = 1;
+    /** Uniform scale about (pivotX, pivotY) in this surface's own coordinates;
+     *  1 = identity. Applied in the paint walk and inverted in the hit walk. */
+    scaleK = 1;
+    pivotX = 0;
+    pivotY = 0;
     scrolls = false;
     scrollOffset = 0;
     onScrollCb = null;
@@ -279,6 +284,12 @@ class CanvasSurface {
     setHeight(v) { this.height = v; this.box = null; this.compositor.invalidate(); }
     setVisible(v) { this.visible = v; this.compositor.invalidate(); }
     setOpacity(o) { this.opacity = o; this.compositor.invalidate(); }
+    setScale(scale, px, py) {
+        this.scaleK = scale;
+        this.pivotX = px;
+        this.pivotY = py;
+        this.compositor.invalidate();
+    }
     setFill(f) {
         if (isGradient(f)) {
             this.gradient = f;
@@ -444,8 +455,14 @@ class CanvasSurface {
     hit(px, py) {
         if (!this.visible || this.opacity <= 0)
             return null;
-        const lx = px - this.x;
-        const ly = py - this.y;
+        let lx = px - this.x;
+        let ly = py - this.y;
+        if (this.scaleK !== 1) {
+            // Invert the paint transform so the point lands in the subtree's own
+            // (unscaled) coordinates — a scaled view stays clickable where drawn.
+            lx = (lx - this.pivotX) / this.scaleK + this.pivotX;
+            ly = (ly - this.pivotY) / this.scaleK + this.pivotY;
+        }
         if (this.clipData !== null) {
             this.clipPath ??= new Path2D(this.clipData);
             if (!hitCtx().isPointInPath(this.clipPath, lx, ly))
@@ -472,6 +489,40 @@ class CanvasSurface {
         this.onScrollCb = on ? onScroll : null;
         if (!on)
             this.scrollOffset = 0;
+    }
+    // Horizontal scroll is a DOM-backend affordance for now (code blocks); the canvas
+    // compositor's x-scroll is a later addition, so this is a no-op here (over-wide
+    // content simply isn't clipped on canvas — the docs render on DOM).
+    setScrollX(_on) { }
+    // Native rich-text flow is a DOM affordance; on canvas the RichText component lays
+    // the runs out as child views itself. -1 signals "not handled, fall back".
+    setRichContent() { return -1; }
+    /** Scroll this surface to the top of its nearest scrolling ancestor — the
+     *  canvas twin of DOM's native scrollIntoView. Sums local offsets up to the
+     *  scroll container, clamps to its content extent (the same math scrollBy
+     *  uses), sets the offset, mirrors it into `scrollY`, and repaints. */
+    scrollIntoView() {
+        let cur = this;
+        let off = 0;
+        while (cur.parent !== null && !cur.parent.scrolls) {
+            off += cur.y;
+            cur = cur.parent;
+        }
+        const sc = cur.parent;
+        if (sc === null)
+            return; // nothing scrolls above us
+        off += cur.y; // cur is the scroll container's direct child
+        let extent = 0;
+        for (const c of sc.children)
+            if (c.visible)
+                extent = Math.max(extent, c.y + c.height);
+        const max = Math.max(0, extent - sc.height);
+        const next = Math.min(max, Math.max(0, off));
+        if (next !== sc.scrollOffset) {
+            sc.scrollOffset = next;
+            sc.onScrollCb?.(next);
+            this.compositor.invalidate();
+        }
     }
     // Canvas has no per-view DOM element to mark — foreign embedding is DOM-only
     // (the editable-demo host runs on the DOM backend; canvas is parked).
@@ -544,6 +595,11 @@ class CanvasSurface {
             return;
         ctx.save();
         ctx.translate(this.x, this.y);
+        if (this.scaleK !== 1) {
+            ctx.translate(this.pivotX, this.pivotY);
+            ctx.scale(this.scaleK, this.scaleK);
+            ctx.translate(-this.pivotX, -this.pivotY);
+        }
         if (this.clipData !== null) {
             this.clipPath ??= new Path2D(this.clipData);
             ctx.clip(this.clipPath);

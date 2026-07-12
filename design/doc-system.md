@@ -160,6 +160,44 @@ examples) — but the guide is a third thing that reshapes both for teaching.
 - **TS**: existing `/** … */`; add `@api` to mark public surface. The block's
   prose stays maintainer-facing — reference prose for the core lives in files.
 
+## Ratified refinements (2026-07-10)
+
+Three decisions taken after the original ratification; they extend it, nothing is retracted.
+
+**1. The doc-comment is a `/* */` Markdown block — superseding the `///` line form.** A Declare
+doc-comment is a `/* … */` block (`/** … */` in TS) whose interior is **prefix-free Markdown**,
+captured by position, attaching to the next declaration, **dedented** (the existing `dedent()`,
+parser.ts:241 — the same strip `"""` text blocks use). `//` stays an ordinary literal aside.
+`@api` is a marker **inside** the block. So one capture serves both roles at once: the *rendered*
+comment a preview shows, and the *prose field* of the model node the reference is built from — and
+the coverage/orphan/structural gate guarantees that prose can neither drift from nor misname the
+structure. This unifies [`documentation-plans.md`](documentation-plans.md) (the Markdown doc-block
+construct + the human/LLM value lens) with this document into one system. The block documents a
+**declaration** (`[ ]` world); it never reaches inside a `{ }` code region — including the one
+top-level code region, `script { }` — where comments stay ordinary TS comments.
+
+**2. One model, one renderer, self-hosted — the reference *is* a Declare app.** The structured
+JSON model is made **walkable** (every edge — parent, child, `extends`, see-also, used-by — is a
+resolvable node id) and is the single contract. Every surface is a *view* of that one model,
+rendered through Declare's own **Markdown component** (both backends pixel-identical). So the docs
+are a Declare app — Declare documenting Declare, rendered by Declare:
+
+| Surface | What it is |
+|---|---|
+| In-browser navigable docs | a Declare app that walks the model + renders each node's Markdown |
+| **Web docs** | that **same app** (built now for the full interactive feature set — *not* a separate static generator) |
+| Live object browser | that same app **+ one bridge**: live instance → class identity → model node → render (Smalltalk-style, in a debug build) |
+| Developer's Guide | narrative Markdown, but its examples are **live-compiled `.declare` islands** (the homepage src+run mechanism) and construct mentions **link into the model** |
+
+The renderer count collapses to **model + one Declare app**; the object browser is that app minus
+one hop (arriving from an instance, not a nav click), the guide is authored content reusing the
+same renderer + live-example machinery.
+
+**3. SSR is deferred, for SEO only.** The Declare-app renderer ships the full interactive docs
+*now*; there is no static-HTML generator. Crawlable static output comes later via the `SsrBackend`
+([`seo-and-semantics.md`](seo-and-semantics.md)) as a build-time *view* of the same app — a pure
+addition, since model→JSON is the contract. Interactivity does not wait on SEO.
+
 ## Open bikesheds
 
 1. **Marker spelling** — `@api` (names the surface; avoids implying access

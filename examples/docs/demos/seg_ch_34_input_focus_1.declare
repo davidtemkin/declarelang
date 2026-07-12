@@ -1,0 +1,4 @@
+App [
+    seed:  TextInput [ initial = { app.zip } ],   // seeded once, then editable — the field is truth
+    bound: TextInput [ text    = { app.zip } ],   // controlled — always shows app.zip, edits revert
+]

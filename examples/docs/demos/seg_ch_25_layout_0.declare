@@ -1,0 +1,8 @@
+App [
+    View [ x = 28, y = 26,
+        layout: SimpleLayout [ axis = y, spacing = 16 ],
+        Text [ text = "Humidity" ],
+        Text [ text = "Wind" ],
+        Text [ text = "Sunrise" ],
+        ]
+]

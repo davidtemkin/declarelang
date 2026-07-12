@@ -55,6 +55,13 @@ export declare class State extends Node {
     /** Retire the subtree: discard each built view's standing machinery and
      *  surface, unlink it, and drop any name it bound. */
     private teardownChildren;
+    /** Retire with the host view (View.discard reaches every child now): dispose
+     *  our `applied` gate binding — else it lingers, subscribed to whatever it
+     *  gated on (`applied = { app.openSection … }`), keeping this state and its
+     *  view alive. The state's EFFECTS (override constraints owned by the target,
+     *  built children spliced into the target) are torn down by the target view's
+     *  own discard, so there is nothing else to undo here. */
+    discard(): void;
     /** Fire a carried handler if installed (onApply / onRemove) — a plain Node
      *  dispatch, like the Animator's on* firing. */
     private fire;

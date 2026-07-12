@@ -20,4 +20,12 @@ export declare class Node {
     /** Unlink `child`. Model structure only — a live view's surface and
      *  standing computations are the caller's to retire (View.discard). */
     removeChild(child: Node): void;
+    /** Retire this node's standing machinery, depth-first — called once when a
+     *  subtree leaves the tree (replication, navigation). The base just recurses;
+     *  View overrides it to drop its surface + bindings, and Animator to drop its
+     *  clock enrolment + bindings. Recursing over EVERY child (not just Views) is
+     *  what tears down an Animator/Spring child — a Node, not a View — whose `to`
+     *  binding would otherwise linger, subscribed to whatever it read, keeping the
+     *  whole discarded subtree alive (and, for a Spring, still ticking). */
+    discard(): void;
 }

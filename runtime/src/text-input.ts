@@ -14,14 +14,15 @@
 // the native element consumes character input directly while it holds the
 // caret.
 
-import { View, fireEvent, onDiscard } from "./view.js";
+import { fireEvent, onDiscard } from "./view.js";
 import type { RenderBackend, Surface, EditableSpec } from "./backend.js";
 import { bindDerived, defineAttributes, isSet, ownerOf } from "./attributes.js";
 import { Constraint } from "./reactive.js";
 import { Focus } from "./focus.js";
 import type { TextStyle } from "./measure.js";
+import { isTwoWay, edited, commitDraft, Editor } from "./editor.js";
 
-export class TextInput extends View {
+export class TextInput extends Editor {
   declare text: string;
   declare placeholder: string;
   declare multiline: boolean;
@@ -29,6 +30,9 @@ export class TextInput extends View {
   declare wrap: boolean;
   declare padding: number;
   declare initial: string;
+  // The editor session (commitOn / error / valid / dirty + commit()/revert())
+  // is inherited from Editor; `text` is this editor's draft slot.
+  protected override draftSlot(): string { return "text"; }
 
   override attach(backend: RenderBackend, parentSurface: Surface | null): void {
     // A text field is a tab stop by default; an explicit `focusable = false`
@@ -90,8 +94,12 @@ export class TextInput extends View {
       onFocus: () => Focus.focus(this),
       onBlur: () => {
         if (Focus.getFocus() === this) Focus.blur();
+        if (this.commitOn === "blur" && isTwoWay(this, "text")) commitDraft(this, "text");
       },
-      onEnter: () => fireEvent(this, "enter"),
+      onEnter: () => {
+        if (this.commitOn === "enter" && isTwoWay(this, "text")) commitDraft(this, "text");
+        fireEvent(this, "enter");
+      },
     };
     s.setEditable(spec);
   }
@@ -109,6 +117,11 @@ export class TextInput extends View {
       return;
     }
     if (this.text !== v) this.text = v;
+    // A two-way (`<->`) field runs its edit session FIRST — refresh
+    // dirty/valid/error and commit the draft to the dataset per `commitOn`
+    // (editor.ts) — so the user's `onInput` handler below sees the model already
+    // settled (the committed value in the dataset), not a value about to change.
+    if (isTwoWay(this, "text")) edited(this, "text", this.commitOn);
     fireEvent(this, "input", v);
   }
 
@@ -127,4 +140,5 @@ defineAttributes(TextInput, {
   wrap: { def: true, push: (t) => t.syncEditable() },
   padding: { def: 0, push: (t) => t.syncEditable() },
   initial: { def: "" },
+  // commitOn / error / valid / dirty are declared on the Editor base.
 });

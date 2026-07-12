@@ -10,8 +10,20 @@
 // runtime choose a backend per view / per hierarchy.
 
 import type { Fill, Shadow, Stroke } from "./value.js";
-import type { TextStyle } from "./measure.js";
+import type { TextStyle, FontWeight } from "./measure.js";
 import type { DisplayList } from "./draw.js";
+
+/** One styled run of rich text (or a hard line break). Fully RESOLVED — the
+ *  RichText component bakes the effective font/colour into each run so a backend
+ *  just realizes what it is told (no palette knowledge across the seam). */
+export type RichRun =
+  | { text: string; size: number; weight: FontWeight; italic: boolean; family: string; strike: boolean; color: number; fill?: Fill; chipBg?: number; href?: string }
+  | { br: true };
+/** One block of a rich-text flow — a paragraph or heading (`tag` = "p" | "h1"…
+ *  "h6" for native semantics), its inline runs, the space above it, and its line
+ *  leading. A flow is an ordered list of these; the browser (DOM) or the manual
+ *  layout (Canvas) flows the runs and stacks the blocks. */
+export interface RichBlock { tag: string; runs: RichRun[]; gapBefore: number; lineHeight: number; fontSize: number }
 
 /** How an Image scales its bitmap into the view box — the language's
  *  `value Stretch = none | width | height | both` (§6). */
@@ -93,6 +105,12 @@ export interface Surface {
   setVisible(visible: boolean): void;
   setOpacity(opacity: number): void;
 
+  /** Uniform scale about a pivot in the view's own coordinates (paint-only,
+   *  never layout). scale 1 = identity; the DOM brushes a CSS transform, the
+   *  Canvas walk applies ctx.scale about the pivot (and its inverse on the hit
+   *  walk, so a scaled view stays clickable). */
+  setScale(scale: number, pivotX: number, pivotY: number): void;
+
   /** Clip this surface's subtree to a shape (SVG path data, view-local
    *  coordinates); null = unclipped. Applied at composite time — moving or
    *  re-clipping never re-rasterizes content (rendering model rule 3). */
@@ -104,6 +122,36 @@ export interface Surface {
    *  scroll event; canvas: the wheel/touch the compositor routes here), so the
    *  runtime can mirror it into the view's reactive `scrollY`. */
   setScroll(on: boolean, onScroll: (y: number) => void): void;
+  /** Make this surface a HORIZONTAL scroll container (`on`): it clips its box and
+   *  scrolls overflowing width, keeping over-wide content (a code block, a wide
+   *  table) inside its box instead of spilling. Vertical overflow stays clipped.
+   *  No reactive offset is mirrored (unlike `setScroll`) — it is presentation-only. */
+  setScrollX(on: boolean): void;
+  /** Render a rich-text FLOW into this surface as native content (RichText, the
+   *  read-only sibling of setEditable): the DOM backend builds real flowing HTML
+   *  — one element per block, inline runs in normal flow — so selection, copy,
+   *  find, a11y, and baselines are the platform's, and returns the measured
+   *  content height. A backend that can't (Canvas, today) returns -1, and the
+   *  RichText component falls back to laying the runs out as child views itself.
+   *  `selectable` mirrors the prevailing slot onto the native content; `width`
+   *  is the flow width (px) the runs wrap within — passed explicitly so the
+   *  measure never depends on the surface's box width having been flushed.
+   *  `onResize` is called with the flowed height whenever it later changes —
+   *  a web font finishing loading, or the content becoming visible after being
+   *  attached inside a momentarily zero-sized ancestor (a page transition) —
+   *  since the synchronous return can be 0 in exactly those cases; the RichText
+   *  keeps its own height in step so the surrounding stack re-flows. `onLink` is
+   *  called with a run's href when a link is activated — the DOM backend makes
+   *  link runs real `<a href>` (native affordances) but routes a plain click here
+   *  so the app's navigation policy, not the browser, decides. */
+  setRichContent(blocks: RichBlock[], selectable: boolean, width: number, onResize: (height: number) => void, onLink: (href: string) => void): number;
+  /** Scroll this surface to the top of its nearest scrolling ancestor — the
+   *  imperative companion to `setScroll`, behind `View.scrollIntoView()` (a click-to-
+   *  jump index, "scroll this into view"). No-op when nothing above scrolls.
+   *  DOM defers to the element's native scrollIntoView (it walks to the scroll
+   *  ancestor and does the offset math); the Canvas backend walks to the scroll
+   *  container itself, clamps to its content extent, and sets the offset. */
+  scrollIntoView(): void;
   /** Reflect an `embed` marker onto the surface so a HOST can find this view's
    *  element (data attribute on DOM) and mount foreign content (an editor, a
    *  preview iframe) inside it — the sanctioned seam for embedding non-neo UI

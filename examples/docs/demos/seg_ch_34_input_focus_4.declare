@@ -1,0 +1,7 @@
+App [
+    search: TextInput [ x = 20, y = 20, width = 240, active: boolean = false,
+        onFocus() { active = true },
+        onBlur()  { active = false },
+        hot: State [ applied = { active }, fill = #16273A ],   // frame lights while focused
+        ]
+]

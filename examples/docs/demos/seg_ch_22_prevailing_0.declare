@@ -1,0 +1,11 @@
+App [ fontFamily = ["Helvetica Neue", "Geneva", "sans-serif"], fontSize = 9,
+      fontWeight = bold, textColor = #FFFFFF, zip: string = "94110",
+
+    // none of these Texts repeat the family, size, weight, or colour — they
+    // inherit the App's, and would inherit any nearer container's instead
+
+    topBar: View [
+        title: Text [ text = "Rain or Shine?" ],
+        zip:   Text [ text = { app.zip }, textColor = #CAD0EC ],   // overrides just the colour
+        ],
+    ]

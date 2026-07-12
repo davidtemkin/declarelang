@@ -75,10 +75,25 @@ export class Spring extends Animator {
         }
         const to = this.to; // reactive: the live target this frame
         let pos = numOf(target, attr);
+        if (!Number.isFinite(pos))
+            pos = to; // recover from any poisoned prior state
         const m = this.mass > 0 ? this.mass : 1;
-        const accel = (this.stiffness * (to - pos) - this.damping * this.vel) / m;
-        this.vel += accel * dt;
-        pos += this.vel * dt;
+        // Integrate in fixed SUB-STEPS. A single large Euler step of a stiff spring
+        // is numerically unstable — it overshoots the target, then overshoots harder,
+        // and diverges (→ ±∞/NaN), which on a long/janky frame shows as a value
+        // flying back and forth and can poison dependent constraints. Splitting the
+        // elapsed time into small steps keeps the integration stable at any stiffness.
+        const H = 1 / 120;
+        for (let t = dt; t > 0; t -= H) {
+            const h = t < H ? t : H;
+            const accel = (this.stiffness * (to - pos) - this.damping * this.vel) / m;
+            this.vel += accel * h;
+            pos += this.vel * h;
+        }
+        if (!Number.isFinite(pos)) {
+            pos = to;
+            this.vel = 0;
+        } // last-resort clamp
         const eps = this.epsilon;
         if (Math.abs(to - pos) < eps && Math.abs(this.vel) < eps * 60) {
             // Landed: assign the exact target, zero the velocity, and sleep.

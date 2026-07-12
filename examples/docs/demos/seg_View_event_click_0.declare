@@ -1,0 +1,3 @@
+App [
+    View [ fill = #2A3A4A, onClick() { classroot.select() } ]
+]

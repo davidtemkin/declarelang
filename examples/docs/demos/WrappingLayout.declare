@@ -1,0 +1,16 @@
+// WrappingLayout.declare — a horizontal flow of chips that wraps to new rows
+class Chip extends View [ height = 30, cornerRadius = 15, fill = steelblue, label: string = "",
+    Text [ x = 12, y = 7, fontSize = 13, fontWeight = semibold,
+           textColor = #E7EEF2, text = { classroot.label } ] ]
+
+App [
+    View [ x = 24, y = 24, width = 320, layout: WrappingLayout [ spacing = 10, lineSpacing = 10 ],
+        Chip [ width = 74, label = "views" ],
+        Chip [ width = 92, label = "reactive" ],
+        Chip [ width = 78, label = "layout" ],
+        Chip [ width = 68, label = "text" ],
+        Chip [ width = 96, label = "animator" ],
+        Chip [ width = 66, label = "state" ],
+        Chip [ width = 86, label = "dataset" ],
+        Chip [ width = 90, label = "markdown" ] ],
+    ]

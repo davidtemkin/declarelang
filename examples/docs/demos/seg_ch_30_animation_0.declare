@@ -1,0 +1,6 @@
+App [
+    reveal: AnimatorGroup [ process = simultaneous,
+        Animator [ attribute = opacity, to = 1, duration = 200 ],
+        Animator [ attribute = y,       to = 20, duration = 200 ],
+        ],
+]

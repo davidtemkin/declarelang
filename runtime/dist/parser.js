@@ -176,6 +176,15 @@ function tokenize(src) {
             continue;
         }
         const start = here();
+        // two-way data-binding arrow (language §9, the leaf-input exception):
+        // `name <-> :path`. Multi-char, so it is lexed before the single-char table.
+        if (c === "<" && src[i + 1] === "-" && src[i + 2] === ">") {
+            advance();
+            advance();
+            advance();
+            tokens.push({ kind: "bindtwo", text: "<->", pos: start });
+            continue;
+        }
         // single-character punctuation
         const punct = {
             "[": "lbracket", "]": "rbracket", "(": "lparen", ")": "rparen", "=": "eq", ",": "comma", ":": "colon", ".": "dot",
@@ -387,6 +396,13 @@ class Parser {
             if (this.peek().kind === "eq") {
                 this.next();
                 el.attrs.push({ name: name.text, value: this.parseLiteral(), pos: name.pos });
+            }
+            else if (this.peek().kind === "bindtwo") {
+                // `name <-> :path` — two-way: the slot reads the datapath AND writes
+                // edits back to it. The value must be a `:path` (checked); the parser
+                // just tags the attribute so instantiate wires both directions.
+                this.next();
+                el.attrs.push({ name: name.text, value: this.parseLiteral(), pos: name.pos, bind: "two" });
             }
             else if (this.peek().kind === "colon") {
                 // `name: Type …` — a declaration (R6): with `[ ]` it is a named child

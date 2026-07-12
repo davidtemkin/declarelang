@@ -27,6 +27,8 @@ import { fontMetrics, fontString, textWidth, wrapLines } from "./measure.js";
 import { bindDerived, defineAttributes, isSet, ownerOf } from "./attributes.js";
 import { Constraint } from "./reactive.js";
 export class Text extends View {
+    // `selectable` is a prevailing View slot now (inherited): the textStyle derive
+    // below reads `this.selectable` so a `selectable` container opts a whole subtree in.
     attach(backend, parentSurface) {
         // Auto-size installs at attach (measurement is a browser activity — the
         // model stays Node-importable) and only for unowned, never-set slots: an
@@ -85,6 +87,5 @@ defineAttributes(Text, {
     textAlign: { def: "left" },
     italic: { def: false },
     textFill: { def: null },
-    selectable: { def: false },
 });
 //# sourceMappingURL=text.js.map

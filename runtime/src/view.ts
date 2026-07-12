@@ -95,7 +95,14 @@ export class View extends Node {
   declare shadow: Shadow | null;
   declare visible: boolean;
   declare opacity: number;
+  /** Uniform paint-only scale about (pivotX, pivotY), the view's own
+   *  coordinates (default the top-left corner); 1 = no transform. Spring it for
+   *  zoom effects — it never affects layout, exactly like opacity. */
+  declare scale: number;
+  declare pivotX: number;
+  declare pivotY: number;
   declare scrolls: boolean;
+  declare scrollsX: boolean;
   declare scrollY: number;
   /** Keyboard focus (design-docs/input.md, Layer 2). `focusable` = a tab stop;
    *  `focustrap` = a self-contained focus group. Traversal order is the tree,
@@ -121,6 +128,10 @@ export class View extends Node {
   declare fontWeight: FontWeight;
   /** Letter tracking in px (canvas-native), 0 = natural advances. */
   declare letterSpacing: number;
+  /** Native text selection, prevailing: `selectable = true` on a container opts
+   *  its whole subtree back into browser selection/copy (Text acts on it; a
+   *  `Markdown` component's runs inherit it). Off by default — the app is a UI. */
+  declare selectable: boolean;
   /** The prevailing design-token record (ruled, v1): a plain immutable
    *  record, wholesale-swapped — components opt in by reading tokens
    *  (`fill = { theme.buttonFill }`); re-skinning a subtree is one set. */
@@ -239,6 +250,18 @@ export class View extends Node {
     return v === undefined ? null : v;
   }
 
+  /** Write `v` to `path` relative to this view's inherited cursor — the write
+   *  twin of `$data`, the runtime half of a two-way `<->` binding (language §9,
+   *  the leaf-input exception). Lands through `Dataset.set` (equality-gated →
+   *  the read side that fed the field re-reads the same value and stops at the
+   *  gate, so committing a draft is a no-op round-trip, not a loop). A datapath
+   *  that resolves to no dataset is a no-op — there is nowhere to write. */
+  $setData(path: string, v: unknown): void {
+    const cursor = inheritedCursor(this);
+    if (cursor === null) return;
+    cursor.data.set([...cursor.path, ...splitPath(path)].join("."), v);
+  }
+
   /** The tree-mutation entry (R8): children were inserted/removed/reordered
    *  as a unit — re-arm the installed arrangement and re-derive auto-extent,
    *  once per burst (the replicator calls this once per reconcile, not per
@@ -326,12 +349,13 @@ export class View extends Node {
    *  arrangement, and destroy the surfaces — so no data or attribute change
    *  can ever wake work for a removed view. Children first; the model links
    *  (parent/children) are the caller's to cut (Node.removeChild). */
-  discard(): void {
+  override discard(): void {
     // Move focus off this subtree before it is torn down (input.md §mutation).
     focusDiscardHook?.(this);
-    for (const child of this.children) {
-      if (child instanceof View) child.discard();
-    }
+    // EVERY child, not just Views: an Animator/Spring child is a Node, and its
+    // `to`/`attribute` bindings must be disposed too (else they leak, subscribed
+    // to whatever they read — e.g. a Spring `to = { app.openSection … }`).
+    for (const child of this.children) child.discard();
     const retire = RETIRE.get(this);
     if (retire !== undefined) {
       RETIRE.delete(this);
@@ -372,11 +396,24 @@ export class View extends Node {
     if (this.shadow !== null) s.setShadow(this.shadow);
     s.setVisible(this.visible);
     s.setOpacity(this.opacity);
+    if (this.scale !== 1 || this.pivotX !== 0 || this.pivotY !== 0)
+      s.setScale(this.scale, this.pivotX, this.pivotY);
     this.applyClip(this.clip);
     if (this.scrolls) s.setScroll(true, (y) => { this.scrollY = y; });
+    if (this.scrollsX) s.setScrollX(true);
     const sink = this.inputSink();
     if (sink !== null) s.setInput(sink);
     if (this.draw) this.bindDraw();
+  }
+
+  /** Scroll this view to the top of its nearest scrolling ancestor — the
+   *  imperative companion to the reactive `scrolls`/`scrollY` pair (a click
+   *  handler calls it to jump to a target). Both backends do the work in their
+   *  Surface; a no-op before attach or with nothing scrolling above. (Named for
+   *  the platform primitive — `reveal` is deliberately left free as a member name,
+   *  e.g. a `reveal:` fade-in Spring.) */
+  scrollIntoView(): void {
+    this.surface?.scrollIntoView();
   }
 
   /** This view's input route, or null when it answers no pointer event —
@@ -464,6 +501,11 @@ defineAttributes(View, {
   shadow: { def: null, push: (v, sh) => v.surface?.setShadow(sh), equal: shadowEqual },
   visible: { def: true, push: (v, b) => v.surface?.setVisible(b) },
   opacity: { def: 1, push: (v, o) => v.surface?.setOpacity(o) },
+  // Scale + pivot ride one transform at the seam: any of the three re-pushes
+  // the combined value (transform + transform-origin on the DOM).
+  scale: { def: 1, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },
+  pivotX: { def: 0, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },
+  pivotY: { def: 0, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },
   focusable: { def: false },
   focustrap: { def: false },
   clip: { def: null, push: (v, c) => v.applyClip(c) },
@@ -471,11 +513,13 @@ defineAttributes(View, {
   // the user's offset back into `scrollY` (a plain reactive write — no push, so
   // it never echoes to the surface; reads drive fades/reveals).
   scrolls: { def: false, push: (v, on) => v.surface?.setScroll(on, (y) => { v.scrollY = y; }) },
+  scrollsX: { def: false, push: (v, on) => v.surface?.setScrollX(on) },
   scrollY: { def: 0 },
   // The prevailing built-ins: model-side on View (no push — Text's style
   // derive is the consumer that crosses the seam). Defaults are the
   // browser-native text defaults Text carried through R3–R9.
   textColor: { def: 0x000000, prevailing: true },
+  selectable: { def: false, prevailing: true },
   fontSize: { def: 16, prevailing: true },
   fontFamily: { def: "sans-serif", prevailing: true },
   fontWeight: { def: "normal", prevailing: true },
@@ -559,6 +603,10 @@ export class App extends View {
    *  custom app cursor reads it to YIELD to the I-beam over a text field:
    *  `cursor: View [ visible = { !classroot.pointerOverText } ]`. */
   declare pointerOverText: boolean;
+  /** The OS colour-scheme preference (`prefers-color-scheme: dark`), fed live by
+   *  the runtime. Theme an app off it: `fill = { app.dark ? 0x0B141B : 0xFFFFFF }`
+   *  or drive a `theme` record from it. Read-only to user code. */
+  declare dark: boolean;
   /** The shipping page's over-the-wire size in KB (gzipped) and its Declare
    *  source line count — provided by the host/build (see index.ts note), 0
    *  until set. Reactive reads: a stat bound to them settles when they land. */
@@ -612,6 +660,7 @@ defineAttributes(App, {
   pointerY: { def: 0 },
   hovering: { def: false },
   pointerOverText: { def: false },
+  dark: { def: false },
   pageWeight: { def: 0 },
   sourceLines: { def: 0 },
   editing: { def: false },

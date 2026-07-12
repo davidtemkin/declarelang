@@ -192,6 +192,16 @@ export function generateScaffold(schemas, classDecls) {
                 enums.set(t.name, t.tokens);
     }
     const enumLines = [...enums].map(([name, toks]) => `type ${name} = ${toks.map((t) => JSON.stringify(t)).join(" | ")};`);
+    // Record aliases: every record-typed attribute references a NAMED open record.
+    // `Theme` ships in the prelude; any other name (e.g. `Accents`) gets its own
+    // alias emitted here, so a new record-typed slot needs no prelude edit.
+    const records = new Set();
+    for (const s of all.values()) {
+        for (const t of Object.values(s.attrs))
+            if (t.kind === "record" && t.name !== "Theme")
+                records.add(t.name);
+    }
+    const recordLines = [...records].map((name) => `type ${name} = Readonly<Record<string, unknown>>;`);
     // Methods ride the user class declaration, keyed by class name.
     const declOf = new Map();
     for (const d of classDecls)
@@ -203,6 +213,6 @@ export function generateScaffold(schemas, classDecls) {
     // The Motion union — named tokens (generated from animate.ts, single source
     // of truth) plus the MotionCurve brand the constructors in the prelude return.
     const motionLine = `type Motion = ${MOTION_TOKENS.map((t) => JSON.stringify(t)).join(" | ")} | MotionCurve;`;
-    return [PRELUDE, enumLines.join("\n"), motionLine, classes.join("\n\n")].filter((x) => x.length > 0).join("\n\n") + "\n";
+    return [PRELUDE, enumLines.join("\n"), recordLines.join("\n"), motionLine, classes.join("\n\n")].filter((x) => x.length > 0).join("\n\n") + "\n";
 }
 //# sourceMappingURL=scaffold.js.map

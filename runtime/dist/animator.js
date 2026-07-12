@@ -41,7 +41,7 @@
 // prior owner exactly once and hands it back exactly once.
 import { Node } from "./node.js";
 import { sample, sharedClock, DEFAULT_MOTION } from "./animate.js";
-import { addBound, defineAttributes, ownerOf, setBound } from "./attributes.js";
+import { addBound, defineAttributes, disposeBindings, ownerOf, setBound } from "./attributes.js";
 /** The per-target ledger, keyed by slot name (LZX's `__animatedAttributes`).
  *  A Symbol-keyed side table, materialized only when an animator first drives a
  *  slot on the target — pay-per-use, invisible to author reads. */
@@ -181,6 +181,16 @@ export class Animator extends Node {
             sharedClock.remove(this);
         this.releaseSlot(false); // halt in place — read runTarget before end() clears it
         this.end();
+    }
+    /** Retire with the host view (View.discard reaches us now): drop off the
+     *  clock and dispose our own `{ }` bindings (`to`, `attribute`, …). Without
+     *  this a discarded Spring's `to` binding stays subscribed to what it read —
+     *  the leak — and the spring keeps ticking. Bindings first, so a stop() that
+     *  fires onStop cannot re-target through a live binding. */
+    discard() {
+        disposeBindings(this);
+        this.stop();
+        super.discard();
     }
     /** One clock frame (the Ticker contract): advance by real elapsed time,
      *  write the eased DELTA additively, handle repeat / completion. `frozen`
@@ -343,6 +353,13 @@ export class AnimatorGroup extends Node {
             if (m.isRunning())
                 m.stop();
         this.endGroup();
+    }
+    /** Retire with the host view: drop the group ticker + own bindings, then
+     *  recurse so each member animator disposes its own bindings too. */
+    discard() {
+        disposeBindings(this);
+        this.stop();
+        super.discard();
     }
     /** One group frame: drive the active members with the shared `now`, retire
      *  the finished, replay or finish when all are done. `sequential` advances

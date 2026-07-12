@@ -1,0 +1,3 @@
+App [
+    Text [ x = 24, y = 24, fontSize = { app.width < 700 ? 44 : 60 }, text = "Responsive" ]
+]

@@ -382,7 +382,7 @@ const NAMED = {
     laquo: "«", raquo: "»", ldquo: "“", rdquo: "”", lsquo: "‘", rsquo: "’",
     times: "×", divide: "÷", deg: "°", plusmn: "±", middot: "·", bull: "•",
 };
-function decodeEntities(s) {
+export function decodeEntities(s) {
     if (s.indexOf("&") === -1)
         return s;
     return s.replace(/&(#x?[0-9a-f]+|[a-z][a-z0-9]*);/gi, (m, body) => {

@@ -52,7 +52,12 @@ export type Inline = {
     inline: Inline[];
 } | {
     t: "br";
+} | {
+    t: "fill";
+    name: string;
+    inline: Inline[];
 };
 /** Parse a Markdown document into its block tree. */
 export declare function parse(src: string): Block[];
 export declare function parseInline(src: string): Inline[];
+export declare function decodeEntities(s: string): string;

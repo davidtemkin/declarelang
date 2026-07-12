@@ -18,9 +18,9 @@
 // is target → nearest sinked surface; the pairing/click rule is shared
 // (input.ts), so both backends decide clicks identically.
 
-import type { EditableSpec, InputSink, RenderBackend, Stretch, Surface } from "./backend.js";
+import type { EditableSpec, InputSink, RenderBackend, RichBlock, Stretch, Surface } from "./backend.js";
 import { colorToCss, isGradient, type Fill, type Shadow, type Stroke } from "./value.js";
-import { boxBounds, paintBox, type BoxState } from "./boxpaint.js";
+import { type BoxState } from "./boxpaint.js";
 import { fontMetrics, fontString, cssWeight, type TextStyle } from "./measure.js";
 import { replay, type DisplayList } from "./draw.js";
 import { onDprChange } from "./dpr.js";
@@ -141,22 +141,39 @@ export class DomBackend implements RenderBackend {
   }
 }
 
-// A legible dark-theme scrollbar for `.neo-scroll` elements, injected once per
-// document. macOS overlay scrollbars are near-invisible and never widen on
-// hover; a `::-webkit-scrollbar` rule opts into a classic, always-present one
-// (transparent track, translucent thumb that brightens + fattens on hover).
+// A legible, PERSISTENT, theme-aware scrollbar for `.neo-scroll` elements, injected
+// once per document. Two things macOS/Chromium get wrong for an app shell:
+//   • overlay scrollbars auto-hide and never reserve space — `scrollbar-gutter:
+//     stable` opts into a classic, always-present bar (styling `::-webkit-scrollbar`
+//     alone no longer forces this in current Chrome; the gutter is what does), and
+//   • a fixed colour is invisible in the other theme — a `prefers-color-scheme`
+//     block flips the thumb (light thumb on dark, dark thumb on light) so the bar
+//     follows the OS theme with no per-app wiring.
+// The bar shows only when content overflows; the reserved gutter keeps content from
+// shifting when it appears.
 const SCROLLBAR_STYLE_ID = "neo-scrollbar-style";
 function installScrollbarStyle(doc: Document): void {
   if (doc.getElementById(SCROLLBAR_STYLE_ID) !== null) return;
   const style = doc.createElement("style");
   style.id = SCROLLBAR_STYLE_ID;
   style.textContent =
-    ".neo-scroll::-webkit-scrollbar{width:12px;height:12px}" +
-    ".neo-scroll::-webkit-scrollbar-track{background:transparent}" +
-    ".neo-scroll::-webkit-scrollbar-thumb{background:rgba(230,238,242,.16);border-radius:7px;" +
-    "border:3px solid transparent;background-clip:padding-box}" +
-    ".neo-scroll::-webkit-scrollbar-thumb:hover{background:rgba(230,238,242,.34);border-width:2px}" +
-    ".neo-scroll{scrollbar-color:rgba(230,238,242,.28) transparent}";
+    // `scrollbar-gutter:stable` + a styled `::-webkit-scrollbar` = a persistent,
+    // space-reserving classic bar (vertical panes). NOTE: do NOT also set the
+    // standard `scrollbar-color` — in current Chrome it opts the element back into
+    // the OS overlay scrollbar and cancels the webkit styling. `.neo-scroll-x` is the
+    // horizontal variant (code blocks): a thin bottom bar, no reserved gutter.
+    ".neo-scroll{scrollbar-gutter:stable}" +
+    ".neo-scroll::-webkit-scrollbar{width:14px;height:14px}" +
+    ".neo-scroll-x::-webkit-scrollbar{height:10px}" +
+    ".neo-scroll::-webkit-scrollbar-track,.neo-scroll-x::-webkit-scrollbar-track{background:transparent}" +
+    ".neo-scroll::-webkit-scrollbar-thumb,.neo-scroll-x::-webkit-scrollbar-thumb{border-radius:7px;border:2px solid transparent;background-clip:padding-box}" +
+    // dark theme (default): a light translucent thumb
+    ".neo-scroll::-webkit-scrollbar-thumb,.neo-scroll-x::-webkit-scrollbar-thumb{background:rgba(230,238,242,.34)}" +
+    ".neo-scroll::-webkit-scrollbar-thumb:hover,.neo-scroll-x::-webkit-scrollbar-thumb:hover{background:rgba(230,238,242,.55)}" +
+    // light theme: a dark translucent thumb (the light one would vanish)
+    "@media(prefers-color-scheme:light){" +
+    ".neo-scroll::-webkit-scrollbar-thumb,.neo-scroll-x::-webkit-scrollbar-thumb{background:rgba(40,55,70,.42)}" +
+    ".neo-scroll::-webkit-scrollbar-thumb:hover,.neo-scroll-x::-webkit-scrollbar-thumb:hover{background:rgba(40,55,70,.62)}}";
   (doc.head ?? doc.documentElement).appendChild(style);
 }
 
@@ -165,23 +182,22 @@ class DomSurface implements Surface {
   private textEl: HTMLSpanElement | null = null;
   private editEl: HTMLInputElement | HTMLTextAreaElement | null = null;
   private edit: EditableSpec | null = null;
+  private richEl: HTMLDivElement | null = null;
+  private richObserver: ResizeObserver | null = null;
+  private onRichResize: ((height: number) => void) | undefined;
   private imgEl: HTMLImageElement | null = null;
   private drawEl: HTMLCanvasElement | null = null;
   private drawing: DisplayList | null = null;
   private stretch: Stretch = "none";
-  /** The box's retained paint state — the same BoxState the Canvas walk
-   *  keeps, because with `cornerRadius > 0` the box RASTERIZES through the
-   *  shared painter (boxEl below) instead of brushing CSS. `fillV` keeps the
-   *  raw Fill for the CSS branch's gradient string. */
+  /** The box's retained paint state — cornerRadius/stroke/shadow that decorate()
+   *  brushes onto the div as CSS. `fillV` keeps the raw Fill for the gradient
+   *  string. (The box is the div itself, painting beneath its children — no
+   *  per-view canvas.) */
   private readonly box: BoxState = {
     width: 0, height: 0, fill: null, gradient: null, cornerRadius: 0, stroke: null, shadow: null,
   };
   private fillV: Fill = null;
-  /** The per-view box raster (created only while cornerRadius > 0 — the
-   *  measured CSS-unstable case; see boxpaint.ts). First in content order:
-   *  the box paints beneath image/drawing/text, like the Canvas walk. */
-  private boxEl: HTMLCanvasElement | null = null;
-  /** Set once a raster has ever existed (arms the dpr watch exactly once). */
+  /** Set once the drawing raster has ever existed (arms the dpr watch once). */
   private watching = false;
   private gone = false;
 
@@ -210,14 +226,12 @@ class DomSurface implements Surface {
 
   setWidth(v: number): void {
     this.element.style.width = v + "px";
-    this.box.width = v;
-    if (this.boxEl !== null) this.rasterizeBox(); // the raster is box-sized
+    this.box.width = v;   // border-radius/background track the box via CSS — no re-raster
   }
 
   setHeight(v: number): void {
     this.element.style.height = v + "px";
     this.box.height = v;
-    if (this.boxEl !== null) this.rasterizeBox();
   }
 
   // ── Box decoration: CSS properties as PAINT PRIMITIVES where they are
@@ -260,28 +274,26 @@ class DomSurface implements Surface {
     this.decorate();
   }
 
-  /** Route the box paint: rounded → the shared raster; square → CSS. One
-   *  CSS property carries the square drop shadow AND the inside border (an
-   *  inset zero-blur ring — a CSS `border` would shift absolutely-positioned
-   *  children by its width, so it is never used). */
+  /** Box decoration — pure CSS, ALWAYS (fill/gradient = background, cornerRadius
+   *  = border-radius, shadow + inset ring = box-shadow). A rounded box is a
+   *  plain composited div, NOT a per-view canvas raster: resizing it each frame
+   *  then costs one cheap relayout instead of a GPU re-rasterization + command-
+   *  buffer flush per box per frame (the jank that capped the zoom's frame rate).
+   *  The old raster pinned corner AA to the Canvas backend's path AA pixel-for-
+   *  pixel; border-radius corner AA differs by a few pixels per corner — absorbed
+   *  by the suite's AA-tolerant compare (same class of difference as DOM text vs
+   *  fillText), invisible to the eye, and the price of a 120fps zoom. One CSS
+   *  property carries the drop shadow AND the inside border (an inset zero-blur
+   *  ring — a CSS `border` would shift absolutely-positioned children). */
   private decorate(): void {
     const s = this.element.style;
-    if (this.box.cornerRadius > 0) {
-      s.background = "";
-      s.boxShadow = "";
-      this.rasterizeBox();
-      return;
-    }
-    if (this.boxEl !== null) {
-      this.boxEl.remove();
-      this.boxEl = null;
-    }
     const f = this.fillV;
-    s.background = isGradient(f)
+    s.background = f === null ? "" : isGradient(f)
       ? `linear-gradient(${f.angle}deg, ${f.stops
           .map((st) => colorToCss(st.color) + (st.offset === null ? "" : ` ${st.offset * 100}%`))
           .join(", ")})`
       : colorToCss(f);
+    s.borderRadius = this.box.cornerRadius > 0 ? this.box.cornerRadius + "px" : "";
     const parts: string[] = [];
     const sh = this.box.shadow;
     if (sh !== null) parts.push(`${sh.dx}px ${sh.dy}px ${sh.blur}px ${colorToCss(sh.color)}`);
@@ -290,46 +302,15 @@ class DomSurface implements Surface {
     s.boxShadow = parts.join(", ");
   }
 
-  /** Rasterize the box through the SHARED painter (boxpaint.ts) into the
-   *  per-view box canvas, sized by the paint's conservative bounds (the box
-   *  plus its shadow's reach) at the current devicePixelRatio — exactly the
-   *  drawing raster's discipline below. */
-  private rasterizeBox(): void {
-    if (this.boxEl === null) {
-      const c = document.createElement("canvas");
-      c.style.position = "absolute";
-      c.style.pointerEvents = "none"; // content is inert — hits are box-geometry
-      this.placeContent(c); // first: the box paints beneath all other content
-      this.boxEl = c;
-      this.watchDpr();
-    }
-    const c = this.boxEl;
-    const b = boxBounds(this.box);
-    const dpr = window.devicePixelRatio || 1;
-    const w = Math.max(1, Math.ceil(b.w * dpr));
-    const h = Math.max(1, Math.ceil(b.h * dpr));
-    c.width = w;
-    c.height = h;
-    c.style.left = b.x + "px";
-    c.style.top = b.y + "px";
-    c.style.width = w / dpr + "px";
-    c.style.height = h / dpr + "px";
-    const ctx = c.getContext("2d")!;
-    ctx.setTransform(dpr, 0, 0, dpr, -b.x * dpr, -b.y * dpr);
-    paintBox(ctx, this.box, null);
-  }
-
-  /** Arm the shared dpr watch once (rasters must stay crisp across zoom /
-   *  display moves; text and <img> re-render natively and need nothing). */
+  /** Arm the shared dpr watch once (the drawing raster must stay crisp across
+   *  zoom / display moves; box decoration is CSS and text/<img> re-render
+   *  natively, so neither needs it). */
   private watchDpr(): void {
     if (this.watching) return;
     this.watching = true;
     onDprChange(
       () => !this.gone,
-      () => {
-        if (this.drawEl !== null) this.rasterize();
-        if (this.boxEl !== null) this.rasterizeBox();
-      }
+      () => { if (this.drawEl !== null) this.rasterize(); }
     );
   }
 
@@ -344,11 +325,31 @@ class DomSurface implements Surface {
     this.element.style.visibility = o <= 0 ? "hidden" : "";
   }
 
+  setScale(scale: number, pivotX: number, pivotY: number): void {
+    // A CSS transform is paint-only (never reflows siblings) and the browser
+    // accounts for it in hit-testing, so a scaled interactive box stays
+    // correctly clickable. Identity clears the property so an untouched view
+    // pays nothing.
+    if (scale === 1) {
+      this.element.style.transform = "";
+      this.element.style.transformOrigin = "";
+    } else {
+      this.element.style.transformOrigin = pivotX + "px " + pivotY + "px";
+      this.element.style.transform = "scale(" + scale + ")";
+    }
+  }
+
   setClip(d: string | null): void {
     // clip-path clips native hit-testing along with the pixels, so the
     // clipped-away part of an interactive box falls through — the same
     // subtraction the canvas walk's isPointInPath makes.
     this.element.style.clipPath = d === null ? "" : `path("${d}")`;
+  }
+
+  scrollIntoView(): void {
+    // Native walks to the nearest scrollable ancestor and does the offset math;
+    // block:start aligns the view to the top, matching the canvas path.
+    this.element.scrollIntoView({ block: "start" });
   }
 
   private scrollListener: (() => void) | undefined;
@@ -405,6 +406,126 @@ class DomSurface implements Surface {
       el.style.overflowX = "";
       el.style.pointerEvents = "none";
     }
+  }
+
+  private wheelXListener: ((e: WheelEvent) => void) | undefined;
+  setScrollX(on: boolean): void {
+    const el = this.element;
+    if (on) {
+      // Clip the box and scroll its overflowing WIDTH; vertical stays clipped.
+      el.style.overflowX = "auto";
+      el.style.overflowY = "hidden";
+      installScrollbarStyle(el.ownerDocument);
+      el.classList.add("neo-scroll-x");
+      el.style.pointerEvents = "auto";
+      if (this.wheelXListener === undefined) {
+        // Absolute-positioned content: the wheel won't drive it (as in setScroll),
+        // so advance scrollLeft ourselves — from a trackpad's horizontal delta or a
+        // shift+wheel. A plain vertical wheel is left alone so it scrolls the PAGE.
+        this.wheelXListener = (e: WheelEvent) => {
+          const dx = e.deltaX || (e.shiftKey ? e.deltaY : 0);
+          if (dx === 0) return;
+          const before = el.scrollLeft;
+          el.scrollLeft = before + dx;
+          if (el.scrollLeft !== before) e.preventDefault();
+        };
+        el.addEventListener("wheel", this.wheelXListener, { passive: false });
+      }
+    } else {
+      if (this.wheelXListener !== undefined) { el.removeEventListener("wheel", this.wheelXListener); this.wheelXListener = undefined; }
+      el.style.overflowX = "";
+      el.style.overflowY = "";
+      el.style.pointerEvents = "none";
+      el.classList.remove("neo-scroll-x");
+    }
+  }
+
+  /** Native rich-text flow (RichText). Build ONE flowing content element — a block
+   *  per RichBlock (real `<p>`/`<h*>` for a11y), inline runs in NORMAL flow (a
+   *  `<span>`/`<code>`) — so the browser wraps, aligns baselines, and lets the user
+   *  select/copy/find contiguously. Returns the measured (flowed) height. */
+  setRichContent(blocks: RichBlock[], selectable: boolean, width: number, onResize: (height: number) => void, onLink: (href: string) => void): number {
+    const doc = this.element.ownerDocument;
+    let host = this.richEl;
+    if (host === null) {
+      host = this.richEl = doc.createElement("div");
+      const s = host.style;
+      s.position = "absolute"; s.left = "0"; s.top = "0";
+      this.element.appendChild(host);
+    }
+    host.style.width = width + "px";
+    host.textContent = "";
+    host.style.userSelect = selectable ? "text" : "";
+    (host.style as CSSStyleDeclaration & { webkitUserSelect: string }).webkitUserSelect = selectable ? "text" : "";
+    host.style.pointerEvents = selectable ? "auto" : "none";
+    for (const b of blocks) {
+      const be = doc.createElement(/^h[1-6]$/.test(b.tag) ? b.tag : "p");
+      const bs = be.style;
+      bs.margin = "0"; bs.marginTop = b.gapBefore + "px";
+      // Line box in PX — round(fontSize × lineHeight), NOT a unitless multiplier:
+      // pinned so it keys off the block's own size (not the inherited cascade) and
+      // matches the Canvas backend's line advance exactly (conformity).
+      bs.fontSize = b.fontSize + "px";
+      bs.lineHeight = Math.round(b.fontSize * b.lineHeight) + "px";
+      bs.whiteSpace = "normal";
+      for (const r of b.runs) {
+        if ("br" in r) { be.appendChild(doc.createElement("br")); continue; }
+        // A link run is a REAL <a href> — native hover URL, right/middle/⌘-click
+        // open-in-tab — but a plain left click routes through `onLink` so the app,
+        // not the browser, decides (scroll, in-app route, or app.navigate).
+        const isLink = r.href !== undefined;
+        const el = doc.createElement(isLink ? "a" : r.chipBg !== undefined ? "code" : "span");
+        const rs = el.style;
+        if (isLink) {
+          (el as HTMLAnchorElement).href = r.href!;
+          rs.textDecoration = "none"; rs.cursor = "pointer"; rs.pointerEvents = "auto";
+          el.addEventListener("click", (e) => {
+            const m = e as MouseEvent;
+            if (m.button === 0 && !m.metaKey && !m.ctrlKey && !m.shiftKey && !m.altKey) { e.preventDefault(); onLink(r.href!); }
+          });
+        }
+        rs.fontFamily = r.family;
+        rs.fontSize = r.size + "px";
+        rs.fontWeight = cssWeight(r.weight);
+        if (r.italic) rs.fontStyle = "italic";
+        rs.color = colorToCss(r.color);
+        // A themed accent fill overrides the solid colour: a gradient clips a
+        // background to the glyphs (matching Text.textFill and the Canvas ramp),
+        // a solid fill is just that colour.
+        if (r.fill != null) {
+          if (isGradient(r.fill)) {
+            rs.backgroundImage = `linear-gradient(${r.fill.angle}deg, ${r.fill.stops.map((g) => colorToCss(g.color) + (g.offset === null ? "" : ` ${g.offset * 100}%`)).join(", ")})`;
+            (rs as CSSStyleDeclaration & { webkitBackgroundClip: string }).webkitBackgroundClip = "text";
+            rs.backgroundClip = "text";
+            (rs as CSSStyleDeclaration & { webkitTextFillColor: string }).webkitTextFillColor = "transparent";
+            rs.color = "transparent";
+          } else {
+            rs.color = colorToCss(r.fill);
+          }
+        }
+        if (r.strike) rs.textDecoration = "line-through";
+        if (r.chipBg !== undefined) {
+          rs.backgroundColor = colorToCss(r.chipBg);
+          rs.borderRadius = "4px"; rs.padding = "1px 5px";
+        }
+        el.textContent = r.text;
+        be.appendChild(el);
+      }
+      host.appendChild(be);
+    }
+    // Watch the flowed height: offsetHeight can read 0 here (attached inside a
+    // momentarily zero-sized ancestor during a page transition, or before a web
+    // font loads), and it also changes when a font arrives. The observer reports
+    // the settled height back so the RichText — and the stack around it — correct.
+    if (typeof ResizeObserver !== "undefined") {
+      const measured = host;
+      if (this.richObserver === null) {
+        this.richObserver = new ResizeObserver(() => this.onRichResize?.(measured.offsetHeight));
+        this.richObserver.observe(measured);
+      }
+      this.onRichResize = onResize;
+    }
+    return host.offsetHeight;      // forced layout → the flowed height
   }
 
   setEmbed(id: string): void {
@@ -544,8 +665,12 @@ class DomSurface implements Surface {
     // width so the browser breaks lines; an unbounded run stays a single line
     // (`pre`) and shrinks to content. (Canvas wrapping via pretext is its own rung.)
     s.whiteSpace = st.wrap ? "pre-wrap" : "pre";
-    s.width = st.wrap ? "100%" : "";
-    s.textAlign = st.align ?? "left";
+    const align = st.align ?? "left";
+    s.textAlign = align;
+    // The run fills the box when it must: a wrapping run (to break lines) or a
+    // non-left single line (so textAlign has a box to align within). A plain
+    // left run stays shrink-to-content, preserving auto-size.
+    s.width = st.wrap || align !== "left" ? "100%" : "";
     // Pin the first baseline to the font ascent: a line-height of exactly
     // ascent+descent leaves no half-leading, so DOM text and the Canvas
     // backend's fillText(…, ascent) place identical glyph geometry.
@@ -579,7 +704,7 @@ class DomSurface implements Surface {
       // canvas walk's box test. (Native text selection goes with this;
       // it returns via a future `selectable` attribute — HANDOFF §R5.)
       s.pointerEvents = "none";
-      this.placeContent(el, this.boxEl, this.imgEl, this.drawEl);
+      this.placeContent(el, this.imgEl, this.drawEl);
       this.textEl = el;
     }
     return this.textEl;
@@ -611,7 +736,7 @@ class DomSurface implements Surface {
       s.top = "0";
       s.pointerEvents = "none"; // content is inert — hits are box-geometry
       this.applyStretch();
-      this.placeContent(image, this.boxEl);
+      this.placeContent(image);
     }
   }
 
@@ -645,7 +770,7 @@ class DomSurface implements Surface {
       const c = document.createElement("canvas");
       c.style.position = "absolute";
       c.style.pointerEvents = "none"; // content is inert — hits are box-geometry
-      this.placeContent(c, this.boxEl, this.imgEl);
+      this.placeContent(c, this.imgEl);
       this.drawEl = c;
       this.watchDpr();
     }
@@ -683,6 +808,8 @@ class DomSurface implements Surface {
 
   destroy(): void {
     this.gone = true; // quiets any armed dpr listener
+    this.richObserver?.disconnect();
+    this.onRichResize = undefined;
     this.element.remove();
   }
 }

@@ -17,39 +17,19 @@ export declare function build(source: string, opts?: BuildOptions): App;
 /** Parse, resolve includes, check, instantiate, and render a Declare source
  *  into `host` via `backend`. */
 export declare function render(source: string, host: HTMLElement, backend: RenderBackend, opts?: BuildOptions): App;
-/** Tear down an embedded app's environment wiring (ResizeObserver + pointer listeners).
- *  Its rendered DOM is removed by the caller (clearing the island box); its input
- *  router self-retires once the root element is disconnected. A no-op for a
- *  top-level app. */
-export declare function disposeApp(app: App): void;
 /** Like render(), but first loads the web faces of the program's own `font`
  *  declarations (those with a URL/woff2 source), so first paint measures
  *  against the real metrics. The declarative counterpart to a manual
  *  loadFonts(): the app names its fonts (`font Title [ bold = "…" ]`), the
  *  runtime loads them. A source with only `system` fonts awaits nothing. */
 export declare function renderAsync(source: string, host: HTMLElement, backend: RenderBackend, opts?: BuildOptions): Promise<App>;
-/** A web font to make available before first paint: `src` is a URL (a
- *  self-hosted woff2 or a CDN), `weight`/`style` mirror the CSS descriptors. */
-export interface FontSpec {
-    family: string;
-    src: string;
-    weight?: string | number;
-    style?: string;
-}
-/** Load web fonts into the document so BOTH backends see them — one FontFace
- *  serves the Canvas backend's `ctx.font`/measureText and the DOM backend's
- *  `font-family` alike. A sanctioned runtime primitive: font loading lives in
- *  the runtime, never in a `{ }` body (which cannot reach `document`, per the
- *  sealed-abstraction rule). Awaiting every face lets a caller gate first paint
- *  on it — `await loadFonts(specs); render(…)` — so text measures against the
- *  real metrics, not a fallback that reflows on arrival. A no-op off the DOM
- *  (Node/tests), so it stays safe in the zero-dependency graph. */
-export declare function loadFonts(fonts: readonly FontSpec[]): Promise<void>;
 export { parse, parseProgram, parseLibrary } from "./parser.js";
 export { resolveIncludes, NO_INCLUDES } from "./include.js";
 export type { IncludeHost } from "./include.js";
 export { check, checkAttr, checkMethod, checkDecl, checkComponentValue, programSchemas } from "./check.js";
 export { instantiate } from "./instantiate.js";
+export { renderProgram, renderProgramAsync, mountApp, disposeApp, loadFonts } from "./boot.js";
+export type { FontSpec } from "./boot.js";
 export { Node } from "./node.js";
 export { View, App, Html, inheritedCursor, onDiscard } from "./view.js";
 export { Text } from "./text.js";

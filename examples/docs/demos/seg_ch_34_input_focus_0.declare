@@ -1,0 +1,6 @@
+App [
+    zipField: TextInput [ x = 84, y = 4, width = 96, placeholder = "Zip code",
+        onInput(v) { app.zip = v },              // each keystroke — v is the new text
+        onEnter()  { app.weather.fetch() },      // Enter, on a single-line field — submit
+        ]
+]

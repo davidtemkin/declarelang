@@ -718,8 +718,10 @@ function serveDist() {
       return;
     }
     // Only /dist/*.js is ever requested besides the pages (see pageHtml's
-    // import); serve it straight off disk relative to neolang/.
-    const filePath = path.join(root, req.url);
+    // import). The runtime's built output lives under runtime/dist since the
+    // distro restructure, so /dist/* maps there; other paths resolve off root.
+    const rel = req.url.startsWith("/dist/") ? path.join("runtime", req.url) : req.url;
+    const filePath = path.join(root, rel);
     try {
       const body = await readFile(filePath);
       const type = filePath.endsWith(".js") ? "text/javascript" : "application/octet-stream";
@@ -2072,12 +2074,23 @@ try {
     { at: [210, 130], color: VEIL_ON_BG, label: "…and the veil untouched" },
   ];
 
-  // The two text runs (native DOM text vs fillText — the standing soft
-  // machinery; everything else in the scene diffs STRICT, decoration
-  // included: CSS paint primitives vs the canvas box paint, pinned identical).
+  // Soft (AA-tolerant, blur-compared) regions. Two sources of legitimate
+  // cross-backend AA divergence, both the SAME class — one rasterizer's
+  // anti-aliasing vs another's, not different content:
+  //   1. the two text runs (native DOM text vs canvas fillText), and
+  //   2. rounded-box corners — the DOM backend now paints cornerRadius with CSS
+  //      border-radius (a composited div) rather than rasterizing the box into a
+  //      per-view canvas. That canvas re-rasterized on every resize, which
+  //      capped the zoom's frame rate (GPU command-buffer backpressure); the CSS
+  //      div resizes for free. border-radius corner AA differs from the Canvas
+  //      backend's path AA by a few pixels per corner (≤~83/255) — invisible,
+  //      and interiors/strokes stay pinned by the strict probes above.
   const r10Soft = [
     { x: 14, y: 100, w: 84, h: 26, label: "label (+1px textShadow)" },
     { x: 14, y: 126, w: 116, h: 20, label: "sub caption" },
+    { x: 13, y: 13, w: 90, h: 38, label: "chip1 rounded corners (CSS radius vs path AA)" },
+    { x: 13, y: 55, w: 90, h: 38, label: "chip2 rounded corners" },
+    { x: 129, y: 73, w: 62, h: 38, label: "shadowBox rounded corners" },
   ];
 
   const domR10 = await renderShot("/dom-r10", 1, "r10-dom.png");

@@ -14,16 +14,23 @@
 
 import http from "node:http";
 import path from "node:path";
-import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
+import { createHash } from "node:crypto";
 import { compile } from "../compiler/dist/compile-node.js";
+import { writeProduction } from "../tools/declarec.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const EXAMPLES = path.join(ROOT, "examples");
 // The sibling React build (site-compare/react/dist) — a second implementation of
 // the SAME spec (site-compare/SPEC.md), served on this origin for comparison.
 const COMPARE = path.resolve(ROOT, "..", "site-compare", "react", "dist");
+// A React re-implementation of THIS homepage, built independently by observing the
+// deployed site (not the .declare source). Lives inside the distro at site-react/,
+// Vite-built with base "/site-react/" so every asset URL is self-prefixed — served
+// on this origin so its live previews reach POST /compile and /runtime/dist.
+const SITE_REACT = path.join(ROOT, "site-react", "dist");
 const PORT = Number(process.env.PORT ?? process.argv[2] ?? 8200);
 
 const MIME = {
@@ -124,6 +131,62 @@ function serveFrom(res, baseDir, rel) {
   return send(res, 404, "not found", "text/plain");
 }
 
+// ── production builds (declarec), content-hash cached ────────────────────────
+// GET /examples/<name>/prod/ runs the REAL precompiled + minified + bundled
+// artifact `declarec` emits (parser + checker tree-shaken out) — the thing you
+// deploy, not the unbundled dev modules. Built on first request and rebuilt ONLY
+// when the source changes: a server-side cache keyed on the source hash (the
+// lzc-style cache OpenLaszlo has). The disk manifest survives restarts; an
+// in-process map is the fast path.
+// Fingerprint the compiler + runtime dist so a rebuild of EITHER invalidates
+// every cached production bundle — the source hash alone misses a runtime change
+// (e.g. a backend tweak) that changes the emitted bytes. Cheap statSync over the
+// dist .js mtimes; recomputed per request (dev traffic is low).
+function toolchainFingerprint() {
+  let acc = "";
+  for (const dist of [path.join(ROOT, "runtime", "dist"), path.join(ROOT, "compiler", "dist")]) {
+    if (!existsSync(dist)) continue;
+    for (const f of readdirSync(dist)) if (f.endsWith(".js")) acc += f + statSync(path.join(dist, f)).mtimeMs + ";";
+  }
+  return createHash("sha256").update(acc).digest("hex").slice(0, 8);
+}
+
+const prodMem = new Map(); // `${name}:${backend}` -> manifest
+async function ensureProdBuild(name, backend = "dom") {
+  const dir = path.join(EXAMPLES, name);
+  const srcPath = path.join(dir, `${name}.declare`);
+  if (!existsSync(srcPath)) return null;
+  const source = readFileSync(srcPath, "utf8");
+  const hash = createHash("sha256").update(source + "|" + backend + "|" + toolchainFingerprint()).digest("hex").slice(0, 12);
+  const outDir = path.join(dir, backend === "canvas" ? ".prod-cache-canvas" : ".prod-cache");
+  const manPath = path.join(outDir, "manifest.json");
+  const fresh = (m) => m && m.hash === hash && existsSync(path.join(outDir, m.appName));
+  let man = prodMem.get(name);
+  if (fresh(man)) return man;                                   // in-process hit
+  if (existsSync(manPath)) {                                    // disk hit (post-restart)
+    try { const d = JSON.parse(readFileSync(manPath, "utf8")); if (fresh(d)) { prodMem.set(name, d); return d; } } catch { /* rebuild */ }
+  }
+  const built = await writeProduction({ source, name, srcDir: dir, outDir, backend });  // miss → build
+  if (!built.ok) return { error: built.errors };
+  man = { hash, dir: outDir, appName: built.appName, sizes: built.sizes, assets: built.assets, builtAt: Date.now() };
+  writeFileSync(manPath, JSON.stringify(man, null, 2));
+  prodMem.set(name, man);
+  return man;
+}
+
+async function serveProd(res, name, rest, urlPath, backend = "dom") {
+  const man = await ensureProdBuild(name, backend);
+  if (man === null) return send(res, 404, "no such example", "text/plain");
+  if (man.error) return send(res, 500, "declarec build failed:\n" + man.error.map((e) => e.message).join("\n"), "text/plain");
+  const tail = rest.replace(/^\/+/, "");
+  if (tail === "" || tail === "index.html") {
+    if (!urlPath.endsWith("/")) { res.writeHead(302, { location: urlPath + "/" }); return res.end(); }
+    return serveFrom(res, man.dir, "index.html");
+  }
+  if (tail === "manifest.json") return send(res, 200, JSON.stringify(man.sizes, null, 2), "application/json");
+  return serveFrom(res, man.dir, tail);
+}
+
 http.createServer((req, res) => {
   let p;
   try { p = decodeURIComponent(new URL(req.url, "http://x").pathname); }
@@ -162,10 +225,25 @@ http.createServer((req, res) => {
     if (p === "/react" || p === "/react/") return serveFrom(res, COMPARE, "index.html");
     if (p.startsWith("/assets/")) return serveFrom(res, COMPARE, p);
 
+    // ── React re-implementation (site-react/dist), self-prefixed under /site-react/ ──
+    if (p === "/site-react" || p === "/site-react/") return serveFrom(res, SITE_REACT, "index.html");
+    if (p.startsWith("/site-react/")) return serveFrom(res, SITE_REACT, p.slice("/site-react/".length));
+
     if (p === "/") {
       const idx = path.join(ROOT, "index.html");
       if (existsSync(idx)) { res.writeHead(200, { "content-type": "text/html; charset=utf-8" }); return res.end(readFileSync(idx)); }
       return send(res, 200, landing());
+    }
+
+    // /examples/<name>/prod[/...]  → the cached PRODUCTION build (declarec, DOM)
+    // /examples/<name>/prod-canvas[/...]  → same, Canvas backend
+    const prod = p.match(/^\/examples\/([^/]+)\/prod(-canvas)?(\/.*)?$/);
+    if (req.method === "GET" && prod && examples().includes(prod[1])) {
+      const backend = prod[2] ? "canvas" : "dom";
+      serveProd(res, prod[1], prod[3] ?? "", p, backend).catch((e) => {
+        if (!res.headersSent) send(res, 500, String((e && e.stack) || e), "text/plain");
+      });
+      return;
     }
 
     // /examples/<name>/  or  /examples/<name>/canvas  → compile + render

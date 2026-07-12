@@ -1,0 +1,10 @@
+App [
+    contact: Dataset { { "person": { "name": "Ada", "zip": "94110" } } },
+    form: View [ datapath = { app.contact.value.person },
+        name: TextInput [ y = 20, text <-> :name ],          // shows :name AND commits edits back to it
+        zip:  TextInput [ y = 80, text <-> :zip,             // a domain rule beyond the type
+              validate(v) { return /^[0-9]{5}$/.test(v) ? null : "must be 5 digits" } ],
+        note: Text [ y = 120, textColor = #cc5b47, text = { app.form.zip.error } ],  // the field owns its error
+        echo: Text [ y = 160, text = { "saved → " + app.contact.value.person.name + " / " + app.contact.value.person.zip } ],
+    ],
+]

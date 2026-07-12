@@ -1,0 +1,3 @@
+App [ fill = #0B141B, textColor = whitesmoke,
+    fontFamily = ["system-ui", "sans-serif"], fontSize = 15,
+    ]

@@ -1,0 +1,7 @@
+App [
+    grip: View [ dragging: boolean = false,
+        onMouseDown()  { dragging = true },
+        onMouseMove(e) { if (dragging) classroot.split = Math.max(240, e.x) },
+        onMouseUp()    { dragging = false },
+        ]
+]

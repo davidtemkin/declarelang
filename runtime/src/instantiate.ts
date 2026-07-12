@@ -52,7 +52,7 @@ import { Node } from "./node.js";
 import { Text } from "./text.js";
 import { Image } from "./image.js";
 import { TextInput } from "./text-input.js";
-import { Markdown } from "./markdown.js";
+import { Markdown, HTMLText } from "./markdown.js";
 import { Layout, SimpleLayout, WrappingLayout, TweenLayout } from "./layout.js";
 import { Dataset, DataSource } from "./data.js";
 import { Animator, AnimatorGroup } from "./animator.js";
@@ -67,6 +67,7 @@ import { compileBody, compileExpr } from "./expr.js";
 import { isPercent, type AttrType, type Theme } from "./value.js";
 import { defineAttributes, setBound, type AttrSpec } from "./attributes.js";
 import { bindConstraint, bindPercent, bindData, bindDatapath, bindCursor } from "./bind.js";
+import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
 import { Replicator } from "./replicate.js";
 
 type ViewCtor = new () => View;
@@ -83,7 +84,7 @@ type ViewCtor = new () => View;
  *  — all Node-level); having no visual incarnation, every attach / paint walk
  *  skips it. Node is a Node, not a View, hence the one cast. */
 const TAGS: Readonly<Record<string, ViewCtor>> = {
-  App, View, Text, Image, HTML: Html, TextInput, Markdown,
+  App, View, Text, Image, HTML: Html, TextInput, Markdown, HTMLText,
   Node: Node as unknown as ViewCtor,
 };
 
@@ -161,6 +162,8 @@ type Pending =
   | { view: Node; attr: Attr; code: string; classroot: View | null }
   | { view: View; attr: Attr; percent: number }
   | { view: View; attr: Attr; dataPath: string; type: AttrType }
+  | { view: View; attr: Attr; twoWay: string; type: AttrType }
+  | { view: View; attr: Attr; twoWayCode: string; type: AttrType; classroot: View | null }
   | { view: View; attr: Attr; cursorPath: string }
   | { view: View; attr: Attr; cursorCode: string; classroot: View | null }
   | { view: View; layoutEl: Element; of: string }
@@ -232,6 +235,8 @@ export function instantiate(input: Element | Program): View {
 function installPending(pending: readonly Pending[], ctx: Ctx): void {
   for (const p of pending) {
     if ("code" in p) bindConstraint(p.view, p.attr.name, p.code, p.attr.value.pos, p.classroot);
+    else if ("twoWay" in p) bindTwoWay(p.view, p.attr.name, p.twoWay, p.type);
+    else if ("twoWayCode" in p) bindTwoWayDynamic(p.view, p.attr.name, p.twoWayCode, p.attr.value.pos, p.classroot, p.type);
     else if ("dataPath" in p) bindData(p.view, p.attr.name, p.dataPath, p.type);
     else if ("cursorPath" in p) bindDatapath(p.view, p.cursorPath);
     else if ("cursorCode" in p) bindCursor(p.view, p.cursorCode, p.attr.value.pos, p.classroot);
@@ -610,7 +615,11 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
     const r = checkAttr(eff, attr);
     if (!r.ok) throw r.error;
     if ("binding" in r) {
-      if (attrType(eff, attr.name)?.kind === "cursor") {
+      if (attr.bind === "two") {
+        // `name <-> { expr }` — a DYNAMIC two-way binding: the expr names the
+        // field at runtime (a generic editor over `classroot.field`).
+        ctx.pending.push({ view, attr, twoWayCode: r.binding.src, type: attrType(eff, attr.name)!, classroot: acroot });
+      } else if (attrType(eff, attr.name)?.kind === "cursor") {
         ctx.pending.push({ view, attr, cursorCode: r.binding.src, classroot: acroot });
       } else {
         ctx.pending.push({ view, attr, code: r.binding.src, classroot: acroot });
@@ -628,6 +637,11 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
           );
         }
         ctx.pending.push({ view, attr, cursorPath: r.datapath.path });
+      } else if (attr.bind === "two") {
+        // `name <-> :path` — a two-way binding on an editable leaf slot: read
+        // the datapath AND write edits back to it (editor.ts). check() has
+        // already confirmed the slot is eligible.
+        ctx.pending.push({ view, attr, twoWay: r.datapath.path, type: t });
       } else {
         ctx.pending.push({ view, attr, dataPath: r.datapath.path, type: t });
       }

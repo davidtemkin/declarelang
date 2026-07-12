@@ -34,7 +34,11 @@ export type Inline =
   | { t: "strike"; inline: Inline[] }
   | { t: "code"; value: string }
   | { t: "link"; href: string; inline: Inline[] }
-  | { t: "br" };
+  | { t: "br" }
+  // A named visual accent (a themed text fill) — the Markdown reader never emits
+  // this; HTMLText does, for `<span class="…">`, and the flow engine resolves the
+  // name to a Fill against the component's `accents` map. Presentation, not a role.
+  | { t: "fill"; name: string; inline: Inline[] };
 
 // ── entry ──────────────────────────────────────────────────────────────────
 
@@ -359,7 +363,7 @@ const NAMED: Record<string, string> = {
   times: "×", divide: "÷", deg: "°", plusmn: "±", middot: "·", bull: "•",
 };
 
-function decodeEntities(s: string): string {
+export function decodeEntities(s: string): string {
   if (s.indexOf("&") === -1) return s;
   return s.replace(/&(#x?[0-9a-f]+|[a-z][a-z0-9]*);/gi, (m, body: string) => {
     if (body[0] === "#") {

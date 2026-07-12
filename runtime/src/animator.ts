@@ -42,7 +42,7 @@
 
 import { Node } from "./node.js";
 import { sample, sharedClock, DEFAULT_MOTION, type Motion, type Ticker } from "./animate.js";
-import { addBound, defineAttributes, ownerOf, setBound } from "./attributes.js";
+import { addBound, defineAttributes, disposeBindings, ownerOf, setBound } from "./attributes.js";
 import type { Constraint } from "./reactive.js";
 
 /** The shared contract a group drives its members through — an Animator or a
@@ -245,6 +245,17 @@ export class Animator extends Node implements Animatable {
     this.end();
   }
 
+  /** Retire with the host view (View.discard reaches us now): drop off the
+   *  clock and dispose our own `{ }` bindings (`to`, `attribute`, …). Without
+   *  this a discarded Spring's `to` binding stays subscribed to what it read —
+   *  the leak — and the spring keeps ticking. Bindings first, so a stop() that
+   *  fires onStop cannot re-target through a live binding. */
+  override discard(): void {
+    disposeBindings(this);
+    this.stop();
+    super.discard();
+  }
+
   /** One clock frame (the Ticker contract): advance by real elapsed time,
    *  write the eased DELTA additively, handle repeat / completion. `frozen`
    *  (an enclosing group's pause) freezes progression while keeping `lastNow`
@@ -421,6 +432,14 @@ export class AnimatorGroup extends Node implements Animatable {
     if (!this.grouped) sharedClock.remove(this);
     for (const m of this.active) if (m.isRunning()) m.stop();
     this.endGroup();
+  }
+
+  /** Retire with the host view: drop the group ticker + own bindings, then
+   *  recurse so each member animator disposes its own bindings too. */
+  override discard(): void {
+    disposeBindings(this);
+    this.stop();
+    super.discard();
   }
 
   /** One group frame: drive the active members with the shared `now`, retire
