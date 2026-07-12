@@ -7,6 +7,8 @@ export declare abstract class RichText extends View {
     lineHeight: number;
     bodyColor: number | null;
     scale: number;
+    /** Colour-scheme override (null = follow the App's OS `dark`). */
+    dark: boolean | null;
     private built;
     /** Parse the current source into the block tree. */
     protected abstract parseSource(): Block[];
@@ -17,7 +19,9 @@ export declare abstract class RichText extends View {
      *  default — Markdown has no syntax to name one. */
     protected accentsOf(): Record<string, Fill>;
     attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
-    /** The root App's colour scheme (`app.dark`), read by walking to the tree root. */
+    /** The colour scheme for the house rich-element palette: the explicit `dark`
+     *  override if set (an app whose own theme selector differs from the OS), else
+     *  the root App's OS `dark`, read by walking to the tree root. */
     private isDark;
     /** A link run was activated. Mechanism only: fire `onLink(href)` for the app to
      *  dispatch (scroll to an anchor, set a route, open externally). Unhandled, it

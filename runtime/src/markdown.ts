@@ -176,6 +176,33 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
     const halfLead = Math.round((adv - lineH) / 2);              // centre the glyph box in the line box (half-leading)
     const spaceW = textWidth(" ", fontString({ fontFamily: lead?.family ?? FALLBACK_FAMILY, fontSize: lead?.size ?? sz(PROSE.body), fontWeight: "normal" }));
 
+    // Preformatted (a `<pre>` code flow): keep whitespace verbatim, break on the
+    // runs' own newlines, no soft-wrap — the manual twin of CSS `white-space: pre`.
+    if (b.pre) {
+      let px = 0, ln = 0;
+      for (const r of b.runs) {
+        if ("br" in r) { ln++; px = 0; continue; }
+        const f = fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic });
+        const segs = r.text.split("\n");
+        for (let si = 0; si < segs.length; si++) {
+          if (si > 0) { ln++; px = 0; }
+          const seg = segs[si];
+          if (seg === "") continue;
+          const w = textWidth(seg, f, r.tracking);
+          const t = new Text();
+          t.x = px; t.y = y + ln * adv + halfLead; t.width = Math.ceil(w) + 2; t.wrap = false;
+          t.fontSize = r.size; t.fontWeight = r.weight; t.italic = r.italic; t.fontFamily = r.family; t.textColor = r.color; t.text = seg;
+          if (r.tracking !== 0) t.letterSpacing = r.tracking;
+          if (r.fill !== undefined) t.textFill = r.fill;
+          if (r.href !== undefined && onLink) { const href = r.href; setClick(t, () => onLink(href)); }
+          views.push(t);
+          px += w;
+        }
+      }
+      y += (ln + 1) * adv;
+      continue;
+    }
+
     type P = { text: string; run: Extract<RichRun, { text: string }>; w: number };
     type Tok = { word: P[] } | { sp: true } | { br: true };
     const toks: Tok[] = [];
@@ -336,6 +363,7 @@ function layoutBlocks(blocks: Block[], width: number, bodyColor: number, ctx: Ct
       case "table": out.push(buildTable(b, width, bodyColor, ctx)); break;
       case "blockquote": out.push(buildQuote(b, width, ctx)); break;
       case "code": out.push(buildCode(b, width)); break;
+      case "pre": out.push(buildPre(b, width, bodyColor, ctx)); break;
       case "rule": out.push(rectView(width, 1, C.rule)); break;
     }
   }
@@ -351,6 +379,17 @@ function buildBlocks(blocks: Block[], width: number, bodyColor: number, ctx: Ctx
   for (const v of layoutBlocks(blocks, width, bodyColor, ctx)) c.appendChild(v);
   c.layout = yStack(PROSE.blockGap);
   return c;
+}
+
+/** A preformatted, monospace flow that KEEPS its accent-coloured runs — the
+ *  syntax-highlighted code block (`<pre>` from HTMLText). Whitespace is preserved
+ *  and the runs' own `\n`s are the line breaks; on DOM it's one contiguous,
+ *  selectable `<pre>` with per-token colour. The mono family rides in as the
+ *  `family` arg (a non-`mono` base style, so no inline-code chip behind each run);
+ *  `<span class>` accents still compose their fill on top. */
+function buildPre(b: Extract<Block, { t: "pre" }>, width: number, bodyColor: number, ctx: Ctx): TextFlow {
+  const runs = richRunsOf(b.inline, base(BODY.size, BODY.weight, bodyColor, BODY.tracking), PROSE.mono);
+  return flowView([{ tag: "pre", runs, gapBefore: 0, lineHeight: ctx.lead, fontSize: sz(BODY.size), pre: true }], width, ctx);
 }
 
 /** A fenced code block — a single preformatted, monospace Text in a rounded box
@@ -454,6 +493,8 @@ export abstract class RichText extends View {
   declare lineHeight: number;
   declare bodyColor: number | null;
   declare scale: number;
+  /** Colour-scheme override (null = follow the App's OS `dark`). */
+  declare dark: boolean | null;
   private built: View[] = [];
 
   /** Parse the current source into the block tree. */
@@ -475,8 +516,11 @@ export abstract class RichText extends View {
     onDiscard(this, () => c.dispose());
   }
 
-  /** The root App's colour scheme (`app.dark`), read by walking to the tree root. */
+  /** The colour scheme for the house rich-element palette: the explicit `dark`
+   *  override if set (an app whose own theme selector differs from the OS), else
+   *  the root App's OS `dark`, read by walking to the tree root. */
   private isDark(): boolean {
+    if (this.dark != null) return this.dark;
     let r: unknown = this;
     while (r instanceof View && r.parent !== null) r = r.parent;
     return !!(r as { dark?: boolean }).dark;
@@ -558,6 +602,6 @@ export class HTMLText extends RichText {
 
 // Shared attributes live on the RichText base; Markdown/HTMLText inherit them
 // and add only their own source attribute(s).
-defineAttributes(RichText, { lineHeight: { def: 1 }, bodyColor: { def: null }, scale: { def: 1 } });
+defineAttributes(RichText, { lineHeight: { def: 1 }, bodyColor: { def: null }, scale: { def: 1 }, dark: { def: null } });
 defineAttributes(Markdown, { text: { def: "" } });
 defineAttributes(HTMLText, { html: { def: "" }, unsupported: { def: "strip" }, accents: { def: {} } });

@@ -116,11 +116,21 @@ function parseTag(inner: string): { tag: string; attrs: Record<string, string> }
 
 // ── tree → blocks ────────────────────────────────────────────────────────────
 
-/** Concatenated text of an element subtree (for `<code>`/`<pre>`). */
+/** Concatenated text of an element subtree (for `<code>`). */
 function textOf(el: El): string {
   let s = "";
   for (const k of el.kids) s += "text" in k ? k.text : textOf(k);
   return s;
+}
+
+/** Drop one leading newline from a run list (the `<pre>\n…` authoring convention). */
+function trimLeadingNewline(inline: Inline[]): Inline[] {
+  const first = inline[0];
+  if (first && first.t === "text" && first.value.startsWith("\n")) {
+    const v = first.value.slice(1);
+    return v === "" ? inline.slice(1) : [{ t: "text", value: v }, ...inline.slice(1)];
+  }
+  return inline;
 }
 
 function inlineOf(kids: HNode[]): Inline[] {
@@ -150,7 +160,11 @@ function blockOf(el: El): Block[] {
   if (/^h[1-6]$/.test(tag)) return [{ t: "heading", level: +tag[1], inline: inlineOf(el.kids) }];
   if (tag === "hr") return [{ t: "rule" }];
   if (tag === "blockquote") return [{ t: "blockquote", blocks: blocksOf(el.kids) }];
-  if (tag === "pre") return [{ t: "code", lang: "", text: textOf(el).replace(/^\n/, "").replace(/\s+$/, "") }];
+  // `<pre>` keeps its inline runs (so `<span class>` accents survive) as a
+  // preformatted flow — the whitespace inside a pre is already verbatim (the
+  // tokenizer's inPre guard). A leading newline (the `<pre>\n…` convention) is
+  // dropped; the rest of the indentation is meaning, so it stays.
+  if (tag === "pre") return [{ t: "pre", inline: trimLeadingNewline(inlineOf(el.kids)) }];
   if (tag === "div") return blocksOf(el.kids);                                  // transparent container
   if (tag === "ul" || tag === "ol") {
     const ordered = tag === "ol";

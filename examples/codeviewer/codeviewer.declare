@@ -1,0 +1,223 @@
+// codeviewer — a live, syntax-highlighted view of a Declare source file.
+//
+// It renders nothing on its own: the server runs the compiler's highlight()
+// (compiler/src/highlight.ts) over a `.declare` file and hands the resulting
+// SEGMENTS to this app through the host→app seed channel (app.demoSources), so
+// the viewer is a plain consumer. Each segment is either PROSE — the Markdown
+// carried in a block comment, rendered by the Markdown component — or CODE — a
+// run of syntax-highlighted <pre> HTML whose per-token <span> classes this app's
+// `accents` map colours (theme-aware, so the same segments render light or dark).
+//
+// Reach it with a request type (reqtypes.ts): `foo.declare?view=source`, or
+// `examples/<name>/?view=source`. The Reader/Source pair switches between the
+// rendered view and the verbatim source; the A stepper zooms every text size; the
+// ☀/◐/☾ switch picks Light / System / Dark.
+
+
+// one segment: prose (Markdown) OR code (coloured, monospace <pre>). Exactly one
+// child is visible, so the segment's auto-height is that child's height. Prose is
+// inset (a narrower reading column); code spans the full width, so the two read as
+// distinct — commentary vs. program — and code gets the room.
+class Segment extends View [ kind: string = "",
+    md: string = "",
+    html: string = "",
+
+    width = { parent.width },
+
+    prose: Markdown [ visible = { classroot.kind == "prose" }, x = { app.proseInset }, width = { parent.width - 2 * app.proseInset },
+        text = { classroot.md }, scale = { app.fontScale },
+        bodyColor = { app.theme.text }, dark = { app.isDark }, selectable = true ],
+
+    // code sits on a bordered panel; its height is the flow plus symmetric padding
+    // (contentHeight is the child bounding box, so + top-pad gives an even inset).
+    // The code font is smaller than the prose (codeScale) and the <pre> does NOT
+    // wrap — long lines scroll horizontally inside the panel.
+    code: View [ visible = { classroot.kind == "code" }, width = { parent.width },
+        fill = { app.theme.codeBg }, stroke = { stroke(1, app.theme.codeLine) }, cornerRadius = 8,
+        height = { this.contentHeight + 14 },
+
+        HTMLText [ x = 16, y = 14, width = { parent.width - 32 },
+            html = { classroot.html }, scale = { app.fontScale * app.codeScale },
+            accents = { app.codeAccents() }, bodyColor = { app.codeFg() }, selectable = true ],
+        ],
+    ]
+
+
+// small / reset / large "A" — steps the reader font zoom (docs' SizeBtn).
+class SizeBtn extends View [ width = 34, height = 30, cornerRadius = 6,
+
+    glyph: number = 14,
+    delta: number = 0,
+    hovered: boolean = false,
+
+    fill = { hovered ? app.theme.hover : null },
+
+    onMouseOver() { hovered = true },
+    onMouseOut() { hovered = false },
+    onClick() { app.fontScale = classroot.delta == 0 ? 0.85
+        : Math.max(0.7, Math.min(1.6, Math.round((app.fontScale + classroot.delta) * 100) / 100)) },
+
+    lbl: Text [ fontWeight = semibold, fontSize = { classroot.glyph }, textColor = { app.theme.muted },
+        text = "A", wrap = false,
+        x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 } ],
+    ]
+
+
+// one text segment of the Reader-view / Source-text pair — a two-segment switch
+// (styled like the theme one); the active segment wears the pill.
+class ModeSeg extends View [ m: string = "",
+    lbl: string = "",
+    hovered: boolean = false,
+
+    width = 96, height = { parent.height },
+
+    bg: View [ x = 2, y = 2, width = { parent.width - 4 }, height = { parent.height - 4 }, cornerRadius = 6,
+        fill = { app.mode == classroot.m ? app.theme.pill : null } ],
+    t: Text [ width = { parent.width }, textAlign = center, wrap = false, fontSize = 13, fontWeight = medium,
+        y = { (parent.height - this.height) / 2 },
+        textColor = { app.mode == classroot.m ? app.theme.text : classroot.hovered ? app.theme.text : app.theme.muted },
+        text = { classroot.lbl } ],
+
+    onMouseOver() { classroot.hovered = true },
+    onMouseOut() { classroot.hovered = false },
+    onClick() { app.mode = classroot.m },
+    ]
+
+
+// one segment of the Light / System / Dark switch (calendar's ThemeSeg); the
+// glyph is centred vertically in its box.
+class ThemeSeg extends View [ m: string = "",
+    glyph: string = "",
+    hovered: boolean = false,
+
+    width = 30, height = { parent.height },
+
+    bg: View [ x = 2, y = 2, width = { parent.width - 4 }, height = { parent.height - 4 }, cornerRadius = 6,
+        fill = { app.themeMode == classroot.m ? app.theme.pill : null } ],
+    g: Text [ width = { parent.width }, textAlign = center, wrap = false, fontSize = 14,
+        y = { (parent.height - this.height) / 2 },
+        textColor = { app.themeMode == classroot.m ? app.theme.text : classroot.hovered ? app.theme.text : app.theme.muted },
+        text = { classroot.glyph } ],
+
+    onMouseOver() { classroot.hovered = true },
+    onMouseOut() { classroot.hovered = false },
+    onClick() { app.themeMode = classroot.m },
+    ]
+
+
+App [ fill = { app.theme.bg },
+
+    barH: number = 52,
+    topM: number = 40,   // reader top margin (foot matches it at the bottom)
+    mode: string = "reader",   // "reader" = highlighted + Markdown, "source" = verbatim
+    fontScale: number = 0.85,   // reader font zoom — small by default; the A stepper drives it
+    codeScale: number = 0.85,   // code font as a fraction of prose (code reads denser)
+    proseInset: number = 44,   // prose is inset both sides; code spans full width
+    themeMode: string = "auto",
+    isDark: boolean = { app.themeMode == "auto" ? app.dark : app.themeMode == "dark" },
+    theme = { app.isDark ? app.darkTheme() : app.lightTheme() },
+
+    // The highlight() segments, seeded by the server as a JSON string on the
+    // host→app channel; parse + normalise so every record has kind/md/html.
+    doc: Dataset [ contents = { app.parseDoc() } ],
+
+    parseDoc() {
+        const raw = (app.demoSources && app.demoSources["__source__"]) || "[]"
+        let segs = []
+        try { segs = JSON.parse(raw) } catch (e) { segs = [] }
+        return ({ segments: segs.map(s => ({ kind: s.kind, md: s.md || "", html: s.html || "" })) })
+        },
+
+    // the verbatim file as one escaped, monospace <pre> — the plain-text view
+    plainHtml() {
+        const raw = (app.demoSources && app.demoSources["__raw__"]) || ""
+        const e = raw.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        return "<pre>" + e + "</pre>"
+        },
+
+    // the editor foreground (plain text / punctuation) behind the accent spans
+    codeFg() { return app.isDark ? 0xABB2BF : 0x24292F },
+
+    // role → colour, theme-aware. Keys match the <span class> names highlight()
+    // emits: k t a s n h p o b c. Dark = One Dark; light = a cool, light-native
+    // set (gold-on-white reads as a dark-mode leftover, so types go purple/blue).
+    codeAccents() {
+        return app.isDark
+            ? ({ k: 0xC678DD, t: 0xE5C07B, a: 0xE06C75, s: 0x98C379, n: 0xD19A66, h: 0x56B6C2, p: 0x61AFEF, o: 0x56B6C2, b: 0x9DA5B4, c: 0x6A737D })
+            : ({ k: 0xCF222E, t: 0x8250DF, a: 0xB5452B, s: 0x1A7F37, n: 0x9A6700, h: 0x0E7490, p: 0x0550AE, o: 0xCF222E, b: 0x6B7280, c: 0x8A919C })
+        },
+
+    darkTheme() {
+        return ({ bg: 0x0D1117, surface: 0x161B22, codeBg: 0x161B22, codeLine: 0x21262D, line: 0x30363D,
+            text: 0xC9D1D9, muted: 0x8B949E, hover: 0x21262D, track: 0x010409, pill: 0x274B74 })
+        },
+    lightTheme() {
+        return ({ bg: 0xFFFFFF, surface: 0xF6F8FA, codeBg: 0xFBFCFD, codeLine: 0xD8DEE4, line: 0xD0D7DE,
+            text: 0x1F2328, muted: 0x656D76, hover: 0xEAEEF2, track: 0xEEF1F4, pill: 0xDDEEFF })
+        },
+
+    // scrolling reader; the column is centred and capped for line length. `foot`
+    // sits just below the active view for a bottom margin matching `topM`.
+    content: View [ x = 0, y = { app.barH }, width = { app.hostWidth }, height = { app.hostHeight - app.barH },
+        scrolls = true, selectable = true, fill = { app.theme.bg },
+
+        // highlighted view: prose + coloured code segments
+        col: View [ visible = { app.mode == "reader" }, y = { app.topM }, width = { Math.min(app.hostWidth - 48, 820) },
+            x = { Math.max(24, (parent.width - this.width) / 2) },
+            datapath = { app.doc.value },
+            layout: SimpleLayout [ axis = y, spacing = 18 ],
+            Segment [ datapath = :segments[], kind = :kind, md = :md, html = :html ],
+            ],
+
+        // plain view: the verbatim source as one monospace flow (same size/theme)
+        plain: View [ visible = { app.mode == "source" }, y = { app.topM }, width = { Math.min(app.hostWidth - 48, 820) },
+            x = { Math.max(24, (parent.width - this.width) / 2) },
+            fill = { app.theme.codeBg }, stroke = { stroke(1, app.theme.codeLine) }, cornerRadius = 8,
+            height = { this.contentHeight + 14 },
+            // full reader size (not codeScale): the source is the PRIMARY surface
+            // here, not an embedded snippet, so it reads at the prose size.
+            HTMLText [ x = 16, y = 14, width = { parent.width - 32 }, html = { app.plainHtml() },
+                scale = { app.fontScale }, bodyColor = { app.codeFg() }, selectable = true ],
+            ],
+
+        // bottom margin: a spacer just past the active view's bottom edge
+        foot: View [ width = 8, height = 48,
+            y = { app.topM + (app.mode == "reader" ? parent.col.height : parent.plain.height) } ],
+        ],
+
+    // top bar: file path on the left; the view / size / theme controls on the right
+    bar: View [ x = 0, y = 0, width = { app.hostWidth }, height = { app.barH }, fill = { app.theme.surface },
+
+        hair: View [ x = 0, y = { app.barH - 1 }, width = { parent.width }, height = 1, fill = { app.theme.line } ],
+        path: Text [ x = 20, y = { (app.barH - 15) / 2 }, fontSize = 13, wrap = false,
+            fontFamily = ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
+            textColor = { app.theme.muted },
+            text = { (app.demoSources && app.demoSources["__path__"]) || "source" } ],
+
+        tools: View [ y = { (app.barH - 30) / 2 }, x = { app.hostWidth - this.width - 16 }, height = 30,
+            width = { this.contentWidth },
+            layout: SimpleLayout [ axis = x, spacing = 12 ],
+
+            modeSwitch: View [ height = 30, width = 194, cornerRadius = 8, fill = { app.theme.track },
+                r: ModeSeg [ x = 2, m = "reader", lbl = "Reader view" ],
+                s: ModeSeg [ x = 98, m = "source", lbl = "Source text" ],
+                ],
+
+            size: View [ height = 30, cornerRadius = 8, fill = { app.theme.surface }, stroke = { stroke(1, app.theme.line) },
+                layout: SimpleLayout [ axis = x, spacing = 0 ],
+                SizeBtn [ glyph = 11, delta = -0.1 ],
+                d1: View [ width = 1, height = 18, y = 6, fill = { app.theme.line } ],
+                SizeBtn [ glyph = 15, delta = 0 ],
+                d2: View [ width = 1, height = 18, y = 6, fill = { app.theme.line } ],
+                SizeBtn [ glyph = 19, delta = 0.1 ],
+                width = { this.contentWidth },
+                ],
+
+            themeSwitch: View [ height = 30, width = 94, cornerRadius = 8, fill = { app.theme.track },
+                s1: ThemeSeg [ x = 2, m = "light", glyph = "☀" ],
+                s2: ThemeSeg [ x = 32, m = "auto", glyph = "◐" ],
+                s3: ThemeSeg [ x = 62, m = "dark", glyph = "☾" ],
+                ],
+            ],
+        ],
+    ]

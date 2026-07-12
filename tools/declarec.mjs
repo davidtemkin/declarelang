@@ -20,6 +20,7 @@ import * as esbuild from "esbuild";
 import { compileProgram } from "../compiler/dist/declarec.js";
 import { REGISTRY_MANIFEST } from "../runtime/dist/registry.js";
 import { parseArgvFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
+import { highlight } from "../compiler/dist/highlight.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const RUNTIME = resolve(HERE, "../runtime/dist"); // the run-path lives here
@@ -171,23 +172,47 @@ async function cli(argv) {
   // --no-slim, --keep-pos, --typecheck — share the canonical model (flags.ts), so
   // they mean exactly what the same names mean as server/browser URL flags.
   const passthrough = [];
-  let outDir = null, quiet = false;
+  let outDir = null, quiet = false, doHighlight = false;
   const raw = argv.slice(2);
   for (let i = 0; i < raw.length; i++) {
     const a = raw[i];
     if (a === "-o" || a === "--out") outDir = raw[++i];
     else if (a === "--quiet") quiet = true;
+    else if (a === "--highlight") doHighlight = true;
     else passthrough.push(a);
   }
   const { flags, rest } = parseArgvFlags(passthrough, { ...DEFAULT_FLAGS, prod: true }); // declarec is always a production build
   const input = rest.find((a) => !a.startsWith("-")) ?? null;
   if (input === null) {
     console.error("usage: declarec <app.declare> [-o dist] [--canvas] [--no-slim] [--keep-pos] [--typecheck] [--quiet]");
+    console.error("       declarec --highlight <app.declare> [-o out.json]   # preprocessed form for the code viewer");
     process.exit(2);
   }
   const srcPath = resolve(input);
   const srcDir = dirname(srcPath);
   const name = basename(srcPath, ".declare");
+
+  // --highlight: emit the compiler's preprocessed form (compiler/src/highlight.ts)
+  // — prose (Markdown from /* */ comments) + syntax-highlighted <pre> code — as a
+  // JSON segment list the code viewer renders. A lightweight build-time companion
+  // to the live server route, for static hosting.
+  if (doHighlight) {
+    const source = await readFile(srcPath, "utf8");
+    const segments = highlight(source);
+    const outFile = outDir
+      ? (outDir.endsWith(".json") ? resolve(outDir) : join(resolve(outDir), `${name}.highlight.json`))
+      : join(srcDir, `${name}.highlight.json`);
+    await mkdir(dirname(outFile), { recursive: true });
+    await writeFile(outFile, JSON.stringify({ path: input, segments }));
+    if (!quiet) {
+      const prose = segments.filter((s) => s.kind === "prose").length;
+      const code = segments.filter((s) => s.kind === "code").length;
+      console.log(`declarec --highlight ✓ ${name} → ${outFile}`);
+      console.log(`  ${segments.length} segments (${code} code, ${prose} prose)`);
+    }
+    return;
+  }
+
   outDir = resolve(outDir ?? join(srcDir, "dist"));
 
   const source = await readFile(srcPath, "utf8");

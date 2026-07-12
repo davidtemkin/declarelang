@@ -87,6 +87,43 @@ if (!CHROME) {
     assert.ok(dom.probe.paras.some((t) => t === "quoted words flow together here"));
   });
 
+  // A <pre> with colored spans is one preformatted, monospace element with
+  // whitespace preserved and per-token colour — the syntax-highlight primitive.
+  const preDoc = `App [ width = 480, selectable = true,
+    HTMLText [ x = 10, y = 10, width = 460,
+      accents = { { kw: 0xC678DD, ty: 0xE5C07B } },
+      html = "<pre><span class='kw'>class</span> <span class='ty'>Board</span> [\\n    n = 42,\\n]</pre>" ] ]`;
+  const pre = await (async () => {
+    const b = await buildProduction(preDoc, {});
+    assert.ok(b.ok, "pre build failed: " + (b.errors || []).map((e) => e.message).join("; "));
+    const appJs = b.files.find((f) => f.name.startsWith("app.")).contents;
+    const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
+    try {
+      const page = await browser.newPage();
+      const errs = []; page.on("pageerror", (e) => errs.push(e.message));
+      await page.setContent(`<!doctype html><div id=host></div><script type=module>${appJs}</script>`, { waitUntil: "networkidle0" });
+      await new Promise((r) => setTimeout(r, 350));
+      return { errs, probe: await page.evaluate(() => {
+        const el = document.querySelector("pre");
+        if (!el) return { pre: false };
+        const spans = Array.from(el.querySelectorAll("span"));
+        return { pre: true, ws: getComputedStyle(el).whiteSpace,
+          mono: /mono|Menlo|SFMono|Courier/i.test(getComputedStyle(spans[0] || el).fontFamily),
+          indent: /\n    /.test(el.textContent), colors: new Set(spans.map((s) => getComputedStyle(s).color)).size };
+      }) };
+    } finally { await browser.close(); }
+  })();
+  await test("a <pre> renders as one monospace element, whitespace preserved", () => {
+    assert.equal(pre.errs.length, 0, pre.errs.slice(0, 2).join(" | "));
+    assert.ok(pre.probe.pre, "no <pre> element");
+    assert.ok(pre.probe.ws.startsWith("pre"), "not preformatted: " + pre.probe.ws);
+    assert.ok(pre.probe.mono, "not monospace");
+    assert.ok(pre.probe.indent, "indentation not preserved");
+  });
+  await test("a <pre> keeps its per-token accent colours", () => {
+    assert.ok(pre.probe.colors >= 2, "expected ≥2 span colours, got " + pre.probe.colors);
+  });
+
   const canvas = await render("canvas");
   await test("Canvas fallback renders the same doc without error", () => {
     assert.equal(canvas.errs.length, 0, canvas.errs.slice(0, 2).join(" | "));

@@ -175,6 +175,23 @@ function tokenize(src) {
                 advance();
             continue;
         }
+        // block comment — trivia like a line comment, but also the home of LITERATE
+        // Markdown: a `/* … */` at the top level documents the code around it, and the
+        // code viewer renders it as prose (compiler/src/highlight.ts). Skipped here so
+        // it is valid anywhere a line comment is (a comment inside a `{ }` body is the
+        // body scanner's job, not this).
+        if (c === "/" && src[i + 1] === "*") {
+            const at = here();
+            advance();
+            advance();
+            while (i < src.length && !(src[i] === "*" && src[i + 1] === "/"))
+                advance();
+            if (i >= src.length)
+                throw new NeoError("unterminated block comment", at);
+            advance();
+            advance();
+            continue;
+        }
         const start = here();
         // two-way data-binding arrow (language §9, the leaf-input exception):
         // `name <-> :path`. Multi-char, so it is lexed before the single-char table.

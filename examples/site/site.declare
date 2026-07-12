@@ -265,6 +265,14 @@ class SectionHead extends View [ width = { parent.width },
     Lead    [ width = { Math.min(760, parent.width) }, text = { classroot.lead } ],
     ]
 
+// ── a neutral reference-comparison row (metric · Declare · the React build) ────
+class RefRow extends View [ width = { parent.width }, height = 26,
+    metric: string = "", dval: string = "", rval: string = "",
+    m: Body [ x = 0,   y = 3, width = 150, fontSize = 14, textColor = { theme.muted }, text = { classroot.metric } ],
+    d: Body [ x = 168, y = 3, width = 110, fontSize = 14, fontWeight = semibold, textColor = { theme.text }, text = { classroot.dval } ],
+    r: Body [ x = 288, y = 3, width = 260, fontSize = 14, textColor = { theme.dim },  text = { classroot.rval } ],
+    ]
+
 // ── the page ─────────────────────────────────────────────────────────────────
 // The palette lives ONCE as a prevailing `theme` token record — every semantic
 // type class (Heading/Lead/Body/…) defaults its colour to `{ theme.… }`, so the
@@ -342,27 +350,44 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                               text = "The declarative layer is Declare. The logic is ordinary, typed TypeScript — nothing to relearn, and everything an editor or a model already understands." ],
                 ],
 
-            // ── 02 — Small. Fast. Own-pixel when you want it. ──────────────────
+            // ── 02 — Declare Calendar: a real app, small and fast ──────────────
 
             s2: View [ width = { parent.width }, opacity = 0,
                 reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
                     to = { app.scroller.scrollY + app.height > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
-                layout: SimpleLayout [ axis = y, spacing = 44 ],
-                SectionHead [ num = "02", head = "Small. Fast. Renderer-independent." ],
+                layout: SimpleLayout [ axis = y, spacing = 36 ],
+                SectionHead [ num = "02", head = "Small. Fast. A whole app.",
+                    lead = "Declare Calendar: four views that are one surface seen through a moving, zooming rectangle — event chips that morph into time-blocks, drag-to-reschedule, an editable detail panel, light and dark. The kind of continuous, animated UI that's usually a project of its own — here it's the reference app." ],
 
-                // two headline metrics — the real production figures the host
-                // injects (pageWeight = gzipped over-the-wire, sourceLines = LOC).
-                // They stack on a phone (WrappingLayout) and read as a concision proof.
-
-                stat: View [ width = { parent.width }, layout: WrappingLayout [ spacing = 48, lineSpacing = 40 ],
-                    Metric [ value = { app.pageWeight > 0 ? "≈ " + app.pageWeight + " KB" : "≈ — KB" },
-                             note = "over the wire, gzipped — vs the 2.3 MB median page" ],
-                    Metric [ value = { app.sourceLines > 0 ? app.sourceLines + "" : "—" },
-                             note = "lines of Declare — this entire page" ],
+                // the app itself: a prominent Run, a quiet source link, and the two
+                // numbers that matter (over-the-wire size + lines of code), beside the
+                // same app built in React + Framer Motion — a reference point, not a scoreboard.
+                panel: View [ width = { parent.width }, height = { this.pad.height + 52 }, cornerRadius = 14, clip = true,
+                    fill = { theme.panel }, stroke = { stroke(1, theme.line) },
+                    pad: View [ x = 30, y = 26, width = { parent.width - 60 }, layout: SimpleLayout [ axis = y, spacing = 24 ],
+                        actions: View [ layout: SimpleLayout [ axis = x, spacing = 18 ],
+                            Button [ width = 240, label = "Run Declare Calendar →",
+                                     onClick() { app.navigate = "/examples/calendar/" } ],
+                            srclink: Text [ y = 16, fontFamily = [Sans, "system-ui"], fontSize = 13, wrap = false,
+                                     textColor = { theme.dim }, text = "or read the source →",
+                                     onClick() { app.navigate = "https://github.com/davidtemkin/declarelang/blob/main/examples/calendar/calendar.declare" } ],
+                            ],
+                        ref: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 12 ],
+                            Eyebrow [ text = "FOR REFERENCE — THE SAME APP IN REACT + FRAMER MOTION" ],
+                            table: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 3 ],
+                                cols: View [ width = { parent.width }, height = 22,
+                                    Tag [ x = 168, y = 4, textColor = { theme.dim }, text = "DECLARE" ],
+                                    Tag [ x = 288, y = 4, textColor = { theme.dim }, text = "REACT + FRAMER MOTION" ] ],
+                                RefRow [ metric = "Over the wire, gzipped", dval = "46 KB",    rval = "98 KB" ],
+                                RefRow [ metric = "Lines of code",          dval = "393 lines", rval = "845 lines" ],
+                                ],
+                            ],
+                        ],
                     ],
+
                 points: View [ width = { parent.width }, layout: WrappingLayout [ spacing = 24, lineSpacing = 32 ],
-                    Point [ ptitle = "Small", body = "the whole thing — runtime, your app, and a compiler — is smaller than most sites' hero image." ],
-                    Point [ ptitle = "Fast reactivity", body = "dependencies are compiled statically, not tracked at runtime — no reactive-graph tax." ],
+                    Point [ ptitle = "Small", body = "The app, the runtime, and everything the browser downloads to run it — smaller than most sites' hero image." ],
+                    Point [ ptitle = "Fast", body = "Dependencies are compiled statically, not tracked at runtime, so the continuous zoom holds framerate with no reactive-graph tax." ],
                     Point [ ptitle = "Renderer-independent", body = "The same program paints to the DOM or to a canvas — your choice — so you can reach for raw pixel speed exactly where it matters." ],
                     ],
                 ],

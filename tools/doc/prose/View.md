@@ -68,8 +68,12 @@ explicit (not implied by `cornerRadius`) so clipping is pay-per-use.
 ## scrolls
 Makes the view scroll its overflowing content: it clips to its box and scrolls the
 vertical overflow, exposing `scrollY`. Fixed chrome comes free — make it a **sibling**
-of the scroller, not a child. Default `false`. Both backends realize it natively
-(DOM `overflow`, canvas clip+translate+wheel).
+of the scroller, not a child. Default `false`. Both backends realize it natively and
+present the same model (`scrollY` updates the same way either way); only the overscroll
+*feel* differs, where the platform can do better. On DOM the OS owns the scroll — overlay
+scrollbar, momentum, and rubber-band overscroll *contained* to this pane, so it bounces on
+its own edges and never chains to the page, and sibling panes overscroll independently. On
+canvas the runtime manages the offset (clip+translate+wheel), as a single element must.
 
 ## scrollY
 The current vertical scroll offset in pixels of a `scrolls` view — **read it** for

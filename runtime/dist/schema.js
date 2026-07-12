@@ -283,6 +283,11 @@ export const RichTextSchema = {
         // `scale` multiplies the house structure sizes (headings, code) — a font-size
         // zoom a reader control can drive; 1 = the natural sizes.
         scale: { kind: "number" },
+        // `dark` overrides which colour scheme the house rich-element palette (the
+        // inline-code chip, the fenced-code box, rules, quotes) is drawn from. Unset
+        // (null) follows the root App's OS `dark`; set it to an app's OWN effective
+        // theme when a Light/Dark selector can differ from the OS: `dark = { app.isDark }`.
+        dark: { kind: "boolean" },
     },
     // A link (`[text](url)` / `<a href>`) was clicked — `onLink(href)`. The runtime
     // supplies mechanism only (the click + href); the app dispatches policy (scroll,

@@ -25,7 +25,7 @@ export type RichRun =
  *  layout (Canvas) flows the runs and stacks the blocks. `align` shifts each
  *  finished line (a table cell's GFM column alignment); absent/`"left"` is the
  *  default, so a plain paragraph carries nothing. */
-export interface RichBlock { tag: string; runs: RichRun[]; gapBefore: number; lineHeight: number; fontSize: number; align?: "left" | "center" | "right" }
+export interface RichBlock { tag: string; runs: RichRun[]; gapBefore: number; lineHeight: number; fontSize: number; align?: "left" | "center" | "right"; pre?: boolean }
 
 /** How an Image scales its bitmap into the view box — the language's
  *  `value Stretch = none | width | height | both` (§6). */

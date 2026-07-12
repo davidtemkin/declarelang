@@ -77,6 +77,14 @@ it (e.g. "the `View` reference") rather than restating it.
   *Key examples:* a handler on a nested child calling `classroot.select()`,
   responsive reads off `app.width`.
 
+- **`28-formatting.md` — The house style.**
+  Members are order-inert, so one house style is what keeps every file reading the
+  same way: four-space indent, trailing comma always, plain config on the header
+  line, leaf bodies closing inline vs. bodies-with-children hanging their bracket,
+  no column alignment, and `/* */` block comments as literate Markdown. Enforced by
+  a formatter; `design/formatting.md` is the full canon. *Key example:* a `Counter`
+  laid out to canon.
+
 ## Part III — In Depth
 
 - **`30-animation.md` — Motion.** *(outline)*

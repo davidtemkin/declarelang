@@ -1,0 +1,122 @@
+// The Declare-vs-React benchmark comparison — written in Declare, of course.
+// The six metric cards are a Dataset replicated with a keyed template (the very
+// derived-data + keyed-replication features the benchmark is measuring).
+
+font Sans [ family = "system-ui" ]
+font Mono [ family = "ui-monospace" ]
+
+class Eyebrow extends Text [ fontFamily = [Mono, "monospace"], fontSize = 12, fontWeight = semibold,
+    letterSpacing = 1.6, wrap = false, textColor = { theme.faint } ]
+class H extends Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontWeight = bold, wrap = false,
+    letterSpacing = { -0.02 * fontSize }, textColor = { theme.text } ]
+class Lead extends Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 16.5, wrap = true,
+    textColor = { theme.muted } ]
+class Body extends Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 13.5, wrap = true,
+    textColor = { theme.muted } ]
+class Small extends Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 11.5,
+    textColor = { theme.faint } ]
+
+// One metric card — instanced once per record of the metrics Dataset. Reads its
+// place (col/row), its two values, and the two bar percentages straight off the
+// cursor. Keyed by :name so a re-derive would reconcile instead of rebuild.
+class Card extends View [
+    width = { app.cardW }, height = 132, cornerRadius = 14, clip = true,
+    fill = { theme.panel }, stroke = { stroke(1, theme.line) },
+    x = { :col * (app.cardW + 16) },
+    y = { :row * 148 },
+
+    name:  Text  [ x = 20, y = 17, fontFamily = [Sans, "system-ui"], fontSize = 13.5, fontWeight = semibold,
+                   wrap = false, textColor = { theme.text }, text = { :name } ],
+    sub:   Small [ x = 20, y = 36, wrap = false, text = { :sub } ],
+    badge: Text  [ x = { parent.width - 172 }, y = 18, width = 152, textAlign = right, wrap = false,
+                   fontFamily = [Sans, "system-ui"], fontSize = 12.5, fontWeight = bold,
+                   textColor = { theme.good }, text = { :badge } ],
+
+    // Declare bar (blue→teal), React bar (slate). Track width falls out of the
+    // card width; the fill is that track times the record's percentage.
+    dlab:  Small [ x = 20, y = 61, wrap = false, textColor = { theme.muted }, text = "Declare" ],
+    dtrack: View [ x = 80, y = 64, width = { Math.max(40, parent.width - 178) }, height = 9, cornerRadius = 6,
+                   clip = true, fill = { theme.line },
+        dfill: View [ x = 0, y = 0, height = 9, width = { parent.width * :dpct / 100 },
+                      fill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) } ] ],
+    dval:  Text  [ x = { parent.width - 88 }, y = 59, width = 68, textAlign = right, wrap = false,
+                   fontFamily = [Mono, "monospace"], fontSize = 13, fontWeight = semibold,
+                   textColor = { theme.text }, text = { :dval } ],
+
+    rlab:  Small [ x = 20, y = 91, wrap = false, textColor = { theme.muted }, text = "React" ],
+    rtrack: View [ x = 80, y = 94, width = { Math.max(40, parent.width - 178) }, height = 9, cornerRadius = 6,
+                   clip = true, fill = { theme.line },
+        rfill: View [ x = 0, y = 0, height = 9, width = { parent.width * :rpct / 100 }, fill = { theme.react } ] ],
+    rval:  Text  [ x = { parent.width - 88 }, y = 89, width = 68, textAlign = right, wrap = false,
+                   fontFamily = [Mono, "monospace"], fontSize = 13, fontWeight = semibold,
+                   textColor = { theme.muted }, text = { :rval } ],
+    ]
+
+App [
+    fill = { theme.bg },
+    theme = { ({ bg: 0x0B121A, panel: 0x111C26, text: 0xE7EEF2, muted: 0x93A6B4, faint: 0x63788A,
+                 line: 0x22333F, good: 0x37B88A, accent: 0x4C8DFF, react: 0x6E8496 }) },
+
+    pageW: number = { Math.min(880, app.width - 48) },
+    cardW: number = { (app.pageW - 16) / 2 },
+
+    data: Dataset { { "metrics": [
+        { "name": "Bundle size", "sub": "gzipped, over-the-wire", "badge": "2.1× smaller",
+          "dval": "46.4 KB", "rval": "97.7 KB", "dpct": 47.5, "rpct": 100, "col": 0, "row": 0 },
+        { "name": "Source", "sub": "lines of code", "badge": "2.2× less",
+          "dval": "393", "rval": "845", "dpct": 46.5, "rpct": 100, "col": 1, "row": 0 },
+        { "name": "Cold start", "sub": "navigation → grid painted", "badge": "1.4× faster",
+          "dval": "105 ms", "rval": "143 ms", "dpct": 73.4, "rpct": 100, "col": 0, "row": 1 },
+        { "name": "DOM nodes", "sub": "steady state, month view", "badge": "1.7× fewer",
+          "dval": "525", "rval": "917", "dpct": 57.3, "rpct": 100, "col": 1, "row": 1 },
+        { "name": "JS heap", "sub": "used, after GC", "badge": "1.9× lighter",
+          "dval": "4.5 MB", "rval": "8.4 MB", "dpct": 53.6, "rpct": 100, "col": 0, "row": 2 },
+        { "name": "Worst frame · 6× CPU", "sub": "Year-zoom under throttle", "badge": "5.4× smoother",
+          "dval": "17 ms", "rval": "92 ms", "dpct": 18.5, "rpct": 100, "col": 1, "row": 2 }
+    ] } },
+
+    // fills the viewport and scrolls its taller content natively
+    scroller: View [ width = { app.width }, height = { app.height }, scrolls = true,
+        page: View [ width = { app.pageW }, x = { (app.width - app.pageW) / 2 }, y = 52,
+            layout: SimpleLayout [ axis = y, spacing = 28 ],
+
+            header: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 16 ],
+                Eyebrow [ text = "PRODUCTION BUILD · HEAD-TO-HEAD" ],
+                titlerow: View [ layout: SimpleLayout [ axis = x, spacing = 14 ],
+                    H [ fontSize = { app.width < 640 ? 34 : 46 }, textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) }, text = "Declare" ],
+                    H [ fontSize = { app.width < 640 ? 34 : 46 }, textColor = { theme.faint }, text = "vs" ],
+                    H [ fontSize = { app.width < 640 ? 34 : 46 }, textColor = { theme.text }, text = "React" ],
+                    ],
+                lede: Lead [ width = { Math.min(620, parent.width) },
+                    text = "One flagship calendar, shipped two ways — a declarec production build and a Vite/React build — measured head-to-head in the same headless Chrome. This page is written in Declare too." ],
+                legend: View [ layout: SimpleLayout [ axis = x, spacing = 26 ],
+                    li1: View [ width = 254, height = 18,
+                        sw: View [ x = 0, y = 3, width = 12, height = 12, cornerRadius = 3, fill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) } ],
+                        Small [ x = 20, y = 0, wrap = false, textColor = { theme.muted }, text = "Declare — declarec (slim, static-wired)" ] ],
+                    li2: View [ width = 210, height = 18,
+                        sw: View [ x = 0, y = 3, width = 12, height = 12, cornerRadius = 3, fill = { theme.react } ],
+                        Small [ x = 20, y = 0, wrap = false, textColor = { theme.muted }, text = "React 18 + Framer Motion" ] ],
+                    ],
+                ],
+
+            // the 2×3 card grid — a keyed replication over the metrics Dataset
+            grid: View [ width = { parent.width }, height = 428, datapath = { app.data.value },
+                Card [ datapath = :metrics[], key = :name ] ],
+
+            note: View [ width = { parent.width }, height = { this.pad.height + 36 }, cornerRadius = 12, clip = true,
+                fill = { theme.panel }, stroke = { stroke(1, theme.line) },
+                accent: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { theme.accent } ],
+                pad: View [ x = 22, y = 18, width = { parent.width - 44 }, layout: SimpleLayout [ axis = y, spacing = 9 ],
+                    H [ fontSize = 14, text = "What moved since the last run" ],
+                    Body [ width = { parent.width },
+                        text = "Bundle 53 → 46 KB. Registry slimming tree-shakes the runtime components the calendar never uses; the compiler's newly-emitted dependency read-paths add a little back, gzip-friendly." ],
+                    Body [ width = { parent.width },
+                        text = "Cold start flipped. Compile-time static dependency resolution prewires the constraint graph, so the first render skips the runtime dependency-discovery pass — that, plus a 6× smaller download, starts it ahead." ],
+                    ],
+                ],
+
+            foot: Body [ width = { parent.width }, fontSize = 11.5, textColor = { theme.faint },
+                text = "Method — Puppeteer + headless Chrome, 1200×800, medians of 3 runs, localhost, both apps loading the same events.json. Bundle = gzipped over-the-wire. Cold start = navigation → grid painted. Heap = JSHeapUsedSize after forced GC. Animation = the Year-zoom under a 6× CPU throttle, worst single frame. Caveats — headless, no network latency; the virtual display is 60 Hz, so the 1× frame rate caps at 60 for both, and the throttled worst-frame is the smoothness signal. Directional, not lab-grade." ],
+            ],
+        ],
+    ]

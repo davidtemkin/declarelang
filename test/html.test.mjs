@@ -65,10 +65,20 @@ test("blockquote recurses to blocks", () => {
   assert.equal(b.blocks[0].t, "paragraph");
 });
 
-test("pre preserves whitespace as a code block", () => {
-  const b = parseHtml("<pre><code>line1\n  line2</code></pre>")[0];
-  assert.equal(b.t, "code");
-  assert.equal(b.text, "line1\n  line2");
+test("pre is a preformatted flow: whitespace verbatim, spans survive", () => {
+  // <pre> keeps its inline runs (so <span class> accents flow inside) rather than
+  // flattening to plain text — this is what carries syntax colour.
+  const b = parseHtml("<pre>line1\n  <span class='k'>line2</span></pre>")[0];
+  assert.equal(b.t, "pre");
+  assert.equal(b.inline[0].t, "text");
+  assert.equal(b.inline[0].value, "line1\n  ");   // newline + indentation preserved
+  assert.equal(b.inline[1].t, "fill");
+  assert.equal(b.inline[1].name, "k");            // the classed span → a named accent
+});
+
+test("pre drops one leading newline (the <pre>\\n… convention)", () => {
+  const b = parseHtml("<pre>\ncode here</pre>")[0];
+  assert.equal(b.inline[0].value, "code here");
 });
 
 test("hr → rule, br → inline break", () => {

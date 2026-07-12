@@ -32,6 +32,7 @@ export interface RichBlock {
     lineHeight: number;
     fontSize: number;
     align?: "left" | "center" | "right";
+    pre?: boolean;
 }
 /** How an Image scales its bitmap into the view box — the language's
  *  `value Stretch = none | width | height | both` (§6). */

@@ -303,44 +303,40 @@ class DomSurface {
         this.element.scrollIntoView({ block: "start" });
     }
     scrollListener;
-    wheelListener;
     setScroll(on, onScroll) {
         const el = this.element;
         if (on) {
-            // The box clips + owns a real scroll offset; siblings stay compositor-
-            // pinned. Horizontal overflow is hidden (a horizontal scroller is nearly
-            // always a bug).
+            // The box clips + owns a real vertical scroll offset; siblings stay
+            // compositor-pinned. Horizontal overflow is hidden (a horizontal scroller
+            // at this level is nearly always a bug — wide content opts in via
+            // setScrollX). Native `overflow:auto` gives the OS overlay scrollbar.
             el.style.overflowY = "auto";
             el.style.overflowX = "hidden";
-            // Native scrollbar (macOS overlay: appears on scroll, widens on hover).
-            // `overscroll-behavior: none` stops a scroll-past from chaining to the
-            // document (rubber-band flash).
-            el.style.overscrollBehavior = "none";
-            // A scroll container is interactive (like a sink): it must ACCEPT the
-            // wheel, or the pointer-inert content passes it straight to the document
-            // and nothing scrolls. Its own children stay inert, so clicks still
-            // resolve to the sink under the pointer (native-target routing above).
+            // `contain` gives THIS element its own native rubber-band (edge bounce +
+            // momentum) while refusing to chain a scroll-past up to the pinned page —
+            // so a pane bounces on its own edges and never flashes the document behind
+            // it, and two sibling panes overscroll independently. (An earlier build
+            // used `none`, which killed the chain but ALSO the wanted local bounce.)
+            el.style.overscrollBehavior = "contain";
+            // The app root sets `touch-action: none` (the app owns gestures); a scroll
+            // pane opts BACK IN to native vertical panning so touch drag + momentum
+            // work on mobile.
+            el.style.touchAction = "pan-y";
+            // A scroll container accepts pointer/wheel events (its children stay inert,
+            // so clicks still resolve to the sink under the pointer). Native wheel then
+            // drives the box directly: every neo view is position:absolute, but abs
+            // children DO register scrollable overflow, so the browser scrolls,
+            // momentums, and rubber-bands it with no manual offset math — verified
+            // in-browser (bare abs content: scrollHeight tracks the content, wheel
+            // moves scrollTop, edges bounce). Driving scrollTop by hand instead would
+            // clamp to the bounds and defeat the overscroll.
             el.style.pointerEvents = "auto";
             if (this.scrollListener === undefined) {
-                // Fires for wheel, scrollbar-drag, and programmatic scrollTop alike.
+                // Mirror the browser's offset back into the view's reactive `scrollY`:
+                // fires for wheel, touch, momentum, scrollbar-drag, and programmatic
+                // scrollTop alike — the one bridge the runtime needs.
                 this.scrollListener = () => onScroll(el.scrollTop);
                 el.addEventListener("scroll", this.scrollListener, { passive: true });
-            }
-            if (this.wheelListener === undefined) {
-                // Every neo view is position:absolute, so the scroller's content is
-                // out of normal flow: the browser reports the overflow and honors a
-                // programmatic scrollTop, but the WHEEL won't drive it (nothing
-                // in-flow to scroll). So we advance scrollTop ourselves. macOS delivers
-                // trackpad inertia as a wheel-event stream, so momentum survives; we
-                // preventDefault only when we actually consumed the delta, leaving
-                // overscroll to fall through to an outer scroller.
-                this.wheelListener = (e) => {
-                    const before = el.scrollTop;
-                    el.scrollTop = before + e.deltaY;
-                    if (el.scrollTop !== before)
-                        e.preventDefault();
-                };
-                el.addEventListener("wheel", this.wheelListener, { passive: false });
             }
         }
         else {
@@ -348,12 +344,9 @@ class DomSurface {
                 el.removeEventListener("scroll", this.scrollListener);
                 this.scrollListener = undefined;
             }
-            if (this.wheelListener !== undefined) {
-                el.removeEventListener("wheel", this.wheelListener);
-                this.wheelListener = undefined;
-            }
             el.style.overflowY = "";
             el.style.overflowX = "";
+            el.style.touchAction = "";
             el.style.pointerEvents = "none";
         }
     }
@@ -412,7 +405,13 @@ class DomSurface {
         host.style.webkitUserSelect = selectable ? "text" : "";
         host.style.pointerEvents = selectable ? "auto" : "none";
         for (const b of blocks) {
-            const be = doc.createElement(/^h[1-6]$/.test(b.tag) ? b.tag : "p");
+            // A `pre` block is a real <pre>: whitespace preserved and, being code, it does
+            // NOT wrap — long lines keep their shape and the block scrolls HORIZONTALLY
+            // (native overflow-x), the way an editor shows code. Its height stays a stable
+            // lines×lineHeight (no width-dependent reflow), so the flow measures it cleanly.
+            // Its runs carry the monospace family and per-token colours, so it is one
+            // contiguous, selectable, syntax-coloured element.
+            const be = doc.createElement(b.pre ? "pre" : /^h[1-6]$/.test(b.tag) ? b.tag : "p");
             const bs = be.style;
             bs.margin = "0";
             bs.marginTop = b.gapBefore + "px";
@@ -421,7 +420,13 @@ class DomSurface {
             // matches the Canvas backend's line advance exactly (conformity).
             bs.fontSize = b.fontSize + "px";
             bs.lineHeight = Math.round(b.fontSize * b.lineHeight) + "px";
-            bs.whiteSpace = "normal";
+            if (b.pre) {
+                bs.whiteSpace = "pre";
+                bs.overflowX = "auto";
+                bs.overflowY = "hidden";
+            }
+            else
+                bs.whiteSpace = "normal";
             if (b.align !== undefined && b.align !== "left")
                 bs.textAlign = b.align;
             for (const r of b.runs) {

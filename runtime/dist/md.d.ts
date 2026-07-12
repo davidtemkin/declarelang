@@ -11,6 +11,9 @@ export type Block = {
     lang: string;
     text: string;
 } | {
+    t: "pre";
+    inline: Inline[];
+} | {
     t: "blockquote";
     blocks: Block[];
 } | {

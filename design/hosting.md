@@ -94,6 +94,27 @@ drift. Booleans read `?f`/`?f=1`/`?f=true` (on) and `?f=0`/`false` (off); the CL
 them `--f`/`--no-f`, with `--canvas`/`--dom`, `--full` (= `--no-slim`), and `--keep-pos`
 aliases.
 
+## Request types
+
+Orthogonal to *how* a source compiles (the flags above) is *what* a URL returns for
+it — the **request type** (`compiler/src/reqtypes.ts`), modeled on OpenLaszlo's `lzt`.
+`requestType(URLSearchParams-like)` reads `?view=…`: `run` (the app, the default),
+`source` (the syntax-highlighted source with block comments as Markdown), or
+`segments` (that view's JSON on its own). `?source`/`?segments` are bare shorthands.
+The server (`server/index.mjs`) applies it on both the `examples/<name>/` route and any
+`.declare` file path; `SOURCE` boots the code viewer (`examples/codeviewer`) seeded
+with the segments, `SEGMENTS` returns them as JSON.
+
+The highlighter is `compiler/src/highlight.ts` — a source-faithful scan that reuses the
+language's own lexical shape (strings, `{ }` bodies captured whole, triple-quotes,
+datapaths, comments), so it classifies exactly what the compiler tokenizes and a `{ }`
+body's contents (regex included) never corrupt the scan. It splits a file into prose
+segments (Markdown lifted from `/* */` comments) and code segments (`<pre>` HTML with a
+role class per token, coloured by the viewer's theme-aware `accents`). It runs live on
+the server route and ahead of time via `declarec --highlight` (→ a `.highlight.json`).
+Block comments are lexer trivia (`parser.ts`), so literate `.declare` files — prose in
+comments, code between — both compile and view.
+
 ## Slimming
 
 The production registry (`runtime/src/registry.ts`) is the name→class tables extracted

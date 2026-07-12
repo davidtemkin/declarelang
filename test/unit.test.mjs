@@ -1098,6 +1098,15 @@ await test("parseProgram(): `name: Type` without brackets is a declaration, with
   assert.deepEqual(el.children.map((c) => [c.name, c.tag]), [["box", "View"]]);
 });
 
+await test("comments are trivia: `//` lines and `/* */` blocks (literate Markdown)", () => {
+  // Block comments are valid anywhere a line comment is — they carry the literate
+  // Markdown the code viewer renders (highlight.ts). Both are skipped by the lexer.
+  const p = parseProgram(`/* # Title\nsome **markdown** */\n// a line comment\nApp [ /* inline */ width = 40 ]`);
+  assert.equal(p.root.tag, "App");
+  assert.deepEqual(p.root.attrs.map((a) => a.name), ["width"]);
+  assert.throws(() => parseProgram("/* never closed\nApp [ ]"), /unterminated block comment/);
+});
+
 await test("parseProgram() positions class syntax errors", () => {
   // `extends` is optional — a bare `class X [ ]` IS a Node (a non-visual
   // controller/service). But writing `extends` commits you to naming the base.

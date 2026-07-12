@@ -19,6 +19,8 @@ import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { createHash } from "node:crypto";
 import { compile } from "../compiler/dist/compile-node.js";
+import { highlight } from "../compiler/dist/highlight.js";
+import { requestType, REQ } from "../compiler/dist/reqtypes.js";
 import { writeProduction } from "../tools/declarec.mjs";
 import { parseFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
 import { parseProgram, serializeDeps } from "../runtime/dist/index.js";
@@ -39,9 +41,6 @@ function depsFor(resolvedSource) {
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const EXAMPLES = path.join(ROOT, "examples");
-// The sibling React build (site-compare/react/dist) — a second implementation of
-// the SAME spec (site-compare/SPEC.md), served on this origin for comparison.
-const COMPARE = path.resolve(ROOT, "..", "site-compare", "react", "dist");
 // A React re-implementation of THIS homepage, built independently by observing the
 // deployed site (not the .declare source). Lives inside the distro at site-react/,
 // Vite-built with base "/site-react/" so every asset URL is self-prefixed — served
@@ -113,6 +112,56 @@ function hostPage(name, backendClass) {
 import { bootHost } from "/web/host-client.js";
 const cfg = ${JSON.stringify(cfg)};
 cfg.compile = async (s) => { try { return (await (await fetch("/compile", { method: "POST", body: s })).json()).source; } catch (e) { return null; } };
+bootHost(cfg);
+</script>`;
+}
+
+// A request-type SOURCE / SEGMENTS view (reqtypes.ts) for one .declare file:
+// invoke the compiler's highlight() and either hand back the segments as JSON
+// (SEGMENTS) or serve the code-viewer app seeded with them (SOURCE). `relPath`
+// is the file's tree-relative path, used for the JSON's `path` and the page title.
+function serveSource(res, absPath, relPath, rt, backendClass) {
+  let source;
+  try { source = readFileSync(absPath, "utf8"); }
+  catch { return send(res, 404, "not found: " + relPath, "text/plain"); }
+  let segments;
+  try { segments = highlight(source); }
+  catch (e) { return send(res, 500, String((e && e.message) || e), "text/plain"); }
+  if (rt === REQ.SEGMENTS)
+    return send(res, 200, JSON.stringify({ path: relPath, segments }), "application/json");
+  return send(res, 200, sourcePage(relPath, segments, source, backendClass));
+}
+
+// The code-viewer app (examples/codeviewer) booted for ONE source file: the
+// server has already run highlight(), so it seeds the segments through the host→
+// app channel (cfg.seeds → app.demoSources) — the viewer is a plain consumer, no
+// bespoke wiring. The viewer renders prose segments as Markdown and code segments
+// as coloured <pre> (its own accents map themes them), plus size + light/dark
+// controls. So `foo.declare?view=source` is a live, self-contained source page.
+function sourcePage(relPath, segments, rawSource, backendClass) {
+  const dir = path.join(EXAMPLES, "codeviewer");
+  const src = readFileSync(path.join(dir, "codeviewer.declare"), "utf8");
+  const r = compile(src, { originDir: dir });
+  if (r.errors.length) {
+    return `<!doctype html><meta charset="utf-8"><title>codeviewer — compile errors</title>
+<pre style="color:#c33;font:13px/1.5 ui-monospace,monospace;padding:20px;white-space:pre-wrap">${
+      esc(r.errors.map((e) => e.message).join("\n"))}</pre>`;
+  }
+  const title = relPath.split("/").pop();
+  const cfg = {
+    backend: backendClass, source: r.source, deps: depsFor(r.source),
+    // __source__ = the highlight() segments (JSON); __raw__ = the verbatim source
+    // (for the plain-text toggle — segments can't reconstruct it faithfully);
+    // __path__ = the file shown. The viewer reads them off app.demoSources.
+    seeds: { __source__: JSON.stringify(segments), __raw__: rawSource, __path__: relPath },
+  };
+  return `<!doctype html><meta charset="utf-8"><title>${esc(title)} — source</title>
+<base href="/examples/codeviewer/">
+<style>html,body{margin:0;padding:0}</style>
+<div id="host"></div>
+<script type="module">
+import { bootHost } from "/web/host-client.js";
+const cfg = ${JSON.stringify(cfg)};
 bootHost(cfg);
 </script>`;
 }
@@ -236,14 +285,6 @@ http.createServer((req, res) => {
   // /_demorun preview-frame routes are gone. See hostPage's renderChild/recompile.)
 
   try {
-    // ── React comparison build (sibling site-compare/react/dist) ──────────
-    // Served at its own /react/ URL, on this origin. Vite built it with the
-    // default base "/", so its index.html asks for /assets/* at the root — we
-    // map /assets/* to the React dist too (the Declare tree never uses a root
-    // /assets, so there's no collision).
-    if (p === "/react" || p === "/react/") return serveFrom(res, COMPARE, "index.html");
-    if (p.startsWith("/assets/")) return serveFrom(res, COMPARE, p);
-
     // ── React re-implementation (site-react/dist), self-prefixed under /site-react/ ──
     if (p === "/site-react" || p === "/site-react/") return serveFrom(res, SITE_REACT, "index.html");
     if (p.startsWith("/site-react/")) return serveFrom(res, SITE_REACT, p.slice("/site-react/".length));
@@ -270,10 +311,26 @@ http.createServer((req, res) => {
       return;
     }
 
-    // /examples/<name>/  or  /examples/<name>/canvas  → compile + render
+    // /examples/<name>/  or  /examples/<name>/canvas  → run the app, OR — with a
+    // request type (reqtypes.ts) — the source view / segments of its .declare.
     const m = p.match(/^\/examples\/([^/]+)\/(canvas)?$/);
     if (m && examples().includes(m[1])) {
-      return send(res, 200, hostPage(m[1], m[2] ? "CanvasBackend" : "DomBackend"));
+      const rt = requestType(new URL(req.url, "http://x").searchParams);
+      const backendClass = m[2] ? "CanvasBackend" : "DomBackend";
+      if (rt === REQ.SOURCE || rt === REQ.SEGMENTS)
+        return serveSource(res, path.join(EXAMPLES, m[1], `${m[1]}.declare`), `examples/${m[1]}/${m[1]}.declare`, rt, backendClass);
+      return send(res, 200, hostPage(m[1], backendClass));
+    }
+
+    // A .declare file with ?view=source / ?view=segments → its source view; a
+    // bare .declare falls through to the raw-file handler below (download/read).
+    if (p.endsWith(".declare")) {
+      const rt = requestType(new URL(req.url, "http://x").searchParams);
+      if (rt === REQ.SOURCE || rt === REQ.SEGMENTS) {
+        const abs = path.join(ROOT, p.replace(/^\/+/, ""));
+        if (abs.startsWith(ROOT + path.sep) && existsSync(abs) && statSync(abs).isFile())
+          return serveSource(res, abs, p.replace(/^\/+/, ""), rt, "DomBackend");
+      }
     }
 
     // otherwise: a static file inside the tree

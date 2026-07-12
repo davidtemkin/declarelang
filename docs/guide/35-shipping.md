@@ -94,6 +94,38 @@ So `?backend=canvas&slim=0` on the server, `--canvas --no-slim` on the CLI, and
 `?backend=canvas` in the browser all mean exactly what they read. Booleans accept
 `?f`, `?f=1`, `?f=true` (on) and `?f=0`/`false` (off); the CLI negates with `--no-f`.
 
+## Request types — what a URL returns
+
+Compile flags decide *how* a source compiles. A **request type** decides *what* a
+URL hands back for it — the running app, or a view of the source. It's a separate,
+orthogonal choice (`compiler/src/reqtypes.ts`), read from the same URL query with
+`?view=…`, and modeled on OpenLaszlo's `lzt` request types.
+
+| `?view=` | Returns |
+|---|---|
+| *(absent)* / `run` | the running app (the default) |
+| `source` | a live, syntax-highlighted view of the source, with block comments rendered as Markdown |
+| `segments` | that view's data on its own — the highlighter's segments as JSON |
+
+So `examples/calendar/?view=source` shows the calendar's source, coloured, in the
+code viewer (`examples/codeviewer`); the same works on any `.declare` file path,
+e.g. `some/app.declare?view=source`. `?source` and `?segments` are accepted as bare
+shorthands.
+
+The highlighting is done by the **compiler**, not a separate tokenizer — a file the
+compiler accepts highlights faithfully by construction, and `{ }` bodies, datapaths,
+strings, and comments are classified exactly as the language sees them. The same
+`highlight()` also runs ahead of time:
+
+```
+declarec --highlight app.declare        # → app.highlight.json (the segments)
+```
+
+**Literate Declare.** A `/* … */` block comment is valid anywhere — it's trivia to
+the compiler, like a `//` line comment. The code viewer renders each one as
+Markdown, so a source file can document itself: prose in block comments, real code
+between them. (`examples/codeviewer/tour.declare` is written this way.)
+
 ## `use` — keeping the bundle small
 
 Slimming works by finding every component an app *can* construct — the tags in the
