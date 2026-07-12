@@ -1,84 +1,95 @@
 # Declare
 
-A clean-slate successor to OpenLaszlo: write declarative `.declare`, compile it to
-JavaScript, render to the DOM or an own-pixels Canvas backend.
+**Declare is a domain-specific language for user interfaces.** Just as SQL is a DSL for
+querying data, Declare is purpose-built for building modern UIs.
 
-One self-contained tree — everything needed to build from source, run, and host is here.
+It's reactive by construction and statically typed, with all real logic in ordinary
+TypeScript. One tree renders to the DOM or an own-pixels Canvas, and it compiles *in the
+browser* — so a page can edit and re-run itself.
 
-## Layout
+### ▶ [See it live — davidtemkin.github.io/declarelang](https://davidtemkin.github.io/declarelang/)
+The homepage is **itself a Declare app**: the whole page you're looking at is written in the language.
 
-| dir | what |
-|-----|------|
-| `compiler/` | the `.declare` → JS compiler (Node-side build orchestration) — `src/` (TypeScript) + committed `dist/` (built JS) |
-| `runtime/`  | the browser framework — parser, reactive core, layout, animation, DOM/Canvas backends (`src/` + committed `dist/`). Zero external deps; the compiler builds on it |
-| `library/`  | bundled components authored in `.declare` (built on the runtime) |
-| `examples/` | runnable apps — the `site` homepage, `neoweather`, `neocalendar`; each ships a committed `prebuilt/` artifact for static hosting |
-| `docs/`     | browsable documentation: authored `guide/` + generated `reference/` |
-| `design/`   | design documentation (language, implementation, constraints, hosting, …) |
-| `server/`   | the dev server — dynamic compilation + static serving, nothing else |
-| `test/`     | the test suite (unit / perceptual / scaffold) |
-| `tools/`    | build & dev tooling |
+---
 
-## Quickstart
+## Why a language?
+
+If a model can write the code from your English, why add a language — especially an
+unfamiliar one? Because a language isn't only a cost to learn; it's a *lens*. A user
+interface has a real structure — a tree of components, the state they hold, views that
+must stay current as it changes, layout relating them in space. In a general-purpose
+language none of those are language concepts, so the compiler can't see them and they're
+kept correct by hand. Declare makes them first-class. What the compiler can then *see* —
+the interface's actual structure and dependencies — it checks ahead of time, optimizes,
+and rejects when malformed.
+
+That legibility cuts both ways: **what makes Declare good for a model to write is what
+makes it good for a person to read** — the interface's relationships live in the language,
+not reconstructed from runtime code. And there's no wall to hit: the declarative layer is
+the DSL; the logic inside it is plain TypeScript. Specific where that pays, general
+everywhere else.
+
+→ How to think in it: [the guide](docs/guide/00-overview.md). The language in full:
+[`design/declare-language.md`](design/declare-language.md).
+
+## The whole model in one program
+
+```declare
+App [ width = 400, height = 140, fill = #1E3A49, textColor = whitesmoke,
+
+    count: number = 0,                               // reactive state
+
+    add: View [ x = 20, y = 20, width = 108, height = 34, cornerRadius = 8, fill = #2E6BE6,
+        onClick() { classroot.count = classroot.count + 1 },
+        Text [ x = 16, y = 8, text = "Add one" ],
+        ],
+
+    Text [ y = 74, x = { (parent.width - this.width) / 2 },
+        text = { `Clicked ${count} times` },         // re-runs whenever count changes
+        ],
+    ]
+```
+
+Two delimiters carry the whole model: **`[ … ]`** is the view tree — components,
+attributes, children; **`{ … }`** is TypeScript — a value, a handler body. The `{ }`
+lines are *constraints*, standing relationships the runtime keeps true: click the view
+and the text updates, resize and it re-centers — you wrote no update logic for either.
+(There's no built-in `Button` — a button is a `View` with a fill and an `onClick`.)
+
+## Lineage
+
+Declare is the **heir to OpenLaszlo** — a declarative, reactive UI language that ran at
+scale two decades ago — but it is not a port. It's a ground-up redesign: statically typed,
+rebuilt for today's web, and shaped from the start with LLMs in mind. The core model is
+proven; what's new is the design and the timing — a language built to be *read*, arriving
+as the reader becomes, increasingly, a machine.
+
+---
+
+## Explore & build
 
 ```sh
 npm install
-npm run build          # tsc -b: runtime, then compiler → each area's dist/
-npm start              # dev server → http://127.0.0.1:8200/
-npm test               # unit + perceptual + scaffold
+npm run build     # tsc -b: runtime, then compiler → each area's dist/
+npm start         # dev server → http://127.0.0.1:8200/
+npm test          # unit + perceptual + scaffold
 ```
 
-## Two ways to run an app
+| dir | what |
+|-----|------|
+| `runtime/` | the framework — parser, reactive core, layout, animation, DOM/Canvas backends (zero external deps) |
+| `compiler/` | the thin `.declare` → JS compiler; depends one-way on `runtime/` |
+| `library/` | components authored in `.declare` |
+| `examples/` | runnable apps — the `site` homepage, `neoweather`, `neocalendar` |
+| `docs/` | the [guide](docs/guide/) + generated [reference](docs/reference/) |
+| `design/` | design docs — [language](design/declare-language.md), [constraints](design/constraints.md), [hosting](design/hosting.md), … |
 
-- **Dynamic (dev):** `npm start`. The server compiles each example's `.declare` on
-  request — edit and reload. Nothing else runs (no chat, no persistent connection,
-  no data API).
-- **Static hosting (GitHub Pages):** serve the whole tree from any static host
-  (`.nojekyll` is committed). Each page loads a committed **precompiled artifact**
-  (`examples/<name>/prebuilt/<name>.js`) via `web/boot-static.js` and renders
-  instantly — no server. At load it re-probes the compile's dependency closure to
-  confirm the source hasn't moved, and warm-loads the in-browser compiler in the
-  background (`dist-browser/declare-compiler.js`) for live edits. A root
-  `service-worker.js` adds cache-busting (a redeployed compiler/runtime can never
-  serve stale) and lets visitors browse straight to any `…/<name>.declare` and run it
-  in-browser. See [`design/hosting.md`](design/hosting.md).
+**Source & hosting.** Each area co-locates `src/` and committed `dist/`, so the tree runs
+and hosts as-is — no build step required. Static hosting loads a committed `prebuilt/`
+artifact per page and warm-loads the in-browser compiler for live edits; see
+[`design/hosting.md`](design/hosting.md).
 
-> **Project rule — regenerate artifacts after editing an example.** The precompiled
-> artifacts under `examples/<name>/prebuilt/` are committed and loaded by default, so
-> regenerate them whenever you change an example's `.declare` (or the runtime it
-> compiles against): run `node tools/prebuild.mjs` and commit the result **in the same
-> commit** as the source change. Skip it and the static site ships a stale render —
-> visitors get the old artifact plus a slower in-browser recompile until it catches up
-> (the browser console logs a staleness warning when this happens).
-
-> **Project rule — stamp the build before deploying.** The content-hash `BUILD_ID` in
-> `service-worker.js` (over the platform: runtime + compiler bundle + web client) is what
-> arms cache-busting and the SW self-update — a changed `BUILD_ID` makes the browser install
-> the fresh worker, which drops the old cache bucket and reloads open tabs onto the new
-> platform. A committed **pre-commit hook** (`tools/hooks/pre-commit`) re-stamps it on every
-> commit, so any pushed deploy is current automatically; `npm install` wires the hook up (via
-> the `prepare` script), or activate it by hand with `git config core.hooksPath tools/hooks`.
-> To stamp manually: `node tools/stamp-version.mjs` (idempotent — no-op unless the platform
-> moved; app-*source* changes never need it).
-
-## The compiler / runtime seam
-
-`compiler/` is thin — 5 files — and depends **one-way** on `runtime/`. The parser,
-type checker, and schema live in `runtime/` on purpose: neo instantiates and
-compiles *in the browser*, so the runtime genuinely needs them. `compiler/` adds
-only the Node-side build orchestration (file includes, the typecheck driver,
-scaffolding, static dependency extraction).
-
-## Building from source
-
-Each area co-locates its source (`src/`) and built output (`dist/`), and the built
-`.js` are **committed** — so the whole tree runs and hosts as-is, no build step
-required (the OpenLaszlo distribution model). `npm run build` (`tsc -b`) regenerates
-them — runtime first, then the compiler that references it. There is no oracle and no
-verifier against a previous revision; correctness is the `test/` suite.
-
-## workshop/
-
-Not part of the distro (git-ignored). A local scratch area for the go-forward port
-from OpenLaszlo: OL5 reference builds and comparison goldens, copied in as needed
-and deleted once each app is fully neo-native.
+**Conventions** (for contributors):
+- **Format** every `.declare` to the house style — [`design/formatting.md`](design/formatting.md).
+- **Regenerate** `examples/<name>/prebuilt/` after editing an example (`node tools/prebuild.mjs`),
+  and **stamp** the build before deploying (`node tools/stamp-version.mjs`).
