@@ -1,10 +1,10 @@
 # Declare
 
 **Declare is a domain-specific language for user interfaces.** Just as SQL is a DSL for
-querying data, Declare is purpose-built for building modern UIs.
+querying data, Declare is purpose-built for creating modern UIs.
 
 It's reactive by construction and statically typed, with all real logic in ordinary
-TypeScript. One tree renders to the DOM or an own-pixels Canvas, and it compiles *in the
+TypeScript. One tree renders to the DOM or directly to pixels using Canvas, and it compiles *in the
 browser* — so a page can edit and re-run itself.
 
 ### ▶ [See it live — davidtemkin.github.io/declarelang](https://davidtemkin.github.io/declarelang/)
@@ -12,18 +12,17 @@ The homepage is **itself a Declare app**: the whole page you're looking at is wr
 
 ---
 
-## Why a language?
+## Why a new language?
 
-If a model can write the code from your English, why add a language — especially an
-unfamiliar one? Because a language isn't only a cost to learn; it's a *lens*. A user
+If an LLM can write code from your English, why create a new programming language? Because a language isn't only a cost to learn; it's a *lens*. A user
 interface has a real structure — a tree of components, the state they hold, views that
 must stay current as it changes, layout relating them in space. In a general-purpose
 language none of those are language concepts, so the compiler can't see them and they're
 kept correct by hand. Declare makes them first-class. What the compiler can then *see* —
 the interface's actual structure and dependencies — it checks ahead of time, optimizes,
-and rejects when malformed.
+and rejects when malformed. The very same logic applies to an LLM: it is better able to reason about Declare code, and to write it, because the language is designed to directly express a user interface's structure.
 
-That legibility cuts both ways: **what makes Declare good for a model to write is what
+That legibility doesn't just help machines, though: **what makes Declare good for an LLM to write is what
 makes it good for a person to read** — the interface's relationships live in the language,
 not reconstructed from runtime code. And there's no wall to hit: the declarative layer is
 the DSL; the logic inside it is plain TypeScript. Specific where that pays, general
