@@ -89,6 +89,19 @@ test("content after a list is its own block, not swallowed", () => {
   assert.deepEqual(types(head), ["list", "heading", "paragraph"]);
 });
 
+test("a marker-type switch starts a new list (bullet ↛ ordered)", () => {
+  // Regression: an ordered list right after a bullet list was absorbed into it
+  // (one list, ordered=false), so its "1." rendered as "•".
+  const b = parse("- a\n- b\n\n1. one\n2. two");
+  assert.deepEqual(types(b), ["list", "list"]);
+  assert.equal(b[0].ordered, false); assert.equal(b[0].items.length, 2);
+  assert.equal(b[1].ordered, true); assert.equal(b[1].items.length, 2);
+  // …and the other direction.
+  const c = parse("1. one\n2. two\n- a\n- b");
+  assert.deepEqual(types(c), ["list", "list"]);
+  assert.equal(c[0].ordered, true); assert.equal(c[1].ordered, false);
+});
+
 test("an indented continuation still stays in its item", () => {
   const b = parse("- item one\n\n  continued paragraph\n- item two");
   assert.equal(b[0].t, "list");

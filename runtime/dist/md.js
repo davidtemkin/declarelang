@@ -150,12 +150,13 @@ function parseList(lines, start, hi) {
     let i = start;
     while (i < hi) {
         const m = RE_BULLET.exec(lines[i]) ?? RE_ORDERED.exec(lines[i]);
-        if (!m || m[1].length !== baseIndent || (RE_BULLET.test(lines[i]) === ordered)) {
-            if (m && m[1].length !== baseIndent)
-                break; // a differently-indented marker → not ours
-            if (!m)
-                break;
-        }
+        // End this list at: a non-item line, a differently-indented marker (not our
+        // sibling), or a marker whose TYPE flipped (bullet↔ordered) — a type switch at
+        // the same indent begins a NEW list, not another item of this one. Without the
+        // last case an ordered list right after a bullet list was absorbed into it (and
+        // rendered with the wrong markers).
+        if (!m || m[1].length !== baseIndent || (RE_BULLET.test(lines[i]) === ordered))
+            break;
         // Collect this item: the marker line plus deeper-indented continuation.
         const owned = [m[3]];
         let j = i + 1;

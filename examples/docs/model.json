@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "buildId": "269d139c36f8",
+  "buildId": "797b64ba328a",
   "nodes": {
     "View.x": {
       "id": "View.x",
@@ -2157,7 +2157,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/markdown.ts",
-        "line": 485
+        "line": 468
       },
       "parent": "RichText",
       "seeAlso": [],

@@ -21,7 +21,7 @@ import { SimpleLayout } from "./layout.js";
 import { Constraint } from "./reactive.js";
 import { defineAttributes } from "./attributes.js";
 import { fontMetrics, fontString, textWidth, type FontWeight } from "./measure.js";
-import { parse, type Block, type Inline, type Align } from "./md.js";
+import { parse, type Block, type Inline } from "./md.js";
 import { parseHtml, type Unsupported } from "./html.js";
 import type { Fill } from "./value.js";
 
@@ -37,7 +37,8 @@ const PROSE = {
   mono: "ui-monospace, SFMono-Regular, monospace",
   blockGap: 16,
   itemGap: 6,
-  indent: 26,
+  indent: 28,     // list item body's hanging indent (text left)
+  markerGap: 7,   // gap between the marker's right edge and the item text
   quoteIndent: 20,
   cellGap: 18,
 };
@@ -81,13 +82,10 @@ const sz = (n: number) => Math.round(n * SCALE); // scale a prose size, keeping 
 const FALLBACK_FAMILY = "system-ui, sans-serif";
 
 // ── inline tier ────────────────────────────────────────────────────────────
-// A run's resolved style, and the flow layout that wraps a mix of them.
+// A run's resolved style, flattened from the inline tree for the seam.
 interface Style { size: number; weight: FontWeight; italic: boolean; mono: boolean; strike: boolean; color: number; tracking: number; link?: string; fill?: Fill }
 function base(size: number, weight: FontWeight, color: number, tracking = 0): Style {
   return { size: sz(size), weight, italic: false, mono: false, strike: false, color, tracking };
-}
-function fontOf(s: Style, family: string): string {
-  return fontString({ fontFamily: s.mono ? PROSE.mono : family, fontSize: s.size, fontWeight: s.weight, italic: s.italic });
 }
 
 type Atom = { text: string; style: Style } | { br: true };
@@ -105,69 +103,6 @@ function flatten(ns: Inline[], style: Style, out: Atom[]): void {
       case "fill": { const f = resolveAccent(n.name); flatten(n.inline, f !== undefined ? { ...style, fill: f } : style, out); break; }
     }
   }
-}
-
-interface Piece { text: string; style: Style; w: number }
-interface Placed { text: string; style: Style; x: number; y: number; w: number }
-interface Flow { placed: Placed[]; height: number; lineH: number }
-
-/** Wrap a mix of styled runs within `width`. A "word" is a maximal run of
- *  non-space text and may span several styles (e.g. `un**bold**`) — it never
- *  breaks internally. Words flow across lines greedily; `align` shifts each
- *  finished line. Returns the placed pieces (one per style-run-per-line). */
-function layoutInline(runs: Inline[], style: Style, family: string, width: number, align: Align = "left", lineHeightMul = 1): Flow {
-  const atoms: Atom[] = [];
-  flatten(runs, style, atoms);
-
-  const baseFont = fontOf(style, family);
-  const bm = fontMetrics(baseFont);
-  const lineH = Math.ceil(bm.ascent + bm.descent);       // the glyph box (chip height)
-  const adv = Math.ceil(lineH * lineHeightMul);          // the line stride, incl. leading
-  const halfLead = Math.round((adv - lineH) / 2);        // centre each line in its slot
-  const spaceW = textWidth(" ", baseFont, style.tracking);
-
-  // Tokenize into words (piece lists) with explicit inter-word spaces.
-  type Tok = { word: Piece[] } | { sp: true } | { br: true };
-  const tokens: Tok[] = [];
-  let word: Piece[] = [];
-  const flushWord = () => { if (word.length) { tokens.push({ word }); word = []; } };
-  for (const a of atoms) {
-    if ("br" in a) { flushWord(); tokens.push({ br: true }); continue; }
-    for (const part of a.text.split(/(\s+)/)) {
-      if (part === "") continue;
-      if (/^\s+$/.test(part)) {
-        flushWord();
-        const last = tokens[tokens.length - 1];
-        if (last && "word" in last) tokens.push({ sp: true }); // one space between words, none leading
-      } else {
-        word.push({ text: part, style: a.style, w: textWidth(part, fontOf(a.style, family), a.style.tracking) });
-      }
-    }
-  }
-  flushWord();
-
-  const placed: Placed[] = [];
-  let x = 0, line = 0, pendingSpace = false;
-  for (const tok of tokens) {
-    if ("br" in tok) { line++; x = 0; pendingSpace = false; continue; }
-    if ("sp" in tok) { pendingSpace = true; continue; }
-    const ww = tok.word.reduce((s, p) => s + p.w, 0);
-    const gap = pendingSpace && x > 0 ? spaceW : 0;
-    if (x + gap + ww > width && x > 0) { line++; x = 0; } // wrap (the space is dropped at the break)
-    else x += gap;
-    pendingSpace = false;
-    for (const p of tok.word) { placed.push({ text: p.text, style: p.style, x, y: line * adv + halfLead, w: p.w }); x += p.w; }
-  }
-
-  if (align !== "left" && placed.length) {
-    const right = new Map<number, number>();
-    for (const p of placed) right.set(p.y, Math.max(right.get(p.y) ?? 0, p.x + p.w));
-    for (const p of placed) {
-      const free = width - (right.get(p.y) ?? 0);
-      if (free > 0) p.x += align === "center" ? free / 2 : free;
-    }
-  }
-  return { placed, height: (line + 1) * adv, lineH };
 }
 
 // ── views ────────────────────────────────────────────────────────────────
@@ -190,50 +125,6 @@ function setClick(v: View, fn: () => void): void {
   (v as unknown as Record<string, unknown>).onClick = fn;
 }
 
-// ── the y-cursor builder ───────────────────────────────────────────────────
-class Column {
-  readonly out: View[] = [];
-  y = 0;
-  constructor(readonly family: string, readonly width: number, readonly lineHeight = 1, readonly onLink?: (href: string) => void) {}
-
-  place(v: View, x: number, h: number): void { v.x = x; v.y = Math.round(this.y); this.out.push(v); this.y += h; }
-  span(v: View, x: number, y: number, h: number): void { v.x = x; v.y = Math.round(y); v.height = Math.max(1, Math.round(h)); this.out.push(v); }
-  gap(n: number): void { this.y += n; }
-
-  /** Place a laid-out flow at (x0, y0); the y-cursor is untouched. */
-  put(flow: Flow, x0: number, y0: number): void {
-    for (const p of flow.placed) {
-      const px = Math.round(x0 + p.x), py = Math.round(y0 + p.y);
-      if (p.style.mono) this.out.push(chip(px, py, p.w, flow.lineH));
-      const t = new Text();
-      t.x = px; t.y = py; t.width = Math.ceil(p.w) + 2; t.wrap = false;
-      t.fontSize = p.style.size; t.fontWeight = p.style.weight; t.italic = p.style.italic;
-      t.fontFamily = p.style.mono ? PROSE.mono : this.family;
-      t.textColor = p.style.color; t.text = p.text;
-      if (p.style.tracking !== 0) t.letterSpacing = p.style.tracking;
-      if (p.style.fill !== undefined) t.textFill = p.style.fill;
-      if (p.style.link !== undefined && this.onLink) { const href = p.style.link; setClick(t, () => this.onLink!(href)); }
-      this.out.push(t);
-      if (p.style.strike) this.out.push(rectAt(px, py + Math.round(p.style.size * 0.55), Math.ceil(p.w), 1, p.style.color));
-    }
-  }
-  /** Lay out `runs` at the cursor and advance past them. */
-  flow(runs: Inline[], x0: number, width: number, style: Style, align: Align = "left"): void {
-    const f = layoutInline(runs, style, this.family, width, align, this.lineHeight);
-    this.put(f, x0, this.y);
-    this.y += f.height;
-  }
-  /** Place a short run at a fixed (x, y) WITHOUT moving the cursor — a list marker
-   *  set in the gutter beside its (hanging-indented) item text. */
-  mark(text: string, x: number, y: number, style: Style): void {
-    this.put(layoutInline([{ t: "text", value: text }], style, this.family, 9999, "left", this.lineHeight), x, y);
-  }
-}
-function chip(x: number, y: number, w: number, h: number): View {
-  const v = rectView(Math.ceil(w) + 6, h, C.codeChip, 3);
-  v.x = x - 3; v.y = y;
-  return v;
-}
 function rectAt(x: number, y: number, w: number, h: number, fill: number): View {
   const v = rectView(w, h, fill);
   v.x = x; v.y = y;
@@ -244,9 +135,11 @@ function rectAt(x: number, y: number, w: number, h: number, fill: number): View 
 // A flowing run of styled text — the read-only sibling of the editable field.
 // The DOM backend realizes it as real flowing HTML, so selection, copy, find,
 // a11y and baselines are the browser's own; where that is unavailable (canvas)
-// RichText lays the same runs out as child views itself. Markdown groups its
-// paragraphs and headings into these (its lists/tables/code stay classic views),
-// which is what makes prose selection contiguous instead of word-by-word.
+// RichText lays the same runs out as child views itself. EVERY text region is one
+// of these — a paragraph/heading group, but also each list item, table cell and
+// quote line — which is what makes prose selection contiguous per region instead
+// of word-by-word. Only the STRUCTURE around them (markers, rules, the code box)
+// is plain views.
 
 /** Flatten an inline tree to fully-resolved runs for the seam — the effective
  *  font, colour, and (for `code`) chip are baked in so a backend just realizes
@@ -299,6 +192,11 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
     }
     flush();
 
+    // Collect this block's views WITH their line, tracking each line's right
+    // edge, so a centred/right-aligned block (a table cell's column) can shift
+    // every view on a line by its free space — the manual twin of CSS text-align.
+    const blockViews: { v: View; line: number }[] = [];
+    const lineRight = new Map<number, number>();
     let x = 0, line = 0, pending = false;
     for (const tok of toks) {
       if ("br" in tok) { line++; x = 0; pending = false; continue; }
@@ -309,18 +207,26 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
       pending = false;
       for (const p of tok.word) {
         const py = y + line * adv + halfLead, r = p.run;
-        if (r.chipBg !== undefined) { const c = rectView(Math.ceil(p.w) + 6, lineH, r.chipBg, 3); c.x = x - 3; c.y = py; views.push(c); }
+        if (r.chipBg !== undefined) { const c = rectView(Math.ceil(p.w) + 6, lineH, r.chipBg, 3); c.x = x - 3; c.y = py; blockViews.push({ v: c, line }); }
         const t = new Text();
         t.x = x; t.y = py; t.width = Math.ceil(p.w) + 2; t.wrap = false;
         t.fontSize = r.size; t.fontWeight = r.weight; t.italic = r.italic; t.fontFamily = r.family; t.textColor = r.color; t.text = p.text;
         if (r.tracking !== 0) t.letterSpacing = r.tracking;
         if (r.fill !== undefined) t.textFill = r.fill;   // themed accent (gradient/solid) — same ramp as the DOM path
         if (r.href !== undefined && onLink) { const href = r.href; setClick(t, () => onLink(href)); }
-        views.push(t);
-        if (r.strike) views.push(rectAt(x, py + Math.round(r.size * 0.55), Math.ceil(p.w), 1, r.color));
+        blockViews.push({ v: t, line });
+        if (r.strike) blockViews.push({ v: rectAt(x, py + Math.round(r.size * 0.55), Math.ceil(p.w), 1, r.color), line });
         x += p.w;
+        lineRight.set(line, x);
       }
     }
+    if (b.align === "center" || b.align === "right") {
+      for (const { v, line: ln } of blockViews) {
+        const free = width - (lineRight.get(ln) ?? 0);
+        if (free > 0) v.x += b.align === "center" ? free / 2 : free;
+      }
+    }
+    for (const { v } of blockViews) views.push(v);
     y += (line + 1) * adv;
   }
   return { views, height: y };
@@ -375,96 +281,173 @@ class TextFlow extends View {
   }
 }
 
-// ── block → view ────────────────────────────────────────────────────────────
-function renderBlocks(blocks: Block[], col: Column, x0: number, width: number, textColor = C.bodyColor): void {
-  for (let bi = 0; bi < blocks.length; bi++) {
-    if (bi > 0) col.gap(PROSE.blockGap);
-    const b = blocks[bi];
-    switch (b.t) {
-      case "heading":
-        col.flow(b.inline, x0, width, base(PROSE.heading[b.level - 1], HEADINGW, HEADINGC));
-        break;
-      case "paragraph":
-        col.flow(b.inline, x0, width, base(BODY.size, BODY.weight, textColor, BODY.tracking));
-        break;
-      case "rule":
-        col.place(rectView(width, 1, C.rule), x0, 1);
-        break;
-      case "code": {
-        const fm = fontMetrics(fontString({ fontFamily: PROSE.mono, fontSize: sz(PROSE.codeSize), fontWeight: "normal" }));
-        const lines = b.text === "" ? 1 : b.text.split("\n").length;
-        const h = Math.ceil(lines * (fm.ascent + fm.descent)) + 2 * PROSE.codePad;
-        const box = rectView(width, h, C.codeBg, PROSE.codeRadius);
-        // a long line stays on one line and the box scrolls horizontally (clipped to
-        // its width) instead of spilling over the prose — a code block, not soft-wrap.
-        box.scrollsX = true;
-        const t = textView(width - 2 * PROSE.codePad, sz(PROSE.codeSize), C.codeFg, "normal", b.text);
-        t.x = PROSE.codePad; t.y = PROSE.codePad; t.wrap = false; t.fontFamily = PROSE.mono;
-        box.appendChild(t);
-        col.place(box, x0, h);
-        break;
-      }
-      case "blockquote": {
-        const top = col.y;
-        renderBlocks(b.blocks, col, x0 + PROSE.quoteIndent, width - PROSE.quoteIndent, C.quoteColor);
-        col.span(rectView(3, 1, C.quoteRule), x0, top, col.y - top);
-        break;
-      }
-      case "list": {
-        for (let i = 0; i < b.items.length; i++) {
-          if (i > 0) col.gap(PROSE.itemGap);
-          const it = b.items[i];
-          const marker = b.ordered ? `${b.start + i}.` : it.task === null ? "•" : it.task ? "☑" : "☐";
-          const [head, ...rest] = it.blocks;
-          const lead: Inline[] = head && (head.t === "paragraph" || head.t === "heading") ? head.inline : [];
-          // Hanging indent: the item text (first line AND its wraps) flows at
-          // x0+indent, so it forms a clean block; the marker sits in the gutter at
-          // x0 beside the first line. (Previously the marker was inline and wraps
-          // fell back to x0 — the "continuation left of the text" margin bug.)
-          const y0 = col.y;
-          col.flow(lead, x0 + PROSE.indent, width - PROSE.indent, base(BODY.size, BODY.weight, textColor, BODY.tracking));
-          col.mark(marker, x0, y0, base(BODY.size, BODY.weight, textColor, BODY.tracking));
-          const tail = head && (head.t === "paragraph" || head.t === "heading") ? rest : it.blocks;
-          if (tail.length) { col.gap(PROSE.itemGap); renderBlocks(tail, col, x0 + PROSE.indent, width - PROSE.indent, textColor); }
-        }
-        break;
-      }
-      case "table":
-        renderTable(b, col, x0, width, textColor);
-        break;
-    }
-  }
+// ── block → reactive view ─────────────────────────────────────────────────────
+// Each structural block becomes its OWN sub-view, stacked in a reactive `yStack`
+// so a TextFlow measuring late (font load, becoming visible) re-flows the blocks
+// below it and grows its container through auto-extent — no synchronous height
+// guess. Every text region (paragraph, list item, table cell, quote body) is a
+// native TextFlow: one contiguous, selectable run, not a word-per-view scatter.
+// Style globals (C/BODY/HEADING/SCALE) are set per rebuild and read directly; the
+// per-render family, body line-height, and link dispatcher ride this Ctx.
+interface Ctx { family: string; lead: number; onLink: (href: string) => void }
+
+/** The vertical stacking spine every prose container uses. Owns only its children's
+ *  y (SimpleLayout leaves the cross axis and sizes alone), so a child growing after
+ *  an async measure re-flows the stack through the ordinary reactive wake. */
+function yStack(spacing: number): SimpleLayout {
+  const s = new SimpleLayout();
+  s.axis = "y"; s.spacing = spacing;
+  return s;
 }
 
-/** GFM table — real cells: even columns, per-column alignment, wrapping runs,
- *  row height = tallest cell. */
-function renderTable(b: Extract<Block, { t: "table" }>, col: Column, x0: number, width: number, bodyColor = C.bodyColor): void {
+/** A native flowing block of styled text — one contiguous, selectable region on the
+ *  DOM backend. `content` is the resolved RichBlock(s); `width` is the flow width. */
+function flowView(content: RichBlock[], width: number, ctx: Ctx): TextFlow {
+  const rt = new TextFlow();
+  rt.width = width; rt.flowWidth = width; rt.content = content; rt.onLink = ctx.onLink;
+  return rt;
+}
+
+/** One paragraph or heading resolved to the seam's RichBlock shape. */
+function proseBlock(b: Extract<Block, { t: "paragraph" }> | Extract<Block, { t: "heading" }>, gapBefore: number, bodyColor: number, ctx: Ctx): RichBlock {
+  if (b.t === "heading") {
+    const size = PROSE.heading[b.level - 1];
+    return { tag: `h${b.level}`, runs: richRunsOf(b.inline, base(size, HEADINGW, HEADINGC), ctx.family), gapBefore, lineHeight: 1.2, fontSize: sz(size) };
+  }
+  return { tag: "p", runs: richRunsOf(b.inline, base(BODY.size, BODY.weight, bodyColor, BODY.tracking), ctx.family), gapBefore, lineHeight: ctx.lead, fontSize: sz(BODY.size) };
+}
+
+/** Render a block sequence to a list of stacked child views: consecutive
+ *  paragraphs/headings coalesce into ONE native TextFlow (contiguous selection and
+ *  baselines), and each list/table/quote/code/rule becomes its own reactive
+ *  sub-view. The caller stacks the result with a `yStack`. */
+function layoutBlocks(blocks: Block[], width: number, bodyColor: number, ctx: Ctx): View[] {
+  const out: View[] = [];
+  let group: RichBlock[] = [];
+  const flush = () => { if (group.length) { out.push(flowView(group, width, ctx)); group = []; } };
+  for (const b of blocks) {
+    if (b.t === "paragraph" || b.t === "heading") {
+      group.push(proseBlock(b, group.length === 0 ? 0 : PROSE.blockGap, bodyColor, ctx));
+      continue;
+    }
+    flush();
+    switch (b.t) {
+      case "list": out.push(buildList(b, width, bodyColor, ctx)); break;
+      case "table": out.push(buildTable(b, width, bodyColor, ctx)); break;
+      case "blockquote": out.push(buildQuote(b, width, ctx)); break;
+      case "code": out.push(buildCode(b, width)); break;
+      case "rule": out.push(rectView(width, 1, C.rule)); break;
+    }
+  }
+  flush();
+  return out;
+}
+
+/** A stacked container of `blocks` at `width` — the recursion point for a list
+ *  item's body and a blockquote's content, so nested prose flows natively too. */
+function buildBlocks(blocks: Block[], width: number, bodyColor: number, ctx: Ctx): View {
+  const c = new View();
+  c.width = width;
+  for (const v of layoutBlocks(blocks, width, bodyColor, ctx)) c.appendChild(v);
+  c.layout = yStack(PROSE.blockGap);
+  return c;
+}
+
+/** A fenced code block — a single preformatted, monospace Text in a rounded box
+ *  that scrolls horizontally (not soft-wrapped). Already one run; no TextFlow. */
+function buildCode(b: Extract<Block, { t: "code" }>, width: number): View {
+  const fm = fontMetrics(fontString({ fontFamily: PROSE.mono, fontSize: sz(PROSE.codeSize), fontWeight: "normal" }));
+  const lines = b.text === "" ? 1 : b.text.split("\n").length;
+  const h = Math.ceil(lines * (fm.ascent + fm.descent)) + 2 * PROSE.codePad;
+  const box = rectView(width, h, C.codeBg, PROSE.codeRadius);
+  box.scrollsX = true;
+  const t = textView(width - 2 * PROSE.codePad, sz(PROSE.codeSize), C.codeFg, "normal", b.text);
+  t.x = PROSE.codePad; t.y = PROSE.codePad; t.wrap = false; t.fontFamily = PROSE.mono;
+  box.appendChild(t);
+  return box;
+}
+
+/** A list — one reactive row per item: the marker in the gutter, the item's body
+ *  (its own TextFlow(s), hanging-indented) beside it. The row auto-sizes to the
+ *  body; the list stacks the rows. */
+function buildList(b: Extract<Block, { t: "list" }>, width: number, bodyColor: number, ctx: Ctx): View {
+  const list = new View();
+  list.width = width;
+  const bodyW = width - PROSE.indent;
+  for (let i = 0; i < b.items.length; i++) {
+    const it = b.items[i];
+    const marker = b.ordered ? `${b.start + i}.` : it.task === null ? "•" : it.task ? "☑" : "☐";
+    const row = new View();
+    row.width = width;
+    // The marker is a one-run TextFlow too, so it shares the body's exact line box
+    // — its baseline lines up with the item's first line with no metric fudge. It's
+    // RIGHT-aligned in the gutter so it hugs the text (a small `markerGap` before
+    // it), the way a browser renders a list marker — bullets and numbers sit just
+    // left of the item, not stranded out at the paragraph margin.
+    const mk = flowView([{ tag: "p", runs: richRunsOf([{ t: "text", value: marker }], base(BODY.size, BODY.weight, bodyColor, BODY.tracking), ctx.family), gapBefore: 0, lineHeight: ctx.lead, fontSize: sz(BODY.size), align: "right" }], PROSE.indent - PROSE.markerGap, ctx);
+    mk.x = 0; mk.y = 0;
+    const body = buildBlocks(it.blocks, bodyW, bodyColor, ctx);
+    body.x = PROSE.indent; body.y = 0;
+    row.appendChild(mk);
+    row.appendChild(body);
+    list.appendChild(row);
+  }
+  list.layout = yStack(PROSE.itemGap);
+  return list;
+}
+
+/** A GFM table — even columns with per-column alignment, each cell its own
+ *  TextFlow, each row auto-sizing to its tallest cell, a rule under the header. */
+function buildTable(b: Extract<Block, { t: "table" }>, width: number, bodyColor: number, ctx: Ctx): View {
   const cols = b.header.length;
   const colW = (width - (cols - 1) * PROSE.cellGap) / cols;
-  const colX = (c: number) => x0 + c * (colW + PROSE.cellGap);
-  const row = (cells: Inline[][], weight: FontWeight, color: number) => {
-    const top = col.y;
-    let h = 0;
+  const colX = (c: number) => c * (colW + PROSE.cellGap);
+  const table = new View();
+  table.width = width;
+  const makeRow = (cells: Inline[][], weight: FontWeight, color: number): View => {
+    const row = new View();
+    row.width = width;
     for (let c = 0; c < cols; c++) {
-      const cell = cells[c] ?? [];
-      const f = layoutInline(cell, base(BODY.size, weight, color, BODY.tracking), col.family, colW, b.align[c] ?? "left", col.lineHeight);
-      col.put(f, colX(c), top);
-      h = Math.max(h, f.height);
+      const al = b.align[c];
+      const cell = flowView([{
+        tag: "p", runs: richRunsOf(cells[c] ?? [], base(BODY.size, weight, color, BODY.tracking), ctx.family),
+        gapBefore: 0, lineHeight: ctx.lead, fontSize: sz(BODY.size), align: al === "center" || al === "right" ? al : undefined,
+      }], colW, ctx);
+      cell.x = colX(c); cell.y = 0;
+      row.appendChild(cell);
     }
-    col.y = top + h;
+    return row;
   };
-  row(b.header, HEADINGW, HEADINGC);
-  col.gap(PROSE.itemGap);
-  col.place(rectView(width, 1, C.rule), x0, 1);
-  for (const r of b.rows) { col.gap(PROSE.itemGap); row(r, "normal", bodyColor); }
+  table.appendChild(makeRow(b.header, HEADINGW, HEADINGC));
+  table.appendChild(rectView(width, 1, C.rule));
+  for (const r of b.rows) table.appendChild(makeRow(r, "normal", bodyColor));
+  table.layout = yStack(PROSE.itemGap);
+  return table;
+}
+
+/** A blockquote — its content (recursed, in the quote colour) indented past a left
+ *  rule that spans the content height reactively (a late re-flow lengthens it). */
+function buildQuote(b: Extract<Block, { t: "blockquote" }>, width: number, ctx: Ctx): View {
+  const outer = new View();
+  outer.width = width;
+  const body = buildBlocks(b.blocks, width - PROSE.quoteIndent, C.quoteColor, ctx);
+  body.x = PROSE.quoteIndent; body.y = 0;
+  const rule = rectView(3, 1, C.quoteRule);
+  rule.x = 0; rule.y = 0;
+  outer.appendChild(rule);
+  outer.appendChild(body);
+  const c = new Constraint("RichText.quoteRule", () => `${body.height}`, () => { rule.height = Math.max(1, body.height); }, 0);
+  c.run();
+  onDiscard(outer, () => c.dispose());
+  return outer;
 }
 
 // ── the components ───────────────────────────────────────────────────────────
 // `RichText` is the ABSTRACT family: flowing, structured, styled text. You never
 // write `RichText [ ]` (like `Layout`, it names no format) — you write `Markdown`
 // or `HTMLText`, which differ ONLY in how they parse their source into the block
-// tree. The rendering engine is shared here (TextFlow for prose, Column for
-// structure); the base owns the reactive render, each concrete class supplies a
+// tree. The rendering engine is shared here (reactive TextFlow containers — see
+// layoutBlocks); the base owns the reactive render, each concrete class supplies a
 // parser. Shared attributes (lineHeight/bodyColor/scale) and the `link` event
 // live on the base, so both formats inherit them.
 export abstract class RichText extends View {
@@ -532,56 +515,22 @@ export abstract class RichText extends View {
     HEADINGC = this.headingColor ?? C.headingColor;
     LINKC = this.linkColor ?? C.link;
     CODEC = this.codeColor ?? C.code;
-    const onLink = (href: string) => this.dispatchLink(href);   // click on a link run → app policy
+    const ctx: Ctx = { family, lead, onLink: (href) => this.dispatchLink(href) };
 
-    // Group consecutive paragraphs and headings into ONE native RichText (so
-    // their selection, baselines and copy are the platform's, contiguously);
-    // every other block (list, code, quote, table, rule) is a classic sub-view
-    // built through the Column machinery. The block-views then stack vertically.
-    const children: View[] = [];
-    let group: RichBlock[] = [];
-    const flushGroup = () => {
-      if (group.length === 0) return;
-      const rt = new TextFlow();
-      rt.width = width;
-      rt.flowWidth = width;
-      rt.content = group;
-      rt.onLink = onLink;
-      children.push(rt);
-      group = [];
-    };
-    for (const b of this.parseSource()) {
-      if (b.t === "paragraph" || b.t === "heading") {
-        const gapBefore = group.length === 0 ? 0 : PROSE.blockGap;
-        group.push(b.t === "heading"
-          ? { tag: `h${b.level}`, runs: richRunsOf(b.inline, base(PROSE.heading[b.level - 1], HEADINGW, HEADINGC), family), gapBefore, lineHeight: 1.2, fontSize: sz(PROSE.heading[b.level - 1]) }
-          : { tag: "p", runs: richRunsOf(b.inline, base(BODY.size, BODY.weight, bodyColor, BODY.tracking), family), gapBefore, lineHeight: lead, fontSize: sz(BODY.size) });
-      } else {
-        flushGroup();
-        const col = new Column(family, width, lead, onLink);
-        renderBlocks([b], col, 0, width, bodyColor);
-        const sub = new View();
-        sub.width = width;
-        sub.height = Math.ceil(col.y);
-        for (const v of col.out) sub.appendChild(v);
-        children.push(sub);
-      }
-    }
-    flushGroup();
-
+    // Render the block tree to a flat list of stacked sub-views: paragraphs and
+    // headings coalesce into native TextFlows, and list/table/quote/code/rule each
+    // become their own reactive sub-view (their text regions are TextFlows too).
+    const children = layoutBlocks(this.parseSource(), width, bodyColor, ctx);
     let at = 0;
     for (const v of children) {
       this.insertChild(v, at++);
       this.built.push(v);
       if (this.backend !== null) v.attach(this.backend, this.surface);
     }
-    // Stack the block-views, PROSE.blockGap apart; their heights (a RichText's
-    // measured at attach) drive the stack, and auto-extent gives this box its
-    // height — so we leave `height` unset for the derive to own.
-    const stack = new SimpleLayout();
-    stack.axis = "y";
-    stack.spacing = PROSE.blockGap;
-    this.layout = stack;
+    // Stack the block-views, PROSE.blockGap apart; their heights (a TextFlow's
+    // measured at attach, a container's derived by auto-extent) drive the stack,
+    // and auto-extent gives this box its height — so leave `height` unset.
+    this.layout = yStack(PROSE.blockGap);
     this.childrenMutated();
   }
 }

@@ -22,13 +22,16 @@ export type RichRun = {
 /** One block of a rich-text flow — a paragraph or heading (`tag` = "p" | "h1"…
  *  "h6" for native semantics), its inline runs, the space above it, and its line
  *  leading. A flow is an ordered list of these; the browser (DOM) or the manual
- *  layout (Canvas) flows the runs and stacks the blocks. */
+ *  layout (Canvas) flows the runs and stacks the blocks. `align` shifts each
+ *  finished line (a table cell's GFM column alignment); absent/`"left"` is the
+ *  default, so a plain paragraph carries nothing. */
 export interface RichBlock {
     tag: string;
     runs: RichRun[];
     gapBefore: number;
     lineHeight: number;
     fontSize: number;
+    align?: "left" | "center" | "right";
 }
 /** How an Image scales its bitmap into the view box — the language's
  *  `value Stretch = none | width | height | both` (§6). */

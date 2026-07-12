@@ -134,42 +134,13 @@ export class DomBackend {
         }, true);
     }
 }
-// A legible, PERSISTENT, theme-aware scrollbar for `.neo-scroll` elements, injected
-// once per document. Two things macOS/Chromium get wrong for an app shell:
-//   • overlay scrollbars auto-hide and never reserve space — `scrollbar-gutter:
-//     stable` opts into a classic, always-present bar (styling `::-webkit-scrollbar`
-//     alone no longer forces this in current Chrome; the gutter is what does), and
-//   • a fixed colour is invisible in the other theme — a `prefers-color-scheme`
-//     block flips the thumb (light thumb on dark, dark thumb on light) so the bar
-//     follows the OS theme with no per-app wiring.
-// The bar shows only when content overflows; the reserved gutter keeps content from
-// shifting when it appears.
-const SCROLLBAR_STYLE_ID = "neo-scrollbar-style";
-function installScrollbarStyle(doc) {
-    if (doc.getElementById(SCROLLBAR_STYLE_ID) !== null)
-        return;
-    const style = doc.createElement("style");
-    style.id = SCROLLBAR_STYLE_ID;
-    style.textContent =
-        // `scrollbar-gutter:stable` + a styled `::-webkit-scrollbar` = a persistent,
-        // space-reserving classic bar (vertical panes). NOTE: do NOT also set the
-        // standard `scrollbar-color` — in current Chrome it opts the element back into
-        // the OS overlay scrollbar and cancels the webkit styling. `.neo-scroll-x` is the
-        // horizontal variant (code blocks): a thin bottom bar, no reserved gutter.
-        ".neo-scroll{scrollbar-gutter:stable}" +
-            ".neo-scroll::-webkit-scrollbar{width:14px;height:14px}" +
-            ".neo-scroll-x::-webkit-scrollbar{height:10px}" +
-            ".neo-scroll::-webkit-scrollbar-track,.neo-scroll-x::-webkit-scrollbar-track{background:transparent}" +
-            ".neo-scroll::-webkit-scrollbar-thumb,.neo-scroll-x::-webkit-scrollbar-thumb{border-radius:7px;border:2px solid transparent;background-clip:padding-box}" +
-            // dark theme (default): a light translucent thumb
-            ".neo-scroll::-webkit-scrollbar-thumb,.neo-scroll-x::-webkit-scrollbar-thumb{background:rgba(230,238,242,.34)}" +
-            ".neo-scroll::-webkit-scrollbar-thumb:hover,.neo-scroll-x::-webkit-scrollbar-thumb:hover{background:rgba(230,238,242,.55)}" +
-            // light theme: a dark translucent thumb (the light one would vanish)
-            "@media(prefers-color-scheme:light){" +
-            ".neo-scroll::-webkit-scrollbar-thumb,.neo-scroll-x::-webkit-scrollbar-thumb{background:rgba(40,55,70,.42)}" +
-            ".neo-scroll::-webkit-scrollbar-thumb:hover,.neo-scroll-x::-webkit-scrollbar-thumb:hover{background:rgba(40,55,70,.62)}}";
-    (doc.head ?? doc.documentElement).appendChild(style);
-}
+// Scrollbars are the platform's own. An earlier build injected a persistent,
+// space-reserving `::-webkit-scrollbar` (+ `scrollbar-gutter: stable`) so a bar was
+// always visible — but styling `::-webkit-scrollbar` opts Safari OUT of its native
+// overlay bar and into a wide, always-on legacy one, which is not what a macOS app
+// should look like. We now inject nothing: `overflow: auto` gives each pane the OS
+// default — an overlay bar that appears on scroll and widens on hover (macOS), or
+// the classic bar the OS/user setting dictates elsewhere.
 class DomSurface {
     element;
     textEl = null;
@@ -341,11 +312,9 @@ class DomSurface {
             // always a bug).
             el.style.overflowY = "auto";
             el.style.overflowX = "hidden";
-            // A styled, always-there scrollbar (not the near-invisible macOS overlay):
-            // legible on dark, and it widens on hover. `overscroll-behavior: none`
-            // stops a scroll-past from chaining to the document (rubber-band flash).
-            installScrollbarStyle(el.ownerDocument);
-            el.classList.add("neo-scroll");
+            // Native scrollbar (macOS overlay: appears on scroll, widens on hover).
+            // `overscroll-behavior: none` stops a scroll-past from chaining to the
+            // document (rubber-band flash).
             el.style.overscrollBehavior = "none";
             // A scroll container is interactive (like a sink): it must ACCEPT the
             // wheel, or the pointer-inert content passes it straight to the document
@@ -395,8 +364,6 @@ class DomSurface {
             // Clip the box and scroll its overflowing WIDTH; vertical stays clipped.
             el.style.overflowX = "auto";
             el.style.overflowY = "hidden";
-            installScrollbarStyle(el.ownerDocument);
-            el.classList.add("neo-scroll-x");
             el.style.pointerEvents = "auto";
             if (this.wheelXListener === undefined) {
                 // Absolute-positioned content: the wheel won't drive it (as in setScroll),
@@ -422,7 +389,6 @@ class DomSurface {
             el.style.overflowX = "";
             el.style.overflowY = "";
             el.style.pointerEvents = "none";
-            el.classList.remove("neo-scroll-x");
         }
     }
     /** Native rich-text flow (RichText). Build ONE flowing content element — a block
@@ -456,6 +422,8 @@ class DomSurface {
             bs.fontSize = b.fontSize + "px";
             bs.lineHeight = Math.round(b.fontSize * b.lineHeight) + "px";
             bs.whiteSpace = "normal";
+            if (b.align !== undefined && b.align !== "left")
+                bs.textAlign = b.align;
             for (const r of b.runs) {
                 if ("br" in r) {
                     be.appendChild(doc.createElement("br"));
@@ -597,10 +565,7 @@ class DomSurface {
             s.touchAction = "auto";
             s.resize = "none";
             s.pointerEvents = "auto";
-            // A styled, always-there scrollbar (like a neo scroller) — not the
-            // near-invisible macOS overlay — so a scrolling code field shows one.
-            installScrollbarStyle(el.ownerDocument);
-            el.classList.add("neo-scroll");
+            // Native scrollbar for a scrolling code field (macOS overlay).
             const self = el;
             el.addEventListener("input", () => this.edit?.onInput(self.value));
             el.addEventListener("focus", () => this.edit?.onFocus());
