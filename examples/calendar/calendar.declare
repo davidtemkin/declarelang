@@ -21,15 +21,25 @@ font Mono [ family = "ui-monospace" ]
 // focused row, so a neighbouring week sliding past stays chips, never blocks.
 class Ev extends View [
     bf: number = { :crow == app.aRow ? app.blockness : 0 },
-    cornerRadius = 5, clip = true, fill = { app.catFill(:category) },
+    // dn (dotness) — 0 as a chip, 1 as the year view's single day-dot. Driven by the
+    // same yz the day-cells morph on, so chip→dot happens continuously as the month
+    // folds into its mini.
+    dn: number = { app.yz },
+    clip = true, cornerRadius = { app.lerp(5, 1.5, classroot.dn) },
+    // the category colour resolves to the year view's accent dot
+    fill = { app.mix(app.catFill(:category), theme.accent, classroot.dn) },
     opacity = { app.dragId == :id && app.dragging ? 0.2 : 1 },
-    x = 4, width = { parent.width - 8 },
-    // the one morph that matters — chip (stacked) ↔ block (placed by time)
-    y      = { app.lerp(26 + :idx * 20, :start / 1440 * parent.height, classroot.bf) },
-    height = { app.lerp(17, Math.max(18, :dur / 1440 * parent.height), classroot.bf) },
+    // chip spans the cell; the dot is a 3px round at the cell's foot — every event of
+    // a day lands on the same point, so a busy day still reads as one dot
+    x      = { app.lerp(4, (parent.width - 3) / 2, classroot.dn) },
+    width  = { app.lerp(parent.width - 8, 3, classroot.dn) },
+    // the chip↔block morph (bf) nests inside the chip↔dot morph (dn)
+    y      = { app.lerp(app.lerp(26 + :idx * 20, :start / 1440 * parent.height, classroot.bf), parent.height - 6, classroot.dn) },
+    height = { app.lerp(app.lerp(17, Math.max(18, :dur / 1440 * parent.height), classroot.bf), 3, classroot.dn) },
     rail: View [ width = 3, height = { parent.height }, fill = { app.catText(:category) }, opacity = { classroot.bf } ],
-    // time reads bolder than the name — the name is plain
-    text: View [ x = 8, y = 2, layout: SimpleLayout [ axis = x, spacing = 6 ],
+    // time reads bolder than the name — the name is plain; both fade as the chip
+    // collapses to a dot
+    text: View [ x = 8, y = 2, opacity = { 1 - classroot.dn }, layout: SimpleLayout [ axis = x, spacing = 6 ],
         tm: Text [ fontSize = 10, fontWeight = semibold, wrap = false, textColor = { app.catText(:category) }, text = { :timeLabel } ],
         ti: Text [ fontSize = 10, fontWeight = regular,  wrap = false, textColor = { app.catText(:category) }, text = { :title } ] ],
     onMouseDown(e) { app.startDrag(:id, :title, :category, :timeLabel, this.width, this.height, e.x, e.y) },
@@ -45,23 +55,38 @@ class Ev extends View [
 class Cell extends View [
     // block factor — 1 only when THIS row is the focused (zoomed) one
     bf: number = { :row == app.aRow ? app.blockness : 0 },
+    // yn (yearness) — 0 in day/week/month, 1 in the year view. The cell's whole
+    // rectangle lerps from its month-grid slot to its slot inside the current month's
+    // year-cell, so the surface never scale-shrinks (which would crush its text and
+    // can't match the mini's aspect) — it re-lays-out into the mini, undistorted.
+    yn: number = { app.yz },
     clip = true,
-    x      = { app.pad + (:col - app.c0) * app.colW + app.gap / 2 },
-    y      = { app.headH + (:row - app.r0) * app.rowH + app.gap / 2 },
-    width  = { app.colW - app.gap },
-    height = { app.rowH - app.gap },
-    // the box fades toward transparent as it becomes a column, so the hour
-    // grid behind it shows through
+    x      = { app.lerp(app.pad + app.gutter + (:col - app.c0) * app.colW + app.gap / 2, app.slotX + 10 + :col * app.miniCellW, classroot.yn) },
+    y      = { app.lerp(app.headH + (:row - app.r0) * app.rowH + app.gap / 2, app.slotY + 34 + :row * app.miniRowH, classroot.yn) },
+    width  = { app.lerp(app.colW - app.gap, app.miniCellW, classroot.yn) },
+    height = { app.lerp(app.rowH - app.gap, app.miniRowH, classroot.yn) },
+    // the box fades toward transparent as it becomes a column (hour grid shows
+    // through), AND fades out individually as the cell joins the year grid — so the
+    // month's fills disappear, leaving numbers + dots on the mini's card
     bg: View [ width = { parent.width }, height = { parent.height }, cornerRadius = 8,
                opacity = { 1 - 0.82 * classroot.bf },
-               fill = { :key == app.dropKey ? theme.dropTargetBg : :today ? theme.todayBg : !:inMonth ? theme.outOfMonthBg : :weekend ? theme.weekendBg : theme.cellBg },
-               stroke = { :key == app.dropKey ? stroke(2, theme.dropTargetRing) : :current ? stroke(2, theme.accent) : null } ],
+               // each cell's month colour animates to the year cell's highlight, so the
+               // whole grid melts into the mini's round-rect instead of fading out; the
+               // current/drop rings dissolve into the same colour
+               // today's tint fades out as the day zooms into a time column (bf) — it's a
+               // month-grid cue, not needed once the day fills the surface
+               fill = { app.mix(:key == app.dropKey ? theme.dropTargetBg : :today ? app.mix(theme.todayBg, theme.cellBg, classroot.bf) : !:inMonth ? theme.outOfMonthBg : :weekend ? theme.weekendBg : theme.cellBg, theme.miniCurrentBg, classroot.yn) },
+               // only the drop target draws a ring; the current day is marked by its blue
+               // number (and the accent top bar in the time views), not a heavy border
+               stroke = { :key == app.dropKey ? stroke(2, app.mix(theme.dropTargetRing, theme.miniCurrentBg, classroot.yn)) : null } ],
     // current-day accent: the ring reads in Month; a top bar takes over as the
     // cell becomes a column (it fades in with the zoom)
     mark: View [ width = { parent.width }, height = 3, fill = { theme.accent }, visible = { :current }, opacity = { classroot.bf } ],
-    // the date number — fixed corner position (kept off the per-frame path); the
-    // weekday name is new content in the zoomed-in views, so it fades in beside it
-    num: Text [ x = 11, y = 7, fontSize = 13, wrap = false, fontWeight = semibold,
+    // the date number rides from its month corner to the mini's centred top (13→9px);
+    // out-of-month numbers fade away as the mini hides them
+    num: Text [ x = { app.lerp(11, parent.width / 2 - 5, classroot.yn) }, y = { app.lerp(7, 2, classroot.yn) },
+                fontSize = { app.lerp(13, 9, classroot.yn) }, wrap = false, fontWeight = semibold,
+                opacity = { :inMonth ? 1 : 1 - classroot.yn },
                 textColor = { :current ? theme.currentDayText : :today ? theme.todayText : :inMonth ? theme.dayNumber : theme.textFaint },
                 text = { "" + :num } ],
     dow: Text [ x = 34, y = 8, fontSize = 11, wrap = false,
@@ -85,10 +110,11 @@ class MiniDay extends View [
 class MiniMonth extends View [
     width = { app.miniW }, height = { app.miniH },
     x = { app.pad + :mcol * (app.miniW + app.gap) }, y = { app.pad + :mrow * (app.miniH + app.gap) },
-    // the current month is drawn by the shrinking board until the hand-off, so its
-    // mini stays hidden until then
-    visible = { :m != app.month || app.yz > 0.86 },
-    cornerRadius = 12, clip = true, fill = { :m == app.month ? theme.miniCurrentBg : theme.miniBg },
+    // The current month is rendered by the board itself, which morphs in place from
+    // the full month view into this slot (see `board`), so its own mini is never
+    // drawn. Only the other eleven months come from the deferred yearCal.
+    visible = { :m != app.month },
+    cornerRadius = 12, clip = true, fill = { theme.miniBg },
     name: Text [ x = 14, y = 11, fontSize = 13, fontWeight = semibold,
                  textColor = { :m == app.month ? theme.todayText : theme.dayNumber }, text = { :name } ],
     grid: View [ x = 10, y = 34, width = { parent.width - 20 }, height = { parent.height - 44 },
@@ -103,30 +129,42 @@ class ViewTab extends View [
     width = { app.tabW }, height = { parent.height },
     lbl: Text [ width = { parent.width }, textAlign = center, y = 9, fontSize = 13, wrap = false, fontWeight = medium,
                 textColor = { app.mode == classroot.mode || classroot.hovered ? theme.textPrimary : theme.textMuted },
-                text = { classroot.label } ],
+                text = { app.tabsCompact ? classroot.label.slice(0, 1) : classroot.label } ],
     onMouseOver() { classroot.hovered = true },
     onMouseOut()  { classroot.hovered = false },
     onClick()     { app.goMode(classroot.mode) },
 ]
+// The nav arrows wear the SAME treatment as the view tabs (trackBg rest, text
+// brightening on hover, a pillBg flash on press) at the same 34-tall height, so
+// the whole bar reads as one family of pill controls.
+// The sliding tab highlight. It springs a normalised LANE (0..3), not an
+// absolute x — so x = lane × tabW recomputes instantly when the tabs resize
+// (full words ↔ letters), sliding ONLY when the selected lane actually changes.
+class TabPill extends View [
+    lane: number = 2,   // initial view is Month (lane 2) — matches boot, no slide-in
+    width = { app.tabW }, height = { parent.height }, cornerRadius = 10, fill = { theme.pillBg },
+    x = { classroot.lane * app.tabW },
+    Spring [ attribute = lane, to = { app.tabIndex }, stiffness = 300, damping = 40 ],
+]
 class NavArrow extends View [
     dir: number = 1, glyph: string = "", hovered: boolean = false, pressed: boolean = false,
-    width = 30, height = 30, cornerRadius = 8,
-    fill = { classroot.pressed ? theme.controlActive : classroot.hovered ? theme.controlHover : theme.controlBg },
-    g: Text [ width = { parent.width }, textAlign = center, y = 4, fontSize = 18, wrap = false,
-              textColor = { classroot.hovered ? theme.textPrimary : theme.controlText }, text = { classroot.glyph } ],
+    width = 36, height = 34, cornerRadius = 10,
+    fill = { classroot.pressed ? theme.pillBg : theme.trackBg },
+    g: Text [ width = { parent.width }, textAlign = center, y = 6, fontSize = 18, wrap = false,
+              textColor = { classroot.pressed || classroot.hovered ? theme.textPrimary : theme.textMuted }, text = { classroot.glyph } ],
     onMouseOver() { classroot.hovered = true },
     onMouseOut()  { classroot.hovered = false; classroot.pressed = false },
     onMouseDown() { classroot.pressed = true },
     onMouseUp()   { classroot.pressed = false },
     onClick()     { app.step(classroot.dir) },
 ]
-// a labelled pill button (Today) with the same feedback
+// Today — a labelled pill in the same tab treatment
 class TextButton extends View [
     label: string = "", hovered: boolean = false, pressed: boolean = false,
-    width = 62, height = 30, cornerRadius = 8,
-    fill = { classroot.pressed ? theme.controlActive : classroot.hovered ? theme.controlHover : theme.controlBg },
-    t: Text [ width = { parent.width }, textAlign = center, y = 7, fontSize = 12, wrap = false, fontWeight = medium,
-              textColor = { classroot.hovered ? theme.textPrimary : theme.controlText }, text = { classroot.label } ],
+    width = 64, height = 34, cornerRadius = 10,
+    fill = { classroot.pressed ? theme.pillBg : theme.trackBg },
+    t: Text [ width = { parent.width }, textAlign = center, y = 9, fontSize = 13, wrap = false, fontWeight = medium,
+              textColor = { classroot.pressed || classroot.hovered ? theme.textPrimary : theme.textMuted }, text = { classroot.label } ],
     onMouseOver() { classroot.hovered = true },
     onMouseOut()  { classroot.hovered = false; classroot.pressed = false },
     onMouseDown() { classroot.pressed = true },
@@ -140,7 +178,7 @@ class ThemeSeg extends View [
     width = 30, height = { parent.height },
     bg: View [ x = 2, y = 2, width = { parent.width - 4 }, height = { parent.height - 4 }, cornerRadius = 6,
                fill = { app.themeMode == classroot.m ? theme.pillBg : null } ],
-    g: Text [ width = { parent.width }, textAlign = center, y = 4, fontSize = 14, wrap = false,
+    g: Text [ width = { parent.width }, textAlign = center, y = 6, fontSize = 14, wrap = false,
               textColor = { app.themeMode == classroot.m ? theme.textPrimary : classroot.hovered ? theme.textPrimary : theme.textMuted },
               text = { classroot.glyph } ],
     onMouseOver() { classroot.hovered = true },
@@ -181,7 +219,21 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
     isDark: boolean = { app.themeMode == "auto" ? app.dark : app.themeMode == "dark" },
 
     // ── layout constants ──
-    barH: number = 60, pad: number = 20, gap: number = 8, tabW: number = 74,
+    barH: number = 60, pad: number = 20, gap: number = 8,
+
+    // ── responsive chrome (all derived from the window width) ──
+    // Three tiers of compaction as the window narrows: first the Light/Auto/Dark
+    // switch drops out (only once the centred date block would otherwise crowd
+    // it), then the view tabs collapse to single letters (D/W/M/Y), halving their
+    // footprint. Both thresholds are constants sized to the WIDEST view (day) so
+    // the chrome never flickers as you switch views at a fixed window width.
+    showTheme: boolean = { app.width >= 1030 },
+    tabsCompact: boolean = { app.width < 910 },
+    tabW: number = { app.tabsCompact ? 44 : 74 },
+    // The date block is a fixed width PER MODE — so the arrows never move as you
+    // page within a view, but may re-place when you switch views (the longest
+    // label differs: a cross-month week is widest, a bare year the narrowest).
+    dateW: number = { app.mode == "week" ? 200 : app.mode == "day" ? 210 : app.mode == "month" ? 138 : 64 },
 
     // ── state ──
     mode: string = "month",
@@ -241,10 +293,14 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
     Spring [ attribute = r0, to = { app.r0To }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
     Spring [ attribute = nc, to = { app.ncTo }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
     Spring [ attribute = nr, to = { app.nrTo }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
-    colW: number = { (app.bodyW - 2 * app.pad) / app.nc },
+    colW: number = { (app.bodyW - 2 * app.pad - app.gutter) / app.nc },
     rowH: number = { (app.bodyH - app.headH) / app.nr },
     // 0 = month chips, 1 = time blocks — from how tall a row has grown
     blockness: number = { app.clamp((app.rowH - 240) / 300, 0, 1) },
+    // a left gutter for the hour labels, opening only in the time-based (day/week)
+    // views — zero in month (no hours), growing with blockness exactly as the hour
+    // grid fades in, so the day columns always clear the times.
+    gutter: number = { app.blockness * 52 },
 
     // Year is one level further out: `yz` (0→1) shrinks the whole month surface
     // into its slot in the 4×3 year grid while the year view pulls back to reveal
@@ -253,6 +309,14 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
     myRow: number = { Math.floor((app.month - 1) / 4) },
     slotX: number = { app.pad + app.myCol * (app.miniW + app.gap) },
     slotY: number = { app.pad + app.myRow * (app.miniH + app.gap) },
+    // the year zoom, SHARED by the surrounding months (yearView) and the current
+    // month's own backdrop (monthBg), so the current month's card scales in lock-step
+    // with its neighbours — always exactly a sibling's size, never pulling in at the
+    // end. At yz=0 it is bodyW/miniW (~4×): its far edges fall off-screen, and where
+    // it doesn't reach, the surface is the same page colour anyway, so it reads as the
+    // full month background; → 1 at the year. A pure scale of the exact target rect,
+    // so aspect ratio and corner radius stay correct throughout.
+    yearScale: number = { app.lerp(app.bodyW / app.miniW, 1, app.yz) },
     yz: number = 0,
     Spring [ attribute = yz, to = { app.mode == "year" ? 1 : 0 }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
 
@@ -266,6 +330,12 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
     // ── helpers ──
     lerp(a, b, t)  { return a + (b - a) * t },
     clamp(v, a, b) { return Math.max(a, Math.min(b, v)) },
+    // blend two 0xRRGGBB colours channel-wise (used to resolve a chip's category
+    // colour into the year view's accent dot)
+    mix(a, b, t) {
+        const c = (x, y) => Math.round(x + (y - x) * t)
+        return (c((a >> 16) & 255, (b >> 16) & 255) << 16) | (c((a >> 8) & 255, (b >> 8) & 255) << 8) | c(a & 255, b & 255)
+        },
     monthName(m)   { return ["January","February","March","April","May","June","July","August","September","October","November","December"][m - 1] },
     dowName(i)     { return ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][i] },
     dowLong(i)     { return ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][i] },
@@ -287,8 +357,10 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
     weekLabel(k) {
         const s = new Date(app.parseKey(k).getFullYear(), app.parseKey(k).getMonth(), app.parseKey(k).getDate() - app.parseKey(k).getDay())
         const e = new Date(s.getFullYear(), s.getMonth(), s.getDate() + 6)
+        // no year here — it keeps the week label short (the year lives in month
+        // and year views), which lets the date block stay compact
         return app.monthName(s.getMonth() + 1) + " " + s.getDate() + " – "
-             + (s.getMonth() == e.getMonth() ? "" : app.monthName(e.getMonth() + 1) + " ") + e.getDate() + ", " + e.getFullYear()
+             + (s.getMonth() == e.getMonth() ? "" : app.monthName(e.getMonth() + 1) + " ") + e.getDate()
         },
     dayLabel(k)    { const d = app.parseKey(k); return app.dowLong(d.getDay()) + ", " + app.monthName(d.getMonth() + 1) + " " + d.getDate() },
     catFill(c) { const t = this.theme; return c == "holiday" ? t.holidayBg : c == "astro" ? t.astroBg : c == "milestone" ? t.milestoneBg : t.defaultBg },
@@ -444,7 +516,7 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
         this.dragId = -1; this.dragging = false; this.dropKey = ""
         },
     cellAt(px, py) {                         // invert the span mapping: screen point → grid cell
-        const col = Math.floor((px - this.pad) / this.colW + this.c0)
+        const col = Math.floor((px - this.pad - this.gutter) / this.colW + this.c0)
         const row = Math.floor((py - this.barH - this.headH) / this.rowH + this.r0)
         return this.cal.value.grid[app.clamp(row, 0, this.monthRows - 1) * 7 + app.clamp(col, 0, 6)]
         },
@@ -473,60 +545,36 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
         // OS theme (Auto mode) rides the runtime's reactive `app.dark` — nothing to wire here.
         },
 
-    // ═══════════════════════════ chrome ═══════════════════════════
-    bar: View [ width = { app.width }, height = { app.barH }, fill = { theme.pageBg },
-        rule: View [ y = { parent.height - 1 }, width = { parent.width }, height = 1, fill = { theme.hairline } ],
-
-        // "Declare Calendar" — "Declare" in the homepage blue→teal gradient
-        brand: View [ x = 22, y = { (app.barH - 22) / 2 }, height = 22,
-            layout: SimpleLayout [ axis = x, spacing = 8 ],
-            Text [ fontSize = 19, fontWeight = bold, wrap = false, textFill = { gradient("90deg", theme.accent, theme.accentTeal) }, text = "Declare" ],
-            Text [ fontSize = 19, fontWeight = bold, wrap = false, textColor = { theme.textPrimary }, text = "Calendar" ] ],
-
-        // centred  ‹ period ›
-        nav: View [ y = { (app.barH - 30) / 2 }, height = 30, width = 320, x = { (app.width - this.width) / 2 },
-            prev:  NavArrow [ x = 0, dir = -1, glyph = "‹" ],
-            title: Text [ x = 40, width = 240, textAlign = center, y = 5, fontSize = 16, wrap = false,
-                          fontWeight = semibold, textColor = { theme.textPrimary }, text = { app.periodLabel } ],
-            next:  NavArrow [ x = 290, dir = 1, glyph = "›" ] ],
-
-        today: TextButton [ y = { (app.barH - 30) / 2 }, x = { (app.width - 320) / 2 - 74 }, label = "Today" ],
-
-        // Light / Auto / Dark — Auto follows the OS live
-        themeSwitch: View [ height = 30, width = 94, y = { (app.barH - 30) / 2 }, x = { app.width - 4 * app.tabW - 20 - 108 },
-            cornerRadius = 8, fill = { theme.trackBg },
-            s1: ThemeSeg [ x = 2,  m = "light", glyph = "☀" ],
-            s2: ThemeSeg [ x = 32, m = "auto",  glyph = "◐" ],
-            s3: ThemeSeg [ x = 62, m = "dark",  glyph = "☾" ] ],
-
-        tabs: View [ height = 34, width = { 4 * app.tabW }, y = { (app.barH - 34) / 2 }, x = { app.width - this.width - 20 },
-            track: View [ width = { parent.width }, height = { parent.height }, cornerRadius = 10, fill = { theme.trackBg } ],
-            // the sliding highlight — starts under Month (the initial view, so no
-            // slide-in on load) and is critically damped so it never overshoots its lane
-            pill: View [ width = { app.tabW }, height = { parent.height }, cornerRadius = 10, fill = { theme.pillBg }, x = 148,
-                Spring [ attribute = x, to = { app.tabIndex * app.tabW }, stiffness = 300, damping = 40 ] ],
-            d:  ViewTab [ x = { 0 * app.tabW }, mode = "day",   label = "Day" ],
-            w:  ViewTab [ x = { 1 * app.tabW }, mode = "week",  label = "Week" ],
-            m:  ViewTab [ x = { 2 * app.tabW }, mode = "month", label = "Month" ],
-            yt: ViewTab [ x = { 3 * app.tabW }, mode = "year",  label = "Year" ] ],
-        ],
-
     // ═══════════════════════════ the surface (day / week / month / →year) ═══════════════════════════
-    // For Year it shrinks (scale + slide) into the current month's slot in the year
-    // grid, then hands off to that month's mini — so the month never cross-fades.
-    board: View [ x = { app.lerp(0, app.slotX, app.yz) }, y = { app.lerp(app.barH, app.barH + app.slotY, app.yz) },
-        width = { app.bodyW }, height = { app.bodyH }, clip = true, visible = { app.yz < 0.9 },
-        scale = { app.lerp(1, app.miniW / app.bodyW, app.yz) }, pivotX = 0, pivotY = 0,
-        // month weekday header — belongs only to the zoomed-out view, so it fades
-        weekdays: View [ opacity = { 1 - app.blockness }, datapath = { app.cal.value },
+    // For Year the surface does NOT scale into its slot; each Cell re-lays-out into
+    // the current month's year-cell (see Cell.yn), so text stays crisp and the month
+    // BECOMES its mini — no hand-off, no cross-fade. A highlighted card and the month
+    // name fade in to complete the mini. The other eleven months are the deferred
+    // yearCal (never a fully-hydrated year sitting in memory).
+    board: View [ x = 0, y = { app.barH }, width = { app.bodyW }, height = { app.bodyH }, clip = true,
+        // the month's own backdrop: authored at the EXACT destination slot round-rect
+        // (position, size, corner radius) and scaled up about its centre so at the start
+        // its edges sit off-screen (reads as the full month background), converging by a
+        // pure scale to the slot — so aspect and corner radius never drift. Its colour
+        // animates page background → year-cell highlight; the day-cells melt into it.
+        monthBg: View [ x = { app.slotX }, y = { app.slotY }, width = { app.miniW }, height = { app.miniH },
+            cornerRadius = 12, fill = { app.mix(theme.pageBg, theme.miniCurrentBg, app.yz) },
+            scale = { app.yearScale }, pivotX = { app.miniW / 2 }, pivotY = { app.miniH / 2 } ],
+        // month weekday header — belongs only to the zoomed-out month, so it fades
+        // out both as the view zooms in (blockness) and as it folds into the year
+        weekdays: View [ opacity = { (1 - app.blockness) * (1 - app.yz) }, datapath = { app.cal.value },
             View [ datapath = :cols[], key = :col, x = { app.pad + :col * (app.bodyW - 2 * app.pad) / 7 + 11 },
                 l: Text [ y = 9, fontSize = 11, wrap = false, textColor = { theme.textMuted }, text = { :name } ] ] ],
         // the hour grid — belongs only to the zoomed-in views, so it fades in
         hours: View [ opacity = { app.blockness }, datapath = { app.cal.value },
             View [ datapath = :hours[], key = :h, y = { app.headH + :h / 24 * (app.bodyH - app.headH) }, width = { app.bodyW }, height = 1, fill = { theme.gridLine },
                 lbl: Text [ x = 6, y = 1, fontSize = 10, wrap = false, textColor = { theme.hourLabel }, text = { :label } ] ] ],
-        // the day-grid itself — every cell is one slot mapped through the moving focus span
+        // the day-grid itself — every cell maps through the focus span AND morphs into the year
         grid: View [ datapath = { app.cal.value }, Cell [ datapath = :grid[], key = :key ] ],
+        // the month name, over the grid, resolving as the mini completes
+        yearName: Text [ x = { app.slotX + 14 }, y = { app.slotY + 11 }, fontSize = 13, fontWeight = semibold, wrap = false,
+            textColor = { theme.todayText }, text = { app.monthName(app.month) },
+            opacity = { app.clamp((app.yz - 0.5) / 0.5, 0, 1) } ],
         ],
 
     // ═══════════════════════════ year — the same surface, one level further out ═══════════════════════════
@@ -534,7 +582,12 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
     // that month, matching the board) out to the full 4×3 grid — the eleven other
     // months sweep in around the shrinking board.
     yearView: View [ y = { app.barH }, width = { app.bodyW }, height = { app.bodyH }, clip = true, visible = { app.yz > 0.02 },
-        scale = { app.lerp(app.bodyW / app.miniW, 1, app.yz) }, pivotX = { app.slotX + app.miniW / 2 }, pivotY = { app.slotY + app.miniH / 2 },
+        // the eleven other months fade over the OUTER half of the zoom (yz 0.5→0.8):
+        // leaving year they're gone by the time the surface reads as a single month
+        // (no neighbour left lingering in a side column), and entering they resolve as
+        // the surface shrinks into its slot — never a hard cull to pop at.
+        opacity = { app.clamp((app.yz - 0.5) / 0.3, 0, 1) },
+        scale = { app.yearScale }, pivotX = { app.slotX + app.miniW / 2 }, pivotY = { app.slotY + app.miniH / 2 },
         grid: View [ width = { parent.width }, height = { parent.height }, datapath = { app.yearCal.value }, MiniMonth [ datapath = :months[], key = :m ] ] ],
 
     // ═══════════════ event-detail panel (rides `panelInset` in from the right) ═══════════════
@@ -566,4 +619,53 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
         rail: View [ width = 3, height = { parent.height }, fill = { app.catText(app.dragCat) } ],
         tm: Text [ x = 11, y = 4, fontSize = 10, fontWeight = bold, wrap = false, textColor = { app.catText(app.dragCat) }, text = { app.dragTimeLabel } ],
         ti: Text [ x = 11, y = 17, fontSize = 11, wrap = false, textColor = { app.catText(app.dragCat) }, text = { app.dragTitle } ] ],
+
+    // ═══════════════════════════ chrome ═══════════════════════════
+    // Declared LAST so it holds the top z-order: the year transition scales the
+    // surface up past the bar's height, and the bar must stay above it (and keep
+    // receiving clicks) rather than being painted over.
+    bar: View [ width = { app.width }, height = { app.barH }, fill = { theme.pageBg },
+        rule: View [ y = { parent.height - 1 }, width = { parent.width }, height = 1, fill = { theme.hairline } ],
+
+        // A THREE-ZONE chrome (absolute, responsive): brand + theme switch hug
+        // the LEFT; Today + the view tabs hug the RIGHT; the date nav floats near
+        // the CENTRE of the window — its x centres it, clamped so it never rides
+        // into either side zone on a narrow window.
+
+        // ── left: "Declare Calendar" (Declare in the blue→teal gradient, words
+        //    set tight) + the Light / Auto / Dark switch ──
+        brand: View [ x = 20, y = { (app.barH - 22) / 2 }, height = 22,
+            layout: SimpleLayout [ axis = x, spacing = 4 ],
+            Text [ fontSize = 19, fontWeight = bold, wrap = false, textFill = { gradient("90deg", theme.accent, theme.accentTeal) }, text = "Declare" ],
+            Text [ fontSize = 19, fontWeight = bold, wrap = false, textColor = { theme.textPrimary }, text = "Calendar" ] ],
+
+        themeSwitch: View [ x = 196, height = 34, width = 94, y = { (app.barH - 34) / 2 }, visible = { app.showTheme },
+            cornerRadius = 10, fill = { theme.trackBg },
+            s1: ThemeSeg [ x = 2,  m = "light", glyph = "☀" ],
+            s2: ThemeSeg [ x = 32, m = "auto",  glyph = "◐" ],
+            s3: ThemeSeg [ x = 62, m = "dark",  glyph = "☾" ] ],
+
+        // ── centre: ‹ period › — the title block is a fixed width PER MODE
+        //    (app.dateW) with centred text, so the arrows never move as you page
+        //    within a view; `prev` is pinned at 0 and `next` re-places only on a
+        //    view change. The whole box centres on the window, clamped to stay
+        //    clear of the right zone (and off the brand) as the window narrows.
+        nav: View [ height = 34, y = { (app.barH - 34) / 2 }, width = { app.dateW + 84 },
+            x = { Math.min(app.width - 4 * app.tabW - 204 - app.dateW, Math.max(app.showTheme ? 300 : 190, (app.width - app.dateW - 84) / 2)) },
+            prev:  NavArrow [ x = 0, dir = -1, glyph = "‹" ],
+            title: Text [ x = 42, width = { app.dateW }, textAlign = center, y = 7, fontSize = 16, wrap = false,
+                          fontWeight = semibold, textColor = { theme.textPrimary }, text = { app.periodLabel } ],
+            next:  NavArrow [ x = { app.dateW + 48 }, dir = 1, glyph = "›" ] ],
+
+        // ── right: Today + the view tabs, hugging the right edge (20px margin) ──
+        today: TextButton [ y = { (app.barH - 34) / 2 }, x = { app.width - 4 * app.tabW - 100 }, label = "Today" ],
+
+        tabs: View [ height = 34, width = { 4 * app.tabW }, y = { (app.barH - 34) / 2 }, x = { app.width - 4 * app.tabW - 20 },
+            track: View [ width = { parent.width }, height = { parent.height }, cornerRadius = 10, fill = { theme.trackBg } ],
+            pill: TabPill [ ],
+            d:  ViewTab [ x = { 0 * app.tabW }, mode = "day",   label = "Day" ],
+            w:  ViewTab [ x = { 1 * app.tabW }, mode = "week",  label = "Week" ],
+            m:  ViewTab [ x = { 2 * app.tabW }, mode = "month", label = "Month" ],
+            yt: ViewTab [ x = { 3 * app.tabW }, mode = "year",  label = "Year" ] ],
+    ],
 ]
