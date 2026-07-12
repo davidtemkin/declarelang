@@ -11,7 +11,12 @@ import type { AttrType } from "./value.js";
  *  (a class-body member on the class root itself binds to that root).
  *  `view` is any Node since R8 — a DataSource's `url = { … }` binds the
  *  same way a View attribute does. */
-export declare function bindConstraint(view: Node, name: string, src: string, pos: Pos, classroot: View | null): void;
+export declare function bindConstraint(view: Node, name: string, src: string, pos: Pos, classroot: View | null, 
+/** The compiler's extracted dependency read-paths (design/constraints.md §5).
+ *  When present, the constraint is wired on the static path — edges fixed once,
+ *  no per-run re-tracking. Absent (dev re-parse, or an un-annotated program) →
+ *  the runtime-tracking fallback, unchanged. */
+deps?: readonly string[]): void;
 /** Bind `name = :path` (a value slot reading data, language §9): a standing
  *  computation over exactly that region of the inherited cursor's dataset.
  *  The raw value coerces to the slot's declared type at the boundary; an

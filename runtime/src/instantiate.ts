@@ -182,7 +182,7 @@ export function instantiate(input: Element | Program): View {
  *  at build time and at every later data arrival. */
 function installPending(pending: readonly Pending[], ctx: Ctx): void {
   for (const p of pending) {
-    if ("code" in p) bindConstraint(p.view, p.attr.name, p.code, p.attr.value.pos, p.classroot);
+    if ("code" in p) bindConstraint(p.view, p.attr.name, p.code, p.attr.value.pos, p.classroot, p.attr.value.kind === "code" ? p.attr.value.deps : undefined);
     else if ("twoWay" in p) bindTwoWay(p.view, p.attr.name, p.twoWay, p.type);
     else if ("twoWayCode" in p) bindTwoWayDynamic(p.view, p.attr.name, p.twoWayCode, p.attr.value.pos, p.classroot, p.type);
     else if ("dataPath" in p) bindData(p.view, p.attr.name, p.dataPath, p.type);

@@ -16,6 +16,7 @@
 import { parseProgram } from "./parser.js";
 import { check } from "./check.js";
 import { instantiate } from "./instantiate.js";
+import { applyDeps } from "./deps.js";
 import { resolveIncludes, NO_INCLUDES } from "./include.js";
 import { App } from "./view.js";
 import { fontFacesOf } from "./font.js";
@@ -33,6 +34,8 @@ export function build(source, opts = {}) {
     errors.sort((a, b) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0));
     if (errors.length > 0)
         throw new NeoErrors(errors);
+    if (opts.deps !== undefined)
+        applyDeps(program, opts.deps);
     const root = instantiate(program);
     if (!(root instanceof App)) {
         throw new NeoError("a program's root must be 'App [ … ]'", program.root.pos);
@@ -62,6 +65,7 @@ export { parse, parseProgram, parseLibrary } from "./parser.js";
 export { resolveIncludes, NO_INCLUDES } from "./include.js";
 export { check, checkAttr, checkMethod, checkDecl, checkComponentValue, programSchemas } from "./check.js";
 export { instantiate } from "./instantiate.js";
+export { forEachCodeValue, serializeDeps, applyDeps } from "./deps.js";
 // Precompiled production entry + render glue (compiler-free) — see boot.ts.
 export { renderProgram, renderProgramAsync, mountApp, disposeApp, loadFonts } from "./boot.js";
 export { Node } from "./node.js";

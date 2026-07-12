@@ -21,6 +21,21 @@ import { createHash } from "node:crypto";
 import { compile } from "../compiler/dist/compile-node.js";
 import { writeProduction } from "../tools/declarec.mjs";
 import { parseFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
+import { parseProgram, serializeDeps } from "../runtime/dist/index.js";
+import { annotateProgram } from "../compiler/dist/dep-extract.js";
+
+// The compiler's extracted constraint deps (design/constraints.md §5) for a
+// RESOLVED source, as a walk-order list the browser zips onto its re-parse so
+// the dev app boots on the static-constraint path (parity with the prod bundle).
+function depsFor(resolvedSource) {
+  try {
+    const prog = parseProgram(resolvedSource);
+    annotateProgram(prog);
+    return serializeDeps(prog);
+  } catch {
+    return undefined; // never let dep extraction break a dev render — fall back to tracking
+  }
+}
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const EXAMPLES = path.join(ROOT, "examples");
@@ -84,7 +99,7 @@ function hostPage(name, backendClass) {
   const seeds = {};
   for (const k in demos) seeds[k] = stripComments(demos[k]);
   seeds.__page__ = src;
-  const cfg = { backend: backendClass, source: r.source, pageWeight: wireKB, sourceLines: loc, seeds };
+  const cfg = { backend: backendClass, source: r.source, deps: depsFor(r.source), pageWeight: wireKB, sourceLines: loc, seeds };
   // The homepage gets a real page title; other examples keep the debug backend tag.
   const pageTitle = name === "site" ? "Declare — the UI language for the AI era" : `${name} (${backendClass})`;
   // <base> resolves the app's relative resources + data under the example. The client
@@ -206,7 +221,7 @@ http.createServer((req, res) => {
       let out;
       try {
         const r = compile(body, {});
-        out = { source: r.source, errors: (r.errors ?? []).map((e) =>
+        out = { source: r.source, deps: r.source ? depsFor(r.source) : undefined, errors: (r.errors ?? []).map((e) =>
           ({ message: e.message, offset: e.pos?.offset ?? null, line: e.pos?.line ?? null })) };
       } catch (e) {
         out = { source: null, errors: [{ message: String((e && e.message) || e), offset: null, line: null }] };

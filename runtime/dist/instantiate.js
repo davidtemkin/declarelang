@@ -128,7 +128,7 @@ export function instantiate(input) {
 function installPending(pending, ctx) {
     for (const p of pending) {
         if ("code" in p)
-            bindConstraint(p.view, p.attr.name, p.code, p.attr.value.pos, p.classroot);
+            bindConstraint(p.view, p.attr.name, p.code, p.attr.value.pos, p.classroot, p.attr.value.kind === "code" ? p.attr.value.deps : undefined);
         else if ("twoWay" in p)
             bindTwoWay(p.view, p.attr.name, p.twoWay, p.type);
         else if ("twoWayCode" in p)

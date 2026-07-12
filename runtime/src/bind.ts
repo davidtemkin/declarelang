@@ -12,7 +12,7 @@
 import { NeoError, type Pos } from "./errors.js";
 import { Constraint } from "./reactive.js";
 import { followedValue, markPercent, own, setBound } from "./attributes.js";
-import { compileExpr } from "./expr.js";
+import { compileExpr, type ExprFn } from "./expr.js";
 import { View, inheritedCursor } from "./view.js";
 import type { Node } from "./node.js";
 import { coerceData, toCursor } from "./data.js";
@@ -28,7 +28,18 @@ import type { AttrType } from "./value.js";
  *  (a class-body member on the class root itself binds to that root).
  *  `view` is any Node since R8 — a DataSource's `url = { … }` binds the
  *  same way a View attribute does. */
-export function bindConstraint(view: Node, name: string, src: string, pos: Pos, classroot: View | null): void {
+export function bindConstraint(
+  view: Node,
+  name: string,
+  src: string,
+  pos: Pos,
+  classroot: View | null,
+  /** The compiler's extracted dependency read-paths (design/constraints.md §5).
+   *  When present, the constraint is wired on the static path — edges fixed once,
+   *  no per-run re-tracking. Absent (dev re-parse, or an un-annotated program) →
+   *  the runtime-tracking fallback, unchanged. */
+  deps?: readonly string[]
+): void {
   const c = compileExpr(src);
   if ("error" in c) {
     throw new NeoError(`${view.constructor.name}.${name} = { … } ${c.error}`, pos);
@@ -40,7 +51,26 @@ export function bindConstraint(view: Node, name: string, src: string, pos: Pos, 
     (v) => setBound(view, name, v)
   );
   own(view, name, k);
-  k.run();
+  // The static path prewires STABLE-slot edges (attribute cells, a Dataset's
+  // `.value` slot — they outlive every recompute). A read of a DATA REGION
+  // (`:path` or `.read([…])`) resolves to a cell on the data VALUE tree, which is
+  // recreated when the value arrives or is replaced — that dynamic, per-element
+  // subscription is the data-binding primitive's to own (design/constraints.md §3),
+  // so such a constraint stays on the tracking path. (The extractor still lists
+  // the region read-path, for legibility/tooling.)
+  const regionReactive = deps !== undefined && deps.some((rp) => rp.startsWith(":") || rp.includes(".read("));
+  if (deps !== undefined && deps.length > 0 && !regionReactive) {
+    // Each read-path is an analyzable expression (`this.root.n`, `this.theme`);
+    // compile once and read it under tracking to wire the (stable) edge.
+    const probes = deps.map((rp) => compileExpr(rp)).filter((r): r is { fn: ExprFn } => "fn" in r).map((r) => r.fn);
+    k.wire(() => {
+      for (const p of probes) {
+        try { p.call(view, view.parent, classroot); } catch { /* a null-value projection — its tracked prefix is already wired */ }
+      }
+    });
+  } else {
+    k.run();
+  }
 }
 
 /** Bind `name = :path` (a value slot reading data, language §9): a standing

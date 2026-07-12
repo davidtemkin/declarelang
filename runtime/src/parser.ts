@@ -65,7 +65,7 @@ export type Literal =
   | { kind: "string"; value: string; pos: Pos }
   | { kind: "hexColor"; raw: string; pos: Pos } // `#RGB` / `#RRGGBB`
   | { kind: "ident"; name: string; pos: Pos } // named color / true / false / null
-  | { kind: "code"; src: string; pos: Pos } // `{ … }` — a constraint body, raw TS source
+  | { kind: "code"; src: string; pos: Pos; deps?: readonly string[] } // `{ … }` — a constraint body, raw TS source; `deps` = the compiler's extracted dependency read-paths (design/constraints.md §5), attached post-resolution
   | { kind: "path"; path: string; many: boolean; pos: Pos } // `:a.b` / `:arr[]` — a datapath
   // `name(args)` — a value CONSTRUCTOR (styling rung: gradient/stroke/shadow/
   // stop). Pure syntax: which names construct what is the value vocabulary's

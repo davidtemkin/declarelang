@@ -9,6 +9,10 @@ import type { RenderBackend } from "./backend.js";
 export interface BuildOptions {
     host?: IncludeHost;
     originDir?: string;
+    /** The compiler's extracted constraint dependencies, in `forEachCodeValue`
+     *  walk order (design/constraints.md §5). Zipped onto the parsed program so
+     *  its constraints boot on the static path. Absent → runtime-tracking. */
+    deps?: readonly (readonly string[])[];
 }
 /** Parse, resolve `include`s, typecheck, and instantiate a Declare source into
  *  its App tree (no rendering). Raises a NeoErrors carrying *every* error at
@@ -28,6 +32,7 @@ export { resolveIncludes, NO_INCLUDES } from "./include.js";
 export type { IncludeHost } from "./include.js";
 export { check, checkAttr, checkMethod, checkDecl, checkComponentValue, programSchemas } from "./check.js";
 export { instantiate } from "./instantiate.js";
+export { forEachCodeValue, serializeDeps, applyDeps } from "./deps.js";
 export { renderProgram, renderProgramAsync, mountApp, disposeApp, loadFonts } from "./boot.js";
 export type { FontSpec } from "./boot.js";
 export { Node } from "./node.js";

@@ -14,6 +14,7 @@
 // the server, which own the filesystem and the bundler.
 
 import { compile } from "./compile-node.js";
+import { annotateProgram } from "./dep-extract.js";
 import { freeIdentifiers } from "./free-idents.js";
 import type { CompileOptions } from "./compile.js";
 import { parseProgram, type Program, type Element } from "../../runtime/dist/parser.js";
@@ -104,6 +105,10 @@ export function compileProgram(source: string, opts: DeclarecOptions = {}): Prog
   //    resolved re-parse), so the emitted artifact is provably valid.
   const errors = [...incErrors, ...check(program)];
   if (errors.length > 0) return { program: null, errors, warnings: c.warnings, usedComponents: [] };
+
+  // Attach the extracted constraint dependencies (design/constraints.md §5), so
+  // the shipped program boots on the runtime's static-constraint path.
+  annotateProgram(program);
 
   // Compute the used-set BEFORE stripping positions (the scan walks bodies; it
   // needs nothing positional, but order it here so it reads the same program).

@@ -30,22 +30,29 @@ is in [constraints.md](../../design/constraints.md).)
 Two things follow that you will feel:
 
 - **It is legible.** The dependencies of `{ a ? b : c }` are exactly `a`, `b`,
-  `c` — readable off the source, answerable by tooling ("what depends on this?").
-  The silent-illegible-dependency class of bug is structurally impossible.
+  `c` — read straight off the source; and where a constraint calls a method, the
+  compiler extracts the deps *through* the call, so the full set is always
+  **answerable by tooling** ("what depends on this?"). Statically known either way,
+  the silent-illegible-dependency class of bug is structurally impossible.
 - **It is fast.** No per-run dependency rebuild, no per-read tracking branch on
   the hot path. A constraint re-running across many nodes at 60fps just
   recomputes and applies.
 
 The trade, stated honestly: a constraint may only be an **analyzable
 expression**. It can read reactive slots and datapaths, use operators and
-ternaries, and call *compiler-verified-pure* functions (a function that reads no
-reactive state of its own — its dependencies come from the argument expressions,
-in plain sight). What it may *not* be is a reduction over a dynamic collection or
-an index by an unbounded runtime key — those are a compile error pointing at the
-expression, and their genuinely-dynamic reactivity moves off the constraint
-surface onto a framework primitive (`layout`, data-binding) or an imperative
-handler. In practice this is near-zero friction: across every real Declare
-program, essentially all constraints are already pure analyzable expressions.
+ternaries, and **call methods** — the compiler reads *through* the call, into the
+method's body and everything it calls, to find the reactive state it touches. So
+`{ app.buildModel() }` is a real dependency on whatever `buildModel` reads
+(`this.year`, the events data, …), extracted for you; you don't hand-thread it. The
+one rule is that every reactive read must have a **statically-known target** — a
+named slot or a literal datapath. What a constraint may *not* do is read through a
+target the compiler can't name: an index by an unbounded runtime key
+(`this[someString]`), a datapath built at runtime (`data.read([key])`), or an
+aggregation over the live *node* tree (`children.map(v => v.x)`). Those are a
+compile error pointing at the expression, and their genuinely-dynamic reactivity
+moves off the constraint surface onto a framework primitive (`layout`,
+data-binding) or an imperative handler. In practice this is near-zero friction:
+measured across every real Declare program, **100% of constraints are analyzable**.
 
 ## `=` is the setter — writing is symmetric
 

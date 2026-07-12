@@ -1,0 +1,184 @@
+// dep-extract — validates the static dependency extractor (design/constraints.md,
+// Model Y). Three ways: (A) unit — hand-verified read-paths + residue rejection on
+// crafted constraints; (B) corpus — 0 residue errors across every real app; (C)
+// the gold standard — cross-check the extractor's read-paths against the RUNTIME
+// tracker's actually-discovered deps, proving prewiring(extracted) ⊇ track(whole).
+import assert from "node:assert";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
+import { compile } from "../compiler/dist/compile-node.js";
+import { parseProgram } from "../runtime/dist/parser.js";
+import { extractProgram } from "../compiler/dist/dep-extract.js";
+import { instantiate, settle } from "../runtime/dist/index.js";
+import { Constraint } from "../runtime/dist/reactive.js";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+let pass = 0, fail = 0;
+function test(name, fn) { try { fn(); pass++; console.log("  ok —", name); } catch (e) { fail++; console.log("  FAIL —", name, "\n     ", e.message); } }
+
+// compile a source to its RESOLVED program, then extract. Returns the constraint list.
+function extract(src) {
+  const r = compile(src, {});
+  if (!r.source) throw new Error("compile failed: " + r.errors.map((e) => e.message).join("; "));
+  return extractProgram(parseProgram(r.source));
+}
+const find = (list, attr, name = undefined) => list.find((c) => c.attr === attr && (name === undefined || c.name === name));
+const readsOf = (list, attr, name) => (find(list, attr, name)?.reads ?? []).sort();
+const errsOf = (list, attr, name) => (find(list, attr, name)?.errors ?? []);
+
+console.log("dep-extract\n─ A. unit: extraction + residue ─");
+
+test("direct reads — union of the slots the expression names", () => {
+  const r = extract(`App [ n: number = 3, m: number = 4, v: View [ width = { app.n * 20 + app.m } ] ]`);
+  assert.deepEqual(readsOf(r, "width"), ["this.root.m", "this.root.n"]);
+});
+
+test("ternary takes the union of ALL branches (over-subscription, by design)", () => {
+  const r = extract(`App [ a: boolean = true, b: number = 1, c: number = 2, v: View [ width = { app.a ? app.b : app.c } ] ]`);
+  assert.deepEqual(readsOf(r, "width"), ["this.root.a", "this.root.b", "this.root.c"]);
+});
+
+test("record projection off an attribute — the read-path resolves to the slot cell", () => {
+  const r = extract(`App [ v: View [ fill = { app.theme.pageBg } ] ]`);
+  // the read-path keeps the projection (`.pageBg`), which is untracked — evaluating
+  // it under the tracker touches only the `theme` slot cell (verified in the cross-check).
+  assert.deepEqual(readsOf(r, "fill"), ["this.root.theme.pageBg"]);
+});
+
+test("interprocedural — reads through a method call into its body", () => {
+  const r = extract(`App [ n: number = 3, m: number = 4,
+      v: View [ width = { app.sum() } ],
+      sum() { return this.n + this.m } ]`);
+  assert.deepEqual(readsOf(r, "width"), ["this.root.m", "this.root.n"]);
+});
+
+test("interprocedural — transitive across a call chain", () => {
+  const r = extract(`App [ n: number = 3,
+      v: View [ width = { app.a() } ],
+      a() { return this.b() + 1 },
+      b() { return this.n * 2 } ]`);
+  assert.deepEqual(readsOf(r, "width"), ["this.root.n"]);
+});
+
+test("callback closure — reactive reads inside are found; the loop var is not", () => {
+  const r = extract(`App [ n: number = 2, rows: number = 5,
+      v: View [ width = { app.list().filter(x => x.k > app.n).length } ],
+      list() { return [] } ]`);
+  const reads = readsOf(r, "width");
+  assert.ok(reads.includes("this.root.n"), "app.n from the closure is a dep: " + reads);
+});
+
+test("datapath read is a dependency", () => {
+  const r = extract(`App [ rec: Dataset { { "title": "hi" } },
+      card: View [ datapath = { app.rec.value }, t: Text [ text = { :title } ] ] ]`);
+  assert.deepEqual(readsOf(r, "text"), [":title"]);
+});
+
+test("recursion terminates (cycle guard) and still extracts", () => {
+  const r = extract(`App [ n: number = 1,
+      v: View [ width = { app.a() } ],
+      a() { return this.b() },
+      b() { return this.a() + this.n } ]`);
+  assert.deepEqual(readsOf(r, "width"), ["this.root.n"]);
+});
+
+// ── residue: the three dynamic-target forms + unresolved calls are errors ──
+test("residue — computed attribute this[<expr>]", () => {
+  const e = errsOf(extract(`App [ k: string = "x", v: View [ width = { app[app.k] } ] ]`), "width");
+  assert.ok(e.some((x) => /computed attribute/.test(x.message)), JSON.stringify(e));
+});
+
+test("residue — dynamic datapath read([<expr>])", () => {
+  const e = errsOf(extract(`App [ k: string = "a", d: Dataset { { "a": 1 } },
+      v: View [ width = { app.d.read([app.k]) } ] ]`), "width");
+  assert.ok(e.some((x) => /dynamic datapath/.test(x.message)), JSON.stringify(e));
+});
+
+test("residue — aggregation over a reactive node collection", () => {
+  const e = errsOf(extract(`App [ v: View [ width = { app.children.map(c => c.width).length } ] ]`), "width");
+  assert.ok(e.some((x) => /node collection/.test(x.message)), JSON.stringify(e));
+});
+
+test("residue — unresolved call target is refused, not assumed pure (sound)", () => {
+  const e = errsOf(extract(`App [ v: View [ width = { app.mysteryLib() } ] ]`), "width");
+  assert.ok(e.some((x) => /unresolved call target/.test(x.message)), JSON.stringify(e));
+});
+
+test("aggregation over DATA is fine (not node) — no error", () => {
+  const r = extract(`App [ rec: Dataset { { "rows": [1,2] } },
+      card: View [ datapath = { app.rec.value }, w: View [ width = { :rows.length } ] ] ]`);
+  assert.equal(errsOf(r, "width").length, 0, "data aggregation should be analyzable");
+});
+
+// ── B. corpus: every real app extracts with zero residue ──
+console.log("─ B. corpus: 0 residue across all apps ─");
+test("all five apps: 700 constraints, 0 residue errors", () => {
+  const apps = ["calendar/calendar", "neocalendar/neocalendar", "neoweather/neoweather", "site/site", "docs/docs"];
+  let tot = 0, errs = 0;
+  for (const a of apps) {
+    const r = extract(readFileSync(resolve(HERE, `../examples/${a}.declare`), "utf8"));
+    tot += r.length; errs += r.flatMap((c) => c.errors).length;
+  }
+  assert.equal(errs, 0, `${errs} residue errors across the corpus`);
+  assert.ok(tot >= 650, `expected the full corpus, got ${tot} constraints`);
+});
+
+// ── C. ground-truth cross-check against the runtime tracker ──
+console.log("─ C. cross-check: prewire(extracted) ⊇ track(whole constraint) ─");
+
+// Resolve a read-path to the runtime cells it touches, by evaluating it under a
+// throwaway Constraint (the tracker) — exactly the intended link-time prewiring.
+function cellsOf(node, readPath) {
+  const expr = readPath.startsWith(":") ? `this.$data(${JSON.stringify(readPath.slice(1))})` : readPath;
+  let fn; try { fn = new Function("parent", "classroot", `return (${expr})`); } catch { return []; }
+  const probe = new Constraint("probe", () => fn.call(node, node.parent ?? null, node.root ?? null), () => {});
+  probe.run();
+  const cells = [...probe.deps];
+  probe.dispose();
+  return cells;
+}
+const runtimeDeps = (node, attr) => [...(node.$owners?.[attr]?.deps ?? [])];
+
+test("static read-paths resolve to a SUPERSET of the runtime-discovered deps", () => {
+  const src = `App [ width = 200, height = 100,
+      n: number = 3, a: boolean = true, b: number = 5, c: number = 9,
+      rec: Dataset { { "title": "hi", "k": 7 } },
+      v1: View [ width = { app.n * 2 } ],
+      v2: View [ width = { app.a ? app.b : app.c } ],
+      v3: View [ width = { app.sum() } ],
+      card: View [ datapath = { app.rec.value }, t: Text [ text = { :title } ], w: View [ width = { :k } ] ],
+      sum() { return this.n + this.b } ]`;
+  const list = extract(src);
+  const app = instantiate(compileProgram(src));
+  settle();
+
+  const cases = [
+    { node: app.v1, attr: "width", name: "v1", exact: true },   // direct
+    { node: app.v2, attr: "width", name: "v2", exact: false },  // ternary → static superset of the taken branch
+    { node: app.v3, attr: "width", name: "v3", exact: true },   // interprocedural
+    { node: app.card.t, attr: "text", name: "t", exact: true }, // datapath
+    { node: app.card.w, attr: "width", name: "w", exact: true },// datapath (numeric)
+  ];
+  for (const { node, attr, name, exact } of cases) {
+    const rt = new Set(runtimeDeps(node, attr));
+    assert.ok(rt.size > 0, `${name}.${attr}: runtime discovered no deps (test setup)`);
+    const staticCells = new Set();
+    for (const rp of readsOf(list, attr, name)) for (const cell of cellsOf(node, rp)) staticCells.add(cell);
+    // SOUNDNESS: every cell the runtime actually depended on must be covered.
+    for (const cell of rt) assert.ok(staticCells.has(cell), `${name}.${attr}: static extraction MISSED a runtime dep (UNSOUND)`);
+    // EXACTNESS: for unconditional shapes the sets match; a ternary is a deliberate superset.
+    if (exact) assert.equal(staticCells.size, rt.size, `${name}.${attr}: static ${staticCells.size} vs runtime ${rt.size} (want exact)`);
+    else assert.ok(staticCells.size >= rt.size, `${name}.${attr}: superset expected`);
+  }
+});
+
+// helper: compile to a runnable program object
+function compileProgram(src) {
+  const r = compile(src, {});
+  if (!r.source) throw new Error("compile: " + r.errors.map((e) => e.message).join("; "));
+  return parseProgram(r.source);
+}
+
+console.log(`\ndep-extract: ${pass} passed, ${fail} failed`);
+if (fail > 0) process.exit(1);

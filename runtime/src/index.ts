@@ -17,6 +17,7 @@
 import { parseProgram } from "./parser.js";
 import { check } from "./check.js";
 import { instantiate } from "./instantiate.js";
+import { applyDeps } from "./deps.js";
 import { resolveIncludes, NO_INCLUDES, type IncludeHost } from "./include.js";
 import { App } from "./view.js";
 import { fontFacesOf } from "./font.js";
@@ -34,6 +35,10 @@ import { mountApp, loadFonts } from "./boot.js";
 export interface BuildOptions {
   host?: IncludeHost;
   originDir?: string;
+  /** The compiler's extracted constraint dependencies, in `forEachCodeValue`
+   *  walk order (design/constraints.md §5). Zipped onto the parsed program so
+   *  its constraints boot on the static path. Absent → runtime-tracking. */
+  deps?: readonly (readonly string[])[];
 }
 
 /** Parse, resolve `include`s, typecheck, and instantiate a Declare source into
@@ -45,6 +50,7 @@ export function build(source: string, opts: BuildOptions = {}): App {
   const errors = [...incErrors, ...check(program)];
   errors.sort((a, b) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0));
   if (errors.length > 0) throw new NeoErrors(errors);
+  if (opts.deps !== undefined) applyDeps(program, opts.deps);
   const root = instantiate(program);
   if (!(root instanceof App)) {
     throw new NeoError("a program's root must be 'App [ … ]'", program.root.pos);
@@ -79,6 +85,7 @@ export { resolveIncludes, NO_INCLUDES } from "./include.js";
 export type { IncludeHost } from "./include.js";
 export { check, checkAttr, checkMethod, checkDecl, checkComponentValue, programSchemas } from "./check.js";
 export { instantiate } from "./instantiate.js";
+export { forEachCodeValue, serializeDeps, applyDeps } from "./deps.js";
 // Precompiled production entry + render glue (compiler-free) — see boot.ts.
 export { renderProgram, renderProgramAsync, mountApp, disposeApp, loadFonts } from "./boot.js";
 export type { FontSpec } from "./boot.js";

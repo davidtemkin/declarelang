@@ -31,7 +31,7 @@ const BACKENDS = { DomBackend, CanvasBackend };
 export async function bootHost(cfg) {
   const host = document.getElementById("host");
   const Backend = BACKENDS[cfg.backend] ?? DomBackend;
-  const app = (window.__app = await renderAsync(cfg.source, host, new Backend()));
+  const app = (window.__app = await renderAsync(cfg.source, host, new Backend(), { deps: cfg.deps }));
   if (cfg.pageWeight != null) app.pageWeight = cfg.pageWeight;
   if (cfg.sourceLines != null) app.sourceLines = cfg.sourceLines;
 

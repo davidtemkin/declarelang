@@ -28,6 +28,7 @@ export type Literal = {
     kind: "code";
     src: string;
     pos: Pos;
+    deps?: readonly string[];
 } | {
     kind: "path";
     path: string;

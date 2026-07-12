@@ -95,8 +95,31 @@ export class Constraint {
     readonly yielding = false
   ) {}
 
-  /** Evaluate now: drop last run's edges, compute under tracking, apply. */
+  /** Static-edge mode (design/constraints.md §5): the compiler extracted this
+   *  constraint's dependency set, so its edges are wired ONCE — thereafter run()
+   *  recomputes and applies with no per-run unlink/re-track. */
+  private wired = false;
+  /** @internal Whether this constraint runs on the static path (test/observe). */
+  get isStatic(): boolean { return this.wired; }
+
+  /** Wire the supplied edges once, then land the initial value. `probe` reads the
+   *  compiler's extracted read-paths under tracking — the same Cell.track path a
+   *  full run would use, but over just the (branch-union) dependency set — so the
+   *  edges are exact and permanent. The value itself is computed with tracking
+   *  OFF (edges already fixed). This is the link-time prewiring. */
+  wire(probe: () => void): void {
+    const prev = active;
+    active = this;
+    try { probe(); } finally { active = prev; }
+    this.wired = true;
+    this.apply(this.compute());
+  }
+
+  /** Evaluate now. On the static path (wired) the edges are fixed: just
+   *  recompute and apply — no unlink, no re-track, no `active` branch on reads.
+   *  Otherwise drop last run's edges and rediscover them under tracking. */
   run(): void {
+    if (this.wired) { this.apply(this.compute()); return; }
     for (const d of this.deps) d.unlink(this);
     this.deps.length = 0;
     const prev = active;
