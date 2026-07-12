@@ -63,12 +63,14 @@ class Cell extends View [ clip = true,
 
     // the fill fades as the cell becomes a column, then melts to the mini's
     // highlight in the year view; only the drop target draws a ring
+
     bg: View [ width = { parent.width }, height = { parent.height }, cornerRadius = 8,
         opacity = { 1 - 0.82 * classroot.rowBlock },
         fill = { app.mix(:key == app.dropKey ? theme.dropTargetBg : :today ? app.mix(theme.todayBg, theme.cellBg, classroot.rowBlock) : !:inMonth ? theme.outOfMonthBg : :weekend ? theme.weekendBg : theme.cellBg, theme.miniCurrentBg, app.yearZoom) },
         stroke = { :key == app.dropKey ? stroke(2, app.mix(theme.dropTargetRing, theme.miniCurrentBg, app.yearZoom)) : null } ],
 
     // current-day accent bar, fading in as the cell fills the surface
+
     mark: View [ width = { parent.width }, height = 3, fill = { theme.accent }, visible = { :current }, opacity = { classroot.rowBlock } ],
     num: Text [ x = { app.lerp(11, parent.width / 2 - 5, app.yearZoom) }, y = { app.lerp(7, 2, app.yearZoom) },
         fontSize = { app.lerp(13, 9, app.yearZoom) }, wrap = false, fontWeight = semibold,
@@ -130,6 +132,7 @@ class ViewTab extends View [ width = { app.tabW }, height = { parent.height },
 
 // the sliding highlight springs a normalised lane (0..3), so x = lane × tabW snaps
 // on a resize and slides only when the selected tab changes
+
 class TabPill extends View [ cornerRadius = 10, fill = { theme.pillBg },
     lane: number = 2,
     width = { app.tabW }, height = { parent.height },
@@ -162,6 +165,7 @@ class TextButton extends View [ width = 64, height = 34, cornerRadius = 10,
     ]
 
 // one segment of the Light / Auto / Dark switch
+
 class ThemeSeg extends View [ width = 30, height = { parent.height },
     m: string = "", glyph: string = "", hovered: boolean = false,
     bg: View [ x = 2, y = 2, width = { parent.width - 4 }, height = { parent.height - 4 }, cornerRadius = 6,
@@ -210,6 +214,7 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
     isDark: boolean = { app.themeMode == "auto" ? app.dark : app.themeMode == "dark" },
 
     // layout constants
+
     barH: number = 60, pad: number = 20, gap: number = 8,
 
     /* Responsive chrome, all from the window width. As it narrows the
@@ -224,6 +229,7 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
     navW: number = { app.dateW + 84 },      // date block plus its two arrows
 
     // view + paging state
+
     mode: string = "month",
     year: number = 2026, month: number = 7,      // month is 1-based
     anchorKey: string = "", todayKey: string = "",
@@ -231,6 +237,7 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
     selectedId: number = -1, openSection: number = 0,
 
     // drag state: the event being moved, a snapshot for the ghost, the grab offset
+
     dragId: number = -1, dragging: boolean = false, blockClick: boolean = false, dropKey: string = "",
     dragTitle: string = "", dragCat: string = "", dragTimeLabel: string = "", dragW: number = 0, dragH: number = 0,
     grabDX: number = 0, grabDY: number = 0, downX: number = 0, downY: number = 0,
@@ -245,10 +252,12 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
     yearCal: Dataset [ contents = { app.yearSeen ? app.buildMonths() : app.emptyYear() } ],
 
     // the detail panel slides in on this value; the body shrinks by the same amount
+
     panelInset: number = 0,
     Spring [ attribute = panelInset, to = { app.selectedId >= 0 ? 340 : 0 }, stiffness = 240, damping = 30 ],
 
     // geometry
+
     bodyW: number = { app.width - app.panelInset },
     bodyH: number = { app.height - app.barH },
     headH: number = 30,
@@ -295,9 +304,12 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
       :                       app.dayLabel(app.anchorKey) },
 
     // ── helpers ──
+
     lerp(a, b, t)  { return a + (b - a) * t },
     clamp(v, a, b) { return Math.max(a, Math.min(b, v)) },
+
     // blend two 0xRRGGBB colours channel-wise
+
     mix(a, b, t) {
         const c = (x, y) => Math.round(x + (y - x) * t)
         return (c((a >> 16) & 255, (b >> 16) & 255) << 16) | (c((a >> 8) & 255, (b >> 8) & 255) << 8) | c(a & 255, b & 255)
@@ -331,6 +343,7 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
     catText(c) { const t = this.theme; return c == "holiday" ? t.holidayText : c == "astro" ? t.astroText : c == "milestone" ? t.milestoneText : t.defaultText },
 
     // ── the two palettes — every colour in the app, named by role ──
+
     darkTheme() { return ({
         pageBg: 0x0D151E, panelBg: 0x101A24, cellBg: 0x18242F, outOfMonthBg: 0x101922, weekendBg: 0x141F2A,
         todayBg: 0x14304F, dropTargetBg: 0x1E3C5E, dropTargetRing: 0x6BA4F0, hairline: 0x22323E, gridLine: 0x1B2934,
@@ -488,8 +501,10 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
        the current month's slot (driven by `app.yearZoom`), so the month becomes its mini. The
        other eleven months are the deferred `yearCal`. */
     board: View [ x = 0, y = { app.barH }, width = { app.bodyW }, height = { app.bodyH }, clip = true,
+
         // the month's backdrop: authored at the destination slot and scaled up about
         // its centre, so it starts full-bleed and converges by a pure scale to the mini
+
         monthBg: View [ x = { app.slotX }, y = { app.slotY }, width = { app.miniW }, height = { app.miniH },
             cornerRadius = 12, fill = { app.mix(theme.pageBg, theme.miniCurrentBg, app.yearZoom) },
             scale = { app.yearScale }, pivotX = { app.miniW / 2 }, pivotY = { app.miniH / 2 } ],
@@ -532,6 +547,7 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
         ],
 
     // the grabbed event, following the pointer during a drag
+
     ghost: View [ visible = { app.dragging }, opacity = 0.9, x = { app.pointerX - app.grabDX }, y = { app.pointerY - app.grabDY },
         width = { app.dragW }, height = { Math.max(app.dragH, 34) }, cornerRadius = 6, clip = true, fill = { app.catFill(app.dragCat) },
         shadow = shadow(0, 6, 16, #00000088),
@@ -562,6 +578,7 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
 
         // the date block is a fixed width per view, so the arrows hold still while
         // paging and re-place only on a view change
+
         nav: View [ height = 34, y = { (app.barH - 34) / 2 }, width = { app.navW },
             x = { app.clamp((app.width - app.navW) / 2, app.showTheme ? 300 : 190, app.width - app.tabsW - app.navW - 120) },
             prev:  NavArrow [ x = 0, dir = -1, glyph = "‹" ],

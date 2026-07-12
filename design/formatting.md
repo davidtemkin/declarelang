@@ -20,8 +20,10 @@ unlanded/rejected surface — bare-string `Text [ "OK", … ]`, `<->`, `schema`,
 Ruled by the human, 2026-07-02. **Revised 2026-07-03:** row-to-row column
 alignment — the original §3 "hallmark" — was reversed to **single space**
 (new §3), and wrapped continuations moved from visual alignment to **block
-indent** (§2.5). The dial settings (width, blank-line mode) are the human's;
-everything else follows from the reference artifact's own practice.
+indent** (§2.5). **Revised 2026-07-12:** top-level declarations are separated
+by **one** blank line, not two (§2.1). The dial settings (width, blank-line
+mode) are the human's; everything else follows from the reference artifact's
+own practice.
 
 ---
 
@@ -53,10 +55,10 @@ level, **trailing comma always** — including the last member before a
 closing bracket (§12's rule; it is what makes reordering a clean diff).
 
 Top-level declarations — `script { }`, `class`, `App`, a future
-`stylesheet` — get **two blank lines** between them. A comment describing a
+`stylesheet` — get **one blank line** between them. A comment describing a
 declaration sits directly above it, itself preceded and followed by a blank
-line (so there are effectively two blank lines above a commented
-declaration: one closing off the previous item, one opening the comment).
+line — so a commented declaration reads as one blank closing off the
+previous item, the comment, then one blank opening the declaration.
 From weather.declare:
 
 ```Declare
@@ -66,7 +68,6 @@ class Screen extends View [ shown: boolean = false,
     visible = { opacity > 0 },
     ]
 
-
 class WeatherSummary extends View [ fontSize = 12, fontFamily = "Helvetica", …
 ```
 
@@ -74,7 +75,6 @@ and with a comment above the next declaration:
 
 ```Declare
     ]
-
 
 // a full-bleed layer that cross-fades on `shown`
 
@@ -372,7 +372,7 @@ Two things about a formatter invocation are parameters, not house style:
 wraps and when a leaf's attributes wrap to a continuation.
 
 **Blank lines: CLAMP mode.** The formatter enforces only the *mandatory*
-blanks — the two-blank top-level separator (§2.1), the after-header and
+blanks — the one-blank top-level separator (§2.1), the after-header and
 before-close blanks of tiered airiness (§2.3), and the comment padding
 (§2.7) — and it collapses any run of 3+ consecutive blank lines down to the
 canonical count for that position. Everywhere else, it **respects the
