@@ -60,6 +60,13 @@ export interface AutoIncludeHost extends IncludeHost {
         source: string;
     } | null;
 }
+/** The component NAMES a program STATICALLY references — its tree tags (children,
+ *  including component-valued members like `layout:`/`data:`/animators/states)
+ *  and every class's `extends` base. The static half of the used-set a production
+ *  build keeps (the compiler adds `{ }`-body construction refs and the `use`
+ *  list). The same walk `resolveAutoIncludes` trusts to pull libraries — so it is
+ *  proven to see every static reference. Deduped. */
+export declare function referencedComponentNames(program: Program): string[];
 /** Pull the libraries that define a program's bare component tags — the
  *  auto-include phase, run AFTER explicit includes (composition.md §1a). A
  *  referenced tag that is neither provided (main or explicit include) nor a

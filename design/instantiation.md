@@ -179,6 +179,17 @@ gets the concrete type (`newClassFromName("WeatherTab") → WeatherTab`), a
 makes the string the single identity across markup tag, runtime class, and
 dynamic lookup. `new ClassName()` lands first.
 
+**Partly landed (2026-07).** The first half of that registry promotion is now
+done, for a different reason: production slimming. The tables were extracted to
+`runtime/src/registry.ts` (with `REGISTRY_NAMES`/`REGISTRY_MANIFEST`), which lets
+`declarec` ship only the classes an app uses (see [hosting.md](hosting.md)
+§Slimming). Slimming reads a **used-set** that already includes body-`new X()`
+references (a free-identifier scan) and a top-level **`use [ … ]`** keep-list —
+the escape hatch for exactly this create-by-string / no-static-reference case.
+What remains for full create-by-string is the tsc name→type map and the
+body-scope binding (§9.3) so `newClassFromName` and body `new X()` resolve and
+typecheck; the runtime tables they'd key off now exist.
+
 
 ## 9. Status — landed vs. to build
 

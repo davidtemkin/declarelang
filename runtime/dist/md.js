@@ -160,15 +160,23 @@ function parseList(lines, start, hi) {
         const owned = [m[3]];
         let j = i + 1;
         const contIndent = baseIndent + (lines[i].length - lines[i].trimStart().length === baseIndent ? (m[2].length + 1) : 2);
+        // Lazy continuation applies only to lines directly following the item's text.
+        // Once a blank line intervenes, a line must be indented to `contIndent` to stay
+        // in the item — otherwise the item (and, unless the line is a new marker, the
+        // list) ends. Without this, any prose after a list is swallowed into its last item.
+        let blanked = false;
         for (; j < hi; j++) {
             if (lines[j].trim() === "") {
                 owned.push("");
+                blanked = true;
                 continue;
             }
             const indent = lines[j].length - lines[j].trimStart().length;
             const isMarker = RE_BULLET.test(lines[j]) || RE_ORDERED.test(lines[j]);
             if (isMarker && indent <= baseIndent)
                 break; // next sibling / end
+            if (blanked && indent < contIndent)
+                break; // blank then de-indented → item ends
             owned.push(lines[j].slice(Math.min(indent, contIndent)));
         }
         while (owned.length && owned[owned.length - 1] === "")

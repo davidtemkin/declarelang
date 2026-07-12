@@ -20,6 +20,7 @@ import { gzipSync } from "node:zlib";
 import { createHash } from "node:crypto";
 import { compile } from "../compiler/dist/compile-node.js";
 import { writeProduction } from "../tools/declarec.mjs";
+import { parseFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const EXAMPLES = path.join(ROOT, "examples");
@@ -151,31 +152,34 @@ function toolchainFingerprint() {
   return createHash("sha256").update(acc).digest("hex").slice(0, 8);
 }
 
-const prodMem = new Map(); // `${name}:${backend}` -> manifest
-async function ensureProdBuild(name, backend = "dom") {
+const prodMem = new Map(); // `${name}:${backend}:${slim}` -> manifest
+async function ensureProdBuild(name, backend = "dom", slim = true) {
   const dir = path.join(EXAMPLES, name);
   const srcPath = path.join(dir, `${name}.declare`);
   if (!existsSync(srcPath)) return null;
   const source = readFileSync(srcPath, "utf8");
-  const hash = createHash("sha256").update(source + "|" + backend + "|" + toolchainFingerprint()).digest("hex").slice(0, 12);
-  const outDir = path.join(dir, backend === "canvas" ? ".prod-cache-canvas" : ".prod-cache");
+  // slim on/off (and the backend) partition the cache — each variant is a distinct
+  // artifact and must not clobber another under one key.
+  const key = `${name}:${backend}:${slim ? "slim" : "full"}`;
+  const hash = createHash("sha256").update(source + "|" + backend + "|slim=" + slim + "|" + toolchainFingerprint()).digest("hex").slice(0, 12);
+  const outDir = path.join(dir, ".prod-cache" + (backend === "canvas" ? "-canvas" : "") + (slim ? "" : "-full"));
   const manPath = path.join(outDir, "manifest.json");
   const fresh = (m) => m && m.hash === hash && existsSync(path.join(outDir, m.appName));
-  let man = prodMem.get(name);
+  let man = prodMem.get(key);
   if (fresh(man)) return man;                                   // in-process hit
   if (existsSync(manPath)) {                                    // disk hit (post-restart)
-    try { const d = JSON.parse(readFileSync(manPath, "utf8")); if (fresh(d)) { prodMem.set(name, d); return d; } } catch { /* rebuild */ }
+    try { const d = JSON.parse(readFileSync(manPath, "utf8")); if (fresh(d)) { prodMem.set(key, d); return d; } } catch { /* rebuild */ }
   }
-  const built = await writeProduction({ source, name, srcDir: dir, outDir, backend });  // miss → build
+  const built = await writeProduction({ source, name, srcDir: dir, outDir, backend, slim });  // miss → build
   if (!built.ok) return { error: built.errors };
-  man = { hash, dir: outDir, appName: built.appName, sizes: built.sizes, assets: built.assets, builtAt: Date.now() };
+  man = { hash, dir: outDir, appName: built.appName, sizes: built.sizes, assets: built.assets, used: built.usedComponents, builtAt: Date.now() };
   writeFileSync(manPath, JSON.stringify(man, null, 2));
-  prodMem.set(name, man);
+  prodMem.set(key, man);
   return man;
 }
 
-async function serveProd(res, name, rest, urlPath, backend = "dom") {
-  const man = await ensureProdBuild(name, backend);
+async function serveProd(res, name, rest, urlPath, backend = "dom", slim = true) {
+  const man = await ensureProdBuild(name, backend, slim);
   if (man === null) return send(res, 404, "no such example", "text/plain");
   if (man.error) return send(res, 500, "declarec build failed:\n" + man.error.map((e) => e.message).join("\n"), "text/plain");
   const tail = rest.replace(/^\/+/, "");
@@ -239,8 +243,13 @@ http.createServer((req, res) => {
     // /examples/<name>/prod-canvas[/...]  → same, Canvas backend
     const prod = p.match(/^\/examples\/([^/]+)\/prod(-canvas)?(\/.*)?$/);
     if (req.method === "GET" && prod && examples().includes(prod[1])) {
-      const backend = prod[2] ? "canvas" : "dom";
-      serveProd(res, prod[1], prod[3] ?? "", p, backend).catch((e) => {
+      // URL query flags (flags.ts, the shared model): `?slim=0` ships the full
+      // registry, `?backend=canvas` overrides the path's default. So a prod URL
+      // reads the same flags the CLI and browser do.
+      const q = new URL(req.url, "http://x").searchParams;
+      const flags = parseFlags(q, { ...DEFAULT_FLAGS, prod: true });
+      const backend = prod[2] ? "canvas" : flags.backend;
+      serveProd(res, prod[1], prod[3] ?? "", p, backend, flags.slim).catch((e) => {
         if (!res.headersSent) send(res, 500, String((e && e.stack) || e), "text/plain");
       });
       return;

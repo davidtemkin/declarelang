@@ -6,7 +6,8 @@
 // Relative imports resolve against THIS module's URL (…/web/), NOT the host page's <base>
 // (static import specifiers are module-relative), so the runtime + compiler always load from
 // the distro tree regardless of which program's directory the page is based at.
-import { renderAsync, DomBackend } from "../runtime/dist/index.js";
+import { renderAsync, DomBackend, CanvasBackend } from "../runtime/dist/index.js";
+import { parseFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
 
 // The target program's absolute URL — passed by the SW on this module's own import URL.
 const target = new URL(import.meta.url).searchParams.get("app");
@@ -46,7 +47,12 @@ async function run() {
     if (!out.source) {
       return showError(host, (out.errors || []).map((e) => e.message).join("\n") || "compile failed");
     }
-    await renderAsync(out.source, host, new DomBackend());
+    // URL flags (flags.ts, the shared model): `?backend=canvas` renders through the
+    // Canvas backend. slim/prod are bundling concerns — they don't apply to this
+    // live in-browser compile, which ships no bundle.
+    const flags = parseFlags(new URLSearchParams(location.search), DEFAULT_FLAGS);
+    const backend = flags.backend === "canvas" ? new CanvasBackend() : new DomBackend();
+    await renderAsync(out.source, host, backend);
   } catch (e) {
     showError(host, (e && e.message) ? e.message : String(e));
   }

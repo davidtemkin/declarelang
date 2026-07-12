@@ -18,9 +18,35 @@ import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import * as esbuild from "esbuild";
 import { compileProgram } from "../compiler/dist/declarec.js";
+import { REGISTRY_MANIFEST } from "../runtime/dist/registry.js";
+import { parseArgvFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const RUNTIME = resolve(HERE, "../runtime/dist"); // the run-path lives here
+const TABLES = ["TAGS", "LAYOUTS", "LAYOUT_BASES", "DATA", "ANIMATORS", "ANIMATOR_GROUPS", "STATES"];
+
+/** Generate a SLIM registry.js — the name→class tables carrying ONLY the
+ *  component classes `usedNames` covers. Substituted for the full registry.js at
+ *  bundle time (the esbuild plugin below), so every unused component class —
+ *  and the modules reachable only through it (the Markdown/HTML parsers, etc.) —
+ *  is dropped by tree-shaking. The dev path keeps the full module untouched. */
+function slimRegistrySource(usedNames) {
+  const used = new Set(usedNames);
+  const entries = REGISTRY_MANIFEST.filter((e) => used.has(e.name));
+  const imports = new Map(); // module → Set(export) — deduped
+  for (const e of entries) {
+    if (!imports.has(e.module)) imports.set(e.module, new Set());
+    imports.get(e.module).add(e.export);
+  }
+  const importLines = [...imports].map(([mod, exps]) =>
+    `import { ${[...exps].join(", ")} } from ${JSON.stringify("./" + mod)};`).join("\n");
+  const table = (t) => {
+    const pairs = entries.filter((e) => e.table === t)
+      .map((e) => (e.name === e.export ? e.name : `${JSON.stringify(e.name)}: ${e.export}`));
+    return `export const ${t} = { ${pairs.join(", ")} };`;
+  };
+  return `${importLines}\n${TABLES.map(table).join("\n")}\n`;
+}
 
 const shortHash = (buf) => createHash("sha256").update(buf).digest("hex").slice(0, 8);
 const kb = (n) => (n / 1024).toFixed(1) + " KB";
@@ -54,10 +80,28 @@ export async function buildProduction(source, opts = {}) {
     `const host = document.getElementById("host");\n` +
     `if (host) renderProgramAsync(PROGRAM, host, new ${backend.cls}());\n`;
 
+  // Registry slimming (on by default; opts.slim === false keeps the full set):
+  // substitute the runtime's registry.js with a subset carrying only the
+  // component classes this app can instantiate (built.usedComponents), so esbuild
+  // drops the rest. The used-set is sound — every construction path is a static
+  // reference (tags, class bases, `{ }`-body `new X()`, or the `use` list).
+  const slim = opts.slim !== false;
+  const slimPlugin = {
+    name: "slim-registry",
+    setup(build) {
+      build.onLoad({ filter: /[/\\]registry\.js$/ }, () => ({
+        contents: slimRegistrySource(built.usedComponents),
+        loader: "js",
+        resolveDir: RUNTIME,
+      }));
+    },
+  };
+
   const result = await esbuild.build({
     stdin: { contents: entry, resolveDir: RUNTIME, loader: "js", sourcefile: name + ".entry.js" },
     bundle: true, minify: true, format: "esm", target: "es2020",
     write: false, legalComments: "none",
+    plugins: slim ? [slimPlugin] : [],
   });
   const appJs = result.outputFiles[0].text;
   const appName = `app.${shortHash(appJs)}.js`;
@@ -79,6 +123,7 @@ export async function buildProduction(source, opts = {}) {
   };
   return {
     ok: true, errors: [], warnings: built.warnings, program: built.program, sizes,
+    usedComponents: built.usedComponents, slim,
     files: [{ name: "index.html", contents: html }, { name: appName, contents: appJs }],
   };
 }
@@ -110,8 +155,8 @@ async function copyAssets(srcDir, outDir) {
  *  copied assets). The shared emit used by the CLI and the dev server. Returns
  *  the buildProduction result plus `{ outDir, appName, assets }`. On a compile
  *  error, returns `{ ok:false, errors }` and writes nothing. */
-export async function writeProduction({ source, name = "app", srcDir = null, outDir, stripPos = true, backend }) {
-  const out = await buildProduction(source, { name, originDir: srcDir, stripPos, backend });
+export async function writeProduction({ source, name = "app", srcDir = null, outDir, stripPos = true, backend, slim }) {
+  const out = await buildProduction(source, { name, originDir: srcDir, stripPos, backend, slim });
   if (!out.ok) return out;
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
@@ -122,19 +167,22 @@ export async function writeProduction({ source, name = "app", srcDir = null, out
 }
 
 async function cli(argv) {
-  const args = argv.slice(2);
-  let input = null, outDir = null, keepPos = false, quiet = false, backend = "dom";
-  for (let i = 0; i < args.length; i++) {
-    const a = args[i];
-    if (a === "-o" || a === "--out") outDir = args[++i];
-    else if (a === "--keep-pos") keepPos = true;
+  // CLI-only options (output dir, quiet); the compile flags — --backend/--canvas,
+  // --no-slim, --keep-pos, --typecheck — share the canonical model (flags.ts), so
+  // they mean exactly what the same names mean as server/browser URL flags.
+  const passthrough = [];
+  let outDir = null, quiet = false;
+  const raw = argv.slice(2);
+  for (let i = 0; i < raw.length; i++) {
+    const a = raw[i];
+    if (a === "-o" || a === "--out") outDir = raw[++i];
     else if (a === "--quiet") quiet = true;
-    else if (a === "--canvas") backend = "canvas";
-    else if (a === "--backend") backend = args[++i];
-    else if (!a.startsWith("-")) input = a;
+    else passthrough.push(a);
   }
+  const { flags, rest } = parseArgvFlags(passthrough, { ...DEFAULT_FLAGS, prod: true }); // declarec is always a production build
+  const input = rest.find((a) => !a.startsWith("-")) ?? null;
   if (input === null) {
-    console.error("usage: declarec <app.declare> [-o dist] [--canvas] [--keep-pos] [--quiet]");
+    console.error("usage: declarec <app.declare> [-o dist] [--canvas] [--no-slim] [--keep-pos] [--typecheck] [--quiet]");
     process.exit(2);
   }
   const srcPath = resolve(input);
@@ -144,7 +192,7 @@ async function cli(argv) {
 
   const source = await readFile(srcPath, "utf8");
   const t0 = Date.now();
-  const out = await writeProduction({ source, name, srcDir, outDir, stripPos: !keepPos, backend });
+  const out = await writeProduction({ source, name, srcDir, outDir, stripPos: flags.stripPos, backend: flags.backend, slim: flags.slim });
   const ms = Date.now() - t0;
 
   if (!out.ok) {
@@ -164,6 +212,14 @@ async function cli(argv) {
     console.log(`    app bundle     ${kb(out.sizes.appRaw)} raw   ${kb(out.sizes.appGzip)} gzip`);
     console.log(`    index.html     ${kb(out.sizes.htmlRaw)} raw   ${kb(out.sizes.htmlGzip)} gzip`);
     console.log(`    ── total over the wire (gzip): ${kb(out.sizes.totalGzip)} ──`);
+    if (out.slim) {
+      // Count only the RUNTIME components (the registry names) — the used-set also
+      // carries the app's own classes (always bundled, never in the registry), so
+      // they don't belong in an "N of M runtime components" figure.
+      const builtins = new Set(REGISTRY_MANIFEST.map((e) => e.name));
+      const kept = [...out.usedComponents].filter((n) => builtins.has(n)).sort();
+      console.log(`    registry: ${kept.length} of ${builtins.size} runtime components kept — ${kept.join(", ")}`);
+    } else console.log(`    registry: FULL (slimming off)`);
     if (assets.length) console.log(`  assets: ${assets.join(", ")}`);
     if (out.warnings.length) console.log(`  ${out.warnings.length} warning(s)`);
   }

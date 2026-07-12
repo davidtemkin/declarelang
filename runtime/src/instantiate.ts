@@ -47,16 +47,10 @@
 
 import type { Element, Attr, Method, Program } from "./parser.js";
 import { NeoError } from "./errors.js";
-import { View, App, Html, fireEvent } from "./view.js";
+import { View, fireEvent } from "./view.js";
 import { Node } from "./node.js";
-import { Text } from "./text.js";
-import { Image } from "./image.js";
-import { TextInput } from "./text-input.js";
-import { Markdown, HTMLText } from "./markdown.js";
-import { Layout, SimpleLayout, WrappingLayout, TweenLayout } from "./layout.js";
-import { Dataset, DataSource } from "./data.js";
+import { Layout } from "./layout.js";
 import { Animator, AnimatorGroup } from "./animator.js";
-import { Spring } from "./spring.js";
 import { State, type Override } from "./state.js";
 import { Constraint } from "./reactive.js";
 import { attrType, descendsFrom, type ComponentSchema } from "./schema.js";
@@ -69,59 +63,13 @@ import { defineAttributes, setBound, type AttrSpec } from "./attributes.js";
 import { bindConstraint, bindPercent, bindData, bindDatapath, bindCursor } from "./bind.js";
 import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
 import { Replicator } from "./replicate.js";
+import { TAGS, LAYOUTS, LAYOUT_BASES, DATA, ANIMATORS, ANIMATOR_GROUPS, STATES } from "./registry.js";
 
 type ViewCtor = new () => View;
 
-/** Tag → runtime class: the twin of schema.ts's tag → schema table, kept
- *  apart so the checker never imports the runtime. Built-ins only — a
- *  program's user classes extend a per-program copy (program isolation,
- *  like the schema table).
- *
- *  `Node` — the plain object-graph atom — is registered here too, so a user can
- *  subclass it (`class Store [ … ]`, whose base defaults to Node) for any
- *  non-visual node: a controller, a service, a coordinator. It flows through the
- *  same construct path as a view (attrs / methods / children / deferred bindings
- *  — all Node-level); having no visual incarnation, every attach / paint walk
- *  skips it. Node is a Node, not a View, hence the one cast. */
-const TAGS: Readonly<Record<string, ViewCtor>> = {
-  App, View, Text, Image, HTML: Html, TextInput, Markdown, HTMLText,
-  Node: Node as unknown as ViewCtor,
-};
-
-/** Tag → layout-strategy class (R7) — the twin of schema.ts's layout entries.
- *  Separate from TAGS on purpose: a strategy is not a View and never enters
- *  the tree; it is built only as a component-typed attribute's value. */
-const LAYOUTS: Readonly<Record<string, new () => Layout>> = { SimpleLayout, WrappingLayout };
-
-/** Layout classes by name, for BASE resolution + user-layout synthesis: the
- *  buildable strategies plus the abstract bases a user layout extends
- *  (TweenLayout — never built directly, but `class X extends TweenLayout` is
- *  synthesized against it and registered back, so `layout: X [ … ]` builds X). */
-const LAYOUT_BASES: Readonly<Record<string, abstract new () => Layout>> = { SimpleLayout, TweenLayout };
-
-/** Tag → data-node class (R8) — the twin of schema.ts's data entries. A
- *  data node IS tree structure (a named member), but not a View: separate
- *  so the View pipeline stays typed. */
-const DATA: Readonly<Record<string, new () => Dataset>> = { Dataset, DataSource };
-
-/** Tag → animator class (animation.md §1) — the twin of schema.ts's Animator
- *  entry. Separate from DATA/TAGS: an animator IS tree structure (a named or
- *  anonymous member) but is neither a View nor a data node — its construct
- *  path installs the on* handlers + built-in start()/stop(). */
-const ANIMATORS: Readonly<Record<string, new () => Animator>> = { Animator, Spring };
-
-/** Tag → animator-group class (animation.md §1, §4) — the twin of schema.ts's
- *  AnimatorGroup entry. A group IS tree structure (holding its member animators
- *  as children), so like ANIMATORS it is kept apart from TAGS/DATA. */
-const ANIMATOR_GROUPS: Readonly<Record<string, new () => AnimatorGroup>> = { AnimatorGroup };
-
-/** Tag → state class (design-docs/states.md) — the twin of schema.ts's State
- *  entry. A State IS tree structure (a named member) but is neither a View nor
- *  a data node: its construct path captures its body's OVERRIDES + child
- *  templates for the enclosing view (rather than attaching them) and installs
- *  the verbs apply()/remove()/toggle(). Kept apart from TAGS/DATA like the
- *  animators. */
-const STATES: Readonly<Record<string, new () => State>> = { State };
+// The name → built-in-class tables now live in registry.ts (split out so a
+// production build can substitute a slim subset — see that module). instantiate
+// consumes them exactly as before; nothing else here changes.
 
 /** One registered user class at runtime: its check-side info, its
  *  synthesized ctor, and its body chain, base-most first — the member
@@ -173,7 +121,7 @@ type Pending =
  *  rendering). */
 export function instantiate(input: Element | Program): View {
   const program: Program =
-    "root" in input ? input : { classes: [], stylesheets: [], styles: [], fonts: [], includes: [], includeSpans: [], root: input };
+    "root" in input ? input : { classes: [], stylesheets: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], root: input };
   const { infos, schemas, errors } = programSchemas(program.classes);
   if (errors.length > 0) throw errors[0];
   const tags: Record<string, ViewCtor> = { ...TAGS };

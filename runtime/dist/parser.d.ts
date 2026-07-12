@@ -161,6 +161,12 @@ export interface Program {
     /** The source spans of the `include [ … ]` directives (one per directive) —
      *  what the source-merge excises to emit a self-contained program. */
     includeSpans: Span[];
+    /** The `use [ … ]` keep-list: component NAMES the app may construct by a name
+     *  static analysis can't trace (create-by-string, instantiation.md §8), so the
+     *  build force-includes them — a built-in runtime class, an autoinclude
+     *  library, or a developer class alike (one declaration, all three backends).
+     *  Additive to what the tree + body scan already discover. */
+    uses: string[];
     root: Element;
 }
 /** An included file (composition.md §1): a library of top-level declarations
@@ -175,6 +181,9 @@ export interface Library {
     /** This library's own `include [ … ]` directive spans — excised when the
      *  library's source is spliced into the merged program. */
     includeSpans: Span[];
+    /** A library may carry its OWN `use [ … ]` keep-list (its dynamic deps); the
+     *  source-merge folds these into the program's `uses`. */
+    uses: string[];
 }
 /** Parse a component fragment — one element, no class declarations. The
  *  entry tools and tests use for pieces; a whole source goes through

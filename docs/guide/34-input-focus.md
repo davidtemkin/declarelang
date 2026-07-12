@@ -121,5 +121,6 @@ design is in [input.md](../../design/input.md).)
 
 ---
 
-**Next:** that closes Part III. The generated reference carries every component's
-full attribute surface; reach back into a chapter here whenever a concept bites.
+**Next:** [Compiling and shipping](35-shipping.md) — how source becomes a running
+app on the server, from the `declarec` CLI, or in the browser, and the compile flags
+that steer each.

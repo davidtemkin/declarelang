@@ -75,6 +75,9 @@ export function resolveIncludes(
   const stylesheets: TopDecl[] = [...program.stylesheets];
   const styles: TopDecl[] = [...program.styles];
   const fonts: TopDecl[] = [...program.fonts];
+  // The keep-list folds across libraries too: a library declaring its own
+  // `use [ … ]` contributes its dynamic deps to the merged program's list.
+  const uses: string[] = [...program.uses];
   const sources: string[] = [];
 
   // name → the file that declared it. The main program seeds it as "the app"
@@ -129,6 +132,7 @@ export function resolveIncludes(
       for (const s of lib.stylesheets) if (fold(s.name, s.pos, from)) stylesheets.push(s);
       for (const s of lib.styles) if (fold(s.name, s.pos, from)) styles.push(s);
       for (const f of lib.fonts) if (fold(f.name, f.pos, from)) fonts.push(f);
+      uses.push(...lib.uses);
       // Its splice-ready source — own include directives cut out — after its
       // dependencies' sources (the post-order recursion just ran).
       sources.push(exciseSpans(resolved.source, lib.includeSpans));
@@ -137,7 +141,7 @@ export function resolveIncludes(
   walk(program.includes, originDir);
 
   return {
-    program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], root: program.root },
+    program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], root: program.root },
     sources,
     errors,
     visited,
@@ -176,6 +180,18 @@ function referencedTags(
   if (root !== null) walk(root);
   for (const c of classes) { add(c.base, c.basePos); walk(c.body); }
   return out;
+}
+
+/** The component NAMES a program STATICALLY references — its tree tags (children,
+ *  including component-valued members like `layout:`/`data:`/animators/states)
+ *  and every class's `extends` base. The static half of the used-set a production
+ *  build keeps (the compiler adds `{ }`-body construction refs and the `use`
+ *  list). The same walk `resolveAutoIncludes` trusts to pull libraries — so it is
+ *  proven to see every static reference. Deduped. */
+export function referencedComponentNames(program: Program): string[] {
+  const names = referencedTags(program.root, program.classes).map((r) => r.tag);
+  names.push(program.root.tag); // the root's OWN tag (App) — walk() adds children, not the root itself
+  return [...new Set(names)];
 }
 
 /** Pull the libraries that define a program's bare component tags — the
@@ -257,9 +273,14 @@ export function resolveAutoIncludes(
   };
 
   for (const r of referencedTags(root, program.classes)) pull(r.tag, r.pos);
+  // The keep-list is a reference too: `use [ Bar ]` pulls Bar's library even with
+  // no static tag (the escape hatch for by-name construction). A built-in or
+  // unknown name isn't in the manifest, so pull() no-ops — the checker validates
+  // the name against the merged program afterwards.
+  for (const name of program.uses) pull(name, program.root.pos);
 
   return {
-    program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], root: program.root },
+    program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: program.uses, root: program.root },
     sources,
     errors,
   };

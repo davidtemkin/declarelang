@@ -200,6 +200,12 @@ export interface Program {
   /** The source spans of the `include [ … ]` directives (one per directive) —
    *  what the source-merge excises to emit a self-contained program. */
   includeSpans: Span[];
+  /** The `use [ … ]` keep-list: component NAMES the app may construct by a name
+   *  static analysis can't trace (create-by-string, instantiation.md §8), so the
+   *  build force-includes them — a built-in runtime class, an autoinclude
+   *  library, or a developer class alike (one declaration, all three backends).
+   *  Additive to what the tree + body scan already discover. */
+  uses: string[];
   root: Element;
 }
 
@@ -215,6 +221,9 @@ export interface Library {
   /** This library's own `include [ … ]` directive spans — excised when the
    *  library's source is spliced into the merged program. */
   includeSpans: Span[];
+  /** A library may carry its OWN `use [ … ]` keep-list (its dynamic deps); the
+   *  source-merge folds these into the program's `uses`. */
+  uses: string[];
 }
 
 // ── Tokenizer ───────────────────────────────────────────────────────────────
@@ -673,6 +682,38 @@ class Parser {
     return t.kind === "ident" && t.text === "include" && u.kind === "lbracket";
   }
 
+  /** At a `use [ … ]` directive — the dependency KEEP-LIST (composition.md §1c):
+   *  contextual, the ident `use` followed by `[`. Names components the app may
+   *  construct by a name static analysis can't see (create-by-string, §8), so the
+   *  build keeps them. `use` followed by anything else is an ordinary component
+   *  name, exactly as `include`/`class`/`stylesheet` are. */
+  atUse(): boolean {
+    const t = this.tokens[this.i];
+    const u = this.tokens[this.i + 1];
+    return t.kind === "ident" && t.text === "use" && u.kind === "lbracket";
+  }
+
+  /** `'use' '[' IDENT ( ',' IDENT )* ','? ']'` — the keep-list: bare component
+   *  NAMES (not quoted paths — these are types, like a `class` base). A non-ident
+   *  entry is a positioned error. Returns the names; the used-set folds them in. */
+  parseUseDirective(): string[] {
+    this.expect("ident", "'use'");
+    this.expect("lbracket", "'['");
+    const names: string[] = [];
+    while (this.peek().kind !== "rbracket" && this.peek().kind !== "eof") {
+      const t = this.peek();
+      if (t.kind !== "ident") {
+        throw new NeoError("a use entry is a component name", t.pos);
+      }
+      this.next();
+      names.push(t.text);
+      if (this.peek().kind === "comma") this.next();
+      else break;
+    }
+    this.expect("rbracket", "']'");
+    return names;
+  }
+
   /** `'include' '[' STRING ( ',' STRING )* ','? ']'` — a top-level directive
    *  whose body is neo's list grammar restricted to quoted paths. Non-string
    *  entries are a positioned error (paths are quoted strings, no bare-token
@@ -732,6 +773,7 @@ function parseTopDecls(p: Parser): {
   fonts: TopDecl[];
   includes: IncludeRef[];
   includeSpans: Span[];
+  uses: string[];
 } {
   const classes: ClassDecl[] = [];
   const stylesheets: TopDecl[] = [];
@@ -739,19 +781,21 @@ function parseTopDecls(p: Parser): {
   const fonts: TopDecl[] = [];
   const includes: IncludeRef[] = [];
   const includeSpans: Span[] = [];
+  const uses: string[] = [];
   for (;;) {
     if (p.atInclude()) {
       const { refs, span } = p.parseIncludeDirective();
       includes.push(...refs);
       includeSpans.push(span);
     }
+    else if (p.atUse()) uses.push(...p.parseUseDirective());
     else if (p.atClass()) classes.push(p.parseClass());
     else if (p.atTop("stylesheet")) stylesheets.push(p.parseTopDecl("stylesheet"));
     else if (p.atTop("style")) styles.push(p.parseTopDecl("style"));
     else if (p.atTop("font")) fonts.push(p.parseTopDecl("font"));
     else break;
   }
-  return { classes, stylesheets, styles, fonts, includes, includeSpans };
+  return { classes, stylesheets, styles, fonts, includes, includeSpans, uses };
 }
 
 /** Parse a whole Declare source: `include`s and top-level declarations
@@ -759,10 +803,10 @@ function parseTopDecls(p: Parser): {
  *  instance. */
 export function parseProgram(source: string): Program {
   const p = new Parser(tokenize(source));
-  const { classes, stylesheets, styles, fonts, includes, includeSpans } = parseTopDecls(p);
+  const { classes, stylesheets, styles, fonts, includes, includeSpans, uses } = parseTopDecls(p);
   const root = p.parseElement();
   p.expect("eof", "end of input");
-  return { classes, stylesheets, styles, fonts, includes, includeSpans, root };
+  return { classes, stylesheets, styles, fonts, includes, includeSpans, uses, root };
 }
 
 /** Parse an INCLUDED file (composition.md §1): the same top-level

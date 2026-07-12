@@ -54,7 +54,7 @@ const RESERVED = CONSTRUCTOR_NAMES;
  *  Element fragment. Returns every error found, in source order — an empty
  *  array means the tree is well-typed and safe to instantiate. */
 export function check(input) {
-    const program = "root" in input ? input : { classes: [], stylesheets: [], styles: [], fonts: [], includes: [], includeSpans: [], root: input };
+    const program = "root" in input ? input : { classes: [], stylesheets: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], root: input };
     const { infos, schemas, errors } = programSchemas(program.classes);
     const env = checkStyleDecls(program, schemas, errors);
     // A class body checks as an instance of its own (just-registered) class:
@@ -68,6 +68,16 @@ export function check(input) {
     }
     checkBodyRootReplication(program.root, errors, "the program root");
     checkElement(program.root, errors, schemas, false, env);
+    // The `use` keep-list (composition.md §1c): every name must resolve to a known
+    // component — a built-in, or a class the program declares or auto-includes —
+    // else it is a typo that would silently keep nothing. `schemas` is the merged
+    // name→schema table (built-ins + user/auto-included classes); abstract bases
+    // (`Layout`, `RichText`) are absent, so `use`-ing one is correctly rejected.
+    for (const name of program.uses) {
+        if (!Object.hasOwn(schemas, name)) {
+            errors.push(new NeoError(`use [ ${name} ]: unknown component '${name}' — a use entry names a built-in or a declared/included class`, program.root.pos));
+        }
+    }
     // Members of different kinds interleave freely in source but are checked
     // per kind (attrs, then methods, then the child recursion); a stable sort
     // on position restores the promised source order. Every check error is

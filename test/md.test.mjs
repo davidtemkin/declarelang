@@ -79,6 +79,23 @@ test("task list", () => {
   assert.equal(b[0].items[1].task, false);
 });
 
+test("content after a list is its own block, not swallowed", () => {
+  // Regression: lazy continuation must not absorb a blank-separated paragraph
+  // or heading into the last list item (that dropped everything after a list).
+  const para = parse("- a\n- b\n\nAfter the list.");
+  assert.deepEqual(types(para), ["list", "paragraph"]);
+  assert.equal(para[0].items.length, 2);
+  const head = parse("- a\n- b\n\n## Next\n\nBody.");
+  assert.deepEqual(types(head), ["list", "heading", "paragraph"]);
+});
+
+test("an indented continuation still stays in its item", () => {
+  const b = parse("- item one\n\n  continued paragraph\n- item two");
+  assert.equal(b[0].t, "list");
+  assert.equal(b[0].items.length, 2);
+  assert.deepEqual(types(b[0].items[0].blocks), ["paragraph", "paragraph"]);
+});
+
 test("blockquote with nested block", () => {
   const b = parse("> quoted\n> more");
   assert.equal(b[0].t, "blockquote");
