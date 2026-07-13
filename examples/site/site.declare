@@ -356,8 +356,6 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                     ],
                 pull: Heading [ fontSize = 28, width = { parent.width }, textAlign = center,
                                 text = "Everything that makes it legible to an LLM makes it legible to you." ],
-                trust: Body [ fontFamily = [Mono, "monospace"], fontSize = 14, width = { parent.width }, textAlign = center,
-                              text = "The declarative layer is Declare. The logic is ordinary, typed TypeScript — nothing to relearn, and everything an editor or an LLM already understands." ],
                 ],
 
             // ── 02 — Declare Calendar: a real app, small and fast ──────────────
