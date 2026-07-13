@@ -75,9 +75,15 @@
 import { MOTION_TOKENS } from "../../runtime/dist/animate.js";
 /** The fixed value-type prelude — the closed vocabulary of value.ts as TS
  *  types, plus the value constructors in scope for every body. Mirrors
- *  value.ts's runtime shapes exactly (Length/Color/Fill/Stroke/Shadow/Theme/
+ *  value.ts's runtime shapes exactly (Length/Color/Fill/Stroke/Shadow/
  *  Percent/Gradient and the gradient/stroke/stop/shadow constructors). `Cursor`
- *  is the deferred schema-typed-`:path` placeholder (see the header). */
+ *  is the deferred schema-typed-`:path` placeholder (see the header). `Theme`
+ *  (and every record-typed slot) is DELIBERATELY `Record<string, any>`, not
+ *  `unknown`: a record's keys are open by design (no schema construct yet), so
+ *  `unknown` would make every read of a correct program a type error — and a
+ *  check that fires on correct code is the cardinal sin (diagnostics.md §4 /
+ *  verify-and-evals.md). `any` under-reports instead; schema-typed records
+ *  close the hole when the `schema` construct lands. */
 const PRELUDE = `type Percent = { percent: number };
 type Length = number | Percent;
 type Color = number | null;
@@ -86,7 +92,7 @@ interface Gradient { angle: number; stops: readonly { offset: number | null; col
 type Fill = Color | Gradient;
 interface Stroke { width: number; color: number }
 interface Shadow { dx: number; dy: number; blur: number; color: number }
-type Theme = Readonly<Record<string, unknown>>;
+type Theme = Readonly<Record<string, any>>;
 type Cursor = unknown;
 declare function gradient(...args: (number | string | { offset: number | null; color: number })[]): Gradient;
 declare function stroke(width: number, color: number): Stroke;
@@ -128,39 +134,114 @@ export function tsType(t) {
  *  and no return type yet (the shorthand `name(params) { … }`; the typed form
  *  `name: (p: T) -> R { … }` waits for the type surface, HANDOFF §R5), so each
  *  bare parameter is typed `any` (a caller passing any argument checks) and the
- *  return is `void` — matching the statement-body shape (methods act, they do
- *  not yield constraint values). This is the one line to revisit when the typed
- *  method form lands: read the written `: T` params and `-> R` return then. */
+ *  return is `any` — NOT `void`: methods do yield constraint values (`width =
+ *  { app.lerp(4, 9, t) }` is the calendar's idiom throughout), and `void` would
+ *  flag every such use of a correct program. Parameters are OPTIONAL: the
+ *  grammar has no required-marker, and JS callers legally omit trailing args
+ *  (`setMonth(y, m)` against `setMonth(y, m, d)`), so arity enforcement is
+ *  unfounded — but an EXCESS argument still errors, which is a real catch.
+ *  `any` under-reports the return until the typed form carries a written
+ *  `-> R`; this is the one line to revisit when it lands. */
 function methodSig(m) {
-    const params = m.params.map((p) => `${p}: any`).join(", ");
-    return `  ${m.name}(${params}): void;`;
+    const params = m.params.map((p) => `${p}?: any`).join(", ");
+    return `  ${m.name}(${params}): any;`;
+}
+/** LANGUAGE-API members — the runtime surface a `{ }` body may READ or CALL
+ *  that is deliberately NOT in the schemas: a schema models what an author can
+ *  SET in `[ ]` ("lifecycle state (value, status, error) is runtime surface
+ *  read from bindings, not author-settable — hence absent here", schema.ts),
+ *  while a body also reads that lifecycle surface and calls runtime methods.
+ *  This table is the TYPE half of what effects.ts is for DEPENDENCIES: a
+ *  language-supplied member's signature is DECLARED (its body is runtime TS,
+ *  not Declare source), a user member's is derived — same footing, no
+ *  privilege tier. Signatures mirror the runtime (data.ts, animator.ts,
+ *  layout.ts, backend.ts); data-shaped values are `any`, not `unknown` —
+ *  a datum's shape is unknowable until the `schema` construct lands, and
+ *  `unknown` would flag every correct read (the same deliberate under-report
+ *  as Theme). Members the runtime marks `protected` (TweenLayout.laid) are
+ *  declared public here: a check-block is a free function, not a subclass
+ *  body, so TS's protected rule would reject the legal subclass call. */
+const LANGUAGE_API = {
+    View: [`  scrollIntoView(): void;`],
+    Dataset: [
+        `  readonly value: any;`,
+        `  read(path: readonly (string | number)[]): any;`,
+        `  set(path: any, v: any): void;`,
+    ],
+    DataSource: [
+        `  readonly idle: boolean;`,
+        `  readonly loading: boolean;`,
+        `  readonly loaded: boolean;`,
+        `  readonly failed: boolean;`,
+        `  readonly status: string;`,
+        `  readonly error: any;`,
+        `  fetch(): Promise<void>;`,
+        `  clear(): void;`,
+    ],
+    Animator: [`  start(): void;`],
+    AnimatorGroup: [`  start(): void;`],
+    // The edit-session VERBS (editor.ts): `dirty`/`valid`/`error` are schema
+    // attrs (readable state), but committing/reverting the draft are calls.
+    Editor: [`  commit(): void;`, `  revert(): void;`],
+    Layout: [`  view: View;`], // runtime `View | null`, non-null by the time any body runs
+    TweenLayout: [`  laid(): View[];`, `  retarget(animate: boolean): void;`],
+};
+/** One attribute member. A length-typed slot is the read/write ASYMMETRY the
+ *  runtime actually has: a body may WRITE `number | Percent` (the slot accepts
+ *  both), but a READ always sees the RESOLVED pixel number (the constraint
+ *  system resolves a percent against the parent before any body runs — which
+ *  is why `parent.width - 8` is the corpus-wide idiom and works). Model it as
+ *  divergent accessors: `get(): number; set(v: Length)`. Symmetric kinds stay
+ *  plain members. */
+export function memberSig(name, t) {
+    if (t.kind === "length")
+        return [`  get ${name}(): number;`, `  set ${name}(v: Length);`];
+    return [`  ${name}: ${tsType(t)};`];
 }
 /** One schema → its `declare class`. Attributes come first (in schema order),
  *  then — on View alone — the view-tree noun members (every View-derived class
  *  inherits them via `extends`), then a user class's declared methods. Absent
  *  base (View / Layout / Dataset / Animator / AnimatorGroup roots) → no
  *  `extends`; an empty class → `{}`. */
-function emitClass(s, decl) {
+function emitClass(s, decl, rootType, extras) {
     const ext = s.base !== null ? ` extends ${s.base.name}` : "";
     const lines = [];
     for (const [name, t] of Object.entries(s.attrs))
-        lines.push(`  ${name}: ${tsType(t)};`);
-    if (s.name === "View") {
-        // The view-tree nouns (language §11). `classroot` is typed `View` — the
-        // "not tracked" default; a check-block pins the true enclosing class per
-        // body through its `this: <Class>` wrapper (header). Non-View roots carry
-        // no nouns in this slice (their bodies are a later concern).
-        lines.push(`  parent: View;`);
+        lines.push(...memberSig(name, t));
+    if (s.base === null) {
+        // The tree nouns (language §11) — on EVERY root class, not View alone:
+        // Spring/State/Dataset bodies say `app` too (every node has parent/root;
+        // the animator-leak fix is the runtime's same fact). `classroot` is typed
+        // `View` — the "not tracked" default; a check-block pins the true
+        // enclosing class per body through its `this: <Class>` wrapper (header).
+        // The `parent` MEMBER is `any`: a chain (`x.parent.…`) or a cross-instance
+        // hop (`classroot.parent.select(…)`) lands on whatever hosts the instance,
+        // statically unknowable — `View` here would flag every legal member such a
+        // hop reaches. The immediate `parent` PARAM in each check-block stays
+        // precisely typed; only the member navigation is silenced.
+        lines.push(`  parent: any;`);
         lines.push(`  classroot: View;`);
         // `root` — the App at the top of the tree. The `app` noun compiles to
-        // `this.root`; typing it `App` here makes `app.hostWidth` etc. check
-        // against the App/stage surface rather than the bare View one.
-        lines.push(`  root: App;`);
-        lines.push(`  readonly children: View[];`);
+        // `this.root`; typing it as THE PROGRAM'S root instance type (the
+        // caller-passed `rootType` — the root element's synthesized anonymous
+        // subclass when it has inline decls/children/methods, else `App`) makes
+        // `app.cardW` and every other root-declared member check, not just the
+        // built-in App/stage surface.
+        lines.push(`  root: ${rootType};`);
+        if (s.name === "View")
+            lines.push(`  readonly children: View[];`);
     }
+    const api = LANGUAGE_API[s.name];
+    if (api !== undefined)
+        lines.push(...api);
     if (decl !== undefined)
         for (const m of decl.body.methods)
             lines.push(methodSig(m));
+    // Instance members the EMITTER computed from the class BODY (its named
+    // children, typed by their instance types) — on the class itself, so a
+    // cross-reference through the class NAME (`section.area`) sees them too.
+    if (extras !== undefined)
+        lines.push(...extras);
     return lines.length === 0
         ? `declare class ${s.name}${ext} {}`
         : `declare class ${s.name}${ext} {\n${lines.join("\n")}\n}`;
@@ -170,7 +251,7 @@ function emitClass(s, decl) {
  *  + user), base-before-derived. Pure — the returned STRING is the whole
  *  product. `schemas` is `programSchemas(program.classes).schemas`; `classDecls`
  *  is `program.classes` (their methods). */
-export function generateScaffold(schemas, classDecls) {
+export function generateScaffold(schemas, classDecls, rootType = "App", classExtras) {
     // Every schema reachable — the registry entries PLUS abstract bases the
     // registry omits (the `Layout` base is deliberately not a name-table key,
     // schema.ts, yet `layout: Layout | null` and `SimpleLayout extends Layout`
@@ -195,13 +276,14 @@ export function generateScaffold(schemas, classDecls) {
     // Record aliases: every record-typed attribute references a NAMED open record.
     // `Theme` ships in the prelude; any other name (e.g. `Accents`) gets its own
     // alias emitted here, so a new record-typed slot needs no prelude edit.
+    // `any`, not `unknown` — the same deliberate under-report as Theme (prelude).
     const records = new Set();
     for (const s of all.values()) {
         for (const t of Object.values(s.attrs))
             if (t.kind === "record" && t.name !== "Theme")
                 records.add(t.name);
     }
-    const recordLines = [...records].map((name) => `type ${name} = Readonly<Record<string, unknown>>;`);
+    const recordLines = [...records].map((name) => `type ${name} = Readonly<Record<string, any>>;`);
     // Methods ride the user class declaration, keyed by class name.
     const declOf = new Map();
     for (const d of classDecls)
@@ -209,7 +291,7 @@ export function generateScaffold(schemas, classDecls) {
     // Base-before-derived: a stable sort by chain depth (roots at 0). Ambient
     // declarations hoist, so this is for readability, not resolution.
     const depth = (s) => (s.base === null ? 0 : 1 + depth(s.base));
-    const classes = [...all.values()].sort((a, b) => depth(a) - depth(b)).map((s) => emitClass(s, declOf.get(s.name)));
+    const classes = [...all.values()].sort((a, b) => depth(a) - depth(b)).map((s) => emitClass(s, declOf.get(s.name), rootType, classExtras?.get(s.name)));
     // The Motion union — named tokens (generated from animate.ts, single source
     // of truth) plus the MotionCurve brand the constructors in the prelude return.
     const motionLine = `type Motion = ${MOTION_TOKENS.map((t) => JSON.stringify(t)).join(" | ")} | MotionCurve;`;

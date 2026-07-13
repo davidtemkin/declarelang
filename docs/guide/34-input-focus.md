@@ -17,7 +17,8 @@ it decides which side is the source of truth (this is the two-shape story from
 [Data](26-data.md), restated here from the input side).
 
 ```declare
-App [ fill = white, textColor = black,
+App [ fill = white, textColor = black, zip: string = "",
+    weather: DataSource [ url = "weather.json" ],
     zipField: TextInput [ x = 20, y = 20, width = 160, height = 30, padding = 6, cornerRadius = 6,
         fill = gainsboro, placeholder = "Zip code",
         onInput(v) { app.zip = v },              // each keystroke — v is the new text

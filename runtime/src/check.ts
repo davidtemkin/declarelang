@@ -654,7 +654,7 @@ function checkElement(
   // are checked by checkComponentValue, not as tree children.
   const consumed = new Set<Element>();
   if (schema === null) {
-    errors.push(Diag.unknownComponent(el.tag, el.pos));
+    errors.push(Diag.unknownComponent(el.tag, el.pos, Object.keys(schemas)));
   } else if (descendsFrom(schema, "Layout") && !classRoot) {
     // A layout reached as an element in the tree — anonymous, mis-named, or
     // the root. The doc's ruling (language §5, Appendix A): a layout is an
@@ -1148,7 +1148,7 @@ export function checkComponentValue(
   el: Element
 ): NeoError[] {
   const schema = Object.hasOwn(schemas, el.tag) ? schemas[el.tag] : null;
-  if (schema === null) return [Diag.unknownComponent(el.tag, el.pos)];
+  if (schema === null) return [Diag.unknownComponent(el.tag, el.pos, Object.keys(schemas))];
   if (!descendsFrom(schema, of)) {
     return [new NeoError(`${owner}.${attrName} expects a ${of} — '${el.tag}' is not one`, el.pos)];
   }

@@ -33,7 +33,7 @@ its `]` riding the last line (even when the attributes wrapped):
 
 ```declare
 label: Text [ fontSize = 22, fontWeight = semibold, textColor = royalblue,
-    text = { "count: " + this.n } ],
+    text = { "width: " + app.width } ],
 ```
 
 Any body that holds a child, a method, a state, or a nested declaration closes
@@ -41,7 +41,7 @@ Any body that holds a child, a method, a state, or a nested declaration closes
 
 ```declare
 plus: View [ x = 150, width = 40, height = 40, fill = royalblue,
-    onClick() { classroot.n = classroot.n + 1 },
+    onClick() { width = width + 8 },
     Text [ text = "+", textAlign = center, width = 40, fontSize = 22, textColor = white ],
     ],
 ```

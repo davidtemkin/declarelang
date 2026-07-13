@@ -31,9 +31,9 @@ Handlers can take the event as a parameter when they need it — for a pointer
 position, for instance:
 
 ```declare
-grip: View [ dragging: boolean = false,
+grip: View [ dragging: boolean = false, split: number = 240,
     onMouseDown()  { dragging = true },
-    onMouseMove(e) { if (dragging) classroot.split = Math.max(240, e.x) },
+    onMouseMove(e) { if (dragging) split = Math.max(240, e.x) },
     onMouseUp()    { dragging = false },
     ]
 ```

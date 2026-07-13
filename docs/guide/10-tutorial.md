@@ -158,12 +158,19 @@ it reverts as cleanly as the hover tint.
 
 Finally, give the bar physics. Instead of the length *snapping* to `value`, let a
 **`Spring`** ease it there. Replace the bar's `width` constraint with a spring that
-follows the same target ([Animation](30-animation.md)):
+follows the same target ([Animation](30-animation.md)) — here in a runnable cut of
+the class, springing to its instance's `value`:
 
 ```declare
-    bar: View [ height = 22, cornerRadius = 4, fill = royalblue, width = 0,
-        grow: Spring [ attribute = width, to = { classroot.value / 100 * 144 },
-                       stiffness = 190, damping = 20 ] ],
+class StatBar extends View [ width = 240, height = 22,
+    value: number = 0,
+    track: View [ x = 96, width = 144, height = 22, cornerRadius = 4, fill = whitesmoke,
+        bar: View [ height = 22, cornerRadius = 4, fill = royalblue, width = 0,
+            grow: Spring [ attribute = width, to = { classroot.value / 100 * 144 },
+                           stiffness = 190, damping = 20 ] ],
+        ],
+    ]
+App [ StatBar [ value = 70 ] ]
 ```
 
 A `Spring` is a *standing relationship*, not a scheduled tween: its `to` is a live

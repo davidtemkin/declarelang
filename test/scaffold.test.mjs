@@ -119,7 +119,9 @@ await test("scaffold: the fixed value prelude mirrors value.ts", () => {
     "type Color = number | null;",
     "type Shape = string | null;",
     "type Fill = Color | Gradient;",
-    "type Theme = Readonly<Record<string, unknown>>;",
+    // `any`, not `unknown` — a record's keys are open by design (no schema
+    // construct yet); `unknown` would flag every correct read of a theme token.
+    "type Theme = Readonly<Record<string, any>>;",
     "type Cursor = unknown;",
     "declare function gradient(",
     "declare function stroke(width: number, color: number): Stroke;",
@@ -139,8 +141,11 @@ await test("scaffold: enum-typed attributes emit named string-literal unions", (
 await test("scaffold: View declares its attrs (AttrType→TS map) + the §11 nouns", () => {
   const s = scaffoldFor(PROGRAM);
   const view = classBlock(s, "View");
-  // The AttrType → TS decisions, one per kind present on View:
-  assert.ok(view.includes("x: Length;"), "length → Length");
+  // The AttrType → TS decisions, one per kind present on View. A length slot
+  // is the read/write ASYMMETRY the runtime has: a body WRITES number|Percent,
+  // but READS the resolved pixel number (`parent.width - 8` is the idiom).
+  assert.ok(view.includes("get x(): number;"), "length → read as the resolved number");
+  assert.ok(view.includes("set x(v: Length);"), "length → written as Length");
   assert.ok(view.includes("cornerRadius: number;"), "number → number");
   assert.ok(view.includes("visible: boolean;"), "boolean → boolean");
   assert.ok(view.includes("fontFamily: string;"), "string → string");
@@ -155,8 +160,11 @@ await test("scaffold: View declares its attrs (AttrType→TS map) + the §11 nou
   assert.ok(view.includes("stylesheet: string | null;"), "stylesheet → string | null");
   assert.ok(view.includes("layout: Layout | null;"), "component → <of> | null");
   assert.ok(view.includes("datapath: Cursor;"), "cursor → Cursor (deferred placeholder)");
-  // The view-tree nouns (language §11), on View, inherited by View-derived classes.
-  assert.ok(view.includes("parent: View;"), "parent noun");
+  // The view-tree nouns (language §11), on View, inherited by View-derived
+  // classes. The `parent` MEMBER is `any` — a chain (`x.parent.…`) or a
+  // cross-instance hop lands somewhere statically unknowable; the check-block's
+  // `parent` PARAM stays precisely typed, so only member navigation is silent.
+  assert.ok(view.includes("parent: any;"), "parent noun (member navigation is any)");
   assert.ok(view.includes("classroot: View;"), "classroot noun");
   assert.ok(view.includes("root: App;"), "root noun typed App (backs the `app` noun)");
   assert.ok(view.includes("readonly children: View[];"), "children noun");
@@ -173,7 +181,13 @@ await test("scaffold: Text extends View with its own leaf attrs", () => {
 
 await test("scaffold: the abstract Layout base (not in the name table) is still declared", () => {
   const s = scaffoldFor(PROGRAM);
-  assert.ok(s.includes("declare class Layout {}"), "Layout declared (empty) so `Layout | null` + SimpleLayout resolve");
+  const layout = classBlock(s, "Layout");
+  assert.ok(layout.startsWith("declare class Layout {"), "Layout declared so `Layout | null` + SimpleLayout resolve");
+  // A ROOT class (base-less) carries the tree nouns — Spring/Dataset/Layout
+  // bodies say `app` too — and its LANGUAGE-API surface (runtime members a
+  // body may read/call that the schema, the [ ]-settable surface, omits).
+  assert.ok(layout.includes("root: App;"), "Layout carries the nouns (a root class)");
+  assert.ok(layout.includes("view: View;"), "Layout carries its language-API member");
   assert.ok(classBlock(s, "SimpleLayout").startsWith("declare class SimpleLayout extends Layout {"), "SimpleLayout extends Layout");
 });
 
@@ -184,7 +198,9 @@ await test("scaffold: the WeatherTab user class — attrs typed, base extends, m
   assert.ok(wt.includes("label: string;"), "declared string slot");
   assert.ok(wt.includes("sel: boolean;"), "declared boolean slot");
   assert.ok(wt.includes("openHeight: number;"), "declared number slot");
-  assert.ok(wt.includes("select(): void;"), "the method, void-returning");
+  // `any`, not `void` — methods yield constraint values (`width = { app.lerp(…) }`
+  // is the calendar idiom throughout); void would flag every such use.
+  assert.ok(wt.includes("select(): any;"), "the method, any-returning");
   // `height` is INHERITED from View (setting it does not redeclare it — that
   // is a checkDecl error), so it is NOT on WeatherTab: the scaffold is more
   // precise than the task's illustrative sketch. It reaches WeatherTab via

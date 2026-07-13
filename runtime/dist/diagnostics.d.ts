@@ -12,11 +12,19 @@ export interface Diagnostic {
     pos?: Pos;
     hint?: string;
 }
-/** The phase a code belongs to (its 4th char, i.e. the thousands digit). */
+/** The diagnostic-code prefix — ONE symbol, because the prefix is slated for a
+ *  repo-wide rename: every code is BUILT (and parsed) through this constant,
+ *  so the rename is a single-point change here (tests asserting rendered codes
+ *  update with it). */
+export declare const CODE_PREFIX = "NEO";
+/** The phase a code belongs to (its thousands digit, just past the prefix). */
 export declare function phaseOfCode(code: string): DiagPhase;
+/** The single high-confidence near-miss among `candidates`, or null (no match
+ *  in budget, or an ambiguous tie — ambiguity is below suggestion confidence). */
+export declare function nearestName(name: string, candidates: readonly string[]): string | null;
 export declare const Diag: {
     syntax: (message: string, pos?: Pos) => NeoError;
-    unknownComponent: (tag: string, pos: Pos) => NeoError;
+    unknownComponent: (tag: string, pos: Pos, candidates?: readonly string[]) => NeoError;
     duplicateName: (message: string, pos: Pos) => NeoError;
     misplaced: (message: string, pos: Pos) => NeoError;
     namespace: (message: string, pos: Pos) => NeoError;

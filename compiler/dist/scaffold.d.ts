@@ -7,9 +7,17 @@ import type { ClassDecl } from "../../runtime/dist/parser.js";
  *  `declare class`. The nullable decoration slots (stroke/shadow) and the two
  *  styling channels carry their `| null` here, matching what coercion admits. */
 export declare function tsType(t: AttrType): string;
+/** One attribute member. A length-typed slot is the read/write ASYMMETRY the
+ *  runtime actually has: a body may WRITE `number | Percent` (the slot accepts
+ *  both), but a READ always sees the RESOLVED pixel number (the constraint
+ *  system resolves a percent against the parent before any body runs — which
+ *  is why `parent.width - 8` is the corpus-wide idiom and works). Model it as
+ *  divergent accessors: `get(): number; set(v: Length)`. Symmetric kinds stay
+ *  plain members. */
+export declare function memberSig(name: string, t: AttrType): string[];
 /** Generate the scaffold for a program: the fixed prelude, the enum type
  *  aliases every schema references, and one `declare class` per schema (built-in
  *  + user), base-before-derived. Pure — the returned STRING is the whole
  *  product. `schemas` is `programSchemas(program.classes).schemas`; `classDecls`
  *  is `program.classes` (their methods). */
-export declare function generateScaffold(schemas: Readonly<Record<string, ComponentSchema>>, classDecls: readonly ClassDecl[]): string;
+export declare function generateScaffold(schemas: Readonly<Record<string, ComponentSchema>>, classDecls: readonly ClassDecl[], rootType?: string, classExtras?: ReadonlyMap<string, readonly string[]>): string;

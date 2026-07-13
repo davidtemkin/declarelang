@@ -137,6 +137,16 @@ await test("check() reports an unknown component, with its position", () => {
   assert.match(errors[0].message, /unknown component 'Widget' \(line 1, col 1\)/);
 });
 
+await test("check() suggests a near-miss component — calibrated (diagnostics.md §4)", () => {
+  // A model applies a "did you mean" LITERALLY, so suggestions come only at
+  // high confidence: 1 edit (incl. a transposition or a pure casing miss),
+  // never for a far name like 'Widget' (asserted suggestion-free above).
+  assert.match(check(parse("Txet [ ]"))[0].message, /did you mean 'Text'\?/, "transposition");
+  assert.match(check(parse("text [ ]"))[0].message, /did you mean 'Text'\?/, "casing");
+  assert.match(check(parse("Vew [ ]"))[0].message, /did you mean 'View'\?/, "one edit");
+  assert.doesNotMatch(check(parse("Widget [ ]"))[0].message, /did you mean/, "far names get no guess");
+});
+
 await test("check() keeps checking beneath an unknown component", () => {
   const errors = check(parse("Widget [ View [ zap=1 ] ]"));
   assert.equal(errors.length, 2);
@@ -4402,7 +4412,11 @@ await test("typecheck: a cross-boundary type error is caught, mapped to its .dec
   assert.equal(type.length, 1, `exactly one type diagnostic, got ${JSON.stringify(r.diagnostics)}`);
   assert.equal(type[0].code, "NEO6001");
   assert.equal(type[0].pos.line, 3, "mapped to the offending body's line");
-  assert.match(type[0].message, /not assignable to type 'Length'/);
+  // The message layer re-says tsc's "Type 'boolean' is not assignable to type
+  // 'Length'" in the diagnostic contract's voice (diagnostics.md §4): it names
+  // the slot, the computed type, and the canonical rewrite.
+  assert.match(type[0].message, /'height' computes a boolean.*typed Length/);
+  assert.match(type[0].message, /ternary that yields numbers/, "the canonical fix is named");
 });
 
 await test("typecheck: a valid program passes and still emits source", () => {

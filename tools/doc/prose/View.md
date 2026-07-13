@@ -116,7 +116,7 @@ stray press) — answered by an `onClick()` handler. The primary interaction eve
 `mouseDown`/`mouseUp`/`mouseMove` are there when you need the raw phases.
 
 ```declare
-View [ fill = white, onClick() { classroot.select() } ]
+View [ width = 80, height = 44, cornerRadius = 6, fill = gainsboro, onClick() { fill = 0x4169E1 } ]
 ```
 
 ## onInit

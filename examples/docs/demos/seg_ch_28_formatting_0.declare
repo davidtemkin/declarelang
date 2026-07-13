@@ -1,4 +1,4 @@
 App [
     label: Text [ fontSize = 22, fontWeight = semibold, textColor = royalblue,
-        text = { "count: " + this.n } ],
+        text = { "width: " + app.width } ],
 ]
