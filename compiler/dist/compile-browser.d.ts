@@ -1,6 +1,7 @@
 import { type CompileOptions, type Compiled } from "./compile.js";
 import type { AutoIncludeHost } from "../../runtime/dist/include.js";
 import type { Closure, Validator } from "./closure.js";
+export { provideLib } from "./typecheck.js";
 export { highlight } from "./highlight.js";
 export interface BrowserFiles {
     /** canonicalPath → source, for `include`s and library files prefetched up front. */

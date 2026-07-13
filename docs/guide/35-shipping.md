@@ -25,9 +25,9 @@ POST /compile              live compile — returns the app JS for an editor
 ```
 
 `POST /compile` is the fast path the playground and the "Edit this page" editors use:
-source in, compiled program out, sub-100 ms on localhost, so debounced it feels
-live. It runs **without the typecheck pass** — the runtime schema check is the real
-gate — so TypeScript's program never enters the loop.
+source in, the full compile result out (source + deps + structured diagnostics +
+the rendered report). Like every surface it **typechecks by default**; a
+latency-critical loop can opt out explicitly with `?typecheck=0`.
 
 The `/prod` route is the same production artifact `declarec` produces, built once and
 then cached on disk (keyed by a hash of the source + toolchain, partitioned per
@@ -71,10 +71,11 @@ bundle (`dist-browser/declare-compiler.js`), and renders — no Node, no build s
 This is how "browse to a `.declare` on a static host and watch it run" works.
 
 It's the same `compile()` as the server's `POST /compile`, given a synchronous
-in-memory include host over a prefetched file map, and it too runs without typecheck —
-so only the parser rides along, not the full TypeScript program. Because nothing is
-bundled ahead of time, the production-only flags (`slim`, `prod`) don't apply here;
-the one flag that does is the render backend.
+in-memory include host over a prefetched file map — **including the typecheck**:
+the bundle embeds the TypeScript standard library's declarations, so the browser
+checks exactly what Node checks (and produces byte-identical results — a tested
+invariant). Because nothing is bundled ahead of time, the production-only flags
+(`slim`, `prod`) don't apply here; `backend` and `typecheck` do.
 
 ## Compile flags — one set, three surfaces
 
@@ -88,7 +89,7 @@ URL query, or a browser URL query.
 | **prod** | production build (precompile + bundle run-path) | *always* | the `/prod` route | dev |
 | **slim** | ship only the components the app can instantiate | `--no-slim` (or `--full`) turns it off | `?slim=0` | on |
 | **stripPos** | drop source positions from the shipped program | `--no-strip-pos` keeps them | `?stripPos=0` | stripped |
-| **typecheck** | run the advisory tsc-over-bodies pass | `--typecheck` | `?typecheck` | off |
+| **typecheck** | the tsc-over-`{ }`-bodies pass — a phase of the compile | `--no-typecheck` turns it off | `?typecheck=0` | on |
 
 So `?backend=canvas&slim=0` on the server, `--canvas --no-slim` on the CLI, and
 `?backend=canvas` in the browser all mean exactly what they read. Booleans accept

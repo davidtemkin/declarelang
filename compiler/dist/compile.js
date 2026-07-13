@@ -52,6 +52,7 @@ import { freeIdentifiers } from "./free-idents.js";
 import { fillDatapaths } from "../../runtime/dist/datapath.js";
 import { CONSTRUCTOR_NAMES } from "../../runtime/dist/expr.js";
 import { resolveIncludes, resolveAutoIncludes, exciseSpans, NO_INCLUDES } from "../../runtime/dist/include.js";
+import { typecheckBodies } from "./typecheck.js";
 import { Diag, toDiagnostic, renderReport } from "../../runtime/dist/diagnostics.js";
 /** The value-constructor names (styling rung): in CALLEE position they are
  *  the constructors expr.ts scopes into every body — `stroke(…)` builds a
@@ -170,10 +171,14 @@ export function compile(source, opts = {}) {
     let out = merged;
     for (const e of r.edits)
         out = out.slice(0, e.start) + e.text + out.slice(e.end);
-    // tsc over the resolved `{ }` bodies (opt-in). A type error blocks emission
-    // like any other, mapped to its `.declare` line (NEO6001).
-    if (opts.typecheckBodies) {
-        const typeErrors = opts.typecheckBodies(out, program);
+    // tsc over the resolved `{ }` bodies — a phase of THE compile (on unless the
+    // caller EXPLICITLY opts a latency-critical loop out). The checker is a
+    // direct import: there is no front-end that can forget to wire it, on any
+    // host — only the lib.d.ts SOURCE differs per host (typecheck.ts provideLib;
+    // an unregistered provider throws, never silently skips). A type error
+    // blocks emission like any other, mapped to its `.declare` line (NEO6001).
+    if (opts.typecheck !== false) {
+        const typeErrors = typecheckBodies(out, program);
         if (typeErrors.length > 0) {
             return { source: null, errors: typeErrors, warnings: r.warnings, ...diagnose(typeErrors, r.warnings, "typecheck") };
         }

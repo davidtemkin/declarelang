@@ -1,4 +1,3 @@
-import { type Program } from "../../runtime/dist/parser.js";
 import { NeoError } from "../../runtime/dist/errors.js";
 import { type IncludeHost } from "../../runtime/dist/include.js";
 import { type Diagnostic } from "../../runtime/dist/diagnostics.js";
@@ -29,17 +28,15 @@ export interface Compiled {
 export interface CompileOptions {
     host?: IncludeHost;
     originDir?: string;
-    /** Run the tsc-over-`{ }`-bodies typecheck (typecheck.ts) as a final phase —
-     *  opt-in because it loads the TypeScript compiler and the lib.d.ts from
-     *  disk (Node-only). A type error blocks emission like any other, reported
-     *  as an NEO6001 diagnostic mapped to its `.declare` line. */
+    /** The tsc-over-`{ }`-bodies typecheck (typecheck.ts) — ON BY DEFAULT, part
+     *  of THE compile like every other phase: the checker is imported directly
+     *  (never injected), so no front-end can exist where this flag silently
+     *  no-ops. A type error blocks emission like any other, reported as an
+     *  NEO6001 diagnostic mapped to its `.declare` line. `typecheck: false`
+     *  (URL `?typecheck=0`, CLI `--no-typecheck`) is the EXPLICIT opt-out for a
+     *  latency-critical loop (a debounced per-keystroke compile) — a visible,
+     *  greppable choice, never a wiring accident. */
     typecheck?: boolean;
-    /** The typechecker, INJECTED — Node-only (it loads TypeScript + lib.d.ts),
-     *  so keeping it out of this module's imports is what makes `compile`
-     *  browser-loadable for in-browser compilation. The Node front-end
-     *  (compile-node.ts) wires the real `typecheckBodies` when `typecheck` is
-     *  set; the browser omits it. */
-    typecheckBodies?: (resolved: string, program: Program) => NeoError[];
 }
 /** Compile a Declare source: full diagnostics (include resolve + check + scope
  *  resolution), and a SELF-CONTAINED resolved source the zero-dependency

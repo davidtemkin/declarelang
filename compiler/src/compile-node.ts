@@ -1,18 +1,33 @@
-// compile-node — the Node front-end for `compile`. It wires the two Node-only
-// dependencies that `compile.ts` deliberately does NOT import (so that module
-// stays browser-loadable for in-browser compilation): the filesystem include
-// host (also the bare-tag auto-include host), and the tsc-over-bodies
-// typechecker. Node callers — the dev server, the CLI, tests — import `compile`
-// from HERE; the browser imports the pure `./compile.js` directly and gets
-// neither (no `include`s, no auto-include, no typecheck).
+// compile-node — the Node front-end for `compile`. It wires the Node-specific
+// pieces that `compile.ts` deliberately does NOT import (so that module stays
+// browser-loadable for in-browser compilation): the filesystem include host
+// (also the bare-tag auto-include host), the tsc-over-bodies typechecker, and
+// the DISK lib.d.ts provider the checker reads its standard library through
+// (the browser front-end registers an EMBEDDED provider instead — same
+// checker, different host seam). Node callers — the dev server, the CLI,
+// tests — import `compile` from HERE; the browser imports compile-browser.
 
 import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
+import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { compile as compileCore, type CompileOptions, type Compiled } from "./compile.js";
 import { nodeIncludeHost } from "./include-node.js";
-import { typecheckBodies } from "./typecheck.js";
+import { provideLib } from "./typecheck.js";
 import { DiskTracker } from "./cache-node.js";
 import type { Closure } from "./closure.js";
+
+// The real lib.*.d.ts sit beside typescript.js — register the disk reader as
+// the checker's standard-library source (consulted lazily, only when a
+// typecheck actually runs).
+const LIB_DIR = dirname(createRequire(import.meta.url).resolve("typescript"));
+provideLib((name) => {
+  try {
+    return readFileSync(join(LIB_DIR, name), "utf8");
+  } catch {
+    return undefined;
+  }
+});
 
 export type { CompileOptions, Compiled } from "./compile.js";
 export { DiskTracker, diskProbe, statValidator } from "./cache-node.js";
@@ -33,7 +48,6 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
   return compileCore(source, {
     ...opts,
     host: opts.host ?? nodeIncludeHost(LIBRARY_ROOT),
-    typecheckBodies: opts.typecheckBodies ?? (opts.typecheck ? typecheckBodies : undefined),
   });
 }
 
@@ -58,7 +72,6 @@ export function compileTracked(source: string, opts: TrackedOptions = {}): Compi
   const result = compileCore(source, {
     ...opts,
     host: opts.host ?? nodeIncludeHost(LIBRARY_ROOT, tracker),
-    typecheckBodies: opts.typecheckBodies ?? (opts.typecheck ? typecheckBodies : undefined),
   });
   return { ...result, closure: tracker.closure(opts.props ?? {}) };
 }

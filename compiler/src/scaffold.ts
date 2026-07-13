@@ -170,7 +170,13 @@ function methodSig(m: Method): string {
  *  declared public here: a check-block is a free function, not a subclass
  *  body, so TS's protected rule would reject the legal subclass call. */
 const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
-  View: [`  scrollIntoView(): void;`],
+  View: [
+    `  scrollIntoView(): void;`,
+    // Returns the runtime stylesheet handle the `stylesheet` slot accepts —
+    // `any` until the handle type is worth naming (the effects side of this
+    // same method lives in effects.ts: pure, deps only on its arguments).
+    `  lookupStylesheet(name: string): any;`,
+  ],
   Dataset: [
     `  readonly value: any;`,
     `  read(path: readonly (string | number)[]): any;`,

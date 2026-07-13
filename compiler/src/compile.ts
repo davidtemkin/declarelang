@@ -54,6 +54,7 @@ import { freeIdentifiers } from "./free-idents.js";
 import { fillDatapaths } from "../../runtime/dist/datapath.js";
 import { CONSTRUCTOR_NAMES } from "../../runtime/dist/expr.js";
 import { resolveIncludes, resolveAutoIncludes, exciseSpans, NO_INCLUDES, type IncludeHost } from "../../runtime/dist/include.js";
+import { typecheckBodies } from "./typecheck.js";
 import { Diag, toDiagnostic, renderReport, type Diagnostic, type DiagPhase } from "../../runtime/dist/diagnostics.js";
 
 /** The value-constructor names (styling rung): in CALLEE position they are
@@ -140,17 +141,15 @@ interface Surface {
 export interface CompileOptions {
   host?: IncludeHost;
   originDir?: string;
-  /** Run the tsc-over-`{ }`-bodies typecheck (typecheck.ts) as a final phase —
-   *  opt-in because it loads the TypeScript compiler and the lib.d.ts from
-   *  disk (Node-only). A type error blocks emission like any other, reported
-   *  as an NEO6001 diagnostic mapped to its `.declare` line. */
+  /** The tsc-over-`{ }`-bodies typecheck (typecheck.ts) — ON BY DEFAULT, part
+   *  of THE compile like every other phase: the checker is imported directly
+   *  (never injected), so no front-end can exist where this flag silently
+   *  no-ops. A type error blocks emission like any other, reported as an
+   *  NEO6001 diagnostic mapped to its `.declare` line. `typecheck: false`
+   *  (URL `?typecheck=0`, CLI `--no-typecheck`) is the EXPLICIT opt-out for a
+   *  latency-critical loop (a debounced per-keystroke compile) — a visible,
+   *  greppable choice, never a wiring accident. */
   typecheck?: boolean;
-  /** The typechecker, INJECTED — Node-only (it loads TypeScript + lib.d.ts),
-   *  so keeping it out of this module's imports is what makes `compile`
-   *  browser-loadable for in-browser compilation. The Node front-end
-   *  (compile-node.ts) wires the real `typecheckBodies` when `typecheck` is
-   *  set; the browser omits it. */
-  typecheckBodies?: (resolved: string, program: Program) => NeoError[];
 }
 
 /** Compile a Declare source: full diagnostics (include resolve + check + scope
@@ -235,10 +234,14 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
   let out = merged;
   for (const e of r.edits) out = out.slice(0, e.start) + e.text + out.slice(e.end);
 
-  // tsc over the resolved `{ }` bodies (opt-in). A type error blocks emission
-  // like any other, mapped to its `.declare` line (NEO6001).
-  if (opts.typecheckBodies) {
-    const typeErrors = opts.typecheckBodies(out, program);
+  // tsc over the resolved `{ }` bodies — a phase of THE compile (on unless the
+  // caller EXPLICITLY opts a latency-critical loop out). The checker is a
+  // direct import: there is no front-end that can forget to wire it, on any
+  // host — only the lib.d.ts SOURCE differs per host (typecheck.ts provideLib;
+  // an unregistered provider throws, never silently skips). A type error
+  // blocks emission like any other, mapped to its `.declare` line (NEO6001).
+  if (opts.typecheck !== false) {
+    const typeErrors = typecheckBodies(out, program);
     if (typeErrors.length > 0) {
       return { source: null, errors: typeErrors, warnings: r.warnings, ...diagnose(typeErrors, r.warnings, "typecheck") };
     }

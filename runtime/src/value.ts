@@ -121,11 +121,23 @@ export function fillEqual(a: Fill, b: Fill): boolean {
 }
 
 /** A theme: a plain immutable record of design tokens (ruled, v1 —
- *  wholesale-swapped, never mutated in place). The default is one shared
- *  empty record, so `theme.anything` reads as undefined rather than
- *  throwing when nothing provides a theme. */
+ *  wholesale-swapped, never mutated in place). The default is the HOUSE
+ *  theme (design/components-baseline.md Contract 2): the ruled v1 role
+ *  vocabulary with the house light palette, so `theme.role` in library
+ *  components ALWAYS resolves — no provider means the house look, never a
+ *  fallback expression in component source. `depth` (0 = flat …
+ *  1 = dimensional) is the treatment dial components translate in their
+ *  decoration constraints. Partial reskin is explicit-base spread:
+ *  `theme = { { ...app.theme, accent: 0xE05252 } }`. (The dark-aware house —
+ *  a binding default off `app.dark` — is the noted follow-up.) */
 export type Theme = Readonly<Record<string, unknown>>;
-export const DEFAULT_THEME: Theme = Object.freeze({});
+export const DEFAULT_THEME: Theme = Object.freeze({
+  bg: 0xF4F6FA, surface: 0xFFFFFF, line: 0xDBE1E9,
+  text: 0x1B2733, textMuted: 0x6C7A88, textFaint: 0xAAB4BE,
+  accent: 0x2E6FE0, accentText: 0xFFFFFF,
+  control: 0xE7EBF1, controlActive: 0xD3E2FC,
+  depth: 1,
+});
 
 /** A parent-relative percentage, as written (`{ percent: 50 }` for `50%`).
  *  It stays symbolic: resolving it against a parent measurement is constraint

@@ -2,18 +2,22 @@
 //
 // `compiler/dist/compile-browser.js` is already browser-safe ES (its whole graph
 // is the pure `compile.ts` core — no node: imports), EXCEPT for one bare import:
-// `free-idents.ts` pulls the TypeScript expression parser (`import ts from
-// "typescript"`). A browser can't resolve that bare specifier, and TypeScript
-// ships only a CJS/UMD entry — so we bundle it in. That single dependency is the
-// ~8 MB (≈1 MB gzipped) the artifact carries; nothing else is heavy.
+// TypeScript (`import ts from "typescript"` — free-idents' expression parser AND
+// typecheck.ts's checker ride the same module). A browser can't resolve that
+// bare specifier, and TypeScript ships only a CJS/UMD entry — so we bundle it
+// in. That single dependency is the ~8 MB (≈1 MB gzipped) the artifact carries.
 //
-// No typecheck path is reachable (the browser compiles like POST /compile, with
-// `{}`), so tsc's program/checker never enters the graph — only the parser does.
+// The FULL typecheck is reachable here, exactly as on Node: the generated entry
+// below embeds the ES2022 `lib.*.d.ts` closure (the standard library's typed
+// surface — data, ~52 KB gz) and registers it via provideLib() at bundle init,
+// so `compile(src, { typecheck: true })` means the same thing in the browser
+// and the worker as it does on every other surface (in-browser-dev.md §3).
 //
 //   node tools/build-compiler.mjs
-// writes dist-browser/declare-compiler.js  (an ES module: compile, compileTracked, setDefaultLibrary, memoryHost, highlight, fnv1a)
+// writes dist-browser/declare-compiler.js  (an ES module: compile, compileTracked, setDefaultLibrary, provideLib, memoryHost, highlight, fnv1a)
 
 import path from "node:path";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { mkdirSync, statSync, readFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
@@ -26,6 +30,35 @@ const OUT_DIR = path.join(ROOT, "dist-browser");
 const OUT = path.join(OUT_DIR, "declare-compiler.js");
 
 mkdirSync(OUT_DIR, { recursive: true });
+
+// ── The embedded lib.d.ts closure ────────────────────────────────────────────
+// Walk the `/// <reference lib="…" />` chain from the compile target's default
+// lib (lib.es2022.d.ts) and inline every reachable text — the same files the
+// Node provider reads from disk, so browser and Node typechecks see the
+// IDENTICAL standard library (the identical-output invariant includes the lib).
+const TS_LIB_DIR = path.dirname(createRequire(import.meta.url).resolve("typescript"));
+function libClosure(entryLib) {
+  const texts = {};
+  const queue = [entryLib];
+  while (queue.length > 0) {
+    const name = queue.shift();
+    if (texts[name] !== undefined) continue;
+    const text = readFileSync(path.join(TS_LIB_DIR, name), "utf8");
+    texts[name] = text;
+    for (const m of text.matchAll(/\/\/\/ <reference lib="(.+?)" \/>/g)) queue.push(`lib.${m[1]}.d.ts`);
+  }
+  return texts;
+}
+const LIBS = libClosure("lib.es2022.d.ts");
+
+// The generated entry: register the embedded libs, then re-export the whole
+// compile-browser surface — the bundle's init IS the provider registration.
+const ENTRY_SRC = `
+import { provideLib } from ${JSON.stringify(ENTRY)};
+const LIBS = ${JSON.stringify(LIBS)};
+provideLib((name) => LIBS[name]);
+export * from ${JSON.stringify(ENTRY)};
+`;
 
 // TypeScript's UMD builds its Node `sys` object at import time when it detects a
 // CommonJS/Node environment — which touches `os.platform()`, `fs`, `path`, etc.
@@ -65,7 +98,7 @@ const stubPlugin = {
 };
 
 const result = await build({
-  entryPoints: [ENTRY],
+  stdin: { contents: ENTRY_SRC, resolveDir: ROOT, loader: "js" },
   bundle: true,
   format: "esm",
   platform: "browser",       // errors on any stray node: import we didn't stub

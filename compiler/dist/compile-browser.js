@@ -1,10 +1,12 @@
 // compile-browser — the browser front-end for `compile`. Counterpart to
-// compile-node.ts: where that injects the filesystem include host and the tsc
-// typechecker, this injects a SYNCHRONOUS in-memory include host over a map of
-// prefetched sources — and NO typecheck (parity with the dev server's
-// POST /compile, which compiles with `{}`), so the heavy tsc program/checker
-// never loads. Only the expression parser `free-idents` needs is pulled from
-// `typescript`, which the bundle includes.
+// compile-node.ts: where that injects the filesystem include host, this
+// injects a SYNCHRONOUS in-memory include host over a map of prefetched
+// sources. The compile itself — INCLUDING the tsc-over-bodies typecheck — is
+// the ONE core (compile.ts imports the checker directly; no front-end wires
+// it, so no front-end can forget it). The only host seam is where lib.d.ts
+// texts come from: the bundle EMBEDS the es2022 closure and registers it at
+// init (build-compiler.mjs → provideLib), mirroring compile-node's disk
+// provider.
 //
 // Why in-memory: `compile.ts` is synchronous and so is the include seam
 // (IncludeHost.resolve returns source-or-null, not a Promise), but a browser
@@ -19,6 +21,10 @@
 // dist-browser/declare-compiler.js — the artifact the homepage warm-loads.
 import { compile as compileCore } from "./compile.js";
 import { searchIncludePath } from "./include-search.js";
+// Re-exported so the BUNDLE INIT (tools/build-compiler.mjs's generated entry)
+// can register the embedded lib.d.ts closure — which is what makes `typecheck`
+// a real flag here, identical to Node, instead of a silent no-op.
+export { provideLib } from "./typecheck.js";
 // Re-exported so the browser bundle also carries the source-viewer highlighter
 // (the same highlight() the dev server runs for `?view=source`). It has no
 // dependencies, so it adds negligible weight — web/boot-source.js reads it here.
@@ -122,7 +128,10 @@ export function compileTracked(source, opts = {}) {
         resolveLibrary: (path) => record(inner.resolveLibrary(path)),
     };
     const { files: _f, manifest: _m, libraryRoot: _r, mainId, mainValidator, validators: _v, props, trackLibrary: _t, ...compileOpts } = opts;
-    const result = compileCore(source, { ...compileOpts, host: opts.host ?? host });
+    const result = compileCore(source, {
+        ...compileOpts,
+        host: opts.host ?? host,
+    });
     const entries = [];
     if (mainId !== undefined)
         entries.push({ id: mainId, kind: "file", v: mainValidator ?? { hash: fnv1a(source) } });

@@ -112,8 +112,16 @@ test("residue — aggregation over a reactive node collection blocks", () => {
 });
 
 test("residue — opaque call target blocks (not assumed pure)", () => {
-  const e = residueErrors(`App [ v: View [ width = { app.mysteryLib() } ] ]`);
-  assert.ok(e.some((x) => /unresolved call target/.test(x.message)), JSON.stringify(e.map((x) => x.message)));
+  // With the (default) typecheck phase on, an unknown method dies EARLIER as a
+  // member miss — phased diagnostics, same defect, better message:
+  const src = `App [ v: View [ width = { app.mysteryLib() } ] ]`;
+  const d = compile(src, {});
+  assert.ok(!d.source && d.errors.some((x) => /'mysteryLib' is not a member/.test(x.message)), d.report);
+  // The residue arm stays load-bearing on the EXPLICIT typecheck opt-out (the
+  // latency escape must be exactly as sound about dependencies):
+  const r = compile(src, { typecheck: false });
+  assert.ok(!r.source, "opt-out still blocks the unanalyzable constraint");
+  assert.ok(r.errors.some((x) => /unresolved call target/.test(x.message)), JSON.stringify(r.errors.map((x) => x.message)));
 });
 
 test("language-method effect signature makes the call analyzable (no residue)", () => {
@@ -203,6 +211,47 @@ function compileProgram(src) {
   if (!r.source) throw new Error("compile: " + r.errors.map((e) => e.message).join("; "));
   return parseProgram(r.source);
 }
+
+console.log("\n─ D. self-dependence: a constraint may not read its own slot ─");
+
+// The check fires inside compile() (annotate → hard constraint-phase error), so
+// a self-dep program REFUSES TO COMPILE — assert at that layer.
+function compileRefuses(src, re) {
+  const r = compile(src, {});
+  assert.equal(r.source, null, "expected compile to refuse");
+  assert.match(r.errors.map((e) => e.message).join("\n"), re);
+}
+
+test("self-dep — bare spread of own slot is refused at compile (the `...theme` trap)", () => {
+  compileRefuses(`App [ width = 100, height = 100,
+      theme = { ({ a: 1 }) },
+      p: View [ theme = { ({ ...theme, b: 2 }) } ] ]`, /reads itself/);
+});
+
+test("self-dep — App-root `app.` spelling of own slot is refused at compile", () => {
+  compileRefuses(`App [ width = 100, height = 100,
+      theme = { ({ ...app.theme, a: 1 }) } ]`, /reads itself/);
+});
+
+test("self-dep — a set-attribute reading its own slot is refused", () => {
+  compileRefuses(`App [ width = 100, height = 100,
+      v: View [ width = 50, x = { this.x + 1 } ] ]`, /reads itself/);
+});
+// (A computed DECL default reading itself takes the inliner path, not this
+// check — its handling is the inliner's cycle guard, out of scope here.)
+
+test("self-dep — a sibling/ancestor base is NOT self (the blessed spread)", () => {
+  const r = extract(`App [ width = 100, height = 100,
+      theme = { ({ a: 1 }) },
+      p: View [ theme = { ({ ...app.theme, b: 2 }) } ] ]`);
+  assert.equal(errsOf(r, "theme", "p").length, 0);
+});
+
+test("self-dep — content intrinsics are not self (`width` reading contentWidth)", () => {
+  const r = extract(`App [ width = 100, height = 100,
+      v: View [ width = { Math.min(this.contentWidth, 480) } ] ]`);
+  assert.equal(errsOf(r, "width", null).length, 0);
+});
 
 console.log(`\ndep-extract: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

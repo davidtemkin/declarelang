@@ -230,7 +230,7 @@ async function ensureProdBuild(name, backend = "dom", slim = true) {
   // exactly like a main-file edit. (The old sha256-of-main-source key missed
   // everything but the main file.)
   const propsNow = {
-    backend, slim: String(slim), stripPos: "true", typecheck: "false",
+    backend, slim: String(slim), stripPos: "true", typecheck: "true",
     toolchain: toolchainFingerprint(),
   };
   const fresh = (m) => {

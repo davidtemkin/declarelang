@@ -2,9 +2,12 @@
 // (scaffold.ts) turns the component schemas into an ambient TypeScript surface;
 // this module appends a CHECK-BLOCK per resolved `{ }` body and runs stock tsc
 // over the whole, then maps each TS diagnostic back to a `.declare` LINE through
-// the diagnostics mechanism (diagnostics.ts, code NEO6001). Node-only (it
-// imports `typescript` and reads the real lib.d.ts from disk), so it lives on
-// the compile front-end, never in the zero-dependency runtime.
+// the diagnostics mechanism (diagnostics.ts, code NEO6001). HOST-AGNOSTIC: it
+// imports `typescript` statically (the bundle already carries it for
+// free-idents) and reads the `lib.*.d.ts` texts through ONE injected provider
+// (provideLib below — Node registers a disk reader, the browser bundle embeds
+// the es2022 closure), so the SAME checker runs on the compile front-end, in
+// the browser, and in the compile worker — never in the zero-dependency runtime.
 //
 // The check-block SHAPE (scaffold.ts documents it): a resolved body has had its
 // bare names rewritten to `this.slot` / `parent.…` / `classroot.…` (compile.ts),
@@ -42,8 +45,7 @@
 // is neo surface the runtime rewrites (expr.ts), not TypeScript; typechecking
 // data reads is a later slice. All other `{ }` bodies (attribute expressions,
 // declaration-default bindings, method statements) are checked.
-import path from "node:path";
-import { createRequire } from "node:module";
+import ts from "typescript";
 import { parseProgram } from "../../runtime/dist/parser.js";
 import { programSchemas } from "../../runtime/dist/check.js";
 import { generateScaffold, memberSig, tsType } from "./scaffold.js";
@@ -52,10 +54,6 @@ import { declaredType } from "../../runtime/dist/value.js";
 import { fillDatapaths } from "../../runtime/dist/datapath.js";
 import { Diag } from "../../runtime/dist/diagnostics.js";
 import { NeoError } from "../../runtime/dist/errors.js";
-const require = createRequire(import.meta.url);
-// The real lib.*.d.ts sit beside typescript.js — read from disk so
-// strictBindCallApply and the standard library are in scope.
-const LIB_DIR = path.dirname(require.resolve("typescript"));
 /** Typecheck every resolved `{ }` body in `resolved` (compile()'s output — a
  *  self-contained program whose bare names are already paths). Returns coded
  *  NEO6001 diagnostics (empty when clean). Never throws on TS internals: a
@@ -432,24 +430,36 @@ function tsSlotType(schemas, tag, slot) {
     const t = attrType(schema, slot);
     return t === null ? "unknown" : tsType(t);
 }
-/** Run stock tsc over the scaffold + the case file in an in-memory host (real
- *  lib.d.ts from disk), under `strict`. Returns the case file's diagnostics. */
+// ── The standard-library provider (the ONE host seam) ────────────────────────
+// tsc needs the ES `lib.*.d.ts` declaration files (data, not code — the typed
+// surface of the JS standard library). WHERE they come from is the only
+// host-specific fact in this module: Node reads them from disk beside the
+// `typescript` package (compile-node.ts registers that provider at load);
+// the browser bundle EMBEDS the es2022 closure (~52 KB gz) and registers it at
+// bundle init (tools/build-compiler.mjs) — which is what makes `typecheck` a
+// real flag in the browser and the worker, not a Node-only capability. A
+// typecheck attempted with NO provider registered throws loudly (a wiring bug
+// must never degrade into silently-unchecked code).
+let libProvider = null;
+/** Register where `lib.*.d.ts` texts come from (Node: disk; browser: embedded).
+ *  Consulted lazily, only when a typecheck actually runs. */
+export function provideLib(provider) {
+    libProvider = provider;
+}
+/** Run stock tsc over the scaffold + the case file in an in-memory host (libs
+ *  via the registered provider), under `strict`. Returns the case file's
+ *  diagnostics. */
 function runTsc(scaffold, caseSrc) {
-    // Lazy `typescript` import: only a Node compile with typecheck enabled pays
-    // for loading it, and the runtime bundle never sees it.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const ts = require("typescript");
     const files = { "scaffold.ts": scaffold, "case.ts": caseSrc };
-    const readFile = (name) => {
-        if (Object.hasOwn(files, name))
-            return files[name];
-        try {
-            return require("node:fs").readFileSync(name, "utf8");
-        }
-        catch {
-            return undefined;
-        }
+    // A lib request may arrive as a bare name or prefixed by the default-lib
+    // location ("./lib.es2021.d.ts") — normalize to the basename for the provider.
+    const lib = (name) => {
+        if (libProvider === null)
+            throw new Error("typecheck: no lib.d.ts provider registered (provideLib) — the host wiring is broken");
+        const base = name.split("/").pop() ?? name;
+        return base.startsWith("lib.") && base.endsWith(".d.ts") ? libProvider(base) : undefined;
     };
+    const readFile = (name) => (Object.hasOwn(files, name) ? files[name] : lib(name));
     const options = {
         strict: true, // strictBindCallApply — the check-block shape depends on it
         target: ts.ScriptTarget.ES2022,
@@ -463,11 +473,12 @@ function runTsc(scaffold, caseSrc) {
             const text = readFile(name);
             return text === undefined ? undefined : ts.createSourceFile(name, text, target, true);
         },
-        getDefaultLibFileName: (o) => path.join(LIB_DIR, ts.getDefaultLibFileName(o)),
+        getDefaultLibFileName: (o) => ts.getDefaultLibFileName(o),
+        getDefaultLibLocation: () => "",
         writeFile: () => { },
         getCurrentDirectory: () => "/",
         getDirectories: () => [],
-        fileExists: (name) => Object.hasOwn(files, name) || require("node:fs").existsSync(name),
+        fileExists: (name) => Object.hasOwn(files, name) || lib(name) !== undefined,
         readFile,
         getCanonicalFileName: (n) => n,
         useCaseSensitiveFileNames: () => true,

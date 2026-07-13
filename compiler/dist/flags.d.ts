@@ -14,8 +14,10 @@ export interface CompileFlags {
      *  size). Set false (`?stripPos=0` / `--no-strip-pos`) to keep them for
      *  debugging a precompiled build. */
     stripPos: boolean;
-    /** Run the tsc-over-bodies typecheck pass (off by default — the runtime schema
-     *  check is the real gate). */
+    /** The tsc-over-bodies typecheck pass — ON by default, a phase of THE
+     *  compile (compile.ts runs the checker directly; no surface can no-op it).
+     *  `?typecheck=0` / `--no-typecheck` is the explicit opt-out for a
+     *  latency-critical loop. */
     typecheck: boolean;
 }
 /** One spec per flag — the SINGLE source of truth every surface derives from.

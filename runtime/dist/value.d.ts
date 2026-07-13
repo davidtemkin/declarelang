@@ -53,9 +53,15 @@ export declare function shadowEqual(a: Shadow | null, b: Shadow | null): boolean
 export declare function strokeEqual(a: Stroke | null, b: Stroke | null): boolean;
 export declare function fillEqual(a: Fill, b: Fill): boolean;
 /** A theme: a plain immutable record of design tokens (ruled, v1 —
- *  wholesale-swapped, never mutated in place). The default is one shared
- *  empty record, so `theme.anything` reads as undefined rather than
- *  throwing when nothing provides a theme. */
+ *  wholesale-swapped, never mutated in place). The default is the HOUSE
+ *  theme (design/components-baseline.md Contract 2): the ruled v1 role
+ *  vocabulary with the house light palette, so `theme.role` in library
+ *  components ALWAYS resolves — no provider means the house look, never a
+ *  fallback expression in component source. `depth` (0 = flat …
+ *  1 = dimensional) is the treatment dial components translate in their
+ *  decoration constraints. Partial reskin is explicit-base spread:
+ *  `theme = { { ...app.theme, accent: 0xE05252 } }`. (The dark-aware house —
+ *  a binding default off `app.dark` — is the noted follow-up.) */
 export type Theme = Readonly<Record<string, unknown>>;
 export declare const DEFAULT_THEME: Theme;
 /** A parent-relative percentage, as written (`{ percent: 50 }` for `50%`).

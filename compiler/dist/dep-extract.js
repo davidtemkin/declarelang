@@ -363,6 +363,21 @@ export function extractProgram(program) {
             if (!/^(this|parent|classroot)(\.root)?$/.test(rd))
                 canon.add(rd);
         }
+        // SELF-DEPENDENCE — a constraint that reads the slot it defines is a cycle
+        // by construction: it invalidates itself on every run (the bare-`...theme`
+        // trap in a theme provision → `this.theme`; on the App root the `app.`
+        // spelling lands as `this.root.<attr>`). The dep set makes the cycle
+        // statically visible, so it is refused here with the rewrite named
+        // (design/components-baseline.md Contract 2). Dotted attrs (state overrides
+        // targeting descendants) are skipped — their `this.` frame is the override's
+        // owner, not the target slot. (The rare explicit `classroot.<attr>` spelling
+        // on a class root's own slot is not caught in v1.)
+        if (!c.attr.includes(".")) {
+            const selfPaths = [`this.${c.attr}`, ...(c.tag === "App" ? [`this.root.${c.attr}`] : [])];
+            if ([...canon].some((rd) => selfPaths.some((s) => rd === s || rd.startsWith(s + ".")))) {
+                errors.push({ message: `'${c.attr}' reads itself — a { } cannot depend on the slot it defines; name the base it derives from instead (e.g. a parent's or the app's '${c.attr}', or a helper such as houseTheme(…))`, offset: 0 });
+            }
+        }
         out.push({ tag: c.tag, name: c.name, attr: c.attr, offset: c.offset, node: c.node, reads: [...canon], errors: errors.map((e) => ({ message: e.message, offset: e.offset })) });
     }
     return out;

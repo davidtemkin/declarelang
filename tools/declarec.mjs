@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // declarec — Declare's production build (the emit half + CLI).
 //
-//   node tools/declarec.mjs <app.declare> [-o dist] [--no-strip-pos] [--typecheck] [--quiet]
+//   node tools/declarec.mjs <app.declare> [-o dist] [--no-strip-pos] [--no-typecheck] [--quiet]
 //
 // Precompiles an app (compiler/dist/declarec.js: parse + resolve + typecheck at
 // BUILD time → serializable program), bundles the runtime's RUN-PATH ONLY with
@@ -66,11 +66,11 @@ export async function buildProduction(source, opts = {}) {
     backend: opts.backend === "canvas" ? "canvas" : "dom",
     slim: String(opts.slim !== false),
     stripPos: String(opts.stripPos ?? true),
-    typecheck: String(opts.typecheck ?? false),
+    typecheck: String(opts.typecheck ?? true),
     ...(opts.props ?? {}),
   };
   const mainId = opts.originDir ? join(opts.originDir, `${name}.declare`) : undefined;
-  const built = compileProgram(source, { originDir: opts.originDir, stripPos: opts.stripPos ?? true, typecheck: opts.typecheck ?? false, mainId, props });
+  const built = compileProgram(source, { originDir: opts.originDir, stripPos: opts.stripPos ?? true, typecheck: opts.typecheck, mainId, props });
   if (built.program === null) {
     return { ok: false, errors: built.errors, warnings: built.warnings, diagnostics: built.diagnostics, report: built.report, closure: built.closure, files: [], sizes: null };
   }
@@ -181,7 +181,7 @@ export async function writeProduction({ source, name = "app", srcDir = null, out
 
 async function cli(argv) {
   // CLI-only options (output dir, quiet); the compile flags — --backend/--canvas,
-  // --no-slim, --no-strip-pos, --typecheck — share the canonical model (flags.ts),
+  // --no-slim, --no-strip-pos, --no-typecheck — share the canonical model (flags.ts),
   // so they mean exactly what the same names mean as server/browser URL flags.
   const passthrough = [];
   let outDir = null, quiet = false, doHighlight = false;
@@ -196,7 +196,7 @@ async function cli(argv) {
   const { flags, rest } = parseArgvFlags(passthrough, { ...DEFAULT_FLAGS, prod: true }); // declarec is always a production build
   const input = rest.find((a) => !a.startsWith("-")) ?? null;
   if (input === null) {
-    console.error("usage: declarec <app.declare> [-o dist] [--canvas] [--no-slim] [--no-strip-pos] [--typecheck] [--quiet]");
+    console.error("usage: declarec <app.declare> [-o dist] [--canvas] [--no-slim] [--no-strip-pos] [--no-typecheck] [--quiet]");
     console.error("       declarec --highlight <app.declare> [-o out.json]   # preprocessed form for the code viewer");
     process.exit(2);
   }

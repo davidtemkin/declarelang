@@ -78,15 +78,13 @@ function stripPos(node) {
  *  consumes. On any error, `program` is null and `errors` carries every
  *  diagnostic (nothing is emitted). */
 export function compileProgram(source, opts = {}) {
-    // 1) The full Node-side compile: bare-name resolution + include/auto-include
-    //    inlining. The tsc-over-bodies typecheck models element instance types
-    //    (declared attributes included) and runs corpus-clean — zero false
-    //    positives (diagnostics.md §2, the 2026-07-13 revision) — but stays off
-    //    by default, matching the dev path, until verify flips it on as rung 3;
-    //    the runtime schema `check()` below is the always-on gate. Opt in with
-    //    `typecheck: true`.
+    // 1) The full compile: bare-name resolution + include/auto-include inlining
+    //    + the tsc-over-bodies typecheck (a phase of THE compile, on by default
+    //    — compile.ts runs the checker directly; `typecheck: false` is the
+    //    caller's explicit opt-out). The runtime schema `check()` below remains
+    //    the always-on structural gate.
     const { mainId, props, stripPos: strip, ...compileOpts } = opts;
-    const c = compileTracked(source, { ...compileOpts, mainId, props, typecheck: opts.typecheck ?? false });
+    const c = compileTracked(source, { ...compileOpts, mainId, props });
     if (c.source === null) {
         return { program: null, errors: c.errors, warnings: c.warnings, diagnostics: c.diagnostics, report: c.report, closure: c.closure, usedComponents: [] };
     }

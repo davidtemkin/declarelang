@@ -64,7 +64,13 @@ export function fillEqual(a, b) {
     return a.angle === b.angle && a.stops.length === b.stops.length &&
         a.stops.every((s, i) => s.offset === b.stops[i].offset && s.color === b.stops[i].color);
 }
-export const DEFAULT_THEME = Object.freeze({});
+export const DEFAULT_THEME = Object.freeze({
+    bg: 0xF4F6FA, surface: 0xFFFFFF, line: 0xDBE1E9,
+    text: 0x1B2733, textMuted: 0x6C7A88, textFaint: 0xAAB4BE,
+    accent: 0x2E6FE0, accentText: 0xFFFFFF,
+    control: 0xE7EBF1, controlActive: 0xD3E2FC,
+    depth: 1,
+});
 /** Narrow an AttrValue to the Percent arm (no longer the only object in the
  *  union since decoration values landed — the key is the discriminant). */
 export function isPercent(v) {

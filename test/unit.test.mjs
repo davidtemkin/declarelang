@@ -2639,7 +2639,11 @@ await test("prevailing: theme is a token record — wholesale-swapped, followed 
     panel: View [
       chip: View [ width = { this.theme.radius * 2 } ] ] ]`);
   assert.equal(app.panel.chip.width, 12, "tokens read through the prevailing chain");
-  assert.deepEqual(build("App [ ]").theme, {}, "the default theme is the empty record");
+  // The default theme is the HOUSE record (design/components-baseline.md
+  // Contract 2, ruled 2026-07-13): `theme.role` always resolves — no provider
+  // means the house look, so library components carry no fallback expressions.
+  assert.equal(build("App [ ]").theme.control, 0xE7EBF1, "the default theme is the HOUSE record — a role always resolves");
+  assert.equal(build("App [ ]").theme.depth, 1, "the treatment dial rides the theme like any token");
   assert.throws(() => build("App [ theme = null ]"), /a Theme \(a token record/);
 });
 
@@ -4229,13 +4233,16 @@ await test("compile() emit: a diamond splices the shared file's class exactly on
 });
 
 await test("compile() emit: an included body's bare name is fully resolved (nothing unresolved reaches output)", () => {
+  // ("" + gap): a bare number into the string-typed `text` slot is rejected on
+  // BOTH sides of the brackets — declaratively (`text = 3` errors) and by the
+  // typecheck phase — so the fixture converts explicitly, as an app would.
   const host = memHost({
-    "/lib.declare": "class Box extends View [ gap: number = 3,\n  Text [ text = { gap } ] ]",
+    "/lib.declare": 'class Box extends View [ gap: number = 3,\n  Text [ text = { "" + gap } ] ]',
   });
   const r = compile('include [ "lib.declare" ]\nApp [ width=1, height=1, Box [ ] ]', { host, originDir: "/" });
-  assert.equal(r.errors.length, 0, "compiles clean");
+  assert.equal(r.errors.length, 0, "compiles clean: " + r.report);
   // `gap` inside the named child's body means the enclosing class root's gap.
-  assert.match(r.source, /text = \{ classroot\.gap \}/, "the included nested body resolved to classroot.gap");
+  assert.match(r.source, /text = \{ "" \+ classroot\.gap \}/, "the included nested body resolved to classroot.gap");
   assert.doesNotThrow(() => build(r.source), "the emitted source is self-contained");
 });
 

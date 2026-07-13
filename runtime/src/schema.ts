@@ -136,6 +136,9 @@ const ViewSchema: ComponentSchema = {
     // reading measure while code fills the column (code wider than prose). Set via
     // a `{ }` object; prevailing, so one ancestor sets the flow geometry below it.
     richTextLayout: { kind: "record", name: "RichTextLayout" },
+    // The `theme` slot's runtime default is the HOUSE theme — populated in
+    // value.ts (DEFAULT_THEME, the single source; view.ts wires it as the
+    // slot's def), so `theme.role` in library components always resolves.
     theme: { kind: "record", name: "Theme" },
     // Native text selection — a prevailing slot so a whole subtree opts in from
     // one place: `selectable = true` on a container makes all its Text (including
