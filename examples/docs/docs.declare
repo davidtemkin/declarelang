@@ -165,10 +165,11 @@ class Example extends View [ width = { parent.width },
     stage: View [ width = { parent.width }, height = 250, fill = { theme.chipBg },
         run:     HTML [ width = { parent.width }, height = { parent.height },
                         slot = { classroot.live ? "run:" + classroot.cname : "" } ],
-        // a grey hairline divides the code above from the running app below; the green
-        // spine (drawn OVER both) picks up where the code's gold bar leaves off, same x/width
-        divider: View [ x = 0, y = 0, width = { parent.width }, height = 1, fill = { app.dark ? 0x2E4250 : 0xC4CFD8 } ],
-        spine:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = 0x4CAF50 ],
+        // a blue rule (a darker shade of the chipBg box tint) divides the code above from the
+        // running app below; the gold spine (drawn OVER both) continues the code's gold left bar
+        // down the preview, same x/width
+        divider: View [ x = 0, y = 0, width = { parent.width }, height = 2, fill = { theme.rule } ],
+        spine:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = 0xE6B450 ],
         ],
     ]
 
@@ -206,8 +207,8 @@ class RunBlock extends View [ width = { parent.width },
     stage: View [ width = { parent.width }, height = 200, fill = { theme.chipBg },
         run:     HTML [ width = { parent.width }, height = { parent.height },
                         slot = { classroot.live ? "run:" + classroot.rid : "" } ],
-        divider: View [ x = 0, y = 0, width = { parent.width }, height = 1, fill = { app.dark ? 0x2E4250 : 0xC4CFD8 } ],
-        spine:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = 0x4CAF50 ],
+        divider: View [ x = 0, y = 0, width = { parent.width }, height = 2, fill = { theme.rule } ],
+        spine:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = 0xE6B450 ],
         ],
     ]
 
