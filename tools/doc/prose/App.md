@@ -7,7 +7,7 @@ one reads the host extent. The attributes below are fed by the runtime from the 
 the embedding element): you **read** them, you never set them.
 
 ```declare
-App [ fill = #0B141B,
+App [ fill = white,
     header: View [ width = { app.hostWidth }, opacity = { 1 - app.scrollY / 200 } ],
 ]
 ```

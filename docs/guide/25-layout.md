@@ -7,11 +7,13 @@ child element (OpenLaszlo's `<simplelayout>`), and not the container's *type*
 is a slot.
 
 ```declare
-View [ x = 28, y = 26,
-    layout: SimpleLayout [ axis = y, spacing = 16 ],
-    Text [ text = "Humidity" ],
-    Text [ text = "Wind" ],
-    Text [ text = "Sunrise" ],
+App [ fill = white, textColor = black,
+    View [ x = 28, y = 26,
+        layout: SimpleLayout [ axis = y, spacing = 16 ],
+        Text [ text = "Humidity" ],
+        Text [ text = "Wind" ],
+        Text [ text = "Sunrise" ],
+        ],
     ]
 ```
 
@@ -36,16 +38,18 @@ The workhorse: lay children along one `axis` with `spacing` between them. Nest t
 of them for a row-of-columns:
 
 ```declare
-moreData: View [ x = 15,
-    layout: SimpleLayout [ axis = x, spacing = -10 ],   // two columns side by side
+App [ fill = white, textColor = black,
+    moreData: View [ x = 15, y = 24,
+        layout: SimpleLayout [ axis = x, spacing = -10 ],   // two columns side by side
 
-    labels: View [ layout: SimpleLayout [ axis = y, spacing = 1 ],
-        Text [ text = "Humidity:" ],
-        Text [ text = "Wind:" ],
-        ],
-    fields: View [ layout: SimpleLayout [ axis = y, spacing = 1 ],
-        Text [ text = "62%" ],
-        Text [ text = "8 mph" ],
+        labels: View [ layout: SimpleLayout [ axis = y, spacing = 1 ],
+            Text [ text = "Humidity:" ],
+            Text [ text = "Wind:" ],
+            ],
+        fields: View [ layout: SimpleLayout [ axis = y, spacing = 1 ],
+            Text [ text = "62%" ],
+            Text [ text = "8 mph" ],
+            ],
         ],
     ]
 ```

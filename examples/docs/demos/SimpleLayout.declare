@@ -1,8 +1,8 @@
 // SimpleLayout.declare — children stacked down the y axis, evenly spaced
-App [ textColor = whitesmoke,
+App [ fill = white, textColor = black,
     View [ x = 28, y = 24, layout: SimpleLayout [ axis = y, spacing = 12 ],
-        Bar [ width = 320, label = "north", value = 72, tint = dodgerblue ],
-        Bar [ width = 320, label = "east",  value = 54, tint = steelblue ],
-        Bar [ width = 320, label = "south", value = 88, tint = slategray ],
-        Bar [ width = 320, label = "west",  value = 41, tint = midnightblue ] ],
+        Bar [ width = 320, label = "north", value = 72, tint = royalblue ],
+        Bar [ width = 320, label = "east",  value = 54, tint = dodgerblue ],
+        Bar [ width = 320, label = "south", value = 88, tint = cornflowerblue ],
+        Bar [ width = 320, label = "west",  value = 41, tint = lightskyblue ] ],
     ]

@@ -6,7 +6,7 @@ header that springs in on scroll, a value that chases wherever data puts it. Con
 inherits `attribute` and `to`; its own knobs are the spring constants.
 
 ```declare
-dot: View [ width = 10, height = 10, cornerRadius = 5, fill = #37E0C8,
+dot: View [ width = 10, height = 10, cornerRadius = 5, fill = turquoise,
     followX: Spring [ attribute = x, to = { app.pointerX - 5 },
                       stiffness = 120, damping = 14, mass = 0.6 ] ]
 ```

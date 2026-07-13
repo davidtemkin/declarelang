@@ -1,5 +1,5 @@
 App [
-        bar: View [ height = 22, cornerRadius = 4, fill = #4C8DFF, width = 0,
+        bar: View [ height = 22, cornerRadius = 4, fill = royalblue, width = 0,
             grow: Spring [ attribute = width, to = { classroot.value / 100 * 144 },
                            stiffness = 190, damping = 20 ] ],
 ]

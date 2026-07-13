@@ -9,7 +9,7 @@ inside the brackets, so the source shape mirrors the visual shape; *how* they ar
 arranged is the `layout` attribute, not the container's type.
 
 ```declare
-View [ width = 200, height = 120, fill = #1E2A36, cornerRadius = 8,
+View [ width = 200, height = 120, fill = white, cornerRadius = 8,
   Text [ text = "hello", x = 12, y = 12 ]
 ]
 ```
@@ -116,7 +116,7 @@ stray press) — answered by an `onClick()` handler. The primary interaction eve
 `mouseDown`/`mouseUp`/`mouseMove` are there when you need the raw phases.
 
 ```declare
-View [ fill = #2A3A4A, onClick() { classroot.select() } ]
+View [ fill = white, onClick() { classroot.select() } ]
 ```
 
 ## onInit

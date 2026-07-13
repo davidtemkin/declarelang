@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // declarec — Declare's production build (the emit half + CLI).
 //
-//   node tools/declarec.mjs <app.declare> [-o dist] [--keep-pos] [--quiet]
+//   node tools/declarec.mjs <app.declare> [-o dist] [--no-strip-pos] [--typecheck] [--quiet]
 //
 // Precompiles an app (compiler/dist/declarec.js: parse + resolve + typecheck at
 // BUILD time → serializable program), bundles the runtime's RUN-PATH ONLY with
@@ -59,7 +59,7 @@ const gz = (s) => gzipSync(Buffer.from(s)).length;
  *  assets are copied separately (CLI) or served from the source dir (server). */
 export async function buildProduction(source, opts = {}) {
   const name = opts.name ?? "app";
-  const built = compileProgram(source, { originDir: opts.originDir, stripPos: opts.stripPos ?? true });
+  const built = compileProgram(source, { originDir: opts.originDir, stripPos: opts.stripPos ?? true, typecheck: opts.typecheck ?? false });
   if (built.program === null) {
     return { ok: false, errors: built.errors, warnings: built.warnings, files: [], sizes: null };
   }
@@ -156,8 +156,8 @@ async function copyAssets(srcDir, outDir) {
  *  copied assets). The shared emit used by the CLI and the dev server. Returns
  *  the buildProduction result plus `{ outDir, appName, assets }`. On a compile
  *  error, returns `{ ok:false, errors }` and writes nothing. */
-export async function writeProduction({ source, name = "app", srcDir = null, outDir, stripPos = true, backend, slim }) {
-  const out = await buildProduction(source, { name, originDir: srcDir, stripPos, backend, slim });
+export async function writeProduction({ source, name = "app", srcDir = null, outDir, stripPos = true, backend, slim, typecheck = false }) {
+  const out = await buildProduction(source, { name, originDir: srcDir, stripPos, backend, slim, typecheck });
   if (!out.ok) return out;
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
@@ -169,8 +169,8 @@ export async function writeProduction({ source, name = "app", srcDir = null, out
 
 async function cli(argv) {
   // CLI-only options (output dir, quiet); the compile flags — --backend/--canvas,
-  // --no-slim, --keep-pos, --typecheck — share the canonical model (flags.ts), so
-  // they mean exactly what the same names mean as server/browser URL flags.
+  // --no-slim, --no-strip-pos, --typecheck — share the canonical model (flags.ts),
+  // so they mean exactly what the same names mean as server/browser URL flags.
   const passthrough = [];
   let outDir = null, quiet = false, doHighlight = false;
   const raw = argv.slice(2);
@@ -184,7 +184,7 @@ async function cli(argv) {
   const { flags, rest } = parseArgvFlags(passthrough, { ...DEFAULT_FLAGS, prod: true }); // declarec is always a production build
   const input = rest.find((a) => !a.startsWith("-")) ?? null;
   if (input === null) {
-    console.error("usage: declarec <app.declare> [-o dist] [--canvas] [--no-slim] [--keep-pos] [--typecheck] [--quiet]");
+    console.error("usage: declarec <app.declare> [-o dist] [--canvas] [--no-slim] [--no-strip-pos] [--typecheck] [--quiet]");
     console.error("       declarec --highlight <app.declare> [-o out.json]   # preprocessed form for the code viewer");
     process.exit(2);
   }
@@ -217,7 +217,7 @@ async function cli(argv) {
 
   const source = await readFile(srcPath, "utf8");
   const t0 = Date.now();
-  const out = await writeProduction({ source, name, srcDir, outDir, stripPos: flags.stripPos, backend: flags.backend, slim: flags.slim });
+  const out = await writeProduction({ source, name, srcDir, outDir, stripPos: flags.stripPos, backend: flags.backend, slim: flags.slim, typecheck: flags.typecheck });
   const ms = Date.now() - t0;
 
   if (!out.ok) {

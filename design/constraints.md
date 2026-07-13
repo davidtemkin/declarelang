@@ -27,6 +27,47 @@ mainstream, made with eyes open (§4).
 > revised to this model; the deleted "hidden-dep" rule is preserved struck-through
 > in §3 for the record.
 
+> **Revision, 2026-07-13 — LANDED, and the residue end-state made concrete (no new syntax).**
+> The model is now built, not just ruled: dep-extraction is folded into the ONE
+> `compile()` result (source **+** deps, §5), and the runtime static-constraint path
+> applies them on *every* caller — CLI, dev server, and the in-browser compiler all
+> return byte-identical source and deps (verified: calendar 240/240 wired, 0 residue).
+> Four points settle how the last-mile residue is handled, all **without any
+> author-facing syntax or hint** (a hard requirement: the spec must stay small enough
+> for an LLM to hold whole):
+>
+> 1. **No privilege tier between user and language methods.** §2's "unresolved-target
+>    call → residue" was an *analyzability gap, not a law*: it is exactly the case
+>    where a `{ }` calls a language-supplied method (`this.lookupStylesheet(name)`)
+>    whose body is runtime TS, not Declare source. The fix is **declared reactive-effect
+>    signatures** for the language methods — the set of cells each reads (often none).
+>    Then "builtin" stops being a category: every method has a reactive effect,
+>    *inferred* from the body for user methods and *declared* for language methods
+>    (the effect analog of a typed library signature). This levels the field the
+>    right way — the language's own methods become as analyzable as yours.
+> 2. **Type feeds the effect analysis.** `this[k]` is residue only when `k` is
+>    unbounded; when its **type** is a finite union the read is the union of those
+>    slots' deps (§3). Dep-extraction and typecheck are one analysis viewed twice
+>    (§5) — a stronger typechecker is a stronger dep analyzer.
+> 3. **Data-shaped dynamism uses the existing primitives, not new syntax.** Variable
+>    cardinality and computed paths go through `Dataset`/keyed replication (already
+>    language surface) — never an author-written dynamic constraint (§3).
+> 4. **The irreducible remainder is a hard error, never a silent fallback** — the §3
+>    end-state. *Interim:* the shipped runtime currently lets a residue constraint
+>    fall to **sound** runtime tracking (empty deps, never partial — `dep-extract.ts`
+>    `annotateProgram`), because flipping to a hard error today would reject the valid
+>    built-in-method calls that (1) has not yet absorbed. **Sequencing:** land the
+>    effect signatures (1), *then* flip residue to the §3 hard error. The fallback is
+>    a bridge, not the design — and it never fires on the current corpus (§7).
+>
+> **The policy, statable in two sentences** (the whole rule, for a human or an LLM):
+> *A `{ }` reads specific named things, and the compiler must be able to name every
+> one. If it can't — you indexed by a runtime value, used a computed data path, or
+> aggregated over the live view tree — that's an error, and the message names the one
+> rewrite that fixes it (bound the key, use a literal path, or read from a Dataset).*
+> Every such diagnostic **names its single canonical fix** — see `diagnostics.md`
+> §"Errors are for an LLM"; a residue error that only *describes* the problem is a bug.
+
 
 ## 1. The decision
 
@@ -231,19 +272,26 @@ revision is strictly *less* churn than the original rule, not more.
 
 ## 8. Status
 
-- **Ruled:** the model (this note). **Landed:** nothing yet — the runtime is
-  still pure read-discovery (`reactive.ts`); constraints work, via runtime
-  tracking.
-- **To build:**
-  1. compiler dep-extraction over the analyzable grammar (§2), rejecting §3 cases
-     with positioned errors — shared with the typecheck slice;
-  2. the runtime static-constraint path (§5): a `Constraint` constructed with an
-     explicit edge set;
-  3. **interprocedural summaries** (§2/§5): per-method reactive-read sets closed
-     over the call graph (fixpoint for cycles), with unresolved-target calls sunk
-     to the §3 residue — the prototype is `tools/analysis/dep-classify.mjs`;
-  4. the dynamic-escape audit — confirm `layout` / auto-extent / data-binding
-     cover the primitive cases, and that imperative handlers are ergonomic for
-     the rest.
-- **Deferred:** author-facing reactive aggregations (a reactive-collection
-  primitive vs. imperative) — no program needs one yet (§7).
+- **Ruled:** the model (this note). **Landed (2026-07-13):** the whole path.
+  1. Compiler dep-extraction over the analyzable grammar with interprocedural
+     summaries (`dep-extract.ts`: `extractProgram`/`annotateProgram`, call-graph
+     fixpoint), folded into the ONE `compile()` result as `deps` (`compile.ts`);
+  2. the runtime static-constraint path (`deps.ts` `serializeDeps`/`applyDeps`,
+     `reactive.ts` wired `Constraint`) — a constraint's edges are *supplied*, not
+     re-tracked; applied identically by CLI, dev server, and the in-browser
+     compiler (the uniform-API result: same source **+** same deps everywhere).
+- **Interim vs. end-state (the 2026-07-13 revision):** a §3 residue currently
+  falls to **sound** runtime tracking (empty deps, never partial) rather than the
+  ruled hard error, so today's valid built-in-method calls still compile. Read-
+  tracking therefore survives in `reactive.ts` for (a) this bridge and (b) the
+  framework primitives' internal subscriptions — never as the analyzable-constraint
+  path, which is now compiler-wired everywhere.
+- **To build (in order):**
+  1. **reactive-effect signatures** for the language-supplied methods (revision
+     point 1) — the set of cells each reads; makes a `{ }` calling one analyzable;
+  2. **flip residue to a hard error** (§3) once (1) lands — remove the fallback;
+  3. **type-fed key bounding** (revision point 2) as the typecheck pass matures —
+     a finite-union key becomes an analyzable read;
+  4. the dynamic-escape audit — confirm `Dataset`/keyed replication + imperative
+     handlers cover every dynamic case an author will hit, with no new syntax.
+- **Deferred:** author-facing reactive aggregations — no program needs one yet (§7).

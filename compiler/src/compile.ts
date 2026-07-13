@@ -47,6 +47,8 @@
 import { parseProgram, type Element, type Program } from "../../runtime/dist/parser.js";
 import { NeoError, type Pos } from "../../runtime/dist/errors.js";
 import { check, programSchemas } from "../../runtime/dist/check.js";
+import { serializeDeps } from "../../runtime/dist/deps.js";
+import { annotateProgram } from "./dep-extract.js";
 import type { ComponentSchema } from "../../runtime/dist/schema.js";
 import { freeIdentifiers } from "./free-idents.js";
 import { fillDatapaths } from "../../runtime/dist/datapath.js";
@@ -61,12 +63,16 @@ import { Diag, toDiagnostic, type Diagnostic, type DiagPhase } from "../../runti
 const CONSTRUCTORS = new Set(CONSTRUCTOR_NAMES);
 
 /** A compile result. `source` is the resolved program (null when there are
- *  errors); `warnings` (shadowing) never block. `diagnostics` is the unified,
- *  coded view of everything reported (errors + warnings, every phase — the one
- *  structured surface, diagnostics.ts); `errors`/`warnings` remain the raw
- *  NeoError lists for existing callers. */
+ *  errors); `deps` is the extracted `{ }`-constraint dependency list (walk-order
+ *  read-paths, design/constraints.md §5), present exactly when `source` is — so
+ *  the ONE result carries everything a renderer needs and no caller re-derives
+ *  or forgets it. `warnings` (shadowing) never block. `diagnostics` is the
+ *  unified, coded view of everything reported (errors + warnings, every phase —
+ *  the one structured surface, diagnostics.ts); `errors`/`warnings` remain the
+ *  raw NeoError lists for existing callers. */
 export interface Compiled {
   source: string | null;
+  deps?: readonly (readonly string[])[];
   errors: NeoError[];
   warnings: NeoError[];
   diagnostics: Diagnostic[];
@@ -222,15 +228,55 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
   let out = merged;
   for (const e of r.edits) out = out.slice(0, e.start) + e.text + out.slice(e.end);
 
-  // Final phase (opt-in): tsc over the resolved `{ }` bodies. A type error
-  // blocks emission like any other, mapped to its `.declare` line (NEO6001).
+  // tsc over the resolved `{ }` bodies (opt-in). A type error blocks emission
+  // like any other, mapped to its `.declare` line (NEO6001).
   if (opts.typecheckBodies) {
     const typeErrors = opts.typecheckBodies(out, program);
     if (typeErrors.length > 0) {
       return { source: null, errors: typeErrors, warnings: r.warnings, diagnostics: diagnosticsFrom(typeErrors, r.warnings, "typecheck") };
     }
   }
-  return { source: out, errors: [], warnings: r.warnings, diagnostics: diagnosticsFrom([], r.warnings, "name") };
+
+  // Final phase (NOT opt-in): static dependency extraction (design/constraints.md
+  // §5). Re-parse the RESOLVED source — so every reactive read is an explicit
+  // `this.…`/`parent.…`/`classroot.…`/`:path` — annotate each `{ }` constraint
+  // with its read-paths, and serialize them in walk order. Folding this INTO
+  // compile() is the whole point: `deps` becomes part of the ONE result every
+  // caller renders, so a client can no longer re-run the extractor (the server's
+  // old `depsFor`, declarec's hand-run) or forget it (the browser paths, which
+  // silently fell to runtime tracking). An analyzable constraint is wired to its
+  // read-paths; an UNANALYZABLE one (a §3 residue) is a BLOCKING error that names
+  // the fix (constraints.md §3 + diagnostics.md §4) — never a silent fallback.
+  // Legitimate calls into language methods are analyzable via their declared
+  // effect signatures (effects.ts), so only genuinely-dynamic targets — indexing
+  // by a runtime value, a computed datapath, node-collection aggregation, or an
+  // opaque call — reach this error.
+  let depProgram: Program;
+  try {
+    depProgram = parseProgram(out);
+  } catch (e) {
+    if (e instanceof NeoError) return { source: null, errors: [e], warnings: r.warnings, diagnostics: diagnosticsFrom([e], r.warnings, "syntax") };
+    throw e;
+  }
+  const residue = annotateProgram(depProgram).errors;
+  if (residue.length > 0) {
+    const errs = residue
+      .sort((a, b) => a.offset - b.offset)
+      .map((e) => Diag.residue(e.message, posOf(out, e.offset)));
+    return { source: null, errors: errs, warnings: r.warnings, diagnostics: diagnosticsFrom(errs, r.warnings, "constraint") };
+  }
+  return { source: out, deps: serializeDeps(depProgram), errors: [], warnings: r.warnings, diagnostics: diagnosticsFrom([], r.warnings, "name") };
+}
+
+/** Line/col/offset for a byte offset into `source` — positions a dep-residue
+ *  error (a rare path, so a linear scan is fine). */
+function posOf(source: string, offset: number): Pos {
+  let line = 1;
+  let lineStart = 0;
+  for (let i = 0; i < offset && i < source.length; i++) {
+    if (source[i] === "\n") { line++; lineStart = i + 1; }
+  }
+  return { line, col: offset - lineStart + 1, offset };
 }
 
 class Resolver {

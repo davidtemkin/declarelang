@@ -129,7 +129,7 @@ class Example extends View [ width = { parent.width },
     elines: number = { :lines },
     esrc:   string = { :source },
     live:   boolean = false,             // the parent gates the preview: it mounts only when this is true
-    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    layout: SimpleLayout [ axis = y, spacing = 0 ],   // the preview frame abuts the code block below, no gap
 
     head: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 2 ],
         rule: View [ width = { parent.width }, height = 2, fill = { theme.rule } ],
@@ -137,24 +137,38 @@ class Example extends View [ width = { parent.width },
         Title [ fontSize = { 20 * app.fontScale }, text = "Example" ],
         ],
 
-    // the editable source card — filename header, live hint, then the seeded field
-    panel: View [ width = { parent.width }, fill = { theme.surface }, cornerRadius = 12, stroke = { stroke(1, theme.line) },
-        height = { Math.min(classroot.elines * 17 * app.fontScale + 52, 520) },
-        fname: Mono [ x = 12, y = 9, fontSize = { 11 * app.fontScale }, fontWeight = semibold, textColor = { theme.strong },
+    gap12: View [ height = 12 ],         // the title's breathing room (the layout spacing is now 0)
+
+    // the editable source card — coheres with a static code block (the same
+    // `chipBg` tint, 8px radius, 13px code face) but is marked LIVE/EDITABLE by an
+    // AMBER left bar + label, where a read-only block carries the teal `codeRule`.
+    panel: View [ width = { parent.width }, fill = { theme.chipBg },
+        height = { Math.min(classroot.elines * 17 * app.fontScale + 72, 540) },
+        bar:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = 0xE6B450 ],
+        fname: Mono [ x = 18, y = 10, fontSize = { 11 * app.fontScale }, fontWeight = semibold, textColor = { theme.strong },
                       text = { classroot.cname + ".declare" } ],
-        hint:  Muted [ y = 10, fontSize = { 11 * app.fontScale }, italic = true, text = "edit — preview runs live",
-                       x = { parent.width - this.width - 12 } ],
-        hair:  View [ y = 31, width = { parent.width }, height = 1, fill = { theme.line } ],
-        field: DocField [ x = 12, y = 40, width = { parent.width - 24 }, height = { parent.height - 48 },
+        // the marker is an INVERTED chip — the amber accent as fill, black letters —
+        // so "live/editable" reads at a glance, distinct from a read-only block
+        tag:   View [ y = 7, height = 17, cornerRadius = 3, fill = 0xE6B450, x = { parent.width - this.width - 14 },
+                      lbl: Mono [ x = 7, y = 3, fontSize = 10, letterSpacing = 1, fontWeight = semibold, textColor = 0x1A1A1A,
+                                  text = "LIVE · EDITABLE", wrap = false ],
+                      width = { this.lbl.width + 14 } ],
+        // a line of breathing room below the label before the code starts
+        hair:  View [ x = 18, y = 51, width = { parent.width - 30 }, height = 1, fill = { theme.line } ],
+        field: DocField [ x = 18, y = 60, width = { parent.width - 30 }, height = { parent.height - 68 },
                           editName = { classroot.cname }, src = { classroot.esrc } ],
         ],
 
     // the live preview island — the host mounts the compiled child app here. The slot
     // is live ONLY while the parent says so (`live`), so exactly one preview (the one
     // on the visible page) compiles at a time, even though every page is constructed.
-    stage: View [ width = { parent.width }, height = 250, cornerRadius = 12, fill = 0x0B141B, stroke = { stroke(1, theme.line) },
-        run: HTML [ width = { parent.width }, height = { parent.height },
-                    slot = { classroot.live ? "run:" + classroot.cname : "" } ],
+    stage: View [ width = { parent.width }, height = 250, fill = { theme.chipBg },
+        run:     HTML [ width = { parent.width }, height = { parent.height },
+                        slot = { classroot.live ? "run:" + classroot.cname : "" } ],
+        // a grey hairline divides the code above from the running app below; the green
+        // spine (drawn OVER both) picks up where the code's gold bar leaves off, same x/width
+        divider: View [ x = 0, y = 0, width = { parent.width }, height = 1, fill = { app.dark ? 0x2E4250 : 0xC4CFD8 } ],
+        spine:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = 0x4CAF50 ],
         ],
     ]
 
@@ -171,20 +185,29 @@ class RunBlock extends View [ width = { parent.width },
     rsrc:   string  = { :source },
     rlines: number  = { :lines },
     live:   boolean = false,
-    layout: SimpleLayout [ axis = y, spacing = 6 ],
+    layout: SimpleLayout [ axis = y, spacing = 0 ],   // the preview frame abuts the code block, no gap
 
-    editor: View [ width = { parent.width }, fill = { theme.surface }, cornerRadius = 10, stroke = { stroke(1, theme.line) },
-        height = { Math.min(classroot.rlines * 16 * app.fontScale + 34, 420) },
-        tag:  Mono [ x = 12, y = 9, fontSize = { 10 * app.fontScale }, letterSpacing = 1, textColor = { theme.tag }, text = "EDITABLE" ],
+    // same code-box grammar as a static block (chipBg tint, 8px radius, 13px face),
+    // marked live/editable by the amber bar + label (a read-only block is teal).
+    editor: View [ width = { parent.width }, fill = { theme.chipBg },
+        height = { Math.min(classroot.rlines * 16 * app.fontScale + 54, 440) },
+        bar:  View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = 0xE6B450 ],
+        tag:  View [ x = 18, y = 7, height = 17, cornerRadius = 3, fill = 0xE6B450,
+                     lbl: Mono [ x = 7, y = 3, fontSize = 10, letterSpacing = 1, fontWeight = semibold, textColor = 0x1A1A1A,
+                                 text = "LIVE · EDITABLE", wrap = false ],
+                     width = { this.lbl.width + 14 } ],
         hint: Muted [ y = 9, fontSize = { 11 * app.fontScale }, italic = true, text = "runs live below ↓",
-                      x = { parent.width - this.width - 12 } ],
-        field: DocField [ x = 12, y = 26, width = { parent.width - 24 }, height = { parent.height - 34 },
+                      x = { parent.width - this.width - 14 } ],
+        // a line of breathing room below the label before the code starts
+        field: DocField [ x = 18, y = 46, width = { parent.width - 30 }, height = { parent.height - 54 },
                           editName = { classroot.rid }, src = { classroot.rsrc } ],
         ],
 
-    stage: View [ width = { parent.width }, height = 200, cornerRadius = 10, fill = 0x0B141B, stroke = { stroke(1, theme.line) },
-        run: HTML [ width = { parent.width }, height = { parent.height },
-                    slot = { classroot.live ? "run:" + classroot.rid : "" } ],
+    stage: View [ width = { parent.width }, height = 200, fill = { theme.chipBg },
+        run:     HTML [ width = { parent.width }, height = { parent.height },
+                        slot = { classroot.live ? "run:" + classroot.rid : "" } ],
+        divider: View [ x = 0, y = 0, width = { parent.width }, height = 1, fill = { app.dark ? 0x2E4250 : 0xC4CFD8 } ],
+        spine:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = 0x4CAF50 ],
         ],
     ]
 
@@ -382,8 +405,8 @@ class SizeBtn extends View [ width = 34, height = 30, cornerRadius = 6,
     fill = { hovered ? theme.hover : null },
     onMouseOver() { hovered = true },
     onMouseOut()  { hovered = false },
-    onClick() { app.fontScale = classroot.delta == 0 ? 1.0
-                    : Math.max(0.8, Math.min(1.6, Math.round((app.fontScale + classroot.delta) * 100) / 100)) },
+    onClick() { app.fontScale = classroot.delta == 0 ? 0.9
+                    : Math.max(0.7, Math.min(1.6, Math.round((app.fontScale + classroot.delta) * 100) / 100)) },
     lbl: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontWeight = semibold,
                 fontSize = { classroot.glyph }, textColor = { theme.muted }, text = "A",
                 x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 } ],
@@ -392,7 +415,7 @@ class SizeBtn extends View [ width = 34, height = 30, cornerRadius = 6,
 // ── the app: a fixed left rail + a scrolling detail pane, over the model ──────
 
 App [ fill = { theme.bg }, mode: string = "guide", chapter: string = "00-overview", selected: string = "View",
-    fontScale: number = 1.0,                   // reader font-size zoom; the A stepper drives it
+    fontScale: number = 0.9,                   // reader font-size zoom (0.9 = the comfortable default; the A stepper drives it)
 
     // the whole palette in one prevailing record, switched by the OS colour scheme
     // (`app.dark`, fed live by the runtime) — every colour below reads `theme.<token>`,
@@ -400,6 +423,14 @@ App [ fill = { theme.bg }, mode: string = "guide", chapter: string = "00-overvie
     theme = { app.dark
         ? ({ bg: 0x0B141B, rail: 0x0D1922, surface: 0x0C1620, chipBg: 0x14232E, hover: 0x152633, sel: 0x1C2D39, mchipBg: 0x172436, echipBg: 0x241F12, modeOn: 0x1F3B54, chipHov: 0x1C3243, mchipHov: 0x213649, echipHov: 0x332B18, line: 0x1E313C, rule: 0x345B84, edge: 0x1B2C39, accent: 0x4C8DFF, accent2: 0x37E0C8, chipTeal: 0x9FD9CE, chipBlue: 0xA9C7FF, chipAmber: 0xE7C98A, text: 0xE7EEF2, body: 0xC4CFD8, code: 0xC7D3DC, strong: 0xB7C6D2, mtail: 0x9FB3C2, tabIdle: 0x9BB0BE, refDim: 0x98A7B1, muted: 0x8A9BA6, modeOff: 0x7C93A2, sigDim: 0x6E8494, eyebrow: 0x55707F, tag: 0x4F6472 })
         : ({ bg: 0xF6F8FA, rail: 0xECF0F4, surface: 0xFFFFFF, chipBg: 0xE9EFF4, hover: 0xE4EBF1, sel: 0xDBE5EE, mchipBg: 0xE7EDF6, echipBg: 0xF5EFE0, modeOn: 0xD1DFF0, chipHov: 0xD9E4ED, mchipHov: 0xD4DEEF, echipHov: 0xECE3CD, line: 0xDCE3E9, rule: 0xB6C8DA, edge: 0xE0E6EC, accent: 0x2F6FE0, accent2: 0x12A08D, chipTeal: 0x15806E, chipBlue: 0x3355C2, chipAmber: 0x8F6F28, text: 0x172530, body: 0x2E3B46, code: 0x2B3843, strong: 0x3A4A56, mtail: 0x4F5F6B, tabIdle: 0x55636F, refDim: 0x51606C, muted: 0x6A7883, modeOff: 0x74828D, sigDim: 0x84929D, eyebrow: 0x93A0AA, tag: 0xA2AEB8 }) },
+
+    // Code-vs-prose coherence, matching the source-viewer reader: prose (and every
+    // non-code block) wraps to a reading measure while code fills the column — so
+    // code renders WIDER than prose — and every code block gets a tinted box with a
+    // teal left bar. All prevailing, so every Markdown/HTMLText below inherits it.
+    richTextLayout = { { default: { maxWidth: 560 * app.fontScale }, code: { maxWidth: 0 } } },
+    codeBackground = { theme.chipBg },
+    codeRule = { theme.accent2 },
 
     docs: DataSource [ url = "model.json" ],
     datapath = { docs.value },                 // root every :path below into the model
@@ -451,7 +482,7 @@ App [ fill = { theme.bg }, mode: string = "guide", chapter: string = "00-overvie
     // `selectable` (prevailing) opts the whole right pane into ordinary browser
     // text selection — prose, signatures, Markdown runs — while the rail stays chrome.
     detail: View [ x = 248, y = 0, width = { app.hostWidth - 248 }, height = { app.hostHeight }, scrolls = true, selectable = true,
-        col: View [ x = 48, y = 40, width = { Math.min(620, parent.width - 96) },
+        col: View [ x = 48, y = 40, width = { parent.width - 96 },
             guideCol: View [ width = { parent.width }, visible = { app.mode == "guide" },
                 ChapterDetail [ datapath = :guide[], cid = :id ],
                 ],

@@ -1,7 +1,7 @@
-App [
-    moreData: View [ x = 15,
+App [ fill = white, textColor = black,
+    moreData: View [ x = 15, y = 24,
         layout: SimpleLayout [ axis = x, spacing = -10 ],   // two columns side by side
-    
+
         labels: View [ layout: SimpleLayout [ axis = y, spacing = 1 ],
             Text [ text = "Humidity:" ],
             Text [ text = "Wind:" ],
@@ -10,5 +10,5 @@ App [
             Text [ text = "62%" ],
             Text [ text = "8 mph" ],
             ],
-        ]
-]
+        ],
+    ]

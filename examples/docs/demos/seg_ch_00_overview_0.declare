@@ -1,10 +1,10 @@
-App [ width = 400, height = 140, fill = #1E3A49, textColor = whitesmoke,
+App [ width = 400, height = 140, fill = white, textColor = black,
 
     count: number = 0,                                  // declared, reactive state
 
-    add: View [ x = 20, y = 20, width = 108, height = 34, cornerRadius = 8, fill = #2E6BE6,
+    add: View [ x = 20, y = 20, width = 108, height = 34, cornerRadius = 8, fill = royalblue,
         onClick() { classroot.count = classroot.count + 1 },   // a handler; the body is TypeScript
-        Text [ x = 16, y = 8, text = "Add one" ],
+        Text [ x = 16, y = 8, text = "Add one", textColor = white ],   // white on the accent button
         ],
 
     Text [ y = 74,

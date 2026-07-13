@@ -6,8 +6,8 @@ attribute reads compose as a **precedence stack**, the base values return *exact
 the state turns off — there is no manual undo to write, and no drift.
 
 ```declare
-card: View [ height = 72, fill = midnightblue,
-    open: State [ applied = { expanded }, height = 184, fill = steelblue,
+card: View [ height = 72, fill = white,
+    open: State [ applied = { expanded }, height = 184, fill = lightsteelblue,
         Text [ text = "shown only while open" ] ],
 ]
 ```

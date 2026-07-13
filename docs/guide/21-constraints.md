@@ -102,7 +102,7 @@ number:
 ```declare
 NavLink [
     fill = { pressed ? 0x24384A : hovered ? 0x1C2D39 : null },   // TS body → 0x
-    lbl: Text [ textColor = #8A9BA6,                             // literal slot → #
+    lbl: Text [ textColor = #6A7885,                             // literal slot → #
                 textColor = { hovered ? theme.text : theme.muted } ],  // body again → tokens/0x
     ]
 ```
@@ -117,7 +117,7 @@ This is the whole model in eight lines — three independent constraints trackin
 one number:
 
 ```declare
-App [ textColor = whitesmoke,
+App [ fill = white, textColor = black,
     v: number = 42,
     cool: Color = dodgerblue,
     warm: Color = turquoise,

@@ -13,7 +13,7 @@
 // esbuild, write the dist tree, copy assets, gzip-measure) lives in the CLI and
 // the server, which own the filesystem and the bundler.
 import { compile } from "./compile-node.js";
-import { annotateProgram } from "./dep-extract.js";
+import { applyDeps } from "../../runtime/dist/deps.js";
 import { freeIdentifiers } from "./free-idents.js";
 import { parseProgram } from "../../runtime/dist/parser.js";
 import { resolveIncludes, NO_INCLUDES, referencedComponentNames } from "../../runtime/dist/include.js";
@@ -94,9 +94,12 @@ export function compileProgram(source, opts = {}) {
     const errors = [...incErrors, ...check(program)];
     if (errors.length > 0)
         return { program: null, errors, warnings: c.warnings, usedComponents: [] };
-    // Attach the extracted constraint dependencies (design/constraints.md §5), so
-    // the shipped program boots on the runtime's static-constraint path.
-    annotateProgram(program);
+    // Zip the extracted constraint dependencies (design/constraints.md §5) onto
+    // the program we ship, so it boots on the runtime's static-constraint path.
+    // compile() already ran the extraction (and would have BLOCKED on an
+    // unanalyzable residue above), so we re-hydrate its walk-order list onto this
+    // identical re-parse rather than extracting a second time.
+    applyDeps(program, c.deps ?? []);
     // Compute the used-set BEFORE stripping positions (the scan walks bodies; it
     // needs nothing positional, but order it here so it reads the same program).
     const usedComponents = usedComponentNames(program);

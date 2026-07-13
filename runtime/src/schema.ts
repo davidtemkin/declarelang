@@ -118,6 +118,24 @@ const ViewSchema: ComponentSchema = {
     // rendition for all prose below it.
     codeSize: { kind: "number" },
     codeFamily: { kind: "font" },
+    // The code-BLOCK box paint (fenced ``` and highlighted `<pre>`): a background
+    // tint and a left accent bar. Both `null` = the house look (fenced code keeps
+    // its themed tint, a `<pre>` stays bare) — so unset changes nothing. Setting
+    // `codeBackground` gives a `<pre>` the same tinted box a fenced block has;
+    // setting `codeRule` draws a left bar on BOTH (the `buildQuote` bar, reused).
+    // Prevailing, the twin of `codeColor`/`codeSize` for the block's chrome.
+    codeBackground: { kind: "color" },
+    codeRule: { kind: "color" },
+    // Per-block-type layout geometry for rendered rich text (Markdown/HTMLText):
+    // a plain record keyed by block type (`paragraph`/`heading`/`code`/`pre`/
+    // `list`/`table`/`blockquote`/`rule`, plus `default`), each entry giving a
+    // `maxWidth` (0 = unbounded), a `margin` ([left, right]), and an `align`
+    // (left|center|right). Defaulted IN the consumer (like `theme`): an unset map
+    // — or an unset key/field — is today's full-width, left-aligned flow. A `pre`
+    // block with no own entry shares the `code` entry. Set it to give prose a
+    // reading measure while code fills the column (code wider than prose). Set via
+    // a `{ }` object; prevailing, so one ancestor sets the flow geometry below it.
+    richTextLayout: { kind: "record", name: "RichTextLayout" },
     theme: { kind: "record", name: "Theme" },
     // Native text selection — a prevailing slot so a whole subtree opts in from
     // one place: `selectable = true` on a container makes all its Text (including
@@ -154,7 +172,7 @@ const ViewSchema: ComponentSchema = {
     contentWidth: { kind: "length" },
     contentHeight: { kind: "length" },
   },
-  prevailing: ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing", "headingColor", "headingWeight", "linkColor", "codeColor", "codeSize", "codeFamily", "theme", "stylesheet", "selectable"],
+  prevailing: ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing", "headingColor", "headingWeight", "linkColor", "codeColor", "codeSize", "codeFamily", "codeBackground", "codeRule", "richTextLayout", "theme", "stylesheet", "selectable"],
   readOnly: ["contentWidth", "contentHeight"],
   // R5: the pointer trio (click = press and release on the same view — the
   // shared router's rule, input.ts) plus the construction-complete lifecycle

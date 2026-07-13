@@ -7,11 +7,13 @@ nesting *is* the view tree, so you read an app's shape by scanning its indentati
 nesting on screen.
 
 ```declare
-View [ x = 28, y = 26,
-    layout: SimpleLayout [ axis = y, spacing = 16 ],
-    Text [ text = "Today", fontWeight = bold ],
-    Text [ text = "Partly cloudy" ],
-    View [ height = 1, width = 200, fill = #263D4C ],   // a hairline rule
+App [ fill = white, textColor = black,
+    View [ x = 28, y = 26,
+        layout: SimpleLayout [ axis = y, spacing = 16 ],
+        Text [ text = "Today", fontWeight = bold ],
+        Text [ text = "Partly cloudy" ],
+        View [ height = 1, width = 200, fill = gainsboro ],   // a hairline rule
+        ],
     ]
 ```
 
@@ -29,7 +31,7 @@ subset.)
 
 ```declare
 class Card extends View [
-    width = 300, cornerRadius = 10, fill = #101E28,   // SET an attribute: name = value
+    width = 300, cornerRadius = 10, fill = white,   // SET an attribute: name = value
 
     title: string = "",                               // DECLARE an attribute: name: Type = default
 
@@ -40,7 +42,7 @@ class Card extends View [
 ```
 
 The distinction that trips people first: **`name = value` *sets* an attribute
-that already exists; `name: Type = value` *declares* a new one.** `fill = #101E28`
+that already exists; `name: Type = value` *declares* a new one.** `fill = white`
 sets the inherited `fill`; `title: string = ""` introduces a new reactive
 attribute on this component, like a field. A method is just a member whose type is
 a function type and whose value is a `{ }` block — `dismiss() { … }` is shorthand

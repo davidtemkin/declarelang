@@ -42,7 +42,8 @@ component (a *derived* list adds a `key`, below). The homepage's data demo is th
 whole pattern in eight lines:
 
 ```declare
-App [ facts: Dataset { { "rows": [
+App [ fill = white, textColor = black,
+    facts: Dataset { { "rows": [
         { "label": "reactive", "n": 92 },
         { "label": "compiled", "n": 78 },
         { "label": "small",    "n": 64 } ] } },
@@ -191,13 +192,17 @@ flow **back** is a *leaf input* editing a piece of data — and the direct way t
 say so is the two-way arrow **`<->`**:
 
 ```declare
-App [
+App [ fill = white, textColor = black,
     contact: Dataset { { "person": { "name": "Ada", "zip": "94110" } } },
-    form: View [ datapath = { app.contact.value.person },
-        name: TextInput [ y = 20, text <-> :name ],          // shows :name AND commits edits back to it
-        zip:  TextInput [ y = 80, text <-> :zip,             // a domain rule beyond the type
+    form: View [ x = 24, y = 4, datapath = { app.contact.value.person },
+        name: TextInput [ y = 20, width = 220, height = 30, padding = 6, cornerRadius = 6,
+              fill = gainsboro,
+              text <-> :name ],                              // shows :name AND commits edits back to it
+        zip:  TextInput [ y = 80, width = 220, height = 30, padding = 6, cornerRadius = 6,
+              fill = gainsboro,
+              text <-> :zip,                                 // a domain rule beyond the type
               validate(v) { return /^[0-9]{5}$/.test(v) ? null : "must be 5 digits" } ],
-        note: Text [ y = 120, textColor = #cc5b47, text = { app.form.zip.error } ],  // the field owns its error
+        note: Text [ y = 120, textColor = indianred, text = { app.form.zip.error } ],  // the field owns its error
         echo: Text [ y = 160, text = { "saved → " + app.contact.value.person.name + " / " + app.contact.value.person.zip } ],
     ],
 ]
@@ -220,12 +225,14 @@ field also publishes `valid` and `dirty` as ordinary reactive slots — so a Sav
 button is just a constraint over them, no form object required:
 
 ```declare
-App [
+App [ fill = white, textColor = black,
     doc: Dataset { { "row": { "title": "" } } },
-    form: View [ datapath = { app.doc.value.row },
-        title: TextInput [ text <-> :title, commitOn = "manual",   // hold edits until Save
+    form: View [ x = 24, y = 20, datapath = { app.doc.value.row },
+        title: TextInput [ width = 260, height = 30, padding = 6, cornerRadius = 6,
+            fill = gainsboro,
+            text <-> :title, commitOn = "manual",   // hold edits until Save
             validate(v) { return v.length > 0 ? null : "required" } ],
-        save: Text [ y = 40, text = "Save",
+        save: Text [ y = 44, text = "Save",
             opacity = { app.form.title.dirty && app.form.title.valid ? 1 : 0.4 },
             onClick() { app.form.title.commit() } ],
     ],

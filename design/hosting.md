@@ -90,9 +90,11 @@ the render backend does (`?backend=canvas`).
 `parseFlags(URLSearchParams-like)` for the server and browser URL queries, and
 `parseArgvFlags(argv)` for the CLI. So `?slim=0` on the server, `--no-slim` on the CLI,
 and the browser's `?backend=canvas` all resolve through one place — no per-entry-point
-drift. Booleans read `?f`/`?f=1`/`?f=true` (on) and `?f=0`/`false` (off); the CLI spells
-them `--f`/`--no-f`, with `--canvas`/`--dom`, `--full` (= `--no-slim`), and `--keep-pos`
-aliases.
+drift. Every flag is named the same way on all three surfaces (the canonical
+`CompileFlags` field): booleans read `?f`/`?f=1`/`?f=true` (on) and `?f=0`/`false`
+(off) and the CLI spells them `--f`/`--no-f` (so `stripPos` is `?stripPos=0` /
+`--no-strip-pos`); `--canvas`/`--dom` and `--full` (= `--no-slim`) are kept aliases.
+A single `FLAG_SPECS` registry is the source both parsers derive from.
 
 ## Request types
 

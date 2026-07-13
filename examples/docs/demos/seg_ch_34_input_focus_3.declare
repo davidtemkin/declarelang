@@ -1,11 +1,16 @@
 App [
-    dialog: View [ x = 40, y = 40, width = 300, height = 160, fill = #101E28,
+    dialog: View [ x = 40, y = 40, width = 300, height = 160, fill = white,
+        cornerRadius = 10,
         focustrap = true,
         onEscapeFocus() { app.editing = false },     // Tab tried to leave — close the modal
-        field:  TextInput [ x = 16, y = 16, width = 268, focusable = true ],
-        cancel: View [ x = 16, y = 60, width = 80, height = 28, fill = #263D4C,
-            focusable = true, onClick() { app.editing = false } ],
-        ok:     View [ x = 104, y = 60, width = 80, height = 28, fill = #4C8DFF,
-            focusable = true, onClick() { app.editing = false } ],
+        field:  TextInput [ x = 16, y = 16, width = 268, height = 30, focusable = true,
+                padding = 6, cornerRadius = 6, fill = gainsboro,
+                placeholder = "Title" ],
+        cancel: View [ x = 16, y = 60, width = 80, height = 28, cornerRadius = 6, fill = gainsboro,
+            focusable = true, onClick() { app.editing = false },
+            Text [ width = 80, y = 6, textAlign = center, text = "Cancel" ] ],
+        ok:     View [ x = 104, y = 60, width = 80, height = 28, cornerRadius = 6, fill = royalblue,
+            focusable = true, onClick() { app.editing = false },
+            Text [ width = 80, y = 6, textAlign = center, textColor = white, text = "OK" ] ],
         ]
 ]

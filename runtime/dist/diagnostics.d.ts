@@ -2,7 +2,7 @@ import { NeoError, type Pos } from "./errors.js";
 export type Severity = "error" | "warning";
 /** The compile phase a diagnostic belongs to — derivable from its code's
  *  leading digit, so a Diagnostic is self-classifying. */
-export type DiagPhase = "syntax" | "structure" | "type" | "name" | "module" | "typecheck";
+export type DiagPhase = "syntax" | "structure" | "type" | "name" | "module" | "typecheck" | "constraint";
 /** A structured compile-time diagnostic — the public shape compile() reports. */
 export interface Diagnostic {
     code: string;
@@ -33,6 +33,8 @@ export declare const Diag: {
     strayRoot: (message: string, pos: Pos) => NeoError;
     module: (message: string, pos?: Pos) => NeoError;
     typeError: (message: string, pos: Pos, tsCode: number) => NeoError;
+    residue: (message: string, pos: Pos) => NeoError;
+    constraint: (message: string, pos?: Pos) => NeoError;
     /** Escape hatch: a fully custom (code, message) for a site that fits no
      *  family yet. Prefer a named factory. */
     code: (code: string, message: string, pos?: Pos, hint?: string) => NeoError;

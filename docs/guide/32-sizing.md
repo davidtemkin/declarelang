@@ -62,7 +62,9 @@ size, a centred column's gutter — reachable from any depth through the `app` n
 ([Scope nouns](27-scope-nouns.md)):
 
 ```declare
-Text [ x = 24, y = 24, fontSize = { app.width < 700 ? 44 : 60 }, text = "Responsive" ]
+App [ fill = white, textColor = black,
+    Text [ x = 24, y = 24, fontSize = { app.width < 700 ? 44 : 60 }, text = "Responsive" ],
+    ]
 ```
 
 Prefer `app.width` over the raw `hostWidth`/`hostHeight`, which are reserved for the

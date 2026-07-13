@@ -1,8 +1,8 @@
-App [
+App [ fill = white, textColor = black,
     View [ x = 28, y = 26,
         layout: SimpleLayout [ axis = y, spacing = 16 ],
         Text [ text = "Today", fontWeight = bold ],
         Text [ text = "Partly cloudy" ],
-        View [ height = 1, width = 200, fill = #263D4C ],   // a hairline rule
-        ]
-]
+        View [ height = 1, width = 200, fill = gainsboro ],   // a hairline rule
+        ],
+    ]

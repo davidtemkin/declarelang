@@ -151,12 +151,13 @@ export default async function boot(cfg) {
   pruneBuckets(build);
   const key = lookupKey(mainId, props, build);
 
-  let program = null, pageSource = null, path = "slow", toCache = null;
+  let program = null, deps = undefined, pageSource = null, path = "slow", toCache = null;
 
   // FAST PATH — a cached compile whose closure still validates.
   const cached = await readCache(build, key);
   if (cached && (await closureFresh(cached.closure))) {
     program = cached.program;
+    deps = cached.deps;                                           // the compiler's static-constraint deps, cached alongside
     pageSource = cached.source;
     path = "fast";
   }
@@ -174,12 +175,13 @@ export default async function boot(cfg) {
       return showError((out.errors || []).map((e) => (e.pos?.line != null ? `line ${e.pos.line}: ` : "") + e.message).join("\n") || "compile failed");
     }
     program = out.source;
+    deps = out.deps;                                               // static-constraint deps ride in the ONE compile result
     pageSource = source;
     // Closure = the main source only (every current example is single-file; its
     // library/runtime deps are gated by BUILD_ID, like OL5's LFC). A future app that
     // `include`s another app-source file needs a browser compileTracked to record it.
     const closure = { entries: [{ id: mainId, kind: "file", v: validatorFromResponse(res, source) }], props };
-    toCache = { program, source, closure };                        // written AFTER render, below (off the paint path)
+    toCache = { program, deps, source, closure };                  // written AFTER render, below (off the paint path)
   }
 
   // Live-edit compile ("Edit this page" + demo previews). Warm-loaded in the
@@ -189,7 +191,8 @@ export default async function boot(cfg) {
   const liveCompile = async (src) => {
     try {
       const [{ compile }, lib] = await Promise.all([loadCompiler(), loadLibraryOnce()]);
-      return compile(src, { files: lib.files, manifest: lib.manifest }).source ?? null;
+      const out = compile(src, { files: lib.files, manifest: lib.manifest });
+      return out.source ? { source: out.source, deps: out.deps } : null;  // one result: source + static deps
     } catch { return null; }
   };
 
@@ -208,7 +211,7 @@ export default async function boot(cfg) {
   const demoBase = new URL("demos/", mainDir).href;              // where mountPreviews fetches unseeded previews
 
   const app = await bootHost({                                     // render first — nothing below delays first paint
-    source: program, backend: cfg.backend,
+    source: program, deps, backend: cfg.backend,
     pageWeight: cfg.pageWeight, sourceLines: cfg.sourceLines,
     seeds, demoBase, compile: liveCompile,
   });

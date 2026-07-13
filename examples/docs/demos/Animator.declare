@@ -3,6 +3,6 @@ App [
     View [ x = 28, y = 88, width = 80, height = 80, cornerRadius = 12, fill = dodgerblue,
            onClick() { slide.start() },
         Text [ x = 18, y = 30, fontSize = 15, fontWeight = semibold,
-               textColor = #E7EEF2, text = "click" ],
+               textColor = whitesmoke, text = "click" ],
         slide: Animator [ attribute = x, to = 460, duration = 500, motion = easeOut ] ],
     ]

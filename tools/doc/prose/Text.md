@@ -6,7 +6,7 @@ run renders with the effective values. That is why restyling a region's text mea
 setting those on the container, not on each `Text`.
 
 ```declare
-View [ textColor = #CAD0EC, fontSize = 14,
+View [ textColor = royalblue, fontSize = 14,
   Text [ text = "inherits the panel's style" ]
 ]
 ```

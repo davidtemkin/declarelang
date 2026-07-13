@@ -83,26 +83,50 @@ test("recursion terminates (cycle guard) and still extracts", () => {
   assert.deepEqual(readsOf(r, "width"), ["this.root.n"]);
 });
 
-// ── residue: the three dynamic-target forms + unresolved calls are errors ──
-test("residue — computed attribute this[<expr>]", () => {
-  const e = errsOf(extract(`App [ k: string = "x", v: View [ width = { app[app.k] } ] ]`), "width");
-  assert.ok(e.some((x) => /computed attribute/.test(x.message)), JSON.stringify(e));
+// ── residue: the dynamic-target forms + opaque calls are BLOCKING compile errors
+// (constraints.md §3 — never a silent runtime-tracking fallback). compile() folds
+// dep extraction in and rejects a residue with a NEO7001 that NAMES the fix
+// (diagnostics.md §4). A legitimate language-method call is analyzable via its
+// effect signature (effects.ts), so it compiles — asserted last. ──
+function residueErrors(src) {
+  const r = compile(src, {});
+  assert.ok(!r.source, "expected residue to BLOCK compilation, but it compiled");
+  return r.errors;
+}
+
+test("residue — computed attribute this[<expr>] blocks", () => {
+  const e = residueErrors(`App [ k: string = "x", v: View [ width = { app[app.k] } ] ]`);
+  assert.ok(e.some((x) => /computed attribute/.test(x.message)), JSON.stringify(e.map((x) => x.message)));
+  assert.ok(e.some((x) => x.code === "NEO7001"), "carries the constraint-residue code");
 });
 
-test("residue — dynamic datapath read([<expr>])", () => {
-  const e = errsOf(extract(`App [ k: string = "a", d: Dataset { { "a": 1 } },
-      v: View [ width = { app.d.read([app.k]) } ] ]`), "width");
-  assert.ok(e.some((x) => /dynamic datapath/.test(x.message)), JSON.stringify(e));
+test("residue — dynamic datapath read([<expr>]) blocks", () => {
+  const e = residueErrors(`App [ k: string = "a", d: Dataset { { "a": 1 } },
+      v: View [ width = { app.d.read([app.k]) } ] ]`);
+  assert.ok(e.some((x) => /dynamic datapath/.test(x.message)), JSON.stringify(e.map((x) => x.message)));
 });
 
-test("residue — aggregation over a reactive node collection", () => {
-  const e = errsOf(extract(`App [ v: View [ width = { app.children.map(c => c.width).length } ] ]`), "width");
-  assert.ok(e.some((x) => /node collection/.test(x.message)), JSON.stringify(e));
+test("residue — aggregation over a reactive node collection blocks", () => {
+  const e = residueErrors(`App [ v: View [ width = { app.children.map(c => c.width).length } ] ]`);
+  assert.ok(e.some((x) => /node collection/.test(x.message)), JSON.stringify(e.map((x) => x.message)));
 });
 
-test("residue — unresolved call target is refused, not assumed pure (sound)", () => {
-  const e = errsOf(extract(`App [ v: View [ width = { app.mysteryLib() } ] ]`), "width");
-  assert.ok(e.some((x) => /unresolved call target/.test(x.message)), JSON.stringify(e));
+test("residue — opaque call target blocks (not assumed pure)", () => {
+  const e = residueErrors(`App [ v: View [ width = { app.mysteryLib() } ] ]`);
+  assert.ok(e.some((x) => /unresolved call target/.test(x.message)), JSON.stringify(e.map((x) => x.message)));
+});
+
+test("language-method effect signature makes the call analyzable (no residue)", () => {
+  // lookupStylesheet is PURE (effects.ts) — the constraint COMPILES and its only
+  // dep is the ternary condition, statically WIRED (not tracked, not residue).
+  const src = `stylesheet Dark [ View: [ opacity = 0.5 ] ]
+stylesheet Light [ View: [ opacity = 1 ] ]
+App [ night: boolean = true,
+    stylesheet = { night ? this.lookupStylesheet("Dark") : this.lookupStylesheet("Light") },
+    v: View [ ] ]`;
+  const r = compile(src, {});
+  assert.ok(r.source, "should compile: " + r.errors.map((e) => e.message).join("; "));
+  assert.deepEqual(readsOf(extractProgram(parseProgram(r.source)), "stylesheet"), ["this.night"]);
 });
 
 test("aggregation over DATA is fine (not node) — no error", () => {

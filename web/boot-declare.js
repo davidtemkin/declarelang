@@ -58,7 +58,10 @@ async function run() {
     // live in-browser compile, which ships no bundle.
     const flags = parseFlags(new URLSearchParams(location.search), DEFAULT_FLAGS);
     const backend = flags.backend === "canvas" ? new CanvasBackend() : new DomBackend();
-    await renderAsync(out.source, host, backend);
+    // Apply the compiler's static-constraint deps (they ride in the ONE compile
+    // result) so a browsed-to program boots on the same static-constraint path as
+    // the dev server and the prod bundle — never a divergent runtime-tracking one.
+    await renderAsync(out.source, host, backend, { deps: out.deps });
   } catch (e) {
     showError(host, (e && e.message) ? e.message : String(e));
   }

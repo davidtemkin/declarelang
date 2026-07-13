@@ -32,6 +32,8 @@ const PROSE = {
     codeSize: 13, // the house code rendition size — shared by inline, fenced, and <pre> code
     codeRadius: 8,
     codePad: 14,
+    codeRuleWidth: 2, // the `codeRule` left accent bar's thickness
+    codeRuleGap: 12, // extra left padding for code text when a `codeRule` bar is present
     mono: "ui-monospace, SFMono-Regular, monospace",
     blockGap: 16,
     itemGap: 6,
@@ -72,6 +74,42 @@ let HEADINGC = 0, LINKC = 0, CODEC = 0;
 // One value drives every monospace region: inline code, fenced blocks, and the
 // `<pre>` HTMLText path — so the reader view and fenced code share one rendition.
 let CODESIZE = 0, CODEFAM = "";
+// Code-block box paint, resolved per rebuild from the prevailing codeBackground/
+// codeRule slots (null = the house look). CODEBG null ⇒ fenced code keeps its
+// themed tint and a `<pre>` stays bare; CODERULE null ⇒ no left bar on either.
+let CODEBG = null, CODERULE = null;
+let LAYOUT = {};
+/** Resolve a block type's geometry from the map: its own entry, then `default`,
+ *  field by field (a `pre` with no own entry shares `code`). Zero maxWidth = the
+ *  full track; the house result for an empty map is full-width, left, no margin. */
+function geoFor(t) {
+    const d = LAYOUT.default ?? {};
+    const own = LAYOUT[t] ?? (t === "pre" ? LAYOUT.code : undefined) ?? {};
+    const margin = own.margin ?? d.margin ?? [0, 0];
+    return {
+        maxWidth: own.maxWidth ?? d.maxWidth ?? 0,
+        ml: margin[0] ?? 0,
+        mr: margin[1] ?? 0,
+        align: own.align ?? d.align ?? "left",
+    };
+}
+/** Place a built block-view in its track: given the column `width` and the block
+ *  type's geometry, size it to the (possibly measure-capped) content width and set
+ *  its x by the alignment. `apply(width, geo)` returns the content width the block
+ *  should be BUILT at; then `pos` offsets the finished view. One helper so the flow
+ *  group and every structural block share identical geometry. */
+function contentWidth(width, g) {
+    const track = Math.max(0, width - g.ml - g.mr);
+    return g.maxWidth > 0 ? Math.min(track, g.maxWidth) : track;
+}
+function placeX(width, cw, g) {
+    if (g.align === "center")
+        return g.ml + (width - g.ml - g.mr - cw) / 2;
+    if (g.align === "right")
+        return width - g.mr - cw;
+    return g.ml;
+}
+const geoEqual = (a, b) => a.maxWidth === b.maxWidth && a.ml === b.ml && a.mr === b.mr && a.align === b.align;
 /** Resolve a `<span class="…">` name to a themed fill: the whole class, else its
  *  first matching token (`"accent big"`); no match ⇒ undefined (plain text). */
 function resolveAccent(name) {
@@ -432,13 +470,28 @@ function layoutBlocks(blocks, width, bodyColor, ctx) {
     const out = [];
     let group = [];
     let prevProse = null; // previous prose block in this group
-    const flush = () => { if (group.length) {
-        out.push(flowView(group, width, ctx));
+    let groupGeo = null; // the coalesced group's geometry
+    // Flush the coalesced prose group: one TextFlow, built at its measure-capped
+    // content width and offset by its alignment. An empty map ⇒ contentWidth = width
+    // and placeX = 0, so this is byte-identical to the old `flowView(group, width)`.
+    const flush = () => {
+        if (group.length && groupGeo) {
+            const cw = contentWidth(width, groupGeo);
+            const v = flowView(group, cw, ctx);
+            v.x = placeX(width, cw, groupGeo);
+            out.push(v);
+        }
         group = [];
         prevProse = null;
-    } };
+        groupGeo = null;
+    };
     for (const b of blocks) {
         if (b.t === "paragraph" || b.t === "heading") {
+            const g = geoFor(b.t);
+            // A geometry change within a prose run (e.g. centered headings over a
+            // left-aligned column) can't share one native flow — flush and start fresh.
+            if (group.length && groupGeo && !geoEqual(groupGeo, g))
+                flush();
             // headings get generous space above and tight space below, so a section
             // groups with its own content instead of floating in an even column
             const gap = group.length === 0 ? 0
@@ -447,28 +500,36 @@ function layoutBlocks(blocks, width, bodyColor, ctx) {
                         : PROSE.blockGap;
             group.push(proseBlock(b, gap, bodyColor, ctx));
             prevProse = b.t;
+            groupGeo = g;
             continue;
         }
         flush();
+        const g = geoFor(b.t);
+        const cw = contentWidth(width, g);
+        let v = null;
         switch (b.t) {
             case "list":
-                out.push(buildList(b, width, bodyColor, ctx));
+                v = buildList(b, cw, bodyColor, ctx);
                 break;
             case "table":
-                out.push(buildTable(b, width, bodyColor, ctx));
+                v = buildTable(b, cw, bodyColor, ctx);
                 break;
             case "blockquote":
-                out.push(buildQuote(b, width, ctx));
+                v = buildQuote(b, cw, ctx);
                 break;
             case "code":
-                out.push(buildCode(b, width));
+                v = buildCode(b, cw);
                 break;
             case "pre":
-                out.push(buildPre(b, width, bodyColor, ctx));
+                v = buildPre(b, cw, bodyColor, ctx);
                 break;
             case "rule":
-                out.push(rectView(width, 1, C.rule));
+                v = rectView(cw, 1, C.rule);
                 break;
+        }
+        if (v !== null) {
+            v.x = placeX(width, cw, g);
+            out.push(v);
         }
     }
     flush();
@@ -490,29 +551,90 @@ function buildBlocks(blocks, width, bodyColor, ctx) {
  *  selectable `<pre>` with per-token colour. The mono family rides in as the
  *  `family` arg (a non-`mono` base style, so no inline-code chip behind each run);
  *  `<span class>` accents still compose their fill on top. */
+// The code text's left indent inside a box: the base pad, plus room for the
+// `codeRule` bar when one is drawn.
+const codePadLeft = (bar) => PROSE.codePad + (bar ? PROSE.codeRuleWidth + PROSE.codeRuleGap : 0);
 function buildPre(b, width, bodyColor, ctx) {
+    const bar = CODERULE !== null;
+    const boxed = CODEBG !== null || bar; // a `<pre>` stays BARE until code chrome is set
+    const padL = boxed ? codePadLeft(bar) : 0;
+    const padR = boxed ? PROSE.codePad : 0;
+    const flowW = width - padL - padR;
     const runs = richRunsOf(b.inline, base(CODESIZE, BODY.weight, bodyColor, BODY.tracking), CODEFAM);
     // Code renders at the font's natural line box (ascent+descent), NOT the prose
     // `lead` — so the `<pre>` reader/source view spaces its lines identically to a
     // fenced code block (whose Text leaf the backend sets to the same metric).
     const fm = fontMetrics(fontString({ fontFamily: CODEFAM, fontSize: sz(CODESIZE), fontWeight: "normal" }));
     const lead = (fm.ascent + fm.descent) / sz(CODESIZE);
-    return flowView([{ tag: "pre", runs, gapBefore: 0, lineHeight: lead, fontSize: sz(CODESIZE), pre: true }], width, ctx);
+    const flow = flowView([{ tag: "pre", runs, gapBefore: 0, lineHeight: lead, fontSize: sz(CODESIZE), pre: true }], flowW, ctx);
+    if (!boxed)
+        return flow; // today's behaviour when no chrome is set
+    // Chrome opted in: wrap the flow in the same tinted box (+ optional bar) a fenced
+    // block gets, so a highlighted `<pre>` and a fenced ``` render coherently. The box
+    // itself does NOT scroll — an inner scroller carries the flow, so long lines scroll
+    // horizontally while the box, its tint, and the left bar stay put (the scroller-
+    // sibling pattern). `clip` rounds the box AND trims the full-height bar to the
+    // corner. The box height tracks the flow's async measure (the `buildQuote` bar).
+    const box = rectView(width, 1, CODEBG ?? C.codeBg, PROSE.codeRadius);
+    box.clip = true;
+    const rule = bar ? rectView(PROSE.codeRuleWidth, 1, CODERULE) : null;
+    if (rule !== null) {
+        rule.x = 0;
+        rule.y = 0;
+        box.appendChild(rule);
+    }
+    const scroller = new View();
+    scroller.x = padL;
+    scroller.y = PROSE.codePad;
+    scroller.width = flowW;
+    scroller.scrollsX = true;
+    flow.x = 0;
+    flow.y = 0;
+    scroller.appendChild(flow);
+    box.appendChild(scroller);
+    const c = new Constraint("RichText.codeBox", () => `${flow.height}`, () => {
+        const h = Math.max(1, flow.height + 2 * PROSE.codePad);
+        box.height = h;
+        scroller.height = flow.height;
+        if (rule !== null)
+            rule.height = h;
+    }, 0);
+    c.run();
+    onDiscard(box, () => c.dispose());
+    return box;
 }
 /** A fenced code block — a single preformatted, monospace Text in a rounded box
- *  that scrolls horizontally (not soft-wrapped). Already one run; no TextFlow. */
+ *  that scrolls horizontally (not soft-wrapped). Already one run; no TextFlow. The
+ *  box tint is `codeBackground` (else the themed house tint), plus a `codeRule`
+ *  left bar when set — the same chrome a highlighted `<pre>` gets, for coherence. */
 function buildCode(b, width) {
     const fm = fontMetrics(fontString({ fontFamily: CODEFAM, fontSize: sz(CODESIZE), fontWeight: "normal" }));
+    const bar = CODERULE !== null;
+    const padL = codePadLeft(bar);
     const lines = b.text === "" ? 1 : b.text.split("\n").length;
     const h = Math.ceil(lines * (fm.ascent + fm.descent)) + 2 * PROSE.codePad;
-    const box = rectView(width, h, C.codeBg, PROSE.codeRadius);
-    box.scrollsX = true;
-    const t = textView(width - 2 * PROSE.codePad, sz(CODESIZE), C.codeFg, "normal", b.text);
-    t.x = PROSE.codePad;
-    t.y = PROSE.codePad;
+    const box = rectView(width, h, CODEBG ?? C.codeBg, PROSE.codeRadius);
+    box.clip = true; // round the box + trim the full-height bar to the corner radius
+    if (bar) {
+        const rule = rectView(PROSE.codeRuleWidth, h, CODERULE);
+        rule.x = 0;
+        rule.y = 0;
+        box.appendChild(rule);
+    }
+    // an inner scroller holds the text — long lines scroll while the bar stays fixed
+    const scroller = new View();
+    scroller.x = padL;
+    scroller.y = PROSE.codePad;
+    scroller.width = width - padL - PROSE.codePad;
+    scroller.height = h - 2 * PROSE.codePad;
+    scroller.scrollsX = true;
+    const t = textView(width - padL - PROSE.codePad, sz(CODESIZE), C.codeFg, "normal", b.text);
+    t.x = 0;
+    t.y = 0;
     t.wrap = false;
     t.fontFamily = CODEFAM;
-    box.appendChild(t);
+    scroller.appendChild(t);
+    box.appendChild(scroller);
     return box;
 }
 /** A list — one reactive row per item: the marker in the gutter, the item's body
@@ -611,7 +733,7 @@ export class RichText extends View {
         // Reactive render: re-parse and rebuild whenever the source OR `width` changes
         // (a resize re-flows, not only an edit); `dark`/`scale` in the key so a theme
         // flip or font-size change re-renders.
-        const c = new Constraint(`${this.constructor.name}.render`, () => `${this.width} ${this.sourceKey()} ${this.lineHeight} ${this.bodyColor} ${this.isDark()} ${this.scale}`, () => this.rebuild(), 0);
+        const c = new Constraint(`${this.constructor.name}.render`, () => `${this.width} ${this.sourceKey()} ${this.lineHeight} ${this.bodyColor} ${this.isDark()} ${this.scale} ${this.codeBackground} ${this.codeRule}`, () => this.rebuild(), 0);
         c.run();
         onDiscard(this, () => c.dispose());
     }
@@ -668,6 +790,9 @@ export class RichText extends View {
         CODEC = this.codeColor ?? C.code;
         CODESIZE = this.codeSize || PROSE.codeSize;
         CODEFAM = this.codeFamily || PROSE.mono;
+        CODEBG = this.codeBackground;
+        CODERULE = this.codeRule;
+        LAYOUT = this.richTextLayout ?? {};
         const ctx = { family, lead, onLink: (href) => this.dispatchLink(href) };
         // Render the block tree to a flat list of stacked sub-views: paragraphs and
         // headings coalesce into native TextFlows, and list/table/quote/code/rule each

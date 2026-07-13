@@ -6,20 +6,20 @@ class StatBar extends View [ width = 240, height = 22,
     onClick()     { open = !open },
 
     caption: Text [ x = 0, y = 3, width = 90, text = { classroot.label } ],
-    track: View [ x = 96, width = 144, height = 22, cornerRadius = 4, fill = #101E28,
-        bar: View [ height = 22, cornerRadius = 4, fill = #4C8DFF, width = 0,
+    track: View [ x = 96, width = 144, height = 22, cornerRadius = 4, fill = whitesmoke,
+        bar: View [ height = 22, cornerRadius = 4, fill = royalblue, width = 0,
             grow: Spring [ attribute = width, to = { classroot.value / 100 * 144 },
                            stiffness = 190, damping = 20 ] ],
         ],
 
-    lit:    State [ applied = { hovered }, fill = #16273A ],
+    lit:    State [ applied = { hovered }, fill = aliceblue ],
     opened: State [ applied = { open }, height = 40,
-        note: Text [ x = 0, y = 24, fontSize = 12, textColor = #8A9BA6,
+        note: Text [ x = 0, y = 24, fontSize = 12, textColor = slategray,
                      text = { `${classroot.value}% and climbing` } ],
         ],
     ]
 
-App [ fill = #0B141B, textColor = whitesmoke,
+App [ fill = white, textColor = black,
       fontFamily = ["system-ui", "sans-serif"], fontSize = 15,
     facts: Dataset { { "rows": [
         { "label": "reactive", "n": 92 },

@@ -1,4 +1,4 @@
-App [ textColor = whitesmoke,
+App [ fill = white, textColor = black,
     v: number = 42,
     cool: Color = dodgerblue,
     warm: Color = turquoise,

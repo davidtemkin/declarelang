@@ -11,9 +11,14 @@ beyond the schema type (return an error message, or `null` when valid); an inval
 held and never written.
 
 ```declare
-form: View [ datapath = { app.contact.value },
-    email: TextInput [ text <-> :email,
-        validate(v) { return v.includes("@") ? null : "not an email" } ] ]
+App [ fill = white, textColor = black,
+    contact: Dataset { { "email": "ada@example.com" } },
+    form: View [ x = 24, y = 24, datapath = { app.contact.value },
+        email: TextInput [ width = 240, height = 30, padding = 6, cornerRadius = 6,
+            fill = gainsboro,
+            text <-> :email,
+            validate(v) { return v.includes("@") ? null : "not an email" } ] ],
+    ]
 ```
 
 ## text

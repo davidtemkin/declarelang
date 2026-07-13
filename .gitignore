@@ -4,8 +4,9 @@ node_modules/
 # TypeScript incremental build cache
 *.tsbuildinfo
 
-# server /prod/ on-demand build cache (regenerated per request; the committed prebuilt/ is the real artifact)
-.prod-cache/
+# server /prod/ on-demand build cache (regenerated per request; the committed prebuilt/ is the real artifact).
+# one dir per backend/variant — .prod-cache/, .prod-cache-canvas/, … — all regenerated, none committed.
+.prod-cache*/
 
 # porting scratch area (OL5 references + comparison goldens): local-only, deletable
 workshop/

@@ -23,21 +23,11 @@ import { highlight } from "../compiler/dist/highlight.js";
 import { requestType, REQ } from "../compiler/dist/reqtypes.js";
 import { writeProduction } from "../tools/declarec.mjs";
 import { parseFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
-import { parseProgram, serializeDeps } from "../runtime/dist/index.js";
-import { annotateProgram } from "../compiler/dist/dep-extract.js";
 
-// The compiler's extracted constraint deps (design/constraints.md §5) for a
-// RESOLVED source, as a walk-order list the browser zips onto its re-parse so
-// the dev app boots on the static-constraint path (parity with the prod bundle).
-function depsFor(resolvedSource) {
-  try {
-    const prog = parseProgram(resolvedSource);
-    annotateProgram(prog);
-    return serializeDeps(prog);
-  } catch {
-    return undefined; // never let dep extraction break a dev render — fall back to tracking
-  }
-}
+// The compiler's extracted constraint deps (design/constraints.md §5) now ride
+// in the ONE compile() result (`r.deps`) — a walk-order list the browser zips
+// onto its re-parse so the dev app boots on the static-constraint path, exactly
+// as the prod bundle and the in-browser compile do. No separate extraction here.
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const EXAMPLES = path.join(ROOT, "examples");
@@ -70,7 +60,7 @@ const esc = (s) => s.replace(/[<&]/g, (c) => (c === "<" ? "&lt;" : "&amp;"));
 const RUNTIME_GZ_BYTES = 45 * 1024;
 
 // compile examples/<name>/<name>.declare and wrap it in a render-host page
-function hostPage(name, backendClass) {
+function hostPage(name, backendClass, flags = DEFAULT_FLAGS) {
   const dir = path.join(EXAMPLES, name);
   const src = readFileSync(path.join(dir, `${name}.declare`), "utf8");
   // Editable inline demos: each examples/<name>/demos/<demo>.declare is a full
@@ -81,7 +71,7 @@ function hostPage(name, backendClass) {
   if (existsSync(demoDir)) for (const f of readdirSync(demoDir)) {
     if (f.endsWith(".declare")) demos[f.slice(0, -8)] = readFileSync(path.join(demoDir, f), "utf8");
   }
-  const r = compile(src, { originDir: dir });
+  const r = compile(src, { originDir: dir, typecheck: flags.typecheck });
   if (r.errors.length) {
     return `<!doctype html><meta charset="utf-8"><title>${name} — compile errors</title>
 <pre style="color:#c33;font:13px/1.5 ui-monospace,monospace;padding:20px;white-space:pre-wrap">${
@@ -104,7 +94,7 @@ function hostPage(name, backendClass) {
   const seeds = {};
   if (!modelDriven) for (const k in demos) seeds[k] = stripComments(demos[k]);
   seeds.__page__ = src;
-  const cfg = { backend: backendClass, source: r.source, deps: depsFor(r.source), pageWeight: wireKB, sourceLines: loc, seeds, demoBase: "demos/" };
+  const cfg = { backend: backendClass, source: r.source, deps: r.deps, pageWeight: wireKB, sourceLines: loc, seeds, demoBase: "demos/" };
   // The homepage gets a real page title; other examples keep the debug backend tag.
   const pageTitle = name === "site" ? "Declare — the UI language for the AI era" : `${name} (${backendClass})`;
   // <base> resolves the app's relative resources + data under the example. The client
@@ -117,7 +107,7 @@ function hostPage(name, backendClass) {
 <script type="module">
 import { bootHost } from "/web/host-client.js";
 const cfg = ${JSON.stringify(cfg)};
-cfg.compile = async (s) => { try { return (await (await fetch("/compile", { method: "POST", body: s })).json()).source; } catch (e) { return null; } };
+cfg.compile = async (s) => { try { const r = await (await fetch("/compile", { method: "POST", body: s })).json(); return r.source ? { source: r.source, deps: r.deps } : null; } catch (e) { return null; } };
 bootHost(cfg);
 </script>`;
 }
@@ -155,7 +145,7 @@ function sourcePage(relPath, segments, rawSource, backendClass) {
   }
   const title = relPath.split("/").pop();
   const cfg = {
-    backend: backendClass, source: r.source, deps: depsFor(r.source),
+    backend: backendClass, source: r.source, deps: r.deps,
     // __source__ = the highlight() segments (JSON); __raw__ = the verbatim source
     // (for the plain-text toggle — segments can't reconstruct it faithfully);
     // __path__ = the file shown. The viewer reads them off app.demoSources.
@@ -276,7 +266,7 @@ http.createServer((req, res) => {
       let out;
       try {
         const r = compile(body, {});
-        out = { source: r.source, deps: r.source ? depsFor(r.source) : undefined, errors: (r.errors ?? []).map((e) =>
+        out = { source: r.source, deps: r.deps, errors: (r.errors ?? []).map((e) =>
           ({ message: e.message, offset: e.pos?.offset ?? null, line: e.pos?.line ?? null })) };
       } catch (e) {
         out = { source: null, errors: [{ message: String((e && e.message) || e), offset: null, line: null }] };
@@ -321,11 +311,16 @@ http.createServer((req, res) => {
     // request type (reqtypes.ts) — the source view / segments of its .declare.
     const m = p.match(/^\/examples\/([^/]+)\/(canvas)?$/);
     if (m && examples().includes(m[1])) {
-      const rt = requestType(new URL(req.url, "http://x").searchParams);
-      const backendClass = m[2] ? "CanvasBackend" : "DomBackend";
+      const params = new URL(req.url, "http://x").searchParams;
+      const rt = requestType(params);
+      // Path `/canvas` sets the base backend; the URL query (`?backend=`, and any
+      // other flag such as `?typecheck`) can override — the SAME flags.ts model
+      // the CLI and the in-browser compiler read, named the same way.
+      const flags = parseFlags(params, { ...DEFAULT_FLAGS, backend: m[2] ? "canvas" : "dom" });
+      const backendClass = flags.backend === "canvas" ? "CanvasBackend" : "DomBackend";
       if (rt === REQ.SOURCE || rt === REQ.SEGMENTS)
         return serveSource(res, path.join(EXAMPLES, m[1], `${m[1]}.declare`), `examples/${m[1]}/${m[1]}.declare`, rt, backendClass);
-      return send(res, 200, hostPage(m[1], backendClass));
+      return send(res, 200, hostPage(m[1], backendClass, flags));
     }
 
     // A .declare file with ?view=source / ?view=segments → its source view; a

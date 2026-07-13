@@ -6,15 +6,15 @@ boolean. It replaces imperative mode-toggling and hand-wired enter/exit logic wi
 one declaration.
 
 ```declare
-App [ textColor = whitesmoke,
+App [ textColor = black,
     open: boolean = false,
     onMouseDown() { open = !open },
     card: View [ x = 28, y = 26, width = 300, height = 72,
-                 cornerRadius = 10, fill = midnightblue,
+                 cornerRadius = 10, fill = white,
         Text [ x = 16, y = 16, fontWeight = bold, text = "Summary" ],
 
-        big: State [ applied = { open }, height = 184, fill = steelblue,
-            Text [ x = 16, y = 54, width = 268, textColor = gainsboro, wrap = true,
+        big: State [ applied = { open }, height = 184, fill = lightsteelblue,
+            Text [ x = 16, y = 54, width = 268, textColor = darkslategray, wrap = true,
                    text = "height, colour, and this whole line swap in together" ] ],
         ],
     ]
@@ -70,15 +70,15 @@ by ordering:
 
 ```declare
 class Button extends View [ width = 120, height = 32, cornerRadius = 4,
-    fill = #3F4977, textColor = #FFFFFF,
+    fill = royalblue, textColor = white,
     label: string = "", enabled: boolean = true,
     hovered: boolean = false, pressed: boolean = false,
     onMouseOver() { hovered = true }, onMouseOut() { hovered = false },
     onMouseDown() { pressed = true }, onMouseUp() { pressed = false },
 
-    hover: State [ applied = { hovered },  fill = #4A5590 ],
-    press: State [ applied = { pressed },  fill = #2A3157 ],
-    off:   State [ applied = { !enabled }, fill = #9AA0B8, textColor = #D5D8E6 ],  // declared last → wins
+    hover: State [ applied = { hovered },  fill = royalblue ],
+    press: State [ applied = { pressed },  fill = royalblue ],
+    off:   State [ applied = { !enabled }, fill = slategray, textColor = slategray ],  // declared last → wins
 
     caption: Text [ text = { classroot.label }, width = 120, y = 9 ],
     ]
@@ -96,14 +96,14 @@ position, so layout reflows around their presence or absence:
 ```declare
 class Disclosure extends View [ width = 260, title: string = "", open: boolean = false,
     layout: SimpleLayout [ axis = y ],
-    header: View [ width = 260, height = 28, fill = #EEF0F6,
+    header: View [ width = 260, height = 28, fill = whitesmoke,
         onClick() { classroot.open = !classroot.open },
         arrow: Text [ text = { classroot.open ? "▾" : "▸" }, x = 8, y = 6 ],
         label: Text [ text = { classroot.title }, x = 24, y = 6 ],
         ],
     opened: State [ applied = { open },        // children lay out right after the header
         detail: Text [ x = 8, y = 6, width = 244, text = "Detail, present only while open." ],
-        rule:   View [ x = 8, width = 244, height = 1, fill = #C9CEDF ],
+        rule:   View [ x = 8, width = 244, height = 1, fill = silver ],
         ],
     ]
 ```
@@ -128,7 +128,7 @@ class Editable extends View [ width = 240, height = 28,
         visible = { !classroot.edit.applied },     // sibling reacts by READING .applied
         onClick() { classroot.draft = classroot.value; classroot.edit.apply() } ],
     edit: State [
-        fill = #FFFFF0,
+        fill = ivory,
         box: TextInput [ x = 84, y = 4, width = 96, text = { classroot.draft } ],
         ok:  Button    [ x = 186, y = 4, label = "OK",
             onClick() { classroot.value = classroot.draft; classroot.edit.remove() } ],

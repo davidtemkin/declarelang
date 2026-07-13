@@ -48,4 +48,15 @@ const _cN: <SlotTsType> = (function (this: <Self>, parent: <Parent>, classroot: 
 - Migrate the remaining `NeoError` sites to specific catalog codes (universality already holds via phase fallback).
 - Typecheck datapath-bearing bodies (island → typed data read).
 - Column granularity; typed method signatures.
-- The in-browser compile path needs the lib.d.ts bundled (today they're read from disk).
+- The in-browser compile path needs the lib.d.ts bundled (today they're read from disk) — see `in-browser-dev.md`.
+
+## 4. Errors are for an LLM (the diagnostic contract)
+
+**Ruled 2026-07-13.** Declare's primary author is a language model, and a model does not read the spec — it reads the **compiler's error and reacts, in a loop**. So error quality *is* language usability, and the diagnostic surface is a first-class design surface, not an afterthought. Four rules every `Diag.*` factory (and every message it wraps) must satisfy:
+
+1. **Name the fix, not just the diagnosis.** The message states the concrete rewrite that resolves it. "cannot statically determine dependencies" is a bug; "`app.days[i]` indexes by a runtime value — read `app.calendar.read([i])` from the Dataset instead" is a diagnostic. A model can apply the second and cannot act on the first.
+2. **One canonical fix, not a menu.** When several rewrites would work, the message names *the* one the language prefers. Determinism is what lets a model converge in a single step instead of guessing; a list of options invites thrashing.
+3. **The rule is quotable in the message.** The policy each error enforces is tight enough (e.g. constraints.md's two-sentence residue rule) to restate inline, so the model re-learns the rule every time it trips — the error *is* the teaching surface, since nothing else will be read.
+4. **Precise position + the offending sub-expression**, so the edit lands on the right token, not the whole body.
+
+This is why the residue policy (constraints.md §3) is a *pointed error naming the rewrite* rather than a silent fallback: a fallback teaches the model nothing and hides the very thing it must learn. The same bar applies to the seam type errors (NEO6001) and everything in the catalog — a diagnostic that only describes the problem has failed its primary reader.

@@ -141,6 +141,18 @@ export class View extends Node {
    *  code style (PROSE.codeSize / PROSE.mono). */
   declare codeSize: number;
   declare codeFamily: string;
+  /** Code-block box paint, prevailing: `codeBackground` tints the box behind a
+   *  fenced/`<pre>` code block, `codeRule` draws a left accent bar on it. Both
+   *  `null` = the house look (fenced code keeps its themed tint; a `<pre>` stays
+   *  bare), so setting them is opt-in and changes nothing unset. */
+  declare codeBackground: Color;
+  declare codeRule: Color;
+  /** Per-block-type layout geometry for rendered rich text, prevailing: a plain
+   *  record keyed by block type (`paragraph`/`heading`/`code`/`pre`/`list`/
+   *  `table`/`blockquote`/`rule`, plus `default`), each entry `{ maxWidth, margin:
+   *  [l, r], align }`. Defaulted in the consumer like `theme` — an unset map or
+   *  field is today's full-width left-aligned flow; `pre` shares `code`. */
+  declare richTextLayout: Readonly<Record<string, { maxWidth?: number; margin?: readonly [number, number]; align?: "left" | "center" | "right" }>> | null;
   /** Native text selection, prevailing: `selectable = true` on a container opts
    *  its whole subtree back into browser selection/copy (Text acts on it; a
    *  `Markdown` component's runs inherit it). Off by default — the app is a UI. */
@@ -545,6 +557,9 @@ defineAttributes(View, {
   codeColor: { def: null, prevailing: true },
   codeSize: { def: 0, prevailing: true },
   codeFamily: { def: "", prevailing: true },
+  codeBackground: { def: null, prevailing: true },
+  codeRule: { def: null, prevailing: true },
+  richTextLayout: { def: null, prevailing: true },
   theme: { def: DEFAULT_THEME, prevailing: true },
   styles: { def: null },
   // The pusher installs appliers under a newly-providing view (existing

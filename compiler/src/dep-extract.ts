@@ -22,6 +22,7 @@
 import ts from "typescript";
 import { scanDatapaths } from "../../runtime/dist/datapath.js";
 import type { Program, Element, Attr, AttrDecl, Method } from "../../runtime/dist/parser.js";
+import { LANGUAGE_METHOD_EFFECTS } from "./effects.js";
 
 const SCOPE_ROOTS = new Set(["parent", "classroot"]); // `this` via ThisKeyword; `app` is `this.root`
 const GLOBALS = new Set(["Math","Object","JSON","Array","Number","String","Boolean","Date","console","parseInt","parseFloat","isNaN","isFinite","Infinity","NaN","undefined","null","RegExp","Symbol","Map","Set","Promise","Intl","Error"]);
@@ -167,11 +168,18 @@ function extractBody(sf: ts.Node, locals: Set<string>): BodyDeps {
             if (recvName && NODE_COLLECTIONS.has(recvName)) errors.push(new DepError(`aggregation over a reactive node collection (.${recvName}.${m}) — a data-dependent number of slots; derive from data`, s.getStart()));
           } else if (PURE_METHODS.has(m)) { /* pure projection */ }
           else if (USER_METHODS.has(m)) calls.push({ name: m, receiver: recv.getText() });
+          else if (LANGUAGE_METHOD_EFFECTS.has(m)) {
+            // A language-supplied method with a DECLARED reactive effect
+            // (effects.ts): union its read-paths, rebased to this receiver — as
+            // analyzable as following a user method's body, not a residue.
+            for (const rp of LANGUAGE_METHOD_EFFECTS.get(m)!) reads.add(rebase(rp, recv.getText()));
+          }
           else errors.push(new DepError(`unresolved call target .${m}() — its reads can't be analyzed; call an in-program method or a pure builtin`, s.getStart()));
         } else if (ts.isIdentifier(callee)) {
           const nm = callee.text;
           if (CONSTRUCTORS.has(nm) || GLOBALS.has(nm) || locals.has(nm)) { /* pure */ }
           else if (USER_METHODS.has(nm)) calls.push({ name: nm, receiver: "this" });
+          else if (LANGUAGE_METHOD_EFFECTS.has(nm)) { for (const rp of LANGUAGE_METHOD_EFFECTS.get(nm)!) reads.add(rebase(rp, "this")); }
           else errors.push(new DepError(`unresolved call target ${nm}() — its reads can't be analyzed`, s.getStart()));
         }
         pathEnd = base;
@@ -300,13 +308,23 @@ export function extractProgram(program: Program): ExtractedConstraint[] {
 
 /** Extract deps and ATTACH them to the program AST (`attr.value.deps`), so the
  *  runtime can wire the static-constraint path. Returns residue errors (empty on
- *  the whole corpus). Mutates the program in place. */
+ *  the whole corpus). Mutates the program in place.
+ *
+ *  A RESIDUE constraint (one the extractor cannot fully analyze) is annotated
+ *  with EMPTY deps, never the partial `reads` it managed to find: partial deps
+ *  would be wired as if complete and silently MISS the unanalyzed read. Empty
+ *  deps leave the constraint unwired, so the runtime re-discovers every read
+ *  each run — the sound fallback (design/constraints.md's "genuinely dynamic
+ *  reads"). The returned `errors` name each such constraint for a caller that
+ *  wants to surface or (in the design's end state) reject them. */
 export function annotateProgram(program: Program): { errors: { message: string; offset: number; where: string }[] } {
   const out = extractProgram(program);
   const errors: { message: string; offset: number; where: string }[] = [];
   for (const c of out) {
-    if (c.node) (c.node as { deps?: readonly string[] }).deps = c.reads;
-    for (const e of c.errors) errors.push({ ...e, where: `${c.name ?? c.tag}.${c.attr}` });
+    if (c.node) (c.node as { deps?: readonly string[] }).deps = c.errors.length ? [] : c.reads;
+    // Position the residue at the CONSTRAINT (`c.offset` is program-global — the
+    // `{`), not the body-local sub-expression offset `e.offset` carries.
+    for (const e of c.errors) errors.push({ message: e.message, offset: c.offset, where: `${c.name ?? c.tag}.${c.attr}` });
   }
   return { errors };
 }

@@ -7,20 +7,20 @@ nearest ancestor that sets it*, and keeps following live, until a descendant
 overrides it.
 
 ```declare
-App [ fontFamily = ["Helvetica Neue", "Geneva", "sans-serif"], fontSize = 9,
-      fontWeight = bold, textColor = #FFFFFF, zip: string = "94110",
+App [ fill = white, fontFamily = ["Helvetica Neue", "Geneva", "sans-serif"], fontSize = 9,
+      fontWeight = bold, textColor = black, zip: string = "94110",
 
     // none of these Texts repeat the family, size, weight, or colour — they
     // inherit the App's, and would inherit any nearer container's instead
 
     topBar: View [
         title: Text [ text = "Rain or Shine?" ],
-        zip:   Text [ text = { app.zip }, textColor = #CAD0EC ],   // overrides just the colour
+        zip:   Text [ text = { app.zip }, textColor = royalblue ],   // overrides just the colour
         ],
     ]
 ```
 
-`title` paints in the App's bold Helvetica at size 9 in white; `zip` inherits all
+`title` paints in the App's bold Helvetica at size 9 in near-black; `zip` inherits all
 of that but overrides `textColor`. This is the mechanism that keeps a real UI
 free of style repetition — and it is why *reskinning a subtree is one edit at its
 root*, not a sweep through every leaf.
@@ -68,7 +68,7 @@ Prevailing is not a framework privilege — it is a contextual declaration modif
 
 ```declare
 class Panel extends View [
-    prevailing accent: Color = #4C8DFF,        // descendants follow this Panel's accent
+    prevailing accent: Color = royalblue,        // descendants follow this Panel's accent
     …
     ]
 

@@ -32,7 +32,7 @@ and bindings, no child instance, method, state, or declaration — and closes **
 its `]` riding the last line (even when the attributes wrapped):
 
 ```declare
-label: Text [ fontSize = 22, fontWeight = semibold, textColor = 0x2E6FE0,
+label: Text [ fontSize = 22, fontWeight = semibold, textColor = royalblue,
     text = { "count: " + this.n } ],
 ```
 
@@ -40,9 +40,9 @@ Any body that holds a child, a method, a state, or a nested declaration closes
 **hanging** — the `],` alone on its own line, at the body's own indent:
 
 ```declare
-plus: View [ x = 150, width = 40, height = 40, fill = 0x2E6FE0,
+plus: View [ x = 150, width = 40, height = 40, fill = royalblue,
     onClick() { classroot.n = classroot.n + 1 },
-    Text [ text = "+", textAlign = center, width = 40, fontSize = 22 ],
+    Text [ text = "+", textAlign = center, width = 40, fontSize = 22, textColor = white ],
     ],
 ```
 

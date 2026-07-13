@@ -17,9 +17,12 @@ it decides which side is the source of truth (this is the two-shape story from
 [Data](26-data.md), restated here from the input side).
 
 ```declare
-zipField: TextInput [ x = 84, y = 4, width = 96, placeholder = "Zip code",
-    onInput(v) { app.zip = v },              // each keystroke — v is the new text
-    onEnter()  { app.weather.fetch() },      // Enter, on a single-line field — submit
+App [ fill = white, textColor = black,
+    zipField: TextInput [ x = 20, y = 20, width = 160, height = 30, padding = 6, cornerRadius = 6,
+        fill = gainsboro, placeholder = "Zip code",
+        onInput(v) { app.zip = v },              // each keystroke — v is the new text
+        onEnter()  { app.weather.fetch() },      // Enter, on a single-line field — submit
+        ],
     ]
 ```
 
@@ -36,8 +39,14 @@ zipField: TextInput [ x = 84, y = 4, width = 96, placeholder = "Zip code",
 Controlled vs. source-of-truth is worth deciding on purpose:
 
 ```declare
-seed:  TextInput [ initial = { app.zip } ],   // seeded once, then editable — the field is truth
-bound: TextInput [ text    = { app.zip } ],   // controlled — always shows app.zip, edits revert
+App [ fill = white, textColor = black, zip: string = "94110",
+    seed:  TextInput [ x = 20, y = 20, width = 220, height = 30, padding = 6, cornerRadius = 6,
+           fill = gainsboro,
+           initial = { app.zip } ],   // seeded once, then editable — the field is truth
+    bound: TextInput [ x = 20, y = 70, width = 220, height = 30, padding = 6, cornerRadius = 6,
+           fill = gainsboro,
+           text    = { app.zip } ],   // controlled — always shows app.zip, edits revert
+    ]
 ```
 
 Reach for **controlled** when other state is authoritative and the field is a view
@@ -53,10 +62,15 @@ well-built tree *is* the visual order, and which handles replicated and
 runtime-created views with no bookkeeping.
 
 ```declare
-form: View [ x = 20, y = 20, layout: SimpleLayout [ axis = y, spacing = 8 ],
-    name:  TextInput [ width = 200, focusable = true, placeholder = "Name" ],
-    email: TextInput [ width = 200, focusable = true, placeholder = "Email" ],
-    zip:   TextInput [ width = 200, focusable = true, placeholder = "Zip" ],
+App [ fill = white, textColor = black,
+    form: View [ x = 20, y = 20, layout: SimpleLayout [ axis = y, spacing = 8 ],
+        name:  TextInput [ width = 200, focusable = true, placeholder = "Name",
+               height = 30, padding = 6, cornerRadius = 6, fill = gainsboro ],
+        email: TextInput [ width = 200, focusable = true, placeholder = "Email",
+               height = 30, padding = 6, cornerRadius = 6, fill = gainsboro ],
+        zip:   TextInput [ width = 200, focusable = true, placeholder = "Zip",
+               height = 30, padding = 6, cornerRadius = 6, fill = gainsboro ],
+        ],
     ]
 ```
 
@@ -72,14 +86,19 @@ attribute. When focus reaches the edge, the view's **`onEscapeFocus`** handler
 fires — dismiss the modal there, or hand focus back to where it came from.
 
 ```declare
-dialog: View [ x = 40, y = 40, width = 300, height = 160, fill = #101E28,
+dialog: View [ x = 40, y = 40, width = 300, height = 160, fill = white,
+    cornerRadius = 10,
     focustrap = true,
     onEscapeFocus() { app.editing = false },     // Tab tried to leave — close the modal
-    field:  TextInput [ x = 16, y = 16, width = 268, focusable = true ],
-    cancel: View [ x = 16, y = 60, width = 80, height = 28, fill = #263D4C,
-        focusable = true, onClick() { app.editing = false } ],
-    ok:     View [ x = 104, y = 60, width = 80, height = 28, fill = #4C8DFF,
-        focusable = true, onClick() { app.editing = false } ],
+    field:  TextInput [ x = 16, y = 16, width = 268, height = 30, focusable = true,
+            padding = 6, cornerRadius = 6, fill = gainsboro,
+            placeholder = "Title" ],
+    cancel: View [ x = 16, y = 60, width = 80, height = 28, cornerRadius = 6, fill = gainsboro,
+        focusable = true, onClick() { app.editing = false },
+        Text [ width = 80, y = 6, textAlign = center, text = "Cancel" ] ],
+    ok:     View [ x = 104, y = 60, width = 80, height = 28, cornerRadius = 6, fill = royalblue,
+        focusable = true, onClick() { app.editing = false },
+        Text [ width = 80, y = 6, textAlign = center, textColor = white, text = "OK" ] ],
     ]
 ```
 
@@ -93,10 +112,14 @@ gains and loses the keyboard. Use them to drive state that other slots read:
 brighten a field's frame while it is active, show a hint, or flip an app-level flag.
 
 ```declare
-search: TextInput [ x = 20, y = 20, width = 240, active: boolean = false,
-    onFocus() { active = true },
-    onBlur()  { active = false },
-    hot: State [ applied = { active }, fill = #16273A ],   // frame lights while focused
+App [ fill = white, textColor = black,
+    search: TextInput [ x = 20, y = 20, width = 240, height = 30, active: boolean = false,
+        padding = 6, cornerRadius = 6, fill = gainsboro,
+        placeholder = "Search",
+        onFocus() { active = true },
+        onBlur()  { active = false },
+        hot: State [ applied = { active }, fill = aliceblue ],   // frame lights while focused
+        ],
     ]
 ```
 

@@ -1,5 +1,5 @@
 App [
-    View [ textColor = #CAD0EC, fontSize = 14,
+    View [ textColor = royalblue, fontSize = 14,
       Text [ text = "inherits the panel's style" ]
     ]
 ]

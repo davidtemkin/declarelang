@@ -15,7 +15,7 @@ the app change under your hands, and the change is always small. Read the prose 
 ## Step 1 — the empty App
 
 ```declare
-App [ fill = #0B141B, textColor = whitesmoke,
+App [ fill = white, textColor = black,
     fontFamily = ["system-ui", "sans-serif"], fontSize = 15,
     ]
 ```
@@ -30,7 +30,7 @@ it once at the root and never repeat it ([Prevailing](22-prevailing.md)).
 ## Step 2 — reactive state and a constraint
 
 ```declare
-App [ fill = #0B141B, textColor = whitesmoke,
+App [ fill = white, textColor = black,
     total: number = 234,
     Text [ x = 24, y = 24, fontSize = 28, fontWeight = bold,
            text = { `${total} events` } ],       // recomputes whenever total changes
@@ -54,8 +54,8 @@ the type, `extends` a base, and add members ([Composition](20-composition.md)).
 class StatBar extends View [ width = 240, height = 22,
     label: string = "", value: number = 0,          // declared attributes; value is 0..100
     caption: Text [ x = 0, y = 3, width = 90, text = { classroot.label } ],
-    track: View [ x = 96, width = 144, height = 22, cornerRadius = 4, fill = #101E28,
-        bar: View [ height = 22, cornerRadius = 4, fill = #4C8DFF,
+    track: View [ x = 96, width = 144, height = 22, cornerRadius = 4, fill = whitesmoke,
+        bar: View [ height = 22, cornerRadius = 4, fill = royalblue,
                     width = { classroot.value / 100 * 144 } ],   // length tracks value
         ],
     ]
@@ -71,7 +71,7 @@ drop anywhere a view fits.
 ## Step 4 — lay several out
 
 ```declare
-App [ fill = #0B141B, textColor = whitesmoke,
+App [ fill = white, textColor = black,
     panel: View [ x = 24, y = 24,
         layout: SimpleLayout [ axis = y, spacing = 10 ],
         StatBar [ label = "reactive", value = 92 ],
@@ -94,7 +94,7 @@ Three hand-written bars want to be data. Replace them with **one** bar bound to 
 ([Data](26-data.md)):
 
 ```declare
-App [ fill = #0B141B, textColor = whitesmoke,
+App [ fill = white, textColor = black,
     facts: Dataset { { "rows": [
         { "label": "reactive", "n": 92 },
         { "label": "compiled", "n": 78 },
@@ -125,7 +125,7 @@ class StatBar extends View [ width = 240, height = 22,
     onMouseOver() { hovered = true },
     onMouseOut()  { hovered = false },
     caption: Text [ … ],  track: View [ … ],       // unchanged
-    lit: State [ applied = { hovered }, fill = #16273A ],   // tints the row while hovered
+    lit: State [ applied = { hovered }, fill = aliceblue ],   // tints the row while hovered
     ]
 ```
 
@@ -144,7 +144,7 @@ grows the row *and* adds a detail line that exists only while expanded:
     onClick() { open = !open },                    // toggles a new `open: boolean`
     …
     opened: State [ applied = { open }, height = 40,
-        note: Text [ x = 0, y = 24, fontSize = 12, textColor = #8A9BA6,
+        note: Text [ x = 0, y = 24, fontSize = 12, textColor = slategray,
                      text = { `${classroot.value}% and climbing` } ],
         ],
 ```
@@ -161,7 +161,7 @@ Finally, give the bar physics. Instead of the length *snapping* to `value`, let 
 follows the same target ([Animation](30-animation.md)):
 
 ```declare
-    bar: View [ height = 22, cornerRadius = 4, fill = #4C8DFF, width = 0,
+    bar: View [ height = 22, cornerRadius = 4, fill = royalblue, width = 0,
         grow: Spring [ attribute = width, to = { classroot.value / 100 * 144 },
                        stiffness = 190, damping = 20 ] ],
 ```
@@ -186,20 +186,20 @@ class StatBar extends View [ width = 240, height = 22,
     onClick()     { open = !open },
 
     caption: Text [ x = 0, y = 3, width = 90, text = { classroot.label } ],
-    track: View [ x = 96, width = 144, height = 22, cornerRadius = 4, fill = #101E28,
-        bar: View [ height = 22, cornerRadius = 4, fill = #4C8DFF, width = 0,
+    track: View [ x = 96, width = 144, height = 22, cornerRadius = 4, fill = whitesmoke,
+        bar: View [ height = 22, cornerRadius = 4, fill = royalblue, width = 0,
             grow: Spring [ attribute = width, to = { classroot.value / 100 * 144 },
                            stiffness = 190, damping = 20 ] ],
         ],
 
-    lit:    State [ applied = { hovered }, fill = #16273A ],
+    lit:    State [ applied = { hovered }, fill = aliceblue ],
     opened: State [ applied = { open }, height = 40,
-        note: Text [ x = 0, y = 24, fontSize = 12, textColor = #8A9BA6,
+        note: Text [ x = 0, y = 24, fontSize = 12, textColor = slategray,
                      text = { `${classroot.value}% and climbing` } ],
         ],
     ]
 
-App [ fill = #0B141B, textColor = whitesmoke,
+App [ fill = white, textColor = black,
       fontFamily = ["system-ui", "sans-serif"], fontSize = 15,
     facts: Dataset { { "rows": [
         { "label": "reactive", "n": 92 },

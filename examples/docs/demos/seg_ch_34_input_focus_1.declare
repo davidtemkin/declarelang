@@ -1,4 +1,8 @@
-App [
-    seed:  TextInput [ initial = { app.zip } ],   // seeded once, then editable — the field is truth
-    bound: TextInput [ text    = { app.zip } ],   // controlled — always shows app.zip, edits revert
-]
+App [ fill = white, textColor = black, zip: string = "94110",
+    seed:  TextInput [ x = 20, y = 20, width = 220, height = 30, padding = 6, cornerRadius = 6,
+           fill = gainsboro,
+           initial = { app.zip } ],   // seeded once, then editable — the field is truth
+    bound: TextInput [ x = 20, y = 70, width = 220, height = 30, padding = 6, cornerRadius = 6,
+           fill = gainsboro,
+           text    = { app.zip } ],   // controlled — always shows app.zip, edits revert
+    ]

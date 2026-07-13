@@ -19,8 +19,10 @@ case:
   set one.
 
 ```declare
-Text [ x = 24, y = 24, width = { parent.width - 48 },      // bounded → wraps and reflows on resize
-       text = "A declarative language for real, dynamic web apps — reactive by construction." ]
+App [ fill = white, textColor = black,
+    Text [ x = 24, y = 24, width = { parent.width - 48 },      // bounded → wraps and reflows on resize
+           text = "A declarative language for real, dynamic web apps — reactive by construction." ],
+    ]
 ```
 
 The wrapping is itself **reactive**. When the width changes — because the container

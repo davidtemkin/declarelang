@@ -1,4 +1,5 @@
-App [ facts: Dataset { { "rows": [
+App [ fill = white, textColor = black,
+    facts: Dataset { { "rows": [
         { "label": "reactive", "n": 92 },
         { "label": "compiled", "n": 78 },
         { "label": "small",    "n": 64 } ] } },

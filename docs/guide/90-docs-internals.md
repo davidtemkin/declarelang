@@ -84,8 +84,8 @@ That mechanism is exactly what renders the block below — and you can select ac
 its words as one run:
 
 ```declare
-App [ width = 460, height = 116, fill = #1E3A49,
-  Markdown [ x = 20, y = 16, width = { parent.width - 40 }, lineHeight = 1.5, bodyColor = whitesmoke,
+App [ width = 460, height = 116, fill = white,
+  Markdown [ x = 20, y = 16, width = { parent.width - 40 }, lineHeight = 1.5, bodyColor = black,
              text = "**Markdown** flows as native text — try selecting across *these* words, `code`, and links." ] ]
 ```
 

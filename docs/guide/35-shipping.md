@@ -87,7 +87,7 @@ URL query, or a browser URL query.
 | **backend** | render through managed DOM or one `<canvas>` | `--canvas` / `--dom` | `?backend=canvas` | `dom` |
 | **prod** | production build (precompile + bundle run-path) | *always* | the `/prod` route | dev |
 | **slim** | ship only the components the app can instantiate | `--no-slim` (or `--full`) turns it off | `?slim=0` | on |
-| **stripPos** | drop source positions from the shipped program | `--keep-pos` keeps them | `?keeppos` | stripped |
+| **stripPos** | drop source positions from the shipped program | `--no-strip-pos` keeps them | `?stripPos=0` | stripped |
 | **typecheck** | run the advisory tsc-over-bodies pass | `--typecheck` | `?typecheck` | off |
 
 So `?backend=canvas&slim=0` on the server, `--canvas --no-slim` on the CLI, and

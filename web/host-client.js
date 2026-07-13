@@ -32,7 +32,7 @@ const DISTRO_ROOT = new URL("../", import.meta.url);
  *   seeds?: Record<string,string>,        // { <demo>: editorSeedSource, __page__: rawPageSource }
  *   demoBase?: string,                    // abs URL of the demos dir; previews with no seed fetch <demoBase><name>.declare on demand
  *   precompiled?: Record<string,string>,  // { <demo>: compiledSource } — static initial previews
- *   compile?: (source: string) => Promise<string|null>,  // live recompile (server/in-browser); null = keep last
+ *   compile?: (source: string) => Promise<{source:string, deps?:any}|null>,  // live recompile (server/in-browser); null = keep last
  * }}
  */
 export async function bootHost(cfg) {
@@ -103,12 +103,15 @@ export async function bootHost(cfg) {
   // box lives inside THIS app's marked tree, so the child auto-detects it is embedded
   // (runtime isEmbedded): it sizes to the box, scopes focus/pointer, never touches
   // the page. Old child disposed first (stage listeners) so a live edit swaps cleanly.
-  async function renderChild(box, compiledSource) {
-    if (!compiledSource) return;                         // keep the last good render
+  // `compiled` is the ONE compile result `{ source, deps }` — the preview child boots
+  // on the SAME static-constraint path as the main app (deps applied), never a
+  // divergent runtime-tracking path.
+  async function renderChild(box, compiled) {
+    if (!compiled || !compiled.source) return;           // keep the last good render
     if (box.__childApp) { disposeApp(box.__childApp); box.__childApp = null; }
     box.innerHTML = "";
     try {
-      const childApp = await renderAsync(compiledSource, box, new DomBackend());
+      const childApp = await renderAsync(compiled.source, box, new DomBackend(), { deps: compiled.deps });
       box.__childApp = childApp;
       if (childApp) childApp.demoSources = seeds;         // populate a nested copy's own editors
     } catch (e) {}
@@ -151,13 +154,16 @@ export async function bootHost(cfg) {
       if (box.dataset.wired || box.dataset.wiring) return;
       box.dataset.wiring = "1";                              // in-flight: one compile at a time
       const name = box.dataset.neoSlot.split(":")[1];
-      let compiled = precompiled[name];
+      // precompiled entries are a bare compiled-source string (the legacy static
+      // artifact channel); normalize to the `{ source }` result shape renderChild
+      // takes. A live compile already returns `{ source, deps }`.
+      let compiled = precompiled[name] != null ? { source: precompiled[name] } : null;
       if (compiled == null) {
         const src = await sourceFor(name);                  // seed, or fetched on demand
         compiled = src == null ? null : await compile(src); // src null (fetch failed) ⇒ retry next tick
       }
       delete box.dataset.wiring;
-      if (!compiled) return;                                 // compiler not warm / source not in yet — retry next tick
+      if (!compiled || !compiled.source) return;             // compiler not warm / source not in yet — retry next tick
       box.dataset.wired = "1";                               // committed: don't remount
       renderChild(box, compiled);
     });

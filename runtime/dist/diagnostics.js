@@ -16,6 +16,9 @@
 //   NEO4xxx  name       — bare-name resolution (unresolved; shadowing = warning)
 //   NEO5xxx  module     — include resolution (collision, missing, stray root)
 //   NEO6xxx  typecheck  — a tsc diagnostic over a { } body, mapped to neo
+//   NEO7xxx  constraint — a { } constraint the dependency extractor cannot
+//                         statically analyze (residue) — a hard error that
+//                         names the rewrite that makes it analyzable
 //
 // Interop: the compiler collects `NeoError[]` internally (throw + aggregate).
 // A NeoError carries the catalog `code`/`hint` as ADDITIVE metadata (errors.ts)
@@ -38,6 +41,7 @@ const BASE = {
     name: "NEO4000",
     module: "NEO5000",
     typecheck: "NEO6000",
+    constraint: "NEO7000",
 };
 const PHASE_BY_DIGIT = {
     "1": "syntax",
@@ -46,6 +50,7 @@ const PHASE_BY_DIGIT = {
     "4": "name",
     "5": "module",
     "6": "typecheck",
+    "7": "constraint",
 };
 /** The phase a code belongs to (its 4th char, i.e. the thousands digit). */
 export function phaseOfCode(code) {
@@ -86,6 +91,13 @@ export const Diag = {
     // NEO6xxx typecheck (tsc over a { } body). `tsCode` (e.g. 2322) rides in the
     // hint so the neo message stays clean but the TS origin is recoverable.
     typeError: (message, pos, tsCode) => err("NEO6001", message, pos, `TypeScript ${tsCode}`),
+    // NEO7xxx constraint — the dependency extractor met a { } constraint it cannot
+    // statically analyze (a dynamic target/cardinality, or an unresolved call).
+    // The message is composed at the call site and NAMES the rewrite that makes it
+    // analyzable (diagnostics.md §4), so it rides the family code with the
+    // specifics in `message`.
+    residue: (message, pos) => err("NEO7001", message, pos),
+    constraint: (message, pos) => err("NEO7000", message, pos),
     /** Escape hatch: a fully custom (code, message) for a site that fits no
      *  family yet. Prefer a named factory. */
     code: (code, message, pos, hint) => err(code, message, pos, hint),
@@ -137,5 +149,7 @@ export const DIAGNOSTIC_CATALOG = [
     { code: "NEO5003", phase: "module", summary: "an included library has a tree root" },
     { code: "NEO6000", phase: "typecheck", summary: "typecheck error (unclassified)" },
     { code: "NEO6001", phase: "typecheck", summary: "a { } body fails the TypeScript typecheck" },
+    { code: "NEO7000", phase: "constraint", summary: "constraint dependency error (unclassified)" },
+    { code: "NEO7001", phase: "constraint", summary: "a { } constraint cannot be statically analyzed (residue)" },
 ];
 //# sourceMappingURL=diagnostics.js.map
