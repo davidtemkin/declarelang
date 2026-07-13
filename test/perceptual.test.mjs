@@ -345,6 +345,37 @@ if (r10Compiled.errors.length > 0 || r10Compiled.warnings.length > 0) {
 }
 const R10_SOURCE = r10Compiled.source;
 
+// The C1 program (calendar regression): NON-WRAPPING text with textAlign. The
+// flagship calendar's whole chrome — the view tabs, Today, the date title,
+// the year view's mini-day numbers — is `textAlign = center, wrap = false`
+// inside a fixed box. The Canvas backend once drew EVERY non-wrapping run at
+// x=0, ignoring align, so centered/right runs left-shifted vs the DOM's native
+// `text-align` — the calendar's tab/label text landing tens of px off. Both
+// runs sit in a contrast box (so a shift moves ink the soft comparator sees);
+// the left run pins that align=left is unaffected (still x=0, shrink-to-content).
+const C1_SOURCE = `App [ width=240, height=160, fill=#20242C,
+  View [ x=20, y=20, width=200, height=32, fill=#264653,
+    Text [ width={ parent.width }, textAlign=center, wrap=false, y=8, fontSize=16, fontWeight=bold, fontFamily="Arial", textColor=#FFE28A, text="Centered" ] ],
+  View [ x=20, y=64, width=200, height=32, fill=#264653,
+    Text [ width={ parent.width }, textAlign=right, wrap=false, y=8, fontSize=16, fontFamily="Arial", textColor=#FFE28A, text="Right" ] ],
+  View [ x=20, y=108, width=200, height=32, fill=#264653,
+    Text [ x=8, textAlign=left, wrap=false, y=8, fontSize=16, fontFamily="Arial", textColor=#FFE28A, text="Left" ] ] ]`;
+
+// The C2 program (calendar regression): an editable field (TextInput) whose
+// box sits OUTSIDE an ancestor `clip = true` — the calendar's collapsed
+// DetailSection, whose content field must stay hidden. The DOM field is a real
+// descendant of the clip-path'd box (clipped for free); the Canvas field is a
+// host-level overlay the compositor's ctx.clip never touches, so it once leaked
+// its text below the collapsed section. Box A pushes its field BELOW its clip
+// (must be hidden on BOTH backends); box B keeps its field inside (shown on
+// both). Native fields render by the SAME browser engine either way, so the
+// two backends must agree strictly once the overlay honors the ancestor clip.
+const C2_SOURCE = `App [ width=240, height=160, fill=#20242C,
+  View [ x=20, y=20, width=200, height=30, clip=true, fill=#264653,
+    TextInput [ x=8, y=54, width=180, height=22, fontSize=15, fontFamily="Arial", textColor=#FFFFFF, text="leaked below the clip" ] ],
+  View [ x=20, y=90, width=200, height=50, clip=true, fill=#264653,
+    TextInput [ x=8, y=10, width=180, height=22, fontSize=15, fontFamily="Arial", textColor=#FFFFFF, text="inside the clip" ] ] ]`;
+
 // One page template per backend and program; the only differences are which
 // backend class renders and which source. The canvas backend's first paint is
 // its scheduled rAF, so readiness is flagged one frame after that (double-rAF
@@ -703,6 +734,10 @@ function serveDist() {
     "/canvas-anim": animPageHtml("CanvasBackend"),
     "/dom-anim2": anim2PageHtml("DomBackend"),
     "/canvas-anim2": anim2PageHtml("CanvasBackend"),
+    "/dom-c1": pageHtml("DomBackend", C1_SOURCE),
+    "/canvas-c1": pageHtml("CanvasBackend", C1_SOURCE),
+    "/dom-c2": pageHtml("DomBackend", C2_SOURCE),
+    "/canvas-c2": pageHtml("CanvasBackend", C2_SOURCE),
   };
   const server = http.createServer(async (req, res) => {
     const page = pages[req.url];
@@ -2278,6 +2313,69 @@ try {
     const domPng = await anim2Dom.page.screenshot({ encoding: "base64" });
     const canvasPng = await anim2Canvas.page.screenshot({ encoding: "base64" });
     const diff = await diffShots(anim2Canvas.page, domPng, canvasPng);
+    assert.ok(!diff.sizeMismatch, `screenshot sizes differ: ${diff.sizeMismatch}`);
+    assert.equal(diff.over, 0, `channels beyond tolerance: ${diff.over} (max delta ${diff.max})`);
+  });
+
+  // ── C1: non-wrapping textAlign (the calendar chrome regression) ──────────
+
+  const domC1 = await renderShot("/dom-c1", 1, "c1-dom.png");
+  const canvasC1 = await renderShot("/canvas-c1", 1, "c1-canvas.png");
+
+  // Each aligned run's box — the whole box, so a left-shift (align ignored)
+  // moves ink WITHIN the region: the soft comparator integrates AA away but a
+  // real shift moves ink mass, which survives the blur (the same discriminator
+  // the R3 negative control proves). Pre-fix the centered/right runs land at
+  // x=0 (tens of px off) and blow the mean; post-fix only glyph AA remains.
+  const C1_SOFT = [
+    { x: 20, y: 20, w: 200, h: 32, label: "centered run (DOM text-align vs fillText offset)" },
+    { x: 20, y: 64, w: 200, h: 32, label: "right run" },
+    { x: 20, y: 108, w: 200, h: 32, label: "left run (unaffected — stays x=0)" },
+  ];
+
+  await test("cross-backend: non-wrapping centered/right text aligns identically", async () => {
+    const diff = await diffShots(canvasC1.page, domC1.png, canvasC1.png, { soft: C1_SOFT });
+    assert.ok(!diff.sizeMismatch, `screenshot sizes differ: ${diff.sizeMismatch}`);
+    assert.equal(diff.over, 0, `strict channels beyond tolerance: ${diff.over} (max delta ${diff.max})`);
+    for (const s of diff.soft) {
+      assert.ok(s.mean <= 3, `${s.label}: mean blurred delta ${s.mean} > 3 (text mis-aligned?)`);
+      assert.ok(s.maxBlur <= 48, `${s.label}: max blurred delta ${s.maxBlur} > 48`);
+    }
+  });
+
+  // ── C2: an editable overlay honors an ancestor clip (the panel regression) ─
+
+  const domC2 = await renderShot("/dom-c2", 1, "c2-dom.png");
+  const canvasC2 = await renderShot("/canvas-c2", 1, "c2-canvas.png");
+
+  await test("Canvas: a field pushed below its ancestor clip does not leak (hidden)", async () => {
+    // Box A ends at y=50; its out-of-clip field would leak its white text into
+    // the gap below (abs y≈74..96). Count non-background ink in that gap band —
+    // hidden ⇒ ~0; a leak stamps the whole "leaked below the clip" run there.
+    const ink = await canvasC2.page.evaluate(async (b64, rect) => {
+      const img = new Image();
+      img.src = "data:image/png;base64," + b64;
+      await img.decode();
+      const c = document.createElement("canvas");
+      c.width = img.width;
+      c.height = img.height;
+      const ctx = c.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+      const data = ctx.getImageData(rect.x, rect.y, rect.w, rect.h).data;
+      let inked = 0;
+      for (let p = 0; p < data.length; p += 4) {
+        if (Math.abs(data[p] - 0x20) > 40 || Math.abs(data[p + 1] - 0x24) > 40 || Math.abs(data[p + 2] - 0x2c) > 40) inked++;
+      }
+      return inked;
+    }, canvasC2.png, { x: 20, y: 52, w: 200, h: 36 });
+    assert.ok(ink < 10, `the clipped-away field must not leak text into the gap; found ${ink} inked pixels`);
+  });
+
+  await test("cross-backend: the clip-bounded editable scene agrees", async () => {
+    // Both backends render native fields (identical engine) and clip identically,
+    // so this is STRICT — no soft regions. The clipped-away field is hidden on
+    // both; the in-clip field is shown identically on both.
+    const diff = await diffShots(canvasC2.page, domC2.png, canvasC2.png);
     assert.ok(!diff.sizeMismatch, `screenshot sizes differ: ${diff.sizeMismatch}`);
     assert.equal(diff.over, 0, `channels beyond tolerance: ${diff.over} (max delta ${diff.max})`);
   });

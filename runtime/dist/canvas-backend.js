@@ -427,20 +427,64 @@ class CanvasSurface {
         const el = this.editEl;
         if (el === null)
             return;
+        let shown = true;
+        // Accumulate this surface's absolute position AND clip the overlay to every
+        // clipping ancestor — the native twin of the DOM backend, where the field is
+        // a real descendant of the clip-path'd ancestor and is clipped for free. A
+        // canvas overlay is a host-level sibling that the compositor's ctx.clip never
+        // touches, so without this a collapsed/scrolled-away clip leaks its field.
+        // ax/ay run up to the absolute origin; ox/oy track this surface's origin in
+        // the CURRENT ancestor's local space so each box clip maps into ours.
         let ax = 0;
         let ay = 0;
-        let shown = true;
+        // Clip rect, in THIS surface's own local coordinates (∞ = unclipped).
+        let clipL = -Infinity;
+        let clipT = -Infinity;
+        let clipR = Infinity;
+        let clipB = Infinity;
+        let clipped = false;
         for (let s = this; s !== null; s = s.parent) {
-            ax += s.x;
-            ay += s.y;
             if (!s.visible)
                 shown = false;
+            if (s.clipData !== null) {
+                // Every calendar clip is a box (clip=true → rect(0,0,width,height)); an
+                // ancestor's box, expressed in this surface's local space, is [-ax..width-ax].
+                clipped = true;
+                if (-ax > clipL)
+                    clipL = -ax;
+                if (-ay > clipT)
+                    clipT = -ay;
+                if (s.width - ax < clipR)
+                    clipR = s.width - ax;
+                if (s.height - ay < clipB)
+                    clipB = s.height - ay;
+            }
+            ax += s.x;
+            ay += s.y;
         }
         const st = el.style;
         st.left = ax + "px";
         st.top = ay + "px";
         st.width = this.width + "px";
         st.height = this.height + "px";
+        // Visible slice = the overlay box ∩ the accumulated clip; empty ⇒ fully
+        // clipped away (hide it, like the DOM field vanishing behind clip-path).
+        if (clipped) {
+            const visL = Math.max(0, clipL);
+            const visT = Math.max(0, clipT);
+            const visR = Math.min(this.width, clipR);
+            const visB = Math.min(this.height, clipB);
+            if (visR <= visL || visB <= visT) {
+                shown = false;
+                st.clipPath = "";
+            }
+            else {
+                st.clipPath = `inset(${visT}px ${this.width - visR}px ${this.height - visB}px ${visL}px)`;
+            }
+        }
+        else {
+            st.clipPath = "";
+        }
         st.display = shown ? "" : "none";
     }
     /** Hit-test (px,py) — given in the PARENT's space, mirroring paint's
@@ -693,7 +737,17 @@ class CanvasSurface {
                 }
             }
             else {
-                ctx.fillText(this.text, 0, this.ascent);
+                // A single (non-wrapping) run still honors alignment: the DOM backend
+                // sets width:100% + text-align for a non-left run, centering/ending the
+                // line within the box. Mirror that — measure the line and offset x by
+                // the same rule the wrap branch uses, so both backends place identical
+                // glyph geometry. (align=left keeps x=0, the shrink-to-content case.)
+                let x = 0;
+                if (this.align !== "left" && this.width > 0) {
+                    const lw = textWidth(this.text, this.font, this.letterSpacing);
+                    x = this.align === "center" ? (this.width - lw) / 2 : this.width - lw;
+                }
+                ctx.fillText(this.text, x, this.ascent);
             }
             if (restoreShadow)
                 ctx.restore();
