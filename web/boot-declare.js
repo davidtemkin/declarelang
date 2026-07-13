@@ -8,50 +8,29 @@
 // the distro tree regardless of which program's directory the page is based at.
 import { renderAsync, DomBackend, CanvasBackend } from "../runtime/dist/index.js";
 import { parseFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
+import { loadCompiler, ensureLibrary } from "./compiler-client.js";
 
 // The target program's absolute URL — passed by the SW on this module's own import URL.
 const target = new URL(import.meta.url).searchParams.get("app");
-
-// Fetch the auto-include manifest + its library sources so bare component tags (e.g. `Bar [ ]`)
-// resolve during the in-browser compile. Keyed exactly as the in-memory host expects
-// ("library/src/<file>"); an absent/empty library is fine — a program with no auto-includes
-// needs none. See compiler/src/compile-browser.ts memoryHost.
-async function loadLibrary() {
-  try {
-    const [manifest, index] = await Promise.all([
-      fetch(new URL("../library/autoincludes.json", import.meta.url), { cache: "no-cache" }).then((r) => r.json()),
-      fetch(new URL("../library/index.json", import.meta.url), { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-    ]);
-    // Prefetch EVERY library src file (index.json), not just manifest tags, so a
-    // bare `include [ "x.declare" ]` resolves along the search path's library root.
-    const names = Array.isArray(index) ? index : Object.values(manifest);
-    const files = {};
-    await Promise.all(names.map(async (rel) => {
-      const res = await fetch(new URL("../library/src/" + rel, import.meta.url), { cache: "no-cache" });
-      if (res.ok) files["library/src/" + rel] = await res.text();
-    }));
-    return { manifest, files };
-  } catch {
-    return {};   // no library → programs without auto-includes still compile
-  }
-}
 
 async function run() {
   const host = document.getElementById("host");
   if (!target) return showError(host, "no program URL — the Service Worker did not pass ?app=…");
   try {
-    // The compiler bundle, the library, and the source in parallel — nothing depends on another.
-    const [{ compile }, lib, source] = await Promise.all([
-      import("../dist-browser/declare-compiler.js"),
-      loadLibrary(),
+    // The one compiler client (worker when available, inline otherwise) with the
+    // auto-include library registered as its default, and the source, in parallel.
+    const [client, source] = await Promise.all([
+      loadCompiler().then(ensureLibrary),
       fetch(target, { cache: "no-cache" }).then((r) => {
         if (!r.ok) throw new Error(r.status + " fetching " + target);
         return r.text();
       }),
     ]);
-    const out = compile(source, lib);
+    const out = await client.compile(source);
     if (!out.source) {
-      return showError(host, (out.errors || []).map((e) => e.message).join("\n") || "compile failed");
+      // The compile's own rendered report — the ONE renderer's output (code,
+      // line/col, hint), identical bytes to what the CLI and server print.
+      return showError(host, out.report || "compile failed");
     }
     // URL flags (flags.ts, the shared model): `?backend=canvas` renders through the
     // Canvas backend. slim/prod are bundling concerns — they don't apply to this

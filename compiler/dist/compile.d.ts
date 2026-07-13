@@ -16,6 +16,11 @@ export interface Compiled {
     errors: NeoError[];
     warnings: NeoError[];
     diagnostics: Diagnostic[];
+    /** The whole compile RENDERED (renderReport): a count summary + each
+     *  diagnostic's `rendered`, one per line; "" when there is nothing to say.
+     *  A CLI prints it verbatim; a rich consumer reads `diagnostics` instead —
+     *  the same dual-form rule each Diagnostic itself follows. */
+    report: string;
 }
 /** Options for compile(): the file-access host `include` resolution rides and
  *  the main file's directory. The host defaults to the Node filesystem (this

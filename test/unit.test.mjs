@@ -4662,4 +4662,73 @@ await test("textinput: a native focus routes back to neo focus", () => {
   assert.equal(Focus.getFocus(), null, "native blur clears neo focus");
 });
 
+// ── Uniform compiler API: dual-form diagnostics + the browser mirror ─────────
+// The contract every consumer rides (design/diagnostics.md): each Diagnostic
+// carries its `rendered` form (computed ONCE by the producer = the one
+// formatter), the result carries `report` (the whole compile rendered), and
+// the browser bundle produces BYTE-IDENTICAL results to the Node compiler —
+// including the rendered text, so a CLI, the dev server, and a worker all
+// print the same bytes.
+
+await test("diagnostics: every diagnostic carries its rendered form; report renders the whole compile", () => {
+  const r = compile("App [ v: Txet [ ] ]");
+  assert.equal(r.diagnostics.length, 1);
+  const d = r.diagnostics[0];
+  assert.ok(d.rendered.includes("[NEO2001]") && d.rendered.includes("(line 1, col 7)"), d.rendered);
+  assert.ok(d.hint && d.rendered.includes("hint: " + d.hint), "the hint rides the rendered form");
+  assert.equal(r.report, "1 error\n" + d.rendered, "report = count summary + each diagnostic's rendered");
+  assert.equal(compile("App [ width = 100, height = 100 ]").report, "", "a clean compile has nothing to say");
+  // A warning renders MARKED — an unmarked diagnostic reads as an error (the
+  // compiler convention), so severity never exists only in the structure.
+  const w = compile("App [ n: number = 1, v: View [ n: number = 2, o: View [ width = { n } ] ] ]");
+  const warn = w.diagnostics.find((x) => x.severity === "warning");
+  assert.ok(warn && warn.rendered.startsWith("warning: "), warn?.rendered);
+  assert.ok(w.report.includes("1 warning"), w.report);
+});
+
+await test("uniform: the browser compiler's result is byte-identical to Node's (source, deps, diagnostics, report)", async () => {
+  const browser = await import("../dist-browser/declare-compiler.js");
+  const pick = (r) => JSON.stringify({ source: r.source, deps: r.deps ?? null, diagnostics: r.diagnostics, report: r.report });
+  for (const src of [
+    "App [ width = 100, height = 100, n: number = 3, v: View [ width = { app.n * 2 } ] ]", // clean, with deps
+    "App [ v: Txet [ ] ]",                                                                  // error + suggestion
+    "App [ v: View [ width = { app.mysteryLib() } ] ]",                                     // constraint residue (NEO7001)
+  ]) {
+    assert.equal(pick(browser.compile(src, {})), pick(compile(src)), "identical for: " + src.slice(0, 40));
+  }
+});
+
+await test("browser compileTracked: an include is recorded in the closure; the library is not", async () => {
+  const browser = await import("../dist-browser/declare-compiler.js");
+  // A multi-file app: the include must enter the closure with a content-hash
+  // validator, so an edit to the INCLUDED file invalidates like a main edit.
+  const files = { "apps/part.declare": "class Part extends View [ width = 40 ]" };
+  const out = browser.compileTracked('include [ "part.declare" ]\nApp [ width = 100, height = 100, Part [ ] ]', {
+    files, originDir: "apps", mainId: "apps/main.declare", props: { backend: "dom" },
+  });
+  assert.ok(out.source !== null, out.report);
+  assert.deepEqual(out.closure.entries.map((e) => e.id).sort(), ["apps/main.declare", "apps/part.declare"]);
+  assert.ok(out.closure.entries.every((e) => typeof e.v.hash === "string"), "content-hash validators");
+  assert.deepEqual(out.closure.props, { backend: "dom" });
+  // A LIBRARY auto-include stays OUT (BUILD_ID gates the library, the OL5 LFC
+  // model) — the closure records app sources only.
+  const lib = { manifest: { Bar9: "bar9.declare" }, files: { "library/src/bar9.declare": "class Bar9 extends View [ width = 10 ]" } };
+  const out2 = browser.compileTracked("App [ width = 100, height = 100, Bar9 [ ] ]", { ...lib, mainId: "x.declare" });
+  assert.ok(out2.source !== null, out2.report);
+  assert.deepEqual(out2.closure.entries.map((e) => e.id), ["x.declare"], "library reads are excluded");
+});
+
+await test("browser default library: setDefaultLibrary removes the per-call obligation", async () => {
+  const browser = await import("../dist-browser/declare-compiler.js");
+  // Without a registered library, a bare library tag fails to resolve …
+  assert.equal(browser.compile("App [ width = 100, height = 100, Zed9 [ ] ]").source, null);
+  // … after ONE registration, the same call — no files/manifest riding it — compiles.
+  browser.setDefaultLibrary({ manifest: { Zed9: "zed9.declare" }, files: { "library/src/zed9.declare": "class Zed9 extends View [ width = 30 ]" } });
+  const r = browser.compile("App [ width = 100, height = 100, Zed9 [ ] ]");
+  assert.ok(r.source !== null, r.report);
+  // An EXPLICIT files/manifest still wins over the default.
+  const explicit = browser.compile("App [ width = 100, height = 100, Zed9 [ ] ]", { files: {}, manifest: {} });
+  assert.equal(explicit.source, null, "explicit (empty) library overrides the default");
+});
+
 summarize("unit");

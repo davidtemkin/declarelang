@@ -18,7 +18,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from "
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { createHash } from "node:crypto";
-import { compile } from "../compiler/dist/compile-node.js";
+import { compile, isUpToDate, diskProbe } from "../compiler/dist/compile-node.js";
 import { highlight } from "../compiler/dist/highlight.js";
 import { requestType, REQ } from "../compiler/dist/reqtypes.js";
 import { writeProduction } from "../tools/declarec.mjs";
@@ -75,7 +75,7 @@ function hostPage(name, backendClass, flags = DEFAULT_FLAGS) {
   if (r.errors.length) {
     return `<!doctype html><meta charset="utf-8"><title>${name} — compile errors</title>
 <pre style="color:#c33;font:13px/1.5 ui-monospace,monospace;padding:20px;white-space:pre-wrap">${
-      esc(r.errors.map((e) => e.message).join("\n"))}</pre>`;
+      esc(r.report)}</pre>`;
   }
   // Real production figures the page displays: over-the-wire = runtime + this
   // page's compiled JS, gzipped; LOC = the Declare source, code lines only.
@@ -141,7 +141,7 @@ function sourcePage(relPath, segments, rawSource, backendClass) {
   if (r.errors.length) {
     return `<!doctype html><meta charset="utf-8"><title>codeviewer — compile errors</title>
 <pre style="color:#c33;font:13px/1.5 ui-monospace,monospace;padding:20px;white-space:pre-wrap">${
-      esc(r.errors.map((e) => e.message).join("\n"))}</pre>`;
+      esc(r.report)}</pre>`;
   }
   const title = relPath.split("/").pop();
   const cfg = {
@@ -221,18 +221,30 @@ async function ensureProdBuild(name, backend = "dom", slim = true) {
   // slim on/off (and the backend) partition the cache — each variant is a distinct
   // artifact and must not clobber another under one key.
   const key = `${name}:${backend}:${slim ? "slim" : "full"}`;
-  const hash = createHash("sha256").update(source + "|" + backend + "|slim=" + slim + "|" + toolchainFingerprint()).digest("hex").slice(0, 12);
   const outDir = path.join(dir, ".prod-cache" + (backend === "canvas" ? "-canvas" : "") + (slim ? "" : "-full"));
   const manPath = path.join(outDir, "manifest.json");
-  const fresh = (m) => m && m.hash === hash && existsSync(path.join(outDir, m.appName));
+  // Freshness is the build's CLOSURE (closure.ts, the OL5 model): the main
+  // file, every include, every auto-included library file — re-probed on disk
+  // — plus the frozen build props (backend/slim/toolchain), so an edit to an
+  // `include`d file, a flag change, or a compiler rebuild each invalidate
+  // exactly like a main-file edit. (The old sha256-of-main-source key missed
+  // everything but the main file.)
+  const propsNow = {
+    backend, slim: String(slim), stripPos: "true", typecheck: "false",
+    toolchain: toolchainFingerprint(),
+  };
+  const fresh = (m) => {
+    if (!m || !m.closure || !existsSync(path.join(outDir, m.appName))) return false;
+    try { return isUpToDate(m.closure, propsNow, diskProbe); } catch { return false; }
+  };
   let man = prodMem.get(key);
   if (fresh(man)) return man;                                   // in-process hit
   if (existsSync(manPath)) {                                    // disk hit (post-restart)
     try { const d = JSON.parse(readFileSync(manPath, "utf8")); if (fresh(d)) { prodMem.set(key, d); return d; } } catch { /* rebuild */ }
   }
-  const built = await writeProduction({ source, name, srcDir: dir, outDir, backend, slim });  // miss → build
-  if (!built.ok) return { error: built.errors };
-  man = { hash, dir: outDir, appName: built.appName, sizes: built.sizes, assets: built.assets, used: built.usedComponents, builtAt: Date.now() };
+  const built = await writeProduction({ source, name, srcDir: dir, outDir, backend, slim, props: { toolchain: propsNow.toolchain } });  // miss → build
+  if (!built.ok) return { error: built.errors, report: built.report };
+  man = { closure: built.closure, dir: outDir, appName: built.appName, sizes: built.sizes, assets: built.assets, used: built.usedComponents, builtAt: Date.now() };
   writeFileSync(manPath, JSON.stringify(man, null, 2));
   prodMem.set(key, man);
   return man;
@@ -241,7 +253,7 @@ async function ensureProdBuild(name, backend = "dom", slim = true) {
 async function serveProd(res, name, rest, urlPath, backend = "dom", slim = true) {
   const man = await ensureProdBuild(name, backend, slim);
   if (man === null) return send(res, 404, "no such example", "text/plain");
-  if (man.error) return send(res, 500, "declarec build failed:\n" + man.error.map((e) => e.message).join("\n"), "text/plain");
+  if (man.error) return send(res, 500, "declarec build failed:\n" + (man.report ?? man.error.map((e) => e.message).join("\n")), "text/plain");
   const tail = rest.replace(/^\/+/, "");
   if (tail === "" || tail === "index.html") {
     if (!urlPath.endsWith("/")) { res.writeHead(302, { location: urlPath + "/" }); return res.end(); }
@@ -258,18 +270,26 @@ http.createServer((req, res) => {
 
   // POST /compile — live compile (the playground / whole-page editor delegate
   // here; on localhost the round-trip is sub-100ms, so debounced it feels live).
-  // Returns { source, errors:[{message,offset,line}] } — source null on failure.
+  // Returns the ONE compile result — { source, deps, diagnostics, report } —
+  // nothing projected or re-shaped, so a wire consumer sees exactly what a Node
+  // caller sees: each diagnostic structured (code/severity/phase/pos/hint) AND
+  // carrying its `rendered` form; `report` is the whole compile rendered.
+  // Compile flags ride the query under their canonical names (flags.ts):
+  // POST /compile?typecheck runs the tsc-over-bodies pass.
   if (req.method === "POST" && p === "/compile") {
+    const flags = parseFlags(new URL(req.url, "http://x").searchParams, DEFAULT_FLAGS);
     let body = "";
     req.on("data", (c) => { body += c; if (body.length > 4e6) req.destroy(); });
     req.on("end", () => {
       let out;
       try {
-        const r = compile(body, {});
-        out = { source: r.source, deps: r.deps, errors: (r.errors ?? []).map((e) =>
-          ({ message: e.message, offset: e.pos?.offset ?? null, line: e.pos?.line ?? null })) };
+        const r = compile(body, { typecheck: flags.typecheck });
+        out = { source: r.source, deps: r.deps, diagnostics: r.diagnostics, report: r.report };
       } catch (e) {
-        out = { source: null, errors: [{ message: String((e && e.message) || e), offset: null, line: null }] };
+        // A compiler CRASH, not a compile diagnostic — no code to fake; the
+        // report carries the truth and `diagnostics` stays empty.
+        const message = String((e && e.message) || e);
+        out = { source: null, diagnostics: [], report: message };
       }
       send(res, 200, JSON.stringify(out), "application/json");
     });

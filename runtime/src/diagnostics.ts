@@ -38,7 +38,15 @@ export type Severity = "error" | "warning";
  *  leading digit, so a Diagnostic is self-classifying. */
 export type DiagPhase = "syntax" | "structure" | "type" | "name" | "module" | "typecheck" | "constraint";
 
-/** A structured compile-time diagnostic — the public shape compile() reports. */
+/** A structured compile-time diagnostic — the public shape compile() reports.
+ *
+ *  Dual form, one record (the Rust model): the STRUCTURE is the truth, and
+ *  `rendered` is its formatted form — computed ONCE by the producer
+ *  (definitionally `formatDiagnostic(d)`), riding the record so every consumer
+ *  prints the same bytes. A dumb consumer shows `rendered` verbatim; a rich one
+ *  reads the fields (squiggle by `pos`, chip by `hint`) — and when the record
+ *  grows (related positions, fix-its), dumb consumers inherit the improved
+ *  rendering with no code change. No information may exist ONLY in the string. */
 export interface Diagnostic {
   code: string; // NEO####
   severity: Severity;
@@ -46,6 +54,8 @@ export interface Diagnostic {
   message: string; // without the "(line …, col …)" suffix — pos carries it
   pos?: Pos;
   hint?: string;
+  /** The formatted form — deterministic plain text, no color, spec-voiced. */
+  rendered: string;
 }
 
 // ── Codes ───────────────────────────────────────────────────────────────────
@@ -212,7 +222,7 @@ export const Diag = {
  *  still lands with a valid code and phase. */
 export function toDiagnostic(e: NeoError, severity: Severity, fallbackPhase: DiagPhase): Diagnostic {
   const code = e.code ?? BASE[fallbackPhase];
-  return {
+  const d = {
     code,
     severity,
     phase: phaseOfCode(code),
@@ -220,14 +230,32 @@ export function toDiagnostic(e: NeoError, severity: Severity, fallbackPhase: Dia
     pos: e.pos,
     hint: e.hint,
   };
+  return { ...d, rendered: formatDiagnostic(d) };
 }
 
 /** The one renderer: "message [CODE] (line L, col C)", with an indented hint
- *  line when present. */
-export function formatDiagnostic(d: Diagnostic): string {
+ *  line when present; a warning carries a `warning: ` prefix (an unmarked
+ *  diagnostic reads as an error, the compiler convention). Deterministic plain
+ *  text — ANSI color is a caller-side decoration, never a second format. */
+export function formatDiagnostic(d: Omit<Diagnostic, "rendered">): string {
+  const sev = d.severity === "warning" ? "warning: " : "";
   const at = d.pos ? ` (line ${d.pos.line}, col ${d.pos.col})` : "";
   const hint = d.hint ? `\n  hint: ${d.hint}` : "";
-  return `${d.message} [${d.code}]${at}${hint}`;
+  return `${sev}${d.message} [${d.code}]${at}${hint}`;
+}
+
+/** The whole compile's rendered form — what a CLI prints verbatim. A one-line
+ *  count summary, then each diagnostic's `rendered`. Empty string when there is
+ *  nothing to say (deterministic: same diagnostics → same bytes). */
+export function renderReport(diagnostics: readonly Diagnostic[]): string {
+  if (diagnostics.length === 0) return "";
+  const errs = diagnostics.filter((d) => d.severity === "error").length;
+  const warns = diagnostics.length - errs;
+  const counts = [
+    errs > 0 ? `${errs} error${errs === 1 ? "" : "s"}` : "",
+    warns > 0 ? `${warns} warning${warns === 1 ? "" : "s"}` : "",
+  ].filter((s) => s.length > 0).join(", ");
+  return [counts, ...diagnostics.map((d) => d.rendered)].join("\n");
 }
 
 /** The browsable catalog — every code, its phase, and a one-line summary. The

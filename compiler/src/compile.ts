@@ -54,7 +54,7 @@ import { freeIdentifiers } from "./free-idents.js";
 import { fillDatapaths } from "../../runtime/dist/datapath.js";
 import { CONSTRUCTOR_NAMES } from "../../runtime/dist/expr.js";
 import { resolveIncludes, resolveAutoIncludes, exciseSpans, NO_INCLUDES, type IncludeHost } from "../../runtime/dist/include.js";
-import { Diag, toDiagnostic, type Diagnostic, type DiagPhase } from "../../runtime/dist/diagnostics.js";
+import { Diag, toDiagnostic, renderReport, type Diagnostic, type DiagPhase } from "../../runtime/dist/diagnostics.js";
 
 /** The value-constructor names (styling rung): in CALLEE position they are
  *  the constructors expr.ts scopes into every body — `stroke(…)` builds a
@@ -76,22 +76,29 @@ export interface Compiled {
   errors: NeoError[];
   warnings: NeoError[];
   diagnostics: Diagnostic[];
+  /** The whole compile RENDERED (renderReport): a count summary + each
+   *  diagnostic's `rendered`, one per line; "" when there is nothing to say.
+   *  A CLI prints it verbatim; a rich consumer reads `diagnostics` instead —
+   *  the same dual-form rule each Diagnostic itself follows. */
+  report: string;
 }
 
-/** Assemble the unified diagnostic list: each error/warning becomes a coded
+/** Assemble the unified diagnostic view: each error/warning becomes a coded
  *  Diagnostic (its own catalog code if a factory set one, else the phase
- *  fallback). Errors precede warnings; a caller wanting source order can sort
- *  on `pos`. */
-function diagnosticsFrom(
+ *  fallback) CARRYING its rendered form, plus the whole-compile `report` —
+ *  spread into every result literal so no exit path can omit either. Errors
+ *  precede warnings; a caller wanting source order can sort on `pos`. */
+function diagnose(
   errors: readonly NeoError[],
   warnings: readonly NeoError[],
   errPhase: DiagPhase,
   warnPhase: DiagPhase = "name"
-): Diagnostic[] {
-  return [
+): { diagnostics: Diagnostic[]; report: string } {
+  const diagnostics = [
     ...errors.map((e) => toDiagnostic(e, "error", errPhase)),
     ...warnings.map((w) => toDiagnostic(w, "warning", warnPhase)),
   ];
+  return { diagnostics, report: renderReport(diagnostics) };
 }
 
 /** Names bound in every body without being members: the scope-noun arguments of
@@ -168,13 +175,13 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
   try {
     main = parseProgram(source);
   } catch (e) {
-    if (e instanceof NeoError) return { source: null, errors: [e], warnings: [], diagnostics: diagnosticsFrom([e], [], "syntax") };
+    if (e instanceof NeoError) return { source: null, errors: [e], warnings: [], ...diagnose([e], [], "syntax") };
     throw e;
   }
   const host = opts.host ?? NO_INCLUDES;
   const resolved = resolveIncludes(main, host, opts.originDir ?? "");
   if (resolved.errors.length > 0) {
-    return { source: null, errors: resolved.errors, warnings: [], diagnostics: diagnosticsFrom(resolved.errors, [], "module") };
+    return { source: null, errors: resolved.errors, warnings: [], ...diagnose(resolved.errors, [], "module") };
   }
 
   // Auto-include: pull the libraries that define the program's bare component
@@ -183,7 +190,7 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
   // without the manifest (single-file compiles stay byte-identical).
   const auto = resolveAutoIncludes(resolved.program, main.root, host, resolved.visited);
   if (auto.errors.length > 0) {
-    return { source: null, errors: auto.errors, warnings: [], diagnostics: diagnosticsFrom(auto.errors, [], "module") };
+    return { source: null, errors: auto.errors, warnings: [], ...diagnose(auto.errors, [], "module") };
   }
 
   // The one self-contained source: explicit-include libraries, then auto-
@@ -203,11 +210,11 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
   try {
     program = parseProgram(merged);
   } catch (e) {
-    if (e instanceof NeoError) return { source: null, errors: [e], warnings: [], diagnostics: diagnosticsFrom([e], [], "syntax") };
+    if (e instanceof NeoError) return { source: null, errors: [e], warnings: [], ...diagnose([e], [], "syntax") };
     throw e;
   }
   const errors = check(program);
-  if (errors.length > 0) return { source: null, errors, warnings: [], diagnostics: diagnosticsFrom(errors, [], "structure") };
+  if (errors.length > 0) return { source: null, errors, warnings: [], ...diagnose(errors, [], "structure") };
 
   // Resolve EVERY body — the main tree's and every included class/stylesheet/
   // style's — so no unresolved bare name reaches the self-contained output.
@@ -220,7 +227,7 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
   r.errors.sort(byPos);
   r.warnings.sort(byPos);
   if (r.errors.length > 0) {
-    return { source: null, errors: r.errors, warnings: r.warnings, diagnostics: diagnosticsFrom(r.errors, r.warnings, "name") };
+    return { source: null, errors: r.errors, warnings: r.warnings, ...diagnose(r.errors, r.warnings, "name") };
   }
   // Splice highest-offset first so earlier offsets stay valid. Identifier
   // spans never overlap, so order within a body is immaterial beyond that.
@@ -233,7 +240,7 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
   if (opts.typecheckBodies) {
     const typeErrors = opts.typecheckBodies(out, program);
     if (typeErrors.length > 0) {
-      return { source: null, errors: typeErrors, warnings: r.warnings, diagnostics: diagnosticsFrom(typeErrors, r.warnings, "typecheck") };
+      return { source: null, errors: typeErrors, warnings: r.warnings, ...diagnose(typeErrors, r.warnings, "typecheck") };
     }
   }
 
@@ -255,7 +262,7 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
   try {
     depProgram = parseProgram(out);
   } catch (e) {
-    if (e instanceof NeoError) return { source: null, errors: [e], warnings: r.warnings, diagnostics: diagnosticsFrom([e], r.warnings, "syntax") };
+    if (e instanceof NeoError) return { source: null, errors: [e], warnings: r.warnings, ...diagnose([e], r.warnings, "syntax") };
     throw e;
   }
   const residue = annotateProgram(depProgram).errors;
@@ -263,9 +270,9 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
     const errs = residue
       .sort((a, b) => a.offset - b.offset)
       .map((e) => Diag.residue(e.message, posOf(out, e.offset)));
-    return { source: null, errors: errs, warnings: r.warnings, diagnostics: diagnosticsFrom(errs, r.warnings, "constraint") };
+    return { source: null, errors: errs, warnings: r.warnings, ...diagnose(errs, r.warnings, "constraint") };
   }
-  return { source: out, deps: serializeDeps(depProgram), errors: [], warnings: r.warnings, diagnostics: diagnosticsFrom([], r.warnings, "name") };
+  return { source: out, deps: serializeDeps(depProgram), errors: [], warnings: r.warnings, ...diagnose([], r.warnings, "name") };
 }
 
 /** Line/col/offset for a byte offset into `source` — positions a dep-residue

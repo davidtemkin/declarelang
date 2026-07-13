@@ -18,14 +18,17 @@ export function loadRuntime() {
   return runtimePromise;
 }
 
-// Compile .declare text to a runnable program string. Returns { source, errors }.
-// `source` is null when compilation fails (callers keep the last good render).
+// Compile .declare text to a runnable program string. Returns the server's ONE
+// compile result — { source, deps, diagnostics, report }: `source` null when
+// compilation fails (callers keep the last good render); `diagnostics` the
+// structured list (code/severity/phase/pos/hint, each carrying its `rendered`
+// string); `report` the whole compile rendered.
 export async function compile(text) {
   try {
     const res = await fetch("/compile", { method: "POST", body: text });
-    return await res.json(); // { source, errors:[{message,line,offset}] }
+    return await res.json();
   } catch (e) {
-    return { source: null, errors: [{ message: String(e?.message || e) }] };
+    return { source: null, diagnostics: [], report: String(e?.message || e) };
   }
 }
 

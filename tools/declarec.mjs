@@ -59,9 +59,20 @@ const gz = (s) => gzipSync(Buffer.from(s)).length;
  *  assets are copied separately (CLI) or served from the source dir (server). */
 export async function buildProduction(source, opts = {}) {
   const name = opts.name ?? "app";
-  const built = compileProgram(source, { originDir: opts.originDir, stripPos: opts.stripPos ?? true, typecheck: opts.typecheck ?? false });
+  // The build's closure props: every flag that shapes the ARTIFACT (a change
+  // to any invalidates a cache exactly like a file change), plus whatever the
+  // caller adds (the server contributes its toolchain fingerprint).
+  const props = {
+    backend: opts.backend === "canvas" ? "canvas" : "dom",
+    slim: String(opts.slim !== false),
+    stripPos: String(opts.stripPos ?? true),
+    typecheck: String(opts.typecheck ?? false),
+    ...(opts.props ?? {}),
+  };
+  const mainId = opts.originDir ? join(opts.originDir, `${name}.declare`) : undefined;
+  const built = compileProgram(source, { originDir: opts.originDir, stripPos: opts.stripPos ?? true, typecheck: opts.typecheck ?? false, mainId, props });
   if (built.program === null) {
-    return { ok: false, errors: built.errors, warnings: built.warnings, files: [], sizes: null };
+    return { ok: false, errors: built.errors, warnings: built.warnings, diagnostics: built.diagnostics, report: built.report, closure: built.closure, files: [], sizes: null };
   }
 
   // The program is embedded as a JSON string parsed at boot — JSON.parse is far
@@ -123,7 +134,8 @@ export async function buildProduction(source, opts = {}) {
     totalGzip: gz(appJs) + gz(html),
   };
   return {
-    ok: true, errors: [], warnings: built.warnings, program: built.program, sizes,
+    ok: true, errors: [], warnings: built.warnings, diagnostics: built.diagnostics, report: built.report,
+    closure: built.closure, program: built.program, sizes,
     usedComponents: built.usedComponents, slim,
     files: [{ name: "index.html", contents: html }, { name: appName, contents: appJs }],
   };
@@ -156,8 +168,8 @@ async function copyAssets(srcDir, outDir) {
  *  copied assets). The shared emit used by the CLI and the dev server. Returns
  *  the buildProduction result plus `{ outDir, appName, assets }`. On a compile
  *  error, returns `{ ok:false, errors }` and writes nothing. */
-export async function writeProduction({ source, name = "app", srcDir = null, outDir, stripPos = true, backend, slim, typecheck = false }) {
-  const out = await buildProduction(source, { name, originDir: srcDir, stripPos, backend, slim, typecheck });
+export async function writeProduction({ source, name = "app", srcDir = null, outDir, stripPos = true, backend, slim, typecheck = false, props }) {
+  const out = await buildProduction(source, { name, originDir: srcDir, stripPos, backend, slim, typecheck, props });
   if (!out.ok) return out;
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
@@ -221,11 +233,10 @@ async function cli(argv) {
   const ms = Date.now() - t0;
 
   if (!out.ok) {
-    console.error(`declarec: ${out.errors.length} error(s) in ${input}`);
-    for (const e of out.errors.slice(0, 20)) {
-      const at = e.pos ? ` (offset ${e.pos.offset})` : "";
-      console.error(`  ✗ ${e.message}${at}`);
-    }
+    // The compile's own rendered report, verbatim — the ONE renderer's output
+    // (code, line/col, hint), never a hand-rolled projection of it.
+    console.error(`declarec: ${input}`);
+    console.error(out.report ?? out.errors.map((e) => e.message).join("\n"));
     process.exit(1);
   }
 

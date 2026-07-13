@@ -62,15 +62,72 @@ export function memoryHost(opts = {}) {
         resolveLibrary: (path) => resolveAt(srcDir, path),
     };
 }
+// ── The default library ──────────────────────────────────────────────────────
+// A host page loads the auto-include library ONCE (manifest + src files) and
+// registers it here; from then on every compile — the page's own, a live-edit
+// preview's, a worker's — falls back to it when no explicit files/manifest/host
+// ride in. This removes the standing caller obligation ("liveCompile MUST feed
+// the compiler the library or bare-tag previews render blank") that has bitten
+// before: forgetting is no longer possible, because there is nothing to forget.
+let DEFAULT_LIB = null;
+/** Register the prefetched auto-include library as the default for every
+ *  subsequent `compile`/`compileTracked` that names no files/manifest/host. */
+export function setDefaultLibrary(lib) {
+    DEFAULT_LIB = lib;
+}
+/** The BrowserFiles a call should use: an explicit host or explicit
+ *  files/manifest win; otherwise the registered default library. */
+function effectiveLib(opts) {
+    if (opts.files !== undefined || opts.manifest !== undefined)
+        return opts;
+    return DEFAULT_LIB ?? opts;
+}
 /** `compile` with the in-memory host injected — the browser drop-in for
  *  compile-node's `compile`. Prefetched `files`/`manifest` ride in through opts
- *  (they configure the host, not the compile itself). */
+ *  (they configure the host, not the compile itself); when absent, the
+ *  registered default library serves. */
 export function compile(source, opts = {}) {
-    const { files, manifest, libraryRoot, host, ...compileOpts } = opts;
+    const { files, manifest, libraryRoot, host, ...compileOpts } = { ...effectiveLib(opts), ...stripLib(opts) };
     return compileCore(source, {
         ...compileOpts,
         host: host ?? memoryHost({ files, manifest, libraryRoot }),
     });
+}
+/** opts minus the library keys — so effectiveLib's choice isn't overridden by
+ *  the caller's undefined placeholders. */
+function stripLib(opts) {
+    const { files: _f, manifest: _m, libraryRoot: _r, ...rest } = opts;
+    return rest;
+}
+/** `compile`, additionally returning the compile's dependency CLOSURE — the
+ *  browser mirror of compile-node's compileTracked: the main source plus every
+ *  file the include host actually served, each with an FNV-1a content-hash
+ *  validator (the same validator shape boot-uniform's probes re-derive from a
+ *  fetch). Feed it to closure.ts isUpToDate() to decide cached-vs-recompile —
+ *  a multi-file app's `include`s now invalidate exactly like the main file. */
+export function compileTracked(source, opts = {}) {
+    const lib = effectiveLib(opts);
+    const inner = memoryHost({ files: lib.files, manifest: lib.manifest, libraryRoot: lib.libraryRoot });
+    const libPrefix = (lib.libraryRoot ?? "library") + "/";
+    const reads = new Map();
+    const record = (r) => {
+        if (r !== null && (opts.trackLibrary === true || !r.canonical.startsWith(libPrefix)) && !reads.has(r.canonical)) {
+            reads.set(r.canonical, { id: r.canonical, kind: "file", v: opts.validators?.[r.canonical] ?? { hash: fnv1a(r.source) } });
+        }
+        return r;
+    };
+    const host = {
+        resolve: (fromDir, path) => record(inner.resolve(fromDir, path)),
+        autoincludes: () => inner.autoincludes(),
+        resolveLibrary: (path) => record(inner.resolveLibrary(path)),
+    };
+    const { files: _f, manifest: _m, libraryRoot: _r, mainId, mainValidator, validators: _v, props, trackLibrary: _t, ...compileOpts } = opts;
+    const result = compileCore(source, { ...compileOpts, host: opts.host ?? host });
+    const entries = [];
+    if (mainId !== undefined)
+        entries.push({ id: mainId, kind: "file", v: mainValidator ?? { hash: fnv1a(source) } });
+    entries.push(...reads.values());
+    return { ...result, closure: { entries, props: props ?? {} } };
 }
 /** FNV-1a 64-bit (16 hex) — the freshness tag hash, replicated from closure.ts
  *  so the browser can re-hash live source and compare to a baked artifact tag

@@ -738,6 +738,18 @@ function serveDist() {
     "/canvas-c1": pageHtml("CanvasBackend", C1_SOURCE),
     "/dom-c2": pageHtml("DomBackend", C2_SOURCE),
     "/canvas-c2": pageHtml("CanvasBackend", C2_SOURCE),
+    // A bare harness page for the compile-WORKER identity test: loads the one
+    // compiler client (which prefers the module worker) and exposes a compile
+    // runner — no app, no backend; the compiler itself is the subject.
+    "/worker-identity": `<!doctype html><meta charset="utf-8"><body><script type="module">
+      import { loadCompiler } from "/web/compiler-client.js";
+      window.__run = async (src) => {
+        const client = await loadCompiler();
+        const result = await client.compile(src, {});
+        return { transport: client.transport, json: JSON.stringify(result) };
+      };
+      window.__ready = true;
+    </script>`,
   };
   const server = http.createServer(async (req, res) => {
     const page = pages[req.url];
@@ -2378,6 +2390,30 @@ try {
     const diff = await diffShots(canvasC2.page, domC2.png, canvasC2.png);
     assert.ok(!diff.sizeMismatch, `screenshot sizes differ: ${diff.sizeMismatch}`);
     assert.equal(diff.over, 0, `channels beyond tolerance: ${diff.over} (max delta ${diff.max})`);
+  });
+
+  await test("compile worker: byte-identical output to the Node compiler (identical-output invariant)", async () => {
+    // The whole-toolchain uniformity claim, verified across TRANSPORTS: the
+    // same source compiled in a real module Worker in Chrome and by the Node
+    // compiler in this process must produce the same bytes — source, deps,
+    // structured diagnostics, AND the rendered report (design/in-browser-dev.md).
+    const { compile: compileNode } = await import("../compiler/dist/compile-node.js");
+    const page = await browser.newPage();
+    await page.goto(`http://127.0.0.1:${port}/worker-identity`, { waitUntil: "load" });
+    await page.waitForFunction(() => window.__ready === true, { timeout: 20000 });
+    const cases = [
+      "App [ width = 100, height = 100, n: number = 3, v: View [ width = { app.n * 2 } ] ]", // clean, with deps
+      "App [ v: Txet [ ] ]",                                                                  // error + suggestion + hint
+      "App [ v: View [ width = { app.mysteryLib() } ] ]",                                     // constraint residue (NEO7001)
+    ];
+    for (const src of cases) {
+      const { transport, json } = await page.evaluate((s) => window.__run(s), src);
+      assert.equal(transport, "worker", "Chrome supports module workers — the worker transport must win");
+      const r = compileNode(src, {});
+      const expected = JSON.stringify({ source: r.source, deps: r.deps, diagnostics: r.diagnostics, report: r.report });
+      assert.equal(json, expected, "worker output diverges from Node for: " + src.slice(0, 40));
+    }
+    await page.close();
   });
 } finally {
   await browser.close();

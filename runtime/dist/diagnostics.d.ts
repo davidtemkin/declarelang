@@ -3,7 +3,15 @@ export type Severity = "error" | "warning";
 /** The compile phase a diagnostic belongs to — derivable from its code's
  *  leading digit, so a Diagnostic is self-classifying. */
 export type DiagPhase = "syntax" | "structure" | "type" | "name" | "module" | "typecheck" | "constraint";
-/** A structured compile-time diagnostic — the public shape compile() reports. */
+/** A structured compile-time diagnostic — the public shape compile() reports.
+ *
+ *  Dual form, one record (the Rust model): the STRUCTURE is the truth, and
+ *  `rendered` is its formatted form — computed ONCE by the producer
+ *  (definitionally `formatDiagnostic(d)`), riding the record so every consumer
+ *  prints the same bytes. A dumb consumer shows `rendered` verbatim; a rich one
+ *  reads the fields (squiggle by `pos`, chip by `hint`) — and when the record
+ *  grows (related positions, fix-its), dumb consumers inherit the improved
+ *  rendering with no code change. No information may exist ONLY in the string. */
 export interface Diagnostic {
     code: string;
     severity: Severity;
@@ -11,6 +19,8 @@ export interface Diagnostic {
     message: string;
     pos?: Pos;
     hint?: string;
+    /** The formatted form — deterministic plain text, no color, spec-voiced. */
+    rendered: string;
 }
 /** The diagnostic-code prefix — ONE symbol, because the prefix is slated for a
  *  repo-wide rename: every code is BUILT (and parsed) through this constant,
@@ -53,8 +63,14 @@ export declare const Diag: {
  *  still lands with a valid code and phase. */
 export declare function toDiagnostic(e: NeoError, severity: Severity, fallbackPhase: DiagPhase): Diagnostic;
 /** The one renderer: "message [CODE] (line L, col C)", with an indented hint
- *  line when present. */
-export declare function formatDiagnostic(d: Diagnostic): string;
+ *  line when present; a warning carries a `warning: ` prefix (an unmarked
+ *  diagnostic reads as an error, the compiler convention). Deterministic plain
+ *  text — ANSI color is a caller-side decoration, never a second format. */
+export declare function formatDiagnostic(d: Omit<Diagnostic, "rendered">): string;
+/** The whole compile's rendered form — what a CLI prints verbatim. A one-line
+ *  count summary, then each diagnostic's `rendered`. Empty string when there is
+ *  nothing to say (deterministic: same diagnostics → same bytes). */
+export declare function renderReport(diagnostics: readonly Diagnostic[]): string;
 /** The browsable catalog — every code, its phase, and a one-line summary. The
  *  data form of the "set of message templates" (docs / tooling / a future
  *  `neo explain NEO3001`). */

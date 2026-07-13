@@ -28,20 +28,10 @@
 // Relative imports resolve against THIS module's URL (…/web/) → subpath-portable.
 import { bootHost } from "./host-client.js";
 import { registerServiceWorker } from "./register-sw.js";
+import { loadCompiler, ensureLibrary } from "./compiler-client.js";
 import { fnv1a, isUpToDate, lookupKey } from "../compiler/dist/closure.js";
 
 const ROOT = new URL("../", import.meta.url);
-
-// Lazy, memoized ~1 MB compiler — a SLOW-path compile and the background warm-load
-// (for live edits) share the one download.
-let compilerPromise = null;
-const loadCompiler = () => (compilerPromise ??= import("../dist-browser/declare-compiler.js"));
-
-// The auto-include library, loaded once and shared by the SLOW-path compile AND the
-// live-edit/preview compiles below — so a demo that uses a bare tag (`Bar [ ]`)
-// resolves in the browser exactly as it does in the Node fs host.
-let libraryPromise = null;
-const loadLibraryOnce = () => (libraryPromise ??= loadLibrary());
 
 // Platform version the commit hook stamps. Absent (un-stamped dev tree) → "dev":
 // the closure check alone still gates freshness. Salts the key + names the bucket.
@@ -51,28 +41,6 @@ async function platformBuild() {
     if (r.ok) return (await r.json()).build || "dev";
   } catch {}
   return "dev";
-}
-
-// The auto-include library, prefetched for a SLOW-path compile: the manifest (bare
-// tag → file) plus EVERY src file listed in library/index.json — so both bare tags
-// (`Bar [ ]`) and bare includes (`include [ "x.declare" ]`, resolved along the
-// search path's library root) work in-browser, mirroring the Node fs host. Falls
-// back to the manifest's files if the index is absent. NOT recorded in the closure —
-// the whole library is under BUILD_ID, so a bucket change already covers it.
-async function loadLibrary() {
-  try {
-    const [manifest, index] = await Promise.all([
-      fetch(new URL("library/autoincludes.json", ROOT), { cache: "no-cache" }).then((r) => r.json()),
-      fetch(new URL("library/index.json", ROOT), { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-    ]);
-    const names = Array.isArray(index) ? index : Object.values(manifest);
-    const files = {};
-    await Promise.all(names.map(async (rel) => {
-      const res = await fetch(new URL("library/src/" + rel, ROOT), { cache: "no-cache" });
-      if (res.ok) files["library/src/" + rel] = await res.text();
-    }));
-    return { manifest, files };
-  } catch { return { manifest: {}, files: {} }; }
 }
 
 // ── validators (closure.ts model, OL5 cache-browser.ts::validatorFromResponse) ──
@@ -162,36 +130,45 @@ export default async function boot(cfg) {
     path = "fast";
   }
 
-  // SLOW PATH — compile in-browser and cache the result + its closure.
+  // SLOW PATH — compile in-browser and cache the result + its closure. The
+  // client compiles in a module WORKER when the platform has one (off the main
+  // thread; identical output by construction), inline otherwise — and the
+  // auto-include library is registered as the compiler's DEFAULT
+  // (ensureLibrary), so every compile here and below resolves bare tags with
+  // no per-call ceremony.
   if (program === null) {
-    const [{ compile }, res, lib] = await Promise.all([
-      loadCompiler(),
+    const [client, res] = await Promise.all([
+      loadCompiler().then(ensureLibrary),
       fetch(mainUrl, { cache: "no-cache" }),
-      loadLibraryOnce(),
     ]);
     const source = await res.text();
-    const out = compile(source, { files: lib.files, manifest: lib.manifest });
+    // compileTracked records the REAL closure: the main source plus every file
+    // the include host served (a multi-file app's `include`s invalidate exactly
+    // like the main file). Library reads stay OUT of it — they ship with the
+    // distro and are gated by BUILD_ID, like OL5's LFC. The main entry carries
+    // the RESPONSE's validators (ETag/Last-Modified + content hash), so the
+    // cheap headers-only re-probe can prove freshness.
+    const out = await client.compileTracked(source, { mainId, mainValidator: validatorFromResponse(res, source), props });
     if (!out.source) {
-      return showError((out.errors || []).map((e) => (e.pos?.line != null ? `line ${e.pos.line}: ` : "") + e.message).join("\n") || "compile failed");
+      // The compile's own rendered report — the ONE renderer's output (code,
+      // line/col, hint), identical bytes to what the CLI and server print.
+      return showError(out.report || "compile failed");
     }
     program = out.source;
     deps = out.deps;                                               // static-constraint deps ride in the ONE compile result
     pageSource = source;
-    // Closure = the main source only (every current example is single-file; its
-    // library/runtime deps are gated by BUILD_ID, like OL5's LFC). A future app that
-    // `include`s another app-source file needs a browser compileTracked to record it.
-    const closure = { entries: [{ id: mainId, kind: "file", v: validatorFromResponse(res, source) }], props };
-    toCache = { program, deps, source, closure };                  // written AFTER render, below (off the paint path)
+    toCache = { program, deps, source, closure: out.closure };     // written AFTER render, below (off the paint path)
   }
 
   // Live-edit compile ("Edit this page" + demo previews). Warm-loaded in the
-  // background so it never gates first paint, whichever path we took above. It
-  // MUST feed the compiler the auto-include library — a preview that uses a bare
-  // tag (e.g. `Bar [ ]`) would otherwise fail to compile and render blank.
+  // background so it never gates first paint, whichever path we took above.
+  // The library default (ensureLibrary) makes a bare-tag preview (`Bar [ ]`)
+  // compile with no per-call ceremony — the old "MUST feed the library or
+  // previews render blank" obligation is gone by construction.
   const liveCompile = async (src) => {
     try {
-      const [{ compile }, lib] = await Promise.all([loadCompiler(), loadLibraryOnce()]);
-      const out = compile(src, { files: lib.files, manifest: lib.manifest });
+      const client = await loadCompiler().then(ensureLibrary);    // idempotent; covers the fast path, where the slow-path registration never ran
+      const out = await client.compile(src);
       return out.source ? { source: out.source, deps: out.deps } : null;  // one result: source + static deps
     } catch { return null; }
   };
@@ -217,7 +194,7 @@ export default async function boot(cfg) {
   });
   if (toCache) await writeCache(build, key, toCache);              // durable before we signal readiness
   window.__declareBoot = { path, build, key };                     // freshness/debug signal (also aids the SW)
-  loadCompiler().catch(() => {});                                  // warm the compiler for the first live edit
+  loadCompiler().then(ensureLibrary).catch(() => {});              // warm the compiler + library for the first live edit
   return app;
 }
 

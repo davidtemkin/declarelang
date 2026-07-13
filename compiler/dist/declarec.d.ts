@@ -1,5 +1,7 @@
+import type { Closure } from "./closure.js";
 import type { CompileOptions } from "./compile.js";
 import { type Program } from "../../runtime/dist/parser.js";
+import { type Diagnostic } from "../../runtime/dist/diagnostics.js";
 import type { NeoError } from "../../runtime/dist/errors.js";
 export interface DeclarecOptions extends CompileOptions {
     /** Drop `pos` source-offset fields from the shipped program. They exist only
@@ -7,12 +9,30 @@ export interface DeclarecOptions extends CompileOptions {
      *  at runtime — stripping them roughly halves the program's raw size and cuts
      *  its gzip near in half. Default true. */
     stripPos?: boolean;
+    /** The main source's own path — recorded in the build's closure so an edit
+     *  to the app file itself invalidates a cached artifact. */
+    mainId?: string;
+    /** Build properties frozen into the closure (backend, slim, the toolchain
+     *  fingerprint, …) — isUpToDate compares them, so a flag or toolchain change
+     *  invalidates like a file change. */
+    props?: Record<string, string>;
 }
 export interface ProgramBuild {
     /** The instantiate-ready program, or null when the source did not compile. */
     program: Program | null;
     errors: readonly NeoError[];
     warnings: readonly NeoError[];
+    /** The unified structured view + its rendered form, threaded VERBATIM from
+     *  the one compile() result (Compiled.diagnostics/report) — the CLI prints
+     *  `report`; nothing here re-renders. */
+    diagnostics: readonly Diagnostic[];
+    report: string;
+    /** The compile's dependency closure (closure.ts): the main file, every
+     *  include, every auto-included library file, plus the frozen build props —
+     *  THE freshness fact a cache checks (isUpToDate) to decide whether this
+     *  build is still current. Present even on failure (a failed compile's
+     *  closure says what to watch to retry). */
+    closure: Closure;
     /** The built-in component NAMES this app can instantiate — the used-set a
      *  production build keeps (∩ the runtime registry), dropping every other
      *  component module (rich-text, etc.). Empty when the source did not compile. */

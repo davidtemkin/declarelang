@@ -11,7 +11,7 @@
 // `{}`), so tsc's program/checker never enters the graph — only the parser does.
 //
 //   node tools/build-compiler.mjs
-// writes dist-browser/declare-compiler.js  (an ES module: `export { compile, memoryHost, fnv1a }`)
+// writes dist-browser/declare-compiler.js  (an ES module: compile, compileTracked, setDefaultLibrary, memoryHost, highlight, fnv1a)
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";

@@ -13,7 +13,8 @@
 // esbuild, write the dist tree, copy assets, gzip-measure) lives in the CLI and
 // the server, which own the filesystem and the bundler.
 
-import { compile } from "./compile-node.js";
+import { compileTracked } from "./compile-node.js";
+import type { Closure } from "./closure.js";
 import { applyDeps } from "../../runtime/dist/deps.js";
 import { freeIdentifiers } from "./free-idents.js";
 import type { CompileOptions } from "./compile.js";
@@ -21,6 +22,7 @@ import { parseProgram, type Program, type Element } from "../../runtime/dist/par
 import { resolveIncludes, NO_INCLUDES, referencedComponentNames } from "../../runtime/dist/include.js";
 import { REGISTRY_NAMES } from "../../runtime/dist/registry.js";
 import { check } from "../../runtime/dist/check.js";
+import { toDiagnostic, renderReport, type Diagnostic } from "../../runtime/dist/diagnostics.js";
 import type { NeoError } from "../../runtime/dist/errors.js";
 
 export interface DeclarecOptions extends CompileOptions {
@@ -29,6 +31,13 @@ export interface DeclarecOptions extends CompileOptions {
    *  at runtime — stripping them roughly halves the program's raw size and cuts
    *  its gzip near in half. Default true. */
   stripPos?: boolean;
+  /** The main source's own path — recorded in the build's closure so an edit
+   *  to the app file itself invalidates a cached artifact. */
+  mainId?: string;
+  /** Build properties frozen into the closure (backend, slim, the toolchain
+   *  fingerprint, …) — isUpToDate compares them, so a flag or toolchain change
+   *  invalidates like a file change. */
+  props?: Record<string, string>;
 }
 
 export interface ProgramBuild {
@@ -36,6 +45,17 @@ export interface ProgramBuild {
   program: Program | null;
   errors: readonly NeoError[];
   warnings: readonly NeoError[];
+  /** The unified structured view + its rendered form, threaded VERBATIM from
+   *  the one compile() result (Compiled.diagnostics/report) — the CLI prints
+   *  `report`; nothing here re-renders. */
+  diagnostics: readonly Diagnostic[];
+  report: string;
+  /** The compile's dependency closure (closure.ts): the main file, every
+   *  include, every auto-included library file, plus the frozen build props —
+   *  THE freshness fact a cache checks (isUpToDate) to decide whether this
+   *  build is still current. Present even on failure (a failed compile's
+   *  closure says what to watch to retry). */
+  closure: Closure;
   /** The built-in component NAMES this app can instantiate — the used-set a
    *  production build keeps (∩ the runtime registry), dropping every other
    *  component module (rich-text, etc.). Empty when the source did not compile. */
@@ -95,8 +115,11 @@ export function compileProgram(source: string, opts: DeclarecOptions = {}): Prog
   //    by default, matching the dev path, until verify flips it on as rung 3;
   //    the runtime schema `check()` below is the always-on gate. Opt in with
   //    `typecheck: true`.
-  const c = compile(source, { ...opts, typecheck: opts.typecheck ?? false });
-  if (c.source === null) return { program: null, errors: c.errors, warnings: c.warnings, usedComponents: [] };
+  const { mainId, props, stripPos: strip, ...compileOpts } = opts;
+  const c = compileTracked(source, { ...compileOpts, mainId, props, typecheck: opts.typecheck ?? false });
+  if (c.source === null) {
+    return { program: null, errors: c.errors, warnings: c.warnings, diagnostics: c.diagnostics, report: c.report, closure: c.closure, usedComponents: [] };
+  }
 
   // 2) Parse the resolved source into a program. Includes are already inlined,
   //    so NO_INCLUDES is a guard, not a resolver.
@@ -104,9 +127,14 @@ export function compileProgram(source: string, opts: DeclarecOptions = {}): Prog
   const { program, errors: incErrors } = resolveIncludes(parsed, NO_INCLUDES, "");
 
   // 3) Belt-and-suspenders: typecheck the program we will actually ship (the
-  //    resolved re-parse), so the emitted artifact is provably valid.
+  //    resolved re-parse), so the emitted artifact is provably valid. A failure
+  //    here is OUR bug (compile() accepted what the re-check rejects), so the
+  //    structured view is composed the same way compile() composes its own.
   const errors = [...incErrors, ...check(program)];
-  if (errors.length > 0) return { program: null, errors, warnings: c.warnings, usedComponents: [] };
+  if (errors.length > 0) {
+    const diagnostics = errors.map((e) => toDiagnostic(e, "error", "structure"));
+    return { program: null, errors, warnings: c.warnings, diagnostics, report: renderReport(diagnostics), closure: c.closure, usedComponents: [] };
+  }
 
   // Zip the extracted constraint dependencies (design/constraints.md §5) onto
   // the program we ship, so it boots on the runtime's static-constraint path.
@@ -118,6 +146,6 @@ export function compileProgram(source: string, opts: DeclarecOptions = {}): Prog
   // Compute the used-set BEFORE stripping positions (the scan walks bodies; it
   // needs nothing positional, but order it here so it reads the same program).
   const usedComponents = usedComponentNames(program);
-  if (opts.stripPos ?? true) stripPos(program);
-  return { program, errors: [], warnings: c.warnings, usedComponents };
+  if (strip ?? true) stripPos(program);
+  return { program, errors: [], warnings: c.warnings, diagnostics: c.diagnostics, report: c.report, closure: c.closure, usedComponents };
 }

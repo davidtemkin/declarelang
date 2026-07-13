@@ -10,29 +10,11 @@
 // compiler always load from the distro tree regardless of which program is viewed.
 import { bootHost } from "./host-client.js";
 import { registerServiceWorker } from "./register-sw.js";
+import { loadCompiler, ensureLibrary } from "./compiler-client.js";
 
 const ROOT = new URL("../", import.meta.url);
 // The file to display — an absolute URL the SW passed on this module's own URL.
 const target = new URL(import.meta.url).searchParams.get("src");
-
-// The auto-include library, so the code-viewer shell compiles in-browser (parity
-// with boot-uniform's host; the viewer uses no bare tags today, but this keeps the
-// one code path and future-proofs a viewer that does).
-async function loadLibrary() {
-  try {
-    const [manifest, index] = await Promise.all([
-      fetch(new URL("library/autoincludes.json", ROOT), { cache: "no-cache" }).then((r) => r.json()),
-      fetch(new URL("library/index.json", ROOT), { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-    ]);
-    const names = Array.isArray(index) ? index : Object.values(manifest);
-    const files = {};
-    await Promise.all(names.map(async (rel) => {
-      const res = await fetch(new URL("library/src/" + rel, ROOT), { cache: "no-cache" });
-      if (res.ok) files["library/src/" + rel] = await res.text();
-    }));
-    return { files, manifest };
-  } catch { return { files: {}, manifest: {} }; }
-}
 
 async function run() {
   registerServiceWorker();
@@ -40,23 +22,23 @@ async function run() {
   if (!target) return showError(host, "no source URL — the Service Worker did not pass ?src=…");
   try {
     const viewerUrl = new URL("examples/codeviewer/codeviewer.declare", ROOT);
-    // In parallel: the compiler bundle (which now also exports highlight), the viewer
-    // shell source, the library, and the target file being viewed. Nothing depends on
-    // another, so one round-trip.
-    const [{ compile, highlight }, lib, viewerSrc, raw] = await Promise.all([
-      import("../dist-browser/declare-compiler.js"),
-      loadLibrary(),
+    // In parallel: the one compiler client (worker or inline, library registered
+    // as its default), the viewer shell source, and the target file being viewed.
+    // Nothing depends on another, so one round-trip.
+    const [client, viewerSrc, raw] = await Promise.all([
+      loadCompiler().then(ensureLibrary),
       fetch(viewerUrl, { cache: "no-cache" }).then((r) => { if (!r.ok) throw new Error(r.status + " fetching the code viewer"); return r.text(); }),
       fetch(target, { cache: "no-cache" }).then((r) => { if (!r.ok) throw new Error(r.status + " fetching " + target); return r.text(); }),
     ]);
-    const out = compile(viewerSrc, lib);
+    const out = await client.compile(viewerSrc);
     if (!out.source) {
-      return showError(host, (out.errors || []).map((e) => e.message).join("\n") || "the code viewer failed to compile");
+      // The compile's own rendered report — the ONE renderer's output.
+      return showError(host, out.report || "the code viewer failed to compile");
     }
     // highlight() → the prose/code SEGMENTS the viewer renders; __raw__ = the verbatim
     // file (the plain-text toggle — segments can't reconstruct it faithfully); __path__ =
     // the tree-relative path shown in the head. The viewer reads them off app.demoSources.
-    const segments = highlight(raw);
+    const segments = await client.highlight(raw);
     const relPath = new URL(target).pathname.replace(new URL(ROOT).pathname, "");
     document.title = (relPath.split("/").pop() || "source") + " — source";
     await bootHost({

@@ -170,7 +170,7 @@ export const Diag = {
  *  still lands with a valid code and phase. */
 export function toDiagnostic(e, severity, fallbackPhase) {
     const code = e.code ?? BASE[fallbackPhase];
-    return {
+    const d = {
         code,
         severity,
         phase: phaseOfCode(code),
@@ -178,13 +178,31 @@ export function toDiagnostic(e, severity, fallbackPhase) {
         pos: e.pos,
         hint: e.hint,
     };
+    return { ...d, rendered: formatDiagnostic(d) };
 }
 /** The one renderer: "message [CODE] (line L, col C)", with an indented hint
- *  line when present. */
+ *  line when present; a warning carries a `warning: ` prefix (an unmarked
+ *  diagnostic reads as an error, the compiler convention). Deterministic plain
+ *  text — ANSI color is a caller-side decoration, never a second format. */
 export function formatDiagnostic(d) {
+    const sev = d.severity === "warning" ? "warning: " : "";
     const at = d.pos ? ` (line ${d.pos.line}, col ${d.pos.col})` : "";
     const hint = d.hint ? `\n  hint: ${d.hint}` : "";
-    return `${d.message} [${d.code}]${at}${hint}`;
+    return `${sev}${d.message} [${d.code}]${at}${hint}`;
+}
+/** The whole compile's rendered form — what a CLI prints verbatim. A one-line
+ *  count summary, then each diagnostic's `rendered`. Empty string when there is
+ *  nothing to say (deterministic: same diagnostics → same bytes). */
+export function renderReport(diagnostics) {
+    if (diagnostics.length === 0)
+        return "";
+    const errs = diagnostics.filter((d) => d.severity === "error").length;
+    const warns = diagnostics.length - errs;
+    const counts = [
+        errs > 0 ? `${errs} error${errs === 1 ? "" : "s"}` : "",
+        warns > 0 ? `${warns} warning${warns === 1 ? "" : "s"}` : "",
+    ].filter((s) => s.length > 0).join(", ");
+    return [counts, ...diagnostics.map((d) => d.rendered)].join("\n");
 }
 /** The browsable catalog — every code, its phase, and a one-line summary. The
  *  data form of the "set of message templates" (docs / tooling / a future

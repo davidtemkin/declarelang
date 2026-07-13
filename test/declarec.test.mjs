@@ -92,5 +92,32 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   assert.ok(gz > 20 * 1024 && gz < 70 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
 });
 
+await test("closure freshness: an edit to an INCLUDED file invalidates the build (the prod-cache rule)", async () => {
+  // The exact gap the old sha256-of-main-source key had: a multi-file app whose
+  // `include`d file changes must go stale. buildProduction records the real
+  // closure (compileTracked); isUpToDate + diskProbe is the same check the
+  // dev server's /prod cache runs.
+  const { mkdtempSync, writeFileSync, utimesSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { isUpToDate, diskProbe } = await import("../compiler/dist/compile-node.js");
+  const dir = mkdtempSync(join(tmpdir(), "declarec-closure-"));
+  writeFileSync(join(dir, "part.declare"), "class Part extends View [ width = 40 ]\n");
+  const source = 'include [ "part.declare" ]\nApp [ width = 100, height = 100, Part [ ] ]\n';
+  writeFileSync(join(dir, "main.declare"), source);
+  const out = await buildProduction(source, { name: "main", originDir: dir, backend: "dom", slim: true, props: { toolchain: "t" } });
+  assert.ok(out.ok, out.report);
+  const ids = out.closure.entries.map((e) => e.id);
+  assert.ok(ids.some((id) => id.endsWith("main.declare")), "main file in the closure: " + ids);
+  assert.ok(ids.some((id) => id.endsWith("part.declare")), "the INCLUDE in the closure: " + ids);
+  assert.equal(isUpToDate(out.closure, out.closure.props, diskProbe), true, "fresh right after the build");
+  // Touch the INCLUDED file — the build must go stale (main untouched).
+  const later = new Date(Date.now() + 1500);
+  utimesSync(join(dir, "part.declare"), later, later);
+  assert.equal(isUpToDate(out.closure, out.closure.props, diskProbe), false, "an included-file edit invalidates");
+  // And a build-flag change invalidates through the frozen props.
+  assert.equal(isUpToDate(out.closure, { ...out.closure.props, backend: "canvas" }, diskProbe), false, "a flag change invalidates");
+});
+
 console.log(`\ndeclarec: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);
