@@ -29,7 +29,7 @@
 // BUILD_ID — a content hash of the platform (runtime + compiler bundle + web client +
 // this worker + index.html), stamped by tools/stamp-version.mjs. Left "dev" when unstamped
 // (local serving); a real deploy stamps it so cache-busting + the SW self-update engage.
-const BUILD_ID = "3a0edb0a1d8b";
+const BUILD_ID = "72781894b29c";
 
 const ROOT = new URL("./", self.location);            // <origin>/…/  (this worker's dir == the distro root)
 const ORIGIN = ROOT.origin;
@@ -60,11 +60,14 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== ORIGIN) return;                  // cross-origin → default network
 
   // BROWSE-TO-RUN — a NAVIGATION to `…/<name>.declare` becomes a generated host page.
-  // A non-navigation `.declare` fetch (an `include`/`dataset` the compiler reads, or the
-  // `?source` raw view) is NOT a navigation, so it falls through to revalidate() and the
-  // raw source is served — exactly what an in-browser compile needs.
+  // `?view=source` gets the SOURCE VIEWER page instead (highlight in-browser, render
+  // the code viewer); anything else RUNS the program. A non-navigation `.declare` fetch
+  // (an `include`/`dataset` the compiler reads, or the raw text a source view re-fetches)
+  // is NOT a navigation, so it falls through to revalidate() and the raw source is served.
   if (req.mode === "navigate" && url.pathname.endsWith(".declare")) {
-    event.respondWith(hostPageResponse(url));
+    event.respondWith(url.searchParams.get("view") === "source"
+      ? sourcePageResponse(url)
+      : hostPageResponse(url));
     return;
   }
 
@@ -109,6 +112,29 @@ async function hostPageResponse(url) {
 <style>html,body{margin:0;padding:0;background:#0B141B}</style>
 <div id="host"></div>
 <script type="module" src="${escapeHtml(bootUrl)}?app=${encodeURIComponent(appUrl)}&v=${BUILD_ID}"></script>`;
+  return new Response(html, { status: 200, headers: { "Content-Type": "text/html;charset=utf-8", "Cache-Control": "no-cache" } });
+}
+
+// The SOURCE-VIEWER host page for a `…/<name>.declare?view=source` navigation. It boots
+// web/boot-source.js, which highlights the target IN-BROWSER and renders the code-viewer
+// app (examples/codeviewer) seeded with the segments. No `<base>`: the boot module resolves
+// the viewer + runtime against its own ABSOLUTE URL, and takes the target only as the ?src=
+// param, so nothing relative on this page needs diverting. ?v=BUILD_ID busts it per deploy.
+async function sourcePageResponse(url) {
+  const appUrl = url.origin + url.pathname;           // the .declare (query dropped)
+  const bootUrl = new URL("web/boot-source.js", ROOT).href;
+  const icon = new URL("assets/favicon.svg", ROOT).href;
+  const iconPng = new URL("assets/favicon.png", ROOT).href;
+  const name = appUrl.replace(/.*\//, "").replace(/\.declare$/, "");
+  const html = `<!doctype html><meta charset="utf-8">
+<title>${escapeHtml(name)} — source · Declare</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<link rel="icon" type="image/svg+xml" href="${escapeHtml(icon)}">
+<link rel="icon" type="image/png" sizes="256x256" href="${escapeHtml(iconPng)}">
+<style>html,body{margin:0;padding:0;background:#0B141B}</style>
+<div id="host"></div>
+<script type="module" src="${escapeHtml(bootUrl)}?src=${encodeURIComponent(appUrl)}&v=${BUILD_ID}"></script>`;
   return new Response(html, { status: 200, headers: { "Content-Type": "text/html;charset=utf-8", "Cache-Control": "no-cache" } });
 }
 

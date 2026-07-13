@@ -1,5 +1,6 @@
 import { type CompileOptions, type Compiled } from "./compile.js";
 import type { AutoIncludeHost } from "../../runtime/dist/include.js";
+export { highlight } from "./highlight.js";
 export interface BrowserFiles {
     /** canonicalPath → source, for `include`s and library files prefetched up front. */
     files?: Record<string, string>;

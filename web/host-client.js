@@ -18,12 +18,19 @@ import { renderAsync, disposeApp, DomBackend, CanvasBackend } from "../runtime/d
 
 const BACKENDS = { DomBackend, CanvasBackend };
 
+// The distro ROOT (this module lives at <root>/web/…). App-navigation targets are
+// resolved against it, so a distro-relative link ("examples/calendar/") lands
+// correctly whether the distro is served from the origin root (dev server) or a
+// project subpath (GitHub Pages /<repo>/). Absolute URLs (https://…) pass through.
+const DISTRO_ROOT = new URL("../", import.meta.url);
+
 /**
  * @param cfg {{
  *   source: string,              // the compiled main program
  *   backend?: "DomBackend"|"CanvasBackend",
  *   pageWeight?: number, sourceLines?: number,
  *   seeds?: Record<string,string>,        // { <demo>: editorSeedSource, __page__: rawPageSource }
+ *   demoBase?: string,                    // abs URL of the demos dir; previews with no seed fetch <demoBase><name>.declare on demand
  *   precompiled?: Record<string,string>,  // { <demo>: compiledSource } — static initial previews
  *   compile?: (source: string) => Promise<string|null>,  // live recompile (server/in-browser); null = keep last
  * }}
@@ -85,7 +92,7 @@ export async function bootHost(cfg) {
   // Same-document nav (not window.open) so it isn't popup-blocked a frame after the click.
   const navTick = () => {
     if (stopped) return;
-    if (app.navigate) { const u = app.navigate; app.navigate = ""; location.href = u; }
+    if (app.navigate) { const u = app.navigate; app.navigate = ""; location.href = new URL(u, DISTRO_ROOT).href; }
     raf.nav = requestAnimationFrame(navTick);
   };
   raf.nav = requestAnimationFrame(navTick);
@@ -107,10 +114,29 @@ export async function bootHost(cfg) {
     } catch (e) {}
   }
 
+  // The source for a preview island. A provided seed wins (the site's editors read the
+  // SAME seeds, so those are handed in up front); otherwise the source is fetched ON
+  // DEMAND from the demos dir the first time the island goes live — the in-process echo
+  // of browse-to-run: no manifest, no bulk pre-seed, just "ask the compiler for the one
+  // source when you need it," exactly as a SW dispatches a `.declare` navigation. The
+  // result is cached back into `seeds` so retries, a copied editor, and a nested child
+  // app all reuse it. Returns null on a failed/absent fetch so the box stays eligible
+  // and the next rAF tick retries (a truthy "" only when there's simply no source).
+  async function sourceFor(name) {
+    if (seeds[name] != null) return seeds[name];
+    if (!cfg.demoBase) return "";
+    try {
+      const base = new URL(cfg.demoBase, document.baseURI);   // demoBase may be relative (dev <base>) or absolute (static host)
+      const res = await fetch(new URL(name + ".declare", base), { cache: "no-cache" });
+      if (res.ok) return (seeds[name] = await res.text());
+    } catch {}
+    return null;
+  }
+
   // Wire EVERY unwired "run:" island to its program. Static mode uses the precompiled
-  // output; otherwise it compiles the seed. Recurses only as deep as the user clicks:
-  // a preview island exists only when its editor is OPEN, and every copied editor
-  // starts CLOSED — no action ⇒ no growth.
+  // output; otherwise it compiles the seed or the on-demand-fetched source. Recurses only
+  // as deep as the user clicks: a preview island exists only when its editor is OPEN, and
+  // every copied editor starts CLOSED — no action ⇒ no growth.
   //
   // The island for a live-compiled program (e.g. the whole-page "__page__" editor,
   // which has no precompiled artifact) can appear BEFORE the ~1 MB in-browser compiler
@@ -125,9 +151,13 @@ export async function bootHost(cfg) {
       if (box.dataset.wired || box.dataset.wiring) return;
       box.dataset.wiring = "1";                              // in-flight: one compile at a time
       const name = box.dataset.neoSlot.split(":")[1];
-      const compiled = precompiled[name] ?? (await compile(seeds[name] || ""));
+      let compiled = precompiled[name];
+      if (compiled == null) {
+        const src = await sourceFor(name);                  // seed, or fetched on demand
+        compiled = src == null ? null : await compile(src); // src null (fetch failed) ⇒ retry next tick
+      }
       delete box.dataset.wiring;
-      if (!compiled) return;                                 // compiler not warm yet (or failed) — retry next tick
+      if (!compiled) return;                                 // compiler not warm / source not in yet — retry next tick
       box.dataset.wired = "1";                               // committed: don't remount
       renderChild(box, compiled);
     });

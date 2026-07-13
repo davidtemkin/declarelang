@@ -95,10 +95,16 @@ function hostPage(name, backendClass) {
   // static/precompiled host agree on the seed text), plus the page's own source.
   const stripComments = (s) => s.split("\n").filter((l) => !l.trim().startsWith("//"))
     .join("\n").replace(/^\s+/, "").replace(/\n{3,}/g, "\n\n").replace(/\s+$/, "") + "\n";
+  // Editors that read their source from a doc MODEL (docs) need no demo seeds — their
+  // previews are fetched ON DEMAND by the client (host-client sourceFor) and compiled via
+  // POST /compile, the SAME path the static host takes with the in-browser compiler. Only
+  // seed-driven editors (the site) still get their sources up front. So both hosts run the
+  // one client path; the only difference is WHERE compile() runs (here, or in the browser).
+  const modelDriven = existsSync(path.join(dir, "model.json"));
   const seeds = {};
-  for (const k in demos) seeds[k] = stripComments(demos[k]);
+  if (!modelDriven) for (const k in demos) seeds[k] = stripComments(demos[k]);
   seeds.__page__ = src;
-  const cfg = { backend: backendClass, source: r.source, deps: depsFor(r.source), pageWeight: wireKB, sourceLines: loc, seeds };
+  const cfg = { backend: backendClass, source: r.source, deps: depsFor(r.source), pageWeight: wireKB, sourceLines: loc, seeds, demoBase: "demos/" };
   // The homepage gets a real page title; other examples keep the debug backend tag.
   const pageTitle = name === "site" ? "Declare — the UI language for the AI era" : `${name} (${backendClass})`;
   // <base> resolves the app's relative resources + data under the example. The client

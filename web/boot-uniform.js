@@ -37,6 +37,12 @@ const ROOT = new URL("../", import.meta.url);
 let compilerPromise = null;
 const loadCompiler = () => (compilerPromise ??= import("../dist-browser/declare-compiler.js"));
 
+// The auto-include library, loaded once and shared by the SLOW-path compile AND the
+// live-edit/preview compiles below — so a demo that uses a bare tag (`Bar [ ]`)
+// resolves in the browser exactly as it does in the Node fs host.
+let libraryPromise = null;
+const loadLibraryOnce = () => (libraryPromise ??= loadLibrary());
+
 // Platform version the commit hook stamps. Absent (un-stamped dev tree) → "dev":
 // the closure check alone still gates freshness. Salts the key + names the bucket.
 async function platformBuild() {
@@ -160,7 +166,7 @@ export default async function boot(cfg) {
     const [{ compile }, res, lib] = await Promise.all([
       loadCompiler(),
       fetch(mainUrl, { cache: "no-cache" }),
-      loadLibrary(),
+      loadLibraryOnce(),
     ]);
     const source = await res.text();
     const out = compile(source, { files: lib.files, manifest: lib.manifest });
@@ -177,23 +183,34 @@ export default async function boot(cfg) {
   }
 
   // Live-edit compile ("Edit this page" + demo previews). Warm-loaded in the
-  // background so it never gates first paint, whichever path we took above.
+  // background so it never gates first paint, whichever path we took above. It
+  // MUST feed the compiler the auto-include library — a preview that uses a bare
+  // tag (e.g. `Bar [ ]`) would otherwise fail to compile and render blank.
   const liveCompile = async (src) => {
-    try { const { compile } = await loadCompiler(); return compile(src, {}).source ?? null; }
-    catch { return null; }
+    try {
+      const [{ compile }, lib] = await Promise.all([loadCompiler(), loadLibraryOnce()]);
+      return compile(src, { files: lib.files, manifest: lib.manifest }).source ?? null;
+    } catch { return null; }
   };
 
+  // Seed only the demo editors the page NAMES up front (the site's few — whose editors
+  // read these seeds directly). Everything else is compiled ON DEMAND: the host fetches
+  // a preview's source from `demoBase` the first time that island goes live — the
+  // in-process echo of browse-to-run, no manifest, no bulk pre-seed. The docs name none
+  // (its ~50 inline examples' editors read their source from the doc model, and their
+  // previews are fetched on demand as the reader scrolls to each page).
   const seeds = { __page__: pageSource };
-  if (Array.isArray(cfg.demos) && cfg.demos.length) {              // (site) seed demo editors; previews compile in-browser
+  if (Array.isArray(cfg.demos) && cfg.demos.length) {
     await Promise.all(cfg.demos.map(async (name) => {
       try { seeds[name] = await (await fetch(new URL("demos/" + name + ".declare", mainDir), { cache: "no-cache" })).text(); } catch {}
     }));
   }
+  const demoBase = new URL("demos/", mainDir).href;              // where mountPreviews fetches unseeded previews
 
   const app = await bootHost({                                     // render first — nothing below delays first paint
     source: program, backend: cfg.backend,
     pageWeight: cfg.pageWeight, sourceLines: cfg.sourceLines,
-    seeds, compile: liveCompile,
+    seeds, demoBase, compile: liveCompile,
   });
   if (toCache) await writeCache(build, key, toCache);              // durable before we signal readiness
   window.__declareBoot = { path, build, key };                     // freshness/debug signal (also aids the SW)

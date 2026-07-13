@@ -120,26 +120,6 @@ inverts. Each has its own chapter; here is the map.
   `theme` record high in the tree; every descendant follows it until one
   overrides. → [Prevailing](22-prevailing.md)
 
-## The one gotcha to hold from the start
-
-Inside a `{ }` body you have **ES2022 JavaScript, and nothing else**: the
-standard library (`Math`, `String`, template literals, `JSON`) — but **no DOM**
-(`document`, `window`, `HTMLElement` are not there) and **no TypeScript
-type-syntax** (no `as` casts, no `: Type` annotations on locals — the body is
-JavaScript). The render substrate is abstracted away on purpose: the same
-program can paint to the DOM or to a canvas, so nothing substrate-specific is
-allowed to leak into it. When you genuinely need the browser's own machinery, you
-reach for it deliberately, as an `HTML [ … ]` island (the [`HTML` reference]).
-
-One more you will hit early: **colours are spelled `#RRGGBB` in a bare `[ ]`
-slot and `0xRRGGBB` inside a `{ }` body** — the one place the spelling differs,
-because inside braces it is a plain TypeScript number.
-
-```declare
-View [ fill = #101E28,                       // literal slot → #
-       stroke = { hovered ? 0x4C8DFF : 0x263D4C } ]   // TS body → 0x
-```
-
 ## How this guide is organized
 
 Read Part I for orientation, then the [tutorial](10-tutorial.md) builds one

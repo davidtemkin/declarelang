@@ -22,6 +22,11 @@ import { compile as compileCore, type CompileOptions, type Compiled } from "./co
 import type { AutoIncludeHost } from "../../runtime/dist/include.js";
 import { searchIncludePath } from "./include-search.js";
 
+// Re-exported so the browser bundle also carries the source-viewer highlighter
+// (the same highlight() the dev server runs for `?view=source`). It has no
+// dependencies, so it adds negligible weight — web/boot-source.js reads it here.
+export { highlight } from "./highlight.js";
+
 /** Collapse `.` / `..` segments in a POSIX-ish path so the resolved key matches
  *  how the warm-load stores prefetched files (e.g. "library/src/bar.declare"). */
 function normalizePath(p: string): string {

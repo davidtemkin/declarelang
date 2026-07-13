@@ -24,6 +24,8 @@ class Eyebrow extends Text [ fontFamily = [Mono, "monospace"], fontSize = 13,
 
 class Marker extends Eyebrow [ textColor = { theme.accent } ]   // the accent section number
 
+class FootLabel extends Text [ fontSize = 13, fontWeight = semibold, textColor = { theme.muted }, selectable = true ]   // footer text in the Declare typeface (App Sans), not the mono eyebrow
+
 class Lead extends Text [ fontSize = 19, fontWeight = normal, textColor = #9DB0BC, selectable = true ]
 
 class Body extends Text [ fontSize = 17, fontWeight = normal, textColor = { theme.muted }, selectable = true ]
@@ -127,11 +129,6 @@ class Button extends View [ height = 46, cornerRadius = 9,
                     text = { classroot.label },
                     textColor = { classroot.primary ? 0x0B141B : 0xE7EEF2 } ],
     ]
-
-// ── a small mono panel label (AMOUNT / SOURCE · DECLARE / …) ──────────────────
-
-class Tag extends Text [ fontFamily = [Mono, "monospace"], fontSize = 11,
-    fontWeight = semibold, letterSpacing = 1.4, textColor = { theme.dim }, selectable = true ]
 
 // ── the code editor: a NEO-NATIVE editable field (no host textarea) ───────────
 // A TextInput seeded (uncontrolled, `initial`) from the demo's source `src` —
@@ -309,8 +306,7 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                 top: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 26 ],
 
                     // the title: product name in the blue→teal gradient, the claim on the
-                    // next line, and a quiet one-line descriptor subhead under both. One
-                    // rendition at every width — no wide/narrow split to keep in sync.
+                    // next line. One rendition at every width — no wide/narrow split to keep in sync.
 
                     titleGroup: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 12 ],
                         headline: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 2 ],
@@ -319,14 +315,11 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                             Heading [ fontSize = { app.width < 700 ? 44 : 60 }, width = { parent.width },
                                       text = "is the UI language for the AI era." ],
                             ],
-                        subhead: Text [ fontSize = { app.width < 700 ? 20 : 24 }, fontWeight = normal,
-                                        width = { Math.min(560, parent.width) }, textColor = #9DB0BC,
-                                        text = "A declarative language for dynamic web apps" ],
                         ],
                     paras: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 12 ],
-                        HTMLText [ width = { Math.min(680, parent.width) }, fontSize = 19, bodyColor = #9DB0BC, selectable = true,
+                        HTMLText [ width = { Math.min(680, parent.width) }, fontSize = 19, lineHeight = 1.2, bodyColor = #9DB0BC, selectable = true,
                                    accents = { ({ g: gradient("90deg", 0x4C8DFF, 0x37E0C8) }) },
-                                   html = "Just as SQL is a domain-specific language for database queries, <span class='g'>Declare</span> is a domain-specific language for user interfaces. Its whole surface fits in your head — and inside an LLM's context window." ],
+                                   html = "Just as SQL is a domain-specific language for database queries, <span class='g'>Declare</span> is a DSL for user interfaces. Its whole surface fits in your head — and inside an LLM's context window." ],
                         Lead [ width = { Math.min(680, parent.width) },
                                text = "This page is written in it. By an LLM." ],
                         ],
@@ -338,7 +331,11 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                              onClick() { app.editing = true } ],
                     ],
                 learn: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
-                              textColor = #4C8DFF, text = "Why a new language, now? →", onClick() { app.route = "why" } ],
+                              hovered: boolean = false,
+                              textColor = { this.hovered ? 0x7FB0FF : 0x4C8DFF }, text = "Why a new language, now? →",
+                              onMouseOver() { this.hovered = true },
+                              onMouseOut() { this.hovered = false },
+                              onClick() { app.route = "why" } ],
                 ],
 
             // ── 01 — Read it. Generate it. Run it. ─────────────────────────────
@@ -375,7 +372,7 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                     pad: View [ x = 30, y = 26, width = { parent.width - 60 }, layout: SimpleLayout [ axis = y, spacing = 24 ],
                         actions: View [ layout: SimpleLayout [ axis = x, spacing = 18 ],
                             Button [ width = 240, label = "Run Declare Calendar →",
-                                     onClick() { app.navigate = "/examples/calendar/" } ],
+                                     onClick() { app.navigate = "examples/calendar/" } ],
                             srclink: Text [ y = 16, fontFamily = [Sans, "system-ui"], fontSize = 13, wrap = false,
                                      textColor = { theme.dim }, text = "or read the source →",
                                      onClick() { app.navigate = "https://github.com/davidtemkin/declarelang/blob/main/examples/calendar/calendar.declare" } ],
@@ -409,8 +406,6 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                                        src = { app.demoSources.reactivity || "" } ],
                         PreviewFrame [ runName  = "reactivity", height = 226 ],
                         ],
-                    strip: View [ width = { parent.width }, height = 44, cornerRadius = 10, fill = #0C1620, stroke = stroke(1, #1E313C),
-                        Tag [ x = 18, y = 16, textColor = #556673, text = "REACTIVE CONSTRAINTS · ONE VALUE, MANY BINDINGS · CLICK THE PREVIEW" ] ],
                     ],
                 ],
 
@@ -429,8 +424,6 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                                        src = { app.demoSources.components || "" } ],
                         PreviewFrame [ runName  = "components", height = 184 ],
                         ],
-                    strip: View [ width = { parent.width }, height = 44, cornerRadius = 10, fill = #0C1620, stroke = stroke(1, #1E313C),
-                        Tag [ x = 18, y = 16, textColor = #556673, text = "COMPONENTS & DATA · ONE Bar PER RECORD · DATA DRIVES THE VIEW" ] ],
                     ],
                 ],
 
@@ -449,8 +442,6 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                                        src = { app.demoSources.spring || "" } ],
                         PreviewFrame [ runName  = "spring", height = 184 ],
                         ],
-                    strip: View [ width = { parent.width }, height = 44, cornerRadius = 10, fill = #0C1620, stroke = stroke(1, #1E313C),
-                        Tag [ x = 18, y = 16, textColor = #556673, text = "DECLARATIVE MOTION · A SPRING FOLLOWS A REACTIVE TARGET · CLICK TO TOGGLE" ] ],
                     ],
                 ],
 
@@ -469,8 +460,6 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                                        src = { app.demoSources.states || "" } ],
                         PreviewFrame [ runName  = "states", height = 230 ],
                         ],
-                    strip: View [ width = { parent.width }, height = 44, cornerRadius = 10, fill = #0C1620, stroke = stroke(1, #1E313C),
-                        Tag [ x = 18, y = 16, textColor = #556673, text = "DECLARATIVE STATES · ONE BOOLEAN, ONE BUNDLE OF OVERRIDES · CLICK TO TOGGLE" ] ],
                     ],
                 ],
 
@@ -497,14 +486,14 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                 layout: SimpleLayout [ axis = y, spacing = 16 ],
                 rule: View [ width = { parent.width }, height = 1, fill = #263D4C ],
                 row: View [ width = { parent.width }, layout: WrappingLayout [ spacing = 12, lineSpacing = 8 ],
-                    Eyebrow [ fontSize = 13, text = "Built in" ],
-                    Eyebrow [ fontSize = 13, textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) }, text = "Declare" ],
-                    Eyebrow [ fontSize = 13, textColor = #556673, text = "·" ],
+                    FootLabel [ text = "Built in" ],
+                    Heading [ fontSize = 13, textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) }, text = "Declare" ],
+                    FootLabel [ textColor = #556673, text = "·" ],
 
                     // source affordance in the same eyebrow treatment — its onClick
                     // flips app.editing (the `app` noun reaches it from anywhere)
 
-                    src: Eyebrow [ fontSize = 13, hovered: boolean = false, pressed: boolean = false,
+                    src: FootLabel [ hovered: boolean = false, pressed: boolean = false,
                         // pressed brightens past the hover teal — the tap feedback on touch
                         textColor = { pressed ? 0x9BF2E4 : hovered ? 0x37E0C8 : 0x8A9BA6 },
                         onMouseOver() { hovered = true },
@@ -562,13 +551,12 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                           stiffness = 220, damping = 30, epsilon = 0.05 ],
         hairline: View [ y = 55, width = { app.width }, height = 1, fill = #263D4C ],
 
-        // wordmark — the product name in the blue→teal gradient, mono, echoing the hero
+        // wordmark — the product name in the blue→teal gradient, in the hero's typeface
 
         brand: View [ x = { Math.max(24, (app.width - 1120) / 2) }, y = 18, height = 22,
             layout: SimpleLayout [ axis = x, spacing = 0 ],
             onClick() { app.route = "home" },
-            Text [ fontFamily = [Mono, "monospace"], fontSize = 15, fontWeight = semibold,
-                   textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) }, text = "Declare" ],
+            Heading [ fontSize = 15, textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) }, text = "Declare" ],
             ],
 
         // primary nav, right-aligned to the same gutter the content ends at
@@ -578,8 +566,8 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
         nav: View [ y = 11, x = { app.width - Math.max(24, (app.width - 1120) / 2) - this.width },
             layout: SimpleLayout [ axis = x, spacing = 2 ],
             NavLink [ label = "Why Declare", route = "why" ],
-            NavLink [ label = "Declare Calendar", url = "/examples/calendar/" ],
-            NavLink [ label = "Docs", url = "/examples/docs/" ],
+            NavLink [ label = "Declare Calendar", url = "examples/calendar/" ],
+            NavLink [ label = "Docs", url = "examples/docs/" ],
             NavLink [ label = "GitHub", url = "https://github.com/davidtemkin/declarelang" ],
             ],
         ],
