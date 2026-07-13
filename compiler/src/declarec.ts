@@ -89,10 +89,12 @@ function stripPos<T>(node: T): T {
  *  diagnostic (nothing is emitted). */
 export function compileProgram(source: string, opts: DeclarecOptions = {}): ProgramBuild {
   // 1) The full Node-side compile: bare-name resolution + include/auto-include
-  //    inlining. The tsc-over-bodies typecheck is an ADVISORY pass (it can't
-  //    fully model an App's dynamically-declared attributes, so it over-reports)
-  //    — off by default, matching the dev path; the runtime schema `check()`
-  //    below is the real gate. Opt in with `typecheck: true` for its diagnostics.
+  //    inlining. The tsc-over-bodies typecheck models element instance types
+  //    (declared attributes included) and runs corpus-clean — zero false
+  //    positives (diagnostics.md §2, the 2026-07-13 revision) — but stays off
+  //    by default, matching the dev path, until verify flips it on as rung 3;
+  //    the runtime schema `check()` below is the always-on gate. Opt in with
+  //    `typecheck: true`.
   const c = compile(source, { ...opts, typecheck: opts.typecheck ?? false });
   if (c.source === null) return { program: null, errors: c.errors, warnings: c.warnings, usedComponents: [] };
 
