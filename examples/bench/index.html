@@ -1,6 +1,6 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>docs · Declare</title>
+<title>bench · Declare</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark light">
 <link rel="icon" type="image/svg+xml" href="../../assets/favicon.svg">
@@ -8,17 +8,17 @@
 <link rel="apple-touch-icon" href="../../assets/apple-touch-icon.png">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Declare">
-<meta property="og:title" content="docs · Declare">
+<meta property="og:title" content="bench · Declare">
 <meta property="og:image" content="https://davidtemkin.github.io/declarelang/assets/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://davidtemkin.github.io/declarelang/assets/og-image.png">
 <style>html,body{margin:0;padding:0;background:#0B141B}</style>
 <div id="host"></div>
 <script type="module">
-  // UNIFORM browser-compile: the deployed docs.declare is the source of truth.
+  // UNIFORM browser-compile: the deployed bench.declare is the source of truth.
   // boot-uniform.js compiles it in-browser on first load, caches the compiled
   // program (keyed by the platform BUILD_ID + the source's content hash), and on
   // later loads reuses the cache unless the source or platform changed.
   import boot from "../../web/boot-uniform.js";
-  boot({ main: "./docs.declare" });
+  boot({ main: "./bench.declare" });
 </script>

@@ -33,7 +33,7 @@ const PROSE = {
   headingGap: [40, 38, 30, 24, 20, 18], // space ABOVE a heading (not first), by level
   headingBelow: 10,                    // space below a heading, before its content
   body: 16,
-  codeSize: 14,
+  codeSize: 13,   // the house code rendition size — shared by inline, fenced, and <pre> code
   codeRadius: 8,
   codePad: 14,
   mono: "ui-monospace, SFMono-Regular, monospace",
@@ -72,6 +72,11 @@ let BODY: { size: number; weight: FontWeight; tracking: number } = { size: 16, w
 // an app-wide override but look right with zero config.
 let HEADINGW: FontWeight = "bold";
 let HEADINGC = 0, LINKC = 0, CODEC = 0;
+// Code face + size — resolved per rebuild from the prevailing codeSize/codeFamily
+// slots, with the house code style (PROSE.codeSize / PROSE.mono) as the fallback.
+// One value drives every monospace region: inline code, fenced blocks, and the
+// `<pre>` HTMLText path — so the reader view and fenced code share one rendition.
+let CODESIZE = 0, CODEFAM = "";
 /** Resolve a `<span class="…">` name to a themed fill: the whole class, else its
  *  first matching token (`"accent big"`); no match ⇒ undefined (plain text). */
 function resolveAccent(name: string): Fill | undefined {
@@ -154,7 +159,7 @@ function richRunsOf(inline: Inline[], style: Style, family: string): RichRun[] {
     const s = a.style;
     const run: RichRun = {
       text: a.text, size: s.size, weight: s.weight, italic: s.italic,
-      family: s.mono ? PROSE.mono : family, strike: s.strike, color: s.color, tracking: s.tracking,
+      family: s.mono ? CODEFAM : family, strike: s.strike, color: s.color, tracking: s.tracking,
     };
     // inline code reads as a coloured mono word, not a filled chip/button
     if (s.link !== undefined) run.href = s.link;
@@ -398,20 +403,25 @@ function buildBlocks(blocks: Block[], width: number, bodyColor: number, ctx: Ctx
  *  `family` arg (a non-`mono` base style, so no inline-code chip behind each run);
  *  `<span class>` accents still compose their fill on top. */
 function buildPre(b: Extract<Block, { t: "pre" }>, width: number, bodyColor: number, ctx: Ctx): TextFlow {
-  const runs = richRunsOf(b.inline, base(BODY.size, BODY.weight, bodyColor, BODY.tracking), PROSE.mono);
-  return flowView([{ tag: "pre", runs, gapBefore: 0, lineHeight: ctx.lead, fontSize: sz(BODY.size), pre: true }], width, ctx);
+  const runs = richRunsOf(b.inline, base(CODESIZE, BODY.weight, bodyColor, BODY.tracking), CODEFAM);
+  // Code renders at the font's natural line box (ascent+descent), NOT the prose
+  // `lead` — so the `<pre>` reader/source view spaces its lines identically to a
+  // fenced code block (whose Text leaf the backend sets to the same metric).
+  const fm = fontMetrics(fontString({ fontFamily: CODEFAM, fontSize: sz(CODESIZE), fontWeight: "normal" }));
+  const lead = (fm.ascent + fm.descent) / sz(CODESIZE);
+  return flowView([{ tag: "pre", runs, gapBefore: 0, lineHeight: lead, fontSize: sz(CODESIZE), pre: true }], width, ctx);
 }
 
 /** A fenced code block — a single preformatted, monospace Text in a rounded box
  *  that scrolls horizontally (not soft-wrapped). Already one run; no TextFlow. */
 function buildCode(b: Extract<Block, { t: "code" }>, width: number): View {
-  const fm = fontMetrics(fontString({ fontFamily: PROSE.mono, fontSize: sz(PROSE.codeSize), fontWeight: "normal" }));
+  const fm = fontMetrics(fontString({ fontFamily: CODEFAM, fontSize: sz(CODESIZE), fontWeight: "normal" }));
   const lines = b.text === "" ? 1 : b.text.split("\n").length;
   const h = Math.ceil(lines * (fm.ascent + fm.descent)) + 2 * PROSE.codePad;
   const box = rectView(width, h, C.codeBg, PROSE.codeRadius);
   box.scrollsX = true;
-  const t = textView(width - 2 * PROSE.codePad, sz(PROSE.codeSize), C.codeFg, "normal", b.text);
-  t.x = PROSE.codePad; t.y = PROSE.codePad; t.wrap = false; t.fontFamily = PROSE.mono;
+  const t = textView(width - 2 * PROSE.codePad, sz(CODESIZE), C.codeFg, "normal", b.text);
+  t.x = PROSE.codePad; t.y = PROSE.codePad; t.wrap = false; t.fontFamily = CODEFAM;
   box.appendChild(t);
   return box;
 }
@@ -569,6 +579,8 @@ export abstract class RichText extends View {
     HEADINGC = this.headingColor ?? C.headingColor;
     LINKC = this.linkColor ?? C.link;
     CODEC = this.codeColor ?? C.code;
+    CODESIZE = this.codeSize || PROSE.codeSize;
+    CODEFAM = this.codeFamily || PROSE.mono;
     const ctx: Ctx = { family, lead, onLink: (href) => this.dispatchLink(href) };
 
     // Render the block tree to a flat list of stacked sub-views: paragraphs and

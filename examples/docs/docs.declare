@@ -14,7 +14,7 @@
 // canvas stays a fixed dark in both themes (the demos are dark-authored examples).
 
 font Sans [ family = "system-ui" ]
-font Code [ family = "ui-monospace" ]
+font Code [ family = "ui-monospace, SFMono-Regular, monospace" ]   // matches the runtime house code face (PROSE.mono)
 
 // ── type tokens ───────────────────────────────────────────────────────────────
 
@@ -112,7 +112,7 @@ class EventRow extends View [ width = { parent.width },
 // examples/docs/demos/), and the island's `run:<Class>` slot is what the host wires.
 
 class DocField extends TextInput [ multiline = true, spellcheck = false, wrap = false,
-    fontFamily = [Code, "ui-monospace", "monospace"], fontSize = { 12 * app.fontScale }, textColor = { theme.code },
+    fontFamily = [Code, "ui-monospace", "monospace"], fontSize = { 13 * app.fontScale }, textColor = { theme.code },   // 13 = the house code size (PROSE.codeSize)
     editName: string = "", src: string = "",
     // Seed the field from the demo source once the subtree exists. (TextInput's
     // `initial` yielding-seed can't be used here: its attach-time guard fires

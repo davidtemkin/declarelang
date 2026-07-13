@@ -412,6 +412,8 @@ defineAttributes(View, {
     headingWeight: { def: "bold", prevailing: true },
     linkColor: { def: null, prevailing: true },
     codeColor: { def: null, prevailing: true },
+    codeSize: { def: 0, prevailing: true },
+    codeFamily: { def: "", prevailing: true },
     theme: { def: DEFAULT_THEME, prevailing: true },
     styles: { def: null },
     // The pusher installs appliers under a newly-providing view (existing

@@ -18,9 +18,15 @@ const target = new URL(import.meta.url).searchParams.get("app");
 // needs none. See compiler/src/compile-browser.ts memoryHost.
 async function loadLibrary() {
   try {
-    const manifest = await (await fetch(new URL("../library/autoincludes.json", import.meta.url), { cache: "no-cache" })).json();
+    const [manifest, index] = await Promise.all([
+      fetch(new URL("../library/autoincludes.json", import.meta.url), { cache: "no-cache" }).then((r) => r.json()),
+      fetch(new URL("../library/index.json", import.meta.url), { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    ]);
+    // Prefetch EVERY library src file (index.json), not just manifest tags, so a
+    // bare `include [ "x.declare" ]` resolves along the search path's library root.
+    const names = Array.isArray(index) ? index : Object.values(manifest);
     const files = {};
-    await Promise.all(Object.values(manifest).map(async (rel) => {
+    await Promise.all(names.map(async (rel) => {
       const res = await fetch(new URL("../library/src/" + rel, import.meta.url), { cache: "no-cache" });
       if (res.ok) files["library/src/" + rel] = await res.text();
     }));

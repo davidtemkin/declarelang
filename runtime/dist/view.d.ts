@@ -77,6 +77,11 @@ export declare class View extends Node {
     headingWeight: FontWeight;
     linkColor: Color;
     codeColor: Color;
+    /** Code face + size, prevailing: the monospace regions of a `Markdown`/`HTMLText`
+     *  (inline code, fenced/`<pre>` blocks) render at these; `0`/`""` = the house
+     *  code style (PROSE.codeSize / PROSE.mono). */
+    codeSize: number;
+    codeFamily: string;
     /** Native text selection, prevailing: `selectable = true` on a container opts
      *  its whole subtree back into browser selection/copy (Text acts on it; a
      *  `Markdown` component's runs inherit it). Off by default — the app is a UI. */

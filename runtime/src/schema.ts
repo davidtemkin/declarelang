@@ -112,6 +112,12 @@ const ViewSchema: ComponentSchema = {
     headingWeight: FONT_WEIGHT,
     linkColor: { kind: "color" },
     codeColor: { kind: "color" },
+    // Code face + size — the twin of `codeColor` for monospace regions (inline
+    // code, fenced/`<pre>` blocks). Default `0`/`""` = the house code style
+    // (PROSE.codeSize / PROSE.mono). Prevailing, so one ancestor sets the code
+    // rendition for all prose below it.
+    codeSize: { kind: "number" },
+    codeFamily: { kind: "font" },
     theme: { kind: "record", name: "Theme" },
     // Native text selection — a prevailing slot so a whole subtree opts in from
     // one place: `selectable = true` on a container makes all its Text (including
@@ -148,7 +154,7 @@ const ViewSchema: ComponentSchema = {
     contentWidth: { kind: "length" },
     contentHeight: { kind: "length" },
   },
-  prevailing: ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing", "headingColor", "headingWeight", "linkColor", "codeColor", "theme", "stylesheet", "selectable"],
+  prevailing: ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing", "headingColor", "headingWeight", "linkColor", "codeColor", "codeSize", "codeFamily", "theme", "stylesheet", "selectable"],
   readOnly: ["contentWidth", "contentHeight"],
   // R5: the pointer trio (click = press and release on the same view — the
   // shared router's rule, input.ts) plus the construction-complete lifecycle

@@ -15,10 +15,10 @@
 <style>html,body{margin:0;padding:0;background:#0B141B}</style>
 <div id="host"></div>
 <script type="module">
-  // Rendered from a committed precompiled artifact — no compiler needed to view it.
-  // boot-static.js re-checks the dependency closure and warm-loads the in-browser
-  // compiler in the background (only used if the source moved, or on a live edit).
-  import boot from "../../web/boot-static.js";
-  import artifact from "./prebuilt/neocalendar.js";
-  boot(artifact);
+  // UNIFORM browser-compile: the deployed neocalendar.declare is the source of truth.
+  // boot-uniform.js compiles it in-browser on first load, caches the compiled
+  // program (keyed by the platform BUILD_ID + the source's content hash), and on
+  // later loads reuses the cache unless the source or platform changed.
+  import boot from "../../web/boot-uniform.js";
+  boot({ main: "./neocalendar.declare" });
 </script>

@@ -26,16 +26,18 @@
 <style>html,body{margin:0;padding:0;background:#0B141B}</style>
 <div id="host"></div>
 <script type="module">
-  // The homepage IS a Declare app. On a static host (GitHub Pages) boot-static.js:
-  //   1. renders NOW from the committed precompiled artifact — no compiler download;
-  //   2. re-probes the compile's dependency closure to see if the source moved since
-  //      the prebuild (pure, ~5 KB of closure.js — no TypeScript, no bundle);
-  //   3. warm-loads the ~1 MB in-browser compiler in the BACKGROUND, used only for a
-  //      stale recompile or a live edit ("Edit this page", the demo editors).
+  // The homepage IS a Declare app, compiled in YOUR browser. On a static host
+  // (GitHub Pages) boot-uniform.js:
+  //   1. checks the compiled-output cache (CacheStorage), keyed by the platform
+  //      BUILD_ID + the source's content hash;
+  //   2. FAST PATH — a cached compile of the unchanged source renders at once:
+  //      no compiler download, no recompile;
+  //   3. SLOW PATH — first visit or a changed source: download the in-browser
+  //      compiler, compile site.declare, render, and cache the result.
   //
-  // All paths are relative to this file → the whole tree is subpath-portable
-  // (a project page lives under /<repo>/).
-  import boot from "./web/boot-static.js";
-  import artifact from "./examples/site/prebuilt/site.js";
-  boot(artifact);
+  // The deployed .declare source is the single source of truth — no precompiled
+  // artifact to keep in sync. Paths are relative to this file → the tree is
+  // subpath-portable (a project page lives under /<repo>/).
+  import boot from "./web/boot-uniform.js";
+  boot({ main: "./examples/site/site.declare", demos: ["components", "reactivity", "spring", "states"] });
 </script>

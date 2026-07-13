@@ -41,7 +41,7 @@ class Segment extends View [ kind: string = "",
         spine: View [ x = 0, y = 0, width = 2, height = { parent.height }, fill = { app.theme.accentTeal } ],
         body: View [ x = 20, y = 16, width = { parent.width - 40 }, scrollsX = true, height = { this.contentHeight },
             HTMLText [ x = 0, y = 0, width = { parent.width },
-                html = { classroot.html }, scale = { app.fontScale * app.codeScale },
+                html = { classroot.html }, scale = { app.fontScale },
                 accents = { app.codeAccents() }, bodyColor = { app.codeFg() }, selectable = true ],
             ],
         ],
@@ -117,7 +117,6 @@ App [ fill = { app.theme.bg },
     headH: number = { 46 * app.fontScale },   // filename title + rule, above the body
     mode: string = "reader",   // "reader" = highlighted + Markdown, "source" = verbatim
     fontScale: number = 1.0,   // reader font zoom; the A stepper drives it
-    codeScale: number = 0.82,   // code font as a fraction of prose (code reads denser)
     proseMeasure: number = 640,   // prose reading measure; code runs wider off the same left edge
     proseTopPad: number = 22,   // space above a prose block — reads as the section break
     themeMode: string = "auto",
@@ -203,8 +202,8 @@ App [ fill = { app.theme.bg },
             fill = { app.theme.codeBg }, cornerRadius = 8, clip = true,
             height = { this.body.height + 32 },
             spine: View [ x = 0, y = 0, width = 2, height = { parent.height }, fill = { app.theme.accentTeal } ],
-            // full reader size (not codeScale): the source is the PRIMARY surface
-            // here, not an embedded snippet, so it reads at the prose size.
+            // verbatim source at the house code rendition — the same face and size
+            // as the reader's highlighted code, so the two views read identically.
             body: View [ x = 20, y = 16, width = { parent.width - 40 }, scrollsX = true, height = { this.contentHeight },
                 HTMLText [ x = 0, y = 0, width = { parent.width }, html = { app.plainHtml() },
                     scale = { app.fontScale }, bodyColor = { app.codeFg() }, selectable = true ],

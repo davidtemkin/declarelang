@@ -18,6 +18,7 @@
 // tools/build-compiler.mjs bundles THIS module (with `typescript`) into
 // dist-browser/declare-compiler.js — the artifact the homepage warm-loads.
 import { compile as compileCore } from "./compile.js";
+import { searchIncludePath } from "./include-search.js";
 /** Collapse `.` / `..` segments in a POSIX-ish path so the resolved key matches
  *  how the warm-load stores prefetched files (e.g. "library/src/bar.declare"). */
 function normalizePath(p) {
@@ -46,10 +47,15 @@ export function memoryHost(opts = {}) {
             ? null
             : { canonical, dir: canonical.split("/").slice(0, -1).join("/"), source };
     };
+    // Single-directory read — the search-path primitive (include-search.ts). Search
+    // roots after the including file's own dir: the library src dir, mirroring the
+    // Node host, so a bare `include [ "x.declare" ]` finds a shared library file.
+    const resolveAt = (dir, path) => at(normalizePath(dir + "/" + path));
+    const roots = [srcDir];
     return {
-        resolve: (fromDir, path) => at(normalizePath(fromDir + "/" + path)),
+        resolve: (fromDir, path) => searchIncludePath(fromDir, path, roots, resolveAt),
         autoincludes: () => manifest,
-        resolveLibrary: (path) => at(normalizePath(srcDir + "/" + path)),
+        resolveLibrary: (path) => resolveAt(srcDir, path),
     };
 }
 /** `compile` with the in-memory host injected — the browser drop-in for

@@ -136,6 +136,11 @@ export class View extends Node {
   declare headingWeight: FontWeight;
   declare linkColor: Color;
   declare codeColor: Color;
+  /** Code face + size, prevailing: the monospace regions of a `Markdown`/`HTMLText`
+   *  (inline code, fenced/`<pre>` blocks) render at these; `0`/`""` = the house
+   *  code style (PROSE.codeSize / PROSE.mono). */
+  declare codeSize: number;
+  declare codeFamily: string;
   /** Native text selection, prevailing: `selectable = true` on a container opts
    *  its whole subtree back into browser selection/copy (Text acts on it; a
    *  `Markdown` component's runs inherit it). Off by default — the app is a UI. */
@@ -538,6 +543,8 @@ defineAttributes(View, {
   headingWeight: { def: "bold", prevailing: true },
   linkColor: { def: null, prevailing: true },
   codeColor: { def: null, prevailing: true },
+  codeSize: { def: 0, prevailing: true },
+  codeFamily: { def: "", prevailing: true },
   theme: { def: DEFAULT_THEME, prevailing: true },
   styles: { def: null },
   // The pusher installs appliers under a newly-providing view (existing

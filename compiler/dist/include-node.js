@@ -9,6 +9,7 @@
 // counterpart — a different module implementing the same seam.
 import { readFileSync } from "node:fs";
 import { resolve, dirname, join } from "node:path";
+import { searchIncludePath } from "./include-search.js";
 /** An IncludeHost backed by the local filesystem: resolves a path relative to
  *  the including file's directory (`path.resolve`), reads it, and returns null
  *  when the file is absent. The absolute path is the canonical include-once key.
@@ -34,16 +35,21 @@ export function nodeIncludeHost(libraryRoot, tracker) {
             return null;
         }
     };
-    const base = {
-        resolve(fromDir, path) {
-            const canonical = resolve(fromDir, path);
-            const source = readTracked(canonical);
-            return source === null ? null : { canonical, dir: dirname(canonical), source };
-        },
+    // Single-directory read — the search-path primitive (include-search.ts).
+    const resolveAt = (dir, path) => {
+        const canonical = resolve(dir, path);
+        const source = readTracked(canonical);
+        return source === null ? null : { canonical, dir: dirname(canonical), source };
     };
-    if (libraryRoot === undefined)
+    // Search roots after the including file's own dir: the library src dir, so a
+    // bare `include [ "code-style.declare" ]` finds a shared file with no `../`.
+    const srcDir = libraryRoot === undefined ? undefined : join(libraryRoot, "src");
+    const roots = srcDir === undefined ? [] : [srcDir];
+    const base = {
+        resolve: (fromDir, path) => searchIncludePath(fromDir, path, roots, resolveAt),
+    };
+    if (libraryRoot === undefined || srcDir === undefined)
         return base;
-    const srcDir = join(libraryRoot, "src");
     const manifestPath = join(libraryRoot, "autoincludes.json");
     let manifest = null;
     const load = () => {
@@ -62,14 +68,10 @@ export function nodeIncludeHost(libraryRoot, tracker) {
     return {
         ...base,
         autoincludes: load,
-        resolveLibrary(path) {
-            // The canonical key is the absolute component-file path — the SAME key
-            // `resolve` would produce for an explicit include of that file, so the
-            // two dedup through one visited set.
-            const canonical = resolve(srcDir, path);
-            const source = readTracked(canonical);
-            return source === null ? null : { canonical, dir: dirname(canonical), source };
-        },
+        // The canonical key is the absolute component-file path — the SAME key an
+        // explicit include of that file resolves to (resolveAt over srcDir), so the
+        // two dedup through one visited set.
+        resolveLibrary: (path) => resolveAt(srcDir, path),
     };
 }
 //# sourceMappingURL=include-node.js.map
