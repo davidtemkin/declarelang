@@ -56,6 +56,23 @@ const examples = () =>
 
 const esc = (s) => s.replace(/[<&]/g, (c) => (c === "<" ? "&lt;" : "&amp;"));
 
+// The SW is a static-hosting capability; under this server it is redundant and would
+// cache-fight the edit loop. So every HTML page the server emits carries a marker that
+// makes boot-uniform's registerServiceWorker() short-circuit (browser/register-sw.js).
+// A dumb static host serves pages VERBATIM (no marker) → the SW registers there, where it
+// is the only way to browse-to-run. This is OL5's index.html mechanism: the presence of the
+// server is the signal, injected as a variable — no localhost-sniffing. Placed before the
+// first module script so it runs first; SEO documents (no scripts) never get it.
+const SERVER_MARKER = '<script>window.__declareServer=true</script>\n';
+function withServerMarker(html) {
+  const s = typeof html === "string" ? html : html.toString("utf8");
+  const i = s.indexOf('<script type="module"');
+  if (i >= 0) return s.slice(0, i) + SERVER_MARKER + s.slice(i);
+  const b = s.search(/<\/body>/i);
+  if (b >= 0) return s.slice(0, b) + SERVER_MARKER + s.slice(b);
+  return s + SERVER_MARKER;
+}
+
 // The runtime's real shipping weight: runtime/dist bundled (tree-shaken),
 // minified, gzipped ≈ 45 KB (measured with esbuild + gzip -9). The dev page
 // loads it unbundled, so we compute the PRODUCTION figure here instead.
@@ -136,7 +153,7 @@ function serveSource(res, absPath, relPath, rt, backendClass) {
   if (rt === REQ.SEGMENTS)
     return send(res, 200, JSON.stringify({ path: relPath, segments }), "application/json");
   // EDIT = the same viewer page opened on its live-edit tab (seeds.__mode__).
-  return send(res, 200, sourcePage(relPath, segments, source, backendClass, rt === REQ.EDIT ? "edit" : ""));
+  return send(res, 200, withServerMarker(sourcePage(relPath, segments, source, backendClass, rt === REQ.EDIT ? "edit" : "")));
 }
 
 // The code-viewer app (examples/codeviewer) booted for ONE source file: the
@@ -376,8 +393,8 @@ http.createServer((req, res) => {
 
     if (p === "/") {
       const idx = path.join(ROOT, "index.html");
-      if (existsSync(idx)) { res.writeHead(200, { "content-type": "text/html; charset=utf-8" }); return res.end(readFileSync(idx)); }
-      return send(res, 200, landing());
+      if (existsSync(idx)) return send(res, 200, withServerMarker(readFileSync(idx, "utf8")));
+      return send(res, 200, withServerMarker(landing()));
     }
 
     // /examples/<name>/prod[/...]  → the cached PRODUCTION build (declarec, DOM)
@@ -422,7 +439,7 @@ http.createServer((req, res) => {
       if (rt === REQ.READER || rt === REQ.EDIT || rt === REQ.SEGMENTS)
         return serveSource(res, declPath, `examples/${m[1]}/${m[1]}.declare`, rt, backendClass);
       if (rt === REQ.SEO) return serveSeo(res, declPath, `examples/${m[1]}/${m[1]}.declare`, flags);
-      return send(res, 200, hostPage(m[1], backendClass, flags));
+      return send(res, 200, withServerMarker(hostPage(m[1], backendClass, flags)));
     }
 
     // ── The PROGRAM URL is the app's canonical address (the OpenLaszlo model:
@@ -447,7 +464,7 @@ http.createServer((req, res) => {
       // request type IS the discrimination; no navigate check needed.
       if (real && rt === REQ.SEO) return serveSeo(res, abs, p.replace(/^\/+/, ""), parseFlags(params));
       const navigate = req.headers["sec-fetch-mode"] === "navigate" || (req.headers.accept ?? "").includes("text/html");
-      if (real && navigate && rt !== REQ.SOURCE) return send(res, 200, declareRunPage(p, parseFlags(params)), "text/html;charset=utf-8");
+      if (real && navigate && rt !== REQ.SOURCE) return send(res, 200, withServerMarker(declareRunPage(p, parseFlags(params))), "text/html;charset=utf-8");
       // else (?view=source, or any plain fetch): fall through to the raw-file
       // handler — the exact source bytes, text/plain
     }
@@ -467,6 +484,9 @@ http.createServer((req, res) => {
     const abs = path.join(ROOT, p.replace(/^\/+/, ""));
     if (!(abs === ROOT || abs.startsWith(ROOT + path.sep))) return send(res, 403, "forbidden", "text/plain");
     if (existsSync(abs) && statSync(abs).isFile()) {
+      // Committed HTML (the homepage index.html, each examples/<name>/index.html)
+      // boots boot-uniform → gets the no-SW marker like the generated pages.
+      if (abs.endsWith(".html")) return send(res, 200, withServerMarker(readFileSync(abs, "utf8")));
       res.writeHead(200, { "content-type": mime(abs) });
       return res.end(readFileSync(abs));
     }

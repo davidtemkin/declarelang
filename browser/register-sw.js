@@ -1,16 +1,24 @@
 // browser/register-sw.js — register the distro Service Worker (../service-worker.js) and pick up new deploys.
 //
-// Imported by boot-static.js, so EVERY statically-hosted page (the homepage + each example)
-// registers the worker. The dev server's host pages use host-client.js directly and do NOT
-// import this — so the SW is naturally scoped to STATIC hosting only (the server already
-// serves fresh files and compiles on request), mirroring OL5's "don't register under the
-// server" without needing a mode marker.
+// The SW is a STATIC-HOSTING capability: its whole job is to substitute for an absent
+// server (turn a `.declare` navigation into a run page, compile in-browser, serve the
+// runtime resources). Under the Node dev server none of that is wanted — the server
+// answers those requests directly, and a SW here would only cache-fight the edit loop.
+//
+// So registration is GATED on a server-injected marker, exactly like OL5's index.html
+// (`if (COMPILE==="server") return` before it registers): the dev server injects
+// `<script>window.__declareServer=true</script>` into every HTML page it serves (see
+// server/index.mjs), so boot-uniform's registerServiceWorker() short-circuits under the
+// server and registers only on a dumb static host, which serves the page verbatim with
+// no marker. No host-probing (localhost sniffing) — the presence of the server IS the
+// signal, expressed as a variable.
 //
 // The worker lives at the distro ROOT (../service-worker.js from here), giving it root scope so
 // it can intercept a `.declare` browsed anywhere under the deploy. Paths derive from THIS
 // module's URL, so it all adapts to the origin root or a project subpath with no build step.
 
 export async function registerServiceWorker() {
+  if (typeof window !== "undefined" && window.__declareServer) return;  // under the Node server → the SW is redundant (see header)
   if (!("serviceWorker" in navigator)) return;   // an enhancement — the page still works without it
   const swUrl = new URL("../service-worker.js", import.meta.url);
   const scope = new URL("./", swUrl).pathname;    // the distro root == the worker's own directory
