@@ -8,14 +8,14 @@ chapter exists so the viewer can be maintained from its own pages.
 ## The shape
 
 The viewer is one self-hosted Declare app — `examples/docs/docs.declare` — driven
-by a build-time `model.json`. It runs in two modes, **Guide** (these narrative
+by a build-time `docs-model.json`. It runs in two modes, **Guide** (these narrative
 chapters) and **Reference** (the framework classes). The app names no DOM: it is
 ordinary Declare over the same runtime it documents, so every fix to the runtime
 shows up here first.
 
 ## The extractor
 
-`tools/doc/extract.mjs` produces `model.json` by joining several sources:
+`tools/doc/extract.mjs` produces `docs-model.json` by joining several sources:
 
 - **Reference structure** — component list and attribute types from the runtime
   `schema.js`, defaults from each class's `defineAttributes`, and method signatures
@@ -96,7 +96,7 @@ The pipeline has four steps, and they are separate on purpose:
 ```
 npm run build                 # tsc -b — runtime + compiler to their dist/
 node tools/build-compiler.mjs # esbuild the browser compiler bundle (NOT part of tsc)
-node tools/doc/extract.mjs    # (re)generate model.json
+node tools/doc/extract.mjs    # (re)generate docs-model.json
 node tools/prebuild.mjs       # prebuilt per-example artifacts for static hosting
 ```
 

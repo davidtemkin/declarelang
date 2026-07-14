@@ -7,9 +7,10 @@ command line, and inside the browser. Which one you reach for depends on where y
 are in the lifecycle: editing, deploying a static build, or serving with no build
 step at all.
 
-All three read the **same compile flags** (render, production, slimming, …); only
-the spelling differs — a CLI switch, a URL query, or a default. Those are collected
-at the end.
+All three read the **same two modifiers** (`render` and `seo`) and the same
+**request types** (what a URL hands back); only the spelling differs — a CLI switch, a
+URL query, or a default. Those are collected at the end (and `design/requests.md` is
+the full surface).
 
 ## The dev server — compile on request
 
@@ -21,24 +22,27 @@ The address of a program is its **source file** — a navigation to it is compil
 run. Directories carry no behavior; there is no per-example index page.
 
 ```text
-/examples/<name>/<name>.declare   navigate → compile + render (DOM backend)
-   …?render=canvas                same, Canvas backend
-   …?view=source | reader | seo   the source / reader / crawler views
-/examples/<name>/prod             a prod BUILD request (see declarec below)
-POST /compile                     live compile — returns the app JS for an editor
+/examples/<name>/<name>.declare       navigate → compile + render (DOM backend)
+   …?render=canvas                    same, Canvas backend (a modifier)
+   …?view=reader | source | edit      the viewer app, on that tab
+   …?file                             the raw source bytes (curl / an include)
+   …?extract                          the static-extraction document (crawlers)
+   …?build   →   /build/<name>/       a BUILD request (see declarec below)
+POST /compile                         live compile — returns the app JS for an editor
 ```
 
 `POST /compile` is the fast path the playground and the "Edit this page" editors use:
 source in, the full compile result out (source + deps + structured diagnostics +
-the rendered report). Like every surface it **typechecks by default**; a
-latency-critical loop can opt out explicitly with `?typecheck=0`.
+the rendered report). Like every surface it **always typechecks** — that's a mandatory
+phase of the one compile, not a flag you can turn off.
 
-The `/prod` route is a **build request**: it closure-checks and compiles the app, then
-serves the same discrete, self-contained artifact `declarec` produces — built once and
-cached on disk (keyed by a hash of the source + toolchain, partitioned per backend and
-per slim/full). The first request builds; the rest are served from the cache. The
-artifact itself is independent of the service worker, the dev server, and the program
-source — a build request is not what a production deployment makes.
+A `?build` request (it redirects to `/build/<name>/`) is a **build request**: it
+closure-checks and compiles the app, then serves the same discrete, self-contained
+artifact `declarec` produces — built once and cached on disk (keyed by the source
+closure + toolchain, partitioned per backend). The first request builds; the rest are
+served from the cache. The artifact itself is independent of the service worker, the
+dev server, and the program source — a build request is not what a production
+deployment makes.
 
 ## `declarec` — an ahead-of-time production build
 
@@ -83,8 +87,8 @@ It's the same `compile()` as the server's `POST /compile`, given a synchronous
 in-memory include host over a prefetched file map — **including the typecheck**:
 the bundle embeds the TypeScript standard library's declarations, so the browser
 checks exactly what Node checks (and produces byte-identical results — a tested
-invariant). Because nothing is bundled ahead of time, the production-only flags
-(`slim`, `prod`) don't apply here; `render` and `typecheck` do.
+invariant). Because nothing is bundled ahead of time, `build` doesn't apply here;
+`render` does, and typecheck is always on.
 
 The platform itself loads as **two committed bundles**: every host page imports
 `bundles/declare-boot.js` (~58 KB gz — the web client + the runtime's run
@@ -96,48 +100,52 @@ rebuilds one on demand when it's requested — an edit to the runtime is live on
 your next refresh, and a commit can't ship a stale artifact
 (`tools/bundle-freshness.mjs`).
 
-## Compile flags — one set, three surfaces
+## Modifiers — two, on run and build
 
-Every option is defined once (`compiler/src/flags.ts`) and read the same way
-everywhere. A flag means the same thing whether it arrives as a CLI switch, a server
-URL query, or a browser URL query.
+The compile-time options are just **two modifiers**, defined once
+(`compiler/src/flags.ts`) and read the same way everywhere — a CLI switch, a server URL
+query, or a browser URL query all mean the same thing. Both compose onto a run or a
+build.
 
-| Flag | What it does | CLI (`declarec`) | URL (`?…`) | Default |
+| Modifier | What it does | CLI (`declarec`) | URL (`?…`) | Default |
 |---|---|---|---|---|
 | **render** | render through managed DOM or one `<canvas>` | `--canvas` / `--dom` | `?render=canvas` | `dom` |
-| **prod** | production build (precompile + bundle run-path) | *always* | the `/prod` route | dev |
-| **slim** | ship only the components the app can instantiate | `--no-slim` (or `--full`) turns it off | `?slim=0` | on |
-| **stripPos** | drop source positions from the shipped program | `--no-strip-pos` keeps them | `?stripPos=0` | stripped |
-| **typecheck** | the tsc-over-`{ }`-bodies pass — a phase of the compile | `--no-typecheck` turns it off | `?typecheck=0` | on |
-| **seo** | embed the extracted static document in the host element, for crawlers | `--seo` | `?seo` | off |
+| **seo** | embed the extracted static document in the host, for crawlers | `--seo` | `?seo` | off |
 
-So `?render=canvas&slim=0` on the server, `--canvas --no-slim` on the CLI, and
-`?render=canvas` in the browser all mean exactly what they read. Booleans accept
-`?f`, `?f=1`, `?f=true` (on) and `?f=0`/`false` (off); the CLI negates with `--no-f`.
+That's the whole flag surface — every name is lowercase, and `?render=canvas` on the
+server, `--canvas` on the CLI, and `?render=canvas` in the browser all mean the same
+thing. Booleans accept `?f`, `?f=1`, `?f=true` (on) and `?f=0`/`false` (off).
+
+Three things that used to be flags no longer are, because they were never real
+per-request choices (`design/requests.md` §"Removed knobs"): **slim** and **stripPos**
+are simply what a build *is* — always slimmed, always position-stripped (the emitter's
+own `declarec --debug` keeps both, for debugging a build); **typecheck** is a mandatory
+phase of the one compile, always on. And **prod** became a *request* — `?build`, below.
 
 ## Request types — what a URL returns
 
-Compile flags decide *how* a source compiles. A **request type** decides *what* a
-URL hands back for it — the running app, or a view of the source. It's a separate,
-orthogonal choice (`compiler/src/reqtypes.ts`), read from the same URL query with
-`?view=…`, and modeled on OpenLaszlo's `lzt` request types.
+A modifier decides *how* a source compiles. A **request type** decides *what* a URL
+hands back for it (`compiler/src/reqtypes.ts`), read from the same query and modeled on
+OpenLaszlo's `lzt`. Exactly one per URL: `?view=` is the one key that takes a value (the
+viewer's tabs), everything else is a bare key, and the absence of all of them runs the app.
 
-| `?view=` | Returns |
-|---|---|
-| *(absent)* / `run` | the running app (the default) |
-| `source` | the EXACT source file — the bytes, `text/plain` |
-| `reader` | a live, syntax-highlighted "reader mode" view, with block comments rendered as Markdown |
-| `segments` | the reader's data on its own — the highlighter's segments as JSON |
-| `seo` | the **static extraction** document — the program's content as semantic HTML, `text/html` |
+| Request | URL | Returns |
+|---|---|---|
+| run | *(absent)* | the running app (the default) |
+| build | `?build` → `/build/<name>/` | the standalone `declarec` build (a directory) |
+| reader | `?view=reader` | the viewer app, reader tab — highlighted source, block comments as Markdown |
+| source | `?view=source` | the viewer app, Source tab — the verbatim source *in the viewer* |
+| edit | `?view=edit` | the viewer app, live-edit tab |
+| file | `?file` | the EXACT source file — the bytes, `text/plain` (curl, an `include`) |
+| segments | `?segments` | the reader's data alone — the highlighter's segments as JSON |
+| extract | `?extract` | the **static-extraction** document — content as semantic HTML, `text/html` |
 
-So `examples/calendar/?view=reader` shows the calendar's source, coloured, in the
-code viewer (`examples/codeviewer`); the same works on any `.declare` file path,
-e.g. `some/app.declare?view=reader`; `?view=source` is the exact file. `?source`,
-`?reader`, and `?segments` are accepted as bare
-shorthands. `?view=seo` returns the extracted document alone — note the **flag**
-`?seo` (embed the document *in the run page*, for crawlers) and the **request type**
-`?view=seo` (return the document *by itself*) are distinct, which is why `seo` has
-no bare shorthand.
+So `some/app.declare?view=reader` shows the source, coloured, in the code viewer
+(`examples/codeviewer`); `?view=source` is the same viewer on its verbatim-source tab,
+while `?file` is the actual file bytes. Note the **modifier** `?seo` (embed the crawler
+document *in the run page*) and the **request** `?extract` (return that document *by
+itself*) are distinct — different words, different axes, which is why neither needs a
+special-case shorthand.
 
 ## Static extraction (SEO)
 
@@ -158,9 +166,10 @@ rows all appear. See `design/capabilities.md` for the full model, including the
 environment contract that makes headless execution deterministic.
 
 The whole capability lives in the compiler, so it is **available on every host,
-identically** — `declarec --seo` bakes the document into the built `index.html`; the
-dev server serves `?view=seo` from Node; a static host's service worker serves it by
-extracting *in the browser*. Same extractor module, same bytes.
+identically** — `declarec --seo` bakes the document into the built `index.html` (and
+`declarec --extract` writes it as a standalone `<name>.extract.html`); the dev server
+serves `?extract` from Node; a static host's service worker serves it by extracting *in
+the browser*. Same extractor module, same bytes.
 
 The highlighting is done by the **compiler**, not a separate tokenizer — a file the
 compiler accepts highlights faithfully by construction, and `{ }` bodies, datapaths,

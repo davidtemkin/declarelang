@@ -2,7 +2,7 @@
 // every documentation surface is a view of (design/doc-system.md §"Ratified
 // refinements", point 2).
 //
-//   extractor  ──►  DocModel (this shape, serialized to model.json)  ──►  renderers
+//   extractor  ──►  DocModel (this shape, serialized to docs-model.json)  ──►  renderers
 //
 // One model, many views. The renderers — the in-browser navigable docs, the web
 // docs, and the live object browser — are all one self-hosted Declare app that
@@ -19,7 +19,7 @@
 export type NodeId = string;
 
 /** The whole reference: a flat, id-keyed node map (so any edge is an O(1) walk)
- *  plus the ordered top-level entries for the navigator. `model.json` is exactly
+ *  plus the ordered top-level entries for the navigator. `docs-model.json` is exactly
  *  this object. */
 export interface DocModel {
   version: 1;

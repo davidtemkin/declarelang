@@ -5,10 +5,10 @@
 // BROWSER, so a crawler / LLM that doesn't run JS sees an empty host. On a dumb
 // static host (GitHub Pages) there is no SSR and every requester gets the SAME
 // bytes, so the only way the root page carries its content for search + AI is to
-// CONTAIN it — a reference to a separate ?view=seo document would not be inlined.
+// CONTAIN it — a reference to a separate ?extract document would not be inlined.
 //
 // This injects the homepage's t=0 STATIC EXTRACTION (design/capabilities.md §5 —
-// the same class-semantics HTML the ?view=seo document uses) between two markers
+// the same class-semantics HTML the ?extract document uses) between two markers
 // in index.html's host element, as #declare-static. host-client.js REMOVES that
 // block the moment the live app mounts (browser/host-client.js), so a real user
 // never sees it — the same seamless swap the `seo` flag uses on run pages.

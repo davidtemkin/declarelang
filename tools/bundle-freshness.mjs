@@ -14,7 +14,7 @@
 //   • the dev server rebuilds a stale bundle ON DEMAND when the artifact is
 //     requested — the edit-refresh loop never sees staleness.
 //
-// The rule is mtime-based, the same currency as the /prod cache's disk
+// The rule is mtime-based, the same currency as the build cache's disk
 // validators: any input file newer than the artifact → rebuild. Inputs include
 // each bundle's own build script (a config change rebuilds too).
 // `bundles/version.json` is excluded — it is a stamp OUTPUT written after every

@@ -96,7 +96,7 @@ await test("closure freshness: an edit to an INCLUDED file invalidates the build
   // The exact gap the old sha256-of-main-source key had: a multi-file app whose
   // `include`d file changes must go stale. buildProduction records the real
   // closure (compileTracked); isUpToDate + diskProbe is the same check the
-  // dev server's /prod cache runs.
+  // dev server's /build cache runs.
   const { mkdtempSync, writeFileSync, utimesSync } = await import("node:fs");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");

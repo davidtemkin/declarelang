@@ -1,4 +1,4 @@
-// tools/doc/extract.mjs — THE EXTRACTOR: source ──► model.json (tools/doc/model.ts).
+// tools/doc/extract.mjs — THE EXTRACTOR: source ──► docs-model.json (tools/doc/model.ts).
 //
 // Vertical slice: the three canonical view classes (View, Text, Image). Structure
 // is read losslessly from the runtime's own `ComponentSchema` chain (runtime/dist)
@@ -9,7 +9,7 @@
 // file-prose path doc-system.md blesses) — later swapped for captured `/* *​/`
 // blocks with no change to this model or the renderer.
 //
-//   node tools/doc/extract.mjs        # writes examples/docs/model.json
+//   node tools/doc/extract.mjs        # writes examples/docs/docs-model.json
 //
 // Run after `npm run build` (needs runtime/dist).
 
@@ -31,7 +31,7 @@ const TARGETS = [                                        // the documented compo
   "Dataset", "DataSource",
   "Animator", "AnimatorGroup", "Spring", "State", "Node",
 ];
-const OUT = path.join(ROOT, "examples/docs/model.json");
+const OUT = path.join(ROOT, "examples/docs/docs-model.json");
 const DEMOS = path.join(ROOT, "examples/docs/demos");         // generated islands land here (server seeds them)
 
 // ── inline runnable examples: every prose ```declare block becomes a live edit/run

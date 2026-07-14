@@ -113,4 +113,4 @@
 - Written in Declare, in `library/src/`, auto-included; canon-formatted; literate-commented (the source is pedagogy).
 - Each ships with doc prose (`tools/doc/prose/`) and at least one runnable guide fence.
 - Each adds comprehension-eval questions (`verify-and-evals.md` §3.4) — "what does this component do when…" answered from its source.
-- Landing updates: brief §9 negative-knowledge entry; `library/index.json` / `autoincludes.json`; the docs `model.json`.
+- Landing updates: brief §9 negative-knowledge entry; `library/index.json` / `autoincludes.json`; the docs `docs-model.json`.

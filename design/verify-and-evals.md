@@ -22,13 +22,13 @@ _Original design follows._
 | capability | where | state |
 |---|---|---|
 | compile: parse → include → check → resolve, all-errors-per-phase, NEO#### codes | `compiler/src/compile.ts`, `runtime/src/check.ts`, `diagnostics.ts` | shipped |
-| typecheck (tsc over `{ }` bodies vs generated scaffold) | `compiler/src/typecheck.ts` | shipped, **opt-in** |
+| typecheck (tsc over `{ }` bodies vs generated scaffold) | `compiler/src/typecheck.ts` | shipped, **on by default** |
 | static dep extraction (per-constraint reads, interprocedural) | `compiler/src/dep-extract.ts`, emitted in `compile()` result | shipped |
 | headless instantiation, no DOM (`build()`), reactive `settle()` | `runtime/src/index.ts`, `reactive.ts` | shipped (tests use it) |
 | real-Chrome pixel harness: launch, render both backends, AA-tolerant compare | `test/perceptual.test.mjs` (78 cases) | shipped, test-only |
 | behavioral driving (puppeteer synthetic input, post-mutation pixel checks) | `test/perceptual.test.mjs` R5/R7 | shipped, test-only |
 | production build (esbuild bundle, slim registry) | `tools/declarec.mjs` | shipped |
-| dev server: `POST /compile`, `?typecheck`, `?backend=canvas`, prod cache | `server/index.mjs` | shipped |
+| dev server: `POST /compile`, `?render=canvas`, build cache | `server/index.mjs` | shipped |
 | framework-neutral app brief format | `design/site-spec.md` | exemplar exists |
 | LLM brief with compile-validated examples | `docs/declare-for-llms.md` | shipped (validation script ad hoc) |
 
@@ -49,7 +49,7 @@ Climbs as far as it can; stops at the first rung that fails; reports **everythin
 | rung | check | cost | new work |
 |---|---|---|---|
 | 1–2 | parse, include, check, resolve | ~16 ms | none — `compile()` |
-| 3 | typecheck (tsc over bodies) + dep extraction | ~80 ms | **on by default here** (stays opt-in in the dev server) |
+| 3 | typecheck (tsc over bodies) + dep extraction | ~80 ms | **on by default** (as on every surface — typecheck is always on) |
 | 4 | headless boot: `build()` the tree in Node, `settle()`, catch runtime errors, constraint-cycle check, report tree stats **and real geometry** | ~ms | thin wrapper + an injected text measurer (§2.8) |
 | 5 | behavioral: launch headless Chrome, run the app, execute an **assert script** (§2.4) with synthetic input and stepped time | ~2–5 s | the bulk of Part A |
 | 6 | visual: capture **named states** (§2.5), perceptual-diff against blessed baselines | ~2–5 s | reuse test compare fns; add baseline bless/update flow |

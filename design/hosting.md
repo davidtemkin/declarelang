@@ -8,18 +8,19 @@ model** (`compiler/src/flags.ts`, §Compile flags); only the surface differs.
 ## Dynamic (dev server)
 
 `npm start` runs `server/index.mjs`. It serves the tree and compiles each example's
-`.declare` on request (`/examples/<name>/` for DOM, `/examples/<name>/canvas` for
-Canvas). Compile-on-request means an edit + reload shows immediately. That is the
-server's entire job — no chat, no persistent connection, no data API.
+`.declare` on request — the program URL is the address (`…/<name>.declare`), with
+`?render=canvas` for the Canvas backend. Compile-on-request means an edit + reload shows
+immediately. That is the server's entire job — no chat, no persistent connection, no
+data API.
 
-The server also exposes the **production** artifact at `/examples/<name>/prod` (and
-`/prod-canvas`): the same `declarec` output (below), built once and cached on disk.
-`ensureProdBuild` keys the cache by a hash of the source + toolchain fingerprint and
-partitions it per backend and per slim/full (`.prod-cache`, `.prod-cache-canvas`,
-`.prod-cache-full`), so each flag combination is a distinct artifact and a repeat
-request is a straight cache hit. URL query flags (`?slim=0`, `?render=canvas`) steer
-it. And `POST /compile` is the live delegate the playground/editors hit — source in,
-app JS out, no typecheck.
+The server also builds the standalone **build** artifact on demand and serves it at
+`/build/<name>/` (a `?build` request redirects there): the same `declarec` output
+(below), built once and cached on disk. `ensureProdBuild` keys the cache by a hash of
+the source + toolchain fingerprint, partitioned per render backend (`.prod-cache`,
+`.prod-cache-canvas`), so a repeat request is a straight cache hit. The `?render=canvas`
+modifier selects the backend (the old `/prod-canvas` address is gone — canvas is a
+modifier now, not a second path). And `POST /compile` is the live delegate the
+playground/editors hit — source in, app JS out, typechecked like every other compile.
 
 ## Production build (declarec)
 
@@ -109,10 +110,11 @@ the service worker is installed:
 | request on `…/app.declare` | you get |
 |---|---|
 | a top-level **navigation** (no params) | the RUNNING app, in a generated wrapper |
-| `?view=source` | the EXACT source file (the bytes, `text/plain`) |
-| `?view=reader` / `?view=segments` | the highlighted, literate "reader mode" view / its data |
-| `?view=seo` | the **static extraction** document — content as semantic HTML (`text/html`) |
-| `?render=canvas`, `?typecheck=0`, `?seo` | the same orthogonal flags as everywhere |
+| `?view=reader` / `?view=source` / `?view=edit` | the **viewer** app on that tab (literate reader / verbatim source / live edit) |
+| `?segments` | the reader's highlight data as JSON |
+| `?extract` | the **static extraction** document — content as semantic HTML (`text/html`) |
+| `?file` | the EXACT source file (the bytes, `text/plain`) |
+| `?render=canvas`, `?seo` | the same orthogonal modifiers as everywhere |
 | a **fetch** of the same URL (an include, the viewer, `curl`) | the source bytes (`text/plain`) |
 
 The navigate/fetch discrimination is the service worker's own (a top-level
@@ -129,40 +131,52 @@ exists — a dumb host can serve only bytes, which is why the directory URL
 remains the address you publish.
 
 Cache-busting is content-hash driven (`BUILD_ID`, `tools/stamp-version.mjs`).
-Because nothing is bundled ahead of time on this path, the production-only
-flags (`slim`, `prod`) don't apply.
+Because nothing is bundled ahead of time on this path, the `build` request doesn't
+apply here — this path only *runs* — while the `render` modifier does, and typecheck
+is always on.
 
 ## Compile flags
 
-`compiler/src/flags.ts` is the single `CompileFlags` model — `render` (dom/canvas),
-`prod`, `slim`, `stripPos`, `typecheck`, `seo` — with `DEFAULT_FLAGS` and two parsers:
+`compiler/src/flags.ts` is the single `CompileFlags` model — exactly **two modifiers**,
+`render` (dom/canvas) and `seo` — with `DEFAULT_FLAGS` and two parsers:
 `parseFlags(URLSearchParams-like)` for the server and browser URL queries, and
-`parseArgvFlags(argv)` for the CLI. So `?slim=0` on the server, `--no-slim` on the CLI,
-and the browser's `?render=canvas` all resolve through one place — no per-entry-point
-drift. Every flag is named the same way on all three surfaces (the canonical
-`CompileFlags` field): booleans read `?f`/`?f=1`/`?f=true` (on) and `?f=0`/`false`
-(off) and the CLI spells them `--f`/`--no-f` (so `stripPos` is `?stripPos=0` /
-`--no-strip-pos`); `--canvas`/`--dom` and `--full` (= `--no-slim`) are kept aliases.
-A single `FLAG_SPECS` registry is the source both parsers derive from.
+`parseArgvFlags(argv)` for the CLI. So `?render=canvas` on the server, `--render canvas`
+(or `--canvas`) on the CLI, and the browser's `?render=canvas` all resolve through one
+place — no per-entry-point drift. Every modifier is named the same way on all three
+surfaces (the canonical `CompileFlags` field): booleans read `?f`/`?f=1`/`?f=true` (on)
+and `?f=0`/`false` (off) and the CLI spells them `--f`/`--no-f`; `--canvas`/`--dom` are
+kept aliases. A single `FLAG_SPECS` registry is the source both parsers derive from.
+
+The former knobs `slim`, `stripPos`, `prod`, and `typecheck` are **not** modifiers
+(design/requests.md §"Removed knobs"): a `build` always slims and strips positions (the
+escape hatch is `declarec --debug`, which keeps the full registry and source positions);
+`prod` became the `build` request (§Request types); and typecheck is a mandatory phase
+of the one compile — always on, no URL/CLI flag. The compiler's *internal* options still
+carry `stripPos`/`typecheck` (the `build` act sets them, and tooling can still pass
+`{ typecheck: false }` in a JS `compile()` call); only the externally-named FLAG surface
+is the two modifiers.
 
 ## Request types
 
-Orthogonal to *how* a source compiles (the flags above) is *what* a URL returns for
-it — the **request type** (`compiler/src/reqtypes.ts`), modeled on OpenLaszlo's `lzt`.
-`requestType(URLSearchParams-like)` reads `?view=…`: `run` (the app, the default),
-`source` (the exact file bytes), `reader` (the highlighted, literate view),
-`segments` (the reader's JSON on its own), and `seo` (the static-extraction
-document — content as semantic HTML). `?source`/`?reader`/`?segments` are bare
-shorthands; `seo` deliberately has none, because the bare `?seo` is the compile
-*flag* (embed the document in the run page) as distinct from the `?view=seo`
-request type (return the document alone). The server (`server/index.mjs`) applies
-it on both the `examples/<name>/` route and any `.declare` file path; `READER`
-boots the code viewer (`examples/codeviewer`) seeded with the segments, `SEGMENTS`
-returns them as JSON, `SEO` compiles through the front-end and serves the extracted
-document (which answers a plain fetch too — the request type *is* the
-discrimination). The static host's service worker mirrors every one of these,
-extracting `seo` **in the browser** (`browser/boot-seo.js`) so the capability is at
-full parity without a Node server. See `design/capabilities.md` §5.
+Orthogonal to *how* a source compiles (the modifiers above) is *what* a URL returns
+for it — the **request type** (`compiler/src/reqtypes.ts`), modeled on OpenLaszlo's
+`lzt`, exactly one per URL. `requestType(URLSearchParams-like)` reads them: `run` (the
+app, the default, no param); `build` (`?build` → the standalone deployable, served at a
+directory address); the three viewer tabs `?view=reader` / `?view=source` / `?view=edit`
+(the literate reader; the verbatim source shown *in* the viewer; the live-edit
+workbench); `file` (`?file` → the exact source bytes, `text/plain`); `segments`
+(`?segments` → the reader's highlight JSON on its own); and `extract` (`?extract` → the
+static-extraction document alone, content as semantic HTML). `?view=` is the one key
+that takes a value (its three tabs); everything else is a bare presence key, and the
+absence of all is `run`. `?extract` is distinct from the bare `?seo` *modifier*, which
+embeds the same document in the run page rather than returning it alone. The server
+(`server/index.mjs`) applies it on both the `examples/<name>/` route and any `.declare`
+file path; the viewer requests boot the code viewer (`examples/codeviewer`) on the named
+tab, `segments` returns the highlight JSON, `file` answers a plain fetch with the exact
+bytes, and `extract` compiles through the front-end and serves the extracted document.
+The static host's service worker mirrors these, extracting `extract` **in the browser**
+(`browser/boot-seo.js`) so the capability is at full parity without a Node server. See
+`design/capabilities.md` §5.
 
 The highlighter is `compiler/src/highlight.ts` — a source-faithful scan that reuses the
 language's own lexical shape (strings, `{ }` bodies captured whole, triple-quotes,

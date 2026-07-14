@@ -84,9 +84,9 @@ onClick() { data.clear() },   // back to the entry screen — declaratively
 
 A **block comment** `/* … */` is valid anywhere a line comment is, and it is the home of
 *literate Markdown*: prose that documents the code around it. The code viewer
-(`?view=source`) renders each block comment as Markdown and the code between them
+(`?view=reader`) renders each block comment as Markdown and the code between them
 syntax-highlighted — so a source file can read as its own annotated document while still
-compiling and running. See [Compiling and shipping](35-shipping.md) for the source view.
+compiling and running. See [Compiling and shipping](35-shipping.md) for the reader view.
 
 ---
 

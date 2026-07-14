@@ -2,7 +2,7 @@
 # Declare docs
 
 The Declare reference, rendered AS a Declare app — self-hosted: Declare
-documenting Declare. It loads model.json — the extractor's output
+documenting Declare. It loads docs-model.json — the extractor's output
 (tools/doc/extract.mjs), one walkable data structure — and renders a
 navigable class reference: a left rail of components, a detail pane with each
 class's Markdown prose and an attributes table, every doc string rendered by
@@ -562,7 +562,7 @@ App [ fill = { theme.bg },
     codeBackground = { theme.chipBg },
     codeRule = { theme.accent2 },
 
-    docs: DataSource [ url = "model.json" ],
+    docs: DataSource [ url = "docs-model.json" ],
     datapath = { docs.value },                 // root every :path below into the model
     onInit() { this.docs.fetch() },            // DataSource is explicit-fetch — kick it once, on construction
 

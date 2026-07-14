@@ -169,7 +169,7 @@ export function extractStatic(source, opts = {}) {
     const compiled = compile(source, opts);
     return { html: extractFromCompiled(compiled, opts.env), diagnostics: compiled.diagnostics, report: compiled.report };
 }
-/** The fragment as a complete crawler-facing document (`?view=seo`, and the
+/** The fragment as a complete crawler-facing document (`?extract`, and the
  *  committed-page artifact). One shape on every host. */
 export function seoDocument(html, title) {
     return `<!doctype html>

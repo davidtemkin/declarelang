@@ -1,55 +1,49 @@
-// flags — the compile-time options, as ONE canonical model shared by all three
+// flags — the compile-time MODIFIERS, as ONE canonical model shared by all three
 // entry points: the `declarec` CLI, the dev server's URL query, and the in-browser
-// compile URL. A single REGISTRY (`FLAG_SPECS`) defines each flag once — its
+// compile URL. A single REGISTRY (`FLAG_SPECS`) defines each modifier once — its
 // canonical name, kind, and default — and all three parsers DERIVE from it, so the
-// surfaces name every flag the SAME way and cannot drift. `?prod` on the server,
-// `--prod` on the CLI, and `{ prod: true }` in a JS `compile()` call all mean the
-// same thing; adding a flag is a single entry below, picked up by every surface.
+// surfaces name every one the SAME way and cannot drift. `?render=canvas` on the
+// server, `--render canvas` (or `--canvas`) on the CLI, and `{ render: "canvas" }` in
+// a JS `compile()` call all mean the same thing; adding a modifier is a single entry
+// below, picked up by every surface.
 //
-// Naming is uniform across surfaces — the canonical name is the `CompileFlags`
-// field (camelCase):
-//   • JS     `{ stripPos: false }`
-//   • URL    `?stripPos=0`   (or its all-lowercase form `?strippos=0`)
-//   • CLI    `--no-strip-pos`  (kebab-cased; `--strip-pos` sets it true)
+// There are exactly TWO modifiers — `render` and `seo` — and they compose onto the
+// app-producing REQUESTS (`run`, `build`; see reqtypes.ts and design/requests.md).
+// The request TYPE (what artifact a URL returns) is orthogonal and lives in
+// reqtypes.ts. Everything is lowercase — no camelCase in the URL/CLI surface.
+//
+// Deliberately NOT flags (see design/requests.md §"Removed knobs"):
+//   • `prod` is a REQUEST (`?build`, reqtypes.ts REQ.BUILD), not a modifier.
+//   • `slim` / `stripPos` are what a build IS (always slimmed + position-stripped);
+//     the one caller wanting an un-stripped build to debug the emitter uses
+//     `declarec --debug`, not a public flag.
+//   • `typecheck` is a mandatory phase of the one compile — always on, no opt-out.
+// The compiler's INTERNAL options still carry stripPos/typecheck (the build act sets
+// them); only this externally-named FLAG surface is the two modifiers.
 export const FLAG_SPECS = [
     { name: "render", kind: "enum", values: ["dom", "canvas"], default: "dom" },
-    { name: "prod", kind: "bool", default: false },
-    { name: "slim", kind: "bool", default: true },
-    { name: "stripPos", kind: "bool", default: true },
-    { name: "typecheck", kind: "bool", default: true },
     { name: "seo", kind: "bool", default: false },
 ];
 /** Defaults, derived from the registry — never hand-maintained. */
 export const DEFAULT_FLAGS = Object.fromEntries(FLAG_SPECS.map((s) => [s.name, s.default]));
-/** The canonical flag names (docs / help text / validation), from the registry. */
+/** The canonical modifier names (docs / help text / validation), from the registry. */
 export const FLAG_NAMES = FLAG_SPECS.map((s) => s.name);
-/** camelCase → kebab-case, for the CLI spelling (`stripPos` → `strip-pos`). */
-const kebab = (s) => s.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
 const ON = new Set(["", "1", "true", "yes", "on"]);
 const OFF = new Set(["0", "false", "no", "off"]);
 const coerceBool = (value, def) => {
     const v = (value ?? "").toLowerCase();
     return OFF.has(v) ? false : ON.has(v) ? true : def;
 };
-/** Try the canonical name then its all-lowercase form, so both `?stripPos` and
- *  `?strippos` match the `stripPos` flag (camelCase names have no other casing). */
-function lookup(params, name) {
-    for (const key of name === name.toLowerCase() ? [name] : [name, name.toLowerCase()]) {
-        if (params.has(key))
-            return { present: true, value: params.get(key) };
-    }
-    return { present: false, value: null };
-}
-/** Normalize URL/query flags into the option set, over a base (defaults, or an
- *  entry point's own baseline — e.g. the CLI passes `prod: true`). Unknown query
- *  keys are ignored; a malformed value falls back to the base. Derived entirely
- *  from `FLAG_SPECS`, so a new flag needs no edit here. */
+/** Normalize URL/query modifiers into the option set, over a base (defaults, or an
+ *  entry point's own baseline). Unknown query keys are ignored; a malformed value
+ *  falls back to the base. Derived entirely from `FLAG_SPECS`, so a new modifier needs
+ *  no edit here. Names are lowercase, so a single lookup suffices. */
 export function parseFlags(params, base = DEFAULT_FLAGS) {
     const out = { ...base };
     for (const spec of FLAG_SPECS) {
-        const { present, value } = lookup(params, spec.name);
-        if (!present)
+        if (!params.has(spec.name))
             continue;
+        const value = params.get(spec.name);
         if (spec.kind === "bool")
             out[spec.name] = coerceBool(value, base[spec.name]);
         else
@@ -57,18 +51,19 @@ export function parseFlags(params, base = DEFAULT_FLAGS) {
     }
     return out;
 }
-/** Parse the same flags from CLI argv tokens (`--render canvas`, `--no-slim`,
- *  `--strip-pos` / `--no-strip-pos`, `--prod`, `--typecheck`). Returns the flags
- *  plus the leftover positional args (the input path, etc.). Long flags only;
- *  `--no-<name>` negates a boolean. Enum VALUES are accepted as shorthand switches
- *  (`--canvas` ≡ `--render canvas`); `--full` is a kept alias for `--no-slim`. */
+/** Parse the same modifiers from CLI argv tokens (`--render canvas` / `--canvas`,
+ *  `--seo`). Returns the modifiers plus the leftover positional args (the input path,
+ *  etc.). Long flags only; `--no-<name>` negates a boolean. Enum VALUES are accepted
+ *  as shorthand switches (`--canvas` ≡ `--render canvas`). Non-modifier switches the
+ *  CLI owns (`--out`, `--debug`, `--extract`, `--highlight`, `--quiet`) pass through in
+ *  `rest` for the CLI to handle. */
 export function parseArgvFlags(argv, base = DEFAULT_FLAGS) {
     const flags = { ...base };
     const rest = [];
     const bySwitch = new Map();
     const enumValueAlias = new Map();
     for (const spec of FLAG_SPECS) {
-        bySwitch.set(kebab(spec.name), spec);
+        bySwitch.set(spec.name, spec);
         if (spec.kind === "enum")
             for (const v of spec.values)
                 enumValueAlias.set(v, spec.name);
@@ -89,10 +84,6 @@ export function parseArgvFlags(argv, base = DEFAULT_FLAGS) {
             flags[enumValueAlias.get(tok)] = tok;
             continue;
         }
-        if (tok === "full") {
-            flags.slim = false;
-            continue;
-        } // kept alias for --no-slim
         const spec = bySwitch.get(tok);
         if (spec === undefined) {
             rest.push(a);

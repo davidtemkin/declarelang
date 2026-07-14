@@ -28,6 +28,6 @@ export interface Extracted {
  *  and all), then extract. The dual-form rule holds — structured diagnostics
  *  plus the rendered report ride the result. */
 export declare function extractStatic(source: string, opts?: ExtractOptions): Extracted;
-/** The fragment as a complete crawler-facing document (`?view=seo`, and the
+/** The fragment as a complete crawler-facing document (`?extract`, and the
  *  committed-page artifact). One shape on every host. */
 export declare function seoDocument(html: string, title: string): string;

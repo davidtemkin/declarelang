@@ -4,17 +4,18 @@
 // examples/codeviewer/ seeded with the resulting segments — the same viewer app,
 // through the same host→app seed channel (cfg.seeds → app.demoSources).
 //
-// The Service Worker routes a top-level navigation to `…/<name>.declare?view=source`
-// here (service-worker.js). Like the other boot modules, relative imports resolve against
-// THIS module's URL (…/browser/), NOT the source page's location, so the runtime + the
-// compiler always load from the distro tree regardless of which program is viewed.
+// The Service Worker routes a top-level navigation to `…/<name>.declare?view=reader|source|edit`
+// here (service-worker.js), passing the tab as ?mode=. Like the other boot modules, relative
+// imports resolve against THIS module's URL (…/browser/), NOT the source page's location, so
+// the runtime + the compiler always load from the distro tree regardless of which program is viewed.
 import { bootHost } from "./host-client.js";
 import { registerServiceWorker } from "./register-sw.js";
 import { loadCompiler, ensureLibrary } from "./compiler-client.js";
 
 const ROOT = new URL("../", import.meta.url);
-// The file to display — an absolute URL the SW passed on this module's own URL —
-// and the tab to open on ("edit" for a `?view=edit` deep link; "" = reader).
+// The file to display — an absolute URL the SW passed on this module's own URL — and
+// the tab to open on ("reader" | "source" | "edit"; empty → the viewer's default,
+// reader). Passed straight through as the code viewer's __mode__ seed.
 const target = new URL(import.meta.url).searchParams.get("src");
 const mode = new URL(import.meta.url).searchParams.get("mode") ?? "";
 

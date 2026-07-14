@@ -8,9 +8,12 @@
 //
 //   npm start                                   # http://127.0.0.1:8200/  (the homepage)
 //   /examples/neocalendar/neocalendar.declare   # run it (DOM backend)
-//   …?render=canvas                             # Canvas backend
-//   …?view=source | ?view=reader | ?view=seo    # source / reader / crawler views
-//   /examples/<name>/prod                       # the discrete, self-contained declarec build
+//   …?render=canvas                             # Canvas backend (a modifier)
+//   …?view=reader | ?view=source | ?view=edit   # the viewer app, on that tab
+//   …?file                                      # the raw source bytes (curl / an include)
+//   …?extract                                   # the static-extraction document alone (crawlers)
+//   …?build   →   /build/<name>/                # the discrete, self-contained declarec build
+// The full request + modifier surface is design/requests.md (reqtypes.ts + flags.ts).
 //
 // The SAME tree also hosts statically for in-browser compilation (see
 // service-worker.js). This server is just the dynamic-compilation convenience for
@@ -76,11 +79,10 @@ function withServerMarker(html) {
   return s + SERVER_MARKER;
 }
 
-// A request-type READER / SEGMENTS view (reqtypes.ts) for one .declare file:
-// invoke the compiler's highlight() and either hand back the segments as JSON
-// (SEGMENTS) or serve the code-viewer app seeded with them (READER 'reader'
-// mode; the EXACT bytes are ?view=source, served by the callers directly). `relPath`
-// is the file's tree-relative path, used for the JSON's `path` and the page title.
+// The VIEWER requests (reqtypes.ts) for one .declare file: READER / SOURCE / EDIT open
+// the code-viewer app on that tab; SEGMENTS hands back highlight()'s JSON on its own.
+// (The raw bytes are ?file, served by the callers directly.) `relPath` is the file's
+// tree-relative path, used for the JSON's `path` and the page title.
 function serveSource(res, absPath, relPath, rt, backendClass) {
   let source;
   try { source = readFileSync(absPath, "utf8"); }
@@ -90,8 +92,10 @@ function serveSource(res, absPath, relPath, rt, backendClass) {
   catch (e) { return send(res, 500, String((e && e.message) || e), "text/plain"); }
   if (rt === REQ.SEGMENTS)
     return send(res, 200, JSON.stringify({ path: relPath, segments }), "application/json");
-  // EDIT = the same viewer page opened on its live-edit tab (seeds.__mode__).
-  return send(res, 200, withServerMarker(sourcePage(relPath, segments, source, backendClass, rt === REQ.EDIT ? "edit" : "")));
+  // The viewer's opening tab, straight from the request type — seeded as __mode__:
+  // reader (highlighted + Markdown), source (verbatim in the viewer), edit (workbench).
+  const mode = rt === REQ.SOURCE ? "source" : rt === REQ.EDIT ? "edit" : "reader";
+  return send(res, 200, withServerMarker(sourcePage(relPath, segments, source, backendClass, mode)));
 }
 
 // The code-viewer app (examples/codeviewer) booted for ONE source file: the
@@ -129,19 +133,20 @@ bootHost(cfg);
 </script>`;
 }
 
-// The static-extraction document (`?view=seo`, reqtypes.ts): the program's
-// content as semantic HTML at its t=0 snapshot (design/capabilities.md §5) —
-// compiled through THE compiler API, executed headlessly, served text/html.
-// The SW static host serves the same artifact by extracting IN-BROWSER
-// (browser/boot-seo.js) — one extractor module, two hosts.
-function serveSeo(res, absPath, relPath, flags) {
+// The static-extraction document (`?extract`, reqtypes.ts REQ.EXTRACT): the program's
+// content as semantic HTML at its t=0 snapshot (design/capabilities.md §5) — compiled
+// through THE compiler API, executed headlessly, served text/html. The SW static host
+// serves the same artifact by extracting IN-BROWSER (browser/boot-seo.js) — one
+// extractor module, two hosts.
+function serveExtract(res, absPath, relPath) {
   let source;
   try { source = readFileSync(absPath, "utf8"); }
   catch { return send(res, 404, "not found: " + relPath, "text/plain"); }
   // Compile through THE front-end (auto-include host and all), then extract from
   // that result — the SAME compile the running app gets, so a library component
-  // (Bar, Field, …) resolves in the crawler view exactly as it does live.
-  const compiled = compile(source, { originDir: path.dirname(absPath), typecheck: flags.typecheck });
+  // (Bar, Field, …) resolves in the crawler view exactly as it does live. Typecheck is
+  // always on (a phase of the one compile).
+  const compiled = compile(source, { originDir: path.dirname(absPath) });
   if (compiled.source === null) return send(res, 422, compiled.report, "text/plain; charset=utf-8");
   return send(res, 200, seoDocument(extractFromCompiled(compiled), relPath.split("/").pop()));
 }
@@ -162,16 +167,17 @@ const send = (res, code, body, type) => {
  *  parts are PARAMETERS: the dev server uses the root-relative bundle it rebuilds on
  *  demand (no ?v) and bakes the ?seo block server-side. */
 function declareRunPage(urlPath, flags = DEFAULT_FLAGS) {
-  // The `seo` FLAG (flags.ts, distinct from the ?view=seo REQUEST TYPE): embed the
+  // The `seo` FLAG (flags.ts, distinct from the ?extract REQUEST TYPE): embed the
   // extracted static document in the host element, for crawlers that read the page
-  // without running it. host-client.js removes #declare-static before the app mounts,
-  // so a running user never sees it. The SW never bakes here (crawlers don't install
-  // workers), so this is the one run-page input the two hosts legitimately differ on.
+  // without running it. A synchronous pre-paint script removes #declare-static before
+  // the app mounts (serve-core.js runWrapper), so a running user never sees it. The SW
+  // never bakes here (crawlers don't install workers), so this is the one run-page
+  // input the two hosts legitimately differ on.
   let staticBlock = "";
   if (flags.seo) {
     try {
       const abs = path.join(ROOT, urlPath.replace(/^\/+/, ""));
-      const compiled = compile(readFileSync(abs, "utf8"), { originDir: path.dirname(abs), typecheck: flags.typecheck });
+      const compiled = compile(readFileSync(abs, "utf8"), { originDir: path.dirname(abs) });
       const h = compiled.source === null ? null : extractFromCompiled(compiled);
       if (h !== null) staticBlock = `<div id="declare-static">\n${h}\n</div>`;
     } catch (e) { console.error("seo embed failed:", e.message); }
@@ -189,13 +195,13 @@ function serveFrom(res, baseDir, rel) {
   return send(res, 404, "not found", "text/plain");
 }
 
-// ── production builds (declarec), content-hash cached ────────────────────────
-// GET /examples/<name>/prod/ runs the REAL precompiled + minified + bundled
-// artifact `declarec` emits (parser + checker tree-shaken out) — the thing you
-// deploy, not the unbundled dev modules. Built on first request and rebuilt ONLY
-// when the source changes: a server-side cache keyed on the source hash (the
-// lzc-style cache OpenLaszlo has). The disk manifest survives restarts; an
-// in-process map is the fast path.
+// ── the BUILD request (declarec), content-hash cached ────────────────────────
+// GET /build/<name>/ (REQ.BUILD, `?build` redirects here) serves the REAL
+// precompiled + minified + bundled artifact `declarec` emits (parser + checker
+// tree-shaken out) — the standalone deployable, not the unbundled dev modules. Built
+// on first request and rebuilt ONLY when the source changes: a server-side cache keyed
+// on the source closure (the lzc-style cache OpenLaszlo has). The disk manifest
+// survives restarts; an in-process map is the fast path.
 // Fingerprint the compiler + runtime dist so a rebuild of EITHER invalidates
 // every cached production bundle — the source hash alone misses a runtime change
 // (e.g. a backend tweak) that changes the emitted bytes. Cheap statSync over the
@@ -209,16 +215,17 @@ function toolchainFingerprint() {
   return createHash("sha256").update(acc).digest("hex").slice(0, 8);
 }
 
-const prodMem = new Map(); // `${name}:${backend}:${slim}` -> manifest
-async function ensureProdBuild(name, backend = "dom", slim = true) {
+const prodMem = new Map(); // `${name}:${backend}` -> manifest
+async function ensureProdBuild(name, backend = "dom") {
   const dir = path.join(EXAMPLES, name);
   const srcPath = path.join(dir, `${name}.declare`);
   if (!existsSync(srcPath)) return null;
   const source = readFileSync(srcPath, "utf8");
-  // slim on/off (and the backend) partition the cache — each variant is a distinct
-  // artifact and must not clobber another under one key.
-  const key = `${name}:${backend}:${slim ? "slim" : "full"}`;
-  const outDir = path.join(dir, ".prod-cache" + (backend === "canvas" ? "-canvas" : "") + (slim ? "" : "-full"));
+  // The backend partitions the cache — each variant is a distinct artifact and must
+  // not clobber another under one key. (A build always slims + strips positions; those
+  // are no longer knobs — see design/requests.md §"Removed knobs".)
+  const key = `${name}:${backend}`;
+  const outDir = path.join(dir, ".prod-cache" + (backend === "canvas" ? "-canvas" : ""));
   const manPath = path.join(outDir, "manifest.json");
   // Freshness is the build's CLOSURE (closure.ts, the OL5 model): the main
   // file, every include, every auto-included library file — re-probed on disk
@@ -227,12 +234,12 @@ async function ensureProdBuild(name, backend = "dom", slim = true) {
   // exactly like a main-file edit. (The old sha256-of-main-source key missed
   // everything but the main file.)
   // `render` (not the retired `backend` spelling) — the closure freezes the
-  // canonical flag names (buildProduction's props), and isUpToDate compares
-  // records: a mismatched KEY would read as perpetual staleness. `seo` rides
-  // for the same reason (the /prod route doesn't build seo pages; declarec
-  // --seo closures carry seo:"true" and so never collide with these).
+  // canonical modifier names (buildProduction's props), and isUpToDate compares
+  // records: a mismatched KEY would read as perpetual staleness. slim/stripPos/typecheck
+  // are constant for a build; `seo` rides false here (the /build route doesn't bake seo
+  // pages — declarec --seo closures carry seo:"true" and so never collide with these).
   const propsNow = {
-    render: backend, slim: String(slim), stripPos: "true", typecheck: "true", seo: "false",
+    render: backend, slim: "true", stripPos: "true", typecheck: "true", seo: "false",
     toolchain: toolchainFingerprint(),
   };
   const fresh = (m) => {
@@ -244,7 +251,7 @@ async function ensureProdBuild(name, backend = "dom", slim = true) {
   if (existsSync(manPath)) {                                    // disk hit (post-restart)
     try { const d = JSON.parse(readFileSync(manPath, "utf8")); if (fresh(d)) { prodMem.set(key, d); return d; } } catch { /* rebuild */ }
   }
-  const built = await writeProduction({ source, name, srcDir: dir, outDir, render: backend, slim, props: { toolchain: propsNow.toolchain } });  // miss → build
+  const built = await writeProduction({ source, name, srcDir: dir, outDir, render: backend, props: { toolchain: propsNow.toolchain } });  // miss → build
   if (!built.ok) return { error: built.errors, report: built.report };
   man = { closure: built.closure, dir: outDir, appName: built.appName, sizes: built.sizes, assets: built.assets, used: built.usedComponents, builtAt: Date.now() };
   writeFileSync(manPath, JSON.stringify(man, null, 2));
@@ -252,8 +259,8 @@ async function ensureProdBuild(name, backend = "dom", slim = true) {
   return man;
 }
 
-async function serveProd(res, name, rest, urlPath, backend = "dom", slim = true) {
-  const man = await ensureProdBuild(name, backend, slim);
+async function serveBuild(res, name, rest, urlPath, backend = "dom") {
+  const man = await ensureProdBuild(name, backend);
   if (man === null) return send(res, 404, "no such example", "text/plain");
   if (man.error) return send(res, 500, "declarec build failed:\n" + (man.report ?? man.error.map((e) => e.message).join("\n")), "text/plain");
   const tail = rest.replace(/^\/+/, "");
@@ -276,16 +283,15 @@ http.createServer((req, res) => {
   // nothing projected or re-shaped, so a wire consumer sees exactly what a Node
   // caller sees: each diagnostic structured (code/severity/phase/pos/hint) AND
   // carrying its `rendered` form; `report` is the whole compile rendered.
-  // Compile flags ride the query under their canonical names (flags.ts):
-  // POST /compile?typecheck runs the tsc-over-bodies pass.
+  // Typecheck is always on (a mandatory phase of the one compile — no flag), so this
+  // needs no query modifiers: source in, { source, deps, diagnostics, report } out.
   if (req.method === "POST" && p === "/compile") {
-    const flags = parseFlags(new URL(req.url, "http://x").searchParams, DEFAULT_FLAGS);
     let body = "";
     req.on("data", (c) => { body += c; if (body.length > 4e6) req.destroy(); });
     req.on("end", () => {
       let out;
       try {
-        const r = compile(body, { typecheck: flags.typecheck });
+        const r = compile(body, {});
         out = { source: r.source, deps: r.deps, diagnostics: r.diagnostics, report: r.report };
       } catch (e) {
         // A compiler CRASH, not a compile diagnostic — no code to fake; the
@@ -316,47 +322,51 @@ http.createServer((req, res) => {
       return send(res, 404, "not found", "text/plain");
     }
 
-    // /examples/<name>/prod[/...]  → the cached PRODUCTION build (declarec, DOM)
-    // /examples/<name>/prod-canvas[/...]  → same, Canvas backend
-    const prod = p.match(/^\/examples\/([^/]+)\/prod(-canvas)?(\/.*)?$/);
-    if (req.method === "GET" && prod && examples().includes(prod[1])) {
-      // URL query flags (flags.ts, the shared model): `?slim=0` ships the full
-      // registry, `?render=canvas` overrides the path's default. So a prod URL
-      // reads the same flags the CLI and browser do.
+    // /build/<name>[/...]  → the cached BUILD artifact (declarec). `?render=canvas`
+    // selects the Canvas backend (the old /prod-canvas path is gone — canvas is a
+    // modifier now, not a second address). This is where a `?build` request redirects.
+    const build = p.match(/^\/build\/([^/]+)(\/.*)?$/);
+    if (req.method === "GET" && build && examples().includes(build[1])) {
       const q = new URL(req.url, "http://x").searchParams;
-      const flags = parseFlags(q, { ...DEFAULT_FLAGS, prod: true });
-      const backend = prod[2] ? "canvas" : flags.render;
-      serveProd(res, prod[1], prod[3] ?? "", p, backend, flags.slim).catch((e) => {
+      const flags = parseFlags(q, DEFAULT_FLAGS);
+      serveBuild(res, build[1], build[2] ?? "", p, flags.render).catch((e) => {
         if (!res.headersSent) send(res, 500, String((e && e.stack) || e), "text/plain");
       });
       return;
     }
 
     // ── The PROGRAM URL is the app's canonical address (the OpenLaszlo model:
-    // …/calendar.lzx?lzt=…) — identical here and on the SW static host.
-    //   NAVIGATE to …/app.declare            → the running app (default view)
-    //   …?view=source                        → the EXACT source file (bytes)
-    //   …?view=reader / ?view=segments       → the reader (highlighted, literate
-    //                                          "reader mode") / its data
-    //   FETCH the same URL (compiler include, viewer, curl) → the source bytes
-    // The navigate/fetch split is the SAME discrimination the service worker
-    // makes (a top-level navigation vs a subresource request), so a person and
-    // a program each get the representation they mean, at one URL.
+    // …/calendar.lzx?lzt=…) — identical here and on the SW static host. One request
+    // per URL (reqtypes.ts); design/requests.md is the full surface.
+    //   NAVIGATE to …/app.declare                → the running app (RUN, default)
+    //   …?view=reader | ?view=source | ?view=edit → the viewer app, on that tab
+    //   …?segments                                → the reader's highlight JSON
+    //   …?extract                                 → the static-extraction document
+    //   …?build                                   → 302 to /build/<name>/ (a directory)
+    //   …?file, or a plain FETCH (include, curl)  → the raw source bytes (text/plain)
+    // The navigate/fetch split (Sec-Fetch-Mode, mirrored by the SW) means a bare RUN
+    // navigation renders, while a subresource fetch of the same URL gets the bytes.
     if (p.endsWith(".declare")) {
       const params = new URL(req.url, "http://x").searchParams;
       const rt = requestType(params);
-      const abs = path.join(ROOT, p.replace(/^\/+/, ""));
+      const rel = p.replace(/^\/+/, "");
+      const abs = path.join(ROOT, rel);
       const real = abs.startsWith(ROOT + path.sep) && existsSync(abs) && statSync(abs).isFile();
-      if (real && (rt === REQ.READER || rt === REQ.EDIT || rt === REQ.SEGMENTS)) {
-        return serveSource(res, abs, p.replace(/^\/+/, ""), rt, "DomBackend");
+      if (real) {
+        // The viewer app (reader/source/edit tabs) and its data (segments).
+        if (rt === REQ.READER || rt === REQ.SOURCE || rt === REQ.EDIT || rt === REQ.SEGMENTS)
+          return serveSource(res, abs, rel, rt, "DomBackend");
+        // The static-extraction document alone — answers a fetch too (curl, a crawler).
+        if (rt === REQ.EXTRACT) return serveExtract(res, abs, rel);
+        // A build is a directory of files, so it lives at a directory address.
+        if (rt === REQ.BUILD) { res.writeHead(302, { location: `/build/${programName(p)}/` }); return res.end(); }
+        // RUN: a navigation gets the run wrapper (with any ?render/?seo modifier); a
+        // plain fetch (?file, an include, curl) falls through to the raw bytes below.
+        const navigate = req.headers["sec-fetch-mode"] === "navigate" || (req.headers.accept ?? "").includes("text/html");
+        if (rt === REQ.RUN && navigate) return send(res, 200, withServerMarker(declareRunPage(p, parseFlags(params))), "text/html;charset=utf-8");
       }
-      // ?view=seo answers FETCHES too (curl, a crawler's plain GET) — the
-      // request type IS the discrimination; no navigate check needed.
-      if (real && rt === REQ.SEO) return serveSeo(res, abs, p.replace(/^\/+/, ""), parseFlags(params));
-      const navigate = req.headers["sec-fetch-mode"] === "navigate" || (req.headers.accept ?? "").includes("text/html");
-      if (real && navigate && rt !== REQ.SOURCE) return send(res, 200, withServerMarker(declareRunPage(p, parseFlags(params))), "text/html;charset=utf-8");
-      // else (?view=source, or any plain fetch): fall through to the raw-file
-      // handler — the exact source bytes, text/plain
+      // else (?file, a plain fetch, or a non-real path): fall through to the raw-file
+      // handler — the exact source bytes, text/plain.
     }
 
     // A platform BUNDLE requested → rebuild it first if any of its inputs is

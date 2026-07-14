@@ -71,31 +71,35 @@ test("REGISTRY_MANIFEST matches the runtime tables exactly (no drift)", () => {
   assert.deepEqual([...new Set(REGISTRY_MANIFEST.map((e) => e.name))].sort(), [...new Set(REGISTRY_NAMES)].sort());
 });
 
-// ── compile flags: one canonical model, three surfaces ───────────────────────
+// ── compile MODIFIERS: two of them (render, seo), one model, three surfaces ───
+// (slim/stripPos/typecheck/prod are NOT flags — design/requests.md §"Removed knobs".)
 const P = (obj) => ({ has: (k) => k in obj, get: (k) => (k in obj ? String(obj[k]) : null) });
-test("URL flags: defaults when absent", () => {
+test("URL modifiers: defaults when absent", () => {
   const f = parseFlags(P({}), DEFAULT_FLAGS);
-  assert.equal(f.render, "dom"); assert.equal(f.slim, true); assert.equal(f.stripPos, true);
+  assert.equal(f.render, "dom"); assert.equal(f.seo, false);
 });
-test("URL flags: ?render=canvas and ?slim=0 and ?prod", () => {
-  const f = parseFlags(P({ render: "canvas", slim: "0", prod: "" }), DEFAULT_FLAGS);
-  assert.equal(f.render, "canvas"); assert.equal(f.slim, false); assert.equal(f.prod, true);
+test("URL modifiers: ?render=canvas and ?seo", () => {
+  const f = parseFlags(P({ render: "canvas", seo: "" }), DEFAULT_FLAGS);
+  assert.equal(f.render, "canvas"); assert.equal(f.seo, true);
 });
-test("URL flags: ?stripPos=0 (and its all-lowercase form) turns stripPos off", () => {
-  assert.equal(parseFlags(P({ stripPos: "0" }), DEFAULT_FLAGS).stripPos, false);
-  assert.equal(parseFlags(P({ strippos: "0" }), DEFAULT_FLAGS).stripPos, false);
+test("URL modifiers: a malformed enum / boolean falls back to the base", () => {
+  assert.equal(parseFlags(P({ render: "wat" }), DEFAULT_FLAGS).render, "dom");
+  assert.equal(parseFlags(P({ seo: "maybe" }), DEFAULT_FLAGS).seo, false);
 });
-test("URL flags: a malformed boolean falls back to the base", () => {
-  assert.equal(parseFlags(P({ slim: "maybe" }), DEFAULT_FLAGS).slim, true);
+test("URL modifiers: the removed knobs are ignored (not flags anymore)", () => {
+  const f = parseFlags(P({ slim: "0", stripPos: "0", typecheck: "0", prod: "" }), DEFAULT_FLAGS);
+  assert.equal(f.slim, undefined); assert.equal(f.stripPos, undefined);
+  assert.equal(f.typecheck, undefined); assert.equal(f.prod, undefined);
 });
-test("argv flags: --no-slim --canvas, input left in rest", () => {
-  const { flags, rest } = parseArgvFlags(["--no-slim", "--canvas", "app.declare"], { ...DEFAULT_FLAGS, prod: true });
-  assert.equal(flags.slim, false); assert.equal(flags.render, "canvas"); assert.equal(flags.prod, true);
+test("argv modifiers: --canvas + --seo, input left in rest", () => {
+  const { flags, rest } = parseArgvFlags(["--canvas", "--seo", "app.declare"], DEFAULT_FLAGS);
+  assert.equal(flags.render, "canvas"); assert.equal(flags.seo, true);
   assert.deepEqual(rest, ["app.declare"]);
 });
-test("argv flags: --full is an alias for --no-slim; --no-strip-pos clears stripPos", () => {
-  const { flags } = parseArgvFlags(["--full", "--no-strip-pos"], DEFAULT_FLAGS);
-  assert.equal(flags.slim, false); assert.equal(flags.stripPos, false);
+test("argv modifiers: removed/CLI-owned switches pass through to rest", () => {
+  const { flags, rest } = parseArgvFlags(["--no-slim", "--debug", "--render", "canvas"], DEFAULT_FLAGS);
+  assert.equal(flags.render, "canvas");
+  assert.ok(rest.includes("--no-slim")); assert.ok(rest.includes("--debug"));
 });
 
 // ── a slimmed bundle renders ─────────────────────────────────────────────────

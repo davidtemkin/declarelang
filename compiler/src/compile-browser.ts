@@ -31,14 +31,14 @@ import { searchIncludePath } from "./include-search.js";
 export { provideLib } from "./typecheck.js";
 
 // Re-exported so the browser bundle also carries the source-viewer highlighter
-// (the same highlight() the dev server runs for `?view=source`). It has no
-// dependencies, so it adds negligible weight — browser/boot-source.js reads it here.
+// (the same highlight() the dev server runs for `?view=reader` / `?segments`). It has
+// no dependencies, so it adds negligible weight — browser/boot-source.js reads it here.
 export { highlight } from "./highlight.js";
 
 // Static extraction — the same block compile-node.ts exports (parity: the
 // browser compiler does everything the Node one can, as architecture and as
 // principle). browser/boot-seo.js composes these with compileTracked below for
-// the static host's `?view=seo`. See seo.ts / headless.ts.
+// the static host's `?extract`. See seo.ts / headless.ts.
 export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, seoDocument } from "./seo.js";
 export type { ExtractOptions, Extracted } from "./seo.js";
 export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";

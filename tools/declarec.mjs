@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // declarec — Declare's production build (the emit half + CLI).
 //
-//   node tools/declarec.mjs <app.declare> [-o dist] [--no-strip-pos] [--no-typecheck] [--quiet]
+//   node tools/declarec.mjs <app.declare> [-o dist] [--canvas] [--seo] [--extract] [--debug] [--quiet]
 //
 // Precompiles an app (compiler/dist/declarec.js: parse + resolve + typecheck at
 // BUILD time → serializable program), bundles the runtime's RUN-PATH ONLY with
@@ -21,7 +21,7 @@ import { compileProgram } from "../compiler/dist/declarec.js";
 import { REGISTRY_MANIFEST } from "../runtime/dist/registry.js";
 import { parseArgvFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
 import { highlight } from "../compiler/dist/highlight.js";
-import { compile as compileFull, extractFromCompiled } from "../compiler/dist/compile-node.js";
+import { compile as compileFull, extractFromCompiled, seoDocument } from "../compiler/dist/compile-node.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const RUNTIME = resolve(HERE, "../runtime/dist"); // the run-path lives here
@@ -67,12 +67,12 @@ export async function buildProduction(source, opts = {}) {
     render: opts.render === "canvas" ? "canvas" : "dom",
     slim: String(opts.slim !== false),
     stripPos: String(opts.stripPos ?? true),
-    typecheck: String(opts.typecheck ?? true),
+    typecheck: "true",   // always on — a mandatory phase of the one compile (design/requests.md)
     seo: String(!!opts.seo),
     ...(opts.props ?? {}),
   };
   const mainId = opts.originDir ? join(opts.originDir, `${name}.declare`) : undefined;
-  const built = compileProgram(source, { originDir: opts.originDir, stripPos: opts.stripPos ?? true, typecheck: opts.typecheck, mainId, props });
+  const built = compileProgram(source, { originDir: opts.originDir, stripPos: opts.stripPos ?? true, mainId, props });
   if (built.program === null) {
     return { ok: false, errors: built.errors, warnings: built.warnings, diagnostics: built.diagnostics, report: built.report, closure: built.closure, files: [], sizes: null };
   }
@@ -195,8 +195,8 @@ async function copyAssets(srcDir, outDir) {
  *  copied assets). The shared emit used by the CLI and the dev server. Returns
  *  the buildProduction result plus `{ outDir, appName, assets }`. On a compile
  *  error, returns `{ ok:false, errors }` and writes nothing. */
-export async function writeProduction({ source, name = "app", srcDir = null, outDir, stripPos = true, render, slim, typecheck = false, seo = false, props }) {
-  const out = await buildProduction(source, { name, originDir: srcDir, stripPos, render, slim, typecheck, seo, props });
+export async function writeProduction({ source, name = "app", srcDir = null, outDir, stripPos = true, render, slim = true, seo = false, props }) {
+  const out = await buildProduction(source, { name, originDir: srcDir, stripPos, render, slim, seo, props });
   if (!out.ok) return out;
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
@@ -207,24 +207,29 @@ export async function writeProduction({ source, name = "app", srcDir = null, out
 }
 
 async function cli(argv) {
-  // CLI-only options (output dir, quiet); the compile flags — --backend/--canvas,
-  // --no-slim, --no-strip-pos, --no-typecheck — share the canonical model (flags.ts),
-  // so they mean exactly what the same names mean as server/browser URL flags.
+  // CLI-only switches (output dir, quiet, and the artifacts --highlight / --extract);
+  // the two MODIFIERS --render/--canvas and --seo share the canonical model (flags.ts),
+  // so they mean exactly what the same names mean as server/browser URL modifiers. A
+  // build always slims + strips positions + typechecks (design/requests.md §"Removed
+  // knobs"); --debug is the one escape hatch, for debugging the emitter — it keeps
+  // source positions AND the full registry.
   const passthrough = [];
-  let outDir = null, quiet = false, doHighlight = false;
+  let outDir = null, quiet = false, doHighlight = false, doExtract = false, debug = false;
   const raw = argv.slice(2);
   for (let i = 0; i < raw.length; i++) {
     const a = raw[i];
     if (a === "-o" || a === "--out") outDir = raw[++i];
     else if (a === "--quiet") quiet = true;
     else if (a === "--highlight") doHighlight = true;
+    else if (a === "--extract") doExtract = true;
+    else if (a === "--debug") debug = true;
     else passthrough.push(a);
   }
-  const { flags, rest } = parseArgvFlags(passthrough, { ...DEFAULT_FLAGS, prod: true }); // declarec is always a production build
+  const { flags, rest } = parseArgvFlags(passthrough, DEFAULT_FLAGS); // declarec is always a build
   const input = rest.find((a) => !a.startsWith("-")) ?? null;
   if (input === null) {
-    console.error("usage: declarec <app.declare> [-o dist] [--canvas] [--seo] [--no-slim] [--no-strip-pos] [--no-typecheck] [--quiet]");
-    console.error("       declarec --highlight <app.declare> [-o out.json]   # preprocessed form for the code viewer");
+    console.error("usage: declarec <app.declare> [-o dist] [--canvas] [--seo] [--extract] [--debug] [--quiet]");
+    console.error("       declarec --highlight <app.declare> [-o out.json]   # the reader's segments (JSON)");
     process.exit(2);
   }
   const srcPath = resolve(input);
@@ -256,7 +261,7 @@ async function cli(argv) {
 
   const source = await readFile(srcPath, "utf8");
   const t0 = Date.now();
-  const out = await writeProduction({ source, name, srcDir, outDir, stripPos: flags.stripPos, render: flags.render, slim: flags.slim, typecheck: flags.typecheck, seo: flags.seo });
+  const out = await writeProduction({ source, name, srcDir, outDir, render: flags.render, seo: flags.seo, stripPos: !debug, slim: !debug });
   const ms = Date.now() - t0;
 
   if (!out.ok) {
@@ -265,6 +270,19 @@ async function cli(argv) {
     console.error(`declarec: ${input}`);
     console.error(out.report ?? out.errors.map((e) => e.message).join("\n"));
     process.exit(1);
+  }
+
+  // --extract: also emit the static-extraction document as a standalone file — the
+  // declarec × extract artifact (a build may legitimately produce more than one file).
+  // A fresh compile through the front-end + a headless extract; typecheck already gated
+  // the build above, so it is skipped on this second pass.
+  if (doExtract) {
+    const compiled = compileFull(source, { originDir: srcDir, typecheck: false });
+    const doc = compiled.source === null ? null : seoDocument(extractFromCompiled(compiled), name);
+    if (doc !== null) {
+      await writeFile(join(outDir, `${name}.extract.html`), doc);
+      if (!quiet) console.log(`  ${name}.extract.html   ${kb(doc.length)} raw  (static extraction)`);
+    }
   }
 
   const assets = out.assets;

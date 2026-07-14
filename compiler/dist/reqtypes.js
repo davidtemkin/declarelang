@@ -1,55 +1,66 @@
-// reqtypes — the request-TYPE vocabulary: what a URL should RETURN for a source,
-// as distinct from the compile FLAGS (flags.ts) that decide HOW it compiles. The
-// two are orthogonal — `?view=reader&render=canvas` asks for the reader view of
-// the canvas build — and both are read the same way from a URL query, so a single
-// documented model spans the dev server and the service-worker static host.
+// reqtypes — the request-TYPE vocabulary: what a program URL should RETURN, as
+// distinct from the compile MODIFIERS (flags.ts) that decide HOW it compiles. The two
+// are orthogonal — `?view=reader&render=canvas` asks for the reader view of the canvas
+// build — and both are read the same way from a URL query, so a single documented
+// model spans the dev server and the service-worker static host. See
+// design/requests.md (the normative surface) and design/hosting.md (the narrative).
 //
-// Modeled on OpenLaszlo's `lzt` request types (run / view-source / compiled),
-// which let the caller tell the server what artifact to produce for one `.lzx`.
-// Kept deliberately small and extensible: new artifacts (the compiled program
-// JSON, a raw-text pane, a print view) slot in as new REQ values without a second
-// scheme. See design/hosting.md and docs/guide/35-shipping.md.
+// Exactly ONE request per URL, from a small flat set. `?view=` is the one key that
+// takes a value, because the viewer is a single app with tabs (reader / source / edit);
+// every other request is a bare presence key, and the absence of all of them is `run`.
+// Modeled on OpenLaszlo's `lzt` request types, extensible: a new artifact slots in as a
+// new REQ value without a second scheme.
 export const REQ = {
-    /** Boot and run the app — the default for a program URL navigation. */
+    /** Boot and run the app — the default for a program-URL navigation. Rides the
+     *  browser's prewarm → cache → compile ladder. */
     RUN: "run",
-    /** The EXACT source file — the bytes, text/plain. What a plain fetch of the
-     *  URL returns anyway; the explicit spelling of the browser's own
-     *  view-source idiom. */
-    SOURCE: "source",
-    /** The READER: syntax-highlighted source with block comments rendered as
-     *  Markdown (the code-viewer app, rendered by the runtime). */
+    /** The standalone, minified, self-contained deployable (the declarec artifact) — a
+     *  DIRECTORY of files, so it is served at a directory address, not inlined at the
+     *  .declare URL (design/requests.md §"Transport notes"). Was the old `?prod`. */
+    BUILD: "build",
+    /** The READER: the viewer app's default tab — highlighted source with block-comment
+     *  prose rendered as Markdown (the code-viewer app, rendered by the runtime). */
     READER: "reader",
-    /** The reader opened on its LIVE-EDIT tab: the source in an editor, the
-     *  running program below, compile errors sandwiched between. The same page
-     *  as READER (the viewer app owns the tabs) — this is the deep link to the
-     *  workbench. */
+    /** The viewer app's SOURCE tab: the verbatim source shown IN the viewer. Distinct
+     *  from FILE (the raw bytes) — this is the viewer displaying the source, reachable by
+     *  URL for the first time under this scheme. */
+    SOURCE: "source",
+    /** The viewer app's live-EDIT tab: source in an editor, the running program below,
+     *  compile errors between. The same app as READER/SOURCE (the viewer owns the tabs);
+     *  this is the deep link to the workbench. */
     EDIT: "edit",
-    /** The reader's DATA on its own: the compiler's `highlight()` segments as
-     *  JSON, for tooling, tests, and a static build (the `--highlight` artifact). */
+    /** The raw source FILE — the bytes, `text/plain`. What an `include`, the compiler, or
+     *  `curl` reads; the explicit spelling of a plain fetch. Was the old `?view=source`. */
+    FILE: "file",
+    /** The reader's DATA on its own: the compiler's `highlight()` segments as JSON, for
+     *  tooling, tests, and a static build (the `declarec --highlight` artifact). */
     SEGMENTS: "segments",
-    /** The STATIC EXTRACTION document alone (`text/html`): the program's content
-     *  as semantic HTML at its t=0 snapshot (design/capabilities.md §5) — the
-     *  crawler-facing artifact, inspectable by URL. The dev server extracts in
-     *  Node; the static host's service worker extracts in-browser (the same
-     *  extractor module) — full parity. NO bare shorthand: `?seo` is the FLAG
-     *  (embed the block in the run page, flags.ts), `?view=seo` the request. */
-    SEO: "seo",
+    /** The STATIC EXTRACTION document ALONE (`text/html`): the program's content as
+     *  semantic HTML at its t=0 snapshot (design/capabilities.md §5) — the crawler-facing
+     *  artifact, inspectable by URL. The dev server extracts in Node; the static host's
+     *  service worker extracts in-browser (the same extractor) — full parity. Was the old
+     *  `?view=seo`. Distinct from the `seo` FLAG (flags.ts), which EMBEDS this document in
+     *  a run/build page rather than returning it alone. */
+    EXTRACT: "extract",
 };
-const VALUES = new Set(Object.values(REQ));
-/** The request type a URL asks for. `?view=<type>` is the canonical spelling;
- *  `?source` / `?reader` / `?segments` are bare shorthands (the common
- *  ones, like OL's `?source`). An unknown or absent `view` means RUN — the safe default, so an
- *  ordinary app URL is unaffected. */
+/** The three viewer tabs — the values `?view=` accepts (the viewer is one app). */
+const VIEWS = new Set([REQ.READER, REQ.SOURCE, REQ.EDIT]);
+/** The request type a URL asks for. `?view=reader|source|edit` opens the viewer app on
+ *  that tab; a bare `?build` / `?file` / `?segments` / `?extract` asks for that
+ *  artifact; anything else (including an absent or unknown request) is RUN — the safe
+ *  default, so an ordinary app URL is unaffected. */
 export function requestType(params) {
     const v = params.get("view");
-    if (v !== null && VALUES.has(v))
+    if (v !== null && VIEWS.has(v))
         return v;
-    if (params.has("source"))
-        return REQ.SOURCE;
-    if (params.has("reader"))
-        return REQ.READER;
+    if (params.has("build"))
+        return REQ.BUILD;
+    if (params.has("file"))
+        return REQ.FILE;
     if (params.has("segments"))
         return REQ.SEGMENTS;
+    if (params.has("extract"))
+        return REQ.EXTRACT;
     return REQ.RUN;
 }
 //# sourceMappingURL=reqtypes.js.map

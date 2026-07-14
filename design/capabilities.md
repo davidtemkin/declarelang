@@ -157,11 +157,11 @@ everything the Node one can):
   (`<div id="declare-static">`), removed at boot before mount. `declarec
   --seo` bakes it into the built index.html; the dev server embeds it
   server-side when the flag rides a run URL.
-- **Request type `?view=seo`** (reqtypes.ts) — the extracted document ALONE,
+- **Request type `?extract`** (reqtypes.ts) — the extracted document ALONE,
   `text/html`. The dev server extracts in Node; the static host's service
   worker serves a page that extracts in-browser (browser/boot-seo.js) — the same
-  extractor module both times. No bare `?seo` shorthand: that spelling is the
-  flag.
+  extractor module both times. Distinct from the bare `?seo`, which is the *flag*
+  (embed the document in the run page, not return it alone).
 
 Crawler math: a crawler that runs no JS reads the embedded block; one that
 does run JS sees the real app replace it. Neither path requires the SW

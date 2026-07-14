@@ -8,8 +8,9 @@
 // run of syntax-highlighted <pre> HTML whose per-token <span> classes this app's
 // `accents` map colours (theme-aware, so the same segments render light or dark).
 //
-// Reach it with a request type (reqtypes.ts): `foo.declare?view=reader`, or
-// `examples/<name>/?view=reader`. The Reader / Source / Live-edit triple switches
+// Reach it with a request type (reqtypes.ts): `foo.declare?view=reader` (the program
+// URL is the address — a directory carries no behavior). The Reader / Source / Live-edit
+// triple (?view=reader | ?view=source | ?view=edit) switches
 // between the rendered view, the verbatim source, and an editing workbench (the
 // source in an editor, the running program below it, compile errors sandwiched
 // between); the A stepper zooms every text size; the ☀/◐/☾ switch picks

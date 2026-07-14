@@ -16,16 +16,18 @@ const params = (q) => new URLSearchParams(q);
 
 console.log("serve-core parity");
 
-await test("requestType maps the query to a view (the classifier both hosts share)", () => {
-  assert.equal(requestType(params("")), REQ.RUN);
-  assert.equal(requestType(params("render=canvas")), REQ.RUN);       // a flag, not a view
-  assert.equal(requestType(params("view=reader")), REQ.READER);
-  assert.equal(requestType(params("reader")), REQ.READER);           // bare shorthand
+await test("requestType maps the query to a request (the classifier both hosts share)", () => {
+  assert.equal(requestType(params("")), REQ.RUN);                     // default
+  assert.equal(requestType(params("render=canvas")), REQ.RUN);       // a modifier, not a request
+  assert.equal(requestType(params("view=reader")), REQ.READER);      // ?view= = the viewer's tabs
+  assert.equal(requestType(params("view=source")), REQ.SOURCE);      // the viewer's Source tab
   assert.equal(requestType(params("view=edit")), REQ.EDIT);
-  assert.equal(requestType(params("view=seo")), REQ.SEO);
-  assert.equal(requestType(params("view=source")), REQ.SOURCE);
-  assert.equal(requestType(params("source")), REQ.SOURCE);
-  assert.equal(requestType(params("view=bogus")), REQ.RUN);          // unknown → safe default
+  assert.equal(requestType(params("view=bogus")), REQ.RUN);          // unknown view → safe default
+  assert.equal(requestType(params("build")), REQ.BUILD);             // bare presence keys
+  assert.equal(requestType(params("file")), REQ.FILE);
+  assert.equal(requestType(params("segments")), REQ.SEGMENTS);
+  assert.equal(requestType(params("extract")), REQ.EXTRACT);
+  assert.equal(requestType(params("reader")), REQ.RUN);              // bare ?reader is not a request now
 });
 
 await test("programName strips the directory and extension", () => {
