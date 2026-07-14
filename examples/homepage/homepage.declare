@@ -473,11 +473,11 @@ App [ theme = { ({
                         layout: SimpleLayout [ axis = y, spacing = 24 ],
                         actions: View [ layout: SimpleLayout [ axis = x, spacing = 18 ],
                             Button [ width = 240, label = "Run Declare Calendar →",
-                                onClick() { app.navigate = "examples/calendar/" },
+                                onClick() { app.navigate = "examples/calendar/calendar.declare" },
                                 ],
                             srclink: Text [ y = 16, fontFamily = [Sans, "system-ui"], fontSize = 13, wrap = false,
-                                textColor = { theme.dim }, text = "or read the source →",
-                                onClick() { app.navigate = "https://github.com/davidtemkin/declarelang/blob/main/examples/calendar/calendar.declare" },
+                                textColor = { theme.dim }, text = "or view & edit source →",
+                                onClick() { app.navigate = "examples/calendar/calendar.declare?view=edit" },
                                 ],
                             ],
                         stat: View [ width = { parent.width },
@@ -791,8 +791,8 @@ App [ theme = { ({
 
             // redundant at phone width (section 02 links it) — drop it before the nav rides the wordmark
 
-            NavLink [ label = "Declare Calendar", url = "examples/calendar/", visible = { app.width >= 620 } ],
-            NavLink [ label = "Docs", url = "examples/docs/" ],
+            NavLink [ label = "Declare Calendar", url = "examples/calendar/calendar.declare", visible = { app.width >= 620 } ],
+            NavLink [ label = "Docs", url = "examples/docs/docs.declare" ],
             NavLink [ label = "GitHub", url = "https://github.com/davidtemkin/declarelang" ],
             ],
         ],
