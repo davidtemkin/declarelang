@@ -1,6 +1,10 @@
 import { type CompileOptions, type Compiled } from "./compile.js";
 import type { Closure } from "./closure.js";
 export type { CompileOptions, Compiled } from "./compile.js";
+export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, seoDocument } from "./seo.js";
+export type { ExtractOptions, Extracted } from "./seo.js";
+export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
+export type { Environment, HeadlessOptions } from "./headless.js";
 export { DiskTracker, diskProbe, statValidator } from "./cache-node.js";
 export { isUpToDate, validatorsEqual, lookupKey, contentTag, fnv1a } from "./closure.js";
 export type { Closure, ClosureEntry, Validator, Tracker, Probe } from "./closure.js";

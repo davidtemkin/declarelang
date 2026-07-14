@@ -34,8 +34,8 @@ An intro paragraph of several words.
 """ ],
     ]`;
 
-async function render(backend) {
-  const b = await buildProduction(DOC, { backend });
+async function render(mode) {
+  const b = await buildProduction(DOC, { render: mode });
   assert.ok(b.ok, "build failed: " + (b.errors || []).map((e) => e.message).join("; "));
   const appJs = b.files.find((f) => f.name.startsWith("app.")).contents;
   const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });

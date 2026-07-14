@@ -17,6 +17,7 @@ export const FLAG_SPECS = [
     { name: "slim", kind: "bool", default: true },
     { name: "stripPos", kind: "bool", default: true },
     { name: "typecheck", kind: "bool", default: true },
+    { name: "seo", kind: "bool", default: false },
 ];
 /** Defaults, derived from the registry — never hand-maintained. */
 export const DEFAULT_FLAGS = Object.fromEntries(FLAG_SPECS.map((s) => [s.name, s.default]));

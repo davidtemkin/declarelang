@@ -624,9 +624,24 @@ export class App extends View {
   declare demoSources: Record<string, unknown>;
   declare liveCard: string;
   declare liveSource: string;
+  /** The rendered compile report of the LAST live recompile (liveCard/
+   *  liveSource) — "" while the edit compiles clean, the full report text on
+   *  failure (the island keeps the last good render). Host-fed, read-only to
+   *  user code: an editing surface binds a diagnostics pane to it. */
+  declare liveReport: string;
   /** app→host navigation: set to a URL by a link/button; the host opens it and
    *  resets to "" — same DOM-free app→host channel as `editing`. */
   declare navigate: string;
+  /** The app's size floor. An app that degrades below some width declares
+   *  `minWidth = 600` and the auto-extent never goes under it: in a narrower
+   *  host the app holds its floor and the STAGE pans natively (the page
+   *  scrolls horizontally at top level; an embedded island scrolls its box).
+   *  A declared policy, not clamp arithmetic in a constraint — tools and
+   *  models can read the floor statically. 0 (the default) = no floor. Only
+   *  the auto-extent honours it; an explicit `width = { … }` is the author's
+   *  own formula and wins untouched. */
+  declare minWidth: number;
+  declare minHeight: number;
 
   /** The App's auto-extent is the HOST, not its content: an unset width/height
    *  follows hostWidth/hostHeight (reactive on resize), so the root app fills its
@@ -634,13 +649,15 @@ export class App extends View {
    *  `width = …` still wins (isSet skips the derive), and there is no children
    *  guard: the app fills its host even while empty. This is the exact yielding
    *  default the content path uses (View.bindExtent), retargeted from content to
-   *  host — so a resize repaints like any dependency. */
+   *  host — so a resize repaints like any dependency. `minWidth`/`minHeight`
+   *  floor the derive (tracked reads, so a reactive floor re-applies live). */
   protected bindExtent(): void {
     let derives = EXTENT.get(this);
     for (const size of ["width", "height"] as const) {
       if (isSet(this, size) || ownerOf(this, size) !== null) continue;
       if (derives === undefined) EXTENT.set(this, (derives = {}));
-      derives[size] = bindDerived(this, size, () => (size === "width" ? this.hostWidth : this.hostHeight));
+      derives[size] = bindDerived(this, size, () =>
+        size === "width" ? Math.max(this.hostWidth, this.minWidth) : Math.max(this.hostHeight, this.minHeight));
     }
   }
 }
@@ -665,6 +682,10 @@ defineAttributes(App, {
   demoSources: { def: {} },
   liveCard: { def: "" },
   liveSource: { def: "" },
+  liveReport: { def: "" },
+  // the size floor (bindExtent) — author-settable, 0 = none
+  minWidth: { def: 0 },
+  minHeight: { def: 0 },
 });
 
 /** HTML — a foreign-content island (design: the `HTML [ … ]` view). A leaf View

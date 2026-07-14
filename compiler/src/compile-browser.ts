@@ -35,6 +35,15 @@ export { provideLib } from "./typecheck.js";
 // dependencies, so it adds negligible weight — web/boot-source.js reads it here.
 export { highlight } from "./highlight.js";
 
+// Static extraction — the same block compile-node.ts exports (parity: the
+// browser compiler does everything the Node one can, as architecture and as
+// principle). web/boot-seo.js composes these with compileTracked below for
+// the static host's `?view=seo`. See seo.ts / headless.ts.
+export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, seoDocument } from "./seo.js";
+export type { ExtractOptions, Extracted } from "./seo.js";
+export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
+export type { Environment, HeadlessOptions } from "./headless.js";
+
 /** Collapse `.` / `..` segments in a POSIX-ish path so the resolved key matches
  *  how the warm-load stores prefetched files (e.g. "library/src/bar.declare"). */
 function normalizePath(p: string): string {

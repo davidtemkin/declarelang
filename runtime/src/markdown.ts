@@ -633,6 +633,16 @@ export abstract class RichText extends View {
    *  default — Markdown has no syntax to name one. */
   protected accentsOf(): Record<string, Fill> { return {}; }
 
+  /** RichText's `scale` is a FONT-SIZE multiplier consumed by rebuild(), not the
+   *  paint transform it means on a plain View — so mask the base flush()'s scale
+   *  push. Without this, a `scale` constraint that evaluates before the surface
+   *  attaches bakes a CSS transform ON TOP of the scaled fonts (double-scaling),
+   *  and the view's measured height no longer matches its painted height. */
+  protected override flush(s: Surface): void {
+    super.flush(s);
+    if (this.scale !== 1) s.setScale(1, this.pivotX, this.pivotY);
+  }
+
   override attach(backend: RenderBackend, parentSurface: Surface | null, before: Surface | null = null): void {
     super.attach(backend, parentSurface, before);
     // Reactive render: re-parse and rebuild whenever the source OR `width` changes

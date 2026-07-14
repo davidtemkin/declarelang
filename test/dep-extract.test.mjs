@@ -212,6 +212,27 @@ function compileProgram(src) {
   return parseProgram(r.source);
 }
 
+console.log("\n─ C2. inlining rebase + path canonicalization (the Radio bug, 2026-07-13) ─");
+
+test("inlined computed default — parent-rooted reads REBASE to the reader's frame", () => {
+  // Radio's `on` formula reads `(parent as G).value`; the dot's constraint reads
+  // bare `on` (→ classroot.on), which INLINES the formula. Un-rebased, the literal
+  // `parent` would mean the DOT's parent (the radio — wrong node) and the stripped
+  // cast's parens would defeat the runtime's path probe: the constraint silently
+  // never re-fired. Both fixed: parens canonicalized away, nouns rebased onto the
+  // receiver (a member's scope nouns are relative to the instance carrying it).
+  const r = extract(`class G extends View [ value: string = "" ]
+class R extends View [ choice: string = "",
+    on: boolean = { (parent as G).value == choice },
+    dot: View [ width = 10, height = 10, opacity = { on ? 1 : 0.4 } ],
+    ]
+App [ width = 100, height = 100, g: G [ value = "a", R [ choice = "a" ] ] ]`);
+  const reads = readsOf(r, "opacity");
+  assert.ok(reads.includes("classroot.parent.value"), "rebased through the inline: " + JSON.stringify(reads));
+  assert.ok(reads.includes("classroot.choice"), "this-rooted read rebased too: " + JSON.stringify(reads));
+  assert.ok(!reads.some((p) => p.includes("(")), "no parens in dep paths: " + JSON.stringify(reads));
+});
+
 console.log("\n─ D. self-dependence: a constraint may not read its own slot ─");
 
 // The check fires inside compile() (annotate → hard constraint-phase error), so

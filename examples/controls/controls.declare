@@ -1,0 +1,87 @@
+/*
+# Controls
+
+The component library's showcase — every Tier 1 control, in its three use forms
+(design/components-baseline.md, Contract 1): STANDALONE (the control owns its
+state), APP-BOUND (derive down with a constraint, deliver up through `input`),
+and under a PARTIAL THEME OVERRIDE (the house theme with one role swapped,
+by plain object spread — every control beneath follows, no per-control styling).
+*/
+
+App [ width = 880, height = 320, fill = { theme.bg },
+
+    muted:  boolean = false,
+    hits:   number = 0,
+    volume: number = 40,
+    size:   string = "m",
+
+    col: View [ x = 24, y = 24, width = 240,
+        layout: SimpleLayout [ axis = y, spacing = 16 ],
+
+        // standalone: the checkbox owns its state; the caption just reads it
+
+        opts: Checkbox [ label = "Show options" ],
+        Text [ fontSize = 13, textColor = { theme.textMuted },
+            text = { col.opts.checked ? "options shown" : "options hidden" } ],
+
+        // app-bound: derive down, deliver up — two controls, one value
+
+        Checkbox [ label = "Mute", checked = { app.muted },
+            input(v) { app.muted = v },
+            ],
+        Switch [ checked = { app.muted },
+            input(v) { app.muted = v },
+            ],
+        Text [ fontSize = 13, textColor = { theme.textMuted },
+            text = { app.muted ? "app.muted = true" : "app.muted = false" } ],
+
+        Button [ label = "Add one", primary = true,
+            onClick() { app.hits = app.hits + 1 },
+            ],
+        Button [ label = "Disabled", disabled = true ],
+        Text [ textColor = { theme.text }, text = { `clicked ${app.hits} times` } ],
+        ],
+
+    // continuous values + one-of-N + a labeled row — the same value contract
+    // throughout: derive down, deliver up through `input`
+
+    col2: View [ x = 300, y = 24, width = 280,
+        layout: SimpleLayout [ axis = y, spacing = 16 ],
+
+        Slider [ value = { app.volume },
+            input(v) { app.volume = v },
+            ],
+        ProgressBar [ value = { app.volume } ],
+        Text [ fontSize = 13, textColor = { theme.textMuted },
+            text = { `volume: ${app.volume}` } ],
+
+        RadioGroup [ value = { app.size },
+            input(v) { app.size = v },
+            Radio [ choice = "s", label = "Small" ],
+            Radio [ choice = "m", label = "Medium" ],
+            Radio [ choice = "l", label = "Large" ],
+            ],
+        Text [ fontSize = 13, textColor = { theme.textMuted },
+            text = { `size: ${app.size}` } ],
+
+        Field [ label = "Name",
+            TextInput [ width = 160, height = 30, fill = { theme.surface } ],
+            ],
+        ],
+
+    // a partial override: this panel gets the house theme with a red accent
+
+    danger: View [ x = 620, y = 24, width = 236, height = 272, cornerRadius = 12,
+        theme = { { ...app.theme, accent: 0xE05252 } },
+        fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+        pad: View [ x = 18, y = 18, width = { parent.width - 36 },
+            layout: SimpleLayout [ axis = y, spacing = 14 ],
+            Text [ fontWeight = semibold, textColor = { theme.text }, text = "Danger zone" ],
+            on: Checkbox [ label = "Armed", checked = true ],
+            Switch [ checked = true ],
+            Slider [ width = 200, value = 80 ],
+            Button [ label = "Fire", primary = true ],
+            ],
+        ],
+
+    ]

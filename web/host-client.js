@@ -37,6 +37,11 @@ const DISTRO_ROOT = new URL("../", import.meta.url);
  */
 export async function bootHost(cfg) {
   const host = document.getElementById("host");
+  // The `?seo` flag's embedded static document (design/capabilities.md §5):
+  // content for crawlers that never run this script. We ARE running — the
+  // real app replaces it, so drop it before mount. One removal site, since
+  // every render path funnels through here.
+  document.getElementById("declare-static")?.remove();
   const Backend = BACKENDS[cfg.backend] ?? DomBackend;
   const app = (window.__app = await renderAsync(cfg.source, host, new Backend(), { deps: cfg.deps }));
   if (cfg.pageWeight != null) app.pageWeight = cfg.pageWeight;
@@ -110,6 +115,10 @@ export async function bootHost(cfg) {
     if (!compiled || !compiled.source) return;           // keep the last good render
     if (box.__childApp) { disposeApp(box.__childApp); box.__childApp = null; }
     box.innerHTML = "";
+    // The island is a viewport: a child that won't fit (a fixed-size app, or a
+    // floored one holding its minWidth/minHeight) pans natively inside its box.
+    // `auto` shows scrollbars only on real overflow, so a fitting app is untouched.
+    box.style.overflow = "auto";
     try {
       const childApp = await renderAsync(compiled.source, box, new DomBackend(), { deps: compiled.deps });
       box.__childApp = childApp;
@@ -172,7 +181,10 @@ export async function bootHost(cfg) {
   raf.mount = requestAnimationFrame(mtick);
 
   // Re-render a preview when its neo editor publishes an edit (or a Revert): recompile
-  // the edited text and swap. Debounced; a compile failure keeps the last good render.
+  // the edited text and swap. Debounced; a compile failure keeps the last good render
+  // AND feeds the rendered report to `app.liveReport` (a delegate that reports failure
+  // returns `{ report }` instead of null), so an editing surface can show the error; a
+  // clean compile clears it. A null result (compiler not warm / network) changes nothing.
   let liveSig = app.liveCard + "\x00" + app.liveSource, liveTimer;
   const liveTick = () => {
     if (stopped) return;
@@ -181,7 +193,11 @@ export async function bootHost(cfg) {
       liveSig = sig;
       const box = runIsland(app.liveCard), body = app.liveSource;
       clearTimeout(liveTimer);
-      if (box) liveTimer = setTimeout(async () => renderChild(box, await compile(body)), 180);
+      if (box) liveTimer = setTimeout(async () => {
+        const r = await compile(body);
+        if (r && r.source) { app.liveReport = ""; renderChild(box, r); }
+        else if (r && r.report != null) app.liveReport = String(r.report);
+      }, 180);
     }
     raf.live = requestAnimationFrame(liveTick);
   };

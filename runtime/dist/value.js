@@ -70,6 +70,7 @@ export const DEFAULT_THEME = Object.freeze({
     accent: 0x2E6FE0, accentText: 0xFFFFFF,
     control: 0xE7EBF1, controlActive: 0xD3E2FC,
     depth: 1,
+    focusRing: true,
 });
 /** Narrow an AttrValue to the Percent arm (no longer the only object in the
  *  union since decoration values landed — the key is the discriminant). */

@@ -18,6 +18,12 @@ export declare abstract class RichText extends View {
     /** Named text fills a source can reference (HTMLText's `accents`); none by
      *  default — Markdown has no syntax to name one. */
     protected accentsOf(): Record<string, Fill>;
+    /** RichText's `scale` is a FONT-SIZE multiplier consumed by rebuild(), not the
+     *  paint transform it means on a plain View — so mask the base flush()'s scale
+     *  push. Without this, a `scale` constraint that evaluates before the surface
+     *  attaches bakes a CSS transform ON TOP of the scaled fonts (double-scaling),
+     *  and the view's measured height no longer matches its painted height. */
+    protected flush(s: Surface): void;
     attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
     /** The colour scheme for the house rich-element palette: the explicit `dark`
      *  override if set (an app whose own theme selector differs from the OS), else

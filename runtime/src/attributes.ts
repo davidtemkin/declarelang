@@ -386,6 +386,20 @@ export function ownerOf(self: object, name: string): Constraint | null {
   return (self as Carrier).$owners?.[name] ?? null;
 }
 
+/** Tooling reads (inspect.ts): the node's OWN attribute values (writes and
+ *  bound results — `$attrs`, the instance overlay over the class defaults),
+ *  and the slot names currently owned by constraints. Snapshots, not live. */
+export function ownValues(self: object): Record<string, unknown> {
+  const own = (self as Carrier).$attrs;
+  const out: Record<string, unknown> = {};
+  if (own !== undefined) for (const k of Object.keys(own)) out[k] = (own as Record<string, unknown>)[k];
+  return out;
+}
+export function ownedSlots(self: object): string[] {
+  const owners = (self as Carrier).$owners;
+  return owners !== undefined ? Object.keys(owners) : [];
+}
+
 // Percent bindings, marked: a percent resolves against the PARENT's extent
 // (bind.ts), so a parent deriving its own extent from its children must not
 // count a child's percent-bound slot — it would be reading its own output

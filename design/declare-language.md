@@ -268,20 +268,22 @@ onMouseUp() { weatherData.clear() },
 
 A method *without* `on` is just a method — `open`, `select`, `loadWeather`.
 
-**Subscriptions** reach an *external* event source with `<-`, which is self-marking (no `on` needed). The form is `event(params) <- Source { body }`, and the binding is **lifetime-managed** — automatically unsubscribed when the node is torn down, so there is no cleanup to forget:
+**Subscriptions** reach an *external* event source with `<-`. The form is `member(params) <- Source { body }` — the arrow is the marker; by convention the member still wears the `on` prefix — and the binding is **lifetime-managed**: automatically unsubscribed when the node is torn down, so there is no cleanup to forget:
 
 ```
-keyup(k: int) <- Keys {
-    if (k == 40) Focus.next();
-    else if (k == 38) Focus.prev();
+onKeyUp(e) <- Keys {
+    if (e.key == "ArrowDown") Focus.next();
+    else if (e.key == "ArrowUp") Focus.prev();
     },
 ```
 
-This replaces the `addEventListener`/`removeEventListener` (and React's `useEffect`-with-cleanup) dance with one declarative member whose lifetime is the node's. The source is always concrete in real code — `<- Keys`, `<- Window`, `<- someConnection`. A source is subscribable because its class **declares** the events it fires (`event keyup(k: int)`); the compiler checks your `<-` against that declaration and wires it up, so subscribing to something that isn't a source is a compile error, not a silent no-op.
+This replaces the `addEventListener`/`removeEventListener` (and React's `useEffect`-with-cleanup) dance with one declarative member whose lifetime is the node's. The source is always concrete — `<- Keys` — and a source is subscribable because it **declares the members it calls** (Keys calls `onKeyDown`/`onKeyUp`, each with the normalized `KeyEvent`); the member's name matches the source's member *literally* — no mapping — and the compiler checks both the source and the member, so subscribing to something that isn't a source, or to a member it doesn't call, is a positioned compile error naming the alternatives, not a silent no-op.
 
 > **From OpenLaszlo.** A node's own event was `<handler name="onclick"> … </handler>` → `onClick() { … }`. Subscribing to *another* object's event was `<handler name="onsecond" reference="secondtimer"> … </handler>` → `onsecond() <- secondtimer { … }`. Declaring an event was `<event name="myevent"/>` → `event myevent(n: int)` (now with a typed payload). The dividing line is the same: your own event is an `on`-handler; someone else's is `<-`.
 
 *(Don't confuse `<-` (event subscription) with `<->` (two-way data binding, [§9](#9-data-datapaths-replication-and-sources)).)*
+
+> **Status + ruling (2026-07-13).** Ruled: **an event is just a function-typed member that gets called when the thing happens — the `on` prefix is a naming convention, not syntax.** No mapping, no dual identity between a "bare event name" and a handler name: `onClick` is a member named `onClick`, and the input router calls it. Consequences: there is **no `event` keyword** — declaring an event is declaring the member and documenting that the class calls it; typo protection is ordinary member checking. A child delivers upward by calling a method on its owner (the events guide's ruling; the component library's `input(v)` contract). The **`<-` subscription form is implemented** (same day) for the runtime *services* — `Keys` first, its subscribable members tabled in `schema.ts` (`SUBSCRIPTION_SOURCES`) and wired in `sources.ts`, torn down via the node teardown registry. Subscribing to another *view's* events (hearing a sibling's `onClick` — genuine multi-listener fan-out over view events) waits until view-event dispatch routes through a fan-out point; nothing needs it yet.
 
 ---
 
@@ -312,11 +314,11 @@ WeatherSummary [ datapath = :item.forecast[] ],   // one WeatherSummary per fore
 zipcode: EditText [ value <-> zip ],     // edits flow back into the `zip` attribute
 ```
 
-**Two kinds of data source.** A **`Dataset`** holds embedded data — its body is JSON (here `{ }` carries its JSON meaning, an embedded-language region):
+**Two kinds of data source.** A **`Dataset`** holds embedded data — its body is *strict* JSON (here `{ }` carries its JSON meaning, an embedded-language region; keys quoted, no trailing commas — this is data, not a TypeScript expression):
 
 ```
 events: Dataset {
-    [ { time: "9:00", title: "Standup" }, { time: "14:00", title: "Design review" } ]
+    [ { "time": "9:00", "title": "Standup" }, { "time": "14:00", "title": "Design review" } ]
 },
 ```
 
@@ -416,7 +418,7 @@ Inside a `{ }` body or constraint, a child reads the enclosing class's attribute
 
 These are conventions (style, not syntax). The canonical spec is [formatting.md](formatting.md) (style canon + prettyprinter contract); in brief:
 
-- **Members are comma-separated**, at every level, with a trailing comma after the last — clean reordering and diffs.
+- **Every own-line member ends with a comma — the comma is a *terminator*, not a separator** (Go's composite-literal rule): including the last member before a hanging close, so adding, removing, or reordering members never touches a neighboring line. The one place it is omitted: before an *inline* `]` (`Text [ x = 42, text = :day ]`), where it buys nothing. Ruled 2026-07-13; the formatter enforces both directions.
 - **A leaf goes on one line** (attributes only): `day: Text [ x = 42, color = #FFFFFF, text = :day ],`. Aim for this; most of a UI is leaves.
 - **A parent puts its configuration on the header line and its body below.** Plain `name = value` configuration rides the opening line (filled until it would overflow a comfortable width, then wrapped); declarations, methods, states, handlers, and child instances each get their own line.
 - **Closing brackets hang at the content indent**, carrying the trailing comma: `],` / `}`.
@@ -643,9 +645,9 @@ App [ width = 240, height = 320, backgroundColor = #EAEAEA, title = "Laszlo Weat
         ],
 
     navmanager: Node [
-        keyup(k: int) <- Keys {
-            if (k == 40) Focus.next();
-            else if (k == 38) Focus.prev();
+        onKeyUp(e) <- Keys {
+            if (e.key == "ArrowDown") Focus.next();
+            else if (e.key == "ArrowUp") Focus.prev();
             },
         ],
     ]
@@ -665,7 +667,7 @@ For readers who know OpenLaszlo, or who want the lineage at a glance. Declare ke
 | `<method name="m" args="a"> … </method>` | `m: (a: T) -> R { … }` |
 | `<handler name="onclick"> … </handler>` | `onClick() { … }` |
 | `<handler name="onX" reference="src"> … </handler>` | `onX() <- src { … }` |
-| `<event name="e"/>` | `event e(payload: T)` |
+| `<event name="e"/>` | a function-typed member the source calls (`onE(payload)`) — no keyword; the `on` is convention |
 | `attr="${expr}"` (constraint) | `attr = { expr }` |
 | `obj.setAttribute('x', v)` — and the raw-`=` bypass | `obj.x = v` (the setter; **no** bypass) |
 | `obj.getAttribute('x')` | `obj.x` |

@@ -55,12 +55,17 @@ export declare class Constraint {
     private wired;
     /** @internal Whether this constraint runs on the static path (test/observe). */
     get isStatic(): boolean;
+    /** The compiler's extracted read-paths, retained verbatim for tooling —
+     *  `explain()` (inspect.ts) answers "why does this slot have this value"
+     *  by LOOKUP because these ride along (verify-and-evals.md §2.2). Null on
+     *  the tracking path. */
+    wiredPaths: readonly string[] | null;
     /** Wire the supplied edges once, then land the initial value. `probe` reads the
      *  compiler's extracted read-paths under tracking — the same Cell.track path a
      *  full run would use, but over just the (branch-union) dependency set — so the
      *  edges are exact and permanent. The value itself is computed with tracking
      *  OFF (edges already fixed). This is the link-time prewiring. */
-    wire(probe: () => void): void;
+    wire(probe: () => void, paths?: readonly string[]): void;
     /** Evaluate now. On the static path (wired) the edges are fixed: just
      *  recompute and apply — no unlink, no re-track, no `active` branch on reads.
      *  Otherwise drop last run's edges and rediscover them under tracking. */

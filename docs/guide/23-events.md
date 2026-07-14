@@ -65,14 +65,36 @@ because the method's assignments are reactive, one call updates every constraint
 that read the changed state. This is the whole cross-node story today: a handler
 answers its own event, then calls whoever needs to know.
 
-> **Partly landed.** The two-way `<->` data binding now compiles — a leaf input
-> editing a dataset record is `text <-> :path` (see
-> [Data → Editing a record](26-data.md)). Still designed but **not yet in the
-> compiler** (`design/declare-language.md` §8): a self-marking `<-` form for
-> subscribing to an *external* source (the keyboard, a window, a connection) with
-> node-lifetime cleanup, and a firable `event` declaration. Until those land,
-> reach across nodes with a method call (above), and take keyboard input through a
-> focused [`TextInput`](34-input-focus.md).
+## Subscribing to a service — `<-`
+
+Some events come from *outside* the tree — the keyboard, most usefully, without
+needing focus. A **subscription** is a member with the `<-` arrow: the same shape
+as a method, plus the source it registers with. It is lifetime-managed —
+subscribed at construction, unsubscribed when the node is torn down, nothing to
+clean up:
+
+```declare
+nav: Node [
+    onKeyUp(e) <- Keys {
+        if (e.key == "ArrowLeft") app.step(-1);
+        else if (e.key == "ArrowRight") app.step(1);
+        },
+    ]
+```
+
+The payload is the normalized key event — `e.key` (`"ArrowLeft"`, `"Escape"`,
+`"a"`), `e.code`, and modifier flags. The member's name matches the source's
+member *literally* — `Keys` calls `onKeyDown` and `onKeyUp` — and the `on`
+prefix is the same naming convention handlers use (an event is just a
+function-typed member that gets called; there is no `event` keyword).
+Subscribing to an unknown source, or to a member the source doesn't call, is a
+compile error that names the alternatives.
+
+The sources are the runtime *services* — `Keys` today. You cannot subscribe to
+another **view's** events: to hear a child, have it call a method (above). And
+mind that `Keys` is the *raw* keyboard — it fires while the user types in a
+`TextInput` too, so gate a shortcut body on your app's state where that matters
+(focused-field keyboard input belongs to [Input & focus](34-input-focus.md)).
 
 ## A note on text input
 

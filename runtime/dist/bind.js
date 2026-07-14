@@ -56,7 +56,7 @@ deps) {
                 }
                 catch { /* a null-value projection — its tracked prefix is already wired */ }
             }
-        });
+        }, deps);
     }
     else {
         k.run();

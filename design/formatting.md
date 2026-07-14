@@ -21,9 +21,26 @@ Ruled by the human, 2026-07-02. **Revised 2026-07-03:** row-to-row column
 alignment — the original §3 "hallmark" — was reversed to **single space**
 (new §3), and wrapped continuations moved from visual alignment to **block
 indent** (§2.5). **Revised 2026-07-12:** top-level declarations are separated
-by **one** blank line, not two (§2.1). The dial settings (width, blank-line
-mode) are the human's; everything else follows from the reference artifact's
-own practice.
+by **one** blank line, not two (§2.1). **Revised 2026-07-13** (the
+formatter-v1 rulings, raised while building the tool and settled against the
+exemplar, `examples/codeviewer/codeviewer.declare`): the trailing comma is a
+**terminator** at hanging closes and omitted at inline closes (§2.1); the
+formatter is **line-preserving** — it never packs or re-wraps, header filling
+is authoring guidance (§2.2, §4 — ratified with recorded hesitation);
+tiered-airiness blanks are discretional (§2.3, §4); a one-line top-level
+declaration stays one line (§2.4); standalone comment padding is **mandated
+both sides** (§2.7); the top-level separator is **normalized** — one blank
+after a one-line declaration, two after a multiline one, superseding the
+2026-07-12 flat-one rule (§2.1, §4); trailing-comment gaps have a
+**two-space minimum and no maximum** — above the floor the author's spacing
+(alignment included) is preserved verbatim, the one ruled exception to §3
+(§2.7, §3; this supersedes the same day's short-lived 4–10 band); and blank
+runs elsewhere clamp to **two** at top level, **one** inside a body (§4).
+A same-day appearance review added ruled **guidance** — author judgment the
+formatter never enforces: the long-conditional shape (§2.6), grouping
+recommended by example (§2.8), and the aligned ledger named and encouraged
+(§3). The dial settings are the human's; everything else follows from the
+reference artifact's own practice.
 
 ---
 
@@ -51,15 +68,29 @@ prettyprinter's implementation contract.
 ### 2.1 Indentation, commas, blank lines between top-level declarations
 
 Four-space indentation, everywhere. Members are comma-separated at every
-level, **trailing comma always** — including the last member before a
-closing bracket (§12's rule; it is what makes reordering a clean diff).
+level, and the comma is a **terminator, not a separator** (ruled 2026-07-13
+— Go's rule): every member that ends its own line ends with a comma,
+**including the last member before a hanging close** — that is what makes
+reordering a clean diff (§12's rationale stands). Before an **inline** close
+the comma is omitted: the bracket rides the last attribute (`… text = :day ],`)
+and the member's own comma sits after it, where a comma *inside* would buy
+nothing. Neither form is a parser error — the grammar accepts both — the
+**formatter owns enforcement**: `--check` fails a comma before an inline
+close or a missing terminator before a hanging close, and `--write` fixes
+both.
 
-Top-level declarations — `script { }`, `class`, `App`, a future
-`stylesheet` — get **one blank line** between them. A comment describing a
-declaration sits directly above it, itself preceded and followed by a blank
-line — so a commented declaration reads as one blank closing off the
+The separator between top-level declarations — `script { }`, `class`, `App`,
+a future `stylesheet` — is **normalized by the preceding item's shape**
+(ruled 2026-07-13, superseding the 2026-07-12 flat-one rule): exactly **one**
+blank line after a one-line declaration (`font Sans [ family = "system-ui" ]`),
+exactly **two** after a multiline one — a big declaration earns a bigger
+breath, and the formatter enforces the count rather than leaving it to
+discretion. A comment describing a declaration counts as **part of the item
+it documents**: the separator's blanks sit *above* the comment, and the
+comment sits directly above its declaration with its own §2.7 padding blank
+below — so a commented declaration reads as the separator closing off the
 previous item, the comment, then one blank opening the declaration.
-From weather.declare:
+Redrawn from weather.declare:
 
 ```Declare
 class Screen extends View [ shown: boolean = false,
@@ -68,13 +99,16 @@ class Screen extends View [ shown: boolean = false,
     visible = { opacity > 0 },
     ]
 
+
 class WeatherSummary extends View [ fontSize = 12, fontFamily = "Helvetica", …
 ```
 
-and with a comment above the next declaration:
+and with a comment above the next declaration (two blanks — Screen is
+multiline — then the comment snug on its declaration, padded below):
 
 ```Declare
     ]
+
 
 // a full-bleed layer that cross-fades on `shown`
 
@@ -87,7 +121,18 @@ A parent's plain literal configuration — `name = value` pairs with no
 child structure — rides the **header line**, filled toward the width limit
 before the body drops to its own lines. Declarations (`label: string = …`),
 methods, states, layout, and child instances each get a line of their own;
-they never share the header line with plain config. From neoweather:
+they never share the header line with plain config. (A body's **first**
+member may open on the header line whatever its kind — `class Screen extends
+View [ shown: boolean = false,` — and a declaration, method, or child always
+*ends* its line; only plain attrs pack after one another.)
+
+**How far to fill the header is the author's** (ruled 2026-07-13, with
+recorded hesitation): filling toward the width limit is *authoring guidance*,
+not something the tool computes — the formatter is **line-preserving**. It
+never packs members up onto a fuller line and never re-wraps an over-long
+one; the author's line breaks are canonical, and the formatter's business is
+what happens *within* and *between* the lines the author chose (§4). From
+neoweather:
 
 ```Declare
 class WeatherSummary extends View [ backgroundColor = #000000, width = 34, height = 34, x = 10,
@@ -147,6 +192,14 @@ StatRow [ label = "Wind Chill:", value = :wind.chill ],
 — six leaves, zero blank lines, tight because they are one visual unit (the
 detail block). Airiness marks the outline's *major joints* — declarations
 vs. layout vs. children vs. states — not every joint in the tree.
+
+**Tier blanks are discretional** (ruled 2026-07-13): the after-header,
+between-group, and before-close blanks above are the *default shape a human
+reaches for*, guidance rather than mandate. The formatter **preserves** the
+author's choices here — it neither inserts a tier blank the author left out
+nor removes one the tier rule doesn't call for (§4's CLAMP caps are the only
+ceiling). The mandated blanks are the top-level separator (§2.1) and comment
+padding (§2.7), nothing else.
 
 ### 2.4 Two closing styles
 
@@ -235,6 +288,18 @@ in this section is about members *nested inside* a body (children,
 declarations, methods, states); it does not reach the outermost
 declaration itself.
 
+**The one-line exception is official** (ruled 2026-07-13): a top-level
+declaration the author kept on a **single line** stays a single line —
+
+```Declare
+font Sans [ family = "system-ui" ]
+```
+
+— the hanging rule above is about bodies that *span* lines (its rationale is
+the closing line, and a one-liner has none). The moment such a body wraps,
+or holds a non-attribute member, it hangs like any other top-level
+declaration.
+
 ### 2.5 Wrapped leaves — block indent
 
 When a leaf's attributes don't fit the header line, the continuation sits at
@@ -285,15 +350,49 @@ draw(d) {
 the author's choice inside the `{ }` body, which the formatter treats as
 opaque TS text; see §5.)
 
+#### Long conditionals — one arm per line, broken before the `:`
+
+`{ }` interiors are formatter-verbatim (§5.3), but the house has a shape for
+the multi-arm ternary — Declare's conditional workhorse (guidance, ruled
+2026-07-13: the author's hand, never the tool's): one arm per line, the line
+broken **before** the `:`, conditions column-aligned, and the default arm
+indented into the same column, so the answers read as one ragged-right
+column. calendar's `periodLabel` is the exemplar:
+
+```Declare
+periodLabel: string = {
+    app.mode == "year"  ? "" + app.year
+  : app.mode == "month" ? app.monthName(app.month) + " " + app.year
+  : app.mode == "week"  ? app.weekLabel(app.anchorKey)
+  :                       app.dayLabel(app.anchorKey) },
+```
+
+Top to bottom it reads as a decision table — tests on the left, answers on
+the right. The contrast, stated plainly: a multi-arm ternary jammed onto one
+line is the single worst-looking shape in the corpus, unscannable at exactly
+the moment the logic most needs scanning.
+
 ### 2.7 Comments
 
 `// ` — two slashes, one space, then text. A comment is indented to the
-level it sits at, and blank-padded above and below, *unless* it is the
-first thing in its enclosing block (no blank needed above the very first
-line of a file or body). Trailing inline comments (`onMouseUp() {
-weatherData.clear() },   // back to entry — declaratively`) ride the code
-line they annotate, separated by a small fixed gap; they are exempt from the
-padding rule and are never aligned across lines.
+level it sits at, and a standalone comment block is **blank-padded above and
+below — mandated** (ruled 2026-07-13; the formatter inserts a missing blank
+on either side). The blank below does not detach the comment from the member
+under it — the comment still documents that member — the padding is what
+lets commentary read as commentary instead of crowding the code. Two
+exceptions: no blank is needed above the *first* thing in a file or body
+(the first-in-block exception), and no blank is forced against a closing
+bracket.
+
+Trailing inline comments (`onMouseUp() { weatherData.clear() },   // back
+to entry — declaratively`) ride the code line they annotate and are exempt
+from the padding rule. Their gap has a **two-space minimum and no maximum**
+(re-ruled 2026-07-13, superseding the same day's short-lived 4–10 band): a
+0–1-space gap widens to two, and everything at or above the floor is the
+**author's spacing, preserved verbatim** — so deliberately aligning trailing
+comments across neighbouring lines is unrestricted, at the author's
+discretion (the gofmt school). This is the one ruled exception to §3's
+no-alignment rule.
 
 App-level region banners use a heavier double-em-dash form and are
 preserved verbatim by the formatter (it never rewrites banner *text*, only
@@ -304,6 +403,43 @@ re-indents/re-blanks around it per the comment rule):
 
 Screen [ shown = { !weatherData.loaded }, resource = weather_splash,
 ```
+
+### 2.8 Attribute grouping — recommended by example, never legislated
+
+How attributes group into lines is a **judgment call for the code writer**
+(ruled 2026-07-13): we cannot imagine all the variations that will be
+useful, so the canon recommends by example and never legislates. One
+attribute per line everywhere would be a mistake — it flattens the very
+signal grouping carries. For example, consider:
+
+**The ledger** — one attribute per line, colons and values column-aligned,
+for a declaration run that is really a table (slider.declare; alignment is
+the author's opt-in, §3):
+
+```Declare
+value: number = 0,
+min:   number = 0,
+max:   number = 100,
+step:  number = 1,
+```
+
+**The quatrain** — consecutive parallel one-liners whose repetition *is*
+the meaning (calendar's focus-rectangle springs):
+
+```Declare
+Spring [ attribute = c0, to = { app.c0To }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
+Spring [ attribute = r0, to = { app.r0To }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
+Spring [ attribute = nc, to = { app.ncTo }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
+Spring [ attribute = nr, to = { app.nrTo }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
+```
+
+**Geometry pairs** — coordinates that belong together share a line
+(`x = 0, y = 16,`), rather than being torn onto two.
+
+And a consideration rather than a rule: **parallel siblings read best in
+parallel form** — same class, same job, same shape and attribute order — so
+a reader who has parsed one has parsed them all (the StatRow run in §3, the
+quatrain above).
 
 ---
 
@@ -350,10 +486,43 @@ Name-colon, class-token, state-override `=`, and handler-signature `{`
 alignment — every column the superseded ruling specified — are **all** off,
 for the same reasons. One rule: single space, everywhere.
 
+**One ruled exception (2026-07-13): trailing `//` comments.** Their gap is
+the author's own above a two-space floor, with no upper bound (§2.7), so
+trailing comments *may* be aligned across neighbouring lines at the author's
+discretion. The alignment ban governs the code columns themselves, not the
+commentary hanging off their ends — a trailing-comment column never re-flows
+a code token, so the diff-stability and searchability arguments above don't
+bite.
+
 **The one escape hatch, should a local table ever be wanted:** gofmt's rule
 — *a blank line bounds an alignment group.* If alignment ever returns it
 would be opt-in and reset at every blank line, keeping its churn local. The
 default is simply off.
+
+**The escape hatch is now exercised: the aligned ledger, named and
+encouraged (ruled 2026-07-13).** Where a run of parallel members is
+genuinely tabular, column alignment at the **author's opt-in** is the
+house's best look — the trailing-comment discretion (§2.7) extended to the
+run itself. slider.declare's declaration block (§2.8) and focusring.declare's
+Spring travel block are the exemplars:
+
+```Declare
+Spring [ attribute = x,      to = { tx }, stiffness = 220, damping = 16 ],
+Spring [ attribute = y,      to = { ty }, stiffness = 220, damping = 16 ],
+Spring [ attribute = width,  to = { tw }, stiffness = 220, damping = 18 ],
+Spring [ attribute = height, to = { th }, stiffness = 220, damping = 18 ],
+```
+
+The machine default stays single-space and the formatter never *builds* a
+column — the ledger is the author's to make and the author's to keep, bounded
+by a blank line per the escape hatch above. (Enforcement note — implemented,
+2026-07-13: `--write` preserves an author's run of **2+ spaces** between
+same-line tokens verbatim wherever a space belongs, and `--check` does not
+flag it; a 0-space gap still normalizes to the canonical spacing, glue
+positions — commas, dots, call parens, the replication `[]` — stay glued,
+and a single space stays a single space. The same
+below-the-floor-normalize, at-or-above-preserve school as the
+trailing-comment gap, §2.7.)
 
 > **Landed apps predate this ruling.** `neoweather.declare` is still written
 > in the aligned style and now diverges from canon; it awaits a single-space
@@ -368,20 +537,26 @@ default is simply off.
 
 Two things about a formatter invocation are parameters, not house style:
 
-**Width.** A `--width` flag, default **120**. Governs when the header line
-wraps and when a leaf's attributes wrap to a continuation.
+**Width.** A guideline of **120** columns — how far an author fills a header
+line before dropping to a continuation. Ruled 2026-07-13 (with recorded
+hesitation): it guides the *hand*, not the tool — the formatter is
+**line-preserving** and never packs members onto a fuller line or re-wraps an
+over-long one (§2.2), so width enforcement is not part of the v1 tool's
+contract and the earlier `--width` re-flow dial is retired with it.
 
-**Blank lines: CLAMP mode.** The formatter enforces only the *mandatory*
-blanks — the one-blank top-level separator (§2.1), the after-header and
-before-close blanks of tiered airiness (§2.3), and the comment padding
-(§2.7) — and it collapses any run of 3+ consecutive blank lines down to the
-canonical count for that position. Everywhere else, it **respects the
-author's own blank-line choices**: if an author left a class body tight
-where the tiered-airiness default would have added a blank, or added an
-extra blank between two children the tier rule doesn't mandate one for, the
-formatter leaves it. Tiered airiness (§2.3) is the *default* shape a human
-reaches for; CLAMP mode does not force it back onto text that deliberately
-reads differently.
+**Blank lines: CLAMP mode** (ruled 2026-07-13). The formatter enforces the
+*mandatory* blanks — the **normalized top-level separator** (§2.1: exactly
+one blank after a one-line declaration, exactly two after a multiline one,
+overriding the author's count in both directions) and the comment padding
+(§2.7) — and elsewhere clamps every run of consecutive blank lines to at
+most **two at top level** (around detached comment blocks such as a file
+header) and **one inside any bracket body**. Below those caps, it
+**respects the author's own blank-line choices**: if an author left a class
+body tight where the tiered-airiness default would have added a blank, or
+added an extra blank the tier rule doesn't call for, the formatter leaves
+it. Tiered airiness (§2.3) is the *default* shape a human reaches for —
+discretional, per its own section; CLAMP mode does not force it back onto
+text that deliberately reads differently.
 
 Everything else in this document — indentation, comma placement, closing
 style, single-space spacing — is **not** a dial: it is enforced identically
@@ -393,12 +568,13 @@ regardless of input shape.
 
 ### 5.1 Where it lives
 
-The Node compile layer: `neolang/src/format.ts`, exposed through the CLI as
-`dist/format.js`. Modes: stdin → stdout, a file path → stdout, and an
-in-place flag that rewrites the file. `--width <n>` (default 120, per §4)
-is the one tunable. It has zero runtime-graph impact — it never runs as
-part of compilation, only as a standalone tool (and, later, editor
-tooling).
+`tools/format.mjs` (built 2026-07-13). Modes: `node tools/format.mjs <file>`
+prints the formatted source to stdout; `--write <files…>` rewrites in place
+(only when changed); `--check <files…>` exits 1 if any file is not canon (the
+CI/verify hook). There is no `--width` tunable — the formatter is
+line-preserving (§4). It has zero runtime-graph impact — it never runs as
+part of compilation, only as a standalone tool (and, later, editor tooling).
+Its gates live in `test/format.test.mjs` (part of `npm test`).
 
 ### 5.2 Prerequisite: parser TRIVIA mode
 

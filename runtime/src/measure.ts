@@ -56,6 +56,16 @@ function measurer(): CanvasRenderingContext2D {
   return (measureCtx ??= document.createElement("canvas").getContext("2d")!);
 }
 
+/** Inject the measuring context for a DOM-less host — the environment
+ *  contract's text-metrics seam (design/capabilities.md §3, verify §2.8).
+ *  Headless execution (static extraction, verify rung 4) passes a real 2D
+ *  context for exact typography or a deterministic stand-in (the compiler's
+ *  headless.ts approximation); in a browser nothing is injected and the
+ *  lazily-created off-screen context above measures as always. */
+export function provideMeasurer(ctx: CanvasRenderingContext2D): void {
+  measureCtx = ctx;
+}
+
 /** A style as a canvas font string — the one font encoding the measurer and
  *  both backends share, so they cannot disagree about which font they mean. */
 export function fontString(style: { fontFamily: string; fontSize: number; fontWeight: FontWeight; italic?: boolean }): string {

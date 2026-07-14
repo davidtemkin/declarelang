@@ -1,0 +1,48 @@
+/*
+# RadioGroup / Radio
+
+One-of-N (design/components-baseline.md, Contract 1 — ruled: the GROUP owns the
+bindable `value`; radios deliver to it, the `ViewTab` → `app.mode` shape). Radios
+are written as the group's DIRECT children — the group's layout arranges them,
+and each radio reaches its group as `parent`:
+
+    RadioGroup [ value = "m", input(v) { app.size = v },
+        Radio [ choice = "s", label = "Small" ],
+        Radio [ choice = "m", label = "Medium" ],
+        Radio [ choice = "l", label = "Large" ],
+        ]
+*/
+
+include [ "control.declare" ]
+
+class RadioGroup extends View [
+    value: string = "",
+
+    input(v) { value = v },
+    pick(v)  { input(v) },
+
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    ]
+
+
+class Radio extends Control [ height = 22,
+    choice: string = "",
+    label:  string = "",
+
+    // a radio's parent IS its group (the direct-child discipline above); the
+    // cast informs the typecheck and is stripped for the runtime
+
+    press()   { (parent as RadioGroup).pick(choice) },
+    onClick() { if (!disabled) press() },
+
+    on: boolean = { (parent as RadioGroup).value == choice },
+
+    width   = { this.dot.width + (label == "" ? 0 : 8 + this.cap.width) },
+    opacity = { disabled ? 0.45 : 1 },
+
+    dot: View [ y = 2, width = 18, height = 18, cornerRadius = 9,
+        fill   = { theme.surface },
+        stroke = { stroke(on ? 5 : 1, on ? theme.accent : hovered || pressed ? theme.textMuted : theme.line) } ],
+    cap: Text [ x = 26, y = 2, wrap = false, textColor = { theme.text },
+        visible = { label != "" }, text = { label } ],
+    ]

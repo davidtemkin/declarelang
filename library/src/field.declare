@@ -1,0 +1,26 @@
+/*
+# Field
+
+A labeled form row: the label column, then whatever control the use site nests
+(its DIRECT child, arranged by the row's layout):
+
+    Field [ label = "Name", TextInput [ width = 220, height = 30 ] ]
+
+`labelWidth` is the shared-column knob (Contract 4, ruled: a form wanting
+aligned labels sets ONE plain value and each row constrains to it — never
+aggregation, which the constraint system forbids by design).
+
+A note/error line under the control is DEFERRED: routing use-site children into
+named regions is the §13 slots/`placement` open — this component is Tier 1's
+concrete evidence for that item's priority.
+*/
+
+class Field extends View [
+    label:      string = "",
+    labelWidth: number = 96,
+
+    layout: SimpleLayout [ axis = x, spacing = 12 ],
+
+    cap: Text [ y = 6, wrap = false, width = { labelWidth }, textColor = { theme.textMuted },
+        text = { label } ],
+    ]

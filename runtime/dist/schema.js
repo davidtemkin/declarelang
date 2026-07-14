@@ -192,14 +192,23 @@ const AppSchema = {
         demoSources: { kind: "record", name: "Theme" },
         liveCard: { kind: "string" },
         liveSource: { kind: "string" },
+        // the last live recompile's rendered report — "" when clean, the full
+        // error text on failure. Host-fed; an editing surface displays it.
+        liveReport: { kind: "string" },
         // app→host navigation: a link/button sets `navigate` to a URL; the host
         // opens it and clears the flag (bodies are DOM-free, so navigation rides a
         // flag like `editing`, not window.location).
         navigate: { kind: "string" },
+        // the app's size floor: the auto-extent never derives below it — in a
+        // narrower host the app holds the floor and the stage pans natively.
+        // A declared policy (readable statically), not clamp math in a constraint.
+        minWidth: { kind: "number" },
+        minHeight: { kind: "number" },
     },
     // hostWidth/hostHeight are read-only to user code (the runtime feeds them; a
-    // set is a compile error) — like View's contentWidth/contentHeight.
-    readOnly: ["hostWidth", "hostHeight", "dark"],
+    // set is a compile error) — like View's contentWidth/contentHeight. So is
+    // liveReport (the host writes it after each live recompile).
+    readOnly: ["hostWidth", "hostHeight", "dark", "liveReport"],
 };
 // Text (R3): a text run sized by native browser metrics when width/height
 // aren't given. Its style — textColor/fontSize/fontFamily/fontWeight — lives

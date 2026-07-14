@@ -62,6 +62,10 @@ export class Image extends View {
       s.setImage(null);
       return;
     }
+    // A DOM-less host (HeadlessBackend — static extraction, verify rung 4)
+    // has no image loader: the network is honestly absent (capabilities.md
+    // §3), `loaded` stays false, the box keeps its declared size.
+    if (typeof document === "undefined") return;
     // document.createElement, not `new Image()` — this class shadows that
     // global inside its own module.
     const img = document.createElement("img");

@@ -29,7 +29,7 @@
 // BUILD_ID — a content hash of the platform (runtime + compiler bundle + web client +
 // this worker + index.html), stamped by tools/stamp-version.mjs. Left "dev" when unstamped
 // (local serving); a real deploy stamps it so cache-busting + the SW self-update engage.
-const BUILD_ID = "5eeb87703fa2";
+const BUILD_ID = "a67d869b1845";
 
 const ROOT = new URL("./", self.location);            // <origin>/…/  (this worker's dir == the distro root)
 const ORIGIN = ROOT.origin;
@@ -61,16 +61,24 @@ self.addEventListener("fetch", (event) => {
 
   // BROWSE-TO-RUN — a NAVIGATION to `…/<name>.declare` becomes a generated host page.
   // `?view=reader` (or bare `?reader`) gets the READER page (highlight in-browser,
-  // "reader mode" via the code viewer); `?view=source` (or bare `?source`) is the
-  // EXACT source file — it falls through to revalidate(), same as any non-navigation
-  // fetch of the URL (an `include` the compiler reads, curl); anything else RUNS the
-  // program. Mirrors the dev server's rule (server/index.mjs), so one URL model
-  // spans both hosts.
+  // "reader mode" via the code viewer); `?view=edit` is the SAME page opened on
+  // its live-edit tab (the viewer owns the tabs); `?view=seo` gets the STATIC-EXTRACTION
+  // document (web/boot-seo.js compiles + executes headlessly IN-BROWSER — the
+  // same extractor the dev server runs in Node); `?view=source` (or bare
+  // `?source`) is the EXACT source file — it falls through to revalidate(),
+  // same as any non-navigation fetch of the URL (an `include` the compiler
+  // reads, curl); anything else RUNS the program. Mirrors the dev server's rule
+  // (server/index.mjs), so one URL model spans both hosts. (The `?seo` FLAG —
+  // embed the block in the run page — is a BUILD-time affair on a static host:
+  // crawlers don't install service workers, so declarec/committed pages carry it.)
   if (req.mode === "navigate" && url.pathname.endsWith(".declare")) {
     const view = url.searchParams.get("view")
       ?? (url.searchParams.has("reader") ? "reader" : url.searchParams.has("source") ? "source" : null);
     if (view !== "source") {
-      event.respondWith(view === "reader" ? sourcePageResponse(url) : hostPageResponse(url));
+      event.respondWith(
+        view === "reader" || view === "edit" ? sourcePageResponse(url, view === "edit" ? "edit" : "")
+        : view === "seo" ? seoPageResponse(url)
+        : hostPageResponse(url));
       return;
     }
   }
@@ -120,7 +128,7 @@ async function hostPageResponse(url) {
 <script type="module">
   import boot from ${JSON.stringify(bootUrl + "?v=" + BUILD_ID)};
   const q = new URLSearchParams(location.search);
-  boot({ main: ${JSON.stringify(appUrl)}, backend: q.get("backend") === "canvas" ? "CanvasBackend" : undefined });
+  boot({ main: ${JSON.stringify(appUrl)}, backend: q.get("render") === "canvas" ? "CanvasBackend" : undefined });
 </script>`;
   return new Response(html, { status: 200, headers: { "Content-Type": "text/html;charset=utf-8", "Cache-Control": "no-cache" } });
 }
@@ -130,7 +138,7 @@ async function hostPageResponse(url) {
 // app (examples/codeviewer) seeded with the segments. No `<base>`: the boot module resolves
 // the viewer + runtime against its own ABSOLUTE URL, and takes the target only as the ?src=
 // param, so nothing relative on this page needs diverting. ?v=BUILD_ID busts it per deploy.
-async function sourcePageResponse(url) {
+async function sourcePageResponse(url, mode = "") {
   const appUrl = url.origin + url.pathname;           // the .declare (query dropped)
   const bootUrl = new URL("web/boot-source.js", ROOT).href;
   const icon = new URL("assets/favicon.svg", ROOT).href;
@@ -144,6 +152,21 @@ async function sourcePageResponse(url) {
 <link rel="icon" type="image/png" sizes="256x256" href="${escapeHtml(iconPng)}">
 <style>html,body{margin:0;padding:0;background:#0B141B}</style>
 <div id="host"></div>
+<script type="module" src="${escapeHtml(bootUrl)}?src=${encodeURIComponent(appUrl)}${mode ? "&mode=" + mode : ""}&v=${BUILD_ID}"></script>`;
+  return new Response(html, { status: 200, headers: { "Content-Type": "text/html;charset=utf-8", "Cache-Control": "no-cache" } });
+}
+
+// The STATIC-EXTRACTION page for `…/<name>.declare?view=seo`. It boots
+// web/boot-seo.js, which compiles the target in-browser, executes it headlessly
+// (no mount) and REWRITES this page as the extracted semantic-HTML document —
+// the same artifact the dev server's serveSeo() sends, via the browser path.
+async function seoPageResponse(url) {
+  const appUrl = url.origin + url.pathname;           // the .declare (query dropped)
+  const bootUrl = new URL("web/boot-seo.js", ROOT).href;
+  const name = appUrl.replace(/.*\//, "").replace(/\.declare$/, "");
+  const html = `<!doctype html><meta charset="utf-8">
+<title>${escapeHtml(name)} — static extraction · Declare</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <script type="module" src="${escapeHtml(bootUrl)}?src=${encodeURIComponent(appUrl)}&v=${BUILD_ID}"></script>`;
   return new Response(html, { status: 200, headers: { "Content-Type": "text/html;charset=utf-8", "Cache-Control": "no-cache" } });
 }

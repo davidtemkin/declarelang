@@ -3,6 +3,10 @@ import type { AutoIncludeHost } from "../../runtime/dist/include.js";
 import type { Closure, Validator } from "./closure.js";
 export { provideLib } from "./typecheck.js";
 export { highlight } from "./highlight.js";
+export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, seoDocument } from "./seo.js";
+export type { ExtractOptions, Extracted } from "./seo.js";
+export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
+export type { Environment, HeadlessOptions } from "./headless.js";
 export interface BrowserFiles {
     /** canonicalPath → source, for `include`s and library files prefetched up front. */
     files?: Record<string, string>;

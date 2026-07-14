@@ -3,4 +3,4 @@ App [
         onClick() { width = width + 8 },
         Text [ text = "+", textAlign = center, width = 40, fontSize = 22, textColor = white ],
         ],
-]
+    ]

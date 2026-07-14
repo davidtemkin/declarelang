@@ -26,6 +26,11 @@ provideLib((name) => {
         return undefined;
     }
 });
+// Static extraction (design/capabilities.md §4–5) — exported by BOTH entry
+// points (compile-browser.ts carries the same block): the browser compiler
+// does everything the Node one can, as architecture and as principle.
+export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, seoDocument } from "./seo.js";
+export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
 export { DiskTracker, diskProbe, statValidator } from "./cache-node.js";
 export { isUpToDate, validatorsEqual, lookupKey, contentTag, fnv1a } from "./closure.js";
 /** The bundled component library root (`declarelang/library`) — its `autoincludes.json`

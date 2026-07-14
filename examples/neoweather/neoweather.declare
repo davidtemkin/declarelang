@@ -1,16 +1,28 @@
-// neoweather — a small but complete weather app in Declare, mirroring the
-// classic examples/weather/weather.lzx. Its data is the bundled static file
-// data/weather.json. It's one file; the classes below are all specific to it.
+/*
+# NeoWeather
 
-// Three named fonts used below: Chrome and Body are already on the machine,
-// Title is a web font downloaded from the .woff2 file.
+A small but complete weather app in Declare, mirroring the classic
+examples/weather/weather.lzx. Its data is the bundled static file
+data/weather.json; it's one file, and the classes below are all specific to
+it. Three named fonts: `Chrome` and `Body` are already on the machine,
+`Title` is a web font downloaded from its .woff2 file.
+*/
 
 font Chrome [ family = "Tahoma" ]
+
 font Body   [ family = "Helvetica" ]
-font Title  [ Face [ src = "resources/fonts/work-sans-700.woff2", weight = bold ] ]
+
+font Title  [ Face [ src = "resources/fonts/work-sans-700.woff2", weight = bold ],
+    ]
 
 
-// ── building-block classes (all specific to this app) ───────────────────────
+/*
+## Building blocks
+
+A labelled stat row, the tab slider that keeps exactly one tab open, a drawn
+beveled bar, the sliding weather tab itself, a one-day forecast row, and a
+full-window `Screen` layer switched by a flag.
+*/
 
 // StatRow — one "Label: value" row. Its two Texts read label/value from the row
 // instance (classroot); the { } around a value means "recompute when it changes".
@@ -126,7 +138,13 @@ class Screen extends View [ width = 100%, height = 100%,
     ]
 
 
-// ── the app ─────────────────────────────────────────────────────────────────
+/*
+## The app
+
+A 240×320 window over a background photo, with two full-window Screens — the
+zip-entry splash and the weather report — switched on whether the weather
+data has loaded.
+*/
 
 App [ width = 240, height = 320, fill = #EAEAEA,
     fontFamily = [Chrome, "Geneva", "sans-serif"], fontSize = 9,
@@ -141,7 +159,9 @@ App [ width = 240, height = 320, fill = #EAEAEA,
 
     bg: Image [ source = "resources/weather_bg.jpg" ],
 
-    // ── entry screen (shown until data loads) ──
+    /* ## The entry screen
+       Shown until the data loads: the splash art, a status line for the
+       loading / error states, and the zip bar that slides away on submit. */
 
     splash: Screen [ shown = { !weatherData.loaded },
 
@@ -167,14 +187,15 @@ App [ width = 240, height = 320, fill = #EAEAEA,
 
             pill: View [ width = 236, height = 28, opacity = 0.7, cornerRadius = 13,
                 fill = gradient(stop(0, #C2C2DC), stop(0.08, #797AB4),
-                                stop(0.92, #797AB4), stop(1, #27283B)),
+                stop(0.92, #797AB4), stop(1, #27283B)),
                 onClick() {
                     slideOut.start()
                     weatherData.fetch().then(() => {
                         if (weatherData.failed) slideIn.start()
                         else App.report.topBar.slideDown.start()
                         })
-                    } ],
+                    },
+                ],
 
             // y = 9 (not a rounder number) nudges this label to line up exactly with
             // where the original app draws it.
@@ -195,10 +216,10 @@ App [ width = 240, height = 320, fill = #EAEAEA,
             ],
         ],
 
-    // ── report screen (shown once data loads) ──
-
-    // datapath points this whole subtree at a slice of the loaded JSON; the :paths
-    // below (:location.city, :item.condition.temp, …) read fields from it.
+    /* ## The report screen
+       Shown once the data loads. Its datapath points the whole subtree at a
+       slice of the loaded JSON; the :paths below (:location.city,
+       :item.condition.temp, …) read fields from it. */
 
     report: Screen [ shown = { weatherData.loaded }, datapath = { weatherData.value?.rss?.channel },
 
@@ -214,10 +235,12 @@ App [ width = 240, height = 320, fill = #EAEAEA,
 
             slideDown: AnimatorGroup [ process = simultaneous, duration = 333, motion = laszloBoth,
                 Animator [ attribute = y, to = 0 ],
-                Animator [ attribute = opacity, to = 1 ] ],
+                Animator [ attribute = opacity, to = 1 ],
+                ],
             slideUp: AnimatorGroup [ process = simultaneous, duration = 333, motion = laszloBoth,
                 Animator [ attribute = y, to = -16 ],
-                Animator [ attribute = opacity, to = 0 ] ],
+                Animator [ attribute = opacity, to = 0 ],
+                ],
 
             onMouseUp() {
                 slideUp.start()

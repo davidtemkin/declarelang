@@ -14,6 +14,7 @@ import type { RenderBackend } from "./backend.js";
 import { NeoError } from "./errors.js";
 import { Keys } from "./keys.js";
 import { Focus, deliverKeys } from "./focus.js";
+import { bridgeFor } from "./inspect.js";
 // Type-only — erased by tsc, so no runtime dependency on the parser.
 import type { Program } from "./parser.js";
 
@@ -89,6 +90,10 @@ export function wireInput(app: App, host: HTMLElement): void {
   Focus.setRoot(app);
   Keys.listen(() => app.surface !== null);
   deliverKeys(Keys, Focus);
+  // The inspect bridge (inspect.ts): the tree, provenance, and the driven
+  // clock as page-queryable data — verify's rung 5 drives it; a human pokes
+  // it in the console. Top-level apps only (one page, one bridge).
+  (window as unknown as { __declare?: unknown }).__declare = bridgeFor(app);
 }
 
 /** Feed `app.dark` from the OS colour scheme and keep it live as the system theme
@@ -137,7 +142,14 @@ function wireEnvironment(app: App, host: HTMLElement, embedded: boolean): void {
  *  scroll to own. Registers a teardown so a re-render (disposeApp) drops the
  *  observer/listeners. */
 function wireEnvironmentEmbedded(app: App, host: HTMLElement): void {
-  const sync = () => { app.hostWidth = host.clientWidth; app.hostHeight = host.clientHeight; };
+  const sync = () => {
+    app.hostWidth = host.clientWidth; app.hostHeight = host.clientHeight;
+    // A declared size floor (App.minWidth/minHeight) makes the island a
+    // viewport: the app can be LARGER than its box, so the box pans natively.
+    // `auto` shows scrollbars only on real overflow, so a floorless app is
+    // untouched. (At top level the page itself scrolls; no wiring needed.)
+    if (app.minWidth > 0 || app.minHeight > 0) host.style.overflow = "auto";
+  };
   const move = (e: PointerEvent) => {
     const r = host.getBoundingClientRect();
     app.pointerX = e.clientX - r.left; app.pointerY = e.clientY - r.top;

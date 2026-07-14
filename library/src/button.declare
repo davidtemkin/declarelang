@@ -1,0 +1,25 @@
+/*
+# Button
+
+A labeled action control. The action is its `onClick` — write it at the use site
+exactly as on any View; `Button` adds the interaction states, the themed look, and
+keyboard activation (Space/Enter drives the same `onClick`). `primary = true` fills
+with the accent; the default is the quiet control look.
+*/
+
+include [ "control.declare" ]
+
+class Button extends Control [ height = 40, cornerRadius = 9,
+    label:   string = "",
+    primary: boolean = false,
+
+    onClick() { },
+    press()   { flashPress(); onClick() },     // keyboard activation shows the press
+
+    width   = { this.cap.width + 32 },
+    opacity = { disabled ? 0.45 : pressed ? 0.72 : 1 },
+    fill    = { primary ? theme.accent : pressed || hovered ? theme.controlActive : theme.control },
+
+    cap: Text [ x = 16, y = 11, wrap = false, fontWeight = semibold,
+        textColor = { primary ? theme.accentText : theme.text }, text = { label } ],
+    ]

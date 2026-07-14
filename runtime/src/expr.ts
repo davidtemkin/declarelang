@@ -38,7 +38,17 @@ import { gradient, shadow, stop, stroke } from "./value.js";
 // CALLEE-position uses of these names unresolved so `stroke(…)` is the
 // constructor while bare `stroke` stays the slot.
 const DECOR = { gradient, stroke, shadow, stop };
-const DECOR_PRELUDE = `const { gradient, stroke, shadow, stop } = $d;`;
+
+// Runtime SERVICES in body scope — `Focus.focus(this)` in a click handler is
+// the canonical use. Injected by index.ts at load through this registry (not
+// an import: expr.ts sits below focus.ts in the module graph). The scope
+// object and prelude are rebuilt on injection, never per body evaluation.
+let SCOPE: Record<string, unknown> = { ...DECOR };
+let PRELUDE = `const { ${Object.keys(SCOPE).join(", ")} } = $d;`;
+export function setBodyServices(services: Record<string, unknown>): void {
+  SCOPE = { ...DECOR, ...services };
+  PRELUDE = `const { ${Object.keys(SCOPE).join(", ")} } = $d;`;
+}
 
 /** The value-constructor names — the compile layer (compile.ts) skips these
  *  in callee position, and the checker reserves the two that are not already
@@ -63,10 +73,10 @@ export function compileExpr(src: string): { fn: ExprFn } | { error: string } {
   const r = rewriteDatapaths(src);
   if ("error" in r) return r;
   try {
-    const raw = new Function("$d", "parent", "classroot", `"use strict"; ${DECOR_PRELUDE} return (${r.src});`);
+    const raw = new Function("$d", "parent", "classroot", `"use strict"; ${PRELUDE} return (${r.src});`);
     return {
       fn: function (this: unknown, parent: unknown, classroot: unknown): unknown {
-        return raw.call(this, DECOR, parent, classroot);
+        return raw.call(this, SCOPE, parent, classroot);
       },
     };
   } catch (e) {
@@ -128,10 +138,10 @@ export function compileBody(params: readonly string[], src: string): { fn: BodyF
     // The body runs inside its own block so a statement may shadow a
     // constructor name (`const stop = …`) without a redeclaration error;
     // `var` still hoists to the function and `return` works unchanged.
-    const raw = new Function("$d", "parent", "classroot", ...params, `"use strict"; ${DECOR_PRELUDE} { ${r.src} }`);
+    const raw = new Function("$d", "parent", "classroot", ...params, `"use strict"; ${PRELUDE} { ${r.src} }`);
     return {
       fn: function (this: unknown, parent: unknown, classroot: unknown, ...args: unknown[]): unknown {
-        return raw.call(this, DECOR, parent, classroot, ...args);
+        return raw.call(this, SCOPE, parent, classroot, ...args);
       },
     };
   } catch (e) {

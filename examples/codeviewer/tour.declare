@@ -4,7 +4,7 @@
 This file is a **literate** Declare program: the block comments you're reading are
 rendered as Markdown, and the code between them is syntax-highlighted. View it with
 
-    examples/codeviewer/tour.declare?view=source
+    examples/codeviewer/tour.declare?view=reader
 
 Everything below is real, compilable Declare — and it follows the house formatting
 (design/formatting.md): four-space indent, a trailing comma on every member, and a
@@ -25,7 +25,7 @@ class Counter extends View [ width = 200, height = 40,
     n: number = 0,
 
     label: Text [ fontSize = 22, fontWeight = semibold, textColor = 0x2E6FE0,
-        text = { "count: " + this.n } ],
+        text = { "count: " + n } ],
 
     plus: View [ x = 150, width = 40, height = 40, cornerRadius = 8, fill = 0x2E6FE0,
         onClick() { classroot.n = classroot.n + 1 },
@@ -43,7 +43,8 @@ quoted, and `:paths` point into data.
 */
 
 class Row extends View [ width = 300, height = 24,
-    label: string = "", value: number = 0,
+    label: string = "",
+    value: number = 0,
 
     name: Text [ fontSize = 15, textColor = 0xC9D1D9, text = { classroot.label } ],
     num: Text [ x = 240, fontSize = 15, textColor = 0x8B949E, text = { "" + classroot.value } ],

@@ -21,6 +21,7 @@ import { compileProgram } from "../compiler/dist/declarec.js";
 import { REGISTRY_MANIFEST } from "../runtime/dist/registry.js";
 import { parseArgvFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
 import { highlight } from "../compiler/dist/highlight.js";
+import { compile as compileFull, extractFromCompiled } from "../compiler/dist/compile-node.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const RUNTIME = resolve(HERE, "../runtime/dist"); // the run-path lives here
@@ -67,6 +68,7 @@ export async function buildProduction(source, opts = {}) {
     slim: String(opts.slim !== false),
     stripPos: String(opts.stripPos ?? true),
     typecheck: String(opts.typecheck ?? true),
+    seo: String(!!opts.seo),
     ...(opts.props ?? {}),
   };
   const mainId = opts.originDir ? join(opts.originDir, `${name}.declare`) : undefined;
@@ -90,7 +92,10 @@ export async function buildProduction(source, opts = {}) {
     `import { ${backend.cls} } from ${JSON.stringify(join(RUNTIME, backend.file))};\n` +
     `const PROGRAM = JSON.parse(${JSON.stringify(programJson)});\n` +
     `const host = document.getElementById("host");\n` +
-    `if (host) renderProgramAsync(PROGRAM, host, new ${backend.cls}());\n`;
+    // The host is the app's element: clear it before mount, so a `--seo`
+    // build's embedded static block (crawler content, capabilities.md §5)
+    // is replaced by the real app the moment it runs.
+    `if (host) { host.replaceChildren(); renderProgramAsync(PROGRAM, host, new ${backend.cls}()); }\n`;
 
   // Registry slimming (on by default; opts.slim === false keeps the full set):
   // substitute the runtime's registry.js with a subset carrying only the
@@ -118,11 +123,24 @@ export async function buildProduction(source, opts = {}) {
   const appJs = result.outputFiles[0].text;
   const appName = `app.${shortHash(appJs)}.js`;
 
+  // `--seo`: the extracted static document (design/capabilities.md §5) baked
+  // into the host element — content for crawlers and AI readers that never run
+  // the script; the entry above clears it before mount. Compile through THE
+  // front-end (auto-include host and all), then execute headlessly and extract
+  // — the SAME compile the app itself gets (typecheck already gated the build
+  // above, so it is skipped here).
+  let staticBlock = "";
+  if (opts.seo) {
+    const compiled = compileFull(source, { originDir: opts.originDir, typecheck: false });
+    const h = compiled.source === null ? null : extractFromCompiled(compiled);
+    if (h) staticBlock = `<div id="declare-static">\n${h}\n</div>`;
+  }
+
   const html =
     `<!doctype html><meta charset="utf-8"><title>${name}</title>\n` +
     `<meta name="viewport" content="width=device-width, initial-scale=1">\n` +
     `<style>html,body{margin:0;padding:0;height:100%}</style>\n` +
-    `<div id="host"></div>\n` +
+    `<div id="host">${staticBlock}</div>\n` +
     `<script type="module" src="./${appName}"></script>\n`;
 
   const sizes = {
@@ -168,8 +186,8 @@ async function copyAssets(srcDir, outDir) {
  *  copied assets). The shared emit used by the CLI and the dev server. Returns
  *  the buildProduction result plus `{ outDir, appName, assets }`. On a compile
  *  error, returns `{ ok:false, errors }` and writes nothing. */
-export async function writeProduction({ source, name = "app", srcDir = null, outDir, stripPos = true, render, slim, typecheck = false, props }) {
-  const out = await buildProduction(source, { name, originDir: srcDir, stripPos, render, slim, typecheck, props });
+export async function writeProduction({ source, name = "app", srcDir = null, outDir, stripPos = true, render, slim, typecheck = false, seo = false, props }) {
+  const out = await buildProduction(source, { name, originDir: srcDir, stripPos, render, slim, typecheck, seo, props });
   if (!out.ok) return out;
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
@@ -196,7 +214,7 @@ async function cli(argv) {
   const { flags, rest } = parseArgvFlags(passthrough, { ...DEFAULT_FLAGS, prod: true }); // declarec is always a production build
   const input = rest.find((a) => !a.startsWith("-")) ?? null;
   if (input === null) {
-    console.error("usage: declarec <app.declare> [-o dist] [--canvas] [--no-slim] [--no-strip-pos] [--no-typecheck] [--quiet]");
+    console.error("usage: declarec <app.declare> [-o dist] [--canvas] [--seo] [--no-slim] [--no-strip-pos] [--no-typecheck] [--quiet]");
     console.error("       declarec --highlight <app.declare> [-o out.json]   # preprocessed form for the code viewer");
     process.exit(2);
   }
@@ -229,7 +247,7 @@ async function cli(argv) {
 
   const source = await readFile(srcPath, "utf8");
   const t0 = Date.now();
-  const out = await writeProduction({ source, name, srcDir, outDir, stripPos: flags.stripPos, render: flags.render, slim: flags.slim, typecheck: flags.typecheck });
+  const out = await writeProduction({ source, name, srcDir, outDir, stripPos: flags.stripPos, render: flags.render, slim: flags.slim, typecheck: flags.typecheck, seo: flags.seo });
   const ms = Date.now() - t0;
 
   if (!out.ok) {

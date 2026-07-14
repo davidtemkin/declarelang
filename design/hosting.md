@@ -111,7 +111,8 @@ the service worker is installed:
 | a top-level **navigation** (no params) | the RUNNING app, in a generated wrapper |
 | `?view=source` | the EXACT source file (the bytes, `text/plain`) |
 | `?view=reader` / `?view=segments` | the highlighted, literate "reader mode" view / its data |
-| `?render=canvas`, `?typecheck=0` | the same orthogonal flags as everywhere |
+| `?view=seo` | the **static extraction** document — content as semantic HTML (`text/html`) |
+| `?render=canvas`, `?typecheck=0`, `?seo` | the same orthogonal flags as everywhere |
 | a **fetch** of the same URL (an include, the viewer, `curl`) | the source bytes (`text/plain`) |
 
 The navigate/fetch discrimination is the service worker's own (a top-level
@@ -134,7 +135,7 @@ flags (`slim`, `prod`) don't apply.
 ## Compile flags
 
 `compiler/src/flags.ts` is the single `CompileFlags` model — `render` (dom/canvas),
-`prod`, `slim`, `stripPos`, `typecheck` — with `DEFAULT_FLAGS` and two parsers:
+`prod`, `slim`, `stripPos`, `typecheck`, `seo` — with `DEFAULT_FLAGS` and two parsers:
 `parseFlags(URLSearchParams-like)` for the server and browser URL queries, and
 `parseArgvFlags(argv)` for the CLI. So `?slim=0` on the server, `--no-slim` on the CLI,
 and the browser's `?render=canvas` all resolve through one place — no per-entry-point
@@ -149,12 +150,19 @@ A single `FLAG_SPECS` registry is the source both parsers derive from.
 Orthogonal to *how* a source compiles (the flags above) is *what* a URL returns for
 it — the **request type** (`compiler/src/reqtypes.ts`), modeled on OpenLaszlo's `lzt`.
 `requestType(URLSearchParams-like)` reads `?view=…`: `run` (the app, the default),
-`source` (the syntax-highlighted source with block comments as Markdown), or
-`reader` (the highlighted, literate view), `segments` (the reader's JSON on its own),
-and `source` (the exact file bytes). `?source`/`?reader`/`?segments` are bare shorthands.
-The server (`server/index.mjs`) applies it on both the `examples/<name>/` route and any
-`.declare` file path; `SOURCE` boots the code viewer (`examples/codeviewer`) seeded
-with the segments, `SEGMENTS` returns them as JSON.
+`source` (the exact file bytes), `reader` (the highlighted, literate view),
+`segments` (the reader's JSON on its own), and `seo` (the static-extraction
+document — content as semantic HTML). `?source`/`?reader`/`?segments` are bare
+shorthands; `seo` deliberately has none, because the bare `?seo` is the compile
+*flag* (embed the document in the run page) as distinct from the `?view=seo`
+request type (return the document alone). The server (`server/index.mjs`) applies
+it on both the `examples/<name>/` route and any `.declare` file path; `READER`
+boots the code viewer (`examples/codeviewer`) seeded with the segments, `SEGMENTS`
+returns them as JSON, `SEO` compiles through the front-end and serves the extracted
+document (which answers a plain fetch too — the request type *is* the
+discrimination). The static host's service worker mirrors every one of these,
+extracting `seo` **in the browser** (`web/boot-seo.js`) so the capability is at
+full parity without a Node server. See `design/capabilities.md` §5.
 
 The highlighter is `compiler/src/highlight.ts` — a source-faithful scan that reuses the
 language's own lexical shape (strings, `{ }` bodies captured whole, triple-quotes,

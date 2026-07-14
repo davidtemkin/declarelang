@@ -2,13 +2,14 @@ App [ fill = white, textColor = black,
     contact: Dataset { { "person": { "name": "Ada", "zip": "94110" } } },
     form: View [ x = 24, y = 4, datapath = { app.contact.value.person },
         name: TextInput [ y = 20, width = 220, height = 30, padding = 6, cornerRadius = 6,
-              fill = gainsboro,
-              text <-> :name ],                              // shows :name AND commits edits back to it
+            fill = gainsboro,
+            text <-> :name ],                              // shows :name AND commits edits back to it
         zip:  TextInput [ y = 80, width = 220, height = 30, padding = 6, cornerRadius = 6,
-              fill = gainsboro,
-              text <-> :zip,                                 // a domain rule beyond the type
-              validate(v) { return /^[0-9]{5}$/.test(v) ? null : "must be 5 digits" } ],
+            fill = gainsboro,
+            text <-> :zip,                                 // a domain rule beyond the type
+            validate(v) { return /^[0-9]{5}$/.test(v) ? null : "must be 5 digits" },
+            ],
         note: Text [ y = 120, textColor = indianred, text = { app.form.zip.error } ],  // the field owns its error
         echo: Text [ y = 160, text = { "saved → " + app.contact.value.person.name + " / " + app.contact.value.person.zip } ],
-    ],
-]
+        ],
+    ]

@@ -1,3 +1,13 @@
 {
-  "Bar": "bar.declare"
+  "Bar": "bar.declare",
+  "Control": "control.declare",
+  "Checkbox": "checkbox.declare",
+  "Button": "button.declare",
+  "Switch": "switch.declare",
+  "Slider": "slider.declare",
+  "RadioGroup": "radiogroup.declare",
+  "Radio": "radiogroup.declare",
+  "Field": "field.declare",
+  "ProgressBar": "progressbar.declare",
+  "FocusRing": "focusring.declare"
 }

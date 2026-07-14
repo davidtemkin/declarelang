@@ -125,7 +125,11 @@ const BROWSER_GLOBALS = new Set([
   "sessionStorage", "alert", "confirm", "prompt",
 ]);
 
-const isKnownGlobal = (name: string): boolean => name in globalThis || BROWSER_GLOBALS.has(name);
+// The runtime services in body scope (expr.ts setBodyServices): bare `Focus`
+// in a handler is the service, never a member to resolve.
+const RUNTIME_SERVICES = new Set(["Focus", "Keys"]);
+
+const isKnownGlobal = (name: string): boolean => name in globalThis || BROWSER_GLOBALS.has(name) || RUNTIME_SERVICES.has(name);
 
 interface Edit {
   start: number;
@@ -204,8 +208,46 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
   // included component libraries (both dependency-first, their own directives
   // cut), then the main file (its directives cut). With no includes and no
   // magic tags this is `source` unchanged, so single-file offsets are identical.
-  const mainSource = exciseSpans(source, main.includeSpans);
+  let mainSource = exciseSpans(source, main.includeSpans);
   const libSources = [...resolved.sources, ...auto.sources];
+
+  // The traveling focus indicator RIDES IN with the component library (OL's
+  // `canvas.focusclass` default, reborn): a program whose classes include a
+  // Control descendant gets `FocusRing [ ],` appended to its App root — the
+  // keyboard affordance arrives with the components, undeclared. Suppressed
+  // when the author defines or instantiates FocusRing themselves (which is
+  // also how placement/config is customized); a wholesale opt-out (OL's
+  // focusclass=null) is a follow-up App-slot ruling.
+  {
+    const byName = new Map(auto.program.classes.map((c) => [c.name, c]));
+    const descendsControl = (name: string): boolean => {
+      const seen = new Set<string>();
+      for (let c = byName.get(name); c !== undefined && !seen.has(c.name); c = byName.get(c.base ?? "")) {
+        if (c.name === "Control") return true;
+        seen.add(c.name);
+        if (c.base === undefined || c.base === null) break;
+      }
+      return false;
+    };
+    const treeHas = (el: Element, tag: string): boolean =>
+      el.tag === tag || el.children.some((ch) => treeHas(ch, tag));
+    const usesControl = auto.program.classes.some((c) => descendsControl(c.name));
+    const hasOwnRing = byName.has("FocusRing") || treeHas(main.root, "FocusRing");
+    const autoHost = host as { autoincludes?: () => Record<string, string>; resolveLibrary?: (p: string) => { source: string; canonical: string } | null };
+    if (usesControl && !hasOwnRing && typeof autoHost.autoincludes === "function" && typeof autoHost.resolveLibrary === "function") {
+      const path = autoHost.autoincludes()["FocusRing"];
+      const lib = path !== undefined ? autoHost.resolveLibrary(path) : null;
+      if (lib !== null && lib !== undefined && !resolved.visited.has(lib.canonical)) {
+        libSources.push(lib.source);
+        const close = mainSource.lastIndexOf("]");
+        if (close >= 0) {
+          mainSource = mainSource.slice(0, close) +
+            "\n    // the traveling focus indicator — provided with the component library\n\n    FocusRing [ ],\n" +
+            mainSource.slice(close);
+        }
+      }
+    }
+  }
   const merged = libSources.length > 0
     ? libSources.join("\n") + "\n" + mainSource
     : mainSource;

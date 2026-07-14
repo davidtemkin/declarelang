@@ -30,7 +30,7 @@ App [ width = 400, height = 140, fill = #1E3A49, textColor = whitesmoke,
     ]
 ```
 
-Click the view and the text updates; resize and it re-centers. No update logic was written. (There is no built-in `Button` — a button is a `View` with a fill and an `onClick`.)
+Click the view and the text updates; resize and it re-centers. No update logic was written. (The hand-built button above shows the composition model; a themed `Button` also ships in the small standard library — §11a.)
 
 ## 2. The two delimiters
 
@@ -51,7 +51,7 @@ Bare slots have their own literal vocabulary the compiler owns: `100%` is a Leng
 
 ## 3. Members, by shape
 
-Everything inside `[ ]` is a member. Members are comma-separated, **with a trailing comma after the last**. The shapes:
+Everything inside `[ ]` is a member. **The comma is a terminator, not a separator** (Go's rule): every own-line member ends with one — including the last before a hanging `]` — so you never special-case the final line. The one exception: no comma before an *inline* `]` (`Text [ x = 42, text = :day ]`). The shapes:
 
 ```declare-fragment
 width = 100%,                          // SET an attribute that exists (bare literal)
@@ -70,8 +70,8 @@ open: (h: int) -> View {               // a method, canonical form: a field of f
 onClick()      { count = count + 1 }, // a HANDLER: `on` + this node's own event
 onMouseMove(e) { x = e.x },            // pointer handlers get an event with .x/.y
 
-keyup(k: int) <- Keys {                // a SUBSCRIPTION to an external source (`<-`)
-    if (k == 40) Focus.next()          //   auto-unsubscribed when this node is torn down
+onKeyUp(e) <- Keys {                   // a SUBSCRIPTION to an external source (`<-`)
+    if (e.key == "ArrowDown") next()   //   e is the KeyEvent; auto-unsubscribed at teardown
     },
 
 bg: View [ fill = #101E28 ],           // a CHILD instance, named `bg` (reachable as bg / this.bg)
@@ -204,7 +204,7 @@ Because layout, states, and springs sit on one reactive core, *arrangement* chan
 
 Inside a class body, a bare name (`label`, `count`) reads the enclosing class's attribute. The four nouns are reserved — nothing else may take their names. The most common scope mistake: on a deeply nested child, `this.foo` when the attribute lives on the component — write `classroot.foo`.
 
-Useful App-level reactive attributes: `app.width` / `app.height` (host size — responsive layout reads these), `app.dark` (OS dark mode), `app.pointerX` / `app.pointerY`, `app.hovering` (false on touch devices).
+Useful App-level reactive attributes: `app.width` / `app.height` (host size — responsive layout reads these), `app.dark` (OS dark mode), `app.pointerX` / `app.pointerY`, `app.hovering` (false on touch devices). An app with a usable floor declares it — `App [ minWidth = 600 ]` — and in a narrower host the app holds that width while the stage pans natively; declare the floor rather than writing `Math.max` clamps into size constraints.
 
 ## 9. What does NOT exist (do not invent it)
 
@@ -216,9 +216,10 @@ Your training will reach for these. None of them exist in Declare:
 - **No `setState` / `setAttribute` / `getAttribute`** — `=` is the setter, a bare read is the getter, always.
 - **No JSX expressions in the tree.** No `.map()` to produce children, no conditional `&&` rendering. A collection of children comes from **replication** over data; conditional presence is `visible = { cond }` or a **state**.
 - **No imports for components.** Library components and your own classes are available by name (bare-tag auto-include). No module ceremony. (`import` for TS libraries inside `script { }` is a separate, still-open design area — don't use it.)
-- **No `addEventListener`**, no event bubbling. Handlers fire on the node that declares them; subscriptions to another object's events use `<-`.
+- **No `addEventListener`**, no event bubbling. Handlers fire on the node that declares them; keyboard arrives on the focused view as `onKeyDown(e)`/`onKeyUp(e)` — `e` is a KeyEvent (`e.key`, `e.code`, modifier flags), never a numeric code.
+- **No `event` keyword.** An event is just a function-typed member that gets called; the `on` prefix is a naming convention. Subscriptions (`member(e) <- Source { … }`) exist for the runtime *services* only — today that means `Keys` (`onKeyDown`/`onKeyUp`) — you cannot subscribe to another view's events; a child delivers to its owner by *calling a method*.
 - **No `async` UI wiring for data.** `DataSource` + derived visibility replaces fetch-then-setState. `.fetch()` is explicit.
-- **No `Button`, `Card`, `Modal`, … widget zoo.** The component library is deliberately small; compose `View` + `Text` + `TextInput` + `Image`, or define a class.
+- **No widget zoo — but there IS a small standard library** (§11a): `Button`, `Checkbox`, `Switch`, `RadioGroup`/`Radio`, `Slider`, `Field`, `ProgressBar` — auto-included by bare tag, no import. Use them for the ordinary cases; there is no `Card`, `Modal`, `Select`, or `Tabs` yet — compose those from `View` + `Text` + `TextInput` + `Image`, or define a class.
 - **`$`-prefixed names are compiler-internal.** Never write one.
 
 ## 10. The mistakes models actually make
@@ -228,7 +229,7 @@ Your training will reach for these. None of them exist in Declare:
 3. **Forgetting the trailing comma** after the last member, or dropping the comma after a child's closing `],`.
 4. **Percent inside braces.** `width = 100%` ✓ · `width = { 100% }` ✗ — compute: `width = { parent.width }`.
 5. **Imperative child-building.** Generating subtrees in `{ }` breaks the statically-apparent tree. Shape once + replicate over data.
-6. **Object literals in constraints need parens**: `theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6 }) }` — `{ }` is the expression delimiter, so wrap the object.
+6. **Object literals in constraints are written bare.** A constraint body is always an expression, so `theme = { { text: 0xE7EEF2, accent: 0x4C8DFF } }` is correct as-is — no `({ … })` wrapper needed (the arrow-function parenthesizing habit from JS solves an ambiguity Declare's value slots don't have; you may see the wrapped form in older sources — it's legal, just not the house form). Partial override is plain TS spread: `theme = { { ...app.theme, accent: 0xE05252 } }`.
 7. **Expecting auto-fetch.** A `DataSource` does nothing until `.fetch()` — call it in `onInit()` or a handler.
 8. **Text that won't wrap / wraps unexpectedly.** Give wrapping text a `width` and `wrap = true`; pin labels with `wrap = false`.
 9. **Loose JSON in a `Dataset` body.** The `Dataset { … }` body is strict JSON — quoted keys, no trailing commas. (TypeScript-style object literals belong inside `{ }` constraints, not dataset bodies.)
@@ -241,6 +242,45 @@ Your training will reach for these. None of them exist in Declare:
 - Closing brackets hang at the content indent, carrying the comma: `],`.
 - camelCase names (`fontSize`, `onClick`). Comments are `// ` at the code's indent; `/* … */` for section prose.
 - One way to write each thing — when this file and your instinct disagree, this file wins.
+
+## 11a. The standard library (the catalog)
+
+Seven controls, auto-included by bare tag (no import), themed by the prevailing `theme` (they look right with zero configuration — the house theme — and follow any theme you provide):
+
+| component | value | one line |
+|---|---|---|
+| `Button [ label, primary?, onClick() ]` | — | the action control; keyboard (Space/Enter) flashes and fires `onClick` |
+| `Checkbox [ label, checked ]` | `checked: boolean` | box + mark + label |
+| `Switch [ checked ]` | `checked: boolean` | sliding-thumb boolean (the thumb springs) |
+| `RadioGroup [ value ]` + `Radio [ choice, label ]` | `value: string` on the GROUP | radios are the group's direct children |
+| `Slider [ value, min, max, step ]` | `value: number` | drag or arrow keys; delivers continuously |
+| `Field [ label, labelWidth ]` | — | a labeled row; nest your control as its child |
+| `ProgressBar [ value, min, max ]` | — | display-only |
+
+**The value pattern (one rule for all of them):** a control's value is a plain reactive attribute. Three use forms, smallest first —
+
+1. **Standalone** — the control owns its state; read it by name: `mute: Checkbox [ label = "Mute" ]` … `visible = { mute.checked }`.
+2. **App-owned** — derive down, deliver up: `Checkbox [ checked = { app.muted }, input(v) { app.muted = v } ]`. The `input` method is the edit-delivery channel; its default writes the control itself, your override redirects it. (Do NOT bind a control's value one-way without supplying `input` — the control's edits would fight your constraint.)
+3. **Data-owned** — `text <-> :path`, editors only (see §6).
+
+A complete bound form:
+
+```declare
+App [ width = 360, height = 200, fill = { theme.bg },
+    volume: number = 25,
+    muted:  boolean = false,
+
+    col: View [ x = 20, y = 20,
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        Checkbox [ label = "Mute", checked = { app.muted }, input(v) { app.muted = v } ],
+        Slider [ value = { app.volume }, input(v) { app.volume = v }, disabled = { app.muted } ],
+        ProgressBar [ value = { app.muted ? 0 : app.volume } ],
+        Button [ label = "Reset", primary = true, onClick() { app.volume = 25; app.muted = false } ],
+        ],
+    ]
+```
+
+Also provided, undeclared: keyboard focus travels the controls (Tab / Shift-Tab; Space/Enter activates; a click claims focus), and a **traveling focus indicator** is injected automatically into any app that uses these controls — disable it with `theme = { { ...app.theme, focusRing: false } }`, or declare your own `FocusRing [ ]` to customize.
 
 ## 12. The loop: how to work
 

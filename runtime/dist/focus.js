@@ -15,6 +15,10 @@ import { View, fireEvent, setFocusDiscardHook } from "./view.js";
 export class FocusService {
     current = null;
     rootView = null;
+    /** Subscribers to focus CHANGES (`onFocusChange(v) <- Focus`, language §8) —
+     *  called with the newly focused view (or null on blur) after the change
+     *  settles. What the traveling focus indicator rides. */
+    changeHandlers = new Set();
     /** Reentrancy lock: a focus change fires onFocus/onBlur handlers that may
      *  call focus() again; remember the latest target and apply it after the
      *  current change settles (LZX's discipline). */
@@ -59,10 +63,18 @@ export class FocusService {
             fireEvent(view, "focus");
         }
         this.changing = false;
+        for (const h of [...this.changeHandlers])
+            h(this.current);
         if (this.queued) {
             this.queued = false;
             this.focus(this.queuedTarget);
         }
+    }
+    /** Subscribe to focus changes. Returns the unsubscribe thunk — the `<-`
+     *  wiring's contract (sources.ts). */
+    onFocusChange(fn) {
+        this.changeHandlers.add(fn);
+        return () => this.changeHandlers.delete(fn);
     }
     blur() {
         this.focus(null);

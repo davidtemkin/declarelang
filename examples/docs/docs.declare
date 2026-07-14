@@ -1,37 +1,49 @@
-// docs — the Declare reference, rendered AS a Declare app (self-hosted: Declare
-// documenting Declare). It loads model.json — the extractor's output
-// (tools/doc/extract.mjs), one walkable data structure — and renders a navigable
-// class reference: a left rail of components, a detail pane with each class's
-// Markdown prose and an attributes table, every doc string rendered by the runtime
-// Markdown component. This one app is both the in-browser docs and (once built) the
-// web docs; the live object browser is this same view reached from an instance.
-//
-// `{ }` bodies are TypeScript → `0x…` colours and expressions; `[ ]` literal slots
-// take `#…` / named colours. THEME: every colour reads `theme.<token>` — one
-// prevailing record on the App that switches on `app.dark` (the OS colour scheme,
-// fed live by the runtime), so the docs render dark or light and follow the system
-// theme as it flips. The dark set is the original tuned palette. The live-preview
-// canvas stays a fixed dark in both themes (the demos are dark-authored examples).
+/*
+# Declare docs
+
+The Declare reference, rendered AS a Declare app — self-hosted: Declare
+documenting Declare. It loads model.json — the extractor's output
+(tools/doc/extract.mjs), one walkable data structure — and renders a
+navigable class reference: a left rail of components, a detail pane with each
+class's Markdown prose and an attributes table, every doc string rendered by
+the runtime Markdown component. This one app is both the in-browser docs and
+(once built) the web docs; the live object browser is this same view reached
+from an instance.
+
+`{ }` bodies are TypeScript → `0x…` colours and expressions; `[ ]` literal
+slots take `#…` / named colours. Every colour reads `theme.<token>` — one
+prevailing record on the App (see it there), so the whole document reskins
+from one place.
+*/
 
 font Sans [ family = "system-ui" ]
+
 font Code [ family = "ui-monospace, SFMono-Regular, monospace" ]   // matches the runtime house code face (PROSE.mono)
 
-// ── type tokens ───────────────────────────────────────────────────────────────
+/*
+## Type tokens
 
-// Selection is a PREVAILING slot: these tokens don't opt in themselves — the detail
-// pane sets `selectable = true` on its container, so all right-pane text (including
-// Markdown prose) is selectable, while the left rail stays unselectable chrome.
+Selection is a PREVAILING slot: these tokens don't opt in themselves — the
+detail pane sets `selectable = true` on its container, so all right-pane text
+(including Markdown prose) is selectable, while the left rail stays
+unselectable chrome.
+*/
+
 class Title extends Text [ fontFamily = [Sans, "system-ui", "sans-serif"],
-    fontWeight = semibold, textColor = { theme.text } ]
+    fontWeight = semibold, textColor = { theme.text },
+    ]
+
 
 class Muted extends Text [ fontFamily = [Sans, "system-ui", "sans-serif"],
-    textColor = { theme.muted } ]
+    textColor = { theme.muted },
+    ]
+
 
 class Mono extends Text [ fontFamily = [Code, "ui-monospace", "monospace"] ]
 
-// ── a component tab in the left rail ──────────────────────────────────────────
-// Selection is one App attribute (`app.selected`, the class name); a tab lights
-// when it matches and sets it on click — the whole navigator is one string.
+// a component tab in the left rail — selection is one App attribute
+// (`app.selected`, the class name); a tab lights when it matches and sets it
+// on click, so the whole navigator is one string
 
 class ClassTab extends View [ width = { parent.width }, height = 32, cornerRadius = 6,
     cname:   string = "",
@@ -41,11 +53,20 @@ class ClassTab extends View [ width = { parent.width }, height = 32, cornerRadiu
     onMouseOut()  { hovered = false },
     onClick()     { app.selected = classroot.cname },
     lbl: Mono [ x = 12, y = 7, fontSize = { 14 * app.fontScale },
-                text = { classroot.cname },
-                textColor = { app.selected == classroot.cname ? theme.text : theme.tabIdle } ],
+        text = { classroot.cname },
+        textColor = { app.selected == classroot.cname ? theme.text : theme.tabIdle } ],
     ]
 
-// ── one attribute's reference row: signature line, flags, then its prose ──────
+
+/*
+## Reference rows
+
+One row per documented member. `AttrRow` is an attribute: the signature line
+(name : type = default), the prevailing / read-only badges, then its prose.
+`MethodRow` and `EventRow` are the method and event forms — the full
+signature with the name emphasized (a method), or the handler signature
+(`onClick()`, an event), then the prose.
+*/
 
 class AttrRow extends View [ width = { parent.width },
     aname: string = { :name },              // the attribute's name — the jump index matches on it
@@ -53,27 +74,32 @@ class AttrRow extends View [ width = { parent.width },
     layout: SimpleLayout [ axis = y, spacing = 6 ],
 
     // name  : type  = default   — the signature, mono, one line
-    sig: View [ width = { parent.width }, layout: SimpleLayout [ axis = x, spacing = 8 ],
+
+    sig: View [ width = { parent.width },
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
         Mono [ fontSize = { 15 * app.fontScale }, fontWeight = semibold, textColor = { theme.text }, text = { :name } ],
         Mono [ fontSize = { 15 * app.fontScale }, textColor = { theme.accent2 }, text = { ": " + :type } ],
         Mono [ fontSize = { 14 * app.fontScale }, textColor = { theme.sigDim },
-               text = { :default != null ? "= " + :default : "" } ],
+            text = { :default != null ? "= " + :default : "" } ],
         ],
 
     // prevailing / read-only badges, only when either holds
+
     flags: Mono [ fontSize = { 12 * app.fontScale }, textColor = { theme.eyebrow },
         visible = { :prevailing || :readOnly },
         text = { [:prevailing ? "prevailing" : "", :readOnly ? "read-only" : ""].filter(Boolean).join("  ·  ") } ],
 
     // the captured doc — prose + any inline runnable islands; dimmed for the reference
+
     Segment [ datapath = :docSegs[], width = { parent.width },
-              live = { classroot.live }, tone = { theme.refDim }, lead = 1.6 ],
+        live = { classroot.live }, tone = { theme.refDim }, lead = 1.6 ],
     ]
 
-// ── one method's reference row: full signature (name emphasized) then its prose ──
-// The signature string (`set(path: string, v: unknown): void`) comes whole from the
-// model; a `:sig.slice()` would be MIS-READ as a datapath (the `.` extends the path),
-// so the datapath values are captured into plain attributes first and sliced in JS.
+
+// The signature string (`set(path: string, v: unknown): void`) comes whole from
+// the model; a `:sig.slice()` would be MIS-READ as a datapath (the `.` extends
+// the path), so the datapath values are captured into plain attributes first
+// and sliced in JS.
 
 class MethodRow extends View [ width = { parent.width },
     aname:    string = { :name },
@@ -82,16 +108,16 @@ class MethodRow extends View [ width = { parent.width },
     live:     boolean = false,
     layout: SimpleLayout [ axis = y, spacing = 6 ],
 
-    sig: View [ width = { parent.width }, layout: SimpleLayout [ axis = x, spacing = 0 ],
+    sig: View [ width = { parent.width },
+        layout: SimpleLayout [ axis = x, spacing = 0 ],
         Mono [ fontSize = { 15 * app.fontScale }, fontWeight = semibold, textColor = { theme.text }, text = { classroot.aname } ],
         Mono [ fontSize = { 15 * app.fontScale }, textColor = { theme.mtail }, text = { classroot.tailtext } ],
         ],
 
     Segment [ datapath = :docSegs[], width = { parent.width },
-              live = { classroot.live }, tone = { theme.refDim }, lead = 1.6 ],
+        live = { classroot.live }, tone = { theme.refDim }, lead = 1.6 ],
     ]
 
-// ── one event's reference row: the handler signature (`onClick()`) then its prose ──
 
 class EventRow extends View [ width = { parent.width },
     aname: string = { :name },
@@ -101,29 +127,41 @@ class EventRow extends View [ width = { parent.width },
     sig: Mono [ fontSize = { 15 * app.fontScale }, fontWeight = semibold, textColor = { theme.text }, text = { :signature } ],
 
     Segment [ datapath = :docSegs[], width = { parent.width },
-              live = { classroot.live }, tone = { theme.refDim }, lead = 1.6 ],
+        live = { classroot.live }, tone = { theme.refDim }, lead = 1.6 ],
     ]
 
-// ── the live example: an editable source field beside a running preview ───────
-// The SAME machinery as the homepage's editable demos — a `TextInput` seeded from
-// the demo source that republishes edits on `app.liveSource`, and an `HTML` island
-// the host mounts the compiled child app into. Both are keyed by the CLASS NAME:
-// the editor seeds from `app.demoSources[<Class>]` (the server populates this from
-// examples/docs/demos/), and the island's `run:<Class>` slot is what the host wires.
+
+/*
+## The live example
+
+An editable source field beside a running preview — the SAME machinery as the
+homepage's editable demos: a `TextInput` seeded from the demo source that
+republishes edits on `app.liveSource`, and an `HTML` island the host mounts
+the compiled child app into. Both are keyed by the CLASS NAME: the editor
+seeds from `app.demoSources[<Class>]` (the server populates this from
+examples/docs/demos/), and the island's `run:<Class>` slot is what the host
+wires.
+*/
 
 class DocField extends TextInput [ multiline = true, spellcheck = false, wrap = false,
     fontFamily = [Code, "ui-monospace", "monospace"], fontSize = { 13 * app.fontScale }, textColor = { theme.code },   // 13 = the house code size (PROSE.codeSize)
-    editName: string = "", src: string = "",
+    editName: string = "",
+    src: string = "",
+
     // Seed the field from the demo source once the subtree exists. (TextInput's
     // `initial` yielding-seed can't be used here: its attach-time guard fires
     // before this field's datapath-sourced `src` constraint is bound, so the seed
     // is skipped. An `onInit` write lands after the model has resolved `src`, and —
     // being an author write, not a constraint — leaves the field freely editable.)
+
     onInit() { text = src },
-    onInput() { app.liveCard = editName; app.liveSource = text } ]
+    onInput() { app.liveCard = editName; app.liveSource = text },
+    ]
+
 
 // Rendered by datapath replication over the class's 0-or-1 `example` array, so the
 // whole island (editor + preview) is CONSTRUCTED only for classes that ship a demo.
+
 class Example extends View [ width = { parent.width },
     cname:  string = { :name },
     elines: number = { :lines },
@@ -131,7 +169,8 @@ class Example extends View [ width = { parent.width },
     live:   boolean = false,             // the parent gates the preview: it mounts only when this is true
     layout: SimpleLayout [ axis = y, spacing = 0 ],   // the preview frame abuts the code block below, no gap
 
-    head: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 2 ],
+    head: View [ width = { parent.width },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
         rule: View [ width = { parent.width }, height = 2, fill = { theme.rule } ],
         gap:  View [ height = 8 ],
         Title [ fontSize = { 20 * app.fontScale }, text = "Example" ],
@@ -142,44 +181,58 @@ class Example extends View [ width = { parent.width },
     // the editable source card — coheres with a static code block (the same
     // `chipBg` tint, 8px radius, 13px code face) but is marked LIVE/EDITABLE by an
     // AMBER left bar + label, where a read-only block carries the teal `codeRule`.
+
     panel: View [ width = { parent.width }, fill = { theme.chipBg },
         height = { Math.min(classroot.elines * 17 * app.fontScale + 72, 540) },
         bar:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = 0xE6B450 ],
         fname: Mono [ x = 18, y = 10, fontSize = { 11 * app.fontScale }, fontWeight = semibold, textColor = { theme.strong },
-                      text = { classroot.cname + ".declare" } ],
+            text = { classroot.cname + ".declare" } ],
+
         // the marker is an INVERTED chip — the amber accent as fill, black letters —
         // so "live/editable" reads at a glance, distinct from a read-only block
+
         tag:   View [ y = 7, height = 17, cornerRadius = 3, fill = 0xE6B450, x = { parent.width - this.width - 14 },
-                      lbl: Mono [ x = 7, y = 3, fontSize = 10, letterSpacing = 1, fontWeight = semibold, textColor = 0x1A1A1A,
-                                  text = "LIVE · EDITABLE", wrap = false ],
-                      width = { this.lbl.width + 14 } ],
+            lbl: Mono [ x = 7, y = 3, fontSize = 10, letterSpacing = 1, fontWeight = semibold, textColor = 0x1A1A1A,
+                text = "LIVE · EDITABLE", wrap = false ],
+            width = { this.lbl.width + 14 },
+            ],
+
         // a line of breathing room below the label before the code starts
+
         hair:  View [ x = 18, y = 51, width = { parent.width - 30 }, height = 1, fill = { theme.line } ],
         field: DocField [ x = 18, y = 60, width = { parent.width - 30 }, height = { parent.height - 68 },
-                          editName = { classroot.cname }, src = { classroot.esrc } ],
+            editName = { classroot.cname }, src = { classroot.esrc } ],
         ],
 
     // the live preview island — the host mounts the compiled child app here. The slot
     // is live ONLY while the parent says so (`live`), so exactly one preview (the one
     // on the visible page) compiles at a time, even though every page is constructed.
+
     stage: View [ width = { parent.width }, height = 250, fill = { theme.chipBg },
         run:     HTML [ width = { parent.width }, height = { parent.height },
-                        slot = { classroot.live ? "run:" + classroot.cname : "" } ],
+            slot = { classroot.live ? "run:" + classroot.cname : "" } ],
+
         // a blue rule (a darker shade of the chipBg box tint) divides the code above from the
         // running app below; the gold spine (drawn OVER both) continues the code's gold left bar
         // down the preview, same x/width
+
         divider: View [ x = 0, y = 0, width = { parent.width }, height = 2, fill = { theme.rule } ],
         spine:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = 0xE6B450 ],
         ],
     ]
 
-// ── INLINE examples woven through the prose ───────────────────────────────────
-// Every ```declare block in any prose that compiles (as-is, or wrapped in `App […]`)
-// becomes one of these: the source above, its live preview below — edit and it
-// re-runs. The extractor wrote its source to examples/docs/demos/<id>.declare, so the
-// host seeds + mounts it exactly like the homepage's demos. `live` (threaded from the
-// page) keeps the preview's slot empty until its page is the one on screen, so only the
-// visible page's islands ever compile.
+
+/*
+## Inline examples, woven through the prose
+
+Every `declare` code fence in any prose that compiles (as-is, or wrapped in
+`App […]`) becomes a `RunBlock`: the source above, its live preview below —
+edit and it re-runs. The extractor wrote its source to
+`examples/docs/demos/<id>.declare`, so the host seeds and mounts it exactly
+like the homepage's demos. `live` (threaded from the page) keeps the
+preview's slot empty until its page is the one on screen, so only the visible
+page's islands ever compile.
+*/
 
 class RunBlock extends View [ width = { parent.width },
     rid:    string  = { :id },
@@ -190,96 +243,128 @@ class RunBlock extends View [ width = { parent.width },
 
     // same code-box grammar as a static block (chipBg tint, 8px radius, 13px face),
     // marked live/editable by the amber bar + label (a read-only block is teal).
+
     editor: View [ width = { parent.width }, fill = { theme.chipBg },
         height = { Math.min(classroot.rlines * 16 * app.fontScale + 54, 440) },
         bar:  View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = 0xE6B450 ],
         tag:  View [ x = 18, y = 7, height = 17, cornerRadius = 3, fill = 0xE6B450,
-                     lbl: Mono [ x = 7, y = 3, fontSize = 10, letterSpacing = 1, fontWeight = semibold, textColor = 0x1A1A1A,
-                                 text = "LIVE · EDITABLE", wrap = false ],
-                     width = { this.lbl.width + 14 } ],
+            lbl: Mono [ x = 7, y = 3, fontSize = 10, letterSpacing = 1, fontWeight = semibold, textColor = 0x1A1A1A,
+                text = "LIVE · EDITABLE", wrap = false ],
+            width = { this.lbl.width + 14 },
+            ],
         hint: Muted [ y = 9, fontSize = { 11 * app.fontScale }, italic = true, text = "runs live below ↓",
-                      x = { parent.width - this.width - 14 } ],
+            x = { parent.width - this.width - 14 } ],
+
         // a line of breathing room below the label before the code starts
+
         field: DocField [ x = 18, y = 46, width = { parent.width - 30 }, height = { parent.height - 54 },
-                          editName = { classroot.rid }, src = { classroot.rsrc } ],
+            editName = { classroot.rid }, src = { classroot.rsrc } ],
         ],
 
     stage: View [ width = { parent.width }, height = 200, fill = { theme.chipBg },
         run:     HTML [ width = { parent.width }, height = { parent.height },
-                        slot = { classroot.live ? "run:" + classroot.rid : "" } ],
+            slot = { classroot.live ? "run:" + classroot.rid : "" } ],
         divider: View [ x = 0, y = 0, width = { parent.width }, height = 2, fill = { theme.rule } ],
         spine:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = 0xE6B450 ],
         ],
     ]
 
+
 // one prose segment — a run of Markdown text OR (0-or-1) a runnable island. A code
 // block that didn't compile stays folded into the Markdown as a static code fence.
 // `tone`/`lead` let a caller dim the prose (the reference runs dimmer than the guide).
+
 class Segment extends View [ width = { parent.width },
     live: boolean = false,
     tone: Color   = { theme.body },
     lead: number  = 1.6,
     layout: SimpleLayout [ axis = y, spacing = 14 ],
     md: Markdown [ width = { parent.width }, lineHeight = { classroot.lead }, bodyColor = { classroot.tone }, scale = { app.fontScale },
-                   visible = { :md != "" }, text = { :md } ],
+        visible = { :md != "" }, text = { :md } ],
     RunBlock [ datapath = :code[], width = { parent.width }, live = { classroot.live } ],
     ]
 
-// ── one class's whole detail page — shown only when it is the selection ───────
-// All the detail pages overlay at (0,0); `visible` picks the selected one, so
-// switching is a single boolean and the scroll pane measures only the live page.
+
+/*
+## The class page
+
+One class's whole detail page — shown only when it is the selection. All the
+detail pages overlay at (0,0); `visible` picks the selected one, so switching
+is a single boolean and the scroll pane measures only the live page.
+*/
 
 class ClassDetail extends View [ width = { parent.width },
     cname: string = "",
     visible = { app.selected == classroot.cname },
+
     // this page is on screen — the gate every inline preview reads before it mounts
+
     pageLive: boolean = { app.mode == "reference" && app.selected == classroot.cname },
     layout: SimpleLayout [ axis = y, spacing = 18 ],
 
     // Jump: find the member row (attribute, method, or event) carrying this name and
     // scroll it into view. Imperative, so it lives in the click handler (View.reveal,
     // the runtime scroll-into-view primitive); every row carries an `aname` to match.
+
     revealAttr(name) {
         for (const box of [this.attrs, this.meths, this.evts]) {
             for (const row of box.children) {
                 if (row.aname === name) { row.scrollIntoView(); return }
             }
         }
-    },
+        },
 
     // header: the class name + what it extends
-    head: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 6 ],
+
+    head: View [ width = { parent.width },
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
         Title [ fontSize = { 32 * app.fontScale }, text = { classroot.cname } ],
         Mono  [ fontSize = { 14 * app.fontScale }, textColor = { theme.sigDim },
-                text = { :extends != null ? "class " + classroot.cname + " extends " + :extends
-                                          : "class " + classroot.cname + "  (base)" } ],
+            text = { :extends != null ? "class " + classroot.cname + " extends " + :extends
+                                      : "class " + classroot.cname + "  (base)" } ],
         ],
 
     // the member jump index — one wrap of chips (attributes teal, methods blue, events
     // amber), click to scroll to a definition below. All three kinds share `revealAttr`.
+
     index: View [ width = { parent.width },
         visible = { :attributes.length > 0 || :methods.length > 0 || :events.length > 0 },
         layout: WrappingLayout [ spacing = 8, lineSpacing = 8 ],
+
         // attribute chips
-        View [ datapath = :attributes[], aname: string = { :name }, hovered: boolean = false,
+
+        View [ datapath = :attributes[],
+            aname: string = { :name },
+            hovered: boolean = false,
             height = 26, cornerRadius = 6, fill = { hovered ? theme.chipHov : theme.chipBg },
-            onMouseOver() { hovered = true }, onMouseOut() { hovered = false },
+            onMouseOver() { hovered = true },
+            onMouseOut() { hovered = false },
             onClick() { classroot.revealAttr(this.aname) },
             lbl: Mono [ x = 10, y = 5, fontSize = { 13 * app.fontScale }, textColor = { theme.chipTeal }, text = { parent.aname } ],
             width = { this.lbl.width + 20 },
             ],
+
         // method chips — name()
-        View [ datapath = :methods[], aname: string = { :name }, hovered: boolean = false,
+
+        View [ datapath = :methods[],
+            aname: string = { :name },
+            hovered: boolean = false,
             height = 26, cornerRadius = 6, fill = { hovered ? theme.mchipHov : theme.mchipBg },
-            onMouseOver() { hovered = true }, onMouseOut() { hovered = false },
+            onMouseOver() { hovered = true },
+            onMouseOut() { hovered = false },
             onClick() { classroot.revealAttr(this.aname) },
             lbl: Mono [ x = 10, y = 5, fontSize = { 13 * app.fontScale }, textColor = { theme.chipBlue }, text = { parent.aname + "()" } ],
             width = { this.lbl.width + 20 },
             ],
+
         // event chips — the handler signature
-        View [ datapath = :events[], aname: string = { :name }, hovered: boolean = false,
+
+        View [ datapath = :events[],
+            aname: string = { :name },
+            hovered: boolean = false,
             height = 26, cornerRadius = 6, fill = { hovered ? theme.echipHov : theme.echipBg },
-            onMouseOver() { hovered = true }, onMouseOut() { hovered = false },
+            onMouseOver() { hovered = true },
+            onMouseOut() { hovered = false },
             onClick() { classroot.revealAttr(this.aname) },
             lbl: Mono [ x = 10, y = 5, fontSize = { 13 * app.fontScale }, textColor = { theme.chipAmber }, text = { :signature } ],
             width = { this.lbl.width + 20 },
@@ -287,10 +372,12 @@ class ClassDetail extends View [ width = { parent.width },
         ],
 
     // the class prose — dimmed, with any inline runnable examples woven in
+
     Segment [ datapath = :docSegs[], width = { parent.width },
-              live = { classroot.pageLive }, tone = { theme.refDim }, lead = 1.6 ],
+        live = { classroot.pageLive }, tone = { theme.refDim }, lead = 1.6 ],
 
     // attributes (hidden for a class that documents none — e.g. Dataset)
+
     attrsHead: View [ width = { parent.width }, visible = { :attributes.length > 0 },
         layout: SimpleLayout [ axis = y, spacing = 2 ],
         rule: View [ width = { parent.width }, height = 2, fill = { theme.rule } ],
@@ -303,6 +390,7 @@ class ClassDetail extends View [ width = { parent.width },
         ],
 
     // methods (hidden for a class that documents none)
+
     methsHead: View [ width = { parent.width }, visible = { :methods.length > 0 },
         layout: SimpleLayout [ axis = y, spacing = 2 ],
         rule: View [ width = { parent.width }, height = 2, fill = { theme.rule } ],
@@ -315,6 +403,7 @@ class ClassDetail extends View [ width = { parent.width },
         ],
 
     // events (hidden for a class that documents none)
+
     evtsHead: View [ width = { parent.width }, visible = { :events.length > 0 },
         layout: SimpleLayout [ axis = y, spacing = 2 ],
         rule: View [ width = { parent.width }, height = 2, fill = { theme.rule } ],
@@ -329,48 +418,61 @@ class ClassDetail extends View [ width = { parent.width },
     // the live, editable example — replicated 0-or-1 times, so it's built only when
     // the class ships a demo (examples/docs/demos/<Class>.declare). Its preview is
     // live only while this class is the reference selection.
+
     exampleBox: View [ width = { parent.width }, visible = { :example.length > 0 },
         layout: SimpleLayout [ axis = y, spacing = 18 ],
         Example [ datapath = :example[], width = { parent.width },
-                  live = { app.mode == "reference" && app.selected == classroot.cname } ],
+            live = { app.mode == "reference" && app.selected == classroot.cname } ],
         ],
 
     tail: View [ width = { parent.width }, height = 48 ],
     ]
 
-// ── guide: the mode switch, chapter rail, and a chapter page ──────────────────
-// The doc app is two views over one model: a narrative GUIDE and the class
-// REFERENCE. `app.mode` picks which; each keeps its own selection (`app.chapter`
-// / `app.selected`) so switching back lands where you left.
+
+/*
+## The guide
+
+The mode switch, the chapter rail, and a chapter page. The doc app is two
+views over one model: a narrative GUIDE and the class REFERENCE. `app.mode`
+picks which; each keeps its own selection (`app.chapter` / `app.selected`) so
+switching back lands where you left.
+*/
 
 class ModeTab extends View [ height = 28, cornerRadius = 7,
-    label: string = "",  m: string = "",
+    label: string = "",
+    m: string = "",
     hovered: boolean = false,
     fill = { app.mode == classroot.m ? theme.modeOn : hovered ? theme.hover : null },
     onMouseOver() { hovered = true },
     onMouseOut()  { hovered = false },
     onClick()     { app.mode = classroot.m },
     lbl: Mono [ x = 11, y = 6, fontSize = { 12 * app.fontScale }, fontWeight = semibold,
-                text = { classroot.label },
-                textColor = { app.mode == classroot.m ? theme.text : theme.modeOff } ],
+        text = { classroot.label },
+        textColor = { app.mode == classroot.m ? theme.text : theme.modeOff } ],
     width = { this.lbl.width + 22 },
     ]
 
+
 // one chapter link in the guide rail — lights when it is the current chapter
+
 class ChapterTab extends View [ width = { parent.width }, height = 30, cornerRadius = 6,
-    cid: string = { :id },  ctitle: string = { :short },
+    cid: string = { :id },
+    ctitle: string = { :short },
     hovered: boolean = false,
     fill = { app.chapter == classroot.cid ? theme.sel : hovered ? theme.hover : null },
     onMouseOver() { hovered = true },
     onMouseOut()  { hovered = false },
     onClick()     { app.chapter = classroot.cid },
     lbl: Text [ x = 12, y = 7, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = { 13 * app.fontScale },
-                text = { classroot.ctitle },
-                textColor = { app.chapter == classroot.cid ? theme.text : theme.tabIdle } ],
+        text = { classroot.ctitle },
+        textColor = { app.chapter == classroot.cid ? theme.text : theme.tabIdle } ],
     ]
 
+
 // one Part in the guide rail — an eyebrow over that part's chapter links
-class PartGroup extends View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 3 ],
+
+class PartGroup extends View [ width = { parent.width },
+    layout: SimpleLayout [ axis = y, spacing = 3 ],
     p: string = { :part },
     g:       View [ height = 12 ],
     eyebrow: Mono [ fontSize = { 11 * app.fontScale }, letterSpacing = 1.4, textColor = { theme.eyebrow }, text = { classroot.p.toUpperCase() } ],
@@ -378,30 +480,43 @@ class PartGroup extends View [ width = { parent.width }, layout: SimpleLayout [ 
     ChapterTab [ datapath = :chapters[] ],
     ]
 
+
 // one chapter page — the chapter as ordered segments (prose + inline runnable islands),
 // then its optional flagship demo. Every ```declare block that compiles is a live island.
+
 class ChapterDetail extends View [ width = { parent.width },
     cid: string = { :id },
     visible = { app.mode == "guide" && app.chapter == classroot.cid },
     pageLive: boolean = { app.mode == "guide" && app.chapter == classroot.cid },
     layout: SimpleLayout [ axis = y, spacing = 20 ],
+
     // the guide is the primary reading surface: brighter body, looser leading (Segment defaults)
+
     Segment [ datapath = :segs[], width = { parent.width }, live = { classroot.pageLive } ],
+
     // a flagship runnable example the chapter opts into with `<!-- demo: <Class> -->`
+
     demoBox: View [ width = { parent.width }, visible = { :demo.length > 0 },
-        Example [ datapath = :demo[], width = { parent.width }, live = { classroot.pageLive } ] ],
+        Example [ datapath = :demo[], width = { parent.width }, live = { classroot.pageLive } ],
+        ],
     tail: View [ width = { parent.width }, height = 60 ],
     ]
 
-// ── font-size stepper — three differently-sized "A"s (small · reset · large) ──────
-// Each cell is a centered "A" whose glyph size signals the action: small A shrinks,
-// the middle A resets to the default, the large A grows. The glyphs are FIXED (not
-// `* app.fontScale`) so the control itself never zooms. Every doc `fontSize` reads
-// `{ N * app.fontScale }` (and Markdown takes `scale`), so one attribute zooms the
-// whole document. `0.85` is the default/middle (was the small end of the old range).
+
+/*
+## The font-size stepper
+
+Three differently-sized "A"s — small · reset · large. Each cell is a centered
+"A" whose glyph size signals the action: the small A shrinks, the middle A
+resets to the default, the large A grows. The glyphs are FIXED (not
+`* app.fontScale`) so the control itself never zooms. Every doc `fontSize`
+reads `{ N * app.fontScale }` (and Markdown takes `scale`), so one attribute
+zooms the whole document.
+*/
 
 class SizeBtn extends View [ width = 34, height = 30, cornerRadius = 6,
-    glyph: number = 14,  delta: number = 0,          // delta 0 = reset to the default
+    glyph: number = 14,
+    delta: number = 0,          // delta 0 = reset to the default
     hovered: boolean = false,
     fill = { hovered ? theme.hover : null },
     onMouseOver() { hovered = true },
@@ -409,26 +524,40 @@ class SizeBtn extends View [ width = 34, height = 30, cornerRadius = 6,
     onClick() { app.fontScale = classroot.delta == 0 ? 0.9
                     : Math.max(0.7, Math.min(1.6, Math.round((app.fontScale + classroot.delta) * 100) / 100)) },
     lbl: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontWeight = semibold,
-                fontSize = { classroot.glyph }, textColor = { theme.muted }, text = "A",
-                x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 } ],
+        fontSize = { classroot.glyph }, textColor = { theme.muted }, text = "A",
+        x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 } ],
     ]
 
-// ── the app: a fixed left rail + a scrolling detail pane, over the model ──────
 
-App [ fill = { theme.bg }, mode: string = "guide", chapter: string = "00-overview", selected: string = "View",
+/*
+## The app
+
+A fixed left rail plus a scrolling detail pane, over the model.
+*/
+
+App [ fill = { theme.bg },
+    mode: string = "guide",
+    chapter: string = "00-overview",
+    selected: string = "View",
     fontScale: number = 0.9,                   // reader font-size zoom (0.9 = the comfortable default; the A stepper drives it)
 
-    // the whole palette in one prevailing record, switched by the OS colour scheme
-    // (`app.dark`, fed live by the runtime) — every colour below reads `theme.<token>`,
-    // so the docs render dark or light and follow the system theme as it flips.
+    /* The whole palette in one prevailing record, switched by the OS colour
+       scheme (`app.dark`, fed live by the runtime) — every colour below reads
+       `theme.<token>`, so the docs render dark or light and follow the system
+       theme as it flips. The dark set is the original tuned palette; the
+       live-preview canvas stays a fixed dark in both themes (the demos are
+       dark-authored examples). */
+
     theme = { app.dark
         ? ({ bg: 0x0B141B, rail: 0x0D1922, surface: 0x0C1620, chipBg: 0x14232E, hover: 0x152633, sel: 0x1C2D39, mchipBg: 0x172436, echipBg: 0x241F12, modeOn: 0x1F3B54, chipHov: 0x1C3243, mchipHov: 0x213649, echipHov: 0x332B18, line: 0x1E313C, rule: 0x345B84, edge: 0x1B2C39, accent: 0x4C8DFF, accent2: 0x37E0C8, chipTeal: 0x9FD9CE, chipBlue: 0xA9C7FF, chipAmber: 0xE7C98A, text: 0xE7EEF2, body: 0xC4CFD8, code: 0xC7D3DC, strong: 0xB7C6D2, mtail: 0x9FB3C2, tabIdle: 0x9BB0BE, refDim: 0x98A7B1, muted: 0x8A9BA6, modeOff: 0x7C93A2, sigDim: 0x6E8494, eyebrow: 0x55707F, tag: 0x4F6472 })
         : ({ bg: 0xF6F8FA, rail: 0xECF0F4, surface: 0xFFFFFF, chipBg: 0xE9EFF4, hover: 0xE4EBF1, sel: 0xDBE5EE, mchipBg: 0xE7EDF6, echipBg: 0xF5EFE0, modeOn: 0xD1DFF0, chipHov: 0xD9E4ED, mchipHov: 0xD4DEEF, echipHov: 0xECE3CD, line: 0xDCE3E9, rule: 0xB6C8DA, edge: 0xE0E6EC, accent: 0x2F6FE0, accent2: 0x12A08D, chipTeal: 0x15806E, chipBlue: 0x3355C2, chipAmber: 0x8F6F28, text: 0x172530, body: 0x2E3B46, code: 0x2B3843, strong: 0x3A4A56, mtail: 0x4F5F6B, tabIdle: 0x55636F, refDim: 0x51606C, muted: 0x6A7883, modeOff: 0x74828D, sigDim: 0x84929D, eyebrow: 0x93A0AA, tag: 0xA2AEB8 }) },
 
-    // Code-vs-prose coherence, matching the source-viewer reader: prose (and every
-    // non-code block) wraps to a reading measure while code fills the column — so
-    // code renders WIDER than prose — and every code block gets a tinted box with a
-    // teal left bar. All prevailing, so every Markdown/HTMLText below inherits it.
+    /* Code-vs-prose coherence, matching the source-viewer reader: prose (and
+       every non-code block) wraps to a reading measure while code fills the
+       column — so code renders WIDER than prose — and every code block gets a
+       tinted box with a teal left bar. All prevailing, so every
+       Markdown/HTMLText below inherits it. */
+
     richTextLayout = { { default: { maxWidth: 560 * app.fontScale }, code: { maxWidth: 0 } } },
     codeBackground = { theme.chipBg },
     codeRule = { theme.accent2 },
@@ -437,20 +566,26 @@ App [ fill = { theme.bg }, mode: string = "guide", chapter: string = "00-overvie
     datapath = { docs.value },                 // root every :path below into the model
     onInit() { this.docs.fetch() },            // DataSource is explicit-fetch — kick it once, on construction
 
-    // left rail — brand, the Guide/Reference switch, then the nav for the live mode
+    /* ## The left rail
+       Brand, the Guide/Reference switch, the font-size stepper, then the nav
+       for the live mode. */
+
     rail: View [ x = 0, y = 0, width = 248, height = { app.hostHeight }, scrolls = true, fill = { theme.rail },
         edge: View [ x = 247, y = 0, width = 1, height = { app.hostHeight }, fill = { theme.edge } ],
-        col: View [ x = 16, y = 22, width = 216, layout: SimpleLayout [ axis = y, spacing = 4 ],
+        col: View [ x = 16, y = 22, width = 216,
+            layout: SimpleLayout [ axis = y, spacing = 4 ],
             brand: Mono [ fontSize = { 15 * app.fontScale }, fontWeight = semibold,
-                          textFill = { gradient("90deg", theme.accent, theme.accent2) }, text = "Declare" ],
+                textFill = { gradient("90deg", theme.accent, theme.accent2) }, text = "Declare" ],
             sub:   Mono [ fontSize = { 12 * app.fontScale }, textColor = { theme.eyebrow }, text = "docs" ],
             g0:    View [ height = 12 ],
-            modes: View [ width = { parent.width }, layout: SimpleLayout [ axis = x, spacing = 6 ],
+            modes: View [ width = { parent.width },
+                layout: SimpleLayout [ axis = x, spacing = 6 ],
                 ModeTab [ label = "Guide", m = "guide" ],
                 ModeTab [ label = "Reference", m = "reference" ],
                 ],
 
             // font-size stepper — small / reset / large "A" glyphs zoom every text size
+
             g_sz:  View [ height = 8 ],
             size: View [ height = 30, cornerRadius = 8, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
                 layout: SimpleLayout [ axis = x, spacing = 0 ],
@@ -459,15 +594,18 @@ App [ fill = { theme.bg }, mode: string = "guide", chapter: string = "00-overvie
                 SizeBtn [ glyph = 15, delta = 0 ],
                 div2: View [ width = 1, height = 18, y = 6, fill = { theme.line } ],
                 SizeBtn [ glyph = 19, delta = 0.1 ],
-                width = { this.contentWidth } ],
+                width = { this.contentWidth },
+                ],
 
             // guide nav — parts and their chapters
+
             guideNav: View [ width = { parent.width }, visible = { app.mode == "guide" },
                 layout: SimpleLayout [ axis = y, spacing = 2 ],
                 PartGroup [ datapath = :guideParts[] ],
                 ],
 
             // reference nav — the component list
+
             refNav: View [ width = { parent.width }, visible = { app.mode == "reference" },
                 layout: SimpleLayout [ axis = y, spacing = 4 ],
                 g1:    View [ height = 12 ],
@@ -478,10 +616,13 @@ App [ fill = { theme.bg }, mode: string = "guide", chapter: string = "00-overvie
             ],
         ],
 
-    // detail pane — its own scroller; guide chapters and class pages overlay, the
-    // mode + selection pick the one live page (so the scroller measures only it).
-    // `selectable` (prevailing) opts the whole right pane into ordinary browser
-    // text selection — prose, signatures, Markdown runs — while the rail stays chrome.
+    /* ## The detail pane
+       Its own scroller; guide chapters and class pages overlay, the mode +
+       selection pick the one live page (so the scroller measures only it).
+       `selectable` (prevailing) opts the whole right pane into ordinary
+       browser text selection — prose, signatures, Markdown runs — while the
+       rail stays chrome. */
+
     detail: View [ x = 248, y = 0, width = { app.hostWidth - 248 }, height = { app.hostHeight }, scrolls = true, selectable = true,
         col: View [ x = 48, y = 40, width = { parent.width - 96 },
             guideCol: View [ width = { parent.width }, visible = { app.mode == "guide" },

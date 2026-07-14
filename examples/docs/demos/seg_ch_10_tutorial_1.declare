@@ -1,5 +1,5 @@
 App [ fill = white, textColor = black,
     total: number = 234,
     Text [ x = 24, y = 24, fontSize = 28, fontWeight = bold,
-           text = { `${total} events` } ],       // recomputes whenever total changes
+        text = { `${total} events` } ],       // recomputes whenever total changes
     ]

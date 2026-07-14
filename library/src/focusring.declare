@@ -1,0 +1,88 @@
+/*
+# FocusRing
+
+The traveling focus indicator — the OpenLaszlo 3.4 `focusoverlay`, reborn on the
+reactive core. One app-level overlay: when focus changes, four corner brackets
+TRAVEL from the old control to the new one and settle around it. Where the 2005
+original hand-animated x/y/width/height and choreographed a bracket "bounce"
+(offset 5→12→5) on arrival, here the travel and the arrival life are the same
+four Springs — slightly underdamped, so the brackets overshoot a touch and snap
+in by physics, not by timeline. The bracket PNGs (and their shadow bitmaps) are
+one reactive `draw()`.
+
+It ARRIVES AUTOMATICALLY: any program using a Control-descended component
+gets one appended to its App by the compiler (the OL `canvas.focusclass`
+default, reborn) — declare your own `FocusRing [ ]` to control placement or
+subclass it for a different look (that suppresses the provided one).
+
+It listens to the Focus service (`onFocusChange(v) <- Focus`), computes the
+target's root-space bounds in the handler, and lets the springs chase. It never
+takes focus and never takes a pointer hit (`containsPoint` is overridden false),
+so it is pure chrome. (v1 limitation: bounds are summed through the parent
+chain — a target inside a scrolled container is not yet compensated.)
+*/
+
+class FocusRing extends View [ opacity = 0,
+
+    // where the brackets are HEADED — written by the subscription; the springs chase
+
+    tx: number = 0,
+    ty: number = 0,
+    tw: number = 0,
+    th: number = 0,
+    shown: boolean = false,
+
+    // the OL idle fade, kept to its numbers: 1000 ms after the last focus
+    // activity the brackets fade away (~500 ms); any new activity revives them.
+    // `gen` guards the timer — a newer change makes an older timer a no-op.
+
+    idle: boolean = false,
+    gen:  number = 0,
+
+    onFocusChange(v) <- Focus {
+        if (v == null) { shown = false; return }
+        gen = gen + 1
+        const g = gen
+        idle = false
+        setTimeout(() => { if (this.gen == g) this.idle = true }, 1000)
+        let x = 0, y = 0
+        for (let n = v; n != null && n.parent != null; n = n.parent) { x += n.x; y += n.y }
+        tx = x - 6; ty = y - 6; tw = v.width + 12; th = v.height + 12
+        if (!shown) { this.x = tx; this.y = ty; this.width = tw; this.height = th }
+        shown = true
+        },
+
+    // the travel: underdamped springs = motion toward the target + a little
+    // arrival overshoot — the 3.4 bounce, by physics
+
+    Spring [ attribute = x,      to = { tx }, stiffness = 220, damping = 16 ],
+    Spring [ attribute = y,      to = { ty }, stiffness = 220, damping = 16 ],
+    Spring [ attribute = width,  to = { tw }, stiffness = 220, damping = 18 ],
+    Spring [ attribute = height, to = { th }, stiffness = 220, damping = 18 ],
+
+    // fade gate: shown, not idle, and not disabled by the theme
+    // (`theme = { { ...app.theme, focusRing: false } }` turns the indicator off)
+
+    Spring [ attribute = opacity, to = { shown && !idle && theme.focusRing != false ? 0.9 : 0 }, stiffness = 90, damping = 20 ],
+
+    visible = { opacity > 0.02 },
+
+    // pure chrome: never a pointer target
+
+    containsPoint(px, py) { return false },
+
+    // four corner brackets, drawn — re-derives on resize and theme change
+
+    draw(d) {
+        const L = Math.min(14, Math.min(this.width, this.height) / 3)
+        const w = this.width, h = this.height
+        d.strokeStyle = theme.accent
+        d.lineWidth = 2
+        d.beginPath()
+        d.moveTo(0, L); d.lineTo(0, 0); d.lineTo(L, 0)
+        d.moveTo(w - L, 0); d.lineTo(w, 0); d.lineTo(w, L)
+        d.moveTo(w, h - L); d.lineTo(w, h); d.lineTo(w - L, h)
+        d.moveTo(L, h); d.lineTo(0, h); d.lineTo(0, h - L)
+        d.stroke()
+        },
+    ]

@@ -105,11 +105,28 @@ Raw compile speed is not the argument (Node compiles in ~16 ms); **process churn
 - The same host, served instead of driven, is **client-side verify for the playground**: the homepage editor can run rungs 1–5 (and 6-canvas, via self-capture) with no dev machine at all — the whole toolchain becomes a URL, which is the in-browser-compilation story completing itself.
 - Node-side rungs 1–4 remain for CI and quick checks; the host is the substrate for anything needing a live app.
 
-### 2.8 Text metrics off-DOM (resolved)
+### 2.8 Text metrics off-DOM (resolved — revised 2026-07-13)
 
-All text measurement already flows through one shared offscreen-canvas measurer (`measure.ts`: `textWidth` / `fontMetrics` / `wrapLines` — both backends consume it, "so they cannot disagree about which font they mean"). The Node seam is that single `measurer()` function: rung 4 injects a real 2D context (a tools-only canvas dependency — the runtime stays zero-dep) and headless boot produces **real geometry, typography included**. Stretch, not v1: with the same injected context the canvas backend could rasterize entirely in Node — browser-free rung 6 for the canvas backend. Noted and parked.
+All text measurement already flows through one shared offscreen-canvas measurer (`measure.ts`: `textWidth` / `fontMetrics` / `wrapLines` — both backends consume it, "so they cannot disagree about which font they mean"). The Node seam is that single `measurer()` function.
 
-### 2.9 Also in Part A (cheap, high-leverage)
+**Ruling: no native canvas dependency.** A Node canvas package measures with its own font stack (FreeType, different `system-ui` resolution, different hinting) — approximately-Chrome numbers that don't match what users see, the worst kind of oracle (David hit exactly this rendering/metrics mismatch on a prior project). Instead:
+
+- **Node rung 4 injects a synthetic, deterministic measurer** — fixed advance tables, clearly labeled — valid for structure, reactivity, settle, and non-typographic geometry assertions; typography-sensitive assertions are out of scope at Node rung 4 by definition.
+- **Real metrics come free where the real measurer lives:** the warm verify host (§2.7) runs rungs 4+ in the browser, where `measure.ts` works natively — typography-accurate verification uses Chrome's own metrics, not an imitation. The toolchain stays pure JS.
+
+### 2.9 The formatter — canon enforcement is part of the loop
+
+Declare has a strong, opinionated style canon ([`formatting.md`](formatting.md) — which already specifies the prettyprinter contract) and **no prettyprinter**; conformance is currently by hand. That gap becomes load-bearing the moment models write Declare at volume, for three reasons:
+
+1. **The canon fights the corpus — by design, and that's survivable only with tooling.** Models' priors want JS-shaped closers, JSX-shaped attribute stacking; the canon wants header-line packing, leaf-on-one-line, hanging `],`. Without a formatter, every model either burns iterations on whitespace or accretes ugly sources — and ugly sources are ruled a no-go. A formatter converts the aesthetic position from a *generation-time tax* into a *free post-pass*: the model emits semantically-correct code in whatever shape its priors produce; the canon is applied mechanically. The model never argues with the canon because it never has to comply with it — the toolchain does.
+2. **Canonical form is what makes a small corpus compound.** Every Declare source a model ever reads — spec examples, library components, its own formatted output — reinforces one shape instead of diluting across variants. Byte-stable output also makes diffs minimal and snapshot comparisons meaningful (the modification track's diff-quality metric presumes it).
+3. **Code appearance is product surface here.** The literate `/* */`-Markdown convention and the source viewer render source as its own visual hierarchy — sources are *read* in-product. So the formatter's job includes faithful comment preservation (the canon's never-reorder / never-retoken rule), and generated code that will be published (exemplars, eval artifacts — future training data, per the corpus-endgame rule) is always formatted first.
+
+**Integration:** `verify --format` = check mode (CI: canon-conformance is a failure); the iterated eval loop auto-formats after green (models don't spend iterations on whitespace); `declare fmt` (or the formatter inside prebuild) as the standalone entry. **One extra eval metric falls out free: format distance** — the diff size between a model's raw output and its canonicalized form, per task. That number answers empirically whether the canon's fight with the corpus costs anything real (it shouldn't, once the formatter exists — and if models' *semantic* error rate correlates with format distance, that's a finding worth knowing).
+
+**Placement:** parallel track like the component baseline — not blocking phases 1–4, required **before phase 5** (the harness formats everything it archives; RESULTS artifacts and any published eval output are canon or they don't ship). The build is bounded: the parser is position-preserving and `formatting.md` §prettyprinter-contract already rules the hard calls (header packing width, leaf-inline vs hanging close, comment placement).
+
+### 2.10 Also in Part A (cheap, high-leverage)
 
 - **CI truth-maintenance**: promote the ad-hoc brief-validation script into `test/docs.test.mjs` — every ```declare fence in `docs/declare-for-llms.md`, the guide, and `design/declare-language.md` must compile (known offender to fix on landing: spec §9's unquoted-JSON Dataset example). This is the no-drift invariant, mechanized.
 - **`verify` on the examples in CI**: rungs 1–4 for every example on every commit (fast); rungs 5–6 for calendar + site nightly or pre-release.

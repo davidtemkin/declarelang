@@ -1,3 +1,4 @@
+export declare function setBodyServices(services: Record<string, unknown>): void;
 /** The value-constructor names — the compile layer (compile.ts) skips these
  *  in callee position, and the checker reserves the two that are not already
  *  attribute names. */

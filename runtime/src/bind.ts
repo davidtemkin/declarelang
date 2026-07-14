@@ -67,7 +67,7 @@ export function bindConstraint(
       for (const p of probes) {
         try { p.call(view, view.parent, classroot); } catch { /* a null-value projection — its tracked prefix is already wired */ }
       }
-    });
+    }, deps);
   } else {
     k.run();
   }

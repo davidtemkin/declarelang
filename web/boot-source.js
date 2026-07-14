@@ -13,8 +13,10 @@ import { registerServiceWorker } from "./register-sw.js";
 import { loadCompiler, ensureLibrary } from "./compiler-client.js";
 
 const ROOT = new URL("../", import.meta.url);
-// The file to display — an absolute URL the SW passed on this module's own URL.
+// The file to display — an absolute URL the SW passed on this module's own URL —
+// and the tab to open on ("edit" for a `?view=edit` deep link; "" = reader).
 const target = new URL(import.meta.url).searchParams.get("src");
+const mode = new URL(import.meta.url).searchParams.get("mode") ?? "";
 
 async function run() {
   registerServiceWorker();
@@ -43,7 +45,13 @@ async function run() {
     document.title = (relPath.split("/").pop() || "source") + " — source";
     await bootHost({
       source: out.source,
-      seeds: { __source__: JSON.stringify(segments), __raw__: raw, __path__: relPath },
+      seeds: { __source__: JSON.stringify(segments), __raw__: raw, __path__: relPath, __mode__: mode },
+      // the live-edit mode's recompile seam — the same in-browser client,
+      // reporting failure as `{ report }` so the viewer's diagnostics pane fills
+      compile: async (s) => {
+        const o = await client.compile(s);
+        return o.source ? { source: o.source, deps: o.deps } : { report: o.report || "compile failed" };
+      },
     });
   } catch (e) {
     showError(host, (e && e.message) ? e.message : String(e));

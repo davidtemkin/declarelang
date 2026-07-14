@@ -102,7 +102,13 @@ type MotionCurve = { readonly __motion: true };
 declare function cubicBezier(x1: number, y1: number, x2: number, y2: number): MotionCurve;
 declare function back(overshoot: number): MotionCurve;
 declare function steps(n: number, jump?: "jumpStart" | "jumpEnd"): MotionCurve;
-declare function laszlo(beginPole: number, endPole: number): MotionCurve;`;
+declare function laszlo(beginPole: number, endPole: number): MotionCurve;
+declare const Focus: { focus(v: unknown): void; blur(): void; next(): void; prev(): void };
+declare const Keys: { isDown(code: string): boolean; held(): string[] };
+declare function setTimeout(fn: (...args: any[]) => void, ms?: number): number;
+declare function clearTimeout(id: number): void;
+declare function setInterval(fn: (...args: any[]) => void, ms?: number): number;
+declare function clearInterval(id: number): void;`;
 /** One AttrType (value.ts) → its TypeScript type, mirroring the value model.
  *  Enum and record arms reference a NAMED type (`type Stretch = …`, `Theme`)
  *  emitted in the prelude / near-use; component references the peer

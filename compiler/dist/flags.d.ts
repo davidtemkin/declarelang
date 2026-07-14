@@ -19,6 +19,14 @@ export interface CompileFlags {
      *  `?typecheck=0` / `--no-typecheck` is the explicit opt-out for a
      *  latency-critical loop. */
     typecheck: boolean;
+    /** Static extraction (design/capabilities.md §5): embed the program's content
+     *  as semantic HTML in the run page's host element, for crawlers and AI
+     *  readers that don't run the app (`--seo` on declarec bakes it into the
+     *  built index.html; `?seo` on a dev-server run URL embeds it server-side).
+     *  The block is removed at boot before the app mounts. Distinct from the
+     *  `?view=seo` REQUEST TYPE (reqtypes.ts), which returns the extracted
+     *  document alone. */
+    seo: boolean;
 }
 /** One spec per flag — the SINGLE source of truth every surface derives from.
  *  `name` is the canonical `CompileFlags` field (also the URL/CLI name, cased per

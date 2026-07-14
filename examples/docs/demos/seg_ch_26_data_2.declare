@@ -4,9 +4,11 @@ App [ fill = white, textColor = black,
         title: TextInput [ width = 260, height = 30, padding = 6, cornerRadius = 6,
             fill = gainsboro,
             text <-> :title, commitOn = "manual",   // hold edits until Save
-            validate(v) { return v.length > 0 ? null : "required" } ],
+            validate(v) { return v.length > 0 ? null : "required" },
+            ],
         save: Text [ y = 44, text = "Save",
             opacity = { app.form.title.dirty && app.form.title.valid ? 1 : 0.4 },
-            onClick() { app.form.title.commit() } ],
-    ],
-]
+            onClick() { app.form.title.commit() },
+            ],
+        ],
+    ]

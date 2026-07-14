@@ -318,6 +318,21 @@ export function disown(self, name) {
 export function ownerOf(self, name) {
     return self.$owners?.[name] ?? null;
 }
+/** Tooling reads (inspect.ts): the node's OWN attribute values (writes and
+ *  bound results — `$attrs`, the instance overlay over the class defaults),
+ *  and the slot names currently owned by constraints. Snapshots, not live. */
+export function ownValues(self) {
+    const own = self.$attrs;
+    const out = {};
+    if (own !== undefined)
+        for (const k of Object.keys(own))
+            out[k] = own[k];
+    return out;
+}
+export function ownedSlots(self) {
+    const owners = self.$owners;
+    return owners !== undefined ? Object.keys(owners) : [];
+}
 // Percent bindings, marked: a percent resolves against the PARENT's extent
 // (bind.ts), so a parent deriving its own extent from its children must not
 // count a child's percent-bound slot — it would be reading its own output

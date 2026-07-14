@@ -137,6 +137,7 @@ export const DEFAULT_THEME: Theme = Object.freeze({
   accent: 0x2E6FE0, accentText: 0xFFFFFF,
   control: 0xE7EBF1, controlActive: 0xD3E2FC,
   depth: 1,
+  focusRing: true,
 });
 
 /** A parent-relative percentage, as written (`{ percent: 50 }` for `50%`).

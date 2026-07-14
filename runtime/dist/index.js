@@ -77,12 +77,14 @@ export { Layout, SimpleLayout } from "./layout.js";
 export { Dataset, DataSource, toCursor } from "./data.js";
 export { Animator, AnimatorGroup } from "./animator.js";
 export { settle } from "./reactive.js";
+export { inspect, find, explain, stats, clock, bridgeFor } from "./inspect.js";
 export { Draw, record, replay } from "./draw.js";
 export { buildFonts, collectFaces, fontFacesOf, FONT_WEIGHTS } from "./font.js";
-export { fontString, textWidth, fontMetrics } from "./measure.js";
+export { fontString, textWidth, fontMetrics, provideMeasurer } from "./measure.js";
 export { validatePathData } from "./shape.js";
 export { DomBackend } from "./dom-backend.js";
 export { CanvasBackend } from "./canvas-backend.js";
+export { HeadlessBackend } from "./headless-backend.js";
 export { SCHEMAS, attrType, descendsFrom, isPrevailing } from "./schema.js";
 export { coerce, enumType, isPercent, colorToCss, colorWithAlpha, isGradient, gradient, stroke, shadow, stop, DEFAULT_THEME } from "./value.js";
 export { isSet, ownerOf } from "./attributes.js";
@@ -90,4 +92,11 @@ export { CSS_COLORS } from "./css-colors.js";
 export { NeoError, NeoErrors } from "./errors.js";
 export { Keys, KeysService, normalize } from "./keys.js";
 export { Focus, FocusService, deliverKeys } from "./focus.js";
+// The runtime services usable INSIDE `{ }` bodies (`Focus.focus(this)` in a
+// click handler): injected into body scope here — index.ts sits above both
+// expr.ts and the services in the module graph, so no cycle.
+import { setBodyServices } from "./expr.js";
+import { Focus as FocusService_ } from "./focus.js";
+import { Keys as KeysService_ } from "./keys.js";
+setBodyServices({ Focus: FocusService_, Keys: KeysService_ });
 //# sourceMappingURL=index.js.map

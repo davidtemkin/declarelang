@@ -103,6 +103,7 @@ URL query, or a browser URL query.
 | **slim** | ship only the components the app can instantiate | `--no-slim` (or `--full`) turns it off | `?slim=0` | on |
 | **stripPos** | drop source positions from the shipped program | `--no-strip-pos` keeps them | `?stripPos=0` | stripped |
 | **typecheck** | the tsc-over-`{ }`-bodies pass — a phase of the compile | `--no-typecheck` turns it off | `?typecheck=0` | on |
+| **seo** | embed the extracted static document in the host element, for crawlers | `--seo` | `?seo` | off |
 
 So `?render=canvas&slim=0` on the server, `--canvas --no-slim` on the CLI, and
 `?render=canvas` in the browser all mean exactly what they read. Booleans accept
@@ -121,12 +122,39 @@ orthogonal choice (`compiler/src/reqtypes.ts`), read from the same URL query wit
 | `source` | the EXACT source file — the bytes, `text/plain` |
 | `reader` | a live, syntax-highlighted "reader mode" view, with block comments rendered as Markdown |
 | `segments` | the reader's data on its own — the highlighter's segments as JSON |
+| `seo` | the **static extraction** document — the program's content as semantic HTML, `text/html` |
 
 So `examples/calendar/?view=reader` shows the calendar's source, coloured, in the
 code viewer (`examples/codeviewer`); the same works on any `.declare` file path,
 e.g. `some/app.declare?view=reader`; `?view=source` is the exact file. `?source`,
 `?reader`, and `?segments` are accepted as bare
-shorthands.
+shorthands. `?view=seo` returns the extracted document alone — note the **flag**
+`?seo` (embed the document *in the run page*, for crawlers) and the **request type**
+`?view=seo` (return the document *by itself*) are distinct, which is why `seo` has
+no bare shorthand.
+
+## Static extraction (SEO)
+
+A search crawler or an AI chatbot reads a page before — or without — running its
+JavaScript. The `seo` surface gives them the program's **content** as semantic
+HTML: headings, paragraphs, lists, tables, images, links, carried over from the
+text the program actually renders. It is emphatically *not* an accessibility layer
+and *not* a language feature — no new syntax, nothing DOM-shaped in Declare source.
+
+It works by **executing the program**, not analysing it. The compiler runs the
+compiled program headlessly to its initial (t=0) snapshot — the real runtime, no
+pixels — then serializes the settled tree by **class semantics**: a `Markdown`
+emits its block tree as HTML, a `Text` a `<p>`, an `Image` an `<img>`, an invisible
+subtree nothing. No heuristics (a heading is a heading because Markdown said `#`,
+never because it looks large). Because it *runs* the program, computed content is
+the real value — `text = { "n = " + count }` extracts as `n = 3` — and replicated
+rows all appear. See `design/capabilities.md` for the full model, including the
+environment contract that makes headless execution deterministic.
+
+The whole capability lives in the compiler, so it is **available on every host,
+identically** — `declarec --seo` bakes the document into the built `index.html`; the
+dev server serves `?view=seo` from Node; a static host's service worker serves it by
+extracting *in the browser*. Same extractor module, same bytes.
 
 The highlighting is done by the **compiler**, not a separate tokenizer — a file the
 compiler accepts highlights faithfully by construction, and `{ }` bodies, datapaths,

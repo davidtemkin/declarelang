@@ -65,6 +65,10 @@ export interface FrameScheduler {
     request(cb: (now: number) => void): number;
     cancel(handle: number): void;
 }
+/** The default browser scheduler — real rAF, real clock. Guarded so importing
+ *  this module under Node (the unit suite) never touches a missing global;
+ *  the runtime overrides it explicitly at startup anyway. */
+export declare const browserScheduler: FrameScheduler;
 /** The one shared animation clock (animation.md §2 "The clock", §4.1 "one
  *  shared clock"). Pay-per-use and idle-zero: no live frame loop until a
  *  ticker is added, and the loop stops the moment the set empties. */
@@ -88,6 +92,13 @@ export declare class Clock {
     /** Whether the frame loop is live — the observable idle-zero state, for the
      *  runtime's assertions and the perceptual "idle is still zero rAF" test. */
     get running(): boolean;
+    /** Whether any motion is in flight — what `settleMotion` (inspect.ts) polls. */
+    get busy(): boolean;
+    /** Swap the frame source IN PLACE, keeping enrolled tickers — how the driven
+     *  clock (inspect.ts: `step`/`settleMotion`, verify-and-evals.md §2.3) takes
+     *  over from rAF and hands back. Cancels any pending frame on the old
+     *  scheduler and re-arms on the new one if motion is in flight. */
+    setScheduler(s: FrameScheduler): void;
     /** One frame: read `now` once, tick every ticker with that same value,
      *  drop the finished, then either re-arm for the next frame or go idle. A
      *  ticker added *during* this frame's ticks (an onStop that starts another)

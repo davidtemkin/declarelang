@@ -79,6 +79,11 @@ export declare function disposeBindings(self: object): void;
 export declare function disown(self: object, name: string): void;
 /** The constraint (if any) that owns this slot's value. */
 export declare function ownerOf(self: object, name: string): Constraint | null;
+/** Tooling reads (inspect.ts): the node's OWN attribute values (writes and
+ *  bound results — `$attrs`, the instance overlay over the class defaults),
+ *  and the slot names currently owned by constraints. Snapshots, not live. */
+export declare function ownValues(self: object): Record<string, unknown>;
+export declare function ownedSlots(self: object): string[];
 /** Record that `c` is a percent binding (called by bindPercent). */
 export declare function markPercent(c: Constraint): void;
 /** Is `self.name` owned by a percent binding — a slot whose value resolves

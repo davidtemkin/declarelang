@@ -330,16 +330,32 @@ export declare class App extends View {
     demoSources: Record<string, unknown>;
     liveCard: string;
     liveSource: string;
+    /** The rendered compile report of the LAST live recompile (liveCard/
+     *  liveSource) — "" while the edit compiles clean, the full report text on
+     *  failure (the island keeps the last good render). Host-fed, read-only to
+     *  user code: an editing surface binds a diagnostics pane to it. */
+    liveReport: string;
     /** app→host navigation: set to a URL by a link/button; the host opens it and
      *  resets to "" — same DOM-free app→host channel as `editing`. */
     navigate: string;
+    /** The app's size floor. An app that degrades below some width declares
+     *  `minWidth = 600` and the auto-extent never goes under it: in a narrower
+     *  host the app holds its floor and the STAGE pans natively (the page
+     *  scrolls horizontally at top level; an embedded island scrolls its box).
+     *  A declared policy, not clamp arithmetic in a constraint — tools and
+     *  models can read the floor statically. 0 (the default) = no floor. Only
+     *  the auto-extent honours it; an explicit `width = { … }` is the author's
+     *  own formula and wins untouched. */
+    minWidth: number;
+    minHeight: number;
     /** The App's auto-extent is the HOST, not its content: an unset width/height
      *  follows hostWidth/hostHeight (reactive on resize), so the root app fills its
      *  enclosing area with no declaration — the near-universal case. An explicit
      *  `width = …` still wins (isSet skips the derive), and there is no children
      *  guard: the app fills its host even while empty. This is the exact yielding
      *  default the content path uses (View.bindExtent), retargeted from content to
-     *  host — so a resize repaints like any dependency. */
+     *  host — so a resize repaints like any dependency. `minWidth`/`minHeight`
+     *  floor the derive (tracked reads, so a reactive floor re-applies live). */
     protected bindExtent(): void;
 }
 /** HTML — a foreign-content island (design: the `HTML [ … ]` view). A leaf View

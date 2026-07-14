@@ -3,6 +3,10 @@ import type { KeysService } from "./keys.js";
 export declare class FocusService {
     private current;
     private rootView;
+    /** Subscribers to focus CHANGES (`onFocusChange(v) <- Focus`, language §8) —
+     *  called with the newly focused view (or null on blur) after the change
+     *  settles. What the traveling focus indicator rides. */
+    private readonly changeHandlers;
     /** Reentrancy lock: a focus change fires onFocus/onBlur handlers that may
      *  call focus() again; remember the latest target and apply it after the
      *  current change settles (LZX's discipline). */
@@ -17,6 +21,9 @@ export declare class FocusService {
     /** Focus a view (null = blur). A non-focusable or invisible view is ignored
      *  (never becomes the focus). Fires onBlur on the old, onFocus on the new. */
     focus(view: View | null): void;
+    /** Subscribe to focus changes. Returns the unsubscribe thunk — the `<-`
+     *  wiring's contract (sources.ts). */
+    onFocusChange(fn: (v: View | null) => void): () => void;
     blur(): void;
     next(): void;
     prev(): void;

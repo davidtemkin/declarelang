@@ -764,6 +764,15 @@ function serveDist() {
       };
       window.__ready = true;
     </script>`,
+    // A bare harness for the STATIC-EXTRACTION identity test: the extractor
+    // rides the compiler BUNDLE (compile-browser re-exports seo.ts/headless.ts)
+    // and executes the program headlessly IN THIS PAGE — the run-anywhere claim
+    // (design/capabilities.md §5), verified against Node byte-for-byte.
+    "/extract-identity": `<!doctype html><meta charset="utf-8"><body><script type="module">
+      import { extractStatic } from "/dist-browser/declare-compiler.js";
+      window.__extract = (src) => { const o = extractStatic(src); return JSON.stringify({ html: o.html, report: o.report }); };
+      window.__ready = true;
+    </script>`,
   };
   const server = http.createServer(async (req, res) => {
     const page = pages[req.url];
@@ -2478,6 +2487,31 @@ try {
       const r = compileNode(src, {});
       const expected = JSON.stringify({ source: r.source, deps: r.deps, diagnostics: r.diagnostics, report: r.report });
       assert.equal(json, expected, "worker output diverges from Node for: " + src.slice(0, 40));
+    }
+    await page.close();
+  });
+
+  await test("static extraction: byte-identical HTML in the browser and Node (run-anywhere)", async () => {
+    // The parity claim for the SEO surface (design/capabilities.md §5): the SAME
+    // extractor module, executing the SAME program headlessly, in Chrome and in
+    // Node, produces identical HTML. Here the browser has a REAL measurer and
+    // Node the deterministic approximation, so the cases avoid geometry-selected
+    // content (no responsive `hostWidth` branch) — the content itself is what
+    // must match, and does, byte for byte.
+    const { extractStatic: extractNode } = await import("../compiler/dist/compile-node.js");
+    const page = await browser.newPage();
+    await page.goto(`http://127.0.0.1:${port}/extract-identity`, { waitUntil: "load" });
+    await page.waitForFunction(() => window.__ready === true, { timeout: 20000 });
+    const cases = [
+      `App [ m: Markdown [ width = 400, text = "# H\\n\\nBody **b** [x](https://e.example/)." ], n: number = 5, t: Text [ y = 200, text = { "n=" + n } ] ]`,
+      `App [ d: Dataset { { "rows": [ { "t": "a" }, { "t": "b" } ] } }, list: View [ datapath = { app.d.value }, Text [ datapath = :rows[], text = { :t } ] ] ]`,
+      `App [ v: Txet [ ] ]`, // failure: html null + rendered report, identical both sides
+    ];
+    for (const src of cases) {
+      const json = await page.evaluate((s) => window.__extract(s), src);
+      const o = extractNode(src);
+      const expected = JSON.stringify({ html: o.html, report: o.report });
+      assert.equal(json, expected, "browser extraction diverges from Node for: " + src.slice(0, 40));
     }
     await page.close();
   });

@@ -18,7 +18,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from "
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { createHash } from "node:crypto";
-import { compile, isUpToDate, diskProbe } from "../compiler/dist/compile-node.js";
+import { compile, isUpToDate, diskProbe, extractFromCompiled, seoDocument } from "../compiler/dist/compile-node.js";
 import { highlight } from "../compiler/dist/highlight.js";
 import { requestType, REQ } from "../compiler/dist/reqtypes.js";
 import { writeProduction } from "../tools/declarec.mjs";
@@ -97,6 +97,13 @@ function hostPage(name, backendClass, flags = DEFAULT_FLAGS) {
   if (!modelDriven) for (const k in demos) seeds[k] = stripComments(demos[k]);
   seeds.__page__ = src;
   const cfg = { backend: backendClass, source: r.source, deps: r.deps, pageWeight: wireKB, sourceLines: loc, seeds, demoBase: "demos/" };
+  // `?seo` flag: the compile above already produced { source, deps } — extract
+  // from it directly (no second compile) and embed; removed at boot.
+  let staticBlock = "";
+  if (flags.seo) {
+    try { const h = extractFromCompiled(r); if (h !== null) staticBlock = `<div id="declare-static">\n${h}\n</div>`; }
+    catch (e) { console.error("seo embed failed:", e.message); }
+  }
   // The homepage gets a real page title; other examples keep the debug backend tag.
   const pageTitle = name === "site" ? "Declare — the UI language for the AI era" : `${name} (${backendClass})`;
   // <base> resolves the app's relative resources + data under the example. The client
@@ -105,11 +112,11 @@ function hostPage(name, backendClass, flags = DEFAULT_FLAGS) {
   return `<!doctype html><meta charset="utf-8"><title>${pageTitle}</title>
 <base href="/examples/${name}/">
 <style>html,body{margin:0;padding:0}</style>
-<div id="host"></div>
+<div id="host">${staticBlock}</div>
 <script type="module">
 import { bootHost } from "/web/host-client.js";
 const cfg = ${JSON.stringify(cfg)};
-cfg.compile = async (s) => { try { const r = await (await fetch("/compile", { method: "POST", body: s })).json(); return r.source ? { source: r.source, deps: r.deps } : null; } catch (e) { return null; } };
+cfg.compile = async (s) => { try { const r = await (await fetch("/compile", { method: "POST", body: s })).json(); return r.source ? { source: r.source, deps: r.deps } : { report: r.report || "compile failed" }; } catch (e) { return null; } };
 bootHost(cfg);
 </script>`;
 }
@@ -128,7 +135,8 @@ function serveSource(res, absPath, relPath, rt, backendClass) {
   catch (e) { return send(res, 500, String((e && e.message) || e), "text/plain"); }
   if (rt === REQ.SEGMENTS)
     return send(res, 200, JSON.stringify({ path: relPath, segments }), "application/json");
-  return send(res, 200, sourcePage(relPath, segments, source, backendClass));
+  // EDIT = the same viewer page opened on its live-edit tab (seeds.__mode__).
+  return send(res, 200, sourcePage(relPath, segments, source, backendClass, rt === REQ.EDIT ? "edit" : ""));
 }
 
 // The code-viewer app (examples/codeviewer) booted for ONE source file: the
@@ -137,7 +145,7 @@ function serveSource(res, absPath, relPath, rt, backendClass) {
 // bespoke wiring. The viewer renders prose segments as Markdown and code segments
 // as coloured <pre> (its own accents map themes them), plus size + light/dark
 // controls. So `foo.declare?view=reader` is a live, self-contained source page.
-function sourcePage(relPath, segments, rawSource, backendClass) {
+function sourcePage(relPath, segments, rawSource, backendClass, mode = "") {
   const dir = path.join(EXAMPLES, "codeviewer");
   const src = readFileSync(path.join(dir, "codeviewer.declare"), "utf8");
   const r = compile(src, { originDir: dir });
@@ -152,7 +160,7 @@ function sourcePage(relPath, segments, rawSource, backendClass) {
     // __source__ = the highlight() segments (JSON); __raw__ = the verbatim source
     // (for the plain-text toggle — segments can't reconstruct it faithfully);
     // __path__ = the file shown. The viewer reads them off app.demoSources.
-    seeds: { __source__: JSON.stringify(segments), __raw__: rawSource, __path__: relPath },
+    seeds: { __source__: JSON.stringify(segments), __raw__: rawSource, __path__: relPath, __mode__: mode },
   };
   return `<!doctype html><meta charset="utf-8"><title>${esc(title)} — source</title>
 <base href="/examples/codeviewer/">
@@ -161,8 +169,26 @@ function sourcePage(relPath, segments, rawSource, backendClass) {
 <script type="module">
 import { bootHost } from "/web/host-client.js";
 const cfg = ${JSON.stringify(cfg)};
+cfg.compile = async (s) => { try { const r = await (await fetch("/compile", { method: "POST", body: s })).json(); return r.source ? { source: r.source, deps: r.deps } : { report: r.report || "compile failed" }; } catch (e) { return null; } };
 bootHost(cfg);
 </script>`;
+}
+
+// The static-extraction document (`?view=seo`, reqtypes.ts): the program's
+// content as semantic HTML at its t=0 snapshot (design/capabilities.md §5) —
+// compiled through THE compiler API, executed headlessly, served text/html.
+// The SW static host serves the same artifact by extracting IN-BROWSER
+// (web/boot-seo.js) — one extractor module, two hosts.
+function serveSeo(res, absPath, relPath, flags) {
+  let source;
+  try { source = readFileSync(absPath, "utf8"); }
+  catch { return send(res, 404, "not found: " + relPath, "text/plain"); }
+  // Compile through THE front-end (auto-include host and all), then extract from
+  // that result — the SAME compile the running app gets, so a library component
+  // (Bar, Field, …) resolves in the crawler view exactly as it does live.
+  const compiled = compile(source, { originDir: path.dirname(absPath), typecheck: flags.typecheck });
+  if (compiled.source === null) return send(res, 422, compiled.report, "text/plain; charset=utf-8");
+  return send(res, 200, seoDocument(extractFromCompiled(compiled), relPath.split("/").pop()));
 }
 
 function landing() {
@@ -192,14 +218,27 @@ const send = (res, code, body, type) => {
  *  the .declare, so every relative reference (data/, demos/) resolves against
  *  the program's directory for free — and boot-uniform gives the compile the
  *  cached-output + closure-freshness path, identical to the app index pages. */
-function declareRunPage(urlPath) {
+function declareRunPage(urlPath, flags = DEFAULT_FLAGS) {
   const name = urlPath.replace(/.*\//, "").replace(/\.declare$/, "");
+  // The `seo` FLAG (flags.ts, distinct from the ?view=seo REQUEST TYPE): embed
+  // the extracted static document in the host element, for crawlers that read
+  // the page without running it. The boot path removes #declare-static before
+  // the app mounts (web/host-client.js), so a running user never sees it.
+  let staticBlock = "";
+  if (flags.seo) {
+    try {
+      const abs = path.join(ROOT, urlPath.replace(/^\/+/, ""));
+      const compiled = compile(readFileSync(abs, "utf8"), { originDir: path.dirname(abs), typecheck: flags.typecheck });
+      const h = compiled.source === null ? null : extractFromCompiled(compiled);
+      if (h !== null) staticBlock = `<div id="declare-static">\n${h}\n</div>`;
+    } catch (e) { console.error("seo embed failed:", e.message); }
+  }
   return `<!doctype html><meta charset="utf-8">
 <title>${esc(name)} · Declare</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark light">
 <style>html,body{margin:0;padding:0;background:#0B141B}</style>
-<div id="host"></div>
+<div id="host">${staticBlock}</div>
 <script type="module">
   import boot from "/dist-browser/declare-boot.js";
   const q = new URLSearchParams(location.search);
@@ -254,8 +293,13 @@ async function ensureProdBuild(name, backend = "dom", slim = true) {
   // `include`d file, a flag change, or a compiler rebuild each invalidate
   // exactly like a main-file edit. (The old sha256-of-main-source key missed
   // everything but the main file.)
+  // `render` (not the retired `backend` spelling) — the closure freezes the
+  // canonical flag names (buildProduction's props), and isUpToDate compares
+  // records: a mismatched KEY would read as perpetual staleness. `seo` rides
+  // for the same reason (the /prod route doesn't build seo pages; declarec
+  // --seo closures carry seo:"true" and so never collide with these).
   const propsNow = {
-    backend, slim: String(slim), stripPos: "true", typecheck: "true",
+    render: backend, slim: String(slim), stripPos: "true", typecheck: "true", seo: "false",
     toolchain: toolchainFingerprint(),
   };
   const fresh = (m) => {
@@ -267,7 +311,7 @@ async function ensureProdBuild(name, backend = "dom", slim = true) {
   if (existsSync(manPath)) {                                    // disk hit (post-restart)
     try { const d = JSON.parse(readFileSync(manPath, "utf8")); if (fresh(d)) { prodMem.set(key, d); return d; } } catch { /* rebuild */ }
   }
-  const built = await writeProduction({ source, name, srcDir: dir, outDir, backend, slim, props: { toolchain: propsNow.toolchain } });  // miss → build
+  const built = await writeProduction({ source, name, srcDir: dir, outDir, render: backend, slim, props: { toolchain: propsNow.toolchain } });  // miss → build
   if (!built.ok) return { error: built.errors, report: built.report };
   man = { closure: built.closure, dir: outDir, appName: built.appName, sizes: built.sizes, assets: built.assets, used: built.usedComponents, builtAt: Date.now() };
   writeFileSync(manPath, JSON.stringify(man, null, 2));
@@ -375,8 +419,9 @@ http.createServer((req, res) => {
       const backendClass = flags.render === "canvas" ? "CanvasBackend" : "DomBackend";
       const declPath = path.join(EXAMPLES, m[1], `${m[1]}.declare`);
       if (rt === REQ.SOURCE) return send(res, 200, readFileSync(declPath), "text/plain; charset=utf-8");
-      if (rt === REQ.READER || rt === REQ.SEGMENTS)
+      if (rt === REQ.READER || rt === REQ.EDIT || rt === REQ.SEGMENTS)
         return serveSource(res, declPath, `examples/${m[1]}/${m[1]}.declare`, rt, backendClass);
+      if (rt === REQ.SEO) return serveSeo(res, declPath, `examples/${m[1]}/${m[1]}.declare`, flags);
       return send(res, 200, hostPage(m[1], backendClass, flags));
     }
 
@@ -391,14 +436,18 @@ http.createServer((req, res) => {
     // makes (a top-level navigation vs a subresource request), so a person and
     // a program each get the representation they mean, at one URL.
     if (p.endsWith(".declare")) {
-      const rt = requestType(new URL(req.url, "http://x").searchParams);
+      const params = new URL(req.url, "http://x").searchParams;
+      const rt = requestType(params);
       const abs = path.join(ROOT, p.replace(/^\/+/, ""));
       const real = abs.startsWith(ROOT + path.sep) && existsSync(abs) && statSync(abs).isFile();
-      if (real && (rt === REQ.READER || rt === REQ.SEGMENTS)) {
+      if (real && (rt === REQ.READER || rt === REQ.EDIT || rt === REQ.SEGMENTS)) {
         return serveSource(res, abs, p.replace(/^\/+/, ""), rt, "DomBackend");
       }
+      // ?view=seo answers FETCHES too (curl, a crawler's plain GET) — the
+      // request type IS the discrimination; no navigate check needed.
+      if (real && rt === REQ.SEO) return serveSeo(res, abs, p.replace(/^\/+/, ""), parseFlags(params));
       const navigate = req.headers["sec-fetch-mode"] === "navigate" || (req.headers.accept ?? "").includes("text/html");
-      if (real && navigate && rt !== REQ.SOURCE) return send(res, 200, declareRunPage(p), "text/html;charset=utf-8");
+      if (real && navigate && rt !== REQ.SOURCE) return send(res, 200, declareRunPage(p, parseFlags(params)), "text/html;charset=utf-8");
       // else (?view=source, or any plain fetch): fall through to the raw-file
       // handler — the exact source bytes, text/plain
     }

@@ -1,40 +1,68 @@
-// site — the Declare homepage. Clean rewrite (design/site-spec.md +
-// design/sizing.md): the design tokens live ONCE as semantic type components,
-// and the page is a vertical FLOW of auto-sizing sections — no absolute-y.
-// Each section's height falls out of its content (contentHeight), so the page
-// stacks and re-flows on its own, at any width. The full-bleed chrome (grid,
-// sticky header, pointer) sits absolutely around the centered column.
-//
-// `{ }` bodies are TypeScript → `0x…` colors and `Math.…`; `[ ]` literal slots
-// take `#…` colors. Palette: text #E7EEF2 · muted #8A9BA6 · accent #4C8DFF ·
-// accent-2 #37E0C8 · surface #101E28 · line #263D4C · grid #172A38.
+/*
+# The Declare homepage
+
+The page you are reading, written in Declare. The design tokens live once as
+semantic type components, and the page is a vertical **flow** of auto-sizing
+sections — no absolute-y. Each section's height falls out of its content, so
+the page stacks and re-flows on its own at any width. The full-bleed chrome —
+the blueprint grid, the sticky header, the pointer dot — sits absolutely
+around the centered column.
+
+`{ }` bodies are TypeScript, so colors there are `0x…`; `[ ]` literal slots
+take `#…`. Every colour on the page has a name in the App's `theme` record —
+the palette lives there, once, and nowhere else.
+*/
 
 font Sans [ family = "system-ui" ]
+
 font Mono [ family = "ui-monospace" ]
 
-// ── tokens, as semantic type components ──────────────────────────────────────
-// Headings are semibold with -0.02em tracking that scales with the size (React
-// parity); eyebrows are mono with wide tracking; lead/body carry the muted tone.
+/*
+## Type as tokens
+
+Every text style on the page is one of these classes — headings semibold with
+tracking that scales with the size, eyebrows mono and wide-tracked, lead and
+body in the muted tone — so the page's whole typography reskins from here.
+*/
 
 class Heading extends Text [ fontWeight = semibold, textColor = { theme.text },
-    letterSpacing = { -0.02 * fontSize }, selectable = true ]
+    letterSpacing = { -0.02 * fontSize }, selectable = true,
+    ]
+
 
 class Eyebrow extends Text [ fontFamily = [Mono, "monospace"], fontSize = 13,
-    fontWeight = semibold, letterSpacing = 1.6, textColor = { theme.muted }, selectable = true ]
+    fontWeight = semibold, letterSpacing = 1.6, textColor = { theme.muted }, selectable = true,
+    ]
 
-class Marker extends Eyebrow [ textColor = { theme.accent } ]   // the accent section number
 
-class FootLabel extends Text [ fontSize = 13, fontWeight = semibold, textColor = { theme.muted }, selectable = true ]   // footer text in the Declare typeface (App Sans), not the mono eyebrow
+// the accent section number
 
-class Lead extends Text [ fontSize = 19, fontWeight = normal, textColor = #9DB0BC, selectable = true ]
+class Marker extends Eyebrow [ textColor = { theme.accent } ]
+
+// footer text in the Declare typeface (App Sans), not the mono eyebrow
+
+class FootLabel extends Text [ fontSize = 13, fontWeight = semibold, textColor = { theme.muted }, selectable = true ]
+
+class Lead extends Text [ fontSize = 19, fontWeight = normal, textColor = { theme.lead }, selectable = true ]
 
 class Body extends Text [ fontSize = 17, fontWeight = normal, textColor = { theme.muted }, selectable = true ]
 
-// nav links brighten muted→bright on hover (React parity); the base carries the
-// rollover so the header nav and the footer source-link share it
-// header nav link — a padded pill that fills with surface-2 on hover, matching
-// the React rollover (a rounded RECT behind the text, not just a colour change).
-// Width auto-fits the label (its contentWidth) plus 12px of padding each side.
+// an article paragraph (the "Why" route) — HTML flow, so its `"""` source wraps
+// at the writer's margin and the line breaks collapse away in the rendering
+
+class Para extends HTMLText [ fontSize = 18, lineHeight = 1.2, width = { parent.width },
+    bodyColor = { theme.lead }, selectable = true,
+    ]
+
+
+/*
+## The header pills
+
+A nav link is a padded pill: it fills with surface-2 on hover (a rounded rect
+behind the text, not just a colour change), and `pressed` deepens the pill and
+lights the label — the tap feedback a touch device gets in place of hover.
+Width auto-fits the label plus 12px of padding each side.
+*/
 
 class NavLink extends View [ height = 33, cornerRadius = 8,
     label:   string = "",
@@ -42,29 +70,37 @@ class NavLink extends View [ height = 33, cornerRadius = 8,
     route:   string = "",
     hovered: boolean = false,
     pressed: boolean = false,
+
     // pressed deepens the pill + lights the label — the tap feedback a touch
     // device gets in place of hover (mouseDown/Up fire on a tap, hover does not).
-    fill = { pressed ? 0x24384A : hovered ? 0x1C2D39 : null },
+
+    fill = { pressed ? theme.pillPress : hovered ? theme.pillHover : null },
     onMouseOver() { hovered = true },
     onMouseOut()  { hovered = false; pressed = false },
     onMouseDown() { pressed = true },
     onMouseUp()   { pressed = false },
     onClick()     { if (classroot.route != "") app.route = classroot.route; else if (classroot.url != "") app.navigate = classroot.url },
     lbl: Text [ x = 12, y = 8, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14,
-                text = { classroot.label },
-                textColor = { classroot.hovered || classroot.pressed ? theme.text : theme.muted } ],
+        text = { classroot.label },
+        textColor = { classroot.hovered || classroot.pressed ? theme.text : theme.muted } ],
     width = { this.lbl.width + 24 },
     ]
 
 
-// ── an idea card (§01 / §04) ──────────────────────────────────────────────────
+/*
+## Section furniture
+
+The repeated shapes the numbered sections are built from: an idea `Card`
+(§01), a `Point` with its accent top-rule and a big gradient `Metric` (§02),
+and the footer's separator `Dot`.
+*/
 
 class Card extends View [ width = { Math.min(357, parent.width) }, height = 172, cornerRadius = 10,
-    stroke = stroke(1, #263D4C),
+    stroke = { stroke(1, theme.line) },
     title: string = "",
     body:  string = "",
     muted: boolean = false,
-    fill = { muted ? 0x0D1922 : 0x101E28 },
+    fill = { muted ? theme.surfaceDeep : theme.surface },
     pad: View [ x = 22, y = 22, width = { parent.width - 44 },
         layout: SimpleLayout [ axis = y, spacing = 14 ],
         Heading [ fontSize = 19, text = { classroot.title } ],
@@ -72,37 +108,42 @@ class Card extends View [ width = { Math.min(357, parent.width) }, height = 172,
         ],
     ]
 
-// ── a performance point (§02): an accent top-rule, title, muted body ──────────
 
 class Point extends View [ width = { Math.min(357, parent.width) },
     ptitle: string = "",
     body:   string = "",
     layout: SimpleLayout [ axis = y, spacing = 16 ],
-    rule: View [ width = { parent.width }, height = 2, fill = #345B84 ],
-    txt: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 8 ],
+    rule: View [ width = { parent.width }, height = 2, fill = { theme.pointRule } ],
+    txt: View [ width = { parent.width },
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
         Heading [ fontSize = 17, text = { classroot.ptitle } ],
         Body    [ fontSize = 15, width = { parent.width }, text = { classroot.body } ],
         ],
     ]
 
-// ── a headline metric (§02): a big gradient number over a small label ─────────
+
 // width/fontSize key off parent.width (the real available width in the row) —
-// a component sizes off its parent, not the app; `app.width` is the whole page.
+// a component sizes off its parent, not the app; `app.width` is the whole page
 
 class Metric extends View [ width = { parent.width < 560 ? parent.width : (parent.width - 48) / 2 },
     value: string = "",
     note:  string = "",
     layout: SimpleLayout [ axis = y, spacing = 8 ],
     Heading [ fontSize = { parent.width < 420 ? 54 : 92 }, width = { parent.width }, textAlign = center,
-              textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) }, text = { classroot.value } ],
+        textFill = { theme.brand }, text = { classroot.value } ],
     Body [ fontSize = 14, width = { parent.width }, textAlign = center, text = { classroot.note } ],
     ]
 
-// ── a footer separator dot ────────────────────────────────────────────────────
 
-class Dot extends Body [ fontSize = 14, textColor = #556673, text = "·" ]
+class Dot extends Body [ fontSize = 14, textColor = { theme.faint }, text = "·" ]
 
-// ── a button ─────────────────────────────────────────────────────────────────
+/*
+## Buttons
+
+Primary fills accent and brightens on hover; secondary lifts to surface-2 and
+answers a press with an accent ring. Press feedback is what a touch device
+sees in place of hover — both are driven by the view's own handlers.
+*/
 
 class Button extends View [ height = 46, cornerRadius = 9,
     label:   string = "",
@@ -110,14 +151,9 @@ class Button extends View [ height = 46, cornerRadius = 9,
     hovered: boolean = false,
     pressed: boolean = false,
 
-    // hover rollover (React parity): primary brightens, secondary lifts to
-    // surface-2. PRESS feedback (pressed) is what a touch device sees in place of
-    // hover — primary darkens on the way in, secondary deepens with an accent
-    // ring. Both are driven by the view's own over/out/down/up handlers.
-
-    fill = { primary ? (pressed ? 0x3D7BE0 : hovered ? 0x63A0FF : 0x4C8DFF)
-                     : (pressed ? 0x0C1922 : hovered ? 0x162A36 : 0x101E28) },
-    stroke = { primary ? stroke(0, 0x4C8DFF) : stroke(1, pressed ? 0x37E0C8 : 0x263D4C) },
+    fill = { primary ? (pressed ? theme.accentPress : hovered ? theme.accentHover : theme.accent)
+                     : (pressed ? theme.press       : hovered ? theme.hover       : theme.surface) },
+    stroke = { primary ? stroke(0, theme.accent) : stroke(1, pressed ? theme.accent2 : theme.line) },
     onMouseOver() { hovered = true },
     onMouseOut()  { hovered = false; pressed = false },
     onMouseDown() { pressed = true },
@@ -126,79 +162,92 @@ class Button extends View [ height = 46, cornerRadius = 9,
     // label centered in the button box (textAlign over the full width)
 
     caption: Text [ y = 14, width = { parent.width }, textAlign = center, fontSize = 15, fontWeight = semibold,
-                    text = { classroot.label },
-                    textColor = { classroot.primary ? 0x0B141B : 0xE7EEF2 } ],
+        text = { classroot.label },
+        textColor = { classroot.primary ? theme.ink : theme.text } ],
     ]
 
-// ── the code editor: a NEO-NATIVE editable field (no host textarea) ───────────
-// A TextInput seeded (uncontrolled, `initial`) from the demo's source `src` —
-// it follows the source until you type, then holds the edit. Each edit publishes
-// the new text on App.liveSource/liveCard for the host to recompile the preview.
+
+/*
+## The live panels
+
+The heart of the page: every demo is real Declare, compiled and running. A
+`CodeField` is a native editable field seeded (uncontrolled, `initial`) from
+the demo's source — it follows the source until you type, then holds the
+edit, publishing each keystroke on `App.liveSource` for the host to
+recompile. A `SourcePanel` frames it (LIVE·EDITABLE chip, Revert, hairline);
+a `PreviewFrame` hosts the compiled app as an **embedded child app** — no
+iframe — so the preview can't drift from the source. Its `active` flag gates
+the island slot, which is what bounds the full-page-editor recursion: a
+closed editor's preview renders nothing, so the page source containing that
+very editor only descends one level per user click.
+*/
 
 class CodeField extends TextInput [ multiline = true, spellcheck = false,
-    fontFamily = [Mono, "monospace"], fontSize = 11, textColor = #9DB0BC,
-    editName: string = "",  src: string = "",
+    fontFamily = [Mono, "monospace"], fontSize = 11, textColor = { theme.lead },
+    editName: string = "",
+    src: string = "",
     initial = { src },
-    onInput() { app.liveCard = editName; app.liveSource = text } ]
+    onInput() { app.liveCard = editName; app.liveSource = text },
+    ]
 
-// ── the SOURCE panel: an all-neo card (frame · header · Revert · code) ────────
-// No HTML island — the editor is the neo CodeField above; only the PREVIEW is a
-// foreign island. `height` is set per demo (at the use site) to sit just above
-// what the code / preview needs. Revert restores the pristine `src` and asks the
-// host to recompile.
+
+// `height` is set per demo (at the use site) to sit just above what the code /
+// preview needs; Revert restores the pristine `src` and asks the host to recompile
 
 class SourcePanel extends View [ width = { parent.width < 760 ? parent.width : Math.floor((parent.width - 20) * 0.58) },
-    editName: string = "",  src: string = "",
-    fill = { theme.panel }, cornerRadius = 12, stroke = stroke(1, #1E313C),
+    editName: string = "",
+    src: string = "",
+    fill = { theme.panel }, cornerRadius = 12, stroke = { stroke(1, theme.panelLine) },
+
     // the affordance chip: this code runs, and you can type in it
 
-    live: View [ x = 12, y = 7, height = 18, cornerRadius = 5, fill = #4C8DFF,
+    live: View [ x = 12, y = 7, height = 18, cornerRadius = 5, fill = { theme.accent },
         width = { this.t.width + 14 },
         t: Text [ x = 7, y = 4, fontFamily = [Sans, "system-ui"], fontSize = 9, fontWeight = bold,
-                  letterSpacing = 0.8, wrap = false, textColor = #0B141B, text = "LIVE · EDITABLE" ] ],
-    revert: View [ y = 5, height = 20, cornerRadius = 6, stroke = stroke(1, #26414F),
+            letterSpacing = 0.8, wrap = false, textColor = { theme.ink }, text = "LIVE · EDITABLE" ],
+        ],
+    revert: View [ y = 5, height = 20, cornerRadius = 6, stroke = { stroke(1, theme.revertLine) },
         hovered: boolean = false,
         x = { parent.width - this.width - 10 },
         width = { this.rlbl.width + 16 },
-        fill = { hovered ? 0x162A36 : null },
+        fill = { hovered ? theme.hover : null },
         onMouseOver() { hovered = true },
         onMouseOut()  { hovered = false },
         onClick() { classroot.field.text = classroot.src
                     app.liveCard = classroot.editName
                     app.liveSource = classroot.src },
         rlbl: Text [ x = 8, y = 3, fontFamily = [Sans, "system-ui"], fontSize = 11, fontWeight = semibold,
-                     textColor = { parent.hovered ? 0xE7EEF2 : 0x9DB0BC }, text = "Revert" ] ],
-    hairline: View [ y = 31, width = { parent.width }, height = 1, fill = #1E313C ],
+            textColor = { parent.hovered ? theme.text : theme.lead }, text = "Revert" ],
+        ],
+    hairline: View [ y = 31, width = { parent.width }, height = 1, fill = { theme.panelLine } ],
     field: CodeField [ x = 12, y = 40, width = { parent.width - 24 }, height = { parent.height - 48 },
-                       editName = { classroot.editName }, src = { classroot.src } ],
+        editName = { classroot.editName }, src = { classroot.src } ],
     ]
 
-// ── the PREVIEW panel: an island hosting the compiled app as an EMBEDDED CHILD ─
-// The preview IS the app (a neo child app rendered into the island box, no iframe),
-// so it can't drift from the source. `active` gates the island slot: when false the
-// slot is empty and the host renders NOTHING into it — this is what bounds the
-// full-page-editor recursion (a closed editor's preview renders nothing, so the
-// page source containing this very editor only descends one level per user click).
 
 class PreviewFrame extends View [ width = { parent.width < 760 ? parent.width : Math.floor((parent.width - 20) * 0.42) },
     runName: string = "",
     active: boolean = true,
     run: HTML [ width = { parent.width }, height = { parent.height },
-                slot = { classroot.active ? "run:" + classroot.runName : "" } ],
+        slot = { classroot.active ? "run:" + classroot.runName : "" } ],
     ]
 
-// ── the whole-page source editor: the SAME CodeField + embedded preview as the
-// demo cards, at page scale — the page's own source on the left, the page it
-// compiles to on the right. An overlay filling the app, shown when app.editing.
-// The preview island is `active` only while open, so it renders nothing until you
-// open it — which makes the recursion (this editor is part of the page source it
-// previews) bounded by clicks: one level per "view & edit source". `pageSource`
-// is threaded in from the host (App.demoSources.__page__ = the page's own text).
-// A full-window overlay: it reads the App's own size directly through the `app`
-// noun, so it always fills whatever the page fills — no threaded-in dimensions.
+
+/*
+## The whole-page editor
+
+The same `CodeField` + embedded preview as the demo cards, at page scale: the
+page's own source on the left, the page it compiles to on the right. It's a
+full-window overlay shown when `app.editing` — it reads the App's own size
+through the `app` noun, so it always fills whatever the page fills.
+`pageSource` is threaded in from the host (`demoSources.__page__` — the
+page's own text), and the preview island is `active` only while open, so the
+recursion stays bounded by clicks.
+*/
 
 class FullPageEditor extends View [ width = { app.width }, height = { app.height },
-    open: boolean = false,  pageSource: string = "",
+    open: boolean = false,
+    pageSource: string = "",
 
     // Escape closes the editor — a lifetime-managed Keys subscription (the
     // body gates on `open`, since the raw keyboard fires regardless)
@@ -214,42 +263,51 @@ class FullPageEditor extends View [ width = { app.width }, height = { app.height
     bar: View [ width = { parent.width }, height = 44, fill = { theme.surface },
         edge: View [ y = 43, width = { parent.width }, height = 1, fill = { theme.line } ],
         name: Text [ x = 22, y = 14, fontFamily = [Mono, "monospace"], fontSize = 13, fontWeight = semibold,
-                     textColor = { theme.text }, text = "site.declare" ],
+            textColor = { theme.text }, text = "site.declare" ],
         hint: Text [ x = 132, y = 15, fontSize = 12, italic = true, textColor = { theme.dim },
-                     text = "the whole page — edit and it re-renders live" ],
-        close: View [ y = 8, height = 28, cornerRadius = 8, stroke = stroke(1, #263D4C),
+            text = "the whole page — edit and it re-renders live" ],
+        close: View [ y = 8, height = 28, cornerRadius = 8, stroke = { stroke(1, theme.line) },
             hovered: boolean = false,
             x = { parent.width - this.width - 16 },
             width = { this.lbl.width + 26 },
-            fill = { hovered ? 0x162A36 : 0x101E28 },
+            fill = { hovered ? theme.hover : theme.surface },
             onMouseOver() { hovered = true },
             onMouseOut()  { hovered = false },
             onClick()     { app.editing = false },
-            lbl: Text [ x = 13, y = 6, fontSize = 13, textColor = { theme.text }, text = "Close ✕" ] ],
+            lbl: Text [ x = 13, y = 6, fontSize = 13, textColor = { theme.text }, text = "Close ✕" ],
+            ],
         ],
 
     // source: no wrap (long lines scroll horizontally) + 16px inset off the edge
 
     code: CodeField [ x = 0, y = 44, width = { classroot.splitX }, height = { parent.height - 44 },
-                      wrap = false, padding = 16,
-                      editName = "__page__", src = { classroot.pageSource } ],
+        wrap = false, padding = 16,
+        editName = "__page__", src = { classroot.pageSource } ],
 
     // draggable divider — captures the pointer on press, writes `split` as it moves
 
     grip: View [ x = { classroot.splitX }, y = 44, width = 6, height = { parent.height - 44 },
-        dragging: boolean = false,  hovered: boolean = false,
+        dragging: boolean = false,
+        hovered: boolean = false,
         fill = { dragging || hovered ? theme.accent2 : theme.line },
         onMouseOver()  { hovered = true },
         onMouseOut()   { hovered = false },
         onMouseDown()  { dragging = true },
         onMouseMove(e) { if (dragging) classroot.split = Math.max(240, Math.min(app.width - 320, e.x)) },
-        onMouseUp()    { dragging = false } ],
+        onMouseUp()    { dragging = false },
+        ],
     preview: PreviewFrame [ x = { classroot.splitX + 6 }, y = 44,
-                            width = { parent.width - classroot.splitX - 6 }, height = { parent.height - 44 },
-                            runName = "__page__", active = { classroot.open } ],
+        width = { parent.width - classroot.splitX - 6 }, height = { parent.height - 44 },
+        runName = "__page__", active = { classroot.open } ],
     ]
 
-// ── the blueprint grid background ────────────────────────────────────────────
+
+/*
+## Backdrop and section heads
+
+The blueprint grid draws itself; a `SectionHead` is the tight
+number · heading · lead rhythm every numbered section opens with.
+*/
 
 class GridBg extends View [
     draw(d) {
@@ -259,7 +317,6 @@ class GridBg extends View [
         },
     ]
 
-// ── a numbered section header (number · heading · lead), tight rhythm ─────────
 
 class SectionHead extends View [ width = { parent.width },
     num:  string = "",
@@ -271,25 +328,46 @@ class SectionHead extends View [ width = { parent.width },
     Lead    [ width = { Math.min(760, parent.width) }, text = { classroot.lead } ],
     ]
 
-// ── the page ─────────────────────────────────────────────────────────────────
-// The palette lives ONCE as a prevailing `theme` token record — every semantic
-// type class (Heading/Lead/Body/…) defaults its colour to `{ theme.… }`, so the
-// whole page reskins from this one place. Bodies are TypeScript ⇒ `0x` here.
 
-App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8DFF,
-                 accent2: 0x37E0C8, surface: 0x101E28, line: 0x263D4C, grid: 0x172A38,
-                 ink: 0x0B141B, panel: 0x0C1620 }) },
+/*
+## The page
+
+The palette lives once as a prevailing `theme` token record — every semantic
+type class defaults its colour to `{ theme.… }`, so the whole page reskins
+from this one place. The scroller fills the viewport and scrolls its taller
+content natively; the chrome further down (header, cursor) are its
+**siblings**, not its children, so they never move.
+*/
+
+App [ theme = { ({
+        // text, brightest to faintest
+        text: 0xE7EEF2, lead: 0x9DB0BC, muted: 0x8A9BA6, dim: 0x6A7C89, faint: 0x556673,
+        // the blue accent and its interaction shades; links brighten past accent
+        accent: 0x4C8DFF, accentHover: 0x63A0FF, accentPress: 0x3D7BE0, linkHover: 0x7FB0FF,
+        // the teal second accent; the brand gradient runs accent → accent2
+        accent2: 0x37E0C8, accent2Press: 0x9BF2E4,
+        brand: gradient("90deg", 0x4C8DFF, 0x37E0C8),
+        // grounds, darkest to lightest, and their interaction shades
+        ink: 0x0B141B, panel: 0x0C1620, press: 0x0C1922, surfaceDeep: 0x0D1922,
+        surface: 0x101E28, hover: 0x162A36, pillHover: 0x1C2D39, pillPress: 0x24384A,
+        // rules and strokes
+        line: 0x263D4C, panelLine: 0x1E313C, revertLine: 0x26414F, pointRule: 0x345B84,
+        grid: 0x172A38 }) },
     fill = { theme.ink },
     fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 17, fontWeight = normal,
     textColor = { theme.text },
 
     // in-app route: "home" (the scrolling page) or "why" (the mini-article). The host
     // mirrors this to the URL hash (#why) so it deep-links and honours the back button.
+
     route: string = "home",
 
-    // the scroll region — fills the viewport and scrolls its taller content
-    // NATIVELY. The chrome further down (header, cursor) are its SIBLINGS, not
-    // its children, so they never move: no reposition, no jitter.
+    // the content measure and the centering gutter — the one geometry every
+    // aligned edge on the page (column, wordmark, nav) derives from
+
+    measure: number = 1120,
+    gutter: number = { Math.max(24, (app.width - app.measure) / 2) },
+    heroFont: number = { app.width < 700 ? 44 : 60 },
 
     scroller: View [ width = { app.width }, height = { app.height }, scrolls = true, visible = { app.route == "home" },
 
@@ -301,50 +379,64 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
         // the centered content column: a fixed measure, and a VERTICAL FLOW of
         // sections — each auto-sizes, the page stacks them
 
-        page: View [ width = { Math.min(1120, app.width - 48) },
-                     x = { Math.max(24, (app.width - 1120) / 2) }, y = 96,
+        page: View [ width = { Math.min(app.measure, app.width - 48) },
+            x = { app.gutter }, y = 96,
             layout: SimpleLayout [ axis = y, spacing = 112 ],
 
-            // ── hero ──────────────────────────────────────────────────────────
+            /* ### Hero — the name, the claim, and the two doors in
+               (GitHub, or edit this page's own source) */
 
             hero: View [ width = { parent.width },
                 layout: SimpleLayout [ axis = y, spacing = 24 ],
-                top: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 26 ],
+                top: View [ width = { parent.width },
+                    layout: SimpleLayout [ axis = y, spacing = 26 ],
 
                     // the title: product name in the blue→teal gradient, the claim on the
                     // next line. One rendition at every width — no wide/narrow split to keep in sync.
 
-                    titleGroup: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 12 ],
-                        headline: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 2 ],
-                            Heading [ fontSize = { app.width < 700 ? 44 : 60 },
-                                      textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) }, text = "Declare" ],
-                            Heading [ fontSize = { app.width < 700 ? 44 : 60 }, width = { parent.width },
-                                      text = "is the UI language for the AI era." ],
+                    titleGroup: View [ width = { parent.width },
+                        layout: SimpleLayout [ axis = y, spacing = 12 ],
+                        headline: View [ width = { parent.width },
+                            layout: SimpleLayout [ axis = y, spacing = 2 ],
+                            Heading [ fontSize = { app.heroFont },
+                                textFill = { theme.brand }, text = "Declare" ],
+                            Heading [ fontSize = { app.heroFont }, width = { parent.width },
+                                text = "is the UI language for the AI era." ],
                             ],
                         ],
-                    paras: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 12 ],
-                        HTMLText [ width = { Math.min(680, parent.width) }, fontSize = 19, lineHeight = 1.2, bodyColor = #9DB0BC, selectable = true,
-                                   accents = { ({ g: gradient("90deg", 0x4C8DFF, 0x37E0C8) }) },
-                                   html = "Just as SQL is a domain-specific language for database queries, <span class='g'>Declare</span> is a DSL for user interfaces. Its whole surface fits in your head — and inside an LLM's context window." ],
+                    paras: View [ width = { parent.width },
+                        layout: SimpleLayout [ axis = y, spacing = 12 ],
+                        HTMLText [ width = { Math.min(680, parent.width) }, fontSize = 19, lineHeight = 1.2, bodyColor = { theme.lead }, selectable = true,
+                            accents = { ({ g: theme.brand }) },
+                            html = "Just as SQL is a domain-specific language for database queries, <span class='g'>Declare</span> is a DSL for user interfaces. Its whole surface fits in your head — and inside an LLM's context window." ],
                         Lead [ width = { Math.min(680, parent.width) },
-                               text = "This page is written in it. By an LLM." ],
+                            text = "This page is written in it. By an LLM." ],
                         ],
                     ],
                 buttons: View [ layout: SimpleLayout [ axis = x, spacing = 14 ],
                     Button [ width = 128, label = "GitHub →",
-                             onClick() { app.navigate = "https://github.com/davidtemkin/declarelang" } ],
+                        onClick() { app.navigate = "https://github.com/davidtemkin/declarelang" },
+                        ],
+
+                    // the source viewer's live-edit workbench on THIS page's
+                    // own source — editor, diagnostics, and the running page
+
                     Button [ width = 184, label = "Edit this page →", primary = false,
-                             onClick() { app.editing = true } ],
+                        onClick() { app.navigate = "examples/site/site.declare?view=edit" },
+                        ],
                     ],
                 learn: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
-                              hovered: boolean = false,
-                              textColor = { this.hovered ? 0x7FB0FF : 0x4C8DFF }, text = "Why a new language, now? →",
-                              onMouseOver() { this.hovered = true },
-                              onMouseOut() { this.hovered = false },
-                              onClick() { app.route = "why" } ],
+                    hovered: boolean = false,
+                    textColor = { this.hovered ? theme.linkHover : theme.accent }, text = "Why a new language, now? →",
+                    onMouseOver() { this.hovered = true },
+                    onMouseOut() { this.hovered = false },
+                    onClick() { app.route = "why" },
+                    ],
                 ],
 
-            // ── 01 — Read it. Generate it. Run it. ─────────────────────────────
+            /* ### 01 — Read it. Generate it. Run it.
+               Each numbered section fades in on a Spring the moment it scrolls
+               into view — a reveal declared as a reactive target, not scheduled. */
 
             s1: View [ width = { parent.width }, opacity = 0,
                 reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
@@ -352,16 +444,17 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                 layout: SimpleLayout [ axis = y, spacing = 40 ],
                 SectionHead [ num = "01", head = "Read it. Generate it. Run it.",
                     lead = "The relationships that matter — structure, data, reactivity — are explicit in the language, not hidden in imperative steps or a runtime graph." ],
-                cards: View [ width = { parent.width }, layout: WrappingLayout [ spacing = 24, lineSpacing = 24 ],
+                cards: View [ width = { parent.width },
+                    layout: WrappingLayout [ spacing = 24, lineSpacing = 24 ],
                     Card [ title = "Analyzable", body = "A program's whole structure — components, data, what reacts to what — is right there in the source. The compiler reads it statically; so can an LLM." ],
                     Card [ title = "Predictable", body = "One clear way to write each thing, and the compiler rejects the rest — no dependency arrays, no keys, no stale-value bugs. An LLM's mistake is a compile error that names the fix — not an app that quietly runs wrong." ],
                     Card [ title = "Runnable", body = "The compiler runs in the browser, so code renders the moment it exists — no build, no deploy. Write it and it's live." ],
                     ],
                 pull: Heading [ fontSize = 28, width = { parent.width }, textAlign = center,
-                                text = "Everything that makes it legible to an LLM makes it legible to you." ],
+                    text = "Everything that makes it legible to an LLM makes it legible to you." ],
                 ],
 
-            // ── 02 — Declare Calendar: a real app, small and fast ──────────────
+            /* ### 02 — Declare Calendar: a real app, small and fast */
 
             s2: View [ width = { parent.width }, opacity = 0,
                 reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
@@ -373,154 +466,175 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                 // the app itself: a prominent Run, a quiet source link, and the two
                 // numbers that matter — over-the-wire size and lines of Declare — rendered
                 // as two big gradient figures (no comparison; the numbers stand on their own).
+
                 panel: View [ width = { parent.width }, height = { this.pad.height + 52 }, cornerRadius = 14, clip = true,
                     fill = { theme.panel }, stroke = { stroke(1, theme.line) },
-                    pad: View [ x = 30, y = 26, width = { parent.width - 60 }, layout: SimpleLayout [ axis = y, spacing = 24 ],
+                    pad: View [ x = 30, y = 26, width = { parent.width - 60 },
+                        layout: SimpleLayout [ axis = y, spacing = 24 ],
                         actions: View [ layout: SimpleLayout [ axis = x, spacing = 18 ],
                             Button [ width = 240, label = "Run Declare Calendar →",
-                                     onClick() { app.navigate = "examples/calendar/" } ],
+                                onClick() { app.navigate = "examples/calendar/" },
+                                ],
                             srclink: Text [ y = 16, fontFamily = [Sans, "system-ui"], fontSize = 13, wrap = false,
-                                     textColor = { theme.dim }, text = "or read the source →",
-                                     onClick() { app.navigate = "https://github.com/davidtemkin/declarelang/blob/main/examples/calendar/calendar.declare" } ],
+                                textColor = { theme.dim }, text = "or read the source →",
+                                onClick() { app.navigate = "https://github.com/davidtemkin/declarelang/blob/main/examples/calendar/calendar.declare" },
+                                ],
                             ],
-                        stat: View [ width = { parent.width }, layout: WrappingLayout [ spacing = 48, lineSpacing = 40 ],
+                        stat: View [ width = { parent.width },
+                            layout: WrappingLayout [ spacing = 48, lineSpacing = 40 ],
                             Metric [ value = "46 KB", note = "over the wire, gzipped — the whole app and its runtime" ],
-                            Metric [ value = "421",   note = "lines of Declare — four views, continuous zoom, drag, and edit" ],
+                            Metric [ value = "479",   note = "lines of Declare — four views, continuous zoom, drag, and edit" ],
                             ],
                         ],
                     ],
 
-                points: View [ width = { parent.width }, layout: WrappingLayout [ spacing = 24, lineSpacing = 32 ],
+                points: View [ width = { parent.width },
+                    layout: WrappingLayout [ spacing = 24, lineSpacing = 32 ],
                     Point [ ptitle = "Holds framerate", body = "Reactive dependencies are compiled, not tracked at runtime, and motion is declarative springs — so the continuous zoom stays smooth, with no animation library and no reactive-graph tax." ],
                     Point [ ptitle = "Type-checked bindings", body = "Events, selection, the editable panel: the data flow is declarative, type-checked bindings, not a state manager wired by hand. Change a value and everything derived from it follows — a type mismatch is a compile error, not a runtime surprise." ],
                     Point [ ptitle = "Easy to reason about", body = "A zooming, drag-to-reschedule, edit-in-place calendar is normally a thicket of imperative view-syncing and animation state. Declared, it's a fraction of the code — and legible to you, the compiler, and an LLM alike." ],
                     ],
                 ],
 
-            // ── 03 — Describe it. It runs. (excerpt + a real running preview) ──
+            /* ### 03 — Declare it. It runs. It stays true.
+               Sections 03–06 share one shape: a SectionHead, a caption, and a
+               live SourcePanel + PreviewFrame pair running the demo for real. */
 
             s3: View [ width = { parent.width },
                 layout: SimpleLayout [ axis = y, spacing = 36 ],
                 SectionHead [ num = "03", head = "Declare it. It runs. It stays true.",
                     lead = "A binding isn’t a callback you remember to re-run — it’s a standing relationship the runtime keeps true, re-derived the moment its inputs change." ],
-                demo3: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 14 ],
+                demo3: View [ width = { parent.width },
+                    layout: SimpleLayout [ axis = y, spacing = 14 ],
                     caption: Body [ fontSize = 15, width = { parent.width },
                         text = "Three bindings track one value: the big number, the bar’s width, and its color. Click to bump v — all three update together, and the color crosses cool to warm at the halfway mark." ],
                     cards: View [ width = { parent.width },
                         layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ],
                         SourcePanel  [ editName = "reactivity", height = 226,
-                                       src = { app.demoSources.reactivity || "" } ],
+                            src = { app.demoSources.reactivity || "" } ],
                         PreviewFrame [ runName  = "reactivity", height = 226 ],
                         ],
                     ],
                 ],
 
-            // ── 04 — Compose it from data. ─────────────────────────────────────
+            /* ### 04 — Declare the shape, not the loop. */
 
             s4: View [ width = { parent.width },
                 layout: SimpleLayout [ axis = y, spacing = 36 ],
                 SectionHead [ num = "04", head = "Declare the shape, not the loop.",
                     lead = "A view can be built from data instead of laid out by hand — the shape written once, the data deciding how many there are and what each one says." ],
-                demo4: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 14 ],
+                demo4: View [ width = { parent.width },
+                    layout: SimpleLayout [ axis = y, spacing = 14 ],
                     caption: Body [ fontSize = 15, width = { parent.width },
                         text = "One Bar, instanced once per row of the data. Edit a number or add a row and the list rebuilds itself — no loop, no keys. And Bar is auto-included: no import, no definition, just use it." ],
                     cards: View [ width = { parent.width },
                         layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ],
                         SourcePanel  [ editName = "components", height = 184,
-                                       src = { app.demoSources.components || "" } ],
+                            src = { app.demoSources.components || "" } ],
                         PreviewFrame [ runName  = "components", height = 184 ],
                         ],
                     ],
                 ],
 
-            // ── 05 — Motion you declare, not schedule. ─────────────────────────
+            /* ### 05 — Motion you declare, not schedule. */
 
             s5: View [ width = { parent.width },
                 layout: SimpleLayout [ axis = y, spacing = 36 ],
                 SectionHead [ num = "05", head = "Motion you declare, not schedule.",
                     lead = "You say where a thing belongs; a Spring finds the path there and settles by physics — motion you declare, not a timeline you sequence." ],
-                demo5: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 14 ],
+                demo5: View [ width = { parent.width },
+                    layout: SimpleLayout [ axis = y, spacing = 14 ],
                     caption: Body [ fontSize = 15, width = { parent.width },
                         text = "Click to toggle the ball’s target between two positions. The Spring follows and settles by physics — no timeline, no frames driven by hand." ],
                     cards: View [ width = { parent.width },
                         layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ],
                         SourcePanel  [ editName = "spring", height = 184,
-                                       src = { app.demoSources.spring || "" } ],
+                            src = { app.demoSources.spring || "" } ],
                         PreviewFrame [ runName  = "spring", height = 184 ],
                         ],
                     ],
                 ],
 
-            // ── 06 — Modes, not manual wiring. ─────────────────────────────────
+            /* ### 06 — Declared states, not manual wiring. */
 
             s6: View [ width = { parent.width },
                 layout: SimpleLayout [ axis = y, spacing = 36 ],
                 SectionHead [ num = "06", head = "Declared states, not manual wiring.",
                     lead = "A State is a named bundle of overrides — a whole configuration you can apply as one. The mode is the unit of change, not each property by hand." ],
-                demo6: View [ width = { parent.width }, layout: SimpleLayout [ axis = y, spacing = 14 ],
+                demo6: View [ width = { parent.width },
+                    layout: SimpleLayout [ axis = y, spacing = 14 ],
                     caption: Body [ fontSize = 15, width = { parent.width },
                         text = "Click to flip one boolean. The card’s height, its color, and an extra line of text swap in together — and revert the instant the mode turns off." ],
                     cards: View [ width = { parent.width },
                         layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ],
                         SourcePanel  [ editName = "states", height = 230,
-                                       src = { app.demoSources.states || "" } ],
+                            src = { app.demoSources.states || "" } ],
                         PreviewFrame [ runName  = "states", height = 230 ],
                         ],
                     ],
                 ],
 
-            // ── manifesto band — centered, an accent rule above and below ──────
+            /* ### The manifesto band — centered, an accent rule above and below */
 
             manifesto: View [ width = { parent.width }, opacity = 0,
                 reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
                     to = { app.scroller.scrollY + app.height > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
                 layout: SimpleLayout [ axis = y, spacing = 30 ],
-                ruleTop: View [ x = { (parent.width - 140) / 2 }, width = 140, height = 2, fill = #4C8DFF ],
+                ruleTop: View [ x = { (parent.width - 140) / 2 }, width = 140, height = 2, fill = { theme.accent } ],
                 Heading [ fontSize = { app.width < 700 ? 26 : 38 },
-                          width = { Math.min(900, parent.width) }, x = { (parent.width - Math.min(900, parent.width)) / 2 },
-                          textAlign = center,
-                          text = "The web’s last generation of frameworks was built on the browser’s document model.\n\nDeclare abstracts the renderer away — you declare what the UI is, and the runtime draws it." ],
+                    width = { Math.min(900, parent.width) }, x = { (parent.width - Math.min(900, parent.width)) / 2 },
+                    textAlign = center,
+                    text = "The web’s last generation of frameworks was built on the browser’s document model.\n\nDeclare abstracts the renderer away — you declare what the UI is, and the runtime draws it." ],
                 explain: Lead [ width = { Math.min(720, parent.width) }, x = { (parent.width - Math.min(720, parent.width)) / 2 },
-                          textAlign = center, textColor = #9DB0BC,
-                          text = "The same program paints to the DOM or to a canvas today, WebGL next, with no rewrite. And you never touch the render layer — no DOM to poke, no paint loop to run — so the code stays small: what you write is the interface itself, not the machinery that shows it." ],
-                ruleBot: View [ x = { (parent.width - 140) / 2 }, width = 140, height = 2, fill = #4C8DFF ],
+                    textAlign = center,
+                    text = "The same program paints to the DOM or to a canvas today, WebGL next, with no rewrite. And you never touch the render layer — no DOM to poke, no paint loop to run — so the code stays small: what you write is the interface itself, not the machinery that shows it." ],
+                ruleBot: View [ x = { (parent.width - 140) / 2 }, width = 140, height = 2, fill = { theme.accent } ],
                 ],
 
-            // ── footer ─────────────────────────────────────────────────────────
+            /* ### Footer */
 
             footer: View [ width = { parent.width },
                 layout: SimpleLayout [ axis = y, spacing = 16 ],
-                rule: View [ width = { parent.width }, height = 1, fill = #263D4C ],
-                row: View [ width = { parent.width }, layout: WrappingLayout [ spacing = 12, lineSpacing = 8 ],
+                rule: View [ width = { parent.width }, height = 1, fill = { theme.line } ],
+                row: View [ width = { parent.width },
+                    layout: WrappingLayout [ spacing = 12, lineSpacing = 8 ],
                     FootLabel [ text = "Built in" ],
-                    Heading [ fontSize = 13, textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) }, text = "Declare" ],
-                    FootLabel [ textColor = #556673, text = "·" ],
+                    Heading [ fontSize = 13, textFill = { theme.brand }, text = "Declare" ],
+                    FootLabel [ textColor = { theme.faint }, text = "·" ],
 
                     // source affordance in the same eyebrow treatment — its onClick
                     // flips app.editing (the `app` noun reaches it from anywhere)
 
-                    src: FootLabel [ hovered: boolean = false, pressed: boolean = false,
+                    src: FootLabel [ hovered: boolean = false,
+                        pressed: boolean = false,
+
                         // pressed brightens past the hover teal — the tap feedback on touch
-                        textColor = { pressed ? 0x9BF2E4 : hovered ? 0x37E0C8 : 0x8A9BA6 },
+
+                        textColor = { pressed ? theme.accent2Press : hovered ? theme.accent2 : theme.muted },
                         onMouseOver() { hovered = true },
                         onMouseOut()  { hovered = false; pressed = false },
                         onMouseDown() { pressed = true },
                         onMouseUp()   { pressed = false },
-                        onClick()     { app.editing = true },
-                        text = "View & Edit Source" ],
+                        onClick()     { app.navigate = "examples/site/site.declare?view=edit" },
+                        text = "View & Edit Source",
+                        ],
                     ],
 
                 // breathing room below the footer line
 
                 tail: View [ width = { parent.width }, height = 28 ],
                 ],
-          ],
+            ],
         ],
 
-    // ── the "Why" route — an in-app view (app.route == "why"), same skin as the
-    // page: theme, graph-paper grid, and the menu bar (the header renders on this
-    // route too). Sits over the homepage; the host mirrors app.route to the URL hash
-    // (#why), so it deep-links and honours the back button.
+    /* ## The "Why" route
+
+       An in-app view (`app.route == "why"`) wearing the same skin as the page —
+       theme, graph-paper grid, and the header renders on this route too. The
+       host mirrors `app.route` to the URL hash (#why), so it deep-links and
+       honours the back button. The article itself is prose in `"""` blocks:
+       HTML collapses the line breaks, so the source wraps and the page flows. */
+
     whyView: View [ visible = { app.route == "why" }, width = { app.width }, height = { app.height }, fill = { theme.ink },
         grid: GridBg [ x = 0, y = 0, width = { app.width }, height = { app.height } ],
         body: View [ y = 56, width = { app.width }, height = { app.height - 56 }, scrolls = true, selectable = true,
@@ -528,74 +642,150 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
                 layout: SimpleLayout [ axis = y, spacing = 22 ],
                 Marker  [ text = "WHY DECLARE" ],
                 Heading [ fontSize = { app.width < 700 ? 32 : 42 }, width = { parent.width },
-                          text = "Why a new language, now?" ],
-                Body [ fontSize = 18, width = { parent.width }, textColor = #9DB0BC,
-                       text = "Start with the obvious objection. LLMs write code now, and they're best at the languages they've seen the most — so the winning move is to use whatever has the biggest corpus and let the model figure it out. By that logic the era of new programming languages is over." ],
-                Body [ fontSize = 18, width = { parent.width }, textColor = #9DB0BC,
-                       text = "That argument gets its facts right and its conclusion backwards. Producing code is now nearly free; trusting it costs what it always did. A model writing React verifies its work by resemblance — this looks like the billion lines it trained on — and resemblance is not correctness. Meanwhile, less and less of the code passes under human eyes, which leaves the language and its compiler as the one reviewer that is always present. Handing the writing to a machine doesn't make the language irrelevant. It makes it load-bearing." ],
+                    text = "Why a new language, now?" ],
+                Para [ html = """
+                    Start with the obvious objection. LLMs write code now, and they're
+                    best at the languages they've seen the most — so the winning move is
+                    to use whatever has the biggest corpus and let the model figure it
+                    out. By that logic the era of new programming languages is over.
+                    """ ],
+                Para [ html = """
+                    That argument gets its facts right and its conclusion backwards.
+                    Producing code is now nearly free; trusting it costs what it always
+                    did. A model writing React verifies its work by resemblance — this
+                    looks like the billion lines it trained on — and resemblance is not
+                    correctness. Meanwhile, less and less of the code passes under human
+                    eyes, which leaves the language and its compiler as the one reviewer
+                    that is always present. Handing the writing to a machine doesn't make
+                    the language irrelevant. It makes it load-bearing.
+                    """ ],
                 Heading [ fontSize = 24, width = { parent.width }, text = "Two kinds of leverage" ],
-                Body [ fontSize = 18, width = { parent.width }, textColor = #9DB0BC,
-                       text = "What a model gets from a mainstream stack is corpus leverage: fluency by imitation — broad, shallow, self-contradictory, unverifiable. The other kind is comprehension leverage: a language small enough to hand to a model whole, regular enough that its programs can be analyzed rather than pattern-matched, and backed by a compiler that turns each mistake into a precise correction. Corpus leverage arrives free with popularity. Comprehension leverage has to be designed in — and it is the only kind a new language can compete on." ],
-                Body [ fontSize = 18, width = { parent.width }, textColor = #9DB0BC,
-                       text = "This is a measured bet, not a hunch. Models can learn a language they never trained on from a spec in context — in recent studies, a small language purpose-designed for LLM use, with zero training exposure, beat the same model writing Python, its best-trained language. And what bounds a model's ability to repair its own mistakes is the quality of the feedback: a compiler that explains beats one that merely rejects, by a double-digit margin." ],
-                sources: View [ width = { parent.width }, layout: SimpleLayout [ axis = x, spacing = 20 ],
-                    lbl: Text [ fontSize = 14, wrap = false, textColor = #556673, text = "The studies:" ],
-                    s1: Text [ fontSize = 14, wrap = false, hovered: boolean = false,
-                        textColor = { this.hovered ? 0x7FB0FF : 0x4C8DFF }, text = "a zero-corpus DSL vs. Python →",
+                Para [ html = """
+                    What a model gets from a mainstream stack is corpus leverage: fluency
+                    by imitation — broad, shallow, self-contradictory, unverifiable. The
+                    other kind is comprehension leverage: a language small enough to hand
+                    to a model whole, regular enough that its programs can be analyzed
+                    rather than pattern-matched, and backed by a compiler that turns each
+                    mistake into a precise correction. Corpus leverage arrives free with
+                    popularity. Comprehension leverage has to be designed in — and it is
+                    the only kind a new language can compete on.
+                    """ ],
+                Para [ html = """
+                    This is a measured bet, not a hunch. Models can learn a language they
+                    never trained on from a spec in context — in recent studies, a small
+                    language purpose-designed for LLM use, with zero training exposure,
+                    beat the same model writing Python, its best-trained language. And
+                    what bounds a model's ability to repair its own mistakes is the
+                    quality of the feedback: a compiler that explains beats one that
+                    merely rejects, by a double-digit margin.
+                    """ ],
+                sources: View [ width = { parent.width },
+                    layout: SimpleLayout [ axis = x, spacing = 20 ],
+                    lbl: Text [ fontSize = 14, wrap = false, textColor = { theme.faint }, text = "The studies:" ],
+                    s1: Text [ fontSize = 14, wrap = false,
+                        hovered: boolean = false,
+                        textColor = { this.hovered ? theme.linkHover : theme.accent }, text = "a zero-corpus DSL vs. Python →",
                         onMouseOver() { this.hovered = true },
                         onMouseOut()  { this.hovered = false },
-                        onClick()     { app.navigate = "https://arxiv.org/abs/2512.23214" } ],
-                    s2: Text [ fontSize = 14, wrap = false, hovered: boolean = false,
-                        textColor = { this.hovered ? 0x7FB0FF : 0x4C8DFF }, text = "feedback quality vs. repair →",
+                        onClick()     { app.navigate = "https://arxiv.org/abs/2512.23214" },
+                        ],
+                    s2: Text [ fontSize = 14, wrap = false,
+                        hovered: boolean = false,
+                        textColor = { this.hovered ? theme.linkHover : theme.accent }, text = "feedback quality vs. repair →",
                         onMouseOver() { this.hovered = true },
                         onMouseOut()  { this.hovered = false },
-                        onClick()     { app.navigate = "https://arxiv.org/abs/2504.06939" } ],
+                        onClick()     { app.navigate = "https://arxiv.org/abs/2504.06939" },
+                        ],
                     ],
                 Heading [ fontSize = 24, width = { parent.width }, text = "Designed in, not bolted on" ],
-                Body [ fontSize = 18, width = { parent.width }, textColor = #9DB0BC,
-                       text = "Declare's declarative layer is small — the whole language fits in a model's context window with room left for your app — and everything inside a { } is ordinary TypeScript, so the hard part of generation rides the largest corpus there is. Where Declare looks familiar, it behaves the way a model — or you — will assume: assignment is assignment, and there is no bypass to forget. Where it's genuinely new, it looks new — brackets for structure, :path for data — a visible cue to consult the spec instead of autocompleting from memory." ],
-                Body [ fontSize = 18, width = { parent.width }, textColor = #9DB0BC,
-                       text = "And because a UI's real structure — components, state, data, what reacts to what — is expressed in the language, the compiler can see all of it: it extracts every binding's dependencies statically, checks the shape of the tree, and types the seams. What a model reasons about is exactly what the compiler verifies, and its errors are written for that loop — each one states the rule and names the rewrite that fixes it, because the primary reader of a compiler message, now, is a model deciding what to do next." ],
+                Para [ html = """
+                    Declare's declarative layer is small — the whole language fits in a
+                    model's context window with room left for your app — and everything
+                    inside a { } is ordinary TypeScript, so the hard part of generation
+                    rides the largest corpus there is. Where Declare looks familiar, it
+                    behaves the way a model — or you — will assume: assignment is
+                    assignment, and there is no bypass to forget. Where it's genuinely
+                    new, it looks new — brackets for structure, :path for data — a
+                    visible cue to consult the spec instead of autocompleting from memory.
+                    """ ],
+                Para [ html = """
+                    And because a UI's real structure — components, state, data, what
+                    reacts to what — is expressed in the language, the compiler can see
+                    all of it: it extracts every binding's dependencies statically,
+                    checks the shape of the tree, and types the seams. What a model
+                    reasons about is exactly what the compiler verifies, and its errors
+                    are written for that loop — each one states the rule and names the
+                    rewrite that fixes it, because the primary reader of a compiler
+                    message, now, is a model deciding what to do next.
+                    """ ],
                 Heading [ fontSize = 24, width = { parent.width }, text = "What it's actually for" ],
-                Body [ fontSize = 18, width = { parent.width }, textColor = #9DB0BC,
-                       text = "All of that is the floor, not the point. The point is what a language makes sayable. The most prized layer of modern UI — the continuity you feel in the best native software, where a view doesn't switch so much as become the next one, where motion carries meaning and everything stays interruptible — has always been bespoke: specialist craft, one interaction at a time, locked to a platform. It is also the least machine-writable code there is; the corpus is thin, custom, and wrong in ways nothing catches." ],
-                Body [ fontSize = 18, width = { parent.width }, textColor = #9DB0BC,
-                       text = "Declare makes continuity the grain, not the garnish. Motion is a Spring on an attribute; layout is a reactive slot; a mode is a reversible state — so the continuous version of an interface is often less code than the discrete one. The reference app is a calendar whose four views are one surface seen through a moving, zooming rectangle — normally a bespoke project of its own, here a few hundred lines of declarations, readable end to end, written with an LLM. The whole category moves into the declarative, analyzable layer: the hardest part of ambitious UX becomes the part a model is best at." ],
-                Body [ fontSize = 18, width = { parent.width }, textColor = #9DB0BC,
-                       text = "And that is the forward-looking wager. We believe there is another generation of experiences past the carefully crafted ones we point to today — built on a foundation with continuity at its core, enabled at the language level, deployed as universally as a URL, and iterated by imaginative designer-developers working with a model at their side. Declare is built to find that out." ],
-                Body [ fontSize = 18, width = { parent.width }, textColor = #9DB0BC,
-                       text = "None of this trades away the human. What makes code legible to a model is what makes it fast for you to read — and you are still the reader who decides. You don't teach an LLM Declare with a million examples. You hand it the language and let the compiler keep it honest. The corpus will come; the language doesn't need it first." ],
+                Para [ html = """
+                    All of that is the floor, not the point. The point is what a language
+                    makes sayable. The most prized layer of modern UI — the continuity
+                    you feel in the best native software, where a view doesn't switch so
+                    much as become the next one, where motion carries meaning and
+                    everything stays interruptible — has always been bespoke: specialist
+                    craft, one interaction at a time, locked to a platform. It is also
+                    the least machine-writable code there is; the corpus is thin, custom,
+                    and wrong in ways nothing catches.
+                    """ ],
+                Para [ html = """
+                    Declare makes continuity the grain, not the garnish. Motion is a
+                    Spring on an attribute; layout is a reactive slot; a mode is a
+                    reversible state — so the continuous version of an interface is often
+                    less code than the discrete one. The reference app is a calendar
+                    whose four views are one surface seen through a moving, zooming
+                    rectangle — normally a bespoke project of its own, here a few hundred
+                    lines of declarations, readable end to end, written with an LLM. The
+                    whole category moves into the declarative, analyzable layer: the
+                    hardest part of ambitious UX becomes the part a model is best at.
+                    """ ],
+                Para [ html = """
+                    And that is the forward-looking wager. We believe there is another
+                    generation of experiences past the carefully crafted ones we point to
+                    today — built on a foundation with continuity at its core, enabled at
+                    the language level, deployed as universally as a URL, and iterated by
+                    imaginative designer-developers working with a model at their side.
+                    Declare is built to find that out.
+                    """ ],
+                Para [ html = """
+                    None of this trades away the human. What makes code legible to a
+                    model is what makes it fast for you to read — and you are still the
+                    reader who decides. You don't teach an LLM Declare with a million
+                    examples. You hand it the language and let the compiler keep it
+                    honest. The corpus will come; the language doesn't need it first.
+                    """ ],
                 tail: View [ width = 8, height = 80 ],
                 ],
             ],
         ],
 
-    // ── fixed chrome — SIBLINGS of the scroller, so they never scroll ─────────
-    // The translucent top bar. It starts hidden (opacity 0, nudged up 8px) and
-    // SPRINGS into view once you scroll past the hero — the entrance is two
-    // Springs each following a reactive target, the declarative neo form of a
-    // timed transition (no scroll-scrub, no imperative trigger).
+    /* ## Fixed chrome
 
-    header: View [ width = { app.width }, height = 56, y = -8, opacity = 0, fill = #101E28,
+       Siblings of the scroller, so they never scroll: the top bar (hidden until
+       you scroll past the hero, then two Springs bring it in — the declarative
+       form of a timed entrance), the whole-page editor overlay, and the pointer
+       dot that springs after the cursor. */
+
+    header: View [ width = { app.width }, height = 56, y = -8, opacity = 0, fill = { theme.surface },
         fadeIn:  Spring [ attribute = opacity, to = { app.route == "why" || app.scroller.scrollY > 80 ? 1 : 0 },
-                          stiffness = 220, damping = 30, epsilon = 0.004 ],
+            stiffness = 220, damping = 30, epsilon = 0.004 ],
         slideIn: Spring [ attribute = y,       to = { app.route == "why" || app.scroller.scrollY > 80 ? 0 : -8 },
-                          stiffness = 220, damping = 30, epsilon = 0.05 ],
-        hairline: View [ y = 55, width = { app.width }, height = 1, fill = #263D4C ],
+            stiffness = 220, damping = 30, epsilon = 0.05 ],
+        hairline: View [ y = 55, width = { app.width }, height = 1, fill = { theme.line } ],
 
-        // wordmark — the product name in the blue→teal gradient, in the hero's typeface
+        // wordmark — the product name in the brand gradient, in the hero's typeface
 
-        brand: View [ x = { Math.max(24, (app.width - 1120) / 2) }, y = 18, height = 22,
+        brand: View [ x = { app.gutter }, y = 18, height = 22,
             layout: SimpleLayout [ axis = x, spacing = 0 ],
             onClick() { app.route = "home" },
-            Heading [ fontSize = 15, textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) }, text = "Declare" ],
+            Heading [ fontSize = 15, textFill = { theme.brand }, text = "Declare" ],
             ],
 
-        // primary nav, right-aligned to the same gutter the content ends at
-        // auto-width, right-aligned to the same gutter the content ends at
-        // (x = right edge − own content width); the padded pills carry the spacing
+        // primary nav — auto-width, right-aligned to the same gutter the content
+        // ends at (x = right edge − own width); the padded pills carry the spacing
 
-        nav: View [ y = 11, x = { app.width - Math.max(24, (app.width - 1120) / 2) - this.width },
+        nav: View [ y = 11, x = { app.width - app.gutter - this.width },
             layout: SimpleLayout [ axis = x, spacing = 2 ],
             NavLink [ label = "Why Declare", route = "why" ],
 
@@ -607,19 +797,18 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
             ],
         ],
 
-    // the whole-page source editor — an overlay above the page, shown when
-    // app.editing (flipped by "VIEW & EDIT SOURCE"). Same CodeField + embedded
-    // preview as the demo cards; its preview is active only while open.
+    // the whole-page source editor, shown when app.editing (flipped by
+    // "View & Edit Source" in the footer and "Edit this page" in the hero)
 
     editor: FullPageEditor [ open = { app.editing },
-                             pageSource = { app.demoSources.__page__ || "" } ],
+        pageSource = { app.demoSources.__page__ || "" } ],
 
     // pointer dot — a 10px accent-2 dot in VIEWPORT space that SPRINGS after the
     // pointer (loose + low-mass = the slower, longer trail). Two position
     // Springs; the native cursor stays visible and leads, the dot follows.
 
-    cursor: View [ width = 10, height = 10, cornerRadius = 5, fill = #37E0C8, opacity = 0.9,
-        shadow = { shadow(0, 0, 12, 0x37E0C8) },
+    cursor: View [ width = 10, height = 10, cornerRadius = 5, fill = { theme.accent2 }, opacity = 0.9,
+        shadow = { shadow(0, 0, 12, theme.accent2) },
 
         // Only for a HOVERING pointer (mouse / trackpad) — `app.hovering` is false
         // for touch, so the dot never appears on a phone, yet an iPad trackpad
@@ -628,7 +817,8 @@ App [ theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, dim: 0x6A7C89, accent: 0x4C8
 
         visible = { app.hovering && !app.pointerOverText },
         followX: Spring [ attribute = x, to = { app.pointerX - 5 },
-                          stiffness = 120, damping = 14, mass = 0.6, epsilon = 0.05 ],
+            stiffness = 120, damping = 14, mass = 0.6, epsilon = 0.05 ],
         followY: Spring [ attribute = y, to = { app.pointerY - 5 },
-                          stiffness = 120, damping = 14, mass = 0.6, epsilon = 0.05 ] ],
+            stiffness = 120, damping = 14, mass = 0.6, epsilon = 0.05 ],
+        ],
     ]

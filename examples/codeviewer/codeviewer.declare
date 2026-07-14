@@ -9,10 +9,14 @@
 // `accents` map colours (theme-aware, so the same segments render light or dark).
 //
 // Reach it with a request type (reqtypes.ts): `foo.declare?view=reader`, or
-// `examples/<name>/?view=reader`. The Reader/Source pair switches between the
-// rendered view and the verbatim source; the A stepper zooms every text size; the
-// ☀/◐/☾ switch picks Light / System / Dark.
+// `examples/<name>/?view=reader`. The Reader / Source / Live-edit triple switches
+// between the rendered view, the verbatim source, and an editing workbench (the
+// source in an editor, the running program below it, compile errors sandwiched
+// between); the A stepper zooms every text size; the ☀/◐/☾ switch picks
+// Light / System / Dark.
 
+
+font Mono [ family = "ui-monospace" ]
 
 // one segment: prose (Markdown) OR code (coloured, monospace <pre>). Exactly one
 // child is visible, so the segment's auto-height is that child's height. Prose is
@@ -121,7 +125,12 @@ App [ fill = { app.theme.bg },
     barH: number = 52,
     topM: number = 40,    // reader top margin (foot matches it at the bottom)
     headH: number = { 46 * app.fontScale },    // filename title + rule, above the body
-    mode: string = "reader",    // "reader" = highlighted + Markdown, "source" = verbatim
+
+    // "reader" = highlighted + Markdown, "source" = verbatim, "edit" = live
+    // workbench. A `?view=edit` deep link seeds the opening tab (__mode__);
+    // the first tab click displaces the constraint and owns it from there.
+
+    mode: string = { String(app.demoSources["__mode__"] || "reader") },
     fontScale: number = 0.9,    // reader font zoom (0.9 = the comfortable default; the A stepper drives it)
     proseMeasure: number = 560,    // prose reading measure (matches the docs); code runs wider off the same left edge
     proseTopPad: number = 22,    // space above a prose block — reads as the section break
@@ -185,6 +194,7 @@ App [ fill = { app.theme.bg },
     // `foot` sits just below the active view for a bottom margin matching `topM`.
 
     content: View [ x = 0, y = { app.barH }, width = { app.hostWidth }, height = { app.hostHeight - app.barH },
+        visible = { app.mode != "edit" },
         scrolls = true, selectable = true, fill = { app.theme.bg },
 
         // the filename as a page title — the directory muted, the file bold — with
@@ -236,7 +246,105 @@ App [ fill = { app.theme.bg },
             y = { app.topM + app.headH + (app.mode == "reader" ? parent.col.height : parent.plain.height) } ],
         ],
 
-    // top bar: type-size stepper (left) · Reader / Source (centre) · theme (right)
+    // Live-edit workbench — a fixed stack filling the window below the bar: the
+    // source in an editor on top, the running program below, compile errors
+    // sandwiched between. The pieces are the host's generic live loop: the island
+    // is named "run:__raw__" (its seed IS the viewed file), the editor publishes
+    // every keystroke on liveCard/liveSource, and app.liveReport carries the last
+    // recompile's rendered report ("" = clean; the island keeps the last good
+    // render while it shows). A file with no App declaration reports instead of
+    // running — honest, if unglamorous.
+
+    live: View [ visible = { app.mode == "edit" }, x = 0, y = { app.barH },
+        width = { app.hostWidth }, height = { app.hostHeight - app.barH },
+        fill = { app.theme.bg },
+
+        // the divider y: 0 = not dragged yet (a 42% default); the grip writes it
+
+        split: number = 0,
+        editorH: number = { split > 0 ? split : Math.floor(height * 0.42) },
+        edited: boolean = false,    // an edit exists (arms Revert; onInput sets it)
+
+        editor: TextInput [ x = 0, y = 0, width = { parent.width }, height = { parent.editorH },
+            multiline = true, spellcheck = false, wrap = false, padding = 14,
+            fontFamily = [Mono, "monospace"], fontSize = 12, textColor = { app.codeFg() },
+            fill = { app.theme.codeBg },
+            initial = { app.demoSources["__raw__"] || "" },
+            onInput() { parent.edited = true; app.liveCard = "__raw__"; app.liveSource = text },
+            ],
+
+        // Revert — restores the file's pristine text and recompiles it; armed
+        // only once an edit exists, quiet (and inert) until then
+
+        revert: View [ y = 10, height = 24, cornerRadius = 6,
+            hovered: boolean = false,
+            x = { parent.width - this.width - 14 },
+            width = { this.lbl.width + 18 },
+            opacity = { parent.edited ? 1 : 0.35 },
+            stroke = { stroke(1, app.theme.line) },
+            fill = { hovered && parent.edited ? app.theme.hover : app.theme.surface },
+            onMouseOver() { hovered = true },
+            onMouseOut()  { hovered = false },
+            onClick() {
+                if (!parent.edited) return
+                const raw = app.demoSources["__raw__"] || ""
+                parent.editor.text = raw
+                parent.edited = false
+                app.liveCard = "__raw__"; app.liveSource = raw
+                },
+            lbl: Text [ x = 9, y = 5, fontSize = 11, fontWeight = semibold, wrap = false,
+                textColor = { app.theme.muted }, text = "Revert" ],
+            ],
+
+        // the divider: the press captures the pointer to this view (the router's
+        // capture model — the calendar's drag uses the same), so its move/up fire
+        // for the whole drag wherever the pointer goes. The move reads the
+        // POINTER's app-space y (its own event coords are grip-local and the
+        // grip is what's moving); the shield above merely blocks the browser's
+        // native text selection in the editor beneath.
+
+        grip: View [ x = 0, y = { parent.editorH }, width = { parent.width }, height = 6,
+            dragging: boolean = false,
+            hovered: boolean = false,
+            fill = { dragging || hovered ? app.theme.accentTeal : app.theme.line },
+            drag(y) { parent.split = Math.max(120, Math.min(parent.height - 160, y)) },
+            onMouseOver()  { hovered = true },
+            onMouseOut()   { hovered = false },
+            onMouseDown()  { dragging = true },
+            onMouseMove()  { if (dragging) drag(app.pointerY - app.barH) },
+            onMouseUp()    { dragging = false },
+            ],
+
+        // the error sandwich: the last recompile's report, only while one stands
+
+        report: View [ visible = { app.liveReport != "" }, x = 0, y = { parent.editorH + 6 },
+            width = { parent.width }, clip = true,
+            height = { Math.min(170, this.body.height + 20) },
+            fill = { app.isDark ? 0x2A1517 : 0xFDECEC },
+            body: View [ x = 14, y = 10, width = { parent.width - 28 }, scrollsX = true, height = { this.contentHeight },
+                Text [ fontFamily = [Mono, "monospace"], fontSize = 11, wrap = false,
+                    textColor = { app.isDark ? 0xFF8B8B : 0xB42318 }, text = { app.liveReport } ],
+                ],
+            ],
+
+        // the running program — an embedded child app in a host island, swapped
+        // to each clean recompile (renderChild); a floor-declaring app pans here
+
+        run: HTML [ x = 0, y = { parent.editorH + 6 + (app.liveReport != "" ? parent.report.height : 0) },
+            width = { parent.width },
+            height = { parent.height - this.y },
+            slot = { app.mode == "edit" ? "run:__raw__" : "" } ],
+
+        // the drag shield — last child, so it sits over everything while a
+        // divider drag is on. The ROUTER already captures the drag to the grip;
+        // this view's whole job is to be the browser's native hit target, so the
+        // editor's textarea underneath cannot rubber-band a text selection.
+
+        shield: View [ visible = { parent.grip.dragging }, x = 0, y = 0,
+            width = { parent.width }, height = { parent.height } ],
+        ],
+
+    // top bar: type-size stepper (left) · Reader / Source / Live edit (centre) · theme (right)
 
     bar: View [ x = 0, y = 0, width = { app.hostWidth }, height = { app.barH }, fill = { app.theme.surface },
 
@@ -252,10 +360,11 @@ App [ fill = { app.theme.bg },
             SizeBtn [ glyph = 19, delta = 0.1 ],
             ],
 
-        modeSwitch: View [ y = { (app.barH - 30) / 2 }, x = { (app.hostWidth - 194) / 2 }, height = 30, width = 194,
+        modeSwitch: View [ y = { (app.barH - 30) / 2 }, x = { (app.hostWidth - 290) / 2 }, height = 30, width = 290,
             cornerRadius = 8, fill = { app.theme.track },
-            r: ModeSeg [ x = 2, m = "reader", lbl = "Reader view" ],
-            s: ModeSeg [ x = 98, m = "source", lbl = "Source text" ],
+            r: ModeSeg [ x = 2,   m = "reader", lbl = "Reader view" ],
+            s: ModeSeg [ x = 98,  m = "source", lbl = "Source text" ],
+            e: ModeSeg [ x = 194, m = "edit",   lbl = "Live edit" ],
             ],
 
         themeSwitch: View [ y = { (app.barH - 30) / 2 }, x = { app.hostWidth - 94 - 16 }, height = 30, width = 94,

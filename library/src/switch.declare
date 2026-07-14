@@ -1,0 +1,27 @@
+/*
+# Switch
+
+A boolean control with a sliding thumb — same value contract as Checkbox (`checked`,
+`input` owns the destination), different body language: the thumb SPRINGS between
+its two rest points, so toggling moves rather than jumps.
+*/
+
+include [ "control.declare" ]
+
+class Switch extends Control [ width = 44, height = 24, cornerRadius = 12,
+    checked: boolean = false,
+
+    input(v) { checked = v },
+
+    press()   { input(!checked) },
+    onClick() { if (!disabled) press() },
+
+    opacity = { disabled ? 0.45 : 1 },
+    fill    = { checked ? theme.accent : hovered || pressed ? theme.controlActive : theme.control },
+    stroke  = { stroke(1, checked ? theme.accent : theme.line) },
+
+    thumb: View [ x = 2, y = 2, width = 20, height = 20, cornerRadius = 10,
+        fill = { theme.surface },
+        slide: Spring [ attribute = x, to = { checked ? 22 : 2 }, stiffness = 300, damping = 26 ],
+        ],
+    ]

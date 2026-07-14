@@ -1,0 +1,57 @@
+/*
+# Control
+
+The interaction-state base every stateful control extends (design/components-baseline.md,
+Contract 3). It owns the INTERACTION states — how the pointer and focus relate to this
+view — and nothing semantic: `checked`, `value`, and their kin live on the concrete
+control. Wired once here, for everything that extends it:
+
+- `hovered` / `pressed` — the rollover pair; `pressed` is the touch feedback (a touch
+  pointer never hovers), and a `pointercancel` (the browser reclaimed the gesture for a
+  scroll) arrives as the release, so a press can never stick.
+- `disabled` — inert: not focusable, no state changes; concrete controls gate their
+  activation on it.
+- keyboard — Space or Enter on the focused control activates it, the same `press()`
+  path a pointer uses.
+*/
+
+class Control extends View [
+    hovered:  boolean = false,
+    pressed:  boolean = false,
+    disabled: boolean = false,
+    focused:  boolean = false,
+
+    focusable = { !disabled },
+
+    // The keyboard affordance is the app-level FocusRing (focusring.declare —
+    // one traveling indicator, declared once in the App), not a per-control
+    // ring; `focused` stays declared here for controls' own styling.
+
+    // the activation seam — concrete controls override; pointer and keyboard both land here
+
+    press() { },
+
+    // keyboard activation's visual acknowledgment: flash the pressed look
+    // (the platform convention for buttons — and menu items, later). Value
+    // controls whose state change IS the feedback (Checkbox, Switch, Radio)
+    // don't call this. `flashMs` is per-control tunable.
+
+    flashMs: number = 220,
+
+    flashPress() {
+        pressed = true
+        setTimeout(() => { this.pressed = false }, flashMs)
+        },
+
+    onFocus() { focused = true },
+    onBlur()  { focused = false },
+
+    onMouseOver() { if (!disabled) hovered = true },
+    onMouseOut()  { hovered = false; pressed = false },
+
+    // a click is also a focus claim — the keyboard picks up where the pointer left
+
+    onMouseDown() { if (!disabled) { pressed = true; Focus.focus(this) } },
+    onMouseUp()   { pressed = false },
+    onKeyDown(e) { if (!disabled && !e.repeat && (e.key == "Enter" || e.key == " ")) press() },
+    ]

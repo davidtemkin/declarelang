@@ -3,9 +3,10 @@ App [ fill = white, textColor = black,
     cool: Color = dodgerblue,
     warm: Color = turquoise,
     onMouseDown() { v = (v + 17) % 100 },
-    View [ x = 28, y = 26, layout: SimpleLayout [ axis = y, spacing = 18 ],
+    View [ x = 28, y = 26,
+        layout: SimpleLayout [ axis = y, spacing = 18 ],
         Text [ fontSize = 72, fontWeight = bold, text = { v + "" } ],       // the number
         Bar  [ width = 300, value = { v },                                  // the bar length
-               tint  = { v < 50 ? cool : warm } ],                         // the colour, crossing at 50
+            tint  = { v < 50 ? cool : warm } ],                         // the colour, crossing at 50
         ],
     ]

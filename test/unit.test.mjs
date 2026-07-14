@@ -12,7 +12,7 @@
 
 import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
-import { compile, compileTracked, isUpToDate, diskProbe } from "../compiler/dist/compile-node.js";
+import { compile, compileTracked, isUpToDate, diskProbe, extractStatic, settleHeadless } from "../compiler/dist/compile-node.js";
 import { KeysService } from "../runtime/dist/keys.js";
 import { Focus, deliverKeys } from "../runtime/dist/focus.js";
 import { routeInput } from "../runtime/dist/input.js";
@@ -312,6 +312,23 @@ await test("App fills its host by default: unset width/height follow hostWidth/h
   settle();
   assert.equal(fixed.width, 480, "an explicit width overrides the host default");
   assert.equal(fixed.height, 320, "an explicit height overrides the host default");
+});
+
+await test("App minWidth/minHeight floor the auto-extent; the host can go narrower, the app holds", () => {
+  const app = build(`App [ minWidth = 600, minHeight = 400 ]`);
+  app.attach(mockBackend([]), null);
+  app.hostWidth = 900; app.hostHeight = 700;    // roomy host: floors are moot
+  settle();
+  assert.equal(app.width, 900, "above the floor, width follows the host");
+  assert.equal(app.height, 700, "above the floor, height follows the host");
+  app.hostWidth = 420; app.hostHeight = 300;    // narrow host: the app holds its floor
+  settle();
+  assert.equal(app.width, 600, "below the floor, width holds minWidth");
+  assert.equal(app.height, 400, "below the floor, height holds minHeight");
+  app.hostWidth = 800;                          // back out: follows the host again
+  settle();
+  assert.equal(app.width, 800, "the floor releases as the host widens");
+  assert.equal(app.height, 400, "the other axis stays floored independently");
 });
 
 await test("build() coerces every color literal form (case-insensitive names)", () => {
@@ -4827,6 +4844,82 @@ App [ width = 100, height = 100,
   const r = compile(src, { typecheck: true });
   assert.equal(r.source, null);
   assert.match(r.errors.map((e) => e.message).join("\n"), /nope/);
+});
+
+// ── static extraction (seo.ts + headless.ts — design/capabilities.md §4–5) ──
+// The program EXECUTES headlessly to its t=0 snapshot (the real runtime, no
+// pixels) and the settled tree serializes by CLASS SEMANTICS, no heuristics.
+
+await test("extractStatic: class semantics as HTML — markdown, computed text, visibility, image", () => {
+  const src = `App [
+  fill = 0xffffff,
+  m: Markdown [ width = 400, text = """
+# Title
+
+Body with **bold** and [a link](https://x.example/).
+
+- one
+- two
+""" ],
+  n: number = 3,
+  t: Text [ y = 300, text = { "count: " + n } ],
+  ghost: Text [ y = 330, visible = false, text = "never emitted" ],
+  i: Image [ y = 360, width = 10, height = 10, source = "pic.png" ],
+  ]`;
+  const out = extractStatic(src);
+  assert.equal(out.report, "", "a clean compile — extraction carries the dual-form diagnostics");
+  assert.equal(out.html,
+    '<h1>Title</h1>\n' +
+    '<p>Body with <strong>bold</strong> and <a href="https://x.example/">a link</a>.</p>\n' +
+    '<ul><li>one</li><li>two</li></ul>\n' +
+    '<p>count: 3</p>\n' +           // the { } body EVALUATED — content is the settled value
+    '<img src="pic.png">');          // and ghost (visible=false) emitted nothing
+});
+
+await test("extractStatic: the environment vector selects content (responsive constraints)", () => {
+  // Geometry leaks into CONTENT through responsive constraints — the viewport
+  // is an explicit parameter (DEFAULT_ENV = 1200×800), not an accident.
+  const src = `App [ r: Text [ text = { app.hostWidth < 600 ? "compact" : "wide" } ] ]`;
+  assert.equal(extractStatic(src).html, "<p>wide</p>");
+  assert.equal(extractStatic(src, { env: { hostWidth: 400 } }).html, "<p>compact</p>");
+});
+
+await test("extractStatic: replication runs headlessly — every row's content lands", () => {
+  const src = `App [
+  d: Dataset { { "rows": [ { "t": "alpha" }, { "t": "beta" }, { "t": "gamma" } ] } },
+  list: View [ datapath = { app.d.value },
+    Text [ datapath = :rows[], text = { :t } ] ],
+  ]`;
+  assert.equal(extractStatic(src).html, "<p>alpha</p>\n<p>beta</p>\n<p>gamma</p>");
+});
+
+await test("extractStatic: HTMLText serializes through the same block model; a TextInput is not content", () => {
+  const out = extractStatic(`App [
+  h: HTMLText [ width = 300, html = "<h2>Sub</h2><p>body</p>" ],
+  f: TextInput [ y = 200, width = 120, initial = "draft" ],
+  ]`);
+  assert.equal(out.html, "<h2>Sub</h2>\n<p>body</p>");
+});
+
+await test("extractStatic: a compile failure yields html null and the rendered report", () => {
+  const out = extractStatic("App [ v: Txet [ ] ]");
+  assert.equal(out.html, null);
+  assert.match(out.report, /Txet/);
+});
+
+await test("settleHeadless: text measures and auto-extents settle without a DOM", () => {
+  // The approximate measurer (headless.ts) is enough to SETTLE any tree —
+  // real numbers for auto-extents, deterministic on every host.
+  const r = compile(`App [ t: Text [ text = "hello measured world" ] ]`);
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    const t = app.children[0];
+    assert.ok(t.width > 0 && t.height > 0, `auto-extent computed headless (w ${t.width}, h ${t.height})`);
+    assert.equal(app.hostWidth, 1200, "the canonical default viewport");
+    assert.equal(app.width, 1200, "the App fills its (synthetic) host");
+  } finally {
+    app.discard();
+  }
 });
 
 summarize("unit");

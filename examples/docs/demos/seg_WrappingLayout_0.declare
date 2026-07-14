@@ -1,3 +1,5 @@
 App [
-    View [ width = { parent.width }, layout: WrappingLayout [ spacing = 8, lineSpacing = 8 ] ]
-]
+    View [ width = { parent.width },
+        layout: WrappingLayout [ spacing = 8, lineSpacing = 8 ],
+        ],
+    ]

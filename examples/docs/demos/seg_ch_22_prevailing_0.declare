@@ -1,5 +1,6 @@
 App [ fill = white, fontFamily = ["Helvetica Neue", "Geneva", "sans-serif"], fontSize = 9,
-      fontWeight = bold, textColor = black, zip: string = "94110",
+    fontWeight = bold, textColor = black,
+    zip: string = "94110",
 
     // none of these Texts repeat the family, size, weight, or colour — they
     // inherit the App's, and would inherit any nearer container's instead

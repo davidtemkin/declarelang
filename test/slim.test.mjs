@@ -75,25 +75,26 @@ test("REGISTRY_MANIFEST matches the runtime tables exactly (no drift)", () => {
 const P = (obj) => ({ has: (k) => k in obj, get: (k) => (k in obj ? String(obj[k]) : null) });
 test("URL flags: defaults when absent", () => {
   const f = parseFlags(P({}), DEFAULT_FLAGS);
-  assert.equal(f.backend, "dom"); assert.equal(f.slim, true); assert.equal(f.stripPos, true);
+  assert.equal(f.render, "dom"); assert.equal(f.slim, true); assert.equal(f.stripPos, true);
 });
-test("URL flags: ?backend=canvas and ?slim=0 and ?prod", () => {
-  const f = parseFlags(P({ backend: "canvas", slim: "0", prod: "" }), DEFAULT_FLAGS);
-  assert.equal(f.backend, "canvas"); assert.equal(f.slim, false); assert.equal(f.prod, true);
+test("URL flags: ?render=canvas and ?slim=0 and ?prod", () => {
+  const f = parseFlags(P({ render: "canvas", slim: "0", prod: "" }), DEFAULT_FLAGS);
+  assert.equal(f.render, "canvas"); assert.equal(f.slim, false); assert.equal(f.prod, true);
 });
-test("URL flags: ?keeppos turns stripPos off", () => {
-  assert.equal(parseFlags(P({ keeppos: "1" }), DEFAULT_FLAGS).stripPos, false);
+test("URL flags: ?stripPos=0 (and its all-lowercase form) turns stripPos off", () => {
+  assert.equal(parseFlags(P({ stripPos: "0" }), DEFAULT_FLAGS).stripPos, false);
+  assert.equal(parseFlags(P({ strippos: "0" }), DEFAULT_FLAGS).stripPos, false);
 });
 test("URL flags: a malformed boolean falls back to the base", () => {
   assert.equal(parseFlags(P({ slim: "maybe" }), DEFAULT_FLAGS).slim, true);
 });
 test("argv flags: --no-slim --canvas, input left in rest", () => {
   const { flags, rest } = parseArgvFlags(["--no-slim", "--canvas", "app.declare"], { ...DEFAULT_FLAGS, prod: true });
-  assert.equal(flags.slim, false); assert.equal(flags.backend, "canvas"); assert.equal(flags.prod, true);
+  assert.equal(flags.slim, false); assert.equal(flags.render, "canvas"); assert.equal(flags.prod, true);
   assert.deepEqual(rest, ["app.declare"]);
 });
-test("argv flags: --full is an alias for --no-slim; --keep-pos clears stripPos", () => {
-  const { flags } = parseArgvFlags(["--full", "--keep-pos"], DEFAULT_FLAGS);
+test("argv flags: --full is an alias for --no-slim; --no-strip-pos clears stripPos", () => {
+  const { flags } = parseArgvFlags(["--full", "--no-strip-pos"], DEFAULT_FLAGS);
   assert.equal(flags.slim, false); assert.equal(flags.stripPos, false);
 });
 

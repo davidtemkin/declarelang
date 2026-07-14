@@ -442,7 +442,8 @@ export class App extends View {
      *  `width = …` still wins (isSet skips the derive), and there is no children
      *  guard: the app fills its host even while empty. This is the exact yielding
      *  default the content path uses (View.bindExtent), retargeted from content to
-     *  host — so a resize repaints like any dependency. */
+     *  host — so a resize repaints like any dependency. `minWidth`/`minHeight`
+     *  floor the derive (tracked reads, so a reactive floor re-applies live). */
     bindExtent() {
         let derives = EXTENT.get(this);
         for (const size of ["width", "height"]) {
@@ -450,7 +451,7 @@ export class App extends View {
                 continue;
             if (derives === undefined)
                 EXTENT.set(this, (derives = {}));
-            derives[size] = bindDerived(this, size, () => (size === "width" ? this.hostWidth : this.hostHeight));
+            derives[size] = bindDerived(this, size, () => size === "width" ? Math.max(this.hostWidth, this.minWidth) : Math.max(this.hostHeight, this.minHeight));
         }
     }
 }
@@ -474,6 +475,10 @@ defineAttributes(App, {
     demoSources: { def: {} },
     liveCard: { def: "" },
     liveSource: { def: "" },
+    liveReport: { def: "" },
+    // the size floor (bindExtent) — author-settable, 0 = none
+    minWidth: { def: 0 },
+    minHeight: { def: 0 },
 });
 /** HTML — a foreign-content island (design: the `HTML [ … ]` view). A leaf View
  *  whose box neo lays out and constrains normally, but whose interior is

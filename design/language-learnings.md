@@ -250,6 +250,17 @@ without a special case. Re-hit §8 hard on the way (a class body's `classroot` h
 stage attrs → `width = { classroot.stageWidth }` was 0×0; thread `stageW/stageH` in
 from the use-site) — one more vote for warning on class-body reads of App-only attrs.
 
+## 2026-07-13 — factoring the homepage (the readability pass)
+
+- **Classes cannot extend non-View components.** `class Reveal extends Spring [ … ]`
+  compiles to `unknown component 'Reveal'` at the use sites — class registration only
+  covers View descendants. The natural use is real: the homepage repeats one
+  scroll-reveal Spring (`attribute = opacity, stiffness = 90, damping = 22, to = { … }`)
+  in three sections, and the calendar's four focus Springs share their tuning too. A
+  named Spring configuration is exactly what `class` is for; today the repetition has
+  to stand. TOPIC FOR DISCUSSION: extend `class` to any component, or a dedicated
+  "preset" form.
+
 ### Minor / to verify
 - A string literal with an embedded newline in a `[ ]` slot seemed to derail
   parsing (line-count went off, a trailing `font` decl became "unexpected"). Use

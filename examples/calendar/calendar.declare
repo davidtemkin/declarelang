@@ -12,13 +12,13 @@ further out, each month folding into a mini.
 
 font Sans [ family = "system-ui" ]
 
-
 /*
 ## Event
 
 Morphs between a stacked month-chip and a placed time-block as its day zooms
 (`rowBlock`), and shrinks to a single dot in the year view (`app.yearZoom`).
 */
+
 class Ev extends View [ clip = true,
 
     rowBlock: number = { :dayRow == app.anchorRow ? app.blockness : 0 },
@@ -28,11 +28,14 @@ class Ev extends View [ clip = true,
     opacity = { app.dragId == :id && app.dragging ? 0.2 : 1 },
     x = { app.lerp(4, (parent.width - 3) / 2, app.yearZoom) },
     width = { app.lerp(parent.width - 8, 3, app.yearZoom) },
-    y = { app.lerp(app.lerp(26 + :idx * 20, :start / 1440 * parent.height, classroot.rowBlock), parent.height - 6, app.yearZoom) },
-    height = { app.lerp(app.lerp(17, Math.max(18, :dur / 1440 * parent.height), classroot.rowBlock), 3, app.yearZoom) },
+    y      = { app.lerp(app.lerp(26 + :idx * 20, :start / 1440 * parent.height, classroot.rowBlock),
+                        parent.height - 6, app.yearZoom) },
+    height = { app.lerp(app.lerp(17, Math.max(18, :dur / 1440 * parent.height), classroot.rowBlock),
+                        3, app.yearZoom) },
 
     rail: View [ width = 3, height = { parent.height }, fill = { app.catText(:category) }, opacity = { classroot.rowBlock } ],
-    text: View [ x = 8, y = 2, opacity = { 1 - app.yearZoom }, layout: SimpleLayout [ axis = x, spacing = 6 ],
+    text: View [ x = 8, y = 2, opacity = { 1 - app.yearZoom },
+        layout: SimpleLayout [ axis = x, spacing = 6 ],
         tm: Text [ fontSize = 10, fontWeight = semibold, wrap = false, textColor = { app.catText(:category) }, text = { :timeLabel } ],
         ti: Text [ fontSize = 10, fontWeight = regular, wrap = false, textColor = { app.catText(:category) }, text = { :title } ],
         ],
@@ -52,6 +55,7 @@ focus rectangle, so the same object is a month cell, a week column, or a full da
 In the year view (`app.yearZoom`) it re-lays-out into the current month's mini rather than
 scaling, keeping its text crisp.
 */
+
 class Cell extends View [ clip = true,
 
     rowBlock: number = { :row == app.anchorRow ? app.blockness : 0 },
@@ -66,7 +70,13 @@ class Cell extends View [ clip = true,
 
     bg: View [ width = { parent.width }, height = { parent.height }, cornerRadius = 8,
         opacity = { 1 - 0.82 * classroot.rowBlock },
-        fill = { app.mix(:key == app.dropKey ? theme.dropTargetBg : :today ? app.mix(theme.todayBg, theme.cellBg, classroot.rowBlock) : !:inMonth ? theme.outOfMonthBg : :weekend ? theme.weekendBg : theme.cellBg, theme.miniCurrentBg, app.yearZoom) },
+        fill = { app.mix(
+              :key == app.dropKey ? theme.dropTargetBg
+            : :today              ? app.mix(theme.todayBg, theme.cellBg, classroot.rowBlock)
+            : !:inMonth           ? theme.outOfMonthBg
+            : :weekend            ? theme.weekendBg
+            :                       theme.cellBg,
+            theme.miniCurrentBg, app.yearZoom) },
         stroke = { :key == app.dropKey ? stroke(2, app.mix(theme.dropTargetRing, theme.miniCurrentBg, app.yearZoom)) : null } ],
 
     // current-day accent bar, fading in as the cell fills the surface
@@ -91,6 +101,7 @@ class Cell extends View [ clip = true,
 The year view's twelve small months. The current month is drawn by the main
 `board` folding into its slot, so only the other eleven come from here.
 */
+
 class MiniDay extends View [ width = { app.miniCellW }, height = { app.miniRowH },
     x = { :col * app.miniCellW }, y = { :row * app.miniRowH },
     n: Text [ width = { parent.width }, textAlign = center, y = 1, fontSize = 9, wrap = false,
@@ -100,6 +111,7 @@ class MiniDay extends View [ width = { app.miniCellW }, height = { app.miniRowH 
         cornerRadius = 2, fill = { theme.accent }, visible = { :has } ],
     ]
 
+
 class MiniMonth extends View [ cornerRadius = 12, clip = true, fill = { theme.miniBg },
     width = { app.miniW }, height = { app.miniH },
     x = { app.pad + :mcol * (app.miniW + app.gap) }, y = { app.pad + :mrow * (app.miniH + app.gap) },
@@ -108,7 +120,8 @@ class MiniMonth extends View [ cornerRadius = 12, clip = true, fill = { theme.mi
     name: Text [ x = 14, y = 11, fontSize = 13, fontWeight = semibold,
         textColor = { :m == app.month ? theme.todayText : theme.dayNumber }, text = { :name } ],
     grid: View [ x = 10, y = 34, width = { parent.width - 20 }, height = { parent.height - 44 },
-        MiniDay [ datapath = :cells[] ] ],
+        MiniDay [ datapath = :cells[] ],
+        ],
 
     onClick() { app.pickMonth(:m) },
     ]
@@ -120,8 +133,11 @@ class MiniMonth extends View [ cornerRadius = 12, clip = true, fill = { theme.mi
 The nav arrows, Today, and the view tabs share one pill treatment: a `trackBg`
 rest, text brightening on hover, a `pillBg` press.
 */
+
 class ViewTab extends View [ width = { app.tabW }, height = { parent.height },
-    mode: string = "", label: string = "", hovered: boolean = false,
+    mode: string = "",
+    label: string = "",
+    hovered: boolean = false,
     lbl: Text [ width = { parent.width }, textAlign = center, y = 9, fontSize = 13, wrap = false, fontWeight = medium,
         textColor = { app.mode == classroot.mode || classroot.hovered ? theme.textPrimary : theme.textMuted },
         text = { app.tabsCompact ? classroot.label.slice(0, 1) : classroot.label } ],
@@ -129,6 +145,7 @@ class ViewTab extends View [ width = { app.tabW }, height = { parent.height },
     onMouseOut()  { classroot.hovered = false },
     onClick()     { app.goMode(classroot.mode) },
     ]
+
 
 // the sliding highlight springs a normalised lane (0..3), so x = lane × tabW snaps
 // on a resize and slides only when the selected tab changes
@@ -140,8 +157,12 @@ class TabPill extends View [ cornerRadius = 10, fill = { theme.pillBg },
     Spring [ attribute = lane, to = { app.tabIndex }, stiffness = 300, damping = 40 ],
     ]
 
+
 class NavArrow extends View [ width = 36, height = 34, cornerRadius = 10,
-    dir: number = 1, glyph: string = "", hovered: boolean = false, pressed: boolean = false,
+    dir: number = 1,
+    glyph: string = "",
+    hovered: boolean = false,
+    pressed: boolean = false,
     fill = { classroot.pressed ? theme.pillBg : theme.trackBg },
     g: Text [ width = { parent.width }, textAlign = center, y = 6, fontSize = 18, wrap = false,
         textColor = { classroot.pressed || classroot.hovered ? theme.textPrimary : theme.textMuted }, text = { classroot.glyph } ],
@@ -152,8 +173,11 @@ class NavArrow extends View [ width = 36, height = 34, cornerRadius = 10,
     onClick()     { app.step(classroot.dir) },
     ]
 
+
 class TextButton extends View [ width = 64, height = 34, cornerRadius = 10,
-    label: string = "", hovered: boolean = false, pressed: boolean = false,
+    label: string = "",
+    hovered: boolean = false,
+    pressed: boolean = false,
     fill = { classroot.pressed ? theme.pillBg : theme.trackBg },
     t: Text [ width = { parent.width }, textAlign = center, y = 9, fontSize = 13, wrap = false, fontWeight = medium,
         textColor = { classroot.pressed || classroot.hovered ? theme.textPrimary : theme.textMuted }, text = { classroot.label } ],
@@ -164,10 +188,13 @@ class TextButton extends View [ width = 64, height = 34, cornerRadius = 10,
     onClick()     { app.today() },
     ]
 
+
 // one segment of the Light / Auto / Dark switch
 
 class ThemeSeg extends View [ width = 30, height = { parent.height },
-    m: string = "", glyph: string = "", hovered: boolean = false,
+    m: string = "",
+    glyph: string = "",
+    hovered: boolean = false,
     bg: View [ x = 2, y = 2, width = { parent.width - 4 }, height = { parent.height - 4 }, cornerRadius = 6,
         fill = { app.themeMode == classroot.m ? theme.pillBg : null } ],
     g: Text [ width = { parent.width }, textAlign = center, y = 6, fontSize = 14, wrap = false,
@@ -186,8 +213,11 @@ A collapsible field in the event panel — a spring-driven height, one open at a
 time. Its input two-way binds to the event property named by `field`, so an edit
 writes straight to the record.
 */
+
 class DetailSection extends View [ clip = true, cornerRadius = 10, fill = { theme.sectionBg },
-    idx: number = 0, label: string = "", field: string = "",
+    idx: number = 0,
+    label: string = "",
+    field: string = "",
     width = { parent.width }, height = 46,
     Spring [ attribute = height, to = { app.openSection == classroot.idx ? 156 : 46 }, stiffness = 210, damping = 24 ],
 
@@ -210,22 +240,31 @@ class DetailSection extends View [ clip = true, cornerRadius = 10, fill = { them
 // CONTAINS: the detail panel parked beyond the right edge (x > width, sliding
 // in via panelInset) paints nowhere, adds no document scroll extent, and
 // cannot be focus-scrolled into view.
-App [ clip = true, fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
+
+// Below the floor the calendar degrades instead of adapting (the grid needs its
+// rows; the bar needs its controls), so it declares one and the stage pans.
+
+App [ clip = true, minWidth = 480, minHeight = 420,
+    fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
 
     /* Colours are two role-named palettes; `theme` swaps between them. `themeMode`
        is Light / Dark / Auto — Auto follows the OS through `app.dark`. */
+
     theme = { app.isDark ? app.darkTheme() : app.lightTheme() },
     themeMode: string = "auto",
     isDark: boolean = { app.themeMode == "auto" ? app.dark : app.themeMode == "dark" },
 
     // layout constants
 
-    barH: number = 60, pad: number = 20, gap: number = 8,
+    barH: number = 60,
+    pad: number = 20,
+    gap: number = 8,
 
     /* Responsive chrome, all from the window width. As it narrows the
        Light/Auto/Dark switch drops out, then the tabs shrink to single letters
        (D/W/M/Y). Thresholds are sized to the widest view so the bar never flickers
        when you switch views at a fixed width. */
+
     showTheme: boolean = { app.width >= 1030 },
     tabsCompact: boolean = { app.width < 910 },
     tabW: number = { app.tabsCompact ? 44 : 74 },
@@ -236,16 +275,30 @@ App [ clip = true, fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sa
     // view + paging state
 
     mode: string = "month",
-    year: number = 2026, month: number = 7,      // month is 1-based
-    anchorKey: string = "", todayKey: string = "",
-    monthRows: number = { app.computeMonthRows() }, yearSeen: boolean = false,
-    selectedId: number = -1, openSection: number = 0,
+    year: number = 2026,
+    month: number = 7,      // month is 1-based
+    anchorKey: string = "",
+    todayKey: string = "",
+    monthRows: number = { app.computeMonthRows() },
+    yearSeen: boolean = false,
+    selectedId: number = -1,
+    openSection: number = 0,
 
     // drag state: the event being moved, a snapshot for the ghost, the grab offset
 
-    dragId: number = -1, dragging: boolean = false, blockClick: boolean = false, dropKey: string = "",
-    dragTitle: string = "", dragCat: string = "", dragTimeLabel: string = "", dragW: number = 0, dragH: number = 0,
-    grabDX: number = 0, grabDY: number = 0, downX: number = 0, downY: number = 0,
+    dragId: number = -1,
+    dragging: boolean = false,
+    blockClick: boolean = false,
+    dropKey: string = "",
+    dragTitle: string = "",
+    dragCat: string = "",
+    dragTimeLabel: string = "",
+    dragW: number = 0,
+    dragH: number = 0,
+    grabDX: number = 0,
+    grabDY: number = 0,
+    downX: number = 0,
+    downY: number = 0,
 
     data: DataSource [ url = "data/events.json" ],
 
@@ -253,6 +306,7 @@ App [ clip = true, fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sa
        month or the events change, and keyed replication (`:key`, `:id`) makes each
        recompute cost only the days that changed. The year grid is its own
        derivation, deferred until first visited and memoized on the year. */
+
     cal: Dataset [ contents = { app.buildModel() } ],
     yearCal: Dataset [ contents = { app.yearSeen ? app.buildMonths() : app.emptyYear() } ],
 
@@ -274,13 +328,17 @@ App [ clip = true, fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sa
     /* The focus rectangle: (c0,r0) is where the frame starts, (nc,nr) how many
        columns/rows it spans. Month is the whole grid; week springs onto the anchor
        row, day onto the anchor cell. Only a view switch moves the four springs. */
+
     anchorCol: number = { app.gridIndexOf(app.anchorKey) % 7 },
     anchorRow: number = { Math.floor(app.gridIndexOf(app.anchorKey) / 7) },
     c0To: number = { app.mode == "day" ? app.anchorCol : 0 },
     r0To: number = { app.mode == "week" || app.mode == "day" ? app.anchorRow : 0 },
     ncTo: number = { app.mode == "day" ? 1 : 7 },
     nrTo: number = { app.mode == "week" || app.mode == "day" ? 1 : app.monthRows },
-    c0: number = 0, r0: number = 0, nc: number = 7, nr: number = 6,
+    c0: number = 0,
+    r0: number = 0,
+    nc: number = 7,
+    nr: number = 6,
     Spring [ attribute = c0, to = { app.c0To }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
     Spring [ attribute = r0, to = { app.r0To }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
     Spring [ attribute = nc, to = { app.ncTo }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
@@ -293,6 +351,7 @@ App [ clip = true, fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sa
     /* Year zoom: `yearZoom` (0→1) shrinks the month surface into its slot in the 4×3 year
        grid while the other eleven months resolve around it. `yearScale` scales the
        surface and the surrounding grid in lock-step. */
+
     myCol: number = { (app.month - 1) % 4 },
     myRow: number = { Math.floor((app.month - 1) / 4) },
     slotX: number = { app.pad + app.myCol * (app.miniW + app.gap) },
@@ -385,6 +444,7 @@ App [ clip = true, fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sa
        events tagged with its grid row (so only the focused row morphs to blocks).
        `buildMonths` builds the year's twelve minis; its only tracked input is the
        year, so it rebuilds once a year and never on a view switch. */
+
     buildModel() {
         const all = app.data.read(["events"]) ?? []
         const cols = [0,1,2,3,4,5,6].map(i => ({ name: app.dowName(i), col: i }))
@@ -425,6 +485,7 @@ App [ clip = true, fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sa
        A view switch is just a new `mode` (the focus rect springs); a page turn is
        new year/month/anchorKey. The model derives from those, so navigation only
        sets state. */
+
     goMode(m)   { this.selectedId = -1; this.mode = m; if (m == "year") this.yearSeen = true },
     pickDay(key) {
         const d = app.parseKey(key)
@@ -457,6 +518,7 @@ App [ clip = true, fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sa
        Pointer capture gives click-vs-drag for free. A drop writes through the
        dataset's mutation API, so it wakes the derived model exactly like a title
        edit — no copy to rebuild. */
+
     startDrag(id, title, cat, timeLabel, w, h, gx, gy) {
         this.dragId = id; this.dragTitle = title; this.dragCat = cat; this.dragTimeLabel = timeLabel
         this.dragW = w; this.dragH = h; this.grabDX = gx; this.grabDY = gy
@@ -506,6 +568,7 @@ App [ clip = true, fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sa
        subscription — lifetime-managed, no listener to clean up. The arrows
        gate on the panel being CLOSED: its text fields own the keyboard while
        an event is being edited (Keys is the raw stream). */
+
     keys: Node [
         onKeyUp(e) <- Keys {
             if (e.key == "Escape") app.closeDetail()
@@ -518,6 +581,7 @@ App [ clip = true, fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sa
        For year the surface does not scale into its slot; each Cell re-lays-out into
        the current month's slot (driven by `app.yearZoom`), so the month becomes its mini. The
        other eleven months are the deferred `yearCal`. */
+
     board: View [ x = 0, y = { app.barH }, width = { app.bodyW }, height = { app.bodyH }, clip = true,
 
         // the month's backdrop: authored at the destination slot and scaled up about
@@ -528,11 +592,17 @@ App [ clip = true, fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sa
             scale = { app.yearScale }, pivotX = { app.miniW / 2 }, pivotY = { app.miniH / 2 } ],
         weekdays: View [ opacity = { (1 - app.blockness) * (1 - app.yearZoom) }, datapath = { app.cal.value },
             View [ datapath = :cols[], key = :col, x = { app.pad + :col * (app.bodyW - 2 * app.pad) / 7 + 11 },
-                l: Text [ y = 9, fontSize = 11, wrap = false, textColor = { theme.textMuted }, text = { :name } ] ] ],
+                l: Text [ y = 9, fontSize = 11, wrap = false, textColor = { theme.textMuted }, text = { :name } ],
+                ],
+            ],
         hours: View [ opacity = { app.blockness }, datapath = { app.cal.value },
             View [ datapath = :hours[], key = :h, y = { app.headH + :h / 24 * (app.bodyH - app.headH) }, width = { app.bodyW }, height = 1, fill = { theme.gridLine },
-                lbl: Text [ x = 6, y = 1, fontSize = 10, wrap = false, textColor = { theme.hourLabel }, text = { :label } ] ] ],
-        grid: View [ datapath = { app.cal.value }, Cell [ datapath = :grid[], key = :key ] ],
+                lbl: Text [ x = 6, y = 1, fontSize = 10, wrap = false, textColor = { theme.hourLabel }, text = { :label } ],
+                ],
+            ],
+        grid: View [ datapath = { app.cal.value },
+            Cell [ datapath = :grid[], key = :key ],
+            ],
         yearName: Text [ x = { app.slotX + 14 }, y = { app.slotY + 11 }, fontSize = 13, fontWeight = semibold, wrap = false,
             textColor = { theme.todayText }, text = { app.monthName(app.month) },
             opacity = { app.clamp((app.yearZoom - 0.5) / 0.5, 0, 1) } ],
@@ -540,24 +610,31 @@ App [ clip = true, fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sa
 
     /* ## Year — the same surface pulled back to the full 4×3 grid, the eleven other
        months sweeping in around the shrinking board. */
+
     yearView: View [ y = { app.barH }, width = { app.bodyW }, height = { app.bodyH }, clip = true, visible = { app.yearZoom > 0.02 },
         opacity = { app.clamp((app.yearZoom - 0.5) / 0.3, 0, 1) },
         scale = { app.yearScale }, pivotX = { app.slotX + app.miniW / 2 }, pivotY = { app.slotY + app.miniH / 2 },
-        grid: View [ width = { parent.width }, height = { parent.height }, datapath = { app.yearCal.value }, MiniMonth [ datapath = :months[], key = :m ] ],
+        grid: View [ width = { parent.width }, height = { parent.height }, datapath = { app.yearCal.value },
+            MiniMonth [ datapath = :months[], key = :m ],
+            ],
         ],
 
     /* ## Event detail panel
        Points its datapath at the selected event, so every field two-way binds
        straight to the record and reseeds when a different event opens. */
+
     panel: View [ width = 340, height = { app.bodyH }, y = { app.barH }, fill = { theme.panelBg }, x = { app.width - app.panelInset },
         datapath = { app.data.value != null ? app.data.value.events.find(e => e.id == app.selectedId) : null },
         edge: View [ width = 1, height = { parent.height }, fill = { theme.hairline } ],
-        close: Text [ x = { parent.width - 36 }, y = 16, fontSize = 22, wrap = false, textColor = { theme.textFaint }, text = "×", onClick() { app.closeDetail() } ],
+        close: Text [ x = { parent.width - 36 }, y = 16, fontSize = 22, wrap = false, textColor = { theme.textFaint }, text = "×",
+            onClick() { app.closeDetail() },
+            ],
         rail:  View [ x = 26, y = 30, width = 4, height = 46, cornerRadius = 2, fill = { app.catText(:category) } ],
         time:  Text [ x = 40, y = 62, fontSize = 13, wrap = false, textColor = { theme.accentSoft }, text = { app.shortTime(:start) + " – " + app.shortTime(:end) } ],
         title: TextInput [ x = 38, y = 26, width = { parent.width - 76 }, height = 30, wrap = true, fontSize = 18, fontWeight = bold,
             textColor = { theme.textPrimary }, placeholder = "Untitled event", text <-> :title ],
-        secs: View [ x = 22, y = 104, width = { parent.width - 44 }, layout: SimpleLayout [ axis = y, spacing = 8 ],
+        secs: View [ x = 22, y = 104, width = { parent.width - 44 },
+            layout: SimpleLayout [ axis = y, spacing = 8 ],
             DetailSection [ idx = 0, label = "NOTES",     field = "notes" ],
             DetailSection [ idx = 1, label = "LOCATION",  field = "location" ],
             DetailSection [ idx = 2, label = "ATTENDEES", field = "attendees" ],
@@ -578,6 +655,7 @@ App [ clip = true, fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sa
        Declared last for the top z-order. Three zones: brand + theme switch hug the
        left, Today + the view tabs hug the right, and the date nav floats near the
        centre, clamped so it never rides into either side. */
+
     bar: View [ width = { app.width }, height = { app.barH }, fill = { theme.pageBg },
         rule: View [ y = { parent.height - 1 }, width = { parent.width }, height = 1, fill = { theme.hairline } ],
 

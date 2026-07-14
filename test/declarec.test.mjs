@@ -119,5 +119,27 @@ await test("closure freshness: an edit to an INCLUDED file invalidates the build
   assert.equal(isUpToDate(out.closure, { ...out.closure.props, render: "canvas" }, diskProbe), false, "a flag change invalidates");
 });
 
+// ── --seo: the static extraction baked into the built page ──────────────────
+await test("--seo embeds the extracted document in the host; the entry clears it at boot", async () => {
+  const src = `App [
+  m: Markdown [ width = 400, text = "# Shipped\\n\\nStatic words for crawlers." ],
+  n: number = 2,
+  t: Text [ y = 200, text = { "n = " + n } ],
+]`;
+  const out = await buildProduction(src, { name: "seoapp", seo: true });
+  assert.ok(out.ok, out.report);
+  const html = out.files.find((f) => f.name === "index.html").contents;
+  assert.ok(html.includes('<div id="declare-static">'), "the static block rides the host element");
+  assert.ok(html.includes("<h1>Shipped</h1>"), "markdown serialized by class semantics");
+  assert.ok(html.includes("<p>n = 2</p>"), "computed content EVALUATED at build time (headless settle)");
+  const appJs = out.files.find((f) => f.name.startsWith("app.")).contents;
+  assert.ok(/replaceChildren/.test(appJs), "the boot entry clears the host before mount");
+  // The flag is frozen into the closure — a seo flip invalidates a cached build.
+  assert.equal(out.closure.props.seo, "true");
+  // And WITHOUT the flag, no block (the default page is unchanged).
+  const plain = await buildProduction(src, { name: "seoapp" });
+  assert.ok(!plain.files.find((f) => f.name === "index.html").contents.includes("declare-static"));
+});
+
 console.log(`\ndeclarec: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

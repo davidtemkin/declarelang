@@ -167,7 +167,7 @@ export const MOTION_TOKENS = [
 /** The default browser scheduler — real rAF, real clock. Guarded so importing
  *  this module under Node (the unit suite) never touches a missing global;
  *  the runtime overrides it explicitly at startup anyway. */
-const browserScheduler = {
+export const browserScheduler = {
     now: () => (typeof performance !== "undefined" ? performance.now() : Date.now()),
     request: (cb) => (typeof requestAnimationFrame !== "undefined" ? requestAnimationFrame(cb) : 0),
     cancel: (h) => {
@@ -213,6 +213,23 @@ export class Clock {
      *  runtime's assertions and the perceptual "idle is still zero rAF" test. */
     get running() {
         return this.handle !== null;
+    }
+    /** Whether any motion is in flight — what `settleMotion` (inspect.ts) polls. */
+    get busy() {
+        return this.tickers.size > 0;
+    }
+    /** Swap the frame source IN PLACE, keeping enrolled tickers — how the driven
+     *  clock (inspect.ts: `step`/`settleMotion`, verify-and-evals.md §2.3) takes
+     *  over from rAF and hands back. Cancels any pending frame on the old
+     *  scheduler and re-arms on the new one if motion is in flight. */
+    setScheduler(s) {
+        if (this.handle !== null) {
+            this.sched.cancel(this.handle);
+            this.handle = null;
+        }
+        this.sched = s;
+        if (this.tickers.size > 0 && !this.ticking)
+            this.handle = this.sched.request(this.frame);
     }
     /** One frame: read `now` once, tick every ticker with that same value,
      *  drop the finished, then either re-arm for the next frame or go idle. A

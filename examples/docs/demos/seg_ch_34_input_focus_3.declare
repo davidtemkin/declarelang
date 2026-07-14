@@ -4,13 +4,17 @@ App [
         focustrap = true,
         onEscapeFocus() { app.editing = false },     // Tab tried to leave — close the modal
         field:  TextInput [ x = 16, y = 16, width = 268, height = 30, focusable = true,
-                padding = 6, cornerRadius = 6, fill = gainsboro,
-                placeholder = "Title" ],
+            padding = 6, cornerRadius = 6, fill = gainsboro,
+            placeholder = "Title" ],
         cancel: View [ x = 16, y = 60, width = 80, height = 28, cornerRadius = 6, fill = gainsboro,
-            focusable = true, onClick() { app.editing = false },
-            Text [ width = 80, y = 6, textAlign = center, text = "Cancel" ] ],
+            focusable = true,
+            onClick() { app.editing = false },
+            Text [ width = 80, y = 6, textAlign = center, text = "Cancel" ],
+            ],
         ok:     View [ x = 104, y = 60, width = 80, height = 28, cornerRadius = 6, fill = royalblue,
-            focusable = true, onClick() { app.editing = false },
-            Text [ width = 80, y = 6, textAlign = center, textColor = white, text = "OK" ] ],
-        ]
-]
+            focusable = true,
+            onClick() { app.editing = false },
+            Text [ width = 80, y = 6, textAlign = center, textColor = white, text = "OK" ],
+            ],
+        ],
+    ]
