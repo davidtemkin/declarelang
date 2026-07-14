@@ -150,13 +150,9 @@ class CodeField extends TextInput [ multiline = true, spellcheck = false,
 class SourcePanel extends View [ width = { parent.width < 760 ? parent.width : Math.floor((parent.width - 20) * 0.58) },
     editName: string = "",  src: string = "",
     fill = { theme.panel }, cornerRadius = 12, stroke = stroke(1, #1E313C),
-    fname: Text [ x = 12, y = 9, fontFamily = [Mono, "monospace"], fontSize = 11, fontWeight = semibold,
-                  textColor = #B7C6D2, text = { classroot.editName + ".declare" } ],
-
     // the affordance chip: this code runs, and you can type in it
 
-    live: View [ y = 7, height = 18, cornerRadius = 5, fill = #4C8DFF,
-        x = { parent.fname.x + parent.fname.width + 10 },
+    live: View [ x = 12, y = 7, height = 18, cornerRadius = 5, fill = #4C8DFF,
         width = { this.t.width + 14 },
         t: Text [ x = 7, y = 4, fontFamily = [Sans, "system-ui"], fontSize = 9, fontWeight = bold,
                   letterSpacing = 0.8, wrap = false, textColor = #0B141B, text = "LIVE · EDITABLE" ] ],
@@ -203,6 +199,11 @@ class PreviewFrame extends View [ width = { parent.width < 760 ? parent.width : 
 
 class FullPageEditor extends View [ width = { app.width }, height = { app.height },
     open: boolean = false,  pageSource: string = "",
+
+    // Escape closes the editor — a lifetime-managed Keys subscription (the
+    // body gates on `open`, since the raw keyboard fires regardless)
+
+    onKeyUp(e) <- Keys { if (open && e.key == "Escape") app.editing = false },
 
     // the divider x: 0 = not dragged yet (use the 46% default); the grip writes it.
 
