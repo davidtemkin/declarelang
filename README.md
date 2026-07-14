@@ -84,11 +84,16 @@ npm test          # unit + perceptual + scaffold
 | `design/` | design docs — [language](design/declare-language.md), [constraints](design/constraints.md), [hosting](design/hosting.md), … |
 
 **Source & hosting.** Each area co-locates `src/` and committed `dist/`, so the tree runs
-and hosts as-is — no build step required. Static hosting loads a committed `prebuilt/`
-artifact per page and warm-loads the in-browser compiler for live edits; see
-[`design/hosting.md`](design/hosting.md).
+and hosts as-is — no build step required. Every host page loads the platform as ONE
+committed bundle (`dist-browser/declare-boot.js`) and compiles the page's own
+`.declare` in the browser, caching the output; the in-browser compiler
+(`dist-browser/declare-compiler.js`) is fetched lazily, only when something compiles.
+The deployed source is the single source of truth — there is no per-page artifact to
+fall stale; see [`design/hosting.md`](design/hosting.md).
 
 **Conventions** (for contributors):
 - **Format** every `.declare` to the house style — [`design/formatting.md`](design/formatting.md).
-- **Regenerate** `examples/<name>/prebuilt/` after editing an example (`node tools/prebuild.mjs`),
-  and **stamp** the build before deploying (`node tools/stamp-version.mjs`).
+- **Never rebuild the platform bundles by hand**: the pre-commit hook rebuilds a stale
+  one before stamping the build id, and the dev server rebuilds on demand
+  (`tools/bundle-freshness.mjs`). The one manual case is plain static serving between
+  commits after a runtime edit — `node tools/build-boot.mjs`.
