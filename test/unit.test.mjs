@@ -1462,15 +1462,15 @@ await test("compile(): a program with no magic tags splices nothing (auto-includ
 });
 
 await test("compileTracked(): the closure captures the auto-included library + manifest; isUpToDate detects change", () => {
-  const r = compileTracked(`App [ width = 40, height = 40, Bar [ width = 30, value = 50 ] ]`, { props: { backend: "dom" } });
+  const r = compileTracked(`App [ width = 40, height = 40, Bar [ width = 30, value = 50 ] ]`, { props: { render: "dom" } });
   assert.ok(r.source, "compiled");
   const ids = r.closure.entries.map((e) => e.id);
   assert.ok(ids.some((i) => i.endsWith("/library/src/bar.declare")), "the auto-included Bar library is a tracked dependency");
   assert.ok(ids.some((i) => i.endsWith("/library/autoincludes.json")), "the manifest is a tracked dependency");
-  assert.equal(isUpToDate(r.closure, { backend: "dom" }, diskProbe), true, "unchanged → fresh");
-  assert.equal(isUpToDate(r.closure, { backend: "canvas" }, diskProbe), false, "a compiler-prop change → stale");
+  assert.equal(isUpToDate(r.closure, { render: "dom" }, diskProbe), true, "unchanged → fresh");
+  assert.equal(isUpToDate(r.closure, { render: "canvas" }, diskProbe), false, "a compiler-prop change → stale");
   const bumped = (e) => ({ ...diskProbe(e), mtime: (diskProbe(e).mtime || 0) + 1 });
-  assert.equal(isUpToDate(r.closure, { backend: "dom" }, bumped), false, "a dependency change → stale");
+  assert.equal(isUpToDate(r.closure, { render: "dom" }, bumped), false, "a dependency change → stale");
 });
 
 // ── R7: layout — the attribute, the stacking strategy, ownership, precision ─
@@ -4711,12 +4711,12 @@ await test("browser compileTracked: an include is recorded in the closure; the l
   // validator, so an edit to the INCLUDED file invalidates like a main edit.
   const files = { "apps/part.declare": "class Part extends View [ width = 40 ]" };
   const out = browser.compileTracked('include [ "part.declare" ]\nApp [ width = 100, height = 100, Part [ ] ]', {
-    files, originDir: "apps", mainId: "apps/main.declare", props: { backend: "dom" },
+    files, originDir: "apps", mainId: "apps/main.declare", props: { render: "dom" },
   });
   assert.ok(out.source !== null, out.report);
   assert.deepEqual(out.closure.entries.map((e) => e.id).sort(), ["apps/main.declare", "apps/part.declare"]);
   assert.ok(out.closure.entries.every((e) => typeof e.v.hash === "string"), "content-hash validators");
-  assert.deepEqual(out.closure.props, { backend: "dom" });
+  assert.deepEqual(out.closure.props, { render: "dom" });
   // A LIBRARY auto-include stays OUT (BUILD_ID gates the library, the OL5 LFC
   // model) — the closure records app sources only.
   const lib = { manifest: { Bar9: "bar9.declare" }, files: { "library/src/bar9.declare": "class Bar9 extends View [ width = 10 ]" } };

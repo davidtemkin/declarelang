@@ -12,7 +12,7 @@
 //   • URL    `?stripPos=0`   (or its all-lowercase form `?strippos=0`)
 //   • CLI    `--no-strip-pos`  (kebab-cased; `--strip-pos` sets it true)
 export const FLAG_SPECS = [
-    { name: "backend", kind: "enum", values: ["dom", "canvas"], default: "dom" },
+    { name: "render", kind: "enum", values: ["dom", "canvas"], default: "dom" },
     { name: "prod", kind: "bool", default: false },
     { name: "slim", kind: "bool", default: true },
     { name: "stripPos", kind: "bool", default: true },
@@ -56,11 +56,11 @@ export function parseFlags(params, base = DEFAULT_FLAGS) {
     }
     return out;
 }
-/** Parse the same flags from CLI argv tokens (`--backend canvas`, `--no-slim`,
+/** Parse the same flags from CLI argv tokens (`--render canvas`, `--no-slim`,
  *  `--strip-pos` / `--no-strip-pos`, `--prod`, `--typecheck`). Returns the flags
  *  plus the leftover positional args (the input path, etc.). Long flags only;
  *  `--no-<name>` negates a boolean. Enum VALUES are accepted as shorthand switches
- *  (`--canvas` ≡ `--backend canvas`); `--full` is a kept alias for `--no-slim`. */
+ *  (`--canvas` ≡ `--render canvas`); `--full` is a kept alias for `--no-slim`. */
 export function parseArgvFlags(argv, base = DEFAULT_FLAGS) {
     const flags = { ...base };
     const rest = [];
@@ -101,7 +101,7 @@ export function parseArgvFlags(argv, base = DEFAULT_FLAGS) {
             flags[spec.name] = !negate;
             continue;
         }
-        const val = argv[i + 1]; // enum needs a value: `--backend canvas`
+        const val = argv[i + 1]; // enum needs a value: `--render canvas`
         if (val !== undefined && spec.values.includes(val)) {
             flags[spec.name] = val;
             i++;

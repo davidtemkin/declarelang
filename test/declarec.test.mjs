@@ -105,7 +105,7 @@ await test("closure freshness: an edit to an INCLUDED file invalidates the build
   writeFileSync(join(dir, "part.declare"), "class Part extends View [ width = 40 ]\n");
   const source = 'include [ "part.declare" ]\nApp [ width = 100, height = 100, Part [ ] ]\n';
   writeFileSync(join(dir, "main.declare"), source);
-  const out = await buildProduction(source, { name: "main", originDir: dir, backend: "dom", slim: true, props: { toolchain: "t" } });
+  const out = await buildProduction(source, { name: "main", originDir: dir, render: "dom", slim: true, props: { toolchain: "t" } });
   assert.ok(out.ok, out.report);
   const ids = out.closure.entries.map((e) => e.id);
   assert.ok(ids.some((id) => id.endsWith("main.declare")), "main file in the closure: " + ids);
@@ -116,7 +116,7 @@ await test("closure freshness: an edit to an INCLUDED file invalidates the build
   utimesSync(join(dir, "part.declare"), later, later);
   assert.equal(isUpToDate(out.closure, out.closure.props, diskProbe), false, "an included-file edit invalidates");
   // And a build-flag change invalidates through the frozen props.
-  assert.equal(isUpToDate(out.closure, { ...out.closure.props, backend: "canvas" }, diskProbe), false, "a flag change invalidates");
+  assert.equal(isUpToDate(out.closure, { ...out.closure.props, render: "canvas" }, diskProbe), false, "a flag change invalidates");
 });
 
 console.log(`\ndeclarec: ${pass} passed, ${fail} failed`);

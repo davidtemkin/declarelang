@@ -29,7 +29,7 @@
 // BUILD_ID — a content hash of the platform (runtime + compiler bundle + web client +
 // this worker + index.html), stamped by tools/stamp-version.mjs. Left "dev" when unstamped
 // (local serving); a real deploy stamps it so cache-busting + the SW self-update engage.
-const BUILD_ID = "63fade149921";
+const BUILD_ID = "5eeb87703fa2";
 
 const ROOT = new URL("./", self.location);            // <origin>/…/  (this worker's dir == the distro root)
 const ORIGIN = ROOT.origin;
@@ -60,15 +60,19 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== ORIGIN) return;                  // cross-origin → default network
 
   // BROWSE-TO-RUN — a NAVIGATION to `…/<name>.declare` becomes a generated host page.
-  // `?view=source` gets the SOURCE VIEWER page instead (highlight in-browser, render
-  // the code viewer); anything else RUNS the program. A non-navigation `.declare` fetch
-  // (an `include`/`dataset` the compiler reads, or the raw text a source view re-fetches)
-  // is NOT a navigation, so it falls through to revalidate() and the raw source is served.
+  // `?view=reader` (or bare `?reader`) gets the READER page (highlight in-browser,
+  // "reader mode" via the code viewer); `?view=source` (or bare `?source`) is the
+  // EXACT source file — it falls through to revalidate(), same as any non-navigation
+  // fetch of the URL (an `include` the compiler reads, curl); anything else RUNS the
+  // program. Mirrors the dev server's rule (server/index.mjs), so one URL model
+  // spans both hosts.
   if (req.mode === "navigate" && url.pathname.endsWith(".declare")) {
-    event.respondWith(url.searchParams.get("view") === "source"
-      ? sourcePageResponse(url)
-      : hostPageResponse(url));
-    return;
+    const view = url.searchParams.get("view")
+      ?? (url.searchParams.has("reader") ? "reader" : url.searchParams.has("source") ? "source" : null);
+    if (view !== "source") {
+      event.respondWith(view === "reader" ? sourcePageResponse(url) : hostPageResponse(url));
+      return;
+    }
   }
 
   // Everything else → revalidate against the host (fresh-on-deploy, cache as offline fallback).
@@ -121,7 +125,7 @@ async function hostPageResponse(url) {
   return new Response(html, { status: 200, headers: { "Content-Type": "text/html;charset=utf-8", "Cache-Control": "no-cache" } });
 }
 
-// The SOURCE-VIEWER host page for a `…/<name>.declare?view=source` navigation. It boots
+// The READER host page for a `…/<name>.declare?view=reader` navigation. It boots
 // web/boot-source.js, which highlights the target IN-BROWSER and renders the code-viewer
 // app (examples/codeviewer) seeded with the segments. No `<base>`: the boot module resolves
 // the viewer + runtime against its own ABSOLUTE URL, and takes the target only as the ?src=

@@ -7,7 +7,7 @@ command line, and inside the browser. Which one you reach for depends on where y
 are in the lifecycle: editing, deploying a static build, or serving with no build
 step at all.
 
-All three read the **same compile flags** (backend, production, slimming, …); only
+All three read the **same compile flags** (render, production, slimming, …); only
 the spelling differs — a CLI switch, a URL query, or a default. Those are collected
 at the end.
 
@@ -67,7 +67,7 @@ calendar that lands around 45 KB gzipped over the wire.
 The third path runs the compiler *in the page*, and it makes the **program URL
 the app's canonical address**: navigate to any `…/app.declare` — on the dev
 server or on a static host with the service worker installed — and you get the
-running app in a generated wrapper; `?view=source` gets the source view; a
+running app in a generated wrapper; `?view=reader` gets the reader view; a
 plain *fetch* of the same URL gets the source bytes. Compiles are cache-aware:
 the compiled output is cached and revalidated by the compile's dependency
 closure, so a revisit renders without the compiler even loading. No Node
@@ -78,7 +78,7 @@ in-memory include host over a prefetched file map — **including the typecheck*
 the bundle embeds the TypeScript standard library's declarations, so the browser
 checks exactly what Node checks (and produces byte-identical results — a tested
 invariant). Because nothing is bundled ahead of time, the production-only flags
-(`slim`, `prod`) don't apply here; `backend` and `typecheck` do.
+(`slim`, `prod`) don't apply here; `render` and `typecheck` do.
 
 The platform itself loads as **two committed bundles**: every host page imports
 `dist-browser/declare-boot.js` (~58 KB gz — the web client + the runtime's run
@@ -98,14 +98,14 @@ URL query, or a browser URL query.
 
 | Flag | What it does | CLI (`declarec`) | URL (`?…`) | Default |
 |---|---|---|---|---|
-| **backend** | render through managed DOM or one `<canvas>` | `--canvas` / `--dom` | `?backend=canvas` | `dom` |
+| **render** | render through managed DOM or one `<canvas>` | `--canvas` / `--dom` | `?render=canvas` | `dom` |
 | **prod** | production build (precompile + bundle run-path) | *always* | the `/prod` route | dev |
 | **slim** | ship only the components the app can instantiate | `--no-slim` (or `--full`) turns it off | `?slim=0` | on |
 | **stripPos** | drop source positions from the shipped program | `--no-strip-pos` keeps them | `?stripPos=0` | stripped |
 | **typecheck** | the tsc-over-`{ }`-bodies pass — a phase of the compile | `--no-typecheck` turns it off | `?typecheck=0` | on |
 
-So `?backend=canvas&slim=0` on the server, `--canvas --no-slim` on the CLI, and
-`?backend=canvas` in the browser all mean exactly what they read. Booleans accept
+So `?render=canvas&slim=0` on the server, `--canvas --no-slim` on the CLI, and
+`?render=canvas` in the browser all mean exactly what they read. Booleans accept
 `?f`, `?f=1`, `?f=true` (on) and `?f=0`/`false` (off); the CLI negates with `--no-f`.
 
 ## Request types — what a URL returns
@@ -118,12 +118,14 @@ orthogonal choice (`compiler/src/reqtypes.ts`), read from the same URL query wit
 | `?view=` | Returns |
 |---|---|
 | *(absent)* / `run` | the running app (the default) |
-| `source` | a live, syntax-highlighted view of the source, with block comments rendered as Markdown |
-| `segments` | that view's data on its own — the highlighter's segments as JSON |
+| `source` | the EXACT source file — the bytes, `text/plain` |
+| `reader` | a live, syntax-highlighted "reader mode" view, with block comments rendered as Markdown |
+| `segments` | the reader's data on its own — the highlighter's segments as JSON |
 
-So `examples/calendar/?view=source` shows the calendar's source, coloured, in the
+So `examples/calendar/?view=reader` shows the calendar's source, coloured, in the
 code viewer (`examples/codeviewer`); the same works on any `.declare` file path,
-e.g. `some/app.declare?view=source`. `?source` and `?segments` are accepted as bare
+e.g. `some/app.declare?view=reader`; `?view=source` is the exact file. `?source`,
+`?reader`, and `?segments` are accepted as bare
 shorthands.
 
 The highlighting is done by the **compiler**, not a separate tokenizer — a file the

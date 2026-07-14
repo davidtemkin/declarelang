@@ -17,7 +17,7 @@ The server also exposes the **production** artifact at `/examples/<name>/prod` (
 `ensureProdBuild` keys the cache by a hash of the source + toolchain fingerprint and
 partitions it per backend and per slim/full (`.prod-cache`, `.prod-cache-canvas`,
 `.prod-cache-full`), so each flag combination is a distinct artifact and a repeat
-request is a straight cache hit. URL query flags (`?slim=0`, `?backend=canvas`) steer
+request is a straight cache hit. URL query flags (`?slim=0`, `?render=canvas`) steer
 it. And `POST /compile` is the live delegate the playground/editors hit — source in,
 app JS out, no typecheck.
 
@@ -109,8 +109,9 @@ the service worker is installed:
 | request on `…/app.declare` | you get |
 |---|---|
 | a top-level **navigation** (no params) | the RUNNING app, in a generated wrapper |
-| `?view=source` / `?view=segments` | the highlighted source view / its data |
-| `?backend=canvas`, `?typecheck=0` | the same orthogonal flags as everywhere |
+| `?view=source` | the EXACT source file (the bytes, `text/plain`) |
+| `?view=reader` / `?view=segments` | the highlighted, literate "reader mode" view / its data |
+| `?render=canvas`, `?typecheck=0` | the same orthogonal flags as everywhere |
 | a **fetch** of the same URL (an include, the viewer, `curl`) | the source bytes (`text/plain`) |
 
 The navigate/fetch discrimination is the service worker's own (a top-level
@@ -132,11 +133,11 @@ flags (`slim`, `prod`) don't apply.
 
 ## Compile flags
 
-`compiler/src/flags.ts` is the single `CompileFlags` model — `backend` (dom/canvas),
+`compiler/src/flags.ts` is the single `CompileFlags` model — `render` (dom/canvas),
 `prod`, `slim`, `stripPos`, `typecheck` — with `DEFAULT_FLAGS` and two parsers:
 `parseFlags(URLSearchParams-like)` for the server and browser URL queries, and
 `parseArgvFlags(argv)` for the CLI. So `?slim=0` on the server, `--no-slim` on the CLI,
-and the browser's `?backend=canvas` all resolve through one place — no per-entry-point
+and the browser's `?render=canvas` all resolve through one place — no per-entry-point
 drift. Every flag is named the same way on all three surfaces (the canonical
 `CompileFlags` field): booleans read `?f`/`?f=1`/`?f=true` (on) and `?f=0`/`false`
 (off) and the CLI spells them `--f`/`--no-f` (so `stripPos` is `?stripPos=0` /
@@ -149,7 +150,8 @@ Orthogonal to *how* a source compiles (the flags above) is *what* a URL returns 
 it — the **request type** (`compiler/src/reqtypes.ts`), modeled on OpenLaszlo's `lzt`.
 `requestType(URLSearchParams-like)` reads `?view=…`: `run` (the app, the default),
 `source` (the syntax-highlighted source with block comments as Markdown), or
-`segments` (that view's JSON on its own). `?source`/`?segments` are bare shorthands.
+`reader` (the highlighted, literate view), `segments` (the reader's JSON on its own),
+and `source` (the exact file bytes). `?source`/`?reader`/`?segments` are bare shorthands.
 The server (`server/index.mjs`) applies it on both the `examples/<name>/` route and any
 `.declare` file path; `SOURCE` boots the code viewer (`examples/codeviewer`) seeded
 with the segments, `SEGMENTS` returns them as JSON.

@@ -67,7 +67,7 @@ function buildExample(name) {
   const src = readFileSync(appFile, "utf8");
 
   // Compile to VALIDATE (and to measure) — the artifact is not emitted.
-  const tracked = compileTracked(src, { originDir: dir, mainId: appFile, props: { backend: "dom" } });
+  const tracked = compileTracked(src, { originDir: dir, mainId: appFile, props: { render: "dom" } });
   fail(name + ".declare", tracked);
 
   const pageWeight = Math.round((RUNTIME_GZ_BYTES + gzipSync(tracked.source).length) / 1024);

@@ -63,7 +63,7 @@ export async function buildProduction(source, opts = {}) {
   // to any invalidates a cache exactly like a file change), plus whatever the
   // caller adds (the server contributes its toolchain fingerprint).
   const props = {
-    backend: opts.backend === "canvas" ? "canvas" : "dom",
+    render: opts.render === "canvas" ? "canvas" : "dom",
     slim: String(opts.slim !== false),
     stripPos: String(opts.stripPos ?? true),
     typecheck: String(opts.typecheck ?? true),
@@ -80,7 +80,7 @@ export async function buildProduction(source, opts = {}) {
   // clean for the minifier. The backend is a build choice: DOM (managed
   // elements) or Canvas (one <canvas>, the app painted by the runtime's own
   // display list). Only the chosen backend is bundled.
-  const canvas = opts.backend === "canvas";
+  const canvas = opts.render === "canvas";
   const backend = canvas
     ? { cls: "CanvasBackend", file: "canvas-backend.js" }
     : { cls: "DomBackend", file: "dom-backend.js" };
@@ -168,8 +168,8 @@ async function copyAssets(srcDir, outDir) {
  *  copied assets). The shared emit used by the CLI and the dev server. Returns
  *  the buildProduction result plus `{ outDir, appName, assets }`. On a compile
  *  error, returns `{ ok:false, errors }` and writes nothing. */
-export async function writeProduction({ source, name = "app", srcDir = null, outDir, stripPos = true, backend, slim, typecheck = false, props }) {
-  const out = await buildProduction(source, { name, originDir: srcDir, stripPos, backend, slim, typecheck, props });
+export async function writeProduction({ source, name = "app", srcDir = null, outDir, stripPos = true, render, slim, typecheck = false, props }) {
+  const out = await buildProduction(source, { name, originDir: srcDir, stripPos, render, slim, typecheck, props });
   if (!out.ok) return out;
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
@@ -229,7 +229,7 @@ async function cli(argv) {
 
   const source = await readFile(srcPath, "utf8");
   const t0 = Date.now();
-  const out = await writeProduction({ source, name, srcDir, outDir, stripPos: flags.stripPos, backend: flags.backend, slim: flags.slim, typecheck: flags.typecheck });
+  const out = await writeProduction({ source, name, srcDir, outDir, stripPos: flags.stripPos, render: flags.render, slim: flags.slim, typecheck: flags.typecheck });
   const ms = Date.now() - t0;
 
   if (!out.ok) {

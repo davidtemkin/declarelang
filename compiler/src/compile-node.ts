@@ -55,7 +55,7 @@ export interface TrackedOptions extends CompileOptions {
   /** The main source's own path (absolute) — recorded as a closure entry so an
    *  edit to the app file itself busts the cache. Omit for an unsaved buffer. */
   mainId?: string;
-  /** Compiler properties that also gate cache staleness (e.g. `{ backend: "dom" }`).
+  /** Compiler properties that also gate cache staleness (e.g. `{ render: "dom" }`).
    *  Frozen into the closure and compared by isUpToDate. */
   props?: Record<string, string>;
 }

@@ -143,7 +143,7 @@ export default async function boot(cfg) {
   const mainUrl = new URL(cfg.main, location.href);
   const mainId = mainUrl.href;
   const mainDir = new URL(".", mainUrl);                          // app-relative assets (demos) live here
-  const props = { backend: cfg.backend === "CanvasBackend" ? "canvas" : "dom" };
+  const props = { render: cfg.backend === "CanvasBackend" ? "canvas" : "dom" };
   const sVersion = perfStage("version");
   const build = await platformBuild();
   sVersion.end();

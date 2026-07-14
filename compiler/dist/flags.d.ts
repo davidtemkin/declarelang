@@ -2,8 +2,8 @@
  *  (the CLI is always a production build, so its `prod` is implicitly true), but
  *  they all read the SAME names and meanings. */
 export interface CompileFlags {
-    /** Which render backend to bundle / mount: managed DOM, or one `<canvas>`. */
-    backend: "dom" | "canvas";
+    /** Which RENDERER to bundle / mount (?render=canvas / --render canvas): managed DOM, or one `<canvas>`. */
+    render: "dom" | "canvas";
     /** Production build — precompile + bundle the run-path only (declarec), vs a
      *  dev compile that ships the source + compiler. */
     prod: boolean;
@@ -49,11 +49,11 @@ export interface FlagParams {
  *  keys are ignored; a malformed value falls back to the base. Derived entirely
  *  from `FLAG_SPECS`, so a new flag needs no edit here. */
 export declare function parseFlags(params: FlagParams, base?: CompileFlags): CompileFlags;
-/** Parse the same flags from CLI argv tokens (`--backend canvas`, `--no-slim`,
+/** Parse the same flags from CLI argv tokens (`--render canvas`, `--no-slim`,
  *  `--strip-pos` / `--no-strip-pos`, `--prod`, `--typecheck`). Returns the flags
  *  plus the leftover positional args (the input path, etc.). Long flags only;
  *  `--no-<name>` negates a boolean. Enum VALUES are accepted as shorthand switches
- *  (`--canvas` ≡ `--backend canvas`); `--full` is a kept alias for `--no-slim`. */
+ *  (`--canvas` ≡ `--render canvas`); `--full` is a kept alias for `--no-slim`. */
 export declare function parseArgvFlags(argv: readonly string[], base?: CompileFlags): {
     flags: CompileFlags;
     rest: string[];

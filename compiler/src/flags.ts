@@ -16,8 +16,8 @@
  *  (the CLI is always a production build, so its `prod` is implicitly true), but
  *  they all read the SAME names and meanings. */
 export interface CompileFlags {
-  /** Which render backend to bundle / mount: managed DOM, or one `<canvas>`. */
-  backend: "dom" | "canvas";
+  /** Which RENDERER to bundle / mount (?render=canvas / --render canvas): managed DOM, or one `<canvas>`. */
+  render: "dom" | "canvas";
   /** Production build — precompile + bundle the run-path only (declarec), vs a
    *  dev compile that ships the source + compiler. */
   prod: boolean;
@@ -43,7 +43,7 @@ export type FlagSpec =
   | { readonly name: keyof CompileFlags; readonly kind: "enum"; readonly values: readonly string[]; readonly default: string };
 
 export const FLAG_SPECS: readonly FlagSpec[] = [
-  { name: "backend", kind: "enum", values: ["dom", "canvas"], default: "dom" },
+  { name: "render", kind: "enum", values: ["dom", "canvas"], default: "dom" },
   { name: "prod", kind: "bool", default: false },
   { name: "slim", kind: "bool", default: true },
   { name: "stripPos", kind: "bool", default: true },
@@ -100,11 +100,11 @@ export function parseFlags(params: FlagParams, base: CompileFlags = DEFAULT_FLAG
   return out as unknown as CompileFlags;
 }
 
-/** Parse the same flags from CLI argv tokens (`--backend canvas`, `--no-slim`,
+/** Parse the same flags from CLI argv tokens (`--render canvas`, `--no-slim`,
  *  `--strip-pos` / `--no-strip-pos`, `--prod`, `--typecheck`). Returns the flags
  *  plus the leftover positional args (the input path, etc.). Long flags only;
  *  `--no-<name>` negates a boolean. Enum VALUES are accepted as shorthand switches
- *  (`--canvas` ≡ `--backend canvas`); `--full` is a kept alias for `--no-slim`. */
+ *  (`--canvas` ≡ `--render canvas`); `--full` is a kept alias for `--no-slim`. */
 export function parseArgvFlags(
   argv: readonly string[],
   base: CompileFlags = DEFAULT_FLAGS
@@ -128,7 +128,7 @@ export function parseArgvFlags(
     const spec = bySwitch.get(tok);
     if (spec === undefined) { rest.push(a); continue; }
     if (spec.kind === "bool") { flags[spec.name] = !negate; continue; }
-    const val = argv[i + 1]; // enum needs a value: `--backend canvas`
+    const val = argv[i + 1]; // enum needs a value: `--render canvas`
     if (val !== undefined && spec.values.includes(val)) { flags[spec.name] = val; i++; }
   }
   return { flags: flags as unknown as CompileFlags, rest };

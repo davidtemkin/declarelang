@@ -114,9 +114,10 @@ bootHost(cfg);
 </script>`;
 }
 
-// A request-type SOURCE / SEGMENTS view (reqtypes.ts) for one .declare file:
+// A request-type READER / SEGMENTS view (reqtypes.ts) for one .declare file:
 // invoke the compiler's highlight() and either hand back the segments as JSON
-// (SEGMENTS) or serve the code-viewer app seeded with them (SOURCE). `relPath`
+// (SEGMENTS) or serve the code-viewer app seeded with them (READER 'reader'
+// mode; the EXACT bytes are ?view=source, served by the callers directly). `relPath`
 // is the file's tree-relative path, used for the JSON's `path` and the page title.
 function serveSource(res, absPath, relPath, rt, backendClass) {
   let source;
@@ -135,7 +136,7 @@ function serveSource(res, absPath, relPath, rt, backendClass) {
 // app channel (cfg.seeds → app.demoSources) — the viewer is a plain consumer, no
 // bespoke wiring. The viewer renders prose segments as Markdown and code segments
 // as coloured <pre> (its own accents map themes them), plus size + light/dark
-// controls. So `foo.declare?view=source` is a live, self-contained source page.
+// controls. So `foo.declare?view=reader` is a live, self-contained source page.
 function sourcePage(relPath, segments, rawSource, backendClass) {
   const dir = path.join(EXAMPLES, "codeviewer");
   const src = readFileSync(path.join(dir, "codeviewer.declare"), "utf8");
@@ -202,7 +203,7 @@ function declareRunPage(urlPath) {
 <script type="module">
   import boot from "/dist-browser/declare-boot.js";
   const q = new URLSearchParams(location.search);
-  boot({ main: location.pathname, backend: q.get("backend") === "canvas" ? "CanvasBackend" : undefined });
+  boot({ main: location.pathname, backend: q.get("render") === "canvas" ? "CanvasBackend" : undefined });
 </script>`;
 }
 
@@ -340,11 +341,11 @@ http.createServer((req, res) => {
     const prod = p.match(/^\/examples\/([^/]+)\/prod(-canvas)?(\/.*)?$/);
     if (req.method === "GET" && prod && examples().includes(prod[1])) {
       // URL query flags (flags.ts, the shared model): `?slim=0` ships the full
-      // registry, `?backend=canvas` overrides the path's default. So a prod URL
+      // registry, `?render=canvas` overrides the path's default. So a prod URL
       // reads the same flags the CLI and browser do.
       const q = new URL(req.url, "http://x").searchParams;
       const flags = parseFlags(q, { ...DEFAULT_FLAGS, prod: true });
-      const backend = prod[2] ? "canvas" : flags.backend;
+      const backend = prod[2] ? "canvas" : flags.render;
       serveProd(res, prod[1], prod[3] ?? "", p, backend, flags.slim).catch((e) => {
         if (!res.headersSent) send(res, 500, String((e && e.stack) || e), "text/plain");
       });
@@ -367,20 +368,24 @@ http.createServer((req, res) => {
     if (m && examples().includes(m[1])) {
       const params = new URL(req.url, "http://x").searchParams;
       const rt = requestType(params);
-      // Path `/canvas` sets the base backend; the URL query (`?backend=`, and any
-      // other flag such as `?typecheck`) can override — the SAME flags.ts model
-      // the CLI and the in-browser compiler read, named the same way.
-      const flags = parseFlags(params, { ...DEFAULT_FLAGS, backend: m[2] ? "canvas" : "dom" });
-      const backendClass = flags.backend === "canvas" ? "CanvasBackend" : "DomBackend";
-      if (rt === REQ.SOURCE || rt === REQ.SEGMENTS)
-        return serveSource(res, path.join(EXAMPLES, m[1], `${m[1]}.declare`), `examples/${m[1]}/${m[1]}.declare`, rt, backendClass);
+      // Path `/canvas` sets the base renderer; the URL query (`?render=`, and
+      // any other flag such as `?typecheck`) can override — the SAME flags.ts
+      // model the CLI and the in-browser compiler read, named the same way.
+      const flags = parseFlags(params, { ...DEFAULT_FLAGS, render: m[2] ? "canvas" : "dom" });
+      const backendClass = flags.render === "canvas" ? "CanvasBackend" : "DomBackend";
+      const declPath = path.join(EXAMPLES, m[1], `${m[1]}.declare`);
+      if (rt === REQ.SOURCE) return send(res, 200, readFileSync(declPath), "text/plain; charset=utf-8");
+      if (rt === REQ.READER || rt === REQ.SEGMENTS)
+        return serveSource(res, declPath, `examples/${m[1]}/${m[1]}.declare`, rt, backendClass);
       return send(res, 200, hostPage(m[1], backendClass, flags));
     }
 
     // ── The PROGRAM URL is the app's canonical address (the OpenLaszlo model:
     // …/calendar.lzx?lzt=…) — identical here and on the SW static host.
     //   NAVIGATE to …/app.declare            → the running app (default view)
-    //   …?view=source / ?view=segments       → the source view / its data
+    //   …?view=source                        → the EXACT source file (bytes)
+    //   …?view=reader / ?view=segments       → the reader (highlighted, literate
+    //                                          "reader mode") / its data
     //   FETCH the same URL (compiler include, viewer, curl) → the source bytes
     // The navigate/fetch split is the SAME discrimination the service worker
     // makes (a top-level navigation vs a subresource request), so a person and
@@ -389,12 +394,13 @@ http.createServer((req, res) => {
       const rt = requestType(new URL(req.url, "http://x").searchParams);
       const abs = path.join(ROOT, p.replace(/^\/+/, ""));
       const real = abs.startsWith(ROOT + path.sep) && existsSync(abs) && statSync(abs).isFile();
-      if (real && (rt === REQ.SOURCE || rt === REQ.SEGMENTS)) {
+      if (real && (rt === REQ.READER || rt === REQ.SEGMENTS)) {
         return serveSource(res, abs, p.replace(/^\/+/, ""), rt, "DomBackend");
       }
       const navigate = req.headers["sec-fetch-mode"] === "navigate" || (req.headers.accept ?? "").includes("text/html");
-      if (real && navigate) return send(res, 200, declareRunPage(p), "text/html;charset=utf-8");
-      // else: fall through to the raw-file handler (the source bytes)
+      if (real && navigate && rt !== REQ.SOURCE) return send(res, 200, declareRunPage(p), "text/html;charset=utf-8");
+      // else (?view=source, or any plain fetch): fall through to the raw-file
+      // handler — the exact source bytes, text/plain
     }
 
     // A platform BUNDLE requested → rebuild it first if any of its inputs is
