@@ -159,7 +159,7 @@ everything the Node one can):
   server-side when the flag rides a run URL.
 - **Request type `?view=seo`** (reqtypes.ts) — the extracted document ALONE,
   `text/html`. The dev server extracts in Node; the static host's service
-  worker serves a page that extracts in-browser (web/boot-seo.js) — the same
+  worker serves a page that extracts in-browser (browser/boot-seo.js) — the same
   extractor module both times. No bare `?seo` shorthand: that spelling is the
   flag.
 

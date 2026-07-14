@@ -23,7 +23,7 @@ export type NodeId = string;
  *  this object. */
 export interface DocModel {
   version: 1;
-  /** Content-hash build stamp (shared with web/version.json) — lets a renderer
+  /** Content-hash build stamp (shared with bundles/version.json) — lets a renderer
    *  cache the model and revalidate, and lets the guide pin a reference revision. */
   buildId: string;
   /** Every node, keyed by `id`. Walkable: follow `extends`/`parent`/`children`/

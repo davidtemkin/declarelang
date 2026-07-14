@@ -2,7 +2,7 @@
 //
 // Declare's static site (GitHub Pages) is UNIFORM browser-compile: the deployed
 // `.declare` SOURCE is the single source of truth, compiled in the browser on
-// load and cached there (web/boot-uniform.js — the OL5 static-deploy model). So
+// load and cached there (browser/boot-uniform.js — the OL5 static-deploy model). So
 // there is no committed precompiled artifact to keep in sync. This tool instead:
 //
 //   - COMPILES every examples/<name>/<name>.declare (and every demo) with the
@@ -56,7 +56,7 @@ const exampleIndexHtml = (name) => `<!doctype html>
   // boot-uniform.js compiles it in-browser on first load, caches the compiled
   // program (keyed by the platform BUILD_ID + the source's content hash), and on
   // later loads reuses the cache unless the source or platform changed.
-  import boot from "../../web/boot-uniform.js";
+  import boot from "../../browser/boot-uniform.js";
   boot({ main: "./${name}.declare" });
 </script>
 `;

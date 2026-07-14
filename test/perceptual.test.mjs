@@ -756,7 +756,7 @@ function serveDist() {
     // compiler client (which prefers the module worker) and exposes a compile
     // runner — no app, no backend; the compiler itself is the subject.
     "/worker-identity": `<!doctype html><meta charset="utf-8"><body><script type="module">
-      import { loadCompiler } from "/web/compiler-client.js";
+      import { loadCompiler } from "/browser/compiler-client.js";
       window.__run = async (src) => {
         const client = await loadCompiler();
         const result = await client.compile(src, {});
@@ -769,7 +769,7 @@ function serveDist() {
     // and executes the program headlessly IN THIS PAGE — the run-anywhere claim
     // (design/capabilities.md §5), verified against Node byte-for-byte.
     "/extract-identity": `<!doctype html><meta charset="utf-8"><body><script type="module">
-      import { extractStatic } from "/dist-browser/declare-compiler.js";
+      import { extractStatic } from "/bundles/declare-compiler.js";
       window.__extract = (src) => { const o = extractStatic(src); return JSON.stringify({ html: o.html, report: o.report }); };
       window.__ready = true;
     </script>`,

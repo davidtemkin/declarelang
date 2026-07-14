@@ -1,4 +1,4 @@
-// web/register-sw.js — register the distro Service Worker (../service-worker.js) and pick up new deploys.
+// browser/register-sw.js — register the distro Service Worker (../service-worker.js) and pick up new deploys.
 //
 // Imported by boot-static.js, so EVERY statically-hosted page (the homepage + each example)
 // registers the worker. The dev server's host pages use host-client.js directly and do NOT

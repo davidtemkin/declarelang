@@ -1,4 +1,4 @@
-// web/boot-static.js — boot a Declare page on a DUMB static host (GitHub Pages)
+// browser/boot-static.js — boot a Declare page on a DUMB static host (GitHub Pages)
 // from a committed precompiled artifact, with the "load the fast thing, verify in
 // the background" model:
 //
@@ -13,14 +13,14 @@
 //      or (b) serve live edits ("Edit this page", the demo editors). Off the
 //      critical path by construction.
 //
-// All sibling assets import RELATIVE to THIS module's URL (…/web/), so the whole
+// All sibling assets import RELATIVE to THIS module's URL (…/browser/), so the whole
 // tree is subpath-portable — a project page under /<repo>/ resolves them the same.
 import { bootHost } from "./host-client.js";
 import { registerServiceWorker } from "./register-sw.js";
 import { loadCompiler } from "./compiler-client.js";
 import { fnv1a, isUpToDate } from "../compiler/dist/closure.js";
 
-// Repo root as an absolute URL, derived from this module's own location (…/web/ →
+// Repo root as an absolute URL, derived from this module's own location (…/browser/ →
 // one up). Closure entry ids are root-relative, so this makes the freshness fetch
 // work identically for the root homepage and a per-example page deeper in the tree.
 const ROOT = new URL("../", import.meta.url);

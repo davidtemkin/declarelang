@@ -14,7 +14,7 @@
 // and the worker as it does on every other surface (in-browser-dev.md §3).
 //
 //   node tools/build-compiler.mjs
-// writes dist-browser/declare-compiler.js  (an ES module: compile, compileTracked, setDefaultLibrary, provideLib, memoryHost, highlight, fnv1a)
+// writes bundles/declare-compiler.js  (an ES module: compile, compileTracked, setDefaultLibrary, provideLib, memoryHost, highlight, fnv1a)
 
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -26,7 +26,7 @@ import { build } from "esbuild";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..");
 const ENTRY = path.join(ROOT, "compiler/dist/compile-browser.js");
-const OUT_DIR = path.join(ROOT, "dist-browser");
+const OUT_DIR = path.join(ROOT, "bundles");
 const OUT = path.join(OUT_DIR, "declare-compiler.js");
 
 mkdirSync(OUT_DIR, { recursive: true });

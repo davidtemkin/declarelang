@@ -81,9 +81,9 @@ invariant). Because nothing is bundled ahead of time, the production-only flags
 (`slim`, `prod`) don't apply here; `render` and `typecheck` do.
 
 The platform itself loads as **two committed bundles**: every host page imports
-`dist-browser/declare-boot.js` (~58 KB gz — the web client + the runtime's run
+`bundles/declare-boot.js` (~58 KB gz — the web client + the runtime's run
 path, one request instead of fifty modules), and the compiler
-(`dist-browser/declare-compiler.js`, ~1 MB gz) is fetched **lazily**, only when
+(`bundles/declare-compiler.js`, ~1 MB gz) is fetched **lazily**, only when
 something actually compiles. You never rebuild these by hand: the pre-commit
 hook rebuilds a stale bundle before stamping the build id, and the dev server
 rebuilds one on demand when it's requested — an edit to the runtime is live on

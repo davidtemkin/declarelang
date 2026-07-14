@@ -51,7 +51,7 @@ async function withHost({ compiled, appDir, fixturesDir = null, backendClass = "
 <style>html,body{margin:0;padding:0}</style>
 <div id="host"></div>
 <script type="module">
-import { bootHost } from "/web/host-client.js";
+import { bootHost } from "/browser/host-client.js";
 const cfg = ${JSON.stringify(cfg)};
 cfg.compile = async () => null;
 bootHost(cfg);

@@ -8,7 +8,7 @@
 //        • every same-origin asset is fetched `no-cache` → a conditional GET, so a
 //          changed file is re-fetched immediately and an unchanged one is a cheap 304.
 //          This defeats a static host's max-age heuristic caching, which is what let a
-//          rebuilt `dist-browser/declare-compiler.js` serve STALE (the whole-page editor
+//          rebuilt `bundles/declare-compiler.js` serve STALE (the whole-page editor
 //          preview bug). No file can silently lag a deploy.
 //        • a stamped BUILD_ID rides in this file. When the platform changes, the stamp
 //          rewrites BUILD_ID → THIS worker's bytes change → the browser installs a fresh
@@ -29,7 +29,7 @@
 // BUILD_ID — a content hash of the platform (runtime + compiler bundle + web client +
 // this worker + index.html), stamped by tools/stamp-version.mjs. Left "dev" when unstamped
 // (local serving); a real deploy stamps it so cache-busting + the SW self-update engage.
-const BUILD_ID = "3fe2953a7272";
+const BUILD_ID = "87d9ba736587";
 
 const ROOT = new URL("./", self.location);            // <origin>/…/  (this worker's dir == the distro root)
 const ORIGIN = ROOT.origin;
@@ -63,7 +63,7 @@ self.addEventListener("fetch", (event) => {
   // `?view=reader` (or bare `?reader`) gets the READER page (highlight in-browser,
   // "reader mode" via the code viewer); `?view=edit` is the SAME page opened on
   // its live-edit tab (the viewer owns the tabs); `?view=seo` gets the STATIC-EXTRACTION
-  // document (web/boot-seo.js compiles + executes headlessly IN-BROWSER — the
+  // document (browser/boot-seo.js compiles + executes headlessly IN-BROWSER — the
   // same extractor the dev server runs in Node); `?view=source` (or bare
   // `?source`) is the EXACT source file — it falls through to revalidate(),
   // same as any non-navigation fetch of the URL (an `include` the compiler
@@ -113,7 +113,7 @@ async function revalidate(req) {
 // the bundle is imported by ABSOLUTE URL with ?v=BUILD_ID busting per deploy.
 async function hostPageResponse(url) {
   const appUrl = url.origin + url.pathname;           // the .declare (query dropped)
-  const bootUrl = new URL("dist-browser/declare-boot.js", ROOT).href;
+  const bootUrl = new URL("bundles/declare-boot.js", ROOT).href;
   const icon = new URL("assets/favicon.svg", ROOT).href;
   const iconPng = new URL("assets/favicon.png", ROOT).href;
   const name = appUrl.replace(/.*\//, "").replace(/\.declare$/, "");
@@ -134,13 +134,13 @@ async function hostPageResponse(url) {
 }
 
 // The READER host page for a `…/<name>.declare?view=reader` navigation. It boots
-// web/boot-source.js, which highlights the target IN-BROWSER and renders the code-viewer
+// browser/boot-source.js, which highlights the target IN-BROWSER and renders the code-viewer
 // app (examples/codeviewer) seeded with the segments. No `<base>`: the boot module resolves
 // the viewer + runtime against its own ABSOLUTE URL, and takes the target only as the ?src=
 // param, so nothing relative on this page needs diverting. ?v=BUILD_ID busts it per deploy.
 async function sourcePageResponse(url, mode = "") {
   const appUrl = url.origin + url.pathname;           // the .declare (query dropped)
-  const bootUrl = new URL("web/boot-source.js", ROOT).href;
+  const bootUrl = new URL("browser/boot-source.js", ROOT).href;
   const icon = new URL("assets/favicon.svg", ROOT).href;
   const iconPng = new URL("assets/favicon.png", ROOT).href;
   const name = appUrl.replace(/.*\//, "").replace(/\.declare$/, "");
@@ -157,12 +157,12 @@ async function sourcePageResponse(url, mode = "") {
 }
 
 // The STATIC-EXTRACTION page for `…/<name>.declare?view=seo`. It boots
-// web/boot-seo.js, which compiles the target in-browser, executes it headlessly
+// browser/boot-seo.js, which compiles the target in-browser, executes it headlessly
 // (no mount) and REWRITES this page as the extracted semantic-HTML document —
 // the same artifact the dev server's serveSeo() sends, via the browser path.
 async function seoPageResponse(url) {
   const appUrl = url.origin + url.pathname;           // the .declare (query dropped)
-  const bootUrl = new URL("web/boot-seo.js", ROOT).href;
+  const bootUrl = new URL("browser/boot-seo.js", ROOT).href;
   const name = appUrl.replace(/.*\//, "").replace(/\.declare$/, "");
   const html = `<!doctype html><meta charset="utf-8">
 <title>${escapeHtml(name)} — static extraction · Declare</title>

@@ -85,9 +85,9 @@ npm test          # unit + perceptual + scaffold
 
 **Source & hosting.** Each area co-locates `src/` and committed `dist/`, so the tree runs
 and hosts as-is — no build step required. Every host page loads the platform as ONE
-committed bundle (`dist-browser/declare-boot.js`) and compiles the page's own
+committed bundle (`bundles/declare-boot.js`) and compiles the page's own
 `.declare` in the browser, caching the output; the in-browser compiler
-(`dist-browser/declare-compiler.js`) is fetched lazily, only when something compiles.
+(`bundles/declare-compiler.js`) is fetched lazily, only when something compiles.
 The deployed source is the single source of truth — there is no per-page artifact to
 fall stale; see [`design/hosting.md`](design/hosting.md).
 

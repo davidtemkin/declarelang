@@ -1,4 +1,4 @@
-// web/host-client.js — the shared client that boots a Declare host page in EITHER
+// browser/host-client.js — the shared client that boots a Declare host page in EITHER
 // hosting mode from one code path:
 //
 //   • dynamic  — a Node dev server inlines the compiled program and delegates live
@@ -18,7 +18,7 @@ import { renderAsync, disposeApp, DomBackend, CanvasBackend } from "../runtime/d
 
 const BACKENDS = { DomBackend, CanvasBackend };
 
-// The distro ROOT (this module lives at <root>/web/…). App-navigation targets are
+// The distro ROOT (this module lives at <root>/browser/…). App-navigation targets are
 // resolved against it, so a distro-relative link ("examples/calendar/") lands
 // correctly whether the distro is served from the origin root (dev server) or a
 // project subpath (GitHub Pages /<repo>/). Absolute URLs (https://…) pass through.

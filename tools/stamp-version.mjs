@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // tools/stamp-version.mjs — stamp a content-hash BUILD_ID into service-worker.js (and write
-// web/version.json).
+// bundles/version.json).
 // Host-agnostic cache-busting, run once before every deploy:
 //
 //   node tools/stamp-version.mjs
@@ -26,25 +26,25 @@ import { rebuildStale } from "./bundle-freshness.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-// FIRST: the committed platform bundles (dist-browser/) are pure functions of
+// FIRST: the committed platform bundles (bundles/) are pure functions of
 // tree inputs — rebuild any that are stale BEFORE hashing, so the BUILD_ID
 // always describes FRESH artifacts and a commit cannot ship a stale bundle
-// (tools/bundle-freshness.mjs; the pre-commit hook stages dist-browser after
+// (tools/bundle-freshness.mjs; the pre-commit hook stages bundles/ after
 // this runs). One path, correctness by construction — never by remembering.
 rebuildStale(ROOT, { log: console.log });
 const SW = join(ROOT, "service-worker.js");
-const VERSION_JSON = join(ROOT, "web", "version.json");   // the build record (out of root; web/ = the client dir)
+const VERSION_JSON = join(ROOT, "bundles", "version.json");   // the build record (lives beside the built bundles)
 const BUILD_RE = /const BUILD_ID = "[^"]*";/;
 
 // Platform inputs whose change should bust all caches + force a worker update. NOT bare "." —
-// the runtime's own dist and the compiler bundle carry all the compiled behavior, `web/` the
-// client + the boot modules the worker's host page loads. `web/version.json` is skipped in the
+// the runtime's own dist and the compiler bundle carry all the compiled behavior, `browser/` the
+// client + the boot modules the worker's host page loads. `bundles/version.json` is skipped in the
 // walk below (it lives inside a hashed input, so hashing it would be self-referential).
 const INPUTS = [
   "index.html",
   "service-worker.js",
-  "web",                                 // register-sw.js, boot-static.js, host-client.js, compiler-client.js
-  "dist-browser",                        // the platform bundles: compiler, boot (declare-boot.js), compile worker
+  "browser",                             // register-sw.js, boot-static.js, host-client.js, compiler-client.js
+  "bundles",                             // the platform bundles: compiler, boot (declare-boot.js), compile worker
   "compiler/dist/closure.js",            // the freshness core boot-static imports
   "runtime/dist",                        // the runtime
   "library",                             // auto-include manifest + sources (browse-to-run compiles against these)

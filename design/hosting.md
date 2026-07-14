@@ -43,7 +43,7 @@ Node and no compiler on the critical path. Every path is relative, so it is
 subpath-portable — a project page under `/<repo>/` resolves everything the same.
 
 The model is **compile-in-the-browser, cache the output, closure-check freshness**
-(`web/boot-uniform.js` — the deployed `.declare` source is the single source of
+(`browser/boot-uniform.js` — the deployed `.declare` source is the single source of
 truth; there is no per-app precompiled artifact to fall stale):
 
 1. **Fast path.** The compiled program is cached in CacheStorage, keyed by the
@@ -54,18 +54,18 @@ truth; there is no per-app precompiled artifact to fall stale):
 2. **Slow path** (first visit, or the source moved): download the in-browser
    compiler, compile — **the full compile, typecheck included, identical to every
    other surface** — render, and cache the result with its closure. The compile
-   runs in a module **worker** (`web/compile-worker.js` behind
-   `web/compiler-client.js`), off the main thread, byte-identical by construction.
+   runs in a module **worker** (`browser/compile-worker.js` behind
+   `browser/compiler-client.js`), off the main thread, byte-identical by construction.
 3. **Live edits** ("Edit this page", the demo previews) ride the same compiler
    client, warm-loaded in the background off the paint path.
 
 ### The platform bundles — one path, freshness by construction
 
-The page loads the platform as **one file**: `dist-browser/declare-boot.js`
+The page loads the platform as **one file**: `bundles/declare-boot.js`
 (~58 KB gz, `tools/build-boot.mjs`) — the whole boot graph (web client +
 compiler client + the runtime run-path, ~50 modules) bundled, so a load makes one
 platform request instead of fifty. The in-browser compiler
-(`dist-browser/declare-compiler.js`, ~1 MB gz, `tools/build-compiler.mjs` — the
+(`bundles/declare-compiler.js`, ~1 MB gz, `tools/build-compiler.mjs` — the
 Declare core + TypeScript + the embedded `lib.d.ts` closure) stays a separate,
 **lazily** fetched artifact — slow path and live edits only.
 
@@ -85,7 +85,7 @@ any input newer than the artifact → rebuild):
 Those two are the only serving paths — the dev server locally, the committed
 tree deployed — so there is no manual rebuild case at all.
 
-The unbundled `web/*.js` + `runtime/dist/*.js` modules remain in the tree (the
+The unbundled `browser/*.js` + `runtime/dist/*.js` modules remain in the tree (the
 bundles are a *transport*, not a fork): tests, the dev server's own pages, and
 tooling import them directly.
 
@@ -161,7 +161,7 @@ boots the code viewer (`examples/codeviewer`) seeded with the segments, `SEGMENT
 returns them as JSON, `SEO` compiles through the front-end and serves the extracted
 document (which answers a plain fetch too — the request type *is* the
 discrimination). The static host's service worker mirrors every one of these,
-extracting `seo` **in the browser** (`web/boot-seo.js`) so the capability is at
+extracting `seo` **in the browser** (`browser/boot-seo.js`) so the capability is at
 full parity without a Node server. See `design/capabilities.md` §5.
 
 The highlighter is `compiler/src/highlight.ts` — a source-faithful scan that reuses the

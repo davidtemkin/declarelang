@@ -1,6 +1,6 @@
 // tools/bundle-freshness.mjs — the ONE freshness rule for the platform bundles.
 //
-// dist-browser/ carries two committed build artifacts — declare-boot.js (the
+// bundles/ carries two committed build artifacts — declare-boot.js (the
 // boot-path graph: web client + runtime run-path) and declare-compiler.js (the
 // in-browser compiler) — each a pure function of tree inputs that are fixed at
 // platform build time. Correctness therefore must not depend on anyone
@@ -17,7 +17,7 @@
 // The rule is mtime-based, the same currency as the /prod cache's disk
 // validators: any input file newer than the artifact → rebuild. Inputs include
 // each bundle's own build script (a config change rebuilds too).
-// `web/version.json` is excluded — it is a stamp OUTPUT written after every
+// `bundles/version.json` is excluded — it is a stamp OUTPUT written after every
 // platform change and would otherwise mark the boot bundle stale forever.
 
 import { execFileSync } from "node:child_process";
@@ -31,12 +31,12 @@ import { join } from "node:path";
  *  staleness that used to ship. */
 export const BUNDLES = [
   {
-    out: "dist-browser/declare-boot.js",
+    out: "bundles/declare-boot.js",
     build: "tools/build-boot.mjs",
-    inputs: ["web", "runtime/dist", "compiler/dist/closure.js", "tools/build-boot.mjs"],
+    inputs: ["browser", "runtime/dist", "compiler/dist/closure.js", "tools/build-boot.mjs"],
   },
   {
-    out: "dist-browser/declare-compiler.js",
+    out: "bundles/declare-compiler.js",
     build: "tools/build-compiler.mjs",
     inputs: ["compiler/dist", "runtime/dist", "tools/build-compiler.mjs"],
   },

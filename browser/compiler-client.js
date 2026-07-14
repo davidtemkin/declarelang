@@ -1,9 +1,9 @@
-// web/compiler-client.js — THE in-browser compiler client, shared by every boot
+// browser/compiler-client.js — THE in-browser compiler client, shared by every boot
 // path (uniform, static, browse-to-run, source viewer). One module owns what
 // each boot used to hand-roll:
 //
 //   • loadCompiler() — the compiler behind ONE async surface. Prefers a module
-//     Worker (web/compile-worker.js — keystroke compiles never block the main
+//     Worker (browser/compile-worker.js — keystroke compiles never block the main
 //     thread; the ~100 ms typecheck rung becomes viable in-page); falls back to
 //     an inline import of the same bundle when module workers are unavailable
 //     or the worker fails to boot. Either transport returns the identical
@@ -21,7 +21,7 @@
 // `report` the whole compile rendered — the same dual-form contract the Node
 // API, the dev server's POST /compile, and the CLI all speak.
 
-const DISTRO = new URL("..", import.meta.url); // web/ → the distro root
+const DISTRO = new URL("..", import.meta.url); // browser/ → the distro root
 
 // Stage instrumentation — the same `declare:<stage>` measures boot-uniform
 // writes, so the client's internals (worker spawn + bundle import; library
@@ -100,7 +100,7 @@ function workerClient() {
 }
 
 async function inlineClient() {
-  const mod = await import("../dist-browser/declare-compiler.js");
+  const mod = await import("../bundles/declare-compiler.js");
   const project = (r) => ({ source: r.source, deps: r.deps, diagnostics: r.diagnostics, report: r.report });
   return {
     transport: "inline",

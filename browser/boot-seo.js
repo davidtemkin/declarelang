@@ -1,4 +1,4 @@
-// web/boot-seo.js — the STATIC-EXTRACTION view for a plain static host: the
+// browser/boot-seo.js — the STATIC-EXTRACTION view for a plain static host: the
 // browser counterpart of the dev server's serveSeo() (server/index.mjs). Given
 // a target `.declare` (?src=, passed by the service worker), compile it with
 // the IN-BROWSER compiler and execute it headlessly to its t=0 snapshot
@@ -18,7 +18,7 @@ async function run() {
   try {
     if (!target) throw new Error("no source URL — the Service Worker did not pass ?src=…");
     const [mod, lib, source] = await Promise.all([
-      import("../dist-browser/declare-compiler.js"),
+      import("../bundles/declare-compiler.js"),
       loadLibraryOnce(),
       fetch(target, { cache: "no-cache" }).then((r) => { if (!r.ok) throw new Error(r.status + " fetching " + target); return r.text(); }),
     ]);

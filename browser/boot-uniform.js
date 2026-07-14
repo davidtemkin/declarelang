@@ -1,4 +1,4 @@
-// web/boot-uniform.js — UNIFORM browser-compile boot for a dumb static host
+// browser/boot-uniform.js — UNIFORM browser-compile boot for a dumb static host
 // (GitHub Pages). The deployed `.declare` SOURCE is the single source of truth:
 // there is no committed precompiled artifact. This is the browser counterpart
 // closure.ts calls "deferred" — it does what the OL5 static-deploy client does
@@ -15,7 +15,7 @@
 //              compiled program + its dependency CLOSURE back to the cache.
 //
 // Two independent freshness gates, exactly mirroring OL5:
-//   • PLATFORM — BUILD_ID (web/version.json), the content hash the commit hook
+//   • PLATFORM — BUILD_ID (bundles/version.json), the content hash the commit hook
 //     (tools/stamp-version.mjs) stamps over runtime + compiler bundle + web
 //     client + library. It NAMES the cache bucket AND salts the key, so any
 //     platform/runtime/library change drops every cached compile at once (old
@@ -25,7 +25,7 @@
 //     Last-Modified / FNV-1a-hash validator (closure.ts). isUpToDate() re-probes
 //     it; an edit busts just that program's cache, no re-stamp needed.
 //
-// Relative imports resolve against THIS module's URL (…/web/) → subpath-portable.
+// Relative imports resolve against THIS module's URL (…/browser/) → subpath-portable.
 import { bootHost } from "./host-client.js";
 import { registerServiceWorker } from "./register-sw.js";
 import { loadCompiler, ensureLibrary } from "./compiler-client.js";
@@ -66,7 +66,7 @@ const perfDone = (() => {
 // the closure check alone still gates freshness. Salts the key + names the bucket.
 async function platformBuild() {
   try {
-    const r = await fetch(new URL("web/version.json", ROOT), { cache: "no-cache" });
+    const r = await fetch(new URL("bundles/version.json", ROOT), { cache: "no-cache" });
     if (r.ok) return (await r.json()).build || "dev";
   } catch {}
   return "dev";

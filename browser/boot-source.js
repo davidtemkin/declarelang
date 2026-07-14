@@ -1,4 +1,4 @@
-// web/boot-source.js — the SOURCE VIEWER for a plain static host. The browser
+// browser/boot-source.js — the SOURCE VIEWER for a plain static host. The browser
 // counterpart of the dev server's sourcePage() (server/index.mjs): given a target
 // `.declare`, run the compiler's highlight() over it IN-BROWSER and render
 // examples/codeviewer/ seeded with the resulting segments — the same viewer app,
@@ -6,7 +6,7 @@
 //
 // The Service Worker routes a top-level navigation to `…/<name>.declare?view=source`
 // here (service-worker.js). Like the other boot modules, relative imports resolve against
-// THIS module's URL (…/web/), NOT the source page's location, so the runtime + the
+// THIS module's URL (…/browser/), NOT the source page's location, so the runtime + the
 // compiler always load from the distro tree regardless of which program is viewed.
 import { bootHost } from "./host-client.js";
 import { registerServiceWorker } from "./register-sw.js";

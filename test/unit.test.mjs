@@ -4711,7 +4711,7 @@ await test("diagnostics: every diagnostic carries its rendered form; report rend
 });
 
 await test("uniform: the browser compiler's result is byte-identical to Node's (source, deps, diagnostics, report)", async () => {
-  const browser = await import("../dist-browser/declare-compiler.js");
+  const browser = await import("../bundles/declare-compiler.js");
   const pick = (r) => JSON.stringify({ source: r.source, deps: r.deps ?? null, diagnostics: r.diagnostics, report: r.report });
   for (const src of [
     "App [ width = 100, height = 100, n: number = 3, v: View [ width = { app.n * 2 } ] ]", // clean, with deps
@@ -4723,7 +4723,7 @@ await test("uniform: the browser compiler's result is byte-identical to Node's (
 });
 
 await test("browser compileTracked: an include is recorded in the closure; the library is not", async () => {
-  const browser = await import("../dist-browser/declare-compiler.js");
+  const browser = await import("../bundles/declare-compiler.js");
   // A multi-file app: the include must enter the closure with a content-hash
   // validator, so an edit to the INCLUDED file invalidates like a main edit.
   const files = { "apps/part.declare": "class Part extends View [ width = 40 ]" };
@@ -4743,7 +4743,7 @@ await test("browser compileTracked: an include is recorded in the closure; the l
 });
 
 await test("browser default library: setDefaultLibrary removes the per-call obligation", async () => {
-  const browser = await import("../dist-browser/declare-compiler.js");
+  const browser = await import("../bundles/declare-compiler.js");
   // Without a registered library, a bare library tag fails to resolve …
   assert.equal(browser.compile("App [ width = 100, height = 100, Zed9 [ ] ]").source, null);
   // … after ONE registration, the same call — no files/manifest riding it — compiles.

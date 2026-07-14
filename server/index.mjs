@@ -107,14 +107,14 @@ function hostPage(name, backendClass, flags = DEFAULT_FLAGS) {
   // The homepage gets a real page title; other examples keep the debug backend tag.
   const pageTitle = name === "site" ? "Declare — the UI language for the AI era" : `${name} (${backendClass})`;
   // <base> resolves the app's relative resources + data under the example. The client
-  // is the shared web/host-client.js (one code path, dynamic + static); here compile()
+  // is the shared browser/host-client.js (one code path, dynamic + static); here compile()
   // delegates a live recompile to POST /compile.
   return `<!doctype html><meta charset="utf-8"><title>${pageTitle}</title>
 <base href="/examples/${name}/">
 <style>html,body{margin:0;padding:0}</style>
 <div id="host">${staticBlock}</div>
 <script type="module">
-import { bootHost } from "/web/host-client.js";
+import { bootHost } from "/browser/host-client.js";
 const cfg = ${JSON.stringify(cfg)};
 cfg.compile = async (s) => { try { const r = await (await fetch("/compile", { method: "POST", body: s })).json(); return r.source ? { source: r.source, deps: r.deps } : { report: r.report || "compile failed" }; } catch (e) { return null; } };
 bootHost(cfg);
@@ -167,7 +167,7 @@ function sourcePage(relPath, segments, rawSource, backendClass, mode = "") {
 <style>html,body{margin:0;padding:0}</style>
 <div id="host"></div>
 <script type="module">
-import { bootHost } from "/web/host-client.js";
+import { bootHost } from "/browser/host-client.js";
 const cfg = ${JSON.stringify(cfg)};
 cfg.compile = async (s) => { try { const r = await (await fetch("/compile", { method: "POST", body: s })).json(); return r.source ? { source: r.source, deps: r.deps } : { report: r.report || "compile failed" }; } catch (e) { return null; } };
 bootHost(cfg);
@@ -178,7 +178,7 @@ bootHost(cfg);
 // content as semantic HTML at its t=0 snapshot (design/capabilities.md §5) —
 // compiled through THE compiler API, executed headlessly, served text/html.
 // The SW static host serves the same artifact by extracting IN-BROWSER
-// (web/boot-seo.js) — one extractor module, two hosts.
+// (browser/boot-seo.js) — one extractor module, two hosts.
 function serveSeo(res, absPath, relPath, flags) {
   let source;
   try { source = readFileSync(absPath, "utf8"); }
@@ -223,7 +223,7 @@ function declareRunPage(urlPath, flags = DEFAULT_FLAGS) {
   // The `seo` FLAG (flags.ts, distinct from the ?view=seo REQUEST TYPE): embed
   // the extracted static document in the host element, for crawlers that read
   // the page without running it. The boot path removes #declare-static before
-  // the app mounts (web/host-client.js), so a running user never sees it.
+  // the app mounts (browser/host-client.js), so a running user never sees it.
   let staticBlock = "";
   if (flags.seo) {
     try {
@@ -240,7 +240,7 @@ function declareRunPage(urlPath, flags = DEFAULT_FLAGS) {
 <style>html,body{margin:0;padding:0;background:#0B141B}</style>
 <div id="host">${staticBlock}</div>
 <script type="module">
-  import boot from "/dist-browser/declare-boot.js";
+  import boot from "/bundles/declare-boot.js";
   const q = new URLSearchParams(location.search);
   boot({ main: location.pathname, backend: q.get("render") === "canvas" ? "CanvasBackend" : undefined });
 </script>`;
@@ -455,11 +455,11 @@ http.createServer((req, res) => {
     // A platform BUNDLE requested → rebuild it first if any of its inputs is
     // newer (tools/bundle-freshness.mjs — the same rule the pre-commit hook
     // enforces). This is what makes ONE page path viable in dev: the pages
-    // always import dist-browser/declare-boot.js, and an edit to the runtime or
+    // always import bundles/declare-boot.js, and an edit to the runtime or
     // web client is picked up on the next refresh — no manual rebundle, no
     // stale artifact, ever. Synchronous on purpose (a boot rebundle is
     // sub-second; a compiler rebundle a few seconds, once per compiler change).
-    if (p === "/dist-browser/declare-boot.js" || p === "/dist-browser/declare-compiler.js") {
+    if (p === "/bundles/declare-boot.js" || p === "/bundles/declare-compiler.js") {
       try { rebuildStale(ROOT, { only: [p.slice(1)] }); } catch (e) { console.error("bundle rebuild failed:", e.message); }
     }
 

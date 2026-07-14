@@ -1,5 +1,5 @@
-// web/compile-worker.js — the in-browser compiler, OFF the main thread (a module
-// Worker over the same dist-browser bundle the inline path imports — one compiler,
+// browser/compile-worker.js — the in-browser compiler, OFF the main thread (a module
+// Worker over the same bundles bundle the inline path imports — one compiler,
 // two transports). design/in-browser-dev.md's worker rung, built.
 //
 // Protocol (compiler-client.js is the one caller):
@@ -17,7 +17,7 @@
 // results are byte-identical — the identical-output invariant, kept by
 // construction rather than by care.
 
-import { compile, compileTracked, setDefaultLibrary, highlight } from "../dist-browser/declare-compiler.js";
+import { compile, compileTracked, setDefaultLibrary, highlight } from "../bundles/declare-compiler.js";
 
 const project = (r) => ({ source: r.source, deps: r.deps, diagnostics: r.diagnostics, report: r.report });
 

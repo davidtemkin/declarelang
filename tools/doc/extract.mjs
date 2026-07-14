@@ -328,7 +328,7 @@ for (const [base, subs] of Object.entries(subclassIndex)) {
 }
 
 const buildId = (() => {
-  const vp = path.join(ROOT, "web/version.json");
+  const vp = path.join(ROOT, "bundles/version.json");
   if (existsSync(vp)) { try { return JSON.parse(readFileSync(vp, "utf8")).build ?? "dev"; } catch {} }
   return "dev";
 })();
