@@ -64,11 +64,14 @@ calendar that lands around 45 KB gzipped over the wire.
 
 ## In the browser — compile with no server
 
-The third path runs the compiler *in the page*. A service worker intercepts a
-top-level navigation to any `.declare` file, serves a tiny host page, and
-`web/boot-declare.js` fetches the source, compiles it with the in-browser compiler
-bundle (`dist-browser/declare-compiler.js`), and renders — no Node, no build step.
-This is how "browse to a `.declare` on a static host and watch it run" works.
+The third path runs the compiler *in the page*, and it makes the **program URL
+the app's canonical address**: navigate to any `…/app.declare` — on the dev
+server or on a static host with the service worker installed — and you get the
+running app in a generated wrapper; `?view=source` gets the source view; a
+plain *fetch* of the same URL gets the source bytes. Compiles are cache-aware:
+the compiled output is cached and revalidated by the compile's dependency
+closure, so a revisit renders without the compiler even loading. No Node
+required on the static side, no build step anywhere.
 
 It's the same `compile()` as the server's `POST /compile`, given a synchronous
 in-memory include host over a prefetched file map — **including the typecheck**:

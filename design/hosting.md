@@ -102,14 +102,33 @@ default, `setDefaultLibrary`).
 
 ### Browse-to-run (service worker)
 
-A **service worker** generalizes this to *arbitrary* `.declare` files: it intercepts a
-top-level navigation to a `.declare`, serves a tiny host page, and `web/boot-declare.js`
-fetches the source, compiles it with the one compiler client (worker when available),
-and renders — no server, no build step. It's the same full `compile()` as every other
-surface, typecheck included. Cache-busting is content-hash driven (`BUILD_ID`,
-`tools/stamp-version.mjs`). This is the third compilation surface; because nothing is
-bundled ahead of time, the production-only flags (`slim`, `prod`) don't apply — the
-render backend (`?backend=canvas`) and `?typecheck=0` do.
+**The program URL is the app's canonical address** — the OpenLaszlo model
+(`…/calendar.lzx?lzt=…`), identical on the dev server and on a static host once
+the service worker is installed:
+
+| request on `…/app.declare` | you get |
+|---|---|
+| a top-level **navigation** (no params) | the RUNNING app, in a generated wrapper |
+| `?view=source` / `?view=segments` | the highlighted source view / its data |
+| `?backend=canvas`, `?typecheck=0` | the same orthogonal flags as everywhere |
+| a **fetch** of the same URL (an include, the viewer, `curl`) | the source bytes (`text/plain`) |
+
+The navigate/fetch discrimination is the service worker's own (a top-level
+navigation vs a subresource request); the dev server applies the identical rule
+(`Sec-Fetch-Mode`), so a person and a program each get the representation they
+mean at one URL. Both hosts serve the SAME wrapper — a tiny shell booting the
+platform bundle with `main` = the program's own URL (the page's address IS the
+`.declare`, so the program's relative resources resolve against its directory
+for free) — which means browse-to-run rides the same **cached-output +
+closure-freshness** path as the app index pages: a revisit renders from cache
+after a HEAD re-probe of the source, no compiler, no recompile. The one
+irreducible gap is the very first visit to a bare static host, before the SW
+exists — a dumb host can serve only bytes, which is why the directory URL
+remains the address you publish.
+
+Cache-busting is content-hash driven (`BUILD_ID`, `tools/stamp-version.mjs`).
+Because nothing is bundled ahead of time on this path, the production-only
+flags (`slim`, `prod`) don't apply.
 
 ## Compile flags
 

@@ -29,7 +29,7 @@
 // BUILD_ID — a content hash of the platform (runtime + compiler bundle + web client +
 // this worker + index.html), stamped by tools/stamp-version.mjs. Left "dev" when unstamped
 // (local serving); a real deploy stamps it so cache-busting + the SW self-update engage.
-const BUILD_ID = "d142bcf8bd18";
+const BUILD_ID = "63fade149921";
 
 const ROOT = new URL("./", self.location);            // <origin>/…/  (this worker's dir == the distro root)
 const ORIGIN = ROOT.origin;
@@ -90,16 +90,19 @@ async function revalidate(req) {
   }
 }
 
-// The host page for a `…/<name>.declare` navigation. It carries NO program itself — a tiny
-// module (web/boot-declare.js) fetches the source + the auto-include library, compiles them
-// in-browser, and renders the result into #host. `<base>` is the program's own directory so
-// the app's RELATIVE resources (data files, images) resolve; the boot module is imported by
-// ABSOLUTE URL so `<base>` never diverts it. ?v=BUILD_ID busts the boot module across deploys.
+// The RUN host page for a `…/<name>.declare` navigation — the program URL is
+// the app's canonical address (the OpenLaszlo model), and this page is the
+// SAME wrapper the dev server serves (server/index.mjs declareRunPage; keep
+// the two in step): a tiny shell booting the ONE platform bundle with `main` =
+// the program's own URL. boot-uniform gives the compile the cached-output +
+// closure-freshness path — a revisit renders from cache with a HEAD re-probe,
+// no compiler, no recompile. The page's address IS the .declare, so relative
+// resources (data/, demos/) resolve against the program's directory for free;
+// the bundle is imported by ABSOLUTE URL with ?v=BUILD_ID busting per deploy.
 async function hostPageResponse(url) {
   const appUrl = url.origin + url.pathname;           // the .declare (query dropped)
-  const dir = appUrl.replace(/[^/]*$/, "");           // its directory, for <base href>
-  const bootUrl = new URL("web/boot-declare.js", ROOT).href;
-  const icon = new URL("assets/favicon.svg", ROOT).href;   // absolute so <base> doesn't divert it
+  const bootUrl = new URL("dist-browser/declare-boot.js", ROOT).href;
+  const icon = new URL("assets/favicon.svg", ROOT).href;
   const iconPng = new URL("assets/favicon.png", ROOT).href;
   const name = appUrl.replace(/.*\//, "").replace(/\.declare$/, "");
   const html = `<!doctype html><meta charset="utf-8">
@@ -108,10 +111,13 @@ async function hostPageResponse(url) {
 <meta name="color-scheme" content="dark light">
 <link rel="icon" type="image/svg+xml" href="${escapeHtml(icon)}">
 <link rel="icon" type="image/png" sizes="256x256" href="${escapeHtml(iconPng)}">
-<base href="${escapeHtml(dir)}">
 <style>html,body{margin:0;padding:0;background:#0B141B}</style>
 <div id="host"></div>
-<script type="module" src="${escapeHtml(bootUrl)}?app=${encodeURIComponent(appUrl)}&v=${BUILD_ID}"></script>`;
+<script type="module">
+  import boot from ${JSON.stringify(bootUrl + "?v=" + BUILD_ID)};
+  const q = new URLSearchParams(location.search);
+  boot({ main: ${JSON.stringify(appUrl)}, backend: q.get("backend") === "canvas" ? "CanvasBackend" : undefined });
+</script>`;
   return new Response(html, { status: 200, headers: { "Content-Type": "text/html;charset=utf-8", "Cache-Control": "no-cache" } });
 }
 

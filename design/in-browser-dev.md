@@ -53,7 +53,7 @@ Steady state with all three: **~16 ms light, ~77 ms typecheck**, after a one-tim
 
 ## 5. Off the main thread — a compile Worker
 
-Declare currently compiles on the **main thread** (`boot-uniform`/`boot-declare` `import` the compiler and call `compile()` synchronously). At 16 ms that is imperceptible; at the ~77–115 ms of a checked compile it would block the UI — dropped frames, frozen caret — on every recompile. So live in-browser typecheck needs the compiler **off the main thread**.
+Declare originally compiled on the **main thread** (the boot modules imported the compiler and called `compile()` synchronously). At 16 ms that is imperceptible; at the ~77–115 ms of a checked compile it would block the UI — dropped frames, frozen caret — on every recompile. So live in-browser typecheck needs the compiler **off the main thread**.
 
 **Ruling: a dedicated Web Worker** hosts the compiler (rather than the SW, OL5-style). The page posts `{ source, flags }`; the worker runs the *same* `compile()` and posts back `{ source, deps, diagnostics }`. Rationale: it is the natural fit for the **live-edit loop** (debounced `postMessage` per edit), where the SW's request/response model is awkward; it keeps the main thread at 60 fps; and it becomes the home for **all** the heavy TS machinery — the 1 MB compiler, the 52 KB `lib`, the resident TS program (lever 3) — so the main thread's module graph never loads any of it (it holds only the runtime + a thin worker-client). (The SW-compile path stays ideal for *browse-to-run navigation*; the two coexist where each fits.)
 

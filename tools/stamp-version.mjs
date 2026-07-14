@@ -43,7 +43,7 @@ const BUILD_RE = /const BUILD_ID = "[^"]*";/;
 const INPUTS = [
   "index.html",
   "service-worker.js",
-  "web",                                 // register-sw.js, boot-static.js, host-client.js, boot-declare.js
+  "web",                                 // register-sw.js, boot-static.js, host-client.js, compiler-client.js
   "dist-browser",                        // the platform bundles: compiler, boot (declare-boot.js), compile worker
   "compiler/dist/closure.js",            // the freshness core boot-static imports
   "runtime/dist",                        // the runtime

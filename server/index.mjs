@@ -44,6 +44,7 @@ const MIME = {
   ".json": "application/json", ".css": "text/css", ".svg": "image/svg+xml",
   ".png": "image/png", ".gif": "image/gif", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
   ".woff2": "font/woff2", ".woff": "font/woff", ".ttf": "font/ttf",
+  ".declare": "text/plain; charset=utf-8",   // a FETCHED program is its source bytes (a navigation runs it)
 };
 const mime = (p) => MIME[path.extname(p).toLowerCase()] ?? "application/octet-stream";
 
@@ -183,6 +184,28 @@ const send = (res, code, body, type) => {
 
 // Serve a file from an arbitrary base dir (the React build lives outside ROOT),
 // with the same no-escape guard as the main static branch.
+/** The RUN wrapper for a program URL — the same page the service worker
+ *  serves for a `.declare` navigation on a static host (service-worker.js
+ *  hostPageResponse; keep the two in step): a minimal shell that boots the ONE
+ *  platform bundle with `main` = the program's own URL. The page's address IS
+ *  the .declare, so every relative reference (data/, demos/) resolves against
+ *  the program's directory for free — and boot-uniform gives the compile the
+ *  cached-output + closure-freshness path, identical to the app index pages. */
+function declareRunPage(urlPath) {
+  const name = urlPath.replace(/.*\//, "").replace(/\.declare$/, "");
+  return `<!doctype html><meta charset="utf-8">
+<title>${esc(name)} · Declare</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<style>html,body{margin:0;padding:0;background:#0B141B}</style>
+<div id="host"></div>
+<script type="module">
+  import boot from "/dist-browser/declare-boot.js";
+  const q = new URLSearchParams(location.search);
+  boot({ main: location.pathname, backend: q.get("backend") === "canvas" ? "CanvasBackend" : undefined });
+</script>`;
+}
+
 function serveFrom(res, baseDir, rel) {
   const abs = path.join(baseDir, rel.replace(/^\/+/, ""));
   if (!(abs === baseDir || abs.startsWith(baseDir + path.sep))) return send(res, 403, "forbidden", "text/plain");
@@ -328,6 +351,16 @@ http.createServer((req, res) => {
       return;
     }
 
+    // /examples/<name> (no slash) → 302 to the directory URL. The slash is the
+    // page's BASE: every relative reference (./x.declare, data/, demos/)
+    // resolves against the directory — and static hosts 301 the same way, so
+    // the two hosts agree.
+    const noSlash = p.match(/^\/examples\/([^/.]+)$/);
+    if (noSlash && examples().includes(noSlash[1])) {
+      res.writeHead(302, { location: p + "/" });
+      return res.end();
+    }
+
     // /examples/<name>/  or  /examples/<name>/canvas  → run the app, OR — with a
     // request type (reqtypes.ts) — the source view / segments of its .declare.
     const m = p.match(/^\/examples\/([^/]+)\/(canvas)?$/);
@@ -344,15 +377,24 @@ http.createServer((req, res) => {
       return send(res, 200, hostPage(m[1], backendClass, flags));
     }
 
-    // A .declare file with ?view=source / ?view=segments → its source view; a
-    // bare .declare falls through to the raw-file handler below (download/read).
+    // ── The PROGRAM URL is the app's canonical address (the OpenLaszlo model:
+    // …/calendar.lzx?lzt=…) — identical here and on the SW static host.
+    //   NAVIGATE to …/app.declare            → the running app (default view)
+    //   …?view=source / ?view=segments       → the source view / its data
+    //   FETCH the same URL (compiler include, viewer, curl) → the source bytes
+    // The navigate/fetch split is the SAME discrimination the service worker
+    // makes (a top-level navigation vs a subresource request), so a person and
+    // a program each get the representation they mean, at one URL.
     if (p.endsWith(".declare")) {
       const rt = requestType(new URL(req.url, "http://x").searchParams);
-      if (rt === REQ.SOURCE || rt === REQ.SEGMENTS) {
-        const abs = path.join(ROOT, p.replace(/^\/+/, ""));
-        if (abs.startsWith(ROOT + path.sep) && existsSync(abs) && statSync(abs).isFile())
-          return serveSource(res, abs, p.replace(/^\/+/, ""), rt, "DomBackend");
+      const abs = path.join(ROOT, p.replace(/^\/+/, ""));
+      const real = abs.startsWith(ROOT + path.sep) && existsSync(abs) && statSync(abs).isFile();
+      if (real && (rt === REQ.SOURCE || rt === REQ.SEGMENTS)) {
+        return serveSource(res, abs, p.replace(/^\/+/, ""), rt, "DomBackend");
       }
+      const navigate = req.headers["sec-fetch-mode"] === "navigate" || (req.headers.accept ?? "").includes("text/html");
+      if (real && navigate) return send(res, 200, declareRunPage(p), "text/html;charset=utf-8");
+      // else: fall through to the raw-file handler (the source bytes)
     }
 
     // A platform BUNDLE requested → rebuild it first if any of its inputs is

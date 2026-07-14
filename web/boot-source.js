@@ -5,7 +5,7 @@
 // through the same host→app seed channel (cfg.seeds → app.demoSources).
 //
 // The Service Worker routes a top-level navigation to `…/<name>.declare?view=source`
-// here (service-worker.js). Like boot-declare.js, relative imports resolve against
+// here (service-worker.js). Like the other boot modules, relative imports resolve against
 // THIS module's URL (…/web/), NOT the source page's location, so the runtime + the
 // compiler always load from the distro tree regardless of which program is viewed.
 import { bootHost } from "./host-client.js";
