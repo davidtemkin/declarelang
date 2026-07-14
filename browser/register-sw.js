@@ -34,7 +34,10 @@ export async function registerServiceWorker() {
   });
 
   try {
-    const reg = await navigator.serviceWorker.register(swUrl, { scope, updateViaCache: "none" });
+    // A MODULE worker (type: "module"): service-worker.js imports the shared serving
+    // core (browser/serve-core.js), so its run page and the dev server's are ONE
+    // function. Needs a modern browser (Chrome 91+ / Safari 16.4+ / Firefox 111+).
+    const reg = await navigator.serviceWorker.register(swUrl, { type: "module", scope, updateViaCache: "none" });
     reg.update().catch(() => {});   // force an update check each load → prompt pickup of new deploys
   } catch {
     // Registration needs https:// or http://localhost. Over a plain-http LAN IP it throws;

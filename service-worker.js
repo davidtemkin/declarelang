@@ -23,13 +23,17 @@
 // Host-agnostic and build-step-free: every path resolves against THIS worker's own
 // location, so the distro works at the origin root or under a project subpath (a GitHub
 // Pages `/<repo>/` page) identically. Re-run `node tools/stamp-version.mjs` before you
-// deploy to refresh BUILD_ID. Self-contained (no imports) → a CLASSIC worker, for the
-// widest browser support.
+// deploy to refresh BUILD_ID. A MODULE worker (registered { type: "module" } in
+// register-sw.js): it imports the host-agnostic serving core so the run page it serves
+// and the dev server's are ONE function (browser/serve-core.js) — needs a modern browser
+// (Chrome 91+ / Safari 16.4+ / Firefox 111+).
+
+import { requestType, REQ, runWrapper, programName, escapeHtml } from "./browser/serve-core.js";
 
 // BUILD_ID — a content hash of the platform (runtime + compiler bundle + web client +
 // this worker + index.html), stamped by tools/stamp-version.mjs. Left "dev" when unstamped
 // (local serving); a real deploy stamps it so cache-busting + the SW self-update engage.
-const BUILD_ID = "2faf6cd28a19";
+const BUILD_ID = "bcbb99832b81";
 
 const ROOT = new URL("./", self.location);            // <origin>/…/  (this worker's dir == the distro root)
 const ORIGIN = ROOT.origin;
@@ -72,13 +76,12 @@ self.addEventListener("fetch", (event) => {
   // embed the block in the run page — is a BUILD-time affair on a static host:
   // crawlers don't install service workers, so declarec/committed pages carry it.)
   if (req.mode === "navigate" && url.pathname.endsWith(".declare")) {
-    const view = url.searchParams.get("view")
-      ?? (url.searchParams.has("reader") ? "reader" : url.searchParams.has("source") ? "source" : null);
-    if (view !== "source") {
+    const view = requestType(url.searchParams);      // the SHARED classifier (serve-core → reqtypes.ts)
+    if (view !== REQ.SOURCE) {                        // ?view=source falls through to revalidate() — the raw bytes
       event.respondWith(
-        view === "reader" || view === "edit" ? sourcePageResponse(url, view === "edit" ? "edit" : "")
-        : view === "seo" ? seoPageResponse(url)
-        : hostPageResponse(url));
+        view === REQ.READER || view === REQ.EDIT ? sourcePageResponse(url, view === REQ.EDIT ? "edit" : "")
+        : view === REQ.SEO ? seoPageResponse(url)
+        : hostPageResponse(url));                     // RUN (SEGMENTS is not a navigation artifact — treated as run)
       return;
     }
   }
@@ -102,34 +105,18 @@ async function revalidate(req) {
   }
 }
 
-// The RUN host page for a `…/<name>.declare` navigation — the program URL is
-// the app's canonical address (the OpenLaszlo model), and this page is the
-// SAME wrapper the dev server serves (server/index.mjs declareRunPage; keep
-// the two in step): a tiny shell booting the ONE platform bundle with `main` =
-// the program's own URL. boot-uniform gives the compile the cached-output +
-// closure-freshness path — a revisit renders from cache with a HEAD re-probe,
-// no compiler, no recompile. The page's address IS the .declare, so relative
-// resources (data/, demos/) resolve against the program's directory for free;
-// the bundle is imported by ABSOLUTE URL with ?v=BUILD_ID busting per deploy.
+// The RUN host page for a `…/<name>.declare` navigation — the SHARED run shell
+// (browser/serve-core.js runWrapper), identical to what the dev server serves
+// (server/index.mjs declareRunPage) — one function, not two kept in step. It boots
+// the ONE platform bundle with `main` = the program's own URL; boot-uniform then
+// gives it the prewarm → cache → compile path — a revisit renders from cache, no
+// compiler. The bundle is imported by ABSOLUTE URL with ?v=BUILD_ID, busting per deploy.
 async function hostPageResponse(url) {
-  const appUrl = url.origin + url.pathname;           // the .declare (query dropped)
-  const bootUrl = new URL("bundles/declare-boot.js", ROOT).href;
-  const icon = new URL("assets/favicon.svg", ROOT).href;
-  const iconPng = new URL("assets/favicon.png", ROOT).href;
-  const name = appUrl.replace(/.*\//, "").replace(/\.declare$/, "");
-  const html = `<!doctype html><meta charset="utf-8">
-<title>${escapeHtml(name)} · Declare</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="dark light">
-<link rel="icon" type="image/svg+xml" href="${escapeHtml(icon)}">
-<link rel="icon" type="image/png" sizes="256x256" href="${escapeHtml(iconPng)}">
-<style>html,body{margin:0;padding:0;background:#0B141B}</style>
-<div id="host"></div>
-<script type="module">
-  import boot from ${JSON.stringify(bootUrl + "?v=" + BUILD_ID)};
-  const q = new URLSearchParams(location.search);
-  boot({ main: ${JSON.stringify(appUrl)}, backend: q.get("render") === "canvas" ? "CanvasBackend" : undefined });
-</script>`;
+  const html = runWrapper({
+    name: programName(url.pathname),
+    bootUrl: new URL("bundles/declare-boot.js", ROOT).href + "?v=" + BUILD_ID,
+    iconBase: new URL("assets/", ROOT).href,
+  });
   return new Response(html, { status: 200, headers: { "Content-Type": "text/html;charset=utf-8", "Cache-Control": "no-cache" } });
 }
 
@@ -143,7 +130,7 @@ async function sourcePageResponse(url, mode = "") {
   const bootUrl = new URL("browser/boot-source.js", ROOT).href;
   const icon = new URL("assets/favicon.svg", ROOT).href;
   const iconPng = new URL("assets/favicon.png", ROOT).href;
-  const name = appUrl.replace(/.*\//, "").replace(/\.declare$/, "");
+  const name = programName(url.pathname);
   const html = `<!doctype html><meta charset="utf-8">
 <title>${escapeHtml(name)} — source · Declare</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -163,14 +150,10 @@ async function sourcePageResponse(url, mode = "") {
 async function seoPageResponse(url) {
   const appUrl = url.origin + url.pathname;           // the .declare (query dropped)
   const bootUrl = new URL("browser/boot-seo.js", ROOT).href;
-  const name = appUrl.replace(/.*\//, "").replace(/\.declare$/, "");
+  const name = programName(url.pathname);
   const html = `<!doctype html><meta charset="utf-8">
 <title>${escapeHtml(name)} — static extraction · Declare</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script type="module" src="${escapeHtml(bootUrl)}?src=${encodeURIComponent(appUrl)}&v=${BUILD_ID}"></script>`;
   return new Response(html, { status: 200, headers: { "Content-Type": "text/html;charset=utf-8", "Cache-Control": "no-cache" } });
-}
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }

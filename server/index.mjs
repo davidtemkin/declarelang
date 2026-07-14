@@ -23,7 +23,7 @@ import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { compile, isUpToDate, diskProbe, extractFromCompiled, seoDocument } from "../compiler/dist/compile-node.js";
 import { highlight } from "../compiler/dist/highlight.js";
-import { requestType, REQ } from "../compiler/dist/reqtypes.js";
+import { requestType, REQ, runWrapper, programName } from "../browser/serve-core.js";
 import { writeProduction } from "../tools/declarec.mjs";
 import { parseFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
 import { rebuildStale } from "../tools/bundle-freshness.mjs";
@@ -153,19 +153,20 @@ const send = (res, code, body, type) => {
 
 // Serve a file from an arbitrary base dir (the React build lives outside ROOT),
 // with the same no-escape guard as the main static branch.
-/** The RUN wrapper for a program URL — the same page the service worker
- *  serves for a `.declare` navigation on a static host (service-worker.js
- *  hostPageResponse; keep the two in step): a minimal shell that boots the ONE
- *  platform bundle with `main` = the program's own URL. The page's address IS
- *  the .declare, so every relative reference (data/, demos/) resolves against
- *  the program's directory for free — and boot-uniform gives the compile the
- *  cached-output + closure-freshness path, identical to the app index pages. */
+/** The RUN wrapper for a program URL — the SHARED shell (browser/serve-core.js
+ *  runWrapper), the SAME one the service worker serves for a `.declare` navigation
+ *  on a static host: one function now, not two kept in step. A minimal page that
+ *  boots the ONE platform bundle with `main` = the program's own URL; the address IS
+ *  the .declare, so relative resources (data/, demos/) resolve for free and
+ *  boot-uniform gives it the prewarm → cache → compile path. The only host-specific
+ *  parts are PARAMETERS: the dev server uses the root-relative bundle it rebuilds on
+ *  demand (no ?v) and bakes the ?seo block server-side. */
 function declareRunPage(urlPath, flags = DEFAULT_FLAGS) {
-  const name = urlPath.replace(/.*\//, "").replace(/\.declare$/, "");
-  // The `seo` FLAG (flags.ts, distinct from the ?view=seo REQUEST TYPE): embed
-  // the extracted static document in the host element, for crawlers that read
-  // the page without running it. The boot path removes #declare-static before
-  // the app mounts (browser/host-client.js), so a running user never sees it.
+  // The `seo` FLAG (flags.ts, distinct from the ?view=seo REQUEST TYPE): embed the
+  // extracted static document in the host element, for crawlers that read the page
+  // without running it. host-client.js removes #declare-static before the app mounts,
+  // so a running user never sees it. The SW never bakes here (crawlers don't install
+  // workers), so this is the one run-page input the two hosts legitimately differ on.
   let staticBlock = "";
   if (flags.seo) {
     try {
@@ -175,17 +176,7 @@ function declareRunPage(urlPath, flags = DEFAULT_FLAGS) {
       if (h !== null) staticBlock = `<div id="declare-static">\n${h}\n</div>`;
     } catch (e) { console.error("seo embed failed:", e.message); }
   }
-  return `<!doctype html><meta charset="utf-8">
-<title>${esc(name)} · Declare</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="dark light">
-<style>html,body{margin:0;padding:0;background:#0B141B}</style>
-<div id="host">${staticBlock}</div>
-<script type="module">
-  import boot from "/bundles/declare-boot.js";
-  const q = new URLSearchParams(location.search);
-  boot({ main: location.pathname, backend: q.get("render") === "canvas" ? "CanvasBackend" : undefined });
-</script>`;
+  return runWrapper({ name: programName(urlPath), bootUrl: "/bundles/declare-boot.js", staticBlock, iconBase: "/assets/" });
 }
 
 function serveFrom(res, baseDir, rel) {

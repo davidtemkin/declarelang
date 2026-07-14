@@ -1,0 +1,72 @@
+// Serve-core parity (browser/serve-core.js) — the host-agnostic serving oracle.
+//
+// The dev server (server/index.mjs) and the static-host service worker
+// (service-worker.js) are now thin ADAPTERS over serve-core: both classify a
+// `.declare` request with requestType() and build the RUN page with runWrapper().
+// These tests are the oracle — they lock the classifier's mapping and prove the run
+// shell is structurally IDENTICAL across hosts, differing ONLY in the documented host
+// parameters (the boot-URL form and the favicon base). If a host ever grew its own
+// run-page branch, the normalized-equality assertion below would catch it.
+
+import assert from "node:assert/strict";
+import { test, summarize } from "./harness.mjs";
+import { requestType, REQ, runWrapper, programName } from "../browser/serve-core.js";
+
+const params = (q) => new URLSearchParams(q);
+
+console.log("serve-core parity");
+
+await test("requestType maps the query to a view (the classifier both hosts share)", () => {
+  assert.equal(requestType(params("")), REQ.RUN);
+  assert.equal(requestType(params("render=canvas")), REQ.RUN);       // a flag, not a view
+  assert.equal(requestType(params("view=reader")), REQ.READER);
+  assert.equal(requestType(params("reader")), REQ.READER);           // bare shorthand
+  assert.equal(requestType(params("view=edit")), REQ.EDIT);
+  assert.equal(requestType(params("view=seo")), REQ.SEO);
+  assert.equal(requestType(params("view=source")), REQ.SOURCE);
+  assert.equal(requestType(params("source")), REQ.SOURCE);
+  assert.equal(requestType(params("view=bogus")), REQ.RUN);          // unknown → safe default
+});
+
+await test("programName strips the directory and extension", () => {
+  assert.equal(programName("/examples/calendar/calendar.declare"), "calendar");
+  assert.equal(programName("homepage.declare"), "homepage");
+});
+
+await test("runWrapper produces a valid RUN shell that boots the given bundle", () => {
+  const html = runWrapper({ name: "calendar", bootUrl: "/bundles/declare-boot.js" });
+  assert.match(html, /<div id="host"><\/div>/);                      // empty host (no staticBlock)
+  assert.match(html, /import boot from "\/bundles\/declare-boot\.js"/);
+  assert.match(html, /boot\(\{ main: location\.pathname/);           // main = the program's own URL
+  assert.match(html, /<title>calendar · Declare<\/title>/);
+});
+
+await test("runWrapper embeds a staticBlock (the server's ?seo bake) inside the host", () => {
+  const html = runWrapper({ name: "x", bootUrl: "/b.js", staticBlock: '<div id="declare-static">Y</div>' });
+  assert.match(html, /<div id="host"><div id="declare-static">Y<\/div><\/div>/);
+});
+
+await test("runWrapper escapes the title — no injection via the program name", () => {
+  const html = runWrapper({ name: "<script>x</script>", bootUrl: "/b.js" });
+  assert.doesNotMatch(html, /<title><script>/);
+  assert.match(html, /&lt;script&gt;/);
+});
+
+// THE ORACLE — the server adapter and the SW adapter differ ONLY in host params.
+await test("both hosts' run shells are identical modulo host parameters", () => {
+  const serverPage = runWrapper({ name: "calendar", bootUrl: "/bundles/declare-boot.js", iconBase: "/assets/" });
+  const swPage = runWrapper({
+    name: "calendar",
+    bootUrl: "https://h.example/declarelang/bundles/declare-boot.js?v=abc123",
+    iconBase: "https://h.example/declarelang/assets/",
+  });
+  // Normalize the two DOCUMENTED host differences — the boot-URL form and the icon
+  // base — then the pages must be byte-identical. A host-specific structural branch
+  // (a stray meta tag, a different host div) would survive normalization and fail.
+  const norm = (s) => s
+    .replace(/import boot from "[^"]*"/, 'import boot from "BOOT"')
+    .replace(/href="[^"]*(favicon\.[a-z]+)"/g, 'href="ICON/$1"');
+  assert.equal(norm(serverPage), norm(swPage));
+});
+
+summarize("serve-core parity");
