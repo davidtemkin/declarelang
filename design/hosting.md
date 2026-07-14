@@ -80,10 +80,10 @@ any input newer than the artifact → rebuild):
   inputs;
 - **in dev** — the dev server rebuilds a stale bundle **on demand** when the
   artifact is requested, so an edit to the runtime or web client is live on the
-  next refresh with no manual step;
-- plain static serving between commits (e.g. `python3 -m http.server`) is the
-  one manual case: `node tools/build-boot.mjs` after a runtime edit — and the
-  hook guarantees a stale bundle still can't reach a deploy.
+  next refresh with no manual step.
+
+Those two are the only serving paths — the dev server locally, the committed
+tree deployed — so there is no manual rebuild case at all.
 
 The unbundled `web/*.js` + `runtime/dist/*.js` modules remain in the tree (the
 bundles are a *transport*, not a fork): tests, the dev server's own pages, and

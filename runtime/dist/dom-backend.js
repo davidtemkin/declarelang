@@ -70,7 +70,25 @@ export class DomBackend {
         rootEl.style.userSelect = "none";
         rootEl.style.webkitUserSelect = "none";
         rootEl.style.touchAction = "none";
+        // The App is a FIXED FRAME: every view and interaction lives inside the
+        // window, and the browser must never scroll the frame itself — scrolling
+        // is per-VIEW (`scrolls = true`). Without this, a child parked beyond the
+        // frame (the calendar's detail panel waiting at x > width) is
+        // absolutely-positioned OVERFLOW, which the browser counts as scrollable:
+        // the document grows a scroll extent, and focusing an off-frame field
+        // auto-scrolls the whole app sideways. `clip`, not `hidden` — a hidden box
+        // is still a scroll container (focus/JS can move it); clip forbids ALL
+        // scrolling and removes the overflow contribution entirely. This also
+        // matches the canvas backend, whose frame physically cannot reveal
+        // off-frame content.
+        rootEl.style.overflow = "clip";
         host.appendChild(rootEl);
+        // The same rule for the DOCUMENT on a top-level mount (defense in depth:
+        // the app no longer overflows, and nothing else on a host page may scroll
+        // the frame either). An embedded app owns only its box and must not touch
+        // the page's scrolling.
+        if (!embedded)
+            host.ownerDocument.documentElement.style.overflow = "clip";
         // Paint the page BEHIND the app with the app's own background — so Safari's
         // rubber-band overscroll and any sub-pixel edge match the app instead of
         // flashing white. Automatic for any TOP-LEVEL app: we read the root's realized

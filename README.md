@@ -95,5 +95,4 @@ fall stale; see [`design/hosting.md`](design/hosting.md).
 - **Format** every `.declare` to the house style — [`design/formatting.md`](design/formatting.md).
 - **Never rebuild the platform bundles by hand**: the pre-commit hook rebuilds a stale
   one before stamping the build id, and the dev server rebuilds on demand
-  (`tools/bundle-freshness.mjs`). The one manual case is plain static serving between
-  commits after a runtime edit — `node tools/build-boot.mjs`.
+  (`tools/bundle-freshness.mjs`).

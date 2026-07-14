@@ -738,6 +738,13 @@ function serveDist() {
     "/canvas-c1": pageHtml("CanvasBackend", C1_SOURCE),
     "/dom-c2": pageHtml("DomBackend", C2_SOURCE),
     "/canvas-c2": pageHtml("CanvasBackend", C2_SOURCE),
+    // The fixed-frame test: a panel parked BEYOND the frame (the calendar's
+    // detail-panel idiom) with an editable inside it — the frame must stay
+    // scroll-proof (see the frame-clip test).
+    "/frame-clip": pageHtml("DomBackend", `App [ width = 640, height = 480, fill = #202830,
+      panel: View [ x = 700, y = 40, width = 300, height = 200, fill = #2E3A45,
+          note: TextInput [ x = 10, y = 10, width = 280, height = 30, fill = #3A4855 ] ],
+      ]`),
     // A bare harness page for the compile-WORKER identity test: loads the one
     // compiler client (which prefers the module worker) and exposes a compile
     // runner — no app, no backend; the compiler itself is the subject.
@@ -2390,6 +2397,39 @@ try {
     const diff = await diffShots(canvasC2.page, domC2.png, canvasC2.png);
     assert.ok(!diff.sizeMismatch, `screenshot sizes differ: ${diff.sizeMismatch}`);
     assert.equal(diff.over, 0, `channels beyond tolerance: ${diff.over} (max delta ${diff.max})`);
+  });
+
+  await test("DOM: the app frame is scroll-proof — off-frame children add no document scroll; focus cannot shift the frame", async () => {
+    // The App is a FIXED FRAME (dom-backend attachRoot: overflow clip on the
+    // root + the document). A child parked beyond the frame — the calendar's
+    // detail-panel idiom — is abs-positioned overflow the browser would
+    // otherwise count as scrollable: the document grows a scroll extent, and
+    // focusing an off-frame editable auto-scrolls the whole app sideways.
+    const page = await browser.newPage();
+    await page.setViewport({ width: 640, height: 480 });
+    await page.goto(`http://127.0.0.1:${port}/frame-clip`, { waitUntil: "load" });
+    await page.waitForFunction(() => window.__rendered === true, { timeout: 20000 });
+    const probe = await page.evaluate(() => {
+      const d = document.documentElement;
+      window.scrollTo(500, 500);                                   // must be a no-op
+      const off = [...document.querySelectorAll("input,textarea")]
+        .find((i) => i.getBoundingClientRect().left >= innerWidth);
+      if (off) off.focus();                                        // must NOT scroll the frame
+      const root = document.querySelector("[data-neo-app]");
+      return {
+        offFrameInputFound: !!off,
+        docX: d.scrollWidth - d.clientWidth,
+        docY: d.scrollHeight - d.clientHeight,
+        winScroll: [window.scrollX, window.scrollY],
+        rootScroll: root ? [root.scrollLeft, root.scrollTop] : null,
+      };
+    });
+    assert.ok(probe.offFrameInputFound, "test setup: the editable must sit beyond the frame");
+    assert.equal(probe.docX, 0, "no horizontal document scroll extent");
+    assert.equal(probe.docY, 0, "no vertical document scroll extent");
+    assert.deepEqual(probe.winScroll, [0, 0], "window.scrollTo is a no-op");
+    assert.deepEqual(probe.rootScroll, [0, 0], "focusing an off-frame field must not shift the frame");
+    await page.close();
   });
 
   await test("compile worker: byte-identical output to the Node compiler (identical-output invariant)", async () => {
