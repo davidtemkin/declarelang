@@ -28,10 +28,10 @@
 
 import type { Element, Attr, Method, AttrDecl, ClassDecl, Program, TopDecl, Literal } from "./parser.js";
 import { NeoError, type Pos } from "./errors.js";
-import { SCHEMAS, attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName, type ComponentSchema } from "./schema.js";
+import { SCHEMAS, SUBSCRIPTION_SOURCES, attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName, type ComponentSchema } from "./schema.js";
 import { Diag } from "./diagnostics.js";
 import { coerce, declaredType, describeLiteral, DECLARED_TYPE_NAMES, type AttrType, type AttrValue } from "./value.js";
-import { compileExpr, compileBody, CONSTRUCTOR_NAMES } from "./expr.js";
+import { validateExpr, validateBody, CONSTRUCTOR_NAMES } from "./expr.js";
 import { faceWeight, FONT_WEIGHTS } from "./font.js";
 
 /** The styling declarations in scope while an element tree checks: the
@@ -552,9 +552,9 @@ export function checkDecl(schema: ComponentSchema, d: AttrDecl, owner: string = 
     // per-instance fallback — in effect only while nothing provides the
     // slot, so it never contends with any offer (`labelColor: Color =
     // { theme.buttonText }` is what lets components defer to tokens).
-    const c = compileExpr(d.def.src);
-    if ("error" in c) {
-      return err(`${owner}.${d.name}'s default = { … } ${c.error}`, d.def.pos);
+    const e = validateExpr(d.def.src);
+    if (e !== null) {
+      return err(`${owner}.${d.name}'s default = { … } ${e}`, d.def.pos);
     }
     return { ok: true, type, value: undefined, binding: { src: d.def.src, pos: d.def.pos } };
   }
@@ -1271,11 +1271,11 @@ export function checkAttr(schema: ComponentSchema, attr: Attr): CheckedAttr {
     };
   }
   if (attr.value.kind === "code") {
-    const c = compileExpr(attr.value.src);
-    if ("error" in c) {
+    const e = validateExpr(attr.value.src);
+    if (e !== null) {
       return {
         ok: false,
-        error: new NeoError(`${schema.name}.${attr.name} = { … } ${c.error}`, attr.value.pos),
+        error: new NeoError(`${schema.name}.${attr.name} = { … } ${e}`, attr.value.pos),
       };
     }
     return { ok: true, binding: { src: attr.value.src, pos: attr.value.pos } };
@@ -1338,23 +1338,38 @@ export function checkMethod(schema: ComponentSchema, m: Method): CheckedMethod {
   if (RESERVED.includes(m.name)) {
     return err(`'${m.name}' is a value constructor (gradient/stroke/shadow/stop) — it cannot be a member name`, m.pos);
   }
-  const event = eventOfHandler(m.name);
-  if (event !== null && !eventsOf(schema).includes(event)) {
-    const known = eventsOf(schema).map(handlerName);
-    return err(
-      known.length > 0
-        ? `${schema.name} has no '${m.name}' event — its handlers: ${known.join(", ")}`
-        : `${schema.name} declares no events, so '${m.name}' can answer nothing`,
-      m.pos
-    );
+  // A SUBSCRIPTION (`member(params) <- Source { body }`, language §8): the
+  // member answers the SOURCE, not this component's own events — so it skips
+  // the own-event handler check and is validated against the source table
+  // instead. Both errors name the fix (diagnostics.md §4).
+  if (m.source !== undefined) {
+    const members = SUBSCRIPTION_SOURCES[m.source];
+    if (members === undefined) {
+      const known = Object.keys(SUBSCRIPTION_SOURCES).join(", ");
+      return err(`'${m.source}' is not a subscribable source — subscribe to one of: ${known}`, m.sourcePos ?? m.pos);
+    }
+    if (!members.includes(m.name)) {
+      return err(`${m.source} does not call '${m.name}' — its members: ${members.join(", ")} (the name matches the source's member literally)`, m.pos);
+    }
+  } else {
+    const event = eventOfHandler(m.name);
+    if (event !== null && !eventsOf(schema).includes(event)) {
+      const known = eventsOf(schema).map(handlerName);
+      return err(
+        known.length > 0
+          ? `${schema.name} has no '${m.name}' event — its handlers: ${known.join(", ")}`
+          : `${schema.name} declares no events, so '${m.name}' can answer nothing`,
+        m.pos
+      );
+    }
   }
   const noun = m.params.find((p) => p === "parent" || p === "classroot" || p === "app");
   if (noun !== undefined) {
     return err(`${schema.name}.${m.name}: a parameter may not be named '${noun}' — it is a scope noun (language §11)`, m.pos);
   }
-  const c = compileBody(m.params, m.body);
-  if ("error" in c) {
-    return err(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
+  const e = validateBody(m.params, m.body);
+  if (e !== null) {
+    return err(`${schema.name}.${m.name}(…) ${e}`, m.bodyPos);
   }
   return { ok: true };
 }

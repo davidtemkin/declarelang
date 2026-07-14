@@ -19,6 +19,6 @@
   // boot-uniform.js compiles it in-browser on first load, caches the compiled
   // program (keyed by the platform BUILD_ID + the source's content hash), and on
   // later loads reuses the cache unless the source or platform changed.
-  import boot from "../../web/boot-uniform.js";
+  import boot from "../../dist-browser/declare-boot.js";
   boot({ main: "./codeviewer.declare" });
 </script>

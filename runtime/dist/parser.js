@@ -202,6 +202,14 @@ function tokenize(src) {
             tokens.push({ kind: "bindtwo", text: "<->", pos: start });
             continue;
         }
+        // subscription arrow (language §8): `member(params) <- Source { body }`.
+        // Lexed after `<->` — longest match first.
+        if (c === "<" && src[i + 1] === "-") {
+            advance();
+            advance();
+            tokens.push({ kind: "subfrom", text: "<-", pos: start });
+            continue;
+        }
         // single-character punctuation
         const punct = {
             "[": "lbracket", "]": "rbracket", "(": "lparen", ")": "rparen", "=": "eq", ",": "comma", ":": "colon", ".": "dot",
@@ -488,11 +496,30 @@ class Parser {
                         break;
                 }
                 this.expect("rparen", "')'");
+                // a subscription — `member(params) <- Source { body }` (language §8):
+                // same member shape, plus the source it registers with.
+                let source;
+                let sourcePos;
+                if (this.peek().kind === "subfrom") {
+                    this.next();
+                    const st = this.peek();
+                    if (st.kind !== "ident")
+                        throw new NeoError(`expected the event source's name after '<-', got '${st.text || st.kind}'`, st.pos);
+                    this.next();
+                    source = st.text;
+                    sourcePos = st.pos;
+                }
                 const body = this.peek();
-                if (body.kind !== "code")
-                    throw new NeoError(`expected the method body '{ … }', got '${body.text || body.kind}'`, body.pos);
+                if (body.kind !== "code") {
+                    throw new NeoError(`expected the ${source !== undefined ? "subscription" : "method"} body '{ … }', got '${body.text || body.kind}'`, body.pos);
+                }
                 this.next();
-                el.methods.push({ name: name.text, params, body: body.str, pos: name.pos, bodyPos: body.pos });
+                const m = { name: name.text, params, body: body.str, pos: name.pos, bodyPos: body.pos };
+                if (source !== undefined) {
+                    m.source = source;
+                    m.sourcePos = sourcePos;
+                }
+                el.methods.push(m);
             }
             else {
                 // an anonymous child instance — bare `Name` or `Name [ … ]` (or the

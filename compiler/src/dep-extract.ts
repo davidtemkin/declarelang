@@ -51,14 +51,36 @@ function isPureNodeNav(n: ts.Node): boolean {
   return false;
 }
 
-/** Rebase a read-path's leading `this` to the call receiver, so a method's
- *  `this.year` becomes `<receiver>.year` at the call site. */
+/** Rebase a summary read-path onto the call receiver. A method's (or inlined
+ *  computed-default's) scope nouns are all relative to the instance that
+ *  CARRIES the member — the receiver: `this.year` → `<receiver>.year`,
+ *  `classroot.x` → `<receiver>.x` (a member's classroot IS the instance it
+ *  is declared on), and `parent.x` → `<receiver>.parent.x` (2026-07-13: the
+ *  left-as-is "rare" case became common and WRONG with the component library —
+ *  Radio's computed default reads `parent.value`, inlined into a grandchild's
+ *  constraint where a literal `parent` means the wrong node; the un-rebased
+ *  path silently tracked a nonexistent slot and the constraint never re-fired). */
 function rebase(readPath: string, receiver: string | null): string {
   if (receiver === "this" || receiver == null) return readPath;
-  if (readPath === "this") return receiver;
+  if (readPath === "this" || readPath === "classroot") return receiver;
   if (readPath.startsWith("this.")) return receiver + readPath.slice(4);
   if (readPath.startsWith("this[")) return receiver + readPath.slice(4);
-  return readPath; // parent/classroot/:path inside a method — left as-is (rare)
+  if (readPath.startsWith("classroot.")) return receiver + readPath.slice(9);
+  if (readPath === "parent") return receiver + ".parent";
+  if (readPath.startsWith("parent.")) return receiver + ".parent" + readPath.slice(6);
+  return readPath; // :path inside a method — cursor-relative, not noun-relative
+}
+
+/** A chain's canonical path text — the source text with the TS-invisible
+ *  wrappers (parens a stripped cast leaves behind, non-null `!`) removed, so
+ *  `(parent).value` records as `parent.value`: the runtime wires dep paths by
+ *  probing them as expressions and the rebase above matches on noun prefixes —
+ *  both need the bare spelling. */
+function pathTextOf(n: ts.Node): string {
+  if (ts.isParenthesizedExpression(n) || ts.isNonNullExpression(n)) return pathTextOf(n.expression);
+  if (ts.isPropertyAccessExpression(n)) return `${pathTextOf(n.expression)}.${n.name.text}`;
+  if (ts.isElementAccessExpression(n)) return `${pathTextOf(n.expression)}[${n.argumentExpression.getText()}]`;
+  return n.getText();
 }
 
 function parseBody(src: string, expression: boolean): ts.SourceFile | null {
@@ -117,7 +139,7 @@ function extractBody(sf: ts.Node, locals: Set<string>): BodyDeps {
 
   const recordRead = (node: ts.Node, base: ts.Node): void => {
     if (node === base) return;
-    reads.add(node.getText());
+    reads.add(pathTextOf(node));
   };
 
   const classifyChain = (top: ts.Node): void => {
@@ -140,7 +162,7 @@ function extractBody(sf: ts.Node, locals: Set<string>): BodyDeps {
         // A read of a computed `{ }` default is a formula, not a subscribable slot:
         // inline it like a method call so its (branch-union) deps become ours, rather
         // than recording the slot itself (which has no cell to fire).
-        calls.push({ name: s.name.text, receiver: s.expression.getText() });
+        calls.push({ name: s.name.text, receiver: pathTextOf(s.expression) });
         pathEnd = base;
         break;
       }
@@ -162,17 +184,17 @@ function extractBody(sf: ts.Node, locals: Set<string>): BodyDeps {
           if (m === "read") {
             const a0 = s.arguments[0];
             const staticArr = a0 && ts.isArrayLiteralExpression(a0) && a0.elements.every((e) => ts.isStringLiteral(e) || ts.isNumericLiteral(e));
-            if (staticArr) reads.add(`${recv.getText()}.read(${a0.getText()})`);
+            if (staticArr) reads.add(`${pathTextOf(recv)}.read(${a0.getText()})`);
             else errors.push(new DepError(`dynamic datapath — read([<expr>]) resolves the region at runtime; use a literal path`, s.getStart()));
           } else if (ITER.has(m)) {
             if (recvName && NODE_COLLECTIONS.has(recvName)) errors.push(new DepError(`aggregation over a reactive node collection (.${recvName}.${m}) — a data-dependent number of slots; derive from data`, s.getStart()));
           } else if (PURE_METHODS.has(m)) { /* pure projection */ }
-          else if (USER_METHODS.has(m)) calls.push({ name: m, receiver: recv.getText() });
+          else if (USER_METHODS.has(m)) calls.push({ name: m, receiver: pathTextOf(recv) });
           else if (LANGUAGE_METHOD_EFFECTS.has(m)) {
             // A language-supplied method with a DECLARED reactive effect
             // (effects.ts): union its read-paths, rebased to this receiver — as
             // analyzable as following a user method's body, not a residue.
-            for (const rp of LANGUAGE_METHOD_EFFECTS.get(m)!) reads.add(rebase(rp, recv.getText()));
+            for (const rp of LANGUAGE_METHOD_EFFECTS.get(m)!) reads.add(rebase(rp, pathTextOf(recv)));
           }
           else errors.push(new DepError(`unresolved call target .${m}() — its reads can't be analyzed; call an in-program method or a pure builtin`, s.getStart()));
         } else if (ts.isIdentifier(callee)) {

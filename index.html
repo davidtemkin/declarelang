@@ -38,6 +38,6 @@
   // The deployed .declare source is the single source of truth — no precompiled
   // artifact to keep in sync. Paths are relative to this file → the tree is
   // subpath-portable (a project page lives under /<repo>/).
-  import boot from "./web/boot-uniform.js";
+  import boot from "./dist-browser/declare-boot.js";
   boot({ main: "./examples/site/site.declare", demos: ["components", "reactivity", "spring", "states"] });
 </script>

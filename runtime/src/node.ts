@@ -50,13 +50,42 @@ export class Node {
   }
 
   /** Retire this node's standing machinery, depth-first — called once when a
-   *  subtree leaves the tree (replication, navigation). The base just recurses;
-   *  View overrides it to drop its surface + bindings, and Animator to drop its
-   *  clock enrolment + bindings. Recursing over EVERY child (not just Views) is
-   *  what tears down an Animator/Spring child — a Node, not a View — whose `to`
-   *  binding would otherwise linger, subscribed to whatever it read, keeping the
-   *  whole discarded subtree alive (and, for a Spring, still ticking). */
+   *  subtree leaves the tree (replication, navigation). The base recurses and
+   *  runs registered teardowns; View overrides it to also drop its surface +
+   *  bindings, and Animator to drop its clock enrolment + bindings. Recursing
+   *  over EVERY child (not just Views) is what tears down an Animator/Spring
+   *  child — a Node, not a View — whose `to` binding would otherwise linger,
+   *  subscribed to whatever it read, keeping the whole discarded subtree alive
+   *  (and, for a Spring, still ticking). */
   discard(): void {
     for (const child of this.children) child.discard();
+    runRetire(this);
+  }
+}
+
+// node → teardown callbacks registered by outside machinery (a replicator's
+// standing computations, a `<-` subscription's unsubscribe). Lived in view.ts
+// keyed by View until the subscription work (2026-07-13): a plain Node can
+// host a subscription (`nav: Node [ onKeyUp(e) <- Keys { … } ]`), so the
+// registry lives at the base. Pay-per-use, module-private; node.ts stays
+// ignorant of who registers.
+const RETIRE = new WeakMap<Node, (() => void)[]>();
+
+/** Run `fn` when `node` is discarded — how standing machinery that is not a
+ *  slot owner (a Replicator, a subscription) retires with its host. */
+export function onDiscard(node: Node, fn: () => void): void {
+  const list = RETIRE.get(node);
+  if (list !== undefined) list.push(fn);
+  else RETIRE.set(node, [fn]);
+}
+
+/** Run and clear `node`'s registered teardowns. Called by Node.discard (the
+ *  base) and by View.discard (which re-implements the recursion rather than
+ *  calling super — each discard path runs it exactly once). */
+export function runRetire(node: Node): void {
+  const retire = RETIRE.get(node);
+  if (retire !== undefined) {
+    RETIRE.delete(node);
+    for (const fn of retire) fn();
   }
 }

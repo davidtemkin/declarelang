@@ -65,6 +65,13 @@ export interface Method {
     body: string;
     pos: Pos;
     bodyPos: Pos;
+    /** `member(params) <- Source { body }` — a SUBSCRIPTION (language §8): the
+     *  member is installed like any method, and additionally registered with the
+     *  named external source at construction (unsubscribed at discard). Absent =
+     *  an ordinary method. The member's name matches the source's member
+     *  literally — the `on` prefix is convention, not mapping (ruled 2026-07-13). */
+    source?: string;
+    sourcePos?: Pos;
 }
 /** `name: Type = default` — declare a NEW typed, reactive attribute on this
  *  component (language §4: "`name = value` *sets*; `name: Type = value`

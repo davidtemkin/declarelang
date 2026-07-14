@@ -10,7 +10,7 @@
 // attach the pushes are no-ops (`surface` is null) and attach's flush sends
 // the full state once — literals cost no reactive machinery at all.
 
-import { Node } from "./node.js";
+import { Node, runRetire } from "./node.js";
 import { DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual, type Color, type Fill, type Shadow, type Stroke, type Theme } from "./value.js";
 import type { FontWeight } from "./measure.js";
 import { disposeApplier, stylesheetArrived, stylesheetByName, type Stylesheet } from "./stylesheet.js";
@@ -39,10 +39,10 @@ export interface LayoutStrategy {
 // view (the common case) carries nothing.
 const INSTALLED = new WeakMap<View, () => void>();
 
-// view → teardown callbacks registered by outside machinery (a parent's
-// replicator, R8). Same shape as INSTALLED: pay-per-use, module-private,
-// and view.ts stays ignorant of who registers.
-const RETIRE = new WeakMap<View, (() => void)[]>();
+// Teardown registration (onDiscard) moved to node.ts (2026-07-13): a plain
+// Node can host a `<-` subscription, so the registry lives at the base.
+// Re-exported here so existing importers keep their path.
+export { onDiscard } from "./node.js";
 
 // ── Auto-extent (the neoweather rung, ruled at the R7 checkpoint) ──────────
 //
@@ -69,13 +69,6 @@ const EXTENT = new WeakMap<View, Partial<Record<"width" | "height", Constraint>>
 
 const AXIS_OF = { width: "x", height: "y" } as const;
 
-/** Run `fn` when `view` is discarded — how standing machinery that is not a
- *  slot owner (a Replicator) retires with the view that hosts it. */
-export function onDiscard(view: View, fn: () => void): void {
-  const list = RETIRE.get(view);
-  if (list !== undefined) list.push(fn);
-  else RETIRE.set(view, [fn]);
-}
 
 export class View extends Node {
   declare x: number;
@@ -381,11 +374,7 @@ export class View extends Node {
     // `to`/`attribute` bindings must be disposed too (else they leak, subscribed
     // to whatever they read — e.g. a Spring `to = { app.openSection … }`).
     for (const child of this.children) child.discard();
-    const retire = RETIRE.get(this);
-    if (retire !== undefined) {
-      RETIRE.delete(this);
-      for (const fn of retire) fn();
-    }
+    runRetire(this);
     const undoLayout = INSTALLED.get(this);
     if (undoLayout !== undefined) {
       INSTALLED.delete(this);

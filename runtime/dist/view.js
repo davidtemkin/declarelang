@@ -9,7 +9,7 @@
 // wakes exactly its dependents (attributes.ts has the full story). Before
 // attach the pushes are no-ops (`surface` is null) and attach's flush sends
 // the full state once — literals cost no reactive machinery at all.
-import { Node } from "./node.js";
+import { Node, runRetire } from "./node.js";
 import { DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual } from "./value.js";
 import { disposeApplier, stylesheetArrived, stylesheetByName } from "./stylesheet.js";
 import { POINTER_TYPES } from "./backend.js";
@@ -22,10 +22,10 @@ import { splitPath } from "./datapath.js";
 // than a View field: only the pusher below touches it, and a layout-free
 // view (the common case) carries nothing.
 const INSTALLED = new WeakMap();
-// view → teardown callbacks registered by outside machinery (a parent's
-// replicator, R8). Same shape as INSTALLED: pay-per-use, module-private,
-// and view.ts stays ignorant of who registers.
-const RETIRE = new WeakMap();
+// Teardown registration (onDiscard) moved to node.ts (2026-07-13): a plain
+// Node can host a `<-` subscription, so the registry lives at the base.
+// Re-exported here so existing importers keep their path.
+export { onDiscard } from "./node.js";
 // ── Auto-extent (the neoweather rung, ruled at the R7 checkpoint) ──────────
 //
 // A view whose width/height the author never set sizes to its children's
@@ -49,15 +49,6 @@ const RETIRE = new WeakMap();
 // and re-run by childrenMutated — the same explicit lifecycle layouts use.
 const EXTENT = new WeakMap();
 const AXIS_OF = { width: "x", height: "y" };
-/** Run `fn` when `view` is discarded — how standing machinery that is not a
- *  slot owner (a Replicator) retires with the view that hosts it. */
-export function onDiscard(view, fn) {
-    const list = RETIRE.get(view);
-    if (list !== undefined)
-        list.push(fn);
-    else
-        RETIRE.set(view, [fn]);
-}
 export class View extends Node {
     /** Resolve a declared stylesheet by name — the honest public call for
      *  reaching a stylesheet from inside a `{ }` body, where you are in real TS and
@@ -240,12 +231,7 @@ export class View extends Node {
         // to whatever they read — e.g. a Spring `to = { app.openSection … }`).
         for (const child of this.children)
             child.discard();
-        const retire = RETIRE.get(this);
-        if (retire !== undefined) {
-            RETIRE.delete(this);
-            for (const fn of retire)
-                fn();
-        }
+        runRetire(this);
         const undoLayout = INSTALLED.get(this);
         if (undoLayout !== undefined) {
             INSTALLED.delete(this);

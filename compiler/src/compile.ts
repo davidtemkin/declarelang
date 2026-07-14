@@ -49,6 +49,14 @@ import { NeoError, type Pos } from "../../runtime/dist/errors.js";
 import { check, programSchemas } from "../../runtime/dist/check.js";
 import { serializeDeps } from "../../runtime/dist/deps.js";
 import { annotateProgram } from "./dep-extract.js";
+import { stripEditsFor, tsBodySyntax } from "./strip-types.js";
+import { setBodySyntaxValidator } from "../../runtime/dist/expr.js";
+
+// Bodies are authored as TypeScript: when the compiler is present, the
+// check-phase body-syntax gate parses TS (the type-level syntax is stripped
+// before emission, below). Installed at module load — every compile() on
+// every host goes through this file.
+setBodySyntaxValidator(tsBodySyntax);
 import type { ComponentSchema } from "../../runtime/dist/schema.js";
 import { freeIdentifiers } from "./free-idents.js";
 import { fillDatapaths } from "../../runtime/dist/datapath.js";
@@ -244,6 +252,38 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
     const typeErrors = typecheckBodies(out, program);
     if (typeErrors.length > 0) {
       return { source: null, errors: typeErrors, warnings: r.warnings, ...diagnose(typeErrors, r.warnings, "typecheck") };
+    }
+  }
+
+  // TS-only syntax is checked (above), then STRIPPED for emission
+  // (strip-types.ts): bodies run as JavaScript in the zero-dependency runtime,
+  // so `x as T`/`x!`/`<T>x` are removed by byte-preserving splices. Runs on a
+  // fresh parse of the resolved text (its offsets are the output's offsets).
+  {
+    let sp: Program | null = null;
+    try { sp = parseProgram(out); } catch { /* the dep-extract parse below reports it */ }
+    if (sp !== null) {
+      const strips: { start: number; end: number }[] = [];
+      const asCode = (v: unknown): { src: string; pos: { offset: number } } | null =>
+        v !== null && typeof v === "object" && (v as { kind?: string }).kind === "code" ? (v as { src: string; pos: { offset: number } }) : null;
+      const collectStrips = (el: { attrs: readonly { value: unknown }[]; decls: readonly { def: unknown }[]; methods: readonly { body: string; bodyPos: { offset: number } }[]; children: readonly unknown[] }): void => {
+        for (const a of el.attrs) {
+          const v = asCode(a.value);
+          if (v !== null) for (const e of stripEditsFor(v.src, true)) strips.push({ start: v.pos.offset + 1 + e.start, end: v.pos.offset + 1 + e.end });
+        }
+        for (const d of el.decls) {
+          const v = asCode(d.def);
+          if (v !== null) for (const e of stripEditsFor(v.src, true)) strips.push({ start: v.pos.offset + 1 + e.start, end: v.pos.offset + 1 + e.end });
+        }
+        for (const m of el.methods) {
+          for (const e of stripEditsFor(m.body, false)) strips.push({ start: m.bodyPos.offset + 1 + e.start, end: m.bodyPos.offset + 1 + e.end });
+        }
+        for (const c of el.children) collectStrips(c as typeof el);
+      };
+      collectStrips(sp.root as never);
+      for (const cls of sp.classes) collectStrips(cls.body as never);
+      strips.sort((a, b) => b.start - a.start);
+      for (const e of strips) out = out.slice(0, e.start) + out.slice(e.end);
     }
   }
 

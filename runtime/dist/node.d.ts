@@ -21,11 +21,19 @@ export declare class Node {
      *  standing computations are the caller's to retire (View.discard). */
     removeChild(child: Node): void;
     /** Retire this node's standing machinery, depth-first — called once when a
-     *  subtree leaves the tree (replication, navigation). The base just recurses;
-     *  View overrides it to drop its surface + bindings, and Animator to drop its
-     *  clock enrolment + bindings. Recursing over EVERY child (not just Views) is
-     *  what tears down an Animator/Spring child — a Node, not a View — whose `to`
-     *  binding would otherwise linger, subscribed to whatever it read, keeping the
-     *  whole discarded subtree alive (and, for a Spring, still ticking). */
+     *  subtree leaves the tree (replication, navigation). The base recurses and
+     *  runs registered teardowns; View overrides it to also drop its surface +
+     *  bindings, and Animator to drop its clock enrolment + bindings. Recursing
+     *  over EVERY child (not just Views) is what tears down an Animator/Spring
+     *  child — a Node, not a View — whose `to` binding would otherwise linger,
+     *  subscribed to whatever it read, keeping the whole discarded subtree alive
+     *  (and, for a Spring, still ticking). */
     discard(): void;
 }
+/** Run `fn` when `node` is discarded — how standing machinery that is not a
+ *  slot owner (a Replicator, a subscription) retires with its host. */
+export declare function onDiscard(node: Node, fn: () => void): void;
+/** Run and clear `node`'s registered teardowns. Called by Node.discard (the
+ *  base) and by View.discard (which re-implements the recursion rather than
+ *  calling super — each discard path runs it exactly once). */
+export declare function runRetire(node: Node): void;

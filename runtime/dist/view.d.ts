@@ -16,9 +16,7 @@ export interface LayoutStrategy {
     attachTo(view: View): () => void;
     rearm(): void;
 }
-/** Run `fn` when `view` is discarded — how standing machinery that is not a
- *  slot owner (a Replicator) retires with the view that hosts it. */
-export declare function onDiscard(view: View, fn: () => void): void;
+export { onDiscard } from "./node.js";
 export declare class View extends Node {
     x: number;
     y: number;

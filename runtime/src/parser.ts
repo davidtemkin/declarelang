@@ -99,6 +99,13 @@ export interface Method {
   body: string;
   pos: Pos;
   bodyPos: Pos;
+  /** `member(params) <- Source { body }` — a SUBSCRIPTION (language §8): the
+   *  member is installed like any method, and additionally registered with the
+   *  named external source at construction (unsubscribed at discard). Absent =
+   *  an ordinary method. The member's name matches the source's member
+   *  literally — the `on` prefix is convention, not mapping (ruled 2026-07-13). */
+  source?: string;
+  sourcePos?: Pos;
 }
 
 /** `name: Type = default` — declare a NEW typed, reactive attribute on this
@@ -230,7 +237,7 @@ export interface Library {
 
 type TokKind =
   | "lbracket" | "rbracket" | "lparen" | "rparen" | "eq" | "comma" | "colon" | "dot"
-  | "bindtwo" | "ident" | "number" | "percent" | "string" | "hexColor" | "code" | "eof";
+  | "bindtwo" | "subfrom" | "ident" | "number" | "percent" | "string" | "hexColor" | "code" | "eof";
 
 interface Token {
   kind: TokKind;
@@ -347,6 +354,14 @@ function tokenize(src: string): Token[] {
     if (c === "<" && src[i + 1] === "-" && src[i + 2] === ">") {
       advance(); advance(); advance();
       tokens.push({ kind: "bindtwo", text: "<->", pos: start });
+      continue;
+    }
+
+    // subscription arrow (language §8): `member(params) <- Source { body }`.
+    // Lexed after `<->` — longest match first.
+    if (c === "<" && src[i + 1] === "-") {
+      advance(); advance();
+      tokens.push({ kind: "subfrom", text: "<-", pos: start });
       continue;
     }
 
@@ -593,10 +608,26 @@ class Parser {
           else break;
         }
         this.expect("rparen", "')'");
+        // a subscription — `member(params) <- Source { body }` (language §8):
+        // same member shape, plus the source it registers with.
+        let source: string | undefined;
+        let sourcePos: Pos | undefined;
+        if (this.peek().kind === "subfrom") {
+          this.next();
+          const st = this.peek();
+          if (st.kind !== "ident") throw new NeoError(`expected the event source's name after '<-', got '${st.text || st.kind}'`, st.pos);
+          this.next();
+          source = st.text;
+          sourcePos = st.pos;
+        }
         const body = this.peek();
-        if (body.kind !== "code") throw new NeoError(`expected the method body '{ … }', got '${body.text || body.kind}'`, body.pos);
+        if (body.kind !== "code") {
+          throw new NeoError(`expected the ${source !== undefined ? "subscription" : "method"} body '{ … }', got '${body.text || body.kind}'`, body.pos);
+        }
         this.next();
-        el.methods.push({ name: name.text, params, body: body.str!, pos: name.pos, bodyPos: body.pos });
+        const m: Method = { name: name.text, params, body: body.str!, pos: name.pos, bodyPos: body.pos };
+        if (source !== undefined) { m.source = source; m.sourcePos = sourcePos; }
+        el.methods.push(m);
       } else {
         // an anonymous child instance — bare `Name` or `Name [ … ]` (or the
         // raw-bodied form, for the checker to judge: data nodes need names).

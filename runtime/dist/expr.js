@@ -66,6 +66,31 @@ export function compileExpr(src) {
         return { error: `is not a valid expression — ${e.message}` };
     }
 }
+let syntaxValidator = null;
+export function setBodySyntaxValidator(v) { syntaxValidator = v; }
+/** Check `src` as an expression body — the injected TS validator when the
+ *  compiler is present, else the JS gate. Returns the error fragment or null. */
+export function validateExpr(src) {
+    if (syntaxValidator !== null) {
+        const r = rewriteDatapaths(src);
+        if ("error" in r)
+            return r.error;
+        return syntaxValidator(r.src, true);
+    }
+    const c = compileExpr(src);
+    return "error" in c ? c.error : null;
+}
+/** Check `src` as a statement body — same seam, statement-shaped. */
+export function validateBody(params, src) {
+    if (syntaxValidator !== null) {
+        const r = rewriteDatapaths(src);
+        if ("error" in r)
+            return r.error;
+        return syntaxValidator(r.src, false);
+    }
+    const c = compileBody(params, src);
+    return "error" in c ? c.error : null;
+}
 /** Compile a method member's *statement* body (R5) — the same seam as
  *  compileExpr, statement-shaped: no `return (…)` wrapping, so bodies hold
  *  ordinary TS statements and may `return` a value themselves. Parameter

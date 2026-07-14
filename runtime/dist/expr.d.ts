@@ -20,6 +20,21 @@ export declare function compileExpr(src: string): {
 } | {
     error: string;
 };
+/** Check-time body-SYNTAX validation, injectable (2026-07-13): bodies are
+ *  authored as TypeScript — the compile front-end type-checks them and strips
+ *  the type-level syntax before emission (compiler strip-types.ts) — so at
+ *  check time the gate must accept TS. The compiler installs a ts-parser
+ *  validator here (both hosts carry `typescript`); the runtime-only path
+ *  (build() with no compiler) keeps the JS `Function` gate below — its
+ *  callers hand it plain-JS bodies by contract. The validator receives the
+ *  DATAPATH-REWRITTEN text (islands are neither JS nor TS). */
+export type BodySyntaxValidator = (src: string, expression: boolean) => string | null;
+export declare function setBodySyntaxValidator(v: BodySyntaxValidator): void;
+/** Check `src` as an expression body — the injected TS validator when the
+ *  compiler is present, else the JS gate. Returns the error fragment or null. */
+export declare function validateExpr(src: string): string | null;
+/** Check `src` as a statement body — same seam, statement-shaped. */
+export declare function validateBody(params: readonly string[], src: string): string | null;
 /** A compiled method body: `this` = the owning node, `parent` its view-tree
  *  parent, `classroot` its enclosing class instance, then the declared
  *  parameters. */

@@ -40,6 +40,13 @@ export declare function attrType(schema: ComponentSchema, name: string): AttrTyp
  *  computed/intrinsic slot a constraint may read but nothing may set? Walks the
  *  chain exactly like attrType (a subclass inherits its base's read-only slots). */
 export declare function isReadOnly(schema: ComponentSchema, name: string): boolean;
+/** The subscribable external sources and the members each calls (language §8,
+ *  the `<-` form) — the checker-safe half of the subscription surface (the
+ *  runtime half, which touches the live services, is sources.ts). Member
+ *  names are LITERAL (`onKeyUp <- Keys` ⇒ Keys calls `onKeyUp`); the `on`
+ *  prefix is convention, not mapping. v1: the Keys service; more services
+ *  (and eventually view sources) extend this table. */
+export declare const SUBSCRIPTION_SOURCES: Readonly<Record<string, readonly string[]>>;
 /** Is `name` a prevailing attribute on `schema` (or its chain)? Asked of the
  *  schema that DECLARES the name — being prevailing is part of the slot's
  *  identity, so the declaring schema's word is the whole answer. */

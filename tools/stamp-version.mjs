@@ -36,7 +36,7 @@ const INPUTS = [
   "index.html",
   "service-worker.js",
   "web",                                 // register-sw.js, boot-static.js, host-client.js, boot-declare.js
-  "dist-browser/declare-compiler.js",    // the in-browser compiler bundle (the piece that went stale)
+  "dist-browser",                        // the platform bundles: compiler, boot (declare-boot.js), compile worker
   "compiler/dist/closure.js",            // the freshness core boot-static imports
   "runtime/dist",                        // the runtime
   "library",                             // auto-include manifest + sources (browse-to-run compiles against these)

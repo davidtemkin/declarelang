@@ -74,6 +74,41 @@ export function compileExpr(src: string): { fn: ExprFn } | { error: string } {
   }
 }
 
+/** Check-time body-SYNTAX validation, injectable (2026-07-13): bodies are
+ *  authored as TypeScript — the compile front-end type-checks them and strips
+ *  the type-level syntax before emission (compiler strip-types.ts) — so at
+ *  check time the gate must accept TS. The compiler installs a ts-parser
+ *  validator here (both hosts carry `typescript`); the runtime-only path
+ *  (build() with no compiler) keeps the JS `Function` gate below — its
+ *  callers hand it plain-JS bodies by contract. The validator receives the
+ *  DATAPATH-REWRITTEN text (islands are neither JS nor TS). */
+export type BodySyntaxValidator = (src: string, expression: boolean) => string | null;
+let syntaxValidator: BodySyntaxValidator | null = null;
+export function setBodySyntaxValidator(v: BodySyntaxValidator): void { syntaxValidator = v; }
+
+/** Check `src` as an expression body — the injected TS validator when the
+ *  compiler is present, else the JS gate. Returns the error fragment or null. */
+export function validateExpr(src: string): string | null {
+  if (syntaxValidator !== null) {
+    const r = rewriteDatapaths(src);
+    if ("error" in r) return r.error;
+    return syntaxValidator(r.src, true);
+  }
+  const c = compileExpr(src);
+  return "error" in c ? c.error : null;
+}
+
+/** Check `src` as a statement body — same seam, statement-shaped. */
+export function validateBody(params: readonly string[], src: string): string | null {
+  if (syntaxValidator !== null) {
+    const r = rewriteDatapaths(src);
+    if ("error" in r) return r.error;
+    return syntaxValidator(r.src, false);
+  }
+  const c = compileBody(params, src);
+  return "error" in c ? c.error : null;
+}
+
 /** A compiled method body: `this` = the owning node, `parent` its view-tree
  *  parent, `classroot` its enclosing class instance, then the declared
  *  parameters. */

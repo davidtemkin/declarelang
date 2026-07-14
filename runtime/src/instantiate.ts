@@ -48,7 +48,8 @@
 import type { Element, Attr, Method, Program } from "./parser.js";
 import { NeoError } from "./errors.js";
 import { View, fireEvent } from "./view.js";
-import { Node } from "./node.js";
+import { Node, onDiscard } from "./node.js";
+import { subscribeToSource } from "./sources.js";
 import { Layout } from "./layout.js";
 import { Animator, AnimatorGroup } from "./animator.js";
 import { State, type Override } from "./state.js";
@@ -499,8 +500,13 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
     // an extracted reference — `const f = v.select; f()` — still works and
     // `this`/`parent`/`classroot` inside the body always mean this view, its
     // parent, and the scope the member was written in.
-    (view as unknown as Record<string, unknown>)[m.name] =
-      (...args: unknown[]) => fn.call(view, view.parent, mcroot, ...args);
+    const installed = (...args: unknown[]) => fn.call(view, view.parent, mcroot, ...args);
+    (view as unknown as Record<string, unknown>)[m.name] = installed;
+    // A SUBSCRIPTION (`member(params) <- Source { body }`, language §8): the
+    // installed member additionally registers with its source now, and
+    // unsubscribes when this node is discarded — lifetime-managed, nothing
+    // for the author to clean up.
+    if (m.source !== undefined) onDiscard(view, subscribeToSource(m.source, m.name, installed));
   }
   for (const { attr, croot: acroot } of attrs.values()) {
     // The two styling-channel slots resolve against PROGRAM declarations
