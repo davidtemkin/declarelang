@@ -111,7 +111,7 @@ for (const prog of PROGRAMS) {
     sizes.push(`run ${(gzipSync(Buffer.from(JSON.stringify({ program: tracked.source }))).length / 1024).toFixed(1)}KB gz`);
   }
   if (prog.kinds.includes("seo")) {
-    const html = extractFromCompiled({ source: tracked.source, deps: tracked.deps });
+    const html = extractFromCompiled({ source: tracked.source, deps: tracked.deps, links: tracked.links });
     const name = path.basename(prog.main).replace(/\.declare$/, "");
     const document = html === null ? seoDocument("", name) : seoDocument(html, name);
     writeArtifact(prewarmKey(prog.main, "seo", {}), {

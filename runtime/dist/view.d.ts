@@ -4,6 +4,7 @@ import type { FontWeight } from "./measure.js";
 import { type Stylesheet } from "./stylesheet.js";
 import { type RenderBackend, type Surface } from "./backend.js";
 import { type Draw } from "./draw.js";
+import type { LinkTarget } from "./parser.js";
 import type { Cursor } from "./data.js";
 /** What a layout strategy is to the View — the whole protocol: begin
  *  arranging this view (get back the undo), and re-arrange when the CHILDREN
@@ -18,6 +19,11 @@ export interface LayoutStrategy {
 }
 export { onDiscard } from "./node.js";
 export declare class View extends Node {
+    /** The navigation target the compiler's link extraction (links.ts) found for
+     *  this instance's activation handler — stamped by instantiate from the source
+     *  element's `link`. Read only by the static extractor (seo.ts) to wrap the
+     *  subtree in `<a href>`; undefined for all but the handful of navigable views. */
+    _navLink?: LinkTarget;
     x: number;
     y: number;
     width: number;
@@ -335,9 +341,17 @@ export declare class App extends View {
      *  failure (the island keeps the last good render). Host-fed, read-only to
      *  user code: an editing surface binds a diagnostics pane to it. */
     liveReport: string;
-    /** app→host navigation: set to a URL by a link/button; the host opens it and
-     *  resets to "" — same DOM-free app→host channel as `editing`. */
-    navigate: string;
+    /** app→host navigation channel: `navigate(to)` sets it, the host (host-client.js
+     *  / a backend) polls it, opens the URL, and clears it to "". A plain field, not
+     *  a reactive attribute — nothing in the tree renders from it, and no Declare
+     *  source names it: navigation is the CALL, never an observed attribute. */
+    pendingNav: string;
+    /** navigate(to) — the navigation SERVICE ACTION (capabilities.md §6). A link or
+     *  button calls `app.navigate(url)` in an activation handler; the compiler reads
+     *  the call statically (links.ts → `<a href>` in the static extraction), and at
+     *  runtime the host opens `to`. DOM-free: bodies never touch window.location, so
+     *  navigation rides this channel like `editing` — one clear way, analyzable. */
+    navigate(to: string): void;
     /** The app's size floor. An app that degrades below some width declares
      *  `minWidth = 600` and the auto-extent never goes under it: in a narrower
      *  host the app holds its floor and the STAGE pans natively (the page

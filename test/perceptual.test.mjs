@@ -2505,6 +2505,9 @@ try {
     const cases = [
       `App [ m: Markdown [ width = 400, text = "# H\\n\\nBody **b** [x](https://e.example/)." ], n: number = 5, t: Text [ y = 200, text = { "n=" + n } ] ]`,
       `App [ d: Dataset { { "rows": [ { "t": "a" }, { "t": "b" } ] } }, list: View [ datapath = { app.d.value }, Text [ datapath = :rows[], text = { :t } ] ] ]`,
+      // the navigate(to) link relation (§6): a literal target and a classroot.url
+      // read-path resolved per instance — extraction + compileExpr, browser vs Node.
+      `class Nav extends View [ url: string = "", onClick() { app.navigate(classroot.url) }, lbl: Text [ text = { classroot.url } ], ]\nApp [ home: Text [ text = "Home", onClick() { app.navigate("https://e.example/h") } ], a: Nav [ url = "docs/x.declare" ] ]`,
       `App [ v: Txet [ ] ]`, // failure: html null + rendered report, identical both sides
     ];
     for (const src of cases) {

@@ -47,7 +47,9 @@ import { parseProgram } from "../../runtime/dist/parser.js";
 import { NeoError } from "../../runtime/dist/errors.js";
 import { check, programSchemas } from "../../runtime/dist/check.js";
 import { serializeDeps } from "../../runtime/dist/deps.js";
+import { serializeLinks } from "../../runtime/dist/links.js";
 import { annotateProgram } from "./dep-extract.js";
+import { extractLinks } from "./links.js";
 import { stripEditsFor, tsBodySyntax } from "./strip-types.js";
 import { setBodySyntaxValidator } from "../../runtime/dist/expr.js";
 // Bodies are authored as TypeScript: when the compiler is present, the
@@ -302,7 +304,11 @@ export function compile(source, opts = {}) {
             .map((e) => Diag.residue(e.message, posOf(out, e.offset)));
         return { source: null, errors: errs, warnings: r.warnings, ...diagnose(errs, r.warnings, "constraint") };
     }
-    return { source: out, deps: serializeDeps(depProgram), errors: [], warnings: r.warnings, ...diagnose([], r.warnings, "name") };
+    // The navigation relation (capabilities.md §6): attach each activation
+    // handler's navigate(to) target onto its element, then serialize alongside
+    // deps. Analysis-only — no diagnostics, an unresolvable target is just no link.
+    extractLinks(depProgram);
+    return { source: out, deps: serializeDeps(depProgram), links: serializeLinks(depProgram), errors: [], warnings: r.warnings, ...diagnose([], r.warnings, "name") };
 }
 /** Line/col/offset for a byte offset into `source` — positions a dep-residue
  *  error (a rare path, so a linear scan is fine). */

@@ -50,6 +50,11 @@ export { onDiscard } from "./node.js";
 const EXTENT = new WeakMap();
 const AXIS_OF = { width: "x", height: "y" };
 export class View extends Node {
+    /** The navigation target the compiler's link extraction (links.ts) found for
+     *  this instance's activation handler — stamped by instantiate from the source
+     *  element's `link`. Read only by the static extractor (seo.ts) to wrap the
+     *  subtree in `<a href>`; undefined for all but the handful of navigable views. */
+    _navLink;
     /** Resolve a declared stylesheet by name — the honest public call for
      *  reaching a stylesheet from inside a `{ }` body, where you are in real TS and
      *  a bare `Dark` is (correctly) just an unresolved identifier, NOT sugar:
@@ -436,6 +441,17 @@ export function fireEvent(view, event, arg) {
  *  `<canvas>`). R0 treats it as the root View; it fills its host by default and
  *  carries the app's reactive environment (host extent, scroll, pointer). */
 export class App extends View {
+    /** app→host navigation channel: `navigate(to)` sets it, the host (host-client.js
+     *  / a backend) polls it, opens the URL, and clears it to "". A plain field, not
+     *  a reactive attribute — nothing in the tree renders from it, and no Declare
+     *  source names it: navigation is the CALL, never an observed attribute. */
+    pendingNav = "";
+    /** navigate(to) — the navigation SERVICE ACTION (capabilities.md §6). A link or
+     *  button calls `app.navigate(url)` in an activation handler; the compiler reads
+     *  the call statically (links.ts → `<a href>` in the static extraction), and at
+     *  runtime the host opens `to`. DOM-free: bodies never touch window.location, so
+     *  navigation rides this channel like `editing` — one clear way, analyzable. */
+    navigate(to) { this.pendingNav = to; }
     /** The App's auto-extent is the HOST, not its content: an unset width/height
      *  follows hostWidth/hostHeight (reactive on resize), so the root app fills its
      *  enclosing area with no declaration — the near-universal case. An explicit

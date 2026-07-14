@@ -1,4 +1,5 @@
 import { NeoError } from "../../runtime/dist/errors.js";
+import { type SerializedLink } from "../../runtime/dist/links.js";
 import { type IncludeHost } from "../../runtime/dist/include.js";
 import { type Diagnostic } from "../../runtime/dist/diagnostics.js";
 /** A compile result. `source` is the resolved program (null when there are
@@ -12,6 +13,11 @@ import { type Diagnostic } from "../../runtime/dist/diagnostics.js";
 export interface Compiled {
     source: string | null;
     deps?: readonly (readonly string[])[];
+    /** The extracted navigation relation (capabilities.md §6, links.ts) — a
+     *  sparse walk-order side-list of `navigate(to)` targets, present exactly when
+     *  `source` is. Rides the ONE result like `deps`; the runtime zips it back on
+     *  and the static extractor turns each into an `<a href>`. */
+    links?: readonly SerializedLink[];
     errors: NeoError[];
     warnings: NeoError[];
     diagnostics: Diagnostic[];

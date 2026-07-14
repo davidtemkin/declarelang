@@ -48,7 +48,9 @@ import { parseProgram, type Element, type Program } from "../../runtime/dist/par
 import { NeoError, type Pos } from "../../runtime/dist/errors.js";
 import { check, programSchemas } from "../../runtime/dist/check.js";
 import { serializeDeps } from "../../runtime/dist/deps.js";
+import { serializeLinks, type SerializedLink } from "../../runtime/dist/links.js";
 import { annotateProgram } from "./dep-extract.js";
+import { extractLinks } from "./links.js";
 import { stripEditsFor, tsBodySyntax } from "./strip-types.js";
 import { setBodySyntaxValidator } from "../../runtime/dist/expr.js";
 
@@ -82,6 +84,11 @@ const CONSTRUCTORS = new Set(CONSTRUCTOR_NAMES);
 export interface Compiled {
   source: string | null;
   deps?: readonly (readonly string[])[];
+  /** The extracted navigation relation (capabilities.md §6, links.ts) — a
+   *  sparse walk-order side-list of `navigate(to)` targets, present exactly when
+   *  `source` is. Rides the ONE result like `deps`; the runtime zips it back on
+   *  and the static extractor turns each into an `<a href>`. */
+  links?: readonly SerializedLink[];
   errors: NeoError[];
   warnings: NeoError[];
   diagnostics: Diagnostic[];
@@ -357,7 +364,11 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
       .map((e) => Diag.residue(e.message, posOf(out, e.offset)));
     return { source: null, errors: errs, warnings: r.warnings, ...diagnose(errs, r.warnings, "constraint") };
   }
-  return { source: out, deps: serializeDeps(depProgram), errors: [], warnings: r.warnings, ...diagnose([], r.warnings, "name") };
+  // The navigation relation (capabilities.md §6): attach each activation
+  // handler's navigate(to) target onto its element, then serialize alongside
+  // deps. Analysis-only — no diagnostics, an unresolvable target is just no link.
+  extractLinks(depProgram);
+  return { source: out, deps: serializeDeps(depProgram), links: serializeLinks(depProgram), errors: [], warnings: r.warnings, ...diagnose([], r.warnings, "name") };
 }
 
 /** Line/col/offset for a byte offset into `source` — positions a dep-residue

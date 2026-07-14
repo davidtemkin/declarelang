@@ -770,8 +770,10 @@ export class RichText extends View {
         let r = this;
         while (r instanceof View && r.parent !== null)
             r = r.parent;
-        if (r instanceof View)
-            r.navigate = href;
+        // The root App's navigate SERVICE ACTION (capabilities.md §6) — the same call
+        // a link/button makes in a handler; the host opens it. (A non-App root has no
+        // navigate; the link is then inert, as before.)
+        r.navigate?.(href);
     }
     rebuild() {
         C = this.isDark() ? COLORS_DARK : COLORS_LIGHT; // pick the palette for this render

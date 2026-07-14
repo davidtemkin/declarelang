@@ -94,11 +94,12 @@ export async function bootHost(cfg) {
     });
   };
 
-  // app→host navigation: a link/button sets App.navigate to a URL; open it + clear.
+  // app→host navigation: a link/button calls App.navigate(url) (the service action,
+  // capabilities.md §6), which writes the `pendingNav` channel; open it + clear.
   // Same-document nav (not window.open) so it isn't popup-blocked a frame after the click.
   const navTick = () => {
     if (stopped) return;
-    if (app.navigate) { const u = app.navigate; app.navigate = ""; location.href = new URL(u, DISTRO_ROOT).href; }
+    if (app.pendingNav) { const u = app.pendingNav; app.pendingNav = ""; location.href = new URL(u, DISTRO_ROOT).href; }
     raf.nav = requestAnimationFrame(navTick);
   };
   raf.nav = requestAnimationFrame(navTick);

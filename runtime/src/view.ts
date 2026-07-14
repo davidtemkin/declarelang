@@ -20,6 +20,7 @@ import { Constraint } from "./reactive.js";
 import { bindDerived, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned } from "./attributes.js";
 import { handlerName } from "./schema.js";
 import { splitPath } from "./datapath.js";
+import type { LinkTarget } from "./parser.js";
 import type { Cursor } from "./data.js";
 
 /** What a layout strategy is to the View — the whole protocol: begin
@@ -71,6 +72,11 @@ const AXIS_OF = { width: "x", height: "y" } as const;
 
 
 export class View extends Node {
+  /** The navigation target the compiler's link extraction (links.ts) found for
+   *  this instance's activation handler — stamped by instantiate from the source
+   *  element's `link`. Read only by the static extractor (seo.ts) to wrap the
+   *  subtree in `<a href>`; undefined for all but the handful of navigable views. */
+  _navLink?: LinkTarget;
   declare x: number;
   declare y: number;
   declare width: number;
@@ -629,9 +635,18 @@ export class App extends View {
    *  failure (the island keeps the last good render). Host-fed, read-only to
    *  user code: an editing surface binds a diagnostics pane to it. */
   declare liveReport: string;
-  /** app→host navigation: set to a URL by a link/button; the host opens it and
-   *  resets to "" — same DOM-free app→host channel as `editing`. */
-  declare navigate: string;
+  /** app→host navigation channel: `navigate(to)` sets it, the host (host-client.js
+   *  / a backend) polls it, opens the URL, and clears it to "". A plain field, not
+   *  a reactive attribute — nothing in the tree renders from it, and no Declare
+   *  source names it: navigation is the CALL, never an observed attribute. */
+  pendingNav = "";
+
+  /** navigate(to) — the navigation SERVICE ACTION (capabilities.md §6). A link or
+   *  button calls `app.navigate(url)` in an activation handler; the compiler reads
+   *  the call statically (links.ts → `<a href>` in the static extraction), and at
+   *  runtime the host opens `to`. DOM-free: bodies never touch window.location, so
+   *  navigation rides this channel like `editing` — one clear way, analyzable. */
+  navigate(to: string): void { this.pendingNav = to; }
   /** The app's size floor. An app that degrades below some width declares
    *  `minWidth = 600` and the auto-extent never goes under it: in a narrower
    *  host the app holds its floor and the STAGE pans natively (the page

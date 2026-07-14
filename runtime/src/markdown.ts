@@ -671,7 +671,10 @@ export abstract class RichText extends View {
     if (typeof (this as unknown as Record<string, unknown>).onLink === "function") { fireEvent(this, "link", href); return; }
     let r: unknown = this;
     while (r instanceof View && r.parent !== null) r = r.parent;
-    if (r instanceof View) (r as unknown as { navigate: string }).navigate = href;
+    // The root App's navigate SERVICE ACTION (capabilities.md §6) — the same call
+    // a link/button makes in a handler; the host opens it. (A non-App root has no
+    // navigate; the link is then inert, as before.)
+    (r as unknown as { navigate?: (to: string) => void }).navigate?.(href);
   }
 
   private rebuild(): void {

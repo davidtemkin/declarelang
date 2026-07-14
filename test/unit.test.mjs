@@ -4907,6 +4907,42 @@ await test("extractStatic: a compile failure yields html null and the rendered r
   assert.match(out.report, /Txet/);
 });
 
+await test("extractStatic: navigate(to) in an activation handler wraps the subtree in <a href> (capabilities.md §6)", () => {
+  // The navigation SERVICE ACTION, extracted statically from the CALL — a
+  // literal target, and a class whose onClick navigates via classroot.url (the
+  // library-button pattern), resolved per instance. Only an ACTIVATION handler
+  // becomes an anchor; conditionality lives in the VALUE (an empty url → none).
+  const src = `
+class Nav extends View [ url: string = "",
+    onClick() { app.navigate(classroot.url) },
+    lbl: Text [ text = { classroot.url } ],
+    ]
+
+App [
+  home: Text [ text = "Home", onClick() { app.navigate("https://x.example/home") } ],
+  a: Nav [ url = "docs/index.declare" ],
+  b: Nav [ url = "" ],
+  init: Text [ text = "init-nav", onInit() { app.navigate("https://x.example/init") } ],
+  plain: Text [ text = "plain" ],
+  ]`;
+  const out = extractStatic(src);
+  assert.equal(out.report, "");
+  assert.equal(out.html,
+    '<a href="https://x.example/home"><p>Home</p></a>\n' +      // literal, activation → anchor
+    '<a href="docs/index.declare"><p>docs/index.declare</p></a>\n' + // classroot.url read-path, per instance
+    // b (url = "") — the value is empty, so no anchor and no content: nothing
+    '<p>init-nav</p>\n' +   // onInit is NOT activation → no anchor
+    '<p>plain</p>');        // no navigate → plain content
+});
+
+await test("navigate is a service action, not an attribute — `app.navigate = url` is a type error", () => {
+  // The migration signal for the §6 model: assignment to the method fails to
+  // typecheck (the old surface is gone), so a stale program cannot silently ship.
+  const out = extractStatic(`App [ lnk: Text [ text = "t", onClick() { app.navigate = "u" } ] ]`);
+  assert.equal(out.html, null);
+  assert.match(out.report, /\(to: string\) => void/);
+});
+
 await test("settleHeadless: text measures and auto-extents settle without a DOM", () => {
   // The approximate measurer (headless.ts) is enough to SETTLE any tree —
   // real numbers for auto-extents, deterministic on every host.

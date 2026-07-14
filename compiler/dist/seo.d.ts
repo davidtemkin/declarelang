@@ -17,7 +17,7 @@ export interface ExtractOptions extends CompileOptions {
  *  snapshot and serialize. Needs only { source, deps } — the projection that
  *  survives the worker boundary — so it composes with EVERY compile path
  *  (in-process, worker, cached). Returns null when the compile failed. */
-export declare function extractFromCompiled(compiled: Pick<Compiled, "source" | "deps">, env?: Environment): string | null;
+export declare function extractFromCompiled(compiled: Pick<Compiled, "source" | "deps" | "links">, env?: Environment): string | null;
 export interface Extracted {
     /** The extracted HTML fragment, or null when the compile failed. */
     html: string | null;

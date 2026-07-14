@@ -378,6 +378,13 @@ function construct(el, outer, ctx, parentSchema = null) {
     const methods = new Map();
     const attrs = new Map();
     const sources = [...(user?.chain ?? []).map((body) => ({ el: body, croot: view })), { el, croot }];
+    // Stamp the navigation target (capabilities.md §6, links.ts): the leaf-most
+    // source with a `link` wins — a use-site override beats the class body, the
+    // same nearest-wins rule the methods/attrs merge below follows. Read only by
+    // the static extractor; runtime navigation is the handler's own navigate(to).
+    for (const s of sources)
+        if (s.el.link)
+            view._navLink = s.el.link;
     for (const s of sources) {
         for (const m of s.el.methods)
             methods.set(m.name, { m, croot: s.croot });

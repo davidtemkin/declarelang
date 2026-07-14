@@ -93,6 +93,18 @@ export interface AttrDecl {
     readOnly: boolean;
     pos: Pos;
 }
+/** A navigable target extracted from an activation handler's `navigate(to)`
+ *  call (capabilities.md §6, links.ts): a literal URL, or a read-path to
+ *  evaluate against the instance at t=0 (`this.url` — the value carries the
+ *  URL, and its emptiness carries the conditionality). Compiler-attached and
+ *  transported alongside the program like `deps`; the runtime stamps it onto
+ *  each instance (`_navLink`) and the static extractor wraps the subtree in
+ *  `<a href>`. NOT a language attribute — no Declare source names it. */
+export type LinkTarget = {
+    href: string;
+} | {
+    read: string;
+};
 /** A component instance: a tag with attributes, declarations, methods, and
  *  child instances. `name` is the member name when the instance was written
  *  `name: Type [ … ]` — a named child is a member of its parent (language
@@ -115,6 +127,10 @@ export interface Element {
      *  stylesheet member): `tag` is the keyed class name. Only a stylesheet
      *  admits one — the checker's question, like every other meaning. */
     entry?: true;
+    /** The navigable target of this element's activation handler, when the
+     *  compiler's link extraction (compiler/src/links.ts) found a `navigate(to)`
+     *  call in it. Rides the serialized program / a walk-order side-list. */
+    link?: LinkTarget;
     pos: Pos;
 }
 /** `class Name extends Base [ … ]` (language §5). The body is an ordinary

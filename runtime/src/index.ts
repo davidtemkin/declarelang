@@ -18,6 +18,7 @@ import { parseProgram } from "./parser.js";
 import { check } from "./check.js";
 import { instantiate } from "./instantiate.js";
 import { applyDeps } from "./deps.js";
+import { applyLinks, type SerializedLink } from "./links.js";
 import { resolveIncludes, NO_INCLUDES, type IncludeHost } from "./include.js";
 import { App } from "./view.js";
 import { fontFacesOf } from "./font.js";
@@ -39,6 +40,11 @@ export interface BuildOptions {
    *  walk order (design/constraints.md §5). Zipped onto the parsed program so
    *  its constraints boot on the static path. Absent → runtime-tracking. */
   deps?: readonly (readonly string[])[];
+  /** The compiler's extracted navigation relation (capabilities.md §6), a
+   *  sparse walk-order side-list. Zipped onto the parsed program (links.ts) so
+   *  each navigable instance is stamped `_navLink` for the static extractor.
+   *  Absent → no links (navigation still works; only extraction is affected). */
+  links?: readonly SerializedLink[];
 }
 
 /** Parse, resolve `include`s, typecheck, and instantiate a Declare source into
@@ -51,6 +57,7 @@ export function build(source: string, opts: BuildOptions = {}): App {
   errors.sort((a, b) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0));
   if (errors.length > 0) throw new NeoErrors(errors);
   if (opts.deps !== undefined) applyDeps(program, opts.deps);
+  if (opts.links !== undefined) applyLinks(program, opts.links);
   const root = instantiate(program);
   if (!(root instanceof App)) {
     throw new NeoError("a program's root must be 'App [ … ]'", program.root.pos);
@@ -86,6 +93,7 @@ export type { IncludeHost } from "./include.js";
 export { check, checkAttr, checkMethod, checkDecl, checkComponentValue, programSchemas } from "./check.js";
 export { instantiate } from "./instantiate.js";
 export { forEachCodeValue, serializeDeps, applyDeps } from "./deps.js";
+export { forEachElement, serializeLinks, applyLinks, type SerializedLink } from "./links.js";
 // Precompiled production entry + render glue (compiler-free) — see boot.ts.
 export { renderProgram, renderProgramAsync, mountApp, disposeApp, loadFonts } from "./boot.js";
 export type { FontSpec } from "./boot.js";

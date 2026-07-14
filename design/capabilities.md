@@ -169,24 +169,34 @@ does run JS sees the real app replace it. Neither path requires the SW
 embedding — is the SEO surface that matters; the view is the inspectable
 artifact.
 
-## 6. Links — the `navigate` ruling (design, pending)
+## 6. Links — the `navigate` ruling (BUILT)
 
-Links deserve first-class extraction, inside the Declare model, with no
-voodoo — neither a router that secretly consults an attribute name, nor an
-extractor that knows library attribute names.
+Links are first-class extraction, inside the Declare model, with no voodoo —
+neither a router that secretly consults an attribute name, nor an extractor
+that knows library attribute names.
 
-- `navigate(to)` is a language SERVICE action (shape 2) with a declared
-  navigation effect in effects.ts — level with every other analyzable call.
-- Link extraction is the existing dep-extraction walk ROOTED at each
-  (element, handler) pair: attribution by construction, not caller-tracing.
-  The analyzer sees `navigate(this.link)` inside `Button.onClick`, classifies
-  the effect, resolves the argument as a read-path, folds literal instance
-  values, and the links table rides the `compile()` result exactly as `deps`
-  do — compile extracts the symbolic relation, execution binds it to
-  instances (§4), the serializer wraps the matched subtree in `<a href>`.
-- Only ACTIVATION handlers become anchors; a `navigate` in `onInit` stays in
-  the link graph for verify but emits no `<a>`.
-- Conditionality lives in the VALUE (`link = { cond ? url : null }`), never
-  in imperative cancellation.
-- The library `Button [ link = … ]` is sugar whose `onClick` the
-  interprocedural analysis sees through — no name is special.
+- `navigate(to)` is a language SERVICE action (view.ts `App.navigate`, typed
+  in the scaffold's LANGUAGE_API, pure in effects.ts) — a CALL, not an
+  attribute. `app.navigate = url` is a type error now: the surface is the call,
+  which is what the analyzer reads.
+- Link extraction (compiler/src/links.ts) is a walk ROOTED at each (element,
+  activation-handler) pair, the dual of dep-extract's constraint walk:
+  attribution by construction, not caller-tracing. It sees `navigate(to)`
+  inside `onClick`, resolves the argument — a string literal → an href, or a
+  read-path rooted at the element (`this.…`, or `classroot.…` on a class root,
+  the same instance, the library-button pattern) → a read evaluated at t=0 —
+  and attaches a `LinkTarget` to the element (parser `Element.link`). The
+  relation rides the `compile()` result exactly as `deps` do (a sparse
+  walk-order side-list, runtime links.ts); execution stamps each instance
+  (`_navLink`, instantiate.ts); the serializer (seo.ts) evaluates the target at
+  the t=0 snapshot and wraps the matched subtree in `<a href>`.
+- Only ACTIVATION handlers (`onClick`) become anchors; a `navigate` in `onInit`
+  emits no `<a>`.
+- Conditionality lives in the VALUE: `navigate(this.link)` with an empty link
+  value emits no anchor — the serializer reads the value and an empty string is
+  no link. Never imperative cancellation.
+- A library `Button [ … ]` whose `onClick` calls `navigate` is seen through by
+  the same walk — no name is special. (Interprocedural see-through, a
+  `navigate` reached via a helper the handler calls, is a follow-up; the direct
+  call in the activation handler is what the corpus uses and what extracts
+  today.)

@@ -176,6 +176,11 @@ function methodSig(m: Method): string {
  *  declared public here: a check-block is a free function, not a subclass
  *  body, so TS's protected rule would reject the legal subclass call. */
 const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
+  // The App's navigation SERVICE ACTION (view.ts App.navigate, capabilities.md
+  // §6): a link/button calls `app.navigate(url)` in an activation handler. A
+  // method, not an attribute — `app.navigate = url` is a type error now, which
+  // is the migration signal, and the extractor reads the CALL (links.ts).
+  App: [`  navigate(to: string): void;`],
   View: [
     `  scrollIntoView(): void;`,
     // Returns the runtime stylesheet handle the `stylesheet` slot accepts —

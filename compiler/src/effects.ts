@@ -31,4 +31,11 @@ export const LANGUAGE_METHOD_EFFECTS: ReadonlyMap<string, readonly string[]> = n
   // `{ dark ? this.lookupStylesheet("Dark") : this.lookupStylesheet("Light") }`
   // depends only on `dark`, and is fully analyzable.
   ["lookupStylesheet", []],
+  // App.navigate(to) — the navigation SERVICE ACTION (view.ts, capabilities.md
+  // §6). It writes the host channel and reads no reactive cell → PURE for
+  // dependency analysis. Registered so a body that reaches it (a handler, or a
+  // method a constraint transitively calls) analyzes cleanly rather than falling
+  // to the §3 residue. The NAVIGATION effect itself — the link relation — is
+  // extracted separately, by links.ts, from the CALL SITE.
+  ["navigate", []],
 ]);
