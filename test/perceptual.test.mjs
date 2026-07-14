@@ -738,12 +738,19 @@ function serveDist() {
     "/canvas-c1": pageHtml("CanvasBackend", C1_SOURCE),
     "/dom-c2": pageHtml("DomBackend", C2_SOURCE),
     "/canvas-c2": pageHtml("CanvasBackend", C2_SOURCE),
-    // The fixed-frame test: a panel parked BEYOND the frame (the calendar's
-    // detail-panel idiom) with an editable inside it — the frame must stay
-    // scroll-proof (see the frame-clip test).
-    "/frame-clip": pageHtml("DomBackend", `App [ width = 640, height = 480, fill = #202830,
+    // The box-clip CONTAINMENT test: an App declaring `clip = true` (the
+    // calendar's fixed-window design) with a panel parked BEYOND the frame —
+    // the browser must gain no scroll extent and focus must not shift the frame.
+    "/frame-clip": pageHtml("DomBackend", `App [ clip = true, width = 640, height = 480, fill = #202830,
       panel: View [ x = 700, y = 40, width = 300, height = 200, fill = #2E3A45,
           note: TextInput [ x = 10, y = 10, width = 280, height = 30, fill = #3A4855 ] ],
+      ]`),
+    // The EXTERIOR-scrolling test: an app LARGER than the window, no clip —
+    // the browser scrolls over the app object natively (this must remain
+    // expressible; the box-clip is the app's opt-in, not a platform clamp).
+    "/frame-tall": pageHtml("DomBackend", `App [ width = 640, height = 1600, fill = #202830,
+      head: View [ x = 20, y = 20, width = 600, height = 60, fill = #2E3A45 ],
+      foot: View [ x = 20, y = 1500, width = 600, height = 60, fill = #4C8DFF ],
       ]`),
     // A bare harness page for the compile-WORKER identity test: loads the one
     // compiler client (which prefers the module worker) and exposes a compile
@@ -2399,12 +2406,12 @@ try {
     assert.equal(diff.over, 0, `channels beyond tolerance: ${diff.over} (max delta ${diff.max})`);
   });
 
-  await test("DOM: the app frame is scroll-proof — off-frame children add no document scroll; focus cannot shift the frame", async () => {
-    // The App is a FIXED FRAME (dom-backend attachRoot: overflow clip on the
-    // root + the document). A child parked beyond the frame — the calendar's
-    // detail-panel idiom — is abs-positioned overflow the browser would
-    // otherwise count as scrollable: the document grows a scroll extent, and
-    // focusing an off-frame editable auto-scrolls the whole app sideways.
+  await test("DOM: `clip = true` is CONTAINMENT — off-box children add no document scroll; focus cannot shift the frame", async () => {
+    // The box-clip's semantic (backend.ts setBoxClip): an App declaring
+    // `clip = true` is a fixed window. A child parked beyond it — the
+    // calendar's detail-panel idiom — is abs-positioned overflow the browser
+    // would otherwise count as scrollable: the document grows a scroll
+    // extent, and focusing an off-frame editable auto-scrolls the whole app.
     const page = await browser.newPage();
     await page.setViewport({ width: 640, height: 480 });
     await page.goto(`http://127.0.0.1:${port}/frame-clip`, { waitUntil: "load" });
@@ -2429,6 +2436,25 @@ try {
     assert.equal(probe.docY, 0, "no vertical document scroll extent");
     assert.deepEqual(probe.winScroll, [0, 0], "window.scrollTo is a no-op");
     assert.deepEqual(probe.rootScroll, [0, 0], "focusing an off-frame field must not shift the frame");
+    await page.close();
+  });
+
+  await test("DOM: EXTERIOR scrolling is preserved — an unclipped app larger than the window scrolls natively", async () => {
+    // The complement of the containment test: the box-clip is the APP's
+    // declaration, never a platform clamp. An app taller than its host
+    // scrolls in the browser — the app object under the window.
+    const page = await browser.newPage();
+    await page.setViewport({ width: 640, height: 480 });
+    await page.goto(`http://127.0.0.1:${port}/frame-tall`, { waitUntil: "load" });
+    await page.waitForFunction(() => window.__rendered === true, { timeout: 20000 });
+    const probe = await page.evaluate(() => {
+      const d = document.documentElement;
+      const extent = d.scrollHeight - d.clientHeight;
+      window.scrollTo(0, 300);
+      return { extent, scrolledTo: window.scrollY };
+    });
+    assert.ok(probe.extent > 1000, `the document scrolls over the tall app (extent ${probe.extent})`);
+    assert.equal(probe.scrolledTo, 300, "window.scrollTo drives the browser scroll");
     await page.close();
   });
 

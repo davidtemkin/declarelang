@@ -118,6 +118,18 @@ export interface Surface {
    *  re-clipping never re-rasterizes content (rendering model rule 3). */
   setClip(pathData: string | null): void;
 
+  /** The BOX-clip (`clip = true`): clip the subtree to this surface's OWN box
+   *  (rounded by cornerRadius), tracking the box as it animates — no re-derive.
+   *  Semantically CONTAINMENT, not just paint: on the DOM backend this is
+   *  `overflow: clip`, so children positioned outside the box also contribute
+   *  no scrollable overflow to the document and cannot be focus-scrolled into
+   *  view — matching the canvas backend, whose frame physically cannot reveal
+   *  or scroll to off-box content. (A shape clip, by contrast, is paint+hit
+   *  only.) This is what lets an app park a panel beyond a clipped container
+   *  — or declare `clip = true` on the App itself to pin every interaction
+   *  in-window — without the browser growing a scroll extent. */
+  setBoxClip(on: boolean): void;
+
   /** Make this surface a scroll container (`on`) or a plain one. When on, it
    *  clips to its box and scrolls the vertical overflow; `onScroll` is called
    *  with the current offset whenever the user scrolls it (DOM: the native

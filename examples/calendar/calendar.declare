@@ -205,7 +205,12 @@ class DetailSection extends View [ clip = true, cornerRadius = 10, fill = { them
     ]
 
 
-App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
+// clip = true: this app is a fixed window — every view and interaction lives
+// in-frame, and the browser must never scroll the app itself. The box-clip
+// CONTAINS: the detail panel parked beyond the right edge (x > width, sliding
+// in via panelInset) paints nowhere, adds no document scroll extent, and
+// cannot be focus-scrolled into view.
+App [ clip = true, fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
 
     /* Colours are two role-named palettes; `theme` swaps between them. `themeMode`
        is Light / Dark / Auto — Auto follows the OS through `app.dark`. */
@@ -495,6 +500,19 @@ App [ fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
         this.nr = this.monthRows      // start on the real row count so the month just shows, no squish-in
         this.data.fetch()
         },
+
+    /* ## Keyboard
+       Arrows page the current view; Escape closes the detail panel. A Keys
+       subscription — lifetime-managed, no listener to clean up. The arrows
+       gate on the panel being CLOSED: its text fields own the keyboard while
+       an event is being edited (Keys is the raw stream). */
+    keys: Node [
+        onKeyUp(e) <- Keys {
+            if (e.key == "Escape") app.closeDetail()
+            else if (app.selectedId < 0 && e.key == "ArrowLeft") app.step(-1)
+            else if (app.selectedId < 0 && e.key == "ArrowRight") app.step(1)
+            },
+        ],
 
     /* ## The surface — day / week / month → year
        For year the surface does not scale into its slot; each Cell re-lays-out into

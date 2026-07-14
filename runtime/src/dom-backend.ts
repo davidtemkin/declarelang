@@ -75,24 +75,12 @@ export class DomBackend implements RenderBackend {
     rootEl.style.userSelect = "none";
     (rootEl.style as CSSStyleDeclaration & { webkitUserSelect: string }).webkitUserSelect = "none";
     rootEl.style.touchAction = "none";
-    // The App is a FIXED FRAME: every view and interaction lives inside the
-    // window, and the browser must never scroll the frame itself — scrolling
-    // is per-VIEW (`scrolls = true`). Without this, a child parked beyond the
-    // frame (the calendar's detail panel waiting at x > width) is
-    // absolutely-positioned OVERFLOW, which the browser counts as scrollable:
-    // the document grows a scroll extent, and focusing an off-frame field
-    // auto-scrolls the whole app sideways. `clip`, not `hidden` — a hidden box
-    // is still a scroll container (focus/JS can move it); clip forbids ALL
-    // scrolling and removes the overflow contribution entirely. This also
-    // matches the canvas backend, whose frame physically cannot reveal
-    // off-frame content.
-    rootEl.style.overflow = "clip";
+    // NOTE the frame does NOT clip here: an app larger than its host scrolls
+    // natively — "exterior" scrolling, the browser over the app object — and
+    // that stays expressible. An app designed as a fixed window (everything
+    // in-frame, no browser scrolling — the calendar) declares `clip = true`
+    // on its App, whose box-clip is true CONTAINMENT (setBoxClip below).
     host.appendChild(rootEl);
-    // The same rule for the DOCUMENT on a top-level mount (defense in depth:
-    // the app no longer overflows, and nothing else on a host page may scroll
-    // the frame either). An embedded app owns only its box and must not touch
-    // the page's scrolling.
-    if (!embedded) host.ownerDocument.documentElement.style.overflow = "clip";
     // Paint the page BEHIND the app with the app's own background — so Safari's
     // rubber-band overscroll and any sub-pixel edge match the app instead of
     // flashing white. Automatic for any TOP-LEVEL app: we read the root's realized
@@ -333,6 +321,19 @@ class DomSurface implements Surface {
     // clipped-away part of an interactive box falls through — the same
     // subtraction the canvas walk's isPointInPath makes.
     this.element.style.clipPath = d === null ? "" : `path("${d}")`;
+  }
+
+  setBoxClip(on: boolean): void {
+    // The box-clip is CONTAINMENT, not just paint (backend.ts): `overflow:
+    // clip` clips pixels AND hit-testing to the box (rounded — it follows
+    // border-radius), makes the element a non-scroll-container that no
+    // focus/script/scrollIntoView can shift, and removes the children's
+    // contribution to every ancestor's scrollable overflow — so a child
+    // parked beyond a clipped box (the calendar's detail panel; a clipped
+    // App frame) can never grow the document a scroll extent. `clip`, not
+    // `hidden`: a hidden box is still a scroll container. The box tracks
+    // automatically — no per-resize re-derive.
+    this.element.style.overflow = on ? "clip" : "";
   }
 
   scrollIntoView(): void {

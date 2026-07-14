@@ -245,9 +245,38 @@ class CanvasSurface {
     parent = null;
     children = [];
     clipData = null;
+    /** The BOX-clip (`clip = true`): clip to the surface's own (rounded) box.
+     *  A first-class mode, not a baked rect path — the box is read at use time,
+     *  so an animating width/height tracks without a re-derive. */
+    boxClip = false;
     /** Backend-retained cache of the clip path (never recording state);
-     *  rebuilt lazily so setClip stays legal before any canvas exists. */
+     *  rebuilt lazily so setClip stays legal before any canvas exists. For the
+     *  box-clip it caches the rounded-box Path2D, invalidated on geometry/
+     *  radius change. */
     clipPath = null;
+    /** The effective clip as a Path2D: an explicit shape clip, or — for the
+     *  box-clip — the surface's own box, rounded by cornerRadius (matching the
+     *  DOM backend, where `overflow: clip` follows border-radius). Null =
+     *  unclipped. */
+    clipPathObj() {
+        if (this.clipData !== null) {
+            this.clipPath ??= new Path2D(this.clipData);
+            return this.clipPath;
+        }
+        if (this.boxClip) {
+            if (this.clipPath === null) {
+                const p = new Path2D();
+                const r = Math.min(this.cornerRadius, this.width / 2, this.height / 2);
+                if (r > 0)
+                    p.roundRect(0, 0, this.width, this.height, r);
+                else
+                    p.rect(0, 0, this.width, this.height);
+                this.clipPath = p;
+            }
+            return this.clipPath;
+        }
+        return null;
+    }
     drawing = null;
     text = "";
     /** Text style pre-resolved at set time — the paint walk does zero
@@ -280,8 +309,10 @@ class CanvasSurface {
     }
     setX(v) { this.x = v; this.compositor.invalidate(); }
     setY(v) { this.y = v; this.compositor.invalidate(); }
-    setWidth(v) { this.width = v; this.box = null; this.textLines = null; this.compositor.invalidate(); }
-    setHeight(v) { this.height = v; this.box = null; this.compositor.invalidate(); }
+    setWidth(v) { this.width = v; this.box = null; this.textLines = null; if (this.boxClip)
+        this.clipPath = null; this.compositor.invalidate(); }
+    setHeight(v) { this.height = v; this.box = null; if (this.boxClip)
+        this.clipPath = null; this.compositor.invalidate(); }
     setVisible(v) { this.visible = v; this.compositor.invalidate(); }
     setOpacity(o) { this.opacity = o; this.compositor.invalidate(); }
     setScale(scale, px, py) {
@@ -304,6 +335,8 @@ class CanvasSurface {
     setCornerRadius(r) {
         this.cornerRadius = r;
         this.box = null;
+        if (this.boxClip)
+            this.clipPath = null;
         this.compositor.invalidate();
     }
     setStroke(st) {
@@ -316,6 +349,11 @@ class CanvasSurface {
     }
     setClip(d) {
         this.clipData = d;
+        this.clipPath = null;
+        this.compositor.invalidate();
+    }
+    setBoxClip(on) {
+        this.boxClip = on;
         this.clipPath = null;
         this.compositor.invalidate();
     }
@@ -446,7 +484,7 @@ class CanvasSurface {
         for (let s = this; s !== null; s = s.parent) {
             if (!s.visible)
                 shown = false;
-            if (s.clipData !== null) {
+            if (s.clipData !== null || s.boxClip) {
                 // Every calendar clip is a box (clip=true → rect(0,0,width,height)); an
                 // ancestor's box, expressed in this surface's local space, is [-ax..width-ax].
                 clipped = true;
@@ -507,11 +545,9 @@ class CanvasSurface {
             lx = (lx - this.pivotX) / this.scaleK + this.pivotX;
             ly = (ly - this.pivotY) / this.scaleK + this.pivotY;
         }
-        if (this.clipData !== null) {
-            this.clipPath ??= new Path2D(this.clipData);
-            if (!hitCtx().isPointInPath(this.clipPath, lx, ly))
-                return null;
-        }
+        const cpHit = this.clipPathObj();
+        if (cpHit !== null && !hitCtx().isPointInPath(cpHit, lx, ly))
+            return null;
         // A scroll container clips to its box and offsets its content — hit-test
         // children in the SAME frame the paint walk draws them.
         const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
@@ -579,11 +615,9 @@ class CanvasSurface {
             return false;
         const lx = px - this.x;
         const ly = py - this.y;
-        if (this.clipData !== null) {
-            this.clipPath ??= new Path2D(this.clipData);
-            if (!hitCtx().isPointInPath(this.clipPath, lx, ly))
-                return false;
-        }
+        const cpScroll = this.clipPathObj();
+        if (cpScroll !== null && !hitCtx().isPointInPath(cpScroll, lx, ly))
+            return false;
         const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
         if (this.scrolls && !inBox)
             return false;
@@ -644,10 +678,9 @@ class CanvasSurface {
             ctx.scale(this.scaleK, this.scaleK);
             ctx.translate(-this.pivotX, -this.pivotY);
         }
-        if (this.clipData !== null) {
-            this.clipPath ??= new Path2D(this.clipData);
-            ctx.clip(this.clipPath);
-        }
+        const cpPaint = this.clipPathObj();
+        if (cpPaint !== null)
+            ctx.clip(cpPaint);
         if (this.opacity < 1)
             this.paintLayer(ctx);
         else

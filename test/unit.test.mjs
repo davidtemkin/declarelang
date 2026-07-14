@@ -563,7 +563,7 @@ function mockBackend(log) {
   const methods = [
     "setX", "setY", "setWidth", "setHeight", "setFill", "setCornerRadius",
     "setStroke", "setShadow", "setVisible",
-    "setOpacity", "setClip", "setDrawing", "setText", "setTextStyle",
+    "setOpacity", "setClip", "setBoxClip", "setDrawing", "setText", "setTextStyle",
     "setImage", "setImageStretch", "setInput", "setEditable", "activateEditable",
     "insertChild", "destroy",
   ];
@@ -4736,6 +4736,97 @@ await test("browser default library: setDefaultLibrary removes the per-call obli
   // An EXPLICIT files/manifest still wins over the default.
   const explicit = browser.compile("App [ width = 100, height = 100, Zed9 [ ] ]", { files: {}, manifest: {} });
   assert.equal(explicit.source, null, "explicit (empty) library overrides the default");
+});
+
+// ── subscriptions: `member(params) <- Source { body }` (language §8) ────────
+
+const KEY_DOWN_ARROW = { code: "ArrowDown", key: "ArrowDown", shift: false, ctrl: false, alt: false, meta: false, repeat: false };
+
+// Subscription bodies use `app` — a COMPILE-time resolution (R6) — so these
+// route through the full pipeline, not the runtime-only build() helper.
+function compileAndBoot(src) {
+  const r = compile(src, {});
+  assert.notEqual(r.source, null, "compiles: " + r.errors.map((e) => e.message).join("; "));
+  const app = instantiate(parseProgram(r.source));
+  settle();
+  return app;
+}
+
+await test("subscription: wires to Keys, delivers, and unsubscribes at discard (Node host)", async () => {
+  const { Keys } = await import("../runtime/dist/index.js");
+  const app = compileAndBoot(`App [ width = 100, height = 100, n: number = 0,
+    nav: Node [ onKeyUp(e) <- Keys { if (e.key == "ArrowDown") app.n = app.n + 1 } ],
+    ]`);
+  Keys.keyUp(KEY_DOWN_ARROW);
+  assert.equal(app.n, 1, "the subscription body ran with the KeyEvent payload");
+  app.discard();
+  Keys.keyUp(KEY_DOWN_ARROW);
+  assert.equal(app.n, 1, "discard unsubscribed — a torn-down subtree hears nothing");
+});
+
+await test("subscription: a View host retires through the same registry", async () => {
+  const { Keys } = await import("../runtime/dist/index.js");
+  const app = compileAndBoot(`App [ width = 100, height = 100, n: number = 0,
+    panel: View [ width = 10, height = 10, onKeyDown(e) <- Keys { app.n = app.n + 1 } ],
+    ]`);
+  Keys.keyDown(KEY_DOWN_ARROW);
+  assert.equal(app.n, 1);
+  app.discard();
+  Keys.keyDown(KEY_DOWN_ARROW);
+  assert.equal(app.n, 1, "View.discard runs the moved teardown registry");
+});
+
+await test("subscription: unknown source and unknown member are positioned, fix-naming errors", () => {
+  const bad1 = compile(`App [ v: Node [ onKeyUp(e) <- Mouse { } ] ]`, {});
+  assert.equal(bad1.source, null);
+  assert.match(bad1.errors[0].message, /'Mouse' is not a subscribable source — subscribe to one of: Keys/);
+  const bad2 = compile(`App [ v: Node [ onWheel(e) <- Keys { } ] ]`, {});
+  assert.equal(bad2.source, null);
+  assert.match(bad2.errors[0].message, /Keys does not call 'onWheel' — its members: onKeyDown, onKeyUp/);
+});
+
+await test("subscription: `<-` does not collide with `<->` lexing", () => {
+  const r = compile(`App [ width = 100, height = 100,
+    d: Dataset { { "title": "x" } },
+    card: View [ datapath = { app.d.value }, f: TextInput [ text <-> :title ] ],
+    nav: Node [ onKeyUp(e) <- Keys { app.d.set("title", e.key) } ],
+    ]`, {});
+  assert.notEqual(r.source, null, "both arrows in one program: " + r.errors.map((e) => e.message).join("; "));
+});
+
+// ── typed bodies: TS syntax is checked, then STRIPPED for emission ───────────
+
+await test("typed bodies: `as` casts typecheck, are stripped from the emitted source, and run", () => {
+  const src = `class G extends View [ value: string = "", pick(v) { this.value = v } ]
+class R extends View [ choice: string = "",
+    on: boolean = { (parent as G).value == choice },
+    onClick() { (parent as G).pick(choice) },
+    width = 20, height = 20,
+    ]
+App [ width = 200, height = 200,
+    g: G [ value = "a", R [ choice = "a" ], R [ choice = "b" ] ],
+    ]`;
+  const r = compile(src, { typecheck: true });
+  assert.notEqual(r.source, null, "compiles + typechecks: " + r.errors.map((e) => e.message).join("; "));
+  assert.ok(!r.source.includes(" as G"), "the cast is stripped from the emitted source");
+  const app = instantiate(parseProgram(r.source));
+  settle();
+  assert.equal(app.g.children[0].on, true, "the stripped constraint evaluates against the real parent");
+  assert.equal(app.g.children[1].on, false);
+  app.g.children[1].onClick();
+  settle();
+  assert.equal(app.g.children[1].on, true, "the stripped handler call reaches the parent's method");
+  assert.equal(app.g.children[0].on, false);
+});
+
+await test("typed bodies: a cast against a WRONG type is still a type error (the point of keeping types)", () => {
+  const src = `class G extends View [ value: string = "" ]
+App [ width = 100, height = 100,
+    g: G [ v: View [ width = { (parent as G).nope * 2 } ] ],
+    ]`;
+  const r = compile(src, { typecheck: true });
+  assert.equal(r.source, null);
+  assert.match(r.errors.map((e) => e.message).join("\n"), /nope/);
 });
 
 summarize("unit");

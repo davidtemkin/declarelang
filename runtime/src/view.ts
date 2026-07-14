@@ -229,12 +229,6 @@ export class View extends Node {
    *  always sees consistent attributes. */
   private drawing: Constraint | null = null;
 
-  /** The box-clip's standing derive when `clip === true` (null otherwise): a
-   *  framework-internal reactive computation that feeds the backend the box
-   *  rect as a clip path, recomputed as width/height change (bindBoxClip).
-   *  Phase 1, like `drawing` — it reads settled geometry. */
-  private boxClip: Constraint | null = null;
-
   /** Realize this view and its subtree on a backend: create the surface,
    *  flush the current visual state across the seam, parent it (before
    *  `before` when the tree is mutating mid-list — R8; null appends), and
@@ -384,8 +378,6 @@ export class View extends Node {
     disposeBindings(this);
     this.drawing?.dispose();
     this.drawing = null;
-    this.boxClip?.dispose();
-    this.boxClip = null;
     const s = this.surface;
     this.surface = null;
     this.backend = null;
@@ -465,42 +457,22 @@ export class View extends Node {
   }
 
   /** Realize the `clip` slot across the seam (the pusher and flush both land
-   *  here). Any prior box-clip derive is torn down first, so a switch between
+   *  here). Both modes are set explicitly on every apply, so a switch between
    *  the forms — true → a Shape path → false — never leaves two clips
    *  fighting. Pre-attach (surface null) it is a no-op; flush replays it once
    *  the surface exists.
-   *    - `true`  → the framework box-clip derive (bindBoxClip);
-   *    - a Shape string → that path, straight to the backend (shape-clip);
+   *    - `true`  → the backend BOX-clip mode (setBoxClip): clip to the view's
+   *      own rounded box, tracked by the backend as it animates — and with
+   *      CONTAINMENT semantics (backend.ts): children parked beyond the box
+   *      contribute no scrollable overflow and cannot be focus-scrolled into
+   *      view. No derive needed — the backend reads the box at use time.
+   *    - a Shape string → that path, straight to the backend (shape-clip,
+   *      paint + hit only);
    *    - false / null   → no clip. */
   applyClip(clip: string | boolean | null): void {
-    if (this.boxClip !== null) {
-      this.boxClip.dispose();
-      this.boxClip = null;
-    }
     if (this.surface === null) return; // pre-attach: flush will replay this
-    if (clip === true) this.bindBoxClip();
-    else this.surface.setClip(typeof clip === "string" ? clip : null);
-  }
-
-  /** The box-clip: a framework primitive that owns its own subscription
-   *  (constraints.md §3), NOT a user constraint and NOT a slot owner. It reads
-   *  width/height as TRACKED reads and feeds the backend the box rect as a
-   *  clip path (the form both backends already consume — canvas setClip/
-   *  clipData, DOM clip-path), so the reactive core re-runs it whenever
-   *  width/height change — that is what makes it track an animating tab height
-   *  every frame. It writes straight to the surface (no reactive slot), so it
-   *  can never wake anything or cycle. */
-  private bindBoxClip(): void {
-    const c = new Constraint(
-      `${this.constructor.name}.clip (box)`,
-      () => `M0 0 H${this.width} V${this.height} H0 Z`,
-      // Constraint is untyped across compute→apply (reactive.ts); this
-      // apply's input is exactly its compute's string output.
-      (d) => this.surface?.setClip(d as string),
-      1
-    );
-    this.boxClip = c;
-    c.run();
+    this.surface.setBoxClip(clip === true);
+    this.surface.setClip(typeof clip === "string" ? clip : null);
   }
 }
 
