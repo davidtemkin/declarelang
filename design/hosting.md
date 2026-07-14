@@ -42,46 +42,74 @@ The whole tree is served from a dumb static host (GitHub Pages, `.nojekyll`) wit
 Node and no compiler on the critical path. Every path is relative, so it is
 subpath-portable — a project page under `/<repo>/` resolves everything the same.
 
-The model is **precompile-by-default, verify-in-the-background**:
+The model is **compile-in-the-browser, cache the output, closure-check freshness**
+(`web/boot-uniform.js` — the deployed `.declare` source is the single source of
+truth; there is no per-app precompiled artifact to fall stale):
 
-1. **Render now.** `tools/prebuild.mjs` compiles each `examples/<name>/<name>.declare`
-   into a committed artifact (`examples/<name>/prebuilt/<name>.js`) — the compiled
-   program, the demo previews (site), the auto-include library, and the compile's
-   **dependency closure**. The page (`index.html` for the site; a generated
-   `examples/<name>/index.html` for the rest) loads it via `web/boot-static.js` and
-   renders instantly. Previews are present and running at load time.
-2. **Freshness — no compiler needed.** `boot-static.js` re-probes the baked closure:
-   each dependency is re-fetched and hashed, and `closure.js`'s `isUpToDate()`
-   compares against the validators baked at prebuild. This is a pure ~4.6 KB module
-   (BigInt only) — it answers "is the source newer than the artifact?" without
-   TypeScript. On a static host there is no mtime, so the validator is a content
-   hash (the universal floor); the same closure model degrades to ETag/Last-Modified
-   where a host supplies them.
-3. **Warm-load the compiler in the background.** The in-browser compiler
-   (`dist-browser/declare-compiler.js`, ~1 MB gzipped — the Declare core plus the
-   TypeScript expression parser `free-idents` needs, bundled by
-   `tools/build-compiler.mjs`) is `import()`ed lazily, even if never used. It is
-   needed only to (a) recompile when step 2 reports the source moved, or (b) serve a
-   live edit ("Edit this page", the demo editors). In the common case it is never
-   touched.
+1. **Fast path.** The compiled program is cached in CacheStorage, keyed by the
+   platform `BUILD_ID` + the app's identity. On load, the cached compile's
+   **dependency closure** is re-probed (a cheap headers-first revalidation of the
+   app's own sources; `closure.js isUpToDate()`) — still fresh → render at once,
+   no compiler, no compile. ~130 ms to a painted app on a real CDN.
+2. **Slow path** (first visit, or the source moved): download the in-browser
+   compiler, compile — **the full compile, typecheck included, identical to every
+   other surface** — render, and cache the result with its closure. The compile
+   runs in a module **worker** (`web/compile-worker.js` behind
+   `web/compiler-client.js`), off the main thread, byte-identical by construction.
+3. **Live edits** ("Edit this page", the demo previews) ride the same compiler
+   client, warm-loaded in the background off the paint path.
+
+### The platform bundles — one path, freshness by construction
+
+The page loads the platform as **one file**: `dist-browser/declare-boot.js`
+(~58 KB gz, `tools/build-boot.mjs`) — the whole boot graph (web client +
+compiler client + the runtime run-path, ~50 modules) bundled, so a load makes one
+platform request instead of fifty. The in-browser compiler
+(`dist-browser/declare-compiler.js`, ~1 MB gz, `tools/build-compiler.mjs` — the
+Declare core + TypeScript + the embedded `lib.d.ts` closure) stays a separate,
+**lazily** fetched artifact — slow path and live edits only.
+
+Every `index.html` imports the boot bundle — dev and deploy, **one path, no
+mode**. What makes that viable is that bundle staleness is structurally
+impossible rather than remembered about (`tools/bundle-freshness.mjs`, one rule:
+any input newer than the artifact → rebuild):
+
+- **at commit** — the pre-commit hook (`tools/hooks/pre-commit` →
+  `stamp-version.mjs`) rebuilds any stale bundle *before* hashing the
+  `BUILD_ID`, then stages it: a commit cannot ship a bundle older than its
+  inputs;
+- **in dev** — the dev server rebuilds a stale bundle **on demand** when the
+  artifact is requested, so an edit to the runtime or web client is live on the
+  next refresh with no manual step;
+- plain static serving between commits (e.g. `python3 -m http.server`) is the
+  one manual case: `node tools/build-boot.mjs` after a runtime edit — and the
+  hook guarantees a stale bundle still can't reach a deploy.
+
+The unbundled `web/*.js` + `runtime/dist/*.js` modules remain in the tree (the
+bundles are a *transport*, not a fork): tests, the dev server's own pages, and
+tooling import them directly.
+
+Nothing in the platform is ever *probed* for freshness at load: the runtime,
+the bundles, and the library are fixed at platform build time and gated
+wholesale by `BUILD_ID` (the OL5 LFC model) — an app's closure records **its own
+sources only**.
 
 `compile()` is parameterized by an `IncludeHost`; the browser front-end
 (`compiler/compile-browser.ts`) injects a **synchronous in-memory host** over a
-prefetched file map (fetch is async, the include seam is sync — so the fixed library
-set is prefetched up front). It runs **without typecheck**, exactly like the dev
-server's `POST /compile`, so tsc's program/checker never enters the bundle — only the
-parser does.
+prefetched file map (fetch is async, the include seam is sync — so the fixed
+library set is prefetched up front and registered once as the compiler's
+default, `setDefaultLibrary`).
 
 ### Browse-to-run (service worker)
 
 A **service worker** generalizes this to *arbitrary* `.declare` files: it intercepts a
 top-level navigation to a `.declare`, serves a tiny host page, and `web/boot-declare.js`
-fetches the source, compiles it with the in-browser compiler bundle, and renders — no
-server, no build step. It's the same `compile()` as `POST /compile`, over a prefetched
-in-memory host, without typecheck. Cache-busting is content-hash driven (`BUILD_ID`,
+fetches the source, compiles it with the one compiler client (worker when available),
+and renders — no server, no build step. It's the same full `compile()` as every other
+surface, typecheck included. Cache-busting is content-hash driven (`BUILD_ID`,
 `tools/stamp-version.mjs`). This is the third compilation surface; because nothing is
-bundled ahead of time, the production-only flags (`slim`, `prod`) don't apply — only
-the render backend does (`?backend=canvas`).
+bundled ahead of time, the production-only flags (`slim`, `prod`) don't apply — the
+render backend (`?backend=canvas`) and `?typecheck=0` do.
 
 ## Compile flags
 

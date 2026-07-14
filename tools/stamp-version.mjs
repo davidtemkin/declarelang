@@ -22,8 +22,16 @@ import { readFileSync, writeFileSync, readdirSync, statSync, existsSync } from "
 import { createHash } from "node:crypto";
 import { join, dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { rebuildStale } from "./bundle-freshness.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+// FIRST: the committed platform bundles (dist-browser/) are pure functions of
+// tree inputs — rebuild any that are stale BEFORE hashing, so the BUILD_ID
+// always describes FRESH artifacts and a commit cannot ship a stale bundle
+// (tools/bundle-freshness.mjs; the pre-commit hook stages dist-browser after
+// this runs). One path, correctness by construction — never by remembering.
+rebuildStale(ROOT, { log: console.log });
 const SW = join(ROOT, "service-worker.js");
 const VERSION_JSON = join(ROOT, "web", "version.json");   // the build record (out of root; web/ = the client dir)
 const BUILD_RE = /const BUILD_ID = "[^"]*";/;

@@ -23,6 +23,7 @@ import { highlight } from "../compiler/dist/highlight.js";
 import { requestType, REQ } from "../compiler/dist/reqtypes.js";
 import { writeProduction } from "../tools/declarec.mjs";
 import { parseFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
+import { rebuildStale } from "../tools/bundle-freshness.mjs";
 
 // The compiler's extracted constraint deps (design/constraints.md §5) now ride
 // in the ONE compile() result (`r.deps`) — a walk-order list the browser zips
@@ -352,6 +353,17 @@ http.createServer((req, res) => {
         if (abs.startsWith(ROOT + path.sep) && existsSync(abs) && statSync(abs).isFile())
           return serveSource(res, abs, p.replace(/^\/+/, ""), rt, "DomBackend");
       }
+    }
+
+    // A platform BUNDLE requested → rebuild it first if any of its inputs is
+    // newer (tools/bundle-freshness.mjs — the same rule the pre-commit hook
+    // enforces). This is what makes ONE page path viable in dev: the pages
+    // always import dist-browser/declare-boot.js, and an edit to the runtime or
+    // web client is picked up on the next refresh — no manual rebundle, no
+    // stale artifact, ever. Synchronous on purpose (a boot rebundle is
+    // sub-second; a compiler rebundle a few seconds, once per compiler change).
+    if (p === "/dist-browser/declare-boot.js" || p === "/dist-browser/declare-compiler.js") {
+      try { rebuildStale(ROOT, { only: [p.slice(1)] }); } catch (e) { console.error("bundle rebuild failed:", e.message); }
     }
 
     // otherwise: a static file inside the tree

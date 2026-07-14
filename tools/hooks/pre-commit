@@ -1,10 +1,13 @@
 #!/bin/sh
-# Auto-stamp the cache-busting BUILD_ID before each commit, so every deploy carries a
-# build id that reflects the current platform (runtime + compiler bundle + web client + SW).
-# See tools/stamp-version.mjs. Idempotent: only restages when the build id actually changed.
+# Before each commit: (1) rebuild any STALE platform bundle — stamp-version
+# calls tools/bundle-freshness.mjs first, so a commit cannot ship a
+# dist-browser artifact older than its inputs; (2) stamp the cache-busting
+# BUILD_ID so every deploy carries a build id that reflects the current
+# platform (runtime + bundles + web client + SW). Idempotent: nothing
+# platform-relevant moved → no rebuild, no restamp, no churn.
 #
 # Committed + shared (not the per-clone .git/hooks/ copy). `npm install` wires it up via the
 # package.json "prepare" script; to activate by hand: git config core.hooksPath tools/hooks
 node tools/stamp-version.mjs || exit 0
-git add service-worker.js web/version.json 2>/dev/null
+git add service-worker.js web/version.json dist-browser 2>/dev/null
 exit 0
