@@ -21,6 +21,7 @@ import { Markdown, HTMLText } from "../../runtime/dist/markdown.js";
 import { parse as parseMd } from "../../runtime/dist/md.js";
 import { parseHtml } from "../../runtime/dist/html.js";
 import { compileExpr } from "../../runtime/dist/expr.js";
+import { cssWeight } from "../../runtime/dist/measure.js";
 import { compile } from "./compile.js";
 import { settleHeadless } from "./headless.js";
 // ── HTML text, escaped once, here ───────────────────────────────────────────
@@ -117,9 +118,64 @@ export function blocksHtml(blocks) {
  *  structure (its children walk, it emits no wrapper). */
 export function staticHtml(root) {
     const out = [];
-    walk(root, out);
+    walk(root, out, classifyHeadings(root));
     return out.join("\n");
 }
+/** Heading inference from the SETTLED typography (2026-07-14 ruling, revising §5).
+ *  A `Text` has no declared heading level — the source styles it large and bold,
+ *  it doesn't say `# `. So to give a reader-mode heuristic and a crawler real
+ *  document structure, infer the level from the rendered type: a `Text` set
+ *  LARGER than the body copy AND at a heading weight (semibold+) is a heading,
+ *  its LEVEL by the rank of its size among the page's heading sizes (largest =
+ *  h1). This is a proxy, not a contract — deliberately not controllable from
+ *  Declare source — so it stays inside the extractor, off the language surface.
+ *
+ *  The BODY size is the size carrying the most text (length-weighted mode): body
+ *  copy dominates, so it anchors the comparison robustly. The weight gate keeps a
+ *  large-but-light LEAD paragraph a `<p>`, not a heading. Markdown/HTMLText carry
+ *  their OWN `#` headings and are untouched. Byte-identical on every host: size
+ *  and weight are SET attributes, never measured geometry. */
+function classifyHeadings(root) {
+    const charsBySize = new Map();
+    const headingSizeSet = new Set();
+    const scan = (v) => {
+        if (v.visible === false)
+            return;
+        if (v instanceof Markdown || v instanceof HTMLText || v instanceof TextInput || v instanceof Image)
+            return;
+        if (v instanceof Text) {
+            if (v.text !== "") {
+                charsBySize.set(v.fontSize, (charsBySize.get(v.fontSize) ?? 0) + v.text.length);
+                if (isHeadingNode(v))
+                    headingSizeSet.add(v.fontSize);
+            }
+            return;
+        }
+        for (const c of v.children)
+            if (c instanceof View)
+                scan(c);
+    };
+    scan(root);
+    // Body copy dominates the character count — its size anchors the comparison.
+    let bodySize = 0, mostChars = -1;
+    for (const [size, chars] of charsBySize)
+        if (chars > mostChars) {
+            mostChars = chars;
+            bodySize = size;
+        }
+    const headingSizes = [...headingSizeSet].filter((s) => s > bodySize).sort((a, b) => b - a);
+    const levelOf = new Map();
+    headingSizes.forEach((size, i) => levelOf.set(size, Math.min(6, i + 1)));
+    return (t) => (isHeadingNode(t) ? levelOf.get(t.fontSize) ?? null : null);
+}
+/** Two settled-type signals a heading carries and a display figure does not: a
+ *  heading WEIGHT (semibold+), and enough text to be a word or phrase rather
+ *  than a terse figure. The length gate is what keeps a big gradient number
+ *  ("46 KB", "479") — larger than any title, but a datum, not a heading — out of
+ *  the ranking, so the actual headline anchors h1. */
+const isHeadingNode = (t) => weightNum(t) >= 600 && t.text.trim().length >= HEADING_MIN_CHARS;
+const HEADING_MIN_CHARS = 6;
+const weightNum = (t) => parseInt(cssWeight(t.fontWeight), 10) || 400;
 /** The navigable target of an instance, or null. The compiler's link relation
  *  (§6) stamped `_navLink`: a literal href, or a read-path evaluated against the
  *  settled instance at t=0. An empty value → null (the value carries the
@@ -142,25 +198,25 @@ function navHref(v) {
     }
     return typeof val === "string" && val !== "" ? val : null;
 }
-function walk(v, out) {
+function walk(v, out, headingOf) {
     if (v.visible === false)
         return;
     const href = navHref(v);
     if (href === null) {
-        emit(v, out);
+        emit(v, out, headingOf);
         return;
     }
     // A navigable subtree: wrap its content in a real <a href>. Skip an empty
     // one — an anchor with no text is noise to a reader and a crawler alike.
     const inner = [];
-    emit(v, inner);
+    emit(v, inner, headingOf);
     if (inner.length === 0)
         return;
     out.push(`<a href="${escAttr(href)}">${inner.join("\n")}</a>`);
 }
 /** The class-semantics emission for one node (its content, or its children
  *  walked) — separated from `walk` so the anchor wrapping composes over it. */
-function emit(v, out) {
+function emit(v, out, headingOf) {
     if (v instanceof Markdown) {
         if (v.text !== "")
             out.push(blocksHtml(parseMd(v.text)));
@@ -174,8 +230,10 @@ function emit(v, out) {
     if (v instanceof TextInput)
         return; // draft UI state, not content
     if (v instanceof Text) {
-        if (v.text !== "")
-            out.push(`<p>${esc(v.text)}</p>`);
+        if (v.text !== "") {
+            const lvl = headingOf(v); // inferred from the settled type (large + bold)
+            out.push(lvl !== null ? `<h${lvl}>${esc(v.text)}</h${lvl}>` : `<p>${esc(v.text)}</p>`);
+        }
         return;
     }
     if (v instanceof Image) {
@@ -185,7 +243,7 @@ function emit(v, out) {
     }
     for (const c of v.children)
         if (c instanceof View)
-            walk(c, out);
+            walk(c, out, headingOf);
 }
 /** Extract from a compile() result: execute the compiled source to its t=0
  *  snapshot and serialize. Needs only { source, deps } — the projection that

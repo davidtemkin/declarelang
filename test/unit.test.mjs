@@ -4935,6 +4935,30 @@ App [
     '<p>plain</p>');        // no navigate → plain content
 });
 
+await test("extractStatic: heading level inferred from settled type — large + bold Text becomes <hN>, a terse figure stays <p>", () => {
+  // Revising §5's no-inference rule (2026-07-14): a Text has no declared heading
+  // level, so infer it from the rendered type — LARGER than the body copy AND at
+  // a heading weight becomes a heading, its level by size rank. The weight gate
+  // keeps a big light LEAD a <p>; the length gate keeps a big terse FIGURE a <p>,
+  // so the headline (not the giant number) anchors h1.
+  const src = `App [
+  fill = 0xffffff,
+  title: Text [ fontSize = 40, fontWeight = semibold, text = "The Headline" ],
+  sec: Text [ y = 60, fontSize = 24, fontWeight = semibold, text = "A Section" ],
+  stat: Text [ y = 120, fontSize = 80, fontWeight = bold, text = "9" ],
+  lead: Text [ y = 200, fontSize = 24, text = "A lighter lead line." ],
+  body: Text [ y = 260, fontSize = 16, text = "Body copy with the greatest number of characters on the whole page by far indeed." ],
+  ]`;
+  const out = extractStatic(src);
+  assert.equal(out.report, "");
+  assert.equal(out.html,
+    '<h1>The Headline</h1>\n' +   // largest heading-qualifying size → h1
+    '<h2>A Section</h2>\n' +      // next size down → h2
+    '<p>9</p>\n' +                // 80px but terse (a figure), not a heading
+    '<p>A lighter lead line.</p>\n' + // 24px but light — a lead, not a heading
+    '<p>Body copy with the greatest number of characters on the whole page by far indeed.</p>');
+});
+
 await test("navigate is a service action, not an attribute — `app.navigate = url` is a type error", () => {
   // The migration signal for the §6 model: assignment to the method fails to
   // typecheck (the old surface is gone), so a stale program cannot silently ship.

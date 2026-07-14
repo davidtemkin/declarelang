@@ -132,21 +132,35 @@ in Declare source. The extraction is two phases with an ink-line between
 them — the *link relation* is compile-time static analysis (§6); the
 *content* is the settled tree of §4, serialized.
 
-**Serialization is class semantics, never heuristics.** Each content class
-already declares what its text MEANS; the serializer just says it in HTML:
+**Serialization is class semantics.** Each content class already declares what
+its text MEANS; the serializer just says it in HTML:
 
 | class               | emits                                                        |
 | ------------------- | ------------------------------------------------------------ |
 | `Markdown`          | its block tree as HTML (`md.parse` → headings/lists/tables…) |
 | `HTMLText`          | the same block tree via `parseHtml`                          |
-| `Text`              | `<p>…</p>`                                                   |
+| `Text`              | `<p>…</p>`, or `<h1>`–`<h6>` when inferred a heading (below) |
 | `Image`             | `<img src>`                                                  |
 | `TextInput`         | nothing (draft UI state, not content)                        |
 | `visible = false`   | nothing — the subtree is skipped                             |
 | everything else     | no wrapper; children walked in tree order                    |
 
-No font-size-looks-like-a-heading inference, ever: a heading is a heading
-because Markdown said `#`, not because it is large.
+**Heading inference from the settled type (2026-07-14 ruling).** A `Text` has no
+declared heading level — a content page styles its headline large and bold, it
+does not write `# `. So the serializer INFERS the level from the rendered type
+of the settled tree: a `Text` set LARGER than the body copy AND at a heading
+WEIGHT (semibold+) is a heading, its level by the rank of its size among the
+page's heading sizes (largest = h1). Two gates keep the proxy honest: the weight
+gate leaves a large-but-light LEAD a paragraph, and a minimum-length gate leaves
+a large-but-terse display FIGURE (a gradient "46 KB", a stat "479") a paragraph —
+so the headline, not the biggest number, anchors h1. The body size is the size
+carrying the most characters (body copy dominates), which anchors the
+comparison. This reverses the earlier "no font-size inference, ever" line: it is
+a deliberate PROXY, not a contract — undeclared, not controllable from Declare
+source, so it lives inside the extractor and never touches the language surface
+(`Markdown`/`HTMLText` still carry their own `#` headings, untouched). Byte-
+identical on every host: size and weight are SET attributes, never measured
+geometry.
 
 **Two artifacts, one extractor** (compiler/src/seo.ts, exported by BOTH
 compile-node and compile-browser — full parity, the browser compiler can do

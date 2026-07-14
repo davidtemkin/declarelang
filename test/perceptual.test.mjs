@@ -2508,6 +2508,9 @@ try {
       // the navigate(to) link relation (§6): a literal target and a classroot.url
       // read-path resolved per instance — extraction + compileExpr, browser vs Node.
       `class Nav extends View [ url: string = "", onClick() { app.navigate(classroot.url) }, lbl: Text [ text = { classroot.url } ], ]\nApp [ home: Text [ text = "Home", onClick() { app.navigate("https://e.example/h") } ], a: Nav [ url = "docs/x.declare" ] ]`,
+      // heading inference from settled type (§5 revision): level from size+weight,
+      // reading SET attributes only — identical on the browser's real measurer and Node's.
+      `App [ fill = 0xffffff, h: Text [ fontSize = 40, fontWeight = semibold, text = "Title Here" ], s: Text [ y = 60, fontSize = 24, fontWeight = semibold, text = "Section" ], b: Text [ y = 120, fontSize = 16, text = "Body copy that carries the most characters on the page by a comfortable margin overall." ] ]`,
       `App [ v: Txet [ ] ]`, // failure: html null + rendered report, identical both sides
     ];
     for (const src of cases) {
