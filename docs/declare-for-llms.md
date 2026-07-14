@@ -296,7 +296,7 @@ Also provided, undeclared: keyboard focus travels the controls (Tab / Shift-Tab;
 |---|---|
 | the full language spec (~680 lines, authoritative) | `design/declare-language.md` |
 | the guided tour, concept by concept | `docs/guide/00-overview.md` → `10-tutorial.md` → … |
-| the idiom at real scale, annotated | `examples/calendar/calendar.declare` · `examples/site/site.declare` |
+| the idiom at real scale, annotated | `examples/calendar/calendar.declare` · `examples/homepage/homepage.declare` |
 | what's deliberately not settled yet | `design/declare-language.md` §13 |
 | the reactivity model's rules | `design/constraints.md` |
 

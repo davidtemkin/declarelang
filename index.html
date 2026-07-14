@@ -24,7 +24,80 @@
 <meta name="twitter:description" content="A declarative UI language, reactive by construction, that compiles live in the browser.">
 <meta name="twitter:image" content="https://davidtemkin.github.io/declarelang/assets/og-image.png">
 <style>html,body{margin:0;padding:0;background:#0B141B}</style>
-<div id="host"></div>
+<!-- The host holds the homepage's static extraction (baked by tools/bake-homepage-seo.mjs
+     — the SEO exception for the root page); host-client.js removes #declare-static the
+     moment the live app mounts, so a user only ever sees the running app. -->
+<div id="host"><!--declare-static:begin--><div id="declare-static">
+<p>Declare</p>
+<p>is the UI language for the AI era.</p>
+<p>Just as SQL is a domain-specific language for database queries, <span>Declare</span> is a DSL for user interfaces. Its whole surface fits in your head — and inside an LLM's context window.</p>
+<p>This page is written in it. By an LLM.</p>
+<p>GitHub →</p>
+<p>Edit this page →</p>
+<p>Why a new language, now? →</p>
+<p>01</p>
+<p>Read it. Generate it. Run it.</p>
+<p>The relationships that matter — structure, data, reactivity — are explicit in the language, not hidden in imperative steps or a runtime graph.</p>
+<p>Analyzable</p>
+<p>A program's whole structure — components, data, what reacts to what — is right there in the source. The compiler reads it statically; so can an LLM.</p>
+<p>Predictable</p>
+<p>One clear way to write each thing, and the compiler rejects the rest — no dependency arrays, no keys, no stale-value bugs. An LLM's mistake is a compile error that names the fix — not an app that quietly runs wrong.</p>
+<p>Runnable</p>
+<p>The compiler runs in the browser, so code renders the moment it exists — no build, no deploy. Write it and it's live.</p>
+<p>Everything that makes it legible to an LLM makes it legible to you.</p>
+<p>02</p>
+<p>Small. Fast. A whole app.</p>
+<p>Declare Calendar: four views that are one surface seen through a moving, zooming rectangle — event chips that morph into time-blocks, drag-to-reschedule, an editable detail panel, light and dark. The kind of continuous, animated UI that's usually a project of its own — here it's the reference app.</p>
+<p>Run Declare Calendar →</p>
+<p>or read the source →</p>
+<p>46 KB</p>
+<p>over the wire, gzipped — the whole app and its runtime</p>
+<p>479</p>
+<p>lines of Declare — four views, continuous zoom, drag, and edit</p>
+<p>Holds framerate</p>
+<p>Reactive dependencies are compiled, not tracked at runtime, and motion is declarative springs — so the continuous zoom stays smooth, with no animation library and no reactive-graph tax.</p>
+<p>Type-checked bindings</p>
+<p>Events, selection, the editable panel: the data flow is declarative, type-checked bindings, not a state manager wired by hand. Change a value and everything derived from it follows — a type mismatch is a compile error, not a runtime surprise.</p>
+<p>Easy to reason about</p>
+<p>A zooming, drag-to-reschedule, edit-in-place calendar is normally a thicket of imperative view-syncing and animation state. Declared, it's a fraction of the code — and legible to you, the compiler, and an LLM alike.</p>
+<p>03</p>
+<p>Declare it. It runs. It stays true.</p>
+<p>A binding isn’t a callback you remember to re-run — it’s a standing relationship the runtime keeps true, re-derived the moment its inputs change.</p>
+<p>Three bindings track one value: the big number, the bar’s width, and its color. Click to bump v — all three update together, and the color crosses cool to warm at the halfway mark.</p>
+<p>LIVE · EDITABLE</p>
+<p>Revert</p>
+<p>04</p>
+<p>Declare the shape, not the loop.</p>
+<p>A view can be built from data instead of laid out by hand — the shape written once, the data deciding how many there are and what each one says.</p>
+<p>One Bar, instanced once per row of the data. Edit a number or add a row and the list rebuilds itself — no loop, no keys. And Bar is auto-included: no import, no definition, just use it.</p>
+<p>LIVE · EDITABLE</p>
+<p>Revert</p>
+<p>05</p>
+<p>Motion you declare, not schedule.</p>
+<p>You say where a thing belongs; a Spring finds the path there and settles by physics — motion you declare, not a timeline you sequence.</p>
+<p>Click to toggle the ball’s target between two positions. The Spring follows and settles by physics — no timeline, no frames driven by hand.</p>
+<p>LIVE · EDITABLE</p>
+<p>Revert</p>
+<p>06</p>
+<p>Declared states, not manual wiring.</p>
+<p>A State is a named bundle of overrides — a whole configuration you can apply as one. The mode is the unit of change, not each property by hand.</p>
+<p>Click to flip one boolean. The card’s height, its color, and an extra line of text swap in together — and revert the instant the mode turns off.</p>
+<p>LIVE · EDITABLE</p>
+<p>Revert</p>
+<p>The web’s last generation of frameworks was built on the browser’s document model.
+
+Declare abstracts the renderer away — you declare what the UI is, and the runtime draws it.</p>
+<p>The same program paints to the DOM or to a canvas today, WebGL next, with no rewrite. And you never touch the render layer — no DOM to poke, no paint loop to run — so the code stays small: what you write is the interface itself, not the machinery that shows it.</p>
+<p>Built in</p>
+<p>Declare</p>
+<p>·</p>
+<p>View &amp; Edit Source</p>
+<p>Declare</p>
+<p>Why Declare</p>
+<p>Declare Calendar</p>
+<p>Docs</p>
+<p>GitHub</p>
+</div><!--declare-static:end--></div>
 <script type="module">
   // The homepage IS a Declare app. On a static host (GitHub Pages) boot-uniform.js
   // installs the service worker (which turns every other .declare into a run page —
@@ -32,12 +105,12 @@
   //   1. PREWARM — a committed precompiled artifact (bundles/cache/) that still
   //      validates against the deployed source renders with NO compiler at all;
   //   2. FAST PATH — else a cached in-browser compile of the unchanged source;
-  //   3. SLOW PATH — else download the in-browser compiler, compile site.declare,
+  //   3. SLOW PATH — else download the in-browser compiler, compile homepage.declare,
   //      render, and cache the result.
   //
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
   import boot from "./bundles/declare-boot.js";
-  boot({ main: "./examples/site/site.declare", demos: ["components", "reactivity", "spring", "states"] });
+  boot({ main: "./examples/homepage/homepage.declare", demos: ["components", "reactivity", "spring", "states"] });
 </script>

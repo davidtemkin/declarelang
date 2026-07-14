@@ -45,7 +45,7 @@ const CACHE_DIR = path.join(ROOT, "bundles", "cache");
 // selects which artifacts to emit: "run" (the compiled program) and/or "seo" (the
 // static-extraction document, for content pages crawlers read).
 const PROGRAMS = [
-  { main: "examples/site/site.declare", props: { render: "dom" }, kinds: ["run", "seo"] },
+  { main: "examples/homepage/homepage.declare", props: { render: "dom" }, kinds: ["run", "seo"] },
   { main: "examples/calendar/calendar.declare", props: { render: "dom" }, kinds: ["run"] },
   { main: "examples/docs/docs.declare", props: { render: "dom" }, kinds: ["run", "seo"] },
 ];

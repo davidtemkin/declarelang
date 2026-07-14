@@ -58,8 +58,8 @@ await test("prewarmKey is deterministic and separates main / kind / props", () =
 });
 
 await test("relativize strips the ROOT prefix to a deploy-relative main path", () => {
-  const abs = new URL("examples/site/site.declare", ROOT_URL).href;
-  assert.equal(relativize(abs, ROOT_URL), "examples/site/site.declare");
+  const abs = new URL("examples/homepage/homepage.declare", ROOT_URL).href;
+  assert.equal(relativize(abs, ROOT_URL), "examples/homepage/homepage.declare");
   assert.equal(relativize("https://other.example/x.declare", ROOT_URL), "https://other.example/x.declare");
 });
 
@@ -101,7 +101,7 @@ await test("a deleted dependency busts the artifact", async () => {
 });
 
 await test("the identity guard rejects a mismatched artifact (fnv1a collision defense)", async () => {
-  const relMain = "examples/site/site.declare";
+  const relMain = "examples/homepage/homepage.declare";
   const props = { render: "dom" };
   const forged = JSON.stringify({ kind: "run", main: "examples/other/x.declare", props, program: "x", closure: { entries: [], props } });
   const r = await loadPrewarm({

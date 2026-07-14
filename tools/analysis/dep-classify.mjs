@@ -52,7 +52,7 @@ const DEFAULT_CORPUS = [
   "examples/calendar/calendar.declare",
   "examples/neocalendar/neocalendar.declare",
   "examples/neoweather/neoweather.declare",
-  "examples/site/site.declare",
+  "examples/homepage/homepage.declare",
   "examples/docs/docs.declare",
 ];
 

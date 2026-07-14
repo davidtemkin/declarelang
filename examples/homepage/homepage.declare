@@ -263,7 +263,7 @@ class FullPageEditor extends View [ width = { app.width }, height = { app.height
     bar: View [ width = { parent.width }, height = 44, fill = { theme.surface },
         edge: View [ y = 43, width = { parent.width }, height = 1, fill = { theme.line } ],
         name: Text [ x = 22, y = 14, fontFamily = [Mono, "monospace"], fontSize = 13, fontWeight = semibold,
-            textColor = { theme.text }, text = "site.declare" ],
+            textColor = { theme.text }, text = "homepage.declare" ],
         hint: Text [ x = 132, y = 15, fontSize = 12, italic = true, textColor = { theme.dim },
             text = "the whole page — edit and it re-renders live" ],
         close: View [ y = 8, height = 28, cornerRadius = 8, stroke = { stroke(1, theme.line) },
@@ -422,7 +422,7 @@ App [ theme = { ({
                     // own source — editor, diagnostics, and the running page
 
                     Button [ width = 184, label = "Edit this page →", primary = false,
-                        onClick() { app.navigate = "examples/site/site.declare?view=edit" },
+                        onClick() { app.navigate = "examples/homepage/homepage.declare?view=edit" },
                         ],
                     ],
                 learn: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
@@ -615,7 +615,7 @@ App [ theme = { ({
                         onMouseOut()  { hovered = false; pressed = false },
                         onMouseDown() { pressed = true },
                         onMouseUp()   { pressed = false },
-                        onClick()     { app.navigate = "examples/site/site.declare?view=edit" },
+                        onClick()     { app.navigate = "examples/homepage/homepage.declare?view=edit" },
                         text = "View & Edit Source",
                         ],
                     ],

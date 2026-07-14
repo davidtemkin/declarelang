@@ -146,7 +146,7 @@ test("aggregation over DATA is fine (not node) — no error", () => {
 // ── B. corpus: every real app extracts with zero residue ──
 console.log("─ B. corpus: 0 residue across all apps ─");
 test("all five apps: 700 constraints, 0 residue errors", () => {
-  const apps = ["calendar/calendar", "neocalendar/neocalendar", "neoweather/neoweather", "site/site", "docs/docs"];
+  const apps = ["calendar/calendar", "neocalendar/neocalendar", "neoweather/neoweather", "homepage/homepage", "docs/docs"];
   let tot = 0, errs = 0;
   for (const a of apps) {
     const r = extract(readFileSync(resolve(HERE, `../examples/${a}.declare`), "utf8"));
