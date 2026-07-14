@@ -25,8 +25,11 @@
 <meta name="twitter:image" content="https://davidtemkin.github.io/declarelang/assets/og-image.png">
 <style>html,body{margin:0;padding:0;background:#0B141B}</style>
 <!-- The host holds the homepage's static extraction (baked by tools/bake-homepage-seo.mjs
-     — the SEO exception for the root page); host-client.js removes #declare-static the
-     moment the live app mounts, so a user only ever sees the running app. -->
+     — the SEO exception for the root page). A crawler that doesn't run JS reads this
+     content in the served HTML; the SYNCHRONOUS script just below removes it BEFORE the
+     first paint, so a human never flashes the bare extraction and a JS crawler settles on
+     the same running app. Nothing is CSS-hidden — a progressive-enhancement swap (SSR-style
+     hydration), not a cloaking trick. See browser/serve-core.js for the full rationale. -->
 <div id="host"><!--declare-static:begin--><div id="declare-static">
 <p>Declare</p>
 <p>is the UI language for the AI era.</p>
@@ -98,6 +101,7 @@ Declare abstracts the renderer away — you declare what the UI is, and the runt
 <p>Docs</p>
 <p>GitHub</p>
 </div><!--declare-static:end--></div>
+<script>document.getElementById("declare-static")?.remove()</script>
 <script type="module">
   // The homepage IS a Declare app. On a static host (GitHub Pages) boot-uniform.js
   // installs the service worker (which turns every other .declare into a run page —

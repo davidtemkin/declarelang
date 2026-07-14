@@ -46,6 +46,26 @@ await test("runWrapper embeds a staticBlock (the server's ?seo bake) inside the 
   assert.match(html, /<div id="host"><div id="declare-static">Y<\/div><\/div>/);
 });
 
+// A baked crawler block must not FLASH for a human, yet must not read as cloaking to a
+// crawler. The fix: remove it in a SYNCHRONOUS pre-paint script — never CSS-hide it.
+await test("a staticBlock is cleared by a synchronous pre-paint script, before the module boot", () => {
+  const html = runWrapper({ name: "x", bootUrl: "/b.js", staticBlock: '<div id="declare-static">Y</div>' });
+  // A classic (non-module) script — runs during parse, before first paint — that REMOVES
+  // the node. No display:none / visibility:hidden / opacity:0 anywhere (the hidden-text
+  // signatures a crawler flags), so the content is present for non-JS crawlers and simply
+  // swapped for the app for everyone who runs JS.
+  assert.match(html, /<script>document\.getElementById\("declare-static"\)\?\.remove\(\)<\/script>/);
+  const clearAt = html.indexOf('getElementById("declare-static")');
+  const moduleAt = html.indexOf('<script type="module">');
+  assert.ok(clearAt > -1 && clearAt < moduleAt, "the remover precedes the async module boot");
+  assert.doesNotMatch(html, /display\s*:\s*none|visibility\s*:\s*hidden|opacity\s*:\s*0/i);
+});
+
+await test("no staticBlock → no clear script (nothing baked, nothing to remove)", () => {
+  const html = runWrapper({ name: "x", bootUrl: "/b.js" });
+  assert.doesNotMatch(html, /declare-static/);
+});
+
 await test("runWrapper escapes the title — no injection via the program name", () => {
   const html = runWrapper({ name: "<script>x</script>", bootUrl: "/b.js" });
   assert.doesNotMatch(html, /<title><script>/);

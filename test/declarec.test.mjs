@@ -130,6 +130,13 @@ await test("--seo embeds the extracted document in the host; the entry clears it
   assert.ok(out.ok, out.report);
   const html = out.files.find((f) => f.name === "index.html").contents;
   assert.ok(html.includes('<div id="declare-static">'), "the static block rides the host element");
+  // A SYNCHRONOUS classic script removes the block before first paint (no flash of bare
+  // extraction text), ahead of the async app module — and it REMOVES the node rather than
+  // CSS-hiding it, so no cloaking / hidden-text signal is ever present in the served HTML.
+  assert.ok(html.includes('<script>document.getElementById("declare-static")?.remove()</script>'),
+    "a pre-paint clear script removes the crawler block");
+  assert.ok(html.indexOf("remove()") < html.indexOf('type="module"'), "the remover precedes the app module");
+  assert.ok(!/display\s*:\s*none|visibility\s*:\s*hidden|opacity\s*:\s*0/i.test(html), "the block is removed, never CSS-hidden");
   assert.ok(html.includes("<h1>Shipped</h1>"), "markdown serialized by class semantics");
   assert.ok(html.includes("<p>n = 2</p>"), "computed content EVALUATED at build time (headless settle)");
   const appJs = out.files.find((f) => f.name.startsWith("app.")).contents;

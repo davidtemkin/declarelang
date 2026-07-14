@@ -136,11 +136,20 @@ export async function buildProduction(source, opts = {}) {
     if (h) staticBlock = `<div id="declare-static">\n${h}\n</div>`;
   }
 
+  // A crawler block (--seo) is removed BEFORE first paint by a synchronous classic
+  // script — so a human never flashes the bare extraction while the async app module
+  // loads, while a non-JS crawler still reads it in the served HTML. Not CSS-hidden:
+  // same content for every agent, presentation swaps at mount (progressive enhancement,
+  // not cloaking). See browser/serve-core.js for the full rationale.
+  const clearStatic = staticBlock
+    ? `<script>document.getElementById("declare-static")?.remove()</script>\n`
+    : "";
   const html =
     `<!doctype html><meta charset="utf-8"><title>${name}</title>\n` +
     `<meta name="viewport" content="width=device-width, initial-scale=1">\n` +
     `<style>html,body{margin:0;padding:0;height:100%}</style>\n` +
     `<div id="host">${staticBlock}</div>\n` +
+    clearStatic +
     `<script type="module" src="./${appName}"></script>\n`;
 
   const sizes = {

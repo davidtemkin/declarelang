@@ -55,12 +55,25 @@ export function runWrapper({ name, bootUrl, staticBlock = "", iconBase = null })
     ? `<link rel="icon" type="image/svg+xml" href="${escapeHtml(iconBase + "favicon.svg")}">\n` +
       `<link rel="icon" type="image/png" sizes="256x256" href="${escapeHtml(iconBase + "favicon.png")}">\n`
     : "";
+  // When a crawler block is baked in (the ?seo flag), a SYNCHRONOUS classic script
+  // immediately after the host removes it BEFORE the first paint — so a human never
+  // flashes the bare extraction text while the async app module loads. This is NOT
+  // hiding: nothing is ever CSS-hidden (display:none / off-screen / opacity:0 — the
+  // signatures a crawler reads as cloaking). A non-JS crawler never runs this script,
+  // so it reads the block in the served HTML; a JS crawler runs the app and settles on
+  // the SAME mounted DOM a user sees. Same content for every agent — only the
+  // presentation swaps, exactly like SSR hydration replacing server markup. And it
+  // fails SAFE: if it somehow ran after paint, the worst case is the old flash, never a
+  // hidden-text signal. (host-client.js repeats the removal at mount as a fallback.)
+  const clearStatic = staticBlock
+    ? `\n<script>document.getElementById("declare-static")?.remove()</script>`
+    : "";
   return `<!doctype html><meta charset="utf-8">
 <title>${escapeHtml(name)} · Declare</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark light">
 ${icons}<style>html,body{margin:0;padding:0;background:#0B141B}</style>
-<div id="host">${staticBlock}</div>
+<div id="host">${staticBlock}</div>${clearStatic}
 <script type="module">
   import boot from ${JSON.stringify(bootUrl)};
   const q = new URLSearchParams(location.search);

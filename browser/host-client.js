@@ -37,10 +37,11 @@ const DISTRO_ROOT = new URL("../", import.meta.url);
  */
 export async function bootHost(cfg) {
   const host = document.getElementById("host");
-  // The `?seo` flag's embedded static document (design/capabilities.md §5):
-  // content for crawlers that never run this script. We ARE running — the
-  // real app replaces it, so drop it before mount. One removal site, since
-  // every render path funnels through here.
+  // The `?seo` flag's embedded static document (design/capabilities.md §5): content
+  // for crawlers that never run any script. The page already removes #declare-static
+  // in a SYNCHRONOUS pre-paint script (serve-core.js / index.html / declarec) so a
+  // human never flashes the bare text; this second removal is the belt-and-braces for
+  // any boot path that didn't emit that pre-paint remover. Null-safe + idempotent.
   document.getElementById("declare-static")?.remove();
   const Backend = BACKENDS[cfg.backend] ?? DomBackend;
   const app = (window.__app = await renderAsync(cfg.source, host, new Backend(), { deps: cfg.deps }));
