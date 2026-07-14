@@ -23,6 +23,15 @@
 
 const DISTRO = new URL("..", import.meta.url); // web/ → the distro root
 
+// Stage instrumentation — the same `declare:<stage>` measures boot-uniform
+// writes, so the client's internals (worker spawn + bundle import; library
+// prefetch) land on the one performance-timeline waterfall.
+const perfStage = (name) => {
+  const startMark = `declare:${name}:start`;
+  try { performance.mark(startMark); } catch { /* no timeline (non-window host) */ }
+  return { end() { try { performance.measure(`declare:${name}`, startMark); } catch {} } };
+};
+
 // ── the compiler, worker-first ───────────────────────────────────────────────
 
 let clientPromise = null;
@@ -32,13 +41,19 @@ export function loadCompiler() {
 
 async function create() {
   if (typeof Worker === "function") {
+    const s = perfStage("compiler-worker");                       // spawn + module import (the ~1 MB gz bundle) + ping
     try {
-      return await workerClient();
+      const client = await workerClient();
+      s.end();
+      return client;
     } catch {
       /* fall through to inline */
     }
   }
-  return inlineClient();
+  const s = perfStage("compiler-inline");
+  const client = await inlineClient();
+  s.end();
+  return client;
 }
 
 function workerClient() {
@@ -103,7 +118,11 @@ async function inlineClient() {
 
 let libraryPromise = null;
 export function loadLibraryOnce() {
-  return (libraryPromise ??= loadLibrary());
+  if (libraryPromise === null) {
+    const s = perfStage("library");
+    libraryPromise = loadLibrary().then((lib) => { s.end(); return lib; });
+  }
+  return libraryPromise;
 }
 
 // The manifest (bare tag → file) plus EVERY src file listed in

@@ -33,6 +33,35 @@ import { fnv1a, isUpToDate, lookupKey } from "../compiler/dist/closure.js";
 
 const ROOT = new URL("../", import.meta.url);
 
+// ── Stage instrumentation (always on — performance.mark/measure is ~free) ────
+// Every boot stage lands on the PERFORMANCE TIMELINE as a `declare:<stage>`
+// measure (startTime is relative to navigation start, so overlapping stages —
+// the compiler load and the source fetch run in parallel — read as a real
+// waterfall in devtools or from a harness). `window.__declarePerf` carries the
+// summary: { stages, path, completed } and a `done` promise that resolves at
+// the first PAINTED frame after render — the number everything leads to.
+const perfStage = (name) => {
+  const startMark = `declare:${name}:start`;
+  performance.mark(startMark);
+  return {
+    end() {
+      try { performance.measure(`declare:${name}`, startMark); } catch { /* timeline API absent */ }
+    },
+  };
+};
+const perfDone = (() => {
+  let signal;
+  const done = new Promise((r) => { signal = r; });
+  window.__declarePerf = { done, completed: false };
+  return (path) => {
+    const stages = performance.getEntriesByType("measure")
+      .filter((m) => m.name.startsWith("declare:"))
+      .map((m) => ({ stage: m.name.slice(8), start: +m.startTime.toFixed(1), dur: +m.duration.toFixed(1) }));
+    Object.assign(window.__declarePerf, { stages, path, completed: true });
+    signal(window.__declarePerf);
+  };
+})();
+
 // Platform version the commit hook stamps. Absent (un-stamped dev tree) → "dev":
 // the closure check alone still gates freshness. Salts the key + names the bucket.
 async function platformBuild() {
@@ -115,19 +144,28 @@ export default async function boot(cfg) {
   const mainId = mainUrl.href;
   const mainDir = new URL(".", mainUrl);                          // app-relative assets (demos) live here
   const props = { backend: cfg.backend === "CanvasBackend" ? "canvas" : "dom" };
+  const sVersion = perfStage("version");
   const build = await platformBuild();
+  sVersion.end();
   pruneBuckets(build);
   const key = lookupKey(mainId, props, build);
 
   let program = null, deps = undefined, pageSource = null, path = "slow", toCache = null;
 
   // FAST PATH — a cached compile whose closure still validates.
+  const sCache = perfStage("cache-read");
   const cached = await readCache(build, key);
-  if (cached && (await closureFresh(cached.closure))) {
-    program = cached.program;
-    deps = cached.deps;                                           // the compiler's static-constraint deps, cached alongside
-    pageSource = cached.source;
-    path = "fast";
+  sCache.end();
+  if (cached) {
+    const sClosure = perfStage("closure-check");
+    const fresh = await closureFresh(cached.closure);
+    sClosure.end();
+    if (fresh) {
+      program = cached.program;
+      deps = cached.deps;                                         // the compiler's static-constraint deps, cached alongside
+      pageSource = cached.source;
+      path = "fast";
+    }
   }
 
   // SLOW PATH — compile in-browser and cache the result + its closure. The
@@ -137,18 +175,23 @@ export default async function boot(cfg) {
   // (ensureLibrary), so every compile here and below resolves bare tags with
   // no per-call ceremony.
   if (program === null) {
-    const [client, res] = await Promise.all([
-      loadCompiler().then(ensureLibrary),
-      fetch(mainUrl, { cache: "no-cache" }),
+    const sCompiler = perfStage("compiler+library");
+    const sSource = perfStage("source-fetch");
+    const [client, { res, source }] = await Promise.all([
+      loadCompiler().then(ensureLibrary).then((c) => { sCompiler.end(); return c; }),
+      fetch(mainUrl, { cache: "no-cache" })
+        .then(async (r) => ({ res: r, source: await r.text() }))
+        .then((x) => { sSource.end(); return x; }),
     ]);
-    const source = await res.text();
     // compileTracked records the REAL closure: the main source plus every file
     // the include host served (a multi-file app's `include`s invalidate exactly
     // like the main file). Library reads stay OUT of it — they ship with the
     // distro and are gated by BUILD_ID, like OL5's LFC. The main entry carries
     // the RESPONSE's validators (ETag/Last-Modified + content hash), so the
     // cheap headers-only re-probe can prove freshness.
+    const sCompile = perfStage("compile");
     const out = await client.compileTracked(source, { mainId, mainValidator: validatorFromResponse(res, source), props });
+    sCompile.end();
     if (!out.source) {
       // The compile's own rendered report — the ONE renderer's output (code,
       // line/col, hint), identical bytes to what the CLI and server print.
@@ -181,17 +224,26 @@ export default async function boot(cfg) {
   // previews are fetched on demand as the reader scrolls to each page).
   const seeds = { __page__: pageSource };
   if (Array.isArray(cfg.demos) && cfg.demos.length) {
+    const sDemos = perfStage("demo-seeds");
     await Promise.all(cfg.demos.map(async (name) => {
       try { seeds[name] = await (await fetch(new URL("demos/" + name + ".declare", mainDir), { cache: "no-cache" })).text(); } catch {}
     }));
+    sDemos.end();
   }
   const demoBase = new URL("demos/", mainDir).href;              // where mountPreviews fetches unseeded previews
 
+  const sRender = perfStage("render");
   const app = await bootHost({                                     // render first — nothing below delays first paint
     source: program, deps, backend: cfg.backend,
     pageWeight: cfg.pageWeight, sourceLines: cfg.sourceLines,
     seeds, demoBase, compile: liveCompile,
   });
+  sRender.end();
+  // The number every stage leads to: the first frame the compositor PAINTS
+  // after render (double-rAF — the second callback runs after the first
+  // frame's paint has been committed).
+  const sFrame = perfStage("first-frame");
+  requestAnimationFrame(() => requestAnimationFrame(() => { sFrame.end(); perfDone(path); }));
   if (toCache) await writeCache(build, key, toCache);              // durable before we signal readiness
   window.__declareBoot = { path, build, key };                     // freshness/debug signal (also aids the SW)
   loadCompiler().then(ensureLibrary).catch(() => {});              // warm the compiler + library for the first live edit
