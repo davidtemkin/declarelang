@@ -55,6 +55,7 @@ const flags = {
   states: argVal("states"),
   baselines: argVal("baselines"),
   bless: args.includes("--bless"),
+  wrap: args.includes("--wrap"),
 };
 if (!file) {
   console.error("usage: node tools/verify.mjs <app.declare> [--no-typecheck] [--json] [--rung=N]");
@@ -68,6 +69,25 @@ try {
 } catch (e) {
   console.error(`verify: cannot read ${file}: ${e.message}`);
   process.exit(2);
+}
+
+// Component-probe mode: a bare component-library file (classes, no `App` root)
+// isn't a runnable program, so it can't climb the ladder on its own — the known
+// gap that let library/src/*.declare drift unverified. `--wrap` synthesizes a
+// minimal probe App instantiating each top-level `class … extends` in the file,
+// so a component's own source compiles, typechecks, and boots standalone. (An
+// abstract base or a child-requiring component may not boot from an empty tag —
+// that's rung 4's honest report; rungs 1–3 are the real win here.)
+let probeNote = null;
+if (flags.wrap && !/^\s*App\s*\[/m.test(source)) {
+  const classes = [...source.matchAll(/^\s*class\s+([A-Za-z_]\w*)\s+extends\b/gm)].map((m) => m[1]);
+  if (classes.length === 0) {
+    console.error(`verify --wrap: no top-level 'class … extends' found in ${file}`);
+    process.exit(2);
+  }
+  const probe = classes.map((c) => `    ${c} [ ],`).join("\n");
+  source = `${source}\n\nApp [ width = 480, height = 320,\n${probe}\n    ]\n`;
+  probeNote = `component probe: App wrapping ${classes.join(", ")}`;
 }
 
 const out = compile(source, { typecheck: flags.typecheck });
@@ -197,6 +217,7 @@ if (flags.json) {
     rungFailed: failedRung,
     builtThrough: BUILT_THROUGH,
     typecheck: flags.typecheck ? "on" : "off (--no-typecheck)",
+    probe: probeNote,
     stats: { constraints: out.deps?.length ?? 0, bootNodes: boot.nodes, bootMs: boot.ms },
     boot: boot.ran ? { ok: boot.ok, errors: boot.errors, notes: boot.notes } : null,
     behavior: behave.ran ? { ok: behave.ok, failures: behave.failures, steps: behave.log } : null,
@@ -225,6 +246,7 @@ if (flags.json) {
       else for (const d of failing.filter((d) => rungOf(d.phase) === r.n)) console.log(`       ${show(d)}`);
     }
   }
+  if (probeNote) console.log(`  note ${probeNote}`);
   for (const w of warnings) console.log(`  warn ${show(w)}`);
   for (const n of boot.notes) console.log(`  note ${n}`);
   if (failedRung === null) {

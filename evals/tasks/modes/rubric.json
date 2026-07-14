@@ -1,0 +1,11 @@
+{
+  "note": "Falsifiable visual questions for the future multimodal judge (verify-and-evals.md §2.5, §3.5). Unused until the judge lands (phase 6/7). Motion is checked mechanically at rung 5; these cover static appearance.",
+  "states": ["general", "advanced"],
+  "questions": [
+    { "state": "general", "ask": "Is exactly one of the three segments visually emphasized (the selected one)?", "expect": true },
+    { "state": "general", "ask": "Is the indicator positioned behind the 'General' segment?", "expect": true },
+    { "state": "general", "ask": "Is any segment label clipped or overflowing its segment?", "expect": false },
+    { "state": "advanced", "ask": "Is the indicator positioned behind the 'Advanced' segment?", "expect": true },
+    { "state": "advanced", "ask": "Does the content area's text refer to the Advanced pane?", "expect": true }
+  ]
+}

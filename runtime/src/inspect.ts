@@ -39,6 +39,39 @@ export interface InspectNode {
 
 const isView = (n: Node): n is View => n instanceof View;
 
+/** Make an attribute value JSON-safe for transport (the InspectNode is API,
+ *  §2.2 — it crosses the CDP boundary to verify and any agent). A raw own-value
+ *  can be a function, a class instance, or a datapath CURSOR whose `.data`
+ *  cycles back through the tree — puppeteer's structured clone silently yields
+ *  `undefined` for the whole node on a cycle, which broke driving any
+ *  data-bound (replicated) view. So we reduce to primitives, plain arrays, and
+ *  plain objects (depth- and cycle-guarded); anything else becomes a short tag. */
+function safeAttr(v: unknown, depth = 0, seen = new Set<unknown>()): unknown {
+  if (v === null || v === undefined) return null;
+  const t = typeof v;
+  if (t === "string" || t === "boolean") return v;
+  if (t === "number") return Number.isFinite(v as number) ? v : String(v);
+  if (t === "function") return "«fn»";
+  if (t !== "object") return String(v);
+  if (seen.has(v) || depth >= 4) return "«…»";
+  seen.add(v);
+  try {
+    if (Array.isArray(v)) return v.slice(0, 64).map((e) => safeAttr(e, depth + 1, seen));
+    const proto = Object.getPrototypeOf(v);
+    // A class instance (Node, Cursor, Stroke, …) — not a plain object literal.
+    if (proto !== Object.prototype && proto !== null) {
+      const path = (v as { path?: unknown }).path;
+      const name = (v as object).constructor?.name ?? "object";
+      return Array.isArray(path) ? `«${name} ${path.join(".")}»` : `«${name}»`;
+    }
+    const out: Record<string, unknown> = {};
+    for (const k of Object.keys(v as object)) out[k] = safeAttr((v as Record<string, unknown>)[k], depth + 1, seen);
+    return out;
+  } finally {
+    seen.delete(v);
+  }
+}
+
 /** The member name a child is reachable by — reverse-looked-up on its parent
  *  and its classroot (named children are installed as properties on both
  *  scopes' owners, depending on where they were declared). */
@@ -67,7 +100,7 @@ export function inspect(node: Node, path = "app"): InspectNode {
     x: v?.x ?? 0, y: v?.y ?? 0, width: v?.width ?? 0, height: v?.height ?? 0,
     rootX, rootY,
     visible: v?.visible ?? true,
-    attrs: ownValues(node),
+    attrs: safeAttr(ownValues(node)) as Record<string, unknown>,
     children: node.children.map((c, i) => {
       const childName = nameOf(c);
       return inspect(c, `${path}.${childName ?? i}`);
@@ -121,7 +154,7 @@ export function explain(node: Node, attr: string): Provenance {
   }
   return {
     attr,
-    value: (node as unknown as Record<string, unknown>)[attr],
+    value: safeAttr((node as unknown as Record<string, unknown>)[attr]),
     set: isSet(node, attr),
     constraint: owner !== null
       ? { label: owner.label, static: owner.isStatic, deps: owner.wiredPaths }

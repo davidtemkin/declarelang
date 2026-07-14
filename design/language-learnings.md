@@ -269,3 +269,62 @@ from the use-site) — one more vote for warning on class-body reads of App-only
 - `cornerRadius > 0` rasterizes a view's box to a child `<canvas>` (no CSS
   `border-radius`/`background`) — fine, but surprising when introspecting/testing
   (selectors keyed on CSS background/border-radius miss these views).
+
+## 2026-07-14 — E-series (eval-driven findings)
+
+The **E-series** is the eval triage register (design/verify-and-evals.md §3.6):
+failures a model *actually* made writing Declare from the brief alone, each with an
+escalation attempt (docs → diagnostic → language). Only entries with **≥2 models and
+≥2 cycles** of evidence earn a language-change discussion — the mutable surfaces
+(brief, diagnostics) absorb the churn first; the language stays stable.
+
+**Run 0** (`first-claude-oneshot`, 2026-07-14): 3 shakedown tasks, one-shot, Sonnet
+(the canary). 1/3 green (modes ✓; compose, collection ✗ at R1).
+
+- **E-1 — CSS border/shadow instinct** (interference-ghost). *compose*, Sonnet.
+  The model wrote `borderWidth = 1, borderColor = #E2E5E9` on Views — CSS attributes
+  that don't exist — 6× in one program. Root cause: the brief (`declare-for-llms.md`)
+  **never showed `stroke()`** and never mentioned borders, yet a task asking for "a
+  subtle border" is routine. TWO gaps in one:
+  - *docs gap* (escalation 1, **DONE + CONFIRMED**): added mistake §10.11 naming the
+    fix (`stroke = { stroke(1, theme.line) }`, shadow = `shadow(…)`). Reran compose
+    one-shot (`compose-after-docsfix`): the model used `stroke` 3× and **zero** border
+    attributes — the interference-ghost is gone. The docs→rerun loop provably closed
+    this defect. (It then failed one layer deeper, E-3 — that's normal triage peeling.)
+  - *diagnostic gap* (escalation 2, **OPEN**): `NEO2000 "View has no attribute
+    'borderWidth'"` does not name the Declare equivalent. Per diagnostics.md §4 a
+    known-CSS-attribute miss should did-you-mean the real slot (`borderWidth →
+    stroke`, `boxShadow → shadow`, `className/style → attributes`). A small,
+    high-value did-you-mean table keyed on the common CSS names. Candidate compiler
+    change once a 2nd model shows the same instinct.
+
+- **E-2 — one-shot has no recovery from well-diagnosed seam/scope errors** (not a
+  language gap; a track observation). *collection*, Sonnet. Two errors, both with
+  GOOD fix-naming diagnostics: naming a replicated child (`row: … datapath = :rows[]`
+  → "a replicated child cannot be named … reach the instances through their data")
+  and `<->` on a non-editor (`Checkbox.checked <-> :done` → "the two-way arrow …
+  Checkbox is not an editor"). These are exactly the errors the **iterated track**
+  should self-recover from — the diagnostics already name the repair. The one-shot
+  failure measures nothing wrong with the language; it measures the value of the
+  loop. Action: no docs/diagnostic/language change; use as a self-recovery datapoint
+  when the iterated track runs.
+
+Method notes for future cycles: Sonnet burned 62K tokens / 245s on collection (heavy
+thrash) vs. 45K / 40s on the greens — token/wall time is itself a difficulty signal
+worth watching. Building the three tasks *also* surfaced two toolchain bugs before any
+model ran (scaffold `Dataset.insert/removeAt/move`; `inspect()` cursor-cycle
+serialization) — logged in verify-and-evals.md's status, taxonomy label `toolchain`.
+
+- **E-3 — responsive layout wants to constrain `layout.axis`, which isn't surface**
+  (language friction). *compose*, Sonnet (surfaced on the post-docs-fix rerun). Asked
+  for a wide→narrow reflow, the model wrote `SimpleLayout [ axis = { app.narrow ? y : x } ]`
+  — the natural instinct: responsiveness = a constrained axis. Today a layout attribute
+  takes a literal (`NEO2000 "a layout attribute takes a literal — constraining it is
+  not yet surface (swap the whole layout by assignment instead)"`). The diagnostic
+  names a workaround, but the workaround (two layout objects swapped by assignment, or
+  the reference's per-child `x/y` constraints on `app.width`) is clunky for what is a
+  first-class need. NOT escalated to a language change yet (1 model, 1 cycle — the bar
+  is ≥2/≥2). Candidates when evidence accrues: (a) make `axis` (and spacing) a
+  constrainable slot; (b) a `WrappingLayout`-based responsive idiom shown in the brief;
+  (c) leave it, and teach the per-child-constraint idiom in the brief. Watch whether
+  the *iterated* track self-recovers from the diagnostic's named workaround.

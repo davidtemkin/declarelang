@@ -234,6 +234,7 @@ Your training will reach for these. None of them exist in Declare:
 8. **Text that won't wrap / wraps unexpectedly.** Give wrapping text a `width` and `wrap = true`; pin labels with `wrap = false`.
 9. **Loose JSON in a `Dataset` body.** The `Dataset { … }` body is strict JSON — quoted keys, no trailing commas. (TypeScript-style object literals belong inside `{ }` constraints, not dataset bodies.)
 10. **Naming a replicated child.** A node with `datapath = :arr[]` becomes *many* instances — a name can only refer to one, so replicated children are anonymous. Reach them through their data, not a reference.
+11. **CSS border / shadow attributes.** `borderWidth`, `borderColor`, `boxShadow`, `outline` do not exist. A border is a **stroke**: `stroke = { stroke(1, theme.line) }` (width, color — a `{ }` value, so the color is `0x…` or a theme role, never `#…`). A shadow is `shadow = { shadow(…) }`. Fill is `fill`, corner rounding is `cornerRadius`.
 
 ## 11. Style canon (the formatter's rules, in brief)
 

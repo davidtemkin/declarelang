@@ -1,0 +1,66 @@
+/*
+# Task list
+
+The reference solution for the `collection` eval task. The tasks are a `Dataset`;
+`datapath = :rows[]` replicates one `Row` per record (keyed by id, so edits
+reconcile in place); adding is an `insert`, completing is a `set`, and the
+"remaining" count is a tracked read that recomputes on any mutation.
+*/
+
+class Row extends View [ height = 34, width = { parent.width }, cornerRadius = 8,
+    id:    string  = "",
+    label: string  = "",
+    done:  boolean = false,
+    fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+    onClick() { app.toggle(this.id) },
+    t: Text [ x = 12, y = 9, text = { label },
+        textColor = { done ? theme.textFaint : theme.text } ],
+    ]
+
+
+App [ width = 440, height = 520, fill = { theme.bg },
+
+    tasks: Dataset {
+        { "rows": [
+            { "id": "t1", "label": "Write the brief",   "done": true  },
+            { "id": "t2", "label": "Wire the harness",  "done": false },
+            { "id": "t3", "label": "Run the shakedown", "done": false } ] }
+        },
+
+    draft:  string = "",
+    nextId: number = 100,
+    remaining: number = { (app.tasks.read(["rows"]) ?? []).filter((r) => !r.done).length },
+
+    add() {
+        const text = app.draft.trim();
+        if (text === "") return;
+        const rows = app.tasks.read(["rows"]) ?? [];
+        app.tasks.insert("rows", rows.length, { id: "n" + app.nextId, label: text, done: false });
+        app.nextId = app.nextId + 1;
+        },
+
+    toggle(id) {
+        const rows = app.tasks.read(["rows"]) ?? [];
+        const i = rows.findIndex((r) => r.id === id);
+        if (i >= 0) app.tasks.set("rows." + i + ".done", !rows[i].done);
+        },
+
+    heading: Text [ x = 24, y = 20, fontSize = 20, fontWeight = semibold, textColor = { theme.text },
+        text = { `${app.remaining} remaining` } ],
+
+    entry: View [ x = 24, y = 58, width = 392, height = 34,
+        field: TextInput [ x = 0, y = 0, width = 300, height = 34, fill = { theme.surface },
+            stroke = { stroke(1, theme.line) }, textColor = { theme.text }, padding = 8,
+            placeholder = "Add a task…",
+            onInput() { app.draft = text },
+            ],
+        Button [ x = 312, y = 0, label = "Add", primary = true,
+            onClick() { app.add() },
+            ],
+        ],
+
+    list: View [ x = 24, y = 108, width = 392, datapath = { app.tasks.value },
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        Row [ datapath = :rows[], key = :id, id = :id, label = :label, done = :done ],
+        ],
+    ]

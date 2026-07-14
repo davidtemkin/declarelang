@@ -1,6 +1,17 @@
 # Verify & Evals — the machine-checkable loop
 
-**Status:** DESIGN, for discussion 2026-07-13. Nothing here is built; everything here is buildable on what exists. Companion to [`design-docs/designing-a-language-for-llms.md`](../design-docs/designing-a-language-for-llms.md) (the *why*, esp. §7 verifiability ladder and §9 evals) and [`diagnostics.md`](diagnostics.md) §4 (the diagnostic contract this system extends past the compiler).
+**Status:** BUILT through phase 5 (2026-07-14); phase 6 (the first real triage cycle across the model matrix) and phase 7 (steady-state tracks) remain. Companion to [`design-docs/designing-a-language-for-llms.md`](../design-docs/designing-a-language-for-llms.md) (the *why*, esp. §7 verifiability ladder and §9 evals) and [`diagnostics.md`](diagnostics.md) §4 (the diagnostic contract this system extends past the compiler).
+
+**What's built (2026-07-14):**
+- **Part A — `verify`** (`tools/verify.mjs` + `tools/verify-behave.mjs`): the whole ladder, rungs 1–6. Typecheck on by default (rung 3); headless boot under a synthetic measurer (rung 4); `drive`/`expect` over the `__declare` bridge with the driven clock (rung 5); named states vs. blessed baselines (rung 6). `runtime/src/inspect.ts` (inspect/find/explain/stats + clock) is the introspection substrate. `examples/controls/` is the full reference user (assert + states + baselines).
+- **Component-probe mode** (`verify --wrap`): a bare component-library file (classes, no `App`) is wrapped in a probe App so it climbs the ladder standalone — closes the "library/src/*.declare can't verify" gap. All 10 components clean through R4.
+- **CI truth-maintenance** (§2.10): `test/docs.test.mjs` (every doc fence compiles) and `test/verify-examples.test.mjs` (all 8 examples + 10 components clean through R4, per commit, no browser), both in `npm test`.
+- **Part B — the eval harness** (`evals/`): hermetic sandbox runner (`harness/run.mjs`), the solver seam (`reference` = zero-budget shakedown/CI, `claude` = `claude -p` with harness-owned verify loop), mechanical scorer over the ladder (`harness/score.mjs`), `metrics.jsonl` + generated `RESULTS.md`. Three shakedown tasks (compose, collection, modes), each with a canon reference that self-tests green through R5. See `evals/README.md`.
+- **Two toolchain fixes surfaced by building the tasks** (the harness earning its keep before running a model): the typecheck scaffold's `Dataset` type was missing `insert`/`removeAt`/`move` (any dataset-append program failed typecheck with a misleading "not a member"); and `inspect()`'s `attrs`/`explain().value` weren't transport-safe — a datapath cursor cycles through the tree, so puppeteer's clone yielded `undefined` and broke driving any data-bound view. Both fixed at the source (`compiler/src/scaffold.ts`, `runtime/src/inspect.ts`).
+
+**Rulings landed** (from the design's open questions §6): model matrix = frontier corpus-author + one small canary; evals in-repo with `runs/` gitignored; budgets set post-shakedown (deliberately deferred to observed data, not a blocker for phase 5).
+
+_Original design follows._
 
 **The one-sentence goal:** a single local command that tells an author — human or model — *how right* a Declare program is, as far up the ladder as machines can check; and a harness that measures how well models actually write Declare, so the brief, the diagnostics, and ultimately the language are tuned on evidence instead of taste.
 

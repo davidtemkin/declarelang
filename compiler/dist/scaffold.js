@@ -176,9 +176,15 @@ const LANGUAGE_API = {
         `  lookupStylesheet(name: string): any;`,
     ],
     Dataset: [
+        // The read + structural-mutation surface (runtime/src/data.ts). Paths are
+        // dot-strings, root-relative; array indices are ordinary segments. Edits
+        // drive bindings and replication through the ordinary settle.
         `  readonly value: any;`,
         `  read(path: readonly (string | number)[]): any;`,
         `  set(path: any, v: any): void;`,
+        `  insert(path: any, index: number, v: any): void;`,
+        `  removeAt(path: any, index: number): any;`,
+        `  move(path: any, from: number, to: number): void;`,
     ],
     DataSource: [
         `  readonly idle: boolean;`,

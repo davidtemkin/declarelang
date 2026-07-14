@@ -1,0 +1,45 @@
+/*
+# Dashboard shell
+
+The reference solution for the `compose` eval task: a header/cards/footer frame
+that reflows from a three-across row to a vertical stack below 640px. Fills its
+host (no fixed size), so the whole layout derives from `app.width` / `app.height`.
+*/
+
+App [ fill = { theme.bg },
+
+    title:  string  = "Dashboard",
+    narrow: boolean = { app.width < 640 },
+    cardW:  number  = { (app.width - 80) / 3 },       // three cards, two 16px gaps, 24px margins
+
+    header: View [ x = 0, y = 0, width = { app.width }, height = 56, fill = { theme.surface },
+        stroke = { stroke(1, theme.line) },
+        Text [ x = 24, y = 17, fontSize = 18, fontWeight = semibold, textColor = { theme.text },
+            text = { app.title } ],
+        ],
+
+    c0: View [ height = 120, cornerRadius = 10, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+        x = 24,
+        y = { app.narrow ? 80 : 80 },
+        width = { app.narrow ? app.width - 48 : app.cardW },
+        Text [ x = 16, y = 14, fontWeight = semibold, textColor = { theme.text }, text = "Visitors" ],
+        ],
+
+    c1: View [ height = 120, cornerRadius = 10, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+        x = { app.narrow ? 24 : 24 + app.cardW + 16 },
+        y = { app.narrow ? 216 : 80 },
+        width = { app.narrow ? app.width - 48 : app.cardW },
+        Text [ x = 16, y = 14, fontWeight = semibold, textColor = { theme.text }, text = "Revenue" ],
+        ],
+
+    c2: View [ height = 120, cornerRadius = 10, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+        x = { app.narrow ? 24 : 24 + 2 * (app.cardW + 16) },
+        y = { app.narrow ? 352 : 80 },
+        width = { app.narrow ? app.width - 48 : app.cardW },
+        Text [ x = 16, y = 14, fontWeight = semibold, textColor = { theme.text }, text = "Signups" ],
+        ],
+
+    footer: View [ x = 0, width = { app.width }, height = 40, fill = { theme.surface },
+        y = { app.height - 40 },
+        stroke = { stroke(1, theme.line) } ],
+    ]

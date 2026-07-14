@@ -1,0 +1,12 @@
+{
+  "note": "Falsifiable visual questions for the multimodal judge (verify-and-evals.md §2.5, §3.5). Unused until the judge lands (phase 6/7); authored now so the task is complete. Every question is yes/no and answerable from a screenshot alone — never 'does it look good'.",
+  "states": ["wide", "narrow"],
+  "questions": [
+    { "state": "wide", "ask": "Are exactly three cards visible in a single horizontal row?", "expect": true },
+    { "state": "wide", "ask": "Does any card overlap another card or the header/footer?", "expect": false },
+    { "state": "wide", "ask": "Is the header bar flush against the top edge and the footer flush against the bottom edge?", "expect": true },
+    { "state": "wide", "ask": "Is any text clipped, truncated, or overflowing its card?", "expect": false },
+    { "state": "narrow", "ask": "Are the three cards stacked vertically, each spanning nearly the full width?", "expect": true },
+    { "state": "narrow", "ask": "Do the header and footer still span the full width?", "expect": true }
+  ]
+}

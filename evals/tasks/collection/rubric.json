@@ -1,0 +1,11 @@
+{
+  "note": "Falsifiable visual questions for the future multimodal judge (verify-and-evals.md §2.5, §3.5). Unused until the judge lands (phase 6/7). Data binding + edits are checked mechanically at rung 5; these cover static appearance.",
+  "states": ["seed", "after-complete"],
+  "questions": [
+    { "state": "seed", "ask": "Are exactly three task rows visible in a vertical list?", "expect": true },
+    { "state": "seed", "ask": "Does the heading show a count of remaining (not-done) tasks?", "expect": true },
+    { "state": "seed", "ask": "Is a text field and an Add control visible above the list?", "expect": true },
+    { "state": "after-complete", "ask": "Is at least one task row visually distinct (dimmed/struck) as done?", "expect": true },
+    { "state": "after-complete", "ask": "Is any row's text clipped or overflowing its row?", "expect": false }
+  ]
+}

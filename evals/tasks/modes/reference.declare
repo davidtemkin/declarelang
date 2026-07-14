@@ -1,0 +1,44 @@
+/*
+# Segmented settings panel
+
+The reference solution for the `modes` eval task. `app.mode` (0/1/2) is the single
+source of exclusive selection; each `Seg` sets it on click and reads it to emphasize
+its label; a `Spring` glides the indicator pill's `x` toward the active segment; and
+the content line derives its text from `app.mode`.
+*/
+
+class Seg extends View [ y = 4, width = 114, height = 32, cornerRadius = 8,
+    choice: number = 0,
+    label:  string = "",
+    onClick() { app.mode = this.choice },
+    t: Text [ x = 0, y = 8, width = 114, textAlign = center, fontSize = 13, fontWeight = semibold,
+        text = { classroot.label },
+        textColor = { app.mode === classroot.choice ? theme.text : theme.textMuted } ],
+    ]
+
+
+App [ width = 480, height = 300, fill = { theme.bg },
+
+    mode: number = 0,
+
+    card: View [ x = 40, y = 46, width = 400, height = 208, cornerRadius = 14,
+        fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+
+        seg: View [ x = 20, y = 22, width = 360, height = 40, cornerRadius = 10, fill = { theme.control },
+
+            pill: View [ y = 4, height = 32, width = 116, cornerRadius = 8,
+                fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+                slide: Spring [ attribute = x, to = { 4 + app.mode * 118 }, stiffness = 220, damping = 24 ],
+                ],
+
+            Seg [ x = 4,   choice = 0, label = "General" ],
+            Seg [ x = 122, choice = 1, label = "Privacy" ],
+            Seg [ x = 240, choice = 2, label = "Advanced" ],
+            ],
+
+        body: Text [ x = 24, y = 92, width = 352, wrap = true, fontSize = 15, textColor = { theme.text },
+            text = { app.mode === 0 ? "General — your account and language."
+                   : app.mode === 1 ? "Privacy — who can see your activity."
+                   : "Advanced — developer and experimental options." } ],
+        ],
+    ]

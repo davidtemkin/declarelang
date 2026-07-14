@@ -11,6 +11,10 @@ node_modules/
 # porting scratch area (OL5 references + comparison goldens): local-only, deletable
 workshop/
 
+# eval run artifacts: per-run transcripts/sandboxes/metrics are local — only the
+# generated evals/RESULTS.md scoreboard (and the tasks) are committed.
+evals/runs/
+
 # misc
 *.log
 .DS_Store
