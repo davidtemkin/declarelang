@@ -6,6 +6,12 @@
 // program in the browser, and on every later load REUSE the cache unless a
 // dependency changed.
 //
+//   PREWARM    (optional, curated): a COMMITTED precompiled artifact shipped in
+//              the tree (bundles/cache/, tools/prewarm.mjs). Tried FIRST; if it
+//              validates against the deployed source (content-hash re-probe,
+//              prewarm-cache.js) it renders with NO compiler and NO recompile.
+//              Additive — never required, never trusted; a stale/absent artifact
+//              falls through to the tiers below.
 //   FAST PATH  (cache hit + closure still fresh): render the cached compiled
 //              program immediately — NO compiler download, NO recompile, one
 //              cheap conditional HEAD to revalidate. As fast as the old
@@ -29,6 +35,7 @@
 import { bootHost } from "./host-client.js";
 import { registerServiceWorker } from "./register-sw.js";
 import { loadCompiler, ensureLibrary } from "./compiler-client.js";
+import { loadPrewarm, relativize } from "./prewarm-cache.js";
 import { fnv1a, isUpToDate, lookupKey } from "../compiler/dist/closure.js";
 
 const ROOT = new URL("../", import.meta.url);
@@ -152,19 +159,39 @@ export default async function boot(cfg) {
 
   let program = null, deps = undefined, pageSource = null, path = "slow", toCache = null;
 
-  // FAST PATH — a cached compile whose closure still validates.
-  const sCache = perfStage("cache-read");
-  const cached = await readCache(build, key);
-  sCache.end();
-  if (cached) {
-    const sClosure = perfStage("closure-check");
-    const fresh = await closureFresh(cached.closure);
-    sClosure.end();
-    if (fresh) {
-      program = cached.program;
-      deps = cached.deps;                                         // the compiler's static-constraint deps, cached alongside
-      pageSource = cached.source;
-      path = "fast";
+  // PREWARM TIER — a COMMITTED precompiled artifact (bundles/cache/), tried FIRST.
+  // If present AND still validating against the deployed source (its stored closure
+  // re-probed by content hash — prewarm-cache.js), the program renders with NO
+  // compiler download and NO recompile: the flagship pages' compiler-free first
+  // paint. Never trusted, only validated — a stale (un-regenerated edit) or absent
+  // artifact falls straight through to the CacheStorage tier / in-browser compile,
+  // so this tier can never ship a drifted program (design/hosting.md).
+  const relMain = relativize(mainUrl, ROOT);
+  const sPrewarm = perfStage("prewarm");
+  const warm = await loadPrewarm({ root: ROOT, relMain, kind: "run", props, fetchImpl: fetch });
+  sPrewarm.end();
+  if (warm) {
+    program = warm.program;
+    deps = warm.deps;
+    pageSource = warm.source;
+    path = "prewarm";
+  }
+
+  // FAST PATH — a cached in-browser compile whose closure still validates.
+  if (program === null) {
+    const sCache = perfStage("cache-read");
+    const cached = await readCache(build, key);
+    sCache.end();
+    if (cached) {
+      const sClosure = perfStage("closure-check");
+      const fresh = await closureFresh(cached.closure);
+      sClosure.end();
+      if (fresh) {
+        program = cached.program;
+        deps = cached.deps;                                       // the compiler's static-constraint deps, cached alongside
+        pageSource = cached.source;
+        path = "fast";
+      }
     }
   }
 

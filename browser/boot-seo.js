@@ -11,12 +11,30 @@
 // against the runtime in this page — a settled tree cannot be projected
 // across a worker boundary (only { source, deps, diagnostics, report } can).
 import { loadLibraryOnce } from "./compiler-client.js";
+import { loadPrewarm, relativize } from "./prewarm-cache.js";
 
+const ROOT = new URL("../", import.meta.url);
 const target = new URL(import.meta.url).searchParams.get("src");
+
+function writeDoc(doc) {
+  // The extracted document IS the page — same bytes the dev server sends for this
+  // URL, arrived at by the in-browser path (or lifted verbatim from the committed tier).
+  document.open();
+  document.write(doc);
+  document.close();
+}
 
 async function run() {
   try {
     if (!target) throw new Error("no source URL — the Service Worker did not pass ?src=…");
+    // COMMITTED tier first: a precompiled SEO document (bundles/cache/) that still
+    // validates against the deployed source renders with NO compiler at all — the
+    // same drift-proof gate as the run tier (browser/prewarm-cache.js).
+    const warm = await loadPrewarm({
+      root: ROOT, relMain: relativize(new URL(target, location.href).href, ROOT),
+      kind: "seo", props: {}, fetchImpl: fetch,
+    });
+    if (warm) { writeDoc(warm.document); return; }
     const [mod, lib, source] = await Promise.all([
       import("../bundles/declare-compiler.js"),
       loadLibraryOnce(),
@@ -31,11 +49,7 @@ async function run() {
       ? `<!doctype html><meta charset="utf-8"><title>${esc(name)} — extraction failed</title>
 <pre style="white-space:pre-wrap;font:13px/1.5 ui-monospace,monospace;padding:20px">${esc(compiled.report || "compile failed")}</pre>`
       : mod.seoDocument(html, name);
-    // The extracted document IS the page — same bytes the dev server sends
-    // for this URL, arrived at by the in-browser path.
-    document.open();
-    document.write(doc);
-    document.close();
+    writeDoc(doc);
   } catch (e) {
     document.body.textContent = "Declare — static extraction failed: " + ((e && e.message) || e);
     console.error("[Declare] static extraction failed:", e);
