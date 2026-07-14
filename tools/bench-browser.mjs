@@ -28,7 +28,10 @@ const JSON_OUT = args.includes("--json");
 
 const APPS = [
   { name: "site (homepage)", path: "" },
-  { name: "calendar", path: "examples/calendar/" },
+  // Reached by its PROGRAM URL via browse-to-run — so the measurement installs the
+  // service worker first (homepage), exactly as a real visitor arrives. Directories
+  // no longer serve a page (design/hosting.md).
+  { name: "calendar", path: "examples/calendar/calendar.declare", browseToRun: true },
 ];
 
 // The fetches worth itemizing on a cold load, by URL substring.
@@ -76,7 +79,7 @@ async function collect(page) {
   });
 }
 
-async function measure(browser, url, run) {
+async function measure(browser, url, run, warmupUrl) {
   // Fresh incognito context = a genuinely FIRST load: empty HTTP cache, no SW,
   // no CacheStorage. (createBrowserContext on newer puppeteer, the incognito
   // spelling on older.)
@@ -84,6 +87,20 @@ async function measure(browser, url, run) {
     ? await browser.createBrowserContext()
     : await browser.createIncognitoBrowserContext();
   const page = await ctx.newPage();
+  // A browse-to-run program only becomes a run page once the service worker is
+  // installed — as a real visitor arrives (homepage first, then navigates). Load
+  // the homepage once to install + activate it; CacheStorage stays empty, so the
+  // app is still a genuinely cold first render (only the SW is warm). The timeout
+  // race keeps this from hanging against the dev server, where there is no SW and
+  // the program URL is compiled server-side regardless.
+  if (warmupUrl) {
+    await page.goto(warmupUrl, { waitUntil: "load", timeout: 120000 });
+    await page.waitForFunction(() => window.__declarePerf?.completed === true, { timeout: 120000 });
+    await page.evaluate(() => Promise.race([
+      navigator.serviceWorker?.ready,
+      new Promise((r) => setTimeout(r, 2000)),
+    ]));
+  }
   await page.goto(url, { waitUntil: "load", timeout: 120000 });
   await page.waitForFunction(() => window.__declarePerf?.completed === true, { timeout: 120000 });
   const cold = await collect(page);
@@ -170,7 +187,8 @@ try {
     const url = new URL(app.path, BASE).href;
     console.log(`\n═══ ${app.name} — ${url} (${RUNS} runs) ═══`);
     const runs = [];
-    for (let i = 1; i <= RUNS; i++) runs.push(await measure(browser, url, i));
+    const warmupUrl = app.browseToRun ? BASE : null;
+    for (let i = 1; i <= RUNS; i++) runs.push(await measure(browser, url, i, warmupUrl));
     const cold = summarize(runs.map((r) => r.cold));
     const warm = summarize(runs.map((r) => r.warm));
     out[app.name] = { url, cold, warm };

@@ -2,11 +2,15 @@
 //
 // Two jobs, nothing else (no chat, no persistent connection, no data API):
 //   1. serve the distro tree statically   (compiler/dist, runtime/dist, examples, docs, …)
-//   2. compile an example's .declare ON REQUEST and serve a host page that renders it
+//   2. turn a PROGRAM-URL navigation (…/<name>.declare) into a run page that
+//      compiles ON REQUEST and renders it — the SAME address the static host's
+//      service worker runs (browse-to-run). Directories carry NO behavior.
 //
-//   npm start                         # http://127.0.0.1:8200/
-//   /examples/neocalendar/            # DOM backend
-//   /examples/neocalendar/canvas      # Canvas backend
+//   npm start                                   # http://127.0.0.1:8200/  (the homepage)
+//   /examples/neocalendar/neocalendar.declare   # run it (DOM backend)
+//   …?render=canvas                             # Canvas backend
+//   …?view=source | ?view=reader | ?view=seo    # source / reader / crawler views
+//   /examples/<name>/prod                       # the discrete, self-contained declarec build
 //
 // The SAME tree also hosts statically for in-browser compilation (see
 // service-worker.js). This server is just the dynamic-compilation convenience for
@@ -16,7 +20,6 @@ import http from "node:http";
 import path from "node:path";
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { gzipSync } from "node:zlib";
 import { createHash } from "node:crypto";
 import { compile, isUpToDate, diskProbe, extractFromCompiled, seoDocument } from "../compiler/dist/compile-node.js";
 import { highlight } from "../compiler/dist/highlight.js";
@@ -71,71 +74,6 @@ function withServerMarker(html) {
   const b = s.search(/<\/body>/i);
   if (b >= 0) return s.slice(0, b) + SERVER_MARKER + s.slice(b);
   return s + SERVER_MARKER;
-}
-
-// The runtime's real shipping weight: runtime/dist bundled (tree-shaken),
-// minified, gzipped ≈ 45 KB (measured with esbuild + gzip -9). The dev page
-// loads it unbundled, so we compute the PRODUCTION figure here instead.
-const RUNTIME_GZ_BYTES = 45 * 1024;
-
-// compile examples/<name>/<name>.declare and wrap it in a render-host page
-function hostPage(name, backendClass, flags = DEFAULT_FLAGS) {
-  const dir = path.join(EXAMPLES, name);
-  const src = readFileSync(path.join(dir, `${name}.declare`), "utf8");
-  // Editable inline demos: each examples/<name>/demos/<demo>.declare is a full
-  // app the page mounts (editable source + live-compiling preview) into a neo
-  // slot marked `embed = "demo:<demo>:src|preview"`.
-  const demoDir = path.join(dir, "demos");
-  const demos = {};
-  if (existsSync(demoDir)) for (const f of readdirSync(demoDir)) {
-    if (f.endsWith(".declare")) demos[f.slice(0, -8)] = readFileSync(path.join(demoDir, f), "utf8");
-  }
-  const r = compile(src, { originDir: dir, typecheck: flags.typecheck });
-  if (r.errors.length) {
-    return `<!doctype html><meta charset="utf-8"><title>${name} — compile errors</title>
-<pre style="color:#c33;font:13px/1.5 ui-monospace,monospace;padding:20px;white-space:pre-wrap">${
-      esc(r.report)}</pre>`;
-  }
-  // Real production figures the page displays: over-the-wire = runtime + this
-  // page's compiled JS, gzipped; LOC = the Declare source, code lines only.
-  const wireKB = Math.round((RUNTIME_GZ_BYTES + gzipSync(r.source).length) / 1024);
-  const loc = src.split("\n").filter((l) => { const t = l.trim(); return t !== "" && !t.startsWith("//"); }).length;
-  // Demo editor seeds — comment-stripped SERVER-side now (so the dynamic and the
-  // static/precompiled host agree on the seed text), plus the page's own source.
-  const stripComments = (s) => s.split("\n").filter((l) => !l.trim().startsWith("//"))
-    .join("\n").replace(/^\s+/, "").replace(/\n{3,}/g, "\n\n").replace(/\s+$/, "") + "\n";
-  // Editors that read their source from a doc MODEL (docs) need no demo seeds — their
-  // previews are fetched ON DEMAND by the client (host-client sourceFor) and compiled via
-  // POST /compile, the SAME path the static host takes with the in-browser compiler. Only
-  // seed-driven editors (the site) still get their sources up front. So both hosts run the
-  // one client path; the only difference is WHERE compile() runs (here, or in the browser).
-  const modelDriven = existsSync(path.join(dir, "model.json"));
-  const seeds = {};
-  if (!modelDriven) for (const k in demos) seeds[k] = stripComments(demos[k]);
-  seeds.__page__ = src;
-  const cfg = { backend: backendClass, source: r.source, deps: r.deps, pageWeight: wireKB, sourceLines: loc, seeds, demoBase: "demos/" };
-  // `?seo` flag: the compile above already produced { source, deps } — extract
-  // from it directly (no second compile) and embed; removed at boot.
-  let staticBlock = "";
-  if (flags.seo) {
-    try { const h = extractFromCompiled(r); if (h !== null) staticBlock = `<div id="declare-static">\n${h}\n</div>`; }
-    catch (e) { console.error("seo embed failed:", e.message); }
-  }
-  // The homepage gets a real page title; other examples keep the debug backend tag.
-  const pageTitle = name === "site" ? "Declare — the UI language for the AI era" : `${name} (${backendClass})`;
-  // <base> resolves the app's relative resources + data under the example. The client
-  // is the shared browser/host-client.js (one code path, dynamic + static); here compile()
-  // delegates a live recompile to POST /compile.
-  return `<!doctype html><meta charset="utf-8"><title>${pageTitle}</title>
-<base href="/examples/${name}/">
-<style>html,body{margin:0;padding:0}</style>
-<div id="host">${staticBlock}</div>
-<script type="module">
-import { bootHost } from "/browser/host-client.js";
-const cfg = ${JSON.stringify(cfg)};
-cfg.compile = async (s) => { try { const r = await (await fetch("/compile", { method: "POST", body: s })).json(); return r.source ? { source: r.source, deps: r.deps } : { report: r.report || "compile failed" }; } catch (e) { return null; } };
-bootHost(cfg);
-</script>`;
 }
 
 // A request-type READER / SEGMENTS view (reqtypes.ts) for one .declare file:
@@ -206,19 +144,6 @@ function serveSeo(res, absPath, relPath, flags) {
   const compiled = compile(source, { originDir: path.dirname(absPath), typecheck: flags.typecheck });
   if (compiled.source === null) return send(res, 422, compiled.report, "text/plain; charset=utf-8");
   return send(res, 200, seoDocument(extractFromCompiled(compiled), relPath.split("/").pop()));
-}
-
-function landing() {
-  const links = examples().map((n) =>
-    `<li><a href="/examples/${n}/">${n}</a> &middot; <a href="/examples/${n}/canvas">canvas</a></li>`).join("\n");
-  return `<!doctype html><meta charset="utf-8"><title>Declare</title>
-<style>body{font:15px/1.6 system-ui,sans-serif;max-width:40rem;margin:3rem auto;padding:0 1rem}
-h1{font-weight:600;letter-spacing:-.01em}a{color:#3366cc;text-decoration:none}a:hover{text-decoration:underline}
-li{margin:.35rem 0}</style>
-<h1>Declare</h1>
-<p>Dynamic-compilation dev server — each example compiles on request.</p>
-<ul>${links || "<li><em>no examples yet</em></li>"}</ul>
-<p style="margin-top:2rem"><a href="/docs/">docs</a> &middot; <a href="/design/">design notes</a></p>`;
 }
 
 const send = (res, code, body, type) => {
@@ -384,17 +309,20 @@ http.createServer((req, res) => {
 
   // (The previews and the whole-page editor render their child apps INLINE now —
   // embedded neo apps in the same document, no iframe — so the old /_demoframe and
-  // /_demorun preview-frame routes are gone. See hostPage's renderChild/recompile.)
+  // /_demorun preview-frame routes are gone. See browser/host-client.js.)
 
   try {
     // ── React re-implementation (site-react/dist), self-prefixed under /site-react/ ──
     if (p === "/site-react" || p === "/site-react/") return serveFrom(res, SITE_REACT, "index.html");
     if (p.startsWith("/site-react/")) return serveFrom(res, SITE_REACT, p.slice("/site-react/".length));
 
+    // The homepage — the ONE curated HTML entry. It boots the platform bundle,
+    // which registers the SW (static host only) and runs the homepage app via the
+    // canonical prewarm → cache → lazy-compile ladder (browser/boot-uniform.js).
     if (p === "/") {
       const idx = path.join(ROOT, "index.html");
       if (existsSync(idx)) return send(res, 200, withServerMarker(readFileSync(idx, "utf8")));
-      return send(res, 200, withServerMarker(landing()));
+      return send(res, 404, "not found", "text/plain");
     }
 
     // /examples/<name>/prod[/...]  → the cached PRODUCTION build (declarec, DOM)
@@ -411,35 +339,6 @@ http.createServer((req, res) => {
         if (!res.headersSent) send(res, 500, String((e && e.stack) || e), "text/plain");
       });
       return;
-    }
-
-    // /examples/<name> (no slash) → 302 to the directory URL. The slash is the
-    // page's BASE: every relative reference (./x.declare, data/, demos/)
-    // resolves against the directory — and static hosts 301 the same way, so
-    // the two hosts agree.
-    const noSlash = p.match(/^\/examples\/([^/.]+)$/);
-    if (noSlash && examples().includes(noSlash[1])) {
-      res.writeHead(302, { location: p + "/" });
-      return res.end();
-    }
-
-    // /examples/<name>/  or  /examples/<name>/canvas  → run the app, OR — with a
-    // request type (reqtypes.ts) — the source view / segments of its .declare.
-    const m = p.match(/^\/examples\/([^/]+)\/(canvas)?$/);
-    if (m && examples().includes(m[1])) {
-      const params = new URL(req.url, "http://x").searchParams;
-      const rt = requestType(params);
-      // Path `/canvas` sets the base renderer; the URL query (`?render=`, and
-      // any other flag such as `?typecheck`) can override — the SAME flags.ts
-      // model the CLI and the in-browser compiler read, named the same way.
-      const flags = parseFlags(params, { ...DEFAULT_FLAGS, render: m[2] ? "canvas" : "dom" });
-      const backendClass = flags.render === "canvas" ? "CanvasBackend" : "DomBackend";
-      const declPath = path.join(EXAMPLES, m[1], `${m[1]}.declare`);
-      if (rt === REQ.SOURCE) return send(res, 200, readFileSync(declPath), "text/plain; charset=utf-8");
-      if (rt === REQ.READER || rt === REQ.EDIT || rt === REQ.SEGMENTS)
-        return serveSource(res, declPath, `examples/${m[1]}/${m[1]}.declare`, rt, backendClass);
-      if (rt === REQ.SEO) return serveSeo(res, declPath, `examples/${m[1]}/${m[1]}.declare`, flags);
-      return send(res, 200, withServerMarker(hostPage(m[1], backendClass, flags)));
     }
 
     // ── The PROGRAM URL is the app's canonical address (the OpenLaszlo model:
@@ -484,8 +383,8 @@ http.createServer((req, res) => {
     const abs = path.join(ROOT, p.replace(/^\/+/, ""));
     if (!(abs === ROOT || abs.startsWith(ROOT + path.sep))) return send(res, 403, "forbidden", "text/plain");
     if (existsSync(abs) && statSync(abs).isFile()) {
-      // Committed HTML (the homepage index.html, each examples/<name>/index.html)
-      // boots boot-uniform → gets the no-SW marker like the generated pages.
+      // Committed HTML (the homepage index.html) boots the platform bundle → gets
+      // the no-SW marker like the generated run pages.
       if (abs.endsWith(".html")) return send(res, 200, withServerMarker(readFileSync(abs, "utf8")));
       res.writeHead(200, { "content-type": mime(abs) });
       return res.end(readFileSync(abs));

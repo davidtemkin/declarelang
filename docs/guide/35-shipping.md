@@ -17,11 +17,15 @@ at the end.
 demand, so an edit-and-reload shows immediately — there is no build to run while you
 work.
 
+The address of a program is its **source file** — a navigation to it is compiled and
+run. Directories carry no behavior; there is no per-example index page.
+
 ```text
-/examples/<name>/          compile + render (DOM backend)
-/examples/<name>/canvas    same, Canvas backend
-/examples/<name>/prod      the cached PRODUCTION build (see declarec below)
-POST /compile              live compile — returns the app JS for an editor
+/examples/<name>/<name>.declare   navigate → compile + render (DOM backend)
+   …?render=canvas                same, Canvas backend
+   …?view=source | reader | seo   the source / reader / crawler views
+/examples/<name>/prod             a prod BUILD request (see declarec below)
+POST /compile                     live compile — returns the app JS for an editor
 ```
 
 `POST /compile` is the fast path the playground and the "Edit this page" editors use:
@@ -29,10 +33,12 @@ source in, the full compile result out (source + deps + structured diagnostics +
 the rendered report). Like every surface it **typechecks by default**; a
 latency-critical loop can opt out explicitly with `?typecheck=0`.
 
-The `/prod` route is the same production artifact `declarec` produces, built once and
-then cached on disk (keyed by a hash of the source + toolchain, partitioned per
-backend and per slim/full). The first request builds; the rest are served from the
-cache.
+The `/prod` route is a **build request**: it closure-checks and compiles the app, then
+serves the same discrete, self-contained artifact `declarec` produces — built once and
+cached on disk (keyed by a hash of the source + toolchain, partitioned per backend and
+per slim/full). The first request builds; the rest are served from the cache. The
+artifact itself is independent of the service worker, the dev server, and the program
+source — a build request is not what a production deployment makes.
 
 ## `declarec` — an ahead-of-time production build
 

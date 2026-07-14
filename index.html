@@ -26,18 +26,18 @@
 <style>html,body{margin:0;padding:0;background:#0B141B}</style>
 <div id="host"></div>
 <script type="module">
-  // The homepage IS a Declare app, compiled in YOUR browser. On a static host
-  // (GitHub Pages) boot-uniform.js:
-  //   1. checks the compiled-output cache (CacheStorage), keyed by the platform
-  //      BUILD_ID + the source's content hash;
-  //   2. FAST PATH — a cached compile of the unchanged source renders at once:
-  //      no compiler download, no recompile;
-  //   3. SLOW PATH — first visit or a changed source: download the in-browser
-  //      compiler, compile site.declare, render, and cache the result.
+  // The homepage IS a Declare app. On a static host (GitHub Pages) boot-uniform.js
+  // installs the service worker (which turns every other .declare into a run page —
+  // browse-to-run) and runs THIS page via the canonical ladder:
+  //   1. PREWARM — a committed precompiled artifact (bundles/cache/) that still
+  //      validates against the deployed source renders with NO compiler at all;
+  //   2. FAST PATH — else a cached in-browser compile of the unchanged source;
+  //   3. SLOW PATH — else download the in-browser compiler, compile site.declare,
+  //      render, and cache the result.
   //
-  // The deployed .declare source is the single source of truth — no precompiled
-  // artifact to keep in sync. Paths are relative to this file → the tree is
-  // subpath-portable (a project page lives under /<repo>/).
+  // The deployed .declare source is the source of truth; the precompiled artifact
+  // is a self-VALIDATING cache (re-probed against the source), never a thing to
+  // hand-sync. Paths are relative to this file → the tree is subpath-portable.
   import boot from "./bundles/declare-boot.js";
   boot({ main: "./examples/site/site.declare", demos: ["components", "reactivity", "spring", "states"] });
 </script>
