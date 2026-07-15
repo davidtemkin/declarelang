@@ -1,8 +1,8 @@
 # Capabilities — the environment contract, headless execution, static extraction
 
-Status: ratified 2026-07-13. The headless environment and the static (SEO)
-extractor below are BUILT; the `navigate` link model (§6) is ratified design,
-implementation pending. Companion to design/constraints.md (analyzability),
+Status: ratified 2026-07-13. The headless environment, the static (SEO)
+extractor, and the `navigate` link model (§6) below are all BUILT. Companion
+to design/constraints.md (analyzability),
 design/hosting.md (the program-URL surface), and design/verify-and-evals.md
 (rung 4 is the same execution tier).
 
@@ -28,7 +28,7 @@ browser-API access from bodies):
    them; the program just reads attributes.
 
 2. **Services** — named runtime capabilities with a callable/subscribable
-   surface: `Keys`, `Focus`, the pending `navigate`. Each carries a declared
+   surface: `Keys`, `Focus`, `navigate` (§6). Each carries a declared
    effect (compiler/src/effects.ts) and a typed surface (scaffold.ts
    LANGUAGE_API), so usage is dep-analyzable and typechecked by the same
    machinery as everything else.
