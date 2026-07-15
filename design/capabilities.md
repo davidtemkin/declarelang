@@ -150,14 +150,16 @@ declared heading level — a content page styles its headline large and bold, it
 does not write `# `. So the serializer INFERS the level from the rendered type
 of the settled tree: a `Text` set LARGER than the body copy AND at a heading
 WEIGHT (semibold+) is a heading, its level by the rank of its size among the
-page's heading sizes (largest = h1). Two gates keep the proxy honest: the weight
-gate leaves a large-but-light LEAD a paragraph, and a minimum-length gate leaves
-a large-but-terse display FIGURE (a gradient "46 KB", a stat "479") a paragraph —
-so the headline, not the biggest number, anchors h1. The body size is the size
-carrying the most characters (body copy dominates), which anchors the
-comparison. This reverses the earlier "no font-size inference, ever" line: it is
-a deliberate PROXY, not a contract — undeclared, not controllable from Declare
-source, so it lives inside the extractor and never touches the language surface
+page's heading sizes (largest = h1). Two signals, no more — bigger and bolder;
+the weight gate leaves a large-but-light LEAD a paragraph. The body size is the
+size carrying the most characters (body copy dominates), which anchors the
+comparison. Deliberately IMPERFECT and not special-cased: a big bold display
+figure (a gradient "46 KB", a stat "479") reads as a heading, and a two-line
+hero reads as two headings — accepted, because chasing a clean outline with
+per-shape rules trades a predictable proxy for a pile of exceptions. This
+reverses the earlier "no font-size inference, ever" line: it is a deliberate
+PROXY, not a contract — undeclared, not controllable from Declare source, so it
+lives inside the extractor and never touches the language surface
 (`Markdown`/`HTMLText` still carry their own `#` headings, untouched). Byte-
 identical on every host: size and weight are SET attributes, never measured
 geometry.

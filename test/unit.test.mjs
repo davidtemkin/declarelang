@@ -4935,28 +4935,26 @@ App [
     '<p>plain</p>');        // no navigate → plain content
 });
 
-await test("extractStatic: heading level inferred from settled type — large + bold Text becomes <hN>, a terse figure stays <p>", () => {
+await test("extractStatic: heading level inferred from settled type — bigger + bolder than body becomes <hN>", () => {
   // Revising §5's no-inference rule (2026-07-14): a Text has no declared heading
-  // level, so infer it from the rendered type — LARGER than the body copy AND at
-  // a heading weight becomes a heading, its level by size rank. The weight gate
-  // keeps a big light LEAD a <p>; the length gate keeps a big terse FIGURE a <p>,
-  // so the headline (not the giant number) anchors h1.
+  // level, so infer it from the rendered type. Two signals, no more — LARGER than
+  // the body copy AND a heading weight (semibold+); level by size rank. The weight
+  // gate keeps a big light LEAD a <p>. Deliberately imperfect: a big bold FIGURE
+  // ("42") reads as a heading — accepted, not special-cased away.
   const src = `App [
   fill = 0xffffff,
-  title: Text [ fontSize = 40, fontWeight = semibold, text = "The Headline" ],
-  sec: Text [ y = 60, fontSize = 24, fontWeight = semibold, text = "A Section" ],
-  stat: Text [ y = 120, fontSize = 80, fontWeight = bold, text = "9" ],
-  lead: Text [ y = 200, fontSize = 24, text = "A lighter lead line." ],
-  body: Text [ y = 260, fontSize = 16, text = "Body copy with the greatest number of characters on the whole page by far indeed." ],
+  fig: Text [ fontSize = 64, fontWeight = bold, text = "42" ],
+  head: Text [ y = 80, fontSize = 40, fontWeight = semibold, text = "The Heading" ],
+  lead: Text [ y = 140, fontSize = 40, text = "Large but light — a lead, not a heading." ],
+  body: Text [ y = 200, fontSize = 16, text = "Body copy that carries the most characters on the page by a clear margin overall." ],
   ]`;
   const out = extractStatic(src);
   assert.equal(out.report, "");
   assert.equal(out.html,
-    '<h1>The Headline</h1>\n' +   // largest heading-qualifying size → h1
-    '<h2>A Section</h2>\n' +      // next size down → h2
-    '<p>9</p>\n' +                // 80px but terse (a figure), not a heading
-    '<p>A lighter lead line.</p>\n' + // 24px but light — a lead, not a heading
-    '<p>Body copy with the greatest number of characters on the whole page by far indeed.</p>');
+    '<h1>42</h1>\n' +             // biggest size → h1, even a bare figure (accepted imperfection)
+    '<h2>The Heading</h2>\n' +    // next size → h2
+    '<p>Large but light — a lead, not a heading.</p>\n' + // same 40px but light → weight gate → <p>
+    '<p>Body copy that carries the most characters on the page by a clear margin overall.</p>');
 });
 
 await test("navigate is a service action, not an attribute — `app.navigate = url` is a type error", () => {

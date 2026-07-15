@@ -117,10 +117,13 @@ export function staticHtml(root: View): string {
  *  Declare source — so it stays inside the extractor, off the language surface.
  *
  *  The BODY size is the size carrying the most text (length-weighted mode): body
- *  copy dominates, so it anchors the comparison robustly. The weight gate keeps a
- *  large-but-light LEAD paragraph a `<p>`, not a heading. Markdown/HTMLText carry
- *  their OWN `#` headings and are untouched. Byte-identical on every host: size
- *  and weight are SET attributes, never measured geometry. */
+ *  copy dominates, so it anchors the comparison robustly. Two typographic signals,
+ *  no more — bigger and bolder; a large-but-light LEAD paragraph stays a `<p>`.
+ *  Deliberately unpolished: it WILL call a big bold display figure ("46 KB") a
+ *  heading, and a two-line hero two headings — the proxy is imperfect on purpose,
+ *  not special-cased into correctness. Markdown/HTMLText carry their OWN `#`
+ *  headings, untouched. Byte-identical on every host: size and weight are SET
+ *  attributes, never measured geometry. */
 function classifyHeadings(root: View): (t: Text) => number | null {
   const charsBySize = new Map<number, number>();
   const headingSizeSet = new Set<number>();
@@ -146,13 +149,10 @@ function classifyHeadings(root: View): (t: Text) => number | null {
   return (t: Text) => (isHeadingNode(t) ? levelOf.get(t.fontSize) ?? null : null);
 }
 
-/** Two settled-type signals a heading carries and a display figure does not: a
- *  heading WEIGHT (semibold+), and enough text to be a word or phrase rather
- *  than a terse figure. The length gate is what keeps a big gradient number
- *  ("46 KB", "479") — larger than any title, but a datum, not a heading — out of
- *  the ranking, so the actual headline anchors h1. */
-const isHeadingNode = (t: Text): boolean => weightNum(t) >= 600 && t.text.trim().length >= HEADING_MIN_CHARS;
-const HEADING_MIN_CHARS = 6;
+/** A heading carries a heading WEIGHT (semibold+). That plus "larger than body"
+ *  is the whole rule — no length or shape gate; a big bold figure reads as a
+ *  heading, and that is an accepted imperfection, not a bug to special-case. */
+const isHeadingNode = (t: Text): boolean => weightNum(t) >= 600;
 const weightNum = (t: Text): number => parseInt(cssWeight(t.fontWeight), 10) || 400;
 
 /** The navigable target of an instance, or null. The compiler's link relation
