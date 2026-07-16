@@ -104,7 +104,15 @@ export function renderForSolver(report) {
   const errs = (report.diagnostics ?? []).filter((d) => d.severity === "error");
   for (const d of errs) lines.push("  " + (d.rendered ?? `${d.message} [${d.code}]`).replace(/\n/g, "\n  "));
   if (report.boot && !report.boot.ok) for (const m of report.boot.errors ?? []) lines.push("  " + m);
-  if (report.behavior && !report.behavior.ok) for (const m of report.behavior.failures ?? []) lines.push("  assertion: " + m);
+  if (report.behavior && !report.behavior.ok) {
+    for (const m of report.behavior.failures ?? []) lines.push("  assertion: " + m);
+    // E-12: a behavior report names WHAT failed but not where to look — syntax
+    // rungs got fix-naming diagnostics; rung 5 gets a routing pointer. The two
+    // measured sinks: data wiring (mutation verbs) and zero-size geometry.
+    lines.push("  hint: behavior gaps are usually data wiring or geometry — data edits use");
+    lines.push("  data.insert/set/removeAt/move (see the Data chapter, docs/guide/27-data.md");
+    lines.push("  if available); and every replicated row needs a width (width = { parent.width }).");
+  }
   if (report.visual && !report.visual.ok) for (const m of report.visual.failures ?? []) lines.push("  visual: " + m);
   return lines.join("\n");
 }

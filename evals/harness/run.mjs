@@ -18,7 +18,7 @@
 import { readdirSync, existsSync, statSync, mkdirSync, writeFileSync, appendFileSync, readFileSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { makeSandbox } from "./sandbox.mjs";
+import { makeSandbox, sandboxName } from "./sandbox.mjs";
 import { makeSolver } from "./solvers.mjs";
 import { score, renderForSolver } from "./score.mjs";
 import { generateResults } from "./results.mjs";
@@ -26,7 +26,6 @@ import { generateResults } from "./results.mjs";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const TASKS_DIR = join(ROOT, "evals/tasks");
 const RUNS_DIR = join(ROOT, "evals/runs");
-const REFERENCE_DOC = readFileSync(join(ROOT, "docs/declare-for-llms.md"), "utf8");
 
 // ── args ─────────────────────────────────────────────────────────────────────
 const argv = process.argv.slice(2);
@@ -42,6 +41,18 @@ const tracks = list("tracks", "one-shot,iterated");
 const models = list("models", "reference");
 const solverId = val("solver", "reference");
 const budgetOverride = val("budget", null);
+// which brief the model is measured on. Default = the lean, purpose-built
+// generation brief. (docs-ia §9 step 1 head-to-head, n=3 Sonnet one-shot: the
+// unified core doc docs/declare.md measured WORSE as a generation context —
+// 0/9 vs 2/9 green, 531K vs 463K tok — so it did NOT earn retirement of the
+// brief. The flag stays so future candidates can be re-measured the same way.)
+const briefDocPath = val("brief-doc", "docs/declare-for-llms.md");
+// corpus mode (the docs-accessibility arm): the sandbox carries the category-B
+// docs TREE instead of one brief file, and the solver reads its way in
+// (claude-docs). Pair with --solver claude-docs.
+const corpus = argv.includes("--corpus");
+const repeats = Number(val("repeats", 1)); // draws per cell, to separate noise from signal
+const REFERENCE_DOC = readFileSync(join(ROOT, briefDocPath), "utf8");
 
 // ── task discovery ───────────────────────────────────────────────────────────
 function loadTasks(only) {
@@ -66,8 +77,8 @@ function loadTasks(only) {
 }
 
 // ── one attempt (a task × track × model cell) ────────────────────────────────
-async function runCell({ task, track, model, solver, runDir, metricsFile }) {
-  const { dir } = makeSandbox({ runDir, task, track, model });
+async function runCell({ task, track, model, rep, solver, runDir, metricsFile }) {
+  const { dir } = makeSandbox({ runDir, runName, task, track, model, rep, briefDocPath, corpus });
   const appFile = join(dir, "app.declare");
   const t0 = Date.now();
   let tokens = 0, iterations = 0, prior = null, report = null, sc = null;
@@ -78,7 +89,7 @@ async function runCell({ task, track, model, solver, runDir, metricsFile }) {
     iterations = i;
     let gen;
     try {
-      gen = await solver.solve({ task, referenceDoc: REFERENCE_DOC, brief: task.brief, prior, report, model });
+      gen = await solver.solve({ task, referenceDoc: REFERENCE_DOC, brief: task.brief, prior, report, model, cwd: dir });
     } catch (e) {
       transcript.push({ iteration: i, error: String(e?.message ?? e) });
       sc = { ok: false, rungClimbed: 0, rungFailed: 1, compileOk: false, diagnostics: [], report: `solver error: ${e?.message ?? e}`, formatDistance: null };
@@ -87,7 +98,7 @@ async function runCell({ task, track, model, solver, runDir, metricsFile }) {
     tokens += gen.tokens ?? 0;
     writeFileSync(appFile, gen.source);
     sc = await score(appFile, task);
-    transcript.push({ iteration: i, tokens: gen.tokens ?? 0, ok: sc.ok, rungClimbed: sc.rungClimbed, rungFailed: sc.rungFailed, report: sc.report });
+    transcript.push({ iteration: i, tokens: gen.tokens ?? 0, usage: gen.usage ?? null, ok: sc.ok, rungClimbed: sc.rungClimbed, rungFailed: sc.rungFailed, report: sc.report });
     if (sc.ok) break;
     prior = gen.source;
     report = sc.report;
@@ -97,13 +108,14 @@ async function runCell({ task, track, model, solver, runDir, metricsFile }) {
   writeFileSync(join(dir, "transcript.json"), JSON.stringify({ task: task.id, track, model, solver: solver.id, transcript }, null, 2));
 
   const metric = {
-    ts: new Date().toISOString(), run: runName, task: task.id, track, model, solver: solver.id,
+    ts: new Date().toISOString(), run: runName, task: task.id, track, model, rep, solver: solver.id,
+    briefDoc: corpus ? "corpus:docs" : briefDocPath,
     iterations, iterationsToGreen: sc?.ok ? iterations : null,
     ok: !!sc?.ok, rungClimbed: sc?.rungClimbed ?? 0, rungFailed: sc?.rungFailed ?? null,
     compileOk: !!sc?.compileOk, tokens: tokens || null, wallMs,
     formatDistance: sc?.formatDistance ?? null,
     diagnostics: (sc?.diagnostics ?? []).map((d) => ({ code: d.code, phase: d.phase, line: d.line })),
-    sandbox: join("evals/runs", runName, `${task.id}__${track}__${model.replace(/[^\w.-]/g, "_")}`),
+    sandbox: corpus ? dir : join("evals/runs", runName, sandboxName({ task, track, model, rep })),
   };
   appendFileSync(metricsFile, JSON.stringify(metric) + "\n");
   return metric;
@@ -125,13 +137,16 @@ const metrics = [];
 for (const task of tasks) {
   for (const track of tracks) {
     for (const model of models) {
-      process.stdout.write(`  ${task.id} · ${track} · ${model} … `);
-      const m = await runCell({ task, track, model, solver, runDir, metricsFile });
-      const green = m.ok ? "green" : `R${m.rungClimbed}${m.rungFailed ? `→✗R${m.rungFailed}` : ""}`;
-      const iters = track === "iterated" ? ` (${m.iterations} iter)` : "";
-      const tok = m.tokens ? ` · ${m.tokens} tok` : "";
-      console.log(`${green}${iters}${tok} · ${m.wallMs}ms`);
-      metrics.push(m);
+      for (let rep = 1; rep <= repeats; rep++) {
+        const repLabel = repeats > 1 ? ` · r${rep}` : "";
+        process.stdout.write(`  ${task.id} · ${track} · ${model}${repLabel} … `);
+        const m = await runCell({ task, track, model, rep, solver, runDir, metricsFile });
+        const green = m.ok ? "green" : `R${m.rungClimbed}${m.rungFailed ? `→✗R${m.rungFailed}` : ""}`;
+        const iters = track === "iterated" ? ` (${m.iterations} iter)` : "";
+        const tok = m.tokens ? ` · ${m.tokens} tok` : "";
+        console.log(`${green}${iters}${tok} · ${m.wallMs}ms`);
+        metrics.push(m);
+      }
     }
   }
 }
