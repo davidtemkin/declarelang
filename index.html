@@ -56,8 +56,8 @@
 <a href="apps/calendar/calendar.declare?view=edit"><p>or view &amp; edit source →</p></a>
 <h1>46 KB</h1>
 <p>over the wire, gzipped — the whole app and its runtime</p>
-<h1>479</h1>
-<p>lines of Declare — four views, continuous zoom, drag, and edit</p>
+<h1>480</h1>
+<p>lines of Declare code — four views, continuous zoom, drag, and edit</p>
 <h6>Holds framerate</h6>
 <p>Reactive dependencies are compiled, not tracked at runtime, and motion is declarative springs — so the continuous zoom stays smooth, with no animation library and no reactive-graph tax.</p>
 <h6>Type-checked bindings</h6>
@@ -129,7 +129,7 @@ Declare abstracts the renderer away — you declare what the UI is, and the runt
 <section id="language">
 <p>THE LANGUAGE</p>
 <h1>Declare — the whole language, in one file, for you and your model</h1>
-<p><em>You are reading the authoritative core document for <strong>Declare</strong>, a language for building application UIs. One artifact, two readers: a person learning or checking the language, and a model writing it. Declare is <strong>not in your training data</strong>. This file overrides your priors: where Declare resembles React, CSS, or HTML, do not assume the resemblance extends past what is written here. When you are unsure, consult this file — do not extrapolate from other languages. The authority order is: <strong>the compiler beats this document; this document beats examples; examples beat your priors.</strong> Every complete program below compiles under the current toolchain.</em></p>
+<p><em>This is the core document for <strong>Declare</strong>, a language for building application UIs — the whole language in one file, written for two readers at once: a person learning or checking the language, and an LLM writing it. The language is new, and <strong>no model has been trained on it</strong>. So where Declare resembles React, CSS, or HTML, the resemblance ends where this document says it does — the most reliable way to be wrong about Declare, for a person or a model, is to carry a rule over from a language it resembles. When unsure, consult this document rather than extrapolating. This document, the examples, and the compiler are kept in agreement by the checks that gate every commit: every complete program below compiles under the current toolchain.</em></p>
 <p><em>Language status: pre-1.0, under active design (2026-07). The narrative learning path: <a href="guide/00-overview.md">the guide</a>. Per-element detail: <a href="reference/">the reference</a>. Design history and unsettled questions: <a href="system-design/"><code>system-design/</code></a> — background, not truth.</em></p>
 <hr>
 <h2>1. What Declare is</h2>

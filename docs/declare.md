@@ -1,13 +1,14 @@
 # Declare — the whole language, in one file, for you and your model
 
-*You are reading the authoritative core document for **Declare**, a language for building
-application UIs. One artifact, two readers: a person learning or checking the language, and
-a model writing it. Declare is **not in your training data**. This file overrides your
-priors: where Declare resembles React, CSS, or HTML, do not assume the resemblance extends
-past what is written here. When you are unsure, consult this file — do not extrapolate from
-other languages. The authority order is: **the compiler beats this document; this document
-beats examples; examples beat your priors.** Every complete program below compiles under
-the current toolchain.*
+*This is the core document for **Declare**, a language for building application UIs — the
+whole language in one file, written for two readers at once: a person learning or checking
+the language, and an LLM writing it. The language is new, and **no model has been trained
+on it**. So where Declare resembles React, CSS, or HTML, the resemblance ends where this
+document says it does — the most reliable way to be wrong about Declare, for a person or a
+model, is to carry a rule over from a language it resembles. When unsure, consult this
+document rather than extrapolating. This document, the examples, and the compiler are kept
+in agreement by the checks that gate every commit: every complete program below compiles
+under the current toolchain.*
 
 *Language status: pre-1.0, under active design (2026-07). The narrative learning path:
 [the guide](guide/00-overview.md). Per-element detail: [the reference](reference/). Design
