@@ -21,7 +21,7 @@ import { compileProgram } from "../compiler/dist/declarec.js";
 import { REGISTRY_MANIFEST } from "../runtime/dist/registry.js";
 import { parseArgvFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
 import { highlight } from "../compiler/dist/highlight.js";
-import { compile as compileFull, extractFromCompiled, seoDocument } from "../compiler/dist/compile-node.js";
+import { compile as compileFull, crawlDocument, diskDataResolver, seoDocument } from "../compiler/dist/compile-node.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const RUNTIME = resolve(HERE, "../runtime/dist"); // the run-path lives here
@@ -132,7 +132,13 @@ export async function buildProduction(source, opts = {}) {
   let staticBlock = "";
   if (opts.seo) {
     const compiled = compileFull(source, { originDir: opts.originDir, typecheck: false });
-    const h = compiled.source === null ? null : extractFromCompiled(compiled);
+    // The CRAWLED document (location.md §7) — every reachable location's content in
+    // the one page. Data resolves from the app's own directory (the build-time rule);
+    // a network DataSource fails the build loudly, by design.
+    const h = compiled.source === null ? null : await crawlDocument(compiled.source, {
+      deps: compiled.deps, links: compiled.links,
+      data: opts.originDir ? diskDataResolver(opts.originDir) : undefined,
+    });
     if (h) staticBlock = `<div id="declare-static">\n${h}\n</div>`;
   }
 
@@ -278,7 +284,11 @@ async function cli(argv) {
   // the build above, so it is skipped on this second pass.
   if (doExtract) {
     const compiled = compileFull(source, { originDir: srcDir, typecheck: false });
-    const doc = compiled.source === null ? null : seoDocument(extractFromCompiled(compiled), name);
+    const html = compiled.source === null ? null : await crawlDocument(compiled.source, {
+      deps: compiled.deps, links: compiled.links,
+      data: srcDir ? diskDataResolver(srcDir) : undefined,
+    });
+    const doc = html === null ? null : seoDocument(html, name);
     if (doc !== null) {
       await writeFile(join(outDir, `${name}.extract.html`), doc);
       if (!quiet) console.log(`  ${name}.extract.html   ${kb(doc.length)} raw  (static extraction)`);

@@ -8,7 +8,7 @@
 //
 // Browser-safe by construction (the runtime graph is zero-dep), so the browser
 // compiler can do everything the Node one can — the parity principle.
-import { build, settle, App, HeadlessBackend, provideMeasurer } from "../../runtime/dist/index.js";
+import { build, settle, App, HeadlessBackend, provideMeasurer, provideTransport } from "../../runtime/dist/index.js";
 export const DEFAULT_ENV = { hostWidth: 1200, hostHeight: 800, dark: false };
 /** A deterministic stand-in for canvas text metrics on hosts with no DOM —
  *  per-character class widths, one constant table. Enough to SETTLE any tree
@@ -68,12 +68,24 @@ export function settleHeadless(source, opts = {}) {
         provideMeasurer(opts.env.measurer);
     else if (typeof document === "undefined")
         provideMeasurer(approximateMeasurer());
-    const app = build(source, opts);
-    app.attach(new HeadlessBackend(), null);
-    app.hostWidth = env.hostWidth;
-    app.hostHeight = env.hostHeight;
-    app.dark = env.dark;
-    settle();
-    return app;
+    // Network is "fixtures, or honestly absent" (capabilities.md §3) — ENFORCED,
+    // not hoped: a refusing transport is installed for the settle window, so an
+    // `onInit { data.fetch() }` can never INITIATE a live request during headless
+    // execution (the snapshot shows `loading`; the refusal lands as `failed`
+    // after it). Scoped swap-restore: the caller's process (the server extracts
+    // in-process) keeps its own transport.
+    const prev = provideTransport((url) => Promise.reject(new Error(`network unavailable headless — ${url} (capabilities.md §3: supply fixtures)`)));
+    try {
+        const app = build(source, opts);
+        app.attach(new HeadlessBackend(), null);
+        app.hostWidth = env.hostWidth;
+        app.hostHeight = env.hostHeight;
+        app.dark = env.dark;
+        settle();
+        return app;
+    }
+    finally {
+        provideTransport(prev);
+    }
 }
 //# sourceMappingURL=headless.js.map

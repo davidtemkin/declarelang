@@ -33,6 +33,11 @@ class HeadlessSurface {
         return -1;
     }
     scrollIntoView() { }
+    // Headless lays a flow out the CANVAS way (setRichContent → -1), so a heading's
+    // offset is known: `within >= 0` means "located it" — there is no viewport to
+    // scroll, but the anchor resolved. This is what lets extraction/tests observe the
+    // reveal without a live surface.
+    revealRichAnchor(_slug, within) { return within >= 0; }
     setEmbed(_id) { }
     setDrawing(_list) { }
     setText(_text) { }

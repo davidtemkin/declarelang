@@ -103,7 +103,7 @@ declare function cubicBezier(x1: number, y1: number, x2: number, y2: number): Mo
 declare function back(overshoot: number): MotionCurve;
 declare function steps(n: number, jump?: "jumpStart" | "jumpEnd"): MotionCurve;
 declare function laszlo(beginPole: number, endPole: number): MotionCurve;
-declare const Focus: { focus(v: unknown): void; blur(): void; next(): void; prev(): void };
+declare const Focus: { focus(v: unknown): void; blur(): void; next(): void; prev(): void; byKeyboard(): boolean };
 declare const Keys: { isDown(code: string): boolean; held(): string[] };
 declare function setTimeout(fn: (...args: any[]) => void, ms?: number): number;
 declare function clearTimeout(id: number): void;
@@ -172,7 +172,18 @@ const LANGUAGE_API = {
     // §6): a link/button calls `app.navigate(url)` in an activation handler. A
     // method, not an attribute — `app.navigate = url` is a type error now, which
     // is the migration signal, and the extractor reads the CALL (links.ts).
-    App: [`  navigate(to: string): void;`],
+    App: [
+        `  navigate(to: string): void;`,
+        // INTERIM (capabilities.md §7): the two host-fed live-demo channels the
+        // demo-hosting site apps still read — `demoSources` (host-seeded name→source
+        // map, host-client.js) and `liveReport` (the last live recompile's rendered
+        // report). Host-fed, read-only, never set in `[ ]`. RULED to dissolve into a
+        // per-instance `LiveDemo` component (shape 3 — each instance owns its own
+        // `source`/`report`); until that rework these ride here so App's schema stays
+        // clean of editing knowledge. `any` values, the same under-report as Theme.
+        `  readonly demoSources: Readonly<Record<string, any>>;`,
+        `  readonly liveReport: string;`,
+    ],
     View: [
         `  scrollIntoView(): void;`,
         // Returns the runtime stylesheet handle the `stylesheet` slot accepts —

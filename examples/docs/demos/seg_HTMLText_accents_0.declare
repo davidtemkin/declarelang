@@ -1,5 +1,5 @@
 App [
     HTMLText [ width = { parent.width }, scale = 1.6,
-        accents = { { accent: gradient("90deg", 0x4C8DFF, 0x37E0C8) } },
-        html = "<h2><span class='accent'>Declare</span> is the UI language for the AI era.</h2>" ],
-    ]
+      accents = { { accent: gradient("90deg", 0x4C8DFF, 0x37E0C8) } },
+      html = "<h2><span class='accent'>Declare</span> is the UI language for the AI era.</h2>" ]
+]

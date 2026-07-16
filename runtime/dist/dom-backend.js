@@ -319,6 +319,16 @@ class DomSurface {
         // block:start aligns the view to the top, matching the canvas path.
         this.element.scrollIntoView({ block: "start" });
     }
+    revealRichAnchor(slug, _within) {
+        // The heading is a real element in the flow (setRichContent tagged it with
+        // `data-anchor`); scroll IT — `within` is the canvas path's concern. Missing
+        // ⇒ the flow hasn't rendered that heading yet (held intent, retried later).
+        const el = this.richEl?.querySelector(`[data-anchor="${slug}"]`);
+        if (el === null || el === undefined)
+            return false;
+        el.scrollIntoView({ block: "start" });
+        return true;
+    }
     scrollListener;
     setScroll(on, onScroll) {
         const el = this.element;
@@ -429,6 +439,10 @@ class DomSurface {
             // Its runs carry the monospace family and per-token colours, so it is one
             // contiguous, selectable, syntax-coloured element.
             const be = doc.createElement(b.pre ? "pre" : /^h[1-6]$/.test(b.tag) ? b.tag : "p");
+            // A heading carries its anchor slug so a `@name` reveal (location.md §6) can
+            // find this exact element and scroll it into view natively.
+            if (b.anchor !== undefined)
+                be.setAttribute("data-anchor", b.anchor);
             const bs = be.style;
             bs.margin = "0";
             bs.marginTop = b.gapBefore + "px";

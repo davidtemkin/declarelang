@@ -114,6 +114,9 @@ export type CheckedAttr = {
     ok: false;
     error: NeoError;
 };
+/** The CSS-instinct hint for an unknown attribute name, or "" when the miss
+ *  isn't a known CSS name. */
+export declare function cssAttributeHint(name: string): string;
 /** Validate one attribute against a schema. check() collects the errors and
  *  instantiate() throws them — one message source, so the reporting and the
  *  running paths cannot drift apart. */

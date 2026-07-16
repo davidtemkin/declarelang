@@ -1,0 +1,3 @@
+App [ location = "home",
+    why: View [ visible = { app.location == "why" } ],
+]

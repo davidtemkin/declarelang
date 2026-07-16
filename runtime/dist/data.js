@@ -228,6 +228,14 @@ defineAttributes(Dataset, {
     // never read back (nothing tracks it); it is the author-facing write slot.
     contents: { def: null, push: (d, v) => { d.value = v; } },
 });
+let transport = (url) => globalThis.fetch(url);
+/** Swap the transport (headless installs a refuser; tests install stubs).
+ *  Returns the PREVIOUS transport so a scoped caller can restore it. */
+export function provideTransport(fn) {
+    const prev = transport;
+    transport = fn;
+    return prev;
+}
 /** A DataSource is a Dataset whose value arrives over HTTP (language §9): a
  *  reactive remote resource whose LIFECYCLE is reactive state — screens
  *  derive from `.loading`/`.loaded`/`.failed` with ordinary constraints
@@ -252,7 +260,7 @@ export class DataSource extends Dataset {
         setBound(this, "status", "loading");
         setBound(this, "error", null);
         try {
-            const res = await globalThis.fetch(this.url);
+            const res = await transport(this.url);
             if (!res.ok)
                 throw new Error(`HTTP ${res.status} for ${this.url}`);
             const json = await res.json();

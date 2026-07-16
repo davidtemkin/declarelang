@@ -1,13 +1,11 @@
-class StatBar extends View [ width = 240, height = 22,
-    value: number = 0,
-    track: View [ x = 96, width = 144, height = 22, cornerRadius = 4, fill = whitesmoke,
-        bar: View [ height = 22, cornerRadius = 4, fill = royalblue, width = 0,
-            grow: Spring [ attribute = width, to = { classroot.value / 100 * 144 },
-                stiffness = 190, damping = 20 ],
-            ],
+App [ fill = white, textColor = #1A1A1E,
+    fontFamily = ["system-ui", "sans-serif"], fontSize = 15,
+
+    Text [ x = 24, y = 20, fontSize = 22, fontWeight = bold, text = "Signals" ],
+
+    controls: View [ x = 24, y = 56,
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        Slider [ min = 0, max = 100 ],
+        Button [ label = "Reset", primary = true ],
         ],
-    ]
-
-
-App [ StatBar [ value = 70 ],
     ]

@@ -1,5 +1,7 @@
-App [ fill = white, textColor = black,
-    total: number = 234,
-    Text [ x = 24, y = 24, fontSize = 28, fontWeight = bold,
-        text = { `${total} events` } ],       // recomputes whenever total changes
+App [ fill = white, textColor = #1A1A1E,
+    fontFamily = ["system-ui", "sans-serif"], fontSize = 15,
+
+    Text [ x = 24, y = 20, fontSize = 22, fontWeight = bold, text = "Signals" ],
+
+    panel: View [ x = 24, y = 96, width = 280, height = 180 ],
     ]

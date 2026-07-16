@@ -577,11 +577,23 @@ class CanvasSurface {
     // Native rich-text flow is a DOM affordance; on canvas the RichText component lays
     // the runs out as child views itself. -1 signals "not handled, fall back".
     setRichContent() { return -1; }
+    /** Reveal a heading anchor inside a flow (location.md §6). On canvas there is no
+     *  element to scroll — the flow gave us the heading's y offset (`within`) inside
+     *  this surface, so reveal is a `scrollIntoView` clamped to that offset. `within`
+     *  < 0 means the flow hasn't laid the heading out yet — not handled. `slug` is
+     *  the DOM path's key; here the offset already resolved it. */
+    revealRichAnchor(_slug, within) {
+        if (within < 0)
+            return false;
+        this.scrollIntoView(within);
+        return true;
+    }
     /** Scroll this surface to the top of its nearest scrolling ancestor — the
      *  canvas twin of DOM's native scrollIntoView. Sums local offsets up to the
      *  scroll container, clamps to its content extent (the same math scrollBy
-     *  uses), sets the offset, mirrors it into `scrollY`, and repaints. */
-    scrollIntoView() {
+     *  uses), sets the offset, mirrors it into `scrollY`, and repaints. `within` (px)
+     *  targets a point INSIDE this surface (a heading's offset) instead of its top. */
+    scrollIntoView(within = 0) {
         let cur = this;
         let off = 0;
         while (cur.parent !== null && !cur.parent.scrolls) {
@@ -591,7 +603,7 @@ class CanvasSurface {
         const sc = cur.parent;
         if (sc === null)
             return; // nothing scrolls above us
-        off += cur.y; // cur is the scroll container's direct child
+        off += cur.y + within; // cur is the scroll container's direct child
         let extent = 0;
         for (const c of sc.children)
             if (c.visible)

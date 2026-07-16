@@ -1,0 +1,19 @@
+App [ fill = white, textColor = black,
+    location = "home",                                // the declared initial IS the default
+    mode: string = { app.location.split("/")[0] },    // state DERIVES from location …
+    tabs: View [ x = 20, y = 16,
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        Button [ label = "Home",
+            onClick() { app.location = "home" },       // … navigation WRITES location
+            ],
+        Button [ label = "Why",
+            onClick() { app.location = "why" },
+            ],
+        ],
+    home: View [ x = 20, y = 64, visible = { app.mode == "home" },
+        Text [ text = "the scrolling page" ],
+        ],
+    why: View [ x = 20, y = 64, visible = { app.mode == "why" },
+        Text [ text = "an in-app article view" ],
+        ],
+    ]

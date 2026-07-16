@@ -1,3 +1,3 @@
-App [ fill = white, textColor = black,
+App [ fill = white, textColor = #1A1A1E,
     fontFamily = ["system-ui", "sans-serif"], fontSize = 15,
     ]

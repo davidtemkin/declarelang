@@ -357,6 +357,10 @@ defineAttributes(View, {
     pivotY: { def: 0, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },
     focusable: { def: false },
     focustrap: { def: false },
+    // `anchor` — the view's name in the reveal namespace (location.md §6). A stored
+    // slot the reveal walk reads after settle; "" = not an anchor. No push: it has
+    // no surface effect. (Materializes §6's "named view"; heading slugs are the rest.)
+    anchor: { def: "" },
     clip: { def: null, push: (v, c) => v.applyClip(c) },
     // Scroll container: enabling it wires the backend's native scroll and feeds
     // the user's offset back into `scrollY` (a plain reactive write — no push, so
@@ -437,6 +441,44 @@ export function fireEvent(view, event, arg) {
     if (typeof h === "function")
         h.call(view, arg);
 }
+/** Resolve a reveal anchor name against a settled tree (location.md §6). One
+ *  preorder pass builds the namespace: named views (`anchor` attr) first, then
+ *  heading slugs (duck-typed: a TextFlow exposes `anchorSlugs()`/`revealAnchor()`),
+ *  each in document order, with `-2`/`-3` suffixes on duplicate names — so the
+ *  namespace is flat and every name unique, views winning a tie. Returns the reveal
+ *  action for `name` (which reports whether it actually revealed — false before the
+ *  target is attached/rendered, so the caller keeps holding the intent), or null
+ *  when the name is not present in the tree at all. */
+function findAnchor(root, name) {
+    const views = [];
+    const slugs = [];
+    const walk = (n) => {
+        if (n instanceof View) {
+            if (n.anchor !== "") {
+                const v = n;
+                views.push({ base: v.anchor, fire: () => { if (v.surface === null)
+                        return false; v.scrollIntoView(); return true; } });
+            }
+            const flow = n;
+            if (typeof flow.anchorSlugs === "function" && typeof flow.revealAnchor === "function") {
+                for (const s of flow.anchorSlugs())
+                    slugs.push({ base: s, fire: () => flow.revealAnchor(s) });
+            }
+        }
+        for (const c of n.children)
+            walk(c);
+    };
+    walk(root);
+    const seen = new Map();
+    for (const c of [...views, ...slugs]) {
+        const n = (seen.get(c.base) ?? 0) + 1;
+        seen.set(c.base, n);
+        const key = n === 1 ? c.base : `${c.base}-${n}`;
+        if (key === name)
+            return c.fire;
+    }
+    return null;
+}
 /** The application root — the single visible tree at the top (OpenLaszlo's
  *  `<canvas>`). R0 treats it as the root View; it fills its host by default and
  *  carries the app's reactive environment (host extent, scroll, pointer). */
@@ -452,6 +494,38 @@ export class App extends View {
      *  runtime the host opens `to`. DOM-free: bodies never touch window.location, so
      *  navigation rides this channel like `editing` — one clear way, analyzable. */
     navigate(to) { this.pendingNav = to; }
+    /** The reveal intent held from `location`'s trailing `@name` (location.md §6) —
+     *  null when the location carries no anchor. Retained across settles until the
+     *  name appears in a settled tree; re-armed or cancelled when `location` changes. */
+    pendingAnchor = null;
+    lastRevealLocation = null;
+    /** Resolve the pending `@name` reveal against the current settled tree. The host
+     *  calls this after settles — and each frame while an intent is held, so a cold
+     *  deep link (`/#guide/22-reach@some-heading`) fires once the DataSource lands and
+     *  the heading renders. A location CHANGE re-arms the intent from its trailing
+     *  `@name` (a change with no anchor cancels it); a resolved name fires the reveal
+     *  and clears the intent. Runtime-side and backend-agnostic — the reveal itself
+     *  splits at the surface seam (DOM scrollIntoView / canvas scroll clamp). Returns
+     *  the name it revealed this call (else null) — the host ignores it; tests read it. */
+    resolveReveal() {
+        if (this.location !== this.lastRevealLocation) {
+            this.lastRevealLocation = this.location;
+            const at = this.location.indexOf("@");
+            this.pendingAnchor = at >= 0 ? this.location.slice(at + 1) : null;
+        }
+        const name = this.pendingAnchor;
+        if (name === null || name === "")
+            return null;
+        const fire = findAnchor(this, name);
+        // Clear the intent only when the reveal ACTUALLY landed — the name being present
+        // in `content` before its element is attached/rendered (the cold-deep-link race)
+        // returns false, so we hold and retry next frame.
+        if (fire !== null && fire()) {
+            this.pendingAnchor = null;
+            return name;
+        }
+        return null;
+    }
     /** The App's auto-extent is the HOST, not its content: an unset width/height
      *  follows hostWidth/hostHeight (reactive on resize), so the root app fills its
      *  enclosing area with no declaration — the near-universal case. An explicit
@@ -486,11 +560,13 @@ defineAttributes(App, {
     dark: { def: false },
     pageWeight: { def: 0 },
     sourceLines: { def: 0 },
-    editing: { def: false },
-    editSource: { def: "" },
+    // `location` — the app's URL fragment (design/location.md). A stored reactive
+    // slot: the host seeds/writes it (deep link, back/forward), the app writes it to
+    // navigate, and `{ }` constraints that read it (`visible = { app.location == … }`)
+    // re-derive on every change. Default "" so an app that declares no initial keeps
+    // a clean URL. NOT readOnly — navigation IS a write from app code.
+    location: { def: "" },
     demoSources: { def: {} },
-    liveCard: { def: "" },
-    liveSource: { def: "" },
     liveReport: { def: "" },
     // the size floor (bindExtent) — author-settable, 0 = none
     minWidth: { def: 0 },

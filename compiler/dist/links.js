@@ -42,20 +42,25 @@ export function extractLinks(program) {
     for (const c of program.classes)
         visit(c.body, true);
 }
-/** The link an element's FIRST activation handler with a `navigate(to)` call
- *  yields, or undefined. */
+/** The link an element's FIRST activation handler yields, or undefined. Two kinds
+ *  compose into the ONE link relation: an `app.location = <expr>` write is a
+ *  FRAGMENT link (`<a href="#…">`, a reachable location — design/location.md §5/§7),
+ *  and a `navigate(to)` call is an external link. A handler that does both (a pill
+ *  that is an in-app location OR an out-of-app URL) folds into one value-carries-the-
+ *  conditionality read: the fragment when the location is non-empty, else the URL. */
 function linkOf(el, isClassRoot) {
     for (const m of el.methods) {
         if (!ACTIVATION.has(m.name))
             continue;
-        const t = navTargetInBody(m.body ?? "", isClassRoot);
+        const t = targetInBody(m.body ?? "", isClassRoot);
         if (t)
             return t;
     }
     return undefined;
 }
-/** Find a `navigate(to)` call in a handler body and resolve its argument. */
-function navTargetInBody(body, isClassRoot) {
+/** Resolve a handler body to its link target: the first `app.location = <expr>`
+ *  write (a fragment) and/or the first `navigate(to)` call (a URL). */
+function targetInBody(body, isClassRoot) {
     let sf;
     try {
         sf = ts.createSourceFile("h.ts", body, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
@@ -63,21 +68,64 @@ function navTargetInBody(body, isClassRoot) {
     catch {
         return undefined;
     }
-    let found;
+    let locRhs; // the `app.location = <rhs>` right-hand side
+    let navArg; // the `navigate(<arg>)` argument
     const walk = (n) => {
-        if (found)
-            return;
-        if (ts.isCallExpression(n) && isNavigateCallee(n.expression) && n.arguments.length >= 1) {
-            const t = resolveArg(n.arguments[0], isClassRoot);
-            if (t) {
-                found = t;
-                return;
-            }
+        if (locRhs === undefined && ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken && isLocationTarget(n.left)) {
+            locRhs = n.right;
+        }
+        if (navArg === undefined && ts.isCallExpression(n) && isNavigateCallee(n.expression) && n.arguments.length >= 1) {
+            navArg = n.arguments[0];
         }
         ts.forEachChild(n, walk);
     };
     walk(sf);
-    return found;
+    // A location write becomes a fragment link. Its RHS is evaluated at t=0 per
+    // settled instance (the read machinery seo.ts already runs for navigate): a
+    // string literal shortcuts to a stable `#…` href; anything else (a read, a
+    // `"guide/" + cid` concatenation over replicated tabs) rides as a read that
+    // prepends `#` when non-empty. A navigate in the same handler is the else-branch.
+    if (locRhs !== undefined) {
+        const loc = locExprText(locRhs, isClassRoot);
+        if (loc !== null) {
+            if (navArg !== undefined) {
+                const nav = navExprText(navArg, isClassRoot);
+                if (nav !== null)
+                    return { read: `(${loc}) ? '#' + (${loc}) : ((${nav}) || '')` };
+            }
+            if ((ts.isStringLiteral(locRhs) || ts.isNoSubstitutionTemplateLiteral(locRhs))) {
+                return locRhs.text === "" ? undefined : { href: "#" + locRhs.text };
+            }
+            return { read: `(${loc}) ? '#' + (${loc}) : ''` };
+        }
+    }
+    // No location write (or an unresolvable one): fall back to the navigate target.
+    if (navArg !== undefined)
+        return resolveArg(navArg, isClassRoot);
+    return undefined;
+}
+/** Is this the App's `location` attribute (the assignment LHS)? Matches the
+ *  resolved `this.root.location` plus `app.location`, the twin of isNavigateCallee. */
+function isLocationTarget(expr) {
+    if (!ts.isPropertyAccessExpression(expr) || expr.name.text !== "location")
+        return false;
+    const recv = expr.expression;
+    if (ts.isIdentifier(recv))
+        return recv.text === "app";
+    return ts.isPropertyAccessExpression(recv) && recv.name.text === "root" && recv.expression.kind === ts.SyntaxKind.ThisKeyword;
+}
+/** The evaluable text of a location/navigate RHS, or null if it reads something not
+ *  resolvable against this instance at t=0 (a `classroot` read below its own class
+ *  root, where `classroot` is an ancestor). `this`/`parent`/literals are always fine;
+ *  `classroot` only on the class root, where it IS the instance (compileExpr binds
+ *  `classroot` to the instance in seo.ts). */
+function locExprText(rhs, isClassRoot) {
+    if (!isClassRoot && /\bclassroot\b/.test(rhs.getText()))
+        return null;
+    return rhs.getText();
+}
+function navExprText(arg, isClassRoot) {
+    return locExprText(arg, isClassRoot);
 }
 /** Is this call target the App's navigate service action? Matches the resolved
  *  spelling `this.root.navigate`, plus `app.navigate` and a bare `navigate` for

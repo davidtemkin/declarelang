@@ -20,6 +20,7 @@ import { Constraint } from "./reactive.js";
 import { defineAttributes } from "./attributes.js";
 import { fontMetrics, fontString, textWidth } from "./measure.js";
 import { parse } from "./md.js";
+import { headingSlug } from "./slug.js";
 import { parseHtml } from "./html.js";
 // ── prose stylesheet ─────────────────────────────────────────────────────────
 // The role → style map that makes rendered Markdown look good with zero author
@@ -225,9 +226,15 @@ function richRunsOf(inline, style, family) {
  *  views to parent and the total height. */
 function flowRichCanvas(blocks, width, onLink) {
     const views = [];
+    const anchors = new Map();
     let y = 0;
     for (const b of blocks) {
         y += b.gapBefore;
+        // A heading's anchor records its top (after the gap above it) so a `@name`
+        // reveal can clamp the scroll ancestor to it — the Canvas twin of the DOM
+        // heading element's native scrollIntoView. First slug wins (preorder).
+        if (b.anchor !== undefined && !anchors.has(b.anchor))
+            anchors.set(b.anchor, y);
         const lead = b.runs.find((r) => "text" in r);
         const bm = fontMetrics(fontString({ fontFamily: lead?.family ?? FALLBACK_FAMILY, fontSize: lead?.size ?? sz(PROSE.body), fontWeight: lead?.weight ?? "normal" }));
         const lineH = Math.ceil(bm.ascent + bm.descent); // glyph box (for half-leading)
@@ -379,7 +386,7 @@ function flowRichCanvas(blocks, width, onLink) {
             views.push(v);
         y += (line + 1) * adv;
     }
-    return { views, height: y };
+    return { views, height: y, anchors };
 }
 /** TextFlow — the internal native-flow renderer (NOT a user component; see the
  *  RichText family below). A flowing block of styled text: `content` (resolved
@@ -390,6 +397,27 @@ class TextFlow extends View {
     flowWidth = 0;
     onLink = null;
     manual = [];
+    /** Canvas only: each heading anchor's y offset inside this flow, captured on
+     *  the manual layout (the DOM path finds the tagged element instead). */
+    anchorYs = new Map();
+    /** The heading anchor slugs this flow renders — read from `content`, so it is
+     *  the same on both backends and available as soon as the content is set (before
+     *  a native measure). The reveal walk (view.ts) collects these. */
+    anchorSlugs() {
+        const out = [];
+        for (const b of this.content)
+            if (b.anchor !== undefined)
+                out.push(b.anchor);
+        return out;
+    }
+    /** Bring heading `slug` into view (location.md §6). Backend-split at the seam:
+     *  DOM finds the `data-anchor` element and scrolls it natively; Canvas passes the
+     *  recorded y offset so the surface clamps the scroll ancestor. Returns whether
+     *  it revealed — false before the flow has realized that heading. */
+    revealAnchor(slug) {
+        const within = this.anchorYs.has(slug) ? this.anchorYs.get(slug) : -1;
+        return this.surface?.revealRichAnchor(slug, within) ?? false;
+    }
     attach(backend, parentSurface, before = null) {
         super.attach(backend, parentSurface, before);
         // Re-flow when the width or the prevailing `selectable` changes.
@@ -423,7 +451,8 @@ class TextFlow extends View {
         }
         // Canvas: lay the runs out as child views ourselves.
         this.clearManual();
-        const { views, height } = flowRichCanvas(this.content, this.flowWidth, this.onLink ?? undefined);
+        const { views, height, anchors } = flowRichCanvas(this.content, this.flowWidth, this.onLink ?? undefined);
+        this.anchorYs = anchors;
         let at = 0;
         for (const v of views) {
             this.insertChild(v, at++);
@@ -454,11 +483,28 @@ function flowView(content, width, ctx) {
     rt.onLink = ctx.onLink;
     return rt;
 }
-/** One paragraph or heading resolved to the seam's RichBlock shape. */
+/** The plain text of an inline sequence — for a heading's anchor slug. Drops
+ *  emphasis/link wrappers and keeps the readable characters (matches what a
+ *  reader sees, so the slug reads like the heading). */
+function inlineText(inline) {
+    let s = "";
+    for (const n of inline) {
+        if (n.t === "text" || n.t === "code")
+            s += n.value;
+        else if (n.t === "br")
+            s += " ";
+        else
+            s += inlineText(n.inline);
+    }
+    return s;
+}
+/** One paragraph or heading resolved to the seam's RichBlock shape. A heading
+ *  also carries its `anchor` — the deterministic slug of its text (location.md §6:
+ *  a heading IS its anchor) — so a fragment `@name` can bring it into view. */
 function proseBlock(b, gapBefore, bodyColor, ctx) {
     if (b.t === "heading") {
         const size = PROSE.heading[b.level - 1];
-        return { tag: `h${b.level}`, runs: richRunsOf(b.inline, base(size, HEADINGW, HEADINGC), ctx.family), gapBefore, lineHeight: 1.2, fontSize: sz(size) };
+        return { tag: `h${b.level}`, runs: richRunsOf(b.inline, base(size, HEADINGW, HEADINGC), ctx.family), gapBefore, lineHeight: 1.2, fontSize: sz(size), anchor: headingSlug(inlineText(b.inline)) || undefined };
     }
     return { tag: "p", runs: richRunsOf(b.inline, base(BODY.size, BODY.weight, bodyColor, BODY.tracking), ctx.family), gapBefore, lineHeight: ctx.lead, fontSize: sz(BODY.size) };
 }

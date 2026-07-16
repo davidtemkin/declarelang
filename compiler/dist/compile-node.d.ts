@@ -2,12 +2,20 @@ import { type CompileOptions, type Compiled } from "./compile.js";
 import type { Closure } from "./closure.js";
 export type { CompileOptions, Compiled } from "./compile.js";
 export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, seoDocument } from "./seo.js";
+export { crawlLocations, crawlDocument, fragmentHrefs, canonKey, type CrawlDoc, type CrawlOptions } from "./crawl.js";
 export type { ExtractOptions, Extracted } from "./seo.js";
 export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
 export type { Environment, HeadlessOptions } from "./headless.js";
 export { DiskTracker, diskProbe, statValidator } from "./cache-node.js";
 export { isUpToDate, validatorsEqual, lookupKey, contentTag, fnv1a } from "./closure.js";
 export type { Closure, ClosureEntry, Validator, Tracker, Probe } from "./closure.js";
+/** The crawl's own-material data resolver over a program's origin directory (the
+ *  build-time data rule, design/location.md §9): a RELATIVE DataSource url is a file
+ *  beside the app — read it from disk, parsed as JSON; absent → null (the crawl
+ *  reports it loudly). Absolute urls never reach this (crawl.ts refuses them as the
+ *  network). The browser twin is a same-origin fetch of the same deployed file, so
+ *  the two crawls read the same bytes. */
+export declare function diskDataResolver(originDir: string): (url: string) => unknown;
 /** `compile` with the filesystem include+auto-include host and (when `typecheck`
  *  is set) the real typechecker injected. Drop-in for the previous `compile`
  *  import. */

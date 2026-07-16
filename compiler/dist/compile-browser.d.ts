@@ -4,6 +4,7 @@ import type { Closure, Validator } from "./closure.js";
 export { provideLib } from "./typecheck.js";
 export { highlight } from "./highlight.js";
 export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, seoDocument } from "./seo.js";
+export { crawlLocations, crawlDocument, fragmentHrefs, canonKey, type CrawlDoc, type CrawlOptions } from "./crawl.js";
 export type { ExtractOptions, Extracted } from "./seo.js";
 export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
 export type { Environment, HeadlessOptions } from "./headless.js";

@@ -30,6 +30,7 @@ provideLib((name) => {
 // points (compile-browser.ts carries the same block): the browser compiler
 // does everything the Node one can, as architecture and as principle.
 export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, seoDocument } from "./seo.js";
+export { crawlLocations, crawlDocument, fragmentHrefs, canonKey } from "./crawl.js";
 export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
 export { DiskTracker, diskProbe, statValidator } from "./cache-node.js";
 export { isUpToDate, validatorsEqual, lookupKey, contentTag, fnv1a } from "./closure.js";
@@ -39,6 +40,22 @@ export { isUpToDate, validatorsEqual, lookupKey, contentTag, fnv1a } from "./clo
  *  correct wherever the distro is checked out. Callers may override with
  *  `opts.host` (e.g. a fetch host in the browser). */
 const LIBRARY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../library");
+/** The crawl's own-material data resolver over a program's origin directory (the
+ *  build-time data rule, design/location.md §9): a RELATIVE DataSource url is a file
+ *  beside the app — read it from disk, parsed as JSON; absent → null (the crawl
+ *  reports it loudly). Absolute urls never reach this (crawl.ts refuses them as the
+ *  network). The browser twin is a same-origin fetch of the same deployed file, so
+ *  the two crawls read the same bytes. */
+export function diskDataResolver(originDir) {
+    return (url) => {
+        try {
+            return JSON.parse(readFileSync(resolve(originDir, url), "utf8"));
+        }
+        catch {
+            return null;
+        }
+    };
+}
 /** `compile` with the filesystem include+auto-include host and (when `typecheck`
  *  is set) the real typechecker injected. Drop-in for the previous `compile`
  *  import. */

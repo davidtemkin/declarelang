@@ -44,7 +44,7 @@
 // guesses, and phased diagnostics (syntax → types → resolution) beat noisy
 // ones.
 import { parseProgram } from "../../runtime/dist/parser.js";
-import { NeoError } from "../../runtime/dist/errors.js";
+import { NeoError, NeoErrors } from "../../runtime/dist/errors.js";
 import { check, programSchemas } from "../../runtime/dist/check.js";
 import { serializeDeps } from "../../runtime/dist/deps.js";
 import { serializeLinks } from "../../runtime/dist/links.js";
@@ -120,6 +120,11 @@ export function compile(source, opts = {}) {
         main = parseProgram(source);
     }
     catch (e) {
+        // The recognition layer (parser.ts) recovers through known TS-isms and
+        // raises them ALL as one NeoErrors — flatten, so each gets its own
+        // positioned diagnostic like check()'s errors always have.
+        if (e instanceof NeoErrors)
+            return { source: null, errors: [...e.errors], warnings: [], ...diagnose([...e.errors], [], "syntax") };
         if (e instanceof NeoError)
             return { source: null, errors: [e], warnings: [], ...diagnose([e], [], "syntax") };
         throw e;

@@ -395,7 +395,7 @@ export function checkEntry(where, entry, schema) {
         seen.set(a.name, a.pos);
         const type = attrType(schema, a.name);
         if (type === null) {
-            errors.push(new NeoError(`${where}: ${entry.tag} has no attribute '${a.name}'`, a.pos));
+            errors.push(new NeoError(`${where}: ${entry.tag} has no attribute '${a.name}'${cssAttributeHint(a.name)}`, a.pos));
             continue;
         }
         const bad = UNSTYLABLE[type.kind];
@@ -489,6 +489,12 @@ export function checkDecl(schema, d, owner = schema.name) {
         return err(`'${d.name}' is a value constructor (gradient/stroke/shadow/stop) — it cannot be a member name`, d.pos);
     }
     if (attrType(schema, d.name) !== null) {
+        // A read-only intrinsic must not advise "write name = …" — setting it is
+        // ALSO an error (skill-arm finding: `contentWidth: number = …` got the
+        // wrong fix named twice). Choose-another-name is the only repair.
+        if (isReadOnly(schema, d.name)) {
+            return err(`'${d.name}' is a built-in read-only intrinsic of ${schema.name} — it is computed for you; choose another name for your derived value`, d.pos);
+        }
         return err(`${schema.name} already has an attribute '${d.name}' — a declaration introduces a new one; write '${d.name} = …' to set the existing one`, d.pos);
     }
     const type = declaredType(d.type);
@@ -513,7 +519,12 @@ export function checkDecl(schema, d, owner = schema.name) {
     }
     const c = coerce(type, d.def);
     if (!c.ok) {
-        return err(`${owner}.${d.name}'s default expects ${c.expected}, got ${c.found ?? describeLiteral(d.def)}`, d.def.pos);
+        // A raw :path default has one plausible intent — the { } binding form the
+        // corpus itself uses (`rid: string = { :id }`): name it (Run-2 finding).
+        const hint = d.def.kind === "path"
+            ? ` — to seed from data, write a { } default: ${d.name}: ${d.type} = { :${d.def.path} }`
+            : "";
+        return err(`${owner}.${d.name}'s default expects ${c.expected}, got ${c.found ?? describeLiteral(d.def)}${hint}`, d.def.pos);
     }
     return { ok: true, type, value: c.value };
 }
@@ -902,6 +913,15 @@ function checkStateNode(el, schema, schemas, parentSchema, env, errors) {
     // the parent's context (their target, and the animation-check parent, is the
     // enclosing view — not the State).
     for (const child of el.children) {
+        // E-6: `layout: SimpleLayout [ … ]` INSIDE a state — the responsive-switch
+        // instinct. The generic layout-as-child guard would tell the author to
+        // write exactly what they wrote; the real rule is the STATE context: an
+        // override drives value slots, not component slots. Name the idioms.
+        const cs = Object.hasOwn(schemas, child.tag) ? schemas[child.tag] : null;
+        if (cs !== null && descendsFrom(cs, "Layout")) {
+            errors.push(new NeoError(`a state cannot swap '${child.tag}' in — an override drives the view's value slots, not its layout. Keep one layout and constrain geometry off the state's flag, or reassign the view's layout in an onApply()/onRemove() handler`, child.pos));
+            continue;
+        }
         checkElement(child, errors, schemas, false, env, parentSchema);
     }
 }
@@ -1048,13 +1068,45 @@ function checkNamespace(el, schema, errors) {
                 : `${schema.name}.${m.name}: '${m.name}' is already ${kindName[first.kind]} ${at} — members share one namespace`, m.pos));
     }
 }
+/** The CSS-interference table (E-1 escalation 2, diagnostics.md §4): a model
+ *  (or a web developer) reaches for the CSS name; the miss should name the
+ *  Declare slot, because "has no attribute" alone states the rule and not the
+ *  fix. Evidence-driven — entries earn their place by appearing in eval
+ *  failures or having one true equivalent; vague CSS concepts stay out. */
+const CSS_ATTRIBUTE_HINTS = {
+    border: "a border is 'stroke = { stroke(1, 0xE2E5E9) }' — drawn inside the box",
+    borderWidth: "a border is 'stroke = { stroke(1, 0xE2E5E9) }' — width and color travel together",
+    borderColor: "a border is 'stroke = { stroke(1, 0xE2E5E9) }' — width and color travel together",
+    borderStyle: "a border is 'stroke = { stroke(width, color) }' — solid only",
+    boxShadow: "a shadow is 'shadow = { shadow(dx, dy, blur, 0x00000040) }'",
+    background: "the paint slot is 'fill' (a color or gradient(…))",
+    backgroundColor: "the paint slot is 'fill'",
+    borderRadius: "rounding is 'cornerRadius'",
+    color: "text color is 'textColor' (prevailing — set it on a container)",
+    zIndex: "stacking is source order — later siblings draw above; there is no z-index",
+    overflow: "clipping is 'clip = true'; scrolling is 'scrolls = true'",
+    display: "arrangement is the 'layout' attribute — 'layout: SimpleLayout [ axis = y, spacing = 8 ]'",
+    flexDirection: "arrangement is the 'layout' attribute — 'axis = x' or 'axis = y'",
+    justifyContent: "arrangement is the 'layout' attribute; fine placement is x/y constraints",
+    alignItems: "arrangement is the 'layout' attribute; fine placement is x/y constraints",
+    gap: "spacing rides the layout — 'layout: SimpleLayout [ axis = y, spacing = 8 ]'",
+    margin: "there is no margin — position with x/y, a layout's spacing, or a wrapping View",
+    padding: "there is no padding — inset children with x/y or an inner View",
+    onChange: "the edit event is 'onInput()'",
+};
+/** The CSS-instinct hint for an unknown attribute name, or "" when the miss
+ *  isn't a known CSS name. */
+export function cssAttributeHint(name) {
+    const h = Object.hasOwn(CSS_ATTRIBUTE_HINTS, name) ? CSS_ATTRIBUTE_HINTS[name] : "";
+    return h ? ` — the CSS instinct: ${h}` : "";
+}
 /** Validate one attribute against a schema. check() collects the errors and
  *  instantiate() throws them — one message source, so the reporting and the
  *  running paths cannot drift apart. */
 export function checkAttr(schema, attr) {
     const type = attrType(schema, attr.name);
     if (type === null) {
-        return { ok: false, error: new NeoError(`${schema.name} has no attribute '${attr.name}'`, attr.pos) };
+        return { ok: false, error: new NeoError(`${schema.name} has no attribute '${attr.name}'${cssAttributeHint(attr.name)}`, attr.pos) };
     }
     if (isReadOnly(schema, attr.name)) {
         return { ok: false, error: new NeoError(`${schema.name}.${attr.name} is read-only — it is computed, so a constraint may read it but nothing may set it`, attr.pos) };
@@ -1118,9 +1170,17 @@ export function checkAttr(schema, attr) {
     }
     const c = coerce(type, attr.value);
     if (!c.ok) {
+        // A bare identifier in a value slot has exactly two plausible intents —
+        // name them both (E-5: `text = label` cost eval cells that `text = { label }`
+        // or `text = "label"` would have passed; the type rule alone names no fix).
+        // Enum slots excepted: a bare ident there is a token typo, and c.expected
+        // already lists the tokens.
+        const hint = attr.value.kind === "ident" && type.kind !== "enum"
+            ? ` — write { ${attr.value.name} } to bind the attribute${type.kind === "string" ? `, or "${attr.value.name}" for the literal text` : ""}`
+            : "";
         return {
             ok: false,
-            error: new NeoError(`${schema.name}.${attr.name} expects ${c.expected}, got ${c.found ?? describeLiteral(attr.value)}`, attr.value.pos),
+            error: new NeoError(`${schema.name}.${attr.name} expects ${c.expected}, got ${c.found ?? describeLiteral(attr.value)}${hint}`, attr.value.pos),
         };
     }
     return { ok: true, value: c.value };

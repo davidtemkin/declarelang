@@ -48,6 +48,15 @@ export declare class Dataset extends Node {
     private array;
     private wakeChain;
 }
+/** The injected transport — the network's entry seam, like the measurer's
+ *  (measure.ts provideMeasurer). Default = the platform fetch; HEADLESS
+ *  execution installs a REFUSING transport (capabilities.md §3: network is
+ *  "fixtures, or honestly absent") so extraction/verify can never initiate a
+ *  request — the source lands in `failed` with the reason, by construction. */
+type Transport = (url: string) => Promise<Response>;
+/** Swap the transport (headless installs a refuser; tests install stubs).
+ *  Returns the PREVIOUS transport so a scoped caller can restore it. */
+export declare function provideTransport(fn: Transport): Transport;
 /** A DataSource is a Dataset whose value arrives over HTTP (language §9): a
  *  reactive remote resource whose LIFECYCLE is reactive state — screens
  *  derive from `.loading`/`.loaded`/`.failed` with ordinary constraints
@@ -89,3 +98,4 @@ export declare function toCursor(v: unknown, context: string): Cursor | null;
  *  slot's type or it reads as unresolved. Recorded as an open question —
  *  these rules are language surface. */
 export declare function coerceData(type: AttrType, v: unknown, def: unknown): unknown;
+export {};
