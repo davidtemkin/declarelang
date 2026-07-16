@@ -1,4 +1,4 @@
-# Reach: `this`, `parent`, `classroot`, `app`
+# Reach: the four nouns
 
 Your constraints in the last chapter kept reaching for `classroot` and `app`. There are
 four such words, because the node a piece of code is *attached to* is not always the

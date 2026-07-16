@@ -1,4 +1,4 @@
-# Addressable: location, anchors, and what crawlers see
+# Addressable: location and anchors
 
 Every app you have built so far had exactly one address: its program URL. This
 chapter gives its *insides* addresses — so a place in your app can be linked,

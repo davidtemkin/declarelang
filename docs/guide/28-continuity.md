@@ -1,4 +1,4 @@
-# Continuity: states, springs, and arrangement that moves
+# Continuity: states and springs
 
 This is the chapter the book has been building toward. States and springs look like two
 features, but they are one mechanism — a state supplies the end-states, a spring moves the

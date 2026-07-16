@@ -1,4 +1,4 @@
-# Appearance: drawing, type, and theming
+# Appearance: drawing and theming
 
 Everything about how a program looks is an **attribute** — no stylesheets, no selectors, no
 cascade to reason about. And the colors that make up a design are named once, in one record,

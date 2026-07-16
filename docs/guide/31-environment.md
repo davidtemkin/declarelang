@@ -1,4 +1,4 @@
-# The environment: hosts, embedding, capabilities
+# Environment: hosts and embedding
 
 Everything so far has been the tree. This chapter is where the tree meets the world — the
 host it runs in, the environment it can read, keyboard focus in depth, links out, and what a

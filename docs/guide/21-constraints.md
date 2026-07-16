@@ -1,4 +1,4 @@
-# Living values: constraints and the setter
+# Living values: constraints
 
 This is the heart of the language. A `{ }` in a value slot is a **constraint** — a live
 expression the runtime keeps true by re-evaluating it when, and only when, its inputs

@@ -1,4 +1,4 @@
-# Content: text, Markdown, editing, images, islands
+# Content: text, Markdown, images
 
 The content types are one family — what fills views. Declare keeps them explicitly distinct:
 a `Text` is never *secretly* formatted, `Markdown` is the choice you make when you want

@@ -1,4 +1,4 @@
-# Interaction: events, handlers, and the keyboard
+# Interaction: events and input
 
 A program hears the user through **handlers** — methods whose names begin with `on`. No
 `addEventListener`, no listener to remove, no dependency array: a handler is a member that
