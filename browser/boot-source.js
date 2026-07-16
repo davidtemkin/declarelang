@@ -1,7 +1,7 @@
 // browser/boot-source.js — the SOURCE VIEWER for a plain static host. The browser
 // counterpart of the dev server's sourcePage() (server/index.mjs): given a target
 // `.declare`, run the compiler's highlight() over it IN-BROWSER and render
-// examples/codeviewer/ seeded with the resulting segments — the same viewer app,
+// apps/codeviewer/ seeded with the resulting segments — the same viewer app,
 // through the same host→app seed channel (cfg.seeds → app.demoSources).
 //
 // The Service Worker routes a top-level navigation to `…/<name>.declare?view=reader|source|edit`
@@ -24,7 +24,7 @@ async function run() {
   const host = document.getElementById("host");
   if (!target) return showError(host, "no source URL — the Service Worker did not pass ?src=…");
   try {
-    const viewerUrl = new URL("examples/codeviewer/codeviewer.declare", ROOT);
+    const viewerUrl = new URL("apps/codeviewer/codeviewer.declare", ROOT);
     // In parallel: the one compiler client (worker or inline, library registered
     // as its default), the viewer shell source, and the target file being viewed.
     // Nothing depends on another, so one round-trip.

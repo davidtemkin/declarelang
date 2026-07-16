@@ -36,7 +36,7 @@
 <p>Just as SQL is a domain-specific language for database queries, <span>Declare</span> is a DSL for user interfaces. Its whole surface fits in your head — and inside an LLM's context window.</p>
 <p>This page is written in it. By an LLM.</p>
 <a href="https://github.com/davidtemkin/declarelang"><p>GitHub →</p></a>
-<a href="examples/homepage/homepage.declare?view=edit"><p>Edit this page →</p></a>
+<a href="apps/homepage/homepage.declare?view=edit"><p>Edit this page →</p></a>
 <a href="#why"><p>Why a new language, now? →</p></a>
 <p>01</p>
 <h3>Read it. Generate it. Run it.</h3>
@@ -51,8 +51,8 @@
 <p>02</p>
 <h3>Small. Fast. A whole app.</h3>
 <p>Declare Calendar: four views that are one surface seen through a moving, zooming rectangle — event chips that morph into time-blocks, drag-to-reschedule, an editable detail panel, light and dark. The kind of continuous, animated UI that's usually a project of its own — here it's the reference app.</p>
-<a href="examples/calendar/calendar.declare"><p>Run Declare Calendar →</p></a>
-<a href="examples/calendar/calendar.declare?view=edit"><p>or view &amp; edit source →</p></a>
+<a href="apps/calendar/calendar.declare"><p>Run Declare Calendar →</p></a>
+<a href="apps/calendar/calendar.declare?view=edit"><p>or view &amp; edit source →</p></a>
 <h1>46 KB</h1>
 <p>over the wire, gzipped — the whole app and its runtime</p>
 <h1>479</h1>
@@ -94,11 +94,11 @@ Declare abstracts the renderer away — you declare what the UI is, and the runt
 <p>Built in</p>
 <p>Declare</p>
 <p>·</p>
-<a href="examples/homepage/homepage.declare?view=edit"><p>View &amp; Edit Source</p></a>
+<a href="apps/homepage/homepage.declare?view=edit"><p>View &amp; Edit Source</p></a>
 <a href="#home"><p>Declare</p></a>
 <a href="#why"><p>Why Declare</p></a>
-<a href="examples/calendar/calendar.declare"><p>Declare Calendar</p></a>
-<a href="examples/docs/docs.declare"><p>Docs</p></a>
+<a href="apps/calendar/calendar.declare"><p>Declare Calendar</p></a>
+<a href="apps/docs/docs.declare"><p>Docs</p></a>
 <a href="docs/declare.md"><p>The Language</p></a>
 <a href="https://github.com/davidtemkin/declarelang"><p>GitHub</p></a>
 <section id="why">
@@ -122,8 +122,8 @@ Declare abstracts the renderer away — you declare what the UI is, and the runt
 <p>None of this trades away the human. What makes code legible to a model is what makes it fast for you to read — and you are still the reader who decides. You don't teach an LLM Declare with a million examples. You hand it the language and let the compiler keep it honest. The corpus will come; the language doesn't need it first.</p>
 <a href="#home"><h3>Declare</h3></a>
 <a href="#why"><p>Why Declare</p></a>
-<a href="examples/calendar/calendar.declare"><p>Declare Calendar</p></a>
-<a href="examples/docs/docs.declare"><p>Docs</p></a>
+<a href="apps/calendar/calendar.declare"><p>Declare Calendar</p></a>
+<a href="apps/docs/docs.declare"><p>Docs</p></a>
 <a href="docs/declare.md"><p>The Language</p></a>
 <a href="https://github.com/davidtemkin/declarelang"><p>GitHub</p></a>
 </section>
@@ -143,5 +143,5 @@ Declare abstracts the renderer away — you declare what the UI is, and the runt
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
   import boot from "./bundles/declare-boot.js";
-  boot({ main: "./examples/homepage/homepage.declare", demos: ["components", "reactivity", "spring", "states"] });
+  boot({ main: "./apps/homepage/homepage.declare", demos: ["components", "reactivity", "spring", "states"] });
 </script>

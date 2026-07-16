@@ -1,13 +1,13 @@
 // server/index.mjs — the Declare dev server.
 //
 // Two jobs, nothing else (no chat, no persistent connection, no data API):
-//   1. serve the distro tree statically   (compiler/dist, runtime/dist, examples, docs, …)
+//   1. serve the distro tree statically   (compiler/dist, runtime/dist, apps, docs, …)
 //   2. turn a PROGRAM-URL navigation (…/<name>.declare) into a run page that
 //      compiles ON REQUEST and renders it — the SAME address the static host's
 //      service worker runs (browse-to-run). Directories carry NO behavior.
 //
 //   npm start                                   # http://127.0.0.1:8200/  (the homepage)
-//   /examples/calendar-sample/calendar-sample.declare   # run it (DOM backend)
+//   /apps/calendar-sample/calendar-sample.declare   # run it (DOM backend)
 //   …?render=canvas                             # Canvas backend (a modifier)
 //   …?view=reader | ?view=source | ?view=edit   # the viewer app, on that tab
 //   …?file                                      # the raw source bytes (curl / an include)
@@ -37,7 +37,7 @@ import { rebuildStale } from "../tools/internal/bundle-freshness.mjs";
 // as the prod bundle and the in-browser compile do. No separate extraction here.
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const EXAMPLES = path.join(ROOT, "examples");
+const EXAMPLES = path.join(ROOT, "apps");
 // A React re-implementation of THIS homepage, built independently by observing the
 // deployed site (not the .declare source). Lives inside the distro at site-react/,
 // Vite-built with base "/site-react/" so every asset URL is self-prefixed — served
@@ -54,8 +54,8 @@ const MIME = {
 };
 const mime = (p) => MIME[path.extname(p).toLowerCase()] ?? "application/octet-stream";
 
-// an example is any examples/<name>/ that contains <name>.declare
-const examples = () =>
+// an app is any apps/<name>/ that contains <name>.declare
+const apps = () =>
   existsSync(EXAMPLES)
     ? readdirSync(EXAMPLES).filter((n) => existsSync(path.join(EXAMPLES, n, `${n}.declare`)))
     : [];
@@ -99,7 +99,7 @@ function serveSource(res, absPath, relPath, rt, backendClass) {
   return send(res, 200, withServerMarker(sourcePage(relPath, segments, source, backendClass, mode)));
 }
 
-// The code-viewer app (examples/codeviewer) booted for ONE source file: the
+// The code-viewer app (apps/codeviewer) booted for ONE source file: the
 // server has already run highlight(), so it seeds the segments through the host→
 // app channel (cfg.seeds → app.demoSources) — the viewer is a plain consumer, no
 // bespoke wiring. The viewer renders prose segments as Markdown and code segments
@@ -125,7 +125,7 @@ function sourcePage(relPath, segments, rawSource, backendClass, mode = "") {
     seeds: { __source__: JSON.stringify(segments), __raw__: rawSource, __path__: relPath },
   };
   return `<!doctype html><meta charset="utf-8"><title>${esc(title)} — source</title>
-<base href="/examples/codeviewer/">
+<base href="/apps/codeviewer/">
 <style>html,body{margin:0;padding:0}</style>
 <div id="host"></div>
 <script type="module">
@@ -346,7 +346,7 @@ http.createServer((req, res) => {
     // selects the Canvas backend (the old /prod-canvas path is gone — canvas is a
     // modifier now, not a second address). This is where a `?build` request redirects.
     const build = p.match(/^\/build\/([^/]+)(\/.*)?$/);
-    if (req.method === "GET" && build && examples().includes(build[1])) {
+    if (req.method === "GET" && build && apps().includes(build[1])) {
       const q = new URL(req.url, "http://x").searchParams;
       const flags = parseFlags(q, DEFAULT_FLAGS);
       serveBuild(res, build[1], build[2] ?? "", p, flags.render).catch((e) => {

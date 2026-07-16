@@ -6,14 +6,14 @@
 empirical record of what actually confuses users all already exist. This maps them so the
 editorial/IA pass builds *on* them.
 
-> Paths are provisional (reorg live): `examples/site`→`examples/homepage`; some `design/*`
+> Paths are provisional (reorg live): `apps/site`→`apps/homepage`; some `design/*`
 > docs are being edited right now — treat as authoritative-but-moving.
 
 ## 1. Positioning & voice — mine for the persuasive arc (the guide is *also* a soft sell)
 
 | source | what it gives you |
 |---|---|
-| `examples/homepage/` (the homepage essay, was `site`) | the strongest existing marketing prose — the 3-movement arc (objection → leverage → "what it's actually for"), the "we believe" bet, "an LLM's mistake is a compile error that names the fix." The **voice** to extend. |
+| `apps/homepage/` (the homepage essay, was `site`) | the strongest existing marketing prose — the 3-movement arc (objection → leverage → "what it's actually for"), the "we believe" bet, "an LLM's mistake is a compile error that names the fix." The **voice** to extend. |
 | `docs/system-design/designing-a-language-for-llms.md` | the intellectual case: two-leverages thesis, the anti-"languages don't matter" rebuttal, no-near-misses, context economics, prior-art (Anka/FeedbackEval/Hazel). The *why-it's-different* substance. |
 | `docs/declare-for-llms.md` §1, §9, §10 | the crisp framings already tested: "to web apps what HTML is to web documents," "a binding is a standing relationship the runtime keeps true," and the negative-knowledge / footgun voice. |
 | `site-react/` + calendar2 metrics (memory/bench) | concrete "vs React" evidence — bundle ~53 vs 97 KB gz, ~415 vs 874 LOC, ~8× lower input latency. Show-not-tell ammunition (constraint 13). |
@@ -41,7 +41,7 @@ editorial/IA pass builds *on* them.
 | diagnostics (reference) | the `Diag` catalog + `docs/system-design/diagnostics.md` §4 (errors name the fix) |
 | flags (operational) | `compiler/src/flags.ts` `FLAG_SPECS` (one registry, all surfaces) |
 | shipping / production | `tools/declarec.mjs`, `docs/system-design/hosting.md`, `docs/system-design/in-browser-dev.md` |
-| per-element detail | `examples/docs/docs-model.json` (the generated reference; 68% prose) |
+| per-element detail | `apps/docs/docs-model.json` (the generated reference; 68% prose) |
 
 ## 3. Empirical "what confuses users" — mine for ordering & footguns (this is the gold)
 
@@ -58,12 +58,12 @@ The guide's ordering and its "don't do this" moments should be *evidence-driven*
 
 ## 4. Worked idiom at scale — mine for real examples (not toy snippets)
 
-- **`examples/calendar/`** (~500 ln) — the flagship: states, springs, data mutation, drag,
+- **`apps/calendar/`** (~500 ln) — the flagship: states, springs, data mutation, drag,
   the "month morphs into week" continuity idiom at full scale. The place to draw *earned*
   examples that show the payoff.
-- **`examples/homepage/`** (the literate `.declare` source) — a real app whose source is
+- **`apps/homepage/`** (the literate `.declare` source) — a real app whose source is
   meant to be read; good for the composition/prevailing/theming story.
-- **`examples/controls/`** — every standard-library control in its three use forms (the
+- **`apps/controls/`** — every standard-library control in its three use forms (the
   components chapter's natural example bank; also the verify reference user).
 
 ## 5. Currency caveats

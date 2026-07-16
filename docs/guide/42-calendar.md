@@ -4,7 +4,7 @@ The whole book's claims, cashed against one real program you can run, read, and 
 **not** a line-by-line read — the calendar is about 700 lines, and most of them are ordinary.
 Instead, four load-bearing mechanisms carry the parts that look impossible, and each is a
 small idea you have already met. Open the live source alongside this chapter
-(`examples/calendar/calendar.declare` at `?view=reader`) and read the excerpts against it.
+(`apps/calendar/calendar.declare` at `?view=reader`) and read the excerpts against it.
 
 Frame it honestly: this is the language's **ceiling, not its floor**. You will not write code
 this dense often. But nothing here is a trick — it is the same reactive graph from

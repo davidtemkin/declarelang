@@ -149,7 +149,7 @@ empirical record (`language-learnings.md`, the E-series, brief §10):
 | 21 | Constraints — reactive by construction | update | |
 | 22 | Scope — the four nouns | **update + move up** (was 27) | `this`/`parent`/`classroot`/`app`; the top-mistake chapter, taught before handlers multiply. |
 | 23 | Events and subscriptions | update | Target-only events stated plainly (learnings §4); "a child delivers to its owner by calling a method." |
-| 24 | The standard library | **write-new** | The catalog, the value pattern (standalone / app-owned / data-owned), focus-for-free, themed-by-default. Example bank: `examples/controls/`. Data-owned form forward-links to 28. |
+| 24 | The standard library | **write-new** | The catalog, the value pattern (standalone / app-owned / data-owned), focus-for-free, themed-by-default. Example bank: `apps/controls/`. Data-owned form forward-links to 28. |
 | 25 | States — modes as override bundles | update | |
 | 26 | Layout — a swappable attribute | update | Adds the honest responsive idiom (E-3): swap whole layouts by assignment / per-child constraints on `app.width` / `minWidth` floor — taught, since `axis` isn't constrainable. |
 | 27 | Styling and theming | **broaden** (was 22 *prevailing*) | fill / `stroke()` / `shadow()` / `cornerRadius` / opacity + prevailing slots + `theme` + `app.dark`. The E-1 fix made structural. |

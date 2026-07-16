@@ -18,7 +18,7 @@ const read = (p) => readFileSync(path.join(ROOT, p), "utf8");
 const compileAt = (rel) => compile(read(rel), { originDir: path.join(ROOT, path.dirname(rel)) });
 
 await test("crawl: homepage emits the #why document, linked from the front page", async () => {
-  const r = compileAt("examples/homepage/homepage.declare");
+  const r = compileAt("apps/homepage/homepage.declare");
   const docs = await crawlLocations(r.source, { deps: r.deps, links: r.links });
   const keys = docs.map((d) => d.key).sort();
   assert.deepEqual(keys, ["", "why"], "the default page and the why article");
@@ -29,8 +29,8 @@ await test("crawl: homepage emits the #why document, linked from the front page"
 });
 
 await test("crawl: docs emits a document per chapter AND per reference class (data-driven, over the fixture)", async () => {
-  const r = compileAt("examples/docs/docs.declare");
-  const model = JSON.parse(read("examples/docs/docs-model.json"));
+  const r = compileAt("apps/docs/docs.declare");
+  const model = JSON.parse(read("apps/docs/docs-model.json"));
   const docs = await crawlLocations(r.source, { deps: r.deps, links: r.links, fixtures: { "docs-model.json": model } });
   const guide = docs.filter((d) => d.key.startsWith("guide/")).map((d) => d.key);
   const ref = docs.filter((d) => d.key.startsWith("reference/")).map((d) => d.key);
@@ -69,8 +69,8 @@ await test("crawl: output-hash aliasing collapses distinct locations with identi
 });
 
 await test("crawl: ONE document — sections by location id, fragment links resolve intra-document (the ruling)", async () => {
-  const r = compileAt("examples/homepage/homepage.declare");
-  const doc = await crawlDocument(r.source, { deps: r.deps, links: r.links, data: diskDataResolver(path.join(ROOT, "examples/homepage")) });
+  const r = compileAt("apps/homepage/homepage.declare");
+  const doc = await crawlDocument(r.source, { deps: r.deps, links: r.links, data: diskDataResolver(path.join(ROOT, "apps/homepage")) });
   assert.ok(doc.includes('<section id="why">'), "the why article is a section whose id IS its live location");
   assert.ok(doc.includes('href="#why"'), "the fragment link is NOT rewritten — it resolves to the section right here");
   assert.ok(doc.indexOf('href="#why"') < doc.indexOf('<section id="why">'), "default content first, then the reached sections");
@@ -101,8 +101,8 @@ await test("crawl: a network DataSource fails LOUDLY — never a silently partia
 });
 
 await test("crawl: deterministic — byte-identical across runs (the browser↔Node oracle discipline)", async () => {
-  const r = compileAt("examples/docs/docs.declare");
-  const model = JSON.parse(read("examples/docs/docs-model.json"));
+  const r = compileAt("apps/docs/docs.declare");
+  const model = JSON.parse(read("apps/docs/docs-model.json"));
   const opts = { deps: r.deps, links: r.links, fixtures: { "docs-model.json": model } };
   const a = await crawlLocations(r.source, opts);
   const b = await crawlLocations(r.source, opts);

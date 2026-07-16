@@ -108,7 +108,7 @@ npm test          # unit + perceptual + scaffold
 | `runtime/` | the framework — parser, reactive core, layout, animation, DOM/Canvas backends (zero external deps) |
 | `compiler/` | the thin `.declare` → JS compiler; depends one-way on `runtime/` |
 | `library/` | components authored in `.declare` |
-| `examples/` | runnable apps — the `site` homepage, `weather`, `calendar-sample` |
+| `apps/` | runnable apps — the `site` homepage, `weather`, `calendar-sample` |
 | `docs/` | the [guide](docs/guide/) + generated [reference](docs/reference/) |
 | `design/` | design docs — [language](docs/system-design/declare-language.md), [constraints](docs/system-design/constraints.md), [hosting](docs/system-design/hosting.md), … |
 

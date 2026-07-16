@@ -44,7 +44,7 @@ suggestions; within them, the shape is judgment.
 
 8. **Two categories, by location.** `docs/` (root + guide/reference/operational) = category B
    (authoritative, gated). `docs/system-design/` = category A (the record; non-authoritative).
-   Bundled-app specs co-locate in `examples/<app>/`, not in `docs/`.
+   Bundled-app specs co-locate in `apps/<app>/`, not in `docs/`.
 
 9. **Same prose for human and LLM.** One corpus; the packaging/access differs (file nav,
    docs app, injected context, future IDE), the words do not. Do not fork a "human version"
@@ -54,7 +54,7 @@ suggestions; within them, the shape is judgment.
 
 10. **Paths are provisional until the reorg lands.** In flight: `dist-browser`→`bundles`,
     `web`→`browser`, `/examples` serving retired (**the program URL is the run address**),
-    `examples/site`→`examples/homepage`, `model.json`→`docs-model.json`. The IA/layout targets
+    `apps/site`→`apps/homepage`, `model.json`→`docs-model.json`. The IA/layout targets
     the post-reorg shape; do not hard-code today's paths. (Another reason links are symbolic.)
 
 11. **The doc top-level moves ride the reorg.** `design/`+`docs/system-design/` → `docs/system-design/`

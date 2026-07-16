@@ -149,7 +149,7 @@ test("all five apps: 700 constraints, 0 residue errors", () => {
   const apps = ["calendar/calendar", "calendar-sample/calendar-sample", "weather/weather", "homepage/homepage", "docs/docs"];
   let tot = 0, errs = 0;
   for (const a of apps) {
-    const r = extract(readFileSync(resolve(HERE, `../examples/${a}.declare`), "utf8"));
+    const r = extract(readFileSync(resolve(HERE, `../apps/${a}.declare`), "utf8"));
     tot += r.length; errs += r.flatMap((c) => c.errors).length;
   }
   assert.equal(errs, 0, `${errs} residue errors across the corpus`);

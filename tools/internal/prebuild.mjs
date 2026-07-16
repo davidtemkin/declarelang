@@ -8,7 +8,7 @@
 // index.html is the ONE curated page; every other program is reached by its program
 // URL (browse-to-run). So this tool no longer generates pages — it is the gate:
 //
-//   - COMPILES every examples/<name>/<name>.declare (and every demo) with the
+//   - COMPILES every apps/<name>/<name>.declare (and every demo) with the
 //     Node compiler, failing loudly on any error — the gate the browser's
 //     typecheck-less render path does not provide;
 //   - REPORTS each app's compiled size / gzipped weight / LOC;
@@ -27,7 +27,7 @@ import { compile, compileTracked } from "../../compiler/dist/compile-node.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
-const EXAMPLES = path.join(ROOT, "examples");
+const EXAMPLES = path.join(ROOT, "apps");
 const RUNTIME_GZ_BYTES = 45 * 1024; // the runtime's real shipping weight (see server/index.mjs)
 
 const fail = (label, c) => {

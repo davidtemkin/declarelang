@@ -27,7 +27,7 @@ import { fileURLToPath } from "node:url";
 import { compile, crawlDocument, diskDataResolver } from "../../compiler/dist/compile-node.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const HOMEPAGE = path.join(ROOT, "examples", "homepage", "homepage.declare");
+const HOMEPAGE = path.join(ROOT, "apps", "homepage", "homepage.declare");
 const INDEX = path.join(ROOT, "index.html");
 const BEGIN = "<!--declare-static:begin-->";
 const END = "<!--declare-static:end-->";

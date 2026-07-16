@@ -31,7 +31,7 @@ await test("requestType maps the query to a request (the classifier both hosts s
 });
 
 await test("programName strips the directory and extension", () => {
-  assert.equal(programName("/examples/calendar/calendar.declare"), "calendar");
+  assert.equal(programName("/apps/calendar/calendar.declare"), "calendar");
   assert.equal(programName("homepage.declare"), "homepage");
 });
 

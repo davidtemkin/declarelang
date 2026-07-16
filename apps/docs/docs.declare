@@ -139,7 +139,7 @@ homepage's editable demos: a `TextInput` seeded from the demo source that
 republishes edits on `app.liveSource`, and an `HTML` island the host mounts
 the compiled child app into. Both are keyed by the CLASS NAME: the editor
 seeds from `app.demoSources[<Class>]` (the server populates this from
-examples/docs/demos/), and the island's `run:<Class>` slot is what the host
+apps/docs/demos/), and the island's `run:<Class>` slot is what the host
 wires.
 */
 
@@ -229,7 +229,7 @@ class Example extends View [ width = { parent.width },
 Every `declare` code fence in any prose that compiles (as-is, or wrapped in
 `App […]`) becomes a `RunBlock`: the source above, its live preview below —
 edit and it re-runs. The extractor wrote its source to
-`examples/docs/demos/<id>.declare`, so the host seeds and mounts it exactly
+`apps/docs/demos/<id>.declare`, so the host seeds and mounts it exactly
 like the homepage's demos. `live` (threaded from the page) keeps the
 preview's slot empty until its page is the one on screen, so only the visible
 page's islands ever compile.
@@ -420,7 +420,7 @@ class ClassDetail extends View [ width = { parent.width },
         ],
 
     // the live, editable example — replicated 0-or-1 times, so it's built only when
-    // the class ships a demo (examples/docs/demos/<Class>.declare). Its preview is
+    // the class ships a demo (apps/docs/demos/<Class>.declare). Its preview is
     // live only while this class is the reference selection.
 
     exampleBox: View [ width = { parent.width }, visible = { :example.length > 0 },
@@ -629,7 +629,7 @@ App [ fill = { theme.bg },
         }
         if (id.startsWith("operational:")) { app.navigate("docs/operational/" + id.slice("operational:".length) + ".md"); return }
         if (id == "spec:core") { app.navigate("docs/declare.md"); return }
-        if (id == "essay:why-declare") { app.navigate("examples/homepage/homepage.declare") }
+        if (id == "essay:why-declare") { app.navigate("apps/homepage/homepage.declare") }
         },
 
     /* ## The left rail

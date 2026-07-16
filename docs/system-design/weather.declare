@@ -1,7 +1,7 @@
 //
 // weather.declare — the weather app in idiomatic Declare.
 //
-// A functional mirror of examples/weather/weather.lzx (the OpenLaszlo
+// A functional mirror of apps/weather/weather.lzx (the OpenLaszlo
 // original, de-Yahoo'd and self-contained), rebuilt from scratch in the
 // language as it stands after the styling and animation rungs — NOT a
 // line-for-line port. This is the reference for "where the language wants you

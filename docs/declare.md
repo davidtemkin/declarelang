@@ -59,7 +59,7 @@ of the language itself; reach for them:
 
 - **Arrangement animates.** Spring a few scalars and every constraint derived from them
   moves in lock-step — this is how a calendar's month morphs into its week and folds into
-  its year (`examples/calendar/calendar.declare`, ~700 lines, the idiom at full scale).
+  its year (`apps/calendar/calendar.declare`, ~700 lines, the idiom at full scale).
 - **Layout is a reactive slot** — swap it, derive it, animate it (§5).
 - **A mode is a reversible bundle** (§8) — it cannot leak, so modes compose and interrupt.
 - **Motion is physics on an attribute** (§8) — declare where a thing belongs; the spring
@@ -652,7 +652,7 @@ making it:
 | the guided tour, concept by concept | [`docs/guide/`](guide/00-overview.md) |
 | every attribute, method, event, diagnostic | [`docs/reference/`](reference/) — generated from the source |
 | install / dev server / build, step by step | [`docs/operational/`](operational/) |
-| the idiom at real scale, annotated | `examples/calendar/calendar.declare` · `examples/homepage/homepage.declare` · `examples/controls/` |
+| the idiom at real scale, annotated | `apps/calendar/calendar.declare` · `apps/homepage/homepage.declare` · `apps/controls/` |
 | why the language is shaped this way; what's deliberately unsettled | [`docs/system-design/`](system-design/) — the design record (background, not truth) |
 
 *This file is compiled documentation in spirit: its examples are verified against the

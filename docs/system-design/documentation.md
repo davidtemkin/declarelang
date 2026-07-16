@@ -108,8 +108,8 @@ framing, and the sequencing. "Derivative" ≠ "generated" and ≠ "adds nothing.
    content is `@api` prose → reference + a guide chapter; its design *contract/rationale*
    (e.g. `components-baseline`) is category A → `docs/system-design/` (the system's design
    record, not scattered beside the code).
-2. **Bundled apps** — `examples/<app>`. Demonstration artifacts, *consumers* of the
-   language, not part of it. Their specs/briefs live in `examples/<app>/` as that
+2. **Bundled apps** — `apps/<app>`. Demonstration artifacts, *consumers* of the
+   language, not part of it. Their specs/briefs live in `apps/<app>/` as that
    artifact's own documentation and **never flow into the reference**.
 
 ## 4. Truth-maintenance — the gate (all CI-blocking)
@@ -173,7 +173,7 @@ the gate passes — the same standing as *format-to-canon* and *verify*. Docs ar
   components, runtime, tooling. The top level loses `design/` and `docs/system-design/` and gains
   nothing; `README.md` is the entry point and links onward.
 - **Artifact specs co-locate with their artifact:** `site-spec.md`/`site-brief.md` →
-  `examples/site/`, `weather.declare` → its example, the tabslider notes → that component.
+  `apps/site/`, `weather.declare` → its example, the tabslider notes → that component.
 - **The standard library gets system docs** (§3 mode 1), not bundled-app treatment.
 
 ## 8. Sequence

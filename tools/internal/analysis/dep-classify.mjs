@@ -49,11 +49,11 @@ const NODE_COLLECTIONS = new Set(["children","subviews","views","members","insta
 const VALUE_ACCESSORS = new Set(["value","status","error","loading","loaded","failed","idle"]);
 
 const DEFAULT_CORPUS = [
-  "examples/calendar/calendar.declare",
-  "examples/calendar-sample/calendar-sample.declare",
-  "examples/weather/weather.declare",
-  "examples/homepage/homepage.declare",
-  "examples/docs/docs.declare",
+  "apps/calendar/calendar.declare",
+  "apps/calendar-sample/calendar-sample.declare",
+  "apps/weather/weather.declare",
+  "apps/homepage/homepage.declare",
+  "apps/docs/docs.declare",
 ];
 
 // ── parse a body to a TS AST (expression or statement form), collecting locals ──

@@ -58,21 +58,21 @@ await test("prewarmKey is deterministic and separates main / kind / props", () =
 });
 
 await test("relativize strips the ROOT prefix to a deploy-relative main path", () => {
-  const abs = new URL("examples/homepage/homepage.declare", ROOT_URL).href;
-  assert.equal(relativize(abs, ROOT_URL), "examples/homepage/homepage.declare");
+  const abs = new URL("apps/homepage/homepage.declare", ROOT_URL).href;
+  assert.equal(relativize(abs, ROOT_URL), "apps/homepage/homepage.declare");
   assert.equal(relativize("https://other.example/x.declare", ROOT_URL), "https://other.example/x.declare");
 });
 
 await test("a missing artifact falls through (null)", async () => {
   const r = await loadPrewarm({
-    root: ROOT_URL, relMain: "examples/does-not-exist/x.declare",
+    root: ROOT_URL, relMain: "apps/does-not-exist/x.declare",
     kind: "run", props: { render: "dom" }, fetchImpl: fsFetch(),
   });
   assert.equal(r, null);
 });
 
 await test("a fresh artifact validates; an edited source reads stale", async () => {
-  const relMain = "examples/calendar/calendar.declare";
+  const relMain = "apps/calendar/calendar.declare";
   const props = { render: "dom" };
   assert.ok(existsSync(artFile(relMain, "run", props)), "calendar run artifact is committed");
 
@@ -91,7 +91,7 @@ await test("a fresh artifact validates; an edited source reads stale", async () 
 });
 
 await test("a deleted dependency busts the artifact", async () => {
-  const relMain = "examples/calendar/calendar.declare";
+  const relMain = "apps/calendar/calendar.declare";
   const props = { render: "dom" };
   const gone = await loadPrewarm({
     root: ROOT_URL, relMain, kind: "run", props,
@@ -101,9 +101,9 @@ await test("a deleted dependency busts the artifact", async () => {
 });
 
 await test("the identity guard rejects a mismatched artifact (fnv1a collision defense)", async () => {
-  const relMain = "examples/homepage/homepage.declare";
+  const relMain = "apps/homepage/homepage.declare";
   const props = { render: "dom" };
-  const forged = JSON.stringify({ kind: "run", main: "examples/other/x.declare", props, program: "x", closure: { entries: [], props } });
+  const forged = JSON.stringify({ kind: "run", main: "apps/other/x.declare", props, program: "x", closure: { entries: [], props } });
   const r = await loadPrewarm({
     root: ROOT_URL, relMain, kind: "run", props,
     fetchImpl: fsFetch({ [artFile(relMain, "run", props)]: forged }),
@@ -112,7 +112,7 @@ await test("the identity guard rejects a mismatched artifact (fnv1a collision de
 });
 
 await test("a stored-missing dependency: absent → fresh, present → stale", async () => {
-  const relMain = "examples/synthetic/x.declare";
+  const relMain = "apps/synthetic/x.declare";
   const props = { render: "dom" };
   const dep = join(ROOT, relMain);
   const artifact = JSON.stringify({

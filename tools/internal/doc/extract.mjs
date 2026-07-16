@@ -9,7 +9,7 @@
 // file-prose path doc-system.md blesses) — later swapped for captured `/* *​/`
 // blocks with no change to this model or the renderer.
 //
-//   node tools/internal/doc/extract.mjs        # writes examples/docs/docs-model.json
+//   node tools/internal/doc/extract.mjs        # writes apps/docs/docs-model.json
 //
 // Run after `npm run build` (needs runtime/dist).
 
@@ -32,13 +32,13 @@ const TARGETS = [                                        // the documented compo
   "Dataset", "DataSource",
   "Animator", "AnimatorGroup", "Spring", "State", "Node",
 ];
-const OUT = path.join(ROOT, "examples/docs/docs-model.json");
-const DEMOS = path.join(ROOT, "examples/docs/demos");         // generated islands land here (server seeds them)
+const OUT = path.join(ROOT, "apps/docs/docs-model.json");
+const DEMOS = path.join(ROOT, "apps/docs/demos");         // generated islands land here (server seeds them)
 
 // ── inline runnable examples: every prose ```declare block becomes a live edit/run
 // island IF it compiles as a whole program — as written (a complete `App […]`, or a
 // `class …` + `App`), or wrapped in `App [ … ]` for a bare view fragment. Each runnable
-// block is WRITTEN as examples/docs/demos/<id>.declare so the server/host seed it into
+// block is WRITTEN as apps/docs/demos/<id>.declare so the server/host seed it into
 // `app.demoSources[<id>]` exactly like the homepage demos, and the model records the
 // prose as an ordered segment list the app renders (Markdown text, or an island).
 const genFiles = {};                                          // id → source, written to DEMOS at the end
@@ -245,15 +245,15 @@ const METHODS = readMethods([
 ]);
 const RUNTIME_NAME = { HTML: "Html" };                  // doc id → runtime class name (the one mismatch)
 
-// editable examples — a class has one when examples/docs/demos/<Class>.declare exists.
+// editable examples — a class has one when apps/docs/demos/<Class>.declare exists.
 // A 0-or-1 array, so the app conditionally CONSTRUCTS the island by datapath
 // replication. It carries the demo SOURCE (so the editor seeds straight off the
 // model datapath, which is guaranteed present once the model has loaded) and the
 // line count (to size the source panel). The LIVE PREVIEW is mounted separately by
 // the host from `app.demoSources[<Class>]`, which the server fills from this same
-// demos dir (server/index.mjs reads examples/<page>/demos/*).
+// demos dir (server/index.mjs reads apps/<page>/demos/*).
 function readExample(name) {
-  const rel = `examples/docs/demos/${name}.declare`;
+  const rel = `apps/docs/demos/${name}.declare`;
   const abs = path.join(ROOT, rel);
   if (!existsSync(abs)) return [];
   const source = readFileSync(abs, "utf8").replace(/\n$/, "");
@@ -432,5 +432,5 @@ console.log(`extract: wrote ${path.relative(ROOT, OUT)}`);
 console.log(`  classes: ${roots.join(", ")}`);
 console.log(`  nodes:   ${Object.keys(nodes).length} (${Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(", ")})`);
 console.log(`  guide:   ${guide.length} chapters in ${guideParts.length} parts (${guideParts.map((p) => p.part + ":" + p.chapters.length).join(", ")})`);
-console.log(`  islands: ${Object.keys(genFiles).length} inline runnable examples written to examples/docs/demos/seg_*.declare`);
+console.log(`  islands: ${Object.keys(genFiles).length} inline runnable examples written to apps/docs/demos/seg_*.declare`);
 console.log(`  @api:    ${documented} documented / ${Object.keys(nodes).length - documented} structural-only`);

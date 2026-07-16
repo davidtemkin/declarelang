@@ -19,7 +19,7 @@ import { renderAsync, build, mountApp, loadFonts, fontFacesOf, settle, disposeAp
 const BACKENDS = { DomBackend, CanvasBackend };
 
 // The distro ROOT (this module lives at <root>/browser/…). App-navigation targets are
-// resolved against it, so a distro-relative link ("examples/calendar/") lands
+// resolved against it, so a distro-relative link ("apps/calendar/") lands
 // correctly whether the distro is served from the origin root (dev server) or a
 // project subpath (GitHub Pages /<repo>/). Absolute URLs (https://…) pass through.
 const DISTRO_ROOT = new URL("../", import.meta.url);

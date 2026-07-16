@@ -1,4 +1,4 @@
-// verify-examples — CI truth-maintenance for the whole corpus (docs/system-design/
+// verify-apps — CI truth-maintenance for the whole corpus (docs/system-design/
 // verify-and-evals.md §2.10). Every runnable example must climb the fast rungs
 // (1–4: compile, resolve, typecheck, headless boot) on every commit, and every
 // component-library source must do the same under the probe wrapper (--wrap).
@@ -34,11 +34,11 @@ function assertClean(rep, label) {
 }
 
 // ── every runnable example ───────────────────────────────────────────────────
-const examples = readdirSync(join(ROOT, "examples"))
-  .map((n) => join("examples", n, `${n}.declare`))
+const apps = readdirSync(join(ROOT, "apps"))
+  .map((n) => join("apps", n, `${n}.declare`))
   .filter((f) => existsSync(join(ROOT, f)) && statSync(join(ROOT, f)).isFile());
 
-for (const f of examples) {
+for (const f of apps) {
   test(`example ${f} — clean through R4 (compile, typecheck, boot)`, () => assertClean(verify(f), f));
 }
 
@@ -52,5 +52,5 @@ for (const f of libFiles) {
   test(`component ${f} — clean through R4 under --wrap probe`, () => assertClean(verify(f, ["--wrap"]), f));
 }
 
-console.log(`\nverify-examples: ${pass} passed, ${fail} failed (${examples.length} examples, ${libFiles.length} components)`);
+console.log(`\nverify-apps: ${pass} passed, ${fail} failed (${apps.length} apps, ${libFiles.length} components)`);
 process.exit(fail === 0 ? 0 : 1);

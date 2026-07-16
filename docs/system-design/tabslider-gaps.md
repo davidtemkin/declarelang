@@ -1,6 +1,6 @@
 # Declare weather — tabslider & reveal-animation gaps
 
-Frame-by-frame comparison (puppeteer filmstrips) of `examples/weather` (the LZX
+Frame-by-frame comparison (puppeteer filmstrips) of `apps/weather` (the LZX
 original, via `basetabslider`/`basetabelement`) vs `weather` surfaced three
 motion gaps. This note records what the original does, why Declare differs, and the
 fix. Investigated 2026-07-04.

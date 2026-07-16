@@ -16,7 +16,7 @@ const b = await puppeteer.launch({ executablePath: chrome, headless: true, args:
 const page = await b.newPage();
 await page.goto("http://localhost:8364/", { waitUntil: "domcontentloaded" });
 
-for (const rel of ["examples/homepage/homepage.declare", "examples/docs/docs.declare"]) {
+for (const rel of ["apps/homepage/homepage.declare", "apps/docs/docs.declare"]) {
   const dir = ROOT + "/" + rel.split("/").slice(0, -1).join("/");
   const r = compile(readFileSync(ROOT + "/" + rel, "utf8"), { originDir: dir });
   const nodeDoc = await crawlDocument(r.source, { deps: r.deps, links: r.links, data: diskDataResolver(dir) });

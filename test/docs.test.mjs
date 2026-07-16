@@ -10,7 +10,7 @@
 // Covered files: evals/declare-for-llms.md (the eval control-arm brief — it
 // lives under evals/ because that is its only remaining role; its fences must
 // stay compiling for as long as it is the yardstick). The guide's runnable fences are validated separately by
-// tools/internal/prebuild.mjs (they become examples/docs/demos/seg_*.declare); folding
+// tools/internal/prebuild.mjs (they become apps/docs/demos/seg_*.declare); folding
 // that path into `npm test` is tracked in docs/system-design/verify-and-evals.md.
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";

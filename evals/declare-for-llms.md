@@ -194,7 +194,7 @@ App [ width = 420, height = 120, fill = #0B141B,
     ]
 ```
 
-Because layout, states, and springs sit on one reactive core, *arrangement* changes animate too: spring a handful of geometry attributes and every constraint derived from them moves in lock-step — this is how a calendar's month morphs into its week (see `examples/calendar/calendar.declare`, ~500 lines, the idiom at full scale).
+Because layout, states, and springs sit on one reactive core, *arrangement* changes animate too: spring a handful of geometry attributes and every constraint derived from them moves in lock-step — this is how a calendar's month morphs into its week (see `apps/calendar/calendar.declare`, ~500 lines, the idiom at full scale).
 
 ## 8. Scope: four nouns
 
@@ -296,7 +296,7 @@ Also provided, undeclared: keyboard focus travels the controls (Tab / Shift-Tab;
 ## 12. The loop: how to work
 
 1. **Write** `.declare` source — the tree is the app. Apps are typically one file; a file can pull in others with `include [ "path.declare" ]` (top-level declarations merge, include-once), and library components need no include at all — a bare tag auto-includes them.
-2. **Compile** — dev server: `npm start`, then `http://127.0.0.1:8200/examples/<name>/`; or POST the source to `/compile`; or in the browser (the playground on the homepage). Add `?typecheck=1` to also run TypeScript over every `{ }` body. Add `?backend=canvas` to render own-pixels instead of DOM — same source, same pixels.
+2. **Compile** — dev server: `npm start`, then `http://127.0.0.1:8200/apps/<name>/`; or POST the source to `/compile`; or in the browser (the playground on the homepage). Add `?typecheck=1` to also run TypeScript over every `{ }` body. Add `?backend=canvas` to render own-pixels instead of DOM — same source, same pixels.
 3. **Read the errors.** Every compile error carries a code (`DECLARE####`), a line/column, and — deliberately — *the fix*: Declare's diagnostics are written for a model in a loop, so the message states the rule you broke and the one rewrite that resolves it. Trust the message; apply the named fix; recompile. All independent errors in a phase are reported together.
 4. **Ship** — `node tools/declarec.mjs <file>` emits a self-contained production bundle (app + runtime, ~50 KB gzipped).
 
@@ -306,7 +306,7 @@ Also provided, undeclared: keyboard focus travels the controls (Tab / Shift-Tab;
 |---|---|
 | the full language spec (~680 lines, authoritative) | `docs/system-design/declare-language.md` |
 | the guided tour, concept by concept | `docs/guide/00-overview.md` → `10-tutorial.md` → … |
-| the idiom at real scale, annotated | `examples/calendar/calendar.declare` · `examples/homepage/homepage.declare` |
+| the idiom at real scale, annotated | `apps/calendar/calendar.declare` · `apps/homepage/homepage.declare` |
 | what's deliberately not settled yet | `docs/system-design/declare-language.md` §13 |
 | the reactivity model's rules | `docs/system-design/constraints.md` |
 

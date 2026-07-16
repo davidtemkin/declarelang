@@ -7,7 +7,7 @@ chapter exists so the viewer can be maintained from its own pages.
 
 ## The shape
 
-The viewer is one self-hosted Declare app — `examples/docs/docs.declare` — driven
+The viewer is one self-hosted Declare app — `apps/docs/docs.declare` — driven
 by a build-time `docs-model.json`. It runs in two modes, **Guide** (these narrative
 chapters) and **Reference** (the framework classes). The app names no DOM: it is
 ordinary Declare over the same runtime it documents, so every fix to the runtime
@@ -39,7 +39,7 @@ const partOf = (num) =>
 
 Prose is not one Markdown blob. `segmentize` splits each chapter at ` ```declare `
 fences: the text between them renders as Markdown, and every runnable fence becomes
-a live **edit-and-run island** — its source is written to `examples/docs/demos/seg_*.declare`
+a live **edit-and-run island** — its source is written to `apps/docs/demos/seg_*.declare`
 and rendered by the `Segment` / `RunBlock` pair (an editable `DocField` above, the
 compiled child app mounted in an `HTML` slot below).
 

@@ -1,6 +1,6 @@
 // The controls showcase's named visual states — verify's rung 6 proving case.
-//   bless:   node tools/verify.mjs examples/controls/controls.declare --states examples/controls/controls.states.mjs --bless
-//   compare: node tools/verify.mjs examples/controls/controls.declare --states examples/controls/controls.states.mjs
+//   bless:   node tools/verify.mjs apps/controls/controls.declare --states apps/controls/controls.states.mjs --bless
+//   compare: node tools/verify.mjs apps/controls/controls.declare --states apps/controls/controls.states.mjs
 //
 // Determinism notes: routes end in settled motion (driven clock) and, where
 // the focus ring is involved, wait PAST its 1s idle fade so the capture is

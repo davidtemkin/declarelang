@@ -85,7 +85,7 @@ orthogonal layer that was previously missing or hand-hacked:
 
 | layer | question it answers | owner |
 |---|---|---|
-| path — `examples/docs/docs.declare` | which program | the file system |
+| path — `apps/docs/docs.declare` | which program | the file system |
 | query — `?view=edit`, `?build`, `?render`, `?crawler` | what the host does with it | the host (requests × modifiers, requests.md) |
 | fragment — `#guide/22-reach` | where inside the running app | the app (`location`) |
 
@@ -97,7 +97,7 @@ orthogonal layer that was previously missing or hand-hacked:
   query into the viewer's initial location, and the `__mode__` seed dies.
 - `navigate()` remains the out-of-app action (capabilities.md §6). Location is
   within-app. Cross-app deep links compose:
-  `app.navigate("examples/docs/docs.declare#guide/22-reach")`.
+  `app.navigate("apps/docs/docs.declare#guide/22-reach")`.
 - `declare-docs:` symbolic links never appear in URLs; a resolver maps symbol →
   location write. The fragment is the symbol's runtime shadow.
 
@@ -337,8 +337,8 @@ the merge's enemy); any docs-content work beyond §11.2's list.
 ### 11.5 Merge protocol
 
 - **Generated files are never merged.** `bundles/*` (compiler + boot),
-  `bundles/cache/*` (prewarm), `examples/docs/docs-model.json`,
-  `examples/docs/demos/seg_*.declare`, `docs/links.json`, and BUILD_ID stamps
+  `bundles/cache/*` (prewarm), `apps/docs/docs-model.json`,
+  `apps/docs/demos/seg_*.declare`, `docs/links.json`, and BUILD_ID stamps
   all conflict by construction between concurrent trees. Merge SOURCE only,
   then regenerate everything in order (tsc → build-compiler → build-boot →
   extract → links --emit → prewarm) and re-run the full gate on the merged

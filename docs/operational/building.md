@@ -5,7 +5,7 @@ at build time and emits a self-contained, static directory — the Declare analo
 bundler's production build.
 
 ```bash
-node tools/declarec.mjs examples/calendar/calendar.declare -o dist
+node tools/declarec.mjs apps/calendar/calendar.declare -o dist
 ```
 
 ## What it emits, and why it's small

@@ -473,7 +473,7 @@ This is `weather.declare`: a small but complete tabbed weather app, written in t
 - **Layout is an attribute, not a child.** Each container's arrangement is a `layout: SimpleLayout [ … ]` member (or `ResizeLayout`, …) — a reactive slot you could swap, constrain, or animate, not a fixed container type.
 - **The small pieces.** The zip field two-way-binds with `value <-> zip`; global up/down keys are a lifetime-managed `keyup(k) <- Keys` subscription; the weather-icon URL is a stateless `script { }` function bound inline (not a wrapper class); the schema declares the response shape so paths are typed and the response validated.
 
-(An earlier companion file ported the app line-for-line from the original imperative OpenLaszlo for before/after comparison; it was retired — `weather.declare` below is where the language wants you to land, and the original `examples/weather/weather.lzx` remains the true before.)
+(An earlier companion file ported the app line-for-line from the original imperative OpenLaszlo for before/after comparison; it was retired — `weather.declare` below is where the language wants you to land, and the original `apps/weather/weather.lzx` remains the true before.)
 
 ```
 // weather.declare — weather.lzx modernized: new syntax & constructs

@@ -41,7 +41,7 @@ async function isArtifactFresh(closure) {
 }
 
 /**
- * @param artifact the default export of examples/<name>/prebuilt/<name>.js
+ * @param artifact the default export of apps/<name>/prebuilt/<name>.js
  * @param artifact.library {{manifest,files}} prefetched auto-include set for in-browser compiles
  * @param artifact.closure the dependency closure for the freshness check
  * @param artifact.mainId  root-relative URL of the page's own .declare (recompiled if stale)

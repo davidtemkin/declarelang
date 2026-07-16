@@ -45,9 +45,9 @@ const CACHE_DIR = path.join(ROOT, "bundles", "cache");
 // selects which artifacts to emit: "run" (the compiled program) and/or "crawler" (the
 // static-extraction document, for content pages crawlers read).
 const PROGRAMS = [
-  { main: "examples/homepage/homepage.declare", props: { render: "dom" }, kinds: ["run", "crawler"] },
-  { main: "examples/calendar/calendar.declare", props: { render: "dom" }, kinds: ["run"] },
-  { main: "examples/docs/docs.declare", props: { render: "dom" }, kinds: ["run", "crawler"] },
+  { main: "apps/homepage/homepage.declare", props: { render: "dom" }, kinds: ["run", "crawler"] },
+  { main: "apps/calendar/calendar.declare", props: { render: "dom" }, kinds: ["run"] },
+  { main: "apps/docs/docs.declare", props: { render: "dom" }, kinds: ["run", "crawler"] },
 ];
 
 const toPosix = (p) => p.split(path.sep).join("/");

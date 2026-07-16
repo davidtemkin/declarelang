@@ -45,7 +45,7 @@ export function prewarmKey(relMain, kind, props = {}) {
   return fnv1a(parts.join("\n"));
 }
 
-/** A program's deploy-relative main path (e.g. "examples/calendar/calendar.declare")
+/** A program's deploy-relative main path (e.g. "apps/calendar/calendar.declare")
  *  from its absolute URL and the distro ROOT URL — the key's origin-independent
  *  identity. Both are absolute and ROOT ends in "/", so the main is under it; a URL
  *  that somehow isn't returns unchanged (→ a key nothing was committed under → miss). */

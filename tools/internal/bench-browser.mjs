@@ -31,7 +31,7 @@ const APPS = [
   // Reached by its PROGRAM URL via browse-to-run — so the measurement installs the
   // service worker first (homepage), exactly as a real visitor arrives. Directories
   // no longer serve a page (docs/system-design/hosting.md).
-  { name: "calendar", path: "examples/calendar/calendar.declare", browseToRun: true },
+  { name: "calendar", path: "apps/calendar/calendar.declare", browseToRun: true },
 ];
 
 // The fetches worth itemizing on a cold load, by URL substring.

@@ -170,8 +170,8 @@ static-extraction document alone, content as semantic HTML). `?view=` is the one
 that takes a value (its three tabs); everything else is a bare presence key, and the
 absence of all is `run`. `?extract` is distinct from the bare `?crawler` *modifier*, which
 embeds the same document in the run page rather than returning it alone. The server
-(`server/index.mjs`) applies it on both the `examples/<name>/` route and any `.declare`
-file path; the viewer requests boot the code viewer (`examples/codeviewer`) on the named
+(`server/index.mjs`) applies it on both the `apps/<name>/` route and any `.declare`
+file path; the viewer requests boot the code viewer (`apps/codeviewer`) on the named
 tab, `segments` returns the highlight JSON, `file` answers a plain fetch with the exact
 bytes, and `extract` compiles through the front-end and serves the extracted document.
 The static host's service worker mirrors these, extracting `extract` **in the browser**

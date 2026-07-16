@@ -146,7 +146,7 @@ data-owned (`<->`, forward-link to 27); focus-for-free and the traveling ring; w
 is no widget (no Modal/Tabs/Select yet — compose or define a class, and that's normal, not
 a workaround).
 **Law:** *a control's value is a plain reactive attribute — derive down, deliver up.*
-**Key examples:** the bound form (core doc §12, verified); `examples/controls/` is the
+**Key examples:** the bound form (core doc §12, verified); `apps/controls/` is the
 example bank.
 **Evidence:** E-2's `<->`-on-a-non-editor error message lands here as the "don't" example.
 **Salvage:** none (write-new).

@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import puppeteer from "puppeteer-core";
 const chrome = ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"].find(existsSync);
-const BASE = "http://localhost:8364/examples/bench/bench.declare";
+const BASE = "http://localhost:8364/apps/bench/bench.declare";
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 let failures = 0;
 function check(label, got, want) {

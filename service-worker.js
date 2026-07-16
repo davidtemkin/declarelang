@@ -33,7 +33,7 @@ import { requestType, REQ, runWrapper, programName, escapeHtml } from "./browser
 // BUILD_ID — a content hash of the platform (runtime + compiler bundle + web client +
 // this worker + index.html), stamped by tools/internal/stamp-version.mjs. Left "dev" when unstamped
 // (local serving); a real deploy stamps it so cache-busting + the SW self-update engage.
-const BUILD_ID = "c97546e86c53";
+const BUILD_ID = "ac0a1adbd119";
 
 const ROOT = new URL("./", self.location);            // <origin>/…/  (this worker's dir == the distro root)
 const ORIGIN = ROOT.origin;
@@ -124,7 +124,7 @@ async function hostPageResponse(url) {
 
 // The VIEWER page for a `…/<name>.declare?view=reader|source|edit` navigation. It boots
 // browser/boot-source.js, which highlights the target IN-BROWSER and renders the code-viewer
-// app (examples/codeviewer) on the requested tab (`tab` → ?mode= → the viewer's __mode__:
+// app (apps/codeviewer) on the requested tab (`tab` → ?mode= → the viewer's __mode__:
 // reader = highlighted + Markdown, source = verbatim, edit = live workbench). No `<base>`:
 // the boot module resolves the viewer + runtime against its own ABSOLUTE URL, and takes the
 // target only as the ?src= param, so nothing relative on this page needs diverting. ?v busts.

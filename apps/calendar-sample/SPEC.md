@@ -2,7 +2,7 @@
 
 **What this is.** The extraction of the original Laszlo Calendar's behavior, appearance, and animation
 — from the *running app* (screenshots in `oracle/`, taken 2026-07-05 against the DHTML build at
-`examples/calendar/`) and from its LZX source *read for intent only*. Declare implements **this document**,
+`apps/calendar/`) and from its LZX source *read for intent only*. Declare implements **this document**,
 never the LZX structure. That is the anti-transliteration firewall: the original is 3,955 lines across
 17 files, littered with Flash-VM-era hacks (pooling, id-string arithmetic, hardcoded timers, dead code);
 the rewrite is a ground-up Declare-idiomatic app that matches what the user *sees and does*.

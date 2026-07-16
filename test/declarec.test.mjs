@@ -78,8 +78,8 @@ await test("a broken source reports errors and emits no program", () => {
 
 // ── full production build (calendar) ────────────────────────────────────────
 await test("buildProduction emits a self-contained bundle in the expected size range", async () => {
-  const src = readFileSync(resolve(HERE, "../examples/calendar/calendar.declare"), "utf8");
-  const out = await buildProduction(src, { name: "calendar", originDir: resolve(HERE, "../examples/calendar") });
+  const src = readFileSync(resolve(HERE, "../apps/calendar/calendar.declare"), "utf8");
+  const out = await buildProduction(src, { name: "calendar", originDir: resolve(HERE, "../apps/calendar") });
   assert.ok(out.ok, "build should succeed: " + (out.errors?.map((e) => e.message).join("; ") ?? ""));
   const names = out.files.map((f) => f.name);
   assert.ok(names.includes("index.html"), "should emit index.html");

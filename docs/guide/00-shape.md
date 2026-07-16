@@ -87,10 +87,10 @@ modes, motion, and data all derive from the same constraints, **continuity becom
 the grain, not the garnish** — a view doesn't switch to the next screen so much as
 *become* it.
 
-The far end of that is `examples/calendar/calendar.declare` — about 700 lines —
+The far end of that is `apps/calendar/calendar.declare` — about 700 lines —
 whose month view folds into its week and its year as one continuous surface, every
 mid-flight frame a real layout rather than a crossfade. Don't take the claim on the
-page; run it yourself — open `examples/calendar/calendar.declare` in your running
+page; run it yourself — open `apps/calendar/calendar.declare` in your running
 distro and drag it between its views. By the end of this guide you can read — and
 write — the program that does that, built from the same handful of ideas the counter
 already showed you.
