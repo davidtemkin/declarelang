@@ -273,7 +273,7 @@ complete; what remains is the systematic build, in this order:
 3. **Guide chapters** per `guide-outline.md`, in its execution-note order (00 and 10 set
    the voice — worth one human checkpoint on 00 before the rest proceed). Chapter 42 is
    gated on the calendar stdlib pass.
-4. **Reference fill**: the ~67 missing prose entries in `tools/doc/prose/`, per the
+4. **Reference fill**: the ~67 missing prose entries in `tools/internal/doc/prose/`, per the
    ratified template.
 5. **Mechanical passes, after the reorg settles:** the `design/`→`system-design/` moves +
    the 17 link re-points (to `declare-docs:` symbolic targets, not new paths); the

@@ -1,15 +1,15 @@
-// tools/doc/extract.mjs — THE EXTRACTOR: source ──► docs-model.json (tools/doc/model.ts).
+// tools/internal/doc/extract.mjs — THE EXTRACTOR: source ──► docs-model.json (tools/internal/doc/model.ts).
 //
 // Vertical slice: the three canonical view classes (View, Text, Image). Structure
 // is read losslessly from the runtime's own `ComponentSchema` chain (runtime/dist)
 // so it CANNOT drift from the checker; defaults are read from the `defineAttributes`
 // specs in the runtime source via the TypeScript compiler API (docs/system-design/doc-system.md
 // §"Structure generation" — schema ⨝ decoration ⨝ tsc). Prose + the @api surface
-// come, for the slice, from keyed Markdown files under tools/doc/prose/ (the
+// come, for the slice, from keyed Markdown files under tools/internal/doc/prose/ (the
 // file-prose path doc-system.md blesses) — later swapped for captured `/* *​/`
 // blocks with no change to this model or the renderer.
 //
-//   node tools/doc/extract.mjs        # writes examples/docs/docs-model.json
+//   node tools/internal/doc/extract.mjs        # writes examples/docs/docs-model.json
 //
 // Run after `npm run build` (needs runtime/dist).
 
@@ -17,15 +17,15 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync } from
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
-import { SCHEMAS, RichTextSchema } from "../../runtime/dist/schema.js";
-import { compile } from "../../compiler/dist/compile-node.js";
-import { settleHeadless } from "../../compiler/dist/headless.js";
+import { SCHEMAS, RichTextSchema } from "../../../runtime/dist/schema.js";
+import { compile } from "../../../compiler/dist/compile-node.js";
+import { settleHeadless } from "../../../compiler/dist/headless.js";
 
 // RichText is the abstract base of Markdown/HTMLText — documented, but not in the
 // instantiable SCHEMAS registry (like Layout). Fold it in for the extractor only.
 const DOC_SCHEMAS = { ...SCHEMAS, RichText: RichTextSchema };
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const TARGETS = [                                        // the documented component surface
   "View", "App", "Text", "Image", "RichText", "Markdown", "HTMLText", "HTML", "TextInput",
   "SimpleLayout", "WrappingLayout", "TweenLayout",
@@ -208,14 +208,14 @@ function readMethods(files) {
   return byClass;
 }
 
-// ── prose + @api surface, from tools/doc/prose/<Class>.md ──
+// ── prose + @api surface, from tools/internal/doc/prose/<Class>.md ──
 // Format: the text before the first `## ` heading is the CLASS prose; each
 // `## <name>` section is that member's prose, and a `## <name>()` heading (trailing
 // parens) is a METHOD's prose — parked in its own map so `remove()` the method never
 // collides with an `onRemove` event or a `remove` attribute. Presence ⇒ @api (for the
 // slice; the explicit `@api` marker + coverage gate arrive with the block-capture parser).
 function readProse(cls) {
-  const abs = path.join(ROOT, "tools/doc/prose", cls + ".md");
+  const abs = path.join(ROOT, "tools/internal/doc/prose", cls + ".md");
   if (!existsSync(abs)) return { class: null, members: {}, methods: {} };
   const text = readFileSync(abs, "utf8");
   const parts = text.split(/^## +(.+)$/m);              // [classProse, name1, body1, name2, body2, …]

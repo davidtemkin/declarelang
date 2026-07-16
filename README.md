@@ -124,4 +124,4 @@ fall stale; see [`docs/system-design/hosting.md`](docs/system-design/hosting.md)
 - **Format** every `.declare` to the house style — [`docs/system-design/formatting.md`](docs/system-design/formatting.md).
 - **Never rebuild the platform bundles by hand**: the pre-commit hook rebuilds a stale
   one before stamping the build id, and the dev server rebuilds on demand
-  (`tools/bundle-freshness.mjs`).
+  (`tools/internal/bundle-freshness.mjs`).

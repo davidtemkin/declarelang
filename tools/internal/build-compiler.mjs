@@ -1,4 +1,4 @@
-// tools/build-compiler.mjs — bundle the Declare compiler for the browser.
+// tools/internal/build-compiler.mjs — bundle the Declare compiler for the browser.
 //
 // `compiler/dist/compile-browser.js` is already browser-safe ES (its whole graph
 // is the pure `compile.ts` core — no node: imports), EXCEPT for one bare import:
@@ -13,7 +13,7 @@
 // so `compile(src, { typecheck: true })` means the same thing in the browser
 // and the worker as it does on every other surface (in-browser-dev.md §3).
 //
-//   node tools/build-compiler.mjs
+//   node tools/internal/build-compiler.mjs
 // writes bundles/declare-compiler.js  (an ES module: compile, compileTracked, setDefaultLibrary, provideLib, memoryHost, highlight, fnv1a)
 
 import path from "node:path";
@@ -24,7 +24,7 @@ import { gzipSync } from "node:zlib";
 import { build } from "esbuild";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, "..");
+const ROOT = path.resolve(HERE, "../..");
 const ENTRY = path.join(ROOT, "compiler/dist/compile-browser.js");
 const OUT_DIR = path.join(ROOT, "bundles");
 const OUT = path.join(OUT_DIR, "declare-compiler.js");

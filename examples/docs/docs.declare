@@ -3,7 +3,7 @@
 
 The Declare reference, rendered AS a Declare app — self-hosted: Declare
 documenting Declare. It loads docs-model.json — the extractor's output
-(tools/doc/extract.mjs), one walkable data structure — and renders a
+(tools/internal/doc/extract.mjs), one walkable data structure — and renders a
 navigable class reference: a left rail of components, a detail pane with each
 class's Markdown prose and an attributes table, every doc string rendered by
 the runtime Markdown component. This one app is both the in-browser docs and

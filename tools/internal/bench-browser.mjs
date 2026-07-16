@@ -40,7 +40,6 @@ const RESOURCES = [
   ["app source", ".declare"],
   ["version.json", "version.json"],
   ["library manifest", "autoincludes.json"],
-  ["library index", "library/index.json"],
 ];
 
 function findChrome() {

@@ -156,7 +156,7 @@ if (failedRung === null && flags.rung >= 4) {
 const behave = { ran: false, ok: false, failures: [], log: [] };
 if (failedRung === null && flags.rung >= 5 && flags.assert !== null) {
   behave.ran = true;
-  const { runBehavior } = await import("./verify-behave.mjs");
+  const { runBehavior } = await import("./internal/verify-behave.mjs");
   const { dirname: dirOf, resolve: resolvePath } = await import("node:path");
   try {
     const r = await runBehavior({
@@ -179,7 +179,7 @@ if (failedRung === null && flags.rung >= 5 && flags.assert !== null) {
 const visual = { ran: false, ok: false, failures: [], results: [] };
 if (failedRung === null && flags.rung >= 6 && flags.states !== null) {
   visual.ran = true;
-  const { runStates } = await import("./verify-behave.mjs");
+  const { runStates } = await import("./internal/verify-behave.mjs");
   const { dirname: dirOf, resolve: resolvePath, join: joinPath } = await import("node:path");
   try {
     const r = await runStates({

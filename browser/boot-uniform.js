@@ -7,7 +7,7 @@
 // dependency changed.
 //
 //   PREWARM    (optional, curated): a COMMITTED precompiled artifact shipped in
-//              the tree (bundles/cache/, tools/prewarm.mjs). Tried FIRST; if it
+//              the tree (bundles/cache/, tools/internal/prewarm.mjs). Tried FIRST; if it
 //              validates against the deployed source (content-hash re-probe,
 //              prewarm-cache.js) it renders with NO compiler and NO recompile.
 //              Additive — never required, never trusted; a stale/absent artifact
@@ -22,7 +22,7 @@
 //
 // Two independent freshness gates, exactly mirroring OL5:
 //   • PLATFORM — BUILD_ID (bundles/version.json), the content hash the commit hook
-//     (tools/stamp-version.mjs) stamps over runtime + compiler bundle + web
+//     (tools/internal/stamp-version.mjs) stamps over runtime + compiler bundle + web
 //     client + library. It NAMES the cache bucket AND salts the key, so any
 //     platform/runtime/library change drops every cached compile at once (old
 //     buckets pruned on boot). The runtime is gated ONLY here — never in a

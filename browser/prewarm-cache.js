@@ -2,7 +2,7 @@
 //
 // An optional, additive fast path for the static deploy: a small CURATED set of
 // programs (the homepage, the flagship apps) ship PRECOMPILED in the tree —
-// tools/prewarm.mjs writes bundles/cache/<key>.json at commit time (the same
+// tools/internal/prewarm.mjs writes bundles/cache/<key>.json at commit time (the same
 // hook that stamps the BUILD_ID). On load the boot path tries the committed
 // artifact BEFORE the in-browser CacheStorage tier: if it is present AND still
 // validates against the deployed SOURCE, the program renders with NO compiler
@@ -25,7 +25,7 @@
 //     the artifact reads stale → boot falls through to compile the new source. No
 //     re-stamp, no manual sync, no way to ship a stale precompiled program.
 //
-// This module is the SINGLE ORACLE the tier is built on: tools/prewarm.mjs (the
+// This module is the SINGLE ORACLE the tier is built on: tools/internal/prewarm.mjs (the
 // writer) and both boot paths (the readers) derive the artifact key HERE, so a
 // key can never be computed two ways. Browser-safe (imports only the pure
 // closure core) so the Node build hook can import prewarmKey unchanged.

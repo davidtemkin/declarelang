@@ -1,4 +1,4 @@
-// tools/prewarm.mjs — generate the COMMITTED pre-warm cache (bundles/cache/).
+// tools/internal/prewarm.mjs — generate the COMMITTED pre-warm cache (bundles/cache/).
 //
 // The static deploy's default model is UNIFORM browser-compile: the deployed
 // `.declare` SOURCE is the source of truth, compiled in the browser on load
@@ -6,7 +6,7 @@
 // a curated set of high-traffic programs shipped PRECOMPILED so the browser can
 // render them with no compiler download and no recompile (browser/prewarm-cache.js).
 //
-//   node tools/prewarm.mjs
+//   node tools/internal/prewarm.mjs
 //
 // For each curated program it writes bundles/cache/<key>.json carrying:
 //   • run — the compiled program + static deps + source, plus the dependency
@@ -18,7 +18,7 @@
 //     headlessly to t=0, under the SAME closure so it invalidates on the same edits.
 //
 // NO BUILD_ID is written into the artifacts: they live under bundles/, which the
-// commit hook (tools/hooks/pre-commit → stamp-version.mjs) hashes into the
+// commit hook (tools/internal/hooks/pre-commit → stamp-version.mjs) hashes into the
 // BUILD_ID AFTER this runs. Embedding the id would be circular; the closure
 // re-check is the real freshness gate. The hook runs this BEFORE stamping so a
 // commit ships freshly-regenerated artifacts — but correctness never depends on
@@ -30,12 +30,12 @@ import path from "node:path";
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, unlinkSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
-import { compileTracked, crawlDocument, diskDataResolver, crawlerDocument } from "../compiler/dist/compile-node.js";
-import { fnv1a } from "../compiler/dist/closure.js";
-import { prewarmKey } from "../browser/prewarm-cache.js";
+import { compileTracked, crawlDocument, diskDataResolver, crawlerDocument } from "../../compiler/dist/compile-node.js";
+import { fnv1a } from "../../compiler/dist/closure.js";
+import { prewarmKey } from "../../browser/prewarm-cache.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, "..");
+const ROOT = path.resolve(HERE, "../..");
 const LIBRARY_ROOT = path.join(ROOT, "library");
 const CACHE_DIR = path.join(ROOT, "bundles", "cache");
 

@@ -1,4 +1,4 @@
-// tools/prebuild.mjs — validate every example (the CI/authoring gate).
+// tools/internal/prebuild.mjs — validate every example (the CI/authoring gate).
 //
 // Declare's static site (GitHub Pages) is PROGRAM-URL oriented: the deployed
 // `.declare` SOURCE is the address AND the source of truth — a navigation to it is
@@ -12,22 +12,21 @@
 //     Node compiler, failing loudly on any error — the gate the browser's
 //     typecheck-less render path does not provide;
 //   - REPORTS each app's compiled size / gzipped weight / LOC;
-//   - writes library/index.json — the full library file list the browser prefetches.
 //
-//   node tools/prebuild.mjs
+//   node tools/internal/prebuild.mjs
 //
 // The platform version the browser cache keys on is stamped separately by
-// tools/stamp-version.mjs (the commit hook). App-source freshness is the browser
+// tools/internal/stamp-version.mjs (the commit hook). App-source freshness is the browser
 // closure check (and the prewarm tier's re-probe), no re-stamp needed.
 
 import path from "node:path";
 import { readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
-import { compile, compileTracked } from "../compiler/dist/compile-node.js";
+import { compile, compileTracked } from "../../compiler/dist/compile-node.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, "..");
+const ROOT = path.resolve(HERE, "../..");
 const EXAMPLES = path.join(ROOT, "examples");
 const RUNTIME_GZ_BYTES = 45 * 1024; // the runtime's real shipping weight (see server/index.mjs)
 
@@ -71,7 +70,6 @@ function buildExample(name) {
 // mirroring the Node fs host, which can read any library file on demand.
 const libSrc = path.join(ROOT, "library");
 const libFiles = existsSync(libSrc) ? readdirSync(libSrc).filter((f) => f.endsWith(".declare")).sort() : [];
-writeFileSync(path.join(ROOT, "library", "index.json"), JSON.stringify(libFiles) + "\n");
 
 const names = readdirSync(EXAMPLES).filter((n) => existsSync(path.join(EXAMPLES, n, `${n}.declare`))).sort();
 console.log(`prebuild: validating ${names.length} example(s) · library {${libFiles.join(", ")}}`);

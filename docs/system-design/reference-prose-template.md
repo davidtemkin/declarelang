@@ -2,9 +2,9 @@
 
 **Status:** RATIFIED 2026-07-14 (Fable editorial pass; the audit assigned this call here).
 Governs the `@api` prose fill — the ~67 missing entries in `docs-model.json` and every
-entry after. The format is the existing one (`tools/doc/prose/<Class>.md`, a class-lead
+entry after. The format is the existing one (`tools/internal/doc/prose/<Class>.md`, a class-lead
 paragraph + `## member` sections, swapped later for captured source doc-comments with no
-model change). **`tools/doc/prose/Animator.md` is the canonical exemplar** — match it.
+model change). **`tools/internal/doc/prose/Animator.md` is the canonical exemplar** — match it.
 
 ## The template
 

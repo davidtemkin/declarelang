@@ -1,4 +1,4 @@
-// tools/bundle-freshness.mjs — the ONE freshness rule for the platform bundles.
+// tools/internal/bundle-freshness.mjs — the ONE freshness rule for the platform bundles.
 //
 // bundles/ carries two committed build artifacts — declare-boot.js (the
 // boot-path graph: web client + runtime run-path) and declare-compiler.js (the
@@ -8,7 +8,7 @@
 // the rebundle, debug a stale page). This module makes staleness detectable
 // and repairable in one call, and BOTH enforcement points ride it:
 //
-//   • the pre-commit hook (tools/hooks/pre-commit → stamp-version.mjs) rebuilds
+//   • the pre-commit hook (tools/internal/hooks/pre-commit → stamp-version.mjs) rebuilds
 //     any stale bundle BEFORE hashing the BUILD_ID, then stages it — a commit
 //     cannot ship a stale bundle, by construction;
 //   • the dev server rebuilds a stale bundle ON DEMAND when the artifact is
@@ -32,13 +32,13 @@ import { join } from "node:path";
 export const BUNDLES = [
   {
     out: "bundles/declare-boot.js",
-    build: "tools/build-boot.mjs",
-    inputs: ["browser", "runtime/dist", "compiler/dist/closure.js", "tools/build-boot.mjs"],
+    build: "tools/internal/build-boot.mjs",
+    inputs: ["browser", "runtime/dist", "compiler/dist/closure.js", "tools/internal/build-boot.mjs"],
   },
   {
     out: "bundles/declare-compiler.js",
-    build: "tools/build-compiler.mjs",
-    inputs: ["compiler/dist", "runtime/dist", "tools/build-compiler.mjs"],
+    build: "tools/internal/build-compiler.mjs",
+    inputs: ["compiler/dist", "runtime/dist", "tools/internal/build-compiler.mjs"],
   },
 ];
 

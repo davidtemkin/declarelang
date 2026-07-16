@@ -54,7 +54,7 @@ links --emit → prewarm → bake-homepage-crawler`. Doc-relevant properties:
 
 ## 3. Layer three — live-behavior gates (on demand; before merges; ~4 min)
 
-`tools/checks/loc-*.mjs` — five Chromium scripts against a real server: cold
+`tools/internal/checks/loc-*.mjs` — five Chromium scripts against a real server: cold
 deep links, back/forward with clean URLs, `@`-anchor reveal on both backends,
 the DataSource-race deep link, and crawl byte-parity (browser ↔ Node identical
 crawled documents). Deterministic; no LLM.
@@ -116,7 +116,7 @@ model matrix).
    attributes, components, flags, codes — validated against schema/registry/
    catalog. Bit twice in review before the gate was designed.
 4. **CLOSED 2026-07-16** — registry-generated tables are literal: the spine
-   assembler (tools/doc/assemble.mjs) marker-injects the flags table and the
+   assembler (tools/internal/doc/assemble.mjs) marker-injects the flags table and the
    getting-started commands from FLAG_SPECS/the ops registry, and the skill
    inventory from the schemas; staleness gated in docs.test.
 5. **CLOSED 2026-07-16** — test/ops.test.mjs EXECUTES every `test: true` entry
@@ -130,7 +130,7 @@ model matrix).
    (found 2026-07-16, cosmetic-internal).
 
 Items 1–3 remain (~half a day); 6 is its own arc. NEW since first writing:
-the SPINE APPARATUS (tools/ops.mjs registry + tools/doc/assemble.mjs →
+the SPINE APPARATUS (tools/internal/ops.mjs registry + tools/internal/doc/assemble.mjs →
 docs/declare-model.json + marker-injected projections) — one pipeline, three
 projections; §5.2's invariant is enforced BY CONSTRUCTION for flags, commands,
 enum vocabularies, and the skill inventory. Still open as gap #8:

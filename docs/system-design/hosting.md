@@ -63,19 +63,19 @@ truth; there is no per-app precompiled artifact to fall stale):
 ### The platform bundles — one path, freshness by construction
 
 The page loads the platform as **one file**: `bundles/declare-boot.js`
-(~58 KB gz, `tools/build-boot.mjs`) — the whole boot graph (web client +
+(~58 KB gz, `tools/internal/build-boot.mjs`) — the whole boot graph (web client +
 compiler client + the runtime run-path, ~50 modules) bundled, so a load makes one
 platform request instead of fifty. The in-browser compiler
-(`bundles/declare-compiler.js`, ~1 MB gz, `tools/build-compiler.mjs` — the
+(`bundles/declare-compiler.js`, ~1 MB gz, `tools/internal/build-compiler.mjs` — the
 Declare core + TypeScript + the embedded `lib.d.ts` closure) stays a separate,
 **lazily** fetched artifact — slow path and live edits only.
 
 Every `index.html` imports the boot bundle — dev and deploy, **one path, no
 mode**. What makes that viable is that bundle staleness is structurally
-impossible rather than remembered about (`tools/bundle-freshness.mjs`, one rule:
+impossible rather than remembered about (`tools/internal/bundle-freshness.mjs`, one rule:
 any input newer than the artifact → rebuild):
 
-- **at commit** — the pre-commit hook (`tools/hooks/pre-commit` →
+- **at commit** — the pre-commit hook (`tools/internal/hooks/pre-commit` →
   `stamp-version.mjs`) rebuilds any stale bundle *before* hashing the
   `BUILD_ID`, then stages it: a commit cannot ship a bundle older than its
   inputs;
@@ -130,7 +130,7 @@ irreducible gap is the very first visit to a bare static host, before the SW
 exists — a dumb host can serve only bytes, which is why the directory URL
 remains the address you publish.
 
-Cache-busting is content-hash driven (`BUILD_ID`, `tools/stamp-version.mjs`).
+Cache-busting is content-hash driven (`BUILD_ID`, `tools/internal/stamp-version.mjs`).
 Because nothing is bundled ahead of time on this path, the `build` request doesn't
 apply here — this path only *runs* — while the `render` modifier does, and typecheck
 is always on.

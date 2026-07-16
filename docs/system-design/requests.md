@@ -116,7 +116,7 @@ compiler, so it *can* build a bundle and emit segments — those are follow-ups.
   file alongside the build — a build may legitimately produce more than one file.
 - **`?crawler` on a static host** is a *build-time* affair: crawlers don't install service
   workers, so the block is baked by `declarec --crawler`, the homepage bake
-  (`tools/bake-homepage-crawler.mjs`), or the prewarm seo tier — not embedded at request
+  (`tools/internal/bake-homepage-crawler.mjs`), or the prewarm seo tier — not embedded at request
   time by the SW.
 
 ## The navigate/fetch discrimination

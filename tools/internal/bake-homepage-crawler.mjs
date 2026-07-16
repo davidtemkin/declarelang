@@ -1,4 +1,4 @@
-// tools/bake-homepage-crawler.mjs — bake the homepage's static content into index.html.
+// tools/internal/bake-homepage-crawler.mjs — bake the homepage's static content into index.html.
 //
 // The homepage is the ONE curated page (repo-root index.html) and the SEO
 // exception. index.html is a thin shell that renders the homepage app IN THE
@@ -19,14 +19,14 @@
 // current homepage source. A stale bake would only ever affect the crawler
 // snapshot, never the live user (who gets the real app, which replaces it).
 //
-//   node tools/bake-homepage-crawler.mjs
+//   node tools/internal/bake-homepage-crawler.mjs
 
 import path from "node:path";
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { compile, crawlDocument, diskDataResolver } from "../compiler/dist/compile-node.js";
+import { compile, crawlDocument, diskDataResolver } from "../../compiler/dist/compile-node.js";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const HOMEPAGE = path.join(ROOT, "examples", "homepage", "homepage.declare");
 const INDEX = path.join(ROOT, "index.html");
 const BEGIN = "<!--declare-static:begin-->";

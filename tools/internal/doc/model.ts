@@ -1,4 +1,4 @@
-// tools/doc/model.ts — THE DOC MODEL: the single walkable data structure that
+// tools/internal/doc/model.ts — THE DOC MODEL: the single walkable data structure that
 // every documentation surface is a view of (docs/system-design/doc-system.md §"Ratified
 // refinements", point 2).
 //

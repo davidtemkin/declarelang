@@ -1,4 +1,4 @@
-// tools/build-boot.mjs — bundle the BOOT PATH into one file.
+// tools/internal/build-boot.mjs — bundle the BOOT PATH into one file.
 //
 // The static host page used to import browser/boot-uniform.js and let the browser
 // walk its module graph — ~50 ES modules (host-client, compiler-client, the
@@ -21,7 +21,7 @@
 //     so the worker file is copied to bundles/ alongside (its own
 //     ../bundles/declare-compiler.js import still resolves from there).
 //
-//   node tools/build-boot.mjs
+//   node tools/internal/build-boot.mjs
 // writes bundles/declare-boot.js + bundles/compile-worker.js
 
 import path from "node:path";
@@ -31,7 +31,7 @@ import { gzipSync } from "node:zlib";
 import { build } from "esbuild";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, "..");
+const ROOT = path.resolve(HERE, "../..");
 const OUT_DIR = path.join(ROOT, "bundles");
 const OUT = path.join(OUT_DIR, "declare-boot.js");
 

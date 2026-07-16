@@ -15,12 +15,12 @@ shows up here first.
 
 ## The extractor
 
-`tools/doc/extract.mjs` produces `docs-model.json` by joining several sources:
+`tools/internal/doc/extract.mjs` produces `docs-model.json` by joining several sources:
 
 - **Reference structure** — component list and attribute types from the runtime
   `schema.js`, defaults from each class's `defineAttributes`, and method signatures
   read out of the built `.d.ts` via the TypeScript compiler.
-- **Reference prose** — hand-written per class in `tools/doc/prose/<Class>.md`,
+- **Reference prose** — hand-written per class in `tools/internal/doc/prose/<Class>.md`,
   where a `## name` heading documents an attribute, `## name()` a method, and
   `## on<Event>` an event. Structural-only members (no prose) still list, just
   undescribed.
@@ -30,7 +30,7 @@ shows up here first.
   always last.
 
 ```js
-// tools/doc/extract.mjs — the part bucketing
+// tools/internal/doc/extract.mjs — the part bucketing
 const partOf = (num) =>
   num < 20 ? "Orientation" : num < 30 ? "Fundamentals" : num < 90 ? "In Depth" : "Internals";
 ```
@@ -95,9 +95,9 @@ The pipeline has four steps, and they are separate on purpose:
 
 ```
 npm run build                 # tsc -b — runtime + compiler to their dist/
-node tools/build-compiler.mjs # esbuild the browser compiler bundle (NOT part of tsc)
-node tools/doc/extract.mjs    # (re)generate docs-model.json
-node tools/prebuild.mjs       # prebuilt per-example artifacts for static hosting
+node tools/internal/build-compiler.mjs # esbuild the browser compiler bundle (NOT part of tsc)
+node tools/internal/doc/extract.mjs    # (re)generate docs-model.json
+node tools/internal/prebuild.mjs       # prebuilt per-example artifacts for static hosting
 ```
 
 The dev server (`server/index.mjs`, port 8200) compiles `docs.declare` on request

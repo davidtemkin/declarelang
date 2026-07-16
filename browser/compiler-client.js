@@ -125,19 +125,17 @@ export function loadLibraryOnce() {
   return libraryPromise;
 }
 
-// The manifest (bare tag → file) plus EVERY src file listed in
-// library/index.json — so both bare tags (`Bar [ ]`) and bare includes
-// (`include [ "x.declare" ]`, resolved along the search path's library root)
-// work in-browser, mirroring the Node fs host. Falls back to the manifest's
-// files if the index is absent. NOT recorded in app closures — the whole
-// library is under BUILD_ID, so a bucket change already covers it.
+// The manifest (bare tag → file) IS the library's file list — its values name
+// every library file, so one fetch serves both bare tags (`Bar [ ]`) and bare
+// includes (`include [ "x.declare" ]`, resolved along the search path's library
+// root), mirroring the Node fs host. (A library file that is includable but not
+// auto-includable would be a manifest entry, not a second index.) NOT recorded
+// in app closures — the whole library is under BUILD_ID, so a bucket change
+// already covers it.
 async function loadLibrary() {
   try {
-    const [manifest, index] = await Promise.all([
-      fetch(new URL("library/autoincludes.json", DISTRO), { cache: "no-cache" }).then((r) => r.json()),
-      fetch(new URL("library/index.json", DISTRO), { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-    ]);
-    const names = Array.isArray(index) ? index : Object.values(manifest);
+    const manifest = await fetch(new URL("library/autoincludes.json", DISTRO), { cache: "no-cache" }).then((r) => r.json());
+    const names = [...new Set(Object.values(manifest))];
     const files = {};
     await Promise.all(names.map(async (rel) => {
       const res = await fetch(new URL("library/" + rel, DISTRO), { cache: "no-cache" });

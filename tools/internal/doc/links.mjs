@@ -1,4 +1,4 @@
-// tools/doc/links.mjs — the `declare-docs:` LINK REGISTRY + the dangling-link gate.
+// tools/internal/doc/links.mjs — the `declare-docs:` LINK REGISTRY + the dangling-link gate.
 //
 // The linking model (docs/system-design/documentation.md §5): prose authors write
 // symbolic IDs — `[Reach](declare-docs:guide:reach)` — never file paths or heading
@@ -17,8 +17,8 @@
 // under a stable ID. The gate covers category-B docs only (docs/, minus
 // system-design/ — the internal record may cite IDs illustratively).
 //
-//   node tools/doc/links.mjs           # report: registry, resolution, dangling links
-//   node tools/doc/links.mjs --check   # the gate: exit 1 if any link dangles
+//   node tools/internal/doc/links.mjs           # report: registry, resolution, dangling links
+//   node tools/internal/doc/links.mjs --check   # the gate: exit 1 if any link dangles
 //
 // The registry + outgoing graph travel inside docs/declare-model.json — the
 // assembler (assemble.mjs) imports buildRegistry/scan from here, and its
@@ -29,7 +29,7 @@ import { readFileSync, readdirSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const MODEL = path.join(ROOT, "examples/docs/docs-model.json");
 
 // ── the registry ─────────────────────────────────────────────────────────────

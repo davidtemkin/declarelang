@@ -1,5 +1,5 @@
 // ops — the operations registry, EXECUTED (docs/system-design/verification.md gap #5):
-// every `test: true` entry in tools/ops.mjs runs with its declared expectation.
+// every `test: true` entry in tools/internal/ops.mjs runs with its declared expectation.
 // The same entries the docs render (assemble.mjs marker-injections) are the
 // entries performed here — procedure prose and procedure reality cannot
 // diverge, because both are projections of one record.
@@ -7,7 +7,7 @@ import { spawn, execSync } from "node:child_process";
 import { writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve, join } from "node:path";
-import { OPS, testableOps } from "../tools/ops.mjs";
+import { OPS, testableOps } from "../tools/internal/ops.mjs";
 import { test, summarize } from "./harness.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");

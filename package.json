@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Declare — a clean-slate successor to OpenLaszlo. A single self-contained distro: the compiler (.declare → JS), the browser runtime, a component library, examples, and docs. Runs a dev server with dynamic compilation, or host the whole tree statically for in-browser compilation.",
   "scripts": {
-    "prepare": "git config core.hooksPath tools/hooks 2>/dev/null || true",
+    "prepare": "git config core.hooksPath tools/internal/hooks 2>/dev/null || true",
     "build": "tsc -b",
     "start": "node server/index.mjs",
     "test": "npm run build && node test/unit.test.mjs && node test/perceptual.test.mjs && node test/scaffold.test.mjs && node test/declarec.test.mjs && node test/databinding.test.mjs && node test/dep-extract.test.mjs && node test/static-constraint.test.mjs && node test/highlight.test.mjs && node test/docs.test.mjs && node test/inspect.test.mjs && node test/format.test.mjs && node test/md.test.mjs && node test/html.test.mjs && node test/richtext.test.mjs && node test/slim.test.mjs && node test/crawl.test.mjs && node test/prewarm.test.mjs && node test/serve-parity.test.mjs && node test/verify-examples.test.mjs && node test/ops.test.mjs"

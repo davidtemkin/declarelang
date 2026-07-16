@@ -21,8 +21,8 @@
 
 import ts from "typescript";
 import { readFileSync } from "node:fs";
-import { parseProgram } from "../../runtime/dist/parser.js";
-import { scanDatapaths } from "../../runtime/dist/datapath.js";
+import { parseProgram } from "../../../runtime/dist/parser.js";
+import { scanDatapaths } from "../../../runtime/dist/datapath.js";
 
 const SCOPE_NOUNS = new Set(["this", "parent", "classroot", "app"]);
 const GLOBALS = new Set(["Math","Object","JSON","Array","Number","String","Boolean","Date","console","parseInt","parseFloat","isNaN","isFinite","Infinity","NaN","undefined","null","RegExp","Symbol","Map","Set","Promise","Intl","Error"]);

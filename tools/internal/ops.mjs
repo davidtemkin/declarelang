@@ -4,7 +4,7 @@
 // with what it does and — where checkable — what to expect. Three consumers,
 // one source:
 //
-//   • the ASSEMBLER (tools/doc/assemble.mjs) projects these into the spine of
+//   • the ASSEMBLER (tools/internal/doc/assemble.mjs) projects these into the spine of
 //     docs/declare-model.json and into the marker-injected blocks of the
 //     operational docs, so the docs' commands and reality cannot diverge;
 //   • the SMOKE TEST (test/ops.test.mjs) EXECUTES the entries marked
@@ -55,13 +55,13 @@ export const OPS = {
   maintaining: {
     title: "Maintaining the system (after changing toolchain sources or docs)",
     steps: [
-      { id: "regenerate", cmd: "npm run build && node tools/build-compiler.mjs && node tools/build-boot.mjs && node tools/doc/extract.mjs && node tools/doc/assemble.mjs && node tools/prewarm.mjs && node tools/bake-homepage-crawler.mjs",
+      { id: "regenerate", cmd: "npm run build && node tools/internal/build-compiler.mjs && node tools/internal/build-boot.mjs && node tools/internal/doc/extract.mjs && node tools/internal/doc/assemble.mjs && node tools/internal/prewarm.mjs && node tools/internal/bake-homepage-crawler.mjs",
         description: "The regeneration chain, in its load-bearing order: compile → bundles → doc model → link registry → spine projections → prewarmed artifacts → baked page. Run after any .ts, docs/, or registry change.",
         test: false, docs: "declare-docs:operational:building" },
-      { id: "links-gate", cmd: "node tools/doc/links.mjs --check",
+      { id: "links-gate", cmd: "node tools/internal/doc/links.mjs --check",
         description: "Every declare-docs: symbolic link in the corpus resolves against the generated registry.",
         expect: { exitCode: 0 }, test: true },
-      { id: "spine-gate", cmd: "node tools/doc/assemble.mjs --check",
+      { id: "spine-gate", cmd: "node tools/internal/doc/assemble.mjs --check",
         description: "The three spine projections (declare-model.json, the marker-injected doc tables, the skill inventory) match a fresh assembly of the live registries.",
         expect: { exitCode: 0 }, test: true },
     ],

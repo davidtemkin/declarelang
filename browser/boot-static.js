@@ -72,7 +72,7 @@ export default async function boot(artifact) {
   if (artifact.closure && artifact.mainId) {
     isArtifactFresh(artifact.closure).then(async (fresh) => {
       if (fresh) return;
-      console.warn("[Declare] source changed since prebuild — recompiling in-browser (run `node tools/prebuild.mjs` to refresh the committed artifact).");
+      console.warn("[Declare] source changed since prebuild — recompiling in-browser (run `node tools/internal/prebuild.mjs` to refresh the committed artifact).");
       try {
         const [client, pageSource] = await Promise.all([
           clientReady,

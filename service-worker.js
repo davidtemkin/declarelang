@@ -22,7 +22,7 @@
 //
 // Host-agnostic and build-step-free: every path resolves against THIS worker's own
 // location, so the distro works at the origin root or under a project subpath (a GitHub
-// Pages `/<repo>/` page) identically. Re-run `node tools/stamp-version.mjs` before you
+// Pages `/<repo>/` page) identically. Re-run `node tools/internal/stamp-version.mjs` before you
 // deploy to refresh BUILD_ID. A MODULE worker (registered { type: "module" } in
 // register-sw.js): it imports the host-agnostic serving core so the run page it serves
 // and the dev server's are ONE function (browser/serve-core.js) — needs a modern browser
@@ -31,9 +31,9 @@
 import { requestType, REQ, runWrapper, programName, escapeHtml } from "./browser/serve-core.js";
 
 // BUILD_ID — a content hash of the platform (runtime + compiler bundle + web client +
-// this worker + index.html), stamped by tools/stamp-version.mjs. Left "dev" when unstamped
+// this worker + index.html), stamped by tools/internal/stamp-version.mjs. Left "dev" when unstamped
 // (local serving); a real deploy stamps it so cache-busting + the SW self-update engage.
-const BUILD_ID = "9ad47f61cb1b";
+const BUILD_ID = "c97546e86c53";
 
 const ROOT = new URL("./", self.location);            // <origin>/…/  (this worker's dir == the distro root)
 const ORIGIN = ROOT.origin;

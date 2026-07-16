@@ -436,7 +436,7 @@ function tsSlotType(schemas, tag, slot) {
 // host-specific fact in this module: Node reads them from disk beside the
 // `typescript` package (compile-node.ts registers that provider at load);
 // the browser bundle EMBEDS the es2022 closure (~52 KB gz) and registers it at
-// bundle init (tools/build-compiler.mjs) — which is what makes `typecheck` a
+// bundle init (tools/internal/build-compiler.mjs) — which is what makes `typecheck` a
 // real flag in the browser and the worker, not a Node-only capability. A
 // typecheck attempted with NO provider registered throws loudly (a wiring bug
 // must never degrade into silently-unchecked code).

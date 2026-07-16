@@ -10,7 +10,7 @@ suggestions; within them, the shape is judgment.
 ## Hard constraints (the layout/IA must satisfy these)
 
 1. **Reference is generated, not written by hand.** Per-element pages derive from `@api`
-   doc-comments in the source via `tools/doc/extract.mjs` (→ `docs-model.json`). The layout
+   doc-comments in the source via `tools/internal/doc/extract.mjs` (→ `docs-model.json`). The layout
    must give the extractor a **predictable place to emit** generated pages; the IA arranges
    and links them, it does not author them. (The prose *inside* a reference entry is the
    source doc-comment — editing happens at the code, not the doc.)

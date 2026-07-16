@@ -17,11 +17,11 @@
 // host gives — so a source with no `include`s (every example today) needs
 // nothing prefetched at all.
 //
-// tools/build-compiler.mjs bundles THIS module (with `typescript`) into
+// tools/internal/build-compiler.mjs bundles THIS module (with `typescript`) into
 // bundles/declare-compiler.js — the artifact the homepage warm-loads.
 import { compile as compileCore } from "./compile.js";
 import { searchIncludePath } from "./include-search.js";
-// Re-exported so the BUNDLE INIT (tools/build-compiler.mjs's generated entry)
+// Re-exported so the BUNDLE INIT (tools/internal/build-compiler.mjs's generated entry)
 // can register the embedded lib.d.ts closure — which is what makes `typecheck`
 // a real flag here, identical to Node, instead of a silent no-op.
 export { provideLib } from "./typecheck.js";

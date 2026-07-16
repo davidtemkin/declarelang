@@ -2,12 +2,12 @@
 # Before each commit: (0) regenerate the COMMITTED pre-warm cache (bundles/cache/)
 # from the current sources — so the curated precompiled artifacts stay in step
 # with the tree; each is self-validating, so a skipped regen only costs the
-# compiler-free fast path, never correctness (tools/prewarm.mjs). (0b) bake the
-# homepage's static extraction into index.html (tools/bake-homepage-crawler.mjs) so the
+# compiler-free fast path, never correctness (tools/internal/prewarm.mjs). (0b) bake the
+# homepage's static extraction into index.html (tools/internal/bake-homepage-crawler.mjs) so the
 # root page carries its content for crawlers + LLMs; host-client clears it at boot,
 # so a stale bake would only ever affect the crawler snapshot, never a live user.
 # (1) rebuild any STALE platform bundle — stamp-version calls
-# tools/bundle-freshness.mjs first, so a commit cannot ship a bundles artifact older
+# tools/internal/bundle-freshness.mjs first, so a commit cannot ship a bundles artifact older
 # than its inputs; (2) stamp the cache-busting BUILD_ID so every deploy carries a
 # build id that reflects the current platform (runtime + bundles + web client + SW +
 # committed cache + baked index.html). Idempotent: nothing relevant moved → no regen,
@@ -19,9 +19,9 @@
 #
 # Committed + shared (not the per-clone .git/hooks/ copy). `npm install` wires it up via the
 # package.json "prepare" script; to activate by hand: git config core.hooksPath tools/hooks
-node tools/prewarm.mjs || exit 0
-node tools/doc/assemble.mjs || exit 0
-node tools/bake-homepage-crawler.mjs || exit 0
-node tools/stamp-version.mjs || exit 0
+node tools/internal/prewarm.mjs || exit 0
+node tools/internal/doc/assemble.mjs || exit 0
+node tools/internal/bake-homepage-crawler.mjs || exit 0
+node tools/internal/stamp-version.mjs || exit 0
 git add service-worker.js bundles index.html 2>/dev/null
 exit 0

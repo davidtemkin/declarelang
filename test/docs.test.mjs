@@ -10,7 +10,7 @@
 // Covered files: evals/declare-for-llms.md (the eval control-arm brief — it
 // lives under evals/ because that is its only remaining role; its fences must
 // stay compiling for as long as it is the yardstick). The guide's runnable fences are validated separately by
-// tools/prebuild.mjs (they become examples/docs/demos/seg_*.declare); folding
+// tools/internal/prebuild.mjs (they become examples/docs/demos/seg_*.declare); folding
 // that path into `npm test` is tracked in docs/system-design/verify-and-evals.md.
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -46,10 +46,10 @@ for (const rel of COVERED) {
 
 // The dangling-link gate (docs/system-design/documentation.md §5): every
 // `declare-docs:` symbolic link in the category-B corpus must resolve against
-// the generated ID registry (tools/doc/links.mjs) — a wrong target fails here,
+// the generated ID registry (tools/internal/doc/links.mjs) — a wrong target fails here,
 // it never rots silently.
 await test("declare-docs: links — every symbolic link resolves (links.mjs --check)", () => {
-  const r = spawnSync(process.execPath, [resolve(HERE, "..", "tools/doc/links.mjs"), "--check"], { encoding: "utf8" });
+  const r = spawnSync(process.execPath, [resolve(HERE, "..", "tools/internal/doc/links.mjs"), "--check"], { encoding: "utf8" });
   if (r.status !== 0) throw new Error((r.stdout + r.stderr).trim());
 });
 
@@ -57,7 +57,7 @@ await test("declare-docs: links — every symbolic link resolves (links.mjs --ch
 // — declare-model.json, the marker-injected doc tables, the skill inventory —
 // must match a fresh in-memory assembly of the live registries.
 await test("spine: assembled projections are fresh (assemble.mjs --check)", () => {
-  const r = spawnSync(process.execPath, [resolve(HERE, "..", "tools/doc/assemble.mjs"), "--check"], { encoding: "utf8" });
+  const r = spawnSync(process.execPath, [resolve(HERE, "..", "tools/internal/doc/assemble.mjs"), "--check"], { encoding: "utf8" });
   if (r.status !== 0) throw new Error((r.stdout + r.stderr).trim());
 });
 

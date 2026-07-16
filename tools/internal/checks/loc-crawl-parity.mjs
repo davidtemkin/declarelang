@@ -5,10 +5,10 @@
 // docs (data-driven — the real own-material resolvers on each side).
 import { existsSync, readFileSync } from "node:fs";
 import puppeteer from "puppeteer-core";
-import { compile, crawlDocument, diskDataResolver } from "../../compiler/dist/compile-node.js";
+import { compile, crawlDocument, diskDataResolver } from "../../../compiler/dist/compile-node.js";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve as presolve } from "node:path";
-const ROOT = presolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const ROOT = presolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const chrome = ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"].find(existsSync);
 let failures = 0;
 

@@ -1,4 +1,4 @@
-// Committed pre-warm cache tier (browser/prewarm-cache.js + tools/prewarm.mjs).
+// Committed pre-warm cache tier (browser/prewarm-cache.js + tools/internal/prewarm.mjs).
 //
 // The tier's whole promise is NO DRIFT: a committed precompiled artifact is used
 // only when its stored dependency closure still validates against the deployed
@@ -13,7 +13,7 @@
 //     mismatch / a missing-then-present dependency all fall through;
 //   • INTEGRATION: every artifact actually committed under bundles/cache/ still
 //     validates against the current tree — a stale committed file fails loudly
-//     (run `node tools/prewarm.mjs`), which is the drift guard itself.
+//     (run `node tools/internal/prewarm.mjs`), which is the drift guard itself.
 
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
@@ -136,12 +136,12 @@ await test("a stored-missing dependency: absent → fresh, present → stale", a
 // committed program is stale. That's caught (not shipped) — the guarantee working.
 if (existsSync(CACHE_DIR)) {
   const files = readdirSync(CACHE_DIR).filter((f) => f.endsWith(".json"));
-  assert.ok(files.length > 0, "the committed cache is non-empty (run `node tools/prewarm.mjs`)");
+  assert.ok(files.length > 0, "the committed cache is non-empty (run `node tools/internal/prewarm.mjs`)");
   for (const f of files) {
     const art = JSON.parse(readFileSync(join(CACHE_DIR, f), "utf8"));
     await test(`committed ${art.kind} artifact for ${art.main} validates against the tree`, async () => {
       const warm = await loadPrewarm({ root: ROOT_URL, relMain: art.main, kind: art.kind, props: art.props, fetchImpl: fsFetch() });
-      assert.ok(warm, `stale committed artifact ${f} — run \`node tools/prewarm.mjs\``);
+      assert.ok(warm, `stale committed artifact ${f} — run \`node tools/internal/prewarm.mjs\``);
       assert.equal(warm.main, art.main);
       assert.equal(warm.kind, art.kind);
     });

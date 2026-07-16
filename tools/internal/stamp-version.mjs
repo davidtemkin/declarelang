@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// tools/stamp-version.mjs — stamp a content-hash BUILD_ID into service-worker.js (and write
+// tools/internal/stamp-version.mjs — stamp a content-hash BUILD_ID into service-worker.js (and write
 // bundles/version.json).
 // Host-agnostic cache-busting, run once before every deploy:
 //
-//   node tools/stamp-version.mjs
+//   node tools/internal/stamp-version.mjs
 //
 // then deploy the tree however you deploy (commit + push for GitHub Pages; upload for S3 /
 // nginx / Cloudflare Pages / any static host — no build pipeline required).
@@ -24,12 +24,12 @@ import { join, dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { rebuildStale } from "./bundle-freshness.mjs";
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 
 // FIRST: the committed platform bundles (bundles/) are pure functions of
 // tree inputs — rebuild any that are stale BEFORE hashing, so the BUILD_ID
 // always describes FRESH artifacts and a commit cannot ship a stale bundle
-// (tools/bundle-freshness.mjs; the pre-commit hook stages bundles/ after
+// (tools/internal/bundle-freshness.mjs; the pre-commit hook stages bundles/ after
 // this runs). One path, correctness by construction — never by remembering.
 rebuildStale(ROOT, { log: console.log });
 const SW = join(ROOT, "service-worker.js");

@@ -29,7 +29,7 @@ import { highlight } from "../compiler/dist/highlight.js";
 import { requestType, REQ, runWrapper, programName } from "../browser/serve-core.js";
 import { writeProduction } from "../tools/declarec.mjs";
 import { parseFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
-import { rebuildStale } from "../tools/bundle-freshness.mjs";
+import { rebuildStale } from "../tools/internal/bundle-freshness.mjs";
 
 // The compiler's extracted constraint deps (docs/system-design/constraints.md §5) now ride
 // in the ONE compile() result (`r.deps`) — a walk-order list the browser zips
@@ -398,7 +398,7 @@ http.createServer((req, res) => {
     }
 
     // A platform BUNDLE requested → rebuild it first if any of its inputs is
-    // newer (tools/bundle-freshness.mjs — the same rule the pre-commit hook
+    // newer (tools/internal/bundle-freshness.mjs — the same rule the pre-commit hook
     // enforces). This is what makes ONE page path viable in dev: the pages
     // always import bundles/declare-boot.js, and an edit to the runtime or
     // web client is picked up on the next refresh — no manual rebundle, no

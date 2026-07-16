@@ -14,7 +14,7 @@ teaching corpus.) The governing spec is
 | [`guide/`](guide/) | **The guide** — the teaching path, in chapter order (the numeric prefix is ordering, not identity). | [`00-shape.md`](guide/00-shape.md) |
 | [`operational/`](operational/) | **Operating the toolchain** — server, builds, verify, format, flags. | [`getting-started.md`](operational/getting-started.md) |
 | the reference | **Generated from the `@api` surface** — browsable in the docs app (`examples/docs/`); the data rides [`declare-model.json`](declare-model.json). | the docs app |
-| [`declare-model.json`](declare-model.json) | **The comprehensive machine model** — the SPINE (schemas, enum tokens, flags, requests, diagnostic codes, library, commands) + links + reference + guide, assembled from the live registries (`tools/doc/assemble.mjs`); its `meta.pipeline` describes its own derivation. Generated; do not edit. | — |
+| [`declare-model.json`](declare-model.json) | **The comprehensive machine model** — the SPINE (schemas, enum tokens, flags, requests, diagnostic codes, library, commands) + links + reference + guide, assembled from the live registries (`tools/internal/doc/assemble.mjs`); its `meta.pipeline` describes its own derivation. Generated; do not edit. | — |
 
 Reading order for a newcomer (human or model): `operational/getting-started.md` →
 `guide/` in order → `declare.md` when you want the whole language at once → the
@@ -28,7 +28,7 @@ chapter's ID is its filename minus the ordering prefix (`20-tree.md` → `guide:
 an operational page's is its filename (`operational:verify`), a reference symbol's is
 the symbol itself (`View.width`) — so files renumber and move freely under stable IDs.
 
-- **The registry and the gate:** `node tools/doc/links.mjs` builds the ID registry and
+- **The registry and the gate:** `node tools/internal/doc/links.mjs` builds the ID registry and
   reports every link; `--check` (run by `npm test`) fails on any dangling link, so a
   wrong target cannot ship; the graph itself travels inside `declare-model.json`.
 - **Resolvers:** each packaging resolves the same IDs its own way — the docs app
