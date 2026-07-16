@@ -37,7 +37,7 @@
 <p>This page is written in it. By an LLM.</p>
 <a href="https://github.com/davidtemkin/declarelang"><p>GitHub →</p></a>
 <a href="examples/homepage/homepage.declare?view=edit"><p>Edit this page →</p></a>
-<p>Why a new language, now? →</p>
+<a href="#why"><p>Why a new language, now? →</p></a>
 <p>01</p>
 <h3>Read it. Generate it. Run it.</h3>
 <p>The relationships that matter — structure, data, reactivity — are explicit in the language, not hidden in imperative steps or a runtime graph.</p>
@@ -95,11 +95,36 @@ Declare abstracts the renderer away — you declare what the UI is, and the runt
 <p>Declare</p>
 <p>·</p>
 <a href="examples/homepage/homepage.declare?view=edit"><p>View &amp; Edit Source</p></a>
-<p>Declare</p>
-<p>Why Declare</p>
+<a href="#home"><p>Declare</p></a>
+<a href="#why"><p>Why Declare</p></a>
 <a href="examples/calendar/calendar.declare"><p>Declare Calendar</p></a>
 <a href="examples/docs/docs.declare"><p>Docs</p></a>
 <a href="https://github.com/davidtemkin/declarelang"><p>GitHub</p></a>
+<section id="why">
+<p>WHY DECLARE</p>
+<h1>Why a new language, now?</h1>
+<p>Start with the obvious objection. LLMs write code now, and they're best at the languages they've seen the most — so the winning move is to use whatever has the biggest corpus and let the model figure it out. By that logic the era of new programming languages is over.</p>
+<p>That argument gets its facts right and its conclusion backwards. Producing code is now nearly free; trusting it costs what it always did. A model writing React verifies its work by resemblance — this looks like the billion lines it trained on — and resemblance is not correctness. Meanwhile, less and less of the code passes under human eyes, which leaves the language and its compiler as the one reviewer that is always present. Handing the writing to a machine doesn't make the language irrelevant. It makes it load-bearing.</p>
+<h2>Two kinds of leverage</h2>
+<p>What a model gets from a mainstream stack is corpus leverage: fluency by imitation — broad, shallow, self-contradictory, unverifiable. The other kind is comprehension leverage: a language small enough to hand to a model whole, regular enough that its programs can be analyzed rather than pattern-matched, and backed by a compiler that turns each mistake into a precise correction. Corpus leverage arrives free with popularity. Comprehension leverage has to be designed in — and it is the only kind a new language can compete on.</p>
+<p>This is a measured bet, not a hunch. Models can learn a language they never trained on from a spec in context — in recent studies, a small language purpose-designed for LLM use, with zero training exposure, beat the same model writing Python, its best-trained language. And what bounds a model's ability to repair its own mistakes is the quality of the feedback: a compiler that explains beats one that merely rejects, by a double-digit margin.</p>
+<p>The studies:</p>
+<a href="https://arxiv.org/abs/2512.23214"><p>a zero-corpus DSL vs. Python →</p></a>
+<a href="https://arxiv.org/abs/2504.06939"><p>feedback quality vs. repair →</p></a>
+<h2>Designed in, not bolted on</h2>
+<p>Declare's declarative layer is small — the whole language fits in a model's context window with room left for your app — and everything inside a { } is ordinary TypeScript, so the hard part of generation rides the largest corpus there is. Where Declare looks familiar, it behaves the way a model — or you — will assume: assignment is assignment, and there is no bypass to forget. Where it's genuinely new, it looks new — brackets for structure, :path for data — a visible cue to consult the spec instead of autocompleting from memory.</p>
+<p>And because a UI's real structure — components, state, data, what reacts to what — is expressed in the language, the compiler can see all of it: it extracts every binding's dependencies statically, checks the shape of the tree, and types the seams. What a model reasons about is exactly what the compiler verifies, and its errors are written for that loop — each one states the rule and names the rewrite that fixes it, because the primary reader of a compiler message, now, is a model deciding what to do next.</p>
+<h2>What it's actually for</h2>
+<p>All of that is the floor, not the point. The point is what a language makes sayable. The most prized layer of modern UI — the continuity you feel in the best native software, where a view doesn't switch so much as become the next one, where motion carries meaning and everything stays interruptible — has always been bespoke: specialist craft, one interaction at a time, locked to a platform. It is also the least machine-writable code there is; the corpus is thin, custom, and wrong in ways nothing catches.</p>
+<p>Declare makes continuity the grain, not the garnish. Motion is a Spring on an attribute; layout is a reactive slot; a mode is a reversible state — so the continuous version of an interface is often less code than the discrete one. The reference app is a calendar whose four views are one surface seen through a moving, zooming rectangle — normally a bespoke project of its own, here a few hundred lines of declarations, readable end to end, written with an LLM. The whole category moves into the declarative, analyzable layer: the hardest part of ambitious UX becomes the part a model is best at.</p>
+<p>And that is the forward-looking wager. We believe there is another generation of experiences past the carefully crafted ones we point to today — built on a foundation with continuity at its core, enabled at the language level, deployed as universally as a URL, and iterated by imaginative designer-developers working with a model at their side. Declare is built to find that out.</p>
+<p>None of this trades away the human. What makes code legible to a model is what makes it fast for you to read — and you are still the reader who decides. You don't teach an LLM Declare with a million examples. You hand it the language and let the compiler keep it honest. The corpus will come; the language doesn't need it first.</p>
+<a href="#home"><h3>Declare</h3></a>
+<a href="#why"><p>Why Declare</p></a>
+<a href="examples/calendar/calendar.declare"><p>Declare Calendar</p></a>
+<a href="examples/docs/docs.declare"><p>Docs</p></a>
+<a href="https://github.com/davidtemkin/declarelang"><p>GitHub</p></a>
+</section>
 </div><!--declare-static:end--></div>
 <script>document.getElementById("declare-static")?.remove()</script>
 <script type="module">

@@ -157,6 +157,7 @@ App [ width = 420, height = 260, fill = #0B141B, textColor = gainsboro,
 - A **`DataSource`** is a remote resource whose lifecycle is reactive state: `url`, explicit **`.fetch()`** (nothing loads automatically), then `.idle / .loading / .loaded / .failed`, `.value`, `.error`, `.clear()`. Screens *derive* from it — `shown = { data.loaded }` — instead of being toggled imperatively.
 - An optional `schema = [ field: type, arr[]: [ … ] ]` (brackets, never braces — a shape declares, it doesn't run) makes the compiler validate responses at the boundary and check every `:path` statically.
 - Reads inside constraints: `data.read(["events"])` is a tracked read of a region (literal path). Mutation: `data.set("events.3.d", 14)` — writes wake exactly what derives from them.
+- **Structural edits** (from handlers) are the four verbs: `data.set(path, v)` · `data.insert(path, index, v)` · `data.removeAt(path, index)` · `data.move(path, from, to)`. Growing a list — the pattern verbatim: `addTask(t) { tasks.insert(["rows"], tasks.read(["rows"]).length, ({ label: t, done: false })) }`. Toggling a row's field from its replicated view: `tasks.set("rows." + i + ".done", !done)`. Replication follows the edit — no list rebuilding, no re-render calls.
 - **Two-way** is opt-in with `<->`, for leaf inputs: `TextInput [ text <-> :title ]` or `value <-> zip`. One-way `:path` everywhere else.
 - A derived dataset recomputes from its inputs: `cal: Dataset [ contents = { app.buildModel() } ]`.
 
@@ -205,6 +206,15 @@ Because layout, states, and springs sit on one reactive core, *arrangement* chan
 Inside a class body, a bare name (`label`, `count`) reads the enclosing class's attribute. The four nouns are reserved — nothing else may take their names. The most common scope mistake: on a deeply nested child, `this.foo` when the attribute lives on the component — write `classroot.foo`.
 
 Useful App-level reactive attributes: `app.width` / `app.height` (host size — responsive layout reads these), `app.dark` (OS dark mode), `app.pointerX` / `app.pointerY`, `app.hovering` (false on touch devices). An app with a usable floor declares it — `App [ minWidth = 600 ]` — and in a narrower host the app holds that width while the stage pans natively; declare the floor rather than writing `Math.max` clamps into size constraints.
+
+**Addressable state.** `app.location` is the URL fragment as one two-way reactive
+string: the host seeds it before first settle (deep links are initial states), each
+changed settle pushes one history entry, back/forward writes it back. Derive state
+from it, write it to navigate; never assign the derived state (displacement). The
+declared initial (`App [ location = "home" ]`) is the default — clean URL at it.
+`@name` after the state reveals a `View [ anchor = "…" ]` or a heading slug.
+Crawl-extraction follows the app's own location links and refuses network
+DataSources loudly — indexable data ships beside the app.
 
 ## 9. What does NOT exist (do not invent it)
 

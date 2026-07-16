@@ -44,3 +44,40 @@ iPad trackpad — which reports a mouse pointer — still does.
 True while the pointer is over an editable or selectable text field. Yield a custom cursor
 to the native I-beam by gating on `!app.pointerOverText`, so text stays comfortably
 selectable.
+
+## dark
+**Read-only.** The OS color-scheme flag — `true` under `prefers-color-scheme: dark`, kept
+live as the system theme flips. Theme off it: `theme = { app.dark ? darkTokens() : lightTokens() }`.
+It is only the OS signal; when you offer a Light/Dark/Auto control, keep your own mode
+attribute and read `app.dark` as the "auto" case.
+
+## minWidth
+The width below which the app **stops adapting** — in a narrower host it holds this width and
+the stage pans natively (the browser scrolls it), rather than reflowing into an unusable shape.
+Declare a floor instead of writing `Math.max` clamps into size constraints.
+
+## minHeight
+The height floor — the twin of `minWidth`. Below it the app holds its size and the stage pans.
+
+## navigate()
+Navigate the host **out** of the app: `app.navigate("https://…")` for an external link, or
+`app.navigate("some/app.declare")` for another program (resolved against the distro root). It
+is a service **method**, not an attribute — call it from a handler; `app.navigate = …` is an
+error.
+
+## location
+The app's slice of the URL — the **fragment**, as one two-way reactive string
+(design/location.md). The host seeds it from the URL *before first settle* (a deep link
+is just an initial state), mirrors app writes outward (one history entry per changed
+settle), and writes it back on back/forward — so navigation, deep links, and the back
+button are all the same thing: a `location` write your constraints re-derive from. The
+app owns the grammar: read it (`mode = { app.location.split("/")[0] }`), write it to
+navigate (`app.location = "why"`). The declared initial is the **default location** —
+the URL stays clean while the app is at it. A trailing `@name` reveals the named view
+or heading after the settle it causes.
+
+```declare
+App [ location = "home",
+    why: View [ visible = { app.location == "why" } ],
+]
+```

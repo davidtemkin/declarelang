@@ -1,228 +1,319 @@
-# Tutorial — build one small app
+# Tutorial: build one small app
 
 The fastest way to feel how Declare thinks is to grow one small app until it has
-touched every fundamental idea. We will build a **stats panel** — a titled column
-of labelled bars, each bound to data, that light on hover, expand on click, and
-animate their length into place. It ends at about forty lines.
+touched every fundamental idea. We will build **Signals** — a little dashboard: a
+slider that sets a goal, a row of metric cards driven from data, each card lighting
+on hover, expanding on click, and springing its bar into place. It ends at about
+fifty lines, and no line of it is update logic.
 
-Each step adds exactly **one** new idea and links to the Fundamentals chapter that
-covers it in depth. Paste each version into the playground and run it; you will see
-the app change under your hands, and the change is always small. Read the prose for
-*why*, not just *what* — the point is the mental model, not the pixels.
+Each step adds exactly **one** idea and links to the chapter that covers it in depth.
+Save the program to `my-apps/signals.declare` and browse to its URL (if you have not
+started the server yet, do the [getting-started](declare-docs:operational:getting-started)
+page first); then keep the tab open and reload after each step. That rhythm is the
+whole method:
 
----
+> **Edit, reload, read the error — the compiler is the teammate.**
 
-## Step 1 — the empty App
+## Step 1 — one file, running
 
 ```declare
-App [ fill = white, textColor = black,
+App [ fill = white, textColor = #1A1A1E,
     fontFamily = ["system-ui", "sans-serif"], fontSize = 15,
     ]
 ```
 
-An `App` is the whole program — one singleton whose instance *is* the visible tree.
-Notice there is no `width`/`height`: an App **fills its host** by default, resizing
-with the window, so a size line is something you add only for a fixed widget
-([Sizing](32-sizing.md)). The text style set here — family, size, colour — is
-**prevailing**: it flows down to every descendant until one overrides it, so we set
-it once at the root and never repeat it ([Prevailing](22-prevailing.md)).
+An `App` is the whole program — one root whose instance *is* the visible tree.
+There is no `width`/`height`: an app **fills its host** and resizes with the window,
+so you add a size only for a fixed widget ([Space](declare-docs:guide:space)). The
+text style set here — family, size, color — is **prevailing**: it flows down to every
+descendant until one overrides it, so you set it once at the root and never repeat it
+([Appearance](declare-docs:guide:appearance)).
 
-## Step 2 — reactive state and a constraint
+## Step 2 — structure with views
 
 ```declare
-App [ fill = white, textColor = black,
-    total: number = 234,
-    Text [ x = 24, y = 24, fontSize = 28, fontWeight = bold,
-           text = { `${total} events` } ],       // recomputes whenever total changes
+App [ fill = white, textColor = #1A1A1E,
+    fontFamily = ["system-ui", "sans-serif"], fontSize = 15,
+
+    Text [ x = 24, y = 20, fontSize = 22, fontWeight = bold, text = "Signals" ],
+
+    panel: View [ x = 24, y = 96, width = 280, height = 180 ],
     ]
 ```
 
-Two new things, and they are the whole language in miniature. `total: number = 234`
-**declares** a reactive attribute — state with a name, a type, and a default. And
-`text = { … }` is a **constraint**: a live TypeScript expression the runtime keeps
-true. Reading `total` inside the braces *is* the subscription — no dependency
-array, no `useEffect`. Assign `total` anywhere and the text re-derives itself; you
-will never write the update ([Constraints](21-constraints.md)).
+You build structure by nesting components in brackets. A `Text` for the title and a
+named `View` to hold what's coming — the bracket nesting *is* the tree
+([The tree](declare-docs:guide:tree)). Naming the view `panel:` lets other members
+refer to it later.
 
-## Step 3 — extract a reusable component
-
-We are going to show several bars, so the bar becomes a **class**. In Declare a
-component *is* a class, and defining one is everyday work, not architecture: name
-the type, `extends` a base, and add members ([Composition](20-composition.md)).
+## Step 3 — two controls, zero configuration
 
 ```declare
-class StatBar extends View [ width = 240, height = 22,
-    label: string = "", value: number = 0,          // declared attributes; value is 0..100
-    caption: Text [ x = 0, y = 3, width = 90, text = { classroot.label } ],
-    track: View [ x = 96, width = 144, height = 22, cornerRadius = 4, fill = whitesmoke,
-        bar: View [ height = 22, cornerRadius = 4, fill = royalblue,
-                    width = { classroot.value / 100 * 144 } ],   // length tracks value
+App [ fill = white, textColor = #1A1A1E,
+    fontFamily = ["system-ui", "sans-serif"], fontSize = 15,
+
+    Text [ x = 24, y = 20, fontSize = 22, fontWeight = bold, text = "Signals" ],
+
+    controls: View [ x = 24, y = 56,
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        Slider [ min = 0, max = 100 ],
+        Button [ label = "Reset", primary = true ],
         ],
     ]
 ```
 
-`StatBar` declares two attributes of its own and lays out a caption beside a track
-whose inner `bar` widens with `value`. The `classroot` in those constraints is how
-a child binding reaches the component instance it belongs to — read it as "this
-`StatBar`" for now; [Scope nouns](27-scope-nouns.md) has the full story. Because
-your class *is* a `View` plus these members, `StatBar [ … ]` is now a leaf you can
-drop anywhere a view fits.
+A `Slider` and a `Button`, straight from the [standard library](declare-docs:guide:controls)
+— no import, and already styled by the prevailing theme. Drag the slider; press the
+button with the mouse or the keyboard. You wrote no widget code and no CSS; a control
+is just a component you drop in like any other. The `layout:` line stacks them — layout
+is an *attribute* you set on a generic view, not a container type
+([Space](declare-docs:guide:space)).
 
-## Step 4 — lay several out
+## Step 4 — state, and constraints that follow it
 
 ```declare
-App [ fill = white, textColor = black,
-    panel: View [ x = 24, y = 24,
-        layout: SimpleLayout [ axis = y, spacing = 10 ],
-        StatBar [ label = "reactive", value = 92 ],
-        StatBar [ label = "compiled", value = 78 ],
-        StatBar [ label = "small",    value = 64 ],
+App [ fill = white, textColor = #1A1A1E,
+    fontFamily = ["system-ui", "sans-serif"], fontSize = 15,
+
+    goal: number = 50,
+
+    Text [ x = 24, y = 20, fontSize = 22, fontWeight = bold, text = "Signals" ],
+    Text [ x = 24, y = 52, textColor = slategray, text = { `Goal: ${goal}%` } ],
+
+    controls: View [ x = 24, y = 84,
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        Slider [ min = 0, max = 100, value = { app.goal },
+            input(v) { app.goal = v },
+            ],
+        Button [ label = "Reset", primary = true,
+            onClick() { app.goal = 50 },
+            ],
         ],
     ]
 ```
 
-Three bars stacked. The stacking is not baked into a container *type* (no `VStack`,
-no `<column>`) — it is a **`layout:` attribute** you set on a generic `View`, which
-means you could later swap it, constrain its `spacing`, or animate it
-([Layout](25-layout.md)). Without that line the bars would sit at their own `y`;
-`SimpleLayout` places them for you.
+`goal: number = 50` declares a piece of reactive state. The second `Text` reads it
+inside `{ }` — a **constraint** — so the label re-derives itself whenever `goal`
+changes ([Constraints](declare-docs:guide:constraints)). The slider is wired to that
+same state with the value pattern every control shares: **derive down** with
+`value = { app.goal }`, **deliver up** with `input(v) { app.goal = v }`. Drag the
+slider and the label moves with it; press Reset and both snap back. One value, several
+views, no wiring in between.
 
-## Step 5 — drive it from data
+## Step 5 — extract a card
 
-Three hand-written bars want to be data. Replace them with **one** bar bound to a
-`Dataset` — the shape written once, the data deciding how many
-([Data](26-data.md)):
-
-```declare
-App [ fill = white, textColor = black,
-    facts: Dataset { { "rows": [
-        { "label": "reactive", "n": 92 },
-        { "label": "compiled", "n": 78 },
-        { "label": "small",    "n": 64 } ] } },
-    panel: View [ x = 24, y = 24, datapath = { parent.facts.value },
-        layout: SimpleLayout [ axis = y, spacing = 10 ],
-        StatBar [ datapath = :rows[], label = :label, value = :n ],   // one per row
-        ],
-    ]
-```
-
-`datapath` sets a **cursor** into the data; the `:rows[]` on the `StatBar`
-**replicates** it — one instance per row — and inside each, `:label` and `:n` read
-that row's fields. There is no loop, no list component, and no keys: add a row to
-the dataset and a bar appears; remove one and its bar leaves. Replication is the
-*artifact* of a path matching many records, not an instruction you wrote.
-
-## Step 6 — interaction and a hover state
-
-Now make a bar respond. Two `on…` **handlers** flip a `hovered` boolean, and a
-**`State`** — a named, reversible bundle of overrides — brightens the row while it
-holds ([Events](23-events.md), [States](24-states.md)):
+A metric is a label, a number, and a bar — worth its own component. In Declare a
+component *is* a class: name the type, `extends` a base, add members
+([The tree](declare-docs:guide:tree)).
 
 ```declare
-class StatBar extends View [ width = 240, height = 22,
-    label: string = "", value: number = 0,
-    hovered: boolean = false,
-    onMouseOver() { hovered = true },
-    onMouseOut()  { hovered = false },
-    caption: Text [ … ],  track: View [ … ],       // unchanged
-    lit: State [ applied = { hovered }, fill = aliceblue ],   // tints the row while hovered
-    ]
-```
-
-The handler bodies are ordinary code, and their assignments are reactive setters —
-flipping `hovered` updates everything that reads it, here the state's `applied`
-gate. When `hovered` goes false the override **reverts** on its own; you wrote no
-exit code, and the "forgot to un-highlight it" bug is unrepresentable.
-
-## Step 7 — an expand toggle
-
-A state can do something a ternary cannot: bring a whole **subtree** in and out. Add
-an `onClick` that toggles `open`, and a second state — gated on `open` — that both
-grows the row *and* adds a detail line that exists only while expanded:
-
-```declare
-    onClick() { open = !open },                    // toggles a new `open: boolean`
-    …
-    opened: State [ applied = { open }, height = 40,
-        note: Text [ x = 0, y = 24, fontSize = 12, textColor = slategray,
-                     text = { `${classroot.value}% and climbing` } ],
-        ],
-```
-
-The `note` is instantiated fresh when `open` turns true and destroyed when it turns
-false, and because the layout reflows around its presence, the panel below makes
-room. This is the *structural* half of states — presence, not just values — and
-it reverts as cleanly as the hover tint.
-
-## Step 8 — motion
-
-Finally, give the bar physics. Instead of the length *snapping* to `value`, let a
-**`Spring`** ease it there. Replace the bar's `width` constraint with a spring that
-follows the same target ([Animation](30-animation.md)) — here in a runnable cut of
-the class, springing to its instance's `value`:
-
-```declare
-class StatBar extends View [ width = 240, height = 22,
+class Card extends View [ width = 280, height = 40,
+    label: string = "",
     value: number = 0,
-    track: View [ x = 96, width = 144, height = 22, cornerRadius = 4, fill = whitesmoke,
-        bar: View [ height = 22, cornerRadius = 4, fill = royalblue, width = 0,
-            grow: Spring [ attribute = width, to = { classroot.value / 100 * 144 },
-                           stiffness = 190, damping = 20 ] ],
+
+    name: Text [ x = 0, y = 0, text = { classroot.label } ],
+    pct:  Text [ x = 244, y = 0, width = 36, text = { `${classroot.value}%` } ],
+    track: View [ x = 0, y = 24, width = 280, height = 10, cornerRadius = 5, fill = whitesmoke,
+        bar: View [ height = 10, cornerRadius = 5,
+            width = { classroot.value / 100 * 280 },
+            fill = { classroot.value >= app.goal ? 0x4169E1 : 0xC0C0C0 } ],
         ],
     ]
-App [ StatBar [ value = 70 ] ]
+
+
+App [ fill = white, textColor = #1A1A1E,
+    fontFamily = ["system-ui", "sans-serif"], fontSize = 15,
+    goal: number = 50,
+    Card [ x = 24, y = 24, label = "Reactive", value = 92 ],
+    ]
 ```
 
-A `Spring` is a *standing relationship*, not a scheduled tween: its `to` is a live
-constraint, so the bar always eases toward wherever `value` points, waking when the
-target moves and sleeping at rest. You declared *where* the bar belongs; the spring
-found the path there.
+`Card` declares two attributes of its own and lays out a name, a percentage, and a
+track whose inner `bar` widens with `value`. `classroot` in those constraints is how a
+child binding reaches the card instance it belongs to — read it as "this `Card`"
+([Reach](declare-docs:guide:reach)). Note the bar's color: inside `{ }` you are in
+TypeScript, where a color is a number (`0x4169E1`), not a bare name like `royalblue` —
+bare color names live only in bare slots ([Constraints](declare-docs:guide:constraints)).
+Because the class *is* a `View` plus these members, `Card [ … ]` is now a leaf you can
+drop anywhere, and its bar already reacts to the goal from step 4.
 
-## The whole thing
+## Step 6 — drive it from data
 
-Assembled, every idea from Part II and one from Part III fits in about forty lines —
-a class, some state, constraints, a dataset with replication, two states, and a
-spring, and not one line of update logic:
+One hand-placed card wants to be many. Bind a `Dataset` and let the data decide how
+many there are ([Data](declare-docs:guide:data)):
 
 ```declare
-class StatBar extends View [ width = 240, height = 22,
-    label: string = "", value: number = 0,
-    hovered: boolean = false, open: boolean = false,
+class Card extends View [ width = 280, height = 40,
+    label: string = "",
+    value: number = 0,
+
+    name: Text [ x = 0, y = 0, text = { classroot.label } ],
+    pct:  Text [ x = 244, y = 0, width = 36, text = { `${classroot.value}%` } ],
+    track: View [ x = 0, y = 24, width = 280, height = 10, cornerRadius = 5, fill = whitesmoke,
+        bar: View [ height = 10, cornerRadius = 5,
+            width = { classroot.value / 100 * 280 },
+            fill = { classroot.value >= app.goal ? 0x4169E1 : 0xC0C0C0 } ],
+        ],
+    ]
+
+
+App [ fill = white, textColor = #1A1A1E,
+    fontFamily = ["system-ui", "sans-serif"], fontSize = 15,
+    goal: number = 50,
+    metrics: Dataset { { "rows": [
+        { "label": "Reactive", "n": 92 },
+        { "label": "Compiled", "n": 78 },
+        { "label": "Small",    "n": 64 } ] } },
+
+    Text [ x = 24, y = 20, fontSize = 22, fontWeight = bold, text = "Signals" ],
+    Text [ x = 24, y = 52, textColor = slategray, text = { `Goal: ${goal}%` } ],
+    controls: View [ x = 24, y = 84,
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        Slider [ min = 0, max = 100, value = { app.goal },
+            input(v) { app.goal = v },
+            ],
+        Button [ label = "Reset", primary = true,
+            onClick() { app.goal = 50 },
+            ],
+        ],
+    panel: View [ x = 24, y = 176, datapath = { parent.metrics.value },
+        layout: SimpleLayout [ axis = y, spacing = 16 ],
+        Card [ datapath = :rows[], label = :label, value = :n ],
+        ],
+    ]
+```
+
+`datapath` sets a **cursor** into the data; the `:rows[]` on the `Card` **replicates**
+it — one card per row — and inside each, `:label` and `:n` read that row's fields.
+There is no loop and no list component: add a row to the dataset and a card appears;
+remove one and its card leaves. Drag the goal slider now and every bar repaints at
+once, because each reads `app.goal` through the same constraint.
+
+## Step 7 — hover and expand, with states
+
+Make a card respond. Two handlers flip a `hovered` boolean and one flips `open`; a
+`State` — a named, reversible bundle of overrides — reacts to each. Add these members
+to the `Card` class ([Events](declare-docs:guide:interaction),
+[Continuity](declare-docs:guide:continuity)):
+
+```declare-fragment
+    hovered: boolean = false,
+    open:    boolean = false,
     onMouseOver() { hovered = true },
     onMouseOut()  { hovered = false },
     onClick()     { open = !open },
 
-    caption: Text [ x = 0, y = 3, width = 90, text = { classroot.label } ],
-    track: View [ x = 96, width = 144, height = 22, cornerRadius = 4, fill = whitesmoke,
-        bar: View [ height = 22, cornerRadius = 4, fill = royalblue, width = 0,
-            grow: Spring [ attribute = width, to = { classroot.value / 100 * 144 },
-                           stiffness = 190, damping = 20 ] ],
+    lit:    State [ applied = { hovered }, fill = aliceblue ],
+    opened: State [ applied = { open }, height = 64,
+        note: Text [ x = 0, y = 40, fontSize = 12, textColor = slategray,
+            text = { classroot.value >= app.goal ? "Meeting goal" : "Below goal" } ],
+        ],
+```
+
+`lit` tints the card while `hovered` holds; when the pointer leaves, the override
+**reverts on its own** — you wrote no exit code, and the "forgot to un-highlight it"
+bug cannot be written. `opened` does something a ternary cannot: its `note` child is
+instantiated when `open` turns true and destroyed when it turns false, and the panel
+below reflows to make room. That is the structural half of states — presence, not just
+values.
+
+## Step 8 — motion
+
+Finally, give the bar physics. Instead of its length *snapping* to `value`, let a
+`Spring` ease it there. Change the `bar` to start collapsed and follow a spring
+([Animation](declare-docs:guide:continuity)):
+
+```declare-fragment
+    bar: View [ height = 10, cornerRadius = 5, width = 0,
+        fill = { classroot.value >= app.goal ? 0x4169E1 : 0xC0C0C0 },
+        grow: Spring [ attribute = width, to = { classroot.value / 100 * 280 },
+            stiffness = 190, damping = 22 ],
+        ],
+```
+
+A `Spring` is a *standing relationship*, not a scheduled tween: its `to` is a live
+constraint, so the bar always eases toward wherever `value` points — waking when the
+target moves, settling at rest. You declared *where* the bar belongs; the spring found
+the path there.
+
+## The whole thing
+
+Assembled, every idea fits in about fifty lines — a class, some state, constraints, a
+themed slider and button, a dataset with replication, two states, and a spring, and not
+one line of update logic:
+
+```declare
+class Card extends View [ width = 280, height = 40,
+    label: string = "",
+    value: number = 0,
+    hovered: boolean = false,
+    open: boolean = false,
+    onMouseOver() { hovered = true },
+    onMouseOut()  { hovered = false },
+    onClick()     { open = !open },
+
+    name: Text [ x = 0, y = 0, text = { classroot.label } ],
+    pct:  Text [ x = 244, y = 0, width = 36, text = { `${classroot.value}%` } ],
+    track: View [ x = 0, y = 24, width = 280, height = 10, cornerRadius = 5, fill = whitesmoke,
+        bar: View [ height = 10, cornerRadius = 5, width = 0,
+            fill = { classroot.value >= app.goal ? 0x4169E1 : 0xC0C0C0 },
+            grow: Spring [ attribute = width, to = { classroot.value / 100 * 280 },
+                stiffness = 190, damping = 22 ],
+            ],
         ],
 
     lit:    State [ applied = { hovered }, fill = aliceblue ],
-    opened: State [ applied = { open }, height = 40,
-        note: Text [ x = 0, y = 24, fontSize = 12, textColor = slategray,
-                     text = { `${classroot.value}% and climbing` } ],
+    opened: State [ applied = { open }, height = 64,
+        note: Text [ x = 0, y = 40, fontSize = 12, textColor = slategray,
+            text = { classroot.value >= app.goal ? "Meeting goal" : "Below goal" } ],
         ],
     ]
 
-App [ fill = white, textColor = black,
-      fontFamily = ["system-ui", "sans-serif"], fontSize = 15,
-    facts: Dataset { { "rows": [
-        { "label": "reactive", "n": 92 },
-        { "label": "compiled", "n": 78 },
-        { "label": "small",    "n": 64 } ] } },
-    panel: View [ x = 24, y = 24, datapath = { parent.facts.value },
-        layout: SimpleLayout [ axis = y, spacing = 12 ],
-        StatBar [ datapath = :rows[], label = :label, value = :n ],
+
+App [ fill = white, textColor = #1A1A1E,
+    fontFamily = ["system-ui", "sans-serif"], fontSize = 15,
+    goal: number = 50,
+    metrics: Dataset { { "rows": [
+        { "label": "Reactive", "n": 92 },
+        { "label": "Compiled", "n": 78 },
+        { "label": "Small",    "n": 64 } ] } },
+
+    Text [ x = 24, y = 20, fontSize = 22, fontWeight = bold, text = "Signals" ],
+    Text [ x = 24, y = 52, textColor = slategray, text = { `Goal: ${goal}%` } ],
+    controls: View [ x = 24, y = 84,
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        Slider [ min = 0, max = 100, value = { app.goal },
+            input(v) { app.goal = v },
+            ],
+        Button [ label = "Reset", primary = true,
+            onClick() { app.goal = 50 },
+            ],
+        ],
+    panel: View [ x = 24, y = 176, datapath = { parent.metrics.value },
+        layout: SimpleLayout [ axis = y, spacing = 16 ],
+        Card [ datapath = :rows[], label = :label, value = :n ],
         ],
     ]
 ```
 
----
+## The loop is part of the language
 
-**Where to go next.** You have now touched every Fundamental idea — composition,
-constraints, prevailing style, events, states, layout, data, and scope nouns. Read
-[Part II](20-composition.md) in order for the depth behind each, then Part III for
-[animation](30-animation.md), [text](31-text-markdown.md), [sizing](32-sizing.md),
-[fonts](33-fonts.md), and [input](34-input-focus.md).
+Before you move on, break it on purpose. In the panel, misspell `Card` as `Crad` and
+reload:
+
+```
+unknown component 'Crad' — did you mean 'Card'? [NEO2001]
+  hint: a tag names a built-in component or a class declared in the program
+```
+
+The compiler catches it before anything runs, names the likely fix, and points at the
+line. This is the loop the whole toolchain is built around — edit, reload, read the
+error, apply it. You will lean on it constantly; the diagnostics are written to be
+trusted ([Check it](declare-docs:guide:checking)).
+
+## Where next
+
+You have now met every Fundamental idea — composition, constraints, prevailing style,
+the standard library, events, states, layout, data, and scope. Read
+[Part II](declare-docs:guide:tree) in order for the depth behind each, then Part III
+for [animation](declare-docs:guide:continuity), text, sizing, and the rest.

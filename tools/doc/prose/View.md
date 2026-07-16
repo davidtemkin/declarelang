@@ -215,3 +215,63 @@ Scrolls this view into the visible region of its nearest `scrolls` ancestor (or 
 aligning its top to the viewport top — the imperative partner of the declarative jump-index
 pattern. Both backends realize it natively (DOM `scrollIntoView`, canvas clamps the scroll
 ancestor's `scrollOffset`). A no-op if nothing above it scrolls.
+
+## scale
+A uniform **paint** transform — the view's subtree renders scaled about its pivot, never
+re-laid-out (like `opacity`, it changes pixels, not geometry), and hit-testing follows the
+visible result. Pair with `pivotX`/`pivotY` to choose the center; `1` is unscaled.
+
+## pivotX
+The horizontal center of `scale`, in the view's own coordinates. Defaults to the origin; set
+both `pivotX`/`pivotY` to scale about the middle rather than the top-left.
+
+## pivotY
+The vertical pivot — the twin of `pivotX`.
+
+## scrollsX
+Like `scrolls`, but for **horizontal** overflow: the view clips to its box and scrolls content
+wider than it, exposing the offset. Use it for a paging strip; `scrolls` is the vertical case.
+
+## selectable
+**Prevailing.** `selectable = true` on a container makes all its `Text` — including a
+`Markdown`'s rendered runs — selectable and copyable; **off by default**, so UI chrome never
+becomes accidentally selectable. Set it once high over a region of prose.
+
+## headingColor
+**Prevailing.** The color of `Markdown`/`RichText` headings, overriding `textColor` for heading
+runs only; absent, headings follow `textColor`.
+
+## headingWeight
+**Prevailing.** The font weight for rich-text headings — the heading-specific counterpart to
+`fontWeight`.
+
+## linkColor
+**Prevailing.** The color of links in rich text; absent, links use the theme's accent.
+
+## codeColor
+**Prevailing.** The text color of inline and fenced code in rich text.
+
+## codeSize
+**Prevailing.** The font size for code regions — one value driving inline code, fenced blocks,
+and `<pre>` alike, so a document's monospace stays uniform.
+
+## codeFamily
+**Prevailing.** The monospace family for code regions — a fallback list, like `fontFamily`.
+
+## codeBackground
+**Prevailing.** The fill behind fenced code blocks; absent, code carries no box.
+
+## codeRule
+**Prevailing.** The color of a fenced code block's left accent rule.
+
+## richTextLayout
+**Prevailing.** A per-block-type geometry map for `RichText`/`Markdown` — caller-controlled
+measure and spacing per block kind (prose narrower than code, say), so one base renders both
+tight code and wide prose.
+
+## anchor
+Names this view as a **reveal target** for a location's `@name` suffix
+(`#guide/22-reach@intro` scrolls to the view with `anchor = "intro"`). The `<a name>`
+lineage, reborn reactive: the anchor namespace is named views (this attribute) plus
+heading slugs inside rendered rich text — a heading needs nothing from you. Resolution
+prefers views over slugs, preorder-first.

@@ -19,6 +19,7 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { SCHEMAS, RichTextSchema } from "../../runtime/dist/schema.js";
 import { compile } from "../../compiler/dist/compile-node.js";
+import { settleHeadless } from "../../compiler/dist/headless.js";
 
 // RichText is the abstract base of Markdown/HTMLText — documented, but not in the
 // instantiable SCHEMAS registry (like Layout). Fold it in for the extractor only.
@@ -54,9 +55,29 @@ function runnableForm(block) {
 // slug → a filesystem/slot-safe id
 function slug(s) { return s.replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, ""); }
 
+// The island stage must FIT the settled app: an App fills its HOST, not its content,
+// so in a fixed frame a taller program scrolls inside its box with the root's fill
+// ending mid-content (the tutorial's Signals bug). Run each island headless at a
+// representative island width and read the settled content extent — the docs app
+// sizes each stage from this. Floor 200 (small demos keep the house frame), cap 560
+// (a runaway demo scrolls rather than swallowing the page), +24 breathing room.
+function measureStage(src, floor = 200) {
+  try {
+    // settleHeadless takes a compile()'s OUTPUT (headless.ts) — the ONE compile
+    // resolves auto-includes (Slider/Button/…) and extracts deps; core build alone
+    // would reject any island that uses the standard library.
+    const out = compile(src, {});
+    if (out.errors?.length) return floor;
+    const app = settleHeadless(out.source, { deps: out.deps, env: { hostWidth: 640, hostHeight: floor } });
+    const h = Math.ceil(app.contentHeight);
+    app.discard();
+    return Math.max(floor, Math.min(h + 24, 560));
+  } catch { return floor; }
+}
+
 // split prose Markdown into ordered segments: { md } for text/static-code, or
-// { md:"", code:[{id, source, lines}] } for a runnable island (0-or-1 array so the app
-// constructs the island by datapath replication). Merges runs of plain text.
+// { md:"", code:[{id, source, lines, stageH}] } for a runnable island (0-or-1 array so
+// the app constructs the island by datapath replication). Merges runs of plain text.
 function segmentize(md, idBase) {
   if (!md) return [];
   const segs = [];
@@ -75,7 +96,7 @@ function segmentize(md, idBase) {
     if (run) {
       const id = "seg_" + slug(idBase) + "_" + n++;
       genFiles[id] = run;
-      segs.push({ md: "", code: [{ id, source: run, lines: run.split("\n").length }] });
+      segs.push({ md: "", code: [{ id, source: run, lines: run.split("\n").length, stageH: measureStage(run) }] });
     } else {
       pushMd(part);                                          // non-runnable → render as static code
     }
@@ -236,7 +257,7 @@ function readExample(name) {
   const abs = path.join(ROOT, rel);
   if (!existsSync(abs)) return [];
   const source = readFileSync(abs, "utf8").replace(/\n$/, "");
-  return [{ name, lines: source.split("\n").length, source }];
+  return [{ name, lines: source.split("\n").length, source, stageH: measureStage(source, 250) }];
 }
 
 for (const name of TARGETS) {
@@ -353,9 +374,10 @@ const tree = roots.map((id) => {
 // Each `NN-slug.md` becomes a chapter { id, num, title, part, markdown, demo }.
 // A chapter may embed ONE runnable demo via a `<!-- demo: <Class> -->` marker
 // (reusing the reference's demo corpus); the marker is stripped from the prose.
-// Intra-guide `.md` links are flattened to plain text (the app has no file router),
-// while http links are kept. `guide` is the flat list the detail pane renders;
-// `guideParts` groups it by Part for the rail.
+// `declare-docs:` symbolic links and http links are KEPT — the docs app resolves
+// them (openDocLink answers the Markdown's onLink); any remaining raw file-path
+// link is flattened to its text (nothing in-app can open a bare path). `guide`
+// is the flat list the detail pane renders; `guideParts` groups it by Part.
 function readGuide() {
   const dir = path.join(ROOT, "docs/guide");
   if (!existsSync(dir)) return { guide: [], guideParts: [] };
@@ -373,7 +395,7 @@ function readGuide() {
     if (dm) { demo = readExample(dm[1]); md = md.replace(dm[0], ""); }
     md = md
       .replace(/<!--[\s\S]*?-->/g, "")                       // drop any remaining HTML comments
-      .replace(/\[([^\]]+)\]\((?!https?:)[^)]*\)/g, "$1")    // flatten non-http links to their text
+      .replace(/\[([^\]]+)\]\((?!https?:|declare-docs:)[^)]*\)/g, "$1")   // flatten raw path links; keep http + declare-docs:
       .replace(/\n{3,}/g, "\n\n")
       .trim();
     const short = title.split("—")[0].trim();             // rail label: text before the em-dash

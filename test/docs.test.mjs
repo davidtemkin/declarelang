@@ -12,6 +12,7 @@
 // tools/prebuild.mjs (they become examples/docs/demos/seg_*.declare); folding
 // that path into `npm test` is tracked in design/verify-and-evals.md.
 import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { compile } from "../compiler/dist/compile-node.js";
@@ -41,5 +42,14 @@ for (const rel of COVERED) {
     });
   }
 }
+
+// The dangling-link gate (docs/system-design/documentation.md §5): every
+// `declare-docs:` symbolic link in the category-B corpus must resolve against
+// the generated ID registry (tools/doc/links.mjs) — a wrong target fails here,
+// it never rots silently.
+await test("declare-docs: links — every symbolic link resolves (links.mjs --check)", () => {
+  const r = spawnSync(process.execPath, [resolve(HERE, "..", "tools/doc/links.mjs"), "--check"], { encoding: "utf8" });
+  if (r.status !== 0) throw new Error((r.stdout + r.stderr).trim());
+});
 
 summarize("docs");
