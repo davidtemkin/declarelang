@@ -30,7 +30,7 @@ import path from "node:path";
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, unlinkSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
-import { compileTracked, crawlDocument, diskDataResolver, crawlerDocument } from "../../compiler/dist/compile-node.js";
+import { compileTracked, crawlDocument, diskDataResolver, crawlerDocument, lineMetrics } from "../../compiler/dist/compile-node.js";
 import { fnv1a } from "../../compiler/dist/closure.js";
 import { prewarmKey } from "../../browser/prewarm-cache.js";
 
@@ -86,6 +86,25 @@ function writeArtifact(key, artifact) {
   writeFileSync(file, json);
   wrote++;
   return json.length;
+}
+
+// The homepage's figures, computed rather than claimed: line metrics for the
+// apps it cites, written beside it as its own material (stats.json — the same
+// pattern as language.json, so the live page, the dev server, and both crawls
+// read the same bytes). Written BEFORE the compile loop so the
+// homepage crawl below (and the bake after it) reads this run's figures,
+// never last commit's.
+const stats = Object.fromEntries(
+  ["apps/homepage/homepage.declare", "apps/calendar/calendar.declare"].map((rel) => [
+    path.basename(rel, ".declare"),
+    lineMetrics(readFileSync(path.join(ROOT, rel), "utf8")),
+  ])
+);
+const statsFile = path.join(ROOT, "apps/homepage/stats.json");
+const statsJson = JSON.stringify(stats, null, 2) + "\n";
+if (!existsSync(statsFile) || readFileSync(statsFile, "utf8") !== statsJson) {
+  writeFileSync(statsFile, statsJson);
+  console.log(`prewarm: wrote apps/homepage/stats.json (${Object.entries(stats).map(([k, v]) => `${k} ${v.code} code`).join(", ")})`);
 }
 
 console.log(`prewarm: generating committed cache for ${PROGRAMS.length} program(s) → bundles/cache/`);

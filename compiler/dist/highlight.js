@@ -126,6 +126,79 @@ function dedentComment(raw) {
     }
     return lines.join("\n").replace(/\s+$/, "").replace(/^\n+/, "");
 }
+export function lineMetrics(src) {
+    const n = src.length;
+    const mask = new Uint8Array(n); // 0 whitespace · 1 code · 2 comment
+    const paint = (from, to, v) => { for (let k = from; k < to && k < n; k++)
+        mask[k] = v; return Math.min(to, n); };
+    let i = 0;
+    while (i < n) {
+        const c = src[i];
+        if (c === "/" && src[i + 1] === "*") {
+            let j = i + 2;
+            while (j < n && !(src[j] === "*" && src[j + 1] === "/"))
+                j++;
+            i = paint(i, j + 2, 2);
+            continue;
+        }
+        if (c === "/" && src[i + 1] === "/") {
+            let j = i + 2;
+            while (j < n && src[j] !== "\n")
+                j++;
+            i = paint(i, j, 2);
+            continue;
+        }
+        if (isSpace(c)) {
+            i++;
+            continue;
+        }
+        if (c === '"' && src[i + 1] === '"' && src[i + 2] === '"') {
+            let j = i + 3;
+            while (j < n && !(src[j] === '"' && src[j + 1] === '"' && src[j + 2] === '"'))
+                j++;
+            i = paint(i, j + 3, 1);
+            continue;
+        }
+        if (c === '"' || c === "'") {
+            let j = i + 1;
+            while (j < n && src[j] !== c) {
+                if (src[j] === "\\")
+                    j++;
+                j++;
+            }
+            i = paint(i, j + 1, 1);
+            continue;
+        }
+        if (c === "{") {
+            i = paint(i, scanBraces(src, i + 1, n), 1);
+            continue;
+        }
+        mask[i] = 1;
+        i++;
+    }
+    let total = 0, code = 0, comment = 0, blank = 0, hasCode = false, hasComment = false;
+    const closeLine = () => { total++; if (hasCode)
+        code++;
+    else if (hasComment)
+        comment++;
+    else
+        blank++; hasCode = hasComment = false; };
+    for (let k = 0; k < n; k++) {
+        if (src[k] === "\n") {
+            closeLine();
+            continue;
+        }
+        if (isSpace(src[k]))
+            continue; // indentation never classifies a line
+        if (mask[k] === 2)
+            hasComment = true;
+        else
+            hasCode = true;
+    }
+    if (n > 0 && src[n - 1] !== "\n")
+        closeLine();
+    return { total, code, comment, blank };
+}
 /** Preprocess a .declare source into renderable segments. Pure and
  *  dependency-free, so it runs at build time (the `--highlight` flag), on the
  *  dev server (`GET /highlight/…`), or in the browser alike. */
