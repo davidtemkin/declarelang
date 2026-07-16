@@ -24,7 +24,7 @@
 import path from "node:path";
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { compile, extractFromCompiled } from "../compiler/dist/compile-node.js";
+import { compile, crawlDocument, diskDataResolver } from "../compiler/dist/compile-node.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const HOMEPAGE = path.join(ROOT, "examples", "homepage", "homepage.declare");
@@ -39,8 +39,14 @@ if (compiled.source === null) {
   process.exit(1);
 }
 // The extraction fragment (not seoDocument's full page) — it goes INSIDE the host
-// element as #declare-static, matching the `seo` flag's bake exactly.
-const html = extractFromCompiled(compiled);
+// element as #declare-static, matching the `seo` flag's bake exactly. The CRAWLED
+// document (design/location.md §7): the default page plus each reachable location's
+// content as a `<section id>` — so the Why article, invisible at t=0, is IN the
+// baked page and its `#why` link resolves right here in the static form.
+const html = await crawlDocument(compiled.source, {
+  deps: compiled.deps, links: compiled.links,
+  data: diskDataResolver(path.dirname(HOMEPAGE)),
+});
 const block = html
   ? `${BEGIN}<div id="declare-static">\n${html}\n</div>${END}`
   : `${BEGIN}${END}`;

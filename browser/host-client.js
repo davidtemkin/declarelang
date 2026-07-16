@@ -14,7 +14,7 @@
 //
 // Relative import so the whole tree is subpath-portable (GitHub Pages project
 // pages live under /<repo>/): resolved against THIS module's URL, not the page's.
-import { renderAsync, disposeApp, DomBackend, CanvasBackend } from "../runtime/dist/index.js";
+import { renderAsync, build, mountApp, loadFonts, fontFacesOf, settle, disposeApp, DomBackend, CanvasBackend } from "../runtime/dist/index.js";
 
 const BACKENDS = { DomBackend, CanvasBackend };
 
@@ -23,6 +23,11 @@ const BACKENDS = { DomBackend, CanvasBackend };
 // correctly whether the distro is served from the origin root (dev server) or a
 // project subpath (GitHub Pages /<repo>/). Absolute URLs (https://…) pass through.
 const DISTRO_ROOT = new URL("../", import.meta.url);
+
+// The app's slice of the URL — the fragment minus its leading `#`, decoded
+// (design/location.md §4). "" when there is no fragment. The one place the host
+// reads window.location for `app.location`; everything else flows through it.
+const fragmentOf = () => decodeURIComponent(location.hash.replace(/^#/, ""));
 
 /**
  * @param cfg {{
@@ -33,6 +38,7 @@ const DISTRO_ROOT = new URL("../", import.meta.url);
  *   demoBase?: string,                    // abs URL of the demos dir; previews with no seed fetch <demoBase><name>.declare on demand
  *   precompiled?: Record<string,string>,  // { <demo>: compiledSource } — static initial previews
  *   compile?: (source: string) => Promise<{source:string, deps?:any}|null>,  // live recompile (server/in-browser); null = keep last
+ *   location?: string,           // initial app.location when it is NOT in the URL fragment — the host's ?view= → initial-location translation (design/location.md §4); a real fragment still wins
  * }}
  */
 export async function bootHost(cfg) {
@@ -44,7 +50,19 @@ export async function bootHost(cfg) {
   // any boot path that didn't emit that pre-paint remover. Null-safe + idempotent.
   document.getElementById("declare-static")?.remove();
   const Backend = BACKENDS[cfg.backend] ?? DomBackend;
-  const app = (window.__app = await renderAsync(cfg.source, host, new Backend(), { deps: cfg.deps }));
+  // Build (parse+check+instantiate), then SEED app.location from the URL BEFORE the
+  // first paint (design/location.md §2): a deep link is just an initial state, so
+  // every constraint derives from it as if the user had already navigated there —
+  // no home→target flash. Un-fused from renderAsync so the seed lands pre-mount.
+  const app = (window.__app = build(cfg.source, { deps: cfg.deps }));
+  const locationInitial = app.location;               // the declared initial = the default (§3)
+  const seedFrag = fragmentOf() || cfg.location;       // the URL fragment wins; else a host override (?view=)
+  if (seedFrag) {
+    app.location = seedFrag;                           // an empty fragment leaves the initial alone (§3)
+    settle();                                          // propagate to the location-derived constraints SYNCHRONOUSLY,
+  }                                                     // before the first paint — the deep link's view, no home→target flash
+  await loadFonts(fontFacesOf(app));
+  mountApp(app, host, new Backend());
   if (cfg.pageWeight != null) app.pageWeight = cfg.pageWeight;
   if (cfg.sourceLines != null) app.sourceLines = cfg.sourceLines;
 
@@ -68,21 +86,39 @@ export async function bootHost(cfg) {
   const onKey = (e) => { if (e.key === "Escape") app.editing = false; };
   addEventListener("keydown", onKey);
 
-  // in-app routing ⟷ URL hash (#why): only for an app that declares `route` (the
-  // site). Deep-link on load, mirror route→hash on change, honour the back button.
-  const routeFromHash = () => (location.hash === "#why" ? "why" : "home");
-  const onPop = () => { if (!stopped && app.route !== undefined) app.route = routeFromHash(); };
-  if (app.route !== undefined) {
-    app.route = routeFromHash();
-    addEventListener("popstate", onPop);
-    const routeTick = () => {
-      if (stopped) return;
-      if (app.route === "why" && location.hash !== "#why") history.pushState(null, "", "#why");
-      else if (app.route !== "why" && location.hash === "#why") history.pushState(null, "", location.pathname + location.search);
-      raf.route = requestAnimationFrame(routeTick);
-    };
-    raf.route = requestAnimationFrame(routeTick);
+  // app.location ⟷ the URL fragment (design/location.md §2–3). Mirror OUTWARD per
+  // settle: one history push when the app changed it (push-only, §10.1), a clean URL
+  // when the app sits at its declared initial (the default rule, §3). Write it BACK
+  // on the browser's back/forward — the ambient-data direction, state re-derives, no
+  // popstate handling in app code. Universal and inert when unused: an app that never
+  // writes location holds location == initial, so the fragment stays empty, nothing
+  // pushes. Retires the homepage's hand-wired `route`↔`#why` mirror.
+  let mirrored = app.location;                          // what the URL currently reflects (seeded above)
+  // Canonicalize a default-valued deep link (`#home`) to a clean URL — once, and by
+  // REPLACE (not push), so it leaves no dead history entry.
+  if (app.location === locationInitial && location.hash) {
+    history.replaceState(null, "", location.pathname + location.search);
   }
+  const onPop = () => {
+    if (stopped) return;
+    app.location = fragmentOf() || locationInitial;    // an empty fragment restores the initial (§3)
+    mirrored = app.location;                            // the host wrote it — don't echo it back as a push
+  };
+  addEventListener("popstate", onPop);
+  const locTick = () => {
+    if (stopped) return;
+    if (app.location !== mirrored) {                   // the app navigated — one push per changed settle
+      mirrored = app.location;
+      const frag = app.location === locationInitial ? "" : app.location;   // clean URL at the default (§3)
+      history.pushState(null, "", frag ? "#" + frag : location.pathname + location.search);
+    }
+    // The `@name` reveal (design/location.md §6) — a retained intent, resolved each
+    // frame so a cold deep link fires once the target (a DataSource-fed heading) is
+    // in the settled tree. Inert with no anchor. Runs post-paint, so DOM headings exist.
+    app.resolveReveal();
+    raf.loc = requestAnimationFrame(locTick);
+  };
+  raf.loc = requestAnimationFrame(locTick);
 
   app.__teardown = () => {
     stopped = true;

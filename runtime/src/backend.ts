@@ -25,7 +25,7 @@ export type RichRun =
  *  layout (Canvas) flows the runs and stacks the blocks. `align` shifts each
  *  finished line (a table cell's GFM column alignment); absent/`"left"` is the
  *  default, so a plain paragraph carries nothing. */
-export interface RichBlock { tag: string; runs: RichRun[]; gapBefore: number; lineHeight: number; fontSize: number; align?: "left" | "center" | "right"; pre?: boolean }
+export interface RichBlock { tag: string; runs: RichRun[]; gapBefore: number; lineHeight: number; fontSize: number; align?: "left" | "center" | "right"; pre?: boolean; anchor?: string }
 
 /** How an Image scales its bitmap into the view box — the language's
  *  `value Stretch = none | width | height | both` (§6). */
@@ -166,6 +166,15 @@ export interface Surface {
    *  ancestor and does the offset math); the Canvas backend walks to the scroll
    *  container itself, clamps to its content extent, and sets the offset. */
   scrollIntoView(): void;
+  /** Reveal a heading anchor INSIDE a native rich-text flow (location.md §6). A
+   *  flow coalesces its headings into one element/region, so revealing one is not
+   *  a whole-surface `scrollIntoView`. `slug` names the heading; `within` is its
+   *  y offset inside this flow (the Canvas renderer knows it; -1 when unknown, the
+   *  DOM path, which finds the tagged element instead). DOM: the heading is a real
+   *  element carrying `data-anchor` — native `scrollIntoView`. Canvas: clamp the
+   *  scroll ancestor to the flow's top plus `within`. Returns whether it revealed
+   *  (false ⇒ the anchor isn't in this flow's realized content yet). */
+  revealRichAnchor(slug: string, within: number): boolean;
   /** Reflect an `embed` marker onto the surface so a HOST can find this view's
    *  element (data attribute on DOM) and mount foreign content (an editor, a
    *  preview iframe) inside it — the sanctioned seam for embedding non-neo UI

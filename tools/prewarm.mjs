@@ -30,7 +30,7 @@ import path from "node:path";
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, unlinkSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
-import { compileTracked, extractFromCompiled, seoDocument } from "../compiler/dist/compile-node.js";
+import { compileTracked, crawlDocument, diskDataResolver, seoDocument } from "../compiler/dist/compile-node.js";
 import { fnv1a } from "../compiler/dist/closure.js";
 import { prewarmKey } from "../browser/prewarm-cache.js";
 
@@ -111,7 +111,13 @@ for (const prog of PROGRAMS) {
     sizes.push(`run ${(gzipSync(Buffer.from(JSON.stringify({ program: tracked.source }))).length / 1024).toFixed(1)}KB gz`);
   }
   if (prog.kinds.includes("seo")) {
-    const html = extractFromCompiled({ source: tracked.source, deps: tracked.deps, links: tracked.links });
+    // The CRAWLED document — every reachable location's content in the one page
+    // (location.md §7). Data resolves from the program's own directory only (the
+    // build-time rule); a network DataSource fails this script loudly.
+    const html = await crawlDocument(tracked.source, {
+      deps: tracked.deps, links: tracked.links,
+      data: diskDataResolver(path.join(ROOT, path.dirname(prog.main))),
+    });
     const name = path.basename(prog.main).replace(/\.declare$/, "");
     const document = html === null ? seoDocument("", name) : seoDocument(html, name);
     writeArtifact(prewarmKey(prog.main, "seo", {}), {

@@ -51,7 +51,7 @@ class ClassTab extends View [ width = { parent.width }, height = 32, cornerRadiu
     fill = { app.selected == classroot.cname ? theme.sel : hovered ? theme.hover : null },
     onMouseOver() { hovered = true },
     onMouseOut()  { hovered = false },
-    onClick()     { app.selected = classroot.cname },
+    onClick()     { app.refAt = classroot.cname; app.location = "reference/" + classroot.cname; app.showPage() },
     lbl: Mono [ x = 12, y = 7, fontSize = { 14 * app.fontScale },
         text = { classroot.cname },
         textColor = { app.selected == classroot.cname ? theme.text : theme.tabIdle } ],
@@ -166,6 +166,7 @@ class Example extends View [ width = { parent.width },
     cname:  string = { :name },
     elines: number = { :lines },
     esrc:   string = { :source },
+    estage: number = { :stageH || 250 },   // extractor-measured stage height — the frame FITS the settled app
     live:   boolean = false,             // the parent gates the preview: it mounts only when this is true
     layout: SimpleLayout [ axis = y, spacing = 0 ],   // the preview frame abuts the code block below, no gap
 
@@ -208,7 +209,7 @@ class Example extends View [ width = { parent.width },
     // is live ONLY while the parent says so (`live`), so exactly one preview (the one
     // on the visible page) compiles at a time, even though every page is constructed.
 
-    stage: View [ width = { parent.width }, height = 250, fill = { theme.chipBg },
+    stage: View [ width = { parent.width }, height = { classroot.estage }, fill = { theme.chipBg },
         run:     HTML [ width = { parent.width }, height = { parent.height },
             slot = { classroot.live ? "run:" + classroot.cname : "" } ],
 
@@ -238,6 +239,7 @@ class RunBlock extends View [ width = { parent.width },
     rid:    string  = { :id },
     rsrc:   string  = { :source },
     rlines: number  = { :lines },
+    rstage: number  = { :stageH || 200 },   // extractor-measured stage height — the frame FITS the settled app
     live:   boolean = false,
     layout: SimpleLayout [ axis = y, spacing = 0 ],   // the preview frame abuts the code block, no gap
 
@@ -261,7 +263,7 @@ class RunBlock extends View [ width = { parent.width },
             editName = { classroot.rid }, src = { classroot.rsrc } ],
         ],
 
-    stage: View [ width = { parent.width }, height = 200, fill = { theme.chipBg },
+    stage: View [ width = { parent.width }, height = { classroot.rstage }, fill = { theme.chipBg },
         run:     HTML [ width = { parent.width }, height = { parent.height },
             slot = { classroot.live ? "run:" + classroot.rid : "" } ],
         divider: View [ x = 0, y = 0, width = { parent.width }, height = 2, fill = { theme.rule } ],
@@ -280,7 +282,9 @@ class Segment extends View [ width = { parent.width },
     lead: number  = 1.6,
     layout: SimpleLayout [ axis = y, spacing = 14 ],
     md: Markdown [ width = { parent.width }, lineHeight = { classroot.lead }, bodyColor = { classroot.tone }, scale = { app.fontScale },
-        visible = { :md != "" }, text = { :md } ],
+        visible = { :md != "" }, text = { :md },
+        onLink(href) { app.openDocLink(href) },
+        ],
     RunBlock [ datapath = :code[], width = { parent.width }, live = { classroot.live } ],
     ]
 
@@ -445,7 +449,7 @@ class ModeTab extends View [ height = 28, cornerRadius = 7,
     fill = { app.mode == classroot.m ? theme.modeOn : hovered ? theme.hover : null },
     onMouseOver() { hovered = true },
     onMouseOut()  { hovered = false },
-    onClick()     { app.mode = classroot.m },
+    onClick()     { app.location = classroot.m == "guide" ? "guide/" + app.guideAt : "reference/" + app.refAt; app.showPage() },
     lbl: Mono [ x = 11, y = 6, fontSize = { 12 * app.fontScale }, fontWeight = semibold,
         text = { classroot.label },
         textColor = { app.mode == classroot.m ? theme.text : theme.modeOff } ],
@@ -462,7 +466,7 @@ class ChapterTab extends View [ width = { parent.width }, height = 30, cornerRad
     fill = { app.chapter == classroot.cid ? theme.sel : hovered ? theme.hover : null },
     onMouseOver() { hovered = true },
     onMouseOut()  { hovered = false },
-    onClick()     { app.chapter = classroot.cid },
+    onClick()     { app.guideAt = classroot.cid; app.location = "guide/" + classroot.cid; app.showPage() },
     lbl: Text [ x = 12, y = 7, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = { 13 * app.fontScale },
         text = { classroot.ctitle },
         textColor = { app.chapter == classroot.cid ? theme.text : theme.tabIdle } ],
@@ -536,10 +540,36 @@ A fixed left rail plus a scrolling detail pane, over the model.
 */
 
 App [ fill = { theme.bg },
-    mode: string = "guide",
-    chapter: string = "00-overview",
-    selected: string = "View",
+
+    /* Navigation is ONE string — `location`, the URL fragment (design/location.md).
+       The grammar is this app's own: `<mode>/<cursor>[@heading]` (`guide/22-reach`,
+       `reference/Slider`, `guide/20-tree@named-views`). The declared initial is the
+       default, so a fresh `docs.declare` shows the first guide chapter with a clean
+       URL (§3). mode/chapter/selected DERIVE from it and are NEVER assigned — every
+       tab and link writes `location`, back/forward writes it back, state follows
+       (the single-writer rule; assigning derived state would disconnect history). */
+
+    location = "guide/00-shape",
+
+    /* Cross-mode memory (NOT a language feature — two plain remembered cursors).
+       `location` only carries the ACTIVE mode's cursor, so switching guide↔reference
+       would forget the other side. The tab handlers keep these in step and the mode
+       switch consults them, so returning to a mode lands where you left it. */
+
+    guideAt: string = "00-shape",              // last guide chapter visited …
+    refAt:   string = "View",                  // … and last reference class
+
+    // The active view, parsed out of `location` (the anchor stripped first — it
+    // selects a viewpoint, not a page). The inactive mode's cursor falls back to its
+    // remembered value, so its rail/selection stay put behind the other mode.
+
+    mode:     string = { app.location.split("@")[0].split("/")[0] || "guide" },
+    chapter:  string = { app.mode == "guide" ? (app.location.split("@")[0].split("/")[1] || "00-shape") : app.guideAt },
+    selected: string = { app.mode == "reference" ? (app.location.split("@")[0].split("/")[1] || "View") : app.refAt },
+
     fontScale: number = 0.9,                   // reader font-size zoom (0.9 = the comfortable default; the A stepper drives it)
+    liveCard: string = "",                     // the demo an inline editor is republishing (name) …
+    liveSource: string = "",                   // … and its current source — the host recompiles this pair live
 
     /* The whole palette in one prevailing record, switched by the OS colour
        scheme (`app.dark`, fed live by the runtime) — every colour below reads
@@ -565,6 +595,42 @@ App [ fill = { theme.bg },
     docs: DataSource [ url = "docs-model.json" ],
     datapath = { docs.value },                 // root every :path below into the model
     onInit() { this.docs.fetch() },            // DataSource is explicit-fetch — kick it once, on construction
+
+    /* The `declare-docs:` resolver — this app's packaging of the one symbolic
+       link scheme (tools/doc/links.mjs is the registry; the gate keeps every
+       target real). Guide and reference IDs navigate IN-APP; the rest resolve
+       by the same mechanical id→path rule the registry generates them with, and
+       leave through `navigate`. An ordinary href just navigates. */
+
+    // A page switch starts at the TOP of the new page — the detail pane keeps its
+    // scroll offset otherwise (the browser owns the scroll; scrollIntoView is the
+    // imperative reset). Every switch path routes through here: rail tabs and
+    // prose links alike.
+
+    showPage() { this.detail.col.scrollIntoView() },
+
+    // An in-app doc link is a location WRITE (design/location.md §5) — it navigates
+    // the app exactly like a rail tab, so it deep-links, shares, and back-buttons. It
+    // also keeps the remembered cursor in step (like the tabs). External schemes still
+    // leave through `navigate`.
+
+    openDocLink(href) {
+        if (!href.startsWith("declare-docs:")) { app.navigate(href); return }
+        const id = href.slice("declare-docs:".length)
+        if (id.startsWith("guide:")) {                       // guide:tree → the chapter whose id ends with the slug
+            const slug = id.slice("guide:".length)
+            const hit = (app.docs.read(["guide"]) || []).find(c => c.id.replace(/^\d+-/, "") == slug)
+            if (hit) { app.guideAt = hit.id; app.location = "guide/" + hit.id; app.showPage() }
+            return
+        }
+        if (id == "reference:index") { app.location = "reference/" + app.refAt; app.showPage(); return }
+        if (!id.includes(":")) {                             // a reference symbol: View / View.width
+            app.refAt = id.split(".")[0]; app.location = "reference/" + app.refAt; app.showPage(); return
+        }
+        if (id.startsWith("operational:")) { app.navigate("docs/operational/" + id.slice("operational:".length) + ".md"); return }
+        if (id == "spec:core") { app.navigate("docs/declare.md"); return }
+        if (id == "essay:why-declare") { app.navigate("examples/homepage/homepage.declare") }
+        },
 
     /* ## The left rail
        Brand, the Guide/Reference switch, the font-size stepper, then the nav

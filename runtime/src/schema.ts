@@ -167,6 +167,12 @@ const ViewSchema: ComponentSchema = {
     // customized by overriding the `tabOrder()` method.
     focusable: { kind: "boolean" },
     focustrap: { kind: "boolean" },
+    // Anchor name (location.md §6): give a view a name and a fragment `@name`
+    // brings it into view. This is the "named view" half of the reveal namespace
+    // (heading slugs are the other); resolution is views-before-slugs, preorder,
+    // `-2` on duplicates. "" (the default) = not an anchor. A plain string the
+    // reveal walk reads after settle — no rendering effect.
+    anchor: { kind: "string" },
     // Read-only intrinsics — the auto-extent computation (view.ts), surfaced:
     // the bounding-box extent of this view's visible children on each axis. A
     // constraint may READ them to clamp a size (`height = { Math.min(
@@ -208,21 +214,25 @@ const AppSchema: ComponentSchema = {
     // the OS colour-scheme, `prefers-color-scheme: dark` — the runtime feeds it and
     // keeps it live as the system theme flips, so an app themes off `app.dark`.
     dark: { kind: "boolean" },
-    pageWeight: { kind: "number" },
-    sourceLines: { kind: "number" },
-    editing: { kind: "boolean" },
-    editSource: { kind: "string" },
-    // Host↔app data channel for the live demo cards: the host seeds every
-    // editor from `demoSources` (a name→source map), and an edit publishes the
-    // new text on `liveSource`/`liveCard` for the host to recompile that preview.
-    // (Typed as the open `Theme` record for `{ }` reads — see language-learnings
-    // §11: neo lacks a purpose-named map attr kind yet.)
-    demoSources: { kind: "record", name: "Theme" },
-    liveCard: { kind: "string" },
-    liveSource: { kind: "string" },
-    // the last live recompile's rendered report — "" when clean, the full
-    // error text on failure. Host-fed; an editing surface displays it.
-    liveReport: { kind: "string" },
+    // `location` — the app's slice of the URL, the FRAGMENT (design/location.md).
+    // A two-way built-in the host wires with `TextInput.text`'s echo discipline:
+    // seeded from the URL fragment BEFORE first settle (a deep link is just an
+    // initial state), mirrored outward per-settle (push history), and written back
+    // by the host on back/forward. The app OWNS the grammar — an opaque string it
+    // parses (`location.split("/")`) and produces (`app.location = "why"`). The
+    // declared initial is the DEFAULT: the fragment is omitted whenever the app is
+    // at it (§3), so a plain app that never writes it keeps a clean URL. Writable
+    // by user code (navigation IS a write) and by the host (the seed / back-forward)
+    // — a SCHEMA attr on purpose: §3's `App [ location = "home" ]` needs a checkable
+    // [ ] slot (unlike the host-fed read-only channels, which live in LANGUAGE_API).
+    location: { kind: "string" },
+    // NOTE: live demo editing is NOT a base-App concern (capabilities.md §7 —
+    // RULED shape 3, a component). The app-authored state (editing / liveCard /
+    // liveSource) is instance-declared on the demo-hosting apps; the host-fed
+    // channels the apps still read (demoSources / liveReport) are interim App
+    // runtime surface in scaffold.ts LANGUAGE_API (like navigate), never schema
+    // attrs. pageWeight / sourceLines are host-client writes with no Declare
+    // reader — not language surface at all.
     // NOTE: app→host navigation is the `navigate(to)` METHOD (view.ts App), not an
     // attribute — a link/button CALLS it in an activation handler (capabilities.md
     // §6). The runtime channel it writes (`pendingNav`) is a plain host-polled
@@ -234,9 +244,8 @@ const AppSchema: ComponentSchema = {
     minHeight: { kind: "number" },
   },
   // hostWidth/hostHeight are read-only to user code (the runtime feeds them; a
-  // set is a compile error) — like View's contentWidth/contentHeight. So is
-  // liveReport (the host writes it after each live recompile).
-  readOnly: ["hostWidth", "hostHeight", "dark", "liveReport"],
+  // set is a compile error) — like View's contentWidth/contentHeight.
+  readOnly: ["hostWidth", "hostHeight", "dark"],
 };
 
 // Text (R3): a text run sized by native browser metrics when width/height

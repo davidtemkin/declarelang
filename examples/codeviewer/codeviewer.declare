@@ -95,7 +95,7 @@ class ModeSeg extends View [ m: string = "",
 
     onMouseOver() { classroot.hovered = true },
     onMouseOut() { classroot.hovered = false },
-    onClick() { app.mode = classroot.m },
+    onClick() { app.location = classroot.m },
     ]
 
 
@@ -128,14 +128,18 @@ App [ fill = { app.theme.bg },
     headH: number = { 46 * app.fontScale },    // filename title + rule, above the body
 
     // "reader" = highlighted + Markdown, "source" = verbatim, "edit" = live
-    // workbench. A `?view=edit` deep link seeds the opening tab (__mode__);
-    // the first tab click displaces the constraint and owns it from there.
+    // workbench — the viewer's location (design/location.md). The `?view=` request
+    // seeds the opening tab (the host translates the query into the initial
+    // location); a tab click writes `app.location` and this derives back from it, so
+    // the tab is a single source of truth that back/forward walk for free.
 
-    mode: string = { String(app.demoSources["__mode__"] || "reader") },
+    mode: string = { app.location || "reader" },
     fontScale: number = 0.9,    // reader font zoom (0.9 = the comfortable default; the A stepper drives it)
     proseMeasure: number = 560,    // prose reading measure (matches the docs); code runs wider off the same left edge
     proseTopPad: number = 22,    // space above a prose block — reads as the section break
     themeMode: string = "auto",
+    liveCard: string = "",      // the edit tab republishes each keystroke on this pair …
+    liveSource: string = "",    // … and the host recompiles it, feeding app.liveReport back
     isDark: boolean = { app.themeMode == "auto" ? app.dark : app.themeMode == "dark" },
     theme = { app.isDark ? app.darkTheme() : app.lightTheme() },
 

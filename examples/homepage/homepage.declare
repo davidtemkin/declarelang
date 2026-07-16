@@ -47,7 +47,7 @@ class Lead extends Text [ fontSize = 19, fontWeight = normal, textColor = { them
 
 class Body extends Text [ fontSize = 17, fontWeight = normal, textColor = { theme.muted }, selectable = true ]
 
-// an article paragraph (the "Why" route) — HTML flow, so its `"""` source wraps
+// an article paragraph (the "Why" view) — HTML flow, so its `"""` source wraps
 // at the writer's margin and the line breaks collapse away in the rendering
 
 class Para extends HTMLText [ fontSize = 18, lineHeight = 1.2, width = { parent.width },
@@ -67,7 +67,7 @@ Width auto-fits the label plus 12px of padding each side.
 class NavLink extends View [ height = 33, cornerRadius = 8,
     label:   string = "",
     url:     string = "",
-    route:   string = "",
+    to:      string = "",
     hovered: boolean = false,
     pressed: boolean = false,
 
@@ -79,7 +79,12 @@ class NavLink extends View [ height = 33, cornerRadius = 8,
     onMouseOut()  { hovered = false; pressed = false },
     onMouseDown() { pressed = true },
     onMouseUp()   { pressed = false },
-    onClick()     { if (classroot.route != "") app.route = classroot.route; else if (classroot.url != "") app.navigate(classroot.url) },
+
+    // A pill goes one of two ways: `to` is an in-app location (a fragment — write
+    // `app.location`); `url` is an out-of-app target (the `navigate` service action,
+    // capabilities.md §6). One or the other, never both.
+
+    onClick()     { if (classroot.to != "") app.location = classroot.to; else if (classroot.url != "") app.navigate(classroot.url) },
     lbl: Text [ x = 12, y = 8, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14,
         text = { classroot.label },
         textColor = { classroot.hovered || classroot.pressed ? theme.text : theme.muted } ],
@@ -357,10 +362,22 @@ App [ theme = { ({
     fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 17, fontWeight = normal,
     textColor = { theme.text },
 
-    // in-app route: "home" (the scrolling page) or "why" (the mini-article). The host
-    // mirrors this to the URL hash (#why) so it deep-links and honours the back button.
+    // in-app location: "home" (the scrolling page) or "why" (the mini-article) — the
+    // app's slice of the URL (design/location.md). `location` is a BUILT-IN App
+    // attribute; setting it here declares the INITIAL, which is the default: the host
+    // shows a clean URL at "home" and `#why` at "why", seeds it from a deep link
+    // before first paint, and walks it on back/forward — no hash wiring in app code.
+    // Every `visible` below derives from it; the header pills write it.
 
-    route: string = "home",
+    location = "home",
+
+    // the whole-page source editor's state: `editing` toggles the overlay, and
+    // `liveCard`/`liveSource` name the demo an inline editor is republishing and
+    // its current text — the host recompiles that pair live.
+
+    editing: boolean = false,
+    liveCard: string = "",
+    liveSource: string = "",
 
     // the content measure and the centering gutter — the one geometry every
     // aligned edge on the page (column, wordmark, nav) derives from
@@ -369,7 +386,7 @@ App [ theme = { ({
     gutter: number = { Math.max(24, (app.width - app.measure) / 2) },
     heroFont: number = { app.width < 700 ? 44 : 60 },
 
-    scroller: View [ width = { app.width }, height = { app.height }, scrolls = true, visible = { app.route == "home" },
+    scroller: View [ width = { app.width }, height = { app.height }, scrolls = true, visible = { app.location == "home" },
 
         // full-bleed blueprint behind the column, sized to the page (a percent
         // height stays out of the page's own auto-extent, so no cycle)
@@ -430,7 +447,7 @@ App [ theme = { ({
                     textColor = { this.hovered ? theme.linkHover : theme.accent }, text = "Why a new language, now? →",
                     onMouseOver() { this.hovered = true },
                     onMouseOut() { this.hovered = false },
-                    onClick() { app.route = "why" },
+                    onClick() { app.location = "why" },
                     ],
                 ],
 
@@ -627,15 +644,16 @@ App [ theme = { ({
             ],
         ],
 
-    /* ## The "Why" route
+    /* ## The "Why" view
 
-       An in-app view (`app.route == "why"`) wearing the same skin as the page —
-       theme, graph-paper grid, and the header renders on this route too. The
-       host mirrors `app.route` to the URL hash (#why), so it deep-links and
-       honours the back button. The article itself is prose in `"""` blocks:
-       HTML collapses the line breaks, so the source wraps and the page flows. */
+       An in-app view (`app.location == "why"`) wearing the same skin as the page —
+       theme, graph-paper grid, and the header renders here too. The host mirrors
+       `app.location` to the URL fragment (#why), so it deep-links and honours the
+       back button — for free, from the one built-in binding. The article itself is
+       prose in `"""` blocks: HTML collapses the line breaks, so the source wraps
+       and the page flows. */
 
-    whyView: View [ visible = { app.route == "why" }, width = { app.width }, height = { app.height }, fill = { theme.ink },
+    whyView: View [ visible = { app.location == "why" }, width = { app.width }, height = { app.height }, fill = { theme.ink },
         grid: GridBg [ x = 0, y = 0, width = { app.width }, height = { app.height } ],
         body: View [ y = 56, width = { app.width }, height = { app.height - 56 }, scrolls = true, selectable = true,
             col: View [ width = { Math.min(720, app.width - 48) }, x = { Math.max(24, (app.width - 720) / 2) }, y = 52,
@@ -768,9 +786,9 @@ App [ theme = { ({
        dot that springs after the cursor. */
 
     header: View [ width = { app.width }, height = 56, y = -8, opacity = 0, fill = { theme.surface },
-        fadeIn:  Spring [ attribute = opacity, to = { app.route == "why" || app.scroller.scrollY > 80 ? 1 : 0 },
+        fadeIn:  Spring [ attribute = opacity, to = { app.location == "why" || app.scroller.scrollY > 80 ? 1 : 0 },
             stiffness = 220, damping = 30, epsilon = 0.004 ],
-        slideIn: Spring [ attribute = y,       to = { app.route == "why" || app.scroller.scrollY > 80 ? 0 : -8 },
+        slideIn: Spring [ attribute = y,       to = { app.location == "why" || app.scroller.scrollY > 80 ? 0 : -8 },
             stiffness = 220, damping = 30, epsilon = 0.05 ],
         hairline: View [ y = 55, width = { app.width }, height = 1, fill = { theme.line } ],
 
@@ -778,7 +796,7 @@ App [ theme = { ({
 
         brand: View [ x = { app.gutter }, y = 18, height = 22,
             layout: SimpleLayout [ axis = x, spacing = 0 ],
-            onClick() { app.route = "home" },
+            onClick() { app.location = "home" },
             Heading [ fontSize = 15, textFill = { theme.brand }, text = "Declare" ],
             ],
 
@@ -787,7 +805,7 @@ App [ theme = { ({
 
         nav: View [ y = 11, x = { app.width - app.gutter - this.width },
             layout: SimpleLayout [ axis = x, spacing = 2 ],
-            NavLink [ label = "Why Declare", route = "why" ],
+            NavLink [ label = "Why Declare", to = "why" ],
 
             // redundant at phone width (section 02 links it) — drop it before the nav rides the wordmark
 

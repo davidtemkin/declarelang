@@ -1,0 +1,28 @@
+// A Phase-B @-reveal fixture (design/location.md §6): a tall, scrolling Markdown
+// with native headings, so a fragment `@slug` brings a heading into view. Drives
+// the live-chromium check on BOTH backends (DOM default, `?render=canvas`). Not an
+// exemplar — the smallest program that exercises the reveal end to end. The prose is
+// deliberately long (wrapping paragraphs) so each heading sits at a distinct, freely
+// reachable scroll offset, with a full viewport of trailing filler after the last.
+
+App [ width = 900, height = 300,
+    body: View [ width = { app.width }, height = { app.height }, scrolls = true,
+        page: Markdown [ x = 40, y = 40, width = 520, text = """
+# Introduction
+
+The introduction sits at the top so revealing it returns the scroll to zero. Filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler.
+
+## Getting Started
+
+More prose so the section has body between the headings. Filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler.
+
+## Fine Details
+
+This is the reveal target, well below the fold. Filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler.
+
+## Conclusion
+
+The last section, with a full screen of trailing filler so every earlier heading can reach the top. Filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler filler.
+""" ],
+        ],
+    ]

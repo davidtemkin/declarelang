@@ -24,7 +24,7 @@ import path from "node:path";
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
-import { compile, isUpToDate, diskProbe, extractFromCompiled, seoDocument } from "../compiler/dist/compile-node.js";
+import { compile, isUpToDate, diskProbe, crawlDocument, diskDataResolver, seoDocument } from "../compiler/dist/compile-node.js";
 import { highlight } from "../compiler/dist/highlight.js";
 import { requestType, REQ, runWrapper, programName } from "../browser/serve-core.js";
 import { writeProduction } from "../tools/declarec.mjs";
@@ -92,8 +92,9 @@ function serveSource(res, absPath, relPath, rt, backendClass) {
   catch (e) { return send(res, 500, String((e && e.message) || e), "text/plain"); }
   if (rt === REQ.SEGMENTS)
     return send(res, 200, JSON.stringify({ path: relPath, segments }), "application/json");
-  // The viewer's opening tab, straight from the request type — seeded as __mode__:
-  // reader (highlighted + Markdown), source (verbatim in the viewer), edit (workbench).
+  // The viewer's opening tab, straight from the request type — the viewer's INITIAL
+  // location (design/location.md §4): reader (highlighted + Markdown), source
+  // (verbatim in the viewer), edit (workbench).
   const mode = rt === REQ.SOURCE ? "source" : rt === REQ.EDIT ? "edit" : "reader";
   return send(res, 200, withServerMarker(sourcePage(relPath, segments, source, backendClass, mode)));
 }
@@ -116,10 +117,12 @@ function sourcePage(relPath, segments, rawSource, backendClass, mode = "") {
   const title = relPath.split("/").pop();
   const cfg = {
     backend: backendClass, source: r.source, deps: r.deps,
+    // The ?view= request's opening tab → the viewer's initial location (§4 above).
+    location: mode,
     // __source__ = the highlight() segments (JSON); __raw__ = the verbatim source
     // (for the plain-text toggle — segments can't reconstruct it faithfully);
     // __path__ = the file shown. The viewer reads them off app.demoSources.
-    seeds: { __source__: JSON.stringify(segments), __raw__: rawSource, __path__: relPath, __mode__: mode },
+    seeds: { __source__: JSON.stringify(segments), __raw__: rawSource, __path__: relPath },
   };
   return `<!doctype html><meta charset="utf-8"><title>${esc(title)} — source</title>
 <base href="/examples/codeviewer/">
@@ -138,17 +141,28 @@ bootHost(cfg);
 // through THE compiler API, executed headlessly, served text/html. The SW static host
 // serves the same artifact by extracting IN-BROWSER (browser/boot-seo.js) — one
 // extractor module, two hosts.
-function serveExtract(res, absPath, relPath) {
+async function serveExtract(res, absPath, relPath) {
   let source;
   try { source = readFileSync(absPath, "utf8"); }
   catch { return send(res, 404, "not found: " + relPath, "text/plain"); }
-  // Compile through THE front-end (auto-include host and all), then extract from
-  // that result — the SAME compile the running app gets, so a library component
-  // (Bar, Field, …) resolves in the crawler view exactly as it does live. Typecheck is
-  // always on (a phase of the one compile).
+  // Compile through THE front-end (auto-include host and all), then CRAWL from that
+  // result (location.md §7) — one document: the default page plus each reachable
+  // location's content as a `<section id>`, so the whole site is in the crawler view.
+  // Data resolves from the program's own directory only (the build-time rule); a
+  // network DataSource fails LOUDLY — a 422 naming the url and the fix, never a
+  // silently partial document. Typecheck is always on (a phase of the one compile).
   const compiled = compile(source, { originDir: path.dirname(absPath) });
   if (compiled.source === null) return send(res, 422, compiled.report, "text/plain; charset=utf-8");
-  return send(res, 200, seoDocument(extractFromCompiled(compiled), relPath.split("/").pop()));
+  let html;
+  try {
+    html = await crawlDocument(compiled.source, {
+      deps: compiled.deps, links: compiled.links,
+      data: diskDataResolver(path.dirname(absPath)),
+    });
+  } catch (e) {
+    return send(res, 422, String((e && e.message) || e), "text/plain; charset=utf-8");
+  }
+  return send(res, 200, seoDocument(html, relPath.split("/").pop()));
 }
 
 const send = (res, code, body, type) => {
@@ -166,19 +180,25 @@ const send = (res, code, body, type) => {
  *  boot-uniform gives it the prewarm → cache → compile path. The only host-specific
  *  parts are PARAMETERS: the dev server uses the root-relative bundle it rebuilds on
  *  demand (no ?v) and bakes the ?seo block server-side. */
-function declareRunPage(urlPath, flags = DEFAULT_FLAGS) {
+async function declareRunPage(urlPath, flags = DEFAULT_FLAGS) {
   // The `seo` FLAG (flags.ts, distinct from the ?extract REQUEST TYPE): embed the
   // extracted static document in the host element, for crawlers that read the page
   // without running it. A synchronous pre-paint script removes #declare-static before
   // the app mounts (serve-core.js runWrapper), so a running user never sees it. The SW
   // never bakes here (crawlers don't install workers), so this is the one run-page
-  // input the two hosts legitimately differ on.
+  // input the two hosts legitimately differ on. The block is the CRAWLED document
+  // (location.md §7 — every reachable location, sections by id); a crawl failure
+  // (a network DataSource) logs the loud message and serves the app un-baked, since
+  // the page's first job is running — `?extract` is the surface that hard-fails.
   let staticBlock = "";
   if (flags.seo) {
     try {
       const abs = path.join(ROOT, urlPath.replace(/^\/+/, ""));
       const compiled = compile(readFileSync(abs, "utf8"), { originDir: path.dirname(abs) });
-      const h = compiled.source === null ? null : extractFromCompiled(compiled);
+      const h = compiled.source === null ? null : await crawlDocument(compiled.source, {
+        deps: compiled.deps, links: compiled.links,
+        data: diskDataResolver(path.dirname(abs)),
+      });
       if (h !== null) staticBlock = `<div id="declare-static">\n${h}\n</div>`;
     } catch (e) { console.error("seo embed failed:", e.message); }
   }
@@ -357,13 +377,21 @@ http.createServer((req, res) => {
         if (rt === REQ.READER || rt === REQ.SOURCE || rt === REQ.EDIT || rt === REQ.SEGMENTS)
           return serveSource(res, abs, rel, rt, "DomBackend");
         // The static-extraction document alone — answers a fetch too (curl, a crawler).
-        if (rt === REQ.EXTRACT) return serveExtract(res, abs, rel);
+        if (rt === REQ.EXTRACT) {
+          serveExtract(res, abs, rel).catch((e) => { if (!res.headersSent) send(res, 500, String((e && e.stack) || e), "text/plain"); });
+          return;
+        }
         // A build is a directory of files, so it lives at a directory address.
         if (rt === REQ.BUILD) { res.writeHead(302, { location: `/build/${programName(p)}/` }); return res.end(); }
         // RUN: a navigation gets the run wrapper (with any ?render/?seo modifier); a
         // plain fetch (?file, an include, curl) falls through to the raw bytes below.
         const navigate = req.headers["sec-fetch-mode"] === "navigate" || (req.headers.accept ?? "").includes("text/html");
-        if (rt === REQ.RUN && navigate) return send(res, 200, withServerMarker(declareRunPage(p, parseFlags(params))), "text/html;charset=utf-8");
+        if (rt === REQ.RUN && navigate) {
+          declareRunPage(p, parseFlags(params))
+            .then((page) => send(res, 200, withServerMarker(page), "text/html;charset=utf-8"))
+            .catch((e) => { if (!res.headersSent) send(res, 500, String((e && e.stack) || e), "text/plain"); });
+          return;
+        }
       }
       // else (?file, a plain fetch, or a non-real path): fall through to the raw-file
       // handler — the exact source bytes, text/plain.

@@ -130,7 +130,11 @@ formatting and semantics carried over. Explicitly NOT an accessibility
 feature, and explicitly NOT a language feature: no new syntax, no DOM-think
 in Declare source. The extraction is two phases with an ink-line between
 them — the *link relation* is compile-time static analysis (§6); the
-*content* is the settled tree of §4, serialized.
+*content* is the settled tree of §4, serialized. The t=0 snapshot here is the
+DEFAULT location; design/location.md §7 generalizes it to t=0 per reachable
+location — the same serializer, cold-booted at each fragment the app links to,
+so content hidden at the default (an in-app article, a docs chapter) is
+extracted too. The crawl follows the very links §6 extracts.
 
 **Serialization is class semantics.** Each content class already declares what
 its text MEANS; the serializer just says it in HTML:
@@ -216,3 +220,44 @@ that knows library attribute names.
   `navigate` reached via a helper the handler calls, is a follow-up; the direct
   call in the activation handler is what the corpus uses and what extracts
   today.)
+- `app.location = <expr>` in an activation handler is the IN-app twin (design/
+  location.md §5): the same walk resolves it to a FRAGMENT link (`<a href="#…">`)
+  — a reachable location — while `navigate(to)` stays the out-of-app link. One
+  relation, two href shapes; the crawl of §7 follows the fragment ones.
+
+## 7. Live demo editing — the component ruling (RULED, interim wiring)
+
+Three site apps (docs, homepage, codeviewer) host editable demo cards: an
+editor, a preview island the host recompiles into, a diagnostics pane. The
+capability originally leaked onto the base App as eight schema attributes —
+wrong by this document's own principle: most apps are not code editors, and
+the App is the *environment*, not a grab-bag for whatever the fanciest app
+needs.
+
+**The ruling: live editing is shape 3 — a component.** An editable demo is
+view-shaped (geometry, composition, an editor, a preview, a report pane); the
+exemplar is `TextInput`/the `HTML` island, not `navigate`. The target form is
+a library `LiveDemo` component (one file, one autoincludes row, a bare tag in
+the three apps) owning the whole channel as its OWN attributes:
+
+- `source: string` — the demo's current text; the host seeds each instance
+  (killing `demoSources`, the root-level record-typed name→source map, which
+  existed only because a singleton channel needs a key).
+- `report: string` — that instance's last compile report (killing the global
+  `liveReport`, which two open editors would fight over — per-instance is more
+  correct, not just cleaner).
+- No `liveCard` at all — it was pure multiplexing of the singleton channel.
+
+The host↔component seam is the island mechanism host-client.js already uses
+(`data-neo-slot="run:<name>"` — the host finds instances, manages interiors;
+the D-5 pattern). The App carries zero editing knowledge.
+
+**Interim state (today).** The app-authored flags (`editing`, `liveCard`,
+`liveSource`) are instance-declared on the three apps' roots — off the base
+schema. The two host-fed channels the apps still read (`demoSources`,
+`liveReport`) remain runtime App slots typed in the scaffold's LANGUAGE_API,
+marked interim there; they are exactly what the `LiveDemo` component
+dissolves. The rework is deferred until the component set matures (the same
+call as the calendar's standard-library pass) — it rewires host-client.js
+from root-polling to per-instance channels and reworks the three apps' editor
+cards onto the class.

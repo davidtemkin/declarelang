@@ -15,7 +15,7 @@ import { loadCompiler, ensureLibrary } from "./compiler-client.js";
 const ROOT = new URL("../", import.meta.url);
 // The file to display — an absolute URL the SW passed on this module's own URL — and
 // the tab to open on ("reader" | "source" | "edit"; empty → the viewer's default,
-// reader). Passed straight through as the code viewer's __mode__ seed.
+// reader). Passed as the code viewer's initial location (design/location.md §4).
 const target = new URL(import.meta.url).searchParams.get("src");
 const mode = new URL(import.meta.url).searchParams.get("mode") ?? "";
 
@@ -46,7 +46,11 @@ async function run() {
     document.title = (relPath.split("/").pop() || "source") + " — source";
     await bootHost({
       source: out.source,
-      seeds: { __source__: JSON.stringify(segments), __raw__: raw, __path__: relPath, __mode__: mode },
+      // The `?view=reader|source|edit` request selects the opening tab; the host
+      // translates it into the viewer's INITIAL location (design/location.md §4).
+      // A real URL fragment still wins, so a shared `…#source` deep link holds.
+      location: mode,
+      seeds: { __source__: JSON.stringify(segments), __raw__: raw, __path__: relPath },
       // the live-edit mode's recompile seam — the same in-browser client,
       // reporting failure as `{ report }` so the viewer's diagnostics pane fills
       compile: async (s) => {

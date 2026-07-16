@@ -43,7 +43,17 @@ async function run() {
     mod.setDefaultLibrary(lib);
     const compiled = mod.compile(source);
     const name = new URL(target).pathname.split("/").pop() || "app";
-    const html = mod.extractFromCompiled(compiled);
+    // The CRAWLED document (design/location.md §7) — every reachable location's
+    // content in the one page, identical bytes to the Node server's ?extract. The
+    // data resolver is the browser twin of the server's disk read: a RELATIVE
+    // DataSource url is the app's own material, fetched same-origin from beside the
+    // program (the deployed copy of the same file the Node crawl reads from disk);
+    // an absolute url is the network and fails the crawl loudly (the error page).
+    const html = compiled.source === null ? null : await mod.crawlDocument(compiled.source, {
+      deps: compiled.deps, links: compiled.links,
+      data: (url) => fetch(new URL(url, target), { cache: "no-cache" })
+        .then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    });
     const esc = (s) => s.replace(/[&<]/g, (c) => (c === "&" ? "&amp;" : "&lt;"));
     const doc = html === null
       ? `<!doctype html><meta charset="utf-8"><title>${esc(name)} — extraction failed</title>
