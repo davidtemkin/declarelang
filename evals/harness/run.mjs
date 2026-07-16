@@ -46,7 +46,7 @@ const budgetOverride = val("budget", null);
 // unified core doc docs/declare.md measured WORSE as a generation context —
 // 0/9 vs 2/9 green, 531K vs 463K tok — so it did NOT earn retirement of the
 // brief. The flag stays so future candidates can be re-measured the same way.)
-const briefDocPath = val("brief-doc", "docs/declare-for-llms.md");
+const briefDocPath = val("brief-doc", "evals/declare-for-llms.md");
 // corpus mode (the docs-accessibility arm): the sandbox carries the category-B
 // docs TREE instead of one brief file, and the solver reads its way in
 // (claude-docs). Pair with --solver claude-docs.

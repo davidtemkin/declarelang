@@ -10,8 +10,10 @@
 // router, links.json, the core doc, guide/, operational/ — and the solver
 // READS its way in (agentic, read-only tools). Excluded on purpose:
 // system-design/ (category A — if a solver can only succeed by reading the
-// internal record, that is a category-B gap finding) and declare-for-llms.md
-// (the incumbent brief this arm is measured AGAINST). Corpus sandboxes are
+// internal record, that is a category-B gap finding). The incumbent brief this
+// arm is measured AGAINST lives at evals/declare-for-llms.md — outside docs/
+// by construction, so the corpus can't accidentally include it. Corpus
+// sandboxes are
 // created OUTSIDE the repo (os tmpdir): an agentic solver with read tools in
 // a repo-interior directory could walk ../.. into compiler source or the
 // task's reference solution.
@@ -69,7 +71,7 @@ export function sandboxName({ task, track, model, rep }) {
  * @param {object} a  { runDir, runName, task, track, model, rep, briefDocPath, corpus }
  * @returns { dir } absolute path to the sandbox
  */
-export function makeSandbox({ runDir, runName, task, track, model, rep, briefDocPath = "docs/declare-for-llms.md", corpus = false }) {
+export function makeSandbox({ runDir, runName, task, track, model, rep, briefDocPath = "evals/declare-for-llms.md", corpus = false }) {
   // corpus cells sandbox OUTSIDE the repo (see header); brief cells stay under
   // the run dir as before (their solver has no tools — nothing to contain)
   const dir = corpus
