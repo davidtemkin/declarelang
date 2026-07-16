@@ -178,6 +178,12 @@ const targets = [
   // (a symlink would silently break on Windows checkouts and zip downloads;
   // a gated generated copy cannot drift — divergence fails docs.test)
   { name: "skill-discovery-copy", isFile: true, path: ".claude/skills/declare/SKILL.md", next: skillTarget.next },
+  // the homepage's in-app "one file" view: the core doc as the app's OWN
+  // material (docs/system-design/location.md §9 — beside the app, JSON-wrapped
+  // because DataSource/diskDataResolver speak JSON, not raw text). Gated like
+  // every projection, so the homepage can never render a drifted declare.md.
+  { name: "homepage-language", isFile: true, path: "apps/homepage/language.json",
+    next: JSON.stringify({ markdown: readFileSync(join(ROOT, "docs/declare.md"), "utf8") }) + "\n" },
 ];
 
 let stale = 0;

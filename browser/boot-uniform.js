@@ -37,6 +37,7 @@ import { registerServiceWorker } from "./register-sw.js";
 import { loadCompiler, ensureLibrary } from "./compiler-client.js";
 import { loadPrewarm, relativize } from "./prewarm-cache.js";
 import { fnv1a, isUpToDate, lookupKey } from "../compiler/dist/closure.js";
+import { provideTransport } from "../runtime/dist/index.js";
 
 const ROOT = new URL("../", import.meta.url);
 
@@ -150,6 +151,13 @@ export default async function boot(cfg) {
   const mainUrl = new URL(cfg.main, location.href);
   const mainId = mainUrl.href;
   const mainDir = new URL(".", mainUrl);                          // app-relative assets (demos) live here
+  // The app-relative data rule (docs/system-design/location.md §9), made true in the
+  // LIVE browser: a relative DataSource url resolves against the PROGRAM's directory
+  // — the same base diskDataResolver (Node crawl) and boot-extract (browser crawl)
+  // already use. The platform default (page-relative fetch) only agrees when the
+  // page IS the program URL; the root index.html boots this same app from the repo
+  // root, where "language.json" would otherwise resolve a level too high.
+  provideTransport((url) => fetch(new URL(url, mainDir)));
   const props = { render: cfg.backend === "CanvasBackend" ? "canvas" : "dom" };
   const sVersion = perfStage("version");
   const build = await platformBuild();

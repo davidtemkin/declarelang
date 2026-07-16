@@ -17,15 +17,19 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => readFileSync(path.join(ROOT, p), "utf8");
 const compileAt = (rel) => compile(read(rel), { originDir: path.join(ROOT, path.dirname(rel)) });
 
-await test("crawl: homepage emits the #why document, linked from the front page", async () => {
+await test("crawl: homepage emits the #why and #language documents, linked from the front page", async () => {
   const r = compileAt("apps/homepage/homepage.declare");
-  const docs = await crawlLocations(r.source, { deps: r.deps, links: r.links });
+  const docs = await crawlLocations(r.source, { deps: r.deps, links: r.links,
+    data: diskDataResolver(path.join(ROOT, "apps/homepage")) });
   const keys = docs.map((d) => d.key).sort();
-  assert.deepEqual(keys, ["", "why"], "the default page and the why article");
+  assert.deepEqual(keys, ["", "language", "why"], "the default page, the language doc, and the why article");
   const front = docs.find((d) => d.key === "");
   assert.ok(front.html.includes('href="#why"'), "the front page LINKS to #why (discoverable = linked)");
+  assert.ok(front.html.includes('href="#language"'), "the front page LINKS to #language");
   const why = docs.find((d) => d.key === "why");
   assert.ok(why.html.includes("studies"), "the why document carries the essay content that is hidden at t=0 on /");
+  const lang = docs.find((d) => d.key === "language");
+  assert.ok(lang.html.includes("the whole language, in one file"), "the language document carries the rendered core doc");
 });
 
 await test("crawl: docs emits a document per chapter AND per reference class (data-driven, over the fixture)", async () => {
