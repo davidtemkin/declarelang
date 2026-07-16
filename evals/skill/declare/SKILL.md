@@ -77,6 +77,7 @@ cover; fetch the one chapter your task needs).
 | text, Markdown, images | docs/guide/30-content.md |
 | deep links, the URL, anchors, crawlers | docs/guide/33-addressable.md |
 | the whole language, terse | docs/declare.md |
+| an exact fact — attribute names, enum tokens, flags, commands, diagnostic codes | docs/declare-model.json (`spine` — grep it; don't read it whole) |
 
 ## The loop
 

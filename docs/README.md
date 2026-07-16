@@ -15,6 +15,7 @@ teaching corpus.) The governing spec is
 | [`operational/`](operational/) | **Operating the toolchain** — server, builds, verify, format, flags. | [`getting-started.md`](operational/getting-started.md) |
 | [`reference/`](reference/) | **The reference** — generated from the `@api` surface; browsable in the docs app (`examples/docs/`), walkable as `examples/docs/docs-model.json`. | the docs app |
 | [`links.json`](links.json) | **The link manifest** — every symbolic ID → path/title/kind, plus each doc's outgoing links. Generated; do not edit. | — |
+| [`declare-model.json`](declare-model.json) | **The comprehensive machine model** — the SPINE (schemas, enum tokens, flags, requests, diagnostic codes, library, commands) + links + reference + guide, assembled from the live registries (`tools/doc/assemble.mjs`); its `meta.pipeline` describes its own derivation. Generated; do not edit. | — |
 
 Reading order for a newcomer (human or model): `operational/getting-started.md` →
 `guide/` in order → `declare.md` when you want the whole language at once → the
@@ -43,6 +44,7 @@ compiler on every test run** (` ```declare-fragment ` marks illustrative excerpt
 Walk it either way:
 
 - **File-system:** this directory, in the reading order above.
-- **Walkable JSON:** [`links.json`](links.json) for the ID graph;
-  `examples/docs/docs-model.json` for the full reference model (every class and
-  member, prose included) plus the guide chapters as data.
+- **Walkable JSON:** [`declare-model.json`](declare-model.json) — the one
+  comprehensive structure: exact facts (names, tokens, flags, commands) in its
+  `spine`, plus the link graph, the reference, and the guide as data. For a
+  quick fact, grep the spine before reading prose.
