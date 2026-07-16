@@ -33,6 +33,7 @@ import { gzipSync } from "node:zlib";
 import { compileTracked, crawlDocument, diskDataResolver, crawlerDocument, lineMetrics } from "../../compiler/dist/compile-node.js";
 import { fnv1a } from "../../compiler/dist/closure.js";
 import { prewarmKey } from "../../browser/prewarm-cache.js";
+import { buildProduction } from "../declarec.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
@@ -94,17 +95,22 @@ function writeArtifact(key, artifact) {
 // read the same bytes). Written BEFORE the compile loop so the
 // homepage crawl below (and the bake after it) reads this run's figures,
 // never last commit's.
-const stats = Object.fromEntries(
-  ["apps/homepage/homepage.declare", "apps/calendar/calendar.declare"].map((rel) => [
-    path.basename(rel, ".declare"),
-    lineMetrics(readFileSync(path.join(ROOT, rel), "utf8")),
-  ])
-);
+const stats = {};
+for (const rel of ["apps/homepage/homepage.declare", "apps/calendar/calendar.declare"]) {
+  const src = readFileSync(path.join(ROOT, rel), "utf8");
+  const name = path.basename(rel, ".declare");
+  // the "over the wire" figure is the PRODUCTION build (declarec: app + runtime
+  // + library slices, gzipped) — the number the homepage's caption promises,
+  // not this tool's program-only artifact
+  const built = await buildProduction(src, { name, originDir: path.join(ROOT, path.dirname(rel)) });
+  if (!built.ok) throw new Error(`prewarm stats: ${rel} failed the production build`);
+  stats[name] = { ...lineMetrics(src), wireGzip: built.sizes.totalGzip, programGzip: built.sizes.programGzip };
+}
 const statsFile = path.join(ROOT, "apps/homepage/stats.json");
 const statsJson = JSON.stringify(stats, null, 2) + "\n";
 if (!existsSync(statsFile) || readFileSync(statsFile, "utf8") !== statsJson) {
   writeFileSync(statsFile, statsJson);
-  console.log(`prewarm: wrote apps/homepage/stats.json (${Object.entries(stats).map(([k, v]) => `${k} ${v.code} code`).join(", ")})`);
+  console.log(`prewarm: wrote apps/homepage/stats.json (${Object.entries(stats).map(([k, v]) => `${k} ${v.code} code · ${(v.wireGzip / 1024).toFixed(1)}KB gz`).join(", ")})`);
 }
 
 console.log(`prewarm: generating committed cache for ${PROGRAMS.length} program(s) → bundles/cache/`);

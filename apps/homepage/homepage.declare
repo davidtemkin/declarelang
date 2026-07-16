@@ -522,11 +522,12 @@ App [ theme = { ({
                             ],
                         stat: View [ width = { parent.width },
                             layout: WrappingLayout [ spacing = 48, lineSpacing = 40 ],
-                            Metric [ value = "46 KB", note = "over the wire, gzipped — the whole app and its runtime" ],
 
-                            // computed, not claimed: the calendar's code-line count arrives
-                            // from stats.json (regenerated every commit) — see app.stats
+                            // computed, not claimed: the calendar's wire weight and code-line
+                            // count arrive from stats.json (regenerated every commit) — see app.stats
 
+                            Metric [ value = { app.stats.read(["calendar", "wireGzip"]) ? Math.round(app.stats.read(["calendar", "wireGzip"]) / 1024) + " KB" : "—" },
+                                note = { "over the wire, gzipped — runtime and app in one file; the compiled calendar itself is " + (app.stats.read(["calendar", "programGzip"]) ? Math.round(app.stats.read(["calendar", "programGzip"]) / 1024) + " KB" : "—") + " of it" } ],
                             Metric [ value = { "" + (app.stats.read(["calendar", "code"]) ?? "—") },
                                 note = "lines of Declare code — four views, continuous zoom, drag, and edit" ],
                             ],

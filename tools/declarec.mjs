@@ -160,6 +160,7 @@ export async function buildProduction(source, opts = {}) {
 
   const sizes = {
     programRaw: programJson.length,
+    programGzip: gz(programJson),   // the app ALONE (compiled, pre-bundle) — the runtime's share is the rest of appGzip
     appRaw: appJs.length,
     appGzip: gz(appJs),
     htmlRaw: html.length,

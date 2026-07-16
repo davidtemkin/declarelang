@@ -1,14 +1,18 @@
 {
   "homepage": {
-    "total": 896,
-    "code": 577,
+    "total": 897,
+    "code": 578,
     "comment": 175,
-    "blank": 144
+    "blank": 144,
+    "wireGzip": 60437,
+    "programGzip": 12635
   },
   "calendar": {
     "total": 697,
     "code": 480,
     "comment": 111,
-    "blank": 106
+    "blank": 106,
+    "wireGzip": 51866,
+    "programGzip": 12160
   }
 }
