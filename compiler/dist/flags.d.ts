@@ -23,11 +23,13 @@ export type FlagSpec = {
     readonly name: keyof CompileFlags;
     readonly kind: "bool";
     readonly default: boolean;
+    readonly description: string;
 } | {
     readonly name: keyof CompileFlags;
     readonly kind: "enum";
     readonly values: readonly string[];
     readonly default: string;
+    readonly description: string;
 };
 export declare const FLAG_SPECS: readonly FlagSpec[];
 /** Defaults, derived from the registry — never hand-maintained. */

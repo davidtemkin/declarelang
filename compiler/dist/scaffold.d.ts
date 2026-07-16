@@ -7,6 +7,22 @@ import type { ClassDecl } from "../../runtime/dist/parser.js";
  *  `declare class`. The nullable decoration slots (stroke/shadow) and the two
  *  styling channels carry their `| null` here, matching what coercion admits. */
 export declare function tsType(t: AttrType): string;
+/** LANGUAGE-API members — the runtime surface a `{ }` body may READ or CALL
+ *  that is deliberately NOT in the schemas: a schema models what an author can
+ *  SET in `[ ]` ("lifecycle state (value, status, error) is runtime surface
+ *  read from bindings, not author-settable — hence absent here", schema.ts),
+ *  while a body also reads that lifecycle surface and calls runtime methods.
+ *  This table is the TYPE half of what effects.ts is for DEPENDENCIES: a
+ *  language-supplied member's signature is DECLARED (its body is runtime TS,
+ *  not Declare source), a user member's is derived — same footing, no
+ *  privilege tier. Signatures mirror the runtime (data.ts, animator.ts,
+ *  layout.ts, backend.ts); data-shaped values are `any`, not `unknown` —
+ *  a datum's shape is unknowable until the `schema` construct lands, and
+ *  `unknown` would flag every correct read (the same deliberate under-report
+ *  as Theme). Members the runtime marks `protected` (TweenLayout.laid) are
+ *  declared public here: a check-block is a free function, not a subclass
+ *  body, so TS's protected rule would reject the legal subclass call. */
+export declare const LANGUAGE_API: Readonly<Record<string, readonly string[]>>;
 /** One attribute member. A length-typed slot is the read/write ASYMMETRY the
  *  runtime actually has: a body may WRITE `number | Percent` (the slot accepts
  *  both), but a READ always sees the RESOLVED pixel number (the constraint

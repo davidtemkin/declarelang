@@ -21,8 +21,10 @@
 // The compiler's INTERNAL options still carry stripPos/typecheck (the build act sets
 // them); only this externally-named FLAG surface is the two modifiers.
 export const FLAG_SPECS = [
-    { name: "render", kind: "enum", values: ["dom", "canvas"], default: "dom" },
-    { name: "crawler", kind: "bool", default: false },
+    { name: "render", kind: "enum", values: ["dom", "canvas"], default: "dom",
+        description: "render through managed DOM or a single <canvas>" },
+    { name: "crawler", kind: "bool", default: false,
+        description: "embed the crawled document in the host page, for crawlers" },
 ];
 /** Defaults, derived from the registry — never hand-maintained. */
 export const DEFAULT_FLAGS = Object.fromEntries(FLAG_SPECS.map((s) => [s.name, s.default]));

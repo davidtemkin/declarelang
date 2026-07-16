@@ -52,30 +52,13 @@ cover; fetch the one chapter your task needs).
 
 ## The inventory (resident on purpose — you will NOT think to look these up)
 
-- **Built-ins you must not redeclare** (they already exist; several are
-  read-only, computed for you): every View has `x y width height fill
-  cornerRadius stroke shadow opacity visible clip scrolls scrollY layout
-  datapath textColor fontSize fontFamily fontWeight letterSpacing theme
-  focusable` and read-only `contentWidth contentHeight`; App adds read-only
-  `hostWidth hostHeight dark` plus `scrollY pointerX pointerY minWidth
-  minHeight location` (location = the URL fragment, two-way: write it to
-  navigate, derive state from it, never assign the derived state). Views may
-  name themselves reveal targets with `anchor`. Naming your derived value `contentWidth` is an error — pick
-  `bodyW`, `colW`, etc.
-- **Token values, not CSS values**: `fontWeight` takes `thin light normal
-  medium semibold bold black` — NEVER `700` (numbers are CSS). `textAlign`:
-  `left center right`. Layout `axis`: `x` or `y` (a literal — it cannot be
-  a `{ }` constraint; to change arrangement responsively, constrain each
-  child's `x`/`y` off a flag instead).
-- **Dataset mutation verbs** (from handlers): `data.set(path, v)`,
-  `data.insert(path, index, v)`, `data.removeAt(path, index)`,
-  `data.move(path, from, to)` — paths are arrays like `["rows"]`. Adding a
-  row: `tasks.insert(["rows"], tasks.read(["rows"]).length, ({ label: t, done: false }))`.
-- **The standard library**: `Button [ label, primary, onClick ]`,
-  `Checkbox [ checked, onInput ]`, `Switch`, `Slider [ min, max, value,
-  onInput(v) ]`, `RadioGroup`/`Radio`, `Field`, `ProgressBar`, `TextInput
-  [ text, multiline, onInput ]` — values flow derive-down (`value = { app.x }`)
-  and deliver-up (`onInput(v) { app.x = v }`).
+<!-- generated:inventory -->
+- **Built-ins you must not redeclare** (read-only ones are computed for you): every View has `x y width height fill cornerRadius stroke shadow visible opacity scale pivotX pivotY clip scrolls scrollsX scrollY textColor fontSize fontFamily fontWeight letterSpacing headingColor headingWeight linkColor codeColor codeSize codeFamily codeBackground codeRule richTextLayout theme selectable styles stylesheet layout datapath focusable focustrap anchor` and read-only `contentWidth contentHeight`; App adds `scrollY pointerX pointerY hovering pointerOverText location minWidth minHeight` and read-only `hostWidth hostHeight dark`. `location` is the URL fragment (two-way: write it to navigate, derive state from it, never assign the derived state); `anchor` names a view as an `@name` reveal target. Naming a derived value `contentWidth` is an error — pick `bodyW`, `colW`, etc.
+- **Token values, not CSS values**: `FontWeight` = thin extralight light regular normal medium semibold bold extrabold black; `TextAlign` = left center right; `Stretch` = none width height both; `Axis` = x y; `Process` = sequential simultaneous — NEVER numeric weights (700 is CSS). Layout `axis` is a literal — to change arrangement responsively, constrain each child's `x`/`y` off a flag.
+- **Dataset mutation verbs** (from handlers): `data.set(path, v)` · `data.insert(path, index, v)` · `data.removeAt(path, index)` · `data.move(path, from, to)` — paths are arrays like `["rows"]`. Adding a row: `tasks.insert(["rows"], tasks.read(["rows"]).length, ({ label: t, done: false }))`.
+- **The standard library**: `Checkbox`, `Button`, `Switch`, `Slider`, `RadioGroup`, `Radio`, `Field`, `ProgressBar`, plus the built-in `TextInput` — values flow derive-down (`value = { app.x }`) and deliver-up (`onInput(v) { app.x = v }`).
+- **Compile modifiers**: `render`, `crawler` (same names as URL `?…` and CLI `--…`). Diagnostic codes are `DECLARE####`.
+<!-- /generated:inventory -->
 
 ## Routing table — read exactly what the task needs
 

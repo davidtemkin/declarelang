@@ -175,7 +175,7 @@ function methodSig(m: Method): string {
  *  as Theme). Members the runtime marks `protected` (TweenLayout.laid) are
  *  declared public here: a check-block is a free function, not a subclass
  *  body, so TS's protected rule would reject the legal subclass call. */
-const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
+export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
   // The App's navigation SERVICE ACTION (view.ts App.navigate, capabilities.md
   // §6): a link/button calls `app.navigate(url)` in an activation handler. A
   // method, not an attribute — `app.navigate = url` is a type error now, which

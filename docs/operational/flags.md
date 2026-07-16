@@ -5,10 +5,12 @@ There are exactly **two** compile-time modifiers, defined once in the registry
 a server URL query, and a browser URL query all mean the same thing and cannot drift. Both
 compose onto a run or a build.
 
+<!-- generated:flags-table -->
 | modifier | what it does | CLI (`declarec`) | URL | default |
 |---|---|---|---|---|
-| **render** | render through managed DOM or a single `<canvas>` | `--dom` / `--canvas` | `?render=dom` / `?render=canvas` | `dom` |
-| **crawler** | embed the crawled document in the host page, for crawlers | `--crawler` | `?crawler` | off |
+| **render** | render through managed DOM or a single <canvas> | `--render dom` / `--canvas` | `?render=dom` | `dom` |
+| **crawler** | embed the crawled document in the host page, for crawlers | `--crawler` | `?crawler` | `false` |
+<!-- /generated:flags-table -->
 
 Every name is lowercase, and the same name works everywhere: `?render=canvas` on the server,
 `--canvas` on the CLI, and `?render=canvas` in the browser are one modifier. Booleans accept

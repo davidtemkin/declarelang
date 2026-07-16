@@ -10,17 +10,27 @@ the rest of the work.
 
 ## 1. Get it
 
-```sh
-git clone <repository-url> declare
-cd declare
+<!-- generated:setup-commands -->
+```bash
+git clone https://github.com/davidtemkin/declarelang.git && cd declarelang
+```
+Get the repository.
+
+```bash
 npm install
+```
+Install the toolchain's dependencies (TypeScript; esbuild and puppeteer-core for builds and visual tests). The clone ships prebuilt — no build step before first run.
+
+```bash
 npm start
 ```
+Start the dev server on http://127.0.0.1:8200/ — browse to any .declare file's URL and the server compiles and returns the running app.
+
+Write a program to my-apps/hello.declare and browse to http://127.0.0.1:8200/my-apps/hello.declare — the program URL is the app's address.
+<!-- /generated:setup-commands -->
 
 `npm start` serves the distribution. The compiler, runtime, and library are
-committed to the repo, so a fresh clone runs as-is — there is nothing to build.
-Open **http://127.0.0.1:8200/** and the homepage is running locally, compiled on
-request from the source in the tree.
+all in the repository — there is nothing else to install or configure.
 
 ## 2. Make a home for your apps
 

@@ -115,11 +115,13 @@ model matrix).
 3. **Surface cross-checks not built** (documentation.md §4): names in prose —
    attributes, components, flags, codes — validated against schema/registry/
    catalog. Bit twice in review before the gate was designed.
-4. **Registry-generated tables are aspirational.** flags.md SAYS it is
-   generated from FLAG_SPECS; today it is hand-written-and-checked. Make it
-   literally true (~20 lines), then request types the same way.
-5. **No executable getting-started smoke test.** The deterministic version of
-   the bootstrap track: perform the doc's steps, expect a running app.
+4. **CLOSED 2026-07-16** — registry-generated tables are literal: the spine
+   assembler (tools/doc/assemble.mjs) marker-injects the flags table and the
+   getting-started commands from FLAG_SPECS/the ops registry, and the skill
+   inventory from the schemas; staleness gated in docs.test.
+5. **CLOSED 2026-07-16** — test/ops.test.mjs EXECUTES every `test: true` entry
+   of the ops registry (server up, build, verify, format) with declared
+   expectations; in the npm test chain.
 6. **The bootstrap eval track is designed, not built** — gated behind packaging
    stability (now achieved); the strongest attestation the operational docs can
    get.
@@ -127,7 +129,13 @@ model matrix).
    every user surface goes through the renderer, but the API asymmetry exists
    (found 2026-07-16, cosmetic-internal).
 
-Items 1–5 total roughly a day of work; 6 is its own arc.
+Items 1–3 remain (~half a day); 6 is its own arc. NEW since first writing:
+the SPINE APPARATUS (tools/ops.mjs registry + tools/doc/assemble.mjs →
+docs/declare-model.json + marker-injected projections) — one pipeline, three
+projections; §5.2's invariant is enforced BY CONSTRUCTION for flags, commands,
+enum vocabularies, and the skill inventory. Still open as gap #8:
+docs-model.json's own freshness vs guide/prose sources is ungated (the
+assembler trusts it; the closure-hash pattern applies).
 
 ## 7. What is NOT verified, on purpose
 

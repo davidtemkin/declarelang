@@ -52,4 +52,12 @@ await test("declare-docs: links — every symbolic link resolves (links.mjs --ch
   if (r.status !== 0) throw new Error((r.stdout + r.stderr).trim());
 });
 
+// The spine gate (design/verification.md §5.2): the three assembled projections
+// — declare-model.json, the marker-injected doc tables, the skill inventory —
+// must match a fresh in-memory assembly of the live registries.
+await test("spine: assembled projections are fresh (assemble.mjs --check)", () => {
+  const r = spawnSync(process.execPath, [resolve(HERE, "..", "tools/doc/assemble.mjs"), "--check"], { encoding: "utf8" });
+  if (r.status !== 0) throw new Error((r.stdout + r.stderr).trim());
+});
+
 summarize("docs");

@@ -44,12 +44,14 @@ export interface CompileFlags {
  *  `name` is the canonical `CompileFlags` field (also the URL/CLI name). Add a
  *  modifier by adding a spec; no parser edits needed. */
 export type FlagSpec =
-  | { readonly name: keyof CompileFlags; readonly kind: "bool"; readonly default: boolean }
-  | { readonly name: keyof CompileFlags; readonly kind: "enum"; readonly values: readonly string[]; readonly default: string };
+  | { readonly name: keyof CompileFlags; readonly kind: "bool"; readonly default: boolean; readonly description: string }
+  | { readonly name: keyof CompileFlags; readonly kind: "enum"; readonly values: readonly string[]; readonly default: string; readonly description: string };
 
 export const FLAG_SPECS: readonly FlagSpec[] = [
-  { name: "render", kind: "enum", values: ["dom", "canvas"], default: "dom" },
-  { name: "crawler", kind: "bool", default: false },
+  { name: "render", kind: "enum", values: ["dom", "canvas"], default: "dom",
+    description: "render through managed DOM or a single <canvas>" },
+  { name: "crawler", kind: "bool", default: false,
+    description: "embed the crawled document in the host page, for crawlers" },
 ];
 
 /** Defaults, derived from the registry — never hand-maintained. */
