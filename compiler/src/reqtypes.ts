@@ -3,7 +3,7 @@
 // are orthogonal — `?view=reader&render=canvas` asks for the reader view of the canvas
 // build — and both are read the same way from a URL query, so a single documented
 // model spans the dev server and the service-worker static host. See
-// design/requests.md (the normative surface) and design/hosting.md (the narrative).
+// docs/system-design/requests.md (the normative surface) and docs/system-design/hosting.md (the narrative).
 //
 // Exactly ONE request per URL, from a small flat set. `?view=` is the one key that
 // takes a value, because the viewer is a single app with tabs (reader / source / edit);
@@ -19,7 +19,7 @@ export const REQ = {
   RUN: "run",
   /** The standalone, minified, self-contained deployable (the declarec artifact) — a
    *  DIRECTORY of files, so it is served at a directory address, not inlined at the
-   *  .declare URL (design/requests.md §"Transport notes"). Was the old `?prod`. */
+   *  .declare URL (docs/system-design/requests.md §"Transport notes"). Was the old `?prod`. */
   BUILD: "build",
   /** The READER: the viewer app's default tab — highlighted source with block-comment
    *  prose rendered as Markdown (the code-viewer app, rendered by the runtime). */
@@ -39,7 +39,7 @@ export const REQ = {
    *  tooling, tests, and a static build (the `declarec --highlight` artifact). */
   SEGMENTS: "segments",
   /** The STATIC EXTRACTION document ALONE (`text/html`): the program's content as
-   *  semantic HTML at its t=0 snapshot (design/capabilities.md §5) — the crawler-facing
+   *  semantic HTML at its t=0 snapshot (docs/system-design/capabilities.md §5) — the crawler-facing
    *  artifact, inspectable by URL. The dev server extracts in Node; the static host's
    *  service worker extracts in-browser (the same extractor) — full parity. Was the old
    *  `?view=seo`. Distinct from the `seo` FLAG (flags.ts), which EMBEDS this document in

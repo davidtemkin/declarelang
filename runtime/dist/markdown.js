@@ -1,4 +1,4 @@
-// Markdown — the rich content component (design/text-and-markdown.md). Points
+// Markdown — the rich content component (docs/system-design/text-and-markdown.md). Points
 // at any string and renders it: `Markdown [ text = … ]`. The string is parsed
 // (md.ts, the standalone reader) into the block tree; each block becomes Declare
 // views, stacked vertically, wrapped, styled by the `prose` defaults. The

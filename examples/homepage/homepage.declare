@@ -363,7 +363,7 @@ App [ theme = { ({
     textColor = { theme.text },
 
     // in-app location: "home" (the scrolling page) or "why" (the mini-article) — the
-    // app's slice of the URL (design/location.md). `location` is a BUILT-IN App
+    // app's slice of the URL (docs/system-design/location.md). `location` is a BUILT-IN App
     // attribute; setting it here declares the INITIAL, which is the default: the host
     // shows a clean URL at "home" and `#why` at "why", seeds it from a deep link
     // before first paint, and walks it on back/forward — no hash wiring in app code.

@@ -1,5 +1,5 @@
 // dep-extract — static dependency extraction for `{ }` constraints
-// (design/constraints.md, Model Y). Given a RESOLVED program (post scope
+// (docs/system-design/constraints.md, Model Y). Given a RESOLVED program (post scope
 // resolution, so every reactive read is an explicit `this.…` / `parent.…` /
 // `classroot.…` chain or a `:path`), it produces, for each constraint, the set
 // of reactive READ-PATHS it depends on — following method calls into their
@@ -395,7 +395,7 @@ export function extractProgram(program) {
         // trap in a theme provision → `this.theme`; on the App root the `app.`
         // spelling lands as `this.root.<attr>`). The dep set makes the cycle
         // statically visible, so it is refused here with the rewrite named
-        // (design/components-baseline.md Contract 2). Dotted attrs (state overrides
+        // (docs/system-design/components-baseline.md Contract 2). Dotted attrs (state overrides
         // targeting descendants) are skipped — their `this.` frame is the override's
         // owner, not the target slot. (The rare explicit `classroot.<attr>` spelling
         // on a class root's own slot is not caught in v1.)
@@ -417,7 +417,7 @@ export function extractProgram(program) {
  *  with EMPTY deps, never the partial `reads` it managed to find: partial deps
  *  would be wired as if complete and silently MISS the unanalyzed read. Empty
  *  deps leave the constraint unwired, so the runtime re-discovers every read
- *  each run — the sound fallback (design/constraints.md's "genuinely dynamic
+ *  each run — the sound fallback (docs/system-design/constraints.md's "genuinely dynamic
  *  reads"). The returned `errors` name each such constraint for a caller that
  *  wants to surface or (in the design's end state) reject them. */
 export function annotateProgram(program) {

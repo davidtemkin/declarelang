@@ -5,7 +5,7 @@
 // (compiler/src/headless.ts — real fonts and metrics here, since a page HAS a
 // measurer; no mount), then replace this page with the extracted document.
 // The SAME extractor module the Node server runs — the browser compiler does
-// everything the Node one can (design/capabilities.md §5).
+// everything the Node one can (docs/system-design/capabilities.md §5).
 //
 // Inline import, not the compile worker: extraction EXECUTES the program
 // against the runtime in this page — a settled tree cannot be projected
@@ -43,7 +43,7 @@ async function run() {
     mod.setDefaultLibrary(lib);
     const compiled = mod.compile(source);
     const name = new URL(target).pathname.split("/").pop() || "app";
-    // The CRAWLED document (design/location.md §7) — every reachable location's
+    // The CRAWLED document (docs/system-design/location.md §7) — every reachable location's
     // content in the one page, identical bytes to the Node server's ?extract. The
     // data resolver is the browser twin of the server's disk read: a RELATIVE
     // DataSource url is the app's own material, fetched same-origin from beside the

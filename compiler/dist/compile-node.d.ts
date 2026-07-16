@@ -10,7 +10,7 @@ export { DiskTracker, diskProbe, statValidator } from "./cache-node.js";
 export { isUpToDate, validatorsEqual, lookupKey, contentTag, fnv1a } from "./closure.js";
 export type { Closure, ClosureEntry, Validator, Tracker, Probe } from "./closure.js";
 /** The crawl's own-material data resolver over a program's origin directory (the
- *  build-time data rule, design/location.md §9): a RELATIVE DataSource url is a file
+ *  build-time data rule, docs/system-design/location.md §9): a RELATIVE DataSource url is a file
  *  beside the app — read it from disk, parsed as JSON; absent → null (the crawl
  *  reports it loudly). Absolute urls never reach this (crawl.ts refuses them as the
  *  network). The browser twin is a same-origin fetch of the same deployed file, so

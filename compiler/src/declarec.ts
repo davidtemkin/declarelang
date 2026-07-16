@@ -134,7 +134,7 @@ export function compileProgram(source: string, opts: DeclarecOptions = {}): Prog
     return { program: null, errors, warnings: c.warnings, diagnostics, report: renderReport(diagnostics), closure: c.closure, usedComponents: [] };
   }
 
-  // Zip the extracted constraint dependencies (design/constraints.md §5) onto
+  // Zip the extracted constraint dependencies (docs/system-design/constraints.md §5) onto
   // the program we ship, so it boots on the runtime's static-constraint path.
   // compile() already ran the extraction (and would have BLOCKED on an
   // unanalyzable residue above), so we re-hydrate its walk-order list onto this

@@ -50,7 +50,7 @@ export declare class View extends Node {
     scrolls: boolean;
     scrollsX: boolean;
     scrollY: number;
-    /** Keyboard focus (design-docs/input.md, Layer 2). `focusable` = a tab stop;
+    /** Keyboard focus (docs/system-design/input.md, Layer 2). `focusable` = a tab stop;
      *  `focustrap` = a self-contained focus group. Traversal order is the tree,
      *  overridable per view by defining a `tabOrder()` method. */
     focusable: boolean;
@@ -222,7 +222,7 @@ export declare class View extends Node {
     get contentWidth(): number;
     get contentHeight(): number;
     /** The default focus-traversal members of this view: its visible View
-     *  children in source order (design-docs/input.md, Layer 2). The focus
+     *  children in source order (docs/system-design/input.md, Layer 2). The focus
      *  service descends into each; a view whose `tabOrder()` is not overridden
      *  uses this, so an all-default tree is pure tree preorder. An override may
      *  call it to compose ("the rest, minus X"). */
@@ -331,10 +331,10 @@ export declare class App extends View {
      *  never schema attrs. RULED to dissolve into a per-instance `LiveDemo`
      *  component; the app-authored state that once rode alongside (editing /
      *  liveCard / liveSource) is already instance-declared on the demo-hosting
-     *  apps. See design/language-learnings.md §11–12. */
+     *  apps. See docs/system-design/language-learnings.md §11–12. */
     demoSources: Record<string, unknown>;
     liveReport: string;
-    /** `location` — the app's slice of the URL, the fragment (design/location.md). A
+    /** `location` — the app's slice of the URL, the fragment (docs/system-design/location.md). A
      *  two-way reactive string the host seeds from the URL fragment before first
      *  settle, mirrors outward per settle (one history push per changed settle), and
      *  writes back on back/forward. The app owns the grammar: it reads `app.location`

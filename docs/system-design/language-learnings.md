@@ -272,7 +272,7 @@ from the use-site) — one more vote for warning on class-body reads of App-only
 
 ## 2026-07-14 — E-series (eval-driven findings)
 
-The **E-series** is the eval triage register (design/verify-and-evals.md §3.6):
+The **E-series** is the eval triage register (docs/system-design/verify-and-evals.md §3.6):
 failures a model *actually* made writing Declare from the brief alone, each with an
 escalation attempt (docs → diagnostic → language). Only entries with **≥2 models and
 ≥2 cycles** of evidence earn a language-change discussion — the mutable surfaces

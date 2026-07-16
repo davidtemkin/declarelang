@@ -30,7 +30,7 @@ const APPS = [
   { name: "site (homepage)", path: "" },
   // Reached by its PROGRAM URL via browse-to-run — so the measurement installs the
   // service worker first (homepage), exactly as a real visitor arrives. Directories
-  // no longer serve a page (design/hosting.md).
+  // no longer serve a page (docs/system-design/hosting.md).
   { name: "calendar", path: "examples/calendar/calendar.declare", browseToRun: true },
 ];
 

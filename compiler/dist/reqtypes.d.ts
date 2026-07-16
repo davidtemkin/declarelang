@@ -5,7 +5,7 @@ export declare const REQ: {
     readonly RUN: "run";
     /** The standalone, minified, self-contained deployable (the declarec artifact) — a
      *  DIRECTORY of files, so it is served at a directory address, not inlined at the
-     *  .declare URL (design/requests.md §"Transport notes"). Was the old `?prod`. */
+     *  .declare URL (docs/system-design/requests.md §"Transport notes"). Was the old `?prod`. */
     readonly BUILD: "build";
     /** The READER: the viewer app's default tab — highlighted source with block-comment
      *  prose rendered as Markdown (the code-viewer app, rendered by the runtime). */
@@ -25,7 +25,7 @@ export declare const REQ: {
      *  tooling, tests, and a static build (the `declarec --highlight` artifact). */
     readonly SEGMENTS: "segments";
     /** The STATIC EXTRACTION document ALONE (`text/html`): the program's content as
-     *  semantic HTML at its t=0 snapshot (design/capabilities.md §5) — the crawler-facing
+     *  semantic HTML at its t=0 snapshot (docs/system-design/capabilities.md §5) — the crawler-facing
      *  artifact, inspectable by URL. The dev server extracts in Node; the static host's
      *  service worker extracts in-browser (the same extractor) — full parity. Was the old
      *  `?view=seo`. Distinct from the `seo` FLAG (flags.ts), which EMBEDS this document in

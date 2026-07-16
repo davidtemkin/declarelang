@@ -19,7 +19,7 @@ export declare const DATA: Readonly<Record<string, new () => Dataset>>;
 export declare const ANIMATORS: Readonly<Record<string, new () => Animator>>;
 /** Tag → animator-group class (animation.md §1, §4). */
 export declare const ANIMATOR_GROUPS: Readonly<Record<string, new () => AnimatorGroup>>;
-/** Tag → state class (design-docs/states.md) — captures its body's overrides
+/** Tag → state class (docs/system-design/states.md) — captures its body's overrides
  *  for the enclosing view. */
 export declare const STATES: Readonly<Record<string, new () => State>>;
 /** Every built-in component NAME the tables register — the vocabulary the used-

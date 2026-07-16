@@ -1,7 +1,7 @@
 /*
 # Control
 
-The interaction-state base every stateful control extends (design/components-baseline.md,
+The interaction-state base every stateful control extends (docs/system-design/components-baseline.md,
 Contract 3). It owns the INTERACTION states — how the pointer and focus relate to this
 view — and nothing semantic: `checked`, `value`, and their kin live on the concrete
 control. Wired once here, for everything that extends it:

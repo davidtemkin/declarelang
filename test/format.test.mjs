@@ -1,4 +1,4 @@
-// format — the canon formatter's gates (design/formatting.md §5.6), proven on
+// format — the canon formatter's gates (docs/system-design/formatting.md §5.6), proven on
 // the whole corpus, not spot-checked:
 //
 //   1. IDEMPOTENCE — format(format(x)) === format(x), byte-equal, for every

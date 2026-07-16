@@ -279,7 +279,7 @@ export function compile(source, opts = {}) {
                 out = out.slice(0, e.start) + out.slice(e.end);
         }
     }
-    // Final phase (NOT opt-in): static dependency extraction (design/constraints.md
+    // Final phase (NOT opt-in): static dependency extraction (docs/system-design/constraints.md
     // §5). Re-parse the RESOLVED source — so every reactive read is an explicit
     // `this.…`/`parent.…`/`classroot.…`/`:path` — annotate each `{ }` constraint
     // with its read-paths, and serialize them in walk order. Folding this INTO

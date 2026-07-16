@@ -1,6 +1,6 @@
 // State — a named, toggleable bundle of attribute OVERRIDES and a conditional
 // CHILD SUBTREE on its enclosing view, switched by one boolean `applied`
-// (design-docs/states.md). A twin-table component like Animator: schema in
+// (docs/system-design/states.md). A twin-table component like Animator: schema in
 // schema.ts, runtime class here, registered in instantiate.ts. Non-visual
 // (base null; the checker's family test is descendsFrom(schema, "State")).
 //

@@ -149,7 +149,7 @@ Hand-authored, narrative, topic-based — the part that can't be generated, wher
 you teach someone to *think* in Declare (prevailing attributes, `{ }` constraints,
 states, datapaths, the Node model). OL's Part structure is a strong template
 (Overview → Tutorial → Fundamental Concepts → In Depth → Data → Advanced). Raw
-material already exists: `design-docs/*` (rationale) and the two apps (worked
+material already exists: `docs/system-design/*` (rationale) and the two apps (worked
 examples) — but the guide is a third thing that reshapes both for teaching.
 
 ## Doc-comment conventions

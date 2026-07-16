@@ -168,9 +168,9 @@ the gate passes — the same standing as *format-to-canon* and *verify*. Docs ar
 - **`docs/` = the one documentation root** (category B): the core doc, `guide/`,
   `reference/`, `operational/`.
 - **`docs/system-design/` = category A** (this doc + the merged former top-level `design/`
-  and `design-docs/`). One internal-docs directory for the whole system's design record —
+  and `docs/system-design/`). One internal-docs directory for the whole system's design record —
   named `system-design/` (not `language-design/`) because it spans every facet: language,
-  components, runtime, tooling. The top level loses `design/` and `design-docs/` and gains
+  components, runtime, tooling. The top level loses `design/` and `docs/system-design/` and gains
   nothing; `README.md` is the entry point and links onward.
 - **Artifact specs co-locate with their artifact:** `site-spec.md`/`site-brief.md` →
   `examples/site/`, `weather.declare` → its example, the tabslider notes → that component.
@@ -230,6 +230,6 @@ here, not to the one-time bootstrap out of drift.
    guide.
 4. **Migration mechanics** — **DEFERRED until the in-flight distro reorg settles** (David,
    2026-07-14): the current distro renames (`dist-browser`/`web`/`dist` → `bundles`/`browser`/
-   `build`) land first; then the doc top-level moves (`design/`+`design-docs/` →
+   `build`) land first; then the doc top-level moves (`design/`+`docs/system-design/` →
    `docs/system-design/`) ride the same reorg, in one coherent pass, rather than churning the
    tree twice. The gate-ramp work (§9.2) can proceed independently in the meantime.

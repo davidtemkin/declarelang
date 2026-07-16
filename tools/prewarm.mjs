@@ -14,7 +14,7 @@
 //     them, like the browser's own closure), every remaining entry a
 //     DEPLOY-RELATIVE id with a CONTENT-HASH validator the browser re-derives by
 //     GET-and-hash. This is what makes the tier self-validating and drift-proof.
-//   • crawler — the static-extraction document (design/capabilities.md §5), executed
+//   • crawler — the static-extraction document (docs/system-design/capabilities.md §5), executed
 //     headlessly to t=0, under the SAME closure so it invalidates on the same edits.
 //
 // NO BUILD_ID is written into the artifacts: they live under bundles/, which the

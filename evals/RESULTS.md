@@ -1,6 +1,6 @@
 # Eval results
 
-_Generated scoreboard — see `design/verify-and-evals.md` §3 for the method. Latest run: **frontier2-opus** · solver `claude-skill` · 9 cells._
+_Generated scoreboard — see `docs/system-design/verify-and-evals.md` §3 for the method. Latest run: **frontier2-opus** · solver `claude-skill` · 9 cells._
 
 ## Headline
 

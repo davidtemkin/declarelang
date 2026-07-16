@@ -30,7 +30,7 @@ export declare function extractProgram(program: Program): ExtractedConstraint[];
  *  with EMPTY deps, never the partial `reads` it managed to find: partial deps
  *  would be wired as if complete and silently MISS the unanalyzed read. Empty
  *  deps leave the constraint unwired, so the runtime re-discovers every read
- *  each run — the sound fallback (design/constraints.md's "genuinely dynamic
+ *  each run — the sound fallback (docs/system-design/constraints.md's "genuinely dynamic
  *  reads"). The returned `errors` name each such constraint for a caller that
  *  wants to surface or (in the design's end state) reject them. */
 export declare function annotateProgram(program: Program): {

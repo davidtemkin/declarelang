@@ -39,7 +39,7 @@ export const DATA = { Dataset, DataSource };
 export const ANIMATORS = { Animator, Spring };
 /** Tag → animator-group class (animation.md §1, §4). */
 export const ANIMATOR_GROUPS = { AnimatorGroup };
-/** Tag → state class (design-docs/states.md) — captures its body's overrides
+/** Tag → state class (docs/system-design/states.md) — captures its body's overrides
  *  for the enclosing view. */
 export const STATES = { State };
 /** Every built-in component NAME the tables register — the vocabulary the used-

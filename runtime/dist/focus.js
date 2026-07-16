@@ -1,4 +1,4 @@
-// Focus — the keyboard-focus service (design-docs/input.md, Layer 2). One
+// Focus — the keyboard-focus service (docs/system-design/input.md, Layer 2). One
 // focused view at a time; Tab moves through the view tree in preorder, each
 // view's own `tabOrder()` deciding the order it is descended into (default =
 // visible children in source order — so an all-default tree is pure preorder,

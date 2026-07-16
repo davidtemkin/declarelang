@@ -4,7 +4,7 @@ import { type IncludeHost } from "../../runtime/dist/include.js";
 import { type Diagnostic } from "../../runtime/dist/diagnostics.js";
 /** A compile result. `source` is the resolved program (null when there are
  *  errors); `deps` is the extracted `{ }`-constraint dependency list (walk-order
- *  read-paths, design/constraints.md §5), present exactly when `source` is — so
+ *  read-paths, docs/system-design/constraints.md §5), present exactly when `source` is — so
  *  the ONE result carries everything a renderer needs and no caller re-derives
  *  or forgets it. `warnings` (shadowing) never block. `diagnostics` is the
  *  unified, coded view of everything reported (errors + warnings, every phase —

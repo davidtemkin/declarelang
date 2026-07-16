@@ -1,4 +1,4 @@
-// verify-examples — CI truth-maintenance for the whole corpus (design/
+// verify-examples — CI truth-maintenance for the whole corpus (docs/system-design/
 // verify-and-evals.md §2.10). Every runnable example must climb the fast rungs
 // (1–4: compile, resolve, typecheck, headless boot) on every commit, and every
 // component-library source must do the same under the probe wrapper (--wrap).

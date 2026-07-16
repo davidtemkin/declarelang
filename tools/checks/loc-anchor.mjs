@@ -1,4 +1,4 @@
-// Phase B (@name reveal) — live chromium on BOTH backends (design/location.md §6).
+// Phase B (@name reveal) — live chromium on BOTH backends (docs/system-design/location.md §6).
 // A tall scrolling Markdown fixture; a fragment `@slug` must bring that heading into
 // view. Asserts the scroll offset (app.body.scrollY, updated by the reveal on both
 // backends) moves to the target and returns to the top for the first heading.

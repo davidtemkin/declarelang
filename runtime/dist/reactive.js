@@ -88,7 +88,7 @@ export class Constraint {
         this.phase = phase;
         this.yielding = yielding;
     }
-    /** Static-edge mode (design/constraints.md §5): the compiler extracted this
+    /** Static-edge mode (docs/system-design/constraints.md §5): the compiler extracted this
      *  constraint's dependency set, so its edges are wired ONCE — thereafter run()
      *  recomputes and applies with no per-run unlink/re-track. */
     wired = false;

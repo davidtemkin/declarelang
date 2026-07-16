@@ -165,7 +165,7 @@ export default async function boot(cfg) {
   // compiler download and NO recompile: the flagship pages' compiler-free first
   // paint. Never trusted, only validated — a stale (un-regenerated edit) or absent
   // artifact falls straight through to the CacheStorage tier / in-browser compile,
-  // so this tier can never ship a drifted program (design/hosting.md).
+  // so this tier can never ship a drifted program (docs/system-design/hosting.md).
   const relMain = relativize(mainUrl, ROOT);
   const sPrewarm = perfStage("prewarm");
   const warm = await loadPrewarm({ root: ROOT, relMain, kind: "run", props, fetchImpl: fetch });

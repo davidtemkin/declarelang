@@ -1,4 +1,4 @@
-// TextInput — the editable text field (design-docs/input.md, Layer 3). The top
+// TextInput — the editable text field (docs/system-design/input.md, Layer 3). The top
 // of the input stack: a focus client (Layer 2) whose `text` is the MODEL source
 // of truth, realized by the backend as a native editable element (DOM in-box, a
 // canvas overlay) so caret, selection, clipboard, IME, and accessibility are

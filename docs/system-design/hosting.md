@@ -148,7 +148,7 @@ and `?f=0`/`false` (off) and the CLI spells them `--f`/`--no-f`; `--canvas`/`--d
 kept aliases. A single `FLAG_SPECS` registry is the source both parsers derive from.
 
 The former knobs `slim`, `stripPos`, `prod`, and `typecheck` are **not** modifiers
-(design/requests.md §"Removed knobs"): a `build` always slims and strips positions (the
+(docs/system-design/requests.md §"Removed knobs"): a `build` always slims and strips positions (the
 escape hatch is `declarec --debug`, which keeps the full registry and source positions);
 `prod` became the `build` request (§Request types); and typecheck is a mandatory phase
 of the one compile — always on, no URL/CLI flag. The compiler's *internal* options still
@@ -176,7 +176,7 @@ tab, `segments` returns the highlight JSON, `file` answers a plain fetch with th
 bytes, and `extract` compiles through the front-end and serves the extracted document.
 The static host's service worker mirrors these, extracting `extract` **in the browser**
 (`browser/boot-extract.js`) so the capability is at full parity without a Node server. See
-`design/capabilities.md` §5.
+`docs/system-design/capabilities.md` §5.
 
 The highlighter is `compiler/src/highlight.ts` — a source-faithful scan that reuses the
 language's own lexical shape (strings, `{ }` bodies captured whole, triple-quotes,

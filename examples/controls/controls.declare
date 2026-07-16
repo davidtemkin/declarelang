@@ -2,7 +2,7 @@
 # Controls
 
 The component library's showcase — every Tier 1 control, in its three use forms
-(design/components-baseline.md, Contract 1): STANDALONE (the control owns its
+(docs/system-design/components-baseline.md, Contract 1): STANDALONE (the control owns its
 state), APP-BOUND (derive down with a constraint, deliver up through `input`),
 and under a PARTIAL THEME OVERRIDE (the house theme with one role swapped,
 by plain object spread — every control beneath follows, no per-control styling).

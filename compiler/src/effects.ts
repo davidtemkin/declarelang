@@ -1,5 +1,5 @@
 // effects — reactive-effect signatures for LANGUAGE-supplied component methods
-// (design/constraints.md, the 2026-07-13 revision, point 1).
+// (docs/system-design/constraints.md, the 2026-07-13 revision, point 1).
 //
 // A `{ }` constraint's dependency analysis (dep-extract.ts) follows a call into a
 // USER method's body to infer the reactive cells it reads. A LANGUAGE-supplied

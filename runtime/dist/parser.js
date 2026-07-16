@@ -220,7 +220,7 @@ function tokenize(src) {
             continue;
         }
         // triple-quoted text block: raw, multi-line, common indentation stripped
-        // (design/text-and-markdown.md). Pleasant hand-authored Markdown without
+        // (docs/system-design/text-and-markdown.md). Pleasant hand-authored Markdown without
         // `\n` noise; the language stays content-agnostic — this is just a
         // dedented RAW string (no escape processing, so Markdown's own `\` is its
         // own), and the dedent keeps source indentation cosmetic.

@@ -13,7 +13,7 @@
 //   …?file                                      # the raw source bytes (curl / an include)
 //   …?extract                                   # the static-extraction document alone (crawlers)
 //   …?build   →   /build/<name>/                # the discrete, self-contained declarec build
-// The full request + modifier surface is design/requests.md (reqtypes.ts + flags.ts).
+// The full request + modifier surface is docs/system-design/requests.md (reqtypes.ts + flags.ts).
 //
 // The SAME tree also hosts statically for in-browser compilation (see
 // service-worker.js). This server is just the dynamic-compilation convenience for
@@ -31,7 +31,7 @@ import { writeProduction } from "../tools/declarec.mjs";
 import { parseFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
 import { rebuildStale } from "../tools/bundle-freshness.mjs";
 
-// The compiler's extracted constraint deps (design/constraints.md §5) now ride
+// The compiler's extracted constraint deps (docs/system-design/constraints.md §5) now ride
 // in the ONE compile() result (`r.deps`) — a walk-order list the browser zips
 // onto its re-parse so the dev app boots on the static-constraint path, exactly
 // as the prod bundle and the in-browser compile do. No separate extraction here.
@@ -93,7 +93,7 @@ function serveSource(res, absPath, relPath, rt, backendClass) {
   if (rt === REQ.SEGMENTS)
     return send(res, 200, JSON.stringify({ path: relPath, segments }), "application/json");
   // The viewer's opening tab, straight from the request type — the viewer's INITIAL
-  // location (design/location.md §4): reader (highlighted + Markdown), source
+  // location (docs/system-design/location.md §4): reader (highlighted + Markdown), source
   // (verbatim in the viewer), edit (workbench).
   const mode = rt === REQ.SOURCE ? "source" : rt === REQ.EDIT ? "edit" : "reader";
   return send(res, 200, withServerMarker(sourcePage(relPath, segments, source, backendClass, mode)));
@@ -137,7 +137,7 @@ bootHost(cfg);
 }
 
 // The static-extraction document (`?extract`, reqtypes.ts REQ.EXTRACT): the program's
-// content as semantic HTML at its t=0 snapshot (design/capabilities.md §5) — compiled
+// content as semantic HTML at its t=0 snapshot (docs/system-design/capabilities.md §5) — compiled
 // through THE compiler API, executed headlessly, served text/html. The SW static host
 // serves the same artifact by extracting IN-BROWSER (browser/boot-extract.js) — one
 // extractor module, two hosts.
@@ -243,7 +243,7 @@ async function ensureProdBuild(name, backend = "dom") {
   const source = readFileSync(srcPath, "utf8");
   // The backend partitions the cache — each variant is a distinct artifact and must
   // not clobber another under one key. (A build always slims + strips positions; those
-  // are no longer knobs — see design/requests.md §"Removed knobs".)
+  // are no longer knobs — see docs/system-design/requests.md §"Removed knobs".)
   const key = `${name}:${backend}`;
   const outDir = path.join(dir, ".prod-cache" + (backend === "canvas" ? "-canvas" : ""));
   const manPath = path.join(outDir, "manifest.json");
@@ -357,7 +357,7 @@ http.createServer((req, res) => {
 
     // ── The PROGRAM URL is the app's canonical address (the OpenLaszlo model:
     // …/calendar.lzx?lzt=…) — identical here and on the SW static host. One request
-    // per URL (reqtypes.ts); design/requests.md is the full surface.
+    // per URL (reqtypes.ts); docs/system-design/requests.md is the full surface.
     //   NAVIGATE to …/app.declare                → the running app (RUN, default)
     //   …?view=reader | ?view=source | ?view=edit → the viewer app, on that tab
     //   …?segments                                → the reader's highlight JSON

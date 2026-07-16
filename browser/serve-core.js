@@ -12,7 +12,7 @@
 // the drift the dual-mode design set out to make structurally impossible. The
 // source/crawler views stay host-specific ON PURPOSE — the server has a compiler and
 // answers them in Node; the compiler-free SW defers to boot-source.js / boot-extract.js
-// in-browser — but they produce the SAME artifact (design/capabilities.md), so the
+// in-browser — but they produce the SAME artifact (docs/system-design/capabilities.md), so the
 // invariant there is an output oracle, not one implementation.
 //
 // Pure + host-agnostic: it imports only reqtypes.js (itself dependency-free — a

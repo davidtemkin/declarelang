@@ -1,4 +1,4 @@
-// dep-extract — validates the static dependency extractor (design/constraints.md,
+// dep-extract — validates the static dependency extractor (docs/system-design/constraints.md,
 // Model Y). Three ways: (A) unit — hand-verified read-paths + residue rejection on
 // crafted constraints; (B) corpus — 0 residue errors across every real app; (C)
 // the gold standard — cross-check the extractor's read-paths against the RUNTIME

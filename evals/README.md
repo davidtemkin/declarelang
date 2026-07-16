@@ -1,6 +1,6 @@
 # Evals — measuring how well models write Declare
 
-The harness that runs the eval loop from `design/verify-and-evals.md` §3: give a
+The harness that runs the eval loop from `docs/system-design/verify-and-evals.md` §3: give a
 model a task brief and the language reference **alone** (no repo, no spec), have it
 write a program, and score that program mechanically with the verify ladder. The
 numbers tune the brief, the diagnostics, and — with receipts — the language.

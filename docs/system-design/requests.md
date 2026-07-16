@@ -129,5 +129,5 @@ mean.
 
 ---
 
-See also: `compiler/src/reqtypes.ts`, `compiler/src/flags.ts`, `design/hosting.md`
-(the narrative), `design/capabilities.md` §5 (static extraction).
+See also: `compiler/src/reqtypes.ts`, `compiler/src/flags.ts`, `docs/system-design/hosting.md`
+(the narrative), `docs/system-design/capabilities.md` §5 (static extraction).

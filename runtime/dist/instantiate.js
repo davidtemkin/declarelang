@@ -785,7 +785,7 @@ function constructAnimatorGroup(el, schema, outer, ctx, inherited = {}) {
     }
     return node;
 }
-/** Construct a state node (design-docs/states.md): a non-visual member whose
+/** Construct a state node (docs/system-design/states.md): a non-visual member whose
  *  body OVERRIDES the enclosing view's slots and adds a conditional child
  *  subtree, both switched by `applied`. Unlike an animator its body does NOT
  *  install onto itself — the overrides and child templates are CAPTURED for

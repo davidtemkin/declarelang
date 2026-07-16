@@ -541,7 +541,7 @@ A fixed left rail plus a scrolling detail pane, over the model.
 
 App [ fill = { theme.bg },
 
-    /* Navigation is ONE string — `location`, the URL fragment (design/location.md).
+    /* Navigation is ONE string — `location`, the URL fragment (docs/system-design/location.md).
        The grammar is this app's own: `<mode>/<cursor>[@heading]` (`guide/22-reach`,
        `reference/Slider`, `guide/20-tree@named-views`). The declared initial is the
        default, so a fresh `docs.declare` shows the first guide chapter with a clean
@@ -609,7 +609,7 @@ App [ fill = { theme.bg },
 
     showPage() { this.detail.col.scrollIntoView() },
 
-    // An in-app doc link is a location WRITE (design/location.md §5) — it navigates
+    // An in-app doc link is a location WRITE (docs/system-design/location.md §5) — it navigates
     // the app exactly like a rail tab, so it deep-links, shares, and back-buttons. It
     // also keeps the remembered cursor in step (like the tabs). External schemes still
     // leave through `navigate`.

@@ -46,7 +46,7 @@ export function extractLinks(program: Program): void {
 
 /** The link an element's FIRST activation handler yields, or undefined. Two kinds
  *  compose into the ONE link relation: an `app.location = <expr>` write is a
- *  FRAGMENT link (`<a href="#…">`, a reachable location — design/location.md §5/§7),
+ *  FRAGMENT link (`<a href="#…">`, a reachable location — docs/system-design/location.md §5/§7),
  *  and a `navigate(to)` call is an external link. A handler that does both (a pill
  *  that is an in-app location OR an out-of-app URL) folds into one value-carries-the-
  *  conditionality read: the fragment when the location is non-empty, else the URL. */

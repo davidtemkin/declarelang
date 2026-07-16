@@ -1,6 +1,6 @@
 // browser/compile-worker.js — the in-browser compiler, OFF the main thread (a module
 // Worker over the same bundles bundle the inline path imports — one compiler,
-// two transports). design/in-browser-dev.md's worker rung, built.
+// two transports). docs/system-design/in-browser-dev.md's worker rung, built.
 //
 // Protocol (compiler-client.js is the one caller):
 //   { type:"library", lib }                  → setDefaultLibrary(lib), no reply

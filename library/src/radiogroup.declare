@@ -1,7 +1,7 @@
 /*
 # RadioGroup / Radio
 
-One-of-N (design/components-baseline.md, Contract 1 — ruled: the GROUP owns the
+One-of-N (docs/system-design/components-baseline.md, Contract 1 — ruled: the GROUP owns the
 bindable `value`; radios deliver to it, the `ViewTab` → `app.mode` shape). Radios
 are written as the group's DIRECT children — the group's layout arranges them,
 and each radio reaches its group as `parent`:

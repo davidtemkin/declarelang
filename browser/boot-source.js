@@ -15,7 +15,7 @@ import { loadCompiler, ensureLibrary } from "./compiler-client.js";
 const ROOT = new URL("../", import.meta.url);
 // The file to display — an absolute URL the SW passed on this module's own URL — and
 // the tab to open on ("reader" | "source" | "edit"; empty → the viewer's default,
-// reader). Passed as the code viewer's initial location (design/location.md §4).
+// reader). Passed as the code viewer's initial location (docs/system-design/location.md §4).
 const target = new URL(import.meta.url).searchParams.get("src");
 const mode = new URL(import.meta.url).searchParams.get("mode") ?? "";
 
@@ -47,7 +47,7 @@ async function run() {
     await bootHost({
       source: out.source,
       // The `?view=reader|source|edit` request selects the opening tab; the host
-      // translates it into the viewer's INITIAL location (design/location.md §4).
+      // translates it into the viewer's INITIAL location (docs/system-design/location.md §4).
       // A real URL fragment still wins, so a shared `…#source` deep link holds.
       location: mode,
       seeds: { __source__: JSON.stringify(segments), __raw__: raw, __path__: relPath },

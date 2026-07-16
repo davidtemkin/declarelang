@@ -1,5 +1,5 @@
 // deps — carry the compiler's extracted constraint dependencies (read-paths,
-// design/constraints.md §5) across the SOURCE-STRING channel to the runtime.
+// docs/system-design/constraints.md §5) across the SOURCE-STRING channel to the runtime.
 //
 // The precompiled (declarec) path attaches deps straight onto the program AST
 // (`attr.value.deps`), so they ride in the serialized program. The dev / live

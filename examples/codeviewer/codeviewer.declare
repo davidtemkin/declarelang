@@ -128,7 +128,7 @@ App [ fill = { app.theme.bg },
     headH: number = { 46 * app.fontScale },    // filename title + rule, above the body
 
     // "reader" = highlighted + Markdown, "source" = verbatim, "edit" = live
-    // workbench — the viewer's location (design/location.md). The `?view=` request
+    // workbench — the viewer's location (docs/system-design/location.md). The `?view=` request
     // seeds the opening tab (the host translates the query into the initial
     // location); a tab click writes `app.location` and this derives back from it, so
     // the tab is a single source of truth that back/forward walk for free.

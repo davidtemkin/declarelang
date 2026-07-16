@@ -1,4 +1,4 @@
-// Phase C — extraction-as-crawl (design/location.md §7). The single-page extractor
+// Phase C — extraction-as-crawl (docs/system-design/location.md §7). The single-page extractor
 // generalizes to t=0 PER REACHABLE LOCATION: follow the fragment links out of each
 // settled tree, cold-boot each location under the build-time-data rule, serialize to
 // closure — into ONE document at the program URL (each location a `<section id>`,

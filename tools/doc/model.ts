@@ -1,5 +1,5 @@
 // tools/doc/model.ts — THE DOC MODEL: the single walkable data structure that
-// every documentation surface is a view of (design/doc-system.md §"Ratified
+// every documentation surface is a view of (docs/system-design/doc-system.md §"Ratified
 // refinements", point 2).
 //
 //   extractor  ──►  DocModel (this shape, serialized to docs-model.json)  ──►  renderers
@@ -65,7 +65,7 @@ interface NodeBase {
    *  the node's prose, rendered verbatim by the Markdown component. `null` when
    *  undocumented; the coverage gate guarantees `api ⇒ doc !== null`. */
   doc: string | null;
-  /** The `@api` surface marker (design/doc-system.md §"@api"): marked = public =
+  /** The `@api` surface marker (docs/system-design/doc-system.md §"@api"): marked = public =
    *  in the supported reference; absent = internal, excluded from the built docs
    *  (but still present in a debug/object-browser model, which shows everything). */
   api: boolean;
@@ -80,7 +80,7 @@ interface NodeBase {
 }
 
 /** The node kinds — the reference granularity is uniform down to the member, not
- *  class-only (design/documentation-plans.md §"Attachment"): whatever a `/* *​/`
+ *  class-only (docs/system-design/documentation-plans.md §"Attachment"): whatever a `/* *​/`
  *  doc block can attach to has a node here. */
 export type DocNode =
   | ClassNode
@@ -159,7 +159,7 @@ export interface EventNode extends NodeBase {
 }
 
 /** A documented `script { }` module — imports + free functions shared across a
- *  program (design/composition.md §2). Its `children` are its `FunctionNode`s. */
+ *  program (docs/system-design/composition.md §2). Its `children` are its `FunctionNode`s. */
 export interface ModuleNode extends NodeBase {
   kind: "module";
   children: NodeId[];
@@ -182,7 +182,7 @@ export interface StyleNode extends NodeBase {
   form: "stylesheet" | "style";
 }
 
-/** A `font Name [ … ]` declaration — the named face container (design/fonts.md). */
+/** A `font Name [ … ]` declaration — the named face container (docs/system-design/fonts.md). */
 export interface FontNode extends NodeBase {
   kind: "font";
 }

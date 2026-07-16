@@ -12,7 +12,7 @@ import type { AttrType } from "./value.js";
  *  `view` is any Node since R8 — a DataSource's `url = { … }` binds the
  *  same way a View attribute does. */
 export declare function bindConstraint(view: Node, name: string, src: string, pos: Pos, classroot: View | null, 
-/** The compiler's extracted dependency read-paths (design/constraints.md §5).
+/** The compiler's extracted dependency read-paths (docs/system-design/constraints.md §5).
  *  When present, the constraint is wired on the static path — edges fixed once,
  *  no per-run re-tracking. Absent (dev re-parse, or an un-annotated program) →
  *  the runtime-tracking fallback, unchanged. */

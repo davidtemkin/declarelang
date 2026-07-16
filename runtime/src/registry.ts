@@ -49,7 +49,7 @@ export const ANIMATORS: Readonly<Record<string, new () => Animator>> = { Animato
 /** Tag → animator-group class (animation.md §1, §4). */
 export const ANIMATOR_GROUPS: Readonly<Record<string, new () => AnimatorGroup>> = { AnimatorGroup };
 
-/** Tag → state class (design-docs/states.md) — captures its body's overrides
+/** Tag → state class (docs/system-design/states.md) — captures its body's overrides
  *  for the enclosing view. */
 export const STATES: Readonly<Record<string, new () => State>> = { State };
 

@@ -1,6 +1,6 @@
 # Declare — Build Approach
 
-*How the Declare system is built, and **why**. This is the working agreement for the `neolang/` effort and the first thing every contributing agent reads. It complements the product docs in [`../design-docs/`](../design-docs) (vision, language, implementation); those describe *what* Declare is, this describes the *method and architecture* for building it.*
+*How the Declare system is built, and **why**. This is the working agreement for the `neolang/` effort and the first thing every contributing agent reads. It complements the product docs in [`../docs/system-design/`](../design-docs) (vision, language, implementation); those describe *what* Declare is, this describes the *method and architecture* for building it.*
 
 ---
 
@@ -78,4 +78,4 @@ Each rung is a **vertical slice** — grammar + typecheck + runtime + a perceptu
 
 - **Reused (primitive, as clean guides, rewritten where clarity wins):** Canvas2D painter, font metrics, easing, hit-test math.
 - **New (model, fresh, LZX as guide):** the compiler front-end, the node/view/attribute/constraint/event/data core, the render backends, the components.
-- **References, not bases:** `../design-docs/` (product spec), `../runtime/lfc-src/` (the LZX LFC — read for intent), `../compiler/` (the transliterated byte-parity LZX compiler — a reference for behavior, never a base to build on).
+- **References, not bases:** `../docs/system-design/` (product spec), `../runtime/lfc-src/` (the LZX LFC — read for intent), `../compiler/` (the transliterated byte-parity LZX compiler — a reference for behavior, never a base to build on).

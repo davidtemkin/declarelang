@@ -1,5 +1,5 @@
 // sandbox — build a hermetic session directory for one eval attempt
-// (design/verify-and-evals.md §3.2). The sandbox contains ONLY what the brief
+// (docs/system-design/verify-and-evals.md §3.2). The sandbox contains ONLY what the brief
 // claims a model needs: the language reference, the task brief + fixtures, and
 // a tool contract. No repo access, no guide, no spec — v1 measures the brief
 // ALONE (the artifact we claim suffices). Everything the model produces and

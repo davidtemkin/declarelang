@@ -1,5 +1,5 @@
 // crawl — extraction generalized from the t=0 snapshot to t=0 PER REACHABLE
-// LOCATION (design/location.md §7). The single-page extractor (static-html.ts) settles the
+// LOCATION (docs/system-design/location.md §7). The single-page extractor (static-html.ts) settles the
 // DEFAULT location and serializes; the crawl follows the fragment links out of that
 // settled tree, cold-boots each new location, and serializes it too, to closure.
 //
@@ -53,7 +53,7 @@ function crawlTransport(opts, refusals, pending) {
         if (Object.prototype.hasOwnProperty.call(fixtures, url))
             return track(Promise.resolve(respond(fixtures[url])));
         if (isAbsoluteUrl(url)) {
-            refusals.set(url, "a network url — network-fetched data is never indexed (design/location.md §9)");
+            refusals.set(url, "a network url — network-fetched data is never indexed (docs/system-design/location.md §9)");
             return track(Promise.reject(new Error(`crawl refused network fetch — ${url}`)));
         }
         if (opts.data !== undefined) {
@@ -167,7 +167,7 @@ export async function crawlLocations(source, opts = {}) {
     if (refusals.size > 0) {
         const lines = [...refusals].map(([url, why]) => `  ${url} — ${why}`).join("\n");
         throw new Error(`crawl failed — data this app fetches is not part of its build-time material:\n${lines}\n` +
-            `Indexable content must be baked at build time (design/location.md §9): inline the data ` +
+            `Indexable content must be baked at build time (docs/system-design/location.md §9): inline the data ` +
             `(Dataset contents), ship it as a file beside the app (a relative url), or accept that ` +
             `this content is not indexed (drop ?crawler/?extract for this program).`);
     }

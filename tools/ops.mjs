@@ -1,5 +1,5 @@
 // ops — the OPERATIONS REGISTRY: the machine-readable source of truth for
-// "how you work with Declare" (design/verification.md §5.2: no operational
+// "how you work with Declare" (docs/system-design/verification.md §5.2: no operational
 // fact exists only in prose). Every entry is one procedure step or command,
 // with what it does and — where checkable — what to expect. Three consumers,
 // one source:

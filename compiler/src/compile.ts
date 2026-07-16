@@ -75,7 +75,7 @@ const CONSTRUCTORS = new Set(CONSTRUCTOR_NAMES);
 
 /** A compile result. `source` is the resolved program (null when there are
  *  errors); `deps` is the extracted `{ }`-constraint dependency list (walk-order
- *  read-paths, design/constraints.md §5), present exactly when `source` is — so
+ *  read-paths, docs/system-design/constraints.md §5), present exactly when `source` is — so
  *  the ONE result carries everything a renderer needs and no caller re-derives
  *  or forgets it. `warnings` (shadowing) never block. `diagnostics` is the
  *  unified, coded view of everything reported (errors + warnings, every phase —
@@ -340,7 +340,7 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
     }
   }
 
-  // Final phase (NOT opt-in): static dependency extraction (design/constraints.md
+  // Final phase (NOT opt-in): static dependency extraction (docs/system-design/constraints.md
   // §5). Re-parse the RESOLVED source — so every reactive read is an explicit
   // `this.…`/`parent.…`/`classroot.…`/`:path` — annotate each `{ }` constraint
   // with its read-paths, and serialize them in walk order. Folding this INTO

@@ -1,5 +1,5 @@
-// docs — the no-drift invariant, mechanized (design/verify-and-evals.md §2.9;
-// design-docs/designing-a-language-for-llms.md §5). A model believes the
+// docs — the no-drift invariant, mechanized (docs/system-design/verify-and-evals.md §2.9;
+// docs/system-design/designing-a-language-for-llms.md §5). A model believes the
 // documents it is given, so documentation that drifts from the compiler is a
 // correctness bug in the system, not a docs chore. This test compiles every
 // COMPLETE program in the LLM-facing docs on every test run:
@@ -10,7 +10,7 @@
 // Covered files: docs/declare-for-llms.md (the brief — its authority depends
 // on this test). The guide's runnable fences are validated separately by
 // tools/prebuild.mjs (they become examples/docs/demos/seg_*.declare); folding
-// that path into `npm test` is tracked in design/verify-and-evals.md.
+// that path into `npm test` is tracked in docs/system-design/verify-and-evals.md.
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -52,7 +52,7 @@ await test("declare-docs: links — every symbolic link resolves (links.mjs --ch
   if (r.status !== 0) throw new Error((r.stdout + r.stderr).trim());
 });
 
-// The spine gate (design/verification.md §5.2): the three assembled projections
+// The spine gate (docs/system-design/verification.md §5.2): the three assembled projections
 // — declare-model.json, the marker-injected doc tables, the skill inventory —
 // must match a fresh in-memory assembly of the live registries.
 await test("spine: assembled projections are fresh (assemble.mjs --check)", () => {

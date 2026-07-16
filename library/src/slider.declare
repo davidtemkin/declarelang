@@ -1,7 +1,7 @@
 /*
 # Slider
 
-A bounded number by drag (design/components-baseline.md, Contract 1). Same value
+A bounded number by drag (docs/system-design/components-baseline.md, Contract 1). Same value
 contract as every control — `value` is the attribute, **`input` owns the
 destination** (default: itself) — and the delivery is CONTINUOUS during a drag
 (ruled: the owner decides what to do with the stream; the data layer owns

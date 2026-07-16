@@ -1,5 +1,5 @@
 // results — turn a run's metrics into the committed RESULTS.md scoreboard
-// (design/verify-and-evals.md §3.1, §3.4). The metrics.jsonl per run is local
+// (docs/system-design/verify-and-evals.md §3.1, §3.4). The metrics.jsonl per run is local
 // (gitignored); this human-readable summary is what lands in the tree, so a
 // language-health trend is legible in git history without opening a transcript.
 
@@ -27,10 +27,10 @@ export function generateResults(metrics, { runName, solverId, resultsPath }) {
   const out = [];
   out.push(`# Eval results`);
   out.push("");
-  out.push(`_Generated scoreboard — see \`design/verify-and-evals.md\` §3 for the method. Latest run: **${runName}** · solver \`${solverId}\` · ${metrics.length} cells._`);
+  out.push(`_Generated scoreboard — see \`docs/system-design/verify-and-evals.md\` §3 for the method. Latest run: **${runName}** · solver \`${solverId}\` · ${metrics.length} cells._`);
   out.push("");
   if (solverId === "reference") {
-    out.push(`> **This is the reference-solver baseline** — each task scored against its own \`reference.declare\`. It proves the pipeline (sandbox → solve → score → metrics) and that every task's hidden acceptance is itself green; it is **not** a measure of model performance. Real model runs (\`--solver claude\`) are exploratory and their artifacts are gitignored; their findings are triaged into \`design/language-learnings.md\` (the E-series). First real cycle: 2026-07-14, Sonnet one-shot went 1/3 — see E-1..E-3.`);
+    out.push(`> **This is the reference-solver baseline** — each task scored against its own \`reference.declare\`. It proves the pipeline (sandbox → solve → score → metrics) and that every task's hidden acceptance is itself green; it is **not** a measure of model performance. Real model runs (\`--solver claude\`) are exploratory and their artifacts are gitignored; their findings are triaged into \`docs/system-design/language-learnings.md\` (the E-series). First real cycle: 2026-07-14, Sonnet one-shot went 1/3 — see E-1..E-3.`);
     out.push("");
   }
 

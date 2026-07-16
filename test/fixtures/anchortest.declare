@@ -1,4 +1,4 @@
-// A Phase-B @-reveal fixture (design/location.md §6): a tall, scrolling Markdown
+// A Phase-B @-reveal fixture (docs/system-design/location.md §6): a tall, scrolling Markdown
 // with native headings, so a fragment `@slug` brings a heading into view. Drives
 // the live-chromium check on BOTH backends (DOM default, `?render=canvas`). Not an
 // exemplar — the smallest program that exercises the reveal end to end. The prose is

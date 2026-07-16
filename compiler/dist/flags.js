@@ -8,11 +8,11 @@
 // below, picked up by every surface.
 //
 // There are exactly TWO modifiers — `render` and `crawler` — and they compose onto the
-// app-producing REQUESTS (`run`, `build`; see reqtypes.ts and design/requests.md).
+// app-producing REQUESTS (`run`, `build`; see reqtypes.ts and docs/system-design/requests.md).
 // The request TYPE (what artifact a URL returns) is orthogonal and lives in
 // reqtypes.ts. Everything is lowercase — no camelCase in the URL/CLI surface.
 //
-// Deliberately NOT flags (see design/requests.md §"Removed knobs"):
+// Deliberately NOT flags (see docs/system-design/requests.md §"Removed knobs"):
 //   • `prod` is a REQUEST (`?build`, reqtypes.ts REQ.BUILD), not a modifier.
 //   • `slim` / `stripPos` are what a build IS (always slimmed + position-stripped);
 //     the one caller wanting an un-stripped build to debug the emitter uses

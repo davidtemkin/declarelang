@@ -1,7 +1,7 @@
 # Static dependency extraction — measurement & design
 
 > **Outcome (2026-07-11):** this measurement drove a ruling revision in
-> [`design/constraints.md`](../design/constraints.md) — the analysis **follows into
+> [`docs/system-design/constraints.md`](../design/constraints.md) — the analysis **follows into
 > method bodies** (interprocedural), retiring the earlier "hidden-dep calls
 > refused" restriction. See that note for the ratified model; this doc is the
 > evidence and method behind it.
@@ -93,7 +93,7 @@ practice, so mandating the analyzable subset costs real apps nothing today.
 ## Two models — and which was ruled
 
 The 100% above is **Model Y** — the analysis *follows a call into the callee's
-body*. There is a stricter alternative, **Model X** (what `design/constraints.md`
+body*. There is a stricter alternative, **Model X** (what `docs/system-design/constraints.md`
 originally ruled): a called function must be *pure of reactive state*; a
 "hidden-dep call" that reads `this.year` internally is refused, and you thread the
 value through an argument. Measured side by side:

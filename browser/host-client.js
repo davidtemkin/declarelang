@@ -25,7 +25,7 @@ const BACKENDS = { DomBackend, CanvasBackend };
 const DISTRO_ROOT = new URL("../", import.meta.url);
 
 // The app's slice of the URL — the fragment minus its leading `#`, decoded
-// (design/location.md §4). "" when there is no fragment. The one place the host
+// (docs/system-design/location.md §4). "" when there is no fragment. The one place the host
 // reads window.location for `app.location`; everything else flows through it.
 const fragmentOf = () => decodeURIComponent(location.hash.replace(/^#/, ""));
 
@@ -38,12 +38,12 @@ const fragmentOf = () => decodeURIComponent(location.hash.replace(/^#/, ""));
  *   demoBase?: string,                    // abs URL of the demos dir; previews with no seed fetch <demoBase><name>.declare on demand
  *   precompiled?: Record<string,string>,  // { <demo>: compiledSource } — static initial previews
  *   compile?: (source: string) => Promise<{source:string, deps?:any}|null>,  // live recompile (server/in-browser); null = keep last
- *   location?: string,           // initial app.location when it is NOT in the URL fragment — the host's ?view= → initial-location translation (design/location.md §4); a real fragment still wins
+ *   location?: string,           // initial app.location when it is NOT in the URL fragment — the host's ?view= → initial-location translation (docs/system-design/location.md §4); a real fragment still wins
  * }}
  */
 export async function bootHost(cfg) {
   const host = document.getElementById("host");
-  // The `?crawler` flag's embedded static document (design/capabilities.md §5): content
+  // The `?crawler` flag's embedded static document (docs/system-design/capabilities.md §5): content
   // for crawlers that never run any script. The page already removes #declare-static
   // in a SYNCHRONOUS pre-paint script (serve-core.js / index.html / declarec) so a
   // human never flashes the bare text; this second removal is the belt-and-braces for
@@ -51,7 +51,7 @@ export async function bootHost(cfg) {
   document.getElementById("declare-static")?.remove();
   const Backend = BACKENDS[cfg.backend] ?? DomBackend;
   // Build (parse+check+instantiate), then SEED app.location from the URL BEFORE the
-  // first paint (design/location.md §2): a deep link is just an initial state, so
+  // first paint (docs/system-design/location.md §2): a deep link is just an initial state, so
   // every constraint derives from it as if the user had already navigated there —
   // no home→target flash. Un-fused from renderAsync so the seed lands pre-mount.
   const app = (window.__app = build(cfg.source, { deps: cfg.deps }));
@@ -86,7 +86,7 @@ export async function bootHost(cfg) {
   const onKey = (e) => { if (e.key === "Escape") app.editing = false; };
   addEventListener("keydown", onKey);
 
-  // app.location ⟷ the URL fragment (design/location.md §2–3). Mirror OUTWARD per
+  // app.location ⟷ the URL fragment (docs/system-design/location.md §2–3). Mirror OUTWARD per
   // settle: one history push when the app changed it (push-only, §10.1), a clean URL
   // when the app sits at its declared initial (the default rule, §3). Write it BACK
   // on the browser's back/forward — the ambient-data direction, state re-derives, no
@@ -112,7 +112,7 @@ export async function bootHost(cfg) {
       const frag = app.location === locationInitial ? "" : app.location;   // clean URL at the default (§3)
       history.pushState(null, "", frag ? "#" + frag : location.pathname + location.search);
     }
-    // The `@name` reveal (design/location.md §6) — a retained intent, resolved each
+    // The `@name` reveal (docs/system-design/location.md §6) — a retained intent, resolved each
     // frame so a cold deep link fires once the target (a DataSource-fed heading) is
     // in the settled tree. Inert with no anchor. Runs post-paint, so DOM headings exist.
     app.resolveReveal();

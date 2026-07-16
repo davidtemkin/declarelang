@@ -1,5 +1,5 @@
 // headless — execute a compiled program to its t=0 snapshot WITHOUT a page
-// (design/capabilities.md §4). Real execution on the real runtime: build()
+// (docs/system-design/capabilities.md §4). Real execution on the real runtime: build()
 // (parse + check + instantiate), attach to the HeadlessBackend, write the
 // ENVIRONMENT VECTOR explicitly (a browser fills it implicitly; headless makes
 // it a parameter), settle(). Initialization only — constraints, replication,

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// comprehend — the COMPREHENSION track (design/verify-and-evals.md §3.4): given a
+// comprehend — the COMPREHENSION track (docs/system-design/verify-and-evals.md §3.4): given a
 // program, answer behavior/provenance questions. Isolates READ analyzability — no
 // generation confound; the cheapest track, run most often.
 //

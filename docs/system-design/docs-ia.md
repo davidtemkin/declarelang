@@ -35,12 +35,12 @@ predictable emit target (constraint 1). All internal links are `declare-docs:` s
 ## 2. The core doc — `docs/declare.md`
 
 **Name.** `declare.md`: the file *is* the language, stated once. The existing
-`design/declare.md` (the product vision, category A) renames to
+`docs/system-design/declare.md` (the product vision, category A) renames to
 `system-design/product-vision.md` in the same triage pass — its own title is "Product
 Vision," so the rename is a correction, not a cost.
 
 **What merges in.** `declare-for-llms.md` (all of it) + the authoritative content of
-`design/declare-language.md`. What does *not* come along: the design-goals essay, §13
+`docs/system-design/declare-language.md`. What does *not* come along: the design-goals essay, §13
 "what is not settled," and Appendix B (the OpenLaszlo correspondence) — category A, they
 stay in the spec's residue in `system-design/`; the core doc keeps one-line pointers.
 
@@ -165,8 +165,8 @@ empirical record (`language-learnings.md`, the E-series, brief §10):
 | 32 | Sizing and the host | update (embedded-app stage, `hostWidth`, `minWidth` panning) |
 | 33 | Fonts | update |
 | 34 | Input and focus | update |
-| 35 | Capabilities — the environment contract | **write-new** (`design/capabilities.md`) |
-| 36 | SEO and static extraction | **write-new** (`design/seo-and-semantics.md`) |
+| 35 | Capabilities — the environment contract | **write-new** (`docs/system-design/capabilities.md`) |
+| 36 | SEO and static extraction | **write-new** (`docs/system-design/seo-and-semantics.md`) |
 
 ### Part IV — The loop
 
@@ -281,7 +281,7 @@ complete; what remains is the systematic build, in this order:
    contract).
 
 **Small riders collected along the way:** add `my-apps/` to the main repo's `.gitignore` +
-link getting-started from the homepage (§4); one-line scoping fix in `design/sizing.md`
+link getting-started from the homepage (§4); one-line scoping fix in `docs/system-design/sizing.md`
 ("no min/max attributes" is true *of views* — the App floor exists); when the gate's
 surface cross-checks are built, cover subscription-source names and no-such-attribute
 claims — both bit us in review.

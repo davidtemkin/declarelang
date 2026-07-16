@@ -28,7 +28,7 @@ Write a program to my-apps/hello.declare and browse to http://127.0.0.1:8200/my-
 
 - **[docs/declare.md](docs/declare.md)** — the whole language, in one file, for you and your model.
 - **[docs/](docs/README.md)** — the guide (start at [getting-started](docs/operational/getting-started.md)), operational pages, and the machine model ([declare-model.json](docs/declare-model.json) — exact facts in its `spine`).
-- **[design/](design/)** — the internal design record (non-authoritative; the docs win).
+- **[docs/system-design/](docs/system-design/)** — the internal design record (non-authoritative; the docs win).
 
 
 It's reactive by construction and statically typed, with all real logic in ordinary
@@ -57,7 +57,7 @@ the DSL; the logic inside it is plain TypeScript. Specific where that pays, gene
 everywhere else.
 
 → How to think in it: [the guide](docs/guide/00-overview.md). The language in full:
-[`design/declare-language.md`](design/declare-language.md).
+[`docs/system-design/declare-language.md`](docs/system-design/declare-language.md).
 
 ## The whole model in one program
 
@@ -109,7 +109,7 @@ npm test          # unit + perceptual + scaffold
 | `library/` | components authored in `.declare` |
 | `examples/` | runnable apps — the `site` homepage, `weather`, `calendar-sample` |
 | `docs/` | the [guide](docs/guide/) + generated [reference](docs/reference/) |
-| `design/` | design docs — [language](design/declare-language.md), [constraints](design/constraints.md), [hosting](design/hosting.md), … |
+| `design/` | design docs — [language](docs/system-design/declare-language.md), [constraints](docs/system-design/constraints.md), [hosting](docs/system-design/hosting.md), … |
 
 **Source & hosting.** Each area co-locates `src/` and committed `dist/`, so the tree runs
 and hosts as-is — no build step required. Every host page loads the platform as ONE
@@ -117,10 +117,10 @@ committed bundle (`bundles/declare-boot.js`) and compiles the page's own
 `.declare` in the browser, caching the output; the in-browser compiler
 (`bundles/declare-compiler.js`) is fetched lazily, only when something compiles.
 The deployed source is the single source of truth — there is no per-page artifact to
-fall stale; see [`design/hosting.md`](design/hosting.md).
+fall stale; see [`docs/system-design/hosting.md`](docs/system-design/hosting.md).
 
 **Conventions** (for contributors):
-- **Format** every `.declare` to the house style — [`design/formatting.md`](design/formatting.md).
+- **Format** every `.declare` to the house style — [`docs/system-design/formatting.md`](docs/system-design/formatting.md).
 - **Never rebuild the platform bundles by hand**: the pre-commit hook rebuilds a stale
   one before stamping the build id, and the dev server rebuilds on demand
   (`tools/bundle-freshness.mjs`).

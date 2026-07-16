@@ -3,7 +3,7 @@
 // Vertical slice: the three canonical view classes (View, Text, Image). Structure
 // is read losslessly from the runtime's own `ComponentSchema` chain (runtime/dist)
 // so it CANNOT drift from the checker; defaults are read from the `defineAttributes`
-// specs in the runtime source via the TypeScript compiler API (design/doc-system.md
+// specs in the runtime source via the TypeScript compiler API (docs/system-design/doc-system.md
 // §"Structure generation" — schema ⨝ decoration ⨝ tsc). Prose + the @api surface
 // come, for the slice, from keyed Markdown files under tools/doc/prose/ (the
 // file-prose path doc-system.md blesses) — later swapped for captured `/* *​/`

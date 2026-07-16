@@ -89,6 +89,6 @@ The second says nothing the signature already says, and everything it doesn't.
 
 ---
 
-See [`../../design/documentation-plans.md`](../../design/documentation-plans.md) for the
-value framework this operationalises, and [`../../design/doc-system.md`](../../design/doc-system.md)
+See [`../../docs/system-design/documentation-plans.md`](../../docs/system-design/documentation-plans.md) for the
+value framework this operationalises, and [`../../docs/system-design/doc-system.md`](../../docs/system-design/doc-system.md)
 for how `@api`/coverage turn these blocks into the built reference.

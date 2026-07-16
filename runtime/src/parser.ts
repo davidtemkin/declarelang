@@ -65,7 +65,7 @@ export type Literal =
   | { kind: "string"; value: string; pos: Pos }
   | { kind: "hexColor"; raw: string; pos: Pos } // `#RGB` / `#RRGGBB`
   | { kind: "ident"; name: string; pos: Pos } // named color / true / false / null
-  | { kind: "code"; src: string; pos: Pos; deps?: readonly string[] } // `{ … }` — a constraint body, raw TS source; `deps` = the compiler's extracted dependency read-paths (design/constraints.md §5), attached post-resolution
+  | { kind: "code"; src: string; pos: Pos; deps?: readonly string[] } // `{ … }` — a constraint body, raw TS source; `deps` = the compiler's extracted dependency read-paths (docs/system-design/constraints.md §5), attached post-resolution
   | { kind: "path"; path: string; many: boolean; pos: Pos } // `:a.b` / `:arr[]` — a datapath
   // `name(args)` — a value CONSTRUCTOR (styling rung: gradient/stroke/shadow/
   // stop). Pure syntax: which names construct what is the value vocabulary's
@@ -386,7 +386,7 @@ function tokenize(src: string): Token[] {
     if (punct[c]) { advance(); tokens.push({ kind: punct[c], text: c, pos: start }); continue; }
 
     // triple-quoted text block: raw, multi-line, common indentation stripped
-    // (design/text-and-markdown.md). Pleasant hand-authored Markdown without
+    // (docs/system-design/text-and-markdown.md). Pleasant hand-authored Markdown without
     // `\n` noise; the language stays content-agnostic — this is just a
     // dedented RAW string (no escape processing, so Markdown's own `\` is its
     // own), and the dedent keeps source indentation cosmetic.

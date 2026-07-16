@@ -1,4 +1,4 @@
-// verify-behave — verify's rungs 5 and 6 (design/verify-and-evals.md §2.4–§2.5):
+// verify-behave — verify's rungs 5 and 6 (docs/system-design/verify-and-evals.md §2.4–§2.5):
 // drive the compiled app with REAL input in a real browser, assert at the
 // language's altitude (named views and attributes through the __declare
 // bridge — never DOM selectors), with deterministic motion (the driven clock)

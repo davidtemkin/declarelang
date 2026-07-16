@@ -265,7 +265,7 @@ function checkStyleBody(decl: TopDecl): DeclareError[] {
   return errors;
 }
 
-/** A font names a FAMILY that owns its faces (design-docs/fonts.md): an optional
+/** A font names a FAMILY that owns its faces (docs/system-design/fonts.md): an optional
  *  'family = "…"' (defaults to the name) and zero or more `Face` children; no
  *  faces = a system font. Reports every problem (like the bundle check); the
  *  buildFonts in font.ts is the throwing safety net. */
@@ -987,7 +987,7 @@ function checkAnimatorNode(
   }
 }
 
-/** Validate a state node (design-docs/states.md: descendsFrom "State"). Its
+/** Validate a state node (docs/system-design/states.md: descendsFrom "State"). Its
  *  body is special and does NOT walk as a generic component: `applied` is the
  *  one control slot (checked against StateSchema — boolean or a `{ }` gate),
  *  every OTHER attribute is an OVERRIDE checked against the ENCLOSING view's

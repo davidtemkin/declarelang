@@ -1,4 +1,4 @@
-// Docs-app location integration (design/location.md) — live chromium. The docs app
+// Docs-app location integration (docs/system-design/location.md) — live chromium. The docs app
 // is a transparent rewiring: same tabs/panels/memory, now with a URL, deep links,
 // back/forward. Also the Phase-B gate's cold-deep-link-while-DataSource-fetching race:
 // a fragment `@heading` reveals a chapter heading once the model has been fetched.

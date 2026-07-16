@@ -276,7 +276,7 @@ function analyzeFile(path) {
   // X-purity (ruled call-site-legible model): a method is "pure" iff it reads NO
   // reactive state directly anywhere in its call tree (its reactive inputs arrive
   // only via parameters). A constraint that CALLS a non-pure method is a
-  // "hidden-dep call" — refused under design/constraints.md §3.
+  // "hidden-dep call" — refused under docs/system-design/constraints.md §3.
   const methodPure = (name) => transDeps(name).size === 0;
 
   const buckets = { 1: [], 2: [], 3: [] };

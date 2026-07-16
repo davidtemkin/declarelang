@@ -1,4 +1,4 @@
-// Animation v1 — the motion substrate (design-docs/animation.md §1–§4).
+// Animation v1 — the motion substrate (docs/system-design/animation.md §1–§4).
 //
 // Two pieces, both author-invisible kernel-tier services (the design's magic
 // ledger §3): the easing curves the carried `motion` enum names, and the one

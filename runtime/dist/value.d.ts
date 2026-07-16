@@ -54,7 +54,7 @@ export declare function strokeEqual(a: Stroke | null, b: Stroke | null): boolean
 export declare function fillEqual(a: Fill, b: Fill): boolean;
 /** A theme: a plain immutable record of design tokens (ruled, v1 —
  *  wholesale-swapped, never mutated in place). The default is the HOUSE
- *  theme (design/components-baseline.md Contract 2): the ruled v1 role
+ *  theme (docs/system-design/components-baseline.md Contract 2): the ruled v1 role
  *  vocabulary with the house light palette, so `theme.role` in library
  *  components ALWAYS resolves — no provider means the house look, never a
  *  fallback expression in component source. `depth` (0 = flat …

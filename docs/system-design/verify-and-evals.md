@@ -1,6 +1,6 @@
 # Verify & Evals — the machine-checkable loop
 
-**Status:** BUILT through phase 5 (2026-07-14); phase 6 (the first real triage cycle across the model matrix) and phase 7 (steady-state tracks) remain. Companion to [`design-docs/designing-a-language-for-llms.md`](../design-docs/designing-a-language-for-llms.md) (the *why*, esp. §7 verifiability ladder and §9 evals) and [`diagnostics.md`](diagnostics.md) §4 (the diagnostic contract this system extends past the compiler).
+**Status:** BUILT through phase 5 (2026-07-14); phase 6 (the first real triage cycle across the model matrix) and phase 7 (steady-state tracks) remain. Companion to [`docs/system-design/designing-a-language-for-llms.md`](../docs/system-design/designing-a-language-for-llms.md) (the *why*, esp. §7 verifiability ladder and §9 evals) and [`diagnostics.md`](diagnostics.md) §4 (the diagnostic contract this system extends past the compiler).
 
 **What's built (2026-07-14):**
 - **Part A — `verify`** (`tools/verify.mjs` + `tools/verify-behave.mjs`): the whole ladder, rungs 1–6. Typecheck on by default (rung 3); headless boot under a synthetic measurer (rung 4); `drive`/`expect` over the `__declare` bridge with the driven clock (rung 5); named states vs. blessed baselines (rung 6). `runtime/src/inspect.ts` (inspect/find/explain/stats + clock) is the introspection substrate. `examples/controls/` is the full reference user (assert + states + baselines).
@@ -29,7 +29,7 @@ _Original design follows._
 | behavioral driving (puppeteer synthetic input, post-mutation pixel checks) | `test/perceptual.test.mjs` R5/R7 | shipped, test-only |
 | production build (esbuild bundle, slim registry) | `tools/declarec.mjs` | shipped |
 | dev server: `POST /compile`, `?render=canvas`, build cache | `server/index.mjs` | shipped |
-| framework-neutral app brief format | `design/site-spec.md` | exemplar exists |
+| framework-neutral app brief format | `docs/system-design/site-spec.md` | exemplar exists |
 | LLM brief with compile-validated examples | `docs/declare-for-llms.md` | shipped (validation script ad hoc) |
 
 Missing, and designed below: runtime **introspection**, an **assertion surface**, **deterministic time**, the **verify** command that composes it all, and the **eval harness** that consumes it.
@@ -139,7 +139,7 @@ Declare has a strong, opinionated style canon ([`formatting.md`](formatting.md) 
 
 ### 2.10 Also in Part A (cheap, high-leverage)
 
-- **CI truth-maintenance**: promote the ad-hoc brief-validation script into `test/docs.test.mjs` — every ```declare fence in `docs/declare-for-llms.md`, the guide, and `design/declare-language.md` must compile (known offender to fix on landing: spec §9's unquoted-JSON Dataset example). This is the no-drift invariant, mechanized.
+- **CI truth-maintenance**: promote the ad-hoc brief-validation script into `test/docs.test.mjs` — every ```declare fence in `docs/declare-for-llms.md`, the guide, and `docs/system-design/declare-language.md` must compile (known offender to fix on landing: spec §9's unquoted-JSON Dataset example). This is the no-drift invariant, mechanized.
 - **`verify` on the examples in CI**: rungs 1–4 for every example on every commit (fast); rungs 5–6 for calendar + site nightly or pre-release.
 
 ---
@@ -200,7 +200,7 @@ Every failure gets exactly one label, with a mandated escalation order:
 
 1. **docs gap** — the model couldn't have known → patch `declare-for-llms.md` (usually §9/§10) → rerun the task.
 2. **diagnostic gap** — it erred and the error failed to teach the repair → patch the `Diag` catalog message → rerun. (Feeds diagnostics.md §4's standard directly; a diagnostic whose named fix models don't follow is a bug by definition.)
-3. **language footgun** — persists across models *after* 1 and 2 → an entry in the footgun register (extend `design/language-learnings.md` with an `E-series`: evidence, tasks affected, models affected, docs/diagnostic attempts). Only E-series entries with ≥2 models and ≥2 cycles of evidence earn a language-change discussion — the language stays stable while the mutable surfaces absorb the churn, and changes that do happen arrive with receipts.
+3. **language footgun** — persists across models *after* 1 and 2 → an entry in the footgun register (extend `docs/system-design/language-learnings.md` with an `E-series`: evidence, tasks affected, models affected, docs/diagnostic attempts). Only E-series entries with ≥2 models and ≥2 cycles of evidence earn a language-change discussion — the language stays stable while the mutable surfaces absorb the churn, and changes that do happen arrive with receipts.
 
 Regression rule: any edit to the brief, a diagnostic, or the language reruns the affected tasks before merging. The suite is CI for teachability.
 

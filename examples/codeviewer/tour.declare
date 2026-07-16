@@ -7,7 +7,7 @@ rendered as Markdown, and the code between them is syntax-highlighted. View it w
     examples/codeviewer/tour.declare?view=reader
 
 Everything below is real, compilable Declare — and it follows the house formatting
-(design/formatting.md): four-space indent, a trailing comma on every member, and a
+(docs/system-design/formatting.md): four-space indent, a trailing comma on every member, and a
 body that holds children or methods closing with its bracket hanging on its own,
 indented line.
 */

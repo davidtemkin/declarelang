@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// run — the eval harness orchestrator (design/verify-and-evals.md §3).
+// run — the eval harness orchestrator (docs/system-design/verify-and-evals.md §3).
 //
 //   node evals/harness/run.mjs [flags]
 //     --tasks a,b,c        which tasks (default: all under evals/tasks/)

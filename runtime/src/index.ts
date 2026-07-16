@@ -37,7 +37,7 @@ export interface BuildOptions {
   host?: IncludeHost;
   originDir?: string;
   /** The compiler's extracted constraint dependencies, in `forEachCodeValue`
-   *  walk order (design/constraints.md §5). Zipped onto the parsed program so
+   *  walk order (docs/system-design/constraints.md §5). Zipped onto the parsed program so
    *  its constraints boot on the static path. Absent → runtime-tracking. */
   deps?: readonly (readonly string[])[];
   /** The compiler's extracted navigation relation (capabilities.md §6), a

@@ -1,5 +1,5 @@
 // HeadlessBackend — the no-pixels RenderBackend for executing a program
-// WITHOUT a page: static extraction (design/capabilities.md §4–5), verify's
+// WITHOUT a page: static extraction (docs/system-design/capabilities.md §4–5), verify's
 // rung-4 deterministic instantiation, and any tool that needs the settled
 // tree but no rendering. Attaching to it runs everything attach always runs —
 // auto-extent derives, layout install, text measurement (through the one

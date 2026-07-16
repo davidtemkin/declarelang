@@ -1,6 +1,6 @@
 // The stylesheet — the styling rung's EXTERNAL channel: a class-keyed,
 // swappable skin (style without source edits), plus the theme record it
-// travels with. Ruled shape (design-docs/style.md): entries are a dictionary
+// travels with. Ruled shape (docs/system-design/style.md): entries are a dictionary
 // lookup on a typed class name — no selectors, no structural matching, no
 // specificity — resolved by a class-chain walk with FIELD-WISE merge (a
 // subclass entry's fields win, the rest fall through per field, mirroring

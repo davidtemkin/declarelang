@@ -1,6 +1,6 @@
 # Declare — roadmap to "Foundation Complete"
 
-The forward-looking companion to the `design/` rulings and `design/history/build-journey.md`
+The forward-looking companion to the `design/` rulings and `docs/system-design/history/build-journey.md`
 (the *how we got here*). This is the *how we finish* — the path from "it works for us" to a
 frozen language, a robust framework, and a foundation someone else can pick up and build on.
 Annotate freely; this is a working chart, not a contract.
@@ -86,7 +86,7 @@ IncludeHost**, **lazy `node:` imports** (they block browser load today), and a *
 worker**. Gate: host the tree statically, edit-and-compile in the browser.
 
 ### M6 — Docs + get-started
-- Build the **doc-system** (ratified, unbuilt; `design/doc-system.md`): generated reference
+- Build the **doc-system** (ratified, unbuilt; `docs/system-design/doc-system.md`): generated reference
   (schema ⨝ runtime ⨝ tsc + Declare-parser; `@api` coverage gate) + hand-authored **guide**.
 - The **"get started" experience** — a minimal `hello` sample, a scaffold path, the on-ramp.
 

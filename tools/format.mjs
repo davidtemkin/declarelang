@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// format.mjs — the Declare canon formatter (design/formatting.md).
+// format.mjs — the Declare canon formatter (docs/system-design/formatting.md).
 //
 //   node tools/format.mjs <file>            formatted source → stdout
 //   node tools/format.mjs --write <files…>  rewrite in place (only when changed)

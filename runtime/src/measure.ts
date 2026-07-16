@@ -57,7 +57,7 @@ function measurer(): CanvasRenderingContext2D {
 }
 
 /** Inject the measuring context for a DOM-less host — the environment
- *  contract's text-metrics seam (design/capabilities.md §3, verify §2.8).
+ *  contract's text-metrics seam (docs/system-design/capabilities.md §3, verify §2.8).
  *  Headless execution (static extraction, verify rung 4) passes a real 2D
  *  context for exact typography or a deterministic stand-in (the compiler's
  *  headless.ts approximation); in a browser nothing is injected and the

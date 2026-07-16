@@ -57,7 +57,7 @@ suggestions; within them, the shape is judgment.
     `examples/site`→`examples/homepage`, `model.json`→`docs-model.json`. The IA/layout targets
     the post-reorg shape; do not hard-code today's paths. (Another reason links are symbolic.)
 
-11. **The doc top-level moves ride the reorg.** `design/`+`design-docs/` → `docs/system-design/`
+11. **The doc top-level moves ride the reorg.** `design/`+`docs/system-design/` → `docs/system-design/`
     is deferred to land *with* the distro reorg, one pass. The IA can assume that end-state.
 
 ## Editorial constraints (judgment, but bounded)

@@ -14,7 +14,7 @@ editorial/IA pass builds *on* them.
 | source | what it gives you |
 |---|---|
 | `examples/homepage/` (the homepage essay, was `site`) | the strongest existing marketing prose — the 3-movement arc (objection → leverage → "what it's actually for"), the "we believe" bet, "an LLM's mistake is a compile error that names the fix." The **voice** to extend. |
-| `design-docs/designing-a-language-for-llms.md` | the intellectual case: two-leverages thesis, the anti-"languages don't matter" rebuttal, no-near-misses, context economics, prior-art (Anka/FeedbackEval/Hazel). The *why-it's-different* substance. |
+| `docs/system-design/designing-a-language-for-llms.md` | the intellectual case: two-leverages thesis, the anti-"languages don't matter" rebuttal, no-near-misses, context economics, prior-art (Anka/FeedbackEval/Hazel). The *why-it's-different* substance. |
 | `docs/declare-for-llms.md` §1, §9, §10 | the crisp framings already tested: "to web apps what HTML is to web documents," "a binding is a standing relationship the runtime keeps true," and the negative-knowledge / footgun voice. |
 | `site-react/` + calendar2 metrics (memory/bench) | concrete "vs React" evidence — bundle ~53 vs 97 KB gz, ~415 vs 874 LOC, ~8× lower input latency. Show-not-tell ammunition (constraint 13). |
 
@@ -22,32 +22,32 @@ editorial/IA pass builds *on* them.
 
 | guide topic | authoritative source(s) |
 |---|---|
-| the whole surface | `design/declare-language.md` (the ~680-ln spec) → merges into the core doc |
-| composition / the tree | `design/composition.md`, `design/declare-language.md` |
-| constraints / reactivity | `design/constraints.md`, `design/static-dep-extraction.md` |
-| states | `design/states.md` |
-| layout | `design/declare-language.md` (layout-as-attribute) |
-| data / datapaths / sources | `design/declare-language.md` §data, `runtime/src/data.ts` (the mutation API) |
-| sizing / host | `design/sizing.md` |
-| animation / springs | `design/animation.md` |
-| text / markdown | `design/text-and-markdown.md` |
-| fonts | `design/fonts.md` |
-| input / focus | `design/input.md` |
-| formatting | `design/formatting.md` (+ `tools/format.mjs` = the enforced canon) |
-| **components / std library** *(write-new)* | `library/src/*.declare` (+ their `@api`), `design/components-baseline.md` (the 4 contracts) |
-| **verify / how-to-check** *(write-new)* | `design/verify-and-evals.md`, `tools/verify.mjs` |
-| **capabilities** *(write-new)* | `design/capabilities.md` |
-| **SEO / static extraction** *(write-new)* | `design/seo-and-semantics.md`, `compiler/src/static-html.ts` |
-| diagnostics (reference) | the `Diag` catalog + `design/diagnostics.md` §4 (errors name the fix) |
+| the whole surface | `docs/system-design/declare-language.md` (the ~680-ln spec) → merges into the core doc |
+| composition / the tree | `docs/system-design/composition.md`, `docs/system-design/declare-language.md` |
+| constraints / reactivity | `docs/system-design/constraints.md`, `docs/system-design/static-dep-extraction.md` |
+| states | `docs/system-design/states.md` |
+| layout | `docs/system-design/declare-language.md` (layout-as-attribute) |
+| data / datapaths / sources | `docs/system-design/declare-language.md` §data, `runtime/src/data.ts` (the mutation API) |
+| sizing / host | `docs/system-design/sizing.md` |
+| animation / springs | `docs/system-design/animation.md` |
+| text / markdown | `docs/system-design/text-and-markdown.md` |
+| fonts | `docs/system-design/fonts.md` |
+| input / focus | `docs/system-design/input.md` |
+| formatting | `docs/system-design/formatting.md` (+ `tools/format.mjs` = the enforced canon) |
+| **components / std library** *(write-new)* | `library/src/*.declare` (+ their `@api`), `docs/system-design/components-baseline.md` (the 4 contracts) |
+| **verify / how-to-check** *(write-new)* | `docs/system-design/verify-and-evals.md`, `tools/verify.mjs` |
+| **capabilities** *(write-new)* | `docs/system-design/capabilities.md` |
+| **SEO / static extraction** *(write-new)* | `docs/system-design/seo-and-semantics.md`, `compiler/src/static-html.ts` |
+| diagnostics (reference) | the `Diag` catalog + `docs/system-design/diagnostics.md` §4 (errors name the fix) |
 | flags (operational) | `compiler/src/flags.ts` `FLAG_SPECS` (one registry, all surfaces) |
-| shipping / production | `tools/declarec.mjs`, `design/hosting.md`, `design/in-browser-dev.md` |
+| shipping / production | `tools/declarec.mjs`, `docs/system-design/hosting.md`, `docs/system-design/in-browser-dev.md` |
 | per-element detail | `examples/docs/docs-model.json` (the generated reference; 68% prose) |
 
 ## 3. Empirical "what confuses users" — mine for ordering & footguns (this is the gold)
 
 The guide's ordering and its "don't do this" moments should be *evidence-driven*, not guessed:
 
-- **`design/language-learnings.md`** — the friction log **and the eval E-series** (E-1 CSS
+- **`docs/system-design/language-learnings.md`** — the friction log **and the eval E-series** (E-1 CSS
   border ghost → the brief never showed `stroke()`; E-2 well-diagnosed seam/scope errors;
   E-3 responsive-layout-wants-to-constrain-`axis`). This is real evidence of what trips
   people, so the guide can *preempt* it — and it tells you exactly what **not** to front-load

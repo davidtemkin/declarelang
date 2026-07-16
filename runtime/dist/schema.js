@@ -134,7 +134,7 @@ const ViewSchema = {
         // the inherited cursor — `:arr[]` replicates this element), a `{ }`
         // expression yielding a place in a dataset, or null.
         datapath: { kind: "cursor" },
-        // Keyboard focus (design-docs/input.md, Layer 2): `focusable` = a tab stop;
+        // Keyboard focus (docs/system-design/input.md, Layer 2): `focusable` = a tab stop;
         // `focustrap` = a self-contained focus group (Tab cycles within, escapes at
         // the boundary). Traversal order is the view tree (no numeric tabindex),
         // customized by overriding the `tabOrder()` method.
@@ -186,7 +186,7 @@ const AppSchema = {
         // the OS colour-scheme, `prefers-color-scheme: dark` — the runtime feeds it and
         // keeps it live as the system theme flips, so an app themes off `app.dark`.
         dark: { kind: "boolean" },
-        // `location` — the app's slice of the URL, the FRAGMENT (design/location.md).
+        // `location` — the app's slice of the URL, the FRAGMENT (docs/system-design/location.md).
         // A two-way built-in the host wires with `TextInput.text`'s echo discipline:
         // seeded from the URL fragment BEFORE first settle (a deep link is just an
         // initial state), mirrored outward per-settle (push history), and written back
@@ -233,7 +233,7 @@ const TextSchema = {
         text: { kind: "string" },
         // The glyphs' drop shadow — the same shadow(…) value as the box slot.
         textShadow: { kind: "shadow" },
-        // Wrapping (design/text-and-markdown.md): a bounded-width run wraps by
+        // Wrapping (docs/system-design/text-and-markdown.md): a bounded-width run wraps by
         // default; `wrap = false` forces a single line. `textAlign` pairs with it.
         wrap: { kind: "boolean" },
         textAlign: enumType("TextAlign", "left", "center", "right"),
@@ -270,7 +270,7 @@ const HtmlSchema = {
         slot: { kind: "string" },
     },
 };
-// TextInput (Layer 3, design-docs/input.md): an editable text field — the first
+// TextInput (Layer 3, docs/system-design/input.md): an editable text field — the first
 // EDITOR (language §9, the leaf-input exception). `text` is the model/draft slot,
 // realized as a native editable element (DOM in-box, canvas overlay) so
 // caret/selection/IME/a11y are native (D-5). Two-way bound with `text <-> :path`:
@@ -309,7 +309,7 @@ const TextInputSchema = {
     },
     events: ["input", "enter"],
 };
-// RichText (design/text-and-markdown.md): the ABSTRACT family of flowing,
+// RichText (docs/system-design/text-and-markdown.md): the ABSTRACT family of flowing,
 // structured, styled text. Like `Layout`, it names no format — `RichText [ ]` is
 // deliberately NOT in the name table (writing it reports "unknown component") —
 // but it anchors the chain and holds what `Markdown` and `HTMLText` share: the
@@ -513,7 +513,7 @@ const SpringSchema = {
         epsilon: { kind: "number" },
     },
 };
-// State (design-docs/states.md) — a twin-table component like Animator:
+// State (docs/system-design/states.md) — a twin-table component like Animator:
 // non-visual (base null; family test descendsFrom(schema, "State")), carrying
 // the one control attribute `applied` and the built-in verbs apply()/remove()/
 // toggle() + on* handlers. Its BODY is special and does NOT check through the

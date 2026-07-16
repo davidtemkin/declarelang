@@ -767,7 +767,7 @@ function serveDist() {
     // A bare harness for the STATIC-EXTRACTION identity test: the extractor
     // rides the compiler BUNDLE (compile-browser re-exports static-html.ts/headless.ts)
     // and executes the program headlessly IN THIS PAGE — the run-anywhere claim
-    // (design/capabilities.md §5), verified against Node byte-for-byte.
+    // (docs/system-design/capabilities.md §5), verified against Node byte-for-byte.
     "/extract-identity": `<!doctype html><meta charset="utf-8"><body><script type="module">
       import { extractStatic } from "/bundles/declare-compiler.js";
       window.__extract = (src) => { const o = extractStatic(src); return JSON.stringify({ html: o.html, report: o.report }); };
@@ -2471,7 +2471,7 @@ try {
     // The whole-toolchain uniformity claim, verified across TRANSPORTS: the
     // same source compiled in a real module Worker in Chrome and by the Node
     // compiler in this process must produce the same bytes — source, deps,
-    // structured diagnostics, AND the rendered report (design/in-browser-dev.md).
+    // structured diagnostics, AND the rendered report (docs/system-design/in-browser-dev.md).
     const { compile: compileNode } = await import("../compiler/dist/compile-node.js");
     const page = await browser.newPage();
     await page.goto(`http://127.0.0.1:${port}/worker-identity`, { waitUntil: "load" });
@@ -2492,7 +2492,7 @@ try {
   });
 
   await test("static extraction: byte-identical HTML in the browser and Node (run-anywhere)", async () => {
-    // The parity claim for the SEO surface (design/capabilities.md §5): the SAME
+    // The parity claim for the SEO surface (docs/system-design/capabilities.md §5): the SAME
     // extractor module, executing the SAME program headlessly, in Chrome and in
     // Node, produces identical HTML. Here the browser has a REAL measurer and
     // Node the deterministic approximation, so the cases avoid geometry-selected

@@ -7,7 +7,7 @@ export interface CompileFlags {
     /** Which RENDERER to bundle / mount (`?render=canvas` / `--render canvas`): managed
      *  DOM, or one `<canvas>`. */
     render: "dom" | "canvas";
-    /** Static extraction (design/capabilities.md §5): embed the program's content as
+    /** Static extraction (docs/system-design/capabilities.md §5): embed the program's content as
      *  semantic HTML in the run/build wrapper's host element (`#declare-static`), for
      *  crawlers and AI readers that don't run the app. Removed before first paint, never
      *  CSS-hidden (browser/serve-core.js). `--crawler` on declarec bakes it into the built

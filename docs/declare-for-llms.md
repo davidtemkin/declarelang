@@ -2,7 +2,7 @@
 
 *You are reading the authoritative brief for **Declare**, a domain-specific language for user interfaces. Declare is **not in your training data**. This file overrides your priors: where Declare resembles React, CSS, or HTML, do not assume the resemblance extends past what is written here. When you are unsure, consult this file or the linked spec — do not extrapolate from other languages. Every complete program below compiles under the current toolchain.*
 
-*Language status: pre-1.0, under active design (2026-07). The spec this file summarizes: [`design/declare-language.md`](../design/declare-language.md). The guide: [`docs/guide/`](guide/00-overview.md).*
+*Language status: pre-1.0, under active design (2026-07). The spec this file summarizes: [`docs/system-design/declare-language.md`](../design/declare-language.md). The guide: [`docs/guide/`](guide/00-overview.md).*
 
 ---
 
@@ -304,10 +304,10 @@ Also provided, undeclared: keyboard focus travels the controls (Tab / Shift-Tab;
 
 | you want | read |
 |---|---|
-| the full language spec (~680 lines, authoritative) | `design/declare-language.md` |
+| the full language spec (~680 lines, authoritative) | `docs/system-design/declare-language.md` |
 | the guided tour, concept by concept | `docs/guide/00-overview.md` → `10-tutorial.md` → … |
 | the idiom at real scale, annotated | `examples/calendar/calendar.declare` · `examples/homepage/homepage.declare` |
-| what's deliberately not settled yet | `design/declare-language.md` §13 |
-| the reactivity model's rules | `design/constraints.md` |
+| what's deliberately not settled yet | `docs/system-design/declare-language.md` §13 |
+| the reactivity model's rules | `docs/system-design/constraints.md` |
 
 *This file is generated-adjacent documentation: its examples are compiled against the toolchain on every revision. If something here contradicts the compiler, the compiler is right and this file has a bug — report it.*

@@ -7,7 +7,7 @@
 // bytes, so the only way the root page carries its content for search + AI is to
 // CONTAIN it — a reference to a separate ?extract document would not be inlined.
 //
-// This injects the homepage's t=0 STATIC EXTRACTION (design/capabilities.md §5 —
+// This injects the homepage's t=0 STATIC EXTRACTION (docs/system-design/capabilities.md §5 —
 // the same class-semantics HTML the ?extract document uses) between two markers
 // in index.html's host element, as #declare-static. host-client.js REMOVES that
 // block the moment the live app mounts (browser/host-client.js), so a real user
@@ -40,7 +40,7 @@ if (compiled.source === null) {
 }
 // The extraction fragment (not crawlerDocument's full page) — it goes INSIDE the host
 // element as #declare-static, matching the `seo` flag's bake exactly. The CRAWLED
-// document (design/location.md §7): the default page plus each reachable location's
+// document (docs/system-design/location.md §7): the default page plus each reachable location's
 // content as a `<section id>` — so the Why article, invisible at t=0, is IN the
 // baked page and its `#why` link resolves right here in the static form.
 const html = await crawlDocument(compiled.source, {

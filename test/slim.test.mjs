@@ -72,7 +72,7 @@ test("REGISTRY_MANIFEST matches the runtime tables exactly (no drift)", () => {
 });
 
 // ── compile MODIFIERS: two of them (render, crawler), one model, three surfaces ───
-// (slim/stripPos/typecheck/prod are NOT flags — design/requests.md §"Removed knobs".)
+// (slim/stripPos/typecheck/prod are NOT flags — docs/system-design/requests.md §"Removed knobs".)
 const P = (obj) => ({ has: (k) => k in obj, get: (k) => (k in obj ? String(obj[k]) : null) });
 test("URL modifiers: defaults when absent", () => {
   const f = parseFlags(P({}), DEFAULT_FLAGS);

@@ -2658,7 +2658,7 @@ await test("prevailing: theme is a token record — wholesale-swapped, followed 
     panel: View [
       chip: View [ width = { this.theme.radius * 2 } ] ] ]`);
   assert.equal(app.panel.chip.width, 12, "tokens read through the prevailing chain");
-  // The default theme is the HOUSE record (design/components-baseline.md
+  // The default theme is the HOUSE record (docs/system-design/components-baseline.md
   // Contract 2, ruled 2026-07-13): `theme.role` always resolves — no provider
   // means the house look, so library components carry no fallback expressions.
   assert.equal(build("App [ ]").theme.control, 0xE7EBF1, "the default theme is the HOUSE record — a role always resolves");
@@ -3071,7 +3071,7 @@ App [ stylesheet = S, a: Button [ ] ]`));
 });
 
 // ── Animation v1: the motion substrate — ease curves + the shared clock ─────
-// (design-docs/animation.md §1–§4; the author-invisible kernel-tier services
+// (docs/system-design/animation.md §1–§4; the author-invisible kernel-tier services
 // of §3's magic ledger, unit-testable with an injected scheduler — no browser.)
 
 // Motion values for the animator tests (the schema default + a few named).
@@ -4285,7 +4285,7 @@ await test("compile() emit: a missing include still reports (file-named), no sou
   assert.match(r.errors[0].message, /cannot find include "nope\.declare"/);
 });
 
-// ── States (design-docs/states.md): overrides, precedence, child subtree ───
+// ── States (docs/system-design/states.md): overrides, precedence, child subtree ───
 
 await test("state: a gated override applies and reverts to the base value", () => {
   const app = build(`class Card extends View [ width = 80, height = 40, fill = #111111,
@@ -4473,7 +4473,7 @@ await test("diagnostics: every phase's error carries a coded, phase-classified D
   assert.equal(unresolved.phase, "name");
 });
 
-// ── Keys service (design-docs/input.md, Layer 1) ───────────────────────────
+// ── Keys service (docs/system-design/input.md, Layer 1) ───────────────────────────
 
 const kev = (code, over = {}) => ({ code, key: code, shift: false, ctrl: false, alt: false, meta: false, repeat: false, ...over });
 
@@ -4534,7 +4534,7 @@ await test("keys: clearHeld releases everything and disarms chords", () => {
   assert.equal(n, 2, "the chord re-fires after a clear disarmed it");
 });
 
-// ── Focus service (design-docs/input.md, Layer 2) ──────────────────────────
+// ── Focus service (docs/system-design/input.md, Layer 2) ──────────────────────────
 
 await test("focus: the default sequence is tree preorder of focusable+visible views", () => {
   Focus.reset();
@@ -4655,7 +4655,7 @@ await test("focus: discarding the focused subtree moves focus to a live neighbor
   assert.equal(Focus.getFocus(), app.a, "focus moved off the discarded view to the survivor");
 });
 
-// ── TextInput (design-docs/input.md, Layer 3) ──────────────────────────────
+// ── TextInput (docs/system-design/input.md, Layer 3) ──────────────────────────────
 
 const lastSpec = (log) => log.filter((e) => e[0] === "setEditable").at(-1)?.[1];
 const activations = (log) => log.filter((e) => e[0] === "activateEditable").map((e) => e[1]);
@@ -4723,7 +4723,7 @@ await test("textinput: a native focus routes back to Declare focus", () => {
 });
 
 // ── Uniform compiler API: dual-form diagnostics + the browser mirror ─────────
-// The contract every consumer rides (design/diagnostics.md): each Diagnostic
+// The contract every consumer rides (docs/system-design/diagnostics.md): each Diagnostic
 // carries its `rendered` form (computed ONCE by the producer = the one
 // formatter), the result carries `report` (the whole compile rendered), and
 // the browser bundle produces BYTE-IDENTICAL results to the Node compiler —
@@ -4882,7 +4882,7 @@ App [ width = 100, height = 100,
   assert.match(r.errors.map((e) => e.message).join("\n"), /nope/);
 });
 
-// ── static extraction (static-html.ts + headless.ts — design/capabilities.md §4–5) ──
+// ── static extraction (static-html.ts + headless.ts — docs/system-design/capabilities.md §4–5) ──
 // The program EXECUTES headlessly to its t=0 snapshot (the real runtime, no
 // pixels) and the settled tree serializes by CLASS SEMANTICS, no heuristics.
 

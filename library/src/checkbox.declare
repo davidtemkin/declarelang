@@ -1,7 +1,7 @@
 /*
 # Checkbox
 
-A boolean control (design/components-baseline.md, Contract 1). Its value is the
+A boolean control (docs/system-design/components-baseline.md, Contract 1). Its value is the
 `checked` attribute; **`input` owns the value's destination** — by default the
 destination is the checkbox itself, so it works standalone with zero wiring:
 

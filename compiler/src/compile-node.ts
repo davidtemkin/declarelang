@@ -30,7 +30,7 @@ provideLib((name) => {
 });
 
 export type { CompileOptions, Compiled } from "./compile.js";
-// Static extraction (design/capabilities.md §4–5) — exported by BOTH entry
+// Static extraction (docs/system-design/capabilities.md §4–5) — exported by BOTH entry
 // points (compile-browser.ts carries the same block): the browser compiler
 // does everything the Node one can, as architecture and as principle.
 export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
@@ -50,7 +50,7 @@ export type { Closure, ClosureEntry, Validator, Tracker, Probe } from "./closure
 const LIBRARY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../library");
 
 /** The crawl's own-material data resolver over a program's origin directory (the
- *  build-time data rule, design/location.md §9): a RELATIVE DataSource url is a file
+ *  build-time data rule, docs/system-design/location.md §9): a RELATIVE DataSource url is a file
  *  beside the app — read it from disk, parsed as JSON; absent → null (the crawl
  *  reports it loudly). Absolute urls never reach this (crawl.ts refuses them as the
  *  network). The browser twin is a same-origin fetch of the same deployed file, so

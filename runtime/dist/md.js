@@ -1,4 +1,4 @@
-// md — a purpose-built Markdown reader (design/text-and-markdown.md). NOT a
+// md — a purpose-built Markdown reader (docs/system-design/text-and-markdown.md). NOT a
 // general CommonMark engine (no marked/markdown-it/micromark, no plugins, no
 // HTML passthrough) — a tight, single-pass, allocation-light parser for
 // exactly Declare's subset and nothing more, tuned for the reactive re-parse hot

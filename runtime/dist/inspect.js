@@ -1,4 +1,4 @@
-// inspect — the runtime's structured act of looking (design/verify-and-evals.md
+// inspect — the runtime's structured act of looking (docs/system-design/verify-and-evals.md
 // §2.2), and the DRIVEN CLOCK (§2.3). The model can't glance at a screen: the
 // tree, its geometry (local AND root-space), each node's own attribute values,
 // and — the payoff of static dependency extraction — WHY a slot has its value

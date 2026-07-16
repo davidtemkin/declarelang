@@ -49,7 +49,7 @@ export declare class Constraint {
      *  to its slot quietly replaces it. A non-yielding one is author-declared
      *  (`{ }`, a percent): a direct write is an error (see attributes.ts). */
     yielding?: boolean);
-    /** Static-edge mode (design/constraints.md §5): the compiler extracted this
+    /** Static-edge mode (docs/system-design/constraints.md §5): the compiler extracted this
      *  constraint's dependency set, so its edges are wired ONCE — thereafter run()
      *  recomputes and applies with no per-run unlink/re-track. */
     private wired;

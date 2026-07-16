@@ -1,4 +1,4 @@
-// ops — the operations registry, EXECUTED (design/verification.md gap #5):
+// ops — the operations registry, EXECUTED (docs/system-design/verification.md gap #5):
 // every `test: true` entry in tools/ops.mjs runs with its declared expectation.
 // The same entries the docs render (assemble.mjs marker-injections) are the
 // entries performed here — procedure prose and procedure reality cannot

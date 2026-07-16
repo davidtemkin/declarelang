@@ -67,7 +67,7 @@ error.
 
 ## location
 The app's slice of the URL — the **fragment**, as one two-way reactive string
-(design/location.md). The host seeds it from the URL *before first settle* (a deep link
+(docs/system-design/location.md). The host seeds it from the URL *before first settle* (a deep link
 is just an initial state), mirrors app writes outward (one history entry per changed
 settle), and writes it back on back/forward — so navigation, deep links, and the back
 button are all the same thing: a `location` write your constraints re-derive from. The

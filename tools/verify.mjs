@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// verify — one command, the whole ladder (design/verify-and-evals.md §2).
+// verify — one command, the whole ladder (docs/system-design/verify-and-evals.md §2).
 //
 // Climbs the verifiability ladder as far as it can and reports everything at
 // the failed rung in the unified diagnostic register. Built through rung 4:

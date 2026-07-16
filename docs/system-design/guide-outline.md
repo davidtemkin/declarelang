@@ -230,7 +230,7 @@ inside an app, no iframe) — which the docs and homepage themselves use.
 ### 31 · The environment: hosts, embedding, capabilities
 **Why:** the app-meets-world chapter — everything that isn't the tree itself. Teach: the
 host contract (top-level = window, embedded = container, auto-detected); deep focus
-(traps, tab order) completing 23; the capabilities contract (`design/capabilities.md` —
+(traps, tab order) completing 23; the capabilities contract (`docs/system-design/capabilities.md` —
 the enumerable environment surface); SEO / static extraction (`?extract`, `?crawler`, what
 crawlers see) as a shipped feature with a one-command story; and **the host channel**
 *(added 2026-07-14)*: `app.navigate` for links out, and the route-mirroring idiom (an

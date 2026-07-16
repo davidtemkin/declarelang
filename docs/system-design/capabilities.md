@@ -2,8 +2,8 @@
 
 Status: ratified 2026-07-13. The headless environment, the static (SEO)
 extractor, and the `navigate` link model (§6) below are all BUILT. Companion
-to design/constraints.md (analyzability),
-design/hosting.md (the program-URL surface), and design/verify-and-evals.md
+to docs/system-design/constraints.md (analyzability),
+docs/system-design/hosting.md (the program-URL surface), and docs/system-design/verify-and-evals.md
 (rung 4 is the same execution tier).
 
 ## 1. The principle
@@ -131,7 +131,7 @@ feature, and explicitly NOT a language feature: no new syntax, no DOM-think
 in Declare source. The extraction is two phases with an ink-line between
 them — the *link relation* is compile-time static analysis (§6); the
 *content* is the settled tree of §4, serialized. The t=0 snapshot here is the
-DEFAULT location; design/location.md §7 generalizes it to t=0 per reachable
+DEFAULT location; docs/system-design/location.md §7 generalizes it to t=0 per reachable
 location — the same serializer, cold-booted at each fragment the app links to,
 so content hidden at the default (an in-app article, a docs chapter) is
 extracted too. The crawl follows the very links §6 extracts.

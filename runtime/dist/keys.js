@@ -1,4 +1,4 @@
-// Keys — the raw keyboard service (design-docs/input.md, Layer 1). The bottom
+// Keys — the raw keyboard service (docs/system-design/input.md, Layer 1). The bottom
 // of the input stack: key up/down, modifier state, a held-key set, and chords —
 // useful with NO focused field (shortcuts, games, key-repeat). DOM is the
 // kernel reference (LZX's LzKeyboardKernel is itself a thin wrapper over DOM

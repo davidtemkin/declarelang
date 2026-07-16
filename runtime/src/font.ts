@@ -1,4 +1,4 @@
-// The font declaration — Declare's typed Font model (design-docs/fonts.md). A
+// The font declaration — Declare's typed Font model (docs/system-design/fonts.md). A
 // top-level `font Name [ … ]` names a FAMILY that owns its faces: a container,
 // like OpenLaszlo's own `<font><face/></font>`, not CSS's flat `@font-face`.
 //

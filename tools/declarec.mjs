@@ -67,7 +67,7 @@ export async function buildProduction(source, opts = {}) {
     render: opts.render === "canvas" ? "canvas" : "dom",
     slim: String(opts.slim !== false),
     stripPos: String(opts.stripPos ?? true),
-    typecheck: "true",   // always on — a mandatory phase of the one compile (design/requests.md)
+    typecheck: "true",   // always on — a mandatory phase of the one compile (docs/system-design/requests.md)
     crawler: String(!!opts.crawler),
     ...(opts.props ?? {}),
   };
@@ -123,7 +123,7 @@ export async function buildProduction(source, opts = {}) {
   const appJs = result.outputFiles[0].text;
   const appName = `app.${shortHash(appJs)}.js`;
 
-  // `--crawler`: the extracted static document (design/capabilities.md §5) baked
+  // `--crawler`: the extracted static document (docs/system-design/capabilities.md §5) baked
   // into the host element — content for crawlers and AI readers that never run
   // the script; the entry above clears it before mount. Compile through THE
   // front-end (auto-include host and all), then execute headlessly and extract
@@ -216,7 +216,7 @@ async function cli(argv) {
   // CLI-only switches (output dir, quiet, and the artifacts --highlight / --extract);
   // the two MODIFIERS --render/--canvas and --crawler share the canonical model (flags.ts),
   // so they mean exactly what the same names mean as server/browser URL modifiers. A
-  // build always slims + strips positions + typechecks (design/requests.md §"Removed
+  // build always slims + strips positions + typechecks (docs/system-design/requests.md §"Removed
   // knobs"); --debug is the one escape hatch, for debugging the emitter — it keeps
   // source positions AND the full registry.
   const passthrough = [];

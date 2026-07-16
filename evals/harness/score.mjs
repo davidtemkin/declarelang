@@ -1,5 +1,5 @@
 // score — turn a candidate app.declare into a structured score by running the
-// verify ladder (design/verify-and-evals.md §3.5: "verify's JSON report IS the
+// verify ladder (docs/system-design/verify-and-evals.md §3.5: "verify's JSON report IS the
 // score for rungs 1–5"). The eval harness's mechanical oracle: every number
 // here is decided by a machine, never a judge.
 //

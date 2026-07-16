@@ -36,7 +36,7 @@ Booleans accept `?crawler`, `?crawler=1`, `?crawler=true` (on) and `?crawler=0`/
 
 The URL has three layers, and they do not overlap: the **path** picks the program, the **query**
 (the requests and modifiers above) picks what the host does with it, and the **fragment**
-(`#…`) is `app.location` — *where in the app* (design/location.md). A running app owns its
+(`#…`) is `app.location` — *where in the app* (docs/system-design/location.md). A running app owns its
 fragment: it seeds `app.location` from `#…` before the first paint, pushes one history entry per
 navigation, and writes it back on back/forward. So `foo.declare#why` deep-links into the app's
 `why` location, `foo.declare?view=reader` opens the reader — and `foo.declare?view=reader#why` is

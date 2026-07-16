@@ -34,7 +34,7 @@ export function bindConstraint(
   src: string,
   pos: Pos,
   classroot: View | null,
-  /** The compiler's extracted dependency read-paths (design/constraints.md §5).
+  /** The compiler's extracted dependency read-paths (docs/system-design/constraints.md §5).
    *  When present, the constraint is wired on the static path — edges fixed once,
    *  no per-run re-tracking. Absent (dev re-parse, or an un-annotated program) →
    *  the runtime-tracking fallback, unchanged. */
@@ -55,7 +55,7 @@ export function bindConstraint(
   // `.value` slot — they outlive every recompute). A read of a DATA REGION
   // (`:path` or `.read([…])`) resolves to a cell on the data VALUE tree, which is
   // recreated when the value arrives or is replaced — that dynamic, per-element
-  // subscription is the data-binding primitive's to own (design/constraints.md §3),
+  // subscription is the data-binding primitive's to own (docs/system-design/constraints.md §3),
   // so such a constraint stays on the tracking path. (The extractor still lists
   // the region read-path, for legibility/tooling.)
   const regionReactive = deps !== undefined && deps.some((rp) => rp.startsWith(":") || rp.includes(".read("));

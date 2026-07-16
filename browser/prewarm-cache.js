@@ -1,4 +1,4 @@
-// browser/prewarm-cache.js — the COMMITTED pre-warm cache tier (design/hosting.md).
+// browser/prewarm-cache.js — the COMMITTED pre-warm cache tier (docs/system-design/hosting.md).
 //
 // An optional, additive fast path for the static deploy: a small CURATED set of
 // programs (the homepage, the flagship apps) ship PRECOMPILED in the tree —

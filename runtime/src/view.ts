@@ -103,7 +103,7 @@ export class View extends Node {
   declare scrolls: boolean;
   declare scrollsX: boolean;
   declare scrollY: number;
-  /** Keyboard focus (design-docs/input.md, Layer 2). `focusable` = a tab stop;
+  /** Keyboard focus (docs/system-design/input.md, Layer 2). `focusable` = a tab stop;
    *  `focustrap` = a self-contained focus group. Traversal order is the tree,
    *  overridable per view by defining a `tabOrder()` method. */
   declare focusable: boolean;
@@ -345,7 +345,7 @@ export class View extends Node {
   get contentHeight(): number { return this.extentOf("height"); }
 
   /** The default focus-traversal members of this view: its visible View
-   *  children in source order (design-docs/input.md, Layer 2). The focus
+   *  children in source order (docs/system-design/input.md, Layer 2). The focus
    *  service descends into each; a view whose `tabOrder()` is not overridden
    *  uses this, so an all-default tree is pure tree preorder. An override may
    *  call it to compose ("the rest, minus X"). */
@@ -575,7 +575,7 @@ export function inheritedCursor(node: Node | null): Cursor | null {
 /** The focus service's teardown hook, registered by focus.ts. Kept as a seam so
  *  view.ts never imports focus.ts (one-directional import, no cycle); called at
  *  the top of discard() so focus moves off a subtree before it is torn down
- *  (design-docs/input.md §mutation during traversal). */
+ *  (docs/system-design/input.md §mutation during traversal). */
 let focusDiscardHook: ((view: View) => void) | null = null;
 export function setFocusDiscardHook(fn: (view: View) => void): void {
   focusDiscardHook = fn;
@@ -661,10 +661,10 @@ export class App extends View {
    *  never schema attrs. RULED to dissolve into a per-instance `LiveDemo`
    *  component; the app-authored state that once rode alongside (editing /
    *  liveCard / liveSource) is already instance-declared on the demo-hosting
-   *  apps. See design/language-learnings.md §11–12. */
+   *  apps. See docs/system-design/language-learnings.md §11–12. */
   declare demoSources: Record<string, unknown>;
   declare liveReport: string;
-  /** `location` — the app's slice of the URL, the fragment (design/location.md). A
+  /** `location` — the app's slice of the URL, the fragment (docs/system-design/location.md). A
    *  two-way reactive string the host seeds from the URL fragment before first
    *  settle, mirrors outward per settle (one history push per changed settle), and
    *  writes back on back/forward. The app owns the grammar: it reads `app.location`
@@ -760,7 +760,7 @@ defineAttributes(App, {
   dark: { def: false },
   pageWeight: { def: 0 },
   sourceLines: { def: 0 },
-  // `location` — the app's URL fragment (design/location.md). A stored reactive
+  // `location` — the app's URL fragment (docs/system-design/location.md). A stored reactive
   // slot: the host seeds/writes it (deep link, back/forward), the app writes it to
   // navigate, and `{ }` constraints that read it (`visible = { app.location == … }`)
   // re-derive on every change. Default "" so an app that declares no initial keeps
