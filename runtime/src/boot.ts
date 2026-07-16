@@ -11,7 +11,7 @@ import { instantiate } from "./instantiate.js";
 import { App } from "./view.js";
 import { fontFacesOf } from "./font.js";
 import type { RenderBackend } from "./backend.js";
-import { NeoError } from "./errors.js";
+import { DeclareError } from "./errors.js";
 import { Keys } from "./keys.js";
 import { Focus, deliverKeys } from "./focus.js";
 import { bridgeFor } from "./inspect.js";
@@ -51,16 +51,16 @@ export async function loadFonts(fonts: readonly FontSpec[]): Promise<void> {
   );
 }
 
-/** Is this mount host EMBEDDED inside another neo app? A top-level app roots on
+/** Is this mount host EMBEDDED inside another Declare app? A top-level app roots on
  *  a bare host (document.body's child); an embedded app is rendered into an
  *  `HTML []` island's box, which lives inside the outer app's marked tree
- *  (attachRoot stamps every app root `data-neo-app`). The child reads that ONE
+ *  (attachRoot stamps every app root `data-declare-app`). The child reads that ONE
  *  DOM signal to configure itself — no explicit "embedded" flag threads through.
  *  The mark is on the app ROOT element (a child of `host`), so `closest` from
  *  `host` sees only ANCESTOR apps, never this app's own just-attached root. */
 function isEmbedded(host: HTMLElement): boolean {
   return typeof document !== "undefined" && typeof host.closest === "function"
-    && host.closest("[data-neo-app]") !== null;
+    && host.closest("[data-declare-app]") !== null;
 }
 
 /** Per-app teardown for an EMBEDDED app's environment listeners (a top-level app
@@ -188,7 +188,7 @@ export function mountApp(app: App, host: HTMLElement, backend: RenderBackend): A
  *  never the parser or checker. */
 export function renderProgram(program: Program, host: HTMLElement, backend: RenderBackend): App {
   const root = instantiate(program);
-  if (!(root instanceof App)) throw new NeoError("a program's root must be 'App [ … ]'", program.root.pos);
+  if (!(root instanceof App)) throw new DeclareError("a program's root must be 'App [ … ]'", program.root.pos);
   return mountApp(root, host, backend);
 }
 
@@ -196,7 +196,7 @@ export function renderProgram(program: Program, host: HTMLElement, backend: Rend
  *  first paint measures against the real metrics (mirrors renderAsync). */
 export async function renderProgramAsync(program: Program, host: HTMLElement, backend: RenderBackend): Promise<App> {
   const root = instantiate(program);
-  if (!(root instanceof App)) throw new NeoError("a program's root must be 'App [ … ]'", program.root.pos);
+  if (!(root instanceof App)) throw new DeclareError("a program's root must be 'App [ … ]'", program.root.pos);
   await loadFonts(fontFacesOf(root));
   return mountApp(root, host, backend);
 }

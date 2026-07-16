@@ -76,7 +76,7 @@ Checkbox [ label = "Done", checked <-> done ],
 
 ```
 Checkbox.checked <-> …: the two-way arrow edits a dataset value through an editor's value
-slot (e.g. 'TextInput.text') — Checkbox is not an editor [NEO2000]
+slot (e.g. 'TextInput.text') — Checkbox is not an editor [DECLARE2000]
 ```
 
 A `Checkbox` is app-owned, not an editor; use `checked = { … }` + `input(v)` as above.

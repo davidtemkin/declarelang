@@ -1,7 +1,7 @@
 # Calendar: canvas kernel vs DHTML kernel — baseline perf comparison
 
 **Same app (`cal-bench-eager.lzx.js`, eager/immediate, inline-data), two runtimes:**
-- **CANVAS (neo):** own-pixels kernel `LFCcanvas-bench.js` (a frozen snapshot of `LFCcanvas.js`).
+- **CANVAS (Declare):** own-pixels kernel `LFCcanvas-bench.js` (a frozen snapshot of `LFCcanvas.js`).
 - **DHTML (oracle):** the original kernel `runtime/lfc/lfc.js` (per-view DOM-shadow tree).
 
 Measurement only — no kernel/app/runtime was modified. This is the "all the existing metrics
@@ -113,7 +113,7 @@ DHTML    first-paint→app-oninit   style 1.2 layout 5.1 paint 0.0 composite 0.9
 `lzprof.mjs` measures the `?profile` **instrumented** build (`lfc-profile.js` + a function-metered
 app), reconstructing self-time/calls per category (instantiate / constraint / sprite-dom / …) per
 phase. **It is inherently one-sided here:** that instrumented build is produced only by the original
-oracle compiler/runtime. The neo canvas kernel (`LFCcanvas.js`) has **no `?profile` variant**, and the
+oracle compiler/runtime. The Declare canvas kernel (`LFCcanvas.js`) has **no `?profile` variant**, and the
 precompiled static `.lzx.js` both builds share carries no `window.Profiler` buffers — so `lzprof`
 yields a breakdown for the **DHTML** kernel only and **cannot** produce a canvas counterpart. It is
 therefore reported as context, not as a canvas-vs-dhtml delta.

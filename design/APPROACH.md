@@ -33,7 +33,7 @@ An app is correct when **a person sees and feels the same app — or a crisper, 
 - **Verification:** the perceptual / vision-level diff + the AE oracle (reused from the canvas track) + interaction parity. Scene-graph diffing is at most a transient debugging convenience while things are still close — never a target.
 
 **Deliberately-not-reproduced ledger** (things we shed on purpose — add entries as found):
-1. The Flash-era **text-metric / letter-spacing adjustment**. neo uses the browser's native text metrics: crisper, correct, simpler.
+1. The Flash-era **text-metric / letter-spacing adjustment**. Declare uses the browser's native text metrics: crisper, correct, simpler.
 
 ## 4. Render model: DOM **and** Canvas, chosen at runtime
 
@@ -70,8 +70,8 @@ Each rung is a **vertical slice** — grammar + typecheck + runtime + a perceptu
 - **R6** — `class X extends View [ ]` (user components).
 - **R7** — layout.
 - **R8** — JSON data + `:path` + replication + DataSource lifecycle.
-- **→ neoweather** — assembles R0–R8; parity-or-better with the weather app.
-- **→ neocalendar** — states, richer layout, text input, scrollbars, drag, dialogs.
+- **→ weather** — assembles R0–R8; parity-or-better with the weather app.
+- **→ calendar-sample** — states, richer layout, text input, scrollbars, drag, dialogs.
 - **→ neodashboard** — windows, the component-heavy chrome, connection/chat.
 
 ## 8. Reuse / new map (starting point)

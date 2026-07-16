@@ -66,7 +66,7 @@ const R3_SOURCE = `App [ width=240, height=160, fill=#20242C,
   View [ x=10, y=10, width=100, height=60, opacity=0.5, fill=#FF0000,
     View [ x=20, y=10, width=60, height=40, fill=#FFFFFF ],
     View [ x=50, y=25, width=40, height=30, fill=#0000FF ] ],
-  Text [ x=10, y=90, text="Neo 72°", textColor=#FFE28A, fontSize=20, fontWeight=bold, fontFamily="Arial" ],
+  Text [ x=10, y=90, text="Declare 72°", textColor=#FFE28A, fontSize=20, fontWeight=bold, fontFamily="Arial" ],
   View [ x=130, y=10, width=80, height=60, fill=#3FA34D, clip="M10 5 L70 5 L40 55 Z" ],
   Image [ x=130, y=90, source="__IMG__" ],
   Image [ x=170, y=90, width=40, height=24, stretches=both, source="__IMG__" ],
@@ -271,7 +271,7 @@ const R8_DATA = {
 };
 const R8_DATA_B = { rows: [{ label: "one", w: 100, c: 0x4fc3f7 }] };
 
-// The auto-extent program (the neoweather rung's sub-slice): a never-sized
+// The auto-extent program (the weather rung's sub-slice): a never-sized
 // box whose extent two literal children define, an `echo` bar CONSUMING the
 // derived width/height through ordinary constraints (the weather app's
 // labels→fields idiom), and a never-sized stack combining auto-extent with a
@@ -765,7 +765,7 @@ function serveDist() {
       window.__ready = true;
     </script>`,
     // A bare harness for the STATIC-EXTRACTION identity test: the extractor
-    // rides the compiler BUNDLE (compile-browser re-exports seo.ts/headless.ts)
+    // rides the compiler BUNDLE (compile-browser re-exports static-html.ts/headless.ts)
     // and executes the program headlessly IN THIS PAGE — the run-anywhere claim
     // (design/capabilities.md §5), verified against Node byte-for-byte.
     "/extract-identity": `<!doctype html><meta charset="utf-8"><body><script type="module">
@@ -1137,7 +1137,7 @@ try {
         const t = window.__app.children[1];
         const c = document.createElement("canvas").getContext("2d");
         c.font = "bold 20px Arial";
-        const m = c.measureText("Neo 72°");
+        const m = c.measureText("Declare 72°");
         return [t.width, t.height, Math.ceil(m.width), Math.ceil(m.fontBoundingBoxAscent + m.fontBoundingBoxDescent)];
       });
       assert.equal(w, expW, "auto width = ceil(measured advance)");
@@ -2431,7 +2431,7 @@ try {
       const off = [...document.querySelectorAll("input,textarea")]
         .find((i) => i.getBoundingClientRect().left >= innerWidth);
       if (off) off.focus();                                        // must NOT scroll the frame
-      const root = document.querySelector("[data-neo-app]");
+      const root = document.querySelector("[data-declare-app]");
       return {
         offFrameInputFound: !!off,
         docX: d.scrollWidth - d.clientWidth,
@@ -2479,7 +2479,7 @@ try {
     const cases = [
       "App [ width = 100, height = 100, n: number = 3, v: View [ width = { app.n * 2 } ] ]", // clean, with deps
       "App [ v: Txet [ ] ]",                                                                  // error + suggestion + hint
-      "App [ v: View [ width = { app.mysteryLib() } ] ]",                                     // constraint residue (NEO7001)
+      "App [ v: View [ width = { app.mysteryLib() } ] ]",                                     // constraint residue (DECLARE7001)
     ];
     for (const src of cases) {
       const { transport, json } = await page.evaluate((s) => window.__run(s), src);

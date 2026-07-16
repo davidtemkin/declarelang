@@ -151,9 +151,9 @@ test("link: text + href", () => {
 });
 
 test("autolink", () => {
-  const n = parseInline("<https://neo.dev>");
+  const n = parseInline("<https://Declare.dev>");
   assert.equal(n[0].t, "link");
-  assert.equal(n[0].href, "https://neo.dev");
+  assert.equal(n[0].href, "https://Declare.dev");
 });
 
 test("backslash escape", () => {

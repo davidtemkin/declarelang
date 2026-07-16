@@ -23,7 +23,7 @@ export declare class TextInput extends Editor {
      *  it, exactly like any author write (attributes.ts set path), so a field can
      *  be seeded from a binding yet stay editable. */
     private onNativeInput;
-    /** Neo focus arrived/left — give or take the platform caret (Layer 2 hook,
+    /** Declare focus arrived/left — give or take the platform caret (Layer 2 hook,
      *  separate from the author's onFocus/onBlur). */
     focusChanged(focused: boolean): void;
 }

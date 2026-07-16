@@ -1,6 +1,6 @@
 // Markdown — the rich content component (design/text-and-markdown.md). Points
 // at any string and renders it: `Markdown [ text = … ]`. The string is parsed
-// (md.ts, the standalone reader) into the block tree; each block becomes neo
+// (md.ts, the standalone reader) into the block tree; each block becomes Declare
 // views, stacked vertically, wrapped, styled by the `prose` defaults. The
 // render is REACTIVE: a Constraint over `text` (and `width`) re-renders when
 // either changes, so a computed/streamed value renders live and a resize
@@ -10,7 +10,7 @@
 // absolute offset — no nested auto-size ordering). The INLINE tier is a
 // multi-run layout: a paragraph's styled runs (strong/em/code/link/strike) are
 // wrapped together across style boundaries and emitted as one `Text` per
-// styled segment-piece (plus a chip behind code, a rule through strike). neo's
+// styled segment-piece (plus a chip behind code, a rule through strike). Declare's
 // `Text` is one style per run, so rich flow is composed FROM runs, not a new
 // backend primitive — both backends render it identically, for free.
 import { View, onDiscard, fireEvent } from "./view.js";

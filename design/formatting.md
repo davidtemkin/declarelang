@@ -12,7 +12,7 @@ The reference artifact is
 [weather.declare](weather.declare) — every rule below is
 extracted from its rhythm, not invented in the abstract. Where an example is
 needed that uses landed grammar only, it is redrawn from
-[neolang/apps/neoweather/neoweather.declare](../neolang/apps/neoweather/neoweather.declare),
+[neolang/apps/weather/weather.declare](../neolang/apps/weather/weather.declare),
 the one real formatted app. (weather.declare itself still carries
 unlanded/rejected surface — bare-string `Text [ "OK", … ]`, `<->`, `schema`,
 `state`, `<-` — see "v1 scope" below for what that means for the tool.)
@@ -132,7 +132,7 @@ not something the tool computes — the formatter is **line-preserving**. It
 never packs members up onto a fuller line and never re-wraps an over-long
 one; the author's line breaks are canonical, and the formatter's business is
 what happens *within* and *between* the lines the author chose (§4). From
-neoweather:
+weather:
 
 ```Declare
 class WeatherSummary extends View [ backgroundColor = #000000, width = 34, height = 34, x = 10,
@@ -178,7 +178,7 @@ App [ width = 240, height = 320, backgroundColor = #EAEAEA,
 Deep composition, by contrast, stays **tight**: a nested body whose members
 are all one-line leaves gets no interior blanks — the leaves are close
 enough kin that whitespace between them would just be noise. Compare the
-label/value StatRow calls in neoweather:
+label/value StatRow calls in weather:
 
 ```Declare
 StatRow [ label = "Humidity:", value = :atmosphere.humidity ],
@@ -524,7 +524,7 @@ and a single space stays a single space. The same
 below-the-floor-normalize, at-or-above-preserve school as the
 trailing-comment gap, §2.7.)
 
-> **Landed apps predate this ruling.** `neoweather.declare` is still written
+> **Landed apps predate this ruling.** `weather.declare` is still written
 > in the aligned style and now diverges from canon; it awaits a single-space
 > reformat pass (a mechanical, semantics-preserving change — §5.6 gates it).
 > The single-space examples above are drawn from
@@ -607,9 +607,9 @@ them as opaque text, re-indents the block as a whole to its new position
 (shifting every line by the same delta), and leaves the TS text inside
 untouched otherwise. This keeps the formatter out of the business of
 having a TypeScript style opinion and keeps v1 small. The bracket *shape* is
-still neo's — the opening `{` rides the signature/header line and the
+still Declare's — the opening `{` rides the signature/header line and the
 closing `},`/`}` hangs at body indent per §2 — but the expression text
-between them is TS's own; only the neo-owned bracket skeleton is normalized.
+between them is TS's own; only the Declare-owned bracket skeleton is normalized.
 Revisiting whether to reformat interior TS (matching the declarative
 bracket style, per the seam in language-doc §3) is future work, not a v1
 gap to apologize for.
@@ -625,7 +625,7 @@ editable-text era), `schema = [ … ]` (Schema is designed, not implemented
 — HANDOFF §13), `state … when { … } [ … ]` (states are a settled *language*
 construct per language-doc §10, but not yet in `parser.ts`'s accepted
 grammar as of this writing), and `<- Keys` event subscriptions (deferred
-per the R6/neoweather rulings on `event`/`<-`). None of that is a defect in
+per the R6/weather rulings on `event`/`<-`). None of that is a defect in
 this spec — every rule above is stated in terms general enough to already
 cover those constructs (a `state` block is "a member whose body contains
 multi-line members," same as any other; a `<->` binding is an attribute
@@ -633,11 +633,11 @@ value like any other) — it is simply that the *tool* cannot exercise those
 paths until the grammar lands them.
 
 The **test corpus** is therefore the landed programs:
-`neolang/apps/neoweather/neoweather.declare` first (the one real formatted
+`neolang/apps/weather/weather.declare` first (the one real formatted
 app, and the source of every "landed-grammar" example in this document),
 then whatever else lands as Declare apps accumulate. As `state`/`<->`/`event`
 land in the grammar, they join the corpus and the worked examples above
-that had to be redrawn from neoweather can be redrawn again from
+that had to be redrawn from weather can be redrawn again from
 weather.declare directly, closing the gap between "canon" and
 "the reference artifact" for good.
 
@@ -668,7 +668,7 @@ A formatter change is accepted only when all of the following hold:
 2. **Token-identity vs. input**, per §5.5 — proven on the whole test
    corpus, not spot-checked.
 3. **The perceptual suite stays green** after formatting the real app
-   sources (neoweather today, more apps as they land) — formatting must
+   sources (weather today, more apps as they land) — formatting must
    never perturb a running program's rendered output, which is the
    strongest evidence the "semantic no-op" property actually holds in
    practice, not just in the token-stream proof.
@@ -680,6 +680,6 @@ motion v1 — both of those touch `parser.ts`, and landing the formatter
 concurrently would mean building TRIVIA mode against a moving grammar
 target twice. Once styling and motion v1 are landed, the formatter rung
 begins with the TRIVIA-mode parser change (§5.2), then `format.ts` itself,
-then the corpus gate (§5.6) against neoweather — whose first formatted pass
+then the corpus gate (§5.6) against weather — whose first formatted pass
 is also its single-space reformat (§3), bringing the landed app back into
 conformance with this canon.

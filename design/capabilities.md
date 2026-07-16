@@ -168,7 +168,7 @@ lives inside the extractor and never touches the language surface
 identical on every host: size and weight are SET attributes, never measured
 geometry.
 
-**Two artifacts, one extractor** (compiler/src/seo.ts, exported by BOTH
+**Two artifacts, one extractor** (compiler/src/static-html.ts, exported by BOTH
 compile-node and compile-browser — full parity, the browser compiler can do
 everything the Node one can):
 
@@ -179,7 +179,7 @@ everything the Node one can):
   server-side when the flag rides a run URL.
 - **Request type `?extract`** (reqtypes.ts) — the extracted document ALONE,
   `text/html`. The dev server extracts in Node; the static host's service
-  worker serves a page that extracts in-browser (browser/boot-seo.js) — the same
+  worker serves a page that extracts in-browser (browser/boot-extract.js) — the same
   extractor module both times. Distinct from the bare `?crawler`, which is the *flag*
   (embed the document in the run page, not return it alone).
 
@@ -208,7 +208,7 @@ that knows library attribute names.
   and attaches a `LinkTarget` to the element (parser `Element.link`). The
   relation rides the `compile()` result exactly as `deps` do (a sparse
   walk-order side-list, runtime links.ts); execution stamps each instance
-  (`_navLink`, instantiate.ts); the serializer (seo.ts) evaluates the target at
+  (`_navLink`, instantiate.ts); the serializer (static-html.ts) evaluates the target at
   the t=0 snapshot and wraps the matched subtree in `<a href>`.
 - Only ACTIVATION handlers (`onClick`) become anchors; a `navigate` in `onInit`
   emits no `<a>`.
@@ -249,7 +249,7 @@ the three apps) owning the whole channel as its OWN attributes:
 - No `liveCard` at all — it was pure multiplexing of the singleton channel.
 
 The host↔component seam is the island mechanism host-client.js already uses
-(`data-neo-slot="run:<name>"` — the host finds instances, manages interiors;
+(`data-declare-slot="run:<name>"` — the host finds instances, manages interiors;
 the D-5 pattern). The App carries zero editing knowledge.
 
 **Interim state (today).** The app-authored flags (`editing`, `liveCard`,

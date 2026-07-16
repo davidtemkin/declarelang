@@ -45,7 +45,7 @@ const INSTALLED = new WeakMap<View, () => void>();
 // Re-exported here so existing importers keep their path.
 export { onDiscard } from "./node.js";
 
-// ── Auto-extent (the neoweather rung, ruled at the R7 checkpoint) ──────────
+// ── Auto-extent (the weather rung, ruled at the R7 checkpoint) ──────────
 //
 // A view whose width/height the author never set sizes to its children's
 // extents — LZX's measureSize semantics (LaszloView.lzs, read for intent),
@@ -74,7 +74,7 @@ const AXIS_OF = { width: "x", height: "y" } as const;
 export class View extends Node {
   /** The navigation target the compiler's link extraction (links.ts) found for
    *  this instance's activation handler — stamped by instantiate from the source
-   *  element's `link`. Read only by the static extractor (seo.ts) to wrap the
+   *  element's `link`. Read only by the static extractor (static-html.ts) to wrap the
    *  subtree in `<a href>`; undefined for all but the handful of navigable views. */
   _navLink?: LinkTarget;
   declare x: number;
@@ -356,7 +356,7 @@ export class View extends Node {
   }
 
   /** Internal focus notification, called by the focus service when this view
-   *  gains (true) or loses (false) neo focus — SEPARATE from the user's
+   *  gains (true) or loses (false) Declare focus — SEPARATE from the user's
    *  `onFocus`/`onBlur` handlers, so a built-in component (TextInput) can drive
    *  its native element without occupying the author's event slot. No-op on a
    *  plain view. */
@@ -774,9 +774,9 @@ defineAttributes(App, {
 });
 
 /** HTML — a foreign-content island (design: the `HTML [ … ]` view). A leaf View
- *  whose box neo lays out and constrains normally, but whose interior is
+ *  whose box Declare lays out and constrains normally, but whose interior is
  *  host-managed DOM: the `slot` key is reflected onto the element (DOM backend)
- *  so the host can mount an iframe / textarea / any element into the neo-sized
+ *  so the host can mount an iframe / textarea / any element into the Declare-sized
  *  box — its width/height follow this view's constraints with no coordinate
  *  sync. (Canvas backend realizes the same island as a positioned DOM overlay
  *  — setEmbed is a no-op there for now.) */

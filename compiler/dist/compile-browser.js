@@ -31,9 +31,9 @@ export { provideLib } from "./typecheck.js";
 export { highlight } from "./highlight.js";
 // Static extraction — the same block compile-node.ts exports (parity: the
 // browser compiler does everything the Node one can, as architecture and as
-// principle). browser/boot-seo.js composes these with compileTracked below for
-// the static host's `?extract`. See seo.ts / headless.ts.
-export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, seoDocument } from "./seo.js";
+// principle). browser/boot-extract.js composes these with compileTracked below for
+// the static host's `?extract`. See static-html.ts / headless.ts.
+export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
 export { crawlLocations, crawlDocument, fragmentHrefs, canonKey } from "./crawl.js";
 export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
 /** Collapse `.` / `..` segments in a POSIX-ish path so the resolved key matches

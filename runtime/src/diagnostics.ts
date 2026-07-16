@@ -3,34 +3,34 @@
 // resolution, module/include, and the tsc typecheck). Not a typecheck-only
 // facility: it is the single home for how a Declare compile reports a problem.
 //
-// A `Diagnostic` is a structured error — a stable CODE (NEO####), a severity, a
+// A `Diagnostic` is a structured error — a stable CODE (DECLARE####), a severity, a
 // phase, the message, a source position, and an optional fix hint — rendered by
 // the one formatter here. Codes are grouped by phase so a reader (and tooling)
 // can classify at a glance:
 //
-//   NEO1xxx  syntax     — the parser (a token/shape the grammar rejects)
-//   NEO2xxx  structure  — an element misused: unknown/duplicate name, a member
+//   DECLARE1xxx  syntax     — the parser (a token/shape the grammar rejects)
+//   DECLARE2xxx  structure  — an element misused: unknown/duplicate name, a member
 //                         placed where its node-kind forbids, a bad namespace
-//   NEO3xxx  type       — a literal/value that doesn't fit its slot (coercion),
+//   DECLARE3xxx  type       — a literal/value that doesn't fit its slot (coercion),
 //                         a percent with no axis, a malformed datapath
-//   NEO4xxx  name       — bare-name resolution (unresolved; shadowing = warning)
-//   NEO5xxx  module     — include resolution (collision, missing, stray root)
-//   NEO6xxx  typecheck  — a tsc diagnostic over a { } body, mapped to neo
-//   NEO7xxx  constraint — a { } constraint the dependency extractor cannot
+//   DECLARE4xxx  name       — bare-name resolution (unresolved; shadowing = warning)
+//   DECLARE5xxx  module     — include resolution (collision, missing, stray root)
+//   DECLARE6xxx  typecheck  — a tsc diagnostic over a { } body, mapped to Declare
+//   DECLARE7xxx  constraint — a { } constraint the dependency extractor cannot
 //                         statically analyze (residue) — a hard error that
 //                         names the rewrite that makes it analyzable
 //
-// Interop: the compiler collects `NeoError[]` internally (throw + aggregate).
-// A NeoError carries the catalog `code`/`hint` as ADDITIVE metadata (errors.ts)
+// Interop: the compiler collects `DeclareError[]` internally (throw + aggregate).
+// A DeclareError carries the catalog `code`/`hint` as ADDITIVE metadata (errors.ts)
 // — its `.message` is unchanged, so message-asserting tests keep passing. The
-// catalog factories below build coded NeoErrors, so a site migrates by swapping
-// `new NeoError(msg, pos)` → `Diag.<kind>(…)` with NO wording change. compile()
-// turns each phase's NeoError[] into Diagnostic[] at the boundary (toDiagnostic),
+// catalog factories below build coded DeclareErrors, so a site migrates by swapping
+// `new DeclareError(msg, pos)` → `Diag.<kind>(…)` with NO wording change. compile()
+// turns each phase's DeclareError[] into Diagnostic[] at the boundary (toDiagnostic),
 // assigning a phase code to any error a site has not yet given a specific one —
 // so EVERY compile error flows through this mechanism and carries a code today,
 // and the migration to specific codes is incremental.
 
-import { NeoError, type Pos } from "./errors.js";
+import { DeclareError, type Pos } from "./errors.js";
 
 export type Severity = "error" | "warning";
 
@@ -48,7 +48,7 @@ export type DiagPhase = "syntax" | "structure" | "type" | "name" | "module" | "t
  *  grows (related positions, fix-its), dumb consumers inherit the improved
  *  rendering with no code change. No information may exist ONLY in the string. */
 export interface Diagnostic {
-  code: string; // NEO####
+  code: string; // DECLARE####
   severity: Severity;
   phase: DiagPhase;
   message: string; // without the "(line …, col …)" suffix — pos carries it
@@ -67,8 +67,8 @@ export interface Diagnostic {
  *  repo-wide rename: every code is BUILT (and parsed) through this constant,
  *  so the rename is a single-point change here (tests asserting rendered codes
  *  update with it). */
-export const CODE_PREFIX = "NEO";
-/** Build a full code from its 4-digit number: `code4(2001)` → "NEO2001". */
+export const CODE_PREFIX = "DECLARE";
+/** Build a full code from its 4-digit number: `code4(2001)` → "DECLARE2001". */
 const code4 = (n: number): string => `${CODE_PREFIX}${n}`;
 
 const BASE: Record<DiagPhase, string> = {
@@ -97,15 +97,15 @@ export function phaseOfCode(code: string): DiagPhase {
 }
 
 // ── The template catalog ─────────────────────────────────────────────────────
-// Each factory returns a coded NeoError (message identical to the hand-written
+// Each factory returns a coded DeclareError (message identical to the hand-written
 // wording it replaces). Recurring families get a parameterized template; the
 // long tail of one-off messages gets a per-phase FAMILY wrapper (`syntax` /
 // `structure` / `type` / `module`) that attaches the family code to a message
 // the call site still composes — a near-mechanical migration that still yields
 // a code. `code()` is the escape hatch for a fully custom (code, message).
 
-const err = (code: string, message: string, pos?: Pos, hint?: string): NeoError =>
-  new NeoError(message, pos, { code, hint });
+const err = (code: string, message: string, pos?: Pos, hint?: string): DeclareError =>
+  new DeclareError(message, pos, { code, hint });
 
 // ── Calibrated near-miss suggestion (diagnostics.md §4 / the LLM-design doc's
 // calibration rule): a model applies a "did you mean" LITERALLY, so a wrong
@@ -157,12 +157,12 @@ export function nearestName(name: string, candidates: readonly string[]): string
 export const Diag = {
   // 1xxx syntax — the parser throws one at a time; a single family code, the
   // grammar message carrying the specifics.
-  syntax: (message: string, pos?: Pos): NeoError => err(code4(1001), message, pos),
+  syntax: (message: string, pos?: Pos): DeclareError => err(code4(1001), message, pos),
 
   // 2xxx structure. `unknownComponent` takes the known-component names and
   // appends a calibrated near-miss ("did you mean 'Text'?") — the fix, named
   // (diagnostics.md §4); the rule rides the hint.
-  unknownComponent: (tag: string, pos: Pos, candidates: readonly string[] = []): NeoError => {
+  unknownComponent: (tag: string, pos: Pos, candidates: readonly string[] = []): DeclareError => {
     const near = nearestName(tag, candidates);
     return near === null
       ? err(code4(2001), `unknown component '${tag}'`, pos)
@@ -173,32 +173,32 @@ export const Diag = {
           `a tag names a built-in component or a class declared in the program`
         );
   },
-  duplicateName: (message: string, pos: Pos): NeoError => err(code4(2002), message, pos),
-  misplaced: (message: string, pos: Pos): NeoError => err(code4(2003), message, pos),
-  namespace: (message: string, pos: Pos): NeoError => err(code4(2004), message, pos),
-  structure: (message: string, pos?: Pos): NeoError => err(code4(2000), message, pos),
+  duplicateName: (message: string, pos: Pos): DeclareError => err(code4(2002), message, pos),
+  misplaced: (message: string, pos: Pos): DeclareError => err(code4(2003), message, pos),
+  namespace: (message: string, pos: Pos): DeclareError => err(code4(2004), message, pos),
+  structure: (message: string, pos?: Pos): DeclareError => err(code4(2000), message, pos),
 
   // 3xxx type / value
-  typeMismatch: (message: string, pos: Pos): NeoError => err(code4(3001), message, pos),
-  badPercent: (message: string, pos: Pos): NeoError => err(code4(3002), message, pos),
-  badDatapath: (message: string, pos: Pos): NeoError => err(code4(3003), message, pos),
-  setTwice: (message: string, pos: Pos): NeoError => err(code4(3004), message, pos),
-  type: (message: string, pos?: Pos): NeoError => err(code4(3000), message, pos),
+  typeMismatch: (message: string, pos: Pos): DeclareError => err(code4(3001), message, pos),
+  badPercent: (message: string, pos: Pos): DeclareError => err(code4(3002), message, pos),
+  badDatapath: (message: string, pos: Pos): DeclareError => err(code4(3003), message, pos),
+  setTwice: (message: string, pos: Pos): DeclareError => err(code4(3004), message, pos),
+  type: (message: string, pos?: Pos): DeclareError => err(code4(3000), message, pos),
 
   // 4xxx name resolution
-  unresolved: (name: string, scope: string, pos: Pos): NeoError =>
+  unresolved: (name: string, scope: string, pos: Pos): DeclareError =>
     err(code4(4001), `cannot resolve '${name}' — not a member of ${scope}, a parameter, or a global`, pos),
-  shadowing: (message: string, pos: Pos): NeoError => err(code4(4002), message, pos),
+  shadowing: (message: string, pos: Pos): DeclareError => err(code4(4002), message, pos),
 
   // 5xxx module / include
-  includeCollision: (message: string, pos?: Pos): NeoError => err(code4(5001), message, pos),
-  missingInclude: (path: string, pos?: Pos): NeoError => err(code4(5002), `cannot find include "${path}"`, pos),
-  strayRoot: (message: string, pos: Pos): NeoError => err(code4(5003), message, pos),
-  module: (message: string, pos?: Pos): NeoError => err(code4(5000), message, pos),
+  includeCollision: (message: string, pos?: Pos): DeclareError => err(code4(5001), message, pos),
+  missingInclude: (path: string, pos?: Pos): DeclareError => err(code4(5002), `cannot find include "${path}"`, pos),
+  strayRoot: (message: string, pos: Pos): DeclareError => err(code4(5003), message, pos),
+  module: (message: string, pos?: Pos): DeclareError => err(code4(5000), message, pos),
 
   // 6xxx typecheck (tsc over a { } body). `tsCode` (e.g. 2322) rides in the
-  // hint so the neo message stays clean but the TS origin is recoverable.
-  typeError: (message: string, pos: Pos, tsCode: number): NeoError =>
+  // hint so the Declare message stays clean but the TS origin is recoverable.
+  typeError: (message: string, pos: Pos, tsCode: number): DeclareError =>
     err(code4(6001), message, pos, `TypeScript ${tsCode}`),
 
   // 7xxx constraint — the dependency extractor met a { } constraint it cannot
@@ -206,21 +206,21 @@ export const Diag = {
   // The message is composed at the call site and NAMES the rewrite that makes it
   // analyzable (diagnostics.md §4), so it rides the family code with the
   // specifics in `message`.
-  residue: (message: string, pos: Pos): NeoError => err(code4(7001), message, pos),
-  constraint: (message: string, pos?: Pos): NeoError => err(code4(7000), message, pos),
+  residue: (message: string, pos: Pos): DeclareError => err(code4(7001), message, pos),
+  constraint: (message: string, pos?: Pos): DeclareError => err(code4(7000), message, pos),
 
   /** Escape hatch: a fully custom (code, message) for a site that fits no
    *  family yet. Prefer a named factory. */
-  code: (code: string, message: string, pos?: Pos, hint?: string): NeoError => err(code, message, pos, hint),
+  code: (code: string, message: string, pos?: Pos, hint?: string): DeclareError => err(code, message, pos, hint),
 };
 
 // ── Conversion + formatting ──────────────────────────────────────────────────
 
-/** Turn a collected NeoError into a Diagnostic. `severity` says which list it
+/** Turn a collected DeclareError into a Diagnostic. `severity` says which list it
  *  came from (errors vs warnings); the code is the error's own if a catalog
- *  factory set one, else the phase fallback — so an un-migrated `new NeoError`
+ *  factory set one, else the phase fallback — so an un-migrated `new DeclareError`
  *  still lands with a valid code and phase. */
-export function toDiagnostic(e: NeoError, severity: Severity, fallbackPhase: DiagPhase): Diagnostic {
+export function toDiagnostic(e: DeclareError, severity: Severity, fallbackPhase: DiagPhase): Diagnostic {
   const code = e.code ?? BASE[fallbackPhase];
   const d = {
     code,
@@ -260,7 +260,7 @@ export function renderReport(diagnostics: readonly Diagnostic[]): string {
 
 /** The browsable catalog — every code, its phase, and a one-line summary. The
  *  data form of the "set of message templates" (docs / tooling / a future
- *  `neo explain NEO3001`). */
+ *  `Declare explain DECLARE3001`). */
 export const DIAGNOSTIC_CATALOG: ReadonlyArray<{ code: string; phase: DiagPhase; summary: string }> = [
   { code: code4(1001), phase: "syntax", summary: "the parser rejected a token or shape" },
   { code: code4(2000), phase: "structure", summary: "structural error (unclassified)" },

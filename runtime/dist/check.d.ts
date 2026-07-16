@@ -1,5 +1,5 @@
 import type { Element, Attr, Method, AttrDecl, ClassDecl, Program, Literal } from "./parser.js";
-import { NeoError, type Pos } from "./errors.js";
+import { DeclareError, type Pos } from "./errors.js";
 import { type ComponentSchema } from "./schema.js";
 import { type AttrType, type AttrValue } from "./value.js";
 /** The styling declarations in scope while an element tree checks: the
@@ -16,7 +16,7 @@ export interface StyleEnv {
 /** Typecheck a parsed tree — a whole Program (classes + root) or a bare
  *  Element fragment. Returns every error found, in source order — an empty
  *  array means the tree is well-typed and safe to instantiate. */
-export declare function check(input: Element | Program): NeoError[];
+export declare function check(input: Element | Program): DeclareError[];
 /** One registered user class: its declaration, its schema, and its declared
  *  attributes' coerced defaults (undefined = "no default; starts undefined
  *  until set"). instantiate.ts synthesizes the runtime twin from this. */
@@ -38,22 +38,22 @@ export interface ClassInfo {
 export declare function programSchemas(classes: readonly ClassDecl[]): {
     infos: ClassInfo[];
     schemas: Record<string, ComponentSchema>;
-    errors: NeoError[];
+    errors: DeclareError[];
 };
 /** Validate a program's `stylesheet`/`style` declarations and produce the
  *  StyleEnv the element walk resolves against. One message source with
  *  instantiate: both consume the same helpers (checkAttr, coerceToken via
  *  checkThemeRecord/checkEntry), so a direct instantiate of an unchecked
  *  tree dies with the same wording. */
-export declare function checkStyleDecls(program: Program, schemas: Readonly<Record<string, ComponentSchema>>, errors: NeoError[]): StyleEnv;
+export declare function checkStyleDecls(program: Program, schemas: Readonly<Record<string, ComponentSchema>>, errors: DeclareError[]): StyleEnv;
 /** One class-keyed entry: attribute sets only, each an attribute the class
  *  declares (any public attribute — ruled uniformity), of a stylable kind,
  *  a literal or a `{ }` (evaluated with `this` = the styled view). */
-export declare function checkEntry(where: string, entry: Element, schema: ComponentSchema): NeoError[];
+export declare function checkEntry(where: string, entry: Element, schema: ComponentSchema): DeclareError[];
 /** The skin's token record: `theme: Theme [ accent = #4F8EF7, radius = 6 ]`
  *  — token names are free (a Theme is schema-less in v1), values are plain
  *  literals or decoration constructors. */
-export declare function checkThemeRecord(where: string, rec: Element): NeoError[];
+export declare function checkThemeRecord(where: string, rec: Element): DeclareError[];
 /** A theme token's value, or undefined when the literal isn't token-shaped.
  *  Colors coerce through the Color grammar (alpha forms included); the
  *  decoration constructors coerce through their own slots' grammars. */
@@ -74,7 +74,7 @@ export type CheckedDecl = {
     };
 } | {
     ok: false;
-    error: NeoError;
+    error: DeclareError;
 };
 export declare function checkDecl(schema: ComponentSchema, d: AttrDecl, owner?: string): CheckedDecl;
 /** An element's schema plus its inline declarations — the anonymous one-off
@@ -91,7 +91,7 @@ export declare function manyPathOf(el: Element, schemas: Readonly<Record<string,
  *  methods by nature, and `{ }`-driven layout attributes are a recorded open
  *  question. One message source: check() collects these, instantiate()
  *  throws the first. */
-export declare function checkComponentValue(schemas: Readonly<Record<string, ComponentSchema>>, owner: string, attrName: string, of: string, el: Element): NeoError[];
+export declare function checkComponentValue(schemas: Readonly<Record<string, ComponentSchema>>, owner: string, attrName: string, of: string, el: Element): DeclareError[];
 /** One checked attribute: a coerced literal value, a `{ }` binding to
  *  install, a `:path` data relationship (R8), or the (unthrown) error. */
 export type CheckedAttr = {
@@ -112,7 +112,7 @@ export type CheckedAttr = {
     };
 } | {
     ok: false;
-    error: NeoError;
+    error: DeclareError;
 };
 /** The CSS-instinct hint for an unknown attribute name, or "" when the miss
  *  isn't a known CSS name. */
@@ -126,7 +126,7 @@ export type CheckedMethod = {
     ok: true;
 } | {
     ok: false;
-    error: NeoError;
+    error: DeclareError;
 };
 /** Validate one method member against a schema (R5): its name must be free
  *  (not an attribute's — methods and attributes are one member namespace,

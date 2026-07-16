@@ -19,7 +19,7 @@ import { Node } from "./node.js";
 import { View } from "./view.js";
 import { Constraint } from "./reactive.js";
 import { defineAttributes, disown, disposeBindings, own, ownerOf, setBound } from "./attributes.js";
-import { NeoError } from "./errors.js";
+import { DeclareError } from "./errors.js";
 import type { Element } from "./parser.js";
 import type { Surface } from "./backend.js";
 
@@ -179,7 +179,7 @@ export class State extends Node {
    *  sync), the sanctioned path, not a raw assignment. */
   private drive(v: boolean): void {
     if (ownerOf(this, "applied") !== null) {
-      throw new NeoError(
+      throw new DeclareError(
         `${this.constructor.name}.applied is bound by a constraint — a state is gated by { } OR driven by the verbs, not both; change what the gate reads instead of calling ${v ? "apply" : "remove"}()`
       );
     }

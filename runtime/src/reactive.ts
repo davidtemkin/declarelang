@@ -11,7 +11,7 @@
 // (LzNode.applyConstraintMethod, LzDelegate). That machinery is read here for
 // intent only — the intent (precise, declarative dependency) is kept; the
 // delegate/event objects, per-attribute event tables, and eager fan-out are
-// the deadweight neo sheds (APPROACH §2/§6).
+// the deadweight Declare sheds (APPROACH §2/§6).
 //
 // Division of labor with the future compiler path (APPROACH §5): the compiler
 // will typecheck bodies with tsc and *prewire* static dependencies, replacing
@@ -19,7 +19,7 @@
 // guard — this module — stay. Runtime tracking remains for genuinely dynamic
 // reads (language §7 "Cost"), so the seam is exactly: who calls `reads()`.
 
-import { NeoError } from "./errors.js";
+import { DeclareError } from "./errors.js";
 
 /** The computation currently recording its reads; null almost always —
  *  which is what makes an untracked read one pointer comparison. */
@@ -192,7 +192,7 @@ export class Constraint {
       this.runs = 0;
     }
     if (++this.runs > CYCLE_LIMIT) {
-      throw new NeoError(
+      throw new DeclareError(
         `constraint cycle: ${this.label} re-evaluated ${CYCLE_LIMIT} times in one update — it (transitively) depends on its own output`
       );
     }
@@ -239,7 +239,7 @@ function enqueue(c: Constraint): void {
  *  (phase 0), then draw re-records (phase 1) — looping back if a draw body
  *  wrote reactive state. Runs automatically as a microtask after any write;
  *  exported so tests (and later, tooling) can force a deterministic settle.
- *  Throws NeoError on a constraint cycle. */
+ *  Throws DeclareError on a constraint cycle. */
 export function settle(): void {
   scheduled = false;
   if (flushing) return;

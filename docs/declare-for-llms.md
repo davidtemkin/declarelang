@@ -297,7 +297,7 @@ Also provided, undeclared: keyboard focus travels the controls (Tab / Shift-Tab;
 
 1. **Write** `.declare` source — the tree is the app. Apps are typically one file; a file can pull in others with `include [ "path.declare" ]` (top-level declarations merge, include-once), and library components need no include at all — a bare tag auto-includes them.
 2. **Compile** — dev server: `npm start`, then `http://127.0.0.1:8200/examples/<name>/`; or POST the source to `/compile`; or in the browser (the playground on the homepage). Add `?typecheck=1` to also run TypeScript over every `{ }` body. Add `?backend=canvas` to render own-pixels instead of DOM — same source, same pixels.
-3. **Read the errors.** Every compile error carries a code (`NEO####`), a line/column, and — deliberately — *the fix*: Declare's diagnostics are written for a model in a loop, so the message states the rule you broke and the one rewrite that resolves it. Trust the message; apply the named fix; recompile. All independent errors in a phase are reported together.
+3. **Read the errors.** Every compile error carries a code (`DECLARE####`), a line/column, and — deliberately — *the fix*: Declare's diagnostics are written for a model in a loop, so the message states the rule you broke and the one rewrite that resolves it. Trust the message; apply the named fix; recompile. All independent errors in a phase are reported together.
 4. **Ship** — `node tools/declarec.mjs <file>` emits a self-contained production bundle (app + runtime, ~50 KB gzipped).
 
 ## 13. Going deeper

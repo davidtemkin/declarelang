@@ -16,7 +16,7 @@
 //     After this, `client.compile(src)` just works — bare tags (`Bar [ ]`)
 //     resolve with no per-call ceremony.
 //
-// The raw NeoError lists deliberately do NOT cross this surface: `diagnostics`
+// The raw DeclareError lists deliberately do NOT cross this surface: `diagnostics`
 // is the public structured view (each entry carrying its `rendered` form) and
 // `report` the whole compile rendered — the same dual-form contract the Node
 // API, the dev server's POST /compile, and the CLI all speak.

@@ -1,4 +1,4 @@
-import { NeoError } from "../../runtime/dist/errors.js";
+import { DeclareError } from "../../runtime/dist/errors.js";
 import { type SerializedLink } from "../../runtime/dist/links.js";
 import { type IncludeHost } from "../../runtime/dist/include.js";
 import { type Diagnostic } from "../../runtime/dist/diagnostics.js";
@@ -9,7 +9,7 @@ import { type Diagnostic } from "../../runtime/dist/diagnostics.js";
  *  or forgets it. `warnings` (shadowing) never block. `diagnostics` is the
  *  unified, coded view of everything reported (errors + warnings, every phase —
  *  the one structured surface, diagnostics.ts); `errors`/`warnings` remain the
- *  raw NeoError lists for existing callers. */
+ *  raw DeclareError lists for existing callers. */
 export interface Compiled {
     source: string | null;
     deps?: readonly (readonly string[])[];
@@ -18,8 +18,8 @@ export interface Compiled {
      *  `source` is. Rides the ONE result like `deps`; the runtime zips it back on
      *  and the static extractor turns each into an `<a href>`. */
     links?: readonly SerializedLink[];
-    errors: NeoError[];
-    warnings: NeoError[];
+    errors: DeclareError[];
+    warnings: DeclareError[];
     diagnostics: Diagnostic[];
     /** The whole compile RENDERED (renderReport): a count summary + each
      *  diagnostic's `rendered`, one per line; "" when there is nothing to say.
@@ -38,7 +38,7 @@ export interface CompileOptions {
      *  of THE compile like every other phase: the checker is imported directly
      *  (never injected), so no front-end can exist where this flag silently
      *  no-ops. A type error blocks emission like any other, reported as an
-     *  NEO6001 diagnostic mapped to its `.declare` line. `typecheck: false`
+     *  DECLARE6001 diagnostic mapped to its `.declare` line. `typecheck: false`
      *  (URL `?typecheck=0`, CLI `--no-typecheck`) is the EXPLICIT opt-out for a
      *  latency-critical loop (a debounced per-keystroke compile) — a visible,
      *  greppable choice, never a wiring accident. */

@@ -98,7 +98,7 @@ build time).
 | view=edit | ✗ | ✓ | ✓ |
 | file | ✓ *(trivial — it's the input)* | ✓ | ✓ |
 | segments | ✓ `--highlight` | ✓ | gap → highlight in-browser |
-| extract | ✓ `--extract` | ✓ | ✓ (`boot-seo.js`, in-browser) |
+| extract | ✓ `--extract` | ✓ | ✓ (`boot-extract.js`, in-browser) |
 
 Blanks marked "gap" are implementation debt, not rules: the SW carries the full
 compiler, so it *can* build a bundle and emit segments — those are follow-ups.
@@ -116,7 +116,7 @@ compiler, so it *can* build a bundle and emit segments — those are follow-ups.
   file alongside the build — a build may legitimately produce more than one file.
 - **`?crawler` on a static host** is a *build-time* affair: crawlers don't install service
   workers, so the block is baked by `declarec --crawler`, the homepage bake
-  (`tools/bake-homepage-seo.mjs`), or the prewarm seo tier — not embedded at request
+  (`tools/bake-homepage-crawler.mjs`), or the prewarm seo tier — not embedded at request
   time by the SW.
 
 ## The navigate/fetch discrimination

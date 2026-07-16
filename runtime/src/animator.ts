@@ -102,7 +102,7 @@ export class Animator extends Node implements Animatable {
   /** The origin; null (default) samples the target's current value at start
    *  (LZX). An explicit `from` snaps the slot there on the FIRST frame — not at
    *  start() — so a restart from within an onStop handler shows no mid-frame
-   *  flash (the neo deferral of LZX's prepareStart jump; the additive stream
+   *  flash (the Declare deferral of LZX's prepareStart jump; the additive stream
    *  folds the snap into the first increment). */
   declare from: number | null;
   /** `to` is a delta from `from`, not an absolute (LZX). */

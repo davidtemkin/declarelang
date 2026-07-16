@@ -47,7 +47,7 @@ document → [ block ]
   inline = text | strong | em | code | link | strike | br
 ```
 - **inline tier** = flowing rich text (wraps; what fields will edit; what measurement lays out).
-- **block tier** = structural content rendered through **neo's own layout/components**:
+- **block tier** = structural content rendered through **Declare's own layout/components**:
 
 | block node | renders as |
 |---|---|
@@ -60,7 +60,7 @@ document → [ block ]
 | rule | thin `View` line |
 | inline (everywhere) | styled spans |
 
-Block Markdown is literally *"generate a neo component subtree from the tree"* — it **reuses the
+Block Markdown is literally *"generate a Declare component subtree from the tree"* — it **reuses the
 site's `Stack`/`Grid`/`Text`/`View`** (double duty, not new machinery). A text **field** operates
 on the **inline tier only** — which is why a table categorically can't live in a field (block vs
 inline), not a limitation to fight.
@@ -84,7 +84,7 @@ between "renders Markdown" and "renders it gorgeously."
 
 ### Static vs dynamic — one API, compiler routes it
 ```
-Markdown [ text = "## Literal" ]     → compiler expands to a neo subtree at build. Zero runtime MD.
+Markdown [ text = "## Literal" ]     → compiler expands to a Declare subtree at build. Zero runtime MD.
 Markdown [ text = :article.body ]    → runtime parses at render, REACTIVELY.
 Markdown [ text = { llm.response } ]  → same; re-renders as the value changes.
 ```
@@ -95,7 +95,7 @@ incremental re-parse is a later optimization, not an architecture change.)
 
 ### The parser — `md`, purpose-built, standalone
 - **Not adopted off-the-shelf.** No marked/markdown-it/micromark and their generality/plugins/
-  passthrough. We **write a tight parser for exactly our subset and nothing more** — the way neo
+  passthrough. We **write a tight parser for exactly our subset and nothing more** — the way Declare
   hand-built its own parser. A few KB, single-pass, allocation-light, tuned for the reactive
   re-parse hot path. **Size and perf are critical here** — this is on the render path.
 - **A standalone leaf module owned by neither compiler nor runtime.** The compiler is **not** a
@@ -113,7 +113,7 @@ incremental re-parse is a later optimization, not an architecture change.)
   CMS/RSS ingest, contenteditable) — separate optional feature, decoupled from the Markdown reader.
 - **Markdown-specific string operations** (character-index vs styling split) — the architecture for
   a rich-text *editor* (plain buffer + marks overlay); the editing layer, not now.
-- **Markdown embedding live neo** (a `neo` fence as a runnable example) — the Explorer endgame.
+- **Markdown embedding live Declare** (a `Declare` fence as a runnable example) — the Explorer endgame.
 
 ---
 
@@ -124,7 +124,7 @@ compiler-expanded / dynamic runtime-parsed via `md` → convert the site's copy 
 showcase render (paste/stream Markdown → renders). Interleaves with Tranche-1's `Stack`/`Grid`.
 
 ## Showing it off
-A homepage/playground section that live-renders a real doc (headings, list, fenced neo code, a
+A homepage/playground section that live-renders a real doc (headings, list, fenced Declare code, a
 table, links, bold) — editable, so you paste an LLM's Markdown and watch it render styled and tiny.
-Reflexive dogfood: the Explorer's **docs are Markdown neo renders** (the doc system = `Markdown` +
+Reflexive dogfood: the Explorer's **docs are Markdown Declare renders** (the doc system = `Markdown` +
 `prose`).

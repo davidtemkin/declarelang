@@ -44,7 +44,7 @@
 // guesses, and phased diagnostics (syntax → types → resolution) beat noisy
 // ones.
 import { parseProgram } from "../../runtime/dist/parser.js";
-import { NeoError, NeoErrors } from "../../runtime/dist/errors.js";
+import { DeclareError, DeclareErrors } from "../../runtime/dist/errors.js";
 import { check, programSchemas } from "../../runtime/dist/check.js";
 import { serializeDeps } from "../../runtime/dist/deps.js";
 import { serializeLinks } from "../../runtime/dist/links.js";
@@ -121,11 +121,11 @@ export function compile(source, opts = {}) {
     }
     catch (e) {
         // The recognition layer (parser.ts) recovers through known TS-isms and
-        // raises them ALL as one NeoErrors — flatten, so each gets its own
+        // raises them ALL as one DeclareErrors — flatten, so each gets its own
         // positioned diagnostic like check()'s errors always have.
-        if (e instanceof NeoErrors)
+        if (e instanceof DeclareErrors)
             return { source: null, errors: [...e.errors], warnings: [], ...diagnose([...e.errors], [], "syntax") };
-        if (e instanceof NeoError)
+        if (e instanceof DeclareError)
             return { source: null, errors: [e], warnings: [], ...diagnose([e], [], "syntax") };
         throw e;
     }
@@ -197,7 +197,7 @@ export function compile(source, opts = {}) {
         program = parseProgram(merged);
     }
     catch (e) {
-        if (e instanceof NeoError)
+        if (e instanceof DeclareError)
             return { source: null, errors: [e], warnings: [], ...diagnose([e], [], "syntax") };
         throw e;
     }
@@ -231,7 +231,7 @@ export function compile(source, opts = {}) {
     // direct import: there is no front-end that can forget to wire it, on any
     // host — only the lib.d.ts SOURCE differs per host (typecheck.ts provideLib;
     // an unregistered provider throws, never silently skips). A type error
-    // blocks emission like any other, mapped to its `.declare` line (NEO6001).
+    // blocks emission like any other, mapped to its `.declare` line (DECLARE6001).
     if (opts.typecheck !== false) {
         const typeErrors = typecheckBodies(out, program);
         if (typeErrors.length > 0) {
@@ -298,7 +298,7 @@ export function compile(source, opts = {}) {
         depProgram = parseProgram(out);
     }
     catch (e) {
-        if (e instanceof NeoError)
+        if (e instanceof DeclareError)
             return { source: null, errors: [e], warnings: r.warnings, ...diagnose([e], r.warnings, "syntax") };
         throw e;
     }

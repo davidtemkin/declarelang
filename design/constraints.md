@@ -71,7 +71,7 @@ mainstream, made with eyes open (§4).
 
 ## 1. The decision
 
-neo's reactive core today discovers a constraint's dependencies by *running* it
+Declare's reactive core today discovers a constraint's dependencies by *running* it
 and recording tracked reads (`reactive.ts`: "a standing computation whose
 dependencies are exactly what it read last time it ran"). That is how
 MobX / Solid / Vue / Signals work, and it is what LZX shed the event/delegate
@@ -84,10 +84,10 @@ real compiler. Runtime read-tracking remains, but only as an **internal**
 mechanism of the few framework primitives that genuinely need it (§5); it is
 never a property of an author's constraint.
 
-Why this is tractable for neo when Svelte 3 abandoned it (§4): neo **owns a
+Why this is tractable for Declare when Svelte 3 abandoned it (§4): Declare **owns a
 bounded constraint sub-language** with a hard `[ ]` (declarative) / `{ }`
 (imperative) split. The embedded-DSL frameworks analyze *arbitrary user
-JavaScript* in their reactive slots; neo *defines* what a constraint may be and
+JavaScript* in their reactive slots; Declare *defines* what a constraint may be and
 refuses the rest. Language ownership is the enabler — not the mere existence of
 a compiler (they all have one).
 
@@ -187,11 +187,11 @@ most relevant precedent cuts against us: **Svelte *had* compile-time dependency
 analysis (`$:`) and retreated to runtime signals (runes)** over exactly the
 can't-see-through-a-call limitation. We keep the compile-time model — and, per the
 2026-07-11 revision, we **do** see through the call, which Svelte 3 could not. The
-difference is not nerve; it is that neo's problem is a *different, smaller* one:
+difference is not nerve; it is that Declare's problem is a *different, smaller* one:
 
 - **A marked, bounded reactive surface.** In Svelte 3 a reactive statement read
   arbitrary component/module scope — mutable, aliased, closed-over — so "what does
-  this call read?" was general mutable-dataflow analysis (intractable). In neo a
+  this call read?" was general mutable-dataflow analysis (intractable). In Declare a
   reactive read is *only* a scope-noun attribute, a `:path`, or a `.read([…])` —
   three syntactic forms over a controlled scope (`this`/`parent`/`classroot`/`app`
   + parameters + locals; no free mutable module state). Following a call is
@@ -203,7 +203,7 @@ difference is not nerve; it is that neo's problem is a *different, smaller* one:
   Svelte 3 lacked.
 - **A proven precedent** — LZX ran a static model across the whole OpenLaszlo
   corpus (though even LZX did not read through method bodies as this does).
-- **Different values** — neo prizes analyzability, predictability, and speed over
+- **Different values** — Declare prizes analyzability, predictability, and speed over
   composability-of-reactive-logic. Choosing the less-trendy path *because the
   objective function differs* is coherent.
 
@@ -254,11 +254,11 @@ run" is not "strictly fewer runs."
 
 ## 7. Grounding — the audit
 
-**2026-07-04 (original):** across every neo source then (44 constraints), 42 were
+**2026-07-04 (original):** across every Declare source then (44 constraints), 42 were
 pure analyzable expressions and the landed app was 100% analyzable.
 
 **2026-07-11 (re-audit, `tools/analysis/dep-classify.mjs`):** across the whole
-current corpus — calendar, neocalendar, neoweather, site, docs — **700 constraints
+current corpus — calendar, calendar-sample, weather, site, docs — **700 constraints
 (attribute bindings + computed decl defaults), 100% analyzable** under the
 interprocedural model, and **still 100% under the sound rule** (unknown call target
 → residue). The §3 residue — dynamic indexing, dynamic datapaths, node-collection

@@ -3,13 +3,13 @@
 How a Declare file relates to *other* files. There are two mechanisms, and
 they do genuinely different jobs, so they compose rather than compete:
 
-- **`include`** composes neo *declarations* (classes, `script`, stylesheets) —
-  neo's own source-merge.
+- **`include`** composes Declare *declarations* (classes, `script`, stylesheets) —
+  Declare's own source-merge.
 - **ES `import`** composes JS *modules* (values, functions from files or
-  packages) — the standard system, which neo rides rather than reinvents.
+  packages) — the standard system, which Declare rides rather than reinvents.
 
-One file can use both: `include` some neo components, `import` a date library.
-They never overlap, because one moves neo declarations and the other moves JS
+One file can use both: `include` some Declare components, `import` a date library.
+They never overlap, because one moves Declare declarations and the other moves JS
 bindings.
 
 Ruled by the human, 2026-07-03. **Compiled libraries are deliberately out of
@@ -17,12 +17,12 @@ scope** (source-merge only — §1); **module resolution plumbing is deferred to
 the dev-env rung** (§3).
 
 
-## 1. `include` — composing neo declarations
+## 1. `include` — composing Declare declarations
 
 ### Syntax
 
 A top-level directive whose body is a `[ ]` list of quoted, relative paths —
-neo's list grammar, so it reads as another `keyword [ … ]` heading alongside
+Declare's list grammar, so it reads as another `keyword [ … ]` heading alongside
 `App [ … ]` and `class X [ … ]`:
 
 ```
@@ -42,7 +42,7 @@ include [
 
 Paths are quoted strings (no bare-token magic), resolved relative to the
 including file. Placed at the top of the file by convention (dependencies
-first), though semantically order-inert like every neo declaration.
+first), though semantically order-inert like every Declare declaration.
 
 ### Semantics
 
@@ -83,7 +83,7 @@ likely indefinitely.
 A shared `components.declare` holds the reusable classes (TabSlider, WeatherTab,
 StatRow, WeatherSummary, Screen); an app file becomes `include [ … ]` + its
 `App`, and reads as *the app*. The same components file can back both the design
-reference (`weather.declare`) and the landed app (`neoweather.declare`), so they
+reference (`weather.declare`) and the landed app (`weather.declare`), so they
 **stop drifting apart** — the divergence that motivated this note dissolves
 because they share the actual component source.
 
@@ -99,7 +99,7 @@ The pieces:
 
 - **`library/autoincludes.json`** — the manifest, `{ "Bar": "bar.declare", … }`
   (tag → file path, relative to `library/src`).
-- **`library/src/*.declare`** — ordinary neo libraries, each a `class Bar …`.
+- **`library/src/*.declare`** — ordinary Declare libraries, each a `class Bar …`.
 - **`resolveAutoIncludes`** (runtime/`include.ts`) runs *after* explicit
   `include`s, sharing their visited set: it collects the program's referenced
   tags, and for any that is neither provided nor a built-in but *is* in the
@@ -123,15 +123,15 @@ one component source, so they cannot drift.
 
 ## 2. `import` — composing JS modules
 
-neo does **not** invent a module system; it rides ES modules.
+Declare does **not** invent a module system; it rides ES modules.
 
 - **`import` is module-level**, so it lives in **`script { }`**, never inside a
   `{ }` body. (ES hoists imports to a module's top; a `{ }` body is a function
   body — it *uses* imported symbols but cannot declare imports.)
-- **A neo file compiles to one ES module.** Bodies are functions inside it, so
+- **A Declare file compiles to one ES module.** Bodies are functions inside it, so
   they see `script` imports alongside the lexical-shadowing component bindings
   (`new WeatherTab()`, instantiation.md §6) and the value constructors — one
-  module scope. neo's own output is already zero-dep ESM (`dist/index.js`), so a
+  module scope. Declare's own output is already zero-dep ESM (`dist/index.js`), so a
   compiled app sits in the module graph naturally: it imports and is imported.
 
 The worked case:
@@ -144,7 +144,7 @@ script {
 // …any { } body may call label(…): it is in the module scope
 ```
 
-There is no neo-specific module story to design — "how do they work / what do
+There is no Declare-specific module story to design — "how do they work / what do
 they do" is the standard ES answer. The only real work is **resolution** (§3).
 
 
@@ -153,7 +153,7 @@ they do" is the standard ES answer. The only real work is **resolution** (§3).
 Resolution splits along the line already drawn for the compile modes:
 
 - **CLI / server:** trivial — Node/bundler resolution and tsc's
-  `node_modules`/`@types` resolution work the moment neo emits the import
+  `node_modules`/`@types` resolution work the moment Declare emits the import
   through.
 - **Browser (in-browser compile):** needs the import-map / CDN / fetch-the-types
   story — the *same* host module-resolution the tsc typecheck needs, and part of
@@ -165,7 +165,7 @@ server-only imports that break in the browser. So `import` interop lands
 the plumbing defers *with* the dev-env, not as a separate can.
 
 **Stance ruled now; plumbing deferred.** The stance is worth pinning today
-because the emission model it implies — *neo file as one ES module, bodies in
+because the emission model it implies — *Declare file as one ES module, bodies in
 its scope* — is **already required** by the typecheck and `new`/attach work
 (instantiation.md). Writing it down makes the module story a consequence, not a
 surprise.
@@ -181,15 +181,15 @@ surprise.
      zero-dep). `compile()` emits ONE **self-contained** source — each library's
      own `include` directives excised, concatenated dependency-first ahead of the
      main file — so the hostless browser `render()` runs the merge with no host;
-  3. a shared `apps/neoweather/components.declare` with a simple `TabSlider` (a
+  3. a shared `apps/weather/components.declare` with a simple `TabSlider` (a
      plain `class TabSlider extends View` owning `select(tab)`) alongside
      `StatRow` / `WeatherTab` / `WeatherSummary` / `Screen`;
-  4. `neoweather.declare` refactored to `include [ "components.declare" ]` + its
+  4. `weather.declare` refactored to `include [ "components.declare" ]` + its
      `App`, and A1b (the tab-slide `Animator`) landed onto the `TabSlider` —
      verified: acceptance 18/18, and a live-DOM probe confirms the eased slide
      (animation.md §1).
 - **To build:**
-  2. the full *neo-file-as-one-ES-module* emission with `{ }` bodies in module
+  2. the full *Declare-file-as-one-ES-module* emission with `{ }` bodies in module
      scope (`import` visible, component names lexically bound) — shared with
      instantiation + the typecheck slice. The include source-merge is the front
      half; this is the back half.

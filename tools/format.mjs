@@ -548,7 +548,7 @@ function emit(src, tokens, plan) {
       if (shift && !inIsland) {
         if (text.trim() === "") text = "";
         else if (i === lines.length - 1 && /^[ \t]*\}$/.test(text)) {
-          // the neo-owned bracket skeleton: a lone closing `}` hangs at body
+          // the Declare-owned bracket skeleton: a lone closing `}` hangs at body
           // indent (§2.6); everything else in the block only shifts.
           text = " ".repeat(openIndent + 4) + "}";
         } else if (delta !== 0) {

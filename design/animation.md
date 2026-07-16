@@ -83,9 +83,9 @@ overshooting `back` or a float-drifting bézier / laszlo still lands precisely.
 
 No new keywords, no new grammar or member forms. No `Motion` abstract base class. No `Spring` (a peer easing/physics class was proposed; dropped for v1 — additive surface later, if a real consumer needs velocity-continuous retargeting). No scrubbing (`fraction`), no `reversed`, no reactive `to` retargeting. These were all surface the superseded proposal invented; the ruling's whole point is that v1 needs none of it — see §6 for the full deletion ledger.
 
-### Worked example — the neoweather tab slide, as shipped
+### Worked example — the weather tab slide, as shipped
 
-This is neoweather's divergence #2 ("no motion — every end-state lands in one frame"), closed the way a v1 author actually writes it: an explicit `Animator` child, driven imperatively, exactly LZX's own idiom. The shipped form pairs it with the `TabSlider`-owns-selection model (composition.md; instantiation.md §6) — the container decides *which* tab is selected, each tab owns *how* it animates when (de)selected, so the container never learns a tab animates:
+This is weather's divergence #2 ("no motion — every end-state lands in one frame"), closed the way a v1 author actually writes it: an explicit `Animator` child, driven imperatively, exactly LZX's own idiom. The shipped form pairs it with the `TabSlider`-owns-selection model (composition.md; instantiation.md §6) — the container decides *which* tab is selected, each tab owns *how* it animates when (de)selected, so the container never learns a tab animates:
 
 ```
 class TabSlider extends View [ width = 100%,
@@ -116,7 +116,7 @@ class WeatherTab extends View [ width = 100%,
 
 The click delegates up (`classroot.parent.select`) — one place owns "exactly one selected." `select(tab)` calls each tab's `setSel`; `setSel` starts the slide *before* flipping `sel`, so `slide.start()` displaces the `height` constraint (§2, rule 2) and animates from the tab's current height, the suspended constraint does not re-fire when `sel` changes, and it resumes **re-evaluated** on completion (§2, rule 4) — landing on exactly the value it would have produced (255 / 25). Keeping `height` a **constraint** rather than a literal is what makes the initially-selected tab open correctly at construct time with no imperative kick: the slide runs only on a click; at init the constraint alone supplies the rest state.
 
-This shipped and was verified end-to-end — a live-DOM probe caught the eased interpolation (`25→31→48→85→128→186→220→246→255` under `easeBoth`, both tabs moving at once, exact landing on 255/25) — holding neoweather's acceptance at 18/18.
+This shipped and was verified end-to-end — a live-DOM probe caught the eased interpolation (`25→31→48→85→128→186→220→246→255` under `easeBoth`, both tabs moving at once, exact landing on 255/25) — holding weather's acceptance at 18/18.
 
 *A simpler spelling, also legal in v1:* drop the constraint, make `height = 25` an ordinary literal slot, and drive selection from the tab itself — `select() { for (const t of parent.children) { t.sel = …; t.slide.to = …; t.slide.start() } }`. Then `height` is written every frame by whichever animator runs on it, nothing standing behind it, and the initially-selected tab needs an explicit opening kick. Both spellings use only LZX's vocabulary applied imperatively; the difference is only whether a constraint supplies the rest state (shipped) or a literal does.
 
@@ -198,7 +198,7 @@ The superseded proposal (same filename, earlier draft, 2026-07-02) invented new 
 |---|---|
 | Q1 — non-visual child Nodes | **Ratified**, reframed: Animator/AnimatorGroup are twin-table component classes (§1), not a special "data-node" category. |
 | Q2 — `attribute` bare token, schema-checked | **Ratified as-is** (§1, §3). |
-| Q3 — `started` defaults to `false` | **Re-adopted (2026-07-04), after a round-trip.** The ruling first dropped it (restoring LZX's `true` unqualified); building neoweather then surfaced the footgun the earlier draft had intuited — two reversible pairs (zip `slideOut`/`slideIn`, topBar `comein`/`goout`) *both* auto-fired at init and **silently cancelled to net-zero** (the acceptance stayed green throughout; only value-probes caught it). So `false`/opt-in is restored as the one deliberate LZX divergence (§1 `started` row). The intuition was right; it took a concrete silent failure to earn the qualification. |
+| Q3 — `started` defaults to `false` | **Re-adopted (2026-07-04), after a round-trip.** The ruling first dropped it (restoring LZX's `true` unqualified); building weather then surfaced the footgun the earlier draft had intuited — two reversible pairs (zip `slideOut`/`slideIn`, topBar `comein`/`goout`) *both* auto-fired at init and **silently cancelled to net-zero** (the acceptance stayed green throughout; only value-probes caught it). So `false`/opt-in is restored as the one deliberate LZX divergence (§1 `started` row). The intuition was right; it took a concrete silent failure to earn the qualification. |
 | Q4 — new `transition <attr>: Motion [ … ]` member | **Deleted.** No new member grammar in v1; the destination-less form it was meant to cover is parked as "follow" (§5a). |
 | Q5 — ownership model (transitions-not-owners, free-animators-as-temporary-owners, pointed errors) | **Superseded** by the five-rule deconfliction model (§2) — no errors, no case table, displace-and-resume instead. |
 | Q6 — `fraction` scrub, `reversed`, reactive `to` retargeting | **Dropped.** `to` is sampled once at start (§1); no scrubbing or reversal in v1. |

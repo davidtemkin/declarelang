@@ -4,12 +4,12 @@ The project's front door and the seed of a Laszlo-Explorer-equivalent showcase. 
 **built in Declare** and its flourishes are live demonstrations of the language — the page
 *is* the proof. Strategically it's the next flagship: greenfield and design-forward, so it
 *demands* the modern conventions (states, responsive layout, transitions, tokens) that the
-parity-driven neocalendar never exercised. The page is the forcing function; **the
+parity-driven calendar-sample never exercised. The page is the forcing function; **the
 deliverable is the component library + the conventions + the guide.**
 
 The framework-neutral build contract — copy, layout, interaction, motion, responsive
-behavior — lives in **`site-spec.md`** (implemented in parallel in neo *and* in a
-conventional framework, as an instructive comparison). This doc is the *why and the neo
+behavior — lives in **`site-spec.md`** (implemented in parallel in Declare *and* in a
+conventional framework, as an instructive comparison). This doc is the *why and the Declare
 strategy*.
 
 ---
@@ -32,7 +32,7 @@ strategy*.
 > and **runnable on the spot** (it compiles in the browser). *Everything that makes it
 > legible to a model makes it legible to you.*
 
-**TypeScript trust line** (under the justification): *The declarative parts are neo. The
+**TypeScript trust line** (under the justification): *The declarative parts are Declare. The
 logic is ordinary, typed TypeScript — nothing to relearn, and everything an editor or a
 model already understands.*
 
@@ -40,7 +40,7 @@ model already understands.*
 1. **Small** — a self-measured page-weight **stat** (this page reports its own bytes; not a
    hardcoded number). Real gzipped upper bounds today: runtime **136 KB** (both backends —
    a page ships one), compiler **17 KB** (only for the editable page), a compiled app
-   (neoweather, complete) **4 KB**. A live, editable neo page ≈ **~155 KB** vs the **2.3 MB**
+   (weather, complete) **4 KB**. A live, editable Declare page ≈ **~155 KB** vs the **2.3 MB**
    median web page — less than most sites' hero image, *including a compiler*.
 2. **Fast reactivity** — dependencies compiled *statically*, not tracked at runtime → no
    reactive-graph tax.
@@ -59,10 +59,10 @@ skeptical developer stays.
 
 ## 2. The core idea — the site is the proof
 
-The effects a design studio needs libraries for are, in neo, a line each — and they're
+The effects a design studio needs libraries for are, in Declare, a line each — and they're
 exactly the conventions we must establish:
 
-| effect | in neo it's… | exercises |
+| effect | in Declare it's… | exercises |
 |---|---|---|
 | slow-following cursor | a **spring constraint** on the pointer | constraints |
 | header appears on scroll | a **state** keyed on scroll | **states** *(calendar: 0)* |
@@ -72,7 +72,7 @@ exactly the conventions we must establish:
 ## 3. See / edit / run — staged
 
 - **Now (pre-M5):** every example has a **source peek** — the running thing and its `.declare`
-  side by side (read-only, but real). The reveal is itself a neo transition.
+  side by side (read-only, but real). The reveal is itself a Declare transition.
 - **At M5 (in-browser compile):** source becomes **editable → recompiles in the browser →
   runs live**, with the **CompileReadout**. The site both showcases and *drives* M5.
 - **Integration:** the code panel is first-class page type (same panels, type, motion), not
@@ -88,7 +88,7 @@ exactly the conventions we must establish:
   build; decide late.
 - **Structure device:** numbered progression — `01 — Read/Generate/Run · 02 — Performance ·
   03 — Reactivity · …` — modular, doubles as the ToC.
-- **Header on scroll; fully responsive** — the two admired d109 attributes that are *also* neo
+- **Header on scroll; fully responsive** — the two admired d109 attributes that are *also* Declare
   states, demoed by being used.
 - **Palette/type:** TBD (2–3 palettes to mock). Mono treated as first-class type.
 

@@ -18,7 +18,7 @@
 // (the merged program stays instantiable). Within-file duplicates stay the
 // checker's job, so the main program seeds the origin table with no self-check.
 import { parseLibrary } from "./parser.js";
-import { NeoError } from "./errors.js";
+import { DeclareError } from "./errors.js";
 import { Diag } from "./diagnostics.js";
 /** Cut a source's `include [ … ]` directives out of its text, leaving the rest
  *  byte-for-byte (offsets after each cut shift left by its length). Splicing
@@ -101,7 +101,7 @@ export function resolveIncludes(program, host, originDir) {
                 lib = parseLibrary(resolved.source);
             }
             catch (e) {
-                if (e instanceof NeoError) {
+                if (e instanceof DeclareError) {
                     errors.push(e);
                     continue;
                 }
@@ -249,7 +249,7 @@ export function resolveAutoIncludes(program, root, host, visited) {
             lib = parseLibrary(resolved.source);
         }
         catch (e) {
-            if (e instanceof NeoError) {
+            if (e instanceof DeclareError) {
                 errors.push(e);
                 return;
             }

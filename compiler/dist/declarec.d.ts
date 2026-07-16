@@ -2,7 +2,7 @@ import type { Closure } from "./closure.js";
 import type { CompileOptions } from "./compile.js";
 import { type Program } from "../../runtime/dist/parser.js";
 import { type Diagnostic } from "../../runtime/dist/diagnostics.js";
-import type { NeoError } from "../../runtime/dist/errors.js";
+import type { DeclareError } from "../../runtime/dist/errors.js";
 export interface DeclarecOptions extends CompileOptions {
     /** Drop `pos` source-offset fields from the shipped program. They exist only
      *  for error messages, which a precompiled (already-checked) app never emits
@@ -20,8 +20,8 @@ export interface DeclarecOptions extends CompileOptions {
 export interface ProgramBuild {
     /** The instantiate-ready program, or null when the source did not compile. */
     program: Program | null;
-    errors: readonly NeoError[];
-    warnings: readonly NeoError[];
+    errors: readonly DeclareError[];
+    warnings: readonly DeclareError[];
     /** The unified structured view + its rendered form, threaded VERBATIM from
      *  the one compile() result (Compiled.diagnostics/report) — the CLI prints
      *  `report`; nothing here re-renders. */

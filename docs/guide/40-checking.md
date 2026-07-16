@@ -31,7 +31,7 @@ An error is not a stack trace; it is a sentence that tells you what to do. Missp
 and reload:
 
 ```
-cannot resolve 'kount' — not a member of Text → App, a parameter, or a global [NEO4001] (line 5, col 31)
+cannot resolve 'kount' — not a member of Text → App, a parameter, or a global [DECLARE4001] (line 5, col 31)
 ```
 
 It names the bad token, the scope chain it searched, the code, and the position. Within a

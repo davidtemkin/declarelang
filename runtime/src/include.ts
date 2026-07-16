@@ -19,7 +19,7 @@
 // checker's job, so the main program seeds the origin table with no self-check.
 
 import { parseLibrary, type Program, type Library, type ClassDecl, type TopDecl, type Span, type Element } from "./parser.js";
-import { NeoError } from "./errors.js";
+import { DeclareError } from "./errors.js";
 import { Diag } from "./diagnostics.js";
 
 /** Cut a source's `include [ … ]` directives out of its text, leaving the rest
@@ -69,8 +69,8 @@ export function resolveIncludes(
   program: Program,
   host: IncludeHost,
   originDir: string
-): { program: Program; sources: string[]; errors: NeoError[]; visited: Set<string> } {
-  const errors: NeoError[] = [];
+): { program: Program; sources: string[]; errors: DeclareError[]; visited: Set<string> } {
+  const errors: DeclareError[] = [];
   const classes: ClassDecl[] = [...program.classes];
   const stylesheets: TopDecl[] = [...program.stylesheets];
   const styles: TopDecl[] = [...program.styles];
@@ -94,7 +94,7 @@ export function resolveIncludes(
 
   /** Fold one included declaration into the flat namespace, or report a
    *  collision naming both files and skip it. Returns whether it was folded. */
-  const fold = (name: string, pos: NeoError["pos"], from: string): boolean => {
+  const fold = (name: string, pos: DeclareError["pos"], from: string): boolean => {
     const prev = origin.get(name);
     if (prev !== undefined) {
       errors.push(Diag.includeCollision(`'${name}' is declared twice — in "${from}" and "${prev}"`, pos));
@@ -104,7 +104,7 @@ export function resolveIncludes(
     return true;
   };
 
-  const walk = (includes: readonly { path: string; pos: NeoError["pos"] }[], fromDir: string): void => {
+  const walk = (includes: readonly { path: string; pos: DeclareError["pos"] }[], fromDir: string): void => {
     for (const inc of includes) {
       const resolved = host.resolve(fromDir, inc.path);
       if (resolved === null) {
@@ -117,7 +117,7 @@ export function resolveIncludes(
       try {
         lib = parseLibrary(resolved.source);
       } catch (e) {
-        if (e instanceof NeoError) { errors.push(e); continue; }
+        if (e instanceof DeclareError) { errors.push(e); continue; }
         throw e;
       }
       // DEPENDENCY-FIRST: resolve the library's OWN includes before folding /
@@ -210,13 +210,13 @@ export function resolveAutoIncludes(
   root: Element,
   host: IncludeHost,
   visited: Set<string>
-): { program: Program; sources: string[]; errors: NeoError[] } {
+): { program: Program; sources: string[]; errors: DeclareError[] } {
   const auto = host as Partial<AutoIncludeHost>;
   if (typeof auto.autoincludes !== "function" || typeof auto.resolveLibrary !== "function") {
     return { program, sources: [], errors: [] };
   }
   const manifest = auto.autoincludes();
-  const errors: NeoError[] = [];
+  const errors: DeclareError[] = [];
   const classes: ClassDecl[] = [...program.classes];
   const stylesheets: TopDecl[] = [...program.stylesheets];
   const styles: TopDecl[] = [...program.styles];
@@ -260,7 +260,7 @@ export function resolveAutoIncludes(
     visited.add(resolved.canonical);
     let lib: Library;
     try { lib = parseLibrary(resolved.source); }
-    catch (e) { if (e instanceof NeoError) { errors.push(e); return; } throw e; }
+    catch (e) { if (e instanceof DeclareError) { errors.push(e); return; } throw e; }
     const mine: ClassDecl[] = [];
     for (const c of lib.classes) if (foldOne(c.name, c.pos, path)) mine.push(c);
     // dependency-first: pull what this library references, then emit it

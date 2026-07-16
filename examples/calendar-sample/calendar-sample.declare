@@ -1087,7 +1087,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
         ],
 
     /* ## The info panel (SPEC §7)
-       Slides in from the right over the grid. Beveled body drawn in neo (the
+       Slides in from the right over the grid. Beveled body drawn in Declare (the
        original was 9-slice bitmaps); bound to the selected event's record;
        date/time ‹› nudges edit it live. */
 

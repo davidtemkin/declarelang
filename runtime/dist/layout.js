@@ -48,7 +48,7 @@
 import { Node } from "./node.js";
 import { Constraint } from "./reactive.js";
 import { defineAttributes, own, ownerOf, release, setBound } from "./attributes.js";
-import { NeoError } from "./errors.js";
+import { DeclareError } from "./errors.js";
 import { View } from "./view.js";
 import { Animator } from "./animator.js";
 import { motionToken } from "./animate.js";
@@ -76,7 +76,7 @@ export class Layout extends Node {
      *  across views would make its reactive attributes action-at-a-distance. */
     attachTo(view) {
         if (this.view !== null) {
-            throw new NeoError(`this ${this.constructor.name} already arranges a ${this.view.constructor.name} — one strategy per view`);
+            throw new DeclareError(`this ${this.constructor.name} already arranges a ${this.view.constructor.name} — one strategy per view`);
         }
         this.view = view;
         this.parent = view; // navigation back-ref (not a children entry: the layout lives in view.layout)
@@ -125,7 +125,7 @@ export class SimpleLayout extends Layout {
                 const child = kids[i];
                 const prior = ownerOf(child, axis);
                 if (prior !== null) {
-                    throw new NeoError(`${child.constructor.name}.${axis} is already bound (by ${prior.label}), but ${label} arranges its children's ${axis} — drop one of the two`);
+                    throw new DeclareError(`${child.constructor.name}.${axis} is already bound (by ${prior.label}), but ${label} arranges its children's ${axis} — drop one of the two`);
                 }
                 const k = new Constraint(label, () => {
                     // Nearest VISIBLE predecessor, walked back in child order. The
@@ -215,7 +215,7 @@ export class WrappingLayout extends Layout {
                 for (const slot of ["x", "y"]) {
                     const prior = ownerOf(child, slot);
                     if (prior !== null) {
-                        throw new NeoError(`${child.constructor.name}.${slot} is already bound (by ${prior.label}), but ${label} arranges its children — drop one of the two`);
+                        throw new DeclareError(`${child.constructor.name}.${slot} is already bound (by ${prior.label}), but ${label} arranges its children — drop one of the two`);
                     }
                     const k = new Constraint(label, () => this.positions(kids)[i][slot], (v) => setBound(child, slot, v));
                     own(child, slot, k);

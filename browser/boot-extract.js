@@ -1,4 +1,4 @@
-// browser/boot-seo.js — the STATIC-EXTRACTION view for a plain static host: the
+// browser/boot-extract.js — the STATIC-EXTRACTION view for a plain static host: the
 // browser counterpart of the dev server's serveSeo() (server/index.mjs). Given
 // a target `.declare` (?src=, passed by the service worker), compile it with
 // the IN-BROWSER compiler and execute it headlessly to its t=0 snapshot
@@ -58,7 +58,7 @@ async function run() {
     const doc = html === null
       ? `<!doctype html><meta charset="utf-8"><title>${esc(name)} — extraction failed</title>
 <pre style="white-space:pre-wrap;font:13px/1.5 ui-monospace,monospace;padding:20px">${esc(compiled.report || "compile failed")}</pre>`
-      : mod.seoDocument(html, name);
+      : mod.crawlerDocument(html, name);
     writeDoc(doc);
   } catch (e) {
     document.body.textContent = "Declare — static extraction failed: " + ((e && e.message) || e);

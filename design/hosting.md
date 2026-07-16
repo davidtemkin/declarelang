@@ -175,7 +175,7 @@ file path; the viewer requests boot the code viewer (`examples/codeviewer`) on t
 tab, `segments` returns the highlight JSON, `file` answers a plain fetch with the exact
 bytes, and `extract` compiles through the front-end and serves the extracted document.
 The static host's service worker mirrors these, extracting `extract` **in the browser**
-(`browser/boot-seo.js`) so the capability is at full parity without a Node server. See
+(`browser/boot-extract.js`) so the capability is at full parity without a Node server. See
 `design/capabilities.md` §5.
 
 The highlighter is `compiler/src/highlight.ts` — a source-faithful scan that reuses the
@@ -210,7 +210,7 @@ future one.
 ## Why the parser lives in `runtime/`, not `compiler/`
 
 In OpenLaszlo the parser was compiler-only (server-side Java); the runtime just ran
-precompiled JS. neo differs fundamentally: it instantiates and compiles in the
+precompiled JS. Declare differs fundamentally: it instantiates and compiles in the
 browser, so the parser/checker/schema are part of the runtime foundation. `compiler/`
 is only the Node-side orchestration layered on top, with a one-way dependency on
 `runtime/`.

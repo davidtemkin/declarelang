@@ -633,7 +633,7 @@ making it:
    `?view=edit` (source editor + live result + errors, in the browser), `?view=reader`
    (annotated, highlighted source), `?extract` (the static-extraction document crawlers
    see). Typechecking of every `{ }` body is part of every compile — there is no flag.
-3. **Read the errors.** Every compile error carries a code (`NEO####`), a line/column, and
+3. **Read the errors.** Every compile error carries a code (`DECLARE####`), a line/column, and
    — deliberately — *the fix*: diagnostics are written for a model in a loop, so the
    message states the rule you broke and the one rewrite that resolves it. Trust the
    message; apply the named fix; recompile. All independent errors in a phase are reported

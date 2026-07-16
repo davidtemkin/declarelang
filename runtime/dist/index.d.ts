@@ -21,7 +21,7 @@ export interface BuildOptions {
     links?: readonly SerializedLink[];
 }
 /** Parse, resolve `include`s, typecheck, and instantiate a Declare source into
- *  its App tree (no rendering). Raises a NeoErrors carrying *every* error at
+ *  its App tree (no rendering). Raises a DeclareErrors carrying *every* error at
  *  once (include-resolution + type). */
 export declare function build(source: string, opts?: BuildOptions): App;
 /** Parse, resolve includes, check, instantiate, and render a Declare source
@@ -66,7 +66,7 @@ export { SCHEMAS, attrType, descendsFrom, isPrevailing } from "./schema.js";
 export { coerce, enumType, isPercent, colorToCss, colorWithAlpha, isGradient, gradient, stroke, shadow, stop, DEFAULT_THEME } from "./value.js";
 export { isSet, ownerOf } from "./attributes.js";
 export { CSS_COLORS } from "./css-colors.js";
-export { NeoError, NeoErrors } from "./errors.js";
+export { DeclareError, DeclareErrors } from "./errors.js";
 export { headingSlug } from "./slug.js";
 export { Keys, KeysService, normalize } from "./keys.js";
 export type { KeyEvent } from "./keys.js";

@@ -37,7 +37,7 @@ editorial/IA pass builds *on* them.
 | **components / std library** *(write-new)* | `library/src/*.declare` (+ their `@api`), `design/components-baseline.md` (the 4 contracts) |
 | **verify / how-to-check** *(write-new)* | `design/verify-and-evals.md`, `tools/verify.mjs` |
 | **capabilities** *(write-new)* | `design/capabilities.md` |
-| **SEO / static extraction** *(write-new)* | `design/seo-and-semantics.md`, `compiler/src/seo.ts` |
+| **SEO / static extraction** *(write-new)* | `design/seo-and-semantics.md`, `compiler/src/static-html.ts` |
 | diagnostics (reference) | the `Diag` catalog + `design/diagnostics.md` §4 (errors name the fix) |
 | flags (operational) | `compiler/src/flags.ts` `FLAG_SPECS` (one registry, all surfaces) |
 | shipping / production | `tools/declarec.mjs`, `design/hosting.md`, `design/in-browser-dev.md` |

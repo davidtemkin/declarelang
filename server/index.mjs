@@ -7,7 +7,7 @@
 //      service worker runs (browse-to-run). Directories carry NO behavior.
 //
 //   npm start                                   # http://127.0.0.1:8200/  (the homepage)
-//   /examples/neocalendar/neocalendar.declare   # run it (DOM backend)
+//   /examples/calendar-sample/calendar-sample.declare   # run it (DOM backend)
 //   …?render=canvas                             # Canvas backend (a modifier)
 //   …?view=reader | ?view=source | ?view=edit   # the viewer app, on that tab
 //   …?file                                      # the raw source bytes (curl / an include)
@@ -24,7 +24,7 @@ import path from "node:path";
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
-import { compile, isUpToDate, diskProbe, crawlDocument, diskDataResolver, seoDocument } from "../compiler/dist/compile-node.js";
+import { compile, isUpToDate, diskProbe, crawlDocument, diskDataResolver, crawlerDocument } from "../compiler/dist/compile-node.js";
 import { highlight } from "../compiler/dist/highlight.js";
 import { requestType, REQ, runWrapper, programName } from "../browser/serve-core.js";
 import { writeProduction } from "../tools/declarec.mjs";
@@ -68,7 +68,7 @@ const esc = (s) => s.replace(/[<&]/g, (c) => (c === "<" ? "&lt;" : "&amp;"));
 // A dumb static host serves pages VERBATIM (no marker) → the SW registers there, where it
 // is the only way to browse-to-run. This is OL5's index.html mechanism: the presence of the
 // server is the signal, injected as a variable — no localhost-sniffing. Placed before the
-// first module script so it runs first; SEO documents (no scripts) never get it.
+// first module script so it runs first; crawler documents (no scripts) never get it.
 const SERVER_MARKER = '<script>window.__declareServer=true</script>\n';
 function withServerMarker(html) {
   const s = typeof html === "string" ? html : html.toString("utf8");
@@ -139,7 +139,7 @@ bootHost(cfg);
 // The static-extraction document (`?extract`, reqtypes.ts REQ.EXTRACT): the program's
 // content as semantic HTML at its t=0 snapshot (design/capabilities.md §5) — compiled
 // through THE compiler API, executed headlessly, served text/html. The SW static host
-// serves the same artifact by extracting IN-BROWSER (browser/boot-seo.js) — one
+// serves the same artifact by extracting IN-BROWSER (browser/boot-extract.js) — one
 // extractor module, two hosts.
 async function serveExtract(res, absPath, relPath) {
   let source;
@@ -162,7 +162,7 @@ async function serveExtract(res, absPath, relPath) {
   } catch (e) {
     return send(res, 422, String((e && e.message) || e), "text/plain; charset=utf-8");
   }
-  return send(res, 200, seoDocument(html, relPath.split("/").pop()));
+  return send(res, 200, crawlerDocument(html, relPath.split("/").pop()));
 }
 
 const send = (res, code, body, type) => {
@@ -325,7 +325,7 @@ http.createServer((req, res) => {
   }
 
   // (The previews and the whole-page editor render their child apps INLINE now —
-  // embedded neo apps in the same document, no iframe — so the old /_demoframe and
+  // embedded Declare apps in the same document, no iframe — so the old /_demoframe and
   // /_demorun preview-frame routes are gone. See browser/host-client.js.)
 
   try {

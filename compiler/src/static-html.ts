@@ -240,7 +240,7 @@ export function extractStatic(source: string, opts: ExtractOptions = {}): Extrac
 
 /** The fragment as a complete crawler-facing document (`?extract`, and the
  *  committed-page artifact). One shape on every host. */
-export function seoDocument(html: string, title: string): string {
+export function crawlerDocument(html: string, title: string): string {
   // A well-formed document for a crawler — `<html lang>`/`<head>`/`<body>` and an
   // `<article>` around the content, so the content region is unambiguous and the
   // page validates. The content itself is the class-semantics HTML, headings

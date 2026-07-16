@@ -1,11 +1,11 @@
-# neocalendar — behavioral contract (Stage 0)
+# calendar-sample — behavioral contract (Stage 0)
 
 **What this is.** The extraction of the original Laszlo Calendar's behavior, appearance, and animation
 — from the *running app* (screenshots in `oracle/`, taken 2026-07-05 against the DHTML build at
-`examples/calendar/`) and from its LZX source *read for intent only*. neo implements **this document**,
+`examples/calendar/`) and from its LZX source *read for intent only*. Declare implements **this document**,
 never the LZX structure. That is the anti-transliteration firewall: the original is 3,955 lines across
 17 files, littered with Flash-VM-era hacks (pooling, id-string arithmetic, hardcoded timers, dead code);
-the rewrite is a ground-up neo-idiomatic app that matches what the user *sees and does*.
+the rewrite is a ground-up Declare-idiomatic app that matches what the user *sees and does*.
 
 **Parity policy (ratified):** geometry **exact**; chrome **"or better"** (drawn hairlines/gradients may
 differ per-pixel while looking strictly sharper). Interaction **bugs are fixed, not replicated** — every
@@ -19,7 +19,7 @@ Canvas **835×600**, background `#1E3A49`. Font Verdana 10px throughout (pixel-l
 
 - **Top panel** (x20, w806): menubar strip `#354D5B` with logo (bitmap, keep), view buttons
   **day | week | month** (shear-capped, icons), month controller **‹ July 2026 ›** (bold white title,
-  drop shadow = offset copy in original → neo `textShadow`), **Add Event** button at x496.
+  drop shadow = offset copy in original → Declare `textShadow`), **Add Event** button at x496.
 - **Daynames bar** below (`#354D5B`, h26, 1px `#708A94` rule at bottom): Sun…Sat labels, each
   **centered over its grid column live** (constraint to the column's cell — they track the slider
   animation). Hidden per-mode: all visible in month/week; only the open day's in day mode (§12-D fixes
@@ -45,7 +45,7 @@ real dates (leading/trailing days belong to adjacent months, rendered dimmed).
 
 **Mode switching animates** every visible cell to its new box: **500ms, x/y/w/h simultaneous**
 (per-cell animator group). Cells that were hidden snap to final geometry and appear when the motion
-completes (neo: animator completion, not the original's hardcoded 600ms timer). Cells becoming hidden
+completes (Declare: animator completion, not the original's hardcoded 600ms timer). Cells becoming hidden
 hide immediately. Month-to-month navigation does **not** animate (snap). The info-panel
 contract/expand reflow does **not** animate.
 
@@ -72,7 +72,7 @@ Day-number top-left, `#DAE3E8` (out-of-month `#7E929F`).
 (the grid's first line sits at +11px = 30min), hairline hour rules, **vertical scrollbar** when
 content overflows, events positioned/sized by time (§4). Timeline starts scrolled to 12a.
 Events area narrows by 38px when open (time gutter + scrollbar).
-The original's hour-grid is a bitmap (`tgrid`); neo **draws** it (hairlines) — pixel-matched.
+The original's hour-grid is a bitmap (`tgrid`); Declare **draws** it (hairlines) — pixel-matched.
 
 ## 4. Events
 
@@ -108,7 +108,7 @@ always 2-digit in long form; `12a`/`12p` for 0/12).
   (category-tinted), the time label, title, and an **`ⓘ` button** (→ opens the info panel; so does
   double-click). Selecting another event retargets the panel if open; **deselecting** (selected day's
   events hidden, event deleted) soft-closes the panel after 500ms.
-- In neo both chromes are per-view `selected`/`open` **states**, not global follower views (the
+- In Declare both chromes are per-view `selected`/`open` **states**, not global follower views (the
   original used single global chrome + cross-space constraints as a Flash optimization).
 
 ## 6. Pointer interactions
@@ -139,7 +139,7 @@ is not carried over).
 
 ## 7. Info panel ("Event Info")
 
-Beveled panel (drawn in neo; the original is 9-slice bitmaps), title bar "Event Info" + `x` close.
+Beveled panel (drawn in Declare; the original is 9-slice bitmaps), title bar "Event Info" + `x` close.
 **Open**: grid contracts (snap), panel slides x830→602 + fades in, 500ms; **focus lands in the title
 field with its text selected**. **Close**: reverse slide/fade (500/400ms), then grid expands.
 
@@ -166,7 +166,7 @@ panel, focuses the title with text pre-selected (type-to-replace). (`oracle/05�
 
 ## 9. Data
 
-- neo model: an `events` collection keyed by date; replication renders per-day lists. (The original's
+- Declare model: an `events` collection keyed by date; replication renders per-day lists. (The original's
   XPath year/month/day tree + node copy/delete surgery collapses to field writes on records.)
 - **Month lazy-load**: on displaying a month, fetch any not-yet-loaded visible months from
   `calendardata/vcal_YYYY-M-01.xml` (static files, one per month; already generated —
@@ -209,7 +209,7 @@ initial selection = **today** (§12-A).
   timelines always start at 12a. → Implement the abandoned intent: open scrolls so the day's first
   event is visible (one hour of context above), empty days to 7:30a.
 - **G. Drag row-math bug below an open row** (uses column-width where row-height belongs) — mistargets
-  drops. → Moot in neo (real hit-testing, no inverse geometry).
+  drops. → Moot in Declare (real hit-testing, no inverse geometry).
 - **H. Hardcoded 600ms visibility timer** after 500ms animations (race by construction). → Animator
   completion events.
 - Cosmetic keeps (not bugs): selected-event chrome slightly overhangs its cell; info-panel reflow
@@ -217,19 +217,19 @@ initial selection = **today** (§12-A).
 
 ## 13. Images → dispositions
 
-261 PNGs in the original. neo dispositions:
+261 PNGs in the original. Declare dispositions:
 
 | family | count | disposition |
 |---|---|---|
 | button slices (pill/square/circle/btn_rsrcs, 4 shapes × 3 states × 3 slices) | ~129 | **one drawn `CalButton`** (gradient + caps + states) |
 | panel/day chrome (infopanel 9-slice, day frames, grab bars, tgrid hour lines) | ~90 | **drawn** (fill/cornerRadius/hairlines/draw()) |
-| scrollbar slices | 12 | drawn (neo scrollbar component — harvest) |
+| scrollbar slices | 12 | drawn (Declare scrollbar component — harvest) |
 | day-name labels, view icons, arrows | ~15 | **text/draw()** (labels are just rendered text) |
 | logo, menubar overlay, loading still, splash | ~10 | **keep as bitmaps** initially; revisit later |
 
-## 14. neo architecture sketch (what the rewrite looks like)
+## 14. Declare architecture sketch (what the rewrite looks like)
 
-| original | LOC | neo replacement |
+| original | LOC | Declare replacement |
 |---|---|---|
 | gridsliderlayout.lzx + per-day animatorgroup + timers | 511+ | `GridSlider` layout: geometry as one pure derive over `(mode, open, W, H, rows)`; per-cell animators; completion-driven visibility (~80–100 lines) |
 | cal-data.lzx (XPath surgery) | 505 | `Event` records + a `CalendarStore` `{ }` module: field writes, date-keyed index, month lazy-load (~120 lines) |
@@ -239,9 +239,9 @@ initial selection = **today** (§12-A).
 | eventselector.lzx (global chrome + idle-loop drag) | 443 | per-event `selected` state + one drag routine (time-drag ⇄ free-drag) (~80 lines) |
 | infopanel + basepanel + textbox + tabs | ~500 | `InfoPanel` (TextInput fields, spinners, accordion states) (~150 lines) |
 | cal-button (9-slice, 3 states × 4 shapes) | 300 | drawn `CalButton` (~60 lines) |
-| vscrollbar | 238 | neo `Scrollbar` (component-library harvest) (~80 lines) |
+| vscrollbar | 238 | Declare `Scrollbar` (component-library harvest) (~80 lines) |
 
-Target: **≈900–1,000 lines of neo** for behavioral+visual parity — a ~4× reduction, with zero grid
+Target: **≈900–1,000 lines of Declare** for behavioral+visual parity — a ~4× reduction, with zero grid
 images. The states mechanism, animators, replication, constraints, TextInput/focus, and draw() all
 get exercised — this is the showcase app.
 
@@ -250,7 +250,7 @@ get exercised — this is the showcase app.
 1. **Shell + data**: frame, top bar, month title/nav, `CalendarStore` + test data. ✅ spec
 2. **The grid**: 42-cell `GridSlider`, month rendering imageless, day cells + closed event lists;
    month navigation. Perceptual gate vs `oracle/00`. ✅ **DONE 2026-07-05** —
-   `neocalendar.declare` (311 lines): store = one `Dataset` days array rebuilt per month
+   `calendar-sample.declare` (311 lines): store = one `Dataset` days array rebuilt per month
    (replication reconciles 35↔42), cells position by pure constraints (`:col`/`:row` × grid `cw`/`ch`),
    events pre-sorted with display labels in data. Gate: cell frames/colors **pixel-identical** (sampled),
    bar text row-aligned; residual diff = selected-day chrome (Stage 4) + text AA + drawn-chrome

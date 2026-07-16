@@ -98,5 +98,5 @@ export declare class Constraint {
  *  (phase 0), then draw re-records (phase 1) — looping back if a draw body
  *  wrote reactive state. Runs automatically as a microtask after any write;
  *  exported so tests (and later, tooling) can force a deterministic settle.
- *  Throws NeoError on a constraint cycle. */
+ *  Throws DeclareError on a constraint cycle. */
 export declare function settle(): void;

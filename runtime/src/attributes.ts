@@ -26,7 +26,7 @@
 // bug is unrepresentable); a runtime-supplied derive yields to a direct write.
 
 import { Cell, Constraint, isTracking } from "./reactive.js";
-import { NeoError } from "./errors.js";
+import { DeclareError } from "./errors.js";
 
 /** One attribute's class-level declaration: its default, the Surface push a
  *  change makes (absent for purely model-side attributes), whether it is
@@ -149,7 +149,7 @@ export function defineAttributes<S extends object>(
       },
       set(this: object, v: unknown): void {
         if (readOnly) {
-          throw new NeoError(
+          throw new DeclareError(
             `${this.constructor.name}.${name} is read-only — it is computed from its declaration and cannot be assigned`
           );
         }
@@ -161,7 +161,7 @@ export function defineAttributes<S extends object>(
         const owner = self.$owners?.[name];
         if (owner !== undefined) {
           if (!owner.yielding) {
-            throw new NeoError(
+            throw new DeclareError(
               `${this.constructor.name}.${name} is bound by a constraint (${owner.label}) — a direct write would be silently overwritten; change what the constraint reads instead`
             );
           }
@@ -207,7 +207,7 @@ function evalDefault(
 ): unknown {
   let inFlight = EVALING.get(self);
   if (inFlight?.has(name) === true) {
-    throw new NeoError(
+    throw new DeclareError(
       `${self.constructor.name}.${name}'s default binding (transitively) reads itself`
     );
   }
@@ -433,7 +433,7 @@ export function own(self: object, name: string, c: Constraint): void {
     prior.dispose();
     delete owners[name];
   } else if (prior !== undefined) {
-    throw new NeoError(`${self.constructor.name}.${name} is already bound (by ${prior.label})`);
+    throw new DeclareError(`${self.constructor.name}.${name} is already bound (by ${prior.label})`);
   }
   owners[name] = c;
   // On a prevailing slot, gaining an owner is a provision-state change

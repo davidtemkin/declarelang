@@ -1,6 +1,6 @@
 // Native browser text metrics — the shared text primitive. The Flash-era
 // letter-spacing / text-metric adjustment is deliberately shed (APPROACH §3,
-// deliberately-not-reproduced ledger #1): the browser measures, neo believes
+// deliberately-not-reproduced ledger #1): the browser measures, Declare believes
 // it. One lazily-created off-screen 2D context measures for everyone — the
 // Text leaf (auto-sizing), the DOM backend (a line-height that pins the
 // first baseline to the font ascent), and the Canvas backend (the fillText

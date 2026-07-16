@@ -39,7 +39,7 @@
 // module's plain-JSON + region-cells design sheds (APPROACH §2/§6).
 import { Node } from "./node.js";
 import { Cell, isTracking } from "./reactive.js";
-import { NeoError } from "./errors.js";
+import { DeclareError } from "./errors.js";
 import { defineAttributes, setBound } from "./attributes.js";
 import { splitPath } from "./datapath.js";
 // container → per-key region cells. Module-level (identity-keyed, so datasets
@@ -181,7 +181,7 @@ export class Dataset extends Node {
     segs(path) {
         const segs = splitPath(path);
         if (segs.length === 0) {
-            throw new NeoError(`an empty path addresses the whole dataset — assign .value to replace it`);
+            throw new DeclareError(`an empty path addresses the whole dataset — assign .value to replace it`);
         }
         return segs;
     }
@@ -193,7 +193,7 @@ export class Dataset extends Node {
         for (let i = 0;; i++) {
             if (!isContainer(cur)) {
                 const at = i === 0 ? "the dataset has no value" : `'${segs.slice(0, i).join(".")}' is ${cur === undefined ? "missing" : "not a container"}`;
-                throw new NeoError(`'${segs.join(".")}' addresses nothing — ${at}`);
+                throw new DeclareError(`'${segs.join(".")}' addresses nothing — ${at}`);
             }
             chain.push([cur, segs[i]]);
             if (i === segs.length - 1)
@@ -206,7 +206,7 @@ export class Dataset extends Node {
         const { chain, container, key } = this.locate(segs);
         const arr = getOwn(container, key);
         if (!Array.isArray(arr)) {
-            throw new NeoError(`'${segs.join(".")}' is not an array — structural edits need one`);
+            throw new DeclareError(`'${segs.join(".")}' is not an array — structural edits need one`);
         }
         return { arr, chain, segs };
     }
@@ -300,16 +300,16 @@ export function toCursor(v, context) {
     if (v === null || v === undefined)
         return null;
     if (!isContainer(v)) {
-        throw new NeoError(`${context}: a datapath is a place in a dataset — got ${typeof v} (point at an object or array; read leaf fields with :path)`);
+        throw new DeclareError(`${context}: a datapath is a place in a dataset — got ${typeof v} (point at an object or array; read leaf fields with :path)`);
     }
     const tag = TAGS.get(v);
     if (tag === undefined) {
-        throw new NeoError(`${context}: this value belongs to no Dataset/DataSource — a cursor can only point into declared data`);
+        throw new DeclareError(`${context}: this value belongs to no Dataset/DataSource — a cursor can only point into declared data`);
     }
     if (resolveTracked(tag.data, tag.path) !== v) {
         const healed = locateByIdentity(tag.data.value, v, []);
         if (healed === null) {
-            throw new NeoError(`${context}: this value is no longer anywhere in its dataset`);
+            throw new DeclareError(`${context}: this value is no longer anywhere in its dataset`);
         }
         tag.path = healed;
         resolveTracked(tag.data, tag.path); // track the healed chain

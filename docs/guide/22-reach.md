@@ -59,7 +59,7 @@ class Panel extends View [ width = 200, height = 60, fill = whitesmoke,
 ```
 
 ```
-'dark' is not a member of Panel — declare it (dark: <type> = …) or fix the name [NEO6001]
+'dark' is not a member of Panel — declare it (dark: <type> = …) or fix the name [DECLARE6001]
 ```
 
 Inside `Panel`, `classroot` is the `Panel`, which has no `dark`. The fix is `app`, which

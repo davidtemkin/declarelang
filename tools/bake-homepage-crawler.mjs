@@ -1,4 +1,4 @@
-// tools/bake-homepage-seo.mjs — bake the homepage's static content into index.html.
+// tools/bake-homepage-crawler.mjs — bake the homepage's static content into index.html.
 //
 // The homepage is the ONE curated page (repo-root index.html) and the SEO
 // exception. index.html is a thin shell that renders the homepage app IN THE
@@ -19,7 +19,7 @@
 // current homepage source. A stale bake would only ever affect the crawler
 // snapshot, never the live user (who gets the real app, which replaces it).
 //
-//   node tools/bake-homepage-seo.mjs
+//   node tools/bake-homepage-crawler.mjs
 
 import path from "node:path";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -35,10 +35,10 @@ const END = "<!--declare-static:end-->";
 const src = readFileSync(HOMEPAGE, "utf8");
 const compiled = compile(src, { originDir: path.dirname(HOMEPAGE) });
 if (compiled.source === null) {
-  console.error("bake-homepage-seo: homepage did not compile:\n" + compiled.report);
+  console.error("bake-homepage-crawler: homepage did not compile:\n" + compiled.report);
   process.exit(1);
 }
-// The extraction fragment (not seoDocument's full page) — it goes INSIDE the host
+// The extraction fragment (not crawlerDocument's full page) — it goes INSIDE the host
 // element as #declare-static, matching the `seo` flag's bake exactly. The CRAWLED
 // document (design/location.md §7): the default page plus each reachable location's
 // content as a `<section id>` — so the Why article, invisible at t=0, is IN the
@@ -55,10 +55,10 @@ const idx = readFileSync(INDEX, "utf8");
 const i = idx.indexOf(BEGIN);
 const j = idx.indexOf(END);
 if (i < 0 || j < 0 || j < i) {
-  console.error(`bake-homepage-seo: markers ${BEGIN} … ${END} not found in index.html`);
+  console.error(`bake-homepage-crawler: markers ${BEGIN} … ${END} not found in index.html`);
   process.exit(1);
 }
 const next = idx.slice(0, i) + block + idx.slice(j + END.length);
-if (next === idx) { console.log("bake-homepage-seo: unchanged"); process.exit(0); }
+if (next === idx) { console.log("bake-homepage-crawler: unchanged"); process.exit(0); }
 writeFileSync(INDEX, next);
-console.log(`bake-homepage-seo: baked ${(html?.length ?? 0)} chars of homepage static content into index.html`);
+console.log(`bake-homepage-crawler: baked ${(html?.length ?? 0)} chars of homepage static content into index.html`);

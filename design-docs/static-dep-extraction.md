@@ -18,8 +18,8 @@ iteration over a reactive *node* collection — occurs **zero** times.
 | app         | constraints | T1 static | T2 dyn-target | T3 unbounded |
 |-------------|------------:|----------:|--------------:|-------------:|
 | calendar    |         210 |       210 |             0 |            0 |
-| neocalendar |          70 |        70 |             0 |            0 |
-| neoweather  |          19 |        19 |             0 |            0 |
+| calendar-sample |          70 |        70 |             0 |            0 |
+| weather  |          19 |        19 |             0 |            0 |
 | site        |         165 |       165 |             0 |            0 |
 | docs        |         236 |       236 |             0 |            0 |
 | **total**   |     **700** |   **700** |         **0** |        **0** |

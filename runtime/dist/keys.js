@@ -95,7 +95,7 @@ export class KeysService {
         const onDown = (ev) => {
             if (!alive())
                 return void target.removeEventListener("keydown", onDown);
-            // neo owns Tab traversal (Layer 2); stop the browser from also moving its
+            // Declare owns Tab traversal (Layer 2); stop the browser from also moving its
             // own focus, which would fight the focus service (and skip a canvas app's
             // overlay inputs).
             if (ev.key === "Tab")

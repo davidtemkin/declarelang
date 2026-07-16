@@ -9,7 +9,7 @@
 // `parent.<axis> × p/100` the runtime writes for you, which is why "parent
 // resizes → dependent re-resolves" needs no extra machinery.
 
-import { NeoError, type Pos } from "./errors.js";
+import { DeclareError, type Pos } from "./errors.js";
 import { Constraint } from "./reactive.js";
 import { followedValue, markPercent, own, setBound } from "./attributes.js";
 import { compileExpr, type ExprFn } from "./expr.js";
@@ -42,7 +42,7 @@ export function bindConstraint(
 ): void {
   const c = compileExpr(src);
   if ("error" in c) {
-    throw new NeoError(`${view.constructor.name}.${name} = { … } ${c.error}`, pos);
+    throw new DeclareError(`${view.constructor.name}.${name} = { … } ${c.error}`, pos);
   }
   const fn = c.fn;
   const k = new Constraint(
@@ -120,7 +120,7 @@ export function bindDatapath(view: View, path: string): void {
 export function bindCursor(view: View, src: string, pos: Pos, classroot: View | null): void {
   const c = compileExpr(src);
   if ("error" in c) {
-    throw new NeoError(`${view.constructor.name}.datapath = { … } ${c.error}`, pos);
+    throw new DeclareError(`${view.constructor.name}.datapath = { … } ${c.error}`, pos);
   }
   const fn = c.fn;
   const label = `${view.constructor.name}.datapath`;
@@ -153,10 +153,10 @@ export function bindPercent(view: View, name: string, percent: number, pos: Pos)
   const cls = view.constructor.name;
   const axis = Object.hasOwn(PERCENT_AXIS, name) ? PERCENT_AXIS[name] : null;
   if (axis === null) {
-    throw new NeoError(`${cls}.${name} = ${percent}%: no axis to resolve a percent against`, pos);
+    throw new DeclareError(`${cls}.${name} = ${percent}%: no axis to resolve a percent against`, pos);
   }
   if (!(view.parent instanceof View)) {
-    throw new NeoError(
+    throw new DeclareError(
       `${cls}.${name} = ${percent}%: the root has no parent for a percent to resolve against`,
       pos
     );

@@ -21,12 +21,12 @@ import { applyLinks } from "./links.js";
 import { resolveIncludes, NO_INCLUDES } from "./include.js";
 import { App } from "./view.js";
 import { fontFacesOf } from "./font.js";
-import { NeoError, NeoErrors } from "./errors.js";
+import { DeclareError, DeclareErrors } from "./errors.js";
 // The render/wire/font glue lives in boot.ts (compiler-free) so the precompiled
 // production entry (`renderProgram`) can drop the parser + checker entirely.
 import { mountApp, loadFonts } from "./boot.js";
 /** Parse, resolve `include`s, typecheck, and instantiate a Declare source into
- *  its App tree (no rendering). Raises a NeoErrors carrying *every* error at
+ *  its App tree (no rendering). Raises a DeclareErrors carrying *every* error at
  *  once (include-resolution + type). */
 export function build(source, opts = {}) {
     const parsed = parseProgram(source);
@@ -34,14 +34,14 @@ export function build(source, opts = {}) {
     const errors = [...incErrors, ...check(program)];
     errors.sort((a, b) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0));
     if (errors.length > 0)
-        throw new NeoErrors(errors);
+        throw new DeclareErrors(errors);
     if (opts.deps !== undefined)
         applyDeps(program, opts.deps);
     if (opts.links !== undefined)
         applyLinks(program, opts.links);
     const root = instantiate(program);
     if (!(root instanceof App)) {
-        throw new NeoError("a program's root must be 'App [ … ]'", program.root.pos);
+        throw new DeclareError("a program's root must be 'App [ … ]'", program.root.pos);
     }
     return root;
 }
@@ -93,7 +93,7 @@ export { SCHEMAS, attrType, descendsFrom, isPrevailing } from "./schema.js";
 export { coerce, enumType, isPercent, colorToCss, colorWithAlpha, isGradient, gradient, stroke, shadow, stop, DEFAULT_THEME } from "./value.js";
 export { isSet, ownerOf } from "./attributes.js";
 export { CSS_COLORS } from "./css-colors.js";
-export { NeoError, NeoErrors } from "./errors.js";
+export { DeclareError, DeclareErrors } from "./errors.js";
 export { headingSlug } from "./slug.js";
 export { Keys, KeysService, normalize } from "./keys.js";
 export { Focus, FocusService, deliverKeys } from "./focus.js";

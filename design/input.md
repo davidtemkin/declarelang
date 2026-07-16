@@ -65,17 +65,17 @@ So the focus service is a small *stateful* service (holds current focus, subscri
 
 `src/text-input.ts` (component) + a new Surface primitive `setEditable(spec) / activateEditable(active)` on both backends. A focus client (`focusable = true` by default) whose `text` is the **source of truth** — the component's own writable attr that the user's edits mutate and other slots bind to (there is no two-way `<->`; D-6 dropped it). Attrs `text` / `placeholder` / `multiline`; events `onInput` (each edit) / `onEnter` (single-line submit). Rendering (both realized as **real DOM** — the native element owns caret/selection/clipboard/IME/a11y, D-5):
 
-- **DOM backend:** the surface div hosts a native `<input>`/`<textarea>` filling the box (transparent, so the view's own box paint shows through); value ↔ `text`, native events ↔ the neo events. Nearly free.
+- **DOM backend:** the surface div hosts a native `<input>`/`<textarea>` filling the box (transparent, so the view's own box paint shows through); value ↔ `text`, native events ↔ the Declare events. Nearly free.
 - **Canvas backend:** the native element is an **overlay** appended to the host (made a positioning context), glued to the surface's on-screen box (accumulated x/y up the parent chain) and repositioned each paint so it tracks animating ancestors; hidden when an ancestor is invisible. Because a TextInput's `setEditable` runs during the attach walk (before `attachRoot` stores the host), the compositor **remounts** registered editables once the host exists.
 
-**Focus ↔ caret sync, both directions:** neo focus → native caret via the internal `View.focusChanged(focused)` hook (separate from the author's `onFocus`/`onBlur` so it never steals the event slot) → `activateEditable`; and native focus (a click into the field) → `Focus.focus(this)`. `Tab` is `preventDefault`-ed in the Keys DOM adapter so the browser never fights the focus service. A constraint-owned `text` is a **controlled** field (edits revert). Validated by a two-backend browser smoke (native element renders, positioned at the box, typing round-trips to the model) + 4 unit tests over a mock backend.
+**Focus ↔ caret sync, both directions:** Declare focus → native caret via the internal `View.focusChanged(focused)` hook (separate from the author's `onFocus`/`onBlur` so it never steals the event slot) → `activateEditable`; and native focus (a click into the field) → `Focus.focus(this)`. `Tab` is `preventDefault`-ed in the Keys DOM adapter so the browser never fights the focus service. A constraint-owned `text` is a **controlled** field (edits revert). Validated by a two-backend browser smoke (native element renders, positioned at the box, typing round-trips to the model) + 4 unit tests over a mock backend.
 
 `measure.ts`'s native metrics style the overlay to match painted text. The OL5 "static-measured-text idle, overlay on activation" split (a per-input-count optimization) and self-rendered on-canvas editing stay deferred — the always-live native element is simpler and more capable for v1.
 
 ## Rulings summary
 
 - **Raw keys:** DOM kernel; LZX-shaped `Keys` service (held-set `isDown`, chords, global + focused delivery, pure testable core).
-- **Focus/tab:** tree-order default (no `tabindex`); declarative `focustrap` (LZX); explicit order via a `tabOrder()` method returning ordered **views** (neo's improvement on LZX's per-leaf next/prev — composable, complete, dynamic-safe); sequence computed live per Tab with a discard/visibility hook + focus lock so a moving tree can't strand focus.
+- **Focus/tab:** tree-order default (no `tabindex`); declarative `focustrap` (LZX); explicit order via a `tabOrder()` method returning ordered **views** (Declare's improvement on LZX's per-leaf next/prev — composable, complete, dynamic-safe); sequence computed live per Tab with a discard/visibility hook + focus lock so a moving tree can't strand focus.
 - **Text input:** `text` as source-of-truth (no `<->`); native element (DOM) / overlay-on-activation (canvas); native/overlay owns caret/selection/IME.
 
 ## Deferred

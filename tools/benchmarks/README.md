@@ -7,7 +7,7 @@ project so it can be re-run anytime.
 ## What it measures
 
 The stable **`openlaszlo-5.0`** distro, pinned in one place (`distro.mjs`) so the baseline
-doesn't drift as neo's compiler/runtime change — a result shift then means an *app/startup*
+doesn't drift as Declare's compiler/runtime change — a result shift then means an *app/startup*
 change, not a toolchain change. `distro.mjs` auto-locates `openlaszlo-5.0` by walking up to
 a sibling of that name (works from here); override the target with:
 
@@ -15,7 +15,7 @@ a sibling of that name (works from here); override the target with:
 BENCH_DISTRO=/path/to/distro  node tools/benchmarks/timeline.mjs ...
 ```
 
-When neo's runtime is ready to be the target, point `distro.mjs` at it — every tool follows.
+When Declare's runtime is ready to be the target, point `distro.mjs` at it — every tool follows.
 
 ## The tools
 

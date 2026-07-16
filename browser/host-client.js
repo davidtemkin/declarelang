@@ -7,7 +7,7 @@
 //                demos' compiled output (cfg.precompiled); cfg.compile is the
 //                in-browser compiler (or a no-op until it's wired).
 //
-// The page passes a config; this module renders the app, seeds the neo editors,
+// The page passes a config; this module renders the app, seeds the Declare editors,
 // wires the live demo previews (embedded child apps — no iframe), the whole-page
 // editor, and the app→host navigation channel. Moving it out of the server's HTML
 // template also kills the template-escaping traps that plagued the inline version.
@@ -67,7 +67,7 @@ export async function bootHost(cfg) {
   if (cfg.sourceLines != null) app.sourceLines = cfg.sourceLines;
 
   const seeds = cfg.seeds ?? {};
-  app.demoSources = seeds;                 // host→neo: seeds every editor by demo name (+ __page__)
+  app.demoSources = seeds;                 // host→Declare: seeds every editor by demo name (+ __page__)
   const precompiled = cfg.precompiled ?? {};
 
   // `compile` is a live binding, not a captured const: on a static host it starts
@@ -125,7 +125,7 @@ export async function bootHost(cfg) {
     for (const k in raf) cancelAnimationFrame(raf[k]);
     removeEventListener("keydown", onKey);
     removeEventListener("popstate", onPop);
-    host.querySelectorAll('[data-neo-slot^="run:"]').forEach((box) => {
+    host.querySelectorAll('[data-declare-slot^="run:"]').forEach((box) => {
       if (box.__childApp) { disposeApp(box.__childApp); box.__childApp = null; }
     });
   };
@@ -140,7 +140,7 @@ export async function bootHost(cfg) {
   };
   raf.nav = requestAnimationFrame(navTick);
 
-  const runIsland = (demo) => host.querySelector('[data-neo-slot="run:' + demo + '"]');
+  const runIsland = (demo) => host.querySelector('[data-declare-slot="run:' + demo + '"]');
 
   // Render an ALREADY-COMPILED program as an embedded child app inside <box>. The
   // box lives inside THIS app's marked tree, so the child auto-detects it is embedded
@@ -197,10 +197,10 @@ export async function bootHost(cfg) {
   // the box eligible so the next rAF tick retries — the preview mounts the moment the
   // compiler is ready, whether the editor was opened before or after it loaded.
   function mountPreviews() {
-    host.querySelectorAll('[data-neo-slot^="run:"]').forEach(async (box) => {
+    host.querySelectorAll('[data-declare-slot^="run:"]').forEach(async (box) => {
       if (box.dataset.wired || box.dataset.wiring) return;
       box.dataset.wiring = "1";                              // in-flight: one compile at a time
-      const name = box.dataset.neoSlot.split(":")[1];
+      const name = box.dataset.declareSlot.split(":")[1];
       // precompiled entries are a bare compiled-source string (the legacy static
       // artifact channel); normalize to the `{ source }` result shape renderChild
       // takes. A live compile already returns `{ source, deps }`.
@@ -218,7 +218,7 @@ export async function bootHost(cfg) {
   const mtick = () => { if (stopped) return; mountPreviews(); raf.mount = requestAnimationFrame(mtick); };
   raf.mount = requestAnimationFrame(mtick);
 
-  // Re-render a preview when its neo editor publishes an edit (or a Revert): recompile
+  // Re-render a preview when its Declare editor publishes an edit (or a Revert): recompile
   // the edited text and swap. Debounced; a compile failure keeps the last good render
   // AND feeds the rendered report to `app.liveReport` (a delegate that reports failure
   // returns `{ report }` instead of null), so an editing surface can show the error; a

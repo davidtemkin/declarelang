@@ -58,10 +58,10 @@ function scaffoldFor(source) {
  *  syntactic and semantic. Both files are script-mode (no import/export), so
  *  the scaffold's ambient `type`/`declare` shapes are global to the check file.
  *
- *  Checked against the ES-only lib (no DOM) DELIBERATELY: the ambient neo
+ *  Checked against the ES-only lib (no DOM) DELIBERATELY: the ambient Declare
  *  component names `Text` and `Image` (and, ahead, Event/Option/Audio/…) shadow
  *  DOM lib globals, so a global `declare class Text` duplicates lib.dom's. That
- *  reconciliation — module/namespace-scope the neo surface, or a curated global
+ *  reconciliation — module/namespace-scope the Declare surface, or a curated global
  *  shim for the browser globals bodies actually use — is a next-slice decision
  *  (the "tsc path replaces the whole global story", HANDOFF/compile.ts). This
  *  slice proves the boundary cleanly without it. `extra` overrides options. */

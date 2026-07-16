@@ -23,7 +23,7 @@ import { View, onDiscard } from "./view.js";
 import { setBound, defineAttributes } from "./attributes.js";
 import { coerceData } from "./data.js";
 import { compileExpr } from "./expr.js";
-import { NeoError } from "./errors.js";
+import { DeclareError } from "./errors.js";
 /** Per-editor map of draft-slot → its two-way session. A WeakMap so a discarded
  *  editor's session is collected with it. */
 const SESSIONS = new WeakMap();
@@ -66,7 +66,7 @@ export function bindTwoWay(view, name, path, type) {
 export function bindTwoWayDynamic(view, name, src, pos, classroot, type) {
     const c = compileExpr(src);
     if ("error" in c)
-        throw new NeoError(`${view.constructor.name}.${name} <-> { … } ${c.error}`, pos);
+        throw new DeclareError(`${view.constructor.name}.${name} <-> { … } ${c.error}`, pos);
     const fn = c.fn;
     register(view, name, () => String(fn.call(view, view.parent, classroot)), type);
 }

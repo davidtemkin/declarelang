@@ -7,8 +7,8 @@
 // native → model through `onInput`; a `text` bound to a constraint is a
 // controlled, read-only field (edits revert).
 //
-// Two directions of focus sync: neo focus → the native caret (focusChanged →
-// activateEditable) and the native caret → neo focus (a click into the field
+// Two directions of focus sync: Declare focus → the native caret (focusChanged →
+// activateEditable) and the native caret → Declare focus (a click into the field
 // fires the element's focus → Focus.focus(this)). The keyboard itself needs no
 // wiring here — deliverKeys (Layer 2) already routes keys to the focused view;
 // the native element consumes character input directly while it holds the
@@ -110,7 +110,7 @@ export class TextInput extends Editor {
             edited(this, "text", this.commitOn);
         fireEvent(this, "input", v);
     }
-    /** Neo focus arrived/left — give or take the platform caret (Layer 2 hook,
+    /** Declare focus arrived/left — give or take the platform caret (Layer 2 hook,
      *  separate from the author's onFocus/onBlur). */
     focusChanged(focused) {
         this.surface?.activateEditable(focused);

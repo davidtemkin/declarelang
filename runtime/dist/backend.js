@@ -1,5 +1,5 @@
 // The render seam — the single boundary between the view model and whatever
-// draws it. This is neo's answer to LZX's view→"sprite" contract, kept but
+// draws it. This is Declare's answer to LZX's view→"sprite" contract, kept but
 // cleaned of Flash-era baggage (no frames/play, rotation/scale, capability
 // probing, or Flash a11y attributes).
 //

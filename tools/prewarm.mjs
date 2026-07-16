@@ -30,7 +30,7 @@ import path from "node:path";
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, unlinkSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
-import { compileTracked, crawlDocument, diskDataResolver, seoDocument } from "../compiler/dist/compile-node.js";
+import { compileTracked, crawlDocument, diskDataResolver, crawlerDocument } from "../compiler/dist/compile-node.js";
 import { fnv1a } from "../compiler/dist/closure.js";
 import { prewarmKey } from "../browser/prewarm-cache.js";
 
@@ -119,7 +119,7 @@ for (const prog of PROGRAMS) {
       data: diskDataResolver(path.join(ROOT, path.dirname(prog.main))),
     });
     const name = path.basename(prog.main).replace(/\.declare$/, "");
-    const document = html === null ? seoDocument("", name) : seoDocument(html, name);
+    const document = html === null ? crawlerDocument("", name) : crawlerDocument(html, name);
     writeArtifact(prewarmKey(prog.main, "crawler", {}), {
       main: prog.main, kind: "crawler", props: {},
       document,

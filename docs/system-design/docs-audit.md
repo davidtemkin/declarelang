@@ -34,7 +34,7 @@ grind. Voice/template for it is a Fable call; the fill is systematic.
 ## 3. Drift findings (concrete, from a scan of `docs/`)
 
 - **17 guide/doc files link into `design/`** — every one breaks when `design/`→`docs/system-design/`. Must be re-pointed (ideally to `declare-docs:` symbolic links, not paths, so this never recurs).
-- **2 files carry pre-rename `neo`/`neolzx` residue** — stale since the Declare rename.
+- **2 files carry pre-rename `Declare`/`Declare` residue** — stale since the Declare rename.
 - **1 file uses the old `backend=` flag** (now `render=`); **2 use the retiring `/examples/<name>/` URL** (now the program URL is the run address).
 - The brief still points at `design/declare-language.md` and `docs/guide/` in its header — those references move.
 

@@ -4,9 +4,9 @@
 
 **Implementation.** Runtime engine in `src/state.ts` (the `State` twin-table component + the per-slot override precedence stack), constructed by `constructState` and checked by `checkStateNode` (overrides typed against the enclosing view's schema, children as views); `applied`'s push runs the effect sync. Six unit tests in `test/unit.test.mjs` cover: gated override apply/revert, declaration-order precedence (both insert orders), structural child build/teardown, the verbs, the render-path surface attach/detach (mock backend), and the gate-XOR-verbs rejection. Full suite green, no regression.
 
-**Not retrofitted onto `WeatherTab` (deliberately).** Its `selected` toggle is an *animated* height (an `Animator` drives `height`) plus styling on *grandchildren* (`bg.opacity`, `caption.textColor`) — the former is more moving parts than the constraint it'd replace, the latter is unreachable under the sibling rule (§5). It is already in its idiomatic form (a constraint ternary + animator), the very case §3 calls near-redundant with a state. neoweather has no genuinely structural spot (David's own read). The engine's proof is the synthetic tests, not a contrived weather rewrite.
+**Not retrofitted onto `WeatherTab` (deliberately).** Its `selected` toggle is an *animated* height (an `Animator` drives `height`) plus styling on *grandchildren* (`bg.opacity`, `caption.textColor`) — the former is more moving parts than the constraint it'd replace, the latter is unreachable under the sibling rule (§5). It is already in its idiomatic form (a constraint ternary + animator), the very case §3 calls near-redundant with a state. weather has no genuinely structural spot (David's own read). The engine's proof is the synthetic tests, not a contrived weather rewrite.
 
-A **state** is a named, toggleable bundle attached to a view: a set of **attribute overrides** on that view *and* a **conditional subtree** of child views, both switched by one boolean, `applied`. It is the neo form of LZX `<state>`, and the D-1 "precedence-stack override bundle" — widened to carry children, because that is the capability states uniquely give (an attribute-only state is near-redundant with a constraint ternary; a *subtree that exists in one UI-state and not the other* is not).
+A **state** is a named, toggleable bundle attached to a view: a set of **attribute overrides** on that view *and* a **conditional subtree** of child views, both switched by one boolean, `applied`. It is the Declare form of LZX `<state>`, and the D-1 "precedence-stack override bundle" — widened to carry children, because that is the capability states uniquely give (an attribute-only state is near-redundant with a constraint ternary; a *subtree that exists in one UI-state and not the other* is not).
 
 ## 1. Syntax
 
@@ -25,7 +25,7 @@ card: View [ height = 40,
 
 ## 2. `applied` — read surface, one provider
 
-`applied` is **read** everywhere and **written by exactly one provider** — never a raw poke. This is not a special rule for states; it is the same discipline neo applies to every slot (read freely, owned by one constraint *or* driven by one sanctioned imperative driver). `applied` is to a state what `height` is to `WeatherTab`:
+`applied` is **read** everywhere and **written by exactly one provider** — never a raw poke. This is not a special rule for states; it is the same discipline Declare applies to every slot (read freely, owned by one constraint *or* driven by one sanctioned imperative driver). `applied` is to a state what `height` is to `WeatherTab`:
 
 | slot | declarative owner | sanctioned imperative driver | read anywhere |
 |---|---|---|---|

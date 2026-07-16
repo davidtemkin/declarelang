@@ -23,8 +23,8 @@ Annotate freely; this is a working chart, not a contract.
   fonts, styling, text-input (v1 native overlay), diagnostics catalog (partial migration).
 - **Framework** — runtime (39 modules) + thin compiler (5) built; **dual backend DOM + Canvas
   at perceptual delta-0**; typecheck pass; **312 tests green**; dynamic compile server works.
-- **Flagship #1 — neoweather** — complete (301 lines; drove the R0→R8 ladder).
-- **Flagship #2 — neocalendar** — through **Stage 3** (frame, data-binding, modes + 500ms
+- **Flagship #1 — weather** — complete (301 lines; drove the R0→R8 ladder).
+- **Flagship #2 — calendar-sample** — through **Stage 3** (frame, data-binding, modes + 500ms
   motion); ~1066 lines. *← current front.*
 - **Distro** — self-contained, hostable; `tools/` (benchmarks + gallery), `deploy-build`.
 
@@ -43,7 +43,7 @@ vacuum. M5–M7 are the infrastructure finish.
 ### M0 — git *(do first)*
 Initialize the repo and push; everything below is currently untracked. Private to start.
 
-### M1 — Finish neocalendar *(in progress)*
+### M1 — Finish calendar-sample *(in progress)*
 - **Streamline + UX pass** *(current task)* — tighten the ~1066 lines; fix UX rough edges.
 - **Stage 4 — events interactive**: selection chromes, open-cell hour timeline, drag
   (time + cross-day). Gates vs `oracle/07,08,12`.
@@ -87,7 +87,7 @@ worker**. Gate: host the tree statically, edit-and-compile in the browser.
 
 ### M6 — Docs + get-started
 - Build the **doc-system** (ratified, unbuilt; `design/doc-system.md`): generated reference
-  (schema ⨝ runtime ⨝ tsc + neo-parser; `@api` coverage gate) + hand-authored **guide**.
+  (schema ⨝ runtime ⨝ tsc + Declare-parser; `@api` coverage gate) + hand-authored **guide**.
 - The **"get started" experience** — a minimal `hello` sample, a scaffold path, the on-ramp.
 
 ### M7 — Packaging + distribution
@@ -98,7 +98,7 @@ Package: downloadable, `npm start` (dynamic) **or** host static (in-browser); ve
 ## Critical path
 
 ```
-M0 git ─┬─► M1 neocalendar ─┬─► M2 neodashboard ─┬─► M3 library (formalize) ─► M6 docs ─► M7 package
+M0 git ─┬─► M1 calendar-sample ─┬─► M2 neodashboard ─┬─► M3 library (formalize) ─► M6 docs ─► M7 package
         │      (harvest ▸▸▸▸▸▸▸▸▸ harvest ▸▸▸▸▸▸▸▸▸ consolidate)                          │
         └─────────────────► M4 language-close (resolves alongside M1–M3, freeze before M6)
                             M5 in-browser-compile (independent; any time after M1)

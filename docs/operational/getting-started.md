@@ -86,7 +86,7 @@ You already have the whole development loop:
 Then break it on purpose. Change `count` to `kount` in the label and reload:
 
 ```
-cannot resolve 'kount' — not a member of Text → App, a parameter, or a global [NEO4001] (line 5, col 31)
+cannot resolve 'kount' — not a member of Text → App, a parameter, or a global [DECLARE4001] (line 5, col 31)
 ```
 
 The diagnostic names the fix: the name is not in scope, and it shows the exact

@@ -1,6 +1,6 @@
 # Declare Styling — the ruled design (2026-07-02)
 
-*This is the single canonical styling document — the exploration that first asked whether Declare should adopt CSS, and the concretization that worked out the mechanism, consolidated into one file. It carries analysis (Part I, the WHY), the settled design (Part II, the WHAT), the mechanism (Part III, the HOW — including edge cases and the neoweather worked example), and validation (Part IV). Every ruling below was closed in a single live human walk-through plus two follow-up ruling batches, all dated 2026-07-02, except two implementation leans the leads carry forward (`cornerRadius`'s clip behavior, and whether same-named prevailing attributes on unrelated classes unify) — both flagged explicitly where they occur. The implementing rung is in flight; see [`neolang/HANDOFF.md`](../neolang/HANDOFF.md) §"The styling rung — the task" for the live record. For the language surface see [declare-language.md](declare-language.md); for the vision, [declare.md](declare.md); for the runtime, [declare-implementation.md](declare-implementation.md); for the parallel ruled design this one is designed to interoperate with, [animation.md](animation.md).*
+*This is the single canonical styling document — the exploration that first asked whether Declare should adopt CSS, and the concretization that worked out the mechanism, consolidated into one file. It carries analysis (Part I, the WHY), the settled design (Part II, the WHAT), the mechanism (Part III, the HOW — including edge cases and the weather worked example), and validation (Part IV). Every ruling below was closed in a single live human walk-through plus two follow-up ruling batches, all dated 2026-07-02, except two implementation leans the leads carry forward (`cornerRadius`'s clip behavior, and whether same-named prevailing attributes on unrelated classes unify) — both flagged explicitly where they occur. The implementing rung is in flight; see [`neolang/HANDOFF.md`](../neolang/HANDOFF.md) §"The styling rung — the task" for the live record. For the language surface see [declare-language.md](declare-language.md); for the vision, [declare.md](declare.md); for the runtime, [declare-implementation.md](declare-implementation.md); for the parallel ruled design this one is designed to interoperate with, [animation.md](animation.md).*
 
 ---
 
@@ -52,17 +52,17 @@ But it got the trade **exactly backwards**, and the code shows it:
 - **It was one of three overlapping styling axes** — `class` inheritance, the SWF-only `lz.style` theme object (dead in DHTML), and this. The specificity engine even reuses LZX class inheritance (`subclassof`) as a tiebreaker, so the two are entangled rather than orthogonal.
 - **Stated motivation** (from `docs/.../css.dbk`, verbatim): *"CSS support … helps designers who are not fluent with the LZX scripting language maintain the appearance of Laszlo applications"* — familiarity + deploy-time re-skinning.
 
-So OL4 imported CSS's **model** (the cascade — the problematic half) and skipped CSS's **vocabulary** (real properties — the familiar half designers wanted). Uncanny valley: not real CSS, not idiomatic LZX. The lesson for neo is the mirror image — borrow the *vocabulary* (as typed values), reject the *model* — and actually build the theming ergonomics OL's CSS was reaching for and never delivered.
+So OL4 imported CSS's **model** (the cascade — the problematic half) and skipped CSS's **vocabulary** (real properties — the familiar half designers wanted). Uncanny valley: not real CSS, not idiomatic LZX. The lesson for Declare is the mirror image — borrow the *vocabulary* (as typed values), reject the *model* — and actually build the theming ergonomics OL's CSS was reaching for and never delivered.
 
 ### 3. The two real additions
 
 #### 3a. Decoration values (a drawing API)
 
-The one genuine *semantic* gap. OL decoration was **image-based** — rounded corners, gradients, borders, shadows, window chrome all shipped as PNGs, because the SWF/early-DHTML substrate couldn't draw them cheaply. An own-pixels Canvas/WebGL kernel draws them natively, so neo needs a way to *declare* decoration.
+The one genuine *semantic* gap. OL decoration was **image-based** — rounded corners, gradients, borders, shadows, window chrome all shipped as PNGs, because the SWF/early-DHTML substrate couldn't draw them cheaply. An own-pixels Canvas/WebGL kernel draws them natively, so Declare needs a way to *declare* decoration.
 
 The tension: canvas drawing is *imperative* (a stream of context commands); Declare is *declarative and reactive*. OL4's drawing extension (an imperative `LzGraphics`/drawview context, hand-invalidated, Flash-derived) resolved that by not resolving it — an escape hatch wearing the costume of the API.
 
-Neo inverts it — **declarative-first, imperative-escape** — in three tiers:
+Declare inverts it — **declarative-first, imperative-escape** — in three tiers:
 
 **1. Decoration as reactive attributes** (the front door, and ~100% of the calendar/dashboard chrome). Corners, gradients, borders, shadows, fills become *view attributes*, reactive like everything else:
 
@@ -112,7 +112,7 @@ The one job LZX's *semantics* always covered but never *packaged* — and, telli
 
 LZX struggles to reskin because its styling is *in* the component (`fill = navy` on the button), welded to structure — there is no external channel to reskin *from*.
 
-Neo rebuilds the side-channel's *good half* from LZX-native parts, dropping the selectors:
+Declare rebuilds the side-channel's *good half* from LZX-native parts, dropping the selectors:
 
 - **A prevailing theme, inherited down the hierarchy.** A theme provided at a subtree root that components' style attributes *default to*. This is the *good* half of the cascade — inheritance down the tree — without the *bad* half — global selector matching. Set it at the app root; everything under resolves against it; no per-component wiring. Swap it → the subtree reskins, reactively.
 
@@ -128,9 +128,9 @@ Neo rebuilds the side-channel's *good half* from LZX-native parts, dropping the 
 
 - **Style bundles** for reuse and cross-cutting cases (`cardStyle`, `dangerStyle`) — named decoration bundles that reference tokens, applied *explicitly* (`styles = [card]`) rather than matched by a selector. This covers CSS `.class` reuse *and* the "all `.danger` things are red" cross-cut — but you *say which* views are danger, instead of a global rule reaching for them.
 
-**The buried lede: LZX already had the right model and kept the wrong one.** It shipped *two* theming systems — `lz.style` (prevailing, "applies to itself and any component within it" — down the tree) and CSS (global selectors). The `lz.style` *approach* was correct; it died only because it was SWF-only, pre-reactive, and had a fixed slot schema. Neo revives *that* one — prevailing, hierarchical — done right: reactive via constraints, an open token set, cross-runtime, with real decoration values. CSS is the cautionary tale; `lz.style` is the buried lede.
+**The buried lede: LZX already had the right model and kept the wrong one.** It shipped *two* theming systems — `lz.style` (prevailing, "applies to itself and any component within it" — down the tree) and CSS (global selectors). The `lz.style` *approach* was correct; it died only because it was SWF-only, pre-reactive, and had a fixed slot schema. Declare revives *that* one — prevailing, hierarchical — done right: reactive via constraints, an open token set, cross-runtime, with real decoration values. CSS is the cautionary tale; `lz.style` is the buried lede.
 
-**The principle this encodes:** neo reskinning is **opt-in by convention, not reach-into-anything.** A component is reskinnable because its look *defaults to the prevailing theme* (which the standard library does by design) — not because a stylesheet can forcibly override it from a distance. That is *why* it will be robust where real-world CSS reskinning is not: you reskin what was built to be themed, and you don't accidentally restyle — and break — what wasn't.
+**The principle this encodes:** Declare reskinning is **opt-in by convention, not reach-into-anything.** A component is reskinnable because its look *defaults to the prevailing theme* (which the standard library does by design) — not because a stylesheet can forcibly override it from a distance. That is *why* it will be robust where real-world CSS reskinning is not: you reskin what was built to be themed, and you don't accidentally restyle — and break — what wasn't.
 
 ---
 
@@ -138,7 +138,7 @@ Neo rebuilds the side-channel's *good half* from LZX-native parts, dropping the 
 
 *Settled in design discussion with the human across three sessions, all 2026-07-02: a live walk-through, then two ruling batches. This part is the canonical summary of what shipped: it stands on Part I's analysis, and Part III works its mechanism, edge cases, and worked example in full detail.*
 
-**Status: design fully ruled.** Every ruling below is closed except two leads' leans, flagged explicitly, held for confirmation at implementation time (`cornerRadius` shapes the painted box only, clip stays explicit; no cross-class unification of same-named prevailing attributes). Next step is the implementation rung: the prevailing-attribute walk, decoration values plus the `fill`/`textColor` migration, the stylesheet and bundles, then a neoweather re-verification against this design.
+**Status: design fully ruled.** Every ruling below is closed except two leads' leans, flagged explicitly, held for confirmation at implementation time (`cornerRadius` shapes the painted box only, clip stays explicit; no cross-class unification of same-named prevailing attributes). Next step is the implementation rung: the prevailing-attribute walk, decoration values plus the `fill`/`textColor` migration, the stylesheet and bundles, then a weather re-verification against this design.
 
 ### Three channels, one spine
 
@@ -169,7 +169,7 @@ The semantics, as the human ruled them:
 
 **Reading always yields the effective value.** No API hands back "unset"; only `isSet`-introspection distinguishes a local value from a followed one — author code and constraints never care. And resolution is **per-attribute independent**: one instance can follow *different* ancestors for different attributes.
 
-Worked, on the shape of neoweather:
+Worked, on the shape of weather:
 
 ```
 App [ fontFamily = "Tahoma,Geneva,sans-serif", fontSize = 9,   // App provides both
@@ -191,7 +191,7 @@ App [ fontFamily = "Tahoma,Geneva,sans-serif", fontSize = 9,   // App provides b
     ]
 ```
 
-**Fonts become prevailing on View**: `fontFamily`, `fontSize`, `fontWeight`, `textColor`. This dissolves neoweather's `Cap`/`HelvCap` — two classes that exist only to simulate font flow-down (Part III §8 works the whole rewrite: the App root provides the Tahoma-9-bold-white quartet once, the two Helvetica subtrees re-provide `fontFamily`, and every attribute still written on a Text is a real, local difference).
+**Fonts become prevailing on View**: `fontFamily`, `fontSize`, `fontWeight`, `textColor`. This dissolves weather's `Cap`/`HelvCap` — two classes that exist only to simulate font flow-down (Part III §8 works the whole rewrite: the App root provides the Tahoma-9-bold-white quartet once, the two Helvetica subtrees re-provide `fontFamily`, and every attribute still written on a Text is a real, local difference).
 
 **Implementation rides the reactive core** — no new machinery kind. The accessor's unset branch walks the parent chain with *tracked reads* of each level's slot (R8's cursor inheritance — `inheritedCursor` — is the proven in-codebase pattern); a provider's write wakes exactly the followers whose walks passed through it; pay-per-use (a view that never reads a prevailing attribute allocates and walks nothing); a re-root or theme swap is one settle, one frame. Full mechanism, the resolution algorithm, and the reactive implementation sketch are in Part III §1.
 
@@ -241,7 +241,7 @@ toolbar: View [ stylesheet = DarkCompact ],    // a subtree re-roots a variant �
                                                // contextual styling, Flutter Theme-style
 ```
 
-**Bare name in declarative position; a real call inside a body.** `stylesheet = Dark` is the *declarative* form — an intrinsic resolution of a stylesheet name against the program's registry, **compile-checked** (a typo, `stylesheet = Drak`, is a positioned error before the program runs). Inside a `{ }` body you are in real TypeScript, where a bare `Dark` is simply an unresolved identifier — and neo **never rewrites identifiers inside a TS block** (the `:path` sigil is an opt-in sub-syntax, not identifier rewriting; the only transformation a body gets is the constraint wrapper's dependency-tracking). So a *reactive* swap is written as an honest method call:
+**Bare name in declarative position; a real call inside a body.** `stylesheet = Dark` is the *declarative* form — an intrinsic resolution of a stylesheet name against the program's registry, **compile-checked** (a typo, `stylesheet = Drak`, is a positioned error before the program runs). Inside a `{ }` body you are in real TypeScript, where a bare `Dark` is simply an unresolved identifier — and Declare **never rewrites identifiers inside a TS block** (the `:path` sigil is an opt-in sub-syntax, not identifier rewriting; the only transformation a body gets is the constraint wrapper's dependency-tracking). So a *reactive* swap is written as an honest method call:
 
 ```
 report: View [ stylesheet = { night ? this.lookupStylesheet("Dark")
@@ -350,7 +350,7 @@ Every decision below is RULED — closed, not open — except the final two, hel
 9. **The underscore convention is strictly lint-tier.** A naming convention only; the language and checker know nothing of it; lint tooling may warn on outside touches at project-configured severity — no semantic weight, no compile-layer coupling.
 10. **Stylesheet entries may set any public attribute, behavioral included.** Uniformity — there is no undrawable style-only subset; the class-body-sets-outrank-stylesheet ruling (item 3) plus the underscore convention (item 9) are the guardrails.
 11. **Declaration defaults may be bindings** — the R6 unlock, needed for a class to default a value against the ambient theme (`fill = { theme.buttonFill }` as a class-body default, not just a use-site set); scoped to the attributes this design actually needs, general binding-valued defaults elsewhere stay refused-with-message until a further consumer needs them.
-12. **Theme representation, v1: a plain immutable TS record, swapped wholesale.** One write replaces the whole record — one settle; no in-place token mutation. First-class theme/token declaration syntax is deferred until calendar-neo produces evidence it's needed.
+12. **Theme representation, v1: a plain immutable TS record, swapped wholesale.** One write replaces the whole record — one settle; no in-place token mutation. First-class theme/token declaration syntax is deferred until calendar-Declare produces evidence it's needed.
 13. **The equality gate extends to structural equality for decoration values.** A `{ }` re-producing an equal `Shadow`/`Gradient`/etc. stops the cascade exactly as `===` does for scalars — cheap, since these are a handful of number/color fields.
 14. **The bundle surface: top-level `style name [ sets ]` + a `styles: [ … ]` view attribute, written order, merged as provisions.** Only the winner installs — no ownership conflicts reachable through styling. **v1's list is static**; conditional looks are what constraints are for; a reactive `styles = { … }` waits for a real consumer.
 15. **An unresolved `:path` on a prevailing slot lands the followed value, not the bare declaration default** — the consistent generalization of R8's rule, since the declaration default is just the chain's end.
@@ -368,7 +368,7 @@ The rejections stand exactly as before: the CSS cascade, selectors, specificity,
 
 ## Part III — The mechanism
 
-*The concretization: the reactive mechanism, the full decoration grammar and fields, style bundles, precedence's reconciliation with the pre-existing provision merge, the enumerated edge cases, and the neoweather app worked end-to-end. §0 immediately below is the approved introductory text — kept verbatim, as written.*
+*The concretization: the reactive mechanism, the full decoration grammar and fields, style bundles, precedence's reconciliation with the pre-existing provision merge, the enumerated edge cases, and the weather app worked end-to-end. §0 immediately below is the approved introductory text — kept verbatim, as written.*
 
 ### 0. Prevailing attributes — the introduction
 
@@ -596,7 +596,7 @@ App [ fontFamily = "Tahoma,Geneva,sans-serif", fontSize = 9,      // literals pr
 
 **RULED set: the four font attributes + `theme`. Nothing else.**
 
-- **`fontFamily` / `fontSize` / `fontWeight` / `textColor` — declared `prevailing` on View.** This executes the R3 checkpoint ruling ("font attributes will cascade — View-declared, nearest ancestor wins, Text overrides — full design at the styling pass") and closes neoweather deliberate-divergence #4. The doc's own examples set fonts on container views; the original weather.lzx cascades `font`/`fontsize`; neoweather's `Cap`/`HelvCap` exist *only* to simulate this — §8 shows them dissolving.
+- **`fontFamily` / `fontSize` / `fontWeight` / `textColor` — declared `prevailing` on View.** This executes the R3 checkpoint ruling ("font attributes will cascade — View-declared, nearest ancestor wins, Text overrides — full design at the styling pass") and closes weather deliberate-divergence #4. The doc's own examples set fonts on container views; the original weather.lzx cascades `font`/`fontsize`; weather's `Cap`/`HelvCap` exist *only* to simulate this — §8 shows them dissolving.
   - **`textColor` is the one slot; `Text.color` retires.** Today Text carries `color`; a View-level prevailing attribute can't be called `color` (ambiguous against background paint), so the prevailing attribute is `textColor` — and keeping *both* names would mean two spellings for one concept plus a subtle asymmetry (which one re-roots?). **RULED (adopted verbatim): one slot, `textColor`, prevailing on View; Text renders with it; `color` on Text is removed** — no alias, no hidden wiring, same name at any level (the rename cost is ours alone — one app). The alternative (keep `color` on Text as a local-only alias whose default follows `textColor`) was not adopted.
 - **`theme` — declared `prevailing theme: Theme` on View.** The theme is *just a prevailing attribute*: a typed token record provided at the app root (or any subtree root), followed by everything beneath. Components opt in by referencing tokens in their class-body defaults:
 
@@ -614,7 +614,7 @@ App [ theme = winterTheme,                   // swap → the subtree reskins, on
     ]
 ```
 
-  This is the exploration's prevailing-theme primitive (Part I §3b) with zero bespoke mechanism — `lz.style` revived on the reactive core. **`Theme` itself, v1:** a plain immutable TS record (defined in module/script land, typed by the tsc path); themes swap **wholesale** (replace the record — one write, one settle), matching R8's snapshot-read posture; in-place token mutation is not surface. First-class theme/token *declaration syntax* is deliberately deferred until calendar-neo produces evidence it's needed — **RULED, ledger item 12, Part II.**
+  This is the exploration's prevailing-theme primitive (Part I §3b) with zero bespoke mechanism — `lz.style` revived on the reactive core. **`Theme` itself, v1:** a plain immutable TS record (defined in module/script land, typed by the tsc path); themes swap **wholesale** (replace the record — one write, one settle), matching R8's snapshot-read posture; in-place token mutation is not surface. First-class theme/token *declaration syntax* is deliberately deferred until calendar-Declare produces evidence it's needed — **RULED, ledger item 12, Part II.**
 
 **Why `fill` (having replaced `backgroundColor`), `opacity`, and `visible` must NOT be prevailing.** The test that separates them: *a prevailing attribute is one whose value is naturally authored at containers but consumed at leaves, and whose effect does not already compose through the render tree.* Fonts and theme pass. The paint/compositing facts fail it twice over:
 
@@ -657,7 +657,7 @@ The alternative (bare value-vocabulary literals with no parens, e.g. CSS-flavore
 | `cornerRadius` | `number` | bare number (uniform) | per-corner form is a future additive field |
 | `stroke` | `Stroke` | `stroke(width, color)` | width (px), color; drawn **inside** the view box (border semantics — the box stays the layout/hit fact, per R5's hit-region rule) |
 | `shadow` | `Shadow` | `shadow(dx, dy, blur, color)` | offsets, blur radius, color — the CSS `box-shadow` shape, minus spread until a consumer needs it |
-| `textShadow` (on Text) | `Shadow` | same `shadow(…)` value | dissolves neoweather's `ShadowText` (§8) |
+| `textShadow` (on Text) | `Shadow` | same `shadow(…)` value | dissolves weather's `ShadowText` (§8) |
 | `clip` | `Shape` | exists since R3 | — |
 | `path` | `Shape` | exists (`d` mini-grammar); shape *components* stay the later layer the rendering model names | — |
 
@@ -717,7 +717,7 @@ delete:  Button [ styles = [card, danger],  … ],     // written order: later w
 
 Bundles never fight at runtime. Their sets enter the existing **provision merge** (R6: class-body chain → use site, nearest provider wins, *only the winner installs*): a bundle set on a slot is a provision like any other, ranked by §6's chain — so an instance literal quietly overrides a bundle's set, a later bundle overrides an earlier one, and the losing provisions **never install**. No two-owner error is reachable through styling, because arbitration happens at merge time, before anything owns anything — the same reason a use-site literal already peacefully replaces a class-body binding. A bundle set on a *prevailing* slot provides (and re-roots) like any other provision.
 
-**Bundles vs classes:** a class is structure + behavior + look; a bundle is look only. neoweather's `Cap` was a class *because bundles and prevailing attributes didn't exist*; with fonts prevailing it needs neither (§8). `StatRow` stays a class — it is genuinely structure (a layout of two data-bound leaves).
+**Bundles vs classes:** a class is structure + behavior + look; a bundle is look only. weather's `Cap` was a class *because bundles and prevailing attributes didn't exist*; with fonts prevailing it needs neither (§8). `StatRow` stays a class — it is genuinely structure (a layout of two data-bound leaves).
 
 ---
 
@@ -752,7 +752,7 @@ Part II ("Provisions and precedence — one winner installs") states the one can
 
 ---
 
-### 8. The worked example: neoweather rewritten
+### 8. The worked example: weather rewritten
 
 The app's entire text/style surface, as it becomes. Today's `Cap`/`HelvCap` are font bookkeeping wearing class costumes; `ShadowText` is a decoration value implemented as structure (two stacked Texts); the zip field hand-draws its border. All three dissolve; `StatRow` — legitimate structure — stays.
 
@@ -839,15 +839,15 @@ class StatRow extends View [
     ]
 ```
 
-**Before/after:** the file drops from 261 lines to roughly **~225** (−14%): the `Cap`+`HelvCap`+`ShadowText` blocks (~26 lines with comments) go entirely, ~20 use sites shed font/color attributes or a wrapper level, the `draw` body and the radar shadow view each become one attribute; the additions are two `fontFamily`/`fontSize` lines on containers and four values on the App line. The qualitative change is bigger than the count: the class section stops being a font manifest (two of four classes were pure style), every remaining attribute on a Text is a *real, local* difference, and the app's typography is legible in one place — the root — instead of reverse-engineered from class definitions. And the reskin story arrives for free: this app recolors from one `theme` provision the day it wants to (calendar-neo remains the designated theme validation, Part IV).
+**Before/after:** the file drops from 261 lines to roughly **~225** (−14%): the `Cap`+`HelvCap`+`ShadowText` blocks (~26 lines with comments) go entirely, ~20 use sites shed font/color attributes or a wrapper level, the `draw` body and the radar shadow view each become one attribute; the additions are two `fontFamily`/`fontSize` lines on containers and four values on the App line. The qualitative change is bigger than the count: the class section stops being a font manifest (two of four classes were pure style), every remaining attribute on a Text is a *real, local* difference, and the app's typography is legible in one place — the root — instead of reverse-engineered from class definitions. And the reskin story arrives for free: this app recolors from one `theme` provision the day it wants to (calendar-Declare remains the designated theme validation, Part IV).
 
 ---
 
 ### 9. Comparisons
 
-**vs `lz.style` (the buried lede, revived).** LZX's prevailing theme had the right shape — hierarchical, "applies to itself and any component within it" — and died of implementation, not design: SWF-only, pre-reactive (swap ≠ live restyle), a fixed slot schema. neo's prevailing attribute is the same idea done right: reactive (a provision change is one settle), **open** (any class declares new prevailing attributes; the token set is whatever `Theme` carries), typed and checked, identical on both backends, and unified with the language's one attribute system instead of being a side registry.
+**vs `lz.style` (the buried lede, revived).** LZX's prevailing theme had the right shape — hierarchical, "applies to itself and any component within it" — and died of implementation, not design: SWF-only, pre-reactive (swap ≠ live restyle), a fixed slot schema. Declare's prevailing attribute is the same idea done right: reactive (a provision change is one settle), **open** (any class declares new prevailing attributes; the token set is whatever `Theme` carries), typed and checked, identical on both backends, and unified with the language's one attribute system instead of being a side registry.
 
-**vs CSS — honest, both directions.** What neo's model does that CSS can't: fully reactive styling (any slot, any expression, live), typed values with compile-time checking, statically analyzable effective values (read the file, walk the tree — no computed-style oracle), no specificity debugging ever, styles that cannot reach into components that didn't opt in, and one mechanism shared with all other attributes (states, bindings, data). What CSS does that neo deliberately doesn't: restyle third-party/arbitrary content from a distance (that power *is* the fragility — rejected); `@media` responsiveness (neo's answer is constraints on the App/canvas size — already more expressive, but less idiomatic until the component library packages it); a colossal property/value surface built over 25 years (neo's decoration vocabulary is deliberately ~four values and grows per consumer); user/UA stylesheet layering and document-level theming conventions (not applicable to own-pixels apps); and raw familiarity — mitigated by the CSS-echoing value names, not chased further.
+**vs CSS — honest, both directions.** What Declare's model does that CSS can't: fully reactive styling (any slot, any expression, live), typed values with compile-time checking, statically analyzable effective values (read the file, walk the tree — no computed-style oracle), no specificity debugging ever, styles that cannot reach into components that didn't opt in, and one mechanism shared with all other attributes (states, bindings, data). What CSS does that Declare deliberately doesn't: restyle third-party/arbitrary content from a distance (that power *is* the fragility — rejected); `@media` responsiveness (Declare's answer is constraints on the App/canvas size — already more expressive, but less idiomatic until the component library packages it); a colossal property/value surface built over 25 years (Declare's decoration vocabulary is deliberately ~four values and grows per consumer); user/UA stylesheet layering and document-level theming conventions (not applicable to own-pixels apps); and raw familiarity — mitigated by the CSS-echoing value names, not chased further.
 
 **Readability.** The chain (§6, Part II) is short, fixed, and source-visible; "why is this text 9px?" is answered by walking up the file to the nearest provider — the same walk the runtime does. Nothing about a view's look is determined by a rule written elsewhere that names it by pattern.
 
@@ -866,9 +866,9 @@ class StatRow extends View [
 
 ## Part IV — Validation
 
-### Validation: `calendar-neo`
+### Validation: `calendar-Declare`
 
-Copy the calendar source tree to `calendar-neo` and use it to prove both additions in one app, leaving the original calendar untouched at pixel-parity as the reference — the deliberate "graduate from the oracle" divergence:
+Copy the calendar source tree to `calendar-Declare` and use it to prove both additions in one app, leaving the original calendar untouched at pixel-parity as the reference — the deliberate "graduate from the oracle" divergence:
 
 - **Decoration:** replace the calendar's image-based chrome (rounded gradient buttons, bordered cells, the gradient header) with declarative decoration attributes, growing the kernel painter (`LzCanvasPainter`) to render gradients / borders / shadows / paths.
 - **Re-skin:** resolve the calendar's palette (the blues, the header gradient, the cell borders) from a **token set** via the prevailing theme. Swapping the token object recolors the entire calendar, live.

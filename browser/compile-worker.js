@@ -10,7 +10,7 @@
 //   { type:"highlight", id, src }            → { id, result }
 //
 // The result crossing the boundary is the PROJECTED compile result —
-// { source, deps, diagnostics, report } — never the raw NeoError lists:
+// { source, deps, diagnostics, report } — never the raw DeclareError lists:
 // structured clone would strip an Error subclass's custom fields (pos, code)
 // silently, and `diagnostics` already carries everything, structured AND
 // rendered. The inline client projects identically, so worker and inline

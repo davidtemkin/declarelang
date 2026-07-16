@@ -1,7 +1,7 @@
 # Declare — the build journey
 
 A narrative summary of how Declare was built, distilled from the working docs of the
-`openlaszlo-neo/neolang` effort (`APPROACH.md`, `HANDOFF.md`, `PLAN.md`, the animation
+`openlaszlo-Declare/neolang` effort (`APPROACH.md`, `HANDOFF.md`, `PLAN.md`, the animation
 relay, and the session-resume notes). Those were process scaffolding — checkpoints,
 relays, and decision logs written for the agents building each rung. This is the story
 they add up to, kept for provenance. The enduring *design* rulings live in the sibling
@@ -31,7 +31,7 @@ had to pass a green gate (build + unit + perceptual tests) and a lead checkpoint
 before the next began. Two flagship apps *drove* the ladder — every rung existed to make
 the next piece of a real app work, so nothing speculative got built.
 
-The invariant across every rung was **perceptual + behavioral, "or better"**: neo's
+The invariant across every rung was **perceptual + behavioral, "or better"**: Declare's
 output had to match the OpenLaszlo reference pixel-for-pixel (within AA tolerance) and
 behavior-for-behavior — *or improve on it deliberately*, never regress by accident.
 
@@ -58,7 +58,7 @@ behavior-for-behavior — *or improve on it deliberately*, never regress by acci
 
 ## Dual backend, chosen at runtime
 
-A defining departure from OpenLaszlo: neo renders to **DOM *and* Canvas**, picked at
+A defining departure from OpenLaszlo: Declare renders to **DOM *and* Canvas**, picked at
 runtime, from one program. The DOM backend gives accessibility and native text; the
 Canvas backend gives own-pixel control and performance. The cross-backend perceptual
 diff (delta 0) was a standing gate — the two backends must agree.
@@ -67,7 +67,7 @@ diff (delta 0) was a standing gate — the two backends must agree.
 
 The compiler is a thin, declarative front-end: it parses `.declare`, typechecks against
 the schemas, extracts constraint dependencies statically, and emits JavaScript. The
-runtime stays browser-pure and zero-dependency — and, because neo instantiates and
+runtime stays browser-pure and zero-dependency — and, because Declare instantiates and
 compiles *in the browser*, the parser and checker live in the runtime, with the compiler
 a Node-side orchestration layer on top. (See `../hosting.md` for why the seam falls there.)
 
@@ -88,8 +88,8 @@ The decision logs converged on a consistent set of choices, each written up in `
 
 ## The flagships
 
-**neoweather** was the first full app — a compact but complete weather app that drove
-R0–R8 to closure. **neocalendar** followed as a ground-up, **spec-first** rewrite: a
+**weather** was the first full app — a compact but complete weather app that drove
+R0–R8 to closure. **calendar-sample** followed as a ground-up, **spec-first** rewrite: a
 written SPEC contract plus a suite of oracle screenshots defined the target *before*
 implementation, so the app was built to a specification rather than transliterated from
 the original — geometry-exact, chrome improved, bugs fixed rather than replicated.

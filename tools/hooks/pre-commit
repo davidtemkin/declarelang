@@ -3,7 +3,7 @@
 # from the current sources — so the curated precompiled artifacts stay in step
 # with the tree; each is self-validating, so a skipped regen only costs the
 # compiler-free fast path, never correctness (tools/prewarm.mjs). (0b) bake the
-# homepage's static extraction into index.html (tools/bake-homepage-seo.mjs) so the
+# homepage's static extraction into index.html (tools/bake-homepage-crawler.mjs) so the
 # root page carries its content for crawlers + LLMs; host-client clears it at boot,
 # so a stale bake would only ever affect the crawler snapshot, never a live user.
 # (1) rebuild any STALE platform bundle — stamp-version calls
@@ -20,7 +20,7 @@
 # Committed + shared (not the per-clone .git/hooks/ copy). `npm install` wires it up via the
 # package.json "prepare" script; to activate by hand: git config core.hooksPath tools/hooks
 node tools/prewarm.mjs || exit 0
-node tools/bake-homepage-seo.mjs || exit 0
+node tools/bake-homepage-crawler.mjs || exit 0
 node tools/stamp-version.mjs || exit 0
 git add service-worker.js bundles index.html 2>/dev/null
 exit 0

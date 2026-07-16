@@ -51,7 +51,7 @@
 // front-end owns real lexing: a regex literal containing a brace or quote
 // (`/}/`) defeats the scan (regex-vs-division needs full lexing context);
 // write such regexes as new RegExp("…"). Recorded in HANDOFF §R4.
-import { NeoError, NeoErrors } from "./errors.js";
+import { DeclareError, DeclareErrors } from "./errors.js";
 import { Diag } from "./diagnostics.js";
 const isDigit = (c) => c >= "0" && c <= "9";
 const isIdentStart = (c) => (c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || c === "_";
@@ -102,7 +102,7 @@ function tokenize(src) {
             advance();
         }
         if (src[i] !== quote)
-            throw new NeoError("unterminated string in { } expression", at);
+            throw new DeclareError("unterminated string in { } expression", at);
         advance(); // closing quote
     };
     const skipTemplate = (at) => {
@@ -122,7 +122,7 @@ function tokenize(src) {
             advance();
         }
         if (i >= src.length)
-            throw new NeoError("unterminated template literal in { } expression", at);
+            throw new DeclareError("unterminated template literal in { } expression", at);
         advance(); // closing backtick
     };
     const skipBraces = (at) => {
@@ -152,7 +152,7 @@ function tokenize(src) {
                 while (i < src.length && !(src[i] === "*" && src[i + 1] === "/"))
                     advance();
                 if (i >= src.length)
-                    throw new NeoError("unterminated comment in { } expression", at);
+                    throw new DeclareError("unterminated comment in { } expression", at);
                 advance();
                 advance();
             }
@@ -160,7 +160,7 @@ function tokenize(src) {
                 advance();
         }
         if (depth > 0)
-            throw new NeoError("unterminated { } expression", at);
+            throw new DeclareError("unterminated { } expression", at);
     };
     while (i < src.length) {
         const c = src[i];
@@ -187,7 +187,7 @@ function tokenize(src) {
             while (i < src.length && !(src[i] === "*" && src[i + 1] === "/"))
                 advance();
             if (i >= src.length)
-                throw new NeoError("unterminated block comment", at);
+                throw new DeclareError("unterminated block comment", at);
             advance();
             advance();
             continue;
@@ -234,7 +234,7 @@ function tokenize(src) {
                 advance();
             }
             if (i >= src.length)
-                throw new NeoError('unterminated text block (""")', start);
+                throw new DeclareError('unterminated text block (""")', start);
             advance();
             advance();
             advance();
@@ -260,7 +260,7 @@ function tokenize(src) {
                 }
             }
             if (i >= src.length)
-                throw new NeoError("unterminated string", start);
+                throw new DeclareError("unterminated string", start);
             advance(); // closing quote
             tokens.push({ kind: "string", text: str, pos: start, str });
             continue;
@@ -343,7 +343,7 @@ function tokenize(src) {
             tokens.push({ kind: "arrow", text: "->", pos: start });
             continue;
         }
-        throw new NeoError(`unexpected character '${c}'`, start);
+        throw new DeclareError(`unexpected character '${c}'`, start);
     }
     tokens.push({ kind: "eof", text: "", pos: here() });
     return tokens;
@@ -357,7 +357,7 @@ class Parser {
      *  recorded here, and parsing continues at the member comma — so one compile
      *  reports the full list, the way check() already does. Unrecognized junk
      *  still throws immediately (blind recovery manufactures cascades). The
-     *  entry points raise these as one NeoErrors at completion. */
+     *  entry points raise these as one DeclareErrors at completion. */
     errors = [];
     i = 0;
     constructor(tokens) {
@@ -369,9 +369,9 @@ class Parser {
     expect(kind, what) {
         const t = this.tokens[this.i];
         if (t.kind !== kind) {
-            const err = new NeoError(`expected ${what}, got '${t.text || t.kind}'`, t.pos);
+            const err = new DeclareError(`expected ${what}, got '${t.text || t.kind}'`, t.pos);
             // a hard stop with recovered errors pending reports ALL of them
-            throw this.errors.length > 0 ? new NeoErrors([...this.errors, err]) : err;
+            throw this.errors.length > 0 ? new DeclareErrors([...this.errors, err]) : err;
         }
         return this.tokens[this.i++];
     }
@@ -442,7 +442,7 @@ class Parser {
             // element's attributes; name the rule, CONSUME the production, continue —
             // so the rest of the body still gets checked (recognition layer).
             if (this.peek().kind === "dot") {
-                this.errors.push(new NeoError(`'${name.text}.…' — a member sets this element's OWN attributes, never a child's. Write the attribute on '${name.text}' itself, usually as a { } constraint reading the state or flag that drives it`, name.pos));
+                this.errors.push(new DeclareError(`'${name.text}.…' — a member sets this element's OWN attributes, never a child's. Write the attribute on '${name.text}' itself, usually as a { } constraint reading the state or flag that drives it`, name.pos));
                 while (this.peek().kind === "dot") {
                     this.next();
                     if (this.peek().kind === "ident")
@@ -471,7 +471,7 @@ class Parser {
                 this.next();
                 const bv = this.parseLiteral();
                 if (bv.kind !== "path" && bv.kind !== "code") {
-                    this.errors.push(new NeoError(`'${name.text} <-> …' binds a DATAPATH — write a :path (${name.text} <-> :field), or a { } expression yielding a place. To wire an attribute to another attribute, derive down with a { } constraint and deliver up in an onInput() handler`, bv.pos));
+                    this.errors.push(new DeclareError(`'${name.text} <-> …' binds a DATAPATH — write a :path (${name.text} <-> :field), or a { } expression yielding a place. To wire an attribute to another attribute, derive down with a { } constraint and deliver up in an onInput() handler`, bv.pos));
                     // consume a stray dotted chain (`<-> classroot.field`), drop the member
                     while (this.peek().kind === "dot") {
                         this.next();
@@ -506,7 +506,7 @@ class Parser {
                 const type = this.expect("ident", "a type or component name");
                 if (this.peek().kind === "lbracket") {
                     if (prevailing || readOnly) {
-                        throw new NeoError(`'${readOnly ? "readonly" : "prevailing"}' marks an attribute declaration — a child instance cannot carry it`, declPos);
+                        throw new DeclareError(`'${readOnly ? "readonly" : "prevailing"}' marks an attribute declaration — a child instance cannot carry it`, declPos);
                     }
                     const child = { tag: type.text, name: name.text, attrs: [], decls: [], methods: [], children: [], pos: name.pos };
                     this.next();
@@ -519,7 +519,7 @@ class Parser {
                     // body (language §9). Pure syntax here; the checker owns whether
                     // the tag admits one and whether the text is valid JSON.
                     if (prevailing || readOnly) {
-                        throw new NeoError(`'${readOnly ? "readonly" : "prevailing"}' marks an attribute declaration — a child instance cannot carry it`, declPos);
+                        throw new DeclareError(`'${readOnly ? "readonly" : "prevailing"}' marks an attribute declaration — a child instance cannot carry it`, declPos);
                     }
                     const body = this.next();
                     el.children.push({
@@ -551,7 +551,7 @@ class Parser {
                     // annotation, keep the method (recognition layer).
                     if (this.peek().kind === "colon") {
                         if (!typedParams)
-                            this.errors.push(new NeoError(`a method's parameters are bare names — '${name.text}(${params.join(", ")})' — type annotations belong in { } bodies, not [ ] signatures`, this.peek().pos));
+                            this.errors.push(new DeclareError(`a method's parameters are bare names — '${name.text}(${params.join(", ")})' — type annotations belong in { } bodies, not [ ] signatures`, this.peek().pos));
                         typedParams = true;
                         this.next();
                         if (this.peek().kind === "ident")
@@ -568,7 +568,7 @@ class Parser {
                 // so a colon or `->` here is always the TS-ism: name it once, consume
                 // it, keep the method (recognition layer).
                 if (this.peek().kind === "colon" || this.peek().kind === "arrow") {
-                    this.errors.push(new NeoError(`a method has no return annotation — write '${name.text}(${params.join(", ")}) { … }'; for a typed computed value use a typed attribute with a { } default instead`, this.peek().pos));
+                    this.errors.push(new DeclareError(`a method has no return annotation — write '${name.text}(${params.join(", ")}) { … }'; for a typed computed value use a typed attribute with a { } default instead`, this.peek().pos));
                     this.next();
                     if (this.peek().kind === "ident")
                         this.next();
@@ -581,14 +581,14 @@ class Parser {
                     this.next();
                     const st = this.peek();
                     if (st.kind !== "ident")
-                        throw new NeoError(`expected the event source's name after '<-', got '${st.text || st.kind}'`, st.pos);
+                        throw new DeclareError(`expected the event source's name after '<-', got '${st.text || st.kind}'`, st.pos);
                     this.next();
                     source = st.text;
                     sourcePos = st.pos;
                 }
                 const body = this.peek();
                 if (body.kind !== "code") {
-                    throw new NeoError(`expected the ${source !== undefined ? "subscription" : "method"} body '{ … }', got '${body.text || body.kind}'`, body.pos);
+                    throw new DeclareError(`expected the ${source !== undefined ? "subscription" : "method"} body '{ … }', got '${body.text || body.kind}'`, body.pos);
                 }
                 this.next();
                 const m = { name: name.text, params, body: body.str, pos: name.pos, bodyPos: body.pos };
@@ -658,7 +658,7 @@ class Parser {
                 this.expect("rbracket", "']'");
                 return { kind: "list", items, pos: t.pos };
             }
-            default: throw new NeoError(`expected a value, got '${t.text || t.kind}'`, t.pos);
+            default: throw new DeclareError(`expected a value, got '${t.text || t.kind}'`, t.pos);
         }
     }
     /** `:field(.field)*` with an optional glued `[]` (the replication form,
@@ -724,7 +724,7 @@ class Parser {
         while (this.peek().kind !== "rbracket" && this.peek().kind !== "eof") {
             const t = this.peek();
             if (t.kind !== "ident") {
-                throw new NeoError("a use entry is a component name", t.pos);
+                throw new DeclareError("a use entry is a component name", t.pos);
             }
             this.next();
             names.push(t.text);
@@ -737,7 +737,7 @@ class Parser {
         return names;
     }
     /** `'include' '[' STRING ( ',' STRING )* ','? ']'` — a top-level directive
-     *  whose body is neo's list grammar restricted to quoted paths. Non-string
+     *  whose body is Declare's list grammar restricted to quoted paths. Non-string
      *  entries are a positioned error (paths are quoted strings, no bare-token
      *  magic — composition.md §1). Returns one IncludeRef per path plus the
      *  directive's whole source span (the `include` keyword through `]`), which
@@ -749,7 +749,7 @@ class Parser {
         while (this.peek().kind !== "rbracket" && this.peek().kind !== "eof") {
             const t = this.peek();
             if (t.kind !== "string") {
-                throw new NeoError("an include path is a quoted string", t.pos);
+                throw new DeclareError("an include path is a quoted string", t.pos);
             }
             this.next();
             refs.push({ path: t.str, pos: t.pos });
@@ -782,7 +782,7 @@ export function parse(source) {
     const root = p.parseElement();
     p.expect("eof", "end of input");
     if (p.errors.length > 0)
-        throw new NeoErrors(p.errors);
+        throw new DeclareErrors(p.errors);
     return root;
 }
 /** Parse the top-level declarations shared by a program and a library:
@@ -827,7 +827,7 @@ export function parseProgram(source) {
     const root = p.parseElement();
     p.expect("eof", "end of input");
     if (p.errors.length > 0)
-        throw new NeoErrors(p.errors);
+        throw new DeclareErrors(p.errors);
     return { classes, stylesheets, styles, fonts, includes, includeSpans, uses, root };
 }
 /** Parse an INCLUDED file (composition.md §1): the same top-level
@@ -842,7 +842,7 @@ export function parseLibrary(source) {
         throw Diag.strayRoot("an included file is a library of definitions — it declares classes, stylesheets, and styles, not an App/root", p.peek().pos);
     }
     if (p.errors.length > 0)
-        throw new NeoErrors(p.errors);
+        throw new DeclareErrors(p.errors);
     return decls;
 }
 //# sourceMappingURL=parser.js.map

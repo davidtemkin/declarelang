@@ -49,7 +49,7 @@
 import { Node } from "./node.js";
 import { Constraint } from "./reactive.js";
 import { defineAttributes, own, ownerOf, release, setBound } from "./attributes.js";
-import { NeoError } from "./errors.js";
+import { DeclareError } from "./errors.js";
 import { View, type LayoutStrategy } from "./view.js";
 import { Animator } from "./animator.js";
 import { motionToken } from "./animate.js";
@@ -79,7 +79,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
    *  across views would make its reactive attributes action-at-a-distance. */
   attachTo(view: View): () => void {
     if (this.view !== null) {
-      throw new NeoError(
+      throw new DeclareError(
         `this ${this.constructor.name} already arranges a ${this.view.constructor.name} — one strategy per view`
       );
     }
@@ -140,7 +140,7 @@ export class SimpleLayout extends Layout {
         const child = kids[i];
         const prior = ownerOf(child, axis);
         if (prior !== null) {
-          throw new NeoError(
+          throw new DeclareError(
             `${child.constructor.name}.${axis} is already bound (by ${prior.label}), but ${label} arranges its children's ${axis} — drop one of the two`
           );
         }
@@ -229,7 +229,7 @@ export class WrappingLayout extends Layout {
         for (const slot of ["x", "y"] as const) {
           const prior = ownerOf(child, slot);
           if (prior !== null) {
-            throw new NeoError(
+            throw new DeclareError(
               `${child.constructor.name}.${slot} is already bound (by ${prior.label}), but ${label} arranges its children — drop one of the two`
             );
           }

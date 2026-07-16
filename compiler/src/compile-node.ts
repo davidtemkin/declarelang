@@ -33,9 +33,9 @@ export type { CompileOptions, Compiled } from "./compile.js";
 // Static extraction (design/capabilities.md §4–5) — exported by BOTH entry
 // points (compile-browser.ts carries the same block): the browser compiler
 // does everything the Node one can, as architecture and as principle.
-export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, seoDocument } from "./seo.js";
+export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
 export { crawlLocations, crawlDocument, fragmentHrefs, canonKey, type CrawlDoc, type CrawlOptions } from "./crawl.js";
-export type { ExtractOptions, Extracted } from "./seo.js";
+export type { ExtractOptions, Extracted } from "./static-html.js";
 export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
 export type { Environment, HeadlessOptions } from "./headless.js";
 export { DiskTracker, diskProbe, statValidator } from "./cache-node.js";

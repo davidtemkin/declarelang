@@ -27,7 +27,7 @@
 // namespace.
 
 import type { Element, Attr, Method, AttrDecl, ClassDecl, Program, TopDecl, Literal } from "./parser.js";
-import { NeoError, type Pos } from "./errors.js";
+import { DeclareError, type Pos } from "./errors.js";
 import { SCHEMAS, SUBSCRIPTION_SOURCES, attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName, type ComponentSchema } from "./schema.js";
 import { Diag } from "./diagnostics.js";
 import { coerce, declaredType, describeLiteral, DECLARED_TYPE_NAMES, type AttrType, type AttrValue } from "./value.js";
@@ -72,7 +72,7 @@ const RESERVED = CONSTRUCTOR_NAMES;
 /** Typecheck a parsed tree — a whole Program (classes + root) or a bare
  *  Element fragment. Returns every error found, in source order — an empty
  *  array means the tree is well-typed and safe to instantiate. */
-export function check(input: Element | Program): NeoError[] {
+export function check(input: Element | Program): DeclareError[] {
   const program: Program =
     "root" in input ? input : { classes: [], stylesheets: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], root: input };
   const { infos, schemas, errors } = programSchemas(program.classes);
@@ -95,7 +95,7 @@ export function check(input: Element | Program): NeoError[] {
   // (`Layout`, `RichText`) are absent, so `use`-ing one is correctly rejected.
   for (const name of program.uses) {
     if (!Object.hasOwn(schemas, name)) {
-      errors.push(new NeoError(`use [ ${name} ]: unknown component '${name}' — a use entry names a built-in or a declared/included class`, program.root.pos));
+      errors.push(new DeclareError(`use [ ${name} ]: unknown component '${name}' — a use entry names a built-in or a declared/included class`, program.root.pos));
     }
   }
   // Members of different kinds interleave freely in source but are checked
@@ -130,18 +130,18 @@ export interface ClassInfo {
 export function programSchemas(classes: readonly ClassDecl[]): {
   infos: ClassInfo[];
   schemas: Record<string, ComponentSchema>;
-  errors: NeoError[];
+  errors: DeclareError[];
 } {
   const infos: ClassInfo[] = [];
   const schemas: Record<string, ComponentSchema> = { ...SCHEMAS };
-  const errors: NeoError[] = [];
+  const errors: DeclareError[] = [];
   for (const decl of classes) {
     if (Object.hasOwn(schemas, decl.name)) {
-      errors.push(new NeoError(`there is already a component named '${decl.name}'`, decl.pos));
+      errors.push(new DeclareError(`there is already a component named '${decl.name}'`, decl.pos));
       continue;
     }
     if (!Object.hasOwn(schemas, decl.base)) {
-      errors.push(new NeoError(
+      errors.push(new DeclareError(
         `unknown base '${decl.base}' — a class extends a built-in component or a class declared above it`,
         decl.basePos
       ));
@@ -157,7 +157,7 @@ export function programSchemas(classes: readonly ClassDecl[]): {
     // note DataSource already IS a Dataset subclass), and State is declarative,
     // with no computation to override. Hence "not wired yet", not "sealed".
     if (!descendsFrom(base, "View") && !descendsFrom(base, "Layout") && !descendsFrom(base, "Node")) {
-      errors.push(new NeoError(
+      errors.push(new DeclareError(
         `subclassing '${decl.base}' is not wired yet — a class extends View, Layout, or Node today (Dataset/Animator want the same plumbing; State is declarative)`,
         decl.basePos
       ));
@@ -199,7 +199,7 @@ export function programSchemas(classes: readonly ClassDecl[]): {
       return used !== undefined && (used.has(info.decl.name) || [...used].some(reaches));
     };
     if (uses.get(info.decl.name)!.has(info.decl.name) || [...uses.get(info.decl.name)!].some(reaches)) {
-      errors.push(new NeoError(
+      errors.push(new DeclareError(
         `class ${info.decl.name} contains itself — a class may not appear inside its own body (directly or through another class)`,
         info.decl.pos
       ));
@@ -218,7 +218,7 @@ export function programSchemas(classes: readonly ClassDecl[]): {
 export function checkStyleDecls(
   program: Program,
   schemas: Readonly<Record<string, ComponentSchema>>,
-  errors: NeoError[]
+  errors: DeclareError[]
 ): StyleEnv {
   const bundles = new Map<string, Element>();
   const stylesheets = new Set<string>();
@@ -227,7 +227,7 @@ export function checkStyleDecls(
     Object.hasOwn(schemas, name) || bundles.has(name) || stylesheets.has(name) || fonts.has(name);
   for (const s of program.styles) {
     if (taken(s.name)) {
-      errors.push(new NeoError(`there is already a component, stylesheet, style, or font named '${s.name}'`, s.pos));
+      errors.push(new DeclareError(`there is already a component, stylesheet, style, or font named '${s.name}'`, s.pos));
       continue;
     }
     errors.push(...checkStyleBody(s));
@@ -235,7 +235,7 @@ export function checkStyleDecls(
   }
   for (const s of program.stylesheets) {
     if (taken(s.name)) {
-      errors.push(new NeoError(`there is already a component, stylesheet, style, or font named '${s.name}'`, s.pos));
+      errors.push(new DeclareError(`there is already a component, stylesheet, style, or font named '${s.name}'`, s.pos));
       continue;
     }
     errors.push(...checkStylesheetBody(s, schemas));
@@ -243,7 +243,7 @@ export function checkStyleDecls(
   }
   for (const f of program.fonts) {
     if (taken(f.name)) {
-      errors.push(new NeoError(`there is already a component, stylesheet, style, or font named '${f.name}'`, f.pos));
+      errors.push(new DeclareError(`there is already a component, stylesheet, style, or font named '${f.name}'`, f.pos));
       continue;
     }
     errors.push(...checkFontBody(f));
@@ -255,13 +255,13 @@ export function checkStyleDecls(
 /** A style bundle carries attribute sets only — a look, not a component.
  *  Its fields TYPE against each class it is applied to (checkBundleUse),
  *  so declaration-time checking is shape + the always-wrong names. */
-function checkStyleBody(decl: TopDecl): NeoError[] {
-  const errors: NeoError[] = [];
+function checkStyleBody(decl: TopDecl): DeclareError[] {
+  const errors: DeclareError[] = [];
   const b = decl.body;
-  for (const d of b.decls) errors.push(new NeoError(`style ${decl.name}: a bundle declares no attributes — it is a look, not a component`, d.pos));
-  for (const m of b.methods) errors.push(new NeoError(`style ${decl.name}: a bundle has no methods`, m.pos));
-  for (const c of b.children) errors.push(new NeoError(`style ${decl.name}: a bundle has no children — attribute sets only`, c.pos));
-  if (b.raw !== undefined) errors.push(new NeoError(`style ${decl.name}: a bundle takes [ ] members, not a { } body`, b.raw.pos));
+  for (const d of b.decls) errors.push(new DeclareError(`style ${decl.name}: a bundle declares no attributes — it is a look, not a component`, d.pos));
+  for (const m of b.methods) errors.push(new DeclareError(`style ${decl.name}: a bundle has no methods`, m.pos));
+  for (const c of b.children) errors.push(new DeclareError(`style ${decl.name}: a bundle has no children — attribute sets only`, c.pos));
+  if (b.raw !== undefined) errors.push(new DeclareError(`style ${decl.name}: a bundle takes [ ] members, not a { } body`, b.raw.pos));
   return errors;
 }
 
@@ -269,81 +269,81 @@ function checkStyleBody(decl: TopDecl): NeoError[] {
  *  'family = "…"' (defaults to the name) and zero or more `Face` children; no
  *  faces = a system font. Reports every problem (like the bundle check); the
  *  buildFonts in font.ts is the throwing safety net. */
-function checkFontBody(decl: TopDecl): NeoError[] {
-  const errors: NeoError[] = [];
+function checkFontBody(decl: TopDecl): DeclareError[] {
+  const errors: DeclareError[] = [];
   const b = decl.body;
-  for (const d of b.decls) errors.push(new NeoError(`font ${decl.name}: a font has no declarations`, d.pos));
-  for (const m of b.methods) errors.push(new NeoError(`font ${decl.name}: a font has no methods`, m.pos));
-  if (b.raw !== undefined) errors.push(new NeoError(`font ${decl.name}: a font takes a [ ] body, not { }`, b.raw.pos));
+  for (const d of b.decls) errors.push(new DeclareError(`font ${decl.name}: a font has no declarations`, d.pos));
+  for (const m of b.methods) errors.push(new DeclareError(`font ${decl.name}: a font has no methods`, m.pos));
+  if (b.raw !== undefined) errors.push(new DeclareError(`font ${decl.name}: a font takes a [ ] body, not { }`, b.raw.pos));
   for (const a of b.attrs) {
     if (a.name === "family") {
-      if (a.value.kind !== "string") errors.push(new NeoError(`font ${decl.name}: family is a quoted string`, a.value.pos));
+      if (a.value.kind !== "string") errors.push(new DeclareError(`font ${decl.name}: family is a quoted string`, a.value.pos));
       continue;
     }
-    errors.push(new NeoError(`font ${decl.name}: a font body carries 'family = "…"' and Face children only — not '${a.name}'`, a.pos));
+    errors.push(new DeclareError(`font ${decl.name}: a font body carries 'family = "…"' and Face children only — not '${a.name}'`, a.pos));
   }
   let faces = 0;
   for (const c of b.children) {
-    if (c.tag !== "Face") { errors.push(new NeoError(`font ${decl.name}: '${c.tag}' is not a Face`, c.pos)); continue; }
+    if (c.tag !== "Face") { errors.push(new DeclareError(`font ${decl.name}: '${c.tag}' is not a Face`, c.pos)); continue; }
     errors.push(...checkFace(decl.name, c));
     faces++;
   }
   if (b.attrs.length === 0 && faces === 0) {
-    errors.push(new NeoError(`font ${decl.name}: declare a family ('family = "…"') or at least one Face`, decl.pos));
+    errors.push(new DeclareError(`font ${decl.name}: declare a family ('family = "…"') or at least one Face`, decl.pos));
   }
   return errors;
 }
 
 /** One `Face [ src, weight?, italic? ]`. src is required; weight is a formalized
  *  token; italic is a boolean. */
-function checkFace(fontName: string, face: Element): NeoError[] {
-  const errors: NeoError[] = [];
+function checkFace(fontName: string, face: Element): DeclareError[] {
+  const errors: DeclareError[] = [];
   let hasSrc = false;
   for (const a of face.attrs) {
     if (a.name === "src") { errors.push(...checkSource(fontName, a.value)); hasSrc = true; continue; }
     if (a.name === "weight") {
       if (a.value.kind !== "ident" || faceWeight(a.value.name) === null)
-        errors.push(new NeoError(`font ${fontName}: a Face weight is a token (${Object.keys(FONT_WEIGHTS).join(", ")})`, a.value.pos));
+        errors.push(new DeclareError(`font ${fontName}: a Face weight is a token (${Object.keys(FONT_WEIGHTS).join(", ")})`, a.value.pos));
       continue;
     }
     if (a.name === "italic") {
       if (a.value.kind !== "ident" || (a.value.name !== "true" && a.value.name !== "false"))
-        errors.push(new NeoError(`font ${fontName}: a Face's italic is true or false`, a.value.pos));
+        errors.push(new DeclareError(`font ${fontName}: a Face's italic is true or false`, a.value.pos));
       continue;
     }
-    errors.push(new NeoError(`font ${fontName}: a Face has src, weight, italic — not '${a.name}'`, a.pos));
+    errors.push(new DeclareError(`font ${fontName}: a Face has src, weight, italic — not '${a.name}'`, a.pos));
   }
-  for (const c of face.children) errors.push(new NeoError(`font ${fontName}: a Face has no children`, c.pos));
-  if (!hasSrc) errors.push(new NeoError(`font ${fontName}: a Face needs a src`, face.pos));
+  for (const c of face.children) errors.push(new DeclareError(`font ${fontName}: a Face has no children`, c.pos));
+  if (!hasSrc) errors.push(new DeclareError(`font ${fontName}: a Face needs a src`, face.pos));
   return errors;
 }
 
 /** A Face source: a URL string, `url("…")` / `local("…")`, or a list of those. */
-function checkSource(fontName: string, lit: Literal): NeoError[] {
+function checkSource(fontName: string, lit: Literal): DeclareError[] {
   if (lit.kind === "string") return [];
   if (lit.kind === "call") {
     if (lit.name !== "url" && lit.name !== "local")
-      return [new NeoError(`font ${fontName}: a face source is a URL string, url("…"), local("…"), or a list — not '${lit.name}(…)'`, lit.pos)];
+      return [new DeclareError(`font ${fontName}: a face source is a URL string, url("…"), local("…"), or a list — not '${lit.name}(…)'`, lit.pos)];
     if (lit.args.length !== 1 || lit.args[0].kind !== "string")
-      return [new NeoError(`font ${fontName}: ${lit.name}(…) takes one quoted string`, lit.pos)];
+      return [new DeclareError(`font ${fontName}: ${lit.name}(…) takes one quoted string`, lit.pos)];
     return [];
   }
   if (lit.kind === "list") {
-    if (lit.items.length === 0) return [new NeoError(`font ${fontName}: a face source list is empty`, lit.pos)];
+    if (lit.items.length === 0) return [new DeclareError(`font ${fontName}: a face source list is empty`, lit.pos)];
     return lit.items.flatMap((i) => checkSource(fontName, i));
   }
-  return [new NeoError(`font ${fontName}: a face source is a URL string, url("…"), local("…"), or a list of them`, lit.pos)];
+  return [new DeclareError(`font ${fontName}: a face source is a URL string, url("…"), local("…"), or a list of them`, lit.pos)];
 }
 
 /** Validate one bundle against one applied-to schema (memoized per pairing
  *  by the caller): every field must be an attribute of that class, of a
  *  stylable kind — the loud, positioned failure the ruled design promises. */
-function checkBundleUse(bundle: string, body: Element, schema: ComponentSchema, at: Pos): NeoError[] {
-  const errors: NeoError[] = [];
+function checkBundleUse(bundle: string, body: Element, schema: ComponentSchema, at: Pos): DeclareError[] {
+  const errors: DeclareError[] = [];
   for (const a of body.attrs) {
     const type = attrType(schema, a.name);
     if (type === null) {
-      errors.push(new NeoError(
+      errors.push(new DeclareError(
         `style ${bundle} sets '${a.name}', which ${schema.name} (styled at line ${at.line}, col ${at.col}) does not declare`,
         a.pos
       ));
@@ -351,7 +351,7 @@ function checkBundleUse(bundle: string, body: Element, schema: ComponentSchema, 
     }
     const bad = UNSTYLABLE[type.kind];
     if (bad !== undefined) {
-      errors.push(new NeoError(`style ${bundle}.${a.name}: ${bad}`, a.pos));
+      errors.push(new DeclareError(`style ${bundle}.${a.name}: ${bad}`, a.pos));
       continue;
     }
     const r = checkAttr(schema, a);
@@ -366,19 +366,19 @@ function checkBundleUse(bundle: string, body: Element, schema: ComponentSchema, 
 function checkStylesheetBody(
   decl: TopDecl,
   schemas: Readonly<Record<string, ComponentSchema>>
-): NeoError[] {
-  const errors: NeoError[] = [];
+): DeclareError[] {
+  const errors: DeclareError[] = [];
   const b = decl.body;
   const where = `stylesheet ${decl.name}`;
   for (const a of b.attrs) {
-    errors.push(new NeoError(
+    errors.push(new DeclareError(
       `${where}: a stylesheet carries a theme record and class-keyed entries — write 'theme: Theme [ … ]' or 'ClassName: [ … ]'`,
       a.pos
     ));
   }
-  for (const d of b.decls) errors.push(new NeoError(`${where}: a stylesheet declares no attributes`, d.pos));
-  for (const m of b.methods) errors.push(new NeoError(`${where}: a stylesheet has no methods`, m.pos));
-  if (b.raw !== undefined) errors.push(new NeoError(`${where}: a stylesheet takes [ ] members, not a { } body`, b.raw.pos));
+  for (const d of b.decls) errors.push(new DeclareError(`${where}: a stylesheet declares no attributes`, d.pos));
+  for (const m of b.methods) errors.push(new DeclareError(`${where}: a stylesheet has no methods`, m.pos));
+  if (b.raw !== undefined) errors.push(new DeclareError(`${where}: a stylesheet takes [ ] members, not a { } body`, b.raw.pos));
   const seen = new Map<string, Pos>();
   for (const child of b.children) {
     if (child.name === "theme" && child.tag === "Theme") {
@@ -386,7 +386,7 @@ function checkStylesheetBody(
       continue;
     }
     if (child.entry !== true) {
-      errors.push(new NeoError(
+      errors.push(new DeclareError(
         `${where}: a stylesheet's members are 'theme: Theme [ … ]' and class-keyed entries ('${child.tag}: [ … ]')`,
         child.pos
       ));
@@ -394,16 +394,16 @@ function checkStylesheetBody(
     }
     const schema = Object.hasOwn(schemas, child.tag) ? schemas[child.tag] : null;
     if (schema === null) {
-      errors.push(new NeoError(`${where}: unknown component '${child.tag}' — an entry is keyed by a class name`, child.pos));
+      errors.push(new DeclareError(`${where}: unknown component '${child.tag}' — an entry is keyed by a class name`, child.pos));
       continue;
     }
     if (!descendsFrom(schema, "View")) {
-      errors.push(new NeoError(`${where}: '${child.tag}' is not a View — only views are styled`, child.pos));
+      errors.push(new DeclareError(`${where}: '${child.tag}' is not a View — only views are styled`, child.pos));
       continue;
     }
     const first = seen.get(child.tag);
     if (first !== undefined) {
-      errors.push(new NeoError(
+      errors.push(new DeclareError(
         `${where}: '${child.tag}' has two entries (first at line ${first.line}, col ${first.col}) — one entry per class`,
         child.pos
       ));
@@ -418,35 +418,35 @@ function checkStylesheetBody(
 /** One class-keyed entry: attribute sets only, each an attribute the class
  *  declares (any public attribute — ruled uniformity), of a stylable kind,
  *  a literal or a `{ }` (evaluated with `this` = the styled view). */
-export function checkEntry(where: string, entry: Element, schema: ComponentSchema): NeoError[] {
-  const errors: NeoError[] = [];
-  for (const d of entry.decls) errors.push(new NeoError(`${where}.${entry.tag}: an entry declares nothing — attribute sets only`, d.pos));
-  for (const m of entry.methods) errors.push(new NeoError(`${where}.${entry.tag}: an entry has no methods`, m.pos));
-  for (const c of entry.children) errors.push(new NeoError(`${where}.${entry.tag}: an entry has no children — attribute sets only`, c.pos));
+export function checkEntry(where: string, entry: Element, schema: ComponentSchema): DeclareError[] {
+  const errors: DeclareError[] = [];
+  for (const d of entry.decls) errors.push(new DeclareError(`${where}.${entry.tag}: an entry declares nothing — attribute sets only`, d.pos));
+  for (const m of entry.methods) errors.push(new DeclareError(`${where}.${entry.tag}: an entry has no methods`, m.pos));
+  for (const c of entry.children) errors.push(new DeclareError(`${where}.${entry.tag}: an entry has no children — attribute sets only`, c.pos));
   const seen = new Map<string, Pos>();
   for (const a of entry.attrs) {
     const first = seen.get(a.name);
     if (first !== undefined) {
-      errors.push(new NeoError(`${where}.${entry.tag}.${a.name} is set twice (first set at line ${first.line}, col ${first.col})`, a.pos));
+      errors.push(new DeclareError(`${where}.${entry.tag}.${a.name} is set twice (first set at line ${first.line}, col ${first.col})`, a.pos));
       continue;
     }
     seen.set(a.name, a.pos);
     const type = attrType(schema, a.name);
     if (type === null) {
-      errors.push(new NeoError(`${where}: ${entry.tag} has no attribute '${a.name}'${cssAttributeHint(a.name)}`, a.pos));
+      errors.push(new DeclareError(`${where}: ${entry.tag} has no attribute '${a.name}'${cssAttributeHint(a.name)}`, a.pos));
       continue;
     }
     const bad = UNSTYLABLE[type.kind];
     if (bad !== undefined) {
-      errors.push(new NeoError(`${where}.${entry.tag}.${a.name}: ${bad}`, a.pos));
+      errors.push(new DeclareError(`${where}.${entry.tag}.${a.name}: ${bad}`, a.pos));
       continue;
     }
     if (a.value.kind === "percent") {
-      errors.push(new NeoError(`${where}.${entry.tag}.${a.name}: a percent resolves against a parent — an entry carries values (use a { } reading parent.* if you mean it)`, a.value.pos));
+      errors.push(new DeclareError(`${where}.${entry.tag}.${a.name}: a percent resolves against a parent — an entry carries values (use a { } reading parent.* if you mean it)`, a.value.pos));
       continue;
     }
     if (a.value.kind === "path") {
-      errors.push(new NeoError(`${where}.${entry.tag}.${a.name}: a :path reads a view's cursor — not stylesheet surface (v1)`, a.value.pos));
+      errors.push(new DeclareError(`${where}.${entry.tag}.${a.name}: a :path reads a view's cursor — not stylesheet surface (v1)`, a.value.pos));
       continue;
     }
     const r = checkAttr(schema, a);
@@ -458,22 +458,22 @@ export function checkEntry(where: string, entry: Element, schema: ComponentSchem
 /** The skin's token record: `theme: Theme [ accent = #4F8EF7, radius = 6 ]`
  *  — token names are free (a Theme is schema-less in v1), values are plain
  *  literals or decoration constructors. */
-export function checkThemeRecord(where: string, rec: Element): NeoError[] {
-  const errors: NeoError[] = [];
-  for (const d of rec.decls) errors.push(new NeoError(`${where}.theme: a token record declares nothing`, d.pos));
-  for (const m of rec.methods) errors.push(new NeoError(`${where}.theme: a token record has no methods`, m.pos));
-  for (const c of rec.children) errors.push(new NeoError(`${where}.theme: a token record has no children`, c.pos));
+export function checkThemeRecord(where: string, rec: Element): DeclareError[] {
+  const errors: DeclareError[] = [];
+  for (const d of rec.decls) errors.push(new DeclareError(`${where}.theme: a token record declares nothing`, d.pos));
+  for (const m of rec.methods) errors.push(new DeclareError(`${where}.theme: a token record has no methods`, m.pos));
+  for (const c of rec.children) errors.push(new DeclareError(`${where}.theme: a token record has no children`, c.pos));
   const seen = new Map<string, Pos>();
   for (const a of rec.attrs) {
     const first = seen.get(a.name);
     if (first !== undefined) {
-      errors.push(new NeoError(`${where}.theme.${a.name} is set twice (first set at line ${first.line}, col ${first.col})`, a.pos));
+      errors.push(new DeclareError(`${where}.theme.${a.name} is set twice (first set at line ${first.line}, col ${first.col})`, a.pos));
       continue;
     }
     seen.set(a.name, a.pos);
     const t = coerceToken(a.value);
     if (t === undefined) {
-      errors.push(new NeoError(
+      errors.push(new DeclareError(
         `${where}.theme.${a.name}: a token is a number, string, boolean, color, or a value constructor (gradient/stroke/shadow) — got ${describeLiteral(a.value)}`,
         a.value.pos
       ));
@@ -523,10 +523,10 @@ export function coerceToken(lit: Literal): unknown {
  *  source, like checkAttr. */
 export type CheckedDecl =
   | { ok: true; type: AttrType; value: AttrValue | undefined; binding?: { src: string; pos: Pos } }
-  | { ok: false; error: NeoError };
+  | { ok: false; error: DeclareError };
 
 export function checkDecl(schema: ComponentSchema, d: AttrDecl, owner: string = schema.name): CheckedDecl {
-  const err = (message: string, pos: Pos): CheckedDecl => ({ ok: false, error: new NeoError(message, pos) });
+  const err = (message: string, pos: Pos): CheckedDecl => ({ ok: false, error: new DeclareError(message, pos) });
   if (NOUNS.includes(d.name)) {
     return err(`'${d.name}' is a scope noun (language §11) — it cannot be declared`, d.pos);
   }
@@ -627,10 +627,10 @@ export function manyPathOf(
 /** A body root cannot be a replication template: the program root is one
  *  view, and a class body replicating ITSELF would make every instantiation
  *  many (put the `:path[]` on the use site instead). */
-function checkBodyRootReplication(el: Element, errors: NeoError[], where: string): void {
+function checkBodyRootReplication(el: Element, errors: DeclareError[], where: string): void {
   const many = el.attrs.find((a) => a.name === "datapath" && a.value.kind === "path" && a.value.many);
   if (many !== undefined) {
-    errors.push(new NeoError(
+    errors.push(new DeclareError(
       `${where} cannot replicate — ':${(many.value as { path: string }).path}[]' makes many instances; put it on a child element (or a use site)`,
       many.value.pos
     ));
@@ -639,7 +639,7 @@ function checkBodyRootReplication(el: Element, errors: NeoError[], where: string
 
 function checkElement(
   el: Element,
-  errors: NeoError[],
+  errors: DeclareError[],
   schemas: Readonly<Record<string, ComponentSchema>>,
   declsOwned: boolean,
   env: StyleEnv = EMPTY_ENV,
@@ -655,7 +655,7 @@ function checkElement(
   classRoot = false
 ): void {
   if (el.entry === true) {
-    errors.push(new NeoError(
+    errors.push(new DeclareError(
       `'${el.tag}: [ … ]' is a class-keyed entry — it belongs in a stylesheet`,
       el.pos
     ));
@@ -674,7 +674,7 @@ function checkElement(
     // the root. The doc's ruling (language §5, Appendix A): a layout is an
     // attribute, never a child. (A class-declaration body root is exempt — it
     // is the DEFINITION of a custom layout, not a misplaced use.)
-    errors.push(new NeoError(
+    errors.push(new DeclareError(
       `'${el.tag}' is a layout — a layout is an attribute, not a child: write 'layout: ${el.tag} [ … ]' on the view it arranges`,
       el.pos
     ));
@@ -697,7 +697,7 @@ function checkElement(
     // into the class's schema (declsOwned), so only namespace membership
     // remains to check below.
     if (el.raw !== undefined) {
-      errors.push(new NeoError(
+      errors.push(new DeclareError(
         `only a Dataset carries a { } body — a ${el.tag}'s members go in [ ]`,
         el.raw.pos
       ));
@@ -721,7 +721,7 @@ function checkElement(
     for (const attr of el.attrs) {
       if (attr.name === "key" && replicated) {
         if (attr.value.kind !== "path" || attr.value.many) {
-          errors.push(new NeoError(
+          errors.push(new DeclareError(
             `key = :field names each record's identity field (e.g. 'key = :id') — a single :path, not ${attr.value.kind === "path" ? "a many-path" : "a literal"}`,
             attr.value.pos
           ));
@@ -734,12 +734,12 @@ function checkElement(
       if (t?.kind === "styles" && attr.value.kind === "list") {
         for (const n of attr.value.items) {
           if (n.kind !== "ident") {
-            errors.push(new NeoError(`a style list holds style names, not values`, n.pos));
+            errors.push(new DeclareError(`a style list holds style names, not values`, n.pos));
             continue;
           }
           const bundle = env.bundles.get(n.name);
           if (bundle === undefined) {
-            errors.push(new NeoError(
+            errors.push(new DeclareError(
               env.bundles.size > 0
                 ? `no style named '${n.name}' — declared styles: ${[...env.bundles.keys()].join(", ")}`
                 : `no style named '${n.name}' — this program declares no style bundles`,
@@ -757,7 +757,7 @@ function checkElement(
         continue;
       }
       if (t?.kind === "styles" && attr.value.kind === "code") {
-        errors.push(new NeoError(
+        errors.push(new DeclareError(
           `${eff.name}.styles = { … }: the bundle list is static (ruled v1) — conditional looks are constraints on the slots themselves`,
           attr.value.pos
         ));
@@ -765,7 +765,7 @@ function checkElement(
       }
       if (t?.kind === "stylesheet" && attr.value.kind === "ident" && attr.value.name !== "null") {
         if (!env.stylesheets.has(attr.value.name)) {
-          errors.push(new NeoError(
+          errors.push(new DeclareError(
             env.stylesheets.size > 0
               ? `no stylesheet named '${attr.value.name}' — declared stylesheets: ${[...env.stylesheets].join(", ")}`
               : `no stylesheet named '${attr.value.name}' — this program declares no stylesheets`,
@@ -784,11 +784,11 @@ function checkElement(
         for (const i of items) {
           if (i.kind === "string") continue;
           if (i.kind !== "ident") {
-            errors.push(new NeoError(`a fontFamily list holds font names and strings`, i.pos));
+            errors.push(new DeclareError(`a fontFamily list holds font names and strings`, i.pos));
             continue;
           }
           if (!env.fonts.has(i.name)) {
-            errors.push(new NeoError(
+            errors.push(new DeclareError(
               env.fonts.size > 0
                 ? `no font named '${i.name}' — declared fonts: ${[...env.fonts].join(", ")}`
                 : `no font named '${i.name}' — this program declares no fonts (use a raw family string, or add a 'font ${i.name} [ … ]')`,
@@ -808,7 +808,7 @@ function checkElement(
     for (const child of el.children) {
       const many = manyPathOf(child, schemas);
       if (many !== null && child.name !== null) {
-        errors.push(new NeoError(
+        errors.push(new DeclareError(
           `a replicated child cannot be named — ':${(many.value as { path: string }).path}[]' makes one instance per record, and '${child.name}' can only name one; reach the instances through their data`,
           child.pos
         ));
@@ -826,9 +826,9 @@ function checkElement(
       // A named child is a member of THIS element (language §4: "reachable
       // as `bg` / `this.bg`") — so its name obeys the member namespace.
       if (NOUNS.includes(child.name)) {
-        errors.push(new NeoError(`'${child.name}' is a scope noun (language §11) — a child cannot take its name`, child.pos));
+        errors.push(new DeclareError(`'${child.name}' is a scope noun (language §11) — a child cannot take its name`, child.pos));
       } else if (declared !== null) {
-        errors.push(new NeoError(
+        errors.push(new DeclareError(
           `${schema.name}.${child.name} is an attribute — a child may not take an attribute's name`,
           child.pos
         ));
@@ -854,9 +854,9 @@ function checkElement(
  *  (validated here, positioned), and a DataSource's data arrives from `url`
  *  instead. `:path` attributes are refused: a data node is where data LIVES,
  *  not a reader of some other cursor. */
-function checkDataNode(el: Element, schema: ComponentSchema, errors: NeoError[]): void {
+function checkDataNode(el: Element, schema: ComponentSchema, errors: DeclareError[]): void {
   if (el.name === null) {
-    errors.push(new NeoError(
+    errors.push(new DeclareError(
       `a ${el.tag} needs a name — write 'events: ${el.tag} …' so bindings can reach it`,
       el.pos
     ));
@@ -866,12 +866,12 @@ function checkDataNode(el: Element, schema: ComponentSchema, errors: NeoError[])
     // derived `contents = { … }` constraint — one, not both, not neither.
     const derived = el.attrs.some((a) => a.name === "contents");
     if (el.raw === undefined && !derived) {
-      errors.push(new NeoError(
+      errors.push(new DeclareError(
         `a Dataset needs data — a literal JSON body ('${el.name ?? "events"}: Dataset { … }') or a derived 'contents = { … }'`,
         el.pos
       ));
     } else if (el.raw !== undefined && derived) {
-      errors.push(new NeoError(
+      errors.push(new DeclareError(
         `${el.name ?? el.tag}: a Dataset is EITHER a literal '{ … }' body OR a derived 'contents = { … }', not both`,
         el.raw.pos
       ));
@@ -879,42 +879,42 @@ function checkDataNode(el: Element, schema: ComponentSchema, errors: NeoError[])
       try {
         JSON.parse(el.raw.src);
       } catch (e) {
-        errors.push(new NeoError(
+        errors.push(new DeclareError(
           `${el.name ?? el.tag}: the Dataset body is not valid JSON — ${(e as Error).message}`,
           el.raw.pos
         ));
       }
     }
   } else if (el.raw !== undefined) {
-    errors.push(new NeoError(
+    errors.push(new DeclareError(
       `a ${el.tag}'s data arrives from its url — only a Dataset embeds a { } body`,
       el.raw.pos
     ));
   }
   for (const d of el.decls) {
-    errors.push(new NeoError(`${el.tag}.${d.name}: a data node declares no new attributes`, d.pos));
+    errors.push(new DeclareError(`${el.tag}.${d.name}: a data node declares no new attributes`, d.pos));
   }
   for (const m of el.methods) {
-    errors.push(new NeoError(
+    errors.push(new DeclareError(
       `${el.tag}.${m.name}: a data node has no method members — its lifecycle (fetch, clear, set, …) is built in`,
       m.pos
     ));
   }
   for (const c of el.children) {
-    errors.push(new NeoError(`a data node has no children — its structure is its data`, c.pos));
+    errors.push(new DeclareError(`a data node has no children — its structure is its data`, c.pos));
   }
   for (const a of el.attrs) {
     if (a.name === "contents" && a.value.kind !== "code") {
       // A derived value is a constraint over other state, not a literal or a
       // cursor into itself: `contents = { app.buildGrid() }`.
-      errors.push(new NeoError(
+      errors.push(new DeclareError(
         `${el.tag}.contents is a derived value — write 'contents = { … }' (a constraint over your reactive state)`,
         a.value.pos
       ));
       continue;
     }
     if (a.value.kind === "path") {
-      errors.push(new NeoError(
+      errors.push(new DeclareError(
         `${el.tag}.${a.name} = :${a.value.path}: a data node is where data lives — a :path reads a view's cursor`,
         a.value.pos
       ));
@@ -936,19 +936,19 @@ function checkAnimatorNode(
   el: Element,
   schema: ComponentSchema,
   parentSchema: ComponentSchema | null,
-  errors: NeoError[],
+  errors: DeclareError[],
   /** An enclosing AnimatorGroup already provides `attribute` (the LZX
    *  default-cascade) — so a member that omits its own `attribute` is legal. */
   attributeCascaded = false
 ): void {
   if (el.raw !== undefined) {
-    errors.push(new NeoError(`only a Dataset carries a { } body — an ${el.tag}'s members go in [ ]`, el.raw.pos));
+    errors.push(new DeclareError(`only a Dataset carries a { } body — an ${el.tag}'s members go in [ ]`, el.raw.pos));
   }
   for (const d of el.decls) {
-    errors.push(new NeoError(`${el.tag}.${d.name}: an animator declares no new attributes — its surface is built in`, d.pos));
+    errors.push(new DeclareError(`${el.tag}.${d.name}: an animator declares no new attributes — its surface is built in`, d.pos));
   }
   for (const c of el.children) {
-    errors.push(new NeoError(`an animator drives a slot — it has no children`, c.pos));
+    errors.push(new DeclareError(`an animator drives a slot — it has no children`, c.pos));
   }
   // Handlers (onStart/onStop/onRepeat) and any plain method install like a
   // View's; checkMethod verifies a handler answers a declared event.
@@ -965,7 +965,7 @@ function checkAnimatorNode(
       if (a.value.kind === "ident" && a.value.name !== "null") {
         checkTargetSlot(schema, a.value.name, parentSchema, a.value.pos, errors);
       } else {
-        errors.push(new NeoError(
+        errors.push(new DeclareError(
           `${schema.name}.attribute names the target slot to drive as a bare token (like 'height' or 'x') — not ${describeLiteral(a.value)}`,
           a.value.pos
         ));
@@ -973,7 +973,7 @@ function checkAnimatorNode(
       continue;
     }
     if (a.value.kind === "path") {
-      errors.push(new NeoError(
+      errors.push(new DeclareError(
         `${schema.name}.${a.name} = :${a.value.path}: an animator attribute is a value or a { }, not a data read`,
         a.value.pos
       ));
@@ -983,7 +983,7 @@ function checkAnimatorNode(
     if (!r.ok) errors.push(r.error);
   }
   if (!hasAttribute && !attributeCascaded) {
-    errors.push(new NeoError(`an ${el.tag} needs 'attribute = <slot>' — the target slot it drives`, el.pos));
+    errors.push(new DeclareError(`an ${el.tag} needs 'attribute = <slot>' — the target slot it drives`, el.pos));
   }
 }
 
@@ -1000,19 +1000,19 @@ function checkStateNode(
   schemas: Readonly<Record<string, ComponentSchema>>,
   parentSchema: ComponentSchema | null,
   env: StyleEnv,
-  errors: NeoError[]
+  errors: DeclareError[]
 ): void {
   if (el.raw !== undefined) {
-    errors.push(new NeoError(`only a Dataset carries a { } body — a ${el.tag}'s members go in [ ]`, el.raw.pos));
+    errors.push(new DeclareError(`only a Dataset carries a { } body — a ${el.tag}'s members go in [ ]`, el.raw.pos));
   }
   for (const d of el.decls) {
-    errors.push(new NeoError(
+    errors.push(new DeclareError(
       `${el.tag}.${d.name}: a state declares no new attributes — it overrides its view's slots and adds children`,
       d.pos
     ));
   }
   if (parentSchema === null) {
-    errors.push(new NeoError(
+    errors.push(new DeclareError(
       `a ${el.tag} must be a member of a view — at the top level it has no slots to override`,
       el.pos
     ));
@@ -1031,7 +1031,7 @@ function checkStateNode(
     // Every other attribute overrides the ENCLOSING view — a value or a { },
     // never a data read (the override engine drives a literal or a constraint).
     if (a.value.kind === "path") {
-      errors.push(new NeoError(
+      errors.push(new DeclareError(
         `${el.tag}.${a.name} = :${a.value.path}: a state override is a value or a { }, not a data read`,
         a.value.pos
       ));
@@ -1051,7 +1051,7 @@ function checkStateNode(
     // override drives value slots, not component slots. Name the idioms.
     const cs = Object.hasOwn(schemas, child.tag) ? schemas[child.tag] : null;
     if (cs !== null && descendsFrom(cs, "Layout")) {
-      errors.push(new NeoError(
+      errors.push(new DeclareError(
         `a state cannot swap '${child.tag}' in — an override drives the view's value slots, not its layout. Keep one layout and constrain geometry off the state's flag, or reassign the view's layout in an onApply()/onRemove() handler`,
         child.pos
       ));
@@ -1075,14 +1075,14 @@ function checkAnimatorGroupNode(
   schema: ComponentSchema,
   schemas: Readonly<Record<string, ComponentSchema>>,
   parentSchema: ComponentSchema | null,
-  errors: NeoError[],
+  errors: DeclareError[],
   attributeCascaded: boolean
 ): void {
   if (el.raw !== undefined) {
-    errors.push(new NeoError(`only a Dataset carries a { } body — an ${el.tag}'s members go in [ ]`, el.raw.pos));
+    errors.push(new DeclareError(`only a Dataset carries a { } body — an ${el.tag}'s members go in [ ]`, el.raw.pos));
   }
   for (const d of el.decls) {
-    errors.push(new NeoError(`${el.tag}.${d.name}: an animatorgroup declares no new attributes — its surface is built in`, d.pos));
+    errors.push(new DeclareError(`${el.tag}.${d.name}: an animatorgroup declares no new attributes — its surface is built in`, d.pos));
   }
   for (const m of el.methods) {
     const r = checkMethod(schema, m);
@@ -1096,7 +1096,7 @@ function checkAnimatorGroupNode(
       if (a.value.kind === "ident" && a.value.name !== "null") {
         checkTargetSlot(schema, a.value.name, parentSchema, a.value.pos, errors);
       } else {
-        errors.push(new NeoError(
+        errors.push(new DeclareError(
           `${schema.name}.attribute names the target slot to drive as a bare token (like 'height' or 'x') — not ${describeLiteral(a.value)}`,
           a.value.pos
         ));
@@ -1104,7 +1104,7 @@ function checkAnimatorGroupNode(
       continue;
     }
     if (a.value.kind === "path") {
-      errors.push(new NeoError(
+      errors.push(new DeclareError(
         `${schema.name}.${a.name} = :${a.value.path}: an animator attribute is a value or a { }, not a data read`,
         a.value.pos
       ));
@@ -1122,7 +1122,7 @@ function checkAnimatorGroupNode(
     } else if (cs !== null && descendsFrom(cs, "AnimatorGroup")) {
       checkAnimatorGroupNode(child, cs, schemas, parentSchema, errors, providesAttribute);
     } else {
-      errors.push(new NeoError(
+      errors.push(new DeclareError(
         `an ${el.tag} coordinates animators — '${child.tag}' is not an Animator or AnimatorGroup`,
         child.pos
       ));
@@ -1141,19 +1141,19 @@ function checkTargetSlot(
   slot: string,
   parentSchema: ComponentSchema | null,
   pos: Pos,
-  errors: NeoError[]
+  errors: DeclareError[]
 ): void {
   if (parentSchema === null) return; // no resolvable target — the parent error already fired
   const t = attrType(parentSchema, slot);
   if (t === null) {
-    errors.push(new NeoError(
+    errors.push(new DeclareError(
       `${animSchema.name}.attribute = ${slot}: ${parentSchema.name} has no slot '${slot}' to animate`,
       pos
     ));
     return;
   }
   if (t.kind !== "length" && t.kind !== "number") {
-    errors.push(new NeoError(
+    errors.push(new DeclareError(
       `${animSchema.name}.attribute = ${slot}: only numeric slots animate — ${parentSchema.name}.${slot} is not a number`,
       pos
     ));
@@ -1172,35 +1172,35 @@ export function checkComponentValue(
   attrName: string,
   of: string,
   el: Element
-): NeoError[] {
+): DeclareError[] {
   const schema = Object.hasOwn(schemas, el.tag) ? schemas[el.tag] : null;
   if (schema === null) return [Diag.unknownComponent(el.tag, el.pos, Object.keys(schemas))];
   if (!descendsFrom(schema, of)) {
-    return [new NeoError(`${owner}.${attrName} expects a ${of} — '${el.tag}' is not one`, el.pos)];
+    return [new DeclareError(`${owner}.${attrName} expects a ${of} — '${el.tag}' is not one`, el.pos)];
   }
-  const errors: NeoError[] = [];
+  const errors: DeclareError[] = [];
   if (el.raw !== undefined) {
-    errors.push(new NeoError(`a layout takes [ ] members, not a { } body`, el.raw.pos));
+    errors.push(new DeclareError(`a layout takes [ ] members, not a { } body`, el.raw.pos));
   }
   for (const d of el.decls) {
-    errors.push(new NeoError(`${el.tag}.${d.name}: a layout declares no new attributes`, d.pos));
+    errors.push(new DeclareError(`${el.tag}.${d.name}: a layout declares no new attributes`, d.pos));
   }
   for (const m of el.methods) {
-    errors.push(new NeoError(`${el.tag}.${m.name}: a layout has no methods — it takes literal attributes only`, m.pos));
+    errors.push(new DeclareError(`${el.tag}.${m.name}: a layout has no methods — it takes literal attributes only`, m.pos));
   }
   for (const c of el.children) {
-    errors.push(new NeoError(`a layout has no children — it arranges its view's`, c.pos));
+    errors.push(new DeclareError(`a layout has no children — it arranges its view's`, c.pos));
   }
   for (const a of el.attrs) {
     if (a.value.kind === "code") {
-      errors.push(new NeoError(
+      errors.push(new DeclareError(
         `${el.tag}.${a.name} = { … }: a layout attribute takes a literal — constraining it is not yet surface (swap the whole layout by assignment instead)`,
         a.value.pos
       ));
       continue;
     }
     if (a.value.kind === "path") {
-      errors.push(new NeoError(
+      errors.push(new DeclareError(
         `${el.tag}.${a.name} = :${a.value.path}: a layout attribute takes a literal`,
         a.value.pos
       ));
@@ -1216,7 +1216,7 @@ export function checkComponentValue(
  *  namespace per element (language §4/§8) — walk them in source order and
  *  flag every reuse, keeping the established wordings for the two same-kind
  *  cases the earlier rungs pinned. */
-function checkNamespace(el: Element, schema: ComponentSchema, errors: NeoError[]): void {
+function checkNamespace(el: Element, schema: ComponentSchema, errors: DeclareError[]): void {
   type Member = { name: string; pos: Pos; kind: "set" | "decl" | "method" | "child" };
   const members: Member[] = [
     ...el.attrs.map((a): Member => ({ name: a.name, pos: a.pos, kind: "set" })),
@@ -1230,7 +1230,7 @@ function checkNamespace(el: Element, schema: ComponentSchema, errors: NeoError[]
     const first = seen.get(m.name);
     if (first === undefined) { seen.set(m.name, m); continue; }
     const at = `(first at line ${first.pos.line}, col ${first.pos.col})`;
-    errors.push(new NeoError(
+    errors.push(new DeclareError(
       m.kind === "set" && first.kind === "set"
         ? `${schema.name}.${m.name} is set twice (first set at line ${first.pos.line}, col ${first.pos.col})`
         : m.kind === "method" && first.kind === "method"
@@ -1247,7 +1247,7 @@ export type CheckedAttr =
   | { ok: true; value: AttrValue }
   | { ok: true; binding: { src: string; pos: Pos } }
   | { ok: true; datapath: { path: string; many: boolean; pos: Pos } }
-  | { ok: false; error: NeoError };
+  | { ok: false; error: DeclareError };
 
 /** The CSS-interference table (E-1 escalation 2, diagnostics.md §4): a model
  *  (or a web developer) reaches for the CSS name; the miss should name the
@@ -1289,10 +1289,10 @@ export function cssAttributeHint(name: string): string {
 export function checkAttr(schema: ComponentSchema, attr: Attr): CheckedAttr {
   const type = attrType(schema, attr.name);
   if (type === null) {
-    return { ok: false, error: new NeoError(`${schema.name} has no attribute '${attr.name}'${cssAttributeHint(attr.name)}`, attr.pos) };
+    return { ok: false, error: new DeclareError(`${schema.name} has no attribute '${attr.name}'${cssAttributeHint(attr.name)}`, attr.pos) };
   }
   if (isReadOnly(schema, attr.name)) {
-    return { ok: false, error: new NeoError(`${schema.name}.${attr.name} is read-only — it is computed, so a constraint may read it but nothing may set it`, attr.pos) };
+    return { ok: false, error: new DeclareError(`${schema.name}.${attr.name} is read-only — it is computed, so a constraint may read it but nothing may set it`, attr.pos) };
   }
   if (attr.bind === "two") {
     // `name <-> :path` — a two-way binding (language §9, the leaf-input
@@ -1300,19 +1300,19 @@ export function checkAttr(schema: ComponentSchema, attr: Attr): CheckedAttr {
     // datapath. Caught here so misuse is a clear compile error, not a silent
     // one-way (or literal) degrade.
     if (!descendsFrom(schema, "Editor")) {
-      return { ok: false, error: new NeoError(
+      return { ok: false, error: new DeclareError(
         `${schema.name}.${attr.name} <-> …: the two-way arrow edits a dataset value through an editor's value slot (e.g. 'TextInput.text') — ${schema.name} is not an editor`,
         attr.pos) };
     }
     // The bound field: a static datapath (`:field`) or a `{ }` that NAMES one at
     // runtime (a generic editor over `classroot.field`). Not a literal.
     if (attr.value.kind !== "path" && attr.value.kind !== "code") {
-      return { ok: false, error: new NeoError(
+      return { ok: false, error: new DeclareError(
         `${schema.name}.${attr.name} <-> …: two-way binds a datapath — write '${attr.name} <-> :field' (or '<-> { expr }' for a runtime-named field)`,
         attr.value.pos) };
     }
     if (attr.value.kind === "path" && attr.value.many) {
-      return { ok: false, error: new NeoError(
+      return { ok: false, error: new DeclareError(
         `${schema.name}.${attr.name} <-> :${attr.value.path}[]: a two-way binding edits one field, not a many-path`,
         attr.value.pos) };
     }
@@ -1324,7 +1324,7 @@ export function checkAttr(schema: ComponentSchema, attr: Attr): CheckedAttr {
     // plain assignment today, the `{ }` form is a recorded open question.
     return {
       ok: false,
-      error: new NeoError(
+      error: new DeclareError(
         `${schema.name}.${attr.name} = { … }: a component slot takes a member ('${attr.name}: SimpleLayout [ … ]') or null — constraining it is not yet surface`,
         attr.value.pos
       ),
@@ -1335,7 +1335,7 @@ export function checkAttr(schema: ComponentSchema, attr: Attr): CheckedAttr {
     if (e !== null) {
       return {
         ok: false,
-        error: new NeoError(`${schema.name}.${attr.name} = { … } ${e}`, attr.value.pos),
+        error: new DeclareError(`${schema.name}.${attr.name} = { … } ${e}`, attr.value.pos),
       };
     }
     return { ok: true, binding: { src: attr.value.src, pos: attr.value.pos } };
@@ -1349,7 +1349,7 @@ export function checkAttr(schema: ComponentSchema, attr: Attr): CheckedAttr {
     if (type.kind === "component") {
       return {
         ok: false,
-        error: new NeoError(
+        error: new DeclareError(
           `${schema.name}.${attr.name} expects a ${type.of} — a :path reads data`,
           attr.value.pos
         ),
@@ -1358,7 +1358,7 @@ export function checkAttr(schema: ComponentSchema, attr: Attr): CheckedAttr {
     if (attr.value.many && type.kind !== "cursor") {
       return {
         ok: false,
-        error: new NeoError(
+        error: new DeclareError(
           `${schema.name}.${attr.name} = :${attr.value.path}[] — a many-path replicates, which is 'datapath's meaning; a value slot reads a single :path`,
           attr.value.pos
         ),
@@ -1378,7 +1378,7 @@ export function checkAttr(schema: ComponentSchema, attr: Attr): CheckedAttr {
       : "";
     return {
       ok: false,
-      error: new NeoError(
+      error: new DeclareError(
         `${schema.name}.${attr.name} expects ${c.expected}, got ${c.found ?? describeLiteral(attr.value)}${hint}`,
         attr.value.pos
       ),
@@ -1388,7 +1388,7 @@ export function checkAttr(schema: ComponentSchema, attr: Attr): CheckedAttr {
 }
 
 /** One checked method member: fine, or the (unthrown) error. */
-export type CheckedMethod = { ok: true } | { ok: false; error: NeoError };
+export type CheckedMethod = { ok: true } | { ok: false; error: DeclareError };
 
 /** Validate one method member against a schema (R5): its name must be free
  *  (not an attribute's — methods and attributes are one member namespace,
@@ -1399,7 +1399,7 @@ export type CheckedMethod = { ok: true } | { ok: false; error: NeoError };
  *  source. */
 export function checkMethod(schema: ComponentSchema, m: Method): CheckedMethod {
   const err = (message: string, pos: Pos): CheckedMethod =>
-    ({ ok: false, error: new NeoError(message, pos) });
+    ({ ok: false, error: new DeclareError(message, pos) });
   if (attrType(schema, m.name) !== null) {
     return err(`${schema.name}.${m.name} is an attribute — a method may not take an attribute's name`, m.pos);
   }

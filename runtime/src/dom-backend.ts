@@ -51,11 +51,11 @@ export class DomBackend implements RenderBackend {
   }
 
   attachRoot(host: HTMLElement, root: Surface): void {
-    // Is this app EMBEDDED inside another neo app (rendered into an island box
+    // Is this app EMBEDDED inside another Declare app (rendered into an island box
     // that lives in an outer app's marked tree)? An embedded app owns only its
     // box: it must NOT repaint the page's <body> background, and the outer app's
     // input router must ignore events inside it (see the boundary check below).
-    const embedded = typeof host.closest === "function" && host.closest("[data-neo-app]") !== null;
+    const embedded = typeof host.closest === "function" && host.closest("[data-declare-app]") !== null;
     // Every surface is absolutely positioned (see DomSurface), so the tree
     // needs a positioned ancestor to anchor to; otherwise the root would
     // position against the viewport instead of `host` on a plain (static)
@@ -66,7 +66,7 @@ export class DomBackend implements RenderBackend {
     // Mark the app root: the ONE DOM signal a child reads to know it is embedded
     // (index.ts isEmbedded), and the boundary the input router stops at so an
     // outer app never double-handles a click that belongs to an embedded child.
-    rootEl.dataset.neoApp = "";
+    rootEl.dataset.declareApp = "";
     // Views are a painted UI, not a document: a press-drag (event drag, and any
     // future gesture) must not start a native text/element selection. Suppress
     // it once at the root — `user-select` inherits, so every view div is covered
@@ -109,7 +109,7 @@ export class DomBackend implements RenderBackend {
           // Stop at a nested app root: an embedded child's tree is inside THIS
           // rootEl, so without this guard the outer router would walk up into the
           // child, find its (globally-shared) sink, and fire it a second time.
-          if (el !== rootEl && el.hasAttribute("data-neo-app")) return null;
+          if (el !== rootEl && el.hasAttribute("data-declare-app")) return null;
           if (SINKS.has(el)) break;
           el = el === rootEl ? null : el.parentElement;
         }
@@ -374,7 +374,7 @@ class DomSurface implements Surface {
       el.style.touchAction = "pan-y";
       // A scroll container accepts pointer/wheel events (its children stay inert,
       // so clicks still resolve to the sink under the pointer). Native wheel then
-      // drives the box directly: every neo view is position:absolute, but abs
+      // drives the box directly: every Declare view is position:absolute, but abs
       // children DO register scrollable overflow, so the browser scrolls,
       // momentums, and rubber-bands it with no manual offset math — verified
       // in-browser (bare abs content: scrollHeight tracks the content, wheel
@@ -530,21 +530,21 @@ class DomSurface implements Surface {
   }
 
   setEmbed(id: string): void {
-    // An HTML island: the host queries `[data-neo-slot="…"]` and mounts foreign
-    // content inside this neo-sized element; the tenant fills the box (100%), so
-    // neo's width/height constraints drive its size with no coordinate sync.
+    // An HTML island: the host queries `[data-declare-slot="…"]` and mounts foreign
+    // content inside this Declare-sized element; the tenant fills the box (100%), so
+    // Declare's width/height constraints drive its size with no coordinate sync.
     const s = this.element.style;
     const webkit = s as CSSStyleDeclaration & { webkitUserSelect: string };
     if (id === "") {
-      delete this.element.dataset.neoSlot;
+      delete this.element.dataset.declareSlot;
       // Back to the painted-UI defaults: pointer-inert, unselectable.
       s.pointerEvents = "none";
       s.userSelect = "";
       webkit.webkitUserSelect = "";
     } else {
-      this.element.dataset.neoSlot = id;
+      this.element.dataset.declareSlot = id;
       // A live foreign surface, not painted UI: its interior owns hits and
-      // native text selection. neo's model makes every view pointer-inert
+      // native text selection. Declare's model makes every view pointer-inert
       // (pointerEvents:none) and unselectable (user-select:none inherits from
       // the root) — an island opts BACK in for both, so an iframe receives
       // clicks and a text field selects, whether or not the View has a sink.
@@ -714,7 +714,7 @@ class DomSurface implements Surface {
    *  by anchoring after the last present content element that precedes it
    *  (or at the very front). Appending would be wrong for content that
    *  arrives LATE: an <img> lands asynchronously on load, after the child
-   *  surfaces attached, and must not cover them (found by neoweather's
+   *  surfaces attached, and must not cover them (found by weather's
    *  topBar, whose bitmap covered the zip Text child). */
   private placeContent(el: HTMLElement, ...prior: (HTMLElement | null)[]): void {
     let anchor: ChildNode | null = this.element.firstChild;
@@ -748,7 +748,7 @@ class DomSurface implements Surface {
    *  CSS `auto` would preserve the intrinsic ratio and drag it along with the
    *  stretched axis, which is not what a single-axis stretch means (the
    *  canvas walk draws the un-stretched axis at natural size; found by
-   *  neoweather's `stretches=width` tab art). The element is always loaded
+   *  weather's `stretches=width` tab art). The element is always loaded
    *  when it crosses the seam, so the natural size is known. */
   private applyStretch(): void {
     const img = this.imgEl!;

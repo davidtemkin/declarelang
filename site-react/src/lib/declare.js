@@ -33,7 +33,7 @@ export async function compile(text) {
 }
 
 // Mount a compiled program as an app inside `box`, disposing any previous one.
-// The box must sit under a [data-neo-app] ancestor so the runtime treats it as an
+// The box must sit under a [data-declare-app] ancestor so the runtime treats it as an
 // EMBEDDED preview — sizing to the box and scoping pointer/focus to it — instead of
 // seizing the whole window.
 export async function mount(box, compiledSource) {

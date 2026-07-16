@@ -302,7 +302,7 @@ Before you move on, break it on purpose. In the panel, misspell `Card` as `Crad`
 reload:
 
 ```
-unknown component 'Crad' — did you mean 'Card'? [NEO2001]
+unknown component 'Crad' — did you mean 'Card'? [DECLARE2001]
   hint: a tag names a built-in component or a class declared in the program
 ```
 

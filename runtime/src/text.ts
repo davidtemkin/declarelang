@@ -32,7 +32,7 @@ import { Constraint } from "./reactive.js";
 export class Text extends View {
   declare text: string;
   /** The glyphs' drop shadow (a decoration value, styling rung); null = none.
-   *  Replaces the two-stacked-runs idiom (neoweather's ShadowText). */
+   *  Replaces the two-stacked-runs idiom (weather's ShadowText). */
   declare textShadow: Shadow | null;
   /** A bounded-width run wraps (default) or stays a single line. */
   declare wrap: boolean;

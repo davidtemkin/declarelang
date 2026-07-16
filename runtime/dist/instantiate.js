@@ -44,7 +44,7 @@
 // value, with its own pending list so replication works identically at
 // build time and at every later data arrival. `onInit` fires once per view
 // (INITED), however the view came to exist.
-import { NeoError } from "./errors.js";
+import { DeclareError } from "./errors.js";
 import { View, fireEvent } from "./view.js";
 import { Node, onDiscard } from "./node.js";
 import { subscribeToSource } from "./sources.js";
@@ -104,7 +104,7 @@ export function instantiate(input) {
     };
     const root = construct(program.root, null, ctx);
     if (!(root instanceof View)) {
-        throw new NeoError(`the root must be a view, not a ${program.root.tag}`, program.root.pos);
+        throw new DeclareError(`the root must be a view, not a ${program.root.tag}`, program.root.pos);
     }
     // The registry a body's `this.lookupStylesheet("Dark")` resolves against —
     // keyed by the tree root, registered before pass two so a `stylesheet = { … }`
@@ -214,7 +214,7 @@ function buildStylesheets(program, schemas) {
             }
             const schema = Object.hasOwn(schemas, child.tag) ? schemas[child.tag] : null;
             if (child.entry !== true || schema === null) {
-                throw new NeoError(`${where}: a stylesheet's members are 'theme: Theme [ … ]' and class-keyed entries ('${child.tag}: [ … ]')`, child.pos);
+                throw new DeclareError(`${where}: a stylesheet's members are 'theme: Theme [ … ]' and class-keyed entries ('${child.tag}: [ … ]')`, child.pos);
             }
             const errs = checkEntry(where, child, schema);
             if (errs.length > 0)
@@ -223,7 +223,7 @@ function buildStylesheets(program, schemas) {
                 if (a.value.kind === "code") {
                     const c = compileExpr(a.value.src);
                     if ("error" in c) {
-                        throw new NeoError(`${where}.${child.tag}.${a.name} = { … } ${c.error}`, a.value.pos);
+                        throw new DeclareError(`${where}.${child.tag}.${a.name} = { … } ${c.error}`, a.value.pos);
                     }
                     return { name: a.name, fn: c.fn };
                 }
@@ -231,7 +231,7 @@ function buildStylesheets(program, schemas) {
                 if (!r.ok)
                     throw r.error;
                 if (!("value" in r) || isPercent(r.value)) {
-                    throw new NeoError(`${where}.${child.tag}.${a.name}: an entry field is a literal or a { }`, a.value.pos);
+                    throw new DeclareError(`${where}.${child.tag}.${a.name}: an entry field is a literal or a { }`, a.value.pos);
                 }
                 return { name: a.name, value: r.value };
             }));
@@ -248,7 +248,7 @@ function collectBundles(program) {
     for (const s of program.styles) {
         const b = s.body;
         if (b.decls.length > 0 || b.methods.length > 0 || b.children.length > 0 || b.raw !== undefined) {
-            throw new NeoError(`style ${s.name}: a bundle carries attribute sets only — a look, not a component`, s.pos);
+            throw new DeclareError(`style ${s.name}: a bundle carries attribute sets only — a look, not a component`, s.pos);
         }
         bundles.set(s.name, b);
     }
@@ -279,7 +279,7 @@ outer = false) {
         const defs = defaults();
         for (const d of body.decls) {
             if (d.name in probe) {
-                throw new NeoError(`${name}.${d.name}: '${d.name}' is a built-in member of the runtime ${base.name} — choose another name`, d.pos);
+                throw new DeclareError(`${name}.${d.name}: '${d.name}' is a built-in member of the runtime ${base.name} — choose another name`, d.pos);
             }
             // A `{ }` default becomes the slot's live rank-1 fallback (the ruled
             // R6 unlock — theme-deferring defaults); checkDecl vetted the syntax.
@@ -287,7 +287,7 @@ outer = false) {
             if (d.def?.kind === "code") {
                 const c = compileExpr(d.def.src);
                 if ("error" in c)
-                    throw new NeoError(`${name}.${d.name}'s default = { … } ${c.error}`, d.def.pos);
+                    throw new DeclareError(`${name}.${d.name}'s default = { … } ${c.error}`, d.def.pos);
                 defBinding = c.fn;
             }
             specs[d.name] = {
@@ -345,7 +345,7 @@ function construct(el, outer, ctx, parentSchema = null) {
     if (schema !== null && descendsFrom(schema, "Layout")) {
         // Mirrors check's refusal (a layout is never a tree element), so a
         // direct instantiate of an unchecked tree dies with the same guidance.
-        throw new NeoError(`'${el.tag}' is a layout — a layout is an attribute, not a child: write 'layout: ${el.tag} [ … ]' on the view it arranges`, el.pos);
+        throw new DeclareError(`'${el.tag}' is a layout — a layout is an attribute, not a child: write 'layout: ${el.tag} [ … ]' on the view it arranges`, el.pos);
     }
     if (schema !== null && descendsFrom(schema, "Dataset")) {
         return constructData(el, schema, outer, ctx);
@@ -360,7 +360,7 @@ function construct(el, outer, ctx, parentSchema = null) {
         return constructState(el, schema, outer, ctx, parentSchema);
     }
     if (baseCtor === null || schema === null)
-        throw new NeoError(`unknown component '${el.tag}'`, el.pos);
+        throw new DeclareError(`unknown component '${el.tag}'`, el.pos);
     const user = ctx.classes.get(el.tag);
     const view = new (ctorWithDecls(el, baseCtor, schema))();
     view.classroot = outer;
@@ -402,7 +402,7 @@ function construct(el, outer, ctx, parentSchema = null) {
     for (const name of effectiveStyles(sources, eff)) {
         const bundle = ctx.bundles.get(name);
         if (bundle === undefined) {
-            throw new NeoError(`no style named '${name}' — this program declares ${ctx.bundles.size > 0 ? [...ctx.bundles.keys()].join(", ") : "no style bundles"}`, el.pos);
+            throw new DeclareError(`no style named '${name}' — this program declares ${ctx.bundles.size > 0 ? [...ctx.bundles.keys()].join(", ") : "no style bundles"}`, el.pos);
         }
         // A bundle's { } fields evaluate with `this` = the styled view (the
         // ruled bundle rule) — `classroot` binds the view itself.
@@ -443,11 +443,11 @@ function construct(el, outer, ctx, parentSchema = null) {
         // fact (the checker is runtime-free by design, like percent-on-root):
         // installing over `attach`/`children`/`toString` would corrupt the view.
         if (m.name in view) {
-            throw new NeoError(`${schema.name}.${m.name}: '${m.name}' is a built-in member of the runtime ${schema.name} — choose another name`, m.pos);
+            throw new DeclareError(`${schema.name}.${m.name}: '${m.name}' is a built-in member of the runtime ${schema.name} — choose another name`, m.pos);
         }
         const c = compileBody(m.params, m.body);
         if ("error" in c)
-            throw new NeoError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
+            throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
         const fn = c.fn;
         // Close over the instance (rather than relying on call-site `this`), so
         // an extracted reference — `const f = v.select; f()` — still works and
@@ -475,12 +475,12 @@ function construct(el, outer, ctx, parentSchema = null) {
             continue;
         }
         if (t0?.kind === "styles" && attr.value.kind === "code") {
-            throw new NeoError(`${eff.name}.styles = { … }: the bundle list is static (ruled v1) — conditional looks are constraints on the slots themselves`, attr.value.pos);
+            throw new DeclareError(`${eff.name}.styles = { … }: the bundle list is static (ruled v1) — conditional looks are constraints on the slots themselves`, attr.value.pos);
         }
         if (t0?.kind === "stylesheet" && attr.value.kind === "ident" && attr.value.name !== "null") {
             const stylesheet = ctx.stylesheets.get(attr.value.name);
             if (stylesheet === undefined) {
-                throw new NeoError(ctx.stylesheets.size > 0
+                throw new DeclareError(ctx.stylesheets.size > 0
                     ? `no stylesheet named '${attr.value.name}' — declared stylesheets: ${[...ctx.stylesheets.keys()].join(", ")}`
                     : `no stylesheet named '${attr.value.name}' — this program declares no stylesheets`, attr.value.pos);
             }
@@ -495,7 +495,7 @@ function construct(el, outer, ctx, parentSchema = null) {
             const familyOf = (name, pos) => {
                 const font = ctx.fonts.get(name);
                 if (font === undefined) {
-                    throw new NeoError(ctx.fonts.size > 0
+                    throw new DeclareError(ctx.fonts.size > 0
                         ? `no font named '${name}' — declared fonts: ${[...ctx.fonts.keys()].join(", ")}`
                         : `no font named '${name}' — this program declares no fonts`, pos);
                 }
@@ -508,7 +508,7 @@ function construct(el, outer, ctx, parentSchema = null) {
                         return familyOf(i.name, i.pos);
                     if (i.kind === "string")
                         return i.value;
-                    throw new NeoError(`a fontFamily list holds font names and strings`, i.pos);
+                    throw new DeclareError(`a fontFamily list holds font names and strings`, i.pos);
                 }).join(", ");
             view[attr.name] = family;
             continue;
@@ -536,7 +536,7 @@ function construct(el, outer, ctx, parentSchema = null) {
                     // A many-path replicates the element it sits on — the PARENT's
                     // walk consumes it (appendChildren); reaching here means the many
                     // is on a body root or a direct construct, which check refuses.
-                    throw new NeoError(`':${r.datapath.path}[]' makes many instances — a replication belongs on a child element, not here`, r.datapath.pos);
+                    throw new DeclareError(`':${r.datapath.path}[]' makes many instances — a replication belongs on a child element, not here`, r.datapath.pos);
                 }
                 ctx.pending.push({ view, attr, cursorPath: r.datapath.path });
             }
@@ -566,7 +566,7 @@ function construct(el, outer, ctx, parentSchema = null) {
     const slot = { prev: null };
     if (user !== undefined) {
         if (ctx.expanding.has(el.tag)) {
-            throw new NeoError(`class ${el.tag} contains itself — a class may not appear inside its own body`, el.pos);
+            throw new DeclareError(`class ${el.tag} contains itself — a class may not appear inside its own body`, el.pos);
         }
         ctx.expanding.add(el.tag);
         try {
@@ -599,7 +599,7 @@ function effectiveStyles(sources, eff) {
  *  `{ }` bindings in pass two). Mirrors checkDataNode for unchecked trees. */
 function constructData(el, schema, outer, ctx) {
     if (el.decls.length > 0 || el.methods.length > 0 || el.children.length > 0) {
-        throw new NeoError(`a ${el.tag} takes attributes only`, el.pos);
+        throw new DeclareError(`a ${el.tag} takes attributes only`, el.pos);
     }
     const node = new DATA[el.tag]();
     for (const a of el.attrs) {
@@ -609,10 +609,10 @@ function constructData(el, schema, outer, ctx) {
         if ("binding" in r)
             ctx.pending.push({ view: node, attr: a, code: r.binding.src, classroot: outer });
         else if ("datapath" in r) {
-            throw new NeoError(`${el.tag}.${a.name} = :${r.datapath.path}: a data node is where data lives — a :path reads a view's cursor`, r.datapath.pos);
+            throw new DeclareError(`${el.tag}.${a.name} = :${r.datapath.path}: a data node is where data lives — a :path reads a view's cursor`, r.datapath.pos);
         }
         else if (isPercent(r.value)) {
-            throw new NeoError(`${el.tag}.${a.name}: no axis to resolve a percent against`, a.value.pos);
+            throw new DeclareError(`${el.tag}.${a.name}: no axis to resolve a percent against`, a.value.pos);
         }
         else {
             node[a.name] = r.value;
@@ -624,19 +624,19 @@ function constructData(el, schema, outer, ctx) {
         // the contents constraint first runs, which mirrors it into value.
         const derived = el.attrs.some((a) => a.name === "contents");
         if (el.raw === undefined && !derived) {
-            throw new NeoError(`a Dataset needs data — a JSON body '{ … }' or a derived 'contents = { … }'`, el.pos);
+            throw new DeclareError(`a Dataset needs data — a JSON body '{ … }' or a derived 'contents = { … }'`, el.pos);
         }
         if (el.raw !== undefined) {
             try {
                 node.value = JSON.parse(el.raw.src);
             }
             catch (e) {
-                throw new NeoError(`${el.name ?? el.tag}: the Dataset body is not valid JSON — ${e.message}`, el.raw.pos);
+                throw new DeclareError(`${el.name ?? el.tag}: the Dataset body is not valid JSON — ${e.message}`, el.raw.pos);
             }
         }
     }
     else if (el.raw !== undefined) {
-        throw new NeoError(`a ${el.tag}'s data arrives from its url — only a Dataset embeds a { } body`, el.raw.pos);
+        throw new DeclareError(`a ${el.tag}'s data arrives from its url — only a Dataset embeds a { } body`, el.raw.pos);
     }
     return node;
 }
@@ -650,10 +650,10 @@ function constructData(el, schema, outer, ctx) {
  *  resolved at start() (this.parent) — so nothing to wire here. */
 function constructAnimator(el, schema, outer, ctx) {
     if (el.decls.length > 0 || el.children.length > 0) {
-        throw new NeoError(`an ${el.tag} takes attributes and on* handlers only`, el.pos);
+        throw new DeclareError(`an ${el.tag} takes attributes and on* handlers only`, el.pos);
     }
     if (el.raw !== undefined) {
-        throw new NeoError(`only a Dataset carries a { } body — an ${el.tag}'s members go in [ ]`, el.raw.pos);
+        throw new DeclareError(`only a Dataset carries a { } body — an ${el.tag}'s members go in [ ]`, el.raw.pos);
     }
     const node = new ANIMATORS[el.tag]();
     // Methods first (handlers + any plain method), installed like a View's — in
@@ -664,11 +664,11 @@ function constructAnimator(el, schema, outer, ctx) {
         if (!r.ok)
             throw r.error;
         if (m.name in node) {
-            throw new NeoError(`${schema.name}.${m.name}: '${m.name}' is a built-in member of the runtime ${schema.name} — choose another name`, m.pos);
+            throw new DeclareError(`${schema.name}.${m.name}: '${m.name}' is a built-in member of the runtime ${schema.name} — choose another name`, m.pos);
         }
         const c = compileBody(m.params, m.body);
         if ("error" in c)
-            throw new NeoError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
+            throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
         const fn = c.fn;
         node[m.name] =
             (...args) => fn.call(node, node.parent, outer, ...args);
@@ -680,10 +680,10 @@ function constructAnimator(el, schema, outer, ctx) {
         if ("binding" in r)
             ctx.pending.push({ view: node, attr: a, code: r.binding.src, classroot: outer });
         else if ("datapath" in r) {
-            throw new NeoError(`${el.tag}.${a.name}: an animator attribute is a value or a { }, not a data read`, a.value.pos);
+            throw new DeclareError(`${el.tag}.${a.name}: an animator attribute is a value or a { }, not a data read`, a.value.pos);
         }
         else if (isPercent(r.value)) {
-            throw new NeoError(`${el.tag}.${a.name}: no axis to resolve a percent against`, a.value.pos);
+            throw new DeclareError(`${el.tag}.${a.name}: no axis to resolve a percent against`, a.value.pos);
         }
         else {
             node[a.name] = r.value;
@@ -716,10 +716,10 @@ const CASCADE_ATTRS = new Set([
  *  fails soundly. */
 function constructAnimatorGroup(el, schema, outer, ctx, inherited = {}) {
     if (el.raw !== undefined) {
-        throw new NeoError(`only a Dataset carries a { } body — an ${el.tag}'s members go in [ ]`, el.raw.pos);
+        throw new DeclareError(`only a Dataset carries a { } body — an ${el.tag}'s members go in [ ]`, el.raw.pos);
     }
     if (el.decls.length > 0) {
-        throw new NeoError(`an ${el.tag} takes attributes, on* handlers, and animator members only`, el.pos);
+        throw new DeclareError(`an ${el.tag} takes attributes, on* handlers, and animator members only`, el.pos);
     }
     const node = new ANIMATOR_GROUPS[el.tag]();
     for (const m of el.methods) {
@@ -727,11 +727,11 @@ function constructAnimatorGroup(el, schema, outer, ctx, inherited = {}) {
         if (!r.ok)
             throw r.error;
         if (m.name in node) {
-            throw new NeoError(`${schema.name}.${m.name}: '${m.name}' is a built-in member of the runtime ${schema.name} — choose another name`, m.pos);
+            throw new DeclareError(`${schema.name}.${m.name}: '${m.name}' is a built-in member of the runtime ${schema.name} — choose another name`, m.pos);
         }
         const c = compileBody(m.params, m.body);
         if ("error" in c)
-            throw new NeoError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
+            throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
         const fn = c.fn;
         node[m.name] =
             (...args) => fn.call(node, node.parent, outer, ...args);
@@ -747,10 +747,10 @@ function constructAnimatorGroup(el, schema, outer, ctx, inherited = {}) {
         if ("binding" in r)
             ctx.pending.push({ view: node, attr: a, code: r.binding.src, classroot: outer });
         else if ("datapath" in r) {
-            throw new NeoError(`${el.tag}.${a.name}: an animator attribute is a value or a { }, not a data read`, a.value.pos);
+            throw new DeclareError(`${el.tag}.${a.name}: an animator attribute is a value or a { }, not a data read`, a.value.pos);
         }
         else if (isPercent(r.value)) {
-            throw new NeoError(`${el.tag}.${a.name}: no axis to resolve a percent against`, a.value.pos);
+            throw new DeclareError(`${el.tag}.${a.name}: no axis to resolve a percent against`, a.value.pos);
         }
         else {
             node[a.name] = r.value;
@@ -766,7 +766,7 @@ function constructAnimatorGroup(el, schema, outer, ctx, inherited = {}) {
     for (const childEl of el.children) {
         const cs = Object.hasOwn(ctx.schemas, childEl.tag) ? ctx.schemas[childEl.tag] : null;
         if (cs === null || !(descendsFrom(cs, "Animator") || descendsFrom(cs, "AnimatorGroup"))) {
-            throw new NeoError(`an ${el.tag} coordinates animators — '${childEl.tag}' is not an Animator or AnimatorGroup`, childEl.pos);
+            throw new DeclareError(`an ${el.tag} coordinates animators — '${childEl.tag}' is not an Animator or AnimatorGroup`, childEl.pos);
         }
         let member;
         if (descendsFrom(cs, "AnimatorGroup")) {
@@ -796,7 +796,7 @@ function constructAnimatorGroup(el, schema, outer, ctx, inherited = {}) {
  *  instantiate of an unchecked tree still fails soundly. */
 function constructState(el, schema, outer, ctx, parentSchema) {
     if (el.raw !== undefined) {
-        throw new NeoError(`only a Dataset carries a { } body — a ${el.tag}'s members go in [ ]`, el.raw.pos);
+        throw new DeclareError(`only a Dataset carries a { } body — a ${el.tag}'s members go in [ ]`, el.raw.pos);
     }
     const node = new STATES[el.tag]();
     const label = el.name ?? el.tag;
@@ -806,11 +806,11 @@ function constructState(el, schema, outer, ctx, parentSchema) {
         if (!r.ok)
             throw r.error;
         if (m.name in node) {
-            throw new NeoError(`${schema.name}.${m.name}: '${m.name}' is a built-in member of the runtime ${schema.name} — choose another name`, m.pos);
+            throw new DeclareError(`${schema.name}.${m.name}: '${m.name}' is a built-in member of the runtime ${schema.name} — choose another name`, m.pos);
         }
         const c = compileBody(m.params, m.body);
         if ("error" in c)
-            throw new NeoError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
+            throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
         const fn = c.fn;
         node[m.name] = (...args) => fn.call(node, node.parent, outer, ...args);
     }
@@ -831,7 +831,7 @@ function constructState(el, schema, outer, ctx, parentSchema) {
             continue;
         }
         if (parentSchema === null) {
-            throw new NeoError(`a ${el.tag} overrides its enclosing view's slots, but '${a.name}' has no view to target here`, a.value.pos);
+            throw new DeclareError(`a ${el.tag} overrides its enclosing view's slots, but '${a.name}' has no view to target here`, a.value.pos);
         }
         const r = checkAttr(parentSchema, a);
         if (!r.ok)
@@ -840,7 +840,7 @@ function constructState(el, schema, outer, ctx, parentSchema) {
         if ("binding" in r) {
             const c = compileExpr(r.binding.src);
             if ("error" in c)
-                throw new NeoError(`${parentSchema.name}.${slot} = { … } ${c.error}`, a.value.pos);
+                throw new DeclareError(`${parentSchema.name}.${slot} = { … } ${c.error}`, a.value.pos);
             const fn = c.fn;
             const croot = outer;
             overrides.push({
@@ -849,7 +849,7 @@ function constructState(el, schema, outer, ctx, parentSchema) {
             });
         }
         else if ("datapath" in r) {
-            throw new NeoError(`${el.tag}.${slot}: a state override is a value or a { }, not a data read`, a.value.pos);
+            throw new DeclareError(`${el.tag}.${slot}: a state override is a value or a { }, not a data read`, a.value.pos);
         }
         else {
             const value = r.value;
@@ -888,7 +888,7 @@ function buildLayout(el, owner, ctx) {
         if (!r.ok)
             throw r.error;
         if (!("value" in r) || isPercent(r.value)) {
-            throw new NeoError(`${el.tag}.${a.name}: a layout attribute takes a literal`, a.pos);
+            throw new DeclareError(`${el.tag}.${a.name}: a layout attribute takes a literal`, a.pos);
         }
         strategy[a.name] = r.value;
     }
@@ -916,11 +916,11 @@ function installLayoutClass(layout, el, uc, owner, ctx) {
         if (!r.ok)
             throw r.error;
         if (m.name in layout) {
-            throw new NeoError(`${el.tag}.${m.name}: '${m.name}' is a built-in member of the runtime layout — choose another name`, m.pos);
+            throw new DeclareError(`${el.tag}.${m.name}: '${m.name}' is a built-in member of the runtime layout — choose another name`, m.pos);
         }
         const c = compileBody(m.params, m.body);
         if ("error" in c)
-            throw new NeoError(`${el.tag}.${m.name}(…) ${c.error}`, m.bodyPos);
+            throw new DeclareError(`${el.tag}.${m.name}(…) ${c.error}`, m.bodyPos);
         const fn = c.fn;
         self[m.name] = (...args) => fn.call(layout, layout.parent, croot, ...args);
     }
@@ -941,7 +941,7 @@ function installLayoutClass(layout, el, uc, owner, ctx) {
         if (!r.ok)
             throw r.error;
         if (!("value" in r) || isPercent(r.value)) {
-            throw new NeoError(`${el.tag}.${a.name}: a layout attribute takes a literal or { }`, a.pos);
+            throw new DeclareError(`${el.tag}.${a.name}: a layout attribute takes a literal or { }`, a.pos);
         }
         self[a.name] = r.value;
     }
@@ -960,7 +960,7 @@ function appendChildren(from, parentView, croot, ctx, eff, slot) {
         const many = manyPathOf(childEl, ctx.schemas);
         if (many !== null && many.value.kind === "path") {
             if (childEl.name !== null) {
-                throw new NeoError(`a replicated child cannot be named — ':${many.value.path}[]' makes one instance per record, and '${childEl.name}' can only name one; reach the instances through their data`, childEl.pos);
+                throw new DeclareError(`a replicated child cannot be named — ':${many.value.path}[]' makes one instance per record, and '${childEl.name}' can only name one; reach the instances through their data`, childEl.pos);
             }
             // `key = :field` (optional): reconcile by this stable field instead of
             // object identity, so a re-derived collection reuses instances by key.
@@ -980,7 +980,7 @@ function appendChildren(from, parentView, croot, ctx, eff, slot) {
         slot.prev = child;
         if (childEl.name !== null) {
             if (childEl.name in parentView) {
-                throw new NeoError(`'${childEl.name}' is already a member of the running ${parentView.constructor.name} — choose another name for this child`, childEl.pos);
+                throw new DeclareError(`'${childEl.name}' is already a member of the running ${parentView.constructor.name} — choose another name for this child`, childEl.pos);
             }
             parentView[childEl.name] = child;
         }
@@ -997,7 +997,7 @@ function materializer(ctx) {
         try {
             const node = construct(template, classroot, ctx);
             if (!(node instanceof View)) {
-                throw new NeoError(`a ${template.tag} cannot replicate — it is not a view`, template.pos);
+                throw new DeclareError(`a ${template.tag} cannot replicate — it is not a view`, template.pos);
             }
             const pending = ctx.pending;
             return {

@@ -80,7 +80,7 @@ Generated from `@api` doc-comments via the extractor; the model (`docs-model.jso
 truth the docs app consumes directly, and `docs/reference/` is where per-element **markdown
 pages are emitted** for the file-nav and LLM-retrieval packagings: one page per class
 (`View.md`, `Slider.md`, …) carrying its attributes/methods/events, plus `diagnostics.md`
-(the `NEO####` catalog — it is a registry, so it lives here per the contract §2). A
+(the `DECLARE####` catalog — it is a registry, so it lives here per the contract §2). A
 generated header on every page says "generated — edit the `@api` comment at the source."
 IDs are the source symbols; nothing here is ever hand-edited. The 67-entry prose backlog
 (audit §2) is `@api` writing at the code, not work in this directory.

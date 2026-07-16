@@ -109,7 +109,7 @@ const collapsedOK = await p.evaluate(() => canvas.yearview.expandedGrid == null)
 // DHTML: find the animated DOM elements (inline transform/opacity that changed during anim).
 const dom = await p.evaluate(() => {
   if (window.__isCanvas) return { kernel: "canvas" };
-  // The neo/DHTML kernel renders each view as a positioned div. Count elements whose inline style
+  // The Declare/DHTML kernel renders each view as a positioned div. Count elements whose inline style
   // carries a transform (scale/translate) or a non-trivial opacity — the animated month containers.
   const all = Array.from(document.querySelectorAll("#appcontainer *"));
   let withTransform = 0, withOpacity = 0, totalDivs = 0;

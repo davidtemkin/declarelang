@@ -2,7 +2,7 @@
 // (scaffold.ts) turns the component schemas into an ambient TypeScript surface;
 // this module appends a CHECK-BLOCK per resolved `{ }` body and runs stock tsc
 // over the whole, then maps each TS diagnostic back to a `.declare` LINE through
-// the diagnostics mechanism (diagnostics.ts, code NEO6001). HOST-AGNOSTIC: it
+// the diagnostics mechanism (diagnostics.ts, code DECLARE6001). HOST-AGNOSTIC: it
 // imports `typescript` statically (the bundle already carries it for
 // free-idents) and reads the `lib.*.d.ts` texts through ONE injected provider
 // (provideLib below — Node registers a disk reader, the browser bundle embeds
@@ -42,7 +42,7 @@
 // offset within the block). v1 reports at LINE granularity (what APPROACH asks).
 //
 // v1 SCOPE: bodies that embed a datapath island (`:path`) are skipped — `:path`
-// is neo surface the runtime rewrites (expr.ts), not TypeScript; typechecking
+// is Declare surface the runtime rewrites (expr.ts), not TypeScript; typechecking
 // data reads is a later slice. All other `{ }` bodies (attribute expressions,
 // declaration-default bindings, method statements) are checked.
 import ts from "typescript";
@@ -53,10 +53,10 @@ import { attrType, descendsFrom } from "../../runtime/dist/schema.js";
 import { declaredType } from "../../runtime/dist/value.js";
 import { fillDatapaths } from "../../runtime/dist/datapath.js";
 import { Diag } from "../../runtime/dist/diagnostics.js";
-import { NeoError } from "../../runtime/dist/errors.js";
+import { DeclareError } from "../../runtime/dist/errors.js";
 /** Typecheck every resolved `{ }` body in `resolved` (compile()'s output — a
  *  self-contained program whose bare names are already paths). Returns coded
- *  NEO6001 diagnostics (empty when clean). Never throws on TS internals: a
+ *  DECLARE6001 diagnostics (empty when clean). Never throws on TS internals: a
  *  body that cannot be framed is skipped, not failed. */
 export function typecheckBodies(resolved, program) {
     const { schemas } = programSchemas(program.classes);

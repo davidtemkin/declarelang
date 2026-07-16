@@ -16,7 +16,7 @@ suggestions; within them, the shape is judgment.
    source doc-comment — editing happens at the code, not the doc.)
 
 2. **Every ID is generated, never hand-created** (contract §5). Reference/diagnostic/flag IDs
-   *are* the source symbol (`View.x`, `NEO2000`, a `FLAG_SPECS` key). Prose-section IDs are
+   *are* the source symbol (`View.x`, `DECLARE2000`, a `FLAG_SPECS` key). Prose-section IDs are
    auto-slugged from the heading and **pinned**. The IA must not depend on hand-assigned IDs.
 
 3. **Links use the `declare-docs:` scheme with symbolic targets** — never file paths or

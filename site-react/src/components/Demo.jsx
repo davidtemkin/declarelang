@@ -73,8 +73,8 @@ export default function Demo({ demo }) {
             />
           </div>
 
-          {/* data-neo-app makes the runtime treat the mount as an embedded preview */}
-          <div className="preview-wrap" data-neo-app>
+          {/* data-declare-app makes the runtime treat the mount as an embedded preview */}
+          <div className="preview-wrap" data-declare-app>
             <div className="preview-mount" ref={boxRef} />
             {err ? <div className="preview-err">{err}</div> : null}
           </div>

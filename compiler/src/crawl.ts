@@ -1,5 +1,5 @@
 // crawl — extraction generalized from the t=0 snapshot to t=0 PER REACHABLE
-// LOCATION (design/location.md §7). The single-page extractor (seo.ts) settles the
+// LOCATION (design/location.md §7). The single-page extractor (static-html.ts) settles the
 // DEFAULT location and serializes; the crawl follows the fragment links out of that
 // settled tree, cold-boots each new location, and serializes it too, to closure.
 //
@@ -31,7 +31,7 @@
 
 import { build, settle, App, HeadlessBackend, provideMeasurer, provideTransport } from "../../runtime/dist/index.js";
 import { approximateMeasurer, DEFAULT_ENV, type Environment } from "./headless.js";
-import { staticHtml } from "./seo.js";
+import { staticHtml } from "./static-html.js";
 
 export interface CrawlOptions {
   deps?: unknown;

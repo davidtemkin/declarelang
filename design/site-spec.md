@@ -67,7 +67,7 @@ gutter `24px`. A faint grid background (`grid` lines every `32px`, ~`0.5px`) spa
     it exists.*
 - Pull-quote, centered, larger: *Everything that makes it legible to a model makes it
   legible to you.*
-- Trust line (muted, mono-tinged): *The declarative parts are neo. The logic is ordinary,
+- Trust line (muted, mono-tinged): *The declarative parts are Declare. The logic is ordinary,
   typed TypeScript — nothing to relearn, and everything an editor or a model already
   understands.*
 

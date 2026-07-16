@@ -1,7 +1,7 @@
 // md — a purpose-built Markdown reader (design/text-and-markdown.md). NOT a
 // general CommonMark engine (no marked/markdown-it/micromark, no plugins, no
 // HTML passthrough) — a tight, single-pass, allocation-light parser for
-// exactly neo's subset and nothing more, tuned for the reactive re-parse hot
+// exactly Declare's subset and nothing more, tuned for the reactive re-parse hot
 // path. It is a STANDALONE LEAF: it imports nothing, so the compiler imports it
 // to expand literals at build and the runtime imports it (only when dynamic
 // Markdown is used) to parse at render — owned by neither.

@@ -73,13 +73,13 @@ export interface EditableSpec {
     /** The user typed — carry the native element's value to the model. */
     onInput: (value: string) => void;
     /** The native element gained / lost DOM focus (a click in, or focus moving
-     *  away) — for syncing neo focus with the platform. */
+     *  away) — for syncing Declare focus with the platform. */
     onFocus: () => void;
     onBlur: () => void;
     /** Enter pressed on a single-line field (submit). */
     onEnter?: () => void;
 }
-/** One view's handle on the rendering substrate — the neo "sprite".
+/** One view's handle on the rendering substrate — the Declare "sprite".
  *
  *  Setters are fine-grained (one platform mutation each, not a batched
  *  setBounds) so that when reactivity arrives (R4) a constraint on a single
@@ -175,7 +175,7 @@ export interface Surface {
     revealRichAnchor(slug: string, within: number): boolean;
     /** Reflect an `embed` marker onto the surface so a HOST can find this view's
      *  element (data attribute on DOM) and mount foreign content (an editor, a
-     *  preview iframe) inside it — the sanctioned seam for embedding non-neo UI
+     *  preview iframe) inside it — the sanctioned seam for embedding non-Declare UI
      *  that must track the view as the page scrolls. No-op off the DOM. */
     setEmbed(id: string): void;
     /** The view's recorded drawing (draw.ts); null clears it. The Canvas
@@ -211,7 +211,7 @@ export interface Surface {
      *  edit/focus callbacks; geometry follows the surface box. Layer 3. */
     setEditable(spec: EditableSpec | null): void;
     /** Give (true) or remove (false) DOM focus to the editable element, driven by
-     *  the neo focus service so keyboard focus and the platform caret agree.
+     *  the Declare focus service so keyboard focus and the platform caret agree.
      *  No-op if this surface is not editable. */
     activateEditable(active: boolean): void;
     /** Parent `child`'s surface beneath this one, before `before` (null = at

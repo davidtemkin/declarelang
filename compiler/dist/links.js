@@ -7,7 +7,7 @@
 // handler: `<element>.link = { href } | { read }`. The relation then rides the
 // compile() result exactly as `deps` do (a walk-order side-list, links.ts in the
 // runtime), the runtime stamps each instance `_navLink`, and the static
-// extractor (seo.ts) wraps the matched subtree in `<a href>`.
+// extractor (static-html.ts) wraps the matched subtree in `<a href>`.
 //
 // Attribution is BY CONSTRUCTION — rooted at the (element, handler) pair — not by
 // tracing an attribute name a router secretly consults. Only ACTIVATION handlers
@@ -81,7 +81,7 @@ function targetInBody(body, isClassRoot) {
     };
     walk(sf);
     // A location write becomes a fragment link. Its RHS is evaluated at t=0 per
-    // settled instance (the read machinery seo.ts already runs for navigate): a
+    // settled instance (the read machinery static-html.ts already runs for navigate): a
     // string literal shortcuts to a stable `#…` href; anything else (a read, a
     // `"guide/" + cid` concatenation over replicated tabs) rides as a read that
     // prepends `#` when non-empty. A navigate in the same handler is the else-branch.
@@ -118,7 +118,7 @@ function isLocationTarget(expr) {
  *  resolvable against this instance at t=0 (a `classroot` read below its own class
  *  root, where `classroot` is an ancestor). `this`/`parent`/literals are always fine;
  *  `classroot` only on the class root, where it IS the instance (compileExpr binds
- *  `classroot` to the instance in seo.ts). */
+ *  `classroot` to the instance in static-html.ts). */
 function locExprText(rhs, isClassRoot) {
     if (!isClassRoot && /\bclassroot\b/.test(rhs.getText()))
         return null;

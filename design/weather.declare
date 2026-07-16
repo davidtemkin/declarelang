@@ -10,7 +10,7 @@
 // comment says so and shows the v1 form that stands in.
 //
 // It is a reading artifact, not the buildable app — that is
-// neolang/apps/neoweather/. What it exercises:
+// neolang/apps/weather/. What it exercises:
 //   · PREVAILING typography — the App root sets the dominant font once;
 //     descendants follow, so every font attribute written below is a real
 //     local difference (the old Cap/HelvCap helper classes are gone).
@@ -283,7 +283,7 @@ App [ width = 240, height = 320, fill = #EAEAEA,
         ],
 
     // Up/down arrows walk the tab selection — a lifetime-managed subscription
-    // to the global key source (§8), the neo replacement for a focus manager.
+    // to the global key source (§8), the Declare replacement for a focus manager.
 
     keyup(k: number) <- Keys {
         const tabs = report.slider.children

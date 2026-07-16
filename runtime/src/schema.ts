@@ -286,11 +286,11 @@ const ImageSchema: ComponentSchema = {
   },
 };
 
-// HTML (foreign-content island): a leaf View whose BOX is owned by neo — it
+// HTML (foreign-content island): a leaf View whose BOX is owned by Declare — it
 // lays out and obeys constraints like any view — but whose INTERIOR is
 // host-managed foreign DOM (an iframe, a textarea, a <video>, a map widget).
-// `slot` is a host key: the DOM backend reflects it as `data-neo-slot`, the
-// host mounts DOM into the neo-sized div, and neo's width/height drive the
+// `slot` is a host key: the DOM backend reflects it as `data-declare-slot`, the
+// host mounts DOM into the Declare-sized div, and Declare's width/height drive the
 // tenant's size with no coordinate sync (canvas realizes it as a positioned
 // DOM overlay — deferred). The one sanctioned escape to raw DOM, kept behind a
 // named view so bodies stay DOM-free.

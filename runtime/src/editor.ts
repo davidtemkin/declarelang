@@ -24,7 +24,7 @@ import { View, onDiscard } from "./view.js";
 import { setBound, defineAttributes } from "./attributes.js";
 import { coerceData } from "./data.js";
 import { compileExpr } from "./expr.js";
-import { NeoError, type Pos } from "./errors.js";
+import { DeclareError, type Pos } from "./errors.js";
 import type { AttrType } from "./value.js";
 
 interface Session {
@@ -85,7 +85,7 @@ export function bindTwoWay(view: View, name: string, path: string, type: AttrTyp
  *  tracking, so changing the field reseeds the editor onto the new place. */
 export function bindTwoWayDynamic(view: View, name: string, src: string, pos: Pos, classroot: View | null, type: AttrType): void {
   const c = compileExpr(src);
-  if ("error" in c) throw new NeoError(`${view.constructor.name}.${name} <-> { … } ${c.error}`, pos);
+  if ("error" in c) throw new DeclareError(`${view.constructor.name}.${name} <-> { … } ${c.error}`, pos);
   const fn = c.fn;
   register(view, name, () => String(fn.call(view, view.parent, classroot)), type);
 }

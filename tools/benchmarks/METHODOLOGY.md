@@ -9,14 +9,14 @@ This directory holds everything related to benchmarking OpenLaszlo app **startup
 > for the current layout. The methodology itself is unchanged.
 
 **Location & toolchain pin.** It **measures the
-stable `openlaszlo-5.0` distro**, not neo — pinned in one place (`distro.mjs`) so the
-baseline does NOT drift as neo's compiler/runtime change. A result shift therefore means an
+stable `openlaszlo-5.0` distro**, not Declare — pinned in one place (`distro.mjs`) so the
+baseline does NOT drift as Declare's compiler/runtime change. A result shift therefore means an
 *app/startup* change, never a toolchain change. Neither distro is modified by this work. When
-neo's runtime is ready to be the target, point `distro.mjs` at it (set `BENCH_DISTRO`, or edit
+Declare's runtime is ready to be the target, point `distro.mjs` at it (set `BENCH_DISTRO`, or edit
 its one fallback) — every tool follows.
 
 ```
-openlaszlo-neo/benchmarks/
+openlaszlo-Declare/benchmarks/
   METHODOLOGY.md      ← this file
   tools/              ← reusable, app-agnostic measurement harnesses
     distro.mjs          ← THE pin: which toolchain to measure (default: stable openlaszlo-5.0)
@@ -298,7 +298,7 @@ levers flagged in RESULTS-dashboard.md. The calendar stays green almost everywhe
 
 ## Running
 
-From `openlaszlo-neo/benchmarks/tools/`. Two serving paths — both measure the same pinned
+From `openlaszlo-Declare/benchmarks/tools/`. Two serving paths — both measure the same pinned
 `openlaszlo-5.0` toolchain (`distro.mjs`); pick by what you're testing.
 
 **Production / precompiled-static** (what the headline web-norms numbers use):
@@ -322,5 +322,5 @@ node shot.mjs        "http://localhost:8096/<main>.lzx" 1000 700 out.png
 ```
 
 Run `lzprof.mjs` first (it writes the JSON that `timeline.mjs` reads for its category hints).
-To measure a different toolchain (e.g. neo's own runtime once it's ready): `BENCH_DISTRO=../..
+To measure a different toolchain (e.g. Declare's own runtime once it's ready): `BENCH_DISTRO=../..
 node serve.mjs …`, or edit the fallback in `tools/distro.mjs`.

@@ -21,7 +21,7 @@ _Original design follows._
 
 | capability | where | state |
 |---|---|---|
-| compile: parse → include → check → resolve, all-errors-per-phase, NEO#### codes | `compiler/src/compile.ts`, `runtime/src/check.ts`, `diagnostics.ts` | shipped |
+| compile: parse → include → check → resolve, all-errors-per-phase, DECLARE#### codes | `compiler/src/compile.ts`, `runtime/src/check.ts`, `diagnostics.ts` | shipped |
 | typecheck (tsc over `{ }` bodies vs generated scaffold) | `compiler/src/typecheck.ts` | shipped, **on by default** |
 | static dep extraction (per-constraint reads, interprocedural) | `compiler/src/dep-extract.ts`, emitted in `compile()` result | shipped |
 | headless instantiation, no DOM (`build()`), reactive `settle()` | `runtime/src/index.ts`, `reactive.ts` | shipped (tests use it) |
@@ -212,7 +212,7 @@ Same briefs, same models, same budgets, React+TS+Vite; acceptance rewritten agai
 
 ## 4. Implementation plan
 
-**Sequencing dependency (ruled 2026-07-13):** the full TS-typecheck integration is in flight separately. It gates **rung-3-on-by-default and the eval phases (5–6)** — running evals against a checker that's about to change would invalidate the baseline metrics, and defaulting on a false-positive-prone pass would burn the trust-the-message contract verify exists to uphold. It does **not** gate phases 0–4 (headless boot, inspect, clock, behavioral/visual harness, verify host), which are runtime/harness work behind a stable interface (`compile(src, { typecheck })` → NEO6xxx `Diagnostic[]`). Rung 3 ships flag-gated, default-off, and flips on when that work lands. Coordination note for the typecheck workstream: its messages will be *scored* on diagnostic efficacy by this harness — the diagnostics.md §4 contract (name the fix, one canonical rewrite) applies to every NEO6xxx from day one.
+**Sequencing dependency (ruled 2026-07-13):** the full TS-typecheck integration is in flight separately. It gates **rung-3-on-by-default and the eval phases (5–6)** — running evals against a checker that's about to change would invalidate the baseline metrics, and defaulting on a false-positive-prone pass would burn the trust-the-message contract verify exists to uphold. It does **not** gate phases 0–4 (headless boot, inspect, clock, behavioral/visual harness, verify host), which are runtime/harness work behind a stable interface (`compile(src, { typecheck })` → DECLARE6xxx `Diagnostic[]`). Rung 3 ships flag-gated, default-off, and flips on when that work lands. Coordination note for the typecheck workstream: its messages will be *scored* on diagnostic efficacy by this harness — the diagnostics.md §4 contract (name the fix, one canonical rewrite) applies to every DECLARE6xxx from day one.
 
 Ordered so every phase lands something usable alone; estimates are working-session scale, not calendar promises.
 

@@ -1,8 +1,8 @@
 # Declare weather — tabslider & reveal-animation gaps
 
 Frame-by-frame comparison (puppeteer filmstrips) of `examples/weather` (the LZX
-original, via `basetabslider`/`basetabelement`) vs `neoweather` surfaced three
-motion gaps. This note records what the original does, why neo differs, and the
+original, via `basetabslider`/`basetabelement`) vs `weather` surfaced three
+motion gaps. This note records what the original does, why Declare differs, and the
 fix. Investigated 2026-07-04.
 
 
@@ -17,7 +17,7 @@ open *and* close, revealed / concealed by the **clip** as the height animates. I
 a switch, the closing tab's content clips away as the opening tab's is revealed —
 simultaneously, height conserved, **never a blank gap**.
 
-**neo today**: content is direct children with `visible = { parent.sel }` — an
+**Declare today**: content is direct children with `visible = { parent.sel }` — an
 instant pop. No clip, no window. On a switch the old content vanishes (blank
 gap), the new pops in, and mid-slide content overflows (unclipped).
 
@@ -26,19 +26,19 @@ gap), the new pops in, and mid-slide content overflows (unclipped).
 (`y→0` + `opacity→1`, simultaneous, 333ms) runs in `showWeather`; `goout`
 reverses on hide.
 
-**neo today**: `y = { loaded ? 0 : -16 }`, `opacity = { loaded ? 1 : 0 }` — jumps.
+**Declare today**: `y = { loaded ? 0 : -16 }`, `opacity = { loaded ? 1 : 0 }` — jumps.
 
 ### 3. Zip bar slides in / out from the left
 **Original**: `zipBtn.animate('x', -2000, 333)` slides the Enter-Zip/OK bar
 off-left on submit; `animate('x', 0, 333)` slides it back on return / error.
 
-**neo today**: `x = { loading ? -2000 : 0 }` — jumps.
+**Declare today**: `x = { loading ? -2000 : 0 }` — jumps.
 
 
 ## The fix
 
 ### Gap 1 → box-clip the tab (new runtime capability + a 2-line app change)
-The elegant neo form is **not** a resizelayout+container reconstruction — it is
+The elegant Declare form is **not** a resizelayout+container reconstruction — it is
 to **clip the `WeatherTab`'s own box**. With `clip = true`, all the tab's children
 are clipped to `(0, 0, width, height)`: the header (`y < 25`, always within
 `height ≥ 25`) is never clipped, the content (`y ≥ 35`) is revealed as height
@@ -55,7 +55,7 @@ placement mechanism and no window subview**. `contentvisible` falls out for free
   (constraints.md §3), not a user constraint.
 - **App:** add `clip = true` to `WeatherTab` (components.declare); drop the
   `visible = { parent.sel }` on `currentData` / `radarData` / `forecastData`
-  (neoweather.declare) — the clip now conceals them.
+  (weather.declare) — the clip now conceals them.
 
 ### Gaps 2 & 3 → imperative animator drives (LZX vocabulary, like the tab slide)
 `DataSource.fetch()` is `async` (`data.ts:272`), so the OK handler can sequence
@@ -72,7 +72,7 @@ can't express (and, post-constraints.md, shouldn't):
 
 ## Verification
 The acceptance harness compares **settled end-states**, so all three fixes must
-hold `accept:neoweather` at **18/18** (end-states unchanged — only the *path*
+hold `accept:weather` at **18/18** (end-states unchanged — only the *path*
 animates). Frame-capture filmstrips (a fresh ephemeral-port serve) confirm the
 motions now match the original.
 
@@ -114,12 +114,12 @@ settles the mechanism:
   `+1000`, so `x` stays `0` the whole way. The slot never moves; nothing errors.
 
 The footgun is therefore **any reversible animation pair left at the
-`started = true` default** — and neoweather has *two* (zip `slideOut`/`slideIn`,
+`started = true` default** — and weather has *two* (zip `slideOut`/`slideIn`,
 topBar `comein`/`goout` on `y`+`opacity`). At the default, all four halves
 auto-fire and both slots net-zero at init. `started = false` is the fix, and the
 general rule is: **on-demand / reversible animators must be `started = false`**
 (the original's `start="false"`, for the same reason). Auto-start (`true`) is
-only for a motion meant to run once, immediately, at init — of which neoweather
+only for a motion meant to run once, immediately, at init — of which weather
 has none.
 
 > Language-design question this raises (for a human call, not landed): `started`
@@ -139,11 +139,11 @@ has none.
 - **A — box-clip runtime (`src/`):** LANDED. `clip = true` clips a view's subtree
   (paint + hit-test) to its box via a framework-internal reactive derive of the
   box rect, recomputed on width/height; new perceptual test. Gate green.
-- **C — topBar + zip animators (`neoweather.declare`):** LANDED. `comein`/`goout`
+- **C — topBar + zip animators (`weather.declare`):** LANDED. `comein`/`goout`
   groups (topBar) + `slideOut`/`slideIn` (zip), driven from the fetch / clear
   paths — all `started = false` (see above).
 - **B — `WeatherTab clip = true` + drop the content `visible` pops:** LANDED.
-- **Verification:** `accept:neoweather` 18/18; unit 267/0, perceptual 104/0,
+- **Verification:** `accept:weather` 18/18; unit 267/0, perceptual 104/0,
   scaffold 11/0. Puppeteer value-probes confirm the motion (topBar y −16→0 +
   opacity 0→1; zip x 0→−2000 and back; tab1 held at 255 — no spurious collapse).
   Filmstrips confirm all three vs the original: tab content clips/travels with no

@@ -25,7 +25,7 @@
 // capability probing, no per-sprite `clickable` state (interactivity is the
 // seam's sink, derived from declared handlers).
 
-import { NeoError } from "./errors.js";
+import { DeclareError } from "./errors.js";
 import type { EditableSpec, InputSink, RenderBackend, Stretch, Surface } from "./backend.js";
 import { colorToCss, isGradient, type Fill, type Gradient, type Shadow, type Stroke } from "./value.js";
 import { paintBox, realizeGradient } from "./boxpaint.js";
@@ -97,7 +97,7 @@ class Compositor {
 
   attach(host: HTMLElement, root: CanvasSurface): void {
     if (this.canvas !== null) {
-      throw new NeoError("a CanvasBackend hosts one tree — use a fresh backend per render");
+      throw new DeclareError("a CanvasBackend hosts one tree — use a fresh backend per render");
     }
     const canvas = document.createElement("canvas");
     canvas.style.display = "block"; // no inline-baseline gap inside the host
@@ -107,7 +107,7 @@ class Compositor {
     (canvas.style as CSSStyleDeclaration & { webkitUserSelect: string }).webkitUserSelect = "none";
     canvas.style.touchAction = "none";
     const ctx = canvas.getContext("2d");
-    if (ctx === null) throw new NeoError("Canvas 2D is unavailable in this browser");
+    if (ctx === null) throw new DeclareError("Canvas 2D is unavailable in this browser");
     this.canvas = canvas;
     this.ctx = ctx;
     this.root = root;

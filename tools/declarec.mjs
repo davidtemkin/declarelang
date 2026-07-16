@@ -21,7 +21,7 @@ import { compileProgram } from "../compiler/dist/declarec.js";
 import { REGISTRY_MANIFEST } from "../runtime/dist/registry.js";
 import { parseArgvFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
 import { highlight } from "../compiler/dist/highlight.js";
-import { compile as compileFull, crawlDocument, diskDataResolver, seoDocument } from "../compiler/dist/compile-node.js";
+import { compile as compileFull, crawlDocument, diskDataResolver, crawlerDocument } from "../compiler/dist/compile-node.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const RUNTIME = resolve(HERE, "../runtime/dist"); // the run-path lives here
@@ -288,7 +288,7 @@ async function cli(argv) {
       deps: compiled.deps, links: compiled.links,
       data: srcDir ? diskDataResolver(srcDir) : undefined,
     });
-    const doc = html === null ? null : seoDocument(html, name);
+    const doc = html === null ? null : crawlerDocument(html, name);
     if (doc !== null) {
       await writeFile(join(outDir, `${name}.extract.html`), doc);
       if (!quiet) console.log(`  ${name}.extract.html   ${kb(doc.length)} raw  (static extraction)`);

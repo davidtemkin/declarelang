@@ -1,9 +1,9 @@
 import { type CompileOptions, type Compiled } from "./compile.js";
 import type { Closure } from "./closure.js";
 export type { CompileOptions, Compiled } from "./compile.js";
-export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, seoDocument } from "./seo.js";
+export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
 export { crawlLocations, crawlDocument, fragmentHrefs, canonKey, type CrawlDoc, type CrawlOptions } from "./crawl.js";
-export type { ExtractOptions, Extracted } from "./seo.js";
+export type { ExtractOptions, Extracted } from "./static-html.js";
 export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
 export type { Environment, HeadlessOptions } from "./headless.js";
 export { DiskTracker, diskProbe, statValidator } from "./cache-node.js";

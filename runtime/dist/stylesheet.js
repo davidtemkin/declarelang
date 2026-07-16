@@ -31,7 +31,7 @@
 // structurally), so view.ts can import it for the slot pusher without a
 // cycle; the checker's half lives in check.ts.
 import { Constraint } from "./reactive.js";
-import { NeoError } from "./errors.js";
+import { DeclareError } from "./errors.js";
 import { isSet, ownerOf, stylesheetClear, stylesheetMarks, stylesheetWrite } from "./attributes.js";
 export function buildStylesheet(name, theme, entries) {
     return { name, theme, entries, merged: new Map() };
@@ -153,7 +153,7 @@ export function registerStylesheets(root, stylesheets) {
 export function stylesheetByName(root, name) {
     const stylesheet = REGISTRY.get(root)?.get(name);
     if (stylesheet === undefined) {
-        throw new NeoError(`no stylesheet named '${name}' is declared in this program`);
+        throw new DeclareError(`no stylesheet named '${name}' is declared in this program`);
     }
     return stylesheet;
 }

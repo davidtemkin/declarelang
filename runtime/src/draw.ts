@@ -13,10 +13,10 @@
 // The op vocabulary is a Canvas2D-shaped subset sized to its consumers
 // (grown with them, not gold-plated ahead of them).
 
-import { NeoError } from "./errors.js";
+import { DeclareError } from "./errors.js";
 import { colorToCss, type Color } from "./value.js";
 
-/** A style value may be a CSS string or a neo `Color` (a number) — draw() is
+/** A style value may be a CSS string or a Declare `Color` (a number) — draw() is
  *  first-class with the language's Color type, so `d.fillStyle = #BCC4E2`
  *  reads like the `fill` attribute, not `"#bcc4e2"`. Strings still pass
  *  through, so the Canvas2D shape is intact. */
@@ -140,7 +140,7 @@ export class Draw {
   }
 
   private readOnly(what: string): never {
-    throw new NeoError(
+    throw new DeclareError(
       `the draw context is write-only — ${what} cannot be read back; inputs come in through attributes (rendering model)`
     );
   }

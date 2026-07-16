@@ -13,7 +13,7 @@
 //     since the snapshot and the live tree are pixel-identical).
 //
 //   node tools/prerender.mjs [pagePath]      # default "/" (the homepage / marketing site)
-//   node tools/prerender.mjs /examples/neoweather/
+//   node tools/prerender.mjs /examples/weather/
 //
 // Output sits next to the source page (index.prerendered.html at the root). It's a normal
 // static file — serve it and view-source to see the baked content, or rename it over

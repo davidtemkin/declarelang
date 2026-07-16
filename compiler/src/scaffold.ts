@@ -15,7 +15,7 @@
 // in-browser path. It is deliberately standalone (nothing imports it yet — not
 // wired into compile.ts): this slice proves the generator with stock tsc; the
 // next slice auto-emits a check-block per body and maps tsc diagnostics back to
-// neo positions (see the deferrals below).
+// Declare positions (see the deferrals below).
 //
 // Two parts, mirroring the two lexical homes of a value:
 //
@@ -66,7 +66,7 @@
 //       `:path` value is opaque, not mis-typed. Dynamic-mode `:path` (value
 //       coerced at the runtime boundary) is unchanged by this.
 //   (b) auto-emitting a check-block per `{ }` body of a program and mapping the
-//       resulting tsc diagnostics back to neo `Pos` — the NEXT slice.
+//       resulting tsc diagnostics back to Declare `Pos` — the NEXT slice.
 //   (c) wiring this into compile.ts / the build pipeline.
 //
 // Runtime-free by construction: every import here is `import type` (erased), so

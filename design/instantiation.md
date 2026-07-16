@@ -22,7 +22,7 @@ later case (§8); `new ClassName()` is the one this contract lands.
 
 ## 1. Why not `new lz.klass(parent, …)`
 
-LZX baked the parent into construction. That does not generalize in neo,
+LZX baked the parent into construction. That does not generalize in Declare,
 because **`parent` is a View concept and the node hierarchy is wider than
 View**: `Dataset`, `DataSource`, `Animator`, `AnimatorGroup` are `Node`s, not
 `View`s, and have no view-parent. A universal `new` cannot take a parent it
@@ -126,8 +126,8 @@ the six-step wiring and a non-View's is its own lighter, box-free version.
 
 ## 6. Name-equivalence and the type surface — no namespace, no prefix
 
-Because `new WeatherTab()` / `new Text()` / `new Image()` must reference the neo
-classes under their markup names, **neo names win in `{ }`-body scope**. This is
+Because `new WeatherTab()` / `new Text()` / `new Image()` must reference the Declare
+classes under their markup names, **Declare names win in `{ }`-body scope**. This is
 already the runtime's stance — `src/image.ts` names its class `Image`, shadows
 the DOM `Image`, and reaches the DOM one via `document.createElement("img")`.
 
@@ -138,10 +138,10 @@ globals *within the body's scope*:
 
 ```ts
 // generated around the body — the developer never writes this:
-import { WeatherTab, Text, Image, View } from "<neo-surface>"   // module-locals shadow lib.dom
+import { WeatherTab, Text, Image, View } from "<Declare-surface>"   // module-locals shadow lib.dom
 // the developer's body:
-const w = new WeatherTab()      // → neo class ✓
-const i = new Image()           // → neo Image (shadows DOM), name-equivalent ✓
+const w = new WeatherTab()      // → Declare class ✓
+const i = new Image()           // → Declare Image (shadows DOM), name-equivalent ✓
 document.createElement("img")   // → lib.dom's document (NOT shadowed) → HTMLImageElement
 Math.max(a, b)                  // → lib.es global, untouched
 ```

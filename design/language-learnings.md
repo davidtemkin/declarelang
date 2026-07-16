@@ -13,8 +13,8 @@ Nothing below is settled. Decisions already *implemented* this session are marke
 
 **Language / framework**
 - **D1 — Map/object attribute kind.** Add a named, per-use record/map type for
-  structured **host→neo data** (independent of the theme system)? UNBLOCKED the
-  neo-native editor by *reusing* the theme `record`/`Theme` kind for
+  structured **host→Declare data** (independent of the theme system)? UNBLOCKED the
+  Declare-native editor by *reusing* the theme `record`/`Theme` kind for
   `App.demoSources` and coercing each read `unknown → string` with `|| ""` (no
   `as` cast — see §13). Works, but the type is still misnamed `Theme` and every
   read needs the coercion. A per-use named map kind remains the clean fix. (§11)
@@ -38,14 +38,14 @@ Nothing below is settled. Decisions already *implemented* this session are marke
   ✓ RESOLVED (2026-07-10, §8): added the **`app`** scope noun (§11) — sugar for
   `this.root`, typed `App` — so App/stage state is reached explicitly from any
   depth (`app.hostWidth`) instead of relying on `classroot` coinciding with the App.
-- **D8 — HTML-island content measurement.** Let neo auto-size to foreign content
+- **D8 — HTML-island content measurement.** Let Declare auto-size to foreign content
   (a reported extent), or accept explicit island sizes? (§9)
 
 **Product / UX (all implemented this session, all reversible)**
-- **P1 ⚙ — Source editor → neo-native `TextInput` card. SHIPPED.** The editor is
-  now a neo `CodeField extends TextInput` inside an all-neo `SourcePanel` card
+- **P1 ⚙ — Source editor → Declare-native `TextInput` card. SHIPPED.** The editor is
+  now a Declare `CodeField extends TextInput` inside an all-Declare `SourcePanel` card
   (frame · filename · hint · Revert · field) — no host `<textarea>`, no card CSS.
-  Host↔neo rides `App.demoSources` (source in) + `App.liveCard`/`liveSource`
+  Host↔Declare rides `App.demoSources` (source in) + `App.liveCard`/`liveSource`
   (edits out); the HTML island is now used ONLY for the compiled preview iframe.
   Verified: seeded from data, editable (yielding), live-recompiles the preview on
   each edit, Revert restores the pristine source, I-beam over the field, no
@@ -55,9 +55,9 @@ Nothing below is settled. Decisions already *implemented* this session are marke
 - **P3 ⚙ — Scroll-reveal fade removed from the demo sections** (kept on the
   marketing sections). Keep the demos always-solid, or restore the fade?
 - **P4 ⚙ — Code panel wider than preview (58/42) + snug per-demo heights**
-  (hand-tuned, since neo can't measure the field — see D8). Keep the split/sizes?
+  (hand-tuned, since Declare can't measure the field — see D8). Keep the split/sizes?
 - **P5 ⚙ — Status/error dot dropped from the card.** Restore a compile-error
-  indicator (needs a host→neo signal, D5)?
+  indicator (needs a host→Declare signal, D5)?
 
 ---
 
@@ -146,10 +146,10 @@ happening to be the App; the examples were swept off `classroot`/`this.root` ont
 `app`. (A class-body read of an App-only attr through `classroot` is still not
 *warned* — that stricter check remains a candidate.)
 
-### 9. neo can't measure an HTML island's foreign content
-Auto-extent measures neo children, not host DOM inside an island. So the editable
+### 9. Declare can't measure an HTML island's foreign content
+Auto-extent measures Declare children, not host DOM inside an island. So the editable
 panels can't snug-fit to their code height — every card height is hand-tuned per
-demo. (Moot once the editor is a *neo* TextInput, whose text neo could in
+demo. (Moot once the editor is a *Declare* TextInput, whose text Declare could in
 principle measure — TODO.) **Learning:** foreign content is a sizing black box;
 either measure it (a reported extent back from the host) or accept explicit sizes.
 
@@ -161,9 +161,9 @@ so the App schema accretes single-purpose flags. **Candidate:** a sanctioned
 host-command channel, or keep it deliberately minimal (bodies stay DOM-free) —
 but name the pattern.
 
-### 11. No general object/map attribute to carry host→neo data
+### 11. No general object/map attribute to carry host→Declare data
 To seed each editor with its (host-read) demo source, I need a per-card string
-delivered from the host into neo. There is no general "object"/"map"/"any" attr
+delivered from the host into Declare. There is no general "object"/"map"/"any" attr
 kind — only `record`, which is entangled with the theme/stylesheet system and,
 in the `{ }` typegen, is hard-coded to the single open type `Theme =
 Record<string, unknown>` (compiler `scaffold.ts`). So a host-set map can only be
@@ -174,8 +174,8 @@ a first-class `record`/`map` attr kind that can be *named per use* (its own emit
 type), independent of theme — the clean channel for structured host→app data.
 
 ### 12. app→host and host→app both ride bespoke App flags
-Composing the neo-native editor needs BOTH directions over hand-rolled `App`
-attrs: host→neo `demoSources` (seed the fields) and neo→host `liveCard` +
+Composing the Declare-native editor needs BOTH directions over hand-rolled `App`
+attrs: host→Declare `demoSources` (seed the fields) and Declare→host `liveCard` +
 `liveSource` (an edit asks the host to recompile that preview). Plus the earlier
 `editing`/`editSource`. That's five single-purpose flags for what is really "the
 app and its host exchange a few values." It works and keeps bodies DOM-free, but
@@ -206,7 +206,7 @@ and later autocapitalize/autocorrect/autocomplete) are a small but real surface 
 serious field type needs.
 
 ### 15. Previews needed an iframe only because an App wired itself to the WINDOW
-The live demo previews were iframes purely for ISOLATION: a neo `App` took its
+The live demo previews were iframes purely for ISOLATION: a Declare `App` took its
 stage size from `window.innerWidth/Height`, claimed the global `Focus` singleton
 (`Focus.setRoot`), and repainted the document `<body>` background. Two apps in one
 document therefore collided, so each demo got its own window (an iframe). The
@@ -214,11 +214,11 @@ iframe then bit us in Safari/WebKit (a preview that renders standalone AND in
 headless WebKit went blank in real Safari — the cross-frame `postMessage`/window-
 identity handshake is a known WebKit fragility). **Fix (David's framing — no
 explicit "mode"): an app auto-detects it is embedded from ONE DOM signal.** Every
-app root is stamped `data-neo-app` at attach; if a mount host has such an ancestor
+app root is stamped `data-declare-app` at attach; if a mount host has such an ancestor
 (it was rendered into an `HTML []` island inside another app), the child wires as
 EMBEDDED — stage size from the container element (ResizeObserver), pointer box-
 relative, and it does NOT seize the page's focus/keys or repaint `<body>`. Input
-routing stops at a nested `data-neo-app` boundary so the outer app doesn't double-
+routing stops at a nested `data-declare-app` boundary so the outer app doesn't double-
 fire a click inside a child (the sink map is process-global). Result: previews are
 now embedded child apps in the SAME document — zero iframes on the page, verified
 in real WebKit (previews render, single-fire clicks, live-edit re-render, editor
@@ -229,13 +229,13 @@ window-coupling that is right for the page is exactly wrong for an embed, and th
 embed case is common (previews, playground, docs, dashboards-of-apps). The clean
 factoring is *App reads its stage from context*, discovered from the DOM, not a flag.
 
-### 16. The whole-page editor is now neo too — and recursion "just works"
+### 16. The whole-page editor is now Declare too — and recursion "just works"
 Follow-on to §15: the whole-page "view & edit source" editor was host HTML/CSS/JS
-(an overlay + textarea + iframe). It is now a neo `FullPageEditor` view built from
+(an overlay + textarea + iframe). It is now a Declare `FullPageEditor` view built from
 the SAME parts as the demo cards — a `CodeField` for the page's own source and a
 `PreviewFrame` whose preview is an embedded child app (the page it compiles to).
-The host lost the whole `#ne` overlay; only Escape-to-close remains (neo delivers
-keys to the focused view, so a page-level key has no neo form yet). **Recursion is
+The host lost the whole `#ne` overlay; only Escape-to-close remains (Declare delivers
+keys to the focused view, so a page-level key has no Declare form yet). **Recursion is
 user-bounded, exactly as predicted:** the page source contains this very editor, so
 the preview contains an editor, whose preview would contain an editor… Naive eager
 rendering loops forever, BUT a preview island renders only while its editor is OPEN
@@ -291,7 +291,7 @@ escalation attempt (docs → diagnostic → language). Only entries with **≥2 
     one-shot (`compose-after-docsfix`): the model used `stroke` 3× and **zero** border
     attributes — the interference-ghost is gone. The docs→rerun loop provably closed
     this defect. (It then failed one layer deeper, E-3 — that's normal triage peeling.)
-  - *diagnostic gap* (escalation 2, **OPEN**): `NEO2000 "View has no attribute
+  - *diagnostic gap* (escalation 2, **OPEN**): `DECLARE2000 "View has no attribute
     'borderWidth'"` does not name the Declare equivalent. Per diagnostics.md §4 a
     known-CSS-attribute miss should did-you-mean the real slot (`borderWidth →
     stroke`, `boxShadow → shadow`, `className/style → attributes`). A small,
@@ -319,7 +319,7 @@ serialization) — logged in verify-and-evals.md's status, taxonomy label `toolc
   (language friction). *compose*, Sonnet (surfaced on the post-docs-fix rerun). Asked
   for a wide→narrow reflow, the model wrote `SimpleLayout [ axis = { app.narrow ? y : x } ]`
   — the natural instinct: responsiveness = a constrained axis. Today a layout attribute
-  takes a literal (`NEO2000 "a layout attribute takes a literal — constraining it is
+  takes a literal (`DECLARE2000 "a layout attribute takes a literal — constraining it is
   not yet surface (swap the whole layout by assignment instead)"`). The diagnostic
   names a workaround, but the workaround (two layout objects swapped by assignment, or
   the reference's per-child `x/y` constraints on `app.width`) is clunky for what is a
@@ -345,7 +345,7 @@ pointing at it from both sides.
 - **E-4 — dotted child overrides in a `State`** (docs/diagnostic). *collection*,
   Sonnet (corpus arm). Wrote `dim: State [ applied = { done }, t.opacity = 0.4,
   t.textColor = slategray ]` — overriding a CHILD's attributes from a state, the
-  natural way to dim a row. Parser: `expected ']', got '.' [NEO1000]` — no rule
+  natural way to dim a row. Parser: `expected ']', got '.' [DECLARE1000]` — no rule
   named, no fix. States override the OWNING view's attributes only (the D-1 bundle
   ruling); the supported form is constraints on the child reading the flag
   (`opacity = { classroot.done ? 0.4 : 1 }`). Escalations: docs — does ch28/§states
@@ -356,7 +356,7 @@ pointing at it from both sides.
 
 - **E-5 — bare identifier in a `[ ]` value slot** (diagnostic). *modes* ×2, Sonnet
   (corpus arm — cost both modes cells). Wrote `text = label` meaning the binding
-  `text = { label }`. `NEO2000 "Text.text expects a string, got 'label'"` states the
+  `text = { label }`. `DECLARE2000 "Text.text expects a string, got 'label'"` states the
   type rule but not the ACTUAL fix. An identifier in a literal slot has exactly two
   plausible intents — did-you-mean both: `{ label }` (a binding) or `"label"` (a
   string). Cheap, surgical, would likely have turned both cells green. The same
@@ -396,7 +396,7 @@ docs) and 2.5–9 min; a 15-min stall kill-switch bounded the run (never fired).
 `modes` INVERTED under the corpus (brief 2/3 green → corpus 1/3): the whole-guide
 read appears to bury the one pattern the easy task needs — token-efficiency and
 attention-dilution are real costs of raw-corpus packaging, not just money. All six
-prompt-arm `collection` failures remain R1 walls (NEO1000/2000 syntax-shape), so the
+prompt-arm `collection` failures remain R1 walls (DECLARE1000/2000 syntax-shape), so the
 brief alone still cannot express that task's needs (`<->` restriction, replication
 naming) — consistent with E-2's read that iterated recovery is where those die.
 
@@ -436,7 +436,7 @@ self-recover in iteration) is CONFIRMED with the sharpest possible contrast.
 **The recognition layer — BUILT** (2026-07-15, same day as Run 2; David-endorsed):
 parser.ts now RECOVERS through recognized TS-isms instead of dying on the first
 character — each consumed whole, given its fix-naming error, parse resumed at the
-member comma; all recovered errors raised together (NeoErrors) and flattened by
+member comma; all recovered errors raised together (DeclareErrors) and flattened by
 compile() into individual positioned diagnostics. Productions: typed params (one
 error per signature), `(): T` and `-> T` return annotations (`->` is now a TOKEN,
 not a lexer fatal), dotted members, `<->` non-path. Unrecognized junk still stops

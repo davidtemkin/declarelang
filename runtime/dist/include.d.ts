@@ -1,5 +1,5 @@
 import { type Program, type Span, type Element } from "./parser.js";
-import { NeoError } from "./errors.js";
+import { DeclareError } from "./errors.js";
 /** Cut a source's `include [ … ]` directives out of its text, leaving the rest
  *  byte-for-byte (offsets after each cut shift left by its length). Splicing
  *  highest-offset first keeps earlier spans valid; directives never overlap.
@@ -41,7 +41,7 @@ export declare const NO_INCLUDES: IncludeHost;
 export declare function resolveIncludes(program: Program, host: IncludeHost, originDir: string): {
     program: Program;
     sources: string[];
-    errors: NeoError[];
+    errors: DeclareError[];
     visited: Set<string>;
 };
 /** A host that ALSO auto-includes component libraries by bare tag — the LZX
@@ -81,5 +81,5 @@ export declare function referencedComponentNames(program: Program): string[];
 export declare function resolveAutoIncludes(program: Program, root: Element, host: IncludeHost, visited: Set<string>): {
     program: Program;
     sources: string[];
-    errors: NeoError[];
+    errors: DeclareError[];
 };

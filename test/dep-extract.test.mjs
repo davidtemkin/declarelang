@@ -85,7 +85,7 @@ test("recursion terminates (cycle guard) and still extracts", () => {
 
 // ── residue: the dynamic-target forms + opaque calls are BLOCKING compile errors
 // (constraints.md §3 — never a silent runtime-tracking fallback). compile() folds
-// dep extraction in and rejects a residue with a NEO7001 that NAMES the fix
+// dep extraction in and rejects a residue with a DECLARE7001 that NAMES the fix
 // (diagnostics.md §4). A legitimate language-method call is analyzable via its
 // effect signature (effects.ts), so it compiles — asserted last. ──
 function residueErrors(src) {
@@ -97,7 +97,7 @@ function residueErrors(src) {
 test("residue — computed attribute this[<expr>] blocks", () => {
   const e = residueErrors(`App [ k: string = "x", v: View [ width = { app[app.k] } ] ]`);
   assert.ok(e.some((x) => /computed attribute/.test(x.message)), JSON.stringify(e.map((x) => x.message)));
-  assert.ok(e.some((x) => x.code === "NEO7001"), "carries the constraint-residue code");
+  assert.ok(e.some((x) => x.code === "DECLARE7001"), "carries the constraint-residue code");
 });
 
 test("residue — dynamic datapath read([<expr>]) blocks", () => {
@@ -146,7 +146,7 @@ test("aggregation over DATA is fine (not node) — no error", () => {
 // ── B. corpus: every real app extracts with zero residue ──
 console.log("─ B. corpus: 0 residue across all apps ─");
 test("all five apps: 700 constraints, 0 residue errors", () => {
-  const apps = ["calendar/calendar", "neocalendar/neocalendar", "neoweather/neoweather", "homepage/homepage", "docs/docs"];
+  const apps = ["calendar/calendar", "calendar-sample/calendar-sample", "weather/weather", "homepage/homepage", "docs/docs"];
   let tot = 0, errs = 0;
   for (const a of apps) {
     const r = extract(readFileSync(resolve(HERE, `../examples/${a}.declare`), "utf8"));

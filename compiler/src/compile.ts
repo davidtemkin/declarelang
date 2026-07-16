@@ -45,7 +45,7 @@
 // ones.
 
 import { parseProgram, type Element, type Program } from "../../runtime/dist/parser.js";
-import { NeoError, NeoErrors, type Pos } from "../../runtime/dist/errors.js";
+import { DeclareError, DeclareErrors, type Pos } from "../../runtime/dist/errors.js";
 import { check, programSchemas } from "../../runtime/dist/check.js";
 import { serializeDeps } from "../../runtime/dist/deps.js";
 import { serializeLinks, type SerializedLink } from "../../runtime/dist/links.js";
@@ -80,7 +80,7 @@ const CONSTRUCTORS = new Set(CONSTRUCTOR_NAMES);
  *  or forgets it. `warnings` (shadowing) never block. `diagnostics` is the
  *  unified, coded view of everything reported (errors + warnings, every phase —
  *  the one structured surface, diagnostics.ts); `errors`/`warnings` remain the
- *  raw NeoError lists for existing callers. */
+ *  raw DeclareError lists for existing callers. */
 export interface Compiled {
   source: string | null;
   deps?: readonly (readonly string[])[];
@@ -89,8 +89,8 @@ export interface Compiled {
    *  `source` is. Rides the ONE result like `deps`; the runtime zips it back on
    *  and the static extractor turns each into an `<a href>`. */
   links?: readonly SerializedLink[];
-  errors: NeoError[];
-  warnings: NeoError[];
+  errors: DeclareError[];
+  warnings: DeclareError[];
   diagnostics: Diagnostic[];
   /** The whole compile RENDERED (renderReport): a count summary + each
    *  diagnostic's `rendered`, one per line; "" when there is nothing to say.
@@ -105,8 +105,8 @@ export interface Compiled {
  *  spread into every result literal so no exit path can omit either. Errors
  *  precede warnings; a caller wanting source order can sort on `pos`. */
 function diagnose(
-  errors: readonly NeoError[],
-  warnings: readonly NeoError[],
+  errors: readonly DeclareError[],
+  warnings: readonly DeclareError[],
   errPhase: DiagPhase,
   warnPhase: DiagPhase = "name"
 ): { diagnostics: Diagnostic[]; report: string } {
@@ -164,7 +164,7 @@ export interface CompileOptions {
    *  of THE compile like every other phase: the checker is imported directly
    *  (never injected), so no front-end can exist where this flag silently
    *  no-ops. A type error blocks emission like any other, reported as an
-   *  NEO6001 diagnostic mapped to its `.declare` line. `typecheck: false`
+   *  DECLARE6001 diagnostic mapped to its `.declare` line. `typecheck: false`
    *  (URL `?typecheck=0`, CLI `--no-typecheck`) is the EXPLICIT opt-out for a
    *  latency-critical loop (a debounced per-keystroke compile) — a visible,
    *  greppable choice, never a wiring accident. */
@@ -194,10 +194,10 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
     main = parseProgram(source);
   } catch (e) {
     // The recognition layer (parser.ts) recovers through known TS-isms and
-    // raises them ALL as one NeoErrors — flatten, so each gets its own
+    // raises them ALL as one DeclareErrors — flatten, so each gets its own
     // positioned diagnostic like check()'s errors always have.
-    if (e instanceof NeoErrors) return { source: null, errors: [...e.errors], warnings: [], ...diagnose([...e.errors], [], "syntax") };
-    if (e instanceof NeoError) return { source: null, errors: [e], warnings: [], ...diagnose([e], [], "syntax") };
+    if (e instanceof DeclareErrors) return { source: null, errors: [...e.errors], warnings: [], ...diagnose([...e.errors], [], "syntax") };
+    if (e instanceof DeclareError) return { source: null, errors: [e], warnings: [], ...diagnose([e], [], "syntax") };
     throw e;
   }
   const host = opts.host ?? NO_INCLUDES;
@@ -270,7 +270,7 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
   try {
     program = parseProgram(merged);
   } catch (e) {
-    if (e instanceof NeoError) return { source: null, errors: [e], warnings: [], ...diagnose([e], [], "syntax") };
+    if (e instanceof DeclareError) return { source: null, errors: [e], warnings: [], ...diagnose([e], [], "syntax") };
     throw e;
   }
   const errors = check(program);
@@ -283,7 +283,7 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
   for (const s of program.stylesheets) r.resolveStylesheet(s.body);
   for (const s of program.styles) r.resolveBundle(s.body);
   r.resolveElement(program.root, [], program.root);
-  const byPos = (a: NeoError, b: NeoError) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0);
+  const byPos = (a: DeclareError, b: DeclareError) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0);
   r.errors.sort(byPos);
   r.warnings.sort(byPos);
   if (r.errors.length > 0) {
@@ -300,7 +300,7 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
   // direct import: there is no front-end that can forget to wire it, on any
   // host — only the lib.d.ts SOURCE differs per host (typecheck.ts provideLib;
   // an unregistered provider throws, never silently skips). A type error
-  // blocks emission like any other, mapped to its `.declare` line (NEO6001).
+  // blocks emission like any other, mapped to its `.declare` line (DECLARE6001).
   if (opts.typecheck !== false) {
     const typeErrors = typecheckBodies(out, program);
     if (typeErrors.length > 0) {
@@ -358,7 +358,7 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
   try {
     depProgram = parseProgram(out);
   } catch (e) {
-    if (e instanceof NeoError) return { source: null, errors: [e], warnings: r.warnings, ...diagnose([e], r.warnings, "syntax") };
+    if (e instanceof DeclareError) return { source: null, errors: [e], warnings: r.warnings, ...diagnose([e], r.warnings, "syntax") };
     throw e;
   }
   const residue = annotateProgram(depProgram).errors;
@@ -387,8 +387,8 @@ function posOf(source: string, offset: number): Pos {
 }
 
 class Resolver {
-  readonly errors: NeoError[] = [];
-  readonly warnings: NeoError[] = [];
+  readonly errors: DeclareError[] = [];
+  readonly warnings: DeclareError[] = [];
   readonly edits: Edit[] = [];
   private readonly schemas: Record<string, ComponentSchema>;
   /** Per-class inherited method/named-child members (attributes already ride

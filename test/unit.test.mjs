@@ -35,8 +35,8 @@ import {
   SimpleLayout,
   record,
   validatePathData,
-  NeoError,
-  NeoErrors,
+  DeclareError,
+  DeclareErrors,
   settle,
   coerce,
   enumType,
@@ -103,7 +103,7 @@ await test("parse() accepts an optional trailing comma", () => {
 });
 
 await test("parse() requires a comma between members (language spec §12)", () => {
-  assert.throws(() => parse("App [ View [] View [] ]"), NeoError);
+  assert.throws(() => parse("App [ View [] View [] ]"), DeclareError);
 });
 
 await test("parse() reports a source position on syntax errors", () => {
@@ -286,7 +286,7 @@ await test("HTML — a foreign-content island: a View sized by constraints, carr
   assert.equal(island.slot, "edit:reactivity");
   assert.equal(island.width, 200);            // driven by the constraint on parent.w
   assert.equal(island.height, 120);
-  app.w = 340;                                 // the box follows neo's constraints
+  app.w = 340;                                 // the box follows Declare's constraints
   settle();
   assert.equal(island.width, 340);
 });
@@ -339,10 +339,10 @@ await test("build() coerces every color literal form (case-insensitive names)", 
   assert.deepEqual(app.children.map((c) => c.fill), [0x00ff00, 0xff0000, null]);
 });
 
-await test("build() raises every check error as one NeoErrors", () => {
+await test("build() raises every check error as one DeclareErrors", () => {
   assert.throws(() => build('App [ width="wide", View [ visible=1 ] ]'), (e) => {
-    assert.ok(e instanceof NeoErrors);
-    assert.ok(e instanceof NeoError); // catchable as the base type
+    assert.ok(e instanceof DeclareErrors);
+    assert.ok(e instanceof DeclareError); // catchable as the base type
     assert.equal(e.errors.length, 2);
     assert.match(e.message, /^2 errors:\n/);
     assert.match(e.message, /App\.width expects a Length/);
@@ -353,7 +353,7 @@ await test("build() raises every check error as one NeoErrors", () => {
 
 await test("build() with a single error reads as that error", () => {
   assert.throws(() => build("App [ zap=1 ]"), (e) => {
-    assert.ok(e instanceof NeoErrors);
+    assert.ok(e instanceof DeclareErrors);
     assert.match(e.message, /^App has no attribute 'zap' \(line 1, col 7\)$/);
     return true;
   });
@@ -500,7 +500,7 @@ await test("record() captures ops as plain, structured-cloneable data", () => {
   assert.deepEqual(structuredClone(list), list);
 });
 
-await test("fillStyle/strokeStyle accept a neo Color, recorded as a css string", () => {
+await test("fillStyle/strokeStyle accept a Declare Color, recorded as a css string", () => {
   const list = record((d) => {
     d.fillStyle = 0xbcc4e2;        // an opaque Color (number), not a string
     d.fillRect(0, 0, 1, 1);
@@ -566,7 +566,7 @@ await test("the draw context is write-only: style reads throw", () => {
     d.fillStyle = "#123456";
     for (const prop of ["fillStyle", "strokeStyle", "lineWidth"]) {
       assert.throws(() => d[prop], (e) => {
-        assert.ok(e instanceof NeoError);
+        assert.ok(e instanceof DeclareError);
         assert.match(e.message, /write-only/);
         return true;
       }, prop);
@@ -764,7 +764,7 @@ await test("a direct write to a constrained attribute is an error", () => {
   assert.throws(
     () => { app.children[0].width = 7; },
     (e) => {
-      assert.ok(e instanceof NeoError);
+      assert.ok(e instanceof DeclareError);
       assert.match(e.message, /View\.width is bound by a constraint/);
       return true;
     }
@@ -858,7 +858,7 @@ await test("methods mix with attributes and children under the comma rules", () 
   assert.equal(el.methods.length, 1);
   assert.equal(el.children[0].methods.length, 1);
   // no comma between a method and the next member is still a syntax error
-  assert.throws(() => parse("App [ onInit() { } View [] ]"), NeoError);
+  assert.throws(() => parse("App [ onInit() { } View [] ]"), DeclareError);
 });
 
 await test("a method body is the same lexical-island scan as a { } value", () => {
@@ -1657,7 +1657,7 @@ await test("the layout owns laid positions: a direct write errors naming it; a l
   assert.throws(
     () => { app.children[1].y = 99; },
     (e) => {
-      assert.ok(e instanceof NeoError);
+      assert.ok(e instanceof DeclareError);
       assert.match(e.message, /View\.y is bound by a constraint \(App's SimpleLayout\[y\]\)/);
       return true;
     }
@@ -2353,7 +2353,7 @@ await test("compile(): :paths pass through untouched; resolution stays a fixpoin
   assert.equal(app.box.t.text, "2:4");
 });
 
-// ── Auto-extent (the neoweather rung): unset sizes derive from children ────
+// ── Auto-extent (the weather rung): unset sizes derive from children ────
 //
 // The R7-checkpoint ruling, landed: a never-set, unowned width/height derives
 // from the children's extents (visible only; percent-bound slots excluded on
@@ -4436,7 +4436,7 @@ await test("typecheck: a cross-boundary type error is caught, mapped to its .dec
   assert.equal(r.source, null, "a type error blocks emission");
   const type = r.diagnostics.filter((d) => d.phase === "typecheck");
   assert.equal(type.length, 1, `exactly one type diagnostic, got ${JSON.stringify(r.diagnostics)}`);
-  assert.equal(type[0].code, "NEO6001");
+  assert.equal(type[0].code, "DECLARE6001");
   assert.equal(type[0].pos.line, 3, "mapped to the offending body's line");
   // The message layer re-says tsc's "Type 'boolean' is not assignable to type
   // 'Length'" in the diagnostic contract's voice (diagnostics.md §4): it names
@@ -4460,16 +4460,16 @@ await test("diagnostics: every phase's error carries a coded, phase-classified D
   // syntax
   let d = compile("App [ x= ]").diagnostics;
   assert.equal(d[0].phase, "syntax");
-  assert.match(d[0].code, /^NEO1/);
+  assert.match(d[0].code, /^DECLARE1/);
   // structure (unknown component) — a coded catalog entry
   d = compile("App [ Bogus [] ]").diagnostics;
   const unknown = d.find((x) => x.message.includes("unknown component"));
-  assert.equal(unknown.code, "NEO2001", "unknownComponent is NEO2001");
+  assert.equal(unknown.code, "DECLARE2001", "unknownComponent is DECLARE2001");
   assert.equal(unknown.phase, "structure");
   // name resolution
   d = compile("App [ width = 100, height = 100, View [ x = { nope } ] ]").diagnostics;
   const unresolved = d.find((x) => x.message.includes("cannot resolve"));
-  assert.equal(unresolved.code, "NEO4001");
+  assert.equal(unresolved.code, "DECLARE4001");
   assert.equal(unresolved.phase, "name");
 });
 
@@ -4697,7 +4697,7 @@ await test("textinput: a native edit updates the model text and fires input", ()
   assert.deepEqual(globalThis.__inp, ["hello"], "the input event fired with the value");
 });
 
-await test("textinput: neo focus activates the native caret, blur deactivates", () => {
+await test("textinput: Declare focus activates the native caret, blur deactivates", () => {
   Focus.reset();
   const log = [];
   const app = build(`App [ width = 100, height = 100, inp: TextInput [ text = "x" ] ]`);
@@ -4709,7 +4709,7 @@ await test("textinput: neo focus activates the native caret, blur deactivates", 
   assert.equal(activations(log).at(-1), false, "blur takes it away");
 });
 
-await test("textinput: a native focus routes back to neo focus", () => {
+await test("textinput: a native focus routes back to Declare focus", () => {
   Focus.reset();
   const log = [];
   const app = build(`App [ width = 100, height = 100, inp: TextInput [ text = "x" ] ]`);
@@ -4717,9 +4717,9 @@ await test("textinput: a native focus routes back to neo focus", () => {
   Focus.setRoot(app);
   const spec = lastSpec(log);
   spec.onFocus();
-  assert.equal(Focus.getFocus(), app.inp, "clicking into the field focuses it in neo");
+  assert.equal(Focus.getFocus(), app.inp, "clicking into the field focuses it in Declare");
   spec.onBlur();
-  assert.equal(Focus.getFocus(), null, "native blur clears neo focus");
+  assert.equal(Focus.getFocus(), null, "native blur clears Declare focus");
 });
 
 // ── Uniform compiler API: dual-form diagnostics + the browser mirror ─────────
@@ -4734,7 +4734,7 @@ await test("diagnostics: every diagnostic carries its rendered form; report rend
   const r = compile("App [ v: Txet [ ] ]");
   assert.equal(r.diagnostics.length, 1);
   const d = r.diagnostics[0];
-  assert.ok(d.rendered.includes("[NEO2001]") && d.rendered.includes("(line 1, col 7)"), d.rendered);
+  assert.ok(d.rendered.includes("[DECLARE2001]") && d.rendered.includes("(line 1, col 7)"), d.rendered);
   assert.ok(d.hint && d.rendered.includes("hint: " + d.hint), "the hint rides the rendered form");
   assert.equal(r.report, "1 error\n" + d.rendered, "report = count summary + each diagnostic's rendered");
   assert.equal(compile("App [ width = 100, height = 100 ]").report, "", "a clean compile has nothing to say");
@@ -4752,7 +4752,7 @@ await test("uniform: the browser compiler's result is byte-identical to Node's (
   for (const src of [
     "App [ width = 100, height = 100, n: number = 3, v: View [ width = { app.n * 2 } ] ]", // clean, with deps
     "App [ v: Txet [ ] ]",                                                                  // error + suggestion
-    "App [ v: View [ width = { app.mysteryLib() } ] ]",                                     // constraint residue (NEO7001)
+    "App [ v: View [ width = { app.mysteryLib() } ] ]",                                     // constraint residue (DECLARE7001)
   ]) {
     assert.equal(pick(browser.compile(src, {})), pick(compile(src)), "identical for: " + src.slice(0, 40));
   }
@@ -4882,7 +4882,7 @@ App [ width = 100, height = 100,
   assert.match(r.errors.map((e) => e.message).join("\n"), /nope/);
 });
 
-// ── static extraction (seo.ts + headless.ts — design/capabilities.md §4–5) ──
+// ── static extraction (static-html.ts + headless.ts — design/capabilities.md §4–5) ──
 // The program EXECUTES headlessly to its t=0 snapshot (the real runtime, no
 // pixels) and the settled tree serializes by CLASS SEMANTICS, no heuristics.
 
@@ -5019,7 +5019,7 @@ await test("settleHeadless: text measures and auto-extents settle without a DOM"
 await test("E-series diagnostics name the fix: bare ident, layout-in-State, dotted member, <-> non-path", () => {
   // Run-1 findings (language-learnings.md E-4..E-7): each of these is a wrong
   // program a model ACTUALLY wrote; the diagnostic must state the repair, not
-  // just the rule. compile() throws NeoErrors carrying every message.
+  // just the rule. compile() throws DeclareErrors carrying every message.
   const msg = (src) => {
     try { const r = compile(src); return (r.errors ?? []).map((e) => e.message ?? String(e)).join("\n"); }
     catch (e) { return String(e?.message ?? e); }

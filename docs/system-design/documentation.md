@@ -84,7 +84,7 @@ enforced by the teaching gate (§4).
 
 **Where verify/evals docs sit:** *how to verify a program* (the ladder as a concept) →
 **Guide**; the `verify`/eval **CLIs** → **Operational**; the **diagnostics catalog**
-(`NEO####`) → **Reference** (it is a registry). The eval **findings** — the E-series, the
+(`DECLARE####`) → **Reference** (it is a registry). The eval **findings** — the E-series, the
 harness design, RESULTS interpretation — are **category A**.
 
 ## 3. The derivation chain — truth flows up from the code
@@ -136,12 +136,12 @@ claim its own scheme and must not be constrained by the docs system. Resolving a
 muscle first gets built, but the app-router design stays open.
 
 - **Symbolic IDs, never file paths or heading text.** `View.x`, `Slider.value`,
-  `NEO2000`, `concept:reactivity`, `spec:scope-nouns`, `guide:composition`. Files and
+  `DECLARE2000`, `concept:reactivity`, `spec:scope-nouns`, `guide:composition`. Files and
   headings move freely *under* the ID; the ID is the contract.
 - **IDs are generated, never hand-created** — this is a hard rule: *no human ever assigns
   an ID*, so there is no ID-creation mistake to make.
   - *Reference / diagnostics / flags:* the ID **is** the source symbol — `View.x` =
-    `Class.member`, `NEO2000` = the `Diag` code, a flag ID = its `FLAG_SPECS` key.
+    `Class.member`, `DECLARE2000` = the `Diag` code, a flag ID = its `FLAG_SPECS` key.
     Extracted, mistake-proof by construction. (Already the `model.json` node keys.)
   - *Prose sections* (core doc, guide, operational): the ID is auto-slugged from the
     heading and then **pinned** — editing the heading text does not silently reassign the
