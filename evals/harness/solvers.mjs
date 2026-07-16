@@ -128,12 +128,12 @@ export function claudeDocsSolver() {
 }
 
 // ── claude-skill solver — the kernel+retrieval arm ──────────────────────────
-// The resident KERNEL (evals/skill/declare/SKILL.md — the skill-format
+// The resident KERNEL (skill/SKILL.md — the skill-format
 // packaging: rules-that-break-instincts + a routing table) rides the prompt;
 // the corpus rides the sandbox and is read SELECTIVELY per the routing table.
 // Hypothesis (three-arm re-baseline): corpus-grade failure depth at
 // near-brief cost. Pair with --corpus (the docs-tree sandbox).
-const SKILL_PATH = join(dirname(fileURLToPath(import.meta.url)), "../skill/declare/SKILL.md");
+const SKILL_PATH = join(dirname(fileURLToPath(import.meta.url)), "../../skill/SKILL.md");
 
 function buildSkillPrompt({ brief, prior, report }) {
   const kernel = readFileSync(SKILL_PATH, "utf8");

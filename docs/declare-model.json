@@ -19,7 +19,8 @@
    "projections": [
     "docs/declare-model.json (this file — for programs)",
     "marker-injected blocks <!-- generated:NAME --> in docs/operational/flags.md + getting-started.md (for humans)",
-    "the inventory block in evals/skill/declare/SKILL.md (for models — the resident unknown-unknowns)"
+    "the inventory block in skill/SKILL.md (for models — the resident unknown-unknowns)",
+    ".claude/skills/declare/SKILL.md (a gated byte-copy for Claude Code auto-discovery)"
    ],
    "gates": [
     "docs.test: assemble --check (staleness)",

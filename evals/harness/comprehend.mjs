@@ -41,7 +41,7 @@ const PROGRAMS = val("programs",
 ).split(",").map((s) => s.trim());
 
 // the resident kernel — comprehension needs the value-rule knowledge to READ
-const KERNEL = readFileSync(join(ROOT, "evals/skill/declare/SKILL.md"), "utf8");
+const KERNEL = readFileSync(join(ROOT, "skill/SKILL.md"), "utf8");
 
 // ── item generation (the oracle side) ────────────────────────────────────────
 

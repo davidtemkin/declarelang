@@ -43,7 +43,9 @@ place, and every ` ```declare ` fence is a **complete program verified against t
 compiler on every test run** (` ```declare-fragment ` marks illustrative excerpts).
 Walk it either way:
 
-- **File-system:** this directory, in the reading order above.
+- **File-system:** this directory, in the reading order above — entered through
+  the skill at [`skill/SKILL.md`](../skill/SKILL.md) (the resident kernel + the
+  routing table into these chapters).
 - **Walkable JSON:** [`declare-model.json`](declare-model.json) — the one
   comprehensive structure: exact facts (names, tokens, flags, commands) in its
   `spine`, plus the link graph, the reference, and the guide as data. For a

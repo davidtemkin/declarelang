@@ -27,6 +27,7 @@ Write a program to my-apps/hello.declare and browse to http://127.0.0.1:8200/my-
 ## Where everything is
 
 - **[docs/declare.md](docs/declare.md)** — the whole language, in one file, for you and your model.
+- **[skill/](skill/SKILL.md)** — the agent skill: the resident kernel + routing table a model loads to write Declare (auto-discovered by Claude Code via a gated copy in `.claude/skills/`).
 - **[docs/](docs/README.md)** — the guide (start at [getting-started](docs/operational/getting-started.md)), operational pages, and the machine model ([declare-model.json](docs/declare-model.json) — exact facts in its `spine`).
 - **[docs/system-design/](docs/system-design/)** — the internal design record (non-authoritative; the docs win).
 

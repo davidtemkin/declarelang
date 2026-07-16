@@ -12,7 +12,7 @@
 //      table (operational/flags.md) and the setup commands
 //      (operational/getting-started.md) — so the pages' tables are literally
 //      projections, not prose kept honest by review.
-//   3. The skill's INVENTORY block (evals/skill/declare/SKILL.md) — the
+//   3. The skill's INVENTORY block (skill/SKILL.md) — the
 //      resident unknown-unknowns (E-13), derived instead of hand-written.
 //
 // Markers: <!-- generated:<name> --> … <!-- /generated:<name> -->. Everything
@@ -110,7 +110,7 @@ function comprehensiveModel(spine) {
       pipeline: {
         assembledFrom: ["runtime schemas (live code)", "compiler/dist/scaffold LANGUAGE_API", "compiler/dist/flags FLAG_SPECS", "compiler/dist/reqtypes REQ", "runtime diagnostics catalog (source-scanned codes)", "library/autoincludes.json", "tools/ops.mjs (the operations registry)", "examples/docs/docs-model.json (extract.mjs)", "the declare-docs: link registry (links.mjs, called as a library)"],
         chain: "tsc → build-compiler → build-boot → extract → ASSEMBLE → prewarm → bake",
-        projections: ["docs/declare-model.json (this file — for programs)", "marker-injected blocks <!-- generated:NAME --> in docs/operational/flags.md + getting-started.md (for humans)", "the inventory block in evals/skill/declare/SKILL.md (for models — the resident unknown-unknowns)"],
+        projections: ["docs/declare-model.json (this file — for programs)", "marker-injected blocks <!-- generated:NAME --> in docs/operational/flags.md + getting-started.md (for humans)", "the inventory block in skill/SKILL.md (for models — the resident unknown-unknowns)", ".claude/skills/declare/SKILL.md (a gated byte-copy for Claude Code auto-discovery)"],
         gates: ["docs.test: assemble --check (staleness)", "docs.test: links --check", "ops.test: executes spine.commands entries marked test:true"],
       },
     },
@@ -165,12 +165,19 @@ function inventoryBlock(spine) {
 // ── main ─────────────────────────────────────────────────────────────────────
 
 const spine = buildSpine();
+// the skill injection is computed FIRST so the .claude discovery copy (below)
+// projects the POST-injection bytes, not a stale read
+const skillTarget = inject("skill/SKILL.md", "inventory", inventoryBlock(spine));
 const targets = [
   { name: "declare-model", isFile: true, path: "docs/declare-model.json", next: comprehensiveModel(spine) },
   inject("docs/operational/flags.md", "flags-table", flagsTable(spine)),
   inject("docs/operational/getting-started.md", "setup-commands", setupBlock(spine)),
   inject("README.md", "setup-commands", setupBlock(spine)),
-  inject("evals/skill/declare/SKILL.md", "inventory", inventoryBlock(spine)),
+  skillTarget,
+  // the Claude Code discovery copy — a BYTE-COPY projection of skill/SKILL.md
+  // (a symlink would silently break on Windows checkouts and zip downloads;
+  // a gated generated copy cannot drift — divergence fails docs.test)
+  { name: "skill-discovery-copy", isFile: true, path: ".claude/skills/declare/SKILL.md", next: skillTarget.next },
 ];
 
 let stale = 0;
