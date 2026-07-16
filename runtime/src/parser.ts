@@ -52,7 +52,7 @@
 // (`/}/`) defeats the scan (regex-vs-division needs full lexing context);
 // write such regexes as new RegExp("…"). Recorded in HANDOFF §R4.
 
-import { NeoError, type Pos } from "./errors.js";
+import { NeoError, NeoErrors, type Pos } from "./errors.js";
 import { Diag } from "./diagnostics.js";
 
 /** A literal value as written — the parser classifies syntax, not type.
@@ -250,7 +250,8 @@ export interface Library {
 
 type TokKind =
   | "lbracket" | "rbracket" | "lparen" | "rparen" | "eq" | "comma" | "colon" | "dot"
-  | "bindtwo" | "subfrom" | "ident" | "number" | "percent" | "string" | "hexColor" | "code" | "eof";
+  | "bindtwo" | "subfrom" | "ident" | "number" | "percent" | "string" | "hexColor" | "code" | "eof"
+  | "arrow"; // `->` — NEVER legal Declare; tokenized (not lexer-fatal) so the parser can recover through the TS-ism (E-9)
 
 interface Token {
   kind: TokKind;
@@ -470,6 +471,14 @@ function tokenize(src: string): Token[] {
       continue;
     }
 
+    // `->` reaches the lexer only as a TS-ism (inside { } bodies it rides the
+    // opaque code token). Tokenize it so the parser can name the rule AND
+    // recover through it (E-9 — the recognition layer).
+    if (c === "-" && src[i + 1] === ">") {
+      advance(); advance();
+      tokens.push({ kind: "arrow", text: "->", pos: start });
+      continue;
+    }
     throw new NeoError(`unexpected character '${c}'`, start);
   }
 
@@ -481,6 +490,14 @@ function tokenize(src: string): Token[] {
 
 /** One parser over a token stream; parse() and parseProgram() both drive it. */
 class Parser {
+  /** Recovered-through errors (the TS-ism recognition layer, E-series): a
+   *  RECOGNIZED foreign production is consumed whole, its fix-naming error
+   *  recorded here, and parsing continues at the member comma — so one compile
+   *  reports the full list, the way check() already does. Unrecognized junk
+   *  still throws immediately (blind recovery manufactures cascades). The
+   *  entry points raise these as one NeoErrors at completion. */
+  readonly errors: NeoError[] = [];
+
   private i = 0;
   constructor(private readonly tokens: Token[]) {}
 
@@ -489,7 +506,11 @@ class Parser {
   next(): Token { return this.tokens[this.i++]; }
   expect(kind: TokKind, what: string): Token {
     const t = this.tokens[this.i];
-    if (t.kind !== kind) throw new NeoError(`expected ${what}, got '${t.text || t.kind}'`, t.pos);
+    if (t.kind !== kind) {
+      const err = new NeoError(`expected ${what}, got '${t.text || t.kind}'`, t.pos);
+      // a hard stop with recovered errors pending reports ALL of them
+      throw this.errors.length > 0 ? new NeoErrors([...this.errors, err]) : err;
+    }
     return this.tokens[this.i++];
   }
 
@@ -550,15 +571,41 @@ class Parser {
         if (name.text === "readonly") readOnly = true; else prevailing = true;
         name = this.next();
       }
+      // E-4: `t.opacity = …` — a dotted member, the reach-into-a-child instinct
+      // (commonly inside a State, to override a child). A member sets its OWN
+      // element's attributes; name the rule, CONSUME the production, continue —
+      // so the rest of the body still gets checked (recognition layer).
+      if (this.peek().kind === "dot") {
+        this.errors.push(new NeoError(
+          `'${name.text}.…' — a member sets this element's OWN attributes, never a child's. Write the attribute on '${name.text}' itself, usually as a { } constraint reading the state or flag that drives it`,
+          name.pos
+        ));
+        while (this.peek().kind === "dot") { this.next(); if (this.peek().kind === "ident") this.next(); }
+        if (this.peek().kind === "eq") { this.next(); this.parseLiteral(); }
+        if (this.peek().kind === "comma") { this.next(); continue; }
+        break;
+      }
       if (this.peek().kind === "eq") {
         this.next();
         el.attrs.push({ name: name.text, value: this.parseLiteral(), pos: name.pos });
       } else if (this.peek().kind === "bindtwo") {
         // `name <-> :path` — two-way: the slot reads the datapath AND writes
-        // edits back to it. The value must be a `:path` (checked); the parser
-        // just tags the attribute so instantiate wires both directions.
+        // edits back to it. The value is a `:path` (or a `{ }` expression
+        // yielding a place — the dynamic form); anything else gets the rule
+        // named HERE (E-7: `text <-> classroot.field` otherwise dies
+        // downstream as an opaque "expected ']', got '.'").
         this.next();
-        el.attrs.push({ name: name.text, value: this.parseLiteral(), pos: name.pos, bind: "two" });
+        const bv = this.parseLiteral();
+        if (bv.kind !== "path" && bv.kind !== "code") {
+          this.errors.push(new NeoError(
+            `'${name.text} <-> …' binds a DATAPATH — write a :path (${name.text} <-> :field), or a { } expression yielding a place. To wire an attribute to another attribute, derive down with a { } constraint and deliver up in an onInput() handler`,
+            bv.pos
+          ));
+          // consume a stray dotted chain (`<-> classroot.field`), drop the member
+          while (this.peek().kind === "dot") { this.next(); if (this.peek().kind === "ident") this.next(); }
+        } else {
+          el.attrs.push({ name: name.text, value: bv, pos: name.pos, bind: "two" });
+        }
       } else if (this.peek().kind === "colon") {
         // `name: Type …` — a declaration (R6): with `[ ]` it is a named child
         // instance; without, an attribute declaration (optionally defaulted).
@@ -615,12 +662,38 @@ class Parser {
         // comma is legal, as everywhere in the language.
         this.next();
         const params: string[] = [];
+        let typedParams = false;
         while (this.peek().kind === "ident") {
           params.push(this.next().text);
+          // E-9: `f(label: string)` — a typed parameter, the TS instinct that
+          // oscillated whole eval iteration budgets against the bare
+          // "expected ')', got ':'". Name the rule once, consume the
+          // annotation, keep the method (recognition layer).
+          if (this.peek().kind === "colon") {
+            if (!typedParams) this.errors.push(new NeoError(
+              `a method's parameters are bare names — '${name.text}(${params.join(", ")})' — type annotations belong in { } bodies, not [ ] signatures`,
+              this.peek().pos
+            ));
+            typedParams = true;
+            this.next();
+            if (this.peek().kind === "ident") this.next();
+          }
           if (this.peek().kind === "comma") this.next();
           else break;
         }
         this.expect("rparen", "')'");
+        // E-9's other half: `f(): T {` / `f() -> T {` — a return annotation.
+        // After ')' the only legal tokens are '{' and the subscription arrow,
+        // so a colon or `->` here is always the TS-ism: name it once, consume
+        // it, keep the method (recognition layer).
+        if (this.peek().kind === "colon" || this.peek().kind === "arrow") {
+          this.errors.push(new NeoError(
+            `a method has no return annotation — write '${name.text}(${params.join(", ")}) { … }'; for a typed computed value use a typed attribute with a { } default instead`,
+            this.peek().pos
+          ));
+          this.next();
+          if (this.peek().kind === "ident") this.next();
+        }
         // a subscription — `member(params) <- Source { body }` (language §8):
         // same member shape, plus the source it registers with.
         let source: string | undefined;
@@ -817,6 +890,7 @@ export function parse(source: string): Element {
   const p = new Parser(tokenize(source));
   const root = p.parseElement();
   p.expect("eof", "end of input");
+  if (p.errors.length > 0) throw new NeoErrors(p.errors);
   return root;
 }
 
@@ -864,6 +938,7 @@ export function parseProgram(source: string): Program {
   const { classes, stylesheets, styles, fonts, includes, includeSpans, uses } = parseTopDecls(p);
   const root = p.parseElement();
   p.expect("eof", "end of input");
+  if (p.errors.length > 0) throw new NeoErrors(p.errors);
   return { classes, stylesheets, styles, fonts, includes, includeSpans, uses, root };
 }
 
@@ -881,5 +956,6 @@ export function parseLibrary(source: string): Library {
       p.peek().pos
     );
   }
+  if (p.errors.length > 0) throw new NeoErrors(p.errors);
   return decls;
 }

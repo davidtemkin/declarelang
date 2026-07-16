@@ -45,7 +45,7 @@
 // ones.
 
 import { parseProgram, type Element, type Program } from "../../runtime/dist/parser.js";
-import { NeoError, type Pos } from "../../runtime/dist/errors.js";
+import { NeoError, NeoErrors, type Pos } from "../../runtime/dist/errors.js";
 import { check, programSchemas } from "../../runtime/dist/check.js";
 import { serializeDeps } from "../../runtime/dist/deps.js";
 import { serializeLinks, type SerializedLink } from "../../runtime/dist/links.js";
@@ -193,6 +193,10 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
   try {
     main = parseProgram(source);
   } catch (e) {
+    // The recognition layer (parser.ts) recovers through known TS-isms and
+    // raises them ALL as one NeoErrors — flatten, so each gets its own
+    // positioned diagnostic like check()'s errors always have.
+    if (e instanceof NeoErrors) return { source: null, errors: [...e.errors], warnings: [], ...diagnose([...e.errors], [], "syntax") };
     if (e instanceof NeoError) return { source: null, errors: [e], warnings: [], ...diagnose([e], [], "syntax") };
     throw e;
   }

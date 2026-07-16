@@ -18,6 +18,10 @@ import type { KeysService } from "./keys.js";
 export class FocusService {
   private current: View | null = null;
   private rootView: View | null = null;
+  /** Whether the LAST focus change was keyboard-driven (Tab traversal). The
+   *  focus-visible modality: a ring/indicator shows only for keyboard focus —
+   *  a pointer press focuses silently (the click itself is the feedback). */
+  private keyboard = false;
   /** Subscribers to focus CHANGES (`onFocusChange(v) <- Focus`, language §8) —
    *  called with the newly focused view (or null on blur) after the change
    *  settles. What the traveling focus indicator rides. */
@@ -38,6 +42,13 @@ export class FocusService {
     return this.current;
   }
 
+  /** True when the current focus arrived by KEYBOARD (Tab/Shift-Tab) — the
+   *  focus-visible modality gate an indicator reads: show for keyboard focus,
+   *  stay hidden for pointer/programmatic focus. */
+  byKeyboard(): boolean {
+    return this.keyboard;
+  }
+
   /** Test/lifecycle reset. */
   reset(): void {
     this.current = null;
@@ -47,8 +58,15 @@ export class FocusService {
   }
 
   /** Focus a view (null = blur). A non-focusable or invisible view is ignored
-   *  (never becomes the focus). Fires onBlur on the old, onFocus on the new. */
+   *  (never becomes the focus). Fires onBlur on the old, onFocus on the new.
+   *  This public entry is the POINTER/PROGRAMMATIC path — it clears the
+   *  keyboard modality; Tab traversal (move) sets it. */
   focus(view: View | null): void {
+    this.keyboard = false;
+    this.apply(view);
+  }
+
+  private apply(view: View | null): void {
     if (view !== null && !(view.focusable && view.visible)) return;
     if (this.changing) {
       this.queued = true;
@@ -71,7 +89,7 @@ export class FocusService {
     for (const h of [...this.changeHandlers]) h(this.current);
     if (this.queued) {
       this.queued = false;
-      this.focus(this.queuedTarget);
+      this.apply(this.queuedTarget); // re-entry keeps the initiating modality
     }
   }
 
@@ -109,27 +127,32 @@ export class FocusService {
     const atEdge = idx !== -1 && ((dir === 1 && idx === seq.length - 1) || (dir === -1 && idx === 0));
     if (group.focustrap && atEdge) fireEvent(group, "escapeFocus");
     const nidx = (((idx + dir) % seq.length) + seq.length) % seq.length; // cyclic
-    this.focus(seq[nidx]);
+    this.keyboard = true; // Tab traversal — the focus-visible modality
+    this.apply(seq[nidx]);
   }
 
   /** The focused view's subtree is being discarded (or hidden) — move focus to
-   *  a live stop OUTSIDE it before it goes, so focus never dangles. Called from
-   *  View.discard() via the seam in view.ts. */
+   *  a live stop OUTSIDE it before it goes, so focus never dangles. Survivors
+   *  come from the dying view's OWN tree: when an embedded app is torn down
+   *  (a live-edit re-render), focus is dropped, never re-anchored into the
+   *  host app's controls. Called from View.discard() via the seam in view.ts. */
   noteDiscarded(view: View): void {
     if (this.current === null || !isInSubtree(this.current, view)) return;
-    const group = this.rootView ?? rootOf(view);
-    const survivors = sequence(group).filter((v) => !isInSubtree(v, view));
+    const survivors = sequence(rootOf(view)).filter((v) => !isInSubtree(v, view));
     this.current = null; // the old focus is dying; drop it without a blur into a dead view
     if (survivors.length > 0) this.focus(survivors[0]);
   }
 
   /** The nearest focustrap ancestor of `view` (the group it belongs to), or the
-   *  tree root when there is none. */
+   *  view's OWN tree root when there is none. The tree anchor matters when more
+   *  than one app shares the page (an embedded preview inside a host app): the
+   *  focused view's group is ITS app's tree, so Tab cycles within the app the
+   *  user is interacting with and never leaks into the host's controls. */
   private groupRoot(view: View): View {
     for (let v: View | null = view.parent instanceof View ? view.parent : null; v !== null; v = v.parent instanceof View ? v.parent : null) {
       if (v.focustrap) return v;
     }
-    return this.rootView ?? rootOf(view);
+    return rootOf(view);
   }
 }
 

@@ -103,7 +103,7 @@ export { Text } from "./text.js";
 export { Image } from "./image.js";
 export { TextInput } from "./text-input.js";
 export { Layout, SimpleLayout } from "./layout.js";
-export { Dataset, DataSource, toCursor } from "./data.js";
+export { Dataset, DataSource, toCursor, provideTransport } from "./data.js";
 export { Animator, AnimatorGroup } from "./animator.js";
 export type { Cursor } from "./data.js";
 export { settle } from "./reactive.js";
@@ -122,6 +122,7 @@ export { coerce, enumType, isPercent, colorToCss, colorWithAlpha, isGradient, gr
 export { isSet, ownerOf } from "./attributes.js";
 export { CSS_COLORS } from "./css-colors.js";
 export { NeoError, NeoErrors } from "./errors.js";
+export { headingSlug } from "./slug.js";
 export { Keys, KeysService, normalize } from "./keys.js";
 export type { KeyEvent } from "./keys.js";
 export { Focus, FocusService, deliverKeys } from "./focus.js";

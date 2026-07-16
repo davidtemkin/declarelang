@@ -40,13 +40,18 @@ class FocusRing extends View [ opacity = 0,
     gen:  number = 0,
 
     onFocusChange(v) <- Focus {
-        if (v == null) { shown = false; return }
+        // Focus-visible modality: brackets appear only for KEYBOARD focus (Tab) —
+        // a pointer press focuses silently, the click itself being the feedback.
+        if (v == null || !Focus.byKeyboard()) { shown = false; return }
+        let x = 0, y = 0, n = v
+        for (; n != null && n.parent != null; n = n.parent) { x += n.x; y += n.y }
+        // Another app on the page (an embedded preview) owns this target — its own
+        // ring indicates it; this one stands down rather than chase foreign coordinates.
+        if (n != app) { shown = false; return }
         gen = gen + 1
         const g = gen
         idle = false
         setTimeout(() => { if (this.gen == g) this.idle = true }, 1000)
-        let x = 0, y = 0
-        for (let n = v; n != null && n.parent != null; n = n.parent) { x += n.x; y += n.y }
         tx = x - 6; ty = y - 6; tw = v.width + 12; th = v.height + 12
         if (!shown) { this.x = tx; this.y = ty; this.width = tw; this.height = th }
         shown = true

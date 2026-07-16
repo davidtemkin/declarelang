@@ -53,6 +53,7 @@ import {
   resolveIncludes,
   parseLibrary,
   fontFacesOf,
+  headingSlug,
 } from "../runtime/dist/index.js";
 import { scanDatapaths, rewriteDatapaths, fillDatapaths } from "../runtime/dist/datapath.js";
 import { sample, motionToken, MOTION_TOKENS, Clock, setClock } from "../runtime/dist/animate.js";
@@ -1366,9 +1367,10 @@ App [ width=1, height=1, W [ ] ]`);
 });
 
 await test("compile(): the 'app' noun rewrites to this.root anywhere in the tree", () => {
-  // hostWidth and editing are App's own attributes — `app` reaches them from
-  // any depth without a parent chain or a classroot that happens to be the App.
-  const out = resolved(`App [ width=1, height=1,
+  // hostWidth is a built-in App attribute and `editing` is one the root declares
+  // — `app` reaches both from any depth without a parent chain or a classroot
+  // that happens to be the App.
+  const out = resolved(`App [ width=1, height=1, editing: boolean = false,
     deep: View [ mid: View [ leaf: View [
       width = { app.hostWidth / 2 },
       onClick() { app.editing = true } ] ] ] ]`);
@@ -4588,6 +4590,40 @@ await test("focus: a focustrap bounds the group, cycles within, and escapes at t
   assert.equal(globalThis.__esc, 1, "onEscapeFocus fired at the boundary");
 });
 
+await test("focus: byKeyboard() — the focus-visible modality: Tab sets it, a direct focus clears it", () => {
+  Focus.reset();
+  const app = build(`App [ width = 100, height = 100,
+    a: View [ focusable = true ], b: View [ focusable = true ],
+  ]`);
+  Focus.setRoot(app);
+  Focus.focus(app.a);
+  assert.equal(Focus.byKeyboard(), false, "a pointer/programmatic focus is not keyboard modality");
+  Focus.next();
+  assert.equal(Focus.byKeyboard(), true, "Tab traversal is keyboard modality — the ring's gate");
+  Focus.focus(app.b);
+  assert.equal(Focus.byKeyboard(), false, "clicking after tabbing clears it again");
+});
+
+await test("focus: two apps on one page — Tab cycles within the focused view's OWN tree", () => {
+  // The embedded-preview case: the page's rootView is the HOST app, but focus
+  // sits in a second tree (the child app). Tab must cycle within the child,
+  // never jump to the host's first stop (the docs editor bug).
+  Focus.reset();
+  const host = build(`App [ width = 100, height = 100,
+    editor: View [ focusable = true ], other: View [ focusable = true ],
+  ]`);
+  const child = build(`App [ width = 50, height = 50,
+    p: View [ focusable = true ], q: View [ focusable = true ],
+  ]`);
+  Focus.setRoot(host); // the top-level app owns the page's focus root
+  Focus.focus(child.p);
+  Focus.next(); assert.equal(Focus.getFocus(), child.q, "Tab stays in the child app");
+  Focus.next(); assert.equal(Focus.getFocus(), child.p, "and cycles within it");
+  // tearing the child down drops focus rather than re-anchoring into the host
+  child.discard();
+  assert.equal(Focus.getFocus(), null, "a discarded child's focus is dropped, not moved to the host's editor");
+});
+
 await test("focus: keyboard delivery — Tab traverses, other keys reach the focused view", () => {
   Focus.reset();
   globalThis.__k = [];
@@ -4975,6 +5011,161 @@ await test("settleHeadless: text measures and auto-extents settle without a DOM"
     assert.ok(t.width > 0 && t.height > 0, `auto-extent computed headless (w ${t.width}, h ${t.height})`);
     assert.equal(app.hostWidth, 1200, "the canonical default viewport");
     assert.equal(app.width, 1200, "the App fills its (synthetic) host");
+  } finally {
+    app.discard();
+  }
+});
+
+await test("E-series diagnostics name the fix: bare ident, layout-in-State, dotted member, <-> non-path", () => {
+  // Run-1 findings (language-learnings.md E-4..E-7): each of these is a wrong
+  // program a model ACTUALLY wrote; the diagnostic must state the repair, not
+  // just the rule. compile() throws NeoErrors carrying every message.
+  const msg = (src) => {
+    try { const r = compile(src); return (r.errors ?? []).map((e) => e.message ?? String(e)).join("\n"); }
+    catch (e) { return String(e?.message ?? e); }
+  };
+  // E-5: bare identifier in a value slot → both intents named
+  assert.match(msg(`App [ width=1, height=1, label: string = "x", Text [ text = label ] ]`),
+    /write \{ label \} to bind the attribute, or "label" for the literal text/);
+  // E-6: layout swap inside a State → the state rule + both idioms
+  assert.match(msg(`App [ width=1, height=1, layout: SimpleLayout [ axis = x ],
+    s: State [ applied = true, layout: SimpleLayout [ axis = y ] ] ]`),
+    /a state cannot swap 'SimpleLayout' in/);
+  // E-4: dotted member (reach-into-a-child) → own-attributes rule
+  assert.match(msg(`App [ width=1, height=1, t: Text [ text = "x" ],
+    s: State [ applied = true, t.opacity = 0.4 ] ]`),
+    /a member sets this element's OWN attributes, never a child's/);
+  // E-7: two-way arrow to an attribute chain → datapath rule + onInput idiom
+  assert.match(msg(`App [ width=1, height=1, f: TextInput [ text <-> classroot.name ] ]`),
+    /binds a DATAPATH .* deliver up in an onInput\(\) handler/);
+  // E-9: the iteration-oscillation killers — typed params and both return-annotation shapes
+  assert.match(msg(`App [ width=1, height=1, f(label: string) { return label } ]`),
+    /a method's parameters are bare names/);
+  assert.match(msg(`App [ width=1, height=1, f(): number { return 1 } ]`),
+    /a method has no return annotation/);
+  assert.match(msg(`App [ width=1, height=1, f(x) -> number { return x } ]`),
+    /a method has no return annotation/);
+  // The recognition layer: one compile reports ALL recovered TS-isms as
+  // separate positioned diagnostics (parse no longer stops at the first).
+  const multi = (() => { const r = compile(`App [ width=1, height=1,
+    f(a: string): number { return 1 },
+    t: Text [ text = "x" ],
+    s: State [ applied = true, t.opacity = 0.4 ],
+  ]`); return r.errors ?? []; })();
+  assert.equal(multi.length, 3, "typed params + return annotation + dotted member, one pass");
+  // E-1 escalation 2: the CSS-interference table names the Declare slot
+  assert.match(msg(`App [ width=1, height=1, v: View [ borderWidth = 1 ] ]`),
+    /has no attribute 'borderWidth' — the CSS instinct: a border is 'stroke = \{ stroke\(1,/);
+  assert.match(msg(`App [ width=1, height=1, v: View [ boxShadow = 1 ] ]`),
+    /the CSS instinct: a shadow is 'shadow = \{ shadow\(/);
+  // Run-2 finding: a raw :path decl-default names the { } binding form
+  assert.match(msg(`App [ width=1, height=1, r: View [ datapath = :rows[], label: string = :label ] ]`),
+    /to seed from data, write a \{ \} default: label: string = \{ :label \}/);
+});
+
+await test("location: a schema attr — settable in [ ], writable from handlers, reactive to reads", () => {
+  // The Phase-A pinning tests (location.md §11.3): the DEFAULT RULE's literal form
+  // must check (§3 — `App [ location = "home" ]`), a handler write must flow, and
+  // a constraint reading it must re-derive. Host wiring (seed/echo/history) is
+  // chromium-tested (loc-homepage.mjs / loc-codeviewer.mjs); this pins the
+  // language surface those tests stand on.
+  const r = compile(`App [ width = 100, height = 100, location = "home",
+    why: View [ visible = { app.location == "why" } ],
+    go: View [ onClick() { app.location = "why" } ],
+  ]`);
+  assert.equal(r.errors.length, 0, "the literal [ ] form checks — location is a schema attr");
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    assert.equal(app.location, "home", "the declared initial (§3 default rule)");
+    assert.equal(app.why.visible, false, "derived state follows the initial");
+    app.location = "why"; // the host's back/forward write and the app's navigate write are the same write
+    settle();
+    assert.equal(app.why.visible, true, "a location write re-derives every reader");
+  } finally {
+    app.discard();
+  }
+});
+
+await test("headingSlug: the one deterministic heading→slug rule (location.md §6)", () => {
+  assert.equal(headingSlug("Why a new language, now?"), "why-a-new-language-now");
+  assert.equal(headingSlug("Section 3.1: Details"), "section-31-details");
+  assert.equal(headingSlug("  trailing space  "), "trailing-space");
+  assert.equal(headingSlug("The @name reveal"), "the-name-reveal");
+  assert.equal(headingSlug("!!!"), "", "no slug characters ⇒ empty (not an anchor)");
+});
+
+await test("@name reveal: heading slugs, named-view priority, -2 suffixes, held intent (location.md §6)", () => {
+  // The Phase-B mechanism, headless (the reveal LOCATES the target; there is no
+  // viewport to scroll, so `resolveReveal` returning the name = it resolved). Live
+  // scroll on both real backends is chromium-tested (loc-anchor.mjs). resolveReveal
+  // re-arms the intent from `location`'s trailing @name on every location CHANGE,
+  // fires once the name is in the settled tree, and holds it otherwise.
+
+  // (a) a heading slug resolves; an unknown anchor is HELD (retained intent), not lost.
+  const r = compile(`App [ width = 400, height = 400, location = "home",
+    md: Markdown [ width = 380, text = "# Intro\n\nbody text\n\n## Fine Details\n\nmore" ],
+  ]`);
+  assert.equal(r.errors.length, 0);
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    app.location = "home@fine-details"; settle();
+    assert.equal(app.resolveReveal(), "fine-details", "a heading's slug resolves and reveals");
+    app.location = "home@missing"; settle();
+    assert.equal(app.resolveReveal(), null, "an unknown anchor is held (returns null), not fired");
+  } finally { app.discard(); }
+
+  // (b) duplicate names: preorder-first is the base slug, the next gets `-2`, no third.
+  //     A no-anchor location change CANCELS the intent.
+  const r2 = compile(`App [ width = 200, height = 200, location = "x",
+    a: View [ anchor = "sec", width = 10, height = 10 ],
+    b: View [ anchor = "sec", width = 10, height = 10 ],
+  ]`);
+  assert.equal(r2.errors.length, 0, "`anchor` is a checkable View attribute");
+  const app2 = settleHeadless(r2.source, { deps: r2.deps });
+  try {
+    app2.location = "x@sec"; settle();
+    assert.equal(app2.resolveReveal(), "sec", "first duplicate = the base name (preorder)");
+    app2.location = "x@sec-2"; settle();
+    assert.equal(app2.resolveReveal(), "sec-2", "second duplicate = the -2 suffix");
+    app2.location = "x@sec-3"; settle();
+    assert.equal(app2.resolveReveal(), null, "no third target — held");
+    app2.location = "x"; settle();
+    assert.equal(app2.resolveReveal(), null, "a location change with no @ cancels the intent");
+  } finally { app2.discard(); }
+
+  // (c) collision across kinds: a named view WINS the base name over a same-slug
+  //     heading; the heading takes the -2 (views before slugs).
+  const r3 = compile(`App [ width = 400, height = 400, location = "x",
+    named: View [ anchor = "intro", width = 10, height = 10 ],
+    md: Markdown [ width = 380, text = "# Intro\n\nbody" ],
+  ]`);
+  assert.equal(r3.errors.length, 0);
+  const app3 = settleHeadless(r3.source, { deps: r3.deps });
+  try {
+    app3.location = "x@intro"; settle();
+    assert.equal(app3.resolveReveal(), "intro", "a named view wins the base name");
+    app3.location = "x@intro-2"; settle();
+    assert.equal(app3.resolveReveal(), "intro-2", "the same-slug heading takes -2 (views before slugs)");
+  } finally { app3.discard(); }
+});
+
+await test("settleHeadless: network is refused, never initiated — the source lands honestly absent", async () => {
+  // capabilities.md §3/§9: headless execution may not INITIATE a live request.
+  // An onInit fetch against an absolute URL must be refused by the injected
+  // transport — at t=0 the source shows `loading` (the snapshot's honest
+  // absence); once the refusal lands it is `failed` with the reason. If this
+  // ever reaches a real socket, the URL below fails DNS anyway — but the error
+  // text asserts it was the SEAM that refused, not the network.
+  const r = compile(`App [ width = 100, height = 100,
+    src: DataSource [ url = "https://declare-headless-must-not-fetch.invalid/x.json" ],
+    onInit() { this.src.fetch() },
+  ]`);
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    assert.equal(app.src.status, "loading", "t=0 snapshot: honestly absent, still loading");
+    await new Promise((resolve) => setTimeout(resolve, 0)); // let the refusal land
+    assert.equal(app.src.status, "failed", "the refusal lands as failed");
+    assert.match(app.src.error, /network unavailable headless/, "refused by the seam, not by the wire");
   } finally {
     app.discard();
   }

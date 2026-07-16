@@ -253,6 +253,22 @@ defineAttributes(Dataset, {
   contents: { def: null, push: (d: Dataset, v: unknown) => { d.value = v; } },
 });
 
+/** The injected transport — the network's entry seam, like the measurer's
+ *  (measure.ts provideMeasurer). Default = the platform fetch; HEADLESS
+ *  execution installs a REFUSING transport (capabilities.md §3: network is
+ *  "fixtures, or honestly absent") so extraction/verify can never initiate a
+ *  request — the source lands in `failed` with the reason, by construction. */
+type Transport = (url: string) => Promise<Response>;
+let transport: Transport = (url) => globalThis.fetch(url);
+
+/** Swap the transport (headless installs a refuser; tests install stubs).
+ *  Returns the PREVIOUS transport so a scoped caller can restore it. */
+export function provideTransport(fn: Transport): Transport {
+  const prev = transport;
+  transport = fn;
+  return prev;
+}
+
 /** A DataSource is a Dataset whose value arrives over HTTP (language §9): a
  *  reactive remote resource whose LIFECYCLE is reactive state — screens
  *  derive from `.loading`/`.loaded`/`.failed` with ordinary constraints
@@ -284,7 +300,7 @@ export class DataSource extends Dataset {
     setBound(this, "status", "loading");
     setBound(this, "error", null);
     try {
-      const res = await globalThis.fetch(this.url);
+      const res = await transport(this.url);
       if (!res.ok) throw new Error(`HTTP ${res.status} for ${this.url}`);
       const json: unknown = await res.json();
       if (seq !== this.seq) return; // superseded
