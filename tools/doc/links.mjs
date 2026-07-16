@@ -19,22 +19,18 @@
 //
 //   node tools/doc/links.mjs           # report: registry, resolution, dangling links
 //   node tools/doc/links.mjs --check   # the gate: exit 1 if any link dangles
-//   node tools/doc/links.mjs --emit    # also write docs/links.json (the walkable manifest)
 //
-// docs/links.json is the LLM/tooling access method: every ID → { path, title, kind },
-// plus each doc's outgoing links — the corpus as a walkable graph, one fetch deep.
+// The registry + outgoing graph travel inside docs/declare-model.json — the
+// assembler (assemble.mjs) imports buildRegistry/scan from here, and its
+// staleness gate covers the embedded copy. This file is the scanner and the
+// dangling-link gate; it emits no artifact of its own.
 
-import { readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const MODEL = path.join(ROOT, "examples/docs/docs-model.json");
-const OUT = path.join(ROOT, "docs/links.json");
-
-const args = process.argv.slice(2);
-const CHECK = args.includes("--check");
-const EMIT = args.includes("--emit");
 
 // ── the registry ─────────────────────────────────────────────────────────────
 
@@ -45,7 +41,7 @@ function titleOf(file) {
 }
 
 /** id → { path (repo-relative), title, kind }. */
-function buildRegistry() {
+export function buildRegistry() {
   const ids = {};
   const add = (id, file, kind, title) => {
     ids[id] = { path: path.relative(ROOT, file), title: title ?? titleOf(file), kind };
@@ -95,7 +91,7 @@ function corpusFiles() {
 
 const REF = /declare-docs:([A-Za-z0-9_.:-]+)/g;
 
-function scan(registry) {
+export function scan(registry) {
   const dangling = [];   // { file, line, id }
   const outgoing = {};   // repo-relative path → sorted unique ids
   for (const file of corpusFiles()) {
@@ -112,29 +108,15 @@ function scan(registry) {
   return { dangling, outgoing };
 }
 
-// ── run ──────────────────────────────────────────────────────────────────────
+// ── run (guarded: importing this module as a library executes nothing) ───────
 
-const registry = buildRegistry();
-const { dangling, outgoing } = scan(registry);
-const linkCount = Object.values(outgoing).reduce((n, ids) => n + ids.length, 0);
-
-console.log(`links: ${Object.keys(registry).length} ids in the registry · ${linkCount} distinct links in ${Object.keys(outgoing).length} docs`);
-for (const d of dangling) console.log(`  DANGLING ${d.file}:${d.line} — declare-docs:${d.id}`);
-if (dangling.length === 0) console.log("  all links resolve");
-
-// Deterministic: sorted keys, no timestamps — same corpus, same bytes.
-const sorted = Object.fromEntries(Object.keys(registry).sort().map((k) => [k, registry[k]]));
-const manifest = JSON.stringify({ version: 1, scheme: "declare-docs:", ids: sorted, outgoing }, null, 2) + "\n";
-
-if (EMIT) {
-  writeFileSync(OUT, manifest);
-  console.log(`links: wrote ${path.relative(ROOT, OUT)}`);
-}
-
-if (CHECK) {
-  // The committed manifest must match the corpus — a renamed chapter or a new
-  // link with no re-emit is drift, and drift fails the gate, never rots.
-  const stale = !existsSync(OUT) || readFileSync(OUT, "utf8") !== manifest;
-  if (stale) console.log(`  STALE ${path.relative(ROOT, OUT)} — run \`node tools/doc/links.mjs --emit\``);
-  if (dangling.length > 0 || stale) process.exit(1);
+if (process.argv[1] && process.argv[1].endsWith("links.mjs")) {
+  const CHECK = process.argv.includes("--check");
+  const registry = buildRegistry();
+  const { dangling, outgoing } = scan(registry);
+  const linkCount = Object.values(outgoing).reduce((n, ids) => n + ids.length, 0);
+  console.log(`links: ${Object.keys(registry).length} ids in the registry · ${linkCount} distinct links in ${Object.keys(outgoing).length} docs`);
+  for (const d of dangling) console.log(`  DANGLING ${d.file}:${d.line} — declare-docs:${d.id}`);
+  if (dangling.length === 0) console.log("  all links resolve");
+  if (CHECK && dangling.length > 0) process.exit(1);
 }

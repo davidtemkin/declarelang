@@ -55,11 +55,11 @@ export const OPS = {
   maintaining: {
     title: "Maintaining the system (after changing toolchain sources or docs)",
     steps: [
-      { id: "regenerate", cmd: "npm run build && node tools/build-compiler.mjs && node tools/build-boot.mjs && node tools/doc/extract.mjs && node tools/doc/links.mjs --emit && node tools/doc/assemble.mjs && node tools/prewarm.mjs && node tools/bake-homepage-crawler.mjs",
+      { id: "regenerate", cmd: "npm run build && node tools/build-compiler.mjs && node tools/build-boot.mjs && node tools/doc/extract.mjs && node tools/doc/assemble.mjs && node tools/prewarm.mjs && node tools/bake-homepage-crawler.mjs",
         description: "The regeneration chain, in its load-bearing order: compile → bundles → doc model → link registry → spine projections → prewarmed artifacts → baked page. Run after any .ts, docs/, or registry change.",
         test: false, docs: "declare-docs:operational:building" },
       { id: "links-gate", cmd: "node tools/doc/links.mjs --check",
-        description: "Every declare-docs: symbolic link resolves and links.json matches the corpus.",
+        description: "Every declare-docs: symbolic link in the corpus resolves against the generated registry.",
         expect: { exitCode: 0 }, test: true },
       { id: "spine-gate", cmd: "node tools/doc/assemble.mjs --check",
         description: "The three spine projections (declare-model.json, the marker-injected doc tables, the skill inventory) match a fresh assembly of the live registries.",

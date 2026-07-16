@@ -3,6 +3,34 @@
 **Declare is a domain-specific language for user interfaces.** Just as SQL is a DSL for
 querying data, Declare is purpose-built for creating modern UIs.
 
+## Quick start
+
+<!-- generated:setup-commands -->
+```bash
+git clone https://github.com/davidtemkin/declarelang.git && cd declarelang
+```
+Get the repository.
+
+```bash
+npm install
+```
+Install the toolchain's dependencies (TypeScript; esbuild and puppeteer-core for builds and visual tests). The clone ships prebuilt — no build step before first run.
+
+```bash
+npm start
+```
+Start the dev server on http://127.0.0.1:8200/ — browse to any .declare file's URL and the server compiles and returns the running app.
+
+Write a program to my-apps/hello.declare and browse to http://127.0.0.1:8200/my-apps/hello.declare — the program URL is the app's address.
+<!-- /generated:setup-commands -->
+
+## Where everything is
+
+- **[docs/declare.md](docs/declare.md)** — the whole language, in one file, for you and your model.
+- **[docs/](docs/README.md)** — the guide (start at [getting-started](docs/operational/getting-started.md)), operational pages, and the machine model ([declare-model.json](docs/declare-model.json) — exact facts in its `spine`).
+- **[design/](design/)** — the internal design record (non-authoritative; the docs win).
+
+
 It's reactive by construction and statically typed, with all real logic in ordinary
 TypeScript. One tree renders to the DOM or directly to pixels using Canvas, and it compiles *in the
 browser* — so a page can edit and re-run itself.

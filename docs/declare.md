@@ -1,4 +1,4 @@
-# Declare — the language
+# Declare — the whole language, in one file, for you and your model
 
 *You are reading the authoritative core document for **Declare**, a language for building
 application UIs. One artifact, two readers: a person learning or checking the language, and

@@ -811,6 +811,10 @@ App [ theme = { ({
 
             NavLink [ label = "Declare Calendar", url = "examples/calendar/calendar.declare", visible = { app.width >= 620 } ],
             NavLink [ label = "Docs", url = "examples/docs/docs.declare" ],
+
+            // the flagship one-file doc — the whole language, for readers and their models
+
+            NavLink [ label = "The Language", url = "docs/declare.md", visible = { app.width >= 700 } ],
             NavLink [ label = "GitHub", url = "https://github.com/davidtemkin/declarelang" ],
             ],
         ],

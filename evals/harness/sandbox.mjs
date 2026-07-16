@@ -56,7 +56,7 @@ assume the resemblance holds.
 
 // the category-B corpus, path by path (relative to ROOT/docs) — an explicit
 // list so an accidental new file in docs/ never silently joins the experiment
-const CORPUS = ["README.md", "links.json", "declare.md", "guide", "operational"];
+const CORPUS = ["README.md", "declare-model.json", "declare.md", "guide", "operational"];
 
 /** Deterministic sandbox directory name for a task × track × model × rep cell. */
 export function sandboxName({ task, track, model, rep }) {
