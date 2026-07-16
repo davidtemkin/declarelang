@@ -37,7 +37,7 @@ App [ width = 400, height = 140, fill = #1E3A49, textColor = whitesmoke,
     count: number = 0,                               // reactive state
 
     add: View [ x = 20, y = 20, width = 108, height = 34, cornerRadius = 8, fill = #2E6BE6,
-        onClick() { classroot.count = classroot.count + 1 },
+        onClick() { count = count + 1 },             // a bare name resolves like the read below
         Text [ x = 16, y = 8, text = "Add one" ],
         ],
 
@@ -74,7 +74,8 @@ The entire mental model:
 - **`[ … ]` holds a component's members** — attributes, children, declarations. The bracket
   nesting **is** the view tree.
 - **`{ … }` is TypeScript** — a value expression, a method body, a `script` block. From `{`
-  to the matching `}` you are writing ordinary TypeScript.
+  to the matching `}` you are writing ordinary TypeScript. One exception in the whole
+  language: a `Dataset`'s literal body is **strict JSON**, not TS (§7).
 
 One rule for values:
 
@@ -97,7 +98,7 @@ Two edges of the seam, stated plainly:
   `satisfies`, and type parameters do not parse there. When you must narrow a value,
   coerce structurally: `String(x)`, `x || ""`, `Number(x)`.
 - Multi-line string literals are `"""` blocks (used for prose and Markdown bodies); a
-  single-line `"…"` string must stay on its line.
+  `"…"` string may not contain a newline.
 
 ## 3. Members, by shape
 
@@ -115,10 +116,8 @@ label:    string  = "",                // DECLARE a new typed reactive attribute
 selected: boolean = false,
 count:    number,                      // no default — undefined until set
 
-select() { classroot.pick(this) },     // a METHOD (shorthand)
-open: (h: int) -> View {               // a method, canonical form: a field of function type
-    return this;
-    },
+select() { classroot.pick(this) },     // a METHOD — `classroot` is the enclosing
+                                       //   component instance (§9)
 
 onClick()      { count = count + 1 }, // a HANDLER: `on` + this node's own event
 onMouseMove(e) { x = e.x },            // pointer handlers get an event with .x/.y
@@ -132,13 +131,11 @@ Text [ text = "OK" ],                  // an anonymous child
 ```
 
 The difference between `name = value` (sets an existing attribute) and `name: Type = value`
-(declares a new one) matters — declaring introduces reactive state. A method is symmetric
-with a declaration: a named field of function type whose value is its `{ body }`. There are
-exactly two forms: the shorthand `select() { … }` for a void method, and the typed field
-`open: (h: int) -> View { … }` when parameters or a return type are needed. A method **never**
-carries a `: Type` return annotation directly after its parentheses — `segIndex(): number { … }`
-is not Declare (it is a syntax error); write `segIndex: () -> number { … }` for the typed form,
-or `segIndex() { … }` for the void one.
+(declares a new one) matters — declaring introduces reactive state. A method has one form:
+`select() { … }` / `input(v) { … }` — untyped parameters, no return annotation.
+`segIndex(): number { … }` and `segIndex() -> number { … }` are syntax errors. A *typed
+computed value* is not a method at all — it is a typed attribute with a `{ }` default:
+`segIndex: number = { … }`.
 
 ## 4. Classes and composition
 
@@ -170,7 +167,7 @@ App [ width = 400, height = 100, fill = #0B141B,
   you've outgrown the one-off.
 - Free TypeScript (models, helpers) lives in top-level `script { … }` blocks.
 
-**Where does a piece of code live?** The rest of the language keeps reinforcing this guide:
+**Where does a piece of code live?** The rest of the language keeps reinforcing this decision rule:
 
 - structure that **repeats** → a **class**;
 - a single **computed attribute** → a small **function** bound inline, *not* a wrapper
@@ -205,13 +202,17 @@ text  = { data.failed ? data.error : "Loading…" },   // reacts to a data resou
 
 **Assignment is the setter.** Inside any `{ }` body, `count = count + 1` updates `count`
 *and* notifies everything bound to it. There is no `setState`, no `setAttribute`, and no
-bypass that skips the cascade. Reads are symmetric: a bare `.x` is the tracked read.
+bypass that skips the cascade. Reads are symmetric: a bare read of `x` *is* the tracked
+read. And assignment wins: writing to an attribute that has a constraint **displaces the
+constraint** — the slot holds the written value from then on. Derived state should
+therefore never be assigned; change its *inputs* instead (§10's `location` is the worked
+example).
 
 **The one rule constraints must obey:** a constraint reads *specific, named* things, and
 the compiler must be able to name every one. If it can't — you indexed a slot by a runtime
 value (`this[k]`), computed a data path at runtime, or aggregated over the live view tree —
-that is a compile error whose message names the rewrite (bound the key's type, use a
-literal path, or read from a Dataset). Genuinely dynamic reactivity belongs to the
+that is a compile error whose message names the rewrite (constrain the key to a finite
+type, use a literal path, or read from a Dataset). Genuinely dynamic reactivity belongs to the
 framework's own primitives (layout, replication) or to imperative handler code — which is
 unrestricted TypeScript and always available.
 
@@ -258,9 +259,11 @@ subscription) with `<->` (two-way data binding, §7).
 
 ## 7. Data
 
-A **cursor** (`datapath`) selects a place in the data; descendants read fields relative to
-it with `:path`; a path that matches many records **replicates** its node, one instance per
-record.
+A `datapath` selects a place in the data; descendants read fields relative to it with
+`:path`; a path that matches many records **replicates** its node, one instance per
+record. One grammar note before the example: a `Dataset`'s literal body is **strict
+JSON** — quoted keys, no trailing commas — the one place in the language where a `{ }`
+is not TypeScript (§2).
 
 ```declare
 App [ width = 420, height = 260, fill = #0B141B, textColor = gainsboro,
@@ -283,7 +286,8 @@ App [ width = 420, height = 260, fill = #0B141B, textColor = gainsboro,
 ```
 
 - `key = :field` makes replication **keyed**: when data changes, instances are reconciled
-  by that field — only the changed rows rebuild.
+  by that field — only the changed rows rebuild. The replicated node itself is anonymous,
+  but names *inside* it (`n:`, `s:` above) are fine — they resolve per instance.
 - A **`DataSource`** is a remote resource whose lifecycle is reactive state: `url`,
   explicit **`.fetch()`** (nothing loads automatically), then `.idle / .loading / .loaded /
   .failed`, `.value`, `.error`, `.clear()`. Screens *derive* from it —
@@ -329,7 +333,7 @@ it lifts, everything reverts. The "set it on enter, forget to unset it on exit" 
 unrepresentable — an attribute's value is a pure function of its base plus the active
 states, so modes cannot leak. Overrides may target named descendants by dotted path
 (`top.bg.opacity = 0.33`); when two active states override the same slot, the later
-declaration wins. The block form `state focused when { this.focused } [ … ]` is equivalent.
+declaration wins.
 
 **Motion is declarative.** A `Spring` drives one attribute toward a reactive target by
 physics — declare where the thing belongs; the spring finds the path and settles. A change
@@ -376,10 +380,9 @@ lives on the component — write `classroot.foo`.
 
 Useful App-level reactive attributes: `app.width` / `app.height` (the app's own size —
 responsive layout reads these), `app.dark` (OS dark mode), `app.pointerX` / `app.pointerY`
-(the free pointer), `app.hovering` (false on touch devices). An app with a usable floor
-declares it — `App [ minWidth = 600 ]` — and in a narrower host the app holds that width
-while the stage pans natively; declare the floor rather than writing `Math.max` clamps
-into size constraints.
+(the free pointer), `app.hovering` (false on touch devices). An app with a usable size
+floor declares it as policy — `App [ minWidth = 600 ]` — rather than writing `Math.max`
+clamps into size constraints (§10).
 
 ## 10. Sizing and the host
 
@@ -390,7 +393,7 @@ A view's size on each axis is one of three things, chosen by what the source say
 - **a constraint** → whatever the expression computes.
 
 Two read-only intrinsics — `contentWidth` and `contentHeight` — expose what the content
-*wants* to be, making any clamp plain arithmetic — a **view** has no
+*wants* to be, so any clamp is plain arithmetic. A **view** has no
 `minHeight`/`maxHeight`/`overflow` attributes:
 
 ```declare-fragment
@@ -410,7 +413,7 @@ minHeight = 420 ]` declares the size below which the app does not adapt — in a
 host the app holds the floor and the stage pans natively (the browser scrolls it). It is
 an attribute rather than clamp math because it isn't a clamp: it's a *policy* the host
 cooperates with, and one the toolchain can read statically. Use it when a design degrades
-below some size instead of reflowing (§9's responsive notes).
+below some size instead of reflowing.
 
 **The App fills its host by default** — the root is sized by its host, not its content, so
 `App [ … ]` with no size line fills the window and resizes with it; an explicit size makes
@@ -424,22 +427,27 @@ reads `app.width`.
 `readonly` is the general modifier behind those intrinsics, available to any class:
 `readonly percent: number = { value / max }` — consumers bind it; nobody may set it.
 
-**`location`** is the app's slice of the URL — the fragment, one two-way reactive
-string. The host seeds it before first settle (a deep link is an initial state),
-mirrors app writes outward (one history entry per changed settle), and writes it back
-on back/forward. The app owns the grammar: derive state from it
-(`mode = { app.location.split("/")[0] }`), write it to navigate
-(`app.location = "why"`); derived state is never assigned (the write would displace
-the constraint and disconnect the back button). The declared initial is the default —
-the URL stays clean at it. A trailing `@name` reveals a named view
-(`View [ anchor = "intro" ]`) or a rendered heading (its slug) after the settle; the
-reveal is held until the target exists, so a cold deep link that races a `DataSource`
-still lands. **Crawlers**: extraction boots the app cold at each location the app
-LINKS to (literal fragments and handler writes alike) and emits ONE document at the
-program URL — the default's content plus a section per reachable location
-(discoverable = linked). Crawlable data is build-time data: a relative `DataSource`
-url reads from beside the program; an absolute url makes the crawl refuse loudly with
-the fix named. `?extract` on any program URL returns the document a crawler gets.
+### 10a. The URL: `app.location`
+
+**`location`** is the app's slice of the URL — the fragment, one two-way reactive string.
+The host seeds it before the first *settle* (the moment the reactive graph reaches
+quiescence after a change), mirrors app writes outward — one history entry per settle
+that changed it — and writes it back on back/forward. The app owns the grammar: derive
+state from it (`mode = { app.location.split("/")[0] }`) and write it to navigate
+(`app.location = "why"`). Never assign the *derived* state — that would displace its
+constraint (§5) and disconnect the back button. Setting `location = "home"` in the App
+body declares the initial, which is the default: the URL stays clean at it.
+
+A trailing `@name` in the fragment reveals a named view (`View [ anchor = "intro" ]`) or
+a rendered heading (by its slug) once the tree settles; the reveal is held until the
+target exists, so a cold deep link that races a `DataSource` still lands.
+
+**Crawlers.** Extraction boots the app cold at each location the app links to — literal
+fragments and handler writes alike — and emits one document at the program URL: the
+default's content plus a section per reachable location (discoverable = linked).
+Crawlable data is build-time data: a relative `DataSource` url reads from beside the
+program; an absolute url makes the crawl refuse loudly with the fix named. `?extract` on
+any program URL returns the document a crawler gets.
 
 ## 11. Text, fonts, images, islands
 
@@ -451,8 +459,8 @@ the fix named. `?extract` on any program URL returns the document a crawler gets
   `text = { … }` binding renders as it grows).
 - **`TextInput`** is the editable field; its `text` is the source of truth. Editors bind
   two-way (`text <-> :title`); a *dynamic seed that stays editable* is `initial = { … }`
-  (a one-time uncontrolled seed — binding `text = { … }` one-way makes the field
-  read-only, since a constraint owns the slot). `placeholder`, `multiline = true`,
+  (a one-time uncontrolled seed — a one-way `text = { … }` binding keeps re-asserting
+  the source, so the field is effectively read-only; §14 #13). `placeholder`, `multiline = true`,
   `wrap`, and `spellcheck = false` (for code) cover the field variants.
 - **`Image [ source = "…" ]`** — a bitmap; constrain `source` to compute it.
 - **Fonts:** a top-level `font Sans [ family = "system-ui" ]` declares a family (web fonts
@@ -467,7 +475,8 @@ the fix named. `?extract` on any program URL returns the document a crawler gets
 
 ## 12. The standard library
 
-Seven controls, auto-included by bare tag (no import), themed by the prevailing `theme`
+Seven controls (eight tags — `RadioGroup` rides with `Radio`), auto-included by bare tag
+(no import), themed by the prevailing `theme`
 (they look right with zero configuration — the house theme — and follow any theme you
 provide):
 
@@ -480,6 +489,9 @@ provide):
 | `Slider [ value, min, max, step ]` | `value: number` | drag or arrow keys; delivers continuously |
 | `Field [ label, labelWidth ]` | — | a labeled row; nest your control as its child |
 | `ProgressBar [ value, min, max ]` | — | display-only |
+
+Every control also takes **`disabled`** (inert and unfocusable while true — constrain
+it: `disabled = { app.muted }`).
 
 **The value pattern (one rule for all of them):** a control's value is a plain reactive
 attribute. Three use forms, smallest first —
@@ -521,7 +533,8 @@ customize.
 Styling inherits through **prevailing** slots: set one high in the tree and every
 descendant follows it until one overrides. The text quartet (`fontFamily`, `fontSize`,
 `fontWeight`, `textColor`) works this way, and so does **`theme`** — a token record every
-color in an app should name once:
+color in an app should name once. (The `{ { … } }` below is not special syntax: the outer
+braces open the constraint, the inner braces are the TS object literal — §14 #6.)
 
 ```declare-fragment
 theme = { { bg: 0x0D151E, text: 0xE7EEF2, accent: 0x4C8DFF, line: 0x22323E } },
@@ -532,7 +545,7 @@ theme = { app.dark ? app.darkTheme() : app.lightTheme() },   // light/dark: swap
 
 ## 13. What does NOT exist (do not invent it)
 
-Your training will reach for these. None of them exist in Declare:
+Prior habit — human or model — will reach for these. None of them exist in Declare:
 
 - **No HTML, no CSS, no DOM.** No `div`, `className`, `style`, stylesheet files, selectors,
   cascade, or media queries. Styling is attributes; responsiveness is constraints on
@@ -583,10 +596,10 @@ making it:
    `width = { parent.width }`.
 5. **Imperative child-building.** Generating subtrees in `{ }` breaks the
    statically-apparent tree. Shape once + replicate over data.
-6. **Object literals in constraints are written bare.** A constraint body is always an
-   expression, so `theme = { { text: 0xE7EEF2, accent: 0x4C8DFF } }` is correct as-is — no
-   `({ … })` wrapper needed. Partial override is plain TS spread:
-   `theme = { { ...app.theme, accent: 0xE05252 } }`.
+6. **Parenthesizing an object literal in a constraint.** No `({ … })` wrapper is needed —
+   a constraint body is already an expression, so `theme = { { text: 0xE7EEF2 } }` is
+   correct as-is: outer braces open the constraint, inner braces are the object. Partial
+   override is plain TS spread: `theme = { { ...app.theme, accent: 0xE05252 } }`.
 7. **Expecting auto-fetch.** A `DataSource` does nothing until `.fetch()` — call it in
    `onInit()` or a handler.
 8. **Text that won't wrap / wraps unexpectedly.** Give wrapping text a `width` and
@@ -604,9 +617,10 @@ making it:
 12. **Type syntax inside `{ }`.** `x as string` does not parse — a body is TS expressions,
     not TS type operators (§2). Coerce structurally: `String(x)`, `x || ""`.
 13. **A one-way binding on an editable slot.** `TextInput [ text = { source } ]` makes the
-    field read-only (the constraint owns the slot). A dynamic seed that stays editable is
-    `initial = { source }`; app-owned control state is `checked = { … }` **plus**
-    `input(v) { … }` (§12).
+    field effectively read-only: typing never assigns `text`, so the constraint keeps
+    re-asserting the source and the edit does not stick. A dynamic seed that stays
+    editable is `initial = { source }`; app-owned control state is `checked = { … }`
+    **plus** `input(v) { … }` (§12).
 
 ## 15. Style canon (the formatter's rules, in brief)
 
@@ -615,7 +629,8 @@ making it:
 - **A leaf goes on one line**: `day: Text [ x = 42, fontSize = 11, text = :day ],` — most
   of a UI is leaves.
 - Closing brackets hang at the content indent, carrying the comma: `],`.
-- Four-space indent; no column alignment across lines.
+- Four-space indent. Interior column alignment (extra spaces after a name) is optional —
+  the formatter preserves it either way; this file's fragments use it for readability.
 - camelCase names (`fontSize`, `onClick`). Comments are `// ` at the code's indent;
   `/* … */` blocks are literate Markdown — section prose, rendered by the reader view.
 - One way to write each thing — when this file and your instinct disagree, this file wins.

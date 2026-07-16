@@ -62,10 +62,7 @@ label:    string  = "",                // DECLARE a new typed reactive attribute
 selected: boolean = false,
 count:    number,                      // no default — undefined until set
 
-select() { classroot.pick(this) },     // a METHOD (shorthand)
-open: (h: int) -> View {               // a method, canonical form: a field of function type
-    return this;
-    },
+select() { classroot.pick(this) },     // a METHOD — untyped params, no return annotation
 
 onClick()      { count = count + 1 }, // a HANDLER: `on` + this node's own event
 onMouseMove(e) { x = e.x },            // pointer handlers get an event with .x/.y

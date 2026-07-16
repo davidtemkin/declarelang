@@ -17,11 +17,13 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { compile } from "../compiler/dist/compile-node.js";
+import { parseProgram } from "../runtime/dist/parser.js";
 import { test, summarize } from "./harness.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
 const COVERED = [
+  "docs/declare.md",
   "evals/declare-for-llms.md",
 ];
 
@@ -40,6 +42,20 @@ for (const rel of COVERED) {
       if (out.errors.length) {
         throw new Error(out.errors.map((e) => e.message).join("\n      "));
       }
+    });
+  }
+
+  // ```declare-fragment fences are member excerpts — they can't COMPILE (they
+  // reference surrounding context), but they must PARSE: a fragment is exactly
+  // what a model copies, and unparseable documented syntax is the worst class
+  // of doc/compiler drift (it shipped once: a "canonical typed method form"
+  // the tokenizer rejects). Wrap each in an App body and demand a clean parse.
+  const fragments = [...md.matchAll(/```declare-fragment\n([\s\S]*?)```/g)].map((m) => m[1]);
+  for (const [i, frag] of fragments.entries()) {
+    const head = frag.trim().split("\n")[0].slice(0, 56);
+    await test(`${rel} fragment ${i + 1} parses: ${head}`, () => {
+      const body = frag.trimEnd().endsWith(",") ? frag : frag.trimEnd() + ",";
+      parseProgram(`App [\n${body}\n]`);
     });
   }
 }
