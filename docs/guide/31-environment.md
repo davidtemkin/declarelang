@@ -103,7 +103,7 @@ settled tree, held across settles until it does (so a deep link into fetched con
 A Declare program is not an empty `<div>` waiting on JavaScript. Its static content extracts
 to well-formed HTML — headings, prose, and links inferred from the settled tree — so search
 engines and readers see real content. `?extract` on a program URL returns that extracted
-document; the `seo` build flag bakes it into the run page, which the client clears at boot
+document; the `crawler` build flag bakes it into the run page, which the client clears at boot
 and replaces with the live app. Because the extractor is core to compilation, the Node server
 and the browser produce byte-identical output — the crawler and the reader get the same
 document.

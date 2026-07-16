@@ -14,7 +14,7 @@
 //     them, like the browser's own closure), every remaining entry a
 //     DEPLOY-RELATIVE id with a CONTENT-HASH validator the browser re-derives by
 //     GET-and-hash. This is what makes the tier self-validating and drift-proof.
-//   • seo — the static-extraction document (design/capabilities.md §5), executed
+//   • crawler — the static-extraction document (design/capabilities.md §5), executed
 //     headlessly to t=0, under the SAME closure so it invalidates on the same edits.
 //
 // NO BUILD_ID is written into the artifacts: they live under bundles/, which the
@@ -42,12 +42,12 @@ const CACHE_DIR = path.join(ROOT, "bundles", "cache");
 // The curated set. Small on purpose — the flagship, high-traffic pages, the ones
 // whose compiler-free first paint is worth committing an artifact for. Everything
 // else stays pure browser-compile (this tier is additive, never required). `kinds`
-// selects which artifacts to emit: "run" (the compiled program) and/or "seo" (the
+// selects which artifacts to emit: "run" (the compiled program) and/or "crawler" (the
 // static-extraction document, for content pages crawlers read).
 const PROGRAMS = [
-  { main: "examples/homepage/homepage.declare", props: { render: "dom" }, kinds: ["run", "seo"] },
+  { main: "examples/homepage/homepage.declare", props: { render: "dom" }, kinds: ["run", "crawler"] },
   { main: "examples/calendar/calendar.declare", props: { render: "dom" }, kinds: ["run"] },
-  { main: "examples/docs/docs.declare", props: { render: "dom" }, kinds: ["run", "seo"] },
+  { main: "examples/docs/docs.declare", props: { render: "dom" }, kinds: ["run", "crawler"] },
 ];
 
 const toPosix = (p) => p.split(path.sep).join("/");
@@ -110,7 +110,7 @@ for (const prog of PROGRAMS) {
     });
     sizes.push(`run ${(gzipSync(Buffer.from(JSON.stringify({ program: tracked.source }))).length / 1024).toFixed(1)}KB gz`);
   }
-  if (prog.kinds.includes("seo")) {
+  if (prog.kinds.includes("crawler")) {
     // The CRAWLED document — every reachable location's content in the one page
     // (location.md §7). Data resolves from the program's own directory only (the
     // build-time rule); a network DataSource fails this script loudly.
@@ -120,12 +120,12 @@ for (const prog of PROGRAMS) {
     });
     const name = path.basename(prog.main).replace(/\.declare$/, "");
     const document = html === null ? seoDocument("", name) : seoDocument(html, name);
-    writeArtifact(prewarmKey(prog.main, "seo", {}), {
-      main: prog.main, kind: "seo", props: {},
+    writeArtifact(prewarmKey(prog.main, "crawler", {}), {
+      main: prog.main, kind: "crawler", props: {},
       document,
       closure: browserClosure(tracked.closure, {}),   // backend-independent
     });
-    sizes.push(`seo ${((document.length) / 1024).toFixed(1)}KB`);
+    sizes.push(`crawler ${((document.length) / 1024).toFixed(1)}KB`);
   }
   console.log(`  ${prog.main.padEnd(38)} ${closureRun.entries.length} dep(s) · ${sizes.join(" · ")}`);
 }

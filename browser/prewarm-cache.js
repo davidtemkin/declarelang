@@ -33,7 +33,7 @@
 import { fnv1a, isUpToDate } from "../compiler/dist/closure.js";
 
 /** The committed-artifact key: a stable filename under bundles/cache/ derived from
- *  the program's DEPLOY-RELATIVE main path, the artifact kind ("run" | "seo"), and
+ *  the program's DEPLOY-RELATIVE main path, the artifact kind ("run" | "crawler"), and
  *  the compiler properties (render backend). Origin-independent by construction —
  *  the build hook cannot know the deploy origin, so nothing origin-specific enters
  *  the key. BUILD_ID is deliberately absent: the file lives under bundles/ (already
@@ -77,7 +77,7 @@ async function hashProbe(root, relId, fetchImpl) {
  * @param cfg {{
  *   root: URL|string,            // the distro ROOT (…/ ending in a slash)
  *   relMain: string,             // deploy-relative main path (relativize())
- *   kind: "run"|"seo",
+ *   kind: "run"|"crawler",
  *   props?: Record<string,string>,
  *   fetchImpl?: typeof fetch,    // injectable for tests
  * }}

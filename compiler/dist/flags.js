@@ -7,7 +7,7 @@
 // a JS `compile()` call all mean the same thing; adding a modifier is a single entry
 // below, picked up by every surface.
 //
-// There are exactly TWO modifiers — `render` and `seo` — and they compose onto the
+// There are exactly TWO modifiers — `render` and `crawler` — and they compose onto the
 // app-producing REQUESTS (`run`, `build`; see reqtypes.ts and design/requests.md).
 // The request TYPE (what artifact a URL returns) is orthogonal and lives in
 // reqtypes.ts. Everything is lowercase — no camelCase in the URL/CLI surface.
@@ -22,7 +22,7 @@
 // them); only this externally-named FLAG surface is the two modifiers.
 export const FLAG_SPECS = [
     { name: "render", kind: "enum", values: ["dom", "canvas"], default: "dom" },
-    { name: "seo", kind: "bool", default: false },
+    { name: "crawler", kind: "bool", default: false },
 ];
 /** Defaults, derived from the registry — never hand-maintained. */
 export const DEFAULT_FLAGS = Object.fromEntries(FLAG_SPECS.map((s) => [s.name, s.default]));
@@ -52,7 +52,7 @@ export function parseFlags(params, base = DEFAULT_FLAGS) {
     return out;
 }
 /** Parse the same modifiers from CLI argv tokens (`--render canvas` / `--canvas`,
- *  `--seo`). Returns the modifiers plus the leftover positional args (the input path,
+ *  `--crawler`). Returns the modifiers plus the leftover positional args (the input path,
  *  etc.). Long flags only; `--no-<name>` negates a boolean. Enum VALUES are accepted
  *  as shorthand switches (`--canvas` ≡ `--render canvas`). Non-modifier switches the
  *  CLI owns (`--out`, `--debug`, `--extract`, `--highlight`, `--quiet`) pass through in

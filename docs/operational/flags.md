@@ -8,11 +8,11 @@ compose onto a run or a build.
 | modifier | what it does | CLI (`declarec`) | URL | default |
 |---|---|---|---|---|
 | **render** | render through managed DOM or a single `<canvas>` | `--dom` / `--canvas` | `?render=dom` / `?render=canvas` | `dom` |
-| **seo** | embed the extracted static document in the host page, for crawlers | `--seo` | `?seo` | off |
+| **crawler** | embed the crawled document in the host page, for crawlers | `--crawler` | `?crawler` | off |
 
 Every name is lowercase, and the same name works everywhere: `?render=canvas` on the server,
 `--canvas` on the CLI, and `?render=canvas` in the browser are one modifier. Booleans accept
-`?seo`, `?seo=1`, `?seo=true` (on) and `?seo=0`/`false` (off).
+`?crawler`, `?crawler=1`, `?crawler=true` (on) and `?crawler=0`/`false` (off).
 
 ## Not flags (though they once looked like it)
 

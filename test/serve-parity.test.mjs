@@ -43,7 +43,7 @@ await test("runWrapper produces a valid RUN shell that boots the given bundle", 
   assert.match(html, /<title>calendar · Declare<\/title>/);
 });
 
-await test("runWrapper embeds a staticBlock (the server's ?seo bake) inside the host", () => {
+await test("runWrapper embeds a staticBlock (the server's ?crawler bake) inside the host", () => {
   const html = runWrapper({ name: "x", bootUrl: "/b.js", staticBlock: '<div id="declare-static">Y</div>' });
   assert.match(html, /<div id="host"><div id="declare-static">Y<\/div><\/div>/);
 });

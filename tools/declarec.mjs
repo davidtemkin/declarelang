@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // declarec — Declare's production build (the emit half + CLI).
 //
-//   node tools/declarec.mjs <app.declare> [-o dist] [--canvas] [--seo] [--extract] [--debug] [--quiet]
+//   node tools/declarec.mjs <app.declare> [-o dist] [--canvas] [--crawler] [--extract] [--debug] [--quiet]
 //
 // Precompiles an app (compiler/dist/declarec.js: parse + resolve + typecheck at
 // BUILD time → serializable program), bundles the runtime's RUN-PATH ONLY with
@@ -68,7 +68,7 @@ export async function buildProduction(source, opts = {}) {
     slim: String(opts.slim !== false),
     stripPos: String(opts.stripPos ?? true),
     typecheck: "true",   // always on — a mandatory phase of the one compile (design/requests.md)
-    seo: String(!!opts.seo),
+    crawler: String(!!opts.crawler),
     ...(opts.props ?? {}),
   };
   const mainId = opts.originDir ? join(opts.originDir, `${name}.declare`) : undefined;
@@ -92,7 +92,7 @@ export async function buildProduction(source, opts = {}) {
     `import { ${backend.cls} } from ${JSON.stringify(join(RUNTIME, backend.file))};\n` +
     `const PROGRAM = JSON.parse(${JSON.stringify(programJson)});\n` +
     `const host = document.getElementById("host");\n` +
-    // The host is the app's element: clear it before mount, so a `--seo`
+    // The host is the app's element: clear it before mount, so a `--crawler`
     // build's embedded static block (crawler content, capabilities.md §5)
     // is replaced by the real app the moment it runs.
     `if (host) { host.replaceChildren(); renderProgramAsync(PROGRAM, host, new ${backend.cls}()); }\n`;
@@ -123,14 +123,14 @@ export async function buildProduction(source, opts = {}) {
   const appJs = result.outputFiles[0].text;
   const appName = `app.${shortHash(appJs)}.js`;
 
-  // `--seo`: the extracted static document (design/capabilities.md §5) baked
+  // `--crawler`: the extracted static document (design/capabilities.md §5) baked
   // into the host element — content for crawlers and AI readers that never run
   // the script; the entry above clears it before mount. Compile through THE
   // front-end (auto-include host and all), then execute headlessly and extract
   // — the SAME compile the app itself gets (typecheck already gated the build
   // above, so it is skipped here).
   let staticBlock = "";
-  if (opts.seo) {
+  if (opts.crawler) {
     const compiled = compileFull(source, { originDir: opts.originDir, typecheck: false });
     // The CRAWLED document (location.md §7) — every reachable location's content in
     // the one page. Data resolves from the app's own directory (the build-time rule);
@@ -142,7 +142,7 @@ export async function buildProduction(source, opts = {}) {
     if (h) staticBlock = `<div id="declare-static">\n${h}\n</div>`;
   }
 
-  // A crawler block (--seo) is removed BEFORE first paint by a synchronous classic
+  // A crawler block (--crawler) is removed BEFORE first paint by a synchronous classic
   // script — so a human never flashes the bare extraction while the async app module
   // loads, while a non-JS crawler still reads it in the served HTML. Not CSS-hidden:
   // same content for every agent, presentation swaps at mount (progressive enhancement,
@@ -201,8 +201,8 @@ async function copyAssets(srcDir, outDir) {
  *  copied assets). The shared emit used by the CLI and the dev server. Returns
  *  the buildProduction result plus `{ outDir, appName, assets }`. On a compile
  *  error, returns `{ ok:false, errors }` and writes nothing. */
-export async function writeProduction({ source, name = "app", srcDir = null, outDir, stripPos = true, render, slim = true, seo = false, props }) {
-  const out = await buildProduction(source, { name, originDir: srcDir, stripPos, render, slim, seo, props });
+export async function writeProduction({ source, name = "app", srcDir = null, outDir, stripPos = true, render, slim = true, crawler = false, props }) {
+  const out = await buildProduction(source, { name, originDir: srcDir, stripPos, render, slim, crawler, props });
   if (!out.ok) return out;
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
@@ -214,7 +214,7 @@ export async function writeProduction({ source, name = "app", srcDir = null, out
 
 async function cli(argv) {
   // CLI-only switches (output dir, quiet, and the artifacts --highlight / --extract);
-  // the two MODIFIERS --render/--canvas and --seo share the canonical model (flags.ts),
+  // the two MODIFIERS --render/--canvas and --crawler share the canonical model (flags.ts),
   // so they mean exactly what the same names mean as server/browser URL modifiers. A
   // build always slims + strips positions + typechecks (design/requests.md §"Removed
   // knobs"); --debug is the one escape hatch, for debugging the emitter — it keeps
@@ -234,7 +234,7 @@ async function cli(argv) {
   const { flags, rest } = parseArgvFlags(passthrough, DEFAULT_FLAGS); // declarec is always a build
   const input = rest.find((a) => !a.startsWith("-")) ?? null;
   if (input === null) {
-    console.error("usage: declarec <app.declare> [-o dist] [--canvas] [--seo] [--extract] [--debug] [--quiet]");
+    console.error("usage: declarec <app.declare> [-o dist] [--canvas] [--crawler] [--extract] [--debug] [--quiet]");
     console.error("       declarec --highlight <app.declare> [-o out.json]   # the reader's segments (JSON)");
     process.exit(2);
   }
@@ -267,7 +267,7 @@ async function cli(argv) {
 
   const source = await readFile(srcPath, "utf8");
   const t0 = Date.now();
-  const out = await writeProduction({ source, name, srcDir, outDir, render: flags.render, seo: flags.seo, stripPos: !debug, slim: !debug });
+  const out = await writeProduction({ source, name, srcDir, outDir, render: flags.render, crawler: flags.crawler, stripPos: !debug, slim: !debug });
   const ms = Date.now() - t0;
 
   if (!out.ok) {

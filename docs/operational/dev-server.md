@@ -28,9 +28,9 @@ Two modifiers change *how* a program compiles, and compose onto a run or a build
 
 - `?render=canvas` — render through a single `<canvas>` instead of managed DOM (`?render=dom`
   is the default).
-- `?seo` — embed the extracted static document in the run page (the client clears it at boot).
+- `?crawler` — embed the extracted static document in the run page (the client clears it at boot).
 
-Booleans accept `?seo`, `?seo=1`, `?seo=true` (on) and `?seo=0`/`false` (off).
+Booleans accept `?crawler`, `?crawler=1`, `?crawler=true` (on) and `?crawler=0`/`false` (off).
 
 ## The fragment is the app's own layer
 

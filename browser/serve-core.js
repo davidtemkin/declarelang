@@ -10,7 +10,7 @@
 // Extracting the classifier + the run wrapper HERE makes the two hosts thin
 // ADAPTERS over one core: they can no longer generate divergent run pages, which is
 // the drift the dual-mode design set out to make structurally impossible. The
-// source/seo views stay host-specific ON PURPOSE — the server has a compiler and
+// source/crawler views stay host-specific ON PURPOSE — the server has a compiler and
 // answers them in Node; the compiler-free SW defers to boot-source.js / boot-seo.js
 // in-browser — but they produce the SAME artifact (design/capabilities.md), so the
 // invariant there is an output oracle, not one implementation.
@@ -45,7 +45,7 @@ export function programName(urlPath) {
  *   name: string,             // page title
  *   bootUrl: string,          // the declare-boot.js module URL (the SW busts it with ?v=BUILD_ID;
  *                             //   the dev server uses the root-relative path it rebuilds on demand)
- *   staticBlock?: string,     // baked #declare-static for a crawler (the server's ?seo flag);
+ *   staticBlock?: string,     // baked #declare-static for a crawler (the server's ?crawler flag);
  *                             //   the SW never bakes at request time (crawlers don't install workers)
  *   iconBase?: string|null,   // if set, emit favicon links resolved against it (…/ ending in a slash)
  * }}
@@ -55,7 +55,7 @@ export function runWrapper({ name, bootUrl, staticBlock = "", iconBase = null })
     ? `<link rel="icon" type="image/svg+xml" href="${escapeHtml(iconBase + "favicon.svg")}">\n` +
       `<link rel="icon" type="image/png" sizes="256x256" href="${escapeHtml(iconBase + "favicon.png")}">\n`
     : "";
-  // When a crawler block is baked in (the ?seo flag), a SYNCHRONOUS classic script
+  // When a crawler block is baked in (the ?crawler flag), a SYNCHRONOUS classic script
   // immediately after the host removes it BEFORE the first paint — so a human never
   // flashes the bare extraction text while the async app module loads. This is NOT
   // hiding: nothing is ever CSS-hidden (display:none / off-screen / opacity:0 — the

@@ -41,5 +41,5 @@ export declare function crawlLocations(source: string, opts?: CrawlOptions): Pro
  *  reachable location's content as a `<section id="<location>">` — so the emitted
  *  `href="#<location>"` links resolve intra-document, and a fragment that survives
  *  into a click-through addresses the live app identically. This is what `?extract`
- *  returns and `?seo` bakes when the caller asks for the crawl. */
+ *  returns and `?crawler` bakes when the caller asks for the crawl. */
 export declare function crawlDocument(source: string, opts?: CrawlOptions): Promise<string>;

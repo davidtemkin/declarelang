@@ -43,7 +43,7 @@ const fragmentOf = () => decodeURIComponent(location.hash.replace(/^#/, ""));
  */
 export async function bootHost(cfg) {
   const host = document.getElementById("host");
-  // The `?seo` flag's embedded static document (design/capabilities.md §5): content
+  // The `?crawler` flag's embedded static document (design/capabilities.md §5): content
   // for crawlers that never run any script. The page already removes #declare-static
   // in a SYNCHRONOUS pre-paint script (serve-core.js / index.html / declarec) so a
   // human never flashes the bare text; this second removal is the belt-and-braces for

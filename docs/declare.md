@@ -643,7 +643,7 @@ making it:
    the oracle before you trust a change.
 5. **Ship** — `node tools/declarec.mjs <file>` emits a self-contained production bundle
    (app + runtime, ~50 KB gzipped); the same artifact is one request away at
-   `<program-url>?build`. `--seo` bakes the crawler document into the shipped page.
+   `<program-url>?build`. `--crawler` bakes the crawler document into the shipped page.
 
 ## 17. Going deeper
 

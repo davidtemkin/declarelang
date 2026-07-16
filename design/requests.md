@@ -46,7 +46,7 @@ Two, and they compose onto `run` and `build` (nothing else):
 | Modifier | URL | Meaning |
 |---|---|---|
 | **render** | `?render=canvas` | which renderer: managed DOM (default) or one `<canvas>`. |
-| **seo** | `?seo` | embed the crawler DOM (`#declare-static`) in the run/build wrapper — "the running app **with** the crawler content." Removed before first paint (never CSS-hidden; see serve-core.js). Distinct from the `extract` *request*, which returns that document alone. |
+| **crawler** | `?crawler` | embed the crawler DOM (`#declare-static`) in the run/build wrapper — "the running app **with** the crawler content." Removed before first paint (never CSS-hidden; see serve-core.js). Distinct from the `extract` *request*, which returns that document alone. |
 
 ## Removed knobs
 
@@ -114,8 +114,8 @@ compiler, so it *can* build a bundle and emit segments — those are follow-ups.
   query-uniformity — honest about `build` being a discrete deployable, not a view.
 - **`extract` on `declarec`** emits the extraction document as an *additional* output
   file alongside the build — a build may legitimately produce more than one file.
-- **`?seo` on a static host** is a *build-time* affair: crawlers don't install service
-  workers, so the block is baked by `declarec --seo`, the homepage bake
+- **`?crawler` on a static host** is a *build-time* affair: crawlers don't install service
+  workers, so the block is baked by `declarec --crawler`, the homepage bake
   (`tools/bake-homepage-seo.mjs`), or the prewarm seo tier — not embedded at request
   time by the SW.
 

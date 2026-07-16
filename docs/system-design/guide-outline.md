@@ -231,7 +231,7 @@ inside an app, no iframe) — which the docs and homepage themselves use.
 **Why:** the app-meets-world chapter — everything that isn't the tree itself. Teach: the
 host contract (top-level = window, embedded = container, auto-detected); deep focus
 (traps, tab order) completing 23; the capabilities contract (`design/capabilities.md` —
-the enumerable environment surface); SEO / static extraction (`?extract`, `?seo`, what
+the enumerable environment surface); SEO / static extraction (`?extract`, `?crawler`, what
 crawlers see) as a shipped feature with a one-command story; and **the host channel**
 *(added 2026-07-14)*: `app.navigate` for links out, and the route-mirroring idiom (an
 `app.route` attribute the host reflects to the URL hash — deep links and the back button,
@@ -266,7 +266,7 @@ lives in `operational/` — this chapter is the concepts.
 
 ### 41 · Ship it
 **Why:** the exit door. Teach: `declarec` / `?build` (self-contained ~50 KB bundle);
-hosting the distro vs shipping a build; `--seo` baking; what prewarm does for curated
+hosting the distro vs shipping a build; `--crawler` baking; what prewarm does for curated
 apps (one paragraph, so the two "precompiled" senses never confuse). Command sequences →
 `operational/building.md`; this chapter is orientation.
 **Salvage:** old `35-shipping.md` thins into this + operational.

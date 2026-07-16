@@ -30,7 +30,7 @@ around **45 KB gzipped**. Four things keep it small:
 |---|---|
 | `-o <dir>` | output directory (default `dist`) |
 | `--canvas` | canvas backend instead of DOM |
-| `--seo` | bake the extracted static document into `index.html` (crawlers read it; the client clears it at boot) |
+| `--crawler` | bake the extracted static document into `index.html` (crawlers read it; the client clears it at boot) |
 | `--extract` | also write the static document standalone as `<name>.extract.html` |
 | `--debug` | keep source positions and skip slimming (for debugging a build) |
 | `--quiet` | suppress progress output |

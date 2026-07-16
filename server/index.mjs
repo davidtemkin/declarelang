@@ -179,9 +179,9 @@ const send = (res, code, body, type) => {
  *  the .declare, so relative resources (data/, demos/) resolve for free and
  *  boot-uniform gives it the prewarm → cache → compile path. The only host-specific
  *  parts are PARAMETERS: the dev server uses the root-relative bundle it rebuilds on
- *  demand (no ?v) and bakes the ?seo block server-side. */
+ *  demand (no ?v) and bakes the ?crawler block server-side. */
 async function declareRunPage(urlPath, flags = DEFAULT_FLAGS) {
-  // The `seo` FLAG (flags.ts, distinct from the ?extract REQUEST TYPE): embed the
+  // The `crawler` FLAG (flags.ts, distinct from the ?extract REQUEST TYPE): embed the
   // extracted static document in the host element, for crawlers that read the page
   // without running it. A synchronous pre-paint script removes #declare-static before
   // the app mounts (serve-core.js runWrapper), so a running user never sees it. The SW
@@ -191,7 +191,7 @@ async function declareRunPage(urlPath, flags = DEFAULT_FLAGS) {
   // (a network DataSource) logs the loud message and serves the app un-baked, since
   // the page's first job is running — `?extract` is the surface that hard-fails.
   let staticBlock = "";
-  if (flags.seo) {
+  if (flags.crawler) {
     try {
       const abs = path.join(ROOT, urlPath.replace(/^\/+/, ""));
       const compiled = compile(readFileSync(abs, "utf8"), { originDir: path.dirname(abs) });
@@ -200,7 +200,7 @@ async function declareRunPage(urlPath, flags = DEFAULT_FLAGS) {
         data: diskDataResolver(path.dirname(abs)),
       });
       if (h !== null) staticBlock = `<div id="declare-static">\n${h}\n</div>`;
-    } catch (e) { console.error("seo embed failed:", e.message); }
+    } catch (e) { console.error("crawler embed failed:", e.message); }
   }
   return runWrapper({ name: programName(urlPath), bootUrl: "/bundles/declare-boot.js", staticBlock, iconBase: "/assets/" });
 }
@@ -256,10 +256,10 @@ async function ensureProdBuild(name, backend = "dom") {
   // `render` (not the retired `backend` spelling) — the closure freezes the
   // canonical modifier names (buildProduction's props), and isUpToDate compares
   // records: a mismatched KEY would read as perpetual staleness. slim/stripPos/typecheck
-  // are constant for a build; `seo` rides false here (the /build route doesn't bake seo
-  // pages — declarec --seo closures carry seo:"true" and so never collide with these).
+  // are constant for a build; `crawler` rides false here (the /build route doesn't bake the crawl
+  // pages — declarec --crawler closures carry crawler:"true" and so never collide with these).
   const propsNow = {
-    render: backend, slim: "true", stripPos: "true", typecheck: "true", seo: "false",
+    render: backend, slim: "true", stripPos: "true", typecheck: "true", crawler: "false",
     toolchain: toolchainFingerprint(),
   };
   const fresh = (m) => {
@@ -383,7 +383,7 @@ http.createServer((req, res) => {
         }
         // A build is a directory of files, so it lives at a directory address.
         if (rt === REQ.BUILD) { res.writeHead(302, { location: `/build/${programName(p)}/` }); return res.end(); }
-        // RUN: a navigation gets the run wrapper (with any ?render/?seo modifier); a
+        // RUN: a navigation gets the run wrapper (with any ?render/?crawler modifier); a
         // plain fetch (?file, an include, curl) falls through to the raw bytes below.
         const navigate = req.headers["sec-fetch-mode"] === "navigate" || (req.headers.accept ?? "").includes("text/html");
         if (rt === REQ.RUN && navigate) {

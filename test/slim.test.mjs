@@ -71,29 +71,29 @@ test("REGISTRY_MANIFEST matches the runtime tables exactly (no drift)", () => {
   assert.deepEqual([...new Set(REGISTRY_MANIFEST.map((e) => e.name))].sort(), [...new Set(REGISTRY_NAMES)].sort());
 });
 
-// ── compile MODIFIERS: two of them (render, seo), one model, three surfaces ───
+// ── compile MODIFIERS: two of them (render, crawler), one model, three surfaces ───
 // (slim/stripPos/typecheck/prod are NOT flags — design/requests.md §"Removed knobs".)
 const P = (obj) => ({ has: (k) => k in obj, get: (k) => (k in obj ? String(obj[k]) : null) });
 test("URL modifiers: defaults when absent", () => {
   const f = parseFlags(P({}), DEFAULT_FLAGS);
-  assert.equal(f.render, "dom"); assert.equal(f.seo, false);
+  assert.equal(f.render, "dom"); assert.equal(f.crawler, false);
 });
-test("URL modifiers: ?render=canvas and ?seo", () => {
-  const f = parseFlags(P({ render: "canvas", seo: "" }), DEFAULT_FLAGS);
-  assert.equal(f.render, "canvas"); assert.equal(f.seo, true);
+test("URL modifiers: ?render=canvas and ?crawler", () => {
+  const f = parseFlags(P({ render: "canvas", crawler: "" }), DEFAULT_FLAGS);
+  assert.equal(f.render, "canvas"); assert.equal(f.crawler, true);
 });
 test("URL modifiers: a malformed enum / boolean falls back to the base", () => {
   assert.equal(parseFlags(P({ render: "wat" }), DEFAULT_FLAGS).render, "dom");
-  assert.equal(parseFlags(P({ seo: "maybe" }), DEFAULT_FLAGS).seo, false);
+  assert.equal(parseFlags(P({ crawler: "maybe" }), DEFAULT_FLAGS).crawler, false);
 });
 test("URL modifiers: the removed knobs are ignored (not flags anymore)", () => {
   const f = parseFlags(P({ slim: "0", stripPos: "0", typecheck: "0", prod: "" }), DEFAULT_FLAGS);
   assert.equal(f.slim, undefined); assert.equal(f.stripPos, undefined);
   assert.equal(f.typecheck, undefined); assert.equal(f.prod, undefined);
 });
-test("argv modifiers: --canvas + --seo, input left in rest", () => {
-  const { flags, rest } = parseArgvFlags(["--canvas", "--seo", "app.declare"], DEFAULT_FLAGS);
-  assert.equal(flags.render, "canvas"); assert.equal(flags.seo, true);
+test("argv modifiers: --canvas + --crawler, input left in rest", () => {
+  const { flags, rest } = parseArgvFlags(["--canvas", "--crawler", "app.declare"], DEFAULT_FLAGS);
+  assert.equal(flags.render, "canvas"); assert.equal(flags.crawler, true);
   assert.deepEqual(rest, ["app.declare"]);
 });
 test("argv modifiers: removed/CLI-owned switches pass through to rest", () => {

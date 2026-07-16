@@ -29,9 +29,9 @@ difference is whether a compiler is present at run time.
 
 ## Two things worth knowing
 
-The **`seo` flag** bakes the program's extracted static document — headings, prose, links, the
+The **`crawler` flag** bakes the program's extracted static document — headings, prose, links, the
 content a crawler reads — into the built `index.html`; the client clears it at boot and
-replaces it with the live app. It is one flag (`declarec --seo`, or `?seo`), not a separate
+replaces it with the live app. It is one flag (`declarec --crawler`, or `?crawler`), not a separate
 build.
 
 **Prewarm** is a validated cache for curated apps: a set of programs precompiled and *checked*
