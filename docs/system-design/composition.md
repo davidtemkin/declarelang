@@ -98,8 +98,8 @@ The tightest form drops even the `include`. Using a bare component tag —
 The pieces:
 
 - **`library/autoincludes.json`** — the manifest, `{ "Bar": "bar.declare", … }`
-  (tag → file path, relative to `library/src`).
-- **`library/src/*.declare`** — ordinary Declare libraries, each a `class Bar …`.
+  (tag → file path, relative to `library`).
+- **`library/*.declare`** — ordinary Declare libraries, each a `class Bar …`.
 - **`resolveAutoIncludes`** (runtime/`include.ts`) runs *after* explicit
   `include`s, sharing their visited set: it collects the program's referenced
   tags, and for any that is neither provided nor a built-in but *is* in the
@@ -118,7 +118,7 @@ one component source, so they cannot drift.
 > colour, a size) and a dead-easy-to-read body — not to be a real component set.
 > A proper library (the widget vocabulary, its theming contract, its API
 > surface) is its own dedicated design + research effort, to follow. Until then,
-> treat `library/src/*.declare` as scaffolding: coherent, but not load-bearing.
+> treat `library/*.declare` as scaffolding: coherent, but not load-bearing.
 
 
 ## 2. `import` — composing JS modules

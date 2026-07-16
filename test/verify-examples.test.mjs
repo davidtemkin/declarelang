@@ -43,9 +43,9 @@ for (const f of examples) {
 }
 
 // ── every component-library source, under the probe wrapper ──────────────────
-const libDir = join(ROOT, "library/src");
+const libDir = join(ROOT, "library");
 const libFiles = existsSync(libDir)
-  ? readdirSync(libDir).filter((n) => n.endsWith(".declare")).map((n) => join("library/src", n))
+  ? readdirSync(libDir).filter((n) => n.endsWith(".declare")).map((n) => join("library", n))
   : [];
 
 for (const f of libFiles) {

@@ -73,7 +73,7 @@ try {
 
 // Component-probe mode: a bare component-library file (classes, no `App` root)
 // isn't a runnable program, so it can't climb the ladder on its own — the known
-// gap that let library/src/*.declare drift unverified. `--wrap` synthesizes a
+// gap that let library/*.declare drift unverified. `--wrap` synthesizes a
 // minimal probe App instantiating each top-level `class … extends` in the file,
 // so a component's own source compiles, typechecks, and boots standalone. (An
 // abstract base or a child-requiring component may not boot from an empty tag —

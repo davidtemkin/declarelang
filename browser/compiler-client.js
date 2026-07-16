@@ -140,8 +140,8 @@ async function loadLibrary() {
     const names = Array.isArray(index) ? index : Object.values(manifest);
     const files = {};
     await Promise.all(names.map(async (rel) => {
-      const res = await fetch(new URL("library/src/" + rel, DISTRO), { cache: "no-cache" });
-      if (res.ok) files["library/src/" + rel] = await res.text();
+      const res = await fetch(new URL("library/" + rel, DISTRO), { cache: "no-cache" });
+      if (res.ok) files["library/" + rel] = await res.text();
     }));
     return { manifest, files };
   } catch {

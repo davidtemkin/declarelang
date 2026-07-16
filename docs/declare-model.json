@@ -492,17 +492,17 @@
    "codes": []
   },
   "library": {
-   "Bar": "library/src/bar.declare",
-   "Control": "library/src/control.declare",
-   "Checkbox": "library/src/checkbox.declare",
-   "Button": "library/src/button.declare",
-   "Switch": "library/src/switch.declare",
-   "Slider": "library/src/slider.declare",
-   "RadioGroup": "library/src/radiogroup.declare",
-   "Radio": "library/src/radiogroup.declare",
-   "Field": "library/src/field.declare",
-   "ProgressBar": "library/src/progressbar.declare",
-   "FocusRing": "library/src/focusring.declare"
+   "Bar": "library/bar.declare",
+   "Control": "library/control.declare",
+   "Checkbox": "library/checkbox.declare",
+   "Button": "library/button.declare",
+   "Switch": "library/switch.declare",
+   "Slider": "library/slider.declare",
+   "RadioGroup": "library/radiogroup.declare",
+   "Radio": "library/radiogroup.declare",
+   "Field": "library/field.declare",
+   "ProgressBar": "library/progressbar.declare",
+   "FocusRing": "library/focusring.declare"
   },
   "commands": {
    "setup": {

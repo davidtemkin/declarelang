@@ -15,7 +15,7 @@ import { searchIncludePath } from "./include-search.js";
  *  when the file is absent. The absolute path is the canonical include-once key.
  *
  *  When `libraryRoot` is given it is ALSO an AutoIncludeHost: the manifest
- *  `<libraryRoot>/autoincludes.json` (tag → path relative to `<libraryRoot>/src`)
+ *  `<libraryRoot>/autoincludes.json` (tag → path relative to `<libraryRoot>` — the library is flat)
  *  drives bare-tag auto-inclusion, so a program can use `Bar [ … ]` with no
  *  `include` and no inline `class Bar`. Manifest read is lazy + cached; a
  *  missing / malformed manifest degrades to an empty map, never a crash.
@@ -41,9 +41,9 @@ export function nodeIncludeHost(libraryRoot, tracker) {
         const source = readTracked(canonical);
         return source === null ? null : { canonical, dir: dirname(canonical), source };
     };
-    // Search roots after the including file's own dir: the library src dir, so a
+    // Search roots after the including file's own dir: the library root, so a
     // bare `include [ "code-style.declare" ]` finds a shared file with no `../`.
-    const srcDir = libraryRoot === undefined ? undefined : join(libraryRoot, "src");
+    const srcDir = libraryRoot; // the library is FLAT — .declare files at its root (src/ layer removed 2026-07-16)
     const roots = srcDir === undefined ? [] : [srcDir];
     const base = {
         resolve: (fromDir, path) => searchIncludePath(fromDir, path, roots, resolveAt),

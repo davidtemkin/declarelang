@@ -2,7 +2,7 @@
 // the whole corpus, not spot-checked:
 //
 //   1. IDEMPOTENCE — format(format(x)) === format(x), byte-equal, for every
-//      corpus file (examples/**/[a-z]*.declare + library/src/*.declare).
+//      corpus file (examples/**/[a-z]*.declare + library/*.declare).
 //   2. EXEMPLAR — examples/codeviewer/codeviewer.declare is the canon's
 //      exemplar: formatting it must be a PERFECT no-op (its alignment slip,
 //      glued comment blocks, and 3-space trailing gaps were fixed in-file as
@@ -14,7 +14,7 @@
 //      change) and the two emitted sources are compared TOKEN-wise, comments
 //      and whitespace aside, with `{ }` bodies compared per-line modulo the
 //      leading whitespace the formatter owns; extracted constraint deps must
-//      be deep-equal. Library files (library/src — no root, not compilable
+//      be deep-equal. Library files (library — no root, not compilable
 //      alone) are parsed with the runtime's parseLibrary and compared as
 //      position-stripped ASTs. Trailing commas immediately before `]`/`)` are
 //      normalized on both sides — the one token the close style adds or sheds.
@@ -37,7 +37,7 @@ import { test, summarize } from "./harness.mjs";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
 
-// ── corpus: examples/**/[a-z]*.declare + library/src/*.declare ─────────────
+// ── corpus: examples/**/[a-z]*.declare + library/*.declare ─────────────
 
 function walk(dir, out = []) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -49,9 +49,9 @@ function walk(dir, out = []) {
 }
 const corpus = [
   ...walk(resolve(ROOT, "examples")),
-  ...readdirSync(resolve(ROOT, "library/src"))
+  ...readdirSync(resolve(ROOT, "library"))
     .filter((n) => n.endsWith(".declare"))
-    .map((n) => resolve(ROOT, "library/src", n)),
+    .map((n) => resolve(ROOT, "library", n)),
 ].sort();
 
 await test("corpus discovered", () => {

@@ -65,11 +65,11 @@ function buildExample(name) {
   return { name, program: tracked.source.length, demos, pageWeight, sourceLines, deps: tracked.closure.entries.length };
 }
 
-// The library file index: every source under library/src, so the browser boot
+// The library file index: every source under library, so the browser boot
 // can prefetch them ALL (not just manifest tags) — the include search path's
 // second root must be fully present for a bare `include` to resolve in-browser,
 // mirroring the Node fs host, which can read any library file on demand.
-const libSrc = path.join(ROOT, "library", "src");
+const libSrc = path.join(ROOT, "library");
 const libFiles = existsSync(libSrc) ? readdirSync(libSrc).filter((f) => f.endsWith(".declare")).sort() : [];
 writeFileSync(path.join(ROOT, "library", "index.json"), JSON.stringify(libFiles) + "\n");
 

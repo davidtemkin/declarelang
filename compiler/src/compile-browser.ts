@@ -11,7 +11,7 @@
 // Why in-memory: `compile.ts` is synchronous and so is the include seam
 // (IncludeHost.resolve returns source-or-null, not a Promise), but a browser
 // can only fetch asynchronously. So the warm-load fetches the FIXED library set
-// (the auto-include manifest + its `src/*.declare`) once, up front, and hands it
+// (the auto-include manifest + its *.declare files) once, up front, and hands it
 // here as `files`/`manifest`; this host then reads it synchronously. A path not
 // in the map resolves to null — the same "absent file" signal the filesystem
 // host gives — so a source with no `include`s (every example today) needs
@@ -46,7 +46,7 @@ export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js"
 export type { Environment, HeadlessOptions } from "./headless.js";
 
 /** Collapse `.` / `..` segments in a POSIX-ish path so the resolved key matches
- *  how the warm-load stores prefetched files (e.g. "library/src/bar.declare"). */
+ *  how the warm-load stores prefetched files (e.g. "library/bar.declare"). */
 function normalizePath(p: string): string {
   const out: string[] = [];
   for (const seg of p.split("/")) {
@@ -60,7 +60,7 @@ function normalizePath(p: string): string {
 export interface BrowserFiles {
   /** canonicalPath → source, for `include`s and library files prefetched up front. */
   files?: Record<string, string>;
-  /** tag → library src path (relative to `<libraryRoot>/src`) — the auto-include manifest. */
+  /** tag → library path (relative to `<libraryRoot>` — the library is flat) — the auto-include manifest. */
   manifest?: Record<string, string>;
   /** Library-root prefix the resolveLibrary canonical keys carry (default "library"). */
   libraryRoot?: string;
@@ -73,7 +73,7 @@ export interface BrowserFiles {
 export function memoryHost(opts: BrowserFiles = {}): AutoIncludeHost {
   const files = opts.files ?? {};
   const manifest = opts.manifest ?? {};
-  const srcDir = (opts.libraryRoot ?? "library") + "/src";
+  const srcDir = opts.libraryRoot ?? "library"; // the library is FLAT (src/ layer removed 2026-07-16)
   const at = (canonical: string) => {
     const source = files[canonical];
     return source === undefined

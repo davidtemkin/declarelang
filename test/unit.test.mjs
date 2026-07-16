@@ -1484,7 +1484,7 @@ await test("compileTracked(): the closure captures the auto-included library + m
   const r = compileTracked(`App [ width = 40, height = 40, Bar [ width = 30, value = 50 ] ]`, { props: { render: "dom" } });
   assert.ok(r.source, "compiled");
   const ids = r.closure.entries.map((e) => e.id);
-  assert.ok(ids.some((i) => i.endsWith("/library/src/bar.declare")), "the auto-included Bar library is a tracked dependency");
+  assert.ok(ids.some((i) => i.endsWith("/library/bar.declare")), "the auto-included Bar library is a tracked dependency");
   assert.ok(ids.some((i) => i.endsWith("/library/autoincludes.json")), "the manifest is a tracked dependency");
   assert.equal(isUpToDate(r.closure, { render: "dom" }, diskProbe), true, "unchanged → fresh");
   assert.equal(isUpToDate(r.closure, { render: "canvas" }, diskProbe), false, "a compiler-prop change → stale");
@@ -4772,7 +4772,7 @@ await test("browser compileTracked: an include is recorded in the closure; the l
   assert.deepEqual(out.closure.props, { render: "dom" });
   // A LIBRARY auto-include stays OUT (BUILD_ID gates the library, the OL5 LFC
   // model) — the closure records app sources only.
-  const lib = { manifest: { Bar9: "bar9.declare" }, files: { "library/src/bar9.declare": "class Bar9 extends View [ width = 10 ]" } };
+  const lib = { manifest: { Bar9: "bar9.declare" }, files: { "library/bar9.declare": "class Bar9 extends View [ width = 10 ]" } };
   const out2 = browser.compileTracked("App [ width = 100, height = 100, Bar9 [ ] ]", { ...lib, mainId: "x.declare" });
   assert.ok(out2.source !== null, out2.report);
   assert.deepEqual(out2.closure.entries.map((e) => e.id), ["x.declare"], "library reads are excluded");
@@ -4783,7 +4783,7 @@ await test("browser default library: setDefaultLibrary removes the per-call obli
   // Without a registered library, a bare library tag fails to resolve …
   assert.equal(browser.compile("App [ width = 100, height = 100, Zed9 [ ] ]").source, null);
   // … after ONE registration, the same call — no files/manifest riding it — compiles.
-  browser.setDefaultLibrary({ manifest: { Zed9: "zed9.declare" }, files: { "library/src/zed9.declare": "class Zed9 extends View [ width = 30 ]" } });
+  browser.setDefaultLibrary({ manifest: { Zed9: "zed9.declare" }, files: { "library/zed9.declare": "class Zed9 extends View [ width = 30 ]" } });
   const r = browser.compile("App [ width = 100, height = 100, Zed9 [ ] ]");
   assert.ok(r.source !== null, r.report);
   // An EXPLICIT files/manifest still wins over the default.

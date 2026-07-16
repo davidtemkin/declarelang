@@ -11,7 +11,7 @@ export type { Environment, HeadlessOptions } from "./headless.js";
 export interface BrowserFiles {
     /** canonicalPath → source, for `include`s and library files prefetched up front. */
     files?: Record<string, string>;
-    /** tag → library src path (relative to `<libraryRoot>/src`) — the auto-include manifest. */
+    /** tag → library path (relative to `<libraryRoot>` — the library is flat) — the auto-include manifest. */
     manifest?: Record<string, string>;
     /** Library-root prefix the resolveLibrary canonical keys carry (default "library"). */
     libraryRoot?: string;

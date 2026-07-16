@@ -5,7 +5,7 @@ import type { Tracker } from "./closure.js";
  *  when the file is absent. The absolute path is the canonical include-once key.
  *
  *  When `libraryRoot` is given it is ALSO an AutoIncludeHost: the manifest
- *  `<libraryRoot>/autoincludes.json` (tag → path relative to `<libraryRoot>/src`)
+ *  `<libraryRoot>/autoincludes.json` (tag → path relative to `<libraryRoot>` — the library is flat)
  *  drives bare-tag auto-inclusion, so a program can use `Bar [ … ]` with no
  *  `include` and no inline `class Bar`. Manifest read is lazy + cached; a
  *  missing / malformed manifest degrades to an empty map, never a crash.

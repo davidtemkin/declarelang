@@ -34,7 +34,7 @@ editorial/IA pass builds *on* them.
 | fonts | `docs/system-design/fonts.md` |
 | input / focus | `docs/system-design/input.md` |
 | formatting | `docs/system-design/formatting.md` (+ `tools/format.mjs` = the enforced canon) |
-| **components / std library** *(write-new)* | `library/src/*.declare` (+ their `@api`), `docs/system-design/components-baseline.md` (the 4 contracts) |
+| **components / std library** *(write-new)* | `library/*.declare` (+ their `@api`), `docs/system-design/components-baseline.md` (the 4 contracts) |
 | **verify / how-to-check** *(write-new)* | `docs/system-design/verify-and-evals.md`, `tools/verify.mjs` |
 | **capabilities** *(write-new)* | `docs/system-design/capabilities.md` |
 | **SEO / static extraction** *(write-new)* | `docs/system-design/seo-and-semantics.md`, `compiler/src/static-html.ts` |

@@ -81,7 +81,7 @@ function diagnosticSpine() {
 
 function librarySpine() {
   const manifest = JSON.parse(readFileSync(join(ROOT, "library/autoincludes.json"), "utf8"));
-  return Object.fromEntries(Object.entries(manifest).map(([tag, file]) => [tag, "library/src/" + file]));
+  return Object.fromEntries(Object.entries(manifest).map(([tag, file]) => [tag, "library/" + file]));
 }
 
 function buildSpine() {
