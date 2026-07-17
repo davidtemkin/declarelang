@@ -32,16 +32,23 @@ class Checkbox extends Control [
     onClick() { if (!disabled) press() },
 
     width   = { this.box.width + (label == "" ? 0 : 8 + this.cap.width) },
-    opacity = { disabled ? 0.45 : 1 },
+    opacity = { disabled ? (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) : 1 },
 
-    box: View [ y = 2, width = 20, height = 20, cornerRadius = { Math.min(8, Math.max(3, theme.controlRadius - 2)) },
+    box: View [ y = 2,
+        width  = { typeof theme.checkboxSize == "number" ? theme.checkboxSize : 20 },
+        height = { this.width },
+        cornerRadius = { typeof theme.checkboxRadius == "number" ? theme.checkboxRadius : Math.min(8, Math.max(3, theme.controlRadius - 2)) },
         fill   = { checked ? theme.accent : theme.control },
         stroke = { stroke(1, checked ? theme.accent : hovered || pressed ? theme.textMuted : theme.line) },
 
         // the mark is DRAWN (reactive draw(), not a glyph): pixel-identical on
         // both backends, independent of any font
 
-        mark: View [ x = 3, y = 3, width = 14, height = 14, visible = { checked },
+        mark: View [ visible = { checked },
+            x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 },
+            width = { parent.width * 0.7 }, height = { this.width },
+            scale = { this.width / 14 },                 // the path below is authored at 14
+
             draw(d) {
                 d.strokeStyle = theme.accentText
                 d.lineWidth = 2.5

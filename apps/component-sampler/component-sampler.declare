@@ -12,6 +12,14 @@ The Material and Apple records here are PLACEHOLDERS awaiting the fidelity
 passes — the switching machinery is the point of this skeleton.
 */
 
+class Swatch extends View [ width = 22, height = 22, cornerRadius = 11,
+    c: number = 0,
+    fill = { c == 0 ? theme.control : c },
+    stroke = { stroke(app.accentPick == c ? 2 : 1, app.accentPick == c ? theme.text : theme.line) },
+    onClick() { app.accentPick = c },
+    ]
+
+
 class Section extends View [ width = { parent.width },
     label: string = "",
     layout: SimpleLayout [ axis = y, spacing = 10 ],
@@ -24,8 +32,9 @@ App [ fill = { theme.bg }, minWidth = 560,
 
     style: string = "declare",
     animateFocus: boolean = true,
+    accentPick: number = 0,                    // 0 = the mode's own accent; a swatch overrides it EVERYWHERE
 
-    theme = { ({ ...(style == "material" ? app.materialTheme() : style == "apple" ? app.appleTheme() : app.declareTheme()), focusAnimate: animateFocus }) },
+    theme = { ({ ...(style == "material" ? app.materialTheme() : style == "apple" ? app.appleTheme() : app.declareTheme()), focusAnimate: animateFocus, ...(accentPick != 0 ? ({ accent: accentPick }) : ({})) }) },
 
     // the type stack is part of the emulation: Roboto for Material, SF for Apple
 
@@ -59,6 +68,7 @@ App [ fill = { theme.bg }, minWidth = 560,
             controlRadius: 4, buttonRadius: 999, fieldRadius: 4, fieldPadding: 12,
             buttonHeight: 40, switchWidth: 52, switchHeight: 32, switchThumbOff: 16,
             focusRingWidth: 3, focusRingGap: 2, sliderHandle: "bar",
+            checkboxSize: 18, checkboxRadius: 2, disabledOpacity: 0.38,
         }
         },
 
@@ -76,6 +86,7 @@ App [ fill = { theme.bg }, minWidth = 560,
             controlRadius: 6, buttonRadius: 6, fieldRadius: 6, fieldPadding: 7,
             buttonHeight: 28, switchWidth: 40, switchHeight: 24,
             focusRingWidth: 3.5, focusRingGap: 0,
+            checkboxSize: 14, checkboxRadius: 3.5, disabledOpacity: 0.5,
         }
         },
 
@@ -97,6 +108,20 @@ App [ fill = { theme.bg }, minWidth = 560,
             Checkbox [ label = "Animate focus transitions", checked = { app.animateFocus },
                 input(v) { app.animateFocus = v },
                 ],
+            ],
+
+        // the user-settable accent (the macOS System Settings arrangement):
+        // one token, and every control, ring, and fill on the page follows
+
+        accents: View [ layout: SimpleLayout [ axis = x, spacing = 10 ],
+            Swatch [ c = 0 ],
+            Swatch [ c = 0x2E6FE0 ],
+            Swatch [ c = 0x6750A4 ],
+            Swatch [ c = 0xE0447E ],
+            Swatch [ c = 0xD03A2F ],
+            Swatch [ c = 0xE0742F ],
+            Swatch [ c = 0xC7A400 ],
+            Swatch [ c = 0x3A9E4C ],
             ],
 
         rule: View [ width = { parent.width }, height = 1, fill = { theme.line } ],

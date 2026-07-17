@@ -53,7 +53,7 @@ class Slider extends Control [
         else if (e.key == "ArrowRight") input(quant(value + step))
         },
 
-    opacity = { disabled ? 0.45 : 1 },
+    opacity = { disabled ? (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) : 1 },
 
     // M3's current spec draws the handle as a vertical BAR with a gap in the
     // track around it; every other system uses the round thumb. One token —
