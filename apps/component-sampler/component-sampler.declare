@@ -58,7 +58,7 @@ App [ fill = { theme.bg }, minWidth = 560,
             control: 0xE7E0EC, controlActive: 0xE8DEF8,
             controlRadius: 4, buttonRadius: 999, fieldRadius: 4, fieldPadding: 12,
             buttonHeight: 40, switchWidth: 52, switchHeight: 32, switchThumbOff: 16,
-            focusRingWidth: 3, focusRingGap: 2,
+            focusRingWidth: 3, focusRingGap: 2, sliderHandle: "bar",
         }
         },
 

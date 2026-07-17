@@ -55,10 +55,25 @@ class Slider extends Control [
 
     opacity = { disabled ? 0.45 : 1 },
 
-    track: View [ y = 12, width = { parent.width }, height = 4, cornerRadius = 2, fill = { theme.control } ],
-    bar:   View [ y = 12, height = 4, cornerRadius = 2, fill = { theme.accent }, width = { 9 + (parent.width - 18) * frac } ],
-    thumb: View [ y = 5, width = 18, height = 18, cornerRadius = 9,
-        x = { (parent.width - 18) * frac },
-        fill = { theme.surface },
-        stroke = { stroke(1, hovered || pressed ? theme.accent : theme.line) } ],
+    // M3's current spec draws the handle as a vertical BAR with a gap in the
+    // track around it; every other system uses the round thumb. One token —
+    // theme.sliderHandle == "bar" — selects the rendition; the gap is the
+    // track being SHORTENED to either side of the handle rather than drawn
+    // through it. Data, not a fork.
+
+    barStyle() { return theme.sliderHandle == "bar" },
+
+    track: View [ y = 12, height = 4, cornerRadius = 2, fill = { theme.control },
+        x     = { classroot.barStyle() ? classroot.thumb.x + classroot.thumb.width + 5 : 0 },
+        width = { classroot.barStyle() ? Math.max(0, classroot.width - this.x) : classroot.width } ],
+    bar: View [ y = 12, height = 4, cornerRadius = 2, fill = { theme.accent },
+        width = { classroot.barStyle() ? Math.max(0, classroot.thumb.x - 5) : 9 + (classroot.width - 18) * frac } ],
+    thumb: View [
+        width  = { classroot.barStyle() ? 5 : 18 },
+        height = { classroot.barStyle() ? 24 : 18 },
+        y      = { classroot.barStyle() ? 2 : 5 },
+        cornerRadius = { this.width / 2 },
+        x = { (classroot.width - 18) * frac + (classroot.barStyle() ? 6 : 0) },
+        fill = { classroot.barStyle() ? theme.accent : theme.surface },
+        stroke = { classroot.barStyle() ? stroke(0, theme.accent) : stroke(1, classroot.hovered || classroot.pressed ? theme.accent : theme.line) } ],
     ]
