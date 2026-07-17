@@ -474,10 +474,16 @@ App [ theme = { ({
                 reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
                     to = { app.scroller.scrollY + app.height > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
                 layout: SimpleLayout [ axis = y, spacing = 36 ],
-                SectionHead [ num = "01", head = "Declare Calendar: Concise. Clear. Continuous.",
-                    lead = "It’s the kind of experience you’ll see in the best native apps — a view doesn’t switch so much as become the next one, where motion carries meaning, and everything is fast and interruptible." ],
-                Lead [ width = { Math.min(760, parent.width) },
-                    text = "That’s always been specialist craft: bespoke motion code, one interaction at a time, locked to a platform. In Declare, it’s simply what the declarations do, and it works everywhere." ],
+
+                // the headline stands alone (SectionHead's lead slot would sit ABOVE
+                // the actions row — here the CTA comes between headline and copy)
+
+                head: View [ width = { parent.width },
+                    layout: SimpleLayout [ axis = y, spacing = 14 ],
+                    Marker [ text = "01" ],
+                    Heading [ fontSize = 40, width = { Math.min(900, parent.width) },
+                        text = "Declare Calendar: Concise. Clear. Continuous." ],
+                    ],
 
                 actions: View [ layout: SimpleLayout [ axis = x, spacing = 18 ],
                     Button [ width = 240, label = "Run Declare Calendar →",
@@ -490,6 +496,14 @@ App [ theme = { ({
                         onMouseOut() { this.hovered = false },
                         onClick() { app.navigate("apps/calendar/calendar.declare?view=edit") },
                         ],
+                    ],
+
+                copy: View [ width = { parent.width },
+                    layout: SimpleLayout [ axis = y, spacing = 14 ],
+                    Lead [ width = { Math.min(760, parent.width) },
+                        text = "It’s the kind of experience you’ll see in the best native apps — a view doesn’t switch so much as become the next one, where motion carries meaning, and everything is fast and interruptible." ],
+                    Lead [ width = { Math.min(760, parent.width) },
+                        text = "That’s always been specialist craft: bespoke motion code, one interaction at a time, locked to a platform. In Declare, it’s simply what the declarations do, and it works everywhere." ],
                     ],
 
                 // three big gradient figures. The first two are computed, not claimed —
