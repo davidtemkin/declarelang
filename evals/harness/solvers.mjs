@@ -13,7 +13,7 @@
 //               token usage for free (§3.2). This is the real eval solver.
 
 import { spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -163,10 +163,42 @@ export function claudeSkillSolver() {
   };
 }
 
+
+// ── claude-distro solver — the bootstrap arm ─────────────────────────────────
+// The agent is a NEW USER: a fresh clone (sandbox.mjs makeDistroSandbox), a
+// request in plain language, and nothing staged — no reference doc in the
+// prompt, no coaching about which files exist. The framing tells it only what
+// a real onboarding email would: you downloaded Declare, the repo explains
+// itself, put the app at my-apps/app.declare, use the repo's own checker until
+// it passes. Everything else — setup, discovery, the verify loop — is the
+// product under test. Tools include Bash + Write: the agent installs, runs
+// verify, and iterates ITSELF (the track is "agentic": one solver call, the
+// loop lives inside it).
+const SYSTEM_DISTRO = `You have just downloaded the Declare distribution — the current directory is a fresh clone. Declare is a UI language that is NOT in your training data; this repository is the ONLY source of truth, and it documents itself — start at README.md. Where Declare resembles React, CSS, or HTML, do not assume the resemblance holds.
+
+Your job: build the app described in the request below, as a single Declare program at my-apps/app.declare. If the request mentions data files, they are at my-apps/fixtures/. Follow the repository's own getting-started for any setup you need, and use the repository's own checking tool on your program, fixing what it reports, until it passes clean. Do not modify anything outside my-apps/. When the checker passes, reply with exactly: DONE.`;
+
+export function claudeDistroSolver() {
+  return {
+    id: "claude-distro",
+    async solve({ brief, model, cwd }) {
+      const prompt = SYSTEM_DISTRO + "\n\n# The request\n\n" + brief;
+      const { text, tokens, usage } = await runClaude(prompt, model, {
+        cwd, tools: "Read,Glob,Grep,Bash,Write,Edit",
+      });
+      // the deliverable is the FILE, not the reply — read it from the clone
+      const appFile = join(cwd, "my-apps", "app.declare");
+      const source = existsSync(appFile) ? readFileSync(appFile, "utf8") : null;
+      return { source, tokens, usage, raw: text };
+    },
+  };
+}
+
 export function makeSolver(id) {
   if (id === "reference") return referenceSolver();
   if (id === "claude") return claudeSolver();
   if (id === "claude-docs") return claudeDocsSolver();
   if (id === "claude-skill") return claudeSkillSolver();
+  if (id === "claude-distro") return claudeDistroSolver();
   throw new Error(`unknown solver '${id}' (use: reference | claude | claude-docs | claude-skill)`);
 }

@@ -18,7 +18,8 @@
 // a repo-interior directory could walk ../.. into compiler source or the
 // task's reference solution.
 
-import { cpSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
+import { cpSync, mkdirSync, writeFileSync, existsSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { join, resolve, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -100,5 +101,26 @@ export function makeSandbox({ runDir, runName, task, track, model, rep, briefDoc
   // fixtures the app consumes, mapped where the brief says the data lives
   if (task.hasFixtures) cpSync(join(task.dir, "fixtures"), join(dir, "fixtures"), { recursive: true });
 
+  return { dir };
+}
+
+// ── distro mode — the bootstrap arm ─────────────────────────────────────────
+// The most realistic sandbox: a FRESH CLONE of the distro, exactly what a new
+// user downloads (committed content only — untracked strays never leak in).
+// Nothing is staged for the agent: no reference doc, no docs copy, no
+// pre-installed node_modules. The repo must carry its own onboarding (README →
+// getting-started → docs/skill), and the agent must follow it — this arm
+// measures the PRODUCT (clone-and-go, discovery, toolchain UX), not a curated
+// context. Fixtures the task's app consumes land under my-apps/fixtures/,
+// where the agent is told its data lives. Outside the repo (tmpdir), like the
+// corpus arm, so nothing can walk ../.. into the real tree.
+export function makeDistroSandbox({ runName, task, model, rep }) {
+  const cell = sandboxName({ task, track: "agentic", model, rep });
+  const base = join(tmpdir(), "declare-evals", runName ?? "run", cell);
+  rmSync(base, { recursive: true, force: true });
+  mkdirSync(base, { recursive: true });
+  const dir = join(base, "declarelang");
+  execFileSync("git", ["clone", "--depth", "1", "--quiet", "file://" + ROOT, dir], { stdio: "pipe" });
+  if (task.hasFixtures) cpSync(join(task.dir, "fixtures"), join(dir, "my-apps", "fixtures"), { recursive: true });
   return { dir };
 }

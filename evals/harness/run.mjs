@@ -18,7 +18,7 @@
 import { readdirSync, existsSync, statSync, mkdirSync, writeFileSync, appendFileSync, readFileSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { makeSandbox, sandboxName } from "./sandbox.mjs";
+import { makeSandbox, makeDistroSandbox, sandboxName } from "./sandbox.mjs";
 import { makeSolver } from "./solvers.mjs";
 import { score, renderForSolver } from "./score.mjs";
 import { generateResults } from "./results.mjs";
@@ -37,7 +37,12 @@ const list = (name, def) => val(name, def).split(",").map((s) => s.trim()).filte
 
 const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 const runName = val("run", stamp);
-const tracks = list("tracks", "one-shot,iterated");
+// distro mode (the bootstrap arm): the sandbox is a FRESH CLONE of the repo,
+// the solver an agent that sets up and iterates itself (track "agentic" —
+// one solver call, the verify loop lives inside the agent). Pair with
+// --solver claude-distro.
+const distro = argv.includes("--distro");
+const tracks = distro ? ["agentic"] : list("tracks", "one-shot,iterated");
 const models = list("models", "reference");
 const solverId = val("solver", "reference");
 const budgetOverride = val("budget", null);
@@ -51,6 +56,7 @@ const briefDocPath = val("brief-doc", "evals/declare-for-llms.md");
 // docs TREE instead of one brief file, and the solver reads its way in
 // (claude-docs). Pair with --solver claude-docs.
 const corpus = argv.includes("--corpus");
+
 const repeats = Number(val("repeats", 1)); // draws per cell, to separate noise from signal
 const REFERENCE_DOC = readFileSync(join(ROOT, briefDocPath), "utf8");
 
@@ -74,6 +80,34 @@ function loadTasks(only) {
         maxIterations: Number(budgetOverride ?? budget.maxIterations ?? 8),
       };
     });
+}
+
+// ── one BOOTSTRAP attempt — fresh clone, agent sets up and self-iterates ────
+async function runDistroCell({ task, model, rep, solver, metricsFile }) {
+  const { dir } = makeDistroSandbox({ runName, task, model, rep });
+  const appFile = join(dir, "my-apps", "app.declare");
+  const t0 = Date.now();
+  let sc = null, gen = null;
+  try {
+    gen = await solver.solve({ task, brief: task.brief, model, cwd: dir });
+  } catch (e) {
+    sc = { ok: false, rungClimbed: 0, rungFailed: 1, compileOk: false, diagnostics: [], report: `solver error: ${e?.message ?? e}`, formatDistance: null };
+  }
+  if (sc === null) {
+    sc = gen?.source == null
+      ? { ok: false, rungClimbed: 0, rungFailed: 1, compileOk: false, diagnostics: [], report: "agent produced no my-apps/app.declare", formatDistance: null }
+      : await score(appFile, task);
+  }
+  const line = {
+    ts: new Date().toISOString(), run: runName, task: task.id, track: "agentic", model, rep, solver: solver.id,
+    briefDoc: "distro:clone", iterations: 1, iterationsToGreen: sc.ok ? 1 : null,
+    ok: !!sc.ok, rungClimbed: sc.rungClimbed ?? 0, rungFailed: sc.rungFailed ?? null,
+    compileOk: !!sc.compileOk, tokens: gen?.tokens ?? null, wallMs: Date.now() - t0,
+    formatDistance: sc.formatDistance ?? null, diagnostics: sc.diagnostics ?? [],
+    sandbox: dir,
+  };
+  appendFileSync(metricsFile, JSON.stringify(line) + "\n");
+  return line;
 }
 
 // ── one attempt (a task × track × model cell) ────────────────────────────────
@@ -140,7 +174,9 @@ for (const task of tasks) {
       for (let rep = 1; rep <= repeats; rep++) {
         const repLabel = repeats > 1 ? ` · r${rep}` : "";
         process.stdout.write(`  ${task.id} · ${track} · ${model}${repLabel} … `);
-        const m = await runCell({ task, track, model, rep, solver, runDir, metricsFile });
+        const m = distro
+          ? await runDistroCell({ task, model, rep, solver, metricsFile })
+          : await runCell({ task, track, model, rep, solver, runDir, metricsFile });
         const green = m.ok ? "green" : `R${m.rungClimbed}${m.rungFailed ? `→✗R${m.rungFailed}` : ""}`;
         const iters = track === "iterated" ? ` (${m.iterations} iter)` : "";
         const tok = m.tokens ? ` · ${m.tokens} tok` : "";
