@@ -46,3 +46,57 @@ export function specificityOf(sel: SelectorAST): number {
   }
   return s;
 }
+
+/** Tokenize one simple selector (`view.red`, `#x`, `[k~=v]`, `*`) into a
+ *  SimpleSelector. A leading identifier is the tag; `.x` `#x` `[..]` are
+ *  conditions; `*` yields an empty condition list (universal). */
+function parseSimple(token: string): SimpleSelector {
+  const conditions: Condition[] = [];
+  let i = 0;
+  const tagMatch = /^[A-Za-z_][\w-]*/.exec(token);
+  if (tagMatch) {
+    conditions.push({ kind: "tag", name: tagMatch[0] });
+    i = tagMatch[0].length;
+  } else if (token[0] === "*") {
+    i = 1;
+  }
+  while (i < token.length) {
+    const ch = token[i];
+    if (ch === ".") {
+      const m = /^\.([\w-]+)/.exec(token.slice(i));
+      if (!m) throw new CssUnsupported(`unsupported selector near '${token.slice(i)}'`);
+      conditions.push({ kind: "class", name: m[1] });
+      i += m[0].length;
+    } else if (ch === "#") {
+      const m = /^#([\w-]+)/.exec(token.slice(i));
+      if (!m) throw new CssUnsupported(`unsupported selector near '${token.slice(i)}'`);
+      conditions.push({ kind: "id", name: m[1] });
+      i += m[0].length;
+    } else if (ch === "[") {
+      const m = /^\[\s*([\w-]+)\s*(?:([~|]?=)\s*"?([^"\]]*)"?\s*)?\]/.exec(token.slice(i));
+      if (!m) throw new CssUnsupported(`unsupported attribute selector near '${token.slice(i)}'`);
+      const cond: Condition = { kind: "attr", name: m[1] };
+      if (m[2]) {
+        cond.op = m[2] as "=" | "~=" | "|=";
+        cond.value = m[3];
+      }
+      conditions.push(cond);
+      i += m[0].length;
+    } else if (ch === ":" || ch === ">" || ch === "+" || ch === "~") {
+      throw new CssUnsupported(`unsupported selector feature '${ch}'`);
+    } else {
+      throw new CssUnsupported(`unsupported selector near '${token.slice(i)}'`);
+    }
+  }
+  return { conditions };
+}
+
+/** Parse a full selector: whitespace-separated simple selectors → a descendant
+ *  chain (ancestor-first). Combinators `>`/`+`/`~` and pseudo `:` are rejected. */
+export function parseSelectorText(text: string): SelectorAST {
+  const trimmed = text.trim();
+  // Mask attribute-selector bodies so `~=`/`|=` don't read as combinators.
+  const masked = trimmed.replace(/\[[^\]]*\]/g, "[]");
+  if (/[>+~]/.test(masked)) throw new CssUnsupported(`unsupported combinator in '${trimmed}'`);
+  return trimmed.split(/\s+/).map(parseSimple);
+}

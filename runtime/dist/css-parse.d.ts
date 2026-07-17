@@ -31,3 +31,6 @@ export declare class CssUnsupported extends Error {
 }
 /** Specificity = sum over every condition: id 100, class/attr 10, tag 1, * 0. */
 export declare function specificityOf(sel: SelectorAST): number;
+/** Parse a full selector: whitespace-separated simple selectors → a descendant
+ *  chain (ancestor-first). Combinators `>`/`+`/`~` and pseudo `:` are rejected. */
+export declare function parseSelectorText(text: string): SelectorAST;

@@ -85,4 +85,34 @@ await test("specificityOf sums conditions across simple selectors", () => {
   ]), 12);
 });
 
+await test("parseSelectorText: single conditions", () => {
+  assert.deepEqual(parseSelectorText(".red"), [{ conditions: [{ kind: "class", name: "red" }] }]);
+  assert.deepEqual(parseSelectorText("#x"), [{ conditions: [{ kind: "id", name: "x" }] }]);
+  assert.deepEqual(parseSelectorText("view"), [{ conditions: [{ kind: "tag", name: "view" }] }]);
+  assert.deepEqual(parseSelectorText("*"), [{ conditions: [] }]);
+});
+
+await test("parseSelectorText: compound + attribute ops", () => {
+  assert.deepEqual(parseSelectorText(".red.green"), [{ conditions: [
+    { kind: "class", name: "red" }, { kind: "class", name: "green" }] }]);
+  assert.deepEqual(parseSelectorText("view.red"), [{ conditions: [
+    { kind: "tag", name: "view" }, { kind: "class", name: "red" }] }]);
+  assert.deepEqual(parseSelectorText("[sel]"), [{ conditions: [{ kind: "attr", name: "sel" }] }]);
+  assert.deepEqual(parseSelectorText("[k=v]"), [{ conditions: [{ kind: "attr", name: "k", op: "=", value: "v" }] }]);
+  assert.deepEqual(parseSelectorText("[k~=v]"), [{ conditions: [{ kind: "attr", name: "k", op: "~=", value: "v" }] }]);
+  assert.deepEqual(parseSelectorText("[k|=v]"), [{ conditions: [{ kind: "attr", name: "k", op: "|=", value: "v" }] }]);
+});
+
+await test("parseSelectorText: descendant combinator", () => {
+  assert.deepEqual(parseSelectorText("view button.active"), [
+    { conditions: [{ kind: "tag", name: "view" }] },
+    { conditions: [{ kind: "tag", name: "button" }, { kind: "class", name: "active" }] },
+  ]);
+});
+
+await test("parseSelectorText: rejects unsupported combinators/pseudo", () => {
+  assert.throws(() => parseSelectorText("a > b"), /unsupported/i);
+  assert.throws(() => parseSelectorText("a:hover"), /unsupported/i);
+});
+
 summarize("css");
