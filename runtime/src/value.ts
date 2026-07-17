@@ -138,6 +138,9 @@ export const DEFAULT_THEME: Theme = Object.freeze({
   control: 0xE7EBF1, controlActive: 0xD3E2FC,
   depth: 1,
   focusRing: true,
+  // geometry tokens (library-charter §6): design-system IDENTITY is geometric,
+  // so the record carries shape as well as color — the library consults these
+  controlRadius: 7,
 });
 
 /** A parent-relative percentage, as written (`{ percent: 50 }` for `50%`).

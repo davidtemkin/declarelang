@@ -8,6 +8,7 @@ export declare class TextInput extends Editor {
     wrap: boolean;
     padding: number;
     initial: string;
+    focused: boolean;
     protected draftSlot(): string;
     attach(backend: RenderBackend, parentSurface: Surface | null): void;
     protected flush(s: Surface): void;

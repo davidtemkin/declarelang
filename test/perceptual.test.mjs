@@ -2407,10 +2407,14 @@ try {
   });
 
   await test("cross-backend: the clip-bounded editable scene agrees", async () => {
-    // Both backends render native fields (identical engine) and clip identically,
-    // so this is STRICT — no soft regions. The clipped-away field is hidden on
-    // both; the in-clip field is shown identically on both.
-    const diff = await diffShots(canvasC2.page, domC2.png, canvasC2.png);
+    // Both backends render native fields (identical engine) and clip identically.
+    // STRICT except the shown field's own box: the house field rendition
+    // (rounded 1px edge — library-charter §6) anti-aliases differently between
+    // CSS border-radius and canvas arcs, the same corner-AA divergence the R3/R4
+    // scenes soften. The clipped-away field is hidden on both.
+    const diff = await diffShots(canvasC2.page, domC2.png, canvasC2.png, {
+      soft: [{ x: 26, y: 98, w: 184, h: 26, label: "field edge (border-radius vs arc AA)" }],
+    });
     assert.ok(!diff.sizeMismatch, `screenshot sizes differ: ${diff.sizeMismatch}`);
     assert.equal(diff.over, 0, `channels beyond tolerance: ${diff.over} (max delta ${diff.max})`);
   });

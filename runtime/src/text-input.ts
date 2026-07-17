@@ -21,6 +21,7 @@ import { Constraint } from "./reactive.js";
 import { Focus } from "./focus.js";
 import type { TextStyle } from "./measure.js";
 import { isTwoWay, edited, commitDraft, Editor } from "./editor.js";
+import { stroke } from "./value.js";
 
 export class TextInput extends Editor {
   declare text: string;
@@ -30,6 +31,7 @@ export class TextInput extends Editor {
   declare wrap: boolean;
   declare padding: number;
   declare initial: string;
+  declare focused: boolean;
   // The editor session (commitOn / error / valid / dirty + commit()/revert())
   // is inherited from Editor; `text` is this editor's draft slot.
   protected override draftSlot(): string { return "text"; }
@@ -47,6 +49,24 @@ export class TextInput extends Editor {
         !isSet(this, "text") && ownerOf(this, "text") === null) {
       bindDerived(this, "text", () => this.initial);
     }
+    // The house FIELD rendition (library-charter §6: a bare TextInput must
+    // carry real visual articulation — today's edgeless default is a defect).
+    // Same YIELDING-derive pattern as the seed above: reactive on the
+    // prevailing theme and on focus, displaced the moment the author assigns
+    // the slot. Surface fill, a 1px line edge that turns accent when the
+    // field holds keyboard focus, the theme's controlRadius geometry token.
+    const tok = (name: string, fallback: number): number => {
+      const v = (this.theme as Record<string, unknown> | null)?.[name];
+      return typeof v === "number" ? v : fallback;
+    };
+    if (!isSet(this, "fill") && ownerOf(this, "fill") === null)
+      bindDerived(this, "fill", () => tok("surface", 0xFFFFFF));
+    if (!isSet(this, "stroke") && ownerOf(this, "stroke") === null)
+      bindDerived(this, "stroke", () => stroke(1, this.focused ? tok("accent", 0x2E6FE0) : tok("line", 0xDBE1E9)));
+    if (!isSet(this, "cornerRadius") && ownerOf(this, "cornerRadius") === null)
+      bindDerived(this, "cornerRadius", () => tok("controlRadius", 7));
+    if (!isSet(this, "padding") && ownerOf(this, "padding") === null)
+      bindDerived(this, "padding", () => 6);
   }
 
   protected override flush(s: Surface): void {
@@ -128,6 +148,7 @@ export class TextInput extends Editor {
   /** Declare focus arrived/left — give or take the platform caret (Layer 2 hook,
    *  separate from the author's onFocus/onBlur). */
   override focusChanged(focused: boolean): void {
+    this.focused = focused; // the reactive fact themes and the house edge read
     this.surface?.activateEditable(focused);
   }
 }
@@ -140,5 +161,6 @@ defineAttributes(TextInput, {
   wrap: { def: true, push: (t) => t.syncEditable() },
   padding: { def: 0, push: (t) => t.syncEditable() },
   initial: { def: "" },
+  focused: { def: false },
   // commitOn / error / valid / dirty are declared on the Editor base.
 });

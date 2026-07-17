@@ -210,6 +210,19 @@ is impossible without it). The ratified model (David), in layers:
    anywhere is illegal — the WCAG floor as a property of the theme+components
    pair, auditable by a later verify-level check.
 
+**Supplemental specs (David, at phase start):** the sampler offers THREE modes
+via a three-option RadioGroup — **Declare-native (default), Material, Apple**.
+The default is deliberately un-opinionated: a commonly-used modern look, whose
+one signature addition is the animated focus rects (elected for BOTH roles —
+transitions and at-rest focused rendition). The default must also fix the
+TextInput rendition: today a bare field has NO edge; the house look gives text
+fields real visual articulation, unfocused and focused. And the styling arc
+adds one planes-free component to the mix as it goes: **`TabSlider`** — OL's
+basetabslider, the accordion: stacked headers, sprung heights, and
+CLIP-CARRIED content (present through the whole open and close, revealed by
+the clip as height animates — never a blank gap; the mechanics are already
+reverse-engineered frame-by-frame in tabslider-gaps.md).
+
 The sampler proves the matrix: Apple-mode = rect at rest, quiet components;
 Material-mode = component-rendered focus, rect for flight or off; the same
 machinery satisfying the invariant through opposite channels. RadioGroup
