@@ -73,6 +73,14 @@ class FocusRing extends View [ opacity = 0,
         const off = gap + lw / 2
         tx = g.x - off; ty = g.y - off; tw = g.w + 2 * off; th = g.h + 2 * off
         trad = g.rad + off
+        // Only a FOCUS CHANGE flies. The same control moving under a resting
+        // ring — a dragged slider thumb, a reflow — takes the ring with it
+        // rigidly: the springs' targets just moved, so land them NOW. The
+        // discriminator is target IDENTITY (a handler-scratch expando — not
+        // reactive state, just the previous event's view for comparison).
+        const prev = (this as any)._lastTarget
+        ;(this as any)._lastTarget = g.view
+        if (prev == g.view) this.snapTo()
         },
 
     onFocusChange(v) <- Focus {
