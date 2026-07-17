@@ -283,4 +283,26 @@ await test("cssMap(View): W3C properties map onto View attributes with coercers"
   assert.equal(map["font-size"].coerce("14px"), 14);
 });
 
+// ── M3: runtime wiring ──────────────────────────────────────────────────────
+const { cssWrite, cssClear, cssMarks, stylesheetWrite, stylesheetClear } =
+  await import("../runtime/dist/attributes.js");
+
+await test("cssWrite marks + provides; cssClear restores the fallback", () => {
+  const v = new View();
+  cssWrite(v, "fill", 0x111111);
+  assert.equal(v.fill, 0x111111);
+  assert.equal(cssMarks(v)?.has("fill"), true);
+  cssClear(v, "fill");
+  assert.equal(v.fill, null); // View's fill default
+  assert.equal(cssMarks(v)?.has("fill") ?? false, false);
+});
+
+await test("class-dict eviction: stylesheetWrite over a CSS-marked slot wins and evicts the CSS mark", () => {
+  const v = new View();
+  cssWrite(v, "fill", 0x111111);
+  stylesheetWrite(v, "fill", 0x222222);
+  assert.equal(v.fill, 0x222222);
+  assert.equal(cssMarks(v)?.has("fill") ?? false, false); // class-dict (rank-2) evicts CSS (rank-2b)
+});
+
 summarize("css");

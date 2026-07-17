@@ -67,6 +67,15 @@ export declare function stylesheetClear(self: object, name: string): void;
 /** The applier's bookkeeping: which slots this view's stylesheet currently
  *  colors. */
 export declare function stylesheetMarks(self: object): ReadonlySet<string> | undefined;
+/** Install a CSS-matched value on an unprovided slot. */
+export declare function cssWrite(self: object, name: string, v: unknown): void;
+/** Withdraw a CSS offer (the rule no longer matches, or a higher rank now
+ *  outranks it). Mirrors stylesheetClear: when the slot is otherwise
+ *  unprovided the stored value is removed, dependents wake, and the Surface
+ *  state is re-pushed with the now-effective value. */
+export declare function cssClear(self: object, name: string): void;
+/** The CSS applier's bookkeeping: which slots this view's CSS currently colors. */
+export declare function cssMarks(self: object): ReadonlySet<string> | undefined;
 /** Was this slot ever author-set (a literal, or a direct assignment)?
  *  The R4 replacement for R3's 0-as-unset: auto-size asks this, so an
  *  explicit `width=0` now means zero, not "measure me". */

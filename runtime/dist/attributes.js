@@ -146,7 +146,8 @@ export function cssMap(ctor) {
 function provided(self, name) {
     return ((self.$set?.has(name) ?? false) ||
         self.$owners?.[name] !== undefined ||
-        (self.$stylesheetMarks?.has(name) ?? false));
+        (self.$stylesheetMarks?.has(name) ?? false) ||
+        (self.$cssMarks?.has(name) ?? false));
 }
 /** followRead's "no provider anywhere" — distinct from a provided null. */
 const NOTHING = Symbol("no provider");
@@ -254,6 +255,7 @@ export function stylesheetWrite(self, name, v) {
     const becameProvider = tableFor(PREVAILING, self.constructor)?.[name] === true && !provided(carrier, name);
     (carrier.$stylesheetMarks ??= new Set()).add(name);
     write(self, name, v);
+    carrier.$cssMarks?.delete(name); // class-dict (rank-2) evicts any CSS (rank-2b) mark
     if (becameProvider)
         carrier.$cells?.[name]?.changed();
 }
@@ -279,6 +281,43 @@ export function stylesheetClear(self, name) {
  *  colors. */
 export function stylesheetMarks(self) {
     return self.$stylesheetMarks;
+}
+// ── The CSS channel's write side (rank-2b, below the class-dict) ────────────
+//
+// Mirrors the stylesheet channel exactly, one tier lower. The per-view CSS
+// applier (css-apply.ts) is the only caller. `write` fires the slot cell's
+// changed() on a value change — that plus the applier's tracked provision
+// probe is what lets a class-dict install/clear (or an author $set) wake the
+// applier to withdraw or re-offer.
+/** Install a CSS-matched value on an unprovided slot. */
+export function cssWrite(self, name, v) {
+    const carrier = self;
+    const becameProvider = tableFor(PREVAILING, self.constructor)?.[name] === true && !provided(carrier, name);
+    (carrier.$cssMarks ??= new Set()).add(name);
+    write(self, name, v);
+    if (becameProvider)
+        carrier.$cells?.[name]?.changed();
+}
+/** Withdraw a CSS offer (the rule no longer matches, or a higher rank now
+ *  outranks it). Mirrors stylesheetClear: when the slot is otherwise
+ *  unprovided the stored value is removed, dependents wake, and the Surface
+ *  state is re-pushed with the now-effective value. */
+export function cssClear(self, name) {
+    const carrier = self;
+    if (carrier.$cssMarks === undefined || !carrier.$cssMarks.delete(name))
+        return;
+    if (provided(carrier, name))
+        return; // a higher-rank provision holds the value now
+    if (carrier.$attrs !== undefined && Object.hasOwn(carrier.$attrs, name)) {
+        delete carrier.$attrs[name];
+    }
+    carrier.$cells?.[name]?.changed();
+    const v = self[name]; // the effective fallback
+    tableFor(PUSHERS, self.constructor)?.[name]?.(self, v);
+}
+/** The CSS applier's bookkeeping: which slots this view's CSS currently colors. */
+export function cssMarks(self) {
+    return self.$cssMarks;
 }
 /** Was this slot ever author-set (a literal, or a direct assignment)?
  *  The R4 replacement for R3's 0-as-unset: auto-size asks this, so an
