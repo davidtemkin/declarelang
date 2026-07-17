@@ -305,4 +305,21 @@ await test("class-dict eviction: stylesheetWrite over a CSS-marked slot wins and
   assert.equal(cssMarks(v)?.has("fill") ?? false, false); // class-dict (rank-2) evicts CSS (rank-2b)
 });
 
+await test("CSS end-to-end: a .class rule sets fill; author $set outranks it", () => {
+  const root = new View();
+  const child = new View();
+  child.styleclass = "box";
+  root.appendChild(child);                 // links child.parent = root
+  root.cssRules = buildRuleSet(`.box { background-color: #2d7 }`); // pusher walks subtree → appliers
+  settle();
+  assert.equal(child.fill, 0x22dd77);
+
+  const authored = new View();
+  authored.styleclass = "box";
+  authored.fill = 0x0000ff;                // author $set
+  root.appendChild(authored);
+  settle();
+  assert.equal(authored.fill, 0x0000ff);   // author provision outranks CSS
+});
+
 summarize("css");

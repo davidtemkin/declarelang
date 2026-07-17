@@ -17,6 +17,7 @@ import { record } from "./draw.js";
 import { Constraint } from "./reactive.js";
 import { bindDerived, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned } from "./attributes.js";
 import { coerceColor, coerceLength, coerceNumber, coerceString, coerceWeight } from "./css-coerce.js";
+import { cssRulesArrived, cssReparent, disposeCssApplier } from "./css-apply.js";
 import { handlerName } from "./schema.js";
 import { splitPath } from "./datapath.js";
 // view → the installed strategy's detach. Module-private bookkeeping rather
@@ -152,6 +153,11 @@ export class View extends Node {
                     d.run();
             }
         }
+        // Re-cascade the moved subtree against its (possibly new) ancestor chain —
+        // the CSS matcher's ancestor reads are structural, and parent is not
+        // reactive. (Manual appendChild/removeChild reparenting is wired in a later
+        // slice; this covers the replicator's reconcile path.)
+        cssReparent(this);
     }
     /** This view's own content's extent on a size axis, folded into the
      *  auto-extent max — 0 for a plain view; Image overrides with the bitmap's
@@ -239,6 +245,7 @@ export class View extends Node {
             undoLayout();
         }
         disposeApplier(this);
+        disposeCssApplier(this);
         disposeBindings(this);
         this.drawing?.dispose();
         this.drawing = null;
@@ -405,6 +412,12 @@ defineAttributes(View, {
     },
     // The cursor is model state: bindings read it (tracked), nothing renders it.
     datapath: { def: null },
+    // The standard-CSS channel (css-apply.ts). styleclass/id are plain model
+    // slots the matcher reads (tracked); cssRules is a prevailing slot whose
+    // pusher installs appliers down the subtree (mirrors stylesheetArrived).
+    styleclass: { def: "" },
+    id: { def: "" },
+    cssRules: { def: null, prevailing: true, push: (v) => cssRulesArrived(v) },
 });
 /** The cursor in effect at `node`: the nearest ancestor-or-self datapath
  *  (language §9 — "descendants read fields relative to it"). Each level's

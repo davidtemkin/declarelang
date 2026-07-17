@@ -19,6 +19,8 @@ import { record, type Draw, type DisplayList } from "./draw.js";
 import { Constraint } from "./reactive.js";
 import { bindDerived, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned } from "./attributes.js";
 import { coerceColor, coerceLength, coerceNumber, coerceString, coerceWeight } from "./css-coerce.js";
+import { cssRulesArrived, cssReparent, disposeCssApplier } from "./css-apply.js";
+import type { RuleSet } from "./css-match.js";
 import { handlerName } from "./schema.js";
 import { splitPath } from "./datapath.js";
 import type { LinkTarget } from "./parser.js";
@@ -171,6 +173,18 @@ export class View extends Node {
    *  stylesheet re-skins live, one settle. */
   declare stylesheet: Stylesheet | null;
 
+  /** The space-separated CSS classes selecting this view (standard-CSS channel):
+   *  `.class` rules match by whitespace-tokenized membership. Default "". */
+  declare styleclass: string;
+  /** The CSS id selecting this view: `#id` rules match `id === name`. The
+   *  standard-CSS `#id` hook (independent of the compile-time scope nouns). */
+  declare id: string;
+  /** The prevailing CSS RuleSet (the standard-CSS channel): set one anywhere
+   *  and that subtree is styled by it — matched declarations land as rank-2b
+   *  offers (below the class-dict) through per-view appliers (css-apply.ts).
+   *  Assigning another RuleSet re-cascades live, one settle. */
+  declare cssRules: RuleSet | null;
+
   /** Resolve a declared stylesheet by name — the honest public call for
    *  reaching a stylesheet from inside a `{ }` body, where you are in real TS and
    *  a bare `Dark` is (correctly) just an unresolved identifier, NOT sugar:
@@ -297,6 +311,11 @@ export class View extends Node {
         if (d !== undefined && ownerOf(this, size) === d) d.run();
       }
     }
+    // Re-cascade the moved subtree against its (possibly new) ancestor chain —
+    // the CSS matcher's ancestor reads are structural, and parent is not
+    // reactive. (Manual appendChild/removeChild reparenting is wired in a later
+    // slice; this covers the replicator's reconcile path.)
+    cssReparent(this);
   }
 
   /** This view's own content's extent on a size axis, folded into the
@@ -382,6 +401,7 @@ export class View extends Node {
       undoLayout();
     }
     disposeApplier(this);
+    disposeCssApplier(this);
     disposeBindings(this);
     this.drawing?.dispose();
     this.drawing = null;
@@ -547,6 +567,12 @@ defineAttributes(View, {
   },
   // The cursor is model state: bindings read it (tracked), nothing renders it.
   datapath: { def: null },
+  // The standard-CSS channel (css-apply.ts). styleclass/id are plain model
+  // slots the matcher reads (tracked); cssRules is a prevailing slot whose
+  // pusher installs appliers down the subtree (mirrors stylesheetArrived).
+  styleclass: { def: "" },
+  id: { def: "" },
+  cssRules: { def: null, prevailing: true, push: (v) => cssRulesArrived(v) },
 });
 
 /** The cursor in effect at `node`: the nearest ancestor-or-self datapath
