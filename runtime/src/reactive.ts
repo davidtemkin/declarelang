@@ -20,6 +20,7 @@
 // reads (language §7 "Cost"), so the seam is exactly: who calls `reads()`.
 
 import { NeoError } from "./errors.js";
+import { fireScreenUpdate } from "./screen-update.js";
 
 /** The computation currently recording its reads; null almost always —
  *  which is what makes an untracked read one pointer comparison. */
@@ -245,12 +246,14 @@ export function settle(): void {
   if (flushing) return;
   flushing = true;
   stamp++;
+  let clean = false;
   try {
     for (;;) {
       const phase = heads[0] < queues[0].length ? 0 : heads[1] < queues[1].length ? 1 : null;
       if (phase === null) break;
       queues[phase][heads[phase]++].runQueued(stamp);
     }
+    clean = true;
   } finally {
     flushing = false;
     for (const phase of [0, 1] as const) {
@@ -261,4 +264,7 @@ export function settle(): void {
       heads[phase] = 0;
     }
   }
+  // The named screen-update seam: everything this settle changed has landed.
+  // Fired once on a clean drain (a throw skips it), after the finally reset.
+  if (clean) fireScreenUpdate();
 }
