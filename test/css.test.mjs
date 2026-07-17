@@ -322,4 +322,49 @@ await test("CSS end-to-end: a .class rule sets fill; author $set outranks it", (
   assert.equal(authored.fill, 0x0000ff);   // author provision outranks CSS
 });
 
+await test("class-dict outranks CSS: value is the class-dict's after both channels apply", () => {
+  const v = new View();
+  v.styleclass = "a";
+  v.cssRules = buildRuleSet(`.a { background-color: #2d7 }`);
+  settle();
+  assert.equal(v.fill, 0x22dd77);          // CSS offered
+  stylesheetWrite(v, "fill", 0x0000ff);    // class-dict claims it (evicts CSS mark)
+  settle();
+  assert.equal(v.fill, 0x0000ff);          // class-dict wins
+});
+
+await test("reactive marks: class-dict RELEASE re-offers the CSS value (probe wakes the applier)", () => {
+  const v = new View();
+  v.styleclass = "a";
+  v.cssRules = buildRuleSet(`.a { background-color: #2d7 }`);
+  settle();
+  stylesheetWrite(v, "fill", 0x0000ff);
+  settle();
+  assert.equal(v.fill, 0x0000ff);
+  stylesheetClear(v, "fill");              // class-dict withdraws
+  settle();
+  assert.equal(v.fill, 0x22dd77);          // CSS re-offers via the tracked provision probe
+});
+
+await test("CSS on a prevailing slot inherits to descendants via follow (no CSS parent-cache)", () => {
+  const root = new View();
+  root.id = "root";
+  const child = new View();
+  root.appendChild(child);
+  root.cssRules = buildRuleSet(`#root { color: red }`);
+  settle();
+  assert.equal(root.textColor, 0xff0000);
+  assert.equal(child.textColor, 0xff0000); // inherited by prevailing-follow
+});
+
+await test("no-thrash: a stable cascade settles without exceeding the cycle guard", () => {
+  const root = new View();
+  const v = new View();
+  v.styleclass = "a";
+  root.appendChild(v);
+  root.cssRules = buildRuleSet(`.a { background-color: #2d7 }`);
+  assert.doesNotThrow(() => settle()); // bounded fixpoint (=== gate + cycle guard)
+  assert.equal(v.fill, 0x22dd77);
+});
+
 summarize("css");
