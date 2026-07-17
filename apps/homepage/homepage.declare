@@ -173,6 +173,67 @@ class Button extends View [ height = 46, cornerRadius = 9,
 
 
 /*
+## The site footer
+
+One line, shared by every page of the site — the scrolling front page and the
+in-app Why / Language views alike: provenance left, legal right.
+*/
+
+class Footer extends View [ width = { parent.width },
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+    rule: View [ width = { parent.width }, height = 1, fill = { theme.line } ],
+    row: View [ width = { parent.width }, height = { this.left.height },
+
+        // two groups on one line: provenance LEFT, legal RIGHT (x derives
+        // from the group's own measured width — right-justified reactively)
+
+        left: View [ layout: SimpleLayout [ axis = x, spacing = 12 ],
+
+            // one text RUN, not two spaced views — HTMLText carries the brand
+            // accent inline, so "Built in Declare" keeps a word space, not a gap
+
+            built: HTMLText [ width = 104, fontSize = 13, fontWeight = semibold, bodyColor = { theme.muted },
+                accents = { ({ g: theme.brand }) },
+                html = "Built in <span class='g'>Declare</span>" ],
+            FootLabel [ textColor = { theme.faint }, text = "·" ],
+
+            // source affordance in the same eyebrow treatment
+
+            src: FootLabel [ hovered: boolean = false,
+                pressed: boolean = false,
+
+                // pressed brightens past the hover teal — the tap feedback on touch
+
+                textColor = { pressed ? theme.accent2Press : hovered ? theme.accent2 : theme.muted },
+                onMouseOver() { hovered = true },
+                onMouseOut()  { hovered = false; pressed = false },
+                onMouseDown() { pressed = true },
+                onMouseUp()   { pressed = false },
+                onClick()     { app.navigate("apps/homepage/homepage.declare?view=edit") },
+                text = "View & Edit Source",
+                ],
+            ],
+
+        right: View [ x = { parent.width - this.width },
+            layout: SimpleLayout [ axis = x, spacing = 12 ],
+
+            // the license is a real artifact (repo-root LICENSE) — the label opens it
+
+            lic: FootLabel [ hovered: boolean = false,
+                textColor = { hovered ? theme.accent2 : theme.muted },
+                onMouseOver() { hovered = true },
+                onMouseOut()  { hovered = false },
+                onClick()     { app.navigate("https://github.com/davidtemkin/declarelang/blob/main/LICENSE") },
+                text = "MIT License",
+                ],
+            FootLabel [ textColor = { theme.faint }, text = "·" ],
+            FootLabel [ text = "© 2026 David Temkin" ],
+            ],
+        ],
+    ]
+
+
+/*
 ## The live panels
 
 The heart of the page: every demo is real Declare, compiled and running. A
@@ -638,63 +699,8 @@ App [ theme = { ({
 
             /* ### Footer */
 
-            footer: View [ width = { parent.width },
-                layout: SimpleLayout [ axis = y, spacing = 16 ],
-                rule: View [ width = { parent.width }, height = 1, fill = { theme.line } ],
-                row: View [ width = { parent.width }, height = { this.left.height },
-
-                    // two groups on one line: provenance LEFT, legal RIGHT (x derives
-                    // from the group's own measured width — right-justified reactively)
-
-                    left: View [ layout: SimpleLayout [ axis = x, spacing = 12 ],
-
-                        // one text RUN, not two spaced views — HTMLText carries the brand
-                        // accent inline, so "Built in Declare" keeps a word space, not a gap
-
-                        built: HTMLText [ width = 104, fontSize = 13, fontWeight = semibold, bodyColor = { theme.muted },
-                            accents = { ({ g: theme.brand }) },
-                            html = "Built in <span class='g'>Declare</span>" ],
-                        FootLabel [ textColor = { theme.faint }, text = "·" ],
-
-                        // source affordance in the same eyebrow treatment — its onClick
-                        // flips app.editing (the `app` noun reaches it from anywhere)
-
-                        src: FootLabel [ hovered: boolean = false,
-                            pressed: boolean = false,
-
-                            // pressed brightens past the hover teal — the tap feedback on touch
-
-                            textColor = { pressed ? theme.accent2Press : hovered ? theme.accent2 : theme.muted },
-                            onMouseOver() { hovered = true },
-                            onMouseOut()  { hovered = false; pressed = false },
-                            onMouseDown() { pressed = true },
-                            onMouseUp()   { pressed = false },
-                            onClick()     { app.navigate("apps/homepage/homepage.declare?view=edit") },
-                            text = "View & Edit Source",
-                            ],
-                        ],
-
-                    right: View [ x = { parent.width - this.width },
-                        layout: SimpleLayout [ axis = x, spacing = 12 ],
-
-                        // the license is a real artifact (repo-root LICENSE) — the label opens it
-
-                        lic: FootLabel [ hovered: boolean = false,
-                            textColor = { hovered ? theme.accent2 : theme.muted },
-                            onMouseOver() { hovered = true },
-                            onMouseOut()  { hovered = false },
-                            onClick()     { app.navigate("https://github.com/davidtemkin/declarelang/blob/main/LICENSE") },
-                            text = "MIT License",
-                            ],
-                        FootLabel [ textColor = { theme.faint }, text = "·" ],
-                        FootLabel [ text = "© 2026 David Temkin" ],
-                        ],
-                    ],
-
-                // breathing room below the footer line
-
-                tail: View [ width = { parent.width }, height = 28 ],
-                ],
+            footer: Footer [ width = { parent.width } ],
+            tail: View [ width = { parent.width }, height = 28 ],
             ],
         ],
 
@@ -827,7 +833,9 @@ App [ theme = { ({
                     examples. You hand it the language and let the compiler keep it
                     honest. The corpus will come; the language doesn't need it first.
                     """ ],
-                tail: View [ width = 8, height = 80 ],
+                gap: View [ width = 8, height = 64 ],
+                Footer [ width = { parent.width } ],
+                tail: View [ width = 8, height = 40 ],
                 ],
             ],
         ],
@@ -853,7 +861,9 @@ App [ theme = { ({
                     text = { "The language file did not load — " + (app.lang.error || "") } ],
                 doc: Markdown [ visible = { app.lang.loaded }, width = { parent.width }, lineHeight = 1.35, bodyColor = { theme.lead }, dark = true,
                     datapath = { app.lang.value }, text = :markdown ],
-                tail: View [ width = 8, height = 80 ],
+                gap: View [ width = 8, height = 64 ],
+                Footer [ width = { parent.width } ],
+                tail: View [ width = 8, height = 40 ],
                 ],
             ],
         ],
