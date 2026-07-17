@@ -220,4 +220,37 @@ await test("matched: equal specificity resolves by source order (last wins)", ()
   assert.equal(m.get("color"), "green");
 });
 
+// ── M2: value coercers + attribute mapping ──────────────────────────────────
+const { coerceColor, coerceLength, coerceNumber, coerceString, coerceWeight } =
+  await import("../runtime/dist/css-coerce.js");
+
+await test("coerceColor: hex, named, rgb() → int; malformed → undefined", () => {
+  assert.equal(coerceColor("#2d7"), 0x22dd77);
+  assert.equal(coerceColor("#22dd77"), 0x22dd77);
+  assert.equal(coerceColor("white"), 0xffffff);
+  assert.equal(coerceColor("WHITE"), 0xffffff);
+  assert.equal(coerceColor("rgb(34, 221, 119)"), 0x22dd77);
+  assert.equal(coerceColor("rgb(300, 0, 0)"), 0xff0000);
+  assert.equal(coerceColor("notacolor"), undefined);
+  assert.equal(coerceColor("#12"), undefined);
+});
+
+await test("coerceLength: px + unitless; malformed → undefined", () => {
+  assert.equal(coerceLength("10px"), 10);
+  assert.equal(coerceLength("10"), 10);
+  assert.equal(coerceLength("2.5px"), 2.5);
+  assert.equal(coerceLength("banana"), undefined);
+});
+
+await test("coerceNumber / coerceString / coerceWeight", () => {
+  assert.equal(coerceNumber("0.5"), 0.5);
+  assert.equal(coerceNumber("x"), undefined);
+  assert.equal(coerceString("sans-serif"), "sans-serif");
+  assert.equal(coerceWeight("bold"), "bold");
+  assert.equal(coerceWeight("normal"), "normal");
+  assert.equal(coerceWeight("700"), "bold");
+  assert.equal(coerceWeight("400"), "normal");
+  assert.equal(coerceWeight("maybe"), undefined);
+});
+
 summarize("css");
