@@ -187,6 +187,12 @@ export const LANGUAGE_API = {
     ],
     View: [
         `  scrollIntoView(): void;`,
+        // The keyboard-traversal protocol (focus.ts): a view's tabOrder() decides
+        // the members Tab descends into — override it to gate traversal (a closed
+        // TabSlider pane contributes none); tabDefault() is the default the
+        // override composes with (visible children, source order).
+        `  tabOrder(): View[];`,
+        `  tabDefault(): View[];`,
         // Returns the runtime stylesheet handle the `stylesheet` slot accepts —
         // `any` until the handle type is worth naming (the effects side of this
         // same method lives in effects.ts: pure, deps only on its arguments).

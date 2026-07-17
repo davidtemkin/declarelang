@@ -33,7 +33,7 @@ import { requestType, REQ, runWrapper, programName, escapeHtml } from "./browser
 // BUILD_ID — a content hash of the platform (runtime + compiler bundle + web client +
 // this worker + index.html), stamped by tools/internal/stamp-version.mjs. Left "dev" when unstamped
 // (local serving); a real deploy stamps it so cache-busting + the SW self-update engage.
-const BUILD_ID = "f82caad5dd1c";
+const BUILD_ID = "d8d3eca8b945";
 
 const ROOT = new URL("./", self.location);            // <origin>/…/  (this worker's dir == the distro root)
 const ORIGIN = ROOT.origin;
