@@ -253,4 +253,22 @@ await test("coerceNumber / coerceString / coerceWeight", () => {
   assert.equal(coerceWeight("maybe"), undefined);
 });
 
+const { defineAttributes, cssMap } = await import("../runtime/dist/attributes.js");
+
+await test("cssMap builds cssProp → {attr, coerce} from css:/coerce specs", () => {
+  class Widget {}
+  defineAttributes(Widget, {
+    fill: { def: null, css: "background-color", coerce: (raw) => (raw === "#2d7" ? 0x22dd77 : undefined) },
+    plain: { def: 0 },
+  });
+  const map = cssMap(Widget);
+  assert.equal(map["background-color"].attr, "fill");
+  assert.equal(map["background-color"].coerce("#2d7"), 0x22dd77);
+  assert.equal(map["plain"], undefined);
+
+  class Bare {}
+  defineAttributes(Bare, { x: { def: 0 } });
+  assert.equal(Object.keys(cssMap(Bare)).length, 0); // no css specs → empty map
+});
+
 summarize("css");

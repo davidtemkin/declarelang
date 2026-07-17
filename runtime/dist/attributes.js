@@ -34,6 +34,10 @@ const DEFAULTS = new WeakMap();
 const PUSHERS = new WeakMap();
 const PREVAILING = new WeakMap();
 const EQUALS = new WeakMap();
+// cssProp → { attr, coerce }: the reverse of each attribute's `css:` mapping,
+// prototype-chained like the others (a subclass inherits its base's map). The
+// CSS applier (css-apply.ts) reads this to translate a matched declaration.
+const CSSMAP = new WeakMap();
 /** Walk the constructor chain to the nearest class with a table, memoizing
  *  the answer for classes that declare nothing of their own (App). Classes
  *  declare their attributes at module load, before any instance exists, so
@@ -61,12 +65,16 @@ export function defineAttributes(ctor, specs) {
     const pushers = Object.create(tableFor(PUSHERS, parent));
     const prevailing = Object.create(tableFor(PREVAILING, parent));
     const equals = Object.create(tableFor(EQUALS, parent));
+    const cssmap = Object.create(tableFor(CSSMAP, parent));
     for (const name of Object.keys(specs)) {
         const spec = specs[name];
         defaults[name] = spec.def;
         pushers[name] = spec.push;
         prevailing[name] = spec.prevailing;
         equals[name] = spec.equal;
+        if (spec.css !== undefined && spec.coerce !== undefined) {
+            cssmap[spec.css] = { attr: name, coerce: spec.coerce };
+        }
         const follows = spec.prevailing === true;
         const defBinding = spec.defBinding;
         const defOuter = spec.defOuter === true;
@@ -125,6 +133,12 @@ export function defineAttributes(ctor, specs) {
     PUSHERS.set(ctor, pushers);
     PREVAILING.set(ctor, prevailing);
     EQUALS.set(ctor, equals);
+    CSSMAP.set(ctor, cssmap);
+}
+/** The class's reverse CSS map: cssProp → { attr, coerce }. Empty for a class
+ *  (and its bases) that declare no `css:` attributes. */
+export function cssMap(ctor) {
+    return tableFor(CSSMAP, ctor) ?? {};
 }
 /** Does this slot have a LOCAL provision — an author set (literal or direct
  *  write), an owning binding, or a stylesheet entry's installed offer?

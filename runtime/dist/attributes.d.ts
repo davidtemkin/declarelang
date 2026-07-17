@@ -24,7 +24,16 @@ export interface AttrSpec<S, V> {
      *  live and never overridden. checkAttr already refuses a declarative
      *  assignment; this is the runtime backstop for an imperative write. */
     readOnly?: boolean;
+    /** The W3C CSS property that feeds this attribute (e.g. "background-color"),
+     *  and the coercer turning a raw CSS value string into this attr's value.
+     *  Both must be present for the CSS channel (css-apply.ts) to target it. */
+    css?: string;
+    coerce?: (raw: string) => unknown;
 }
+type CssEntry = {
+    attr: string;
+    coerce: (raw: string) => unknown;
+};
 /** Declare a class's reactive attributes: defaults + pushes, installed as
  *  prototype accessors. Call once per class, at module load, right under the
  *  class declaration (whose fields are `declare`d — the accessors here are
@@ -32,6 +41,9 @@ export interface AttrSpec<S, V> {
 export declare function defineAttributes<S extends object>(ctor: abstract new () => S, specs: {
     [K in keyof S & string]?: AttrSpec<S, S[K]>;
 }): void;
+/** The class's reverse CSS map: cssProp → { attr, coerce }. Empty for a class
+ *  (and its bases) that declare no `css:` attributes. */
+export declare function cssMap(ctor: Function): Record<string, CssEntry>;
 /** A runtime-side write: a constraint's apply, auto-size, a load result.
  *  Same store/push/wake as the setter, but it neither marks the slot as
  *  author-set nor consults ownership (the caller *is* the owner). */
@@ -108,3 +120,4 @@ export declare function release(self: object, name: string, c: Constraint): void
  *  re-run it on a non-tracked fact (auto-extent on tree mutation — `children`
  *  is not a reactive collection) can hold it. */
 export declare function bindDerived(self: object, name: string, compute: () => unknown): Constraint;
+export {};
