@@ -32,11 +32,11 @@ diffing, no dependency array, no hook.
 A complete, runnable program:
 
 ```declare
-App [ width = 400, height = 140, fill = #1E3A49, textColor = whitesmoke,
+App [ width = 400, height = 140, fill = darkslategray, textColor = whitesmoke,
 
     count: number = 0,                               // reactive state
 
-    add: View [ x = 20, y = 20, width = 108, height = 34, cornerRadius = 8, fill = #2E6BE6,
+    add: View [ x = 20, y = 20, width = 108, height = 34, cornerRadius = 8, fill = royalblue,
         onClick() { count = count + 1 },             // a bare name resolves like the read below
         Text [ x = 16, y = 8, text = "Add one" ],
         ],
@@ -143,7 +143,7 @@ A component is a class. Instantiate by naming a type with a `[ ]` body; define w
 `class Name extends Base [ … ]`:
 
 ```declare
-class Chip extends View [ height = 22, cornerRadius = 6, fill = #244463,
+class Chip extends View [ height = 22, cornerRadius = 6, fill = darkslategray,
     label: string = "",
     width = { this.t.width + 16 },
     t: Text [ x = 8, y = 4, fontSize = 11, text = { label } ],   // bare `label` reads the class's attribute
@@ -343,7 +343,7 @@ of target mid-flight is just a new destination — interruption needs no code:
 App [ width = 420, height = 120, fill = #0B141B,
     on: boolean = false,
     onClick() { on = !on },
-    ball: View [ x = 20, y = 40, width = 40, height = 40, cornerRadius = 20, fill = #37E0C8,
+    ball: View [ x = 20, y = 40, width = 40, height = 40, cornerRadius = 20, fill = turquoise,
         slide: Spring [ attribute = x, to = { on ? 340 : 20 }, stiffness = 170, damping = 22 ],
         ],
     ]

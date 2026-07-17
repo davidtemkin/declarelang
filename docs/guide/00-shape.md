@@ -12,11 +12,11 @@ what follows. In the docs it runs right here and you can edit it in place; on di
 save it to `my-apps/` and browse to its URL.
 
 ```declare
-App [ width = 400, height = 140, fill = #1E3A49, textColor = whitesmoke,
+App [ width = 400, height = 140, fill = darkslategray, textColor = whitesmoke,
 
     count: number = 0,                               // reactive state
 
-    add: View [ x = 20, y = 20, width = 108, height = 34, cornerRadius = 8, fill = #2E6BE6,
+    add: View [ x = 20, y = 20, width = 108, height = 34, cornerRadius = 8, fill = royalblue,
         onClick() { classroot.count = classroot.count + 1 },
         Text [ x = 16, y = 8, text = "Add one" ],
         ],
