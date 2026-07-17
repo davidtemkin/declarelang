@@ -643,8 +643,13 @@ App [ theme = { ({
                 rule: View [ width = { parent.width }, height = 1, fill = { theme.line } ],
                 row: View [ width = { parent.width },
                     layout: WrappingLayout [ spacing = 12, lineSpacing = 8 ],
-                    FootLabel [ text = "Built in" ],
-                    Heading [ fontSize = 13, textFill = { theme.brand }, text = "Declare" ],
+
+                    // one text RUN, not two spaced views — HTMLText carries the brand
+                    // accent inline, so "Built in Declare" keeps a word space, not a gap
+
+                    built: HTMLText [ width = 104, fontSize = 13, fontWeight = semibold, bodyColor = { theme.muted },
+                        accents = { ({ g: theme.brand }) },
+                        html = "Built in <span class='g'>Declare</span>" ],
                     FootLabel [ textColor = { theme.faint }, text = "·" ],
 
                     // source affordance in the same eyebrow treatment — its onClick
@@ -663,6 +668,19 @@ App [ theme = { ({
                         onClick()     { app.navigate("apps/homepage/homepage.declare?view=edit") },
                         text = "View & Edit Source",
                         ],
+                    FootLabel [ textColor = { theme.faint }, text = "·" ],
+
+                    // the license is a real artifact (repo-root LICENSE) — the label opens it
+
+                    lic: FootLabel [ hovered: boolean = false,
+                        textColor = { hovered ? theme.accent2 : theme.muted },
+                        onMouseOver() { hovered = true },
+                        onMouseOut()  { hovered = false },
+                        onClick()     { app.navigate("LICENSE") },
+                        text = "MIT License",
+                        ],
+                    FootLabel [ textColor = { theme.faint }, text = "·" ],
+                    FootLabel [ text = "© 2026 David Temkin. All rights reserved." ],
                     ],
 
                 // breathing room below the footer line
