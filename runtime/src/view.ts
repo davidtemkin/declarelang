@@ -18,6 +18,7 @@ import { POINTER_TYPES, type InputSink, type RenderBackend, type Surface } from 
 import { record, type Draw, type DisplayList } from "./draw.js";
 import { Constraint } from "./reactive.js";
 import { bindDerived, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned } from "./attributes.js";
+import { coerceColor, coerceLength, coerceNumber, coerceString, coerceWeight } from "./css-coerce.js";
 import { handlerName } from "./schema.js";
 import { splitPath } from "./datapath.js";
 import type { LinkTarget } from "./parser.js";
@@ -483,16 +484,16 @@ export class View extends Node {
 }
 
 defineAttributes(View, {
-  x: { def: 0, push: (v, n) => v.surface?.setX(n) },
-  y: { def: 0, push: (v, n) => v.surface?.setY(n) },
-  width: { def: 0, push: (v, n) => v.surface?.setWidth(n) },
-  height: { def: 0, push: (v, n) => v.surface?.setHeight(n) },
-  fill: { def: null, push: (v, f) => v.surface?.setFill(f), equal: fillEqual },
-  cornerRadius: { def: 0, push: (v, r) => v.surface?.setCornerRadius(r) },
+  x: { def: 0, push: (v, n) => v.surface?.setX(n), css: "left", coerce: coerceLength },
+  y: { def: 0, push: (v, n) => v.surface?.setY(n), css: "top", coerce: coerceLength },
+  width: { def: 0, push: (v, n) => v.surface?.setWidth(n), css: "width", coerce: coerceLength },
+  height: { def: 0, push: (v, n) => v.surface?.setHeight(n), css: "height", coerce: coerceLength },
+  fill: { def: null, push: (v, f) => v.surface?.setFill(f), equal: fillEqual, css: "background-color", coerce: coerceColor },
+  cornerRadius: { def: 0, push: (v, r) => v.surface?.setCornerRadius(r), css: "border-radius", coerce: coerceLength },
   stroke: { def: null, push: (v, st) => v.surface?.setStroke(st), equal: strokeEqual },
   shadow: { def: null, push: (v, sh) => v.surface?.setShadow(sh), equal: shadowEqual },
   visible: { def: true, push: (v, b) => v.surface?.setVisible(b) },
-  opacity: { def: 1, push: (v, o) => v.surface?.setOpacity(o) },
+  opacity: { def: 1, push: (v, o) => v.surface?.setOpacity(o), css: "opacity", coerce: coerceNumber },
   // Scale + pivot ride one transform at the seam: any of the three re-pushes
   // the combined value (transform + transform-origin on the DOM).
   scale: { def: 1, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },
@@ -510,12 +511,12 @@ defineAttributes(View, {
   // The prevailing built-ins: model-side on View (no push — Text's style
   // derive is the consumer that crosses the seam). Defaults are the
   // browser-native text defaults Text carried through R3–R9.
-  textColor: { def: 0x000000, prevailing: true },
+  textColor: { def: 0x000000, prevailing: true, css: "color", coerce: coerceColor },
   selectable: { def: false, prevailing: true },
-  fontSize: { def: 16, prevailing: true },
-  fontFamily: { def: "sans-serif", prevailing: true },
-  fontWeight: { def: "normal", prevailing: true },
-  letterSpacing: { def: 0, prevailing: true },
+  fontSize: { def: 16, prevailing: true, css: "font-size", coerce: coerceLength },
+  fontFamily: { def: "sans-serif", prevailing: true, css: "font-family", coerce: coerceString },
+  fontWeight: { def: "normal", prevailing: true, css: "font-weight", coerce: coerceWeight },
+  letterSpacing: { def: 0, prevailing: true, css: "letter-spacing", coerce: coerceLength },
   // Rich-text structure overrides — consumed by Markdown/HTMLText (null colour =
   // the theme-aware house token; headingWeight = the house bold).
   headingColor: { def: null, prevailing: true },

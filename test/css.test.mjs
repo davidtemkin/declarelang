@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
 import { onScreenUpdate, fireScreenUpdate } from "../runtime/dist/screen-update.js";
 import { settle, Constraint, Cell } from "../runtime/dist/reactive.js";
+import { View } from "../runtime/dist/view.js";
 
 // ── M0: the screen-update seam ──────────────────────────────────────────────
 
@@ -269,6 +270,17 @@ await test("cssMap builds cssProp → {attr, coerce} from css:/coerce specs", ()
   class Bare {}
   defineAttributes(Bare, { x: { def: 0 } });
   assert.equal(Object.keys(cssMap(Bare)).length, 0); // no css specs → empty map
+});
+
+await test("cssMap(View): W3C properties map onto View attributes with coercers", () => {
+  const map = cssMap(View);
+  assert.equal(map["background-color"].attr, "fill");
+  assert.equal(map["color"].attr, "textColor");
+  assert.equal(map["font-size"].attr, "fontSize");
+  assert.equal(map["border-radius"].attr, "cornerRadius");
+  assert.equal(map["left"].attr, "x");
+  assert.equal(map["background-color"].coerce("#2d7"), 0x22dd77);
+  assert.equal(map["font-size"].coerce("14px"), 14);
 });
 
 summarize("css");
