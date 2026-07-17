@@ -123,6 +123,13 @@ function comprehensiveModel(spine) {
 
 // ── projections 2+3: marker-injected blocks ──────────────────────────────────
 
+function injectStr(content, name, block) {
+  const begin = `<!-- generated:${name} -->`, end = `<!-- /generated:${name} -->`;
+  const i = content.indexOf(begin), j = content.indexOf(end);
+  if (i < 0 || j < 0) throw new Error(`markers ${begin} … ${end} not found`);
+  return content.slice(0, i + begin.length) + "\n" + block.trim() + "\n" + content.slice(j);
+}
+
 function inject(file, name, block) {
   const p = join(ROOT, file);
   const s = readFileSync(p, "utf8");
@@ -165,6 +172,15 @@ function inventoryBlock(spine) {
 // ── main ─────────────────────────────────────────────────────────────────────
 
 const spine = buildSpine();
+// the core doc's first complete program — the flagship example every surface
+// quotes (declare.md §1); projected, so a quote can never drift (the homepage's
+// hand copy shipped the pre-editorial `classroot.count` for a day — the proof)
+const flagshipExample = (() => {
+  const md = readFileSync(join(ROOT, "docs/declare.md"), "utf8");
+  const m = md.match(/```declare\n([\s\S]*?)```/);
+  if (!m) throw new Error("declare.md: no ```declare fence for the flagship example");
+  return "```declare\n" + m[1] + "```";
+})();
 // the skill injection is computed FIRST so the .claude discovery copy (below)
 // projects the POST-injection bytes, not a stale read
 const skillTarget = inject("skill/SKILL.md", "inventory", inventoryBlock(spine));
@@ -178,6 +194,25 @@ const targets = [
   // (a symlink would silently break on Windows checkouts and zip downloads;
   // a gated generated copy cannot drift — divergence fails docs.test)
   { name: "skill-discovery-copy", isFile: true, path: ".claude/skills/declare/SKILL.md", next: skillTarget.next },
+  // the homepage's Get Started view: an AUTHORED page (apps/homepage/
+  // getstarted.md — the voice is the homepage's) whose commands and flagship
+  // example are GENERATED blocks, then JSON-wrapped for the DataSource — so
+  // neither the quick-start nor the example can drift from the live sources
+  (() => {
+    const p = join(ROOT, "apps/homepage/getstarted.md");
+    let next = readFileSync(p, "utf8");
+    next = injectStr(next, "setup-commands", setupBlock(spine));
+    next = injectStr(next, "flagship-example", flagshipExample);
+    return { name: "getstarted-md", isFile: true, path: "apps/homepage/getstarted.md", next };
+  })(),
+  { name: "getstarted-json", isFile: true, path: "apps/homepage/getstarted.json",
+    next: (() => {
+      let md = readFileSync(join(ROOT, "apps/homepage/getstarted.md"), "utf8");
+      md = injectStr(md, "setup-commands", setupBlock(spine));
+      md = injectStr(md, "flagship-example", flagshipExample);
+      md = md.replace(/<!-- \/?generated:[a-z-]+ -->\n?/g, "");
+      return JSON.stringify({ markdown: md }) + "\n";
+    })() },
   // the homepage's in-app "one file" view: the core doc as the app's OWN
   // material (docs/system-design/location.md §9 — beside the app, JSON-wrapped
   // because DataSource/diskDataResolver speak JSON, not raw text). Gated like

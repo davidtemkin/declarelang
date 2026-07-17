@@ -361,14 +361,14 @@ theme = { app.dark ? app.darkTheme() : app.lightTheme() },   // light/dark: swap
 <p>Install the toolchain's dependencies (TypeScript; esbuild and puppeteer-core for builds and visual tests). The clone ships prebuilt — no build step before first run.</p>
 <pre><code class="language-bash">npm start</code></pre>
 <p>Start the dev server on http://127.0.0.1:8200/ — browse to any .declare file's URL and the server compiles and returns the running app.</p>
-<p>Write a program to <code>my-apps/hello.declare</code> and browse to http://127.0.0.1:8200/my-apps/hello.declare — the program URL is the app's address.</p>
+<p>Write a program to my-apps/hello.declare and browse to http://127.0.0.1:8200/my-apps/hello.declare — the program URL is the app's address.</p>
 <h2>The whole model in one program</h2>
-<pre><code class="language-declare">App [ width = 400, height = 140, fill = #1E3A49, textColor = whitesmoke,
+<pre><code class="language-declare">App [ width = 400, height = 140, fill = darkslategray, textColor = whitesmoke,
 
     count: number = 0,                               // reactive state
 
-    add: View [ x = 20, y = 20, width = 108, height = 34, cornerRadius = 8, fill = #2E6BE6,
-        onClick() { classroot.count = classroot.count + 1 },
+    add: View [ x = 20, y = 20, width = 108, height = 34, cornerRadius = 8, fill = royalblue,
+        onClick() { count = count + 1 },             // a bare name resolves like the read below
         Text [ x = 16, y = 8, text = "Add one" ],
         ],
 
@@ -376,7 +376,7 @@ theme = { app.dark ? app.darkTheme() : app.lightTheme() },   // light/dark: swap
         text = { `Clicked ${count} times` },         // re-runs whenever count changes
         ],
     ]</code></pre>
-<p>Two delimiters carry the whole model: <strong><code>[ … ]</code></strong> is the view tree — components, attributes, children; <strong><code>{ … }</code></strong> is TypeScript — a value, a handler body. The <code>{ }</code> lines are <em>constraints</em>, standing relationships the runtime keeps true: click the view and the text updates, resize and it re-centers — you wrote no update logic for either. (There is no built-in <code>Button</code> — a button is a <code>View</code> with a fill and an <code>onClick</code>.)</p>
+<p>Two delimiters carry the whole model: <strong><code>[ … ]</code></strong> is the view tree — components, attributes, children; <strong><code>{ … }</code></strong> is TypeScript — a value, a handler body. The <code>{ }</code> lines are <em>constraints</em>, standing relationships the runtime keeps true: click the view and the text updates, resize and it re-centers — you wrote no update logic for either. (The hand-built button above shows the composition model; a themed <code>Button</code> also ships in the small standard library.)</p>
 <h2>Where everything is</h2>
 <ul><li><a href="https://github.com/davidtemkin/declarelang/blob/main/docs/declare.md"><strong>docs/declare.md</strong></a> — the whole language, in one file, for you and your model.</li><li><a href="https://github.com/davidtemkin/declarelang/blob/main/docs/guide/00-shape.md"><strong>The guide</strong></a> — how to think in Declare, starting from an app just like the one above.</li><li><a href="https://github.com/davidtemkin/declarelang"><strong>GitHub</strong></a> — the full source. The homepage you are reading is itself a Declare app, and every app is editable in the browser.</li></ul>
 <p>Built in <span>Declare</span></p>

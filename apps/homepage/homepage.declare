@@ -423,8 +423,9 @@ App [ theme = { ({
     fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 17, fontWeight = normal,
     textColor = { theme.text },
 
-    // in-app location: "home" (the scrolling page), "why" (the mini-article), or
-    // "language" (the one-file core doc, rendered in-app) — the app's slice of the
+    // in-app location: "home" (the scrolling page), "why" (the mini-article),
+    // "language" (the one-file core doc, rendered in-app), or "getstarted" (the
+    // quick-start guide, rendered the same way) — the app's slice of the
     // URL (docs/system-design/location.md). `location` is a BUILT-IN App attribute;
     // setting it here declares the INITIAL, which is the default: the host shows a
     // clean URL at "home" and `#why`/`#language` elsewhere, seeds it from a deep
@@ -443,7 +444,13 @@ App [ theme = { ({
 
     lang: DataSource [ url = "language.json" ],
     stats: DataSource [ url = "stats.json" ],
-    onInit() { this.lang.fetch(); this.stats.fetch() },
+
+    // the getting-started guide (getstarted.json sits beside this file — the
+    // README's quick-start copied into the app's own material, rendered in-app
+    // by the Language view's Markdown pattern)
+
+    guide: DataSource [ url = "getstarted.json" ],
+    onInit() { this.lang.fetch(); this.stats.fetch(); this.guide.fetch() },
 
     // the whole-page source editor's state: `editing` toggles the overlay, and
     // `liveCard`/`liveSource` name the demo an inline editor is republishing and
@@ -697,6 +704,20 @@ App [ theme = { ({
                 ruleBot: View [ x = { (parent.width - 140) / 2 }, width = 140, height = 2, fill = { theme.accent } ],
                 ],
 
+            /* ### The closing call to action — the primary blue button that
+               leads into the getting-started page, centered above the footer */
+
+            /* the page flow's 112px would sit both above and below this one
+               short row — the button pulls up into the gap (negative y, no
+               clip) and the zero-height container lets the footer follow
+               closer: ~88px above, ~90px below instead of 112/112 */
+
+            cta: View [ width = { parent.width }, height = 0,
+                Button [ width = 260, x = { (parent.width - this.width) / 2 }, y = -24, label = "Get Started →",
+                    onClick() { app.location = "getstarted" },
+                    ],
+                ],
+
             /* ### Footer */
 
             footer: Footer [ width = { parent.width } ],
@@ -868,6 +889,33 @@ App [ theme = { ({
             ],
         ],
 
+    /* ## The "Get Started" view
+
+       The getting-started guide (app.location == "getstarted"), rendered in-app
+       with the same skin and Markdown pipeline as the Language view: the copy is
+       getstarted.json (the README's quick-start, as the app's own material), so
+       it deep-links (#getstarted), honours the back button, and is crawled into
+       the static document like any other reachable location. Loading and failure
+       are lifecycle states the view derives from, never a blank. */
+
+    getStartedView: View [ visible = { app.location == "getstarted" }, width = { app.width }, height = { app.height }, fill = { theme.ink },
+        grid: GridBg [ x = 0, y = 0, width = { app.width }, height = { app.height } ],
+        body: View [ y = 56, width = { app.width }, height = { app.height - 56 }, scrolls = true, selectable = true,
+            col: View [ width = { Math.min(720, app.width - 48) }, x = { Math.max(24, (app.width - 720) / 2) }, y = 52,
+                layout: SimpleLayout [ axis = y, spacing = 22 ],
+                Marker [ text = "GET STARTED" ],
+                loading: Text [ visible = { app.guide.loading }, fontSize = 15, textColor = { theme.faint }, text = "Loading the guide…" ],
+                failed:  Text [ visible = { app.guide.failed }, fontSize = 15, textColor = { theme.faint }, wrap = true, width = { parent.width },
+                    text = { "The guide did not load — " + (app.guide.error || "") } ],
+                doc: Markdown [ visible = { app.guide.loaded }, width = { parent.width }, lineHeight = 1.35, bodyColor = { theme.lead }, dark = true,
+                    datapath = { app.guide.value }, text = :markdown ],
+                gap: View [ width = 8, height = 64 ],
+                Footer [ width = { parent.width } ],
+                tail: View [ width = 8, height = 40 ],
+                ],
+            ],
+        ],
+
     /* ## Fixed chrome
 
        Siblings of the scroller, so they never scroll: the top bar (hidden until
@@ -895,6 +943,7 @@ App [ theme = { ({
 
         nav: View [ y = 11, x = { app.width - app.gutter - this.width },
             layout: SimpleLayout [ axis = x, spacing = 2 ],
+            NavLink [ label = "Get Started", to = "getstarted" ],
             NavLink [ label = "Why Declare", to = "why" ],
 
             // redundant at phone width (section 02 links it) — drop it before the nav rides the wordmark
