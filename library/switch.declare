@@ -8,7 +8,10 @@ its two rest points, so toggling moves rather than jumps.
 
 include [ "control.declare" ]
 
-class Switch extends Control [ width = 44, height = 24, cornerRadius = 12,
+class Switch extends Control [
+    width  = { typeof theme.switchWidth == "number" ? theme.switchWidth : 44 },
+    height = { typeof theme.switchHeight == "number" ? theme.switchHeight : 24 },
+    cornerRadius = { height / 2 },
     checked: boolean = false,
 
     input(v) { checked = v },
@@ -20,8 +23,14 @@ class Switch extends Control [ width = 44, height = 24, cornerRadius = 12,
     fill    = { checked ? theme.accent : hovered || pressed ? theme.controlActive : theme.control },
     stroke  = { stroke(1, checked ? theme.accent : theme.line) },
 
-    thumb: View [ x = 2, y = 2, width = 20, height = 20, cornerRadius = 10,
+    // the thumb derives from the track: inset 2 normally; a theme may say the
+    // UNCHECKED thumb is smaller (M3's 16→24 grow-on-check)
+
+    thumb: View [ cornerRadius = { this.width / 2 },
+        width  = { checked || typeof theme.switchThumbOff != "number" ? classroot.height - 4 : theme.switchThumbOff },
+        height = { this.width },
+        y = { (classroot.height - this.height) / 2 },
         fill = { theme.surface },
-        slide: Spring [ attribute = x, to = { checked ? 22 : 2 }, stiffness = 300, damping = 26 ],
+        slide: Spring [ attribute = x, to = { checked ? classroot.width - classroot.thumb.width - 2 : 2 }, stiffness = 300, damping = 26 ],
         ],
     ]

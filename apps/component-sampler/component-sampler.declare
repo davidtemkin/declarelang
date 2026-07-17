@@ -27,6 +27,10 @@ App [ fill = { theme.bg }, minWidth = 560,
 
     theme = { ({ ...(style == "material" ? app.materialTheme() : style == "apple" ? app.appleTheme() : app.declareTheme()), focusAnimate: animateFocus }) },
 
+    // the type stack is part of the emulation: Roboto for Material, SF for Apple
+
+    fontFamily = { style == "material" ? "Roboto, system-ui, sans-serif" : style == "apple" ? "-apple-system, system-ui, sans-serif" : "system-ui, sans-serif" },
+
     // ── the three records — one shape, three vocabularies ──────────────────
 
     declareTheme() {
@@ -38,11 +42,41 @@ App [ fill = { theme.bg }, minWidth = 560,
             depth: 1, focusRing: true, controlRadius: 7,
         }
         },
+
+    // Material 3, from the published spec: primary #6750A4, outline #79747E,
+    // secondary-container #E8DEF8; buttons 40dp FULL-round; fields 4dp;
+    // switch 52×32 with the 16dp unchecked thumb (grow-on-check); focus
+    // indicator 3dp at 2dp offset. Hover as a state LAYER is approximated by
+    // the container tone until the layer flag lands.
+
     materialTheme() {
-        return { ...this.declareTheme(), accent: 0x6750A4, controlActive: 0xE8DEF8, controlRadius: 12 }
+        return {
+            ...this.declareTheme(),
+            bg: 0xFFFBFE, surface: 0xFFFFFF, line: 0x79747E,
+            text: 0x1C1B1F, textMuted: 0x49454F,
+            accent: 0x6750A4, accentText: 0xFFFFFF,
+            control: 0xE7E0EC, controlActive: 0xE8DEF8,
+            controlRadius: 4, buttonRadius: 999, fieldRadius: 4, fieldPadding: 12,
+            buttonHeight: 40, switchWidth: 52, switchHeight: 32, switchThumbOff: 16,
+            focusRingWidth: 3, focusRingGap: 2,
+        }
         },
+
+    // macOS: systemBlue, hairline #C6C6C8 on white, compact controls (28pt in
+    // this web rendition), ~6pt radii, 7pt field inset, the halo hugging the
+    // edge (gap 0).
+
     appleTheme() {
-        return { ...this.declareTheme(), accent: 0x007AFF, controlActive: 0xD8E9FF, controlRadius: 9 }
+        return {
+            ...this.declareTheme(),
+            bg: 0xF5F5F7, surface: 0xFFFFFF, line: 0xC6C6C8,
+            text: 0x1D1D1F, textMuted: 0x6E6E73,
+            accent: 0x007AFF, accentText: 0xFFFFFF,
+            control: 0xFFFFFF, controlActive: 0xE8F0FE,
+            controlRadius: 6, buttonRadius: 6, fieldRadius: 6, fieldPadding: 7,
+            buttonHeight: 28, switchWidth: 40, switchHeight: 24,
+            focusRingWidth: 3.5, focusRingGap: 0,
+        }
         },
 
     // ── chrome: title + the mode switcher + the transitions toggle ─────────

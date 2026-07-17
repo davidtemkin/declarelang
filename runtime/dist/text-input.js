@@ -52,9 +52,9 @@ export class TextInput extends Editor {
         if (!isSet(this, "stroke") && ownerOf(this, "stroke") === null)
             bindDerived(this, "stroke", () => stroke(1, this.focused ? tok("accent", 0x2E6FE0) : tok("line", 0xDBE1E9)));
         if (!isSet(this, "cornerRadius") && ownerOf(this, "cornerRadius") === null)
-            bindDerived(this, "cornerRadius", () => tok("controlRadius", 7));
+            bindDerived(this, "cornerRadius", () => tok("fieldRadius", tok("controlRadius", 7)));
         if (!isSet(this, "padding") && ownerOf(this, "padding") === null)
-            bindDerived(this, "padding", () => 10); // the modern-web inset (shadcn px-3≈12, Apple ~7 — the emulations token this)
+            bindDerived(this, "padding", () => tok("fieldPadding", 10));
     }
     flush(s) {
         super.flush(s);
