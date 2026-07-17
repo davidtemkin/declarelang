@@ -11,14 +11,19 @@ import { cssMap, cssWrite, cssClear, cssMarks, isSet, ownerOf, stylesheetMarks }
 import { matched } from "./css-match.js";
 const APPLIERS = new WeakMap();
 /** This class + its ancestors' names — subclass-aware tag matching. Immutable
- *  (a class never changes), so it needs no tracking. */
+ *  (a class never changes), so it needs no tracking and is memoized per class. */
+const TAG_CHAINS = new WeakMap();
 function classNames(ctor) {
+    const cached = TAG_CHAINS.get(ctor);
+    if (cached !== undefined)
+        return cached;
     const names = [];
     let c = ctor;
     while (c && c !== Function.prototype && c.name) {
         names.push(c.name);
         c = Object.getPrototypeOf(c);
     }
+    TAG_CHAINS.set(ctor, names);
     return names;
 }
 /** Adapt a view to the matcher's structural interface, reading through the

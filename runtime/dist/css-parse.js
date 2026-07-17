@@ -107,6 +107,9 @@ function parseDecls(body) {
 export function parseCss(text) {
     const noComments = text.replace(/\/\*[\s\S]*?\*\//g, "");
     const rules = [];
+    // `[^{}]` for selector and body assumes the supported flat subset — no nested
+    // rules, no `{`/`}` inside a value (e.g. no `@media`/`url(...{...})`). Those
+    // are rejected surface (Non-goals); revisit this split if they are added.
     const re = /([^{}]+)\{([^{}]*)\}/g;
     let m;
     while ((m = re.exec(noComments)) !== null) {

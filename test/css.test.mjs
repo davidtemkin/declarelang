@@ -284,7 +284,7 @@ await test("cssMap(View): W3C properties map onto View attributes with coercers"
 });
 
 // ── M3: runtime wiring ──────────────────────────────────────────────────────
-const { cssWrite, cssClear, cssMarks, stylesheetWrite, stylesheetClear } =
+const { cssWrite, cssClear, cssMarks, stylesheetWrite, stylesheetClear, bindDerived } =
   await import("../runtime/dist/attributes.js");
 
 await test("cssWrite marks + provides; cssClear restores the fallback", () => {
@@ -355,6 +355,15 @@ await test("CSS on a prevailing slot inherits to descendants via follow (no CSS 
   settle();
   assert.equal(root.textColor, 0xff0000);
   assert.equal(child.textColor, 0xff0000); // inherited by prevailing-follow
+});
+
+await test("an owning binding outranks CSS (ownerOf gate)", () => {
+  const v = new View();
+  v.styleclass = "a";
+  bindDerived(v, "fill", () => 0x0000ff); // an owning { } constraint on fill
+  v.cssRules = buildRuleSet(`.a { background-color: #2d7 }`);
+  settle();
+  assert.equal(v.fill, 0x0000ff); // the binding owns the slot; CSS yields
 });
 
 await test("no-thrash: a stable cascade settles without exceeding the cycle guard", () => {

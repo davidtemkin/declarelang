@@ -1372,6 +1372,7 @@ git commit -m "M3: arbitration determinism + prevailing-follow inheritance + no-
 Written as a follow-on plan (`design-docs/css-engine-plan-m4-m5.md`) after M3 lands, because their tasks depend on M3's realized applier and the Task 11 gate outcome. Scope, from the spec:
 
 - **M4:** attribute-selector (`[selected]`) toggle re-cascade; `styleclass` swap; **reparent trigger wiring** (bind `cssReparent` to the manual `appendChild`/`removeChild` path, since `childrenMutated` only fires on replication) + reparent re-cascade test; compound-selector toggles; specificity tie-break under change; `cssRules` hot-swap — each verified to settle in one frame.
+  - **Ownership-mark desync (from M0–M3 code review):** when an owning `{ }` binding lands on a CSS-targeted *non-prevailing* slot with a value **equal** to the CSS-offered one, `own()` fires no cell (non-prevailing) and `write()`'s `===` gate suppresses the wake, so the applier does not re-run and `$cssMarks` transiently retains the slot while `ownerOf` is non-null. The effective value is correct and it self-heals on the next differing value; fix by having `own()`/`release()` fire the slot cell unconditionally (or gate the applier on a tracked ownership read), with a test.
 - **M5:** compile-time parse of `<stylesheet>`/`.css` in the `.declare` pipeline; a checker pass (unknown W3C property; malformed value = coercer returns `undefined`; no-attr-mapping for resolvable-tag selectors); `docs/guide` styling-flow page; one migrated example.
 
 ---
