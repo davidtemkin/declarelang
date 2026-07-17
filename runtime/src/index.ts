@@ -131,10 +131,12 @@ export { Focus, FocusService, deliverKeys } from "./focus.js";
 // click handler): injected into body scope here — index.ts sits above both
 // expr.ts and the services in the module graph, so no cycle.
 import { setBodyServices } from "./expr.js";
+import { setKeysFocusProbe } from "./keys.js";
 import { Themes as Themes_ } from "./themes.js";
 import { Focus as FocusService_ } from "./focus.js";
 import { Keys as KeysService_ } from "./keys.js";
 setBodyServices({ Focus: FocusService_, Keys: KeysService_, Themes: Themes_ });
+setKeysFocusProbe(() => FocusService_.getFocus() !== null);
 export type { RenderBackend, Surface, Stretch, PointerType, InputSink, EditableSpec } from "./backend.js";
 export type { LayoutStrategy } from "./view.js";
 export type { DrawOp, DisplayList, Bounds } from "./draw.js";

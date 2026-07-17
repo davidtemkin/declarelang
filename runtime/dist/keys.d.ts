@@ -12,8 +12,7 @@ export interface KeyEvent {
     repeat: boolean;
 }
 type KeyHandler = (e: KeyEvent) => void;
-/** The keyboard service. A singleton `Keys` is exported for the runtime; tests
- *  construct their own instance and drive `keyDown`/`keyUp` directly. */
+export declare function setKeysFocusProbe(fn: () => boolean): void;
 export declare class KeysService {
     /** The held-key set (LZX's downKeysHash) — what is pressed right now. */
     private readonly heldKeys;

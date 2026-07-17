@@ -37,6 +37,14 @@ interface Chord {
 
 /** The keyboard service. A singleton `Keys` is exported for the runtime; tests
  *  construct their own instance and drive `keyDown`/`keyUp` directly. */
+/** Injected by index.ts (keys.ts sits below focus.ts in the module graph):
+ *  "does a Declare view hold keyboard focus right now?" — the predicate the
+ *  listener uses to claim Space/arrows from the browser's scroll defaults. */
+let keysFocusProbe: (() => boolean) | null = null;
+export function setKeysFocusProbe(fn: () => boolean): void {
+  keysFocusProbe = fn;
+}
+
 export class KeysService {
   /** The held-key set (LZX's downKeysHash) — what is pressed right now. */
   private readonly heldKeys = new Set<string>();
@@ -120,12 +128,23 @@ export class KeysService {
    *  same discipline as routeInput. Node-free core; only this method touches
    *  the DOM. */
   listen(alive: () => boolean, target: Window = window): void {
+    const focusHolds = (): boolean => keysFocusProbe !== null && keysFocusProbe();
     const onDown = (ev: KeyboardEvent): void => {
       if (!alive()) return void target.removeEventListener("keydown", onDown);
       // Declare owns Tab traversal (Layer 2); stop the browser from also moving its
       // own focus, which would fight the focus service (and skip a canvas app's
       // overlay inputs).
       if (ev.key === "Tab") ev.preventDefault();
+      // When a Declare CONTROL holds keyboard focus, Space and the arrows are
+      // the control's (Space/Enter activate; arrows adjust a slider) — the
+      // browser's defaults (page scroll) must stand down. A native editable
+      // (its own element focused) keeps every default: typing a space in a
+      // field is a space.
+      if (document.activeElement === document.body || document.activeElement === null) {
+        if (ev.key === " " || ev.key === "ArrowUp" || ev.key === "ArrowDown" || ev.key === "ArrowLeft" || ev.key === "ArrowRight") {
+          if (focusHolds()) ev.preventDefault();
+        }
+      }
       this.keyDown(normalize(ev));
     };
     const onUp = (ev: KeyboardEvent): void => {

@@ -12,6 +12,13 @@
 // `alive` gate exactly like routeInput (input.ts).
 /** The keyboard service. A singleton `Keys` is exported for the runtime; tests
  *  construct their own instance and drive `keyDown`/`keyUp` directly. */
+/** Injected by index.ts (keys.ts sits below focus.ts in the module graph):
+ *  "does a Declare view hold keyboard focus right now?" — the predicate the
+ *  listener uses to claim Space/arrows from the browser's scroll defaults. */
+let keysFocusProbe = null;
+export function setKeysFocusProbe(fn) {
+    keysFocusProbe = fn;
+}
 export class KeysService {
     /** The held-key set (LZX's downKeysHash) — what is pressed right now. */
     heldKeys = new Set();
@@ -92,6 +99,7 @@ export class KeysService {
      *  same discipline as routeInput. Node-free core; only this method touches
      *  the DOM. */
     listen(alive, target = window) {
+        const focusHolds = () => keysFocusProbe !== null && keysFocusProbe();
         const onDown = (ev) => {
             if (!alive())
                 return void target.removeEventListener("keydown", onDown);
@@ -100,6 +108,17 @@ export class KeysService {
             // overlay inputs).
             if (ev.key === "Tab")
                 ev.preventDefault();
+            // When a Declare CONTROL holds keyboard focus, Space and the arrows are
+            // the control's (Space/Enter activate; arrows adjust a slider) — the
+            // browser's defaults (page scroll) must stand down. A native editable
+            // (its own element focused) keeps every default: typing a space in a
+            // field is a space.
+            if (document.activeElement === document.body || document.activeElement === null) {
+                if (ev.key === " " || ev.key === "ArrowUp" || ev.key === "ArrowDown" || ev.key === "ArrowLeft" || ev.key === "ArrowRight") {
+                    if (focusHolds())
+                        ev.preventDefault();
+                }
+            }
             this.keyDown(normalize(ev));
         };
         const onUp = (ev) => {
