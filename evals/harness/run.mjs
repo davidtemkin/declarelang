@@ -107,6 +107,10 @@ async function runDistroCell({ task, model, rep, solver, metricsFile }) {
     sandbox: dir,
   };
   appendFileSync(metricsFile, JSON.stringify(line) + "\n");
+  // the agent's own account of its run — the qualitative record (what it read,
+  // what setup it did, how it iterated) lives in the CLI reply; keep it
+  writeFileSync(join(dir, "..", "transcript.json"),
+    JSON.stringify({ task: task.id, track: "agentic", model, solver: solver.id, report: sc.report ?? null, reply: gen?.raw ?? null }, null, 1));
   return line;
 }
 
