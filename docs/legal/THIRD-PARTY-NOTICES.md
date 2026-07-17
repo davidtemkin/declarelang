@@ -1,8 +1,17 @@
 # Third-party notices
 
-Declare's distribution bundles one third-party component: the TypeScript
+Declare's distribution bundles two third-party components: the TypeScript
 compiler (`bundles/declare-compiler.js` embeds it for in-browser
-typechecking, together with its `lib.d.ts` type definitions).
+typechecking, together with its `lib.d.ts` type definitions), and the
+Roboto typeface (`assets/fonts/roboto/` — the Material emulation's type
+stack).
+
+## Roboto
+
+Copyright 2011 The Roboto Project Authors. Licensed under the SIL Open
+Font License, Version 1.1: <https://openfontlicense.org>. The font files
+are redistributed unmodified; per the OFL, they may not be sold by
+themselves, and this notice travels with them.
 
 ## TypeScript
 

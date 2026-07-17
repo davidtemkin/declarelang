@@ -12,6 +12,12 @@ The Material and Apple records here are PLACEHOLDERS awaiting the fidelity
 passes — the switching machinery is the point of this skeleton.
 */
 
+font Roboto [
+    Face [ src = "../../assets/fonts/roboto/roboto-400.woff2" ],
+    Face [ src = "../../assets/fonts/roboto/roboto-500.woff2", weight = medium ],
+    ]
+
+
 class Swatch extends View [ width = 22, height = 22, cornerRadius = 11,
     c: number = 0,
     fill = { c == 0 ? theme.control : c },

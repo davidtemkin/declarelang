@@ -16,7 +16,15 @@
 // drive it toward the reactive `to`.
 import { Animator } from "./animator.js";
 import { sharedClock } from "./animate.js";
-import { defineAttributes, setBound } from "./attributes.js";
+import { defineAttributes } from "./attributes.js";
+/** A spring's write is a DRIVEN ASSIGNMENT, not a bound push: it must
+ *  DISPLACE whatever owns the slot (§5's rule — assignment wins), or an
+ *  auto-size derive re-fires later (a webfont load re-measuring labels) and
+ *  silently overwrites the spring's rest value while the spring sleeps. The
+ *  plain reactive setter is exactly that displacement. */
+const drive = (target, attr, v) => {
+    target[attr] = v;
+};
 /** Read a numeric slot off a node (0 for a non-number / absent slot). */
 function numOf(target, attr) {
     const v = target[attr];
@@ -69,7 +77,7 @@ export class Spring extends Animator {
             this.primed = true;
             const t0 = this.resolveTarget();
             if (t0 !== null && this.attribute !== "")
-                setBound(t0, this.attribute, this.to);
+                drive(t0, this.attribute, this.to);
             this.vel = 0;
             this.springRunning = false;
             sharedClock.remove(this);
@@ -113,13 +121,13 @@ export class Spring extends Animator {
         const eps = this.epsilon;
         if (Math.abs(to - pos) < eps && Math.abs(this.vel) < eps * 60) {
             // Landed: assign the exact target, zero the velocity, and sleep.
-            setBound(target, attr, to);
+            drive(target, attr, to);
             this.vel = 0;
             this.springRunning = false;
             sharedClock.remove(this);
             return false;
         }
-        setBound(target, attr, pos);
+        drive(target, attr, pos);
         return true;
     }
 }
