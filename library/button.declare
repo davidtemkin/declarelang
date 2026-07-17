@@ -9,7 +9,8 @@ with the accent; the default is the quiet control look.
 
 include [ "control.declare" ]
 
-class Button extends Control [ height = 40, cornerRadius = 9,
+class Button extends Control [ height = 40,
+    cornerRadius = { theme.controlRadius },
     label:   string = "",
     primary: boolean = false,
 

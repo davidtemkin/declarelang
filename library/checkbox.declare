@@ -29,7 +29,7 @@ class Checkbox extends Control [ height = 24,
     width   = { this.box.width + (label == "" ? 0 : 8 + this.cap.width) },
     opacity = { disabled ? 0.45 : 1 },
 
-    box: View [ y = 2, width = 20, height = 20, cornerRadius = 5,
+    box: View [ y = 2, width = 20, height = 20, cornerRadius = { Math.min(8, Math.max(3, theme.controlRadius - 2)) },
         fill   = { checked ? theme.accent : theme.control },
         stroke = { stroke(1, checked ? theme.accent : hovered || pressed ? theme.textMuted : theme.line) },
 

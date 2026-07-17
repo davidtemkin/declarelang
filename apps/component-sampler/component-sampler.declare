@@ -1,0 +1,128 @@
+/*
+# The component sampler
+
+The styling arc's proof point (library-charter §6): every library component,
+under three switchable stylings — Declare-native (the default), Material, and
+Apple — selected by a RadioGroup. One machinery, three token records: the
+emulations are DATA, never code paths. The "Animate focus transitions" toggle
+drives the focus renderer's flight (charter: the flight is the suppressible
+flourish; the at-rest indication is not).
+
+The Material and Apple records here are PLACEHOLDERS awaiting the fidelity
+passes — the switching machinery is the point of this skeleton.
+*/
+
+class Section extends View [ width = { parent.width },
+    label: string = "",
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.2,
+        textColor = { theme.textFaint }, text = { label.toUpperCase() } ],
+    ]
+
+
+App [ fill = { theme.bg }, minWidth = 560,
+
+    style: string = "declare",
+    animateFocus: boolean = true,
+
+    theme = { style == "material" ? app.materialTheme() : style == "apple" ? app.appleTheme() : app.declareTheme() },
+
+    // ── the three records — one shape, three vocabularies ──────────────────
+
+    declareTheme() {
+        return {
+            bg: 0xF4F6FA, surface: 0xFFFFFF, line: 0xDBE1E9,
+            text: 0x1B2733, textMuted: 0x6C7A88, textFaint: 0xAAB4BE,
+            accent: 0x2E6FE0, accentText: 0xFFFFFF,
+            control: 0xE7EBF1, controlActive: 0xD3E2FC,
+            depth: 1, focusRing: true, controlRadius: 7,
+        }
+        },
+    materialTheme() {
+        return { ...this.declareTheme(), accent: 0x6750A4, controlActive: 0xE8DEF8, controlRadius: 12 }
+        },
+    appleTheme() {
+        return { ...this.declareTheme(), accent: 0x007AFF, controlActive: 0xD8E9FF, controlRadius: 9 }
+        },
+
+    // ── chrome: title + the mode switcher + the transitions toggle ─────────
+
+    col: View [ x = 32, y = 28, width = { Math.min(640, app.width - 64) },
+        layout: SimpleLayout [ axis = y, spacing = 22 ],
+
+        Text [ fontSize = 22, fontWeight = semibold, text = "Component sampler" ],
+
+        controls: View [ width = { parent.width },
+            layout: SimpleLayout [ axis = x, spacing = 24 ],
+            RadioGroup [ value = { app.style },
+                input(v) { app.style = v },
+                Radio [ choice = "declare", label = "Declare" ],
+                Radio [ choice = "material", label = "Material" ],
+                Radio [ choice = "apple", label = "Apple" ],
+                ],
+            Checkbox [ label = "Animate focus transitions", checked = { app.animateFocus },
+                input(v) { app.animateFocus = v },
+                ],
+            ],
+
+        rule: View [ width = { parent.width }, height = 1, fill = { theme.line } ],
+
+        // ── the specimens ──────────────────────────────────────────────────
+
+        Section [ label = "Button",
+            row: View [ layout: SimpleLayout [ axis = x, spacing = 14 ],
+                Button [ width = 120, label = "Primary", primary = true ],
+                Button [ width = 120, label = "Secondary", primary = false ],
+                Button [ width = 120, label = "Disabled", disabled = true ],
+                ],
+            ],
+
+        Section [ label = "Checkbox · Switch · Radio",
+            row: View [ layout: SimpleLayout [ axis = x, spacing = 28 ],
+                Checkbox [ label = "Notifications", checked = true ],
+                Switch [ checked = true ],
+                Switch [ ],
+                RadioGroup [ value = "m",
+                    Radio [ choice = "s", label = "S" ],
+                    Radio [ choice = "m", label = "M" ],
+                    Radio [ choice = "l", label = "L" ],
+                    ],
+                ],
+            ],
+
+        Section [ label = "Slider · ProgressBar",
+            demo: View [ width = { parent.width },
+                layout: SimpleLayout [ axis = y, spacing = 14 ],
+                vol: Slider [ width = 260, value = 40 ],
+                ProgressBar [ width = 260, value = { this.parent.vol.value } ],
+                ],
+            ],
+
+        Section [ label = "TextInput · Field",
+            demo: View [ width = { parent.width },
+                layout: SimpleLayout [ axis = y, spacing = 12 ],
+                TextInput [ width = 280, height = 30, placeholder = "Your name" ],
+                Field [ label = "Email", labelWidth = 60,
+                    TextInput [ width = 220, height = 30, text = "d@t.com" ],
+                    ],
+                ],
+            ],
+
+        Section [ label = "TabSlider",
+            TabSlider [ width = 300,
+                Tab [ label = "First", initial = true,
+                    View [ width = { parent.width }, height = 70, fill = { theme.surface },
+                        Text [ x = 12, y = 10, textColor = { theme.textMuted }, text = "Pane one" ],
+                        ],
+                    ],
+                Tab [ label = "Second",
+                    View [ width = { parent.width }, height = 70, fill = { theme.surface },
+                        Text [ x = 12, y = 10, textColor = { theme.textMuted }, text = "Pane two" ],
+                        ],
+                    ],
+                ],
+            ],
+
+        tail: View [ width = 8, height = 40 ],
+        ],
+    ]
