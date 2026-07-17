@@ -12,7 +12,14 @@ captured-move pattern the calendar's drag uses). Arrow keys nudge by `step`.
 
 include [ "control.declare" ]
 
-class Slider extends Control [ width = 220, height = 28,
+class Slider extends Control [
+
+    // keyboard focus rings the circular GRABBER — the part the keys move.
+    // (Read at focus time: an arrow-key change moves the thumb under a
+    // resting ring; the follower-constraint refinement is a recorded next.)
+
+    focusShape() { return ({ x: this.thumb.x, y: this.thumb.y, w: this.thumb.width, h: this.thumb.height, rad: this.thumb.width / 2 }) },
+    width = 220, height = 28,
     value: number = 0,
     min:   number = 0,
     max:   number = 100,

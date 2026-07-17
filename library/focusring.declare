@@ -137,7 +137,12 @@ class FocusRing extends View [ opacity = 0,
         const Q = Math.PI / 2
         const dist = Math.abs(this.x - tx) + Math.abs(this.y - ty) + Math.abs(this.width - tw) + Math.abs(this.height - th)
         const small = Math.min(w, h) < 40
-        const cov = small ? 1 : Math.max(0.22, 1 / (1 + dist / 50))
+        // The bracket form is the ring's NATURAL shape in motion: any real
+        // distance opens the corners fully (the sights), and only inside the
+        // last CLOSE px of settle do the arms sweep shut around the surface —
+        // so the outline exists exactly at the ends, source and destination.
+        const CLOSE = 16
+        const cov = small ? 1 : Math.max(0.22, 1 - dist / CLOSE)
         const ax = Math.max(0, (w / 2 - r) * cov)      // horizontal arm length
         const ay = Math.max(0, (h / 2 - r) * cov)      // vertical arm length
         d.strokeStyle = typeof theme.focusColor == "number" ? theme.focusColor : theme.accent

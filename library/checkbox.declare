@@ -17,7 +17,12 @@ never fights its constraint.
 
 include [ "control.declare" ]
 
-class Checkbox extends Control [ height = 24,
+class Checkbox extends Control [
+
+    // keyboard focus rings the BOX alone, not box+label (the Radio rule)
+
+    focusShape() { return ({ x: this.box.x, y: this.box.y, w: this.box.width, h: this.box.height, rad: this.box.cornerRadius }) },
+    height = 24,
     checked: boolean = false,
     label:   string = "",
 
