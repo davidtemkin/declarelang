@@ -132,4 +132,4 @@ MIT — see [LICENSE](LICENSE). Copyright © 2026 David Temkin. The one notice a
 root covers the whole tree (code, library, apps, documentation); files carry no
 per-file headers by design — the sources are the showcase. The distribution bundles
 one third-party component — the TypeScript compiler (Apache-2.0), for in-browser
-typechecking — attributed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+typechecking — attributed in [THIRD-PARTY-NOTICES.md](docs/legal/THIRD-PARTY-NOTICES.md).
