@@ -80,3 +80,4 @@ export type { ClassInfo } from "./check.js";
 export type { Color, Length, Percent, AttrType, AttrValue, Coerced, Fill, Gradient, GradientStop, Stroke, Shadow, Theme } from "./value.js";
 export type { Pos } from "./errors.js";
 export type { Element, Attr, Method, Literal, AttrDecl, ClassDecl, Program, Library, IncludeRef } from "./parser.js";
+export { Themes } from "./themes.js";

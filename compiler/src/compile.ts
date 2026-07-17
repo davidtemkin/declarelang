@@ -134,7 +134,7 @@ const BROWSER_GLOBALS = new Set([
 
 // The runtime services in body scope (expr.ts setBodyServices): bare `Focus`
 // in a handler is the service, never a member to resolve.
-const RUNTIME_SERVICES = new Set(["Focus", "Keys"]);
+const RUNTIME_SERVICES = new Set(["Focus", "Keys", "Themes"]);
 
 const isKnownGlobal = (name: string): boolean => name in globalThis || BROWSER_GLOBALS.has(name) || RUNTIME_SERVICES.has(name);
 
