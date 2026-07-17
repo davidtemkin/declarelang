@@ -26,6 +26,11 @@ class RadioGroup extends View [
 
 
 class Radio extends Control [ height = 22,
+
+    // Apple's rendition, adopted: keyboard focus rings the round dot itself,
+    // not the dot-plus-label row
+
+    focusShape() { return ({ x: this.dot.x, y: this.dot.y, w: this.dot.width, h: this.dot.height, rad: this.dot.width / 2 }) },
     choice: string = "",
     label:  string = "",
 

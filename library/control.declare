@@ -31,6 +31,12 @@ class Control extends View [
 
     press() { },
 
+    // the control's FOCUS SILHOUETTE — override to ring something other than
+    // the whole bounds (a Radio rings its dot). null = bounds + cornerRadius.
+    // { x, y, w, h, rad } in the control's own coordinates.
+
+    focusShape() { return null },
+
     // keyboard activation's visual acknowledgment: flash the pressed look
     // (the platform convention for buttons — and menu items, later). Value
     // controls whose state change IS the feedback (Checkbox, Switch, Radio)

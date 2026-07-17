@@ -67,8 +67,23 @@ class FocusRing extends View [ opacity = 0,
         // Another app on the page (an embedded preview) owns this target — its own
         // ring indicates it; this one stands down rather than chase foreign coordinates.
         if (n != app) { shown = false; return }
-        tx = x - 4; ty = y - 4; tw = v.width + 8; th = v.height + 8
-        trad = (v.cornerRadius > 0 ? v.cornerRadius : 4) + 4
+        // the control's FOCUS SILHOUETTE: its focusShape() when it declares one
+        // (a Radio rings its round dot, not the row+label — the Apple rendition),
+        // else the whole bounds at the control's own radius. The ring HUGS the
+        // edge (gap 0, the Mac's own treatment) unless the theme's
+        // focusRingGap says otherwise.
+        const fs = (v as any).focusShape ? (v as any).focusShape() : null
+        const gap = typeof theme.focusRingGap == "number" ? theme.focusRingGap : 0
+        const lw = typeof theme.focusRingWidth == "number" ? theme.focusRingWidth : 3
+        const sx = fs ? fs.x : 0, sy = fs ? fs.y : 0
+        const sw = fs ? fs.w : v.width, sh = fs ? fs.h : v.height
+        const srad = fs ? fs.rad : (v.cornerRadius > 0 ? v.cornerRadius : 4)
+        // the band sits OUTSIDE the silhouette: its inner edge touches the
+        // control's boundary (the Mac halo's hug) — so the path is displaced
+        // outward by gap + half the stroke width
+        const off = gap + lw / 2
+        tx = x + sx - off; ty = y + sy - off; tw = sw + 2 * off; th = sh + 2 * off
+        trad = srad + off
         // Pointer focus: PARK silently — geometry current, ring hidden. The next
         // keyboard flight departs from here (the just-clicked control).
         if (!Focus.byKeyboard()) { shown = false; this.snapTo(); placed = true; return }
@@ -107,19 +122,35 @@ class FocusRing extends View [ opacity = 0,
     // the shape-hugging outline — a rounded rect at the sprung radius, drawn,
     // so it re-derives as the radius travels between silhouettes
 
+    // the OL brackets and the shape-hugging outline are ONE rendition at two
+    // coverages: four corner-anchored strokes whose straight arms extend
+    // toward each edge's midpoint by cov ∈ (0..1]. cov = 1 → arms meet, a
+    // closed outline; cov low → open corner brackets ("target sights").
+    // Coverage is a pure function of DISTANCE from target, so the physics
+    // does the choreography: a flight breaks the ring open mid-air and the
+    // settle closes the sights around the new silhouette. Small targets skip
+    // the bracket phase (a ring around a radio dot has no arms to open).
+
     draw(d) {
         const w = this.width, h = this.height
         const r = Math.max(2, Math.min(rad, Math.min(w, h) / 2))
         const Q = Math.PI / 2
-        d.strokeStyle = theme.accent
-        d.lineWidth = 2
+        const dist = Math.abs(this.x - tx) + Math.abs(this.y - ty) + Math.abs(this.width - tw) + Math.abs(this.height - th)
+        const small = Math.min(w, h) < 40
+        const cov = small ? 1 : Math.max(0.22, 1 / (1 + dist / 50))
+        const ax = Math.max(0, (w / 2 - r) * cov)      // horizontal arm length
+        const ay = Math.max(0, (h / 2 - r) * cov)      // vertical arm length
+        d.strokeStyle = typeof theme.focusColor == "number" ? theme.focusColor : theme.accent
+        d.lineWidth = typeof theme.focusRingWidth == "number" ? theme.focusRingWidth : 3
         d.beginPath()
-        d.moveTo(r, 0)
-        d.lineTo(w - r, 0); d.arc(w - r, r, r, -Q, 0)
-        d.lineTo(w, h - r); d.arc(w - r, h - r, r, 0, Q)
-        d.lineTo(r, h);     d.arc(r, h - r, r, Q, Math.PI)
-        d.lineTo(0, r);     d.arc(r, r, r, Math.PI, Math.PI + Q)
-        d.closePath()
+        // top-left corner: arc + arms
+        d.moveTo(r + ax, 0); d.lineTo(r, 0); d.arc(r, r, r, -Q, Math.PI, true); d.lineTo(0, r + ay)
+        // top-right
+        d.moveTo(w - r - ax, 0); d.lineTo(w - r, 0); d.arc(w - r, r, r, -Q, 0); d.lineTo(w, r + ay)
+        // bottom-right
+        d.moveTo(w, h - r - ay); d.lineTo(w, h - r); d.arc(w - r, h - r, r, 0, Q); d.lineTo(w - r - ax, h)
+        // bottom-left
+        d.moveTo(r + ax, h); d.lineTo(r, h); d.arc(r, h - r, r, Q, Math.PI); d.lineTo(0, h - r - ay)
         d.stroke()
         },
     ]
