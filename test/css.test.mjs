@@ -70,4 +70,19 @@ await test("settle fires the seam AFTER constraints run (ordering), and not when
   off(); k.dispose();
 });
 
+// ── M1: the pure engine (parser + matcher) ──────────────────────────────────
+const { specificityOf, parseSelectorText, parseCss } = await import("../runtime/dist/css-parse.js");
+
+await test("specificityOf sums conditions across simple selectors", () => {
+  assert.equal(specificityOf([{ conditions: [{ kind: "class", name: "red" }] }]), 10);
+  assert.equal(specificityOf([{ conditions: [{ kind: "class", name: "red" }, { kind: "class", name: "green" }] }]), 20);
+  assert.equal(specificityOf([{ conditions: [{ kind: "tag", name: "view" }, { kind: "class", name: "red" }] }]), 11);
+  assert.equal(specificityOf([{ conditions: [{ kind: "id", name: "x" }] }]), 100);
+  assert.equal(specificityOf([]), 0);
+  assert.equal(specificityOf([
+    { conditions: [{ kind: "tag", name: "view" }] },
+    { conditions: [{ kind: "tag", name: "button" }, { kind: "class", name: "active" }] },
+  ]), 12);
+});
+
 summarize("css");
