@@ -130,4 +130,6 @@ fall stale; see [`docs/system-design/hosting.md`](docs/system-design/hosting.md)
 
 MIT — see [LICENSE](LICENSE). Copyright © 2026 David Temkin. The one notice at the
 root covers the whole tree (code, library, apps, documentation); files carry no
-per-file headers by design — the sources are the showcase.
+per-file headers by design — the sources are the showcase. The distribution bundles
+one third-party component — the TypeScript compiler (Apache-2.0), for in-browser
+typechecking — attributed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
