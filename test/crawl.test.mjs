@@ -22,7 +22,7 @@ await test("crawl: homepage emits the #why and #language documents, linked from 
   const docs = await crawlLocations(r.source, { deps: r.deps, links: r.links,
     data: diskDataResolver(path.join(ROOT, "apps/homepage")) });
   const keys = docs.map((d) => d.key).sort();
-  assert.deepEqual(keys, ["", "language", "why"], "the default page, the language doc, and the why article");
+  assert.deepEqual(keys, ["", "getstarted", "language", "why"], "the default page, the get-started guide, the language doc, and the why article");
   const front = docs.find((d) => d.key === "");
   assert.ok(front.html.includes('href="#why"'), "the front page LINKS to #why (discoverable = linked)");
   assert.ok(front.html.includes('href="#language"'), "the front page LINKS to #language");

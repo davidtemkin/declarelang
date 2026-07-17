@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "buildId": "8d8760947814",
+  "buildId": "cfe98488381d",
   "nodes": {
     "View.x": {
       "id": "View.x",
@@ -2851,7 +2851,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/text-input.ts",
-        "line": 37
+        "line": 39
       },
       "parent": "TextInput",
       "seeAlso": [],
@@ -2867,7 +2867,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/text-input.ts",
-        "line": 82
+        "line": 102
       },
       "parent": "TextInput",
       "seeAlso": [],
@@ -2883,7 +2883,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/text-input.ts",
-        "line": 130
+        "line": 150
       },
       "parent": "TextInput",
       "seeAlso": [],

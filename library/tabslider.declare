@@ -1,0 +1,57 @@
+/*
+# TabSlider
+
+OpenLaszlo's `basetabslider`, reborn — the accordion: stacked tab headers, one
+pane open at a time, panes SLIDING open and closed by a spring on height. The
+load-bearing mechanic (docs/system-design/tabslider-gaps.md, verified
+frame-by-frame against the original): a tab's content is PRESENT through the
+whole open **and** close, revealed and concealed by the tab's own clip as its
+height animates — never an instant pop, never a blank gap.
+
+Value contract (components-baseline.md): the open tab is ONE attribute on the
+group — `value`, the open tab's name — exactly RadioGroup's shape. Tabs are
+the group's direct children; each names itself (`name`, defaulting to its
+`label`) and derives `open` from the group. Content is authored as the Tab's
+ordinary children — the Tab stacks its header then the content, and clips.
+*/
+
+include [ "control.declare" ]
+
+class TabSlider extends View [
+    value: string = "",
+
+    // one open pane at a time, stacked flush — the sliding heights ARE the
+    // arrangement; the group just stacks whatever heights the springs say
+
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    ]
+
+
+class Tab extends Control [ width = { parent.width }, clip = true,
+    label: string = "",
+    name:  string = { label },
+    initial: boolean = false,                     // seed the open pane: first Tab sets initial = true
+
+    open: boolean = { (parent as TabSlider).value == name && name != "" },
+
+    onInit() { if (initial && (parent as TabSlider).value == "") (parent as TabSlider).value = name },
+
+    // the slide: height springs between the bare header and the content's own
+    // wanted extent; `clip = true` is what carries the content through the
+    // whole motion (the OL mechanic — concealed by the clip, never removed)
+
+    slide: Spring [ attribute = height, to = { open ? contentHeight : classroot.header.height }, stiffness = 220, damping = 26, epsilon = 0.4 ],
+
+    press()   { (parent as TabSlider).value = name },
+    onClick() { if (!disabled) press() },
+
+    layout: SimpleLayout [ axis = y, spacing = 0 ],
+
+    header: View [ width = { parent.width }, height = 34,
+        cornerRadius = { theme.controlRadius },
+        fill = { classroot.open || classroot.hovered || classroot.pressed ? theme.controlActive : theme.control },
+        stroke = { stroke(1, theme.line) },
+        t: Text [ x = 12, y = 8, fontSize = 14, fontWeight = { classroot.open ? "semibold" : "medium" },
+            textColor = { theme.text }, text = { classroot.label } ],
+        ],
+    ]

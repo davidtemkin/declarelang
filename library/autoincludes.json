@@ -9,5 +9,7 @@
   "Radio": "radiogroup.declare",
   "Field": "field.declare",
   "ProgressBar": "progressbar.declare",
-  "FocusRing": "focusring.declare"
+  "FocusRing": "focusring.declare",
+  "TabSlider": "tabslider.declare",
+  "Tab": "tabslider.declare"
 }
