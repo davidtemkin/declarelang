@@ -443,20 +443,11 @@ App [ theme = { ({
                             text = "This page is written in it. By an LLM." ],
                         ],
                     ],
-                buttons: View [ layout: SimpleLayout [ axis = x, spacing = 14 ],
-                    Button [ width = 128, label = "GitHub →",
-                        onClick() { app.navigate("https://github.com/davidtemkin/declarelang") },
-                        ],
 
-                    // the source viewer's live-edit workbench on THIS page's
-                    // own source — editor, diagnostics, and the running page
+                // the two doors in, side by side with a quiet dot between
 
-                    Button [ width = 184, label = "Edit this page →", primary = false,
-                        onClick() { app.navigate("apps/homepage/homepage.declare?view=edit") },
-                        ],
-                    ],
                 learn: View [ width = { parent.width },
-                    layout: SimpleLayout [ axis = y, spacing = 12 ],
+                    layout: SimpleLayout [ axis = x, spacing = 16 ],
                     why: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
                         hovered: boolean = false,
                         textColor = { this.hovered ? theme.linkHover : theme.accent }, text = "Why a new language, now? →",
@@ -464,6 +455,7 @@ App [ theme = { ({
                         onMouseOut() { this.hovered = false },
                         onClick() { app.location = "why" },
                         ],
+                    Dot [ y = 1 ],
                     onefile: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
                         hovered: boolean = false,
                         textColor = { this.hovered ? theme.linkHover : theme.accent }, text = "Declare, in one file, for you and your LLM →",
@@ -474,15 +466,53 @@ App [ theme = { ({
                     ],
                 ],
 
-            /* ### 01 — Read it. Generate it. Run it.
+            /* ### 01 — Declare Calendar: the reference app leads.
                Each numbered section fades in on a Spring the moment it scrolls
                into view — a reveal declared as a reactive target, not scheduled. */
 
-            s1: View [ width = { parent.width }, opacity = 0,
+            cal: View [ width = { parent.width }, opacity = 0,
+                reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
+                    to = { app.scroller.scrollY + app.height > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
+                layout: SimpleLayout [ axis = y, spacing = 36 ],
+                SectionHead [ num = "01", head = "Declare Calendar: Concise. Clear. Continuous.",
+                    lead = "Declare is a great way to build any user interface — typed, reactive by construction, a fraction of the usual code. But where it's uniquely capable is the continuous, physical UI you feel in the best native apps — where a view doesn't switch so much as become the next one, motion carries meaning, and everything stays interruptible. That has always been specialist craft: bespoke motion code, one interaction at a time, locked to a platform. In Declare, it's simply what declarations do." ],
+                Lead [ width = { Math.min(760, parent.width) },
+                    text = "Four views that are really one, seen through a moving, zooming rectangle — event chips that morph into time-blocks, drag-to-reschedule, an editable detail panel, light and dark. An interface like this is normally a project of its own — and it's precisely the kind of UI that machine-written code has never reached. Here, it's the reference app. An LLM wrote every line." ],
+
+                actions: View [ layout: SimpleLayout [ axis = x, spacing = 18 ],
+                    Button [ width = 240, label = "Run Declare Calendar →",
+                        onClick() { app.navigate("apps/calendar/calendar.declare") },
+                        ],
+                    srclink: Text [ y = 16, fontFamily = [Sans, "system-ui"], fontSize = 13, wrap = false,
+                        textColor = { theme.dim }, text = "or view & edit its source →",
+                        onClick() { app.navigate("apps/calendar/calendar.declare?view=edit") },
+                        ],
+                    ],
+
+                // three big gradient figures. The first two are computed, not claimed —
+                // stats.json (regenerated every commit) — and the third is the point.
+
+                stat: View [ width = { parent.width },
+                    layout: WrappingLayout [ spacing = 48, lineSpacing = 40 ],
+                    Metric [ width = { parent.width < 560 ? parent.width : (parent.width - 96) / 3 },
+                        value = { "" + (app.stats.read(["calendar", "code"]) ?? "—") },
+                        note = "lines of Declare — four views, continuous zoom, drag, and edit" ],
+                    Metric [ width = { parent.width < 560 ? parent.width : (parent.width - 96) / 3 },
+                        value = { app.stats.read(["calendar", "wireGzip"]) ? Math.round(app.stats.read(["calendar", "wireGzip"]) / 1024) + " KB" : "—" },
+                        note = "over the wire, gzipped — the whole app and its runtime" ],
+                    Metric [ width = { parent.width < 560 ? parent.width : (parent.width - 96) / 3 },
+                        value = "0",
+                        note = "lines written by hand — an LLM wrote it; the compiler kept it honest" ],
+                    ],
+                ],
+
+            /* ### 02 — Read it. Generate it. Run it. */
+
+            gen: View [ width = { parent.width }, opacity = 0,
                 reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
                     to = { app.scroller.scrollY + app.height > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
                 layout: SimpleLayout [ axis = y, spacing = 40 ],
-                SectionHead [ num = "01", head = "Read it. Generate it. Run it.",
+                SectionHead [ num = "02", head = "Read it. Generate it. Run it.",
                     lead = "The relationships that matter — structure, data, reactivity — are explicit in the language, not hidden in imperative steps or a runtime graph." ],
                 cards: View [ width = { parent.width },
                     layout: WrappingLayout [ spacing = 24, lineSpacing = 24 ],
@@ -492,54 +522,6 @@ App [ theme = { ({
                     ],
                 pull: Heading [ fontSize = 28, width = { parent.width }, textAlign = center,
                     text = "Everything that makes it legible to an LLM makes it legible to you." ],
-                ],
-
-            /* ### 02 — Declare Calendar: a real app, small and fast */
-
-            s2: View [ width = { parent.width }, opacity = 0,
-                reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
-                    to = { app.scroller.scrollY + app.height > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
-                layout: SimpleLayout [ axis = y, spacing = 36 ],
-                SectionHead [ num = "02", head = "Small. Fast. A whole app.",
-                    lead = "Declare Calendar: four views that are one surface seen through a moving, zooming rectangle — event chips that morph into time-blocks, drag-to-reschedule, an editable detail panel, light and dark. The kind of continuous, animated UI that's usually a project of its own — here it's the reference app." ],
-
-                // the app itself: a prominent Run, a quiet source link, and the two
-                // numbers that matter — over-the-wire size and lines of Declare — rendered
-                // as two big gradient figures (no comparison; the numbers stand on their own).
-
-                panel: View [ width = { parent.width }, height = { this.pad.height + 52 }, cornerRadius = 14, clip = true,
-                    fill = { theme.panel }, stroke = { stroke(1, theme.line) },
-                    pad: View [ x = 30, y = 26, width = { parent.width - 60 },
-                        layout: SimpleLayout [ axis = y, spacing = 24 ],
-                        actions: View [ layout: SimpleLayout [ axis = x, spacing = 18 ],
-                            Button [ width = 240, label = "Run Declare Calendar →",
-                                onClick() { app.navigate("apps/calendar/calendar.declare") },
-                                ],
-                            srclink: Text [ y = 16, fontFamily = [Sans, "system-ui"], fontSize = 13, wrap = false,
-                                textColor = { theme.dim }, text = "or view & edit source →",
-                                onClick() { app.navigate("apps/calendar/calendar.declare?view=edit") },
-                                ],
-                            ],
-                        stat: View [ width = { parent.width },
-                            layout: WrappingLayout [ spacing = 48, lineSpacing = 40 ],
-
-                            // computed, not claimed: the calendar's wire weight and code-line
-                            // count arrive from stats.json (regenerated every commit) — see app.stats
-
-                            Metric [ value = { app.stats.read(["calendar", "wireGzip"]) ? Math.round(app.stats.read(["calendar", "wireGzip"]) / 1024) + " KB" : "—" },
-                                note = { "over the wire, gzipped — runtime and app in one file; the compiled calendar itself is " + (app.stats.read(["calendar", "programGzip"]) ? Math.round(app.stats.read(["calendar", "programGzip"]) / 1024) + " KB" : "—") + " of it" } ],
-                            Metric [ value = { "" + (app.stats.read(["calendar", "code"]) ?? "—") },
-                                note = "lines of Declare code — four views, continuous zoom, drag, and edit" ],
-                            ],
-                        ],
-                    ],
-
-                points: View [ width = { parent.width },
-                    layout: WrappingLayout [ spacing = 24, lineSpacing = 32 ],
-                    Point [ ptitle = "Holds framerate", body = "Reactive dependencies are compiled, not tracked at runtime, and motion is declarative springs — so the continuous zoom stays smooth, with no animation library and no reactive-graph tax." ],
-                    Point [ ptitle = "Type-checked bindings", body = "Events, selection, the editable panel: the data flow is declarative, type-checked bindings, not a state manager wired by hand. Change a value and everything derived from it follows — a type mismatch is a compile error, not a runtime surprise." ],
-                    Point [ ptitle = "Easy to reason about", body = "A zooming, drag-to-reschedule, edit-in-place calendar is normally a thicket of imperative view-syncing and animation state. Declared, it's a fraction of the code — and legible to you, the compiler, and an LLM alike." ],
-                    ],
                 ],
 
             /* ### 03 — Declare it. It runs. It stays true.
