@@ -1169,6 +1169,10 @@ export function checkAttr(schema, attr) {
         return { ok: true, datapath: { path: attr.value.path, many: attr.value.many, pos: attr.value.pos } };
     }
     const c = coerce(type, attr.value);
+    if (c.ok && typeof c.value === "object" && c.value !== null && "align" in c.value &&
+        attr.name !== "x" && attr.name !== "y") {
+        return { ok: false, error: new DeclareError(`${schema.name}.${attr.name} = ${c.value.align}: the position literals center | end are legal on x and y only — a size wants a number or a percent (width = 100%)`, attr.value.pos) };
+    }
     if (!c.ok) {
         // A bare identifier in a value slot has exactly two plausible intents —
         // name them both (E-5: `text = label` cost eval cells that `text = { label }`

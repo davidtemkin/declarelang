@@ -21,6 +21,6 @@ class Button extends Control [ height = 40,
     opacity = { disabled ? 0.45 : pressed ? 0.72 : 1 },
     fill    = { primary ? theme.accent : pressed || hovered ? theme.controlActive : theme.control },
 
-    cap: Text [ x = 16, y = 11, wrap = false, fontWeight = semibold,
+    cap: Text [ x = center, y = center, wrap = false, fontWeight = semibold,
         textColor = { primary ? theme.accentText : theme.text }, text = { label } ],
     ]

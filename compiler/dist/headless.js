@@ -53,6 +53,7 @@ export function approximateMeasurer() {
                 width: w * size + spacing * [...text].length,
                 fontBoundingBoxAscent: 0.8 * size,
                 fontBoundingBoxDescent: 0.25 * size,
+                actualBoundingBoxAscent: 0.7 * size, // the cap-height probe (optical centering)
             };
         },
     };

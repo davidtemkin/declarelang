@@ -71,12 +71,21 @@ export declare const DEFAULT_THEME: Theme;
 export interface Percent {
     readonly percent: number;
 }
+/** A position literal (`x = center`, `y = end`) — symbolic like Percent,
+ *  resolved at bind time against the parent's extent AND the view's own
+ *  (bind.ts bindAlign). `center` centers what you see: a box by its box, a
+ *  Text by its ink band (View.alignBand). The closed set: center | end —
+ *  start is 0, the default; nothing else, ever. */
+export interface Align {
+    readonly align: "center" | "end";
+}
+export declare function isAlign(v: unknown): v is Align;
 /** A Length: pixels (a bare number) or a parent-relative Percent. */
 export type Length = number | Percent;
 /** A coerced literal — ready to assign to a typed view field. Percent is the
  *  one member with no field to land in yet (see above); the decoration
  *  records (Gradient/Stroke/Shadow) arrive from constructor literals. */
-export type AttrValue = number | boolean | string | null | Percent | Gradient | Stroke | Shadow | Motion;
+export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | Shadow | Motion;
 /** Narrow an AttrValue to the Percent arm (no longer the only object in the
  *  union since decoration values landed — the key is the discriminant). */
 export declare function isPercent(v: AttrValue): v is Percent;

@@ -75,6 +75,9 @@ export const DEFAULT_THEME = Object.freeze({
     // so the record carries shape as well as color — the library consults these
     controlRadius: 7,
 });
+export function isAlign(v) {
+    return typeof v === "object" && v !== null && "align" in v;
+}
 /** Narrow an AttrValue to the Percent arm (no longer the only object in the
  *  union since decoration values landed — the key is the discriminant). */
 export function isPercent(v) {
@@ -117,7 +120,9 @@ export function coerce(type, lit) {
                 return ok(lit.value);
             if (lit.kind === "percent")
                 return ok({ percent: lit.value });
-            return fail("a Length (a number of pixels, or a percent like 50%)");
+            if (lit.kind === "ident" && (lit.name === "center" || lit.name === "end"))
+                return ok({ align: lit.name });
+            return fail("a Length (a number of pixels, a percent like 50%, or the position literals center | end on x/y)");
         case "number":
             if (lit.kind === "number")
                 return ok(lit.value);

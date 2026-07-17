@@ -43,6 +43,6 @@ class Radio extends Control [ height = 22,
     dot: View [ y = 2, width = 18, height = 18, cornerRadius = 9,
         fill   = { theme.surface },
         stroke = { stroke(on ? 5 : 1, on ? theme.accent : hovered || pressed ? theme.textMuted : theme.line) } ],
-    cap: Text [ x = 26, y = 2, wrap = false, textColor = { theme.text },
+    cap: Text [ x = 26, y = center, wrap = false, textColor = { theme.text },
         visible = { label != "" }, text = { label } ],
     ]

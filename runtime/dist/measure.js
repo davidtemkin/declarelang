@@ -58,6 +58,20 @@ export function fontMetrics(font) {
     const t = m.measureText("");
     return { ascent: t.fontBoundingBoxAscent, descent: t.fontBoundingBoxDescent };
 }
+/** The CAP HEIGHT of `font` — the baseline-to-capital band the optical
+ *  centering literal centers (`y = center` on a Text; the text-box-trim
+ *  semantics). Probed once per font from a capital sample glyph; a measurer
+ *  that reports no actualBoundingBoxAscent (the deterministic headless stub
+ *  predates the field) falls back to the classic 0.7em approximation. */
+export function capHeight(font) {
+    const m = measurer();
+    m.font = font;
+    const t = m.measureText("H");
+    if (typeof t.actualBoundingBoxAscent === "number" && t.actualBoundingBoxAscent > 0)
+        return t.actualBoundingBoxAscent;
+    const size = /(\d+(?:\.\d+)?)px/.exec(font);
+    return 0.7 * (size ? parseFloat(size[1]) : 16);
+}
 /** `text` broken into the lines it wraps to within `width` px in `font` —
  *  greedy soft-break at spaces, hard-break at "\n", via the shared measurer.
  *  The DOM backend wraps natively; this is the shared breaker the Canvas

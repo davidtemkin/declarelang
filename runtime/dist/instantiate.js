@@ -57,9 +57,9 @@ import { checkAttr, checkMethod, checkDecl, checkComponentValue, withDecls, prog
 import { buildStylesheet, ensureApplier, registerStylesheets } from "./stylesheet.js";
 import { buildFonts, collectFaces, registerFontFaces } from "./font.js";
 import { compileBody, compileExpr } from "./expr.js";
-import { isPercent } from "./value.js";
+import { isPercent, isAlign } from "./value.js";
 import { defineAttributes, setBound } from "./attributes.js";
-import { bindConstraint, bindPercent, bindData, bindDatapath, bindCursor } from "./bind.js";
+import { bindConstraint, bindPercent, bindAlign, bindData, bindDatapath, bindCursor } from "./bind.js";
 import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
 import { Replicator } from "./replicate.js";
 import { TAGS, LAYOUTS, LAYOUT_BASES, DATA, ANIMATORS, ANIMATOR_GROUPS, STATES } from "./registry.js";
@@ -150,6 +150,8 @@ function installPending(pending, ctx) {
         }
         else if ("replicator" in p)
             p.replicator.arm();
+        else if ("align" in p)
+            bindAlign(p.view, p.attr.name, p.align, p.attr.value.pos);
         else
             bindPercent(p.view, p.attr.name, p.percent, p.attr.value.pos);
     }
@@ -230,7 +232,7 @@ function buildStylesheets(program, schemas) {
                 const r = checkAttr(schema, a);
                 if (!r.ok)
                     throw r.error;
-                if (!("value" in r) || isPercent(r.value)) {
+                if (!("value" in r) || isPercent(r.value) || isAlign(r.value)) {
                     throw new DeclareError(`${where}.${child.tag}.${a.name}: an entry field is a literal or a { }`, a.value.pos);
                 }
                 return { name: a.name, value: r.value };
@@ -552,6 +554,9 @@ function construct(el, outer, ctx, parentSchema = null) {
         }
         else if (isPercent(r.value)) {
             ctx.pending.push({ view, attr, percent: r.value.percent });
+        }
+        else if (isAlign(r.value)) {
+            ctx.pending.push({ view, attr, align: r.value.align });
         }
         else {
             // checkAttr guarantees the value matches the field's declared type, so

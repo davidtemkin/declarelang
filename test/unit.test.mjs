@@ -168,7 +168,7 @@ await test("check(): App inherits View's schema (and says 'App' in messages)", (
 
 await test("check() names attribute, expected type, and found value per type", () => {
   const cases = [
-    ["View [ width=\"wide\" ]", /View\.width expects a Length \(a number of pixels, or a percent like 50%\), got the string "wide"/],
+    ["View [ width=\"wide\" ]", /View\.width expects a Length \(a number of pixels, a percent like 50%, or the position literals center \| end on x\/y\), got the string "wide"/],
     ["View [ visible=1 ]", /View\.visible expects a boolean \(true or false\), got the number 1/],
     ["View [ opacity=50% ]", /View\.opacity expects a number, got the percent 50%/],
     ["View [ fill=whit ]", /View\.fill expects a Fill \(a Color, gradient\(#F8F8F8, #D8D8D8\), gradient\(angle, …stops\), or null\), got 'whit' \(not a CSS color name\)/],
@@ -5170,5 +5170,46 @@ await test("settleHeadless: network is refused, never initiated — the source l
     app.discard();
   }
 });
+
+// ── the position literals (x/y = center | end) ──────────────────────────────
+
+await test("center/end: geometric on views, band-optical on Text, end is the box", async () => {
+  const src = `App [ width = 400, height = 200,
+    box: View [ width = 100, height = 40, x = center, y = center, fill = navy ],
+    corner: View [ width = 30, height = 30, x = end, y = end, fill = maroon ],
+    lbl: Text [ fontSize = 20, x = center, y = center, text = "Centered" ],
+  ]`;
+  const r = compile(src, {});
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  const app = settleHeadless(r.source, { deps: r.deps });
+  assert.equal(app.box.x, 150); assert.equal(app.box.y, 80);
+  assert.equal(app.corner.x, 370); assert.equal(app.corner.y, 170);
+  // Text y centers the INK BAND (cap 0.7em, ascent 0.8em in the deterministic
+  // headless measurer): lead = 2, band = 14 → (200-14)/2 - 2 = 91 — NOT the
+  // geometric (200-21)/2 = 89.5. The optics live only in the literal.
+  assert.equal(app.lbl.y, 91);
+  app.discard();
+});
+
+await test("center/end: reactive against parent resize (the literal is a standing derive)", async () => {
+  const src = `App [ width = 400, height = 200,
+    inner: View [ width = 300, height = 100,
+      box: View [ width = 100, height = 40, x = center, fill = navy ] ],
+  ]`;
+  const r = compile(src, {});
+  const app = settleHeadless(r.source, { deps: r.deps });
+  assert.equal(app.inner.box.x, 100);
+  app.inner.width = 500;
+  settle();
+  assert.equal(app.inner.box.x, 200, "recentered on parent resize");
+  app.discard();
+});
+
+await test("center/end: a size slot refuses the position literal, naming the rule", () => {
+  const r = compile("App [ width = 200, height = 100, v: View [ width = center ] ]", {});
+  assert.ok(r.errors.length > 0);
+  assert.match(r.errors[0].message, /legal on x and y only/);
+});
+
 
 summarize("unit");

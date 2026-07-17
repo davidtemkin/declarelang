@@ -51,7 +51,7 @@ class Tab extends Control [ width = { parent.width }, clip = true,
         cornerRadius = { theme.controlRadius },
         fill = { classroot.open || classroot.hovered || classroot.pressed ? theme.controlActive : theme.control },
         stroke = { stroke(1, theme.line) },
-        t: Text [ x = 12, y = 8, fontSize = 14, fontWeight = { classroot.open ? "semibold" : "medium" },
+        t: Text [ x = 12, y = center, fontSize = 14, fontWeight = { classroot.open ? "semibold" : "medium" },
             textColor = { theme.text }, text = { classroot.label } ],
         ],
     ]

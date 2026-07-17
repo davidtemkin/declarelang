@@ -136,4 +136,29 @@ export function bindPercent(view, name, percent, pos) {
     own(view, name, k);
     k.run();
 }
+/** Bind `x = center` / `y = end` — the position literals (value.ts Align).
+ *  Symbolic like a percent, resolved as a standing constraint over the
+ *  parent's extent AND the view's own. `center` centers what you see: the
+ *  view's alignBand (a box by its box; a Text by its cap-to-baseline ink band
+ *  — the text-box-trim semantics). `end` aligns end edges — the geometric
+ *  box, always (descenders never overhang a hard edge). The written-out
+ *  formula `{ (parent.height - this.height) / 2 }` remains the no-smarts
+ *  spelling: only the named literal invokes the optics. */
+export function bindAlign(view, name, align, pos) {
+    const cls = view.constructor.name;
+    const size = name === "x" ? "width" : "height";
+    if (!(view.parent instanceof View)) {
+        throw new DeclareError(`${cls}.${name} = ${align}: the root has no parent to align against`, pos);
+    }
+    const k = new Constraint(`${cls}.${name} = ${align}`, () => {
+        const P = view.parent[size];
+        if (align === "end")
+            return P - view[size];
+        const band = view.alignBand(name);
+        return (P - band.size) / 2 - band.lead;
+    }, (v) => setBound(view, name, v));
+    markPercent(k); // like a percent: excluded from the parent's auto-extent (no cycle)
+    own(view, name, k);
+    k.run();
+}
 //# sourceMappingURL=bind.js.map

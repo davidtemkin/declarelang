@@ -362,6 +362,15 @@ export class View extends Node {
    *  plain view. */
   focusChanged(_focused: boolean): void {}
 
+  /** The OPTICAL band the `center` position literal centers — { lead, size }
+   *  along the given axis, in this view's own coordinates. The base answer is
+   *  the whole box (lead 0); Text overrides the y axis with its ink band (cap
+   *  height to last baseline — the text-box-trim semantics). The same
+   *  component-supplies-its-shape protocol family as the focus silhouette. */
+  alignBand(axis: "x" | "y"): { lead: number; size: number } {
+    return { lead: 0, size: axis === "x" ? this.width : this.height };
+  }
+
   /** Retire this subtree: dispose every standing computation (bindings,
    *  percents, derives, a laid parent's constraints on these slots, the draw
    *  recording), run registered teardowns (a replicator's), uninstall the

@@ -48,6 +48,6 @@ class Checkbox extends Control [ height = 24,
                 },
             ],
         ],
-    cap: Text [ x = 28, y = 3, wrap = false, textColor = { theme.text },
+    cap: Text [ x = 28, y = center, wrap = false, textColor = { theme.text },
         visible = { label != "" }, text = { label } ],
     ]

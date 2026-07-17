@@ -86,7 +86,8 @@ One rule for values:
 | a **`:`-prefixed** path | a read from bound data (a **datapath**) | `text = :title` |
 
 Bare slots have their own literal vocabulary the compiler owns: `100%` is a Length,
-`#1E3A49` is a Color, `navy` is a named color, `x` in `axis = x` is an axis keyword.
+`#1E3A49` is a Color, `navy` is a named color, `x` in `axis = x` is an axis keyword, and
+`center` / `end` are positions (`x = center`, `y = end` — §10).
 **Inside `{ }` that vocabulary stops** — you are in plain TypeScript, so colors are written
 `0x1E3A49`, percents don't exist (compute from `parent.width`), and an identifier means
 exactly what TypeScript says it means. The compiler never silently reinterprets an
@@ -407,6 +408,16 @@ but do not re-declare them as your own attributes (`contentWidth: number = { …
 
 `scrolls = true` makes a view scroll its taller content natively. `clip = true` clips
 children to the box (unset lets them overflow).
+
+**Positions are literals**: `x = center` and `x = end` (and the same on `y`) place a view
+against its parent — centers coincident, or end edges flush — resolved reactively, exactly
+like `100%`. The closed set is `center` and `end`; the start is `0`, the default. On a
+`Text`, `y = center` centers the INK (the cap-height-to-baseline band, so labels read
+centered regardless of font metrics — descenders overhang below); every other view centers
+its box, and `end` is always the geometric box. The written-out arithmetic
+`y = { (parent.height - this.height) / 2 }` remains the no-smarts spelling — only the
+named literal invokes the optics. Under a layout that owns the axis, a position literal
+conflicts exactly as any other value would.
 
 The one deliberate exception is the **App's size floor**: `App [ minWidth = 480,
 minHeight = 420 ]` declares the size below which the app does not adapt — in a narrower

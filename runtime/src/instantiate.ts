@@ -59,9 +59,9 @@ import { checkAttr, checkMethod, checkDecl, checkComponentValue, withDecls, prog
 import { buildStylesheet, ensureApplier, registerStylesheets, type Stylesheet, type StylesheetField } from "./stylesheet.js";
 import { buildFonts, collectFaces, registerFontFaces, type Font } from "./font.js";
 import { compileBody, compileExpr } from "./expr.js";
-import { isPercent, type AttrType, type Theme } from "./value.js";
+import { isPercent, isAlign, type AttrType, type Theme } from "./value.js";
 import { defineAttributes, setBound, type AttrSpec } from "./attributes.js";
-import { bindConstraint, bindPercent, bindData, bindDatapath, bindCursor } from "./bind.js";
+import { bindConstraint, bindPercent, bindAlign, bindData, bindDatapath, bindCursor } from "./bind.js";
 import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
 import { Replicator } from "./replicate.js";
 import { TAGS, LAYOUTS, LAYOUT_BASES, DATA, ANIMATORS, ANIMATOR_GROUPS, STATES } from "./registry.js";
@@ -110,6 +110,7 @@ interface Ctx {
 type Pending =
   | { view: Node; attr: Attr; code: string; classroot: View | null }
   | { view: View; attr: Attr; percent: number }
+  | { view: View; attr: Attr; align: "center" | "end" }
   | { view: View; attr: Attr; dataPath: string; type: AttrType }
   | { view: View; attr: Attr; twoWay: string; type: AttrType }
   | { view: View; attr: Attr; twoWayCode: string; type: AttrType; classroot: View | null }
@@ -196,6 +197,7 @@ function installPending(pending: readonly Pending[], ctx: Ctx): void {
       // the strategy over the now-linked children.
       (p.view as unknown as Record<string, unknown>)[p.layoutEl.name!] = buildLayout(p.layoutEl, p.view, ctx);
     } else if ("replicator" in p) p.replicator.arm();
+    else if ("align" in p) bindAlign(p.view, p.attr.name as "x" | "y", p.align, p.attr.value.pos);
     else bindPercent(p.view, p.attr.name, p.percent, p.attr.value.pos);
   }
 }
@@ -276,7 +278,7 @@ function buildStylesheets(program: Program, schemas: Record<string, ComponentSch
           }
           const r = checkAttr(schema, a);
           if (!r.ok) throw r.error;
-          if (!("value" in r) || isPercent(r.value)) {
+          if (!("value" in r) || isPercent(r.value) || isAlign(r.value)) {
             throw new DeclareError(`${where}.${child.tag}.${a.name}: an entry field is a literal or a { }`, a.value.pos);
           }
           return { name: a.name, value: r.value };
@@ -606,6 +608,8 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
       }
     } else if (isPercent(r.value)) {
       ctx.pending.push({ view, attr, percent: r.value.percent });
+    } else if (isAlign(r.value)) {
+      ctx.pending.push({ view, attr, align: r.value.align });
     } else {
       // checkAttr guarantees the value matches the field's declared type, so
       // this dynamic assignment (the parse-path bridge) is sound.

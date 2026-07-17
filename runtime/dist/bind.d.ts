@@ -41,3 +41,12 @@ export declare function bindCursor(view: View, src: string, pos: Pos, classroot:
  *  a source fact (the same fragment could be checked for embedding
  *  elsewhere), which is why it surfaces here and not in check(). */
 export declare function bindPercent(view: View, name: string, percent: number, pos: Pos): void;
+/** Bind `x = center` / `y = end` — the position literals (value.ts Align).
+ *  Symbolic like a percent, resolved as a standing constraint over the
+ *  parent's extent AND the view's own. `center` centers what you see: the
+ *  view's alignBand (a box by its box; a Text by its cap-to-baseline ink band
+ *  — the text-box-trim semantics). `end` aligns end edges — the geometric
+ *  box, always (descenders never overhang a hard edge). The written-out
+ *  formula `{ (parent.height - this.height) / 2 }` remains the no-smarts
+ *  spelling: only the named literal invokes the optics. */
+export declare function bindAlign(view: View, name: "x" | "y", align: "center" | "end", pos: Pos): void;

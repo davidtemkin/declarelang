@@ -151,13 +151,26 @@ export interface Percent {
   readonly percent: number;
 }
 
+/** A position literal (`x = center`, `y = end`) — symbolic like Percent,
+ *  resolved at bind time against the parent's extent AND the view's own
+ *  (bind.ts bindAlign). `center` centers what you see: a box by its box, a
+ *  Text by its ink band (View.alignBand). The closed set: center | end —
+ *  start is 0, the default; nothing else, ever. */
+export interface Align {
+  readonly align: "center" | "end";
+}
+
+export function isAlign(v: unknown): v is Align {
+  return typeof v === "object" && v !== null && "align" in v;
+}
+
 /** A Length: pixels (a bare number) or a parent-relative Percent. */
 export type Length = number | Percent;
 
 /** A coerced literal — ready to assign to a typed view field. Percent is the
  *  one member with no field to land in yet (see above); the decoration
  *  records (Gradient/Stroke/Shadow) arrive from constructor literals. */
-export type AttrValue = number | boolean | string | null | Percent | Gradient | Stroke | Shadow | Motion;
+export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | Shadow | Motion;
 
 /** Narrow an AttrValue to the Percent arm (no longer the only object in the
  *  union since decoration values landed — the key is the discriminant). */
@@ -265,7 +278,8 @@ export function coerce(type: AttrType, lit: Literal): Coerced {
     case "length":
       if (lit.kind === "number") return ok(lit.value);
       if (lit.kind === "percent") return ok({ percent: lit.value });
-      return fail("a Length (a number of pixels, or a percent like 50%)");
+      if (lit.kind === "ident" && (lit.name === "center" || lit.name === "end")) return ok({ align: lit.name });
+      return fail("a Length (a number of pixels, a percent like 50%, or the position literals center | end on x/y)");
     case "number":
       if (lit.kind === "number") return ok(lit.value);
       return fail("a number");

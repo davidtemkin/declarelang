@@ -25,7 +25,7 @@
 import { View, onDiscard } from "./view.js";
 import type { RenderBackend, Surface } from "./backend.js";
 import { shadowEqual, type Fill, type Shadow } from "./value.js";
-import { fontMetrics, fontString, textWidth, wrapLines } from "./measure.js";
+import { fontMetrics, fontString, textWidth, wrapLines, capHeight } from "./measure.js";
 import { bindDerived, defineAttributes, isSet, ownerOf } from "./attributes.js";
 import { Constraint } from "./reactive.js";
 
@@ -64,6 +64,22 @@ export class Text extends View {
       });
     }
     super.attach(backend, parentSurface);
+  }
+
+  /** The ink band (y axis): first line's cap top to the last line's baseline
+   *  — what `y = center` centers (bind.ts bindAlign). Descenders hang below
+   *  the band as overhang, per typographic convention. The x axis stays the
+   *  geometric box. */
+  override alignBand(axis: "x" | "y"): { lead: number; size: number } {
+    if (axis === "x") return super.alignBand(axis);
+    const font = fontString(this);
+    const m = fontMetrics(font);
+    const cap = capHeight(font);
+    const bounded = (isSet(this, "width") || ownerOf(this, "width") !== null) && this.width > 0;
+    const lines = bounded && this.wrap
+      ? wrapLines(this.text, font, this.width, this.letterSpacing).length
+      : 1;
+    return { lead: m.ascent - cap, size: (lines - 1) * (m.ascent + m.descent) + cap };
   }
 
   protected override flush(s: Surface): void {
