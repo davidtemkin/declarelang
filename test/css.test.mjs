@@ -143,4 +143,59 @@ await test("parseCss: rejects !important cleanly", () => {
   assert.throws(() => parseCss(`.a { color: red !important }`), /unsupported|important/i);
 });
 
+const { buildRuleSet, matches, matched } = await import("../runtime/dist/css-match.js");
+
+function fakeView(over = {}, parent = null) {
+  return {
+    tagChain: over.tagChain ?? [],
+    id: over.id ?? "",
+    styleclass: over.styleclass ?? "",
+    attr: (n) => (over.attrs ?? {})[n],
+    parent,
+  };
+}
+
+await test("matches: class membership is whitespace-tokenized (~=)", () => {
+  const v = fakeView({ styleclass: "red bold" });
+  assert.equal(matches(v, parseSelectorText(".red")), true);
+  assert.equal(matches(v, parseSelectorText(".bold")), true);
+  assert.equal(matches(v, parseSelectorText(".re")), false);
+  assert.equal(matches(v, parseSelectorText(".red.bold")), true);
+  assert.equal(matches(v, parseSelectorText(".red.green")), false);
+});
+
+await test("matches: subclass-aware tag via tagChain, id, universal", () => {
+  const v = fakeView({ tagChain: ["Button", "View", "Node"], id: "ok" });
+  assert.equal(matches(v, parseSelectorText("View")), true);
+  assert.equal(matches(v, parseSelectorText("Button")), true);
+  assert.equal(matches(v, parseSelectorText("Text")), false);
+  assert.equal(matches(v, parseSelectorText("#ok")), true);
+  assert.equal(matches(v, parseSelectorText("*")), true);
+});
+
+await test("matches: attribute ops = ~= |=", () => {
+  const v = fakeView({ attrs: { sel: true, cls: "a b", lang: "en-US" } });
+  assert.equal(matches(v, parseSelectorText("[sel]")), true);
+  assert.equal(matches(v, parseSelectorText("[missing]")), false);
+  assert.equal(matches(v, parseSelectorText("[cls~=b]")), true);
+  assert.equal(matches(v, parseSelectorText("[cls~=c]")), false);
+  assert.equal(matches(v, parseSelectorText("[lang|=en]")), true);
+  assert.equal(matches(v, parseSelectorText("[lang|=fr]")), false);
+});
+
+await test("matches: descendant combinator walks the parent chain", () => {
+  const root = fakeView({ tagChain: ["View"] });
+  const child = fakeView({ tagChain: ["Button", "View"], styleclass: "active" }, root);
+  assert.equal(matches(child, parseSelectorText("View Button.active")), true);
+  assert.equal(matches(child, parseSelectorText("Text Button.active")), false);
+  // rightmost must match THIS node: `View Text` fails (child is not a Text)
+  assert.equal(matches(child, parseSelectorText("View Text")), false);
+});
+
+await test("buildRuleSet parses text into rules", () => {
+  const rs = buildRuleSet(".a { color: red }");
+  assert.equal(rs.rules.length, 1);
+  assert.equal(rs.rules[0].decls.get("color"), "red");
+});
+
 summarize("css");
