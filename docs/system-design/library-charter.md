@@ -1,6 +1,8 @@
 # The library charter — the component set for real apps, and what it stands on
 
-Status: **DRAFT for ratification** (2026-07-16). The strategic premise (David):
+Status: **RATIFIED with amendments** (2026-07-17). The ordering of work is
+David's ruling (§8): styling fidelity first, ResponsiveLayout second (research
+before build), the network rewiring third, components + planes last. The strategic premise (David):
 the missing table-stakes piece before LLMs can be tested on REAL apps —
 ordinary web apps, forms-on-data, a typical SaaS app, end-to-end — is a robust
 component set. This charter fixes the target: the ratified component list
@@ -62,14 +64,35 @@ of it).
 
 | component | note |
 |---|---|
-| `Table` | the forms-on-data centerpiece: column declarations, header row, sort state as one reactive attribute, row selection per the List conventions, keyed replication underneath. Virtualization explicitly OUT of v1 (native scroll + a few hundred rows is the honest v1 envelope). |
-| `DateField` | distilled from the calendar app (the flagship already solves the hard rendering); field + `Floating` month popover. `NumberField` (stepper) rides along as a small sibling. |
+| `Table` | the RECORDS BROWSER (an interface component over a Dataset, NOT a layout mechanism — layout-tables are rejected outright; arrangement belongs to layouts/constraints): declared `Column [ field, label, width ]` grammar, header row, sort as one reactive attribute, row selection per the List conventions, keyed replication underneath. Cells are ordinary COMPOSED views (chips, buttons, avatars) — flexible, honest to ~thousands of rows. Extraction bonus: semantically a table, so the crawler document emits real tabular markup. |
+| `Grid` | the THROUGHPUT SHOWCASE (the hypergrid class): same outer Column grammar as Table — one idea at two scales — but cells are PAINTED via `draw()` over the visible window, virtualized by constraint (`firstRow = { Math.floor(scrollY / rowH) }`), holding a million rows. The cell contract is the honest dividing line: composed views (Table) vs a painter vocabulary (Grid), converging at the focused cell where Grid overlays one real view for editing, spreadsheet-style. Resizable columns are attribute writes from a drag. The demo joins the homepage metrics idiom: a million rows, N hundred lines, zero by hand. |
+| `DateField` | distilled from the calendar app (the flagship already solves the hard rendering); field + floating month popover. `NumberField` (stepper) rides along as a small sibling. |
 
 **Explicitly not in this charter:** rich text editing, file upload, drag-drop
 lists, charts, virtualized lists — real, later, not table stakes for the
 archetypes.
 
-## 4. Substrate one: planes (the layering ruling)
+## 4. Substrate one: planes — SUPERSEDED IN PART, full redesign deferred
+
+David's review rejected the `plane` ATTRIBUTE as incoherent with "the bracket
+nesting IS the view tree" — a child that renders outside its parent's clip and
+stacking is a child in name only. The agreed direction (final design lands with
+the components phase, discussed separately): planes NEVER appear in the author
+surface. Two mechanisms instead: (a) STRUCTURAL layers for semantically
+top-level things — windows, toasts, app-modal dialogs — as ordinary late
+children of the App root (declaration order already stacks); a `windows:` layer
+whose `Window` children are keyed replication over a dataset of open windows,
+so focus-promotion is a DATA reorder — z-order as data, no numeric z even for
+windows; dragging is x/y on the Window, its interior an ordinary subtree.
+(b) ENCAPSULATED promotion for anchored transients (Menu, Tooltip, Select's
+popover): authored as local children (locality, classroot, data scope
+preserved); the COMPONENT'S implementation mounts floating content through a
+runtime overlay service — the Flutter model, where authors write Tooltip and
+never touch the Overlay. The plane ladder and input strata survive as runtime
+internals + component contracts only. The remainder of this section is the
+pre-review record:
+
+### 4x. (superseded record) the original attribute proposal
 
 Today stacking is declaration order within ONE plane, and no z-index exists —
 a ruling this design keeps. Every mature toolkit converged on the same answer:
@@ -107,7 +130,28 @@ popovers; light-dismiss) → `modal` (dialogs; input-blocking) → `notice`
   input destined below; light-dismiss is the floating plane observing an
   outside pointer-down. An input.md extension, specified with this ruling.
 
-## 5. Substrate two: writes (data leaves the app)
+## 5. Substrate two: the network (writes, requests, connections)
+
+**The requirement that governs everything here (David):** a Declare developer
+must be able to consume/call ANY endpoint — "your backend has to be limited by
+Declare's client capabilities" is a non-goal; there is no Declare jail. The
+layering: at bottom the existing TRANSPORT SEAM (the one governed pipe that
+keeps headless, crawl, and fixtures honest). Above it, a general **`Request`**
+primitive — any verb, headers, auth, body, `format = json | text | bytes` —
+with reactive lifecycle, usable STANDALONE. Above that, the conveniences that
+feed Dataset: `DataSource` (GET-and-parse; gains `format`, retiring the
+JSON-wrap workaround the homepage's language.json embodies), the writes
+surface below, and **`Connection`** (WebSocket/SSE, after LzConnection):
+`status` reactive (`connecting/open/closed`), `send()` a service action whose
+handler TS packs any payload (the 64-byte binary telemetry case: `send(buf)`
+from a handler; inbound via the `<-` subscription seam or the reactive
+`conn.last`, with write-batching giving one settle per frame), and OPTIONAL
+append-into-Dataset for feed-shaped traffic. Raw `fetch`/`WebSocket` in
+handler TypeScript remains the always-available floor; the blessed forms exist
+for the seam's guarantees, never as a fence. Consumers of today's Dataset
+surface do not change.
+
+### 5a. Writes (data leaves the app)
 
 `DataSource` fetches; `Dataset` mutates in memory. "End-to-end" means create,
 update, and delete REACHING A SERVER, and Declare currently has no story for
@@ -127,7 +171,56 @@ here):
   writes in the sandbox so A1's assert can drive create/edit/delete
   end-to-end.
 
-## 6. Form conventions (the connective tissue)
+## 6. Phase one: styling fidelity (the gate on the vocabulary)
+
+**Goal (David's ruling): Material Design AND Apple styling, end to end, high
+fidelity, on the EXISTING components — before the component set grows.** The
+rig is `component-sampler.declare`: every current component × switchable
+themes (switcher via RadioGroup — the missing Menu is the demo's own
+evidence). The prevailing-theme + TS-spread mechanism is SUFFICIENT
+(hierarchical, composable, per-subtree overridable); the work is COVERAGE:
+components read only color tokens today, while design-system identity is
+GEOMETRIC — so the theme record grows geometry tokens (`controlRadius`,
+`controlHeight`, `density`, border weights…) and the library learns to consult
+them. Settled before Tier 0/1 lands, or every new component bakes in more
+unsayable geometry.
+
+**Focus indication is part of this phase** (fidelity to either design system
+is impossible without it). Two channels, per the native convergence ("service
+draws, component shapes" — the macOS focus-ring mask-path precedent):
+(a) the traveling ring gains a policy token — `focusRing: "travel" | "persist"
+| false` — where "persist" rests the ring on the focused control while
+keyboard modality holds (`Focus.byKeyboard()` already tracks it; pointer press
+clears it — web :focus-visible semantics), and the ring's TERMINUS MORPHS to
+the target's silhouette by springing `cornerRadius` read from the target's own
+geometry (a circle is cornerRadius = size/2 — a Radio already is one; odd
+silhouettes override `focusShape()`); (b) the `Control` base grows a reactive
+`focused` state so themes can render focus as the component's own appearance —
+Material indicates focus by state-layer tint (ring suppressed), Apple by the
+shaped ring (quiet components). RadioGroup composes as one Tab stop with
+arrow-key roving; the individual radio carries `focused`.
+
+## 6a. Phase two: ResponsiveLayout (a named class for responsive intent)
+
+David's ruling over my primitives-first counterproposal, and he is right by
+the Spring precedent: motion was always expressible with constraints; the
+language earned its story when physics got a NAME. Responsive design today is
+`app.width` ternaries scattered across children — locally true everywhere, the
+design stated nowhere, spreadsheet-formula spaghetti. `ResponsiveLayout` is a
+CLASS (no language surface) that states the design: breakpoints/size classes
+and per-break bundles (columns resized or hidden, renditions swapped),
+compiled to the States mechanism underneath. Constrainable layout attributes
+and the size-class vocabulary become implementation conveniences INSIDE it,
+not the author surface. It keys off its own CONTAINER's width, not only the
+app's (container-query semantics — free in Declare, every view's width is
+reactive), so a region can respond to app-level reshaping with its own rules.
+**Sequenced: research FIRST** — how designers actually think/design responsive
+behavior, and how native platforms (SwiftUI size classes, rotation, iPad
+multitasking resize) model it — then build, then PROVE by adopting it in the
+homepage and the calendar. DoD includes a new, deliberately harder responsive
+eval task.
+
+## 7. Form conventions (the connective tissue)
 
 Designed WITH the components, not retrofitted after: validation display over
 the existing schema seam (invalid = a reactive fact a Field renders, never an
@@ -136,7 +229,7 @@ DERIVES from its fields); error and empty states as first-class layout
 states. One reference form in the docs becomes the canonical example all
 Tier-0/1 components appear in.
 
-## 7. Definition of done: the real-app eval family
+## 8. Definition of done: the real-app eval family
 
 The library is done when a NEW eval task family passes the standard config —
 not when N components exist:
@@ -154,19 +247,21 @@ not when N components exist:
 These tasks are to this charter what the calendar was to continuity: the
 proof the capability is real, kept green by the same gates thereafter.
 
-## 8. Sequencing
+## 9. Sequencing — David's ruling (supersedes the draft order)
 
-1. Tier 0 now (PasswordField, Tabs, Card, List conventions) — no blockers.
-2. Planes ruling + `Floating` + reactive root-space + input strata — one
-   runtime pass (§4), immediately after ratification.
-3. Tier 1 components as fast library follow-ons, in the table's order.
-4. Writes design note in parallel with §4 (compiler/runtime track, not
-   library track); implementation before the tracker task lands.
-5. Tier 2 (Table, DateField) — each a deliberate build with its own demos.
-6. The eval family (§7) closes the loop; the SaaS-app claim is measured, not
-   asserted.
+1. **Styling fidelity** (§6): the sampler, the geometry tokens, the two
+   design systems end-to-end on existing components, focus channels included.
+2. **ResponsiveLayout** (§6a): research → build → adopt in homepage and
+   calendar.
+3. **Network** (§5): Request/format/Connection/writes rewired underneath;
+   consumers unchanged.
+4. **Components** (§3, Tier 0 → 1 → 2) — and the planes redesign (§4) lands
+   HERE, as the Tier-1 prerequisite, per the deferred discussion.
+5. The eval family (§8) closes the loop; the SaaS-app claim is measured, not
+   asserted — under the standard config AND the bootstrap arm (clean-clone
+   baseline as of 2026-07-17: 8/9 green, 9/9 compile, answer key stripped).
 
-## 9. Open questions
+## 10. Open questions
 
 1. `Floating`'s anchoring relation name (`attachTo`?) — `anchor` is taken.
 2. Does `notice` sit above `modal` (toasts over dialogs — iOS says yes)?
