@@ -121,6 +121,11 @@ export function makeDistroSandbox({ runName, task, model, rep }) {
   mkdirSync(base, { recursive: true });
   const dir = join(base, "declarelang");
   execFileSync("git", ["clone", "--depth", "1", "--quiet", "file://" + ROOT, dir], { stdio: "pipe" });
+  // the eval corpus ships in the repo — including reference solutions and the
+  // hidden asserts. An agent WILL find them (observed: one recognized its brief
+  // in evals/tasks/ and copied the reference verbatim). Strip evals/ from the
+  // sandbox: the product surface stays intact, the answer key does not travel.
+  rmSync(join(dir, "evals"), { recursive: true, force: true });
   if (task.hasFixtures) cpSync(join(task.dir, "fixtures"), join(dir, "my-apps", "fixtures"), { recursive: true });
   return { dir };
 }

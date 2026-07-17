@@ -62,6 +62,9 @@ cover; fetch the one chapter your task needs).
 
 ## Routing table — read exactly what the task needs
 
+Paths are relative to the REPOSITORY ROOT (the directory holding this repo's
+README.md) — not to this file's location.
+
 | task involves | read |
 |---|---|
 | first program, program shape | docs/guide/00-shape.md |
