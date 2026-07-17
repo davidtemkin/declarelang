@@ -281,7 +281,7 @@ class Segment extends View [ width = { parent.width },
     tone: Color   = { theme.body },
     lead: number  = 1.6,
     layout: SimpleLayout [ axis = y, spacing = 14 ],
-    md: Markdown [ width = { parent.width }, lineHeight = { classroot.lead }, bodyColor = { classroot.tone }, scale = { app.fontScale },
+    md: Markdown [ width = { parent.width }, lineHeight = { classroot.lead }, bodyColor = { classroot.tone }, scale = { app.fontScale }, dark = { app.darkUI },
         visible = { :md != "" }, text = { :md },
         onLink(href) { app.openDocLink(href) },
         ],
@@ -450,7 +450,7 @@ class ModeTab extends View [ height = 28, cornerRadius = 7,
     onMouseOver() { hovered = true },
     onMouseOut()  { hovered = false },
     onClick()     { app.location = classroot.m == "guide" ? "guide/" + app.guideAt : "reference/" + app.refAt; app.showPage() },
-    lbl: Mono [ x = 11, y = 6, fontSize = { 12 * app.fontScale }, fontWeight = semibold,
+    lbl: Text [ x = 11, y = 6, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = { 12 * app.fontScale }, fontWeight = semibold,
         text = { classroot.label },
         textColor = { app.mode == classroot.m ? theme.text : theme.modeOff } ],
     width = { this.lbl.width + 22 },
@@ -533,6 +533,25 @@ class SizeBtn extends View [ width = 34, height = 30, cornerRadius = 6,
     ]
 
 
+// the theme switch — ☀ light · ◐ follow the system · ☾ dark. Selection is one
+// App attribute (`themeMode`); the theme record derives from it, so the whole
+// app (and every island's chrome) reskins from this row.
+
+class ThemeBtn extends View [ width = 34, height = 30, cornerRadius = 6,
+    m:     string = "",
+    glyph: string = "",
+    hovered: boolean = false,
+    fill = { app.themeMode == m ? theme.modeOn : hovered ? theme.hover : null },
+    onMouseOver() { hovered = true },
+    onMouseOut()  { hovered = false },
+    onClick() { app.themeMode = classroot.m },
+    lbl: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14,
+        text = { classroot.glyph },
+        textColor = { app.themeMode == classroot.m ? theme.text : theme.muted },
+        x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 } ],
+    ]
+
+
 /*
 ## The app
 
@@ -568,6 +587,18 @@ App [ fill = { theme.bg },
     selected: string = { app.mode == "reference" ? (app.location.split("@")[0].split("/")[1] || "View") : app.refAt },
 
     fontScale: number = 0.9,                   // reader font-size zoom (0.9 = the comfortable default; the A stepper drives it)
+    themeMode: string = "system",              // "light" | "system" | "dark" — the ☀◐☾ switch; system follows app.dark
+
+    // the ONE resolved fact every colour decision reads — the theme record AND
+    // the Markdown rich-element palette must agree, or an override leaves
+    // headings in the OS scheme while the chrome switches (seen in the wild)
+
+    darkUI: boolean = { themeMode == "dark" || (themeMode == "system" && app.dark) },
+
+    // the rail never narrows below its designed 248, but GROWS with the font
+    // zoom so longer labels keep fitting — every rail geometry derives from it
+
+    railW: number = { Math.round(248 * Math.max(1, app.fontScale / 0.9)) },
     liveCard: string = "",                     // the demo an inline editor is republishing (name) …
     liveSource: string = "",                   // … and its current source — the host recompiles this pair live
 
@@ -578,7 +609,7 @@ App [ fill = { theme.bg },
        live-preview canvas stays a fixed dark in both themes (the demos are
        dark-authored examples). */
 
-    theme = { app.dark
+    theme = { darkUI
         ? ({ bg: 0x0B141B, rail: 0x0D1922, surface: 0x0C1620, chipBg: 0x14232E, hover: 0x152633, sel: 0x1C2D39, mchipBg: 0x172436, echipBg: 0x241F12, modeOn: 0x1F3B54, chipHov: 0x1C3243, mchipHov: 0x213649, echipHov: 0x332B18, line: 0x1E313C, rule: 0x345B84, edge: 0x1B2C39, accent: 0x4C8DFF, accent2: 0x37E0C8, chipTeal: 0x9FD9CE, chipBlue: 0xA9C7FF, chipAmber: 0xE7C98A, text: 0xE7EEF2, body: 0xC4CFD8, code: 0xC7D3DC, strong: 0xB7C6D2, mtail: 0x9FB3C2, tabIdle: 0x9BB0BE, refDim: 0x98A7B1, muted: 0x8A9BA6, modeOff: 0x7C93A2, sigDim: 0x6E8494, eyebrow: 0x55707F, tag: 0x4F6472 })
         : ({ bg: 0xF6F8FA, rail: 0xECF0F4, surface: 0xFFFFFF, chipBg: 0xE9EFF4, hover: 0xE4EBF1, sel: 0xDBE5EE, mchipBg: 0xE7EDF6, echipBg: 0xF5EFE0, modeOn: 0xD1DFF0, chipHov: 0xD9E4ED, mchipHov: 0xD4DEEF, echipHov: 0xECE3CD, line: 0xDCE3E9, rule: 0xB6C8DA, edge: 0xE0E6EC, accent: 0x2F6FE0, accent2: 0x12A08D, chipTeal: 0x15806E, chipBlue: 0x3355C2, chipAmber: 0x8F6F28, text: 0x172530, body: 0x2E3B46, code: 0x2B3843, strong: 0x3A4A56, mtail: 0x4F5F6B, tabIdle: 0x55636F, refDim: 0x51606C, muted: 0x6A7883, modeOff: 0x74828D, sigDim: 0x84929D, eyebrow: 0x93A0AA, tag: 0xA2AEB8 }) },
 
@@ -636,13 +667,15 @@ App [ fill = { theme.bg },
        Brand, the Guide/Reference switch, the font-size stepper, then the nav
        for the live mode. */
 
-    rail: View [ x = 0, y = 0, width = 248, height = { app.hostHeight }, scrolls = true, fill = { theme.rail },
-        edge: View [ x = 247, y = 0, width = 1, height = { app.hostHeight }, fill = { theme.edge } ],
-        col: View [ x = 16, y = 22, width = 216,
+    rail: View [ x = 0, y = 0, width = { app.railW }, height = { app.hostHeight }, scrolls = true, fill = { theme.rail },
+        edge: View [ x = { app.railW - 1 }, y = 0, width = 1, height = { app.hostHeight }, fill = { theme.edge } ],
+        col: View [ x = 16, y = 22, width = { app.railW - 32 },
             layout: SimpleLayout [ axis = y, spacing = 4 ],
-            brand: Mono [ fontSize = { 15 * app.fontScale }, fontWeight = semibold,
+            brand: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = { 17 * app.fontScale },
+                fontWeight = semibold, letterSpacing = { -0.02 * fontSize },
                 textFill = { gradient("90deg", theme.accent, theme.accent2) }, text = "Declare" ],
-            sub:   Mono [ fontSize = { 12 * app.fontScale }, textColor = { theme.eyebrow }, text = "docs" ],
+            sub:   Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = { 12 * app.fontScale },
+                textColor = { theme.eyebrow }, text = "docs" ],
             g0:    View [ height = 12 ],
             modes: View [ width = { parent.width },
                 layout: SimpleLayout [ axis = x, spacing = 6 ],
@@ -653,14 +686,26 @@ App [ fill = { theme.bg },
             // font-size stepper — small / reset / large "A" glyphs zoom every text size
 
             g_sz:  View [ height = 8 ],
-            size: View [ height = 30, cornerRadius = 8, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
-                layout: SimpleLayout [ axis = x, spacing = 0 ],
-                SizeBtn [ glyph = 11, delta = -0.1 ],
-                div1: View [ width = 1, height = 18, y = 6, fill = { theme.line } ],
-                SizeBtn [ glyph = 15, delta = 0 ],
-                div2: View [ width = 1, height = 18, y = 6, fill = { theme.line } ],
-                SizeBtn [ glyph = 19, delta = 0.1 ],
-                width = { this.contentWidth },
+            ctl: View [ width = { parent.width },
+                layout: SimpleLayout [ axis = x, spacing = 8 ],
+                size: View [ height = 30, cornerRadius = 8, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+                    layout: SimpleLayout [ axis = x, spacing = 0 ],
+                    SizeBtn [ glyph = 11, delta = -0.1 ],
+                    div1: View [ width = 1, height = 18, y = 6, fill = { theme.line } ],
+                    SizeBtn [ glyph = 15, delta = 0 ],
+                    div2: View [ width = 1, height = 18, y = 6, fill = { theme.line } ],
+                    SizeBtn [ glyph = 19, delta = 0.1 ],
+                    width = { this.contentWidth },
+                    ],
+                mode: View [ height = 30, cornerRadius = 8, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
+                    layout: SimpleLayout [ axis = x, spacing = 0 ],
+                    ThemeBtn [ glyph = "☀", m = "light" ],
+                    div1: View [ width = 1, height = 18, y = 6, fill = { theme.line } ],
+                    ThemeBtn [ glyph = "◐", m = "system" ],
+                    div2: View [ width = 1, height = 18, y = 6, fill = { theme.line } ],
+                    ThemeBtn [ glyph = "☾", m = "dark" ],
+                    width = { this.contentWidth },
+                    ],
                 ],
 
             // guide nav — parts and their chapters
@@ -689,7 +734,7 @@ App [ fill = { theme.bg },
        browser text selection — prose, signatures, Markdown runs — while the
        rail stays chrome. */
 
-    detail: View [ x = 248, y = 0, width = { app.hostWidth - 248 }, height = { app.hostHeight }, scrolls = true, selectable = true,
+    detail: View [ x = { app.railW }, y = 0, width = { app.hostWidth - app.railW }, height = { app.hostHeight }, scrolls = true, selectable = true,
         col: View [ x = 48, y = 40, width = { parent.width - 96 },
             guideCol: View [ width = { parent.width }, visible = { app.mode == "guide" },
                 ChapterDetail [ datapath = :guide[], cid = :id ],
