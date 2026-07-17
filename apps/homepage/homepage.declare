@@ -683,7 +683,7 @@ App [ theme = { ({
                             textColor = { hovered ? theme.accent2 : theme.muted },
                             onMouseOver() { hovered = true },
                             onMouseOut()  { hovered = false },
-                            onClick()     { app.navigate("LICENSE") },
+                            onClick()     { app.navigate("https://github.com/davidtemkin/declarelang/blob/main/LICENSE") },
                             text = "MIT License",
                             ],
                         FootLabel [ textColor = { theme.faint }, text = "·" ],

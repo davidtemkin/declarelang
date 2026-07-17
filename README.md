@@ -125,3 +125,9 @@ fall stale; see [`docs/system-design/hosting.md`](docs/system-design/hosting.md)
 - **Never rebuild the platform bundles by hand**: the pre-commit hook rebuilds a stale
   one before stamping the build id, and the dev server rebuilds on demand
   (`tools/internal/bundle-freshness.mjs`).
+
+## License
+
+MIT — see [LICENSE](LICENSE). Copyright © 2026 David Temkin. The one notice at the
+root covers the whole tree (code, library, apps, documentation); files carry no
+per-file headers by design — the sources are the showcase.
