@@ -354,6 +354,8 @@
    ],
    "View": [
     "  scrollIntoView(): void;",
+    "  tabOrder(): View[];",
+    "  tabDefault(): View[];",
     "  lookupStylesheet(name: string): any;"
    ],
    "Dataset": [

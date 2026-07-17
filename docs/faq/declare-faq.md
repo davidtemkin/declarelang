@@ -1,4 +1,4 @@
-# Declare — Frequently Asked Questions
+# Declare: Frequently Asked Questions
 
 ## The basics
 
@@ -111,7 +111,7 @@ It's tested, not assumed. Declare's development runs an evaluation harness: a la
 
 ### Where does Declare come from?
 
-Declare is a from-the-ground-up modern successor to OpenLaszlo, the open-source rich-internet-application platform first released in 2001. OpenLaszlo had the core ideas remarkably early: interfaces declared as XML trees, attributes connected by live constraints, compiled applications running in the browser — a decade before today's declarative frameworks. Declare is created and led by David Temkin, OpenLaszlo's founder, and keeps those convictions — the declarative tree, constraint-based reactivity, a real compiler — while rebuilding everything else for the modern era: a clean keyword-free syntax, TypeScript for logic, DOM and canvas renderers, in-browser compilation, and a design shaped from day one for the LLM era.
+Declare is a from-the-ground-up modern successor to OpenLaszlo, the open-source rich-internet-application platform first released in 2002. OpenLaszlo had the core ideas remarkably early: interfaces declared as trees, attributes connected by live constraints, declarative data binding, compiled applications running in the browser — a decade before today's declarative frameworks. Declare  keeps those convictions — the declarative tree, constraint-based reactivity, a real compiler — while rebuilding everything else for the modern era: a clean keyword-free syntax, TypeScript for logic, DOM and canvas renderers, in-browser compilation, and a design shaped from day one for the LLM era.
 
 ### Can I try it without installing anything?
 
@@ -131,7 +131,7 @@ That starts the dev server; write a program to `my-apps/hello.declare` and brows
 
 ### Can I use Declare inside my own project? Is there an npm package?
 
-Today, the repository is the distribution: you clone it, and your apps live in a directory inside it (`my-apps/`), served by its dev server and built by its `declarec` tool. What you *ship* is fully standalone — a production build is a small set of static files you can host anywhere, with no trace of the toolchain. There's no npm package yet; treating the checkout as your toolchain (and `git pull` as your upgrade path) is the current model, and it's honest to say the packaging story is younger than the language.
+Today, the repository is the distribution: you clone it, and your apps live in a directory inside it (`my-apps/`), served by its dev server and built by its `declarec` tool. What you *ship* is fully standalone — a production build is a small set of static files you can host anywhere, with no trace of the toolchain. There's no npm package yet; treating the checkout as your toolchain (and `git pull` as your upgrade path) is the current model.
 
 ### Is there editor support — syntax highlighting, autocomplete, a VS Code extension?
 
