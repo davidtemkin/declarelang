@@ -1,10 +1,15 @@
 # A standard-CSS styling channel, and a named screen-update seam
 
-*Design spec. Status: approved for planning (2026-07-17). Origin: porting the
-OpenLaszlo 5 CSS engine — selector matching, specificity, cascade — onto
-declarelang's reactive spine, plus formalizing the frame-flush seam the runtime
-already has. Revised after a three-lens review (codebase-reality, architecture,
-completeness) — see "Review resolutions" for what changed and why.*
+*Design spec. Status: **M0–M3 landed** (2026-07-17) — the screen-update seam,
+the pure engine (parser + matcher + cascade), the coercers + attribute mapping,
+and the runtime wiring (marks/eviction, the per-view applier, View
+styleclass/id/cssRules slots) are implemented, tested (33 CSS tests, full suite
+green), and code-reviewed. M4 (dynamic-semantics hardening) and M5 (compile-time
+parse + checker + docs/guide styling page + the M0 seam note) are the follow-on.
+Origin: porting the OpenLaszlo 5 CSS engine — selector matching, specificity,
+cascade — onto declarelang's reactive spine, plus formalizing the frame-flush
+seam the runtime already has. Revised after a three-lens review (codebase-reality,
+architecture, completeness) — see "Review resolutions".*
 
 ## Why
 
