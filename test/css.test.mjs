@@ -198,4 +198,26 @@ await test("buildRuleSet parses text into rules", () => {
   assert.equal(rs.rules[0].decls.get("color"), "red");
 });
 
+await test("matched: specificity then source order; per-property last wins", () => {
+  const rs = buildRuleSet(`
+    .red { color: red; font-size: 10px }
+    .red.green { color: yellow }
+    #id { color: blue }
+  `);
+  let m = matched(fakeView({ styleclass: "red" }), rs);
+  assert.equal(m.get("color"), "red");
+  assert.equal(m.get("font-size"), "10px");
+  m = matched(fakeView({ styleclass: "red green" }), rs);
+  assert.equal(m.get("color"), "yellow"); // spec 20 > 10
+  assert.equal(m.get("font-size"), "10px");
+  m = matched(fakeView({ styleclass: "red green", id: "id" }), rs);
+  assert.equal(m.get("color"), "blue"); // spec 100 > 20
+});
+
+await test("matched: equal specificity resolves by source order (last wins)", () => {
+  const rs = buildRuleSet(`.a { color: red } .a { color: green }`);
+  const m = matched(fakeView({ styleclass: "a" }), rs);
+  assert.equal(m.get("color"), "green");
+});
+
 summarize("css");
