@@ -851,7 +851,7 @@ App [ theme = { ({
                 loading: Text [ visible = { app.lang.loading }, fontSize = 15, textColor = { theme.faint }, text = "Loading the language…" ],
                 failed:  Text [ visible = { app.lang.failed }, fontSize = 15, textColor = { theme.faint }, wrap = true, width = { parent.width },
                     text = { "The language file did not load — " + (app.lang.error || "") } ],
-                doc: Markdown [ visible = { app.lang.loaded }, width = { parent.width }, lineHeight = 1.35, bodyColor = { theme.text }, dark = true,
+                doc: Markdown [ visible = { app.lang.loaded }, width = { parent.width }, lineHeight = 1.35, bodyColor = { theme.lead }, dark = true,
                     datapath = { app.lang.value }, text = :markdown ],
                 tail: View [ width = 8, height = 80 ],
                 ],
