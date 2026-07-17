@@ -34,3 +34,7 @@ export declare function specificityOf(sel: SelectorAST): number;
 /** Parse a full selector: whitespace-separated simple selectors → a descendant
  *  chain (ancestor-first). Combinators `>`/`+`/`~` and pseudo `:` are rejected. */
 export declare function parseSelectorText(text: string): SelectorAST;
+/** Parse a full stylesheet text into Rule[]: strip comments, split
+ *  `selector { body }`, expand comma-grouped selectors to one Rule each (shared
+ *  decls, own sourceIndex), stamp specificity + a monotonic source index. */
+export declare function parseCss(text: string): Rule[];

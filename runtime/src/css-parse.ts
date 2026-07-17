@@ -100,3 +100,42 @@ export function parseSelectorText(text: string): SelectorAST {
   if (/[>+~]/.test(masked)) throw new CssUnsupported(`unsupported combinator in '${trimmed}'`);
   return trimmed.split(/\s+/).map(parseSimple);
 }
+
+/** Parse a declaration body `a: 1; b: 2` into a Map of raw string values.
+ *  `!important` is rejected cleanly (out of the supported subset). */
+function parseDecls(body: string): Map<string, RawValue> {
+  const decls = new Map<string, RawValue>();
+  for (const part of body.split(";")) {
+    const idx = part.indexOf(":");
+    if (idx < 0) continue; // blank or malformed fragment
+    const name = part.slice(0, idx).trim().toLowerCase();
+    const value = part.slice(idx + 1).trim();
+    if (name === "") continue;
+    if (/!\s*important/i.test(value)) {
+      throw new CssUnsupported(`unsupported '!important' in '${name}: ${value}'`);
+    }
+    decls.set(name, value);
+  }
+  return decls;
+}
+
+/** Parse a full stylesheet text into Rule[]: strip comments, split
+ *  `selector { body }`, expand comma-grouped selectors to one Rule each (shared
+ *  decls, own sourceIndex), stamp specificity + a monotonic source index. */
+export function parseCss(text: string): Rule[] {
+  const noComments = text.replace(/\/\*[\s\S]*?\*\//g, "");
+  const rules: Rule[] = [];
+  const re = /([^{}]+)\{([^{}]*)\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(noComments)) !== null) {
+    const selectorGroup = m[1].trim();
+    const decls = parseDecls(m[2]);
+    for (const selText of selectorGroup.split(",")) {
+      const trimmed = selText.trim();
+      if (trimmed === "") continue;
+      const selector = parseSelectorText(trimmed);
+      rules.push({ selector, specificity: specificityOf(selector), sourceIndex: rules.length, decls });
+    }
+  }
+  return rules;
+}

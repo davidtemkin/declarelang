@@ -115,4 +115,32 @@ await test("parseSelectorText: rejects unsupported combinators/pseudo", () => {
   assert.throws(() => parseSelectorText("a:hover"), /unsupported/i);
 });
 
+await test("parseCss: rules, decls (raw strings), specificity, sourceIndex", () => {
+  const rules = parseCss(`
+    /* c */
+    .red { background-color: #2d7; color: white }
+    view.red { font-size: 14px }
+  `);
+  assert.equal(rules.length, 2);
+  assert.equal(rules[0].specificity, 10);
+  assert.equal(rules[0].sourceIndex, 0);
+  assert.equal(rules[0].decls.get("background-color"), "#2d7");
+  assert.equal(rules[0].decls.get("color"), "white");
+  assert.equal(rules[1].specificity, 11);
+  assert.equal(rules[1].sourceIndex, 1);
+  assert.equal(rules[1].decls.get("font-size"), "14px");
+});
+
+await test("parseCss: comma-grouped selectors expand to one rule each", () => {
+  const rules = parseCss(`.a, .b { color: red }`);
+  assert.equal(rules.length, 2);
+  assert.equal(rules[0].sourceIndex, 0);
+  assert.equal(rules[1].sourceIndex, 1);
+  assert.equal(rules[1].decls.get("color"), "red");
+});
+
+await test("parseCss: rejects !important cleanly", () => {
+  assert.throws(() => parseCss(`.a { color: red !important }`), /unsupported|important/i);
+});
+
 summarize("css");
