@@ -475,9 +475,9 @@ App [ theme = { ({
                     to = { app.scroller.scrollY + app.height > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
                 layout: SimpleLayout [ axis = y, spacing = 36 ],
                 SectionHead [ num = "01", head = "Declare Calendar: Concise. Clear. Continuous.",
-                    lead = "Declare is a great way to build any user interface — typed, reactive by construction, a fraction of the usual code. But where it's uniquely capable is the continuous, physical UI you feel in the best native apps — where a view doesn't switch so much as become the next one, motion carries meaning, and everything stays interruptible. That has always been specialist craft: bespoke motion code, one interaction at a time, locked to a platform. In Declare, it's simply what declarations do." ],
+                    lead = "It’s the kind of experience you’ll see in the best native apps — a view doesn’t switch so much as become the next one, where motion carries meaning, and everything is fast and interruptible." ],
                 Lead [ width = { Math.min(760, parent.width) },
-                    text = "Four views that are really one, seen through a moving, zooming rectangle — event chips that morph into time-blocks, drag-to-reschedule, an editable detail panel, light and dark. An interface like this is normally a project of its own — and it's precisely the kind of UI that machine-written code has never reached. Here, it's the reference app. An LLM wrote every line." ],
+                    text = "That’s always been specialist craft: bespoke motion code, one interaction at a time, locked to a platform. In Declare, it’s simply what the declarations do, and it works everywhere." ],
 
                 actions: View [ layout: SimpleLayout [ axis = x, spacing = 18 ],
                     Button [ width = 240, label = "Run Declare Calendar →",
