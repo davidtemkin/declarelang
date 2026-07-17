@@ -12,6 +12,7 @@
 // §mutation. Keyboard delivery to the focused view (Keys → onKeyDown/onKeyUp)
 // is wired by the runtime entry, not here, keeping this layer independent.
 import { View, fireEvent, setFocusDiscardHook } from "./view.js";
+import { Constraint } from "./reactive.js";
 export class FocusService {
     current = null;
     rootView = null;
@@ -23,6 +24,13 @@ export class FocusService {
      *  called with the newly focused view (or null on blur) after the change
      *  settles. What the traveling focus indicator rides. */
     changeHandlers = new Set();
+    /** Subscribers to the focused control's LIVE GEOMETRY (`onGeometry(g) <-
+     *  Focus`). A standing runtime constraint follows the target: tracked reads
+     *  of the parent chain's x/y and the control's focusShape() mean an
+     *  arrow-keyed slider thumb, a reflowing layout, or a resized ancestor
+     *  moves the resting ring WITH its control — no re-focus needed. */
+    geometryHandlers = new Set();
+    follower = null;
     /** Reentrancy lock: a focus change fires onFocus/onBlur handlers that may
      *  call focus() again; remember the latest target and apply it after the
      *  current change settles (LZX's discipline). */
@@ -48,6 +56,8 @@ export class FocusService {
         this.rootView = null;
         this.changing = false;
         this.queued = false;
+        this.follower?.dispose();
+        this.follower = null;
     }
     /** Focus a view (null = blur). A non-focusable or invisible view is ignored
      *  (never becomes the focus). Fires onBlur on the old, onFocus on the new.
@@ -79,6 +89,7 @@ export class FocusService {
             fireEvent(view, "focus");
         }
         this.changing = false;
+        this.retargetFollower();
         for (const h of [...this.changeHandlers])
             h(this.current);
         if (this.queued) {
@@ -91,6 +102,42 @@ export class FocusService {
     onFocusChange(fn) {
         this.changeHandlers.add(fn);
         return () => this.changeHandlers.delete(fn);
+    }
+    onGeometry(fn) {
+        this.geometryHandlers.add(fn);
+        return () => this.geometryHandlers.delete(fn);
+    }
+    /** (Re)install the follower for the current focus. The constraint's body
+     *  reads TRACKED slots (ancestor x/y, the focusShape's inputs), so any
+     *  change re-fires it; its push notifies the geometry subscribers. */
+    retargetFollower() {
+        this.follower?.dispose();
+        this.follower = null;
+        const v = this.current;
+        if (v === null || this.geometryHandlers.size === 0)
+            return;
+        const k = new Constraint("Focus.follower", () => {
+            let x = 0, y = 0;
+            let n = v;
+            for (;;) {
+                x += n.x;
+                y += n.y;
+                if (!(n.parent instanceof View))
+                    break;
+                n = n.parent;
+            }
+            const fsFn = v.focusShape;
+            const fs = typeof fsFn === "function" ? fsFn.call(v) : null;
+            return {
+                x: x + (fs ? fs.x : 0), y: y + (fs ? fs.y : 0),
+                w: fs ? fs.w : v.width, h: fs ? fs.h : v.height,
+                rad: fs ? fs.rad : (v.cornerRadius > 0 ? v.cornerRadius : 4),
+                view: v, root: n,
+            };
+        }, (g) => { if (g != null)
+            for (const fn of [...this.geometryHandlers])
+                fn(g); });
+        k.run();
     }
     blur() {
         this.focus(null);

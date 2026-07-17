@@ -30,6 +30,7 @@ export function subscribeToSource(source: string, member: string, fn: (...args: 
   }
   if (source === "Focus") {
     if (member === "onFocusChange") return Focus.onFocusChange(fn);
+    if (member === "onGeometry") return Focus.onGeometry(fn);
   }
   throw new Error(`no subscribable '${member}' on '${source}'`);
 }

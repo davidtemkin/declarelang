@@ -60,30 +60,28 @@ class FocusRing extends View [ opacity = 0,
 
     snapTo() { this.x = tx; this.y = ty; this.width = tw; this.height = th; rad = trad },
 
+    // the target's LIVE silhouette, root-space, from the service's follower —
+    // tracked through the parent chain and focusShape(), so an arrow-keyed
+    // slider thumb (or a reflowing layout) moves the resting ring with it.
+    // The band sits OUTSIDE the silhouette: inner edge touching the control's
+    // boundary (the Mac halo's hug), displaced by gap + half the stroke.
+
+    onGeometry(g) <- Focus {
+        if (g.root != app) return
+        const gap = typeof theme.focusRingGap == "number" ? theme.focusRingGap : 0
+        const lw = typeof theme.focusRingWidth == "number" ? theme.focusRingWidth : 3
+        const off = gap + lw / 2
+        tx = g.x - off; ty = g.y - off; tw = g.w + 2 * off; th = g.h + 2 * off
+        trad = g.rad + off
+        },
+
     onFocusChange(v) <- Focus {
         if (v == null) { shown = false; return }
-        let x = 0, y = 0, n = v
-        for (; n != null && n.parent != null; n = n.parent) { x += n.x; y += n.y }
+        let n = v
+        for (; n != null && n.parent != null; n = n.parent) { }
         // Another app on the page (an embedded preview) owns this target — its own
         // ring indicates it; this one stands down rather than chase foreign coordinates.
         if (n != app) { shown = false; return }
-        // the control's FOCUS SILHOUETTE: its focusShape() when it declares one
-        // (a Radio rings its round dot, not the row+label — the Apple rendition),
-        // else the whole bounds at the control's own radius. The ring HUGS the
-        // edge (gap 0, the Mac's own treatment) unless the theme's
-        // focusRingGap says otherwise.
-        const fs = (v as any).focusShape ? (v as any).focusShape() : null
-        const gap = typeof theme.focusRingGap == "number" ? theme.focusRingGap : 0
-        const lw = typeof theme.focusRingWidth == "number" ? theme.focusRingWidth : 3
-        const sx = fs ? fs.x : 0, sy = fs ? fs.y : 0
-        const sw = fs ? fs.w : v.width, sh = fs ? fs.h : v.height
-        const srad = fs ? fs.rad : (v.cornerRadius > 0 ? v.cornerRadius : 4)
-        // the band sits OUTSIDE the silhouette: its inner edge touches the
-        // control's boundary (the Mac halo's hug) — so the path is displaced
-        // outward by gap + half the stroke width
-        const off = gap + lw / 2
-        tx = x + sx - off; ty = y + sy - off; tw = sw + 2 * off; th = sh + 2 * off
-        trad = srad + off
         // Pointer focus: PARK silently — geometry current, ring hidden. The next
         // keyboard flight departs from here (the just-clicked control).
         if (!Focus.byKeyboard()) { shown = false; this.snapTo(); placed = true; return }
@@ -137,12 +135,12 @@ class FocusRing extends View [ opacity = 0,
         const Q = Math.PI / 2
         const dist = Math.abs(this.x - tx) + Math.abs(this.y - ty) + Math.abs(this.width - tw) + Math.abs(this.height - th)
         const small = Math.min(w, h) < 40
-        // The bracket form is the ring's NATURAL shape in motion: any real
-        // distance opens the corners fully (the sights), and only inside the
-        // last CLOSE px of settle do the arms sweep shut around the surface —
-        // so the outline exists exactly at the ends, source and destination.
-        const CLOSE = 16
-        const cov = small ? 1 : Math.max(0.22, 1 - dist / CLOSE)
+        // Ruled 2026-07-17: the ring travels as a CLOSED outline, source shape
+        // to destination shape — no bracket mode intervening. The sights
+        // rendition survives behind `theme.focusSights = true` (data, not a
+        // code path) for its possible return: fully open in motion, arms
+        // sweeping shut inside the last 16px of settle.
+        const cov = theme.focusSights == true && !small ? Math.max(0.22, 1 - dist / 16) : 1
         const ax = Math.max(0, (w / 2 - r) * cov)      // horizontal arm length
         const ay = Math.max(0, (h / 2 - r) * cov)      // vertical arm length
         d.strokeStyle = typeof theme.focusColor == "number" ? theme.focusColor : theme.accent

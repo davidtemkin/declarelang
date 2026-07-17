@@ -76,20 +76,21 @@ await test("driven clock: step() advances motion deterministically; settleMotion
   clock.manual();
   const app = boot(APP);
   const ball = find(app, "app.ball");
-  assert.equal(ball.x, 0, "spring starts at rest position");
+  // The FIRST target is a declaration, not a destination (spring.ts): the
+  // slot snaps there on the first tick — a boot never animates. Motion means
+  // a CHANGE, so the flight under test starts at the retarget.
+  clock.step(16.7);
+  assert.equal(ball.x, 100, "boot snaps to the declared target — no load-time flight");
+  app.n = 5;
+  settle();
   clock.step(16.7);
   clock.step(16.7);
   const mid = ball.x;
-  assert.ok(mid > 0 && mid < 100, `mid-flight after two frames: ${mid}`);
+  assert.ok(mid < 100 && mid > 50, `mid-flight after two frames of the retarget: ${mid}`);
   const settled = clock.settleMotion(10000);
   assert.equal(settled, true, "motion runs to rest");
-  assert.ok(Math.abs(ball.x - 100) < 1, `settled at the target: ${ball.x}`);
+  assert.ok(Math.abs(ball.x - 50) < 1, `settled at the new target: ${ball.x}`);
   assert.equal(stats(app).motionBusy, false);
-  // retarget: the spring re-enrolls and the driven clock still owns it
-  app.n = 5;
-  settle();
-  clock.settleMotion(10000);
-  assert.ok(Math.abs(ball.x - 50) < 1, `resettled after retarget: ${ball.x}`);
   app.discard();
   clock.auto();
 });

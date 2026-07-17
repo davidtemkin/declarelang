@@ -13,6 +13,7 @@ export declare class Spring extends Animator {
     private springRunning;
     private springLastNow;
     private vel;
+    private primed;
     /** Called by the `to` pusher on every retarget: (re)enroll on the clock.
      *  A no-op while already live, so a moving target does not pile up tickers. */
     wake(): void;

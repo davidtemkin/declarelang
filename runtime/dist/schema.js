@@ -592,7 +592,7 @@ export function isReadOnly(schema, name) {
  *  (and eventually view sources) extend this table. */
 export const SUBSCRIPTION_SOURCES = {
     Keys: ["onKeyDown", "onKeyUp"],
-    Focus: ["onFocusChange"],
+    Focus: ["onFocusChange", "onGeometry"],
 };
 /** Is `name` a prevailing attribute on `schema` (or its chain)? Asked of the
  *  schema that DECLARES the name — being prevailing is part of the slot's

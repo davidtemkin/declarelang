@@ -1,5 +1,17 @@
 import { View } from "./view.js";
 import type { KeysService } from "./keys.js";
+/** The focused control's live silhouette, root-space — what the follower
+ *  (below) computes and onGeometry subscribers receive. `root` lets a ring
+ *  stand down when another app on the page owns the target. */
+export interface FocusGeometry {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    rad: number;
+    view: View;
+    root: View;
+}
 export declare class FocusService {
     private current;
     private rootView;
@@ -11,6 +23,13 @@ export declare class FocusService {
      *  called with the newly focused view (or null on blur) after the change
      *  settles. What the traveling focus indicator rides. */
     private readonly changeHandlers;
+    /** Subscribers to the focused control's LIVE GEOMETRY (`onGeometry(g) <-
+     *  Focus`). A standing runtime constraint follows the target: tracked reads
+     *  of the parent chain's x/y and the control's focusShape() mean an
+     *  arrow-keyed slider thumb, a reflowing layout, or a resized ancestor
+     *  moves the resting ring WITH its control — no re-focus needed. */
+    private readonly geometryHandlers;
+    private follower;
     /** Reentrancy lock: a focus change fires onFocus/onBlur handlers that may
      *  call focus() again; remember the latest target and apply it after the
      *  current change settles (LZX's discipline). */
@@ -35,6 +54,11 @@ export declare class FocusService {
     /** Subscribe to focus changes. Returns the unsubscribe thunk — the `<-`
      *  wiring's contract (sources.ts). */
     onFocusChange(fn: (v: View | null) => void): () => void;
+    onGeometry(fn: (g: FocusGeometry) => void): () => void;
+    /** (Re)install the follower for the current focus. The constraint's body
+     *  reads TRACKED slots (ancestor x/y, the focusShape's inputs), so any
+     *  change re-fires it; its push notifies the geometry subscribers. */
+    private retargetFollower;
     blur(): void;
     next(): void;
     prev(): void;

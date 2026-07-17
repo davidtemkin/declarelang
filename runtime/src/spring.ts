@@ -41,6 +41,7 @@ export class Spring extends Animator {
   private springRunning = false;
   private springLastNow: number | null = null;
   private vel = 0;
+  private primed = false;
 
   /** Called by the `to` pusher on every retarget: (re)enroll on the clock.
    *  A no-op while already live, so a moving target does not pile up tickers. */
@@ -75,6 +76,20 @@ export class Spring extends Animator {
    *  `to`. Returns false (drops off the clock) once at rest. */
   override tick(now: number): boolean {
     if (!this.springRunning) return false;
+    // The FIRST target is a declaration, not a destination: on this spring's
+    // first-ever tick — after the boot has settled, so `to` is FRESH — the
+    // slot SNAPS to it and the spring sleeps (a Switch declared checked
+    // renders checked; it does not slide there). Physics engages from the
+    // second target on: a CHANGE is what motion means.
+    if (!this.primed) {
+      this.primed = true;
+      const t0 = this.resolveTarget();
+      if (t0 !== null && this.attribute !== "") setBound(t0, this.attribute, this.to);
+      this.vel = 0;
+      this.springRunning = false;
+      sharedClock.remove(this);
+      return false;
+    }
     if (this.springLastNow === null) {
       this.springLastNow = now; // first frame: dt = 0, settle nothing yet
       return true;

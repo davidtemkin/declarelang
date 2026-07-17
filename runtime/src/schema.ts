@@ -641,7 +641,7 @@ export function isReadOnly(schema: ComponentSchema, name: string): boolean {
  *  (and eventually view sources) extend this table. */
 export const SUBSCRIPTION_SOURCES: Readonly<Record<string, readonly string[]>> = {
   Keys: ["onKeyDown", "onKeyUp"],
-  Focus: ["onFocusChange"],
+  Focus: ["onFocusChange", "onGeometry"],
 };
 
 /** Is `name` a prevailing attribute on `schema` (or its chain)? Asked of the

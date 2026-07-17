@@ -66,7 +66,7 @@ export class TextInput extends Editor {
     if (!isSet(this, "cornerRadius") && ownerOf(this, "cornerRadius") === null)
       bindDerived(this, "cornerRadius", () => tok("controlRadius", 7));
     if (!isSet(this, "padding") && ownerOf(this, "padding") === null)
-      bindDerived(this, "padding", () => 6);
+      bindDerived(this, "padding", () => 10);   // the modern-web inset (shadcn px-3≈12, Apple ~7 — the emulations token this)
   }
 
   protected override flush(s: Surface): void {
