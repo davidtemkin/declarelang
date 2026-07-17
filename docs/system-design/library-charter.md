@@ -186,19 +186,41 @@ them. Settled before Tier 0/1 lands, or every new component bakes in more
 unsayable geometry.
 
 **Focus indication is part of this phase** (fidelity to either design system
-is impossible without it). Two channels, per the native convergence ("service
-draws, component shapes" — the macOS focus-ring mask-path precedent):
-(a) the traveling ring gains a policy token — `focusRing: "travel" | "persist"
-| false` — where "persist" rests the ring on the focused control while
-keyboard modality holds (`Focus.byKeyboard()` already tracks it; pointer press
-clears it — web :focus-visible semantics), and the ring's TERMINUS MORPHS to
-the target's silhouette by springing `cornerRadius` read from the target's own
-geometry (a circle is cornerRadius = size/2 — a Radio already is one; odd
-silhouettes override `focusShape()`); (b) the `Control` base grows a reactive
-`focused` state so themes can render focus as the component's own appearance —
-Material indicates focus by state-layer tint (ring suppressed), Apple by the
-shaped ring (quiet components). RadioGroup composes as one Tab stop with
-arrow-key roving; the individual radio carries `focused`.
+is impossible without it). The ratified model (David), in layers:
+
+1. **The fact** — which control has keyboard focus and whether modality is
+   keyboard (`Focus` + `byKeyboard()`; a pointer press clears modality — web
+   :focus-visible semantics). Always maintained, independent of rendering.
+2. **The rect** — the system renderer, shape-GENERAL: it outlines the
+   control's true silhouette (a full text-field outline, a circle for a Radio
+   — cornerRadius = size/2, a button's rounded rect) by springing position,
+   size, and cornerRadius read from the target's own geometry; `focusShape()`
+   overrides odd silhouettes (the macOS mask-path precedent: service draws,
+   component shapes). A theme elects its ROLES independently: transitions
+   (the traveling flight), at-rest rendition, both, or neither. The flight is
+   a flourish — `animateFocusTransitions`, default on, the sampler's toggle,
+   honored identically in every emulation.
+3. **The component channel** — `Control` grows the reactive `focused` state;
+   any component may style it, in ADDITION to or INSTEAD of the rect. A
+   component with no focus styling ignores it and the rect covers it.
+4. **The one invariant** (the only mandate, and it binds the OUTCOME, not a
+   mechanism): at rest, keyboard focus must be visibly indicated by AT LEAST
+   ONE channel. A theme may disable the rect's at-rest role only because its
+   components carry the rendition. Keyboard focus with no visible indication
+   anywhere is illegal — the WCAG floor as a property of the theme+components
+   pair, auditable by a later verify-level check.
+
+The sampler proves the matrix: Apple-mode = rect at rest, quiet components;
+Material-mode = component-rendered focus, rect for flight or off; the same
+machinery satisfying the invariant through opposite channels. RadioGroup
+composes as one Tab stop with arrow-key roving; the individual radio carries
+`focused`.
+
+**"Matching" a design system means APPEARANCE AND FELT BEHAVIOR — never API
+shape or implementation mechanism.** There is one machinery (the prevailing
+theme record, the Control states, one shape-general focus renderer), and
+"Apple" / "Material" are DATA riding it — token records, not code paths. A
+third design system is a new record, zero new mechanism.
 
 ## 6a. Phase two: ResponsiveLayout (a named class for responsive intent)
 
