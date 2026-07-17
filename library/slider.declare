@@ -34,6 +34,7 @@ class Slider extends Control [ width = 220, height = 28,
     onMouseDown(e) {
         if (disabled) return
         pressed = true
+        Focus.focus(this)                        // a click claims focus (Control's rule — this override must keep it)
         v0 = quant(min + (max - min) * ((e.x - 9) / (width - 18)))
         input(v0)
         x0 = app.pointerX

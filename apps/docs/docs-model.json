@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "buildId": "78db91c36aeb",
+  "buildId": "700ddb1eb5cb",
   "nodes": {
     "View.x": {
       "id": "View.x",
@@ -2917,7 +2917,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/text-input.ts",
-        "line": 150
+        "line": 156
       },
       "parent": "TextInput",
       "seeAlso": [],

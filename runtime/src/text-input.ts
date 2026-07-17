@@ -111,7 +111,13 @@ export class TextInput extends Editor {
       placeholder: this.placeholder,
       style: this.editStyle(),
       onInput: (v) => this.onNativeInput(v),
-      onFocus: () => Focus.focus(this),
+      // The native element ECHOES focus the runtime just gave it (Tab →
+      // focusChanged → el.focus() → this event). Re-announcing the already-
+      // focused view through Focus.focus() would clear keyboard modality —
+      // every Tab into a field cancelling its own focus-visible state — so
+      // the echo is silenced HERE, at its source; a genuine first focus from
+      // the element (a click into the field) still claims normally.
+      onFocus: () => { if (Focus.getFocus() !== this) Focus.focus(this); },
       onBlur: () => {
         if (Focus.getFocus() === this) Focus.blur();
         if (this.commitOn === "blur" && isTwoWay(this, "text")) commitDraft(this, "text");

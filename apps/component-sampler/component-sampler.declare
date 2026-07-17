@@ -25,7 +25,7 @@ App [ fill = { theme.bg }, minWidth = 560,
     style: string = "declare",
     animateFocus: boolean = true,
 
-    theme = { style == "material" ? app.materialTheme() : style == "apple" ? app.appleTheme() : app.declareTheme() },
+    theme = { ({ ...(style == "material" ? app.materialTheme() : style == "apple" ? app.appleTheme() : app.declareTheme()), focusAnimate: animateFocus }) },
 
     // ── the three records — one shape, three vocabularies ──────────────────
 

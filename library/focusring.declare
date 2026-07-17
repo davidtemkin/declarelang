@@ -1,74 +1,102 @@
 /*
 # FocusRing
 
-The traveling focus indicator — the OpenLaszlo 3.4 `focusoverlay`, reborn on the
-reactive core. One app-level overlay: when focus changes, four corner brackets
-TRAVEL from the old control to the new one and settle around it. Where the 2005
-original hand-animated x/y/width/height and choreographed a bracket "bounce"
-(offset 5→12→5) on arrival, here the travel and the arrival life are the same
-four Springs — slightly underdamped, so the brackets overshoot a touch and snap
-in by physics, not by timeline. The bracket PNGs (and their shadow bitmaps) are
-one reactive `draw()`.
+The traveling focus indicator — the OpenLaszlo 3.4 `focusoverlay` line, on the
+reactive core, at its third form: a SHAPE-HUGGING rounded outline whose
+terminus reshapes to the focused control's own silhouette (library-charter §6
+— the ring springs position, size, AND cornerRadius; a Radio's row ring, a
+pill Switch's ring, and a text field's ring differ because the targets do).
 
-It ARRIVES AUTOMATICALLY: any program using a Control-descended component
-gets one appended to its App by the compiler (the OL `canvas.focusclass`
-default, reborn) — declare your own `FocusRing [ ]` to control placement or
-subclass it for a different look (that suppresses the provided one).
+The layered model (charter, ratified):
 
-It listens to the Focus service (`onFocusChange(v) <- Focus`), computes the
-target's root-space bounds in the handler, and lets the springs chase. It never
-takes focus and never takes a pointer hit (`containsPoint` is overridden false),
-so it is pure chrome. (v1 limitation: bounds are summed through the parent
-chain — a target inside a scrolled container is not yet compensated.)
+- **The fact** — the ring listens to Focus (`onFocusChange(v) <- Focus`) and
+  tracks the target's root-space geometry on EVERY change, pointer or
+  keyboard. A pointer focus PARKS the ring there silently (snap, no show) —
+  so the next Tab's flight departs from the control the user just clicked,
+  never from a stale perch.
+- **Roles, theme-elected** — `theme.focusRing`: `"both"` (or `true`, the
+  default) · `"travel"` (flight + the OL idle fade) · `"rest"` (no flight —
+  the ring appears in place and stays) · `false` (no ring; the theme's
+  components carry the at-rest indication — the invariant lives with the
+  THEME+components pair). While keyboard modality holds and the role includes
+  rest, the ring RESTS — no idle fade; a pointer press clears modality and
+  the ring hides (web :focus-visible semantics).
+- **The flight is the flourish** — `theme.focusAnimate = false` (the
+  sampler's "Animate focus transitions" toggle) snaps every move; the
+  underdamped travel is default-on.
+
+It arrives automatically with any Control-descended component (the OL
+`canvas.focusclass` default); declare your own `FocusRing [ ]` (or subclass)
+to replace it. Pure chrome: never focusable, never a pointer target.
+(v1 limits, recorded: root-space bounds are summed through the parent chain —
+a scrolled container is not compensated; the silhouette is the target's
+`cornerRadius` — a `focusShape()` override protocol arrives with the
+emulation passes.)
 */
 
 class FocusRing extends View [ opacity = 0,
 
-    // where the brackets are HEADED — written by the subscription; the springs chase
+    // where the ring is HEADED — written by the subscription; the springs chase
 
     tx: number = 0,
     ty: number = 0,
     tw: number = 0,
     th: number = 0,
+    trad: number = 8,
+    rad: number = 8,
     shown: boolean = false,
+    placed: boolean = false,                     // has the ring EVER had a target to park on?
 
-    // the OL idle fade, kept to its numbers: 1000 ms after the last focus
-    // activity the brackets fade away (~500 ms); any new activity revives them.
-    // `gen` guards the timer — a newer change makes an older timer a no-op.
+    // the OL idle fade — TRAVEL role only; a resting ring does not fade
 
     idle: boolean = false,
     gen:  number = 0,
 
+    // role helpers over the theme election
+
+    ringRole()  { const r = theme.focusRing; return r == false ? "off" : r == true || r == null ? "both" : r },
+    restRole()  { const r = this.ringRole(); return r == "both" || r == "rest" },
+    travelRole() { const r = this.ringRole(); return r == "both" || r == "travel" },
+
+    snapTo() { this.x = tx; this.y = ty; this.width = tw; this.height = th; rad = trad },
+
     onFocusChange(v) <- Focus {
-        // Focus-visible modality: brackets appear only for KEYBOARD focus (Tab) —
-        // a pointer press focuses silently, the click itself being the feedback.
-        if (v == null || !Focus.byKeyboard()) { shown = false; return }
+        if (v == null) { shown = false; return }
         let x = 0, y = 0, n = v
         for (; n != null && n.parent != null; n = n.parent) { x += n.x; y += n.y }
         // Another app on the page (an embedded preview) owns this target — its own
         // ring indicates it; this one stands down rather than chase foreign coordinates.
         if (n != app) { shown = false; return }
+        tx = x - 4; ty = y - 4; tw = v.width + 8; th = v.height + 8
+        trad = (v.cornerRadius > 0 ? v.cornerRadius : 4) + 4
+        // Pointer focus: PARK silently — geometry current, ring hidden. The next
+        // keyboard flight departs from here (the just-clicked control).
+        if (!Focus.byKeyboard()) { shown = false; this.snapTo(); placed = true; return }
+        if (this.ringRole() == "off") { shown = false; return }
+        // No flight when: the ring has never been placed, the theme suppressed
+        // the flourish, or the role is rest-only (appear in place, stay).
+        if (!placed || theme.focusAnimate == false || !this.travelRole()) this.snapTo()
+        placed = true
+        shown = true
+        // idle fade only for the travel-only role — a resting ring persists
+        if (this.restRole()) { idle = false; return }
         gen = gen + 1
         const g = gen
         idle = false
         setTimeout(() => { if (this.gen == g) this.idle = true }, 1000)
-        tx = x - 6; ty = y - 6; tw = v.width + 12; th = v.height + 12
-        if (!shown) { this.x = tx; this.y = ty; this.width = tw; this.height = th }
-        shown = true
         },
 
     // the travel: underdamped springs = motion toward the target + a little
-    // arrival overshoot — the 3.4 bounce, by physics
+    // arrival overshoot — the 3.4 bounce, by physics. The radius travels too:
+    // the terminus reshapes to the control it surrounds.
 
     Spring [ attribute = x,      to = { tx }, stiffness = 220, damping = 16 ],
     Spring [ attribute = y,      to = { ty }, stiffness = 220, damping = 16 ],
     Spring [ attribute = width,  to = { tw }, stiffness = 220, damping = 18 ],
     Spring [ attribute = height, to = { th }, stiffness = 220, damping = 18 ],
+    Spring [ attribute = rad,    to = { trad }, stiffness = 220, damping = 20 ],
 
-    // fade gate: shown, not idle, and not disabled by the theme
-    // (`theme = { { ...app.theme, focusRing: false } }` turns the indicator off)
-
-    Spring [ attribute = opacity, to = { shown && !idle && theme.focusRing != false ? 0.9 : 0 }, stiffness = 90, damping = 20 ],
+    Spring [ attribute = opacity, to = { shown && !idle ? 0.9 : 0 }, stiffness = 90, damping = 20 ],
 
     visible = { opacity > 0.02 },
 
@@ -76,18 +104,22 @@ class FocusRing extends View [ opacity = 0,
 
     containsPoint(px, py) { return false },
 
-    // four corner brackets, drawn — re-derives on resize and theme change
+    // the shape-hugging outline — a rounded rect at the sprung radius, drawn,
+    // so it re-derives as the radius travels between silhouettes
 
     draw(d) {
-        const L = Math.min(14, Math.min(this.width, this.height) / 3)
         const w = this.width, h = this.height
+        const r = Math.max(2, Math.min(rad, Math.min(w, h) / 2))
+        const Q = Math.PI / 2
         d.strokeStyle = theme.accent
         d.lineWidth = 2
         d.beginPath()
-        d.moveTo(0, L); d.lineTo(0, 0); d.lineTo(L, 0)
-        d.moveTo(w - L, 0); d.lineTo(w, 0); d.lineTo(w, L)
-        d.moveTo(w, h - L); d.lineTo(w, h); d.lineTo(w - L, h)
-        d.moveTo(L, h); d.lineTo(0, h); d.lineTo(0, h - L)
+        d.moveTo(r, 0)
+        d.lineTo(w - r, 0); d.arc(w - r, r, r, -Q, 0)
+        d.lineTo(w, h - r); d.arc(w - r, h - r, r, 0, Q)
+        d.lineTo(r, h);     d.arc(r, h - r, r, Q, Math.PI)
+        d.lineTo(0, r);     d.arc(r, r, r, Math.PI, Math.PI + Q)
+        d.closePath()
         d.stroke()
         },
     ]
