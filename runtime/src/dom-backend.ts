@@ -336,10 +336,11 @@ class DomSurface implements Surface {
     this.element.style.overflow = on ? "clip" : "";
   }
 
-  scrollIntoView(): void {
-    // Native walks to the nearest scrollable ancestor and does the offset math;
-    // block:start aligns the view to the top, matching the canvas path.
-    this.element.scrollIntoView({ block: "start" });
+  scrollIntoView(align: "start" | "nearest" = "start"): void {
+    // Native walks the scrollable ancestors (document included) and does the
+    // offset math; block:start aligns the view to the top (the click-to-jump
+    // index), block:nearest moves the minimum distance (the focus reveal).
+    this.element.scrollIntoView({ block: align });
   }
 
   revealRichAnchor(slug: string, _within: number): boolean {

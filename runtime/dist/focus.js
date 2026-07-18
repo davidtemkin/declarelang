@@ -179,6 +179,12 @@ export class FocusService {
         const nidx = (((idx + dir) % seq.length) + seq.length) % seq.length; // cyclic
         this.setKeyboard(true); // Tab traversal — the focus-visible modality
         this.apply(seq[nidx]);
+        // The web's focus-reveal contract: a keyboard-focused control is scrolled
+        // into view (minimum distance — "nearest"), through app scrollers and the
+        // document alike. Without it, Tab after a page scroll lands the ring
+        // offscreen and the traversal looks dead.
+        if (this.current === seq[nidx])
+            seq[nidx].scrollIntoView("nearest");
     }
     /** The focused view's subtree is being discarded (or hidden) — move focus to
      *  a live stop OUTSIDE it before it goes, so focus never dangles. Survivors

@@ -164,8 +164,11 @@ export interface Surface {
    *  jump index, "scroll this into view"). No-op when nothing above scrolls.
    *  DOM defers to the element's native scrollIntoView (it walks to the scroll
    *  ancestor and does the offset math); the Canvas backend walks to the scroll
-   *  container itself, clamps to its content extent, and sets the offset. */
-  scrollIntoView(): void;
+   *  container itself, clamps to its content extent, and sets the offset.
+   *  `align` "nearest" scrolls the MINIMUM distance that makes the surface
+   *  visible — and not at all when it already is (the web's focus-reveal
+   *  behavior; keyboard traversal uses it so Tab never lands offscreen). */
+  scrollIntoView(align?: "start" | "nearest"): void;
   /** Reveal a heading anchor INSIDE a native rich-text flow (location.md §6). A
    *  flow coalesces its headings into one element/region, so revealing one is not
    *  a whole-surface `scrollIntoView`. `slug` names the heading; `within` is its

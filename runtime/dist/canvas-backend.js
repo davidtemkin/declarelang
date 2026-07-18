@@ -592,8 +592,11 @@ class CanvasSurface {
      *  canvas twin of DOM's native scrollIntoView. Sums local offsets up to the
      *  scroll container, clamps to its content extent (the same math scrollBy
      *  uses), sets the offset, mirrors it into `scrollY`, and repaints. `within` (px)
-     *  targets a point INSIDE this surface (a heading's offset) instead of its top. */
-    scrollIntoView(within = 0) {
+     *  targets a point INSIDE this surface (a heading's offset) instead of its top.
+     *  "nearest" scrolls the minimum distance that reveals the surface — nothing
+     *  when it is already visible (the keyboard traversal's reveal). */
+    scrollIntoView(align = 0) {
+        const within = typeof align === "number" ? align : 0;
         let cur = this;
         let off = 0;
         while (cur.parent !== null && !cur.parent.scrolls) {
@@ -609,7 +612,13 @@ class CanvasSurface {
             if (c.visible)
                 extent = Math.max(extent, c.y + c.height);
         const max = Math.max(0, extent - sc.height);
-        const next = Math.min(max, Math.max(0, off));
+        let next = Math.min(max, Math.max(0, off));
+        if (align === "nearest") {
+            const top = sc.scrollOffset, bottom = top + sc.height;
+            if (off >= top && off + this.height <= bottom)
+                return; // already visible
+            next = off < top ? Math.max(0, off) : Math.min(max, off + this.height - sc.height);
+        }
         if (next !== sc.scrollOffset) {
             sc.scrollOffset = next;
             sc.onScrollCb?.(next);

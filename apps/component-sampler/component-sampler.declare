@@ -2,13 +2,13 @@
 # The component sampler
 
 The styling arc's proof point (library-charter §6): every library component,
-under three switchable stylings — Declare-native (the default), Material, and
-Apple — selected by a RadioGroup. One machinery, three token records: the
+under three switchable stylings — Declare-native (the default), Mountain View,
+and Cupertino — selected by a RadioGroup. One machinery, three token records: the
 emulations are DATA, never code paths. The "Animate focus transitions" toggle
 drives the focus renderer's flight (charter: the flight is the suppressible
 flourish; the at-rest indication is not).
 
-The Material and Apple records here are PLACEHOLDERS awaiting the fidelity
+The Mountain View and Cupertino records here are PLACEHOLDERS awaiting the fidelity
 passes — the switching machinery is the point of this skeleton.
 */
 
@@ -26,11 +26,11 @@ class Swatch extends Control [ width = 26, height = 26, cornerRadius = 13,
     c: number = 0,
     on: boolean = { app.accentPick == c },
 
-    // the Apple treatment: plain discs; only the SELECTED swatch earns a ring
+    // the Cupertino treatment: plain discs; only the SELECTED swatch earns a ring
     // — in its own color, with the background showing through as the gap.
     // The ring is this control's bounds, the disc an inset child.
 
-    // every disc wears a THIN DEEPER ring of its own color (Apple's subtle
+    // every disc wears a THIN DEEPER ring of its own color (Cupertino's subtle
     // containment — same hue at ~78% tone); selection adds the outer ring
     // with the background gap
 
@@ -46,6 +46,12 @@ class Swatch extends Control [ width = 26, height = 26, cornerRadius = 13,
 
     press()   { app.accentPick = c },
     onClick() { if (!disabled) press() },
+
+    // the focus silhouette is the DISC, not the control's bounds — the ring
+    // hugs the color circle itself (the bounds include the selection ring's
+    // 3px inset, which would leave daylight between disc and focus ring)
+
+    focusShape() { return { x: 3, y: 3, w: 20, h: 20, rad: 10 } },
     ]
 
 
@@ -70,14 +76,14 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 720,
     // the active tint (Themes.tint) so nothing keeps a stale tone.
 
     theme = { ({
-        ...(style == "material" ? Themes.mountainView(darkUI) : style == "apple" ? Themes.cupertino(darkUI) : Themes.house(darkUI)),
+        ...(style == "mountainView" ? Themes.mountainView(darkUI) : style == "cupertino" ? Themes.cupertino(darkUI) : Themes.house(darkUI)),
         focusAnimate: animateFocus,
         ...(accentPick != 0 ? ({ accent: accentPick, controlActive: Themes.tint(accentPick, darkUI) }) : ({})),
     }) },
 
-    // the type stack is part of the emulation: Roboto for Material, SF for Apple
+    // the type stack is part of the emulation: Roboto for Mountain View, SF for Cupertino
 
-    fontFamily = { style == "material" ? "Roboto, system-ui, sans-serif" : style == "apple" ? "-apple-system, system-ui, sans-serif" : "system-ui, sans-serif" },
+    fontFamily = { style == "mountainView" ? "Roboto, system-ui, sans-serif" : style == "cupertino" ? "-apple-system, system-ui, sans-serif" : "system-ui, sans-serif" },
 
     // ── chrome: title + the mode switcher + the transitions toggle ─────────
 
@@ -98,8 +104,8 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 720,
             RadioGroup [ value = { app.style },
                 input(v) { app.style = v },
                 Radio [ choice = "declare", label = "Declare" ],
-                Radio [ choice = "material", label = "Material" ],
-                Radio [ choice = "apple", label = "Apple" ],
+                Radio [ choice = "mountainView", label = "Mountain View" ],
+                Radio [ choice = "cupertino", label = "Cupertino" ],
                 ],
             RadioGroup [ value = { app.colorMode },
                 input(v) { app.colorMode = v },

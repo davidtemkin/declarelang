@@ -260,7 +260,7 @@ export declare class View extends Node {
      *  Surface; a no-op before attach or with nothing scrolling above. (Named for
      *  the platform primitive — `reveal` is deliberately left free as a member name,
      *  e.g. a `reveal:` fade-in Spring.) */
-    scrollIntoView(): void;
+    scrollIntoView(align?: "start" | "nearest"): void;
     /** This view's input route, or null when it answers no pointer event —
      *  interactivity *derives* from declared handlers (Decisions §R5): a view
      *  with none is never wired (pay-per-use) and stays transparent to input,
