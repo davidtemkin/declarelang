@@ -48,6 +48,10 @@ export declare class View extends Node {
     pivotX: number;
     pivotY: number;
     scrolls: boolean;
+    /** The tooltip text (planes.md tier 1 — one attribute at the use site). A
+     *  non-empty tip wires this view's hover into the Tip service; the
+     *  auto-included Tooltip singleton renders it. "" = no tip. */
+    tip: string;
     scrollsX: boolean;
     scrollY: number;
     /** Keyboard focus (docs/system-design/input.md, Layer 2). `focusable` = a tab stop;

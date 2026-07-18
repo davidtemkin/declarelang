@@ -11,5 +11,6 @@
   "ProgressBar": "progressbar.declare",
   "FocusRing": "focusring.declare",
   "TabSlider": "tabslider.declare",
-  "Tab": "tabslider.declare"
+  "Tab": "tabslider.declare",
+  "Tooltip": "tooltip.declare"
 }

@@ -4620,6 +4620,42 @@ await test("focus: byKeyboard() — the focus-visible modality: Tab sets it, a d
   assert.equal(Focus.byKeyboard(), false, "clicking after tabbing clears it again");
 });
 
+await test("tip: the attribute auto-provides the Tooltip singleton (the FocusRing mechanism)", () => {
+  const r = compile(`App [ width=100, height=100, b: View [ tip = "hello", onClick() { } ] ]`);
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  assert.ok(r.source.includes("class Tooltip"), "the library file was auto-included");
+  assert.ok(r.source.includes("Tooltip [ ],"), "the singleton was spliced as the LAST App child (source order stacks)");
+  const none = compile(`App [ width=100, height=100, b: View [ onClick() { } ] ]`);
+  assert.ok(!none.source.includes("class Tooltip"), "no tip anywhere -> no Tooltip");
+  const own = compile(`App [ width=100, height=100, b: View [ tip = "x", onClick() { } ], t: Tooltip [ ] ]`);
+  assert.equal(own.errors.length, 0, "an app-declared Tooltip compiles (bare-tag auto-include)");
+  assert.ok(!own.source.includes("// the tooltip singleton — provided"), "an app-declared Tooltip suppresses the auto splice");
+});
+
+await test("tip: the service's platform conventions — delay, warm retarget, press cools", async () => {
+  const { Tip } = await import("../runtime/dist/tip.js");
+  const a = { tip: "A", x: 5, y: 6, width: 10, height: 10, parent: null };
+  const b = { tip: "B", x: 50, y: 6, width: 10, height: 10, parent: null };
+  const seen = [];
+  const un = Tip.onTip((e) => seen.push(e === null ? null : e.text));
+  try {
+    Tip.over(a);
+    assert.deepEqual(seen, [], "nothing before the delay");
+    await new Promise((r) => setTimeout(r, 620));
+    assert.deepEqual(seen, ["A"], "shown after the delay");
+    Tip.out(a);
+    assert.deepEqual(seen, ["A", null], "departure hides");
+    Tip.over(b);
+    assert.deepEqual(seen, ["A", null, "B"], "warm retarget shows the next tip INSTANTLY");
+    Tip.hide();
+    assert.deepEqual(seen, ["A", null, "B", null], "a press dismisses");
+    Tip.over(a);
+    assert.deepEqual(seen, ["A", null, "B", null], "and COOLS - the next hover earns the delay again");
+  } finally {
+    un(); Tip.hide();
+  }
+});
+
 await test("focus: byKeyboard() is a TRACKED read — a styling constraint follows the modality", async () => {
   // The component channel's gate (a Tab header's focus edge): the constraint
   // reads Focus.byKeyboard(), so a modality flip re-derives it — including a

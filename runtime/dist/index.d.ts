@@ -49,6 +49,7 @@ export { Image } from "./image.js";
 export { TextInput } from "./text-input.js";
 export { Layout, SimpleLayout } from "./layout.js";
 export { Dataset, DataSource, toCursor, provideTransport } from "./data.js";
+export { Tip } from "./tip.js";
 export { Animator, AnimatorGroup } from "./animator.js";
 export type { Cursor } from "./data.js";
 export { settle } from "./reactive.js";

@@ -13,6 +13,7 @@ import { Node, runRetire } from "./node.js";
 import { DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual } from "./value.js";
 import { disposeApplier, stylesheetArrived, stylesheetByName } from "./stylesheet.js";
 import { POINTER_TYPES } from "./backend.js";
+import { Tip } from "./tip.js";
 import { record } from "./draw.js";
 import { Constraint } from "./reactive.js";
 import { bindDerived, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned } from "./attributes.js";
@@ -306,9 +307,24 @@ export class View extends Node {
      *  this view's own coordinates. */
     inputSink() {
         const self = this;
-        if (!POINTER_TYPES.some((t) => typeof self[handlerName(t)] === "function"))
+        const handled = POINTER_TYPES.some((t) => typeof self[handlerName(t)] === "function");
+        // A tip-carrying view is hover-interactive by that fact alone (pay-per-use
+        // extends to the tip attribute): its sink reports over/out/press to the
+        // Tip service; declared handlers, when present, fire exactly as before.
+        if (!handled && this.tip === "")
             return null;
-        return (type, x, y) => fireEvent(this, type, { x, y });
+        return (type, x, y) => {
+            if (this.tip !== "") {
+                if (type === "mouseOver")
+                    Tip.over(this);
+                else if (type === "mouseOut")
+                    Tip.out(this);
+                else if (type === "mouseDown")
+                    Tip.hide();
+            }
+            if (handled)
+                fireEvent(this, type, { x, y });
+        };
     }
     /** Stand up the draw method as a tracked, re-recording computation. */
     bindDraw() {
@@ -374,6 +390,7 @@ defineAttributes(View, {
     // the user's offset back into `scrollY` (a plain reactive write — no push, so
     // it never echoes to the surface; reads drive fades/reveals).
     scrolls: { def: false, push: (v, on) => v.surface?.setScroll(on, (y) => { v.scrollY = y; }) },
+    tip: { def: "" },
     scrollsX: { def: false, push: (v, on) => v.surface?.setScrollX(on) },
     scrollY: { def: 0 },
     // The prevailing built-ins: model-side on View (no push — Text's style

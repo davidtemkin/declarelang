@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "buildId": "a604c4472ecb",
+  "buildId": "eca3bf115ae7",
   "nodes": {
     "View.x": {
       "id": "View.x",
@@ -16,7 +16,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 496
+        "line": 512
       },
       "parent": "View",
       "seeAlso": [],
@@ -40,7 +40,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 497
+        "line": 513
       },
       "parent": "View",
       "seeAlso": [],
@@ -64,7 +64,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 498
+        "line": 514
       },
       "parent": "View",
       "seeAlso": [],
@@ -88,7 +88,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 499
+        "line": 515
       },
       "parent": "View",
       "seeAlso": [],
@@ -123,7 +123,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 500
+        "line": 516
       },
       "parent": "View",
       "seeAlso": [],
@@ -147,7 +147,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 501
+        "line": 517
       },
       "parent": "View",
       "seeAlso": [],
@@ -171,7 +171,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 502
+        "line": 518
       },
       "parent": "View",
       "seeAlso": [],
@@ -195,7 +195,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 503
+        "line": 519
       },
       "parent": "View",
       "seeAlso": [],
@@ -219,7 +219,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 504
+        "line": 520
       },
       "parent": "View",
       "seeAlso": [],
@@ -243,7 +243,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 505
+        "line": 521
       },
       "parent": "View",
       "seeAlso": [],
@@ -267,7 +267,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 508
+        "line": 524
       },
       "parent": "View",
       "seeAlso": [],
@@ -291,7 +291,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 509
+        "line": 525
       },
       "parent": "View",
       "seeAlso": [],
@@ -315,7 +315,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 510
+        "line": 526
       },
       "parent": "View",
       "seeAlso": [],
@@ -339,7 +339,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 517
+        "line": 533
       },
       "parent": "View",
       "seeAlso": [],
@@ -363,12 +363,36 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 521
+        "line": 537
       },
       "parent": "View",
       "seeAlso": [],
       "type": "boolean",
       "default": "false",
+      "prevailing": false,
+      "readOnly": false,
+      "inheritedFrom": null
+    },
+    "View.tip": {
+      "id": "View.tip",
+      "name": "tip",
+      "kind": "attribute",
+      "doc": "The tooltip text — the layer system's floor (one attribute at the use site): a non-empty\n`tip` makes this view hover-interactive, and after the platform delay the auto-provided\n`Tooltip` singleton shows the text beside it (below, centered; flipping above at the app\nedge). Moving between tip-carrying controls while a tip is up retargets instantly; a press\ndismisses. Theming comes from `tooltipBg` / `tooltipText` / `tooltipLine` tokens — the\nfour presets each carry their platform's rendition. `\"\"` (the default) = no tip.",
+      "docSegs": [
+        {
+          "md": "The tooltip text — the layer system's floor (one attribute at the use site): a non-empty\n`tip` makes this view hover-interactive, and after the platform delay the auto-provided\n`Tooltip` singleton shows the text beside it (below, centered; flipping above at the app\nedge). Moving between tip-carrying controls while a tip is up retargets instantly; a press\ndismisses. Theming comes from `tooltipBg` / `tooltipText` / `tooltipLine` tokens — the\nfour presets each carry their platform's rendition. `\"\"` (the default) = no tip.",
+          "code": []
+        }
+      ],
+      "api": true,
+      "source": {
+        "file": "runtime/src/view.ts",
+        "line": 538
+      },
+      "parent": "View",
+      "seeAlso": [],
+      "type": "string",
+      "default": "\"\"",
       "prevailing": false,
       "readOnly": false,
       "inheritedFrom": null
@@ -387,7 +411,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 522
+        "line": 539
       },
       "parent": "View",
       "seeAlso": [],
@@ -411,7 +435,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 523
+        "line": 540
       },
       "parent": "View",
       "seeAlso": [],
@@ -435,7 +459,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 527
+        "line": 544
       },
       "parent": "View",
       "seeAlso": [],
@@ -459,7 +483,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 529
+        "line": 546
       },
       "parent": "View",
       "seeAlso": [],
@@ -483,7 +507,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 530
+        "line": 547
       },
       "parent": "View",
       "seeAlso": [],
@@ -507,7 +531,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 531
+        "line": 548
       },
       "parent": "View",
       "seeAlso": [],
@@ -531,7 +555,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 532
+        "line": 549
       },
       "parent": "View",
       "seeAlso": [],
@@ -555,7 +579,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 535
+        "line": 552
       },
       "parent": "View",
       "seeAlso": [],
@@ -579,7 +603,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 536
+        "line": 553
       },
       "parent": "View",
       "seeAlso": [],
@@ -603,7 +627,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 537
+        "line": 554
       },
       "parent": "View",
       "seeAlso": [],
@@ -627,7 +651,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 538
+        "line": 555
       },
       "parent": "View",
       "seeAlso": [],
@@ -651,7 +675,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 539
+        "line": 556
       },
       "parent": "View",
       "seeAlso": [],
@@ -675,7 +699,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 540
+        "line": 557
       },
       "parent": "View",
       "seeAlso": [],
@@ -699,7 +723,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 541
+        "line": 558
       },
       "parent": "View",
       "seeAlso": [],
@@ -723,7 +747,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 542
+        "line": 559
       },
       "parent": "View",
       "seeAlso": [],
@@ -747,7 +771,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 543
+        "line": 560
       },
       "parent": "View",
       "seeAlso": [],
@@ -771,7 +795,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 544
+        "line": 561
       },
       "parent": "View",
       "seeAlso": [],
@@ -795,7 +819,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 528
+        "line": 545
       },
       "parent": "View",
       "seeAlso": [],
@@ -819,7 +843,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 545
+        "line": 562
       },
       "parent": "View",
       "seeAlso": [],
@@ -843,7 +867,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 548
+        "line": 565
       },
       "parent": "View",
       "seeAlso": [],
@@ -867,7 +891,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 549
+        "line": 566
       },
       "parent": "View",
       "seeAlso": [],
@@ -891,7 +915,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 562
+        "line": 579
       },
       "parent": "View",
       "seeAlso": [],
@@ -915,7 +939,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 511
+        "line": 527
       },
       "parent": "View",
       "seeAlso": [],
@@ -939,7 +963,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 512
+        "line": 528
       },
       "parent": "View",
       "seeAlso": [],
@@ -963,7 +987,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 516
+        "line": 532
       },
       "parent": "View",
       "seeAlso": [],
@@ -1030,7 +1054,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 183
+        "line": 188
       },
       "parent": "View",
       "seeAlso": [],
@@ -1046,7 +1070,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 245
+        "line": 250
       },
       "parent": "View",
       "seeAlso": [],
@@ -1062,7 +1086,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 265
+        "line": 270
       },
       "parent": "View",
       "seeAlso": [],
@@ -1078,7 +1102,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 278
+        "line": 283
       },
       "parent": "View",
       "seeAlso": [],
@@ -1094,7 +1118,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 289
+        "line": 294
       },
       "parent": "View",
       "seeAlso": [],
@@ -1110,7 +1134,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 352
+        "line": 357
       },
       "parent": "View",
       "seeAlso": [],
@@ -1126,7 +1150,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 363
+        "line": 368
       },
       "parent": "View",
       "seeAlso": [],
@@ -1142,7 +1166,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 370
+        "line": 375
       },
       "parent": "View",
       "seeAlso": [],
@@ -1158,7 +1182,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 380
+        "line": 385
       },
       "parent": "View",
       "seeAlso": [],
@@ -1179,7 +1203,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 437
+        "line": 442
       },
       "parent": "View",
       "seeAlso": [],
@@ -1195,7 +1219,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 470
+        "line": 486
       },
       "parent": "View",
       "seeAlso": [],
@@ -1211,7 +1235,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 488
+        "line": 504
       },
       "parent": "View",
       "seeAlso": [],
@@ -1523,6 +1547,7 @@
         "View.pivotY",
         "View.clip",
         "View.scrolls",
+        "View.tip",
         "View.scrollsX",
         "View.scrollY",
         "View.textColor",
@@ -1602,7 +1627,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 762
+        "line": 779
       },
       "parent": "App",
       "seeAlso": [],
@@ -1626,7 +1651,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 763
+        "line": 780
       },
       "parent": "App",
       "seeAlso": [],
@@ -1650,7 +1675,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 764
+        "line": 781
       },
       "parent": "App",
       "seeAlso": [],
@@ -1674,7 +1699,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 765
+        "line": 782
       },
       "parent": "App",
       "seeAlso": [],
@@ -1698,7 +1723,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 766
+        "line": 783
       },
       "parent": "App",
       "seeAlso": [],
@@ -1722,7 +1747,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 767
+        "line": 784
       },
       "parent": "App",
       "seeAlso": [],
@@ -1746,7 +1771,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 768
+        "line": 785
       },
       "parent": "App",
       "seeAlso": [],
@@ -1770,7 +1795,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 769
+        "line": 786
       },
       "parent": "App",
       "seeAlso": [],
@@ -1805,7 +1830,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 777
+        "line": 794
       },
       "parent": "App",
       "seeAlso": [],
@@ -1829,7 +1854,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 781
+        "line": 798
       },
       "parent": "App",
       "seeAlso": [],
@@ -1853,7 +1878,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 782
+        "line": 799
       },
       "parent": "App",
       "seeAlso": [],
@@ -1877,7 +1902,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 695
+        "line": 712
       },
       "parent": "App",
       "seeAlso": [],
@@ -1893,7 +1918,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 711
+        "line": 728
       },
       "parent": "App",
       "seeAlso": [],
@@ -2659,7 +2684,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 802
+        "line": 819
       },
       "parent": "DOMIsland",
       "seeAlso": [],
@@ -5199,7 +5224,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 496
+            "line": 512
           },
           "parent": "View",
           "seeAlso": [],
@@ -5223,7 +5248,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 497
+            "line": 513
           },
           "parent": "View",
           "seeAlso": [],
@@ -5247,7 +5272,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 498
+            "line": 514
           },
           "parent": "View",
           "seeAlso": [],
@@ -5271,7 +5296,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 499
+            "line": 515
           },
           "parent": "View",
           "seeAlso": [],
@@ -5306,7 +5331,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 500
+            "line": 516
           },
           "parent": "View",
           "seeAlso": [],
@@ -5330,7 +5355,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 501
+            "line": 517
           },
           "parent": "View",
           "seeAlso": [],
@@ -5354,7 +5379,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 502
+            "line": 518
           },
           "parent": "View",
           "seeAlso": [],
@@ -5378,7 +5403,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 503
+            "line": 519
           },
           "parent": "View",
           "seeAlso": [],
@@ -5402,7 +5427,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 504
+            "line": 520
           },
           "parent": "View",
           "seeAlso": [],
@@ -5426,7 +5451,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 505
+            "line": 521
           },
           "parent": "View",
           "seeAlso": [],
@@ -5450,7 +5475,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 508
+            "line": 524
           },
           "parent": "View",
           "seeAlso": [],
@@ -5474,7 +5499,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 509
+            "line": 525
           },
           "parent": "View",
           "seeAlso": [],
@@ -5498,7 +5523,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 510
+            "line": 526
           },
           "parent": "View",
           "seeAlso": [],
@@ -5522,7 +5547,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 517
+            "line": 533
           },
           "parent": "View",
           "seeAlso": [],
@@ -5546,12 +5571,36 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 521
+            "line": 537
           },
           "parent": "View",
           "seeAlso": [],
           "type": "boolean",
           "default": "false",
+          "prevailing": false,
+          "readOnly": false,
+          "inheritedFrom": null
+        },
+        {
+          "id": "View.tip",
+          "name": "tip",
+          "kind": "attribute",
+          "doc": "The tooltip text — the layer system's floor (one attribute at the use site): a non-empty\n`tip` makes this view hover-interactive, and after the platform delay the auto-provided\n`Tooltip` singleton shows the text beside it (below, centered; flipping above at the app\nedge). Moving between tip-carrying controls while a tip is up retargets instantly; a press\ndismisses. Theming comes from `tooltipBg` / `tooltipText` / `tooltipLine` tokens — the\nfour presets each carry their platform's rendition. `\"\"` (the default) = no tip.",
+          "docSegs": [
+            {
+              "md": "The tooltip text — the layer system's floor (one attribute at the use site): a non-empty\n`tip` makes this view hover-interactive, and after the platform delay the auto-provided\n`Tooltip` singleton shows the text beside it (below, centered; flipping above at the app\nedge). Moving between tip-carrying controls while a tip is up retargets instantly; a press\ndismisses. Theming comes from `tooltipBg` / `tooltipText` / `tooltipLine` tokens — the\nfour presets each carry their platform's rendition. `\"\"` (the default) = no tip.",
+              "code": []
+            }
+          ],
+          "api": true,
+          "source": {
+            "file": "runtime/src/view.ts",
+            "line": 538
+          },
+          "parent": "View",
+          "seeAlso": [],
+          "type": "string",
+          "default": "\"\"",
           "prevailing": false,
           "readOnly": false,
           "inheritedFrom": null
@@ -5570,7 +5619,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 522
+            "line": 539
           },
           "parent": "View",
           "seeAlso": [],
@@ -5594,7 +5643,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 523
+            "line": 540
           },
           "parent": "View",
           "seeAlso": [],
@@ -5618,7 +5667,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 527
+            "line": 544
           },
           "parent": "View",
           "seeAlso": [],
@@ -5642,7 +5691,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 529
+            "line": 546
           },
           "parent": "View",
           "seeAlso": [],
@@ -5666,7 +5715,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 530
+            "line": 547
           },
           "parent": "View",
           "seeAlso": [],
@@ -5690,7 +5739,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 531
+            "line": 548
           },
           "parent": "View",
           "seeAlso": [],
@@ -5714,7 +5763,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 532
+            "line": 549
           },
           "parent": "View",
           "seeAlso": [],
@@ -5738,7 +5787,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 535
+            "line": 552
           },
           "parent": "View",
           "seeAlso": [],
@@ -5762,7 +5811,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 536
+            "line": 553
           },
           "parent": "View",
           "seeAlso": [],
@@ -5786,7 +5835,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 537
+            "line": 554
           },
           "parent": "View",
           "seeAlso": [],
@@ -5810,7 +5859,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 538
+            "line": 555
           },
           "parent": "View",
           "seeAlso": [],
@@ -5834,7 +5883,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 539
+            "line": 556
           },
           "parent": "View",
           "seeAlso": [],
@@ -5858,7 +5907,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 540
+            "line": 557
           },
           "parent": "View",
           "seeAlso": [],
@@ -5882,7 +5931,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 541
+            "line": 558
           },
           "parent": "View",
           "seeAlso": [],
@@ -5906,7 +5955,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 542
+            "line": 559
           },
           "parent": "View",
           "seeAlso": [],
@@ -5930,7 +5979,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 543
+            "line": 560
           },
           "parent": "View",
           "seeAlso": [],
@@ -5954,7 +6003,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 544
+            "line": 561
           },
           "parent": "View",
           "seeAlso": [],
@@ -5978,7 +6027,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 528
+            "line": 545
           },
           "parent": "View",
           "seeAlso": [],
@@ -6002,7 +6051,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 545
+            "line": 562
           },
           "parent": "View",
           "seeAlso": [],
@@ -6026,7 +6075,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 548
+            "line": 565
           },
           "parent": "View",
           "seeAlso": [],
@@ -6050,7 +6099,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 549
+            "line": 566
           },
           "parent": "View",
           "seeAlso": [],
@@ -6074,7 +6123,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 562
+            "line": 579
           },
           "parent": "View",
           "seeAlso": [],
@@ -6098,7 +6147,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 511
+            "line": 527
           },
           "parent": "View",
           "seeAlso": [],
@@ -6122,7 +6171,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 512
+            "line": 528
           },
           "parent": "View",
           "seeAlso": [],
@@ -6146,7 +6195,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 516
+            "line": 532
           },
           "parent": "View",
           "seeAlso": [],
@@ -6473,7 +6522,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 437
+            "line": 442
           },
           "parent": "View",
           "seeAlso": [],
@@ -6530,7 +6579,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 762
+            "line": 779
           },
           "parent": "App",
           "seeAlso": [],
@@ -6554,7 +6603,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 763
+            "line": 780
           },
           "parent": "App",
           "seeAlso": [],
@@ -6578,7 +6627,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 764
+            "line": 781
           },
           "parent": "App",
           "seeAlso": [],
@@ -6602,7 +6651,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 765
+            "line": 782
           },
           "parent": "App",
           "seeAlso": [],
@@ -6626,7 +6675,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 766
+            "line": 783
           },
           "parent": "App",
           "seeAlso": [],
@@ -6650,7 +6699,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 767
+            "line": 784
           },
           "parent": "App",
           "seeAlso": [],
@@ -6674,7 +6723,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 768
+            "line": 785
           },
           "parent": "App",
           "seeAlso": [],
@@ -6698,7 +6747,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 769
+            "line": 786
           },
           "parent": "App",
           "seeAlso": [],
@@ -6733,7 +6782,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 777
+            "line": 794
           },
           "parent": "App",
           "seeAlso": [],
@@ -6757,7 +6806,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 781
+            "line": 798
           },
           "parent": "App",
           "seeAlso": [],
@@ -6781,7 +6830,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 782
+            "line": 799
           },
           "parent": "App",
           "seeAlso": [],
@@ -6808,7 +6857,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 695
+            "line": 712
           },
           "parent": "App",
           "seeAlso": [],
@@ -7373,7 +7422,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 802
+            "line": 819
           },
           "parent": "DOMIsland",
           "seeAlso": [],

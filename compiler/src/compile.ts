@@ -242,6 +242,18 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
     };
     const treeHas = (el: Element, tag: string): boolean =>
       el.tag === tag || el.children.some((ch) => treeHas(ch, tag));
+    // Splice an auto-provided singleton as the LAST App child. The preceding
+    // member may have closed INLINE (no trailing comma — the inline-]& rule),
+    // so add the terminator when the last non-space char before the close
+    // isn't one already.
+    const spliceLast = (src: string, snippet: string): string => {
+      const close = src.lastIndexOf("]");
+      if (close < 0) return src;
+      let i = close - 1;
+      while (i >= 0 && /\s/.test(src[i])) i--;
+      const needsComma = i >= 0 && src[i] !== "," && src[i] !== "[";
+      return src.slice(0, close) + (needsComma ? "," : "") + snippet + src.slice(close);
+    };
     const usesControl = auto.program.classes.some((c) => descendsControl(c.name));
     const hasOwnRing = byName.has("FocusRing") || treeHas(main.root, "FocusRing");
     const autoHost = host as { autoincludes?: () => Record<string, string>; resolveLibrary?: (p: string) => { source: string; canonical: string } | null };
@@ -250,12 +262,26 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
       const lib = path !== undefined ? autoHost.resolveLibrary(path) : null;
       if (lib !== null && lib !== undefined && !resolved.visited.has(lib.canonical)) {
         libSources.push(lib.source);
-        const close = mainSource.lastIndexOf("]");
-        if (close >= 0) {
-          mainSource = mainSource.slice(0, close) +
-            "\n    // the traveling focus indicator — provided with the component library\n\n    FocusRing [ ],\n" +
-            mainSource.slice(close);
-        }
+        mainSource = spliceLast(mainSource,
+          "\n    // the traveling focus indicator — provided with the component library\n\n    FocusRing [ ],\n");
+      }
+    }
+    // The Tooltip singleton arrives when any view carries a `tip` attribute
+    // (planes.md tier 1 — the attribute IS the whole use-site surface). Same
+    // mechanism as the ring: auto-include the library file, splice the
+    // singleton as the LAST App child — source order stacks, so last = above
+    // everything, the floating tier's v1 realization.
+    const elHasTip = (el: Element): boolean =>
+      el.attrs.some((a) => a.name === "tip") || el.children.some(elHasTip);
+    const usesTip = elHasTip(main.root) || auto.program.classes.some((c) => elHasTip(c.body));
+    const hasOwnTooltip = byName.has("Tooltip") || treeHas(main.root, "Tooltip");
+    if (usesTip && !hasOwnTooltip && typeof autoHost.autoincludes === "function" && typeof autoHost.resolveLibrary === "function") {
+      const path = autoHost.autoincludes()["Tooltip"];
+      const lib = path !== undefined ? autoHost.resolveLibrary(path) : null;
+      if (lib !== null && lib !== undefined && !resolved.visited.has(lib.canonical)) {
+        libSources.push(lib.source);
+        mainSource = spliceLast(mainSource,
+          "\n    // the tooltip singleton — provided with the component library (tip = attribute)\n\n    Tooltip [ ],\n");
       }
     }
   }

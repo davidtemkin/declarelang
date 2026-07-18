@@ -85,6 +85,8 @@ const ViewSchema: ComponentSchema = {
     // free simply by being a SIBLING of the scroller, not a child of it. Both
     // backends realize it natively (DOM `overflow`; canvas clip+translate+wheel).
     scrolls: { kind: "boolean" },
+    // the tooltip text — planes.md tier 1; "" (the default) = no tip
+    tip: { kind: "string" },
     scrollsX: { kind: "boolean" },
     scrollY: { kind: "number" },
     // Styling: the ruled prevailing built-ins — the four text-style slots
@@ -644,6 +646,7 @@ export function isReadOnly(schema: ComponentSchema, name: string): boolean {
 export const SUBSCRIPTION_SOURCES: Readonly<Record<string, readonly string[]>> = {
   Keys: ["onKeyDown", "onKeyUp"],
   Focus: ["onFocusChange", "onGeometry"],
+  Tip: ["onTip"],
 };
 
 /** Is `name` a prevailing attribute on `schema` (or its chain)? Asked of the

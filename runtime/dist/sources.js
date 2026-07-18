@@ -17,6 +17,7 @@
 // needs it yet.
 import { Keys } from "./keys.js";
 import { Focus } from "./focus.js";
+import { Tip } from "./tip.js";
 /** Subscribe `fn` to `member` on the named source. Returns the unsubscribe
  *  thunk. Unknown source/member throws — unreachable through the compiler
  *  (check.ts refuses them with positioned errors); the throw guards direct
@@ -33,6 +34,10 @@ export function subscribeToSource(source, member, fn) {
             return Focus.onFocusChange(fn);
         if (member === "onGeometry")
             return Focus.onGeometry(fn);
+    }
+    if (source === "Tip") {
+        if (member === "onTip")
+            return Tip.onTip(fn);
     }
     throw new Error(`no subscribable '${member}' on '${source}'`);
 }

@@ -18,7 +18,8 @@ stylesheet MountainView [
         controlRadius = 4, buttonRadius = 999, fieldRadius = 4, fieldPadding = 12,
         buttonHeight = 40, switchWidth = 52, switchHeight = 32, switchThumbOff = 16,
         focusRingWidth = 3, focusRingGap = 2, sliderHandle = "bar",
-        checkboxSize = 18, checkboxRadius = 2, disabledOpacity = 0.38 ],
+        checkboxSize = 18, checkboxRadius = 2, disabledOpacity = 0.38,
+        tooltipBg = #313033, tooltipText = #F4EFF4 ],
     ]
 
 
@@ -32,5 +33,6 @@ stylesheet MountainViewDark [
         controlRadius = 4, buttonRadius = 999, fieldRadius = 4, fieldPadding = 12,
         buttonHeight = 40, switchWidth = 52, switchHeight = 32, switchThumbOff = 16,
         focusRingWidth = 3, focusRingGap = 2, sliderHandle = "bar",
-        checkboxSize = 18, checkboxRadius = 2, disabledOpacity = 0.38 ],
+        checkboxSize = 18, checkboxRadius = 2, disabledOpacity = 0.38,
+        tooltipBg = #E6E1E5, tooltipText = #313033 ],
     ]

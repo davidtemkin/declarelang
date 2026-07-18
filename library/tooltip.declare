@@ -1,0 +1,56 @@
+/*
+# Tooltip
+
+The layer system's floor (planes.md §2, tier 1): any view sets `tip = "…"`
+and this singleton renders it — hover delay, placement, flip, and theming
+are nobody's problem at the use site. It arrives automatically when any
+view in the program carries a tip (the FocusRing auto-arrival mechanism);
+declare your own `Tooltip [ ]` (or subclass) to replace the rendition.
+
+It listens to the Tip service (`onTip(e) <- Tip`), which owns the platform
+conventions (the show delay, instant retarget while showing, hide on
+press). Placement: below the target, centered, flipping above when there is
+no room, clamped inside the app. Pure chrome — never focusable, never a
+pointer target, always above content (the auto-splice puts it last in the
+App, and source order stacks).
+
+Theming (the four cities carry the tokens): `tooltipBg` / `tooltipText` /
+`tooltipLine` (null = no border). Cupertino and Redmond wear bordered
+surface chips; San Francisco and Mountain View the inverse chip.
+*/
+
+class Tooltip extends View [ visible = { shown && tipText != "" },
+
+    tipText: string = "",
+    shown:   boolean = false,
+    ex: number = 0,                              // the target's root-space box
+    ey: number = 0,
+    ew: number = 0,
+    eh: number = 0,
+
+    onTip(e) <- Tip {
+        if (e == null || e.root != app) { shown = false; return }
+        ex = e.x; ey = e.y; ew = e.w; eh = e.h
+        tipText = e.text
+        shown = true
+        },
+
+    // geometry derives from the label's measured size; placement flips above
+    // the target when below would leave the app, and clamps horizontally
+
+    width  = { this.t.width + 16 },
+    height = { this.t.height + 10 },
+    x = { Math.max(4, Math.min(app.width - this.width - 4, ex + (ew - this.width) / 2)) },
+    y = { ey + eh + 7 + this.height > app.height ? ey - this.height - 7 : ey + eh + 7 },
+
+    cornerRadius = 4,
+    fill   = { typeof theme.tooltipBg == "number" ? theme.tooltipBg : 0x1B2733 },
+    stroke = { typeof theme.tooltipLine == "number" ? stroke(1, theme.tooltipLine) : null },
+
+    // pure chrome: never a pointer target
+    containsPoint(px, py) { return false },
+
+    t: Text [ x = 8, y = 5, fontSize = 12,
+        textColor = { typeof theme.tooltipText == "number" ? theme.tooltipText : 0xF4F6FA },
+        text = { classroot.tipText } ],
+    ]

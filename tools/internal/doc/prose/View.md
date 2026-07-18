@@ -65,6 +65,14 @@ Clips the subtree to a shape. `clip = true` clips to the view's **own box**
 path. `null`/unset (default) draws children unclipped, even outside the box. Kept
 explicit (not implied by `cornerRadius`) so clipping is pay-per-use.
 
+## tip
+The tooltip text — the layer system's floor (one attribute at the use site): a non-empty
+`tip` makes this view hover-interactive, and after the platform delay the auto-provided
+`Tooltip` singleton shows the text beside it (below, centered; flipping above at the app
+edge). Moving between tip-carrying controls while a tip is up retargets instantly; a press
+dismisses. Theming comes from `tooltipBg` / `tooltipText` / `tooltipLine` tokens — the
+four presets each carry their platform's rendition. `""` (the default) = no tip.
+
 ## scrolls
 Makes the view scroll its overflowing content: it clips to its box and scrolls the
 vertical overflow, exposing `scrollY`. Fixed chrome comes free — make it a **sibling**

@@ -24,7 +24,8 @@ stylesheet Redmond [
         focusRingWidth = 2, focusRingGap = 0, focusRingInnerWidth = 1,
         focusColor = #000000, focusRingInnerColor = #FFFFFF,
         sliderHandle = "dot",
-        checkboxSize = 20, checkboxRadius = 4, disabledOpacity = 0.36 ],
+        checkboxSize = 20, checkboxRadius = 4, disabledOpacity = 0.36,
+        tooltipBg = #FBFBFB, tooltipText = #1B1B1B, tooltipLine = #D1D1D1 ],
     ]
 
 
@@ -40,5 +41,6 @@ stylesheet RedmondDark [
         focusRingWidth = 2, focusRingGap = 0, focusRingInnerWidth = 1,
         focusColor = #FFFFFF, focusRingInnerColor = #000000,
         sliderHandle = "dot",
-        checkboxSize = 20, checkboxRadius = 4, disabledOpacity = 0.36 ],
+        checkboxSize = 20, checkboxRadius = 4, disabledOpacity = 0.36,
+        tooltipBg = #2C2C2C, tooltipText = #FFFFFF, tooltipLine = #404040 ],
     ]

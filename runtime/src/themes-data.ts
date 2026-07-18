@@ -30,6 +30,9 @@ export const THEME_RECORDS: Readonly<Record<string, Readonly<Record<string, unkn
     checkboxSize: 14,
     checkboxRadius: 3.5,
     disabledOpacity: 0.5,
+    tooltipBg: 0xF0F0F0,
+    tooltipText: 0x1D1D1F,
+    tooltipLine: 0xC6C6C8,
   }),
   CupertinoDark: Object.freeze({
     bg: 0x1E1E1E,
@@ -56,6 +59,9 @@ export const THEME_RECORDS: Readonly<Record<string, Readonly<Record<string, unkn
     checkboxSize: 14,
     checkboxRadius: 3.5,
     disabledOpacity: 0.5,
+    tooltipBg: 0x2C2C2E,
+    tooltipText: 0xF2F2F7,
+    tooltipLine: 0x48484A,
   }),
   MountainView: Object.freeze({
     bg: 0xFFFBFE,
@@ -84,6 +90,8 @@ export const THEME_RECORDS: Readonly<Record<string, Readonly<Record<string, unkn
     checkboxSize: 18,
     checkboxRadius: 2,
     disabledOpacity: 0.38,
+    tooltipBg: 0x313033,
+    tooltipText: 0xF4EFF4,
   }),
   MountainViewDark: Object.freeze({
     bg: 0x141218,
@@ -112,6 +120,8 @@ export const THEME_RECORDS: Readonly<Record<string, Readonly<Record<string, unkn
     checkboxSize: 18,
     checkboxRadius: 2,
     disabledOpacity: 0.38,
+    tooltipBg: 0xE6E1E5,
+    tooltipText: 0x313033,
   }),
   Redmond: Object.freeze({
     bg: 0xF3F3F3,
@@ -143,6 +153,9 @@ export const THEME_RECORDS: Readonly<Record<string, Readonly<Record<string, unkn
     checkboxSize: 20,
     checkboxRadius: 4,
     disabledOpacity: 0.36,
+    tooltipBg: 0xFBFBFB,
+    tooltipText: 0x1B1B1B,
+    tooltipLine: 0xD1D1D1,
   }),
   RedmondDark: Object.freeze({
     bg: 0x202020,
@@ -174,6 +187,9 @@ export const THEME_RECORDS: Readonly<Record<string, Readonly<Record<string, unkn
     checkboxSize: 20,
     checkboxRadius: 4,
     disabledOpacity: 0.36,
+    tooltipBg: 0x2C2C2C,
+    tooltipText: 0xFFFFFF,
+    tooltipLine: 0x404040,
   }),
   SanFrancisco: Object.freeze({
     bg: 0xF4F6FA,
@@ -189,6 +205,8 @@ export const THEME_RECORDS: Readonly<Record<string, Readonly<Record<string, unkn
     depth: 1,
     focusRing: true,
     controlRadius: 7,
+    tooltipBg: 0x1B2733,
+    tooltipText: 0xF4F6FA,
   }),
   SanFranciscoDark: Object.freeze({
     bg: 0x0F1620,
@@ -204,5 +222,7 @@ export const THEME_RECORDS: Readonly<Record<string, Readonly<Record<string, unkn
     depth: 1,
     focusRing: true,
     controlRadius: 7,
+    tooltipBg: 0xE7EEF2,
+    tooltipText: 0x0F1620,
   }),
 });
