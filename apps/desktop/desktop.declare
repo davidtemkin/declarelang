@@ -96,7 +96,7 @@ class Window extends View [ width = 560, height = 400, cornerRadius = 10, clip =
     barHover: boolean = false,
 
     bar: View [ width = { parent.width }, height = 35,
-        fill = { classroot.active ? gradient(0xF7F7F9, 0xE9E9EC) : theme.bg },
+        fill = { classroot.active ? gradient(0xFAFAFC, 0xE6E6EA) : theme.bg },
         onMouseOver() { classroot.barHover = true },
         onMouseOut()  { classroot.barHover = false },
         onMouseDown() {
@@ -117,15 +117,15 @@ class Window extends View [ width = 560, height = 400, cornerRadius = 10, clip =
         // the traffic lights — all three real: close, shade, zoom. Grey when
         // the window is inactive; glyphs surface on bar hover (the macOS rule).
 
-        close: TrafficLight [ x = 12, c = #FF5F57, glyph = "×",
+        close: TrafficLight [ x = 13, c = #EC6A5E, glyph = "×",
             on = { classroot.active }, showGlyph = { classroot.barHover },
             onClick() { app.closeWin(classroot) },
             ],
-        mini: TrafficLight [ x = 32, c = #FEBC2E, glyph = "−",
+        mini: TrafficLight [ x = 33, c = #F5BF4F, glyph = "−",
             on = { classroot.active }, showGlyph = { classroot.barHover },
             onClick() { classroot.shadeToggle() },
             ],
-        zoom: TrafficLight [ x = 52, c = #28C840, glyph = "+",
+        zoom: TrafficLight [ x = 53, c = #61C554, glyph = "+",
             on = { classroot.active }, showGlyph = { classroot.barHover },
             onClick() { classroot.zoomToggle() },
             ],
@@ -169,14 +169,14 @@ class Window extends View [ width = 560, height = 400, cornerRadius = 10, clip =
     ]
 
 
-class TrafficLight extends View [ y = 11, width = 13, height = 13, cornerRadius = 6.5,
-    c: Color = #FF5F57,
+class TrafficLight extends View [ y = 11.5, width = 12, height = 12, cornerRadius = 6,
+    c: Color = #EC6A5E,
     glyph: string = "",
     on: boolean = false,                         // the window's active state, fed at the use site
     showGlyph: boolean = false,                  // bar-hover, fed at the use site
     fill = { on ? c : theme.line },
     stroke = { stroke(1, 0x00000022) },
-    t: Text [ x = center, y = center, fontSize = 9, fontWeight = bold, textColor = 0x00000073,
+    t: Text [ x = center, y = center, fontSize = 8, fontWeight = bold, textColor = 0x00000073,
         visible = { classroot.showGlyph && classroot.on },
         text = { classroot.glyph } ],
     ]
@@ -326,7 +326,7 @@ class DockIcon extends View [
 
     width  = { 48 * (1 + 0.5 * this.near * this.near) },
     height = { this.width },
-    y = { parent.height - this.height - 10 },    // bottom-anchored above the dot strip
+    y = { parent.height - this.height - 8 },     // bottom-anchored above the dot strip
 
     onMouseOver() { hovered = true },
     onMouseOut()  { hovered = false },
@@ -423,7 +423,21 @@ App [ minWidth = 900, minHeight = 600,
         w.discard()
         },
 
-    onInit() { this.newFinder() },
+    // the menu-bar clock is LIVE — a hardcoded time sitting one pixel column
+    // from the real menu bar's is the first thing the eye catches
+
+    clockText: string = "",
+
+    tick() {
+        const d = new Date()
+        const wd = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()]
+        const mo = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()]
+        const h12 = d.getHours() % 12 == 0 ? 12 : d.getHours() % 12
+        const mm = (d.getMinutes() < 10 ? "0" : "") + d.getMinutes()
+        clockText = wd + " " + mo + " " + d.getDate() + " " + h12 + ":" + mm + " " + (d.getHours() >= 12 ? "PM" : "AM")
+        },
+
+    onInit() { this.newFinder(); this.tick(); setInterval(() => this.tick(), 15000) },
 
     // ── the windows layer: a structural container; order is promotion ──────
 
@@ -459,7 +473,7 @@ App [ minWidth = 900, minHeight = 600,
                 ],
             ],
         clock: Text [ x = { parent.width - this.width - 14 }, y = center, fontSize = 13,
-            textColor = { theme.text }, text = "Fri 4:14 PM" ],
+            textColor = { theme.text }, text = { app.clockText } ],
         ],
 
     // ── the dock ───────────────────────────────────────────────────────────
@@ -467,11 +481,11 @@ App [ minWidth = 900, minHeight = 600,
     dock: View [ height = 78,
         width = { this.plate.width },
         x = { (app.width - this.width) / 2 },
-        y = { app.height - 84 },
-        plate: View [ x = 0, y = { parent.height - 62 }, height = 62, width = { parent.row.width + 22 },
-            cornerRadius = 22, fill = { theme.surface }, opacity = 0.62,
+        y = { app.height - 82 },
+        plate: View [ x = 0, y = { parent.height - 58 }, height = 58, width = { parent.row.width + 18 },
+            cornerRadius = 20, fill = 0xFCFCFE, opacity = 0.72,
             stroke = { stroke(1, 0xFFFFFF80) } ],
-        row: View [ x = 11, y = 0, height = 70,
+        row: View [ x = 9, y = 0, height = 70,
             layout: SimpleLayout [ axis = x, spacing = 8 ],
             DockIcon [ ix = 0, name = "Finder", glyph = "⌘", hue1 = #59B0F6, hue2 = #1D6FD1,
                 running = true,
