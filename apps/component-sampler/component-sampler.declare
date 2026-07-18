@@ -65,18 +65,18 @@ class Section extends View [ width = { parent.width },
 
 App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 720,
 
-    style: string = "declare",
+    style: string = "sanFrancisco",
     colorMode: string = "system",              // light | system | dark — ORTHOGONAL to the theme (the islands.md arrangement)
     darkUI: boolean = { colorMode == "dark" || (colorMode == "system" && app.dark) },
     animateFocus: boolean = true,
     accentPick: number = 0,                    // 0 = the mode's own accent; a swatch overrides it EVERYWHERE
 
-    // the LIBRARY presets, by campus: Themes.house / cupertino / mountainView,
+    // the LIBRARY presets, by city: Themes.sanFrancisco / cupertino / mountainView,
     // each a function of the one resolved mode fact. An accent pick re-derives
     // the active tint (Themes.tint) so nothing keeps a stale tone.
 
     theme = { ({
-        ...(style == "mountainView" ? Themes.mountainView(darkUI) : style == "cupertino" ? Themes.cupertino(darkUI) : Themes.house(darkUI)),
+        ...(style == "mountainView" ? Themes.mountainView(darkUI) : style == "cupertino" ? Themes.cupertino(darkUI) : Themes.sanFrancisco(darkUI)),
         focusAnimate: animateFocus,
         ...(accentPick != 0 ? ({ accent: accentPick, controlActive: Themes.tint(accentPick, darkUI) }) : ({})),
     }) },
@@ -103,7 +103,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 720,
             layout: SimpleLayout [ axis = x, spacing = 24 ],
             RadioGroup [ value = { app.style },
                 input(v) { app.style = v },
-                Radio [ choice = "declare", label = "Declare" ],
+                Radio [ choice = "sanFrancisco", label = "San Francisco" ],
                 Radio [ choice = "mountainView", label = "Mountain View" ],
                 Radio [ choice = "cupertino", label = "Cupertino" ],
                 ],

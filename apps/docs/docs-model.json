@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "buildId": "163d4ed30610",
+  "buildId": "de1e5fbabf1b",
   "nodes": {
     "View.x": {
       "id": "View.x",
@@ -1183,7 +1183,7 @@
       },
       "parent": "View",
       "seeAlso": [],
-      "signature": "scrollIntoView(): void",
+      "signature": "scrollIntoView(align?: \"start\" | \"nearest\"): void",
       "returns": "void"
     },
     "View.method.invalidateDraw": {
@@ -6477,7 +6477,7 @@
           },
           "parent": "View",
           "seeAlso": [],
-          "signature": "scrollIntoView(): void",
+          "signature": "scrollIntoView(align?: \"start\" | \"nearest\"): void",
           "returns": "void"
         }
       ],

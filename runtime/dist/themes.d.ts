@@ -1,6 +1,6 @@
-import type { Theme } from "./value.js";
+import { type Theme } from "./value.js";
 export declare const Themes: Readonly<{
-    house: (dark?: boolean) => Theme;
+    sanFrancisco: (dark?: boolean) => Theme;
     cupertino: (dark?: boolean) => Theme;
     mountainView: (dark?: boolean) => Theme;
     /** An active tone derived from an accent — 22% over the surface tone. */

@@ -1,8 +1,12 @@
 // themes — the named theme PRESETS (library-charter §6: design systems are
 // DATA riding one machinery, never code paths). The naming is geographic —
-// the campus, not the brand: `cupertino` for the Apple-fidelity record,
-// `mountainView` for Material 3, `house(dark)` for Declare's own. (Flutter
-// half-shares the idea — Material + Cupertino; Redmond is expected next.)
+// the city, not the brand: `cupertino` for the Apple-fidelity record,
+// `mountainView` for Material 3, `sanFrancisco(dark)` for Declare's own —
+// named for where Declare is made, and it is ALSO the zero-declaration
+// default: an app that never mentions a theme renders sanFrancisco(light)
+// (value.ts DEFAULT_THEME IS the San Francisco light record — one object,
+// not a copy, so the fallback tier can never drift from the named preset).
+// (Flutter half-shares the idea — Material + Cupertino; Redmond is next.)
 //
 // Each preset is a FUNCTION of the one resolved mode fact (dark), returning a
 // plain token record for the prevailing `theme` slot:
@@ -16,17 +20,12 @@
 // active tone from any accent (22% over the surface tone) — what an accent
 // override uses so nothing keeps a stale precomputed tint.
 
-import type { Theme } from "./value.js";
+import { DEFAULT_THEME, type Theme } from "./value.js";
 
-const HOUSE_LIGHT: Theme = Object.freeze({
-  bg: 0xF4F6FA, surface: 0xFFFFFF, line: 0xDBE1E9,
-  text: 0x1B2733, textMuted: 0x6C7A88, textFaint: 0xAAB4BE,
-  accent: 0x2E6FE0, accentText: 0xFFFFFF,
-  control: 0xE7EBF1, controlActive: 0xD3E2FC,
-  depth: 1, focusRing: true, controlRadius: 7,
-});
+// The light record lives in value.ts as DEFAULT_THEME — the no-typing tier.
+const SAN_FRANCISCO_LIGHT: Theme = DEFAULT_THEME;
 
-const HOUSE_DARK: Theme = Object.freeze({
+const SAN_FRANCISCO_DARK: Theme = Object.freeze({
   bg: 0x0F1620, surface: 0x18212C, line: 0x2A3642,
   text: 0xE7EEF2, textMuted: 0x9DB0BC, textFaint: 0x556673,
   accent: 0x4C8DFF, accentText: 0xFFFFFF,
@@ -35,7 +34,7 @@ const HOUSE_DARK: Theme = Object.freeze({
 });
 
 const MOUNTAIN_VIEW_LIGHT: Theme = Object.freeze({
-  ...HOUSE_LIGHT,
+  ...SAN_FRANCISCO_LIGHT,
   bg: 0xFFFBFE, surface: 0xFFFFFF, line: 0x79747E,
   text: 0x1C1B1F, textMuted: 0x49454F,
   accent: 0x6750A4, accentText: 0xFFFFFF,
@@ -55,7 +54,7 @@ const MOUNTAIN_VIEW_DARK: Theme = Object.freeze({
 });
 
 const CUPERTINO_LIGHT: Theme = Object.freeze({
-  ...HOUSE_LIGHT,
+  ...SAN_FRANCISCO_LIGHT,
   bg: 0xF5F5F7, surface: 0xFFFFFF, line: 0xC6C6C8,
   text: 0x1D1D1F, textMuted: 0x6E6E73,
   accent: 0x007AFF, accentText: 0xFFFFFF,
@@ -75,7 +74,7 @@ const CUPERTINO_DARK: Theme = Object.freeze({
 });
 
 export const Themes = Object.freeze({
-  house: (dark?: boolean): Theme => (dark ? HOUSE_DARK : HOUSE_LIGHT),
+  sanFrancisco: (dark?: boolean): Theme => (dark ? SAN_FRANCISCO_DARK : SAN_FRANCISCO_LIGHT),
   cupertino: (dark?: boolean): Theme => (dark ? CUPERTINO_DARK : CUPERTINO_LIGHT),
   mountainView: (dark?: boolean): Theme => (dark ? MOUNTAIN_VIEW_DARK : MOUNTAIN_VIEW_LIGHT),
   /** An active tone derived from an accent — 22% over the surface tone. */

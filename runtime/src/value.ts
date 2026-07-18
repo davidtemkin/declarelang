@@ -121,11 +121,12 @@ export function fillEqual(a: Fill, b: Fill): boolean {
 }
 
 /** A theme: a plain immutable record of design tokens (ruled, v1 —
- *  wholesale-swapped, never mutated in place). The default is the HOUSE
- *  theme (docs/system-design/components-baseline.md Contract 2): the ruled v1 role
- *  vocabulary with the house light palette, so `theme.role` in library
- *  components ALWAYS resolves — no provider means the house look, never a
- *  fallback expression in component source. `depth` (0 = flat …
+ *  wholesale-swapped, never mutated in place). The default is SAN FRANCISCO
+ *  light (docs/system-design/components-baseline.md Contract 2) — this record
+ *  IS Themes.sanFrancisco(false), by identity (themes.ts aliases it), so the
+ *  zero-declaration tier and the named preset can never drift. `theme.role`
+ *  in library components ALWAYS resolves — no provider means San Francisco,
+ *  never a fallback expression in component source. `depth` (0 = flat …
  *  1 = dimensional) is the treatment dial components translate in their
  *  decoration constraints. Partial reskin is explicit-base spread:
  *  `theme = { { ...app.theme, accent: 0xE05252 } }`. (The dark-aware house —
