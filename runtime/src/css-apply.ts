@@ -94,8 +94,11 @@ export function ensureCssApplier(view: object): void {
           if (value === undefined) continue; // malformed → skip
           offers[entry.attr] = value;
         }
-        // Does a :hover/:active rule target this view (ignoring live pseudo
+        // Does a :hover/:active rule target this view (ignoring live pointer
         // state)? If so it needs an interaction sink (pointer hit-testing).
+        // Note: a mixed selector like `.card:hover:focus` still honors live
+        // :focus here (forcePointer forces only hover/active) — so its sink
+        // installs once focused. Obscure; a focus change re-runs this compute.
         tracked = rules.rules.some((r) => containsPointerPseudo(r.selector) && matches(mv, r.selector, true));
       }
       return { offers, tracked };

@@ -40,6 +40,7 @@ export class FocusService {
 
   /** Test/lifecycle reset. */
   reset(): void {
+    this.current?.setPseudoState("focus", false); // clear a live view's :focus for symmetry
     this.current = null;
     this.rootView = null;
     this.changing = false;
