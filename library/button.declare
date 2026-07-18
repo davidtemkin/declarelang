@@ -22,6 +22,11 @@ class Button extends Control [
     opacity = { disabled ? 0.45 : pressed ? 0.72 : 1 },
     fill    = { primary ? theme.accent : pressed || hovered ? theme.controlActive : theme.control },
 
+    // platforms whose secondary buttons are BORDERED say so in the theme
+    // (Cupertino's hairline, Fluent's 1px) — flat systems leave it null
+
+    stroke  = { !primary && theme.buttonBorder != null ? stroke(1, theme.buttonBorder) : null },
+
     cap: Text [ x = center, y = center, wrap = false, fontWeight = semibold,
         textColor = { primary ? theme.accentText : theme.text }, text = { label } ],
     ]

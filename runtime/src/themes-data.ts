@@ -46,7 +46,8 @@ export const THEME_RECORDS: Readonly<Record<string, Readonly<Record<string, unkn
     dialogButtons: "stack",
     dialogAlign: "center",
     dialogTitleSize: 13,
-    dialogBodySize: 11,
+    dialogBodySize: 12,
+    buttonBorder: 0xC6C6C8,
   }),
   CupertinoDark: Object.freeze({
     bg: 0x1E1E1E,
@@ -89,7 +90,8 @@ export const THEME_RECORDS: Readonly<Record<string, Readonly<Record<string, unkn
     dialogButtons: "stack",
     dialogAlign: "center",
     dialogTitleSize: 13,
-    dialogBodySize: 11,
+    dialogBodySize: 12,
+    buttonBorder: 0x5A5A5E,
   }),
   MountainView: Object.freeze({
     bg: 0xFFFBFE,
@@ -217,6 +219,7 @@ export const THEME_RECORDS: Readonly<Record<string, Readonly<Record<string, unkn
     dialogButtons: "fill",
     dialogTitleSize: 20,
     dialogBodySize: 14,
+    buttonBorder: 0xD1D1D1,
   }),
   RedmondDark: Object.freeze({
     bg: 0x202020,
@@ -264,6 +267,7 @@ export const THEME_RECORDS: Readonly<Record<string, Readonly<Record<string, unkn
     dialogButtons: "fill",
     dialogTitleSize: 20,
     dialogBodySize: 14,
+    buttonBorder: 0x505050,
   }),
   SanFrancisco: Object.freeze({
     bg: 0xF4F6FA,

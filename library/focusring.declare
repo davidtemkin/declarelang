@@ -100,6 +100,7 @@ class FocusRing extends View [ opacity = 0,
         if (!placed || theme.focusAnimate == false || !this.travelRole()) this.snapTo()
         placed = true
         shown = true
+        this.raise()          // chrome stays chrome: above whatever raised last (a Dialog, a Menu)
         // idle fade only for the travel-only role — a resting ring persists
         if (this.restRole()) { idle = false; return }
         gen = gen + 1

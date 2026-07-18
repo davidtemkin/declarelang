@@ -160,14 +160,15 @@ class Dialog extends View [ visible = { shown },
         col: View [ x = 20, y = 20, width = { parent.width - 40 },
             layout: SimpleLayout [ axis = y, spacing = 12 ],
 
-            ttl: Text [ fontWeight = semibold, wrap = false,
+            ttl: Text [ fontWeight = bold, wrap = true, width = { parent.width },
                 fontSize = { typeof theme.dialogTitleSize == "number" ? theme.dialogTitleSize : 15 },
-                x = { classroot.centered ? Math.max(0, (parent.width - this.width) / 2) : 0 },
+                textAlign = { classroot.centered ? "center" : "left" },
                 textColor = { classroot.tone == "error" ? (theme.errorColor != null ? theme.errorColor : 0xC93429) : theme.text },
                 text = { classroot.title } ],
 
             msg: Text [ wrap = true, width = { parent.width },
                 fontSize = { typeof theme.dialogBodySize == "number" ? theme.dialogBodySize : 13 },
+                textAlign = { classroot.centered ? "center" : "left" },
                 visible = { classroot.message != "" },
                 textColor = { theme.textMuted }, text = { classroot.message } ],
 

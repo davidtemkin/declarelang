@@ -40,6 +40,7 @@ class Tooltip extends View [ visible = { shown && tipText != "" },
         px = app.pointerX; py = app.pointerY      // the pointer as it RESTS at show
         tipText = e.text
         shown = true
+        this.raise()          // chrome stays chrome: above whatever raised last
         },
 
     // geometry derives from the label's measured size; placement is a theme
