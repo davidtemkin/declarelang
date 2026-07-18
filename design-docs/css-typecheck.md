@@ -66,7 +66,8 @@ tokens); on the `css` branch, after consuming `css Name {`, run a local CSS-awar
 brace scan **over `source` from the `{` token's `pos.offset`** — count `{`/`}`
 depth, treating `/* … */` comments and `"…"`/`'…'` strings as opaque (CSS has no
 `//` or template literals) — take the enclosed text verbatim, and advance the
-token stream past the matching `}`. No new token kind, no context-dependent
+token stream to the first token at/after the matching `}`'s offset (resync the
+token cursor to the source cursor). No new token kind, no context-dependent
 lexing.
 
 `parser.ts` adds a `css` keyword to the top-level dispatch (`parseTopDecls`,
@@ -165,8 +166,7 @@ compiler `.ts` files carry none of this), mirroring the stylesheet path:
 
 | File | Change |
 |---|---|
-| tokenizer (`parser.ts`) | comment/string-aware raw `cssbody` capture |
-| `runtime/src/parser.ts` | `css` keyword; `parseCssDecl` → `CssDecl`; `program.csses`; thread through Program/Library/assemblers |
+| `runtime/src/parser.ts` | `Parser` gets `source`; `css` keyword; `parseCssDecl` with a parser-level CSS-aware brace scan over `source` (no new token); `CssDecl`; `program.csses`; thread through Program/Library/assemblers |
 | `runtime/src/css-parse.ts` | `selPos` per rule, `{namePos,valuePos}` per decl; `CssUnsupported` offset |
 | `runtime/src/value.ts` | new `AttrType` kind `cssRules`; add to `UNSTYLABLE`; `case "cssRules"` in `coerce()` |
 | `runtime/src/data.ts` | `case "cssRules"` in `coerceData()`'s kind-switch (exhaustiveness) |
@@ -178,9 +178,11 @@ compiler `.ts` files carry none of this), mirroring the stylesheet path:
 
 ## Milestones
 
-- **M1 — parser + schema slots.** The `cssbody` tokenizer capture + `parseCssDecl`
-  + `program.csses` + namespace dedupe; add `styleclass`/`id`/`cssRules` to
-  `ViewSchema` + the `cssRules` `AttrType` kind. Tests: valid block, nested
+- **M1 — parser + schema slots.** The parser-level CSS-body brace scan +
+  `parseCssDecl` + `program.csses` + namespace dedupe; add `styleclass`/`id`/
+  `cssRules` to `ViewSchema` + the `cssRules` `AttrType` kind (+ its two
+  exhaustiveness cases). (The schema-prerequisite half — slots + AttrType + cases
+  — is an independent sub-unit and may be sequenced first within M1.) Tests: valid block, nested
   `selector{}` braces, brace-in-comment `/* } */`, empty block, unterminated
   error, duplicate-name error; `styleclass="x"`/`id="y"` now check clean.
 - **M2 — positions in css-parse.** `selPos`/`{namePos,valuePos}` + `CssUnsupported`
