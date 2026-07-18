@@ -7,9 +7,30 @@
 // and construct/init events (R4/R5). Establishing the Node↔View seam now is
 // what lets those land without reshaping the base.
 
+import { Cell, isTracking } from "./reactive.js";
+
 export class Node {
   parent: Node | null = null;
   readonly children: Node[] = [];
+
+  /** The STRUCTURE cell — lazily created on the first tracked read of this
+   *  node's child list (extentOf's contentWidth/contentHeight walk), woken by
+   *  insertChild/removeChild. This is what makes a constraint over a
+   *  replication-populated container's content extent re-derive when rows
+   *  ARRIVE — per-child attr reads track the children that exist, and this
+   *  cell tracks that the SET of children changed. */
+  private structure: Cell | null = null;
+
+  /** Tracked read of the child-list structure (no-op untracked). */
+  trackStructure(): void {
+    if (!isTracking()) return;
+    if (this.structure === null) this.structure = new Cell();
+    this.structure.track();
+  }
+
+  private structureChanged(): void {
+    this.structure?.changed();
+  }
 
   /** The scope noun (R6) for members declared in THIS node's body — the
    *  enclosing class instance, set at construction. It lives here, on Node, not
@@ -32,6 +53,7 @@ export class Node {
   appendChild(child: Node): void {
     child.parent = this;
     this.children.push(child);
+    this.structureChanged();
   }
 
   /** Link `child` at `index` — child order is semantic (tree order is paint
@@ -39,13 +61,17 @@ export class Node {
   insertChild(child: Node, index: number): void {
     child.parent = this;
     this.children.splice(index, 0, child);
+    this.structureChanged();
   }
 
   /** Unlink `child`. Model structure only — a live view's surface and
    *  standing computations are the caller's to retire (View.discard). */
   removeChild(child: Node): void {
     const i = this.children.indexOf(child);
-    if (i >= 0) this.children.splice(i, 1);
+    if (i >= 0) {
+      this.children.splice(i, 1);
+      this.structureChanged();
+    }
     child.parent = null;
   }
 

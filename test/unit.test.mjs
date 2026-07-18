@@ -4620,6 +4620,39 @@ await test("focus: byKeyboard() — the focus-visible modality: Tab sets it, a d
   assert.equal(Focus.byKeyboard(), false, "clicking after tabbing clears it again");
 });
 
+await test("contentHeight over a replication-populated container re-derives on ARRIVAL (the structure cell)", () => {
+  // The COMPILED path (static dep wiring — the real-world path): the panel
+  // constraint reads body.contentHeight while replicated rows arrive later;
+  // extentOf tracks the child-LIST (the structure cell), so arrival and
+  // removal re-derive — the menu-panel freeze, fixed at the root. Rows are
+  // driven by a real reactive input (app.n), per the write-displaces rule.
+  const r = compile(`App [ width = 200, height = 300,
+    n: number = 1,
+    d: Dataset [ contents = { ({ rows: Array.from({ length: app.n }, (_, i) => ({ h: 20 + i * 30 })) }) } ],
+    panel: View [ width = 100, height = { this.body.contentHeight + 10 },
+      body: View [ width = 100, datapath = { classroot.d.value },
+        View [ datapath = :rows[], width = 10, height = { 0 + :h } ],
+      ],
+    ],
+    t: Text [ text = "x" ],
+  ]`, {});
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  const app = build(r.source, { deps: r.deps });
+  settle();
+  assert.equal(app.panel.height, 30, "one row of 20 -> 30");
+  app.n = 2;
+  settle();
+  // no layout in the test body: rows overlap at y=0, so the extent is the
+  // MAX child (50), not the sum — what matters is that it re-derived at all
+  assert.equal(app.panel.height, 60, "arrival re-derives: max(20, 50) + 10");
+  app.n = 1;
+  settle();
+  assert.equal(app.panel.height, 30, "removal re-derives too");
+  app.createView("View", app.panel.body, { width: 5, height: 90 });
+  settle();
+  assert.equal(app.panel.height, 100, "imperative arrival (createView) re-derives too");
+});
+
 await test("createView: imperative creation by name — a full citizen, loudly-checked names", () => {
   const app = build(`class Chip extends View [ width = 30, height = 10,
     label: string = "",

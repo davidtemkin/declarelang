@@ -181,6 +181,12 @@ export class View extends Node {
         }
     }
     extentOf(size) {
+        // The child-LIST is a dependency too: a container populated by
+        // replication (or createView) starts empty — without this, a constraint
+        // reading contentWidth/contentHeight at that moment tracks nothing and
+        // freezes (the menu-panel bug). Attr reads below cover the children that
+        // exist; the structure cell covers arrival and removal.
+        this.trackStructure();
         const axis = AXIS_OF[size];
         let max = this.contentExtent(size);
         for (const c of this.children) {

@@ -91,6 +91,40 @@ learn and more you can say without contortion. The guide should make this point 
 *count* (here is everything you now don't need) exactly once, and by *experience*
 (chapters keep ending sooner than a React reader expects) everywhere else.
 
+### The case for continuity — the user-facing "why"
+
+The mechanics of Part Three need an argument in front of them, because the deeper
+claim isn't that Declare animates well — it's that **animation in Declare isn't an
+effects layer; it's the means to a continuous user experience.** The guide states
+the why in plain human terms before any spring is tuned:
+
+- **Continuity keeps the user oriented.** When a view *becomes* the next one, the
+  interface answers "where did that go? where am I now?" before the question forms.
+  A discrete cut discards the user's spatial context and makes them rebuild it —
+  that rebuilding is cognitive overhead the interface chose to impose.
+- **Motion carries meaning.** The month folding into its slot in the year *is* the
+  data relationship, made visible. Good continuous motion is information, not
+  decoration.
+- **Interruptibility respects intent.** A continuous interface stays live
+  mid-motion — change your mind halfway and it follows, nothing to wait out. (In
+  Declare this is free: interruption is just the target changing.)
+- **And it is simply finer craft** — the quality people feel in the best native
+  software without being able to name it. It reads as care.
+
+Paired with the horizon claim: this level of UX has been specialist, bespoke,
+platform-locked work — Declare moves it into the declarative layer, which opens
+territory past today's carefully-crafted references. And always with the
+reassurance, stated plainly: **none of this is mandatory.** Declare is built for
+thoroughly conventional UIs — forms, settings, dashboards, admin tools — and does
+them with less machinery than the incumbents. Continuity is a capability standing
+by when you want it, not a house style you must adopt. The floor is ordinary; the
+ceiling is open.
+
+Placement: a compact version of this (horizons + reassurance) is part of chapter 1's
+appeal; the full argument opens chapter 9 as Part Three's first movement, before any
+mechanics; chapter 13 closes the loop by reading the calendar as the argument made
+real.
+
 ---
 
 ## 3. The LLM thesis: braided, not boxed
@@ -227,7 +261,9 @@ the FAQ's promise), with Part One alone delivering "I get it" in ~30 minutes.
 **1. A language, not a framework.** What Declare is; why now (the AI-era claim in
 brief, with its pivot to the reader — what's legible to a model is what you're about
 to learn in an afternoon); the counter demo, live and editable in the first minute —
-the in-browser compiler at work before it's ever named. The honest trades, stated up
+the in-browser compiler at work before it's ever named. The horizons paragraph:
+continuity as what the language newly opens (and why a user should care), with the
+floor-is-ordinary reassurance in the same breath (§2). The honest trades, stated up
 front. Ends with the map of the guide and the promise: *by the end you will open a
 real calendar app and understand all of it.*
 
@@ -274,13 +310,15 @@ navigation reduces to setting state — the calendar's trick, met here in miniat
 
 ### Part Three — Continuity *(the differentiator; the board gets its glide)*
 
-**9. Motion is a target; a mode is a bundle.** The two continuity primitives in one
-chapter, because they share a moral — both are *reversible, interruptible
-declarations*: a Spring drives an attribute toward a target (interruption is just the
-target changing; `Animator` is the clock-shaped exception), and a State applies a
-bundle of overrides while a condition holds (the leak bug made unrepresentable).
-*(From React: transition/motion libraries and mode bookkeeping retired; From SwiftUI:
-`withAnimation` mapped.)*
+**9. Motion is a target; a mode is a bundle.** Opens with the case for continuity
+(§2 above) — why it matters to the *user*: orientation kept, meaning carried,
+intent respected, and the reassurance that it's a capability, not an obligation.
+Then the two primitives in one chapter, because they share a moral — both are
+*reversible, interruptible declarations*: a Spring drives an attribute toward a
+target (interruption is just the target changing; `Animator` is the clock-shaped
+exception), and a State applies a bundle of overrides while a condition holds (the
+leak bug made unrepresentable). *(From React: transition/motion libraries and mode
+bookkeeping retired; From SwiftUI: `withAnimation` mapped.)*
 
 **10. Arrangement animates.** The composed idiom that is the language's signature:
 spring a few scalars, derive all geometry from them, and layout changes glide in
@@ -307,10 +345,12 @@ The calendar's "0 lines by hand" as case study, told straight.
 
 **13. Open the flagship.** The capstone: a guided comprehension of
 `calendar.declare` — structure first (the focus rectangle, the derived model, the
-springs), then a walk through each idiom the guide taught, now at full scale. Ends
-where chapter 1 promised: you understand all of it. *(Written at arm's length from
-the current source — organized around the mechanisms, not line numbers — so the
-app's post-library refresh doesn't strand it.)*
+springs), then a walk through each idiom the guide taught, now at full scale — and
+read explicitly as the continuity argument made real: every "why" from chapter 9
+(orientation, meaning, interruptibility) pointed at in the running app. Ends where
+chapter 1 promised: you understand all of it. *(Written at arm's length from the
+current source — organized around the mechanisms, not line numbers — so the app's
+post-library refresh doesn't strand it.)*
 
 **Appendices:** React→Declare phrasebook · SwiftUI→Declare phrasebook · "What does
 not exist" (the §13 list, linked not duplicated) · where to go next (reference,

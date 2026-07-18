@@ -1,6 +1,16 @@
 export declare class Node {
     parent: Node | null;
     readonly children: Node[];
+    /** The STRUCTURE cell — lazily created on the first tracked read of this
+     *  node's child list (extentOf's contentWidth/contentHeight walk), woken by
+     *  insertChild/removeChild. This is what makes a constraint over a
+     *  replication-populated container's content extent re-derive when rows
+     *  ARRIVE — per-child attr reads track the children that exist, and this
+     *  cell tracks that the SET of children changed. */
+    private structure;
+    /** Tracked read of the child-list structure (no-op untracked). */
+    trackStructure(): void;
+    private structureChanged;
     /** The scope noun (R6) for members declared in THIS node's body — the
      *  enclosing class instance, set at construction. It lives here, on Node, not
      *  on View: a node's members have a scope whether or not the node is visual

@@ -92,7 +92,7 @@ class Menu extends View [ visible = { shown }, width = 220,
     // the panel
 
     panel: View [ width = { classroot.width },
-        height = { this.body.height + 10 },   // body auto-extends (a real slot; contentHeight is a getter)
+        height = { this.body.contentHeight + 10 },
         cornerRadius = { typeof theme.menuRadius == "number" ? theme.menuRadius : 8 },
         fill = { theme.surface },
         stroke = { stroke(1, theme.line) },
@@ -146,13 +146,27 @@ class Menu extends View [ visible = { shown }, width = 220,
                     textColor = { parent.hovered ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.textMuted },
                     text = { "" + (:key || "") } ],
 
-                arrow: Text [ y = center, fontSize = 11, visible = { parent.sub },
-                    x = { parent.width - this.width - 10 },
-                    textColor = { parent.hovered ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.textMuted }, text = "▸" ],
+                // the submenu chevron is DRAWN (the macOS rendition — larger and
+                // more legible than any glyph; reactive draw, both backends)
+
+                arrow: View [ width = 7, height = 11, visible = { parent.sub },
+                    x = { parent.width - 17 }, y = { (parent.height - this.height) / 2 },
+                    draw(d) {
+                        const hov = this.parent.hovered
+                        const c = hov ? (typeof theme.menuHlText == "number" ? theme.menuHlText : theme.accentText) : theme.textMuted
+                        d.strokeStyle = c
+                        d.lineWidth = 1.8
+                        d.beginPath()
+                        d.moveTo(1, 1.5)
+                        d.lineTo(5.8, 5.5)
+                        d.lineTo(1, 9.5)
+                        d.stroke()
+                        },
+                    ],
 
                 // a `kind` row's author-rendered content region
 
-                host: View [ x = 10, y = 4, width = { parent.width - 20 },
+                host: View [ x = 24, y = 4, width = { parent.width - 34 },
                     visible = { parent.custom != "" } ],
                 ],
             ],

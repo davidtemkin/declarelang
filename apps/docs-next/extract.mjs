@@ -390,6 +390,12 @@ function readGuide() {
     const num = parseInt(f, 10);
     let md = readFileSync(path.join(dir, f), "utf8");
     const title = (md.match(/^#\s+(.+)$/m)?.[1] ?? f).trim();
+    // Explicit overrides, captured BEFORE the comment strip below eats them:
+    // <!-- nav: Relationships -->  a short rail label (the H1 stays the content
+    // title — thesis-sentence titles don't fit a 248px rail); <!-- part: The idea -->
+    // names the chapter's Part directly (else the number-range rule decides).
+    const navm = md.match(/<!--\s*nav:\s*(.+?)\s*-->/);
+    const partm = md.match(/<!--\s*part:\s*(.+?)\s*-->/);
     let demo = [];
     const dm = md.match(/<!--\s*demo:\s*(\w+)\s*-->/);
     if (dm) { demo = readExample(dm[1]); md = md.replace(dm[0], ""); }
@@ -398,9 +404,9 @@ function readGuide() {
       .replace(/\[([^\]]+)\]\((?!https?:|declare-docs:)[^)]*\)/g, "$1")   // flatten raw path links; keep http + declare-docs:
       .replace(/\n{3,}/g, "\n\n")
       .trim();
-    const short = title.split("—")[0].trim();             // rail label: text before the em-dash
+    const short = navm ? navm[1] : title.split("—")[0].trim();   // rail label: nav marker, else text before the em-dash
     const id = f.replace(/\.md$/, "");
-    return { id, num, title, short, part: partOf(num), segs: segmentize(md, "ch_" + id), demo };
+    return { id, num, title, short, part: partm ? partm[1] : partOf(num), segs: segmentize(md, "ch_" + id), demo };
   });
   const guideParts = [];
   for (const ch of guide) {
