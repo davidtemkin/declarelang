@@ -5029,6 +5029,18 @@ await test("checkCss: NOT run without source (position-safety)", () => {
   assert.equal(check(parseProgram(`css X { Card { colour: red } } App [ ]`)).filter((e) => /CSS property/.test(e.message)).length, 0);
 });
 
+await test("cssRules = Name resolves a css block; a non-css name errors", () => {
+  const errs = (src) => check(parseProgram(src), src).map((e) => e.message);
+  assert.equal(errs(`css Dark { } App [ cssRules = Dark ]`).length, 0);
+  assert.match(errs(`stylesheet S [ ] App [ cssRules = S ]`)[0], /no css block named 'S'/);
+  assert.match(errs(`App [ cssRules = Nope ]`)[0], /no css block named 'Nope'/);
+});
+
+await test("checkCss Tier-2 does not false-fire on .class/#id (positive)", () => {
+  const errs = (src) => check(parseProgram(src), src).map((e) => e.message);
+  assert.equal(errs(`css X { .anything { color: red; opacity: 0.5 } #x { left: 5px } } App [ ]`).length, 0);
+});
+
 await test("checker: styleclass/id are string attributes on View", () => {
   const errs = (src) => check(parseProgram(src)).map((e) => e.message);
   assert.equal(errs(`App [ View [ styleclass = "card", id = "hero" ] ]`).length, 0);

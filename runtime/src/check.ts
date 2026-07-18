@@ -851,6 +851,19 @@ function checkElement(
         }
         continue;
       }
+      // `cssRules = Dark` resolves against the program's `css` blocks — same
+      // reason as stylesheet: runtime-free coercion can't see the declarations.
+      if (t?.kind === "cssRules" && attr.value.kind === "ident" && attr.value.name !== "null") {
+        if (!env.csses.has(attr.value.name)) {
+          errors.push(new NeoError(
+            env.csses.size > 0
+              ? `no css block named '${attr.value.name}' — declared css blocks: ${[...env.csses].join(", ")}`
+              : `no css block named '${attr.value.name}' — this program declares no css blocks`,
+            attr.value.pos
+          ));
+        }
+        continue;
+      }
       // `fontFamily = Name` / `[Name, "Helvetica", "sans-serif"]` resolves
       // against the program's `font` declarations — a name must be declared, a
       // string passes as a raw family (a bare string family falls through to
