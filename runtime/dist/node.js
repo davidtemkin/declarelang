@@ -21,8 +21,10 @@ export class Node {
     trackStructure() {
         if (!isTracking())
             return;
-        if (this.structure === null)
+        if (this.structure === null) {
             this.structure = new Cell();
+            this.structure.structural = true; // wakes carry the re-wire signal
+        }
         this.structure.track();
     }
     structureChanged() {

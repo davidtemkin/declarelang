@@ -66,24 +66,53 @@ class Swatch extends Control [ width = 26, height = 26, cornerRadius = 13,
 
 class TintDot extends View [ width = 16, height = 16, cornerRadius = 8,
     c: Color = #2E6FE0,
+    name: string = "",
     hovered: boolean = false,
+
+    // the Finder rollover: the hovered dot ENLARGES in place — scale is
+    // painted-only (no layout shift, neighbors stay put, hit-testing follows)
+
+    scale = { hovered ? 1.4 : 1 },
+    pivotX = 8,
+    pivotY = 8,
     fill = { c },
     stroke = { hovered ? stroke(2, theme.text) : app.accentPick == c ? stroke(2, theme.textMuted) : null },
-    onMouseOver() { hovered = true },
-    onMouseOut()  { hovered = false },
     onClick() { app.accentPick = app.accentPick == c ? 0 : c || 0; app.optionsMenu.close() },
     ]
 
 
-class TintRow extends View [ height = 22,
+// The hover wiring lives at the USE SITES, where `classroot` is the TintRow —
+// each dot reports itself to the row, the row grows to show the caption, and
+// the menu's row/panel heights re-derive live (the structure cell at work).
+
+class TintRow extends View [
+    hoverName: string = "",
+    height = { hoverName == "" ? 22 : 42 },
     dots: View [ x = 0, y = 3,
         layout: SimpleLayout [ axis = x, spacing = 7 ],
-        TintDot [ c = #2E6FE0 ],
-        TintDot [ c = #6750A4 ],
-        TintDot [ c = #E0447E ],
-        TintDot [ c = #D03A2F ],
-        TintDot [ c = #3A9E4C ],
+        TintDot [ c = #2E6FE0, name = "Blue",
+            onMouseOver() { this.hovered = true; classroot.hoverName = this.name },
+            onMouseOut()  { this.hovered = false; if (classroot.hoverName == this.name) classroot.hoverName = "" },
+            ],
+        TintDot [ c = #6750A4, name = "Purple",
+            onMouseOver() { this.hovered = true; classroot.hoverName = this.name },
+            onMouseOut()  { this.hovered = false; if (classroot.hoverName == this.name) classroot.hoverName = "" },
+            ],
+        TintDot [ c = #E0447E, name = "Pink",
+            onMouseOver() { this.hovered = true; classroot.hoverName = this.name },
+            onMouseOut()  { this.hovered = false; if (classroot.hoverName == this.name) classroot.hoverName = "" },
+            ],
+        TintDot [ c = #D03A2F, name = "Red",
+            onMouseOver() { this.hovered = true; classroot.hoverName = this.name },
+            onMouseOut()  { this.hovered = false; if (classroot.hoverName == this.name) classroot.hoverName = "" },
+            ],
+        TintDot [ c = #3A9E4C, name = "Green",
+            onMouseOver() { this.hovered = true; classroot.hoverName = this.name },
+            onMouseOut()  { this.hovered = false; if (classroot.hoverName == this.name) classroot.hoverName = "" },
+            ],
         ],
+    cap: Text [ x = 0, y = 25, fontSize = 12, textColor = { theme.textMuted },
+        visible = { hoverName != "" }, text = { "Tint: " + hoverName } ],
     ]
 
 

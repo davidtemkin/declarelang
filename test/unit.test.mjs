@@ -4651,6 +4651,13 @@ await test("contentHeight over a replication-populated container re-derives on A
   app.createView("View", app.panel.body, { width: 5, height: 90 });
   settle();
   assert.equal(app.panel.height, 100, "imperative arrival (createView) re-derives too");
+  // the RE-WIRE half: the arrival refreshed the constraint's edges, so an
+  // ATTRIBUTE change on the newly-arrived child propagates (without re-wiring,
+  // the wired path's fixed edges predate this child and would stay silent)
+  const made = app.panel.body.children[app.panel.body.children.length - 1];
+  made.height = 130;
+  settle();
+  assert.equal(app.panel.height, 140, "post-arrival attr change re-derives (structural re-wire)");
 });
 
 await test("createView: imperative creation by name — a full citizen, loudly-checked names", () => {

@@ -24,7 +24,10 @@ export class Node {
   /** Tracked read of the child-list structure (no-op untracked). */
   trackStructure(): void {
     if (!isTracking()) return;
-    if (this.structure === null) this.structure = new Cell();
+    if (this.structure === null) {
+      this.structure = new Cell();
+      this.structure.structural = true;   // wakes carry the re-wire signal
+    }
     this.structure.track();
   }
 

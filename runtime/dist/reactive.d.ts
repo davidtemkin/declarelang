@@ -6,6 +6,11 @@ export declare function isTracking(): boolean;
  *  something tracked a read of the slot — pay-per-use by construction. */
 export declare class Cell {
     private readonly subs;
+    /** A STRUCTURAL cell (a Node's child-list — node.ts): waking through one
+     *  means the dependency SHAPE may have changed, so a statically-wired
+     *  subscriber re-probes its edges on the next run instead of trusting the
+     *  fixed set (extentOf over children that did not exist at wire time). */
+    structural: boolean;
     /** Record that the running computation read this slot (no-op untracked). */
     track(): void;
     /** The write half: invalidate every subscriber. Subscribers only get
@@ -66,6 +71,12 @@ export declare class Constraint {
      *  edges are exact and permanent. The value itself is computed with tracking
      *  OFF (edges already fixed). This is the link-time prewiring. */
     wire(probe: () => void, paths?: readonly string[]): void;
+    /** The wired probe, retained for structural RE-WIRING (see invalidate). */
+    private probe;
+    /** Set when a STRUCTURAL cell woke this constraint: the child-list under
+     *  one of its reads changed shape, so the fixed edge set may be stale —
+     *  the next run re-probes (unlink + re-track over the same read-paths). */
+    private needsRewire;
     /** Evaluate now. On the static path (wired) the edges are fixed: just
      *  recompute and apply — no unlink, no re-track, no `active` branch on reads.
      *  Otherwise drop last run's edges and rediscover them under tracking. */
@@ -74,7 +85,7 @@ export declare class Constraint {
     reads(cell: Cell): void;
     /** Queue for the next settle. Coalesces: already-queued, disposed, or
      *  suspended constraints are a no-op, so N invalidations cost one run. */
-    invalidate(): void;
+    invalidate(from?: Cell): void;
     /** Permanently retire (a yielding owner displaced by a direct write). */
     dispose(): void;
     /** Displace this constraint without killing it: drop its dependency edges

@@ -111,14 +111,26 @@ the why in plain human terms before any spring is tuned:
 - **And it is simply finer craft** — the quality people feel in the best native
   software without being able to name it. It reads as care.
 
-Paired with the horizon claim: this level of UX has been specialist, bespoke,
-platform-locked work — Declare moves it into the declarative layer, which opens
-territory past today's carefully-crafted references. And always with the
-reassurance, stated plainly: **none of this is mandatory.** Declare is built for
-thoroughly conventional UIs — forms, settings, dashboards, admin tools — and does
-them with less machinery than the incumbents. Continuity is a capability standing
-by when you want it, not a house style you must adopt. The floor is ordinary; the
-ceiling is open.
+Paired with the horizon claim — which is really **two distinct promises**, and the
+guide must not let them blur into the familiar "low floor, high ceiling" trope
+(that one is about learning curve; these are about what UX *costs to build*):
+
+1. **Today's mainstream UX is the easy case.** Forms, settings, dashboards, admin
+   tools — Declare builds them with less machinery than the incumbents, and none
+   of the continuity material is required to get there. Continuity is a capability
+   standing by, not a house style you must adopt.
+2. **Today's high-craft UX becomes attainable.** The continuity you feel in the
+   best native software has been specialist, bespoke, platform-locked work; in
+   Declare it's a few declarations on the same reactive graph — within reach of
+   one designer-developer, not a motion team with a quarter.
+
+And the honest caveat that keeps the second promise credible: **the language
+lowers the implementation barrier, not the design bar.** Continuity still takes
+different design thinking — deciding what persists, what morphs, what the
+in-between frames mean. Declare makes that thinking cheap to *express*; it does
+not do the thinking. A candidate line to draft toward: *what's mainstream today is
+the easy case; what's craft today is within reach — the design thinking is still
+yours.*
 
 Placement: a compact version of this (horizons + reassurance) is part of chapter 1's
 appeal; the full argument opens chapter 9 as Part Three's first movement, before any
@@ -262,8 +274,9 @@ the FAQ's promise), with Part One alone delivering "I get it" in ~30 minutes.
 brief, with its pivot to the reader — what's legible to a model is what you're about
 to learn in an afternoon); the counter demo, live and editable in the first minute —
 the in-browser compiler at work before it's ever named. The horizons paragraph:
-continuity as what the language newly opens (and why a user should care), with the
-floor-is-ordinary reassurance in the same breath (§2). The honest trades, stated up
+continuity as what the language newly opens (and why a user should care), carried by
+the two-promise framing — mainstream UX is the easy case; craft UX becomes
+attainable, with the design thinking still yours (§2). The honest trades, stated up
 front. Ends with the map of the guide and the promise: *by the end you will open a
 real calendar app and understand all of it.*
 

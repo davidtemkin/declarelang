@@ -37,6 +37,12 @@ export function isTracking(): boolean {
 export class Cell {
   private readonly subs = new Set<Constraint>();
 
+  /** A STRUCTURAL cell (a Node's child-list — node.ts): waking through one
+   *  means the dependency SHAPE may have changed, so a statically-wired
+   *  subscriber re-probes its edges on the next run instead of trusting the
+   *  fixed set (extentOf over children that did not exist at wire time). */
+  structural = false;
+
   /** Record that the running computation read this slot (no-op untracked). */
   track(): void {
     if (active !== null) {
@@ -48,7 +54,7 @@ export class Cell {
   /** The write half: invalidate every subscriber. Subscribers only get
    *  queued here — re-evaluation is the scheduler's, in batch. */
   changed(): void {
-    for (const c of this.subs) c.invalidate();
+    for (const c of this.subs) c.invalidate(this);
   }
 
   /** @internal Constraint.run re-tracks from scratch each run. */
@@ -114,6 +120,7 @@ export class Constraint {
    *  edges are exact and permanent. The value itself is computed with tracking
    *  OFF (edges already fixed). This is the link-time prewiring. */
   wire(probe: () => void, paths?: readonly string[]): void {
+    this.probe = probe;
     const prev = active;
     active = this;
     try { probe(); } finally { active = prev; }
@@ -122,11 +129,32 @@ export class Constraint {
     this.apply(this.compute());
   }
 
+  /** The wired probe, retained for structural RE-WIRING (see invalidate). */
+  private probe: (() => void) | null = null;
+  /** Set when a STRUCTURAL cell woke this constraint: the child-list under
+   *  one of its reads changed shape, so the fixed edge set may be stale —
+   *  the next run re-probes (unlink + re-track over the same read-paths). */
+  private needsRewire = false;
+
   /** Evaluate now. On the static path (wired) the edges are fixed: just
    *  recompute and apply — no unlink, no re-track, no `active` branch on reads.
    *  Otherwise drop last run's edges and rediscover them under tracking. */
   run(): void {
-    if (this.wired) { this.apply(this.compute()); return; }
+    if (this.wired) {
+      if (this.needsRewire && this.probe !== null) {
+        // structure changed under a read: refresh the edges (same read-paths,
+        // current cells — new children subscribe, removed ones unlink), then
+        // land the value. The hot path (attribute wakes) never comes here.
+        this.needsRewire = false;
+        for (const d of this.deps) d.unlink(this);
+        this.deps.length = 0;
+        const prev = active;
+        active = this;
+        try { this.probe(); } finally { active = prev; }
+      }
+      this.apply(this.compute());
+      return;
+    }
     for (const d of this.deps) d.unlink(this);
     this.deps.length = 0;
     const prev = active;
@@ -147,7 +175,10 @@ export class Constraint {
 
   /** Queue for the next settle. Coalesces: already-queued, disposed, or
    *  suspended constraints are a no-op, so N invalidations cost one run. */
-  invalidate(): void {
+  invalidate(from?: Cell): void {
+    // A STRUCTURAL wake records itself even when already queued — the
+    // coalesced run must know to re-probe its edges.
+    if (from !== undefined && from.structural) this.needsRewire = true;
     if (this.queued || this.dead || this.suspended) return;
     this.queued = true;
     enqueue(this);
