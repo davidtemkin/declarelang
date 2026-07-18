@@ -77,17 +77,16 @@ conditions in a loop, pseudos combine freely (compound, multiple, any position);
   does any simple selector carry a `hover`/`active` pseudo? Used only for the
   tracking decision.
 
-The `css-apply` adapter implements `pseudo` by reading the reactive slots through
-the tracked getters:
+The `css-apply` adapter implements `pseudo` via the tracked internal read:
 
 ```ts
-pseudo: (name) => name === "hover" ? v.hovered : name === "active" ? v.pressed : v.focused
+pseudo: (name) => v.pseudoState(name)
 ```
 
-so any state change invalidates the applier and re-cascades — identical to
-`styleclass`/`[attr]`. (Note: since `hovered`/`pressed`/`focused` are real View
-properties, `[hovered]` attribute selectors would also match them — harmless, and
-the `pseudo()` path is the intended surface.)
+so any `setPseudoState` invalidates the applier and re-cascades — identical to
+`styleclass`. (Because pseudo-state is not an attribute, `[hover]` attribute
+selectors do NOT match it — the `:hover` pseudo is the only surface, which is
+correct.)
 
 ### The interaction state (`view.ts`)
 
@@ -112,16 +111,16 @@ to one path:
   *or* tracking later still gets wired.
 - **A sink installs when** `has-author-pointer-handlers` **OR**
   `interactionTracked`. The combined sink, per event:
-  - `mouseOver` → `hovered = true`
-  - `mouseOut`  → `hovered = false` (leaves `pressed`)
-  - `mouseDown` → `pressed = true`
-  - `mouseUp`   → `pressed = false`
+  - `mouseOver` → `setPseudoState("hover", true)`
+  - `mouseOut`  → `setPseudoState("hover", false)` (leaves `active`)
+  - `mouseDown` → `setPseudoState("active", true)`
+  - `mouseUp`   → `setPseudoState("active", false)`
   and always forwards to the author handler via `fireEvent` (no-op if absent), so
   click/capture semantics (all in `routeInput`, above the sink) are unchanged.
 - **`setInteractionTracked(on)`** compares-and-returns when unchanged; on a true
   transition it calls `refreshInputSink()`. On `on === false` it **also clears
-  `hovered`/`pressed`** (no `mouseOut` fires once the sink is gone). `discard`
-  clears them too (belt-and-suspenders).
+  `hover`/`active`** (no `mouseOut` fires once the sink is gone). `discard` clears
+  them too (belt-and-suspenders).
 
 ### Where tracking is decided (`css-apply.ts`)
 
@@ -141,8 +140,8 @@ surface exists; `refreshInputSink` is surface-guarded (no-op), and `flush` calls
 ### Focus (`focus.ts`)
 
 `FocusService.focus(view)` already sets `current` and calls `focusChanged` on the
-old/new views. Add, in `focus()` directly: `old.focused = false` /
-`view.focused = true` (guarded for null). Override-proof, since it doesn't rely on
+old/new views. Add, in `focus()` directly: `old.setPseudoState("focus", false)` /
+`view.setPseudoState("focus", true)` (guarded for null). Override-proof, since it doesn't rely on
 subclass `focusChanged` calling `super`. `reset()`/blur clear it. `:focus` needs
 no extra gate — only `focusable && visible` views are ever focused.
 
