@@ -26,7 +26,8 @@
 // element an anonymous schema, and named children join the one member
 // namespace.
 import { NeoError } from "./errors.js";
-import { SCHEMAS, SUBSCRIPTION_SOURCES, attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName } from "./schema.js";
+import { SCHEMAS, SUBSCRIPTION_SOURCES, attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName, CSS_PROPERTIES } from "./schema.js";
+import { parseCss, CssUnsupported } from "./css-parse.js";
 import { Diag } from "./diagnostics.js";
 import { coerce, declaredType, describeLiteral, DECLARED_TYPE_NAMES } from "./value.js";
 import { validateExpr, validateBody, CONSTRUCTOR_NAMES } from "./expr.js";
@@ -54,10 +55,14 @@ const RESERVED = CONSTRUCTOR_NAMES;
 /** Typecheck a parsed tree — a whole Program (classes + root) or a bare
  *  Element fragment. Returns every error found, in source order — an empty
  *  array means the tree is well-typed and safe to instantiate. */
-export function check(input) {
+export function check(input, source) {
     const program = "root" in input ? input : { classes: [], stylesheets: [], csses: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], root: input };
     const { infos, schemas, errors } = programSchemas(program.classes);
     const env = checkStyleDecls(program, schemas, errors);
+    // Compile-time `css` blocks are type-checked only when the source is provided
+    // (positions need it); a bare-Element caller has no css blocks anyway.
+    if (source !== undefined)
+        checkCss(program, schemas, source, errors);
     // A class body checks as an instance of its own (just-registered) class:
     // sets against declared + inherited attributes, handlers against inherited
     // events, children recursively — no class-specific checking machinery.
@@ -218,6 +223,80 @@ export function checkStyleDecls(program, schemas, errors) {
         csses.add(c.name);
     }
     return { bundles, stylesheets, fonts, csses, validated: new Set() };
+}
+/** Offset → source Pos (line/col are 1-based). Local twin of compile.ts's
+ *  posOf, which is not exported. */
+function posOf(source, offset) {
+    let line = 1;
+    let col = 1;
+    const end = Math.min(offset, source.length);
+    for (let i = 0; i < end; i++) {
+        if (source[i] === "\n") {
+            line++;
+            col = 1;
+        }
+        else
+            col++;
+    }
+    return { line, col, offset };
+}
+/** Type-check every compile-time `css Name { … }` block (design-docs/
+ *  css-typecheck.md). Hard errors, positioned into the CSS source: unsupported
+ *  syntax (from parseCss), unknown property, malformed/wrong-type value (via the
+ *  real coercer), unknown tag selector, and Tier-2 (a resolvable-tag selector
+ *  setting a property the class can't style). Runs only with `source` in hand. */
+function checkCss(program, schemas, source, errors) {
+    for (const c of program.csses) {
+        const at = (rel) => posOf(source, c.bodyOffset + rel);
+        let rules;
+        try {
+            rules = parseCss(c.text);
+        }
+        catch (e) {
+            if (e instanceof CssUnsupported) {
+                errors.push(new NeoError(e.message, at(e.offset ?? 0)));
+                continue;
+            }
+            throw e;
+        }
+        for (const rule of rules) {
+            // Declarations: unknown property, then malformed/wrong-type value.
+            for (const [prop, value] of rule.decls) {
+                const pos = rule.declPos.get(prop);
+                const entry = CSS_PROPERTIES[prop];
+                if (entry === undefined) {
+                    errors.push(new NeoError(`unknown CSS property '${prop}'`, at(pos?.namePos ?? rule.selPos)));
+                    continue;
+                }
+                if (entry.coerce(value) === undefined) {
+                    errors.push(new NeoError(`'${value}' is not a ${entry.kind} for '${prop}'`, at(pos?.valuePos ?? rule.selPos)));
+                }
+            }
+            // Unknown tag selectors (case-sensitive — a `css` block names Declare
+            // components by their real names, matching the runtime matcher).
+            for (const simple of rule.selector) {
+                for (const cond of simple.conditions) {
+                    if (cond.kind === "tag" && !Object.hasOwn(schemas, cond.name)) {
+                        errors.push(new NeoError(`unknown component '${cond.name}'`, at(rule.selPos)));
+                    }
+                }
+            }
+            // Tier-2: the rightmost simple selector's resolvable tag can't style a
+            // property mapped to an attribute its class doesn't have. (All starter
+            // mappings are on View, so this never fires today.)
+            const last = rule.selector[rule.selector.length - 1];
+            const tagCond = last?.conditions.find((cc) => cc.kind === "tag");
+            if (tagCond !== undefined && tagCond.kind === "tag" && Object.hasOwn(schemas, tagCond.name)) {
+                const schema = schemas[tagCond.name];
+                for (const prop of rule.decls.keys()) {
+                    const entry = CSS_PROPERTIES[prop];
+                    if (entry !== undefined && attrType(schema, entry.attr) === null) {
+                        errors.push(new NeoError(`'${tagCond.name}' has no styleable '${prop}'`, at(rule.declPos.get(prop)?.namePos ?? rule.selPos)));
+                    }
+                }
+            }
+        }
+    }
 }
 /** A style bundle carries attribute sets only — a look, not a component.
  *  Its fields TYPE against each class it is applied to (checkBundleUse),

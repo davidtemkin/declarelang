@@ -5007,6 +5007,28 @@ await test("checker: a css name collides with the one namespace", () => {
   assert.match(errs(`stylesheet S [ ] css S { } App [ ]`)[0], /already a component, stylesheet, style, font, or css block named 'S'/);
 });
 
+await test("checkCss: unknown property, bad value, unknown tag, syntax, malformed", () => {
+  const errs = (src) => check(parseProgram(src), src).map((e) => e.message);
+  assert.match(errs(`css X { Card { colour: red } } class Card extends View [ ] App [ ]`)[0], /unknown CSS property 'colour'/);
+  assert.match(errs(`css X { Card { font-size: banana } } class Card extends View [ ] App [ ]`)[0], /'banana' is not a length for 'font-size'/);
+  assert.match(errs(`css X { button { color: red } } App [ ]`)[0], /unknown component 'button'/);
+  assert.match(errs(`css X { a > b { color: red } } App [ ]`)[0], /unsupported/i);
+  assert.match(errs(`css X { View { color } } App [ ]`)[0], /malformed declaration/i);
+  // valids pass clean (font-family is permissive; :hover parses):
+  assert.equal(errs(`css X { Card { background-color: #2d7; color: white; font-family: whatever } .card:hover { opacity: 0.5 } } class Card extends View [ ] App [ ]`).length, 0);
+});
+
+await test("checkCss: positions point at the offending token", () => {
+  const src = `css X {\n  Card { colour: red }\n} class Card extends View [ ] App [ ]`;
+  const e = check(parseProgram(src), src)[0];
+  assert.equal(e.pos.line, 2); assert.equal(typeof e.pos.col, "number");
+});
+
+await test("checkCss: NOT run without source (position-safety)", () => {
+  // bare check (no source) skips css-block checking — no false errors, no crash
+  assert.equal(check(parseProgram(`css X { Card { colour: red } } App [ ]`)).filter((e) => /CSS property/.test(e.message)).length, 0);
+});
+
 await test("checker: styleclass/id are string attributes on View", () => {
   const errs = (src) => check(parseProgram(src)).map((e) => e.message);
   assert.equal(errs(`App [ View [ styleclass = "card", id = "hero" ] ]`).length, 0);

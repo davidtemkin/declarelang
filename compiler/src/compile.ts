@@ -269,7 +269,7 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
     if (e instanceof NeoError) return { source: null, errors: [e], warnings: [], ...diagnose([e], [], "syntax") };
     throw e;
   }
-  const errors = check(program);
+  const errors = check(program, merged); // merged = the one source; enables css-block checking
   if (errors.length > 0) return { source: null, errors, warnings: [], ...diagnose(errors, [], "structure") };
 
   // Resolve EVERY body — the main tree's and every included class/stylesheet/
