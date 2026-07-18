@@ -58,8 +58,8 @@
       <textarea id="css" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
     </div>
     <div class="hint">
-      Hover a card → the runtime adds <code>hover</code> to its <code>styleclass</code> and <code>.card.hover</code> re-matches (specificity, one frame).
-      Selectors seen here: <code>App</code>, <code>Row</code>, <code>Card</code> (subclass-aware tag), <code>.title</code>, <code>#tagline</code>, <code>.card.featured</code>, <code>.card.hover</code>.
+      Hover or press a card → the engine's own input layer sets <code>:hover</code>/<code>:active</code> and the rule re-matches (one frame). No app hit-testing.
+      Selectors seen here: <code>App</code>, <code>Row</code>, <code>Card</code> (subclass-aware tag), <code>.title</code>, <code>#tagline</code>, <code>.card.featured</code>, <code>.card:hover</code>, <code>.card:active</code>.
     </div>
   </aside>
 </main>
@@ -111,26 +111,10 @@ const app = mk(App, { width: 720, height: 470 }, [
 const host = document.getElementById("host");
 mountApp(app, host, new DomBackend());
 
-// ── Hover → toggle `hover` in the card's styleclass (reactive re-cascade).
-// The DOM backend gives every view `pointer-events: none` (the app hit-tests
-// itself), so we hit-test on the host container — real pointer events reach it
-// because the view divs are transparent to pointing.
-const addHover = (c) => { if (!/\bhover\b/.test(c.styleclass)) c.styleclass = (c.styleclass + " hover").trim(); };
-const dropHover = (c) => { c.styleclass = c.styleclass.replace(/\s*\bhover\b/g, "").trim(); };
-let hovered = null;
-host.addEventListener("pointermove", (e) => {
-  let hit = null;
-  for (const c of cards) {
-    const el = c.surface?.element; if (!el) continue;
-    const r = el.getBoundingClientRect();
-    if (e.clientX >= r.left && e.clientX < r.right && e.clientY >= r.top && e.clientY < r.bottom) { hit = c; break; }
-  }
-  if (hit === hovered) return;
-  if (hovered) dropHover(hovered);
-  if (hit) addHover(hit);
-  hovered = hit;
-});
-host.addEventListener("pointerleave", () => { if (hovered) { dropHover(hovered); hovered = null; } });
+// Hover/press are engine-native: `.card:hover`/`.card:active` in the CSS below.
+// The engine installs an interaction sink on any view a pointer-pseudo rule can
+// match and tracks hover/press through the runtime's own input layer — no app
+// hit-testing here.
 
 // ── The star: type CSS → rebuild the RuleSet → the engine re-cascades live.
 const cssBox = document.getElementById("css");
@@ -163,8 +147,9 @@ Card       { background-color: #171b28; border-radius: 16px }
 .card.featured { background-color: #14243a }
 .card.featured .title { color: #6cc4ff }
 
-/* reactive: added on hover, removed on leave */
-.card.hover { background-color: #202636 }`,
+/* interaction pseudo-classes — engine-native */
+.card:hover { background-color: #202636 }
+.card:active { background-color: #2b3247 }`,
 
   daylight: `/* Daylight — same views, a light skin. One click, one re-cascade. */
 App        { background-color: #eef1f6 }
@@ -179,7 +164,8 @@ Card       { background-color: #ffffff; border-radius: 16px }
 
 .card.featured { background-color: #eef6ff }
 .card.featured .title { color: #1f6feb }
-.card.hover { background-color: #f2f5fb }`,
+.card:hover { background-color: #f2f5fb }
+.card:active { background-color: #e9eef7 }`,
 
   candy: `/* Candy — a loud skin to show it is really just CSS. */
 App        { background-color: #241033 }
@@ -194,7 +180,8 @@ Card       { background-color: #3a1657; border-radius: 22px }
 
 .card.featured { background-color: #5a2088; border-radius: 26px }
 .card.featured .title { color: #7cf5c0 }
-.card.hover { background-color: #4a1c6e }`,
+.card:hover { background-color: #4a1c6e }
+.card:active { background-color: #5f2a8a }`,
 };
 
 function setSkin(name) {
