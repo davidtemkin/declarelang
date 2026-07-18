@@ -26,10 +26,14 @@ one `routeInput`), where the demo's `getBoundingClientRect` was DOM-only.
   learns them; any other `:foo` still rejects. Pseudos are ordinary conditions:
   they combine with compound (`.card.on:hover`), AND with each other
   (`:hover:focus`), and may sit on any simple selector in a descendant chain.
-- **State:** three engine-owned reactive boolean slots on `View` — `hovered`,
-  `pressed`, `focused` — `def: false`, no push, not prevailing. Absent from
-  `schema.ts`, so the checker rejects a `.declare` author write. They use the
-  ordinary reactive machinery; the matcher's reads are tracked.
+- **State:** engine-owned interaction state for `hover`/`active`/`focus`, held as
+  **internal reactive cells** on `View` (`pseudoState(name)` read, tracked;
+  `setPseudoState(name, on)` write) — deliberately **not** reactive attributes.
+  The component library already uses `hovered`/`pressed`/`focused` as author
+  member names (`control.declare`), which the runtime reserves; adding attribute
+  slots of those names would break every control. Internal cells keep engine
+  pseudo-state out of the attribute namespace entirely, and independent of a
+  control's own `hovered`/`pressed`.
 - **Hit-testability (`:hover`/`:active`):** **automatic** — the CSS applier
   installs a lightweight interaction sink for a view iff a `:hover`/`:active`
   rule can target it. `:focus` gets **no** sink.
@@ -85,10 +89,14 @@ so any state change invalidates the applier and re-cascades — identical to
 properties, `[hovered]` attribute selectors would also match them — harmless, and
 the `pseudo()` path is the intended surface.)
 
-### The reactive slots (`view.ts`)
+### The interaction state (`view.ts`)
 
-`hovered`/`pressed`/`focused` join `defineAttributes(View, …)` as `{ def: false }`
-(mirroring `focusable`), and are **not** added to `schema.ts`.
+`View` gains `pseudoState(name)` (tracked read) and `setPseudoState(name, on)`
+(write) over lazily-created internal `Cell`s (`$pseudoCells`/`$pseudoVals`) —
+**not** `defineAttributes` slots, so `hover`/`active`/`focus` never enter the
+attribute/author namespace and the library's `hovered`/`pressed` members are
+untouched. The `css-apply` adapter's `pseudo(name)` calls `v.pseudoState(name)`,
+so reads are tracked and a `setPseudoState` re-cascades in one settle.
 
 ### Hit-testability: the interaction sink (`view.ts`)
 
@@ -145,7 +153,7 @@ no extra gate — only `focusable && visible` views are ever focused.
 | `css-parse.ts` | `pseudo` condition; parse `:hover`/`:active`/`:focus`, reject others; (+10 is free) |
 | `css-match.ts` | `MatchView.pseudo`; `simpleMatches`/`matches` `forcePointer` param; `containsPointerPseudo` |
 | `css-apply.ts` | adapter `pseudo` (tracked reads); `compute` returns `{offers, tracked}`; `apply` calls `setInteractionTracked` |
-| `view.ts` | `hovered`/`pressed`/`focused` slots; `refreshInputSink` (+ `flush` routes through it); combined interaction sink; `setInteractionTracked` (idempotent, clears state on untrack); `discard` clears state |
+| `view.ts` | `pseudoState`/`setPseudoState` internal cells; `refreshInputSink` (+ `flush` routes through it); combined interaction sink; `setInteractionTracked` (idempotent, clears state on untrack); `discard` clears state |
 | `focus.ts` | set `focused` on the focused/blurred view in `focus()` |
 | `test/css.test.mjs` | flip the `:hover`-throws test to accept; extend `fakeView` with `pseudo`; new pseudo/tracking/state tests |
 | `demo/css-playground.html` | delete the JS hover hit-test; `.card.hover` → `.card:hover` (+ `.card:active`) in the three skins |
