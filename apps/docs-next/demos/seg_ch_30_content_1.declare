@@ -1,4 +1,0 @@
-App [ fill = white, textColor = black,
-    Markdown [ x = 24, y = 24, width = 320,
-        text = "## Forecast\n\n- **Hi** 72°\n- **Lo** 58°\n\nPartly *cloudy*." ],
-    ]

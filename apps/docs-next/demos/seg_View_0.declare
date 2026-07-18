@@ -1,5 +1,0 @@
-App [
-    View [ width = 200, height = 120, fill = white, cornerRadius = 8,
-      Text [ text = "hello", x = 12, y = 12 ]
-    ]
-]

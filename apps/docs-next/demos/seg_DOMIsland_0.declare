@@ -1,3 +1,0 @@
-App [
-    preview: DOMIsland [ width = { parent.width }, height = 300, slot = "run:demo" ]
-]

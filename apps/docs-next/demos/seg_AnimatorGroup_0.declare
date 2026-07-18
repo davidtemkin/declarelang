@@ -1,5 +1,0 @@
-App [
-    reveal: AnimatorGroup [ process = sequential, duration = 200,
-        Animator [ attribute = opacity, to = 1 ],
-        Animator [ attribute = y,       to = 0 ] ]
-]

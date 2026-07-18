@@ -1,4 +1,0 @@
-App [ width = 160, height = 120, fill = white,
-    logo: Image [ x = 20, y = 20, width = 120, height = 80, stretches = both,
-        source = "resources/logo.png" ],
-    ]

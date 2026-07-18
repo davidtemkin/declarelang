@@ -1,4 +1,0 @@
-App [
-    HTMLText [ width = { parent.width },
-      html = "<h3>Notice</h3><p>Loaded content with <b>bold</b>, <i>italic</i>, and a <a href='#'>link</a>.</p>" ]
-]

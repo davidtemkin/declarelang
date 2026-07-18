@@ -39,6 +39,18 @@ class Menu extends View [ visible = { shown }, width = 220,
     opener: View = null,
     shown: boolean = false,
 
+    // the cascade: ONE lazily-created child Menu (app.createView — a Menu
+    // cannot declare a Menu child without recursing), reused across rows;
+    // rootMenu threads to the chain's root (null ON the root). activeRow is
+    // the keyboard rover's highlight. View-typed slots can't see Menu
+    // members, so all child-driving goes through ANY-typed method params —
+    // the untyped seam, used deliberately.
+
+    isRoot: boolean = true,
+    rootMenu: View = null,
+    child: View = null,
+    activeRow: View = null,
+
     // the delivery seam — the app overrides; the id is the whole message
 
     picked(id) { },
@@ -70,11 +82,83 @@ class Menu extends View [ visible = { shown }, width = 220,
         this.y = Math.max(4, Math.min(app.height - this.height - 4, y))
         },
 
-    close() { shown = false; opener = null },
+    close() {
+        this.closeSub()
+        shown = false
+        opener = null
+        activeRow = null
+        },
 
     pick(id) { this.picked(id); this.close() },
 
-    onKeyUp(e) <- Keys { if (shown && e.key == "Escape") this.close() },
+    // ── the cascade ────────────────────────────────────────────────────────
+
+    openSub(row, subItems) {
+        let x = 0
+        let y = 0
+        let n = row
+        while (n != null) { x += n.x || 0; y += n.y || 0; n = n.parent }
+        if (child == null) child = app.createView("Menu", app, ({ isRoot: false, rootMenu: this.rootMenu != null ? this.rootMenu : this }))
+        this.driveSub(child, subItems, x + this.width - 6, y - 5)
+        },
+
+    driveSub(c, subItems, x, y) {
+        c.items = subItems
+        c.picked = (id) => this.pick(id)         // delivery + close route through the CHAIN to the root
+        c.shown = true
+        c.place(x, y)
+        c.raise()
+        },
+
+    closeSub() { if (child != null) this.closeIt(child) },
+    closeIt(c) { c.close() },
+    subShown(c) { return c != null && c.shown },
+    rootClose() { this.closeIt(this.rootMenu != null ? this.rootMenu : this) },
+
+    // ── keyboard roving (the deepest shown menu handles the keys) ──────────
+
+    rowsOf(b) { return b.children },
+
+    step(d) {
+        const rows = this.rowsOf(this.panel.body).filter((r) => !r.divider && r.enabled && r.custom == "")
+        if (rows.length == 0) return
+        const i = rows.indexOf(this.activeRow)
+        activeRow = rows[i < 0 ? (d > 0 ? 0 : rows.length - 1) : (i + d + rows.length) % rows.length]
+        },
+
+    pickActive() { this.pickRow(this.activeRow) },
+
+    pickRow(r) {
+        if (r == null) return
+        if (r.sub) { this.enterSub(); return }
+        r.pickSelf()
+        },
+
+    enterSub() { this.enterRow(this.activeRow) },
+
+    enterRow(r) {
+        if (r == null || !r.sub) return
+        r.openSelf()
+        if (child != null) this.stepIn(child)
+        },
+
+    stepIn(c) { c.step(1) },
+
+    onKeyDown(e) <- Keys {
+        if (!shown) return
+        if (this.subShown(child)) return          // the deeper menu handles
+        if (e.key == "ArrowDown") this.step(1)
+        else if (e.key == "ArrowUp") this.step(-1)
+        else if (e.key == "Enter") this.pickActive()
+        else if (e.key == "ArrowRight") this.enterSub()
+        else if (e.key == "ArrowLeft") { if (!isRoot) this.close() }
+        },
+
+    onKeyUp(e) <- Keys {
+        if (!shown || e.key != "Escape") return
+        if (this.subShown(child)) return          // the deeper menu handles
+        this.rootClose()                          // Escape closes the WHOLE chain (macOS)
+        },
 
     // items → rows through an INTERNAL derived dataset (the author passes a
     // plain array — the no-dataset-requirement ruling; the wrap is ours)
@@ -84,9 +168,10 @@ class Menu extends View [ visible = { shown }, width = 220,
     // the backdrop: the light-dismiss stratum in embryonic form — a full-app
     // press-catcher UNDER the panel; outside presses close and are SWALLOWED
 
-    back: View [ x = { -classroot.x }, y = { -classroot.y },
+    back: View [ visible = { classroot.isRoot },
+        x = { -classroot.x }, y = { -classroot.y },
         width = { app.width }, height = { app.height },
-        onMouseDown() { classroot.close() },
+        onMouseDown() { classroot.rootClose() },
         ],
 
     // the panel
@@ -111,8 +196,20 @@ class Menu extends View [ visible = { shown }, width = 220,
                 height = { divider ? 9 : custom != "" ? Math.max(26, this.host.height + 8) : 26 },
                 opacity = { enabled ? 1 : (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) },
 
-                onMouseOver() { if (enabled && !divider) hovered = true },
+                onMouseOver() {
+                    if (!enabled || divider) return
+                    hovered = true
+                    classroot.activeRow = null           // the mouse takes over from the rover
+                    if (sub) classroot.openSub(this, :submenu)
+                    else classroot.closeSub()
+                    },
                 onMouseOut()  { hovered = false },
+
+                // the rover's verbs — written on the row so :id / :submenu
+                // resolve against THIS row's record
+
+                pickSelf() { classroot.pick("" + :id) },
+                openSelf() { classroot.openSub(this, :submenu) },
 
                 // a `kind` row owns its own interior interactivity (the Finder
                 // tag-dots idiom): no row-level pick, no row highlight — the
@@ -127,23 +224,23 @@ class Menu extends View [ visible = { shown }, width = 220,
                 // the hover highlight — inset, rounded, accent (the Mac read)
 
                 hl: View [ x = 5, y = 1, width = { parent.width - 10 }, height = { parent.height - 2 },
-                    cornerRadius = 5, visible = { parent.hovered && parent.custom == "" },
+                    cornerRadius = 5, visible = { (parent.hovered || classroot.activeRow == parent) && parent.custom == "" },
                     fill = { theme.menuHl != null ? theme.menuHl : theme.accent } ],
 
                 rule: View [ x = 10, y = 4, width = { parent.width - 20 }, height = 1,
                     visible = { parent.divider }, fill = { theme.line } ],
 
                 check: Text [ x = 8, y = center, fontSize = 12, visible = { !parent.divider && !!:checked },
-                    textColor = { parent.hovered ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.text }, text = "✓" ],
+                    textColor = { (parent.hovered || classroot.activeRow == parent) ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.text }, text = "✓" ],
 
                 lbl: Text [ x = 24, y = center, fontSize = 13, visible = { !parent.divider && parent.custom == "" },
-                    textColor = { parent.hovered ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.text },
+                    textColor = { (parent.hovered || classroot.activeRow == parent) ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.text },
                     text = { "" + (:label || "") } ],
 
                 key: Text [ y = center, fontSize = 12,
                     x = { parent.width - this.width - 12 },
                     visible = { !parent.divider && !parent.sub && :key != null },
-                    textColor = { parent.hovered ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.textMuted },
+                    textColor = { (parent.hovered || classroot.activeRow == parent) ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.textMuted },
                     text = { "" + (:key || "") } ],
 
                 // the submenu chevron is DRAWN (the macOS rendition — larger and
@@ -152,7 +249,7 @@ class Menu extends View [ visible = { shown }, width = 220,
                 arrow: View [ width = 7, height = 11, visible = { parent.sub },
                     x = { parent.width - 17 }, y = { (parent.height - this.height) / 2 },
                     draw(d) {
-                        const hov = this.parent.hovered
+                        const hov = this.parent.hovered || classroot.activeRow == this.parent
                         const c = hov ? (typeof theme.menuHlText == "number" ? theme.menuHlText : theme.accentText) : theme.textMuted
                         d.strokeStyle = c
                         d.lineWidth = 1.8

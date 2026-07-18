@@ -1,9 +1,0 @@
-App [ width = 260, height = 120, fill = white,
-    tags: View [ x = 16, y = 16, width = 228,
-        layout: WrappingLayout [ spacing = 8, lineSpacing = 8 ],
-        View [ width = 70, height = 26, cornerRadius = 13, fill = 0xE6ECF2 ],
-        View [ width = 96, height = 26, cornerRadius = 13, fill = 0xE6ECF2 ],
-        View [ width = 60, height = 26, cornerRadius = 13, fill = 0xE6ECF2 ],
-        View [ width = 104, height = 26, cornerRadius = 13, fill = 0xE6ECF2 ],
-        ],
-    ]

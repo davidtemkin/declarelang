@@ -1,3 +1,0 @@
-App [
-    Markdown [ width = { parent.width }, text = { :body } ]
-]
