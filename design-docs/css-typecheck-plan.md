@@ -9,7 +9,11 @@
 ## Global Constraints
 
 - Build before test: `npm run build`; tests run against `runtime/dist/*.js` and `compiler/dist/*.js`.
-- Checker tests go in `test/unit.test.mjs` (the checker/parser test home) following its convention: `errs(src)[0]` matches a `/regex/`, `errs(src)[i].pos.line`/`.col` assert positions. Pure CSS-parse tests go in `test/css.test.mjs`.
+- Checker tests go in `test/unit.test.mjs` (the checker/parser home); pure CSS-parse tests in `test/css.test.mjs`.
+- **Test helpers (there is NO shared `errs`/`errsFull` — declare locally per test):**
+  - message assertions: `const errs = (src) => check(parseProgram(src), src).map((e) => e.message);` then `assert.match(errs(src)[0], /…/)`. **Pass `src` as the second arg** — `checkCss` only runs when `check` is given the source, so omitting it makes CSS-error tests vacuously green.
+  - position assertions: use the raw array — `const e = check(parseProgram(src), src)[0]; assert.equal(e.pos.line, N); assert.equal(e.pos.col, M);` (the convention at `unit.test.mjs:196-197`).
+  - `build(src)` is not shared — for end-to-end, define locally (mirror `databinding.test.mjs`): compile+instantiate+`settle`.
 - Source of truth for `CSS_PROPERTIES`: the 12 `css:`-bearing specs in `defineAttributes(View, …)` (`view.ts:577-609`).
 - Coercers (`css-coerce.ts`) are pure — importable by `schema.ts`/`check.ts`.
 - TDD: failing test → red → minimal impl → green → commit.
@@ -40,7 +44,7 @@ await test("checker: styleclass/id are string attributes on View", () => {
 
 ### Task 2: the `cssRules` AttrType kind (+ exhaustiveness)
 
-**Files:** Modify `runtime/src/value.ts`, `runtime/src/data.ts`, `runtime/src/schema.ts`; test `test/unit.test.mjs`.
+**Files:** Modify `runtime/src/value.ts`, `runtime/src/data.ts`, `runtime/src/schema.ts`, `runtime/src/check.ts` (`UNSTYLABLE` lives in `check.ts:53`, NOT value.ts); test `test/unit.test.mjs`.
 
 - [ ] **Step 1: Failing test**:
 ```js
@@ -52,14 +56,15 @@ await test("checker: cssRules slot accepts null; a bare name is not yet resolvab
 ```
 - [ ] **Step 2: Run red** — FAIL (`App has no attribute 'cssRules'`).
 - [ ] **Step 3: Implement**:
-  (a) `value.ts` — add to the `AttrType` union (line 171): `| { kind: "cssRules" }`. Add `"cssRules"` to `UNSTYLABLE`. In `coerce()` (near the `case "stylesheet"` ~318):
+  (a) `value.ts` — add to the `AttrType` union (line 171): `| { kind: "cssRules" }`. In `coerce()` (near `case "stylesheet"` at ~318):
 ```ts
     case "cssRules":
       if (lit.kind === "ident" && lit.name === "null") return ok(null);
       return fail("a css block declared in this program (by name), or null");
 ```
-  (b) `data.ts` — in `coerceData()`'s kind-switch, add `cssRules` to the same group as `stylesheet` (the `return def` / unstyleable group).
-  (c) `schema.ts` `ViewSchema.attrs` — add `cssRules: { kind: "cssRules" }`.
+  (b) `check.ts:53` — add `cssRules: "…"` to `UNSTYLABLE` (mirroring `stylesheet`'s entry).
+  (c) `data.ts` — in `coerceData()`'s kind-switch (line 376, no default), add `cssRules` to the `return def` group.
+  (d) `schema.ts` `ViewSchema.attrs` — add `cssRules: { kind: "cssRules" }`.
 - [ ] **Step 4: Green + build clean** (exhaustiveness satisfied) — PASS, no TS error.
 - [ ] **Step 5: Full suite** — `npm test` → green.
 - [ ] **Step 6: Commit** — `git add runtime/src/{value,data,schema}.ts runtime/dist/{value,data,schema}.* test/unit.test.mjs && git commit -m "M1a: cssRules AttrType kind (+ exhaustiveness) + ViewSchema slot"`.
@@ -84,6 +89,11 @@ await test("parser: css Name { … } captures the raw body", () => {
   assert.equal(p.csses[0].name, "Dark");
   assert.match(p.csses[0].text, /Card \{ background-color: #171b28 \}/);
   assert.match(p.csses[0].text, /\.card:hover/);
+});
+await test("parser: css bodyOffset points at the raw body in source", () => {
+  const src = `css Dark { Card { color: red } } App [ ]`;
+  const p = parseProgram(src);
+  assert.equal(src.slice(p.csses[0].bodyOffset, p.csses[0].bodyOffset + p.csses[0].text.length), p.csses[0].text);
 });
 await test("parser: empty css block is valid; unterminated errors", () => {
   assert.equal(parseProgram(`css E {} App [ ]`).csses[0].text.trim(), "");
@@ -116,8 +126,8 @@ await test("checker: a css name collides with the one namespace", () => {
 });
 ```
 - [ ] **Step 2: Run red** — FAIL (no dedupe for css).
-- [ ] **Step 3: Implement** — extend the `taken()` helper (`check.ts:226`) with a `csses` set; add a `for (const c of program.csses)` dedupe loop mirroring the stylesheet one (`:236-242`); update the collision message string to `"…component, stylesheet, style, font, or css block named 'X'"` (all four existing sites).
-- [ ] **Step 4: Green + full suite** — PASS (existing dedupe tests must accept the new wording — update their regexes if they pin the exact string).
+- [ ] **Step 3: Implement** — extend the `taken()` helper (`check.ts:226`) with a `csses` set; add a `for (const c of program.csses)` dedupe loop mirroring the stylesheet one (`:236-242`). The collision string is `"there is already a component, stylesheet, style, or font named 'X'"` at exactly **three** sites (`check.ts:230/238/246`) — amend all three to `"…style, font, or css block named 'X'"` (the `:140` component-only message is a different string; leave it). **Update the two existing tests that pin the old wording: `unit.test.mjs:2817` and `:2883`.**
+- [ ] **Step 4: Green + full suite** — PASS (with the two updated regexes).
 - [ ] **Step 5: Commit** — `git add runtime/src/check.ts runtime/dist/check.* test/unit.test.mjs && git commit -m "M1b: css names join the top-level namespace dedupe"`.
 
 ---
@@ -145,7 +155,7 @@ await test("CssUnsupported carries a relative offset", () => {
 ```
 > The exact position shape is an impl choice: keep `decls: Map<prop,value>` for the matcher (unchanged) and add a parallel `declPos: Map<prop,{namePos,valuePos}>` + `selPos: number` on `Rule`, so `buildRuleSet`/matcher are untouched.
 - [ ] **Step 2: Run red** — FAIL.
-- [ ] **Step 3: Implement** — in `parseCss`, record `selPos` from the selector-group match index; rewrite `parseDecls` to track the running index across `split(";")`/`indexOf(":")`, producing `{namePos, valuePos}` per property (offsets relative to the whole CSS text — add the rule/body base). Add an optional `offset` field to `CssUnsupported` and set it where thrown (selector/decl offset).
+- [ ] **Step 3: Implement** — **offset-preserving comment handling:** `parseCss` today does `text.replace(/\/\*…\*\//g, "")` (css-parse.ts:134), which *shifts* all subsequent indices so offsets no longer map to the original text. Change it to **mask comments in place with same-length whitespace** (`(m) => " ".repeat(m.length)`) so every offset stays valid against the original CSS text (and the brace-in-comment case still parses). Then record `selPos` from the selector-group match index; rewrite `parseDecls` to track the running index across `split(";")`/`indexOf(":")`, producing `{namePos, valuePos}` per property. Add an optional `offset` field to `CssUnsupported`, set where thrown.
 - [ ] **Step 4: Green + `npm test`** — the matcher/cascade tests still pass (added fields are ignored).
 - [ ] **Step 5: Commit** — `git add runtime/src/css-parse.ts runtime/dist/css-parse.* test/css.test.mjs && git commit -m "M2: css-parse carries selector/decl offsets + CssUnsupported.offset"`.
 
@@ -188,18 +198,20 @@ await test("checkCss: unknown property, bad value, unknown tag, syntax", () => {
     /'banana' is not a length for 'font-size'/);
   assert.match(errs(`css X { button { color: red } } App [ ]`)[0], /unknown component 'button'/);
   assert.match(errs(`css X { a > b { color: red } } App [ ]`)[0], /unsupported/i);
+  assert.match(errs(`css X { View { color } } App [ ]`)[0], /malformed declaration/i); // colon-less → fails loudly
   // valids pass clean:
   assert.equal(errs(`css X { Card { background-color: #2d7; color: white } .card:hover { opacity: 0.5 } } class Card extends View [ ] App [ ]`).length, 0);
 });
 await test("checkCss: positions point at the offending token", () => {
-  const e = errsFull(`css X {\n  Card { colour: red }\n} class Card extends View [ ] App [ ]`)[0];
-  assert.equal(e.pos.line, 2); // 'colour' is on line 2 (per the harness's NeoError pos accessor)
+  const src = `css X {\n  Card { colour: red }\n} class Card extends View [ ] App [ ]`;
+  const e = check(parseProgram(src), src)[0]; // raw NeoError array; source passed so checkCss runs
+  assert.equal(e.pos.line, 2); assert.equal(typeof e.pos.col, "number"); // 'colour' on line 2
 });
 ```
 > Adapt `errs`/position access to the existing convention; the second test asserts `pos.line`/`.col` as unit.test.mjs does.
 - [ ] **Step 2: Run red** — FAIL.
 - [ ] **Step 3: Implement** — `checkCss(program, schemas, source)`:
-  - a `posOf(source, offset)` helper (mirror `compile.ts:376-383`).
+  - a `posOf(source, offset): Pos` helper — **duplicate** into `check.ts` (the one at `compile.ts:376-383` is not exported); returns `{line,col,offset}`.
   - for each `CssDecl`: `parseCss(text)` in try/catch (`CssUnsupported` → error at `posOf(source, bodyOffset + e.offset)`); per rule: for each decl, look up `CSS_PROPERTIES[prop]` (missing → unknown-property at `namePos`), else `entry.coerce(value) === undefined` → `'value' is not a <kind> for 'prop'` at `valuePos`; for each `tag` condition not in `schemas` → `unknown component 'Tag'` at `selPos`; Tier-2 (resolvable tag, `attrType(schema, entry.attr) === null`) → `'C' has no styleable 'prop'`. Positions add `bodyOffset`.
   - call `checkCss` from `check()` when `source` is provided (`check(input, source?)`); thread `source` from `compile.ts:272`.
 - [ ] **Step 4: Green + full suite** — PASS.
@@ -221,7 +233,8 @@ await test("Tier-2 does not false-fire on .class/#id (positive)", () => {
 });
 ```
 - [ ] **Step 2: Run red** — FAIL (`cssRules = Dark` hits the coercer `fail`).
-- [ ] **Step 3: Implement** — add `csses: ReadonlySet<string>` to `StyleEnv` (+ `EMPTY_ENV.csses = new Set()`), populate it beside `env.stylesheets`; add a `t?.kind === "cssRules" && attr.value.kind === "ident" && attr.value.name !== "null"` branch in `checkElement` (mirror `check.ts:752-762`) checking `env.csses`, with the `no css block named 'X'` message; `continue` before `checkAttr`.
+- [ ] **Step 3: Implement** — add `csses: ReadonlySet<string>` to `StyleEnv` (+ `EMPTY_ENV.csses = new Set()`), populate it beside `env.stylesheets`; add a `t?.kind === "cssRules" && attr.value.kind === "ident" && attr.value.name !== "null"` branch in `checkElement` (mirror `check.ts:752-762`) checking `env.csses`, with a `no css block named 'X' — …` message (mirror the stylesheet message shape); `continue` before `checkAttr`.
+  > This reroutes `cssRules = Name`: after this, `cssRules = Dark` (a declared block) passes, and an undeclared/non-css name errors here instead of via the Task-2 coercer `fail`. **Re-confirm Task 2's `cssRules = Dark` assertion** — with a `css Dark {}` present it's now 0 errors; update that assertion if needed.
 - [ ] **Step 4: Green + full suite** — PASS.
 - [ ] **Step 5: Commit** — `git add runtime/src/check.ts runtime/dist/check.* test/unit.test.mjs && git commit -m "M3: cssRules = Name resolution against declared css blocks"`.
 
