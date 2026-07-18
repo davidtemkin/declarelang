@@ -28,9 +28,16 @@ export interface Rule {
   specificity: number;
   sourceIndex: number;
   decls: Map<string, RawValue>;
+  /** Positions (offsets into the CSS text) for compile-time error reporting —
+   *  ignored by the matcher. `selPos` = the rule's selector; `declPos` = per
+   *  property, its name and value offsets. */
+  selPos: number;
+  declPos: Map<string, { namePos: number; valuePos: number }>;
 }
 
 export class CssUnsupported extends Error {
+  /** Offset into the CSS text where the unsupported construct starts. */
+  offset?: number;
   constructor(message: string) {
     super(message);
     this.name = "CssUnsupported";
@@ -111,41 +118,79 @@ export function parseSelectorText(text: string): SelectorAST {
 
 /** Parse a declaration body `a: 1; b: 2` into a Map of raw string values.
  *  `!important` is rejected cleanly (out of the supported subset). */
-function parseDecls(body: string): Map<string, RawValue> {
-  const decls = new Map<string, RawValue>();
-  for (const part of body.split(";")) {
-    const idx = part.indexOf(":");
-    if (idx < 0) continue; // blank or malformed fragment
-    const name = part.slice(0, idx).trim().toLowerCase();
-    const value = part.slice(idx + 1).trim();
-    if (name === "") continue;
-    if (/!\s*important/i.test(value)) {
-      throw new CssUnsupported(`unsupported '!important' in '${name}: ${value}'`);
-    }
-    decls.set(name, value);
-  }
-  return decls;
+interface ParsedDecls {
+  decls: Map<string, RawValue>;
+  declPos: Map<string, { namePos: number; valuePos: number }>;
 }
 
-/** Parse a full stylesheet text into Rule[]: strip comments, split
- *  `selector { body }`, expand comma-grouped selectors to one Rule each (shared
- *  decls, own sourceIndex), stamp specificity + a monotonic source index. */
+/** Parse a declaration body `a: 1; b: 2` (at source offset `base`) into raw
+ *  string values + per-property positions. `!important` rejects cleanly. */
+function parseDecls(body: string, base: number): ParsedDecls {
+  const decls = new Map<string, RawValue>();
+  const declPos = new Map<string, { namePos: number; valuePos: number }>();
+  let cursor = 0; // offset within body of the current fragment
+  for (const part of body.split(";")) {
+    const partStart = base + cursor;
+    cursor += part.length + 1; // + the ";"
+    const idx = part.indexOf(":");
+    if (idx < 0) {
+      if (part.trim() !== "") {
+        const e = new CssUnsupported(`malformed declaration '${part.trim()}' (expected 'property: value')`);
+        e.offset = partStart + (part.length - part.trimStart().length);
+        throw e;
+      }
+      continue;
+    }
+    const rawName = part.slice(0, idx);
+    const name = rawName.trim().toLowerCase();
+    const namePos = partStart + (rawName.length - rawName.trimStart().length);
+    const rawValue = part.slice(idx + 1);
+    const value = rawValue.trim();
+    const valuePos = partStart + idx + 1 + (rawValue.length - rawValue.trimStart().length);
+    if (name === "") continue;
+    if (/!\s*important/i.test(value)) {
+      const e = new CssUnsupported(`unsupported '!important' in '${name}: ${value}'`);
+      e.offset = valuePos;
+      throw e;
+    }
+    decls.set(name, value);
+    declPos.set(name, { namePos, valuePos });
+  }
+  return { decls, declPos };
+}
+
+/** Parse a full stylesheet text into Rule[]: mask comments (same-length, so
+ *  offsets stay valid), split `selector { body }`, expand comma-grouped
+ *  selectors to one Rule each (shared decls, own sourceIndex + selPos), stamp
+ *  specificity + a monotonic source index. */
 export function parseCss(text: string): Rule[] {
-  const noComments = text.replace(/\/\*[\s\S]*?\*\//g, "");
+  // Mask (not strip) comments so every offset still maps to the original text,
+  // and a `}` inside a comment can't truncate a rule.
+  const masked = text.replace(/\/\*[\s\S]*?\*\//g, (m) => " ".repeat(m.length));
   const rules: Rule[] = [];
   // `[^{}]` for selector and body assumes the supported flat subset — no nested
-  // rules, no `{`/`}` inside a value (e.g. no `@media`/`url(...{...})`). Those
-  // are rejected surface (Non-goals); revisit this split if they are added.
+  // rules, no `{`/`}` inside a value (e.g. no `@media`/`url(...{...})`).
   const re = /([^{}]+)\{([^{}]*)\}/g;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(noComments)) !== null) {
-    const selectorGroup = m[1].trim();
-    const decls = parseDecls(m[2]);
-    for (const selText of selectorGroup.split(",")) {
+  while ((m = re.exec(masked)) !== null) {
+    const groupStart = m.index; // offset of m[1]
+    const bodyStart = m.index + m[1].length + 1; // after the "{"
+    const { decls, declPos } = parseDecls(m[2], bodyStart);
+    let selCursor = 0;
+    for (const selText of m[1].split(",")) {
+      const selStart = groupStart + selCursor;
+      selCursor += selText.length + 1; // + the ","
       const trimmed = selText.trim();
       if (trimmed === "") continue;
-      const selector = parseSelectorText(trimmed);
-      rules.push({ selector, specificity: specificityOf(selector), sourceIndex: rules.length, decls });
+      const selPos = selStart + (selText.length - selText.trimStart().length);
+      let selector: SelectorAST;
+      try {
+        selector = parseSelectorText(trimmed);
+      } catch (e) {
+        if (e instanceof CssUnsupported && e.offset === undefined) e.offset = selPos;
+        throw e;
+      }
+      rules.push({ selector, specificity: specificityOf(selector), sourceIndex: rules.length, decls, declPos, selPos });
     }
   }
   return rules;

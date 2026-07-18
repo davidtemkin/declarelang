@@ -416,4 +416,24 @@ await test("no-thrash: a stable cascade settles without exceeding the cycle guar
   assert.equal(v.fill, 0x22dd77);
 });
 
+await test("parseCss carries selector + decl offsets (comments masked, not stripped)", () => {
+  const css = `.a { color: red }`;
+  const r = parseCss(css)[0];
+  assert.equal(css.slice(r.selPos, r.selPos + 2), ".a");
+  const p = r.declPos.get("color");
+  assert.equal(css.slice(p.namePos, p.namePos + 5), "color");
+  assert.equal(css.slice(p.valuePos, p.valuePos + 3), "red");
+  // a comment before a rule doesn't shift offsets:
+  const css2 = `/* skin */ .b { color: blue }`;
+  const r2 = parseCss(css2)[0];
+  assert.equal(css2.slice(r2.selPos, r2.selPos + 2), ".b");
+});
+
+await test("CssUnsupported carries an offset; malformed decl rejects", () => {
+  try { parseCss(`a > b { color: red }`); assert.fail("should throw"); }
+  catch (e) { assert.equal(typeof e.offset, "number"); }
+  try { parseCss(`.a { color }`); assert.fail("should throw"); }
+  catch (e) { assert.match(e.message, /malformed declaration/i); assert.equal(typeof e.offset, "number"); }
+});
+
 summarize("css");
