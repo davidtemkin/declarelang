@@ -194,6 +194,22 @@ const targets = [
   // (a symlink would silently break on Windows checkouts and zip downloads;
   // a gated generated copy cannot drift — divergence fails docs.test)
   { name: "skill-discovery-copy", isFile: true, path: ".claude/skills/declare/SKILL.md", next: skillTarget.next },
+  // the homepage's FAQ view: same authored-page discipline as Get Started —
+  // the setup trio is a GENERATED block (the ops registry, compact form),
+  // and faq.json is the gated wrap the DataSource reads
+  (() => {
+    const bare = "```\n" + spine.commands.setup.steps.filter((x) => x.cmd).map((x) => x.cmd).join("\n") + "\n```";
+    const p = join(ROOT, "apps/homepage/declare-faq.md");
+    const next = injectStr(readFileSync(p, "utf8"), "setup-commands-bare", bare);
+    return { name: "faq-md", isFile: true, path: "apps/homepage/declare-faq.md", next };
+  })(),
+  { name: "faq-json", isFile: true, path: "apps/homepage/faq.json",
+    next: (() => {
+      const bare = "```\n" + spine.commands.setup.steps.filter((x) => x.cmd).map((x) => x.cmd).join("\n") + "\n```";
+      let md = injectStr(readFileSync(join(ROOT, "apps/homepage/declare-faq.md"), "utf8"), "setup-commands-bare", bare);
+      md = md.replace(/<!-- \/?generated:[a-z-]+ -->\n?/g, "");
+      return JSON.stringify({ markdown: md }) + "\n";
+    })() },
   // the homepage's Get Started view: an AUTHORED page (apps/homepage/
   // getstarted.md — the voice is the homepage's) whose commands and flagship
   // example are GENERATED blocks, then JSON-wrapped for the DataSource — so

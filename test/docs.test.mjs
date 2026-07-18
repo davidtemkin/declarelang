@@ -24,6 +24,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 
 const COVERED = [
   "docs/declare.md",
+  "apps/homepage/getstarted.md",
   "evals/declare-for-llms.md",
 ];
 

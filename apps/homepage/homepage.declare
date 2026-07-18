@@ -450,7 +450,8 @@ App [ theme = { ({
     // by the Language view's Markdown pattern)
 
     guide: DataSource [ url = "getstarted.json" ],
-    onInit() { this.lang.fetch(); this.stats.fetch(); this.guide.fetch() },
+    faq: DataSource [ url = "faq.json" ],
+    onInit() { this.lang.fetch(); this.stats.fetch(); this.guide.fetch(); this.faq.fetch() },
 
     // the whole-page source editor's state: `editing` toggles the overlay, and
     // `liveCard`/`liveSource` name the demo an inline editor is republishing and
@@ -916,6 +917,26 @@ App [ theme = { ({
             ],
         ],
 
+    /* ## The FAQ view — the Get Started pattern at #faq */
+
+    faqView: View [ visible = { app.location == "faq" }, width = { app.width }, height = { app.height }, fill = { theme.ink },
+        grid: GridBg [ x = 0, y = 0, width = { app.width }, height = { app.height } ],
+        body: View [ y = 56, width = { app.width }, height = { app.height - 56 }, scrolls = true, selectable = true,
+            col: View [ width = { Math.min(720, app.width - 48) }, x = { Math.max(24, (app.width - 720) / 2) }, y = 52,
+                layout: SimpleLayout [ axis = y, spacing = 22 ],
+                Marker [ text = "FAQ" ],
+                loading: Text [ visible = { app.faq.loading }, fontSize = 15, textColor = { theme.faint }, text = "Loading…" ],
+                failed:  Text [ visible = { app.faq.failed }, fontSize = 15, textColor = { theme.faint }, wrap = true, width = { parent.width },
+                    text = { "The FAQ did not load — " + (app.faq.error || "") } ],
+                doc: Markdown [ visible = { app.faq.loaded }, width = { parent.width }, lineHeight = 1.35, bodyColor = { theme.lead }, dark = true,
+                    datapath = { app.faq.value }, text = :markdown ],
+                gap: View [ width = 8, height = 64 ],
+                Footer [ width = { parent.width } ],
+                tail: View [ width = 8, height = 40 ],
+                ],
+            ],
+        ],
+
     /* ## Fixed chrome
 
        Siblings of the scroller, so they never scroll: the top bar (hidden until
@@ -923,11 +944,11 @@ App [ theme = { ({
        form of a timed entrance), the whole-page editor overlay, and the pointer
        dot that springs after the cursor. */
 
-    header: View [ width = { app.width }, height = 56, y = -8, opacity = 0, fill = { theme.surface },
-        fadeIn:  Spring [ attribute = opacity, to = { app.location != "home" || app.scroller.scrollY > 80 ? 1 : 0 },
-            stiffness = 220, damping = 30, epsilon = 0.004 ],
-        slideIn: Spring [ attribute = y,       to = { app.location != "home" || app.scroller.scrollY > 80 ? 0 : -8 },
-            stiffness = 220, damping = 30, epsilon = 0.05 ],
+    // the bar is ALWAYS present, stuck to the top — a sibling of the
+    // scroller, so it never scrolls (the springs that used to reveal it on
+    // scroll retired 2026-07-17: a first-time visitor sees the whole map)
+
+    header: View [ width = { app.width }, height = 56, y = 0, opacity = 1, fill = { theme.surface },
         hairline: View [ y = 55, width = { app.width }, height = 1, fill = { theme.line } ],
 
         // wordmark — the product name in the brand gradient, in the hero's typeface
@@ -945,6 +966,11 @@ App [ theme = { ({
             layout: SimpleLayout [ axis = x, spacing = 2 ],
             NavLink [ label = "Get Started", to = "getstarted" ],
             NavLink [ label = "Why Declare", to = "why" ],
+
+            // FAQ sits right after the pitch — the question-form follow-on a
+            // new visitor reaches for before the deep artifacts
+
+            NavLink [ label = "FAQ", to = "faq" ],
 
             // redundant at phone width (section 02 links it) — drop it before the nav rides the wordmark
 
