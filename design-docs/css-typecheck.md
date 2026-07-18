@@ -46,30 +46,37 @@ any of them is a `View has no attribute` error today. Add:
 - `styleclass: { kind: "string" }`, `id: { kind: "string" }` to `ViewSchema.attrs`.
 - `cssRules: { kind: "cssRules" }` — a **new `AttrType` kind** (`value.ts`,
   mirroring `{kind:"stylesheet"}`), listed in `UNSTYLABLE` (a `cssRules` slot
-  cannot be set through a class-dict entry, like `stylesheet`).
+  cannot be set through a class-dict entry, like `stylesheet`). Adding the union
+  member forces a `case "cssRules":` in the two exhaustive kind-switches with no
+  default — `coerce()` (`value.ts:261`, return a `fail(...)` like `stylesheet`)
+  and `coerceData()` (`data.ts:378`, join the `return def` group) — else TS
+  exhaustiveness fails the build.
 
 ## Architecture
 
-### A. Parser — `css Name { … }` (tokenizer + `runtime/src/parser.ts`)
+### A. Parser — `css Name { … }` (`runtime/src/parser.ts`)
 
-The raw CSS body must be captured by a **comment/string-aware brace scanner at the
-tokenizer level** — a new raw `cssbody` token, mirroring how the tokenizer already
-captures a TS `code` region (`skipBraces`), but with **CSS lexing rules, not TS**:
-count `{`/`}` depth; treat `/* … */` comments and `"…"`/`'…'` strings as opaque
-(CSS has no `//` line comments and no template literals). This is required because
-(a) the existing `{ }` code-token path applies TS-island logic and throws on CSS
-that isn't valid TS, and (b) the `Parser` class holds only tokens, no source
-handle — so the raw capture must happen where the source is lexed. Emits the raw
-text plus its source offset.
+**The tokenizer cannot capture the CSS body** — it is a context-free pre-pass that
+runs to completion (`new Parser(tokenize(source))`) before any parser context
+exists, has no keyword table (`css`/`stylesheet` lex as plain idents), and its
+existing `{ }` capture applies TS-island rules (`//`, backtick templates) that
+reject valid CSS. So the raw capture is done at the **parser level, reading from
+the source string**: pass `source` into the `Parser` (currently it holds only
+tokens); on the `css` branch, after consuming `css Name {`, run a local CSS-aware
+brace scan **over `source` from the `{` token's `pos.offset`** — count `{`/`}`
+depth, treating `/* … */` comments and `"…"`/`'…'` strings as opaque (CSS has no
+`//` or template literals) — take the enclosed text verbatim, and advance the
+token stream past the matching `}`. No new token kind, no context-dependent
+lexing.
 
 `parser.ts` adds a `css` keyword to the top-level dispatch (`parseTopDecls`,
 alongside `stylesheet`/`style`/`font`) and a `parseCssDecl` producing
 `CssDecl { name, text, bodyOffset }` (`bodyOffset` = the source offset of the raw
-text's first char). Threaded through `parseTopDecls`'s return type, `Program`,
-`Library`, and both assembler functions, plus the bare `Program` literal in
-`check.ts:77` (add `csses: []`). Edge cases: an **empty** block `css X {}` is
-valid (zero rules); an **unterminated** block is a positioned `unterminated css
-block` error.
+text's first char, from the token's `pos.offset`). Threaded through
+`parseTopDecls`'s return type, `Program`, `Library`, and both assembler functions,
+plus the bare `Program` literal in `check.ts:77` (add `csses: []`). Edge cases: an
+**empty** block `css X {}` is valid (zero rules); an **unterminated** block is a
+positioned `unterminated css block` error.
 
 ### B. Positions in `css-parse.ts`
 
@@ -109,7 +116,11 @@ the matcher ignore these fields — no caller breaks.
 - **`checkCss(program, schemas, source): NeoError[]`** — needs the **source
   string** to turn offsets into `Pos` via a `posOf(source, offset)` helper
   (precedent: `compile.ts:376-383`/`559-568`; `NeoError.pos` is
-  `{line,col,offset}`, not a bare offset). For each `CssDecl`, `parseCss(text)` in
+  `{line,col,offset}`, not a bare offset). `check()` gains an optional param —
+  `check(input: Element | Program, source?: string)` — threaded from its caller
+  (`compile.ts:272` has `merged` in scope); `checkCss` runs only when `source` is
+  provided (a bare-`Element` caller has no `csses`, so skipping CSS position
+  resolution is fine). For each `CssDecl`, `parseCss(text)` in
   try/catch (a `CssUnsupported` → positioned error at `bodyOffset + offset`), then
   per rule:
   1. **Unknown property** → error at the **name** offset: `unknown CSS property 'X'`.
@@ -157,9 +168,10 @@ compiler `.ts` files carry none of this), mirroring the stylesheet path:
 | tokenizer (`parser.ts`) | comment/string-aware raw `cssbody` capture |
 | `runtime/src/parser.ts` | `css` keyword; `parseCssDecl` → `CssDecl`; `program.csses`; thread through Program/Library/assemblers |
 | `runtime/src/css-parse.ts` | `selPos` per rule, `{namePos,valuePos}` per decl; `CssUnsupported` offset |
-| `runtime/src/value.ts` | new `AttrType` kind `cssRules`; add to `UNSTYLABLE` |
+| `runtime/src/value.ts` | new `AttrType` kind `cssRules`; add to `UNSTYLABLE`; `case "cssRules"` in `coerce()` |
+| `runtime/src/data.ts` | `case "cssRules"` in `coerceData()`'s kind-switch (exhaustiveness) |
 | `runtime/src/schema.ts` | `styleclass`/`id`/`cssRules` in `ViewSchema.attrs`; `CSS_PROPERTIES` table (+ pure coercer imports) |
-| `runtime/src/check.ts` | `StyleEnv.csses` + population; namespace dedupe incl. `css`; `checkCss`; `cssRules` routing in `checkElement`; pass source to `checkCss` |
+| `runtime/src/check.ts` | `StyleEnv.csses` + `EMPTY_ENV.csses` + population; namespace dedupe incl. `css`; `checkCss`; `cssRules` routing in `checkElement`; `check(input, source?)` threading |
 | `runtime/src/instantiate.ts` | `buildCsses` + `registerCsses`/`cssByName`; `cssRules`-kind ident resolution branch |
 | `compiler/src/highlight.ts` | add `css` to the keyword list |
 | an example/demo | a `.declare` using a checked `css` block |
