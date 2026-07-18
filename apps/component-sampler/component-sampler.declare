@@ -78,12 +78,17 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 720,
     theme = { ({
         ...(style == "mountainView" ? Themes.mountainView(darkUI) : style == "cupertino" ? Themes.cupertino(darkUI) : style == "redmond" ? Themes.redmond(darkUI) : Themes.sanFrancisco(darkUI)),
         focusAnimate: animateFocus,
+        // The rig's choice, as data: authentic Windows focus RESTS (the record
+        // says "rest"), but with the flourish switched on the role upgrades to
+        // "both" — and the two-tone rectangle FLIES. The theme file stays
+        // faithful; the demo overrides one token.
+        ...(style == "redmond" && animateFocus ? ({ focusRing: "both" }) : ({})),
         ...(accentPick != 0 ? ({ accent: accentPick, controlActive: Themes.tint(accentPick, darkUI) }) : ({})),
     }) },
 
     // the type stack is part of the emulation: Roboto for Mountain View, SF for Cupertino
 
-    fontFamily = { style == "mountainView" ? "Roboto, system-ui, sans-serif" : style == "cupertino" ? "-apple-system, system-ui, sans-serif" : style == "redmond" ? "'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif" : "system-ui, sans-serif" },
+    fontFamily = { style == "mountainView" ? "Roboto, system-ui, sans-serif" : style == "cupertino" ? "-apple-system, system-ui, sans-serif" : style == "redmond" ? "'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif" : "system-ui, sans-serif" },
 
     // ── chrome: title + the mode switcher + the transitions toggle ─────────
 
