@@ -294,7 +294,7 @@ class SourcePanel extends View [ width = { parent.width < 760 ? parent.width : M
 class PreviewFrame extends View [ width = { parent.width < 760 ? parent.width : Math.floor((parent.width - 20) * 0.42) },
     runName: string = "",
     active: boolean = true,
-    run: HTML [ width = { parent.width }, height = { parent.height },
+    run: DOMIsland [ width = { parent.width }, height = { parent.height },
         slot = { classroot.active ? "run:" + classroot.runName : "" } ],
     ]
 

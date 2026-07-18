@@ -43,7 +43,7 @@ export { forEachElement, serializeLinks, applyLinks, type SerializedLink } from 
 export { renderProgram, renderProgramAsync, mountApp, disposeApp, loadFonts } from "./boot.js";
 export type { FontSpec } from "./boot.js";
 export { Node } from "./node.js";
-export { View, App, Html, inheritedCursor, onDiscard } from "./view.js";
+export { View, App, DOMIsland, inheritedCursor, onDiscard } from "./view.js";
 export { Text } from "./text.js";
 export { Image } from "./image.js";
 export { TextInput } from "./text-input.js";

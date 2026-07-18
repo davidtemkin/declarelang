@@ -782,14 +782,14 @@ defineAttributes(App, {
   minHeight: { def: 0 },
 });
 
-/** HTML — a foreign-content island (design: the `HTML [ … ]` view). A leaf View
+/** DOMIsland — a foreign-content island (design: the `DOMIsland [ … ]` view). A leaf View
  *  whose box Declare lays out and constrains normally, but whose interior is
  *  host-managed DOM: the `slot` key is reflected onto the element (DOM backend)
  *  so the host can mount an iframe / textarea / any element into the Declare-sized
  *  box — its width/height follow this view's constraints with no coordinate
  *  sync. (Canvas backend realizes the same island as a positioned DOM overlay
  *  — setEmbed is a no-op there for now.) */
-export class Html extends View {
+export class DOMIsland extends View {
   declare slot: string;
 
   protected flush(s: Surface): void {
@@ -798,6 +798,6 @@ export class Html extends View {
   }
 }
 
-defineAttributes(Html, {
+defineAttributes(DOMIsland, {
   slot: { def: "", push: (v, id) => v.surface?.setEmbed(id) },
 });

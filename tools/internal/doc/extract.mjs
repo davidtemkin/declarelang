@@ -27,7 +27,7 @@ const DOC_SCHEMAS = { ...SCHEMAS, RichText: RichTextSchema };
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const TARGETS = [                                        // the documented component surface
-  "View", "App", "Text", "Image", "RichText", "Markdown", "HTMLText", "HTML", "TextInput",
+  "View", "App", "Text", "Image", "RichText", "Markdown", "HTMLText", "DOMIsland", "TextInput",
   "SimpleLayout", "WrappingLayout", "TweenLayout",
   "Dataset", "DataSource",
   "Animator", "AnimatorGroup", "Spring", "State", "Node",
@@ -243,7 +243,7 @@ const METHODS = readMethods([
   "runtime/src/data.ts", "runtime/src/animator.ts", "runtime/src/spring.ts",
   "runtime/src/state.ts", "runtime/src/node.ts",
 ]);
-const RUNTIME_NAME = { HTML: "Html" };                  // doc id → runtime class name (the one mismatch)
+const RUNTIME_NAME = {};                                // doc id → runtime class name (no mismatches since the DOMIsland rename)
 
 // editable examples — a class has one when apps/docs/demos/<Class>.declare exists.
 // A 0-or-1 array, so the app conditionally CONSTRUCTS the island by datapath

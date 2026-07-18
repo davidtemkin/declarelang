@@ -136,7 +136,7 @@ class EventRow extends View [ width = { parent.width },
 
 An editable source field beside a running preview — the SAME machinery as the
 homepage's editable demos: a `TextInput` seeded from the demo source that
-republishes edits on `app.liveSource`, and an `HTML` island the host mounts
+republishes edits on `app.liveSource`, and a `DOMIsland` the host mounts
 the compiled child app into. Both are keyed by the CLASS NAME: the editor
 seeds from `app.demoSources[<Class>]` (the server populates this from
 apps/docs/demos/), and the island's `run:<Class>` slot is what the host
@@ -210,7 +210,7 @@ class Example extends View [ width = { parent.width },
     // on the visible page) compiles at a time, even though every page is constructed.
 
     stage: View [ width = { parent.width }, height = { classroot.estage }, fill = { theme.chipBg },
-        run:     HTML [ width = { parent.width }, height = { parent.height },
+        run:     DOMIsland [ width = { parent.width }, height = { parent.height },
             slot = { classroot.live ? "run:" + classroot.cname : "" } ],
 
         // a blue rule (a darker shade of the chipBg box tint) divides the code above from the
@@ -264,7 +264,7 @@ class RunBlock extends View [ width = { parent.width },
         ],
 
     stage: View [ width = { parent.width }, height = { classroot.rstage }, fill = { theme.chipBg },
-        run:     HTML [ width = { parent.width }, height = { parent.height },
+        run:     DOMIsland [ width = { parent.width }, height = { parent.height },
             slot = { classroot.live ? "run:" + classroot.rid : "" } ],
         divider: View [ x = 0, y = 0, width = { parent.width }, height = 2, fill = { theme.rule } ],
         spine:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = 0xE6B450 ],

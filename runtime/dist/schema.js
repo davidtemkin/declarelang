@@ -255,7 +255,7 @@ const ImageSchema = {
         stretches: enumType("Stretch", "none", "width", "height", "both"),
     },
 };
-// HTML (foreign-content island): a leaf View whose BOX is owned by Declare — it
+// DOMIsland (foreign-content island): a leaf View whose BOX is owned by Declare — it
 // lays out and obeys constraints like any view — but whose INTERIOR is
 // host-managed foreign DOM (an iframe, a textarea, a <video>, a map widget).
 // `slot` is a host key: the DOM backend reflects it as `data-declare-slot`, the
@@ -263,8 +263,8 @@ const ImageSchema = {
 // tenant's size with no coordinate sync (canvas realizes it as a positioned
 // DOM overlay — deferred). The one sanctioned escape to raw DOM, kept behind a
 // named view so bodies stay DOM-free.
-const HtmlSchema = {
-    name: "HTML",
+const DOMIslandSchema = {
+    name: "DOMIsland",
     base: ViewSchema,
     attrs: {
         slot: { kind: "string" },
@@ -540,7 +540,7 @@ export const SCHEMAS = {
     App: AppSchema,
     Text: TextSchema,
     Image: ImageSchema,
-    HTML: HtmlSchema,
+    DOMIsland: DOMIslandSchema,
     TextInput: TextInputSchema,
     Markdown: MarkdownSchema,
     HTMLText: HTMLTextSchema,

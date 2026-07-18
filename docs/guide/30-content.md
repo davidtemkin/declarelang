@@ -2,7 +2,7 @@
 
 The content types are one family — what fills views. Declare keeps them explicitly distinct:
 a `Text` is never *secretly* formatted, `Markdown` is the choice you make when you want
-structure, and an `HTML` island is the deliberate escape when you need the platform.
+structure, and a `DOMIsland` is the deliberate escape when you need the platform.
 
 ## `Text` — one style, wraps within a bounded width
 
@@ -85,10 +85,10 @@ App [ width = 160, height = 120, fill = white,
     ]
 ```
 
-## `HTML` islands — the deliberate escape
+## `DOMIsland` — the deliberate escape
 
 When you need the platform's own content — a chart library, a map, arbitrary markup — an
-`HTML [ … ]` island hands a view's box to host-managed DOM. It is a leaf as far as Declare's
+A `DOMIsland [ … ]` hands a view's box to host-managed DOM. It is a leaf as far as Declare's
 layout is concerned, sized by constraints like any view, with the interior yours to fill.
 The most powerful case is an **embedded child app**: a Declare program running inside another
 program's island — no iframe — which is exactly how this documentation and the homepage run

@@ -73,7 +73,7 @@ export { forEachElement, serializeLinks, applyLinks } from "./links.js";
 // Precompiled production entry + render glue (compiler-free) — see boot.ts.
 export { renderProgram, renderProgramAsync, mountApp, disposeApp, loadFonts } from "./boot.js";
 export { Node } from "./node.js";
-export { View, App, Html, inheritedCursor, onDiscard } from "./view.js";
+export { View, App, DOMIsland, inheritedCursor, onDiscard } from "./view.js";
 export { Text } from "./text.js";
 export { Image } from "./image.js";
 export { TextInput } from "./text-input.js";

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "buildId": "d79bbf947178",
+  "buildId": "163d4ed30610",
   "nodes": {
     "View.x": {
       "id": "View.x",
@@ -1504,7 +1504,7 @@
         "Text",
         "Image",
         "RichText",
-        "HTML"
+        "DOMIsland"
       ],
       "origin": "ts",
       "attributes": [
@@ -2645,8 +2645,8 @@
       "events": [],
       "example": []
     },
-    "HTML.slot": {
-      "id": "HTML.slot",
+    "DOMIsland.slot": {
+      "id": "DOMIsland.slot",
       "name": "slot",
       "kind": "attribute",
       "doc": "The host key — reflected onto the element as `data-declare-slot`, so the host can locate this box\nand mount foreign content into it. Set it to `\"\"` to mount nothing (a closed island); flip it\nto show or swap the tenant reactively.",
@@ -2658,22 +2658,22 @@
       ],
       "api": true,
       "source": {
-        "file": "runtime/src/schema.ts",
-        "line": 0
+        "file": "runtime/src/view.ts",
+        "line": 802
       },
-      "parent": "HTML",
+      "parent": "DOMIsland",
       "seeAlso": [],
       "type": "string",
-      "default": null,
+      "default": "\"\"",
       "prevailing": false,
       "readOnly": false,
       "inheritedFrom": null
     },
-    "HTML": {
-      "id": "HTML",
-      "name": "HTML",
+    "DOMIsland": {
+      "id": "DOMIsland",
+      "name": "DOMIsland",
       "kind": "class",
-      "doc": "A foreign-content island: a leaf `View` that Declare **sizes and positions like any view**\n(it obeys constraints and layout), but whose *interior* is host-managed DOM — an `<iframe>`,\na `<textarea>`, a `<video>`, a map widget. It is the **one sanctioned escape to raw DOM**,\nkept behind a named view so `{ }` bodies stay DOM-free. The DOM backend reflects `slot` as a\n`data-declare-slot` attribute; the host finds that box and mounts content into it, with Declare's\nwidth/height driving the tenant's size and no coordinate sync to maintain.\n\n```declare\npreview: HTML [ width = { parent.width }, height = 300, slot = \"run:demo\" ]\n```",
+      "doc": "A foreign-content island: a leaf `View` that Declare **sizes and positions like any view**\n(it obeys constraints and layout), but whose *interior* is host-managed DOM — an `<iframe>`,\na `<textarea>`, a `<video>`, a map widget. It is the **one sanctioned escape to raw DOM**,\nkept behind a named view so `{ }` bodies stay DOM-free. The DOM backend reflects `slot` as a\n`data-declare-slot` attribute; the host finds that box and mounts content into it, with Declare's\nwidth/height driving the tenant's size and no coordinate sync to maintain.\n\n```declare\npreview: DOMIsland [ width = { parent.width }, height = 300, slot = \"run:demo\" ]\n```",
       "docSegs": [
         {
           "md": "A foreign-content island: a leaf `View` that Declare **sizes and positions like any view**\n(it obeys constraints and layout), but whose *interior* is host-managed DOM — an `<iframe>`,\na `<textarea>`, a `<video>`, a map widget. It is the **one sanctioned escape to raw DOM**,\nkept behind a named view so `{ }` bodies stay DOM-free. The DOM backend reflects `slot` as a\n`data-declare-slot` attribute; the host finds that box and mounts content into it, with Declare's\nwidth/height driving the tenant's size and no coordinate sync to maintain.",
@@ -2683,8 +2683,8 @@
           "md": "",
           "code": [
             {
-              "id": "seg_HTML_0",
-              "source": "App [\n    preview: HTML [ width = { parent.width }, height = 300, slot = \"run:demo\" ]\n]",
+              "id": "seg_DOMIsland_0",
+              "source": "App [\n    preview: DOMIsland [ width = { parent.width }, height = 300, slot = \"run:demo\" ]\n]",
               "lines": 3,
               "stageH": 324
             }
@@ -2702,7 +2702,7 @@
       "subclasses": [],
       "origin": "ts",
       "attributes": [
-        "HTML.slot"
+        "DOMIsland.slot"
       ],
       "methods": [],
       "events": [],
@@ -3525,9 +3525,14 @@
       "id": "DataSource.format",
       "name": "format",
       "kind": "attribute",
-      "doc": null,
-      "docSegs": [],
-      "api": false,
+      "doc": "What the fetched bytes **are**: `\"json\"` (the default) parses the response and tags it for\n`:path` navigation; `\"text\"` delivers the raw bytes as **one string** in `.value`. Text is\na first-class material, not a detail — it is how an authored Markdown file is loaded\n*directly*, with no JSON wrapping beside it: consume it whole, `text = { article.value || \"\" }`.\nA string has nothing to navigate into, so the structural machinery — `datapath`, `:path`,\n`schema`, `<->` — does not apply to a text source; the lifecycle (`fetch()`, `.loading`,\n`.loaded`, `.failed`) is identical. Loaded text renders clean through `Markdown`: HTML\ncomments in the file are annotation, and annotation never renders.\n\n```declare-fragment\narticle: DataSource [ url = \"guide.md\", format = \"text\" ],\ndoc: Markdown [ visible = { article.loaded }, text = { article.value || \"\" } ],\n```",
+      "docSegs": [
+        {
+          "md": "What the fetched bytes **are**: `\"json\"` (the default) parses the response and tags it for\n`:path` navigation; `\"text\"` delivers the raw bytes as **one string** in `.value`. Text is\na first-class material, not a detail — it is how an authored Markdown file is loaded\n*directly*, with no JSON wrapping beside it: consume it whole, `text = { article.value || \"\" }`.\nA string has nothing to navigate into, so the structural machinery — `datapath`, `:path`,\n`schema`, `<->` — does not apply to a text source; the lifecycle (`fetch()`, `.loading`,\n`.loaded`, `.failed`) is identical. Loaded text renders clean through `Markdown`: HTML\ncomments in the file are annotation, and annotation never renders.\n\n```declare-fragment\narticle: DataSource [ url = \"guide.md\", format = \"text\" ],\ndoc: Markdown [ visible = { article.loaded }, text = { article.value || \"\" } ],\n```",
+          "code": []
+        }
+      ],
+      "api": true,
       "source": {
         "file": "runtime/src/schema.ts",
         "line": 0
@@ -3586,10 +3591,10 @@
       "id": "DataSource",
       "name": "DataSource",
       "kind": "class",
-      "doc": "A `Dataset` whose value arrives over HTTP — a reactive remote resource. The one thing to\nknow: **`fetch()` is explicit — a DataSource does not auto-load.** Call it when the data\nshould load (typically `onInit`, or on a user action); value and status then settle\n*together*, a frame ahead, so a constraint reading `.loaded` and one reading `.value`\nnever disagree. Read the lifecycle through bindings — `.loading`, `.loaded`, `.failed`,\n`.value`, `.error` — none are settable attributes; `clear()` returns it to idle.\n\n```declare\nweather: DataSource [ url = { `/api/weather?zip=${zip}` } ],\nonInit() { this.weather.fetch() },                       // nothing loads until you ask\nreport: View [ visible = { weather.loaded },\n    datapath = { weather.value?.rss?.channel } ]         // :paths below read the response\n```",
+      "doc": "A `Dataset` whose value arrives over HTTP — a reactive remote resource. The one thing to\nknow: **`fetch()` is explicit — a DataSource does not auto-load.** Call it when the data\nshould load (typically `onInit`, or on a user action); value and status then settle\n*together*, a frame ahead, so a constraint reading `.loaded` and one reading `.value`\nnever disagree. Read the lifecycle through bindings — `.loading`, `.loaded`, `.failed`,\n`.value`, `.error` — none are settable attributes; `clear()` returns it to idle. The\nresponse is parsed JSON by default; `format = \"text\"` fetches textual material instead —\na Markdown article, a source file — as one string (see `format`).\n\n```declare\nweather: DataSource [ url = { `/api/weather?zip=${zip}` } ],\nonInit() { this.weather.fetch() },                       // nothing loads until you ask\nreport: View [ visible = { weather.loaded },\n    datapath = { weather.value?.rss?.channel } ]         // :paths below read the response\n```",
       "docSegs": [
         {
-          "md": "A `Dataset` whose value arrives over HTTP — a reactive remote resource. The one thing to\nknow: **`fetch()` is explicit — a DataSource does not auto-load.** Call it when the data\nshould load (typically `onInit`, or on a user action); value and status then settle\n*together*, a frame ahead, so a constraint reading `.loaded` and one reading `.value`\nnever disagree. Read the lifecycle through bindings — `.loading`, `.loaded`, `.failed`,\n`.value`, `.error` — none are settable attributes; `clear()` returns it to idle.\n\n```declare\nweather: DataSource [ url = { `/api/weather?zip=${zip}` } ],\nonInit() { this.weather.fetch() },                       // nothing loads until you ask\nreport: View [ visible = { weather.loaded },\n    datapath = { weather.value?.rss?.channel } ]         // :paths below read the response\n```",
+          "md": "A `Dataset` whose value arrives over HTTP — a reactive remote resource. The one thing to\nknow: **`fetch()` is explicit — a DataSource does not auto-load.** Call it when the data\nshould load (typically `onInit`, or on a user action); value and status then settle\n*together*, a frame ahead, so a constraint reading `.loaded` and one reading `.value`\nnever disagree. Read the lifecycle through bindings — `.loading`, `.loaded`, `.failed`,\n`.value`, `.error` — none are settable attributes; `clear()` returns it to idle. The\nresponse is parsed JSON by default; `format = \"text\"` fetches textual material instead —\na Markdown article, a source file — as one string (see `format`).\n\n```declare\nweather: DataSource [ url = { `/api/weather?zip=${zip}` } ],\nonInit() { this.weather.fetch() },                       // nothing loads until you ask\nreport: View [ visible = { weather.loaded },\n    datapath = { weather.value?.rss?.channel } ]         // :paths below read the response\n```",
           "code": []
         }
       ],
@@ -5134,7 +5139,7 @@
     "RichText",
     "Markdown",
     "HTMLText",
-    "HTML",
+    "DOMIsland",
     "TextInput",
     "SimpleLayout",
     "WrappingLayout",
@@ -5176,7 +5181,7 @@
         "Text",
         "Image",
         "RichText",
-        "HTML"
+        "DOMIsland"
       ],
       "origin": "ts",
       "attributes": [
@@ -7329,9 +7334,9 @@
       "example": []
     },
     {
-      "id": "HTML",
-      "name": "HTML",
-      "doc": "A foreign-content island: a leaf `View` that Declare **sizes and positions like any view**\n(it obeys constraints and layout), but whose *interior* is host-managed DOM — an `<iframe>`,\na `<textarea>`, a `<video>`, a map widget. It is the **one sanctioned escape to raw DOM**,\nkept behind a named view so `{ }` bodies stay DOM-free. The DOM backend reflects `slot` as a\n`data-declare-slot` attribute; the host finds that box and mounts content into it, with Declare's\nwidth/height driving the tenant's size and no coordinate sync to maintain.\n\n```declare\npreview: HTML [ width = { parent.width }, height = 300, slot = \"run:demo\" ]\n```",
+      "id": "DOMIsland",
+      "name": "DOMIsland",
+      "doc": "A foreign-content island: a leaf `View` that Declare **sizes and positions like any view**\n(it obeys constraints and layout), but whose *interior* is host-managed DOM — an `<iframe>`,\na `<textarea>`, a `<video>`, a map widget. It is the **one sanctioned escape to raw DOM**,\nkept behind a named view so `{ }` bodies stay DOM-free. The DOM backend reflects `slot` as a\n`data-declare-slot` attribute; the host finds that box and mounts content into it, with Declare's\nwidth/height driving the tenant's size and no coordinate sync to maintain.\n\n```declare\npreview: DOMIsland [ width = { parent.width }, height = 300, slot = \"run:demo\" ]\n```",
       "docSegs": [
         {
           "md": "A foreign-content island: a leaf `View` that Declare **sizes and positions like any view**\n(it obeys constraints and layout), but whose *interior* is host-managed DOM — an `<iframe>`,\na `<textarea>`, a `<video>`, a map widget. It is the **one sanctioned escape to raw DOM**,\nkept behind a named view so `{ }` bodies stay DOM-free. The DOM backend reflects `slot` as a\n`data-declare-slot` attribute; the host finds that box and mounts content into it, with Declare's\nwidth/height driving the tenant's size and no coordinate sync to maintain.",
@@ -7341,8 +7346,8 @@
           "md": "",
           "code": [
             {
-              "id": "seg_HTML_0",
-              "source": "App [\n    preview: HTML [ width = { parent.width }, height = 300, slot = \"run:demo\" ]\n]",
+              "id": "seg_DOMIsland_0",
+              "source": "App [\n    preview: DOMIsland [ width = { parent.width }, height = 300, slot = \"run:demo\" ]\n]",
               "lines": 3,
               "stageH": 324
             }
@@ -7355,7 +7360,7 @@
       "origin": "ts",
       "attributes": [
         {
-          "id": "HTML.slot",
+          "id": "DOMIsland.slot",
           "name": "slot",
           "kind": "attribute",
           "doc": "The host key — reflected onto the element as `data-declare-slot`, so the host can locate this box\nand mount foreign content into it. Set it to `\"\"` to mount nothing (a closed island); flip it\nto show or swap the tenant reactively.",
@@ -7367,13 +7372,13 @@
           ],
           "api": true,
           "source": {
-            "file": "runtime/src/schema.ts",
-            "line": 0
+            "file": "runtime/src/view.ts",
+            "line": 802
           },
-          "parent": "HTML",
+          "parent": "DOMIsland",
           "seeAlso": [],
           "type": "string",
-          "default": null,
+          "default": "\"\"",
           "prevailing": false,
           "readOnly": false,
           "inheritedFrom": null
@@ -8032,10 +8037,10 @@
     {
       "id": "DataSource",
       "name": "DataSource",
-      "doc": "A `Dataset` whose value arrives over HTTP — a reactive remote resource. The one thing to\nknow: **`fetch()` is explicit — a DataSource does not auto-load.** Call it when the data\nshould load (typically `onInit`, or on a user action); value and status then settle\n*together*, a frame ahead, so a constraint reading `.loaded` and one reading `.value`\nnever disagree. Read the lifecycle through bindings — `.loading`, `.loaded`, `.failed`,\n`.value`, `.error` — none are settable attributes; `clear()` returns it to idle.\n\n```declare\nweather: DataSource [ url = { `/api/weather?zip=${zip}` } ],\nonInit() { this.weather.fetch() },                       // nothing loads until you ask\nreport: View [ visible = { weather.loaded },\n    datapath = { weather.value?.rss?.channel } ]         // :paths below read the response\n```",
+      "doc": "A `Dataset` whose value arrives over HTTP — a reactive remote resource. The one thing to\nknow: **`fetch()` is explicit — a DataSource does not auto-load.** Call it when the data\nshould load (typically `onInit`, or on a user action); value and status then settle\n*together*, a frame ahead, so a constraint reading `.loaded` and one reading `.value`\nnever disagree. Read the lifecycle through bindings — `.loading`, `.loaded`, `.failed`,\n`.value`, `.error` — none are settable attributes; `clear()` returns it to idle. The\nresponse is parsed JSON by default; `format = \"text\"` fetches textual material instead —\na Markdown article, a source file — as one string (see `format`).\n\n```declare\nweather: DataSource [ url = { `/api/weather?zip=${zip}` } ],\nonInit() { this.weather.fetch() },                       // nothing loads until you ask\nreport: View [ visible = { weather.loaded },\n    datapath = { weather.value?.rss?.channel } ]         // :paths below read the response\n```",
       "docSegs": [
         {
-          "md": "A `Dataset` whose value arrives over HTTP — a reactive remote resource. The one thing to\nknow: **`fetch()` is explicit — a DataSource does not auto-load.** Call it when the data\nshould load (typically `onInit`, or on a user action); value and status then settle\n*together*, a frame ahead, so a constraint reading `.loaded` and one reading `.value`\nnever disagree. Read the lifecycle through bindings — `.loading`, `.loaded`, `.failed`,\n`.value`, `.error` — none are settable attributes; `clear()` returns it to idle.\n\n```declare\nweather: DataSource [ url = { `/api/weather?zip=${zip}` } ],\nonInit() { this.weather.fetch() },                       // nothing loads until you ask\nreport: View [ visible = { weather.loaded },\n    datapath = { weather.value?.rss?.channel } ]         // :paths below read the response\n```",
+          "md": "A `Dataset` whose value arrives over HTTP — a reactive remote resource. The one thing to\nknow: **`fetch()` is explicit — a DataSource does not auto-load.** Call it when the data\nshould load (typically `onInit`, or on a user action); value and status then settle\n*together*, a frame ahead, so a constraint reading `.loaded` and one reading `.value`\nnever disagree. Read the lifecycle through bindings — `.loading`, `.loaded`, `.failed`,\n`.value`, `.error` — none are settable attributes; `clear()` returns it to idle. The\nresponse is parsed JSON by default; `format = \"text\"` fetches textual material instead —\na Markdown article, a source file — as one string (see `format`).\n\n```declare\nweather: DataSource [ url = { `/api/weather?zip=${zip}` } ],\nonInit() { this.weather.fetch() },                       // nothing loads until you ask\nreport: View [ visible = { weather.loaded },\n    datapath = { weather.value?.rss?.channel } ]         // :paths below read the response\n```",
           "code": []
         }
       ],
@@ -8052,6 +8057,30 @@
           "docSegs": [
             {
               "md": "The resource URL — a literal or a `{ }` constraint, so the source **re-points reactively**:\nchange a dependency (a zip, a filter) and the *next* `fetch()` hits the new URL. Setting\n`url` never triggers a load on its own — fetching stays explicit.",
+              "code": []
+            }
+          ],
+          "api": true,
+          "source": {
+            "file": "runtime/src/schema.ts",
+            "line": 0
+          },
+          "parent": "DataSource",
+          "seeAlso": [],
+          "type": "string",
+          "default": null,
+          "prevailing": false,
+          "readOnly": false,
+          "inheritedFrom": null
+        },
+        {
+          "id": "DataSource.format",
+          "name": "format",
+          "kind": "attribute",
+          "doc": "What the fetched bytes **are**: `\"json\"` (the default) parses the response and tags it for\n`:path` navigation; `\"text\"` delivers the raw bytes as **one string** in `.value`. Text is\na first-class material, not a detail — it is how an authored Markdown file is loaded\n*directly*, with no JSON wrapping beside it: consume it whole, `text = { article.value || \"\" }`.\nA string has nothing to navigate into, so the structural machinery — `datapath`, `:path`,\n`schema`, `<->` — does not apply to a text source; the lifecycle (`fetch()`, `.loading`,\n`.loaded`, `.failed`) is identical. Loaded text renders clean through `Markdown`: HTML\ncomments in the file are annotation, and annotation never renders.\n\n```declare-fragment\narticle: DataSource [ url = \"guide.md\", format = \"text\" ],\ndoc: Markdown [ visible = { article.loaded }, text = { article.value || \"\" } ],\n```",
+          "docSegs": [
+            {
+              "md": "What the fetched bytes **are**: `\"json\"` (the default) parses the response and tags it for\n`:path` navigation; `\"text\"` delivers the raw bytes as **one string** in `.value`. Text is\na first-class material, not a detail — it is how an authored Markdown file is loaded\n*directly*, with no JSON wrapping beside it: consume it whole, `text = { article.value || \"\" }`.\nA string has nothing to navigate into, so the structural machinery — `datapath`, `:path`,\n`schema`, `<->` — does not apply to a text source; the lifecycle (`fetch()`, `.loading`,\n`.loaded`, `.failed`) is identical. Loaded text renders clean through `Markdown`: HTML\ncomments in the file are annotation, and annotation never renders.\n\n```declare-fragment\narticle: DataSource [ url = \"guide.md\", format = \"text\" ],\ndoc: Markdown [ visible = { article.loaded }, text = { article.value || \"\" } ],\n```",
               "code": []
             }
           ],

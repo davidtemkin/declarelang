@@ -52,7 +52,7 @@ No — and that's a feature. Styling is part of the language: paint attributes o
 
 ### Can I intermix React and Declare code?
 
-Side by side, yes; interleaved, no. A Declare app embeds in any page — including a React page (the repository carries a React re-implementation of this site's homepage, hosting live Declare demos, built for exactly this comparison). And inside a Declare program, the `HTML` island hosts foreign content — a video player, a code editor, a React widget — in a box the Declare tree sizes and positions. What you can't do is put a React component *inside* the Declare tree as if it were a Declare view, or vice versa. The boundary is always an island, which is what keeps both sides comprehensible.
+Side by side, yes; interleaved, no. A Declare app embeds in any page — including a React page (the repository carries a React re-implementation of this site's homepage, hosting live Declare demos, built for exactly this comparison). And inside a Declare program, the `DOMIsland` component hosts foreign content — a video player, a code editor, a React widget — in a box the Declare tree sizes and positions. What you can't do is put a React component *inside* the Declare tree as if it were a Declare view, or vice versa. The boundary is always an island, which is what keeps both sides comprehensible.
 
 ### How do I deep-link into an app? Is there a router?
 

@@ -1,3 +1,0 @@
-App [
-    preview: HTML [ width = { parent.width }, height = 300, slot = "run:demo" ]
-]

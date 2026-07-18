@@ -25,7 +25,7 @@ import {
   checkMethod,
   instantiate,
   build,
-  Html,
+  DOMIsland,
   Node,
   View,
   App,
@@ -277,11 +277,11 @@ await test("build() makes a typed tree with coerced attributes", () => {
   assert.equal(child.parent, app);
 });
 
-await test("HTML — a foreign-content island: a View sized by constraints, carrying a slot", () => {
+await test("DOMIsland — a foreign-content island: a View sized by constraints, carrying a slot", () => {
   const app = build(`App [ w: number = 200,
-    island: HTML [ x = 20, y = 10, width = { parent.w }, height = 120, slot = "edit:reactivity" ] ]`);
+    island: DOMIsland [ x = 20, y = 10, width = { parent.w }, height = 120, slot = "edit:reactivity" ] ]`);
   const island = app.children[0];
-  assert.ok(island instanceof Html);
+  assert.ok(island instanceof DOMIsland);
   assert.ok(island instanceof View);          // it lays out and constrains like any view
   assert.equal(island.slot, "edit:reactivity");
   assert.equal(island.width, 200);            // driven by the constraint on parent.w

@@ -396,14 +396,14 @@ export declare class App extends View {
      *  floor the derive (tracked reads, so a reactive floor re-applies live). */
     protected bindExtent(): void;
 }
-/** HTML — a foreign-content island (design: the `HTML [ … ]` view). A leaf View
+/** DOMIsland — a foreign-content island (design: the `DOMIsland [ … ]` view). A leaf View
  *  whose box Declare lays out and constrains normally, but whose interior is
  *  host-managed DOM: the `slot` key is reflected onto the element (DOM backend)
  *  so the host can mount an iframe / textarea / any element into the Declare-sized
  *  box — its width/height follow this view's constraints with no coordinate
  *  sync. (Canvas backend realizes the same island as a positioned DOM overlay
  *  — setEmbed is a no-op there for now.) */
-export declare class Html extends View {
+export declare class DOMIsland extends View {
     slot: string;
     protected flush(s: Surface): void;
 }

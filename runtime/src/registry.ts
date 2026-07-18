@@ -11,7 +11,7 @@
 // place an imperative `new Markdown()` in a body — or a future create-by-string —
 // resolves its class. Keep the table names in sync with schema.ts's SCHEMAS.
 
-import { View, App, Html } from "./view.js";
+import { View, App, DOMIsland } from "./view.js";
 import { Node } from "./node.js";
 import { Text } from "./text.js";
 import { Image } from "./image.js";
@@ -28,7 +28,7 @@ type ViewCtor = new () => View;
 /** Tag → runtime View class (the tree tags). `Node` is registered so a user can
  *  subclass it for a non-visual node (`class Store [ … ]`). */
 export const TAGS: Readonly<Record<string, ViewCtor>> = {
-  App, View, Text, Image, HTML: Html, TextInput, Markdown, HTMLText,
+  App, View, Text, Image, DOMIsland, TextInput, Markdown, HTMLText,
   Node: Node as unknown as ViewCtor,
 };
 
@@ -55,7 +55,7 @@ export const STATES: Readonly<Record<string, new () => State>> = { State };
 
 /** Every built-in component NAME the tables register — the vocabulary the used-
  *  set intersects to decide which classes a production bundle keeps. (Includes
- *  the `HTML` tag alias.) Consumed by the compiler side (declarec), never by the
+ *  each name maps to its export.) Consumed by the compiler side (declarec), never by the
  *  slimmed runtime, so it stays out of instantiate.ts's import surface. */
 export const REGISTRY_NAMES: readonly string[] = [
   ...Object.keys(TAGS), ...Object.keys(LAYOUTS), ...Object.keys(LAYOUT_BASES),
@@ -67,17 +67,17 @@ export const REGISTRY_NAMES: readonly string[] = [
  *  reads this to emit imports for ONLY the used classes; a test asserts the
  *  manifest's names match the tables above, so the two can never drift. */
 export interface RegistryEntry {
-  name: string;                    // the component name as written in markup (`HTML` alias included)
+  name: string;                    // the component name as written in markup
   table: "TAGS" | "LAYOUTS" | "LAYOUT_BASES" | "DATA" | "ANIMATORS" | "ANIMATOR_GROUPS" | "STATES";
   module: string;                  // the runtime dist module the class lives in ("markdown.js")
-  export: string;                  // the exported binding name there ("Html" for the `HTML` tag)
+  export: string;                  // the exported binding name there
 }
 export const REGISTRY_MANIFEST: readonly RegistryEntry[] = [
   { name: "App", table: "TAGS", module: "view.js", export: "App" },
   { name: "View", table: "TAGS", module: "view.js", export: "View" },
   { name: "Text", table: "TAGS", module: "text.js", export: "Text" },
   { name: "Image", table: "TAGS", module: "image.js", export: "Image" },
-  { name: "HTML", table: "TAGS", module: "view.js", export: "Html" },
+  { name: "DOMIsland", table: "TAGS", module: "view.js", export: "DOMIsland" },
   { name: "TextInput", table: "TAGS", module: "text-input.js", export: "TextInput" },
   { name: "Markdown", table: "TAGS", module: "markdown.js", export: "Markdown" },
   { name: "HTMLText", table: "TAGS", module: "markdown.js", export: "HTMLText" },

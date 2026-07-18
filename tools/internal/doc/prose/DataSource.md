@@ -3,13 +3,30 @@ know: **`fetch()` is explicit — a DataSource does not auto-load.** Call it whe
 should load (typically `onInit`, or on a user action); value and status then settle
 *together*, a frame ahead, so a constraint reading `.loaded` and one reading `.value`
 never disagree. Read the lifecycle through bindings — `.loading`, `.loaded`, `.failed`,
-`.value`, `.error` — none are settable attributes; `clear()` returns it to idle.
+`.value`, `.error` — none are settable attributes; `clear()` returns it to idle. The
+response is parsed JSON by default; `format = "text"` fetches textual material instead —
+a Markdown article, a source file — as one string (see `format`).
 
 ```declare
 weather: DataSource [ url = { `/api/weather?zip=${zip}` } ],
 onInit() { this.weather.fetch() },                       // nothing loads until you ask
 report: View [ visible = { weather.loaded },
     datapath = { weather.value?.rss?.channel } ]         // :paths below read the response
+```
+
+## format
+What the fetched bytes **are**: `"json"` (the default) parses the response and tags it for
+`:path` navigation; `"text"` delivers the raw bytes as **one string** in `.value`. Text is
+a first-class material, not a detail — it is how an authored Markdown file is loaded
+*directly*, with no JSON wrapping beside it: consume it whole, `text = { article.value || "" }`.
+A string has nothing to navigate into, so the structural machinery — `datapath`, `:path`,
+`schema`, `<->` — does not apply to a text source; the lifecycle (`fetch()`, `.loading`,
+`.loaded`, `.failed`) is identical. Loaded text renders clean through `Markdown`: HTML
+comments in the file are annotation, and annotation never renders.
+
+```declare-fragment
+article: DataSource [ url = "guide.md", format = "text" ],
+doc: Markdown [ visible = { article.loaded }, text = { article.value || "" } ],
 ```
 
 ## url

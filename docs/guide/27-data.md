@@ -71,6 +71,26 @@ report: View [ shown = {  weather.loaded }, … ],   // report screen — derive
 - Because the resource's *state* drives the tree, even navigation is a function of data:
   `.clear()` returns to the entry screen because both screens re-derive their `shown`.
 
+## Text is material too: `format = "text"`
+
+Not everything an app loads is structure. `format = "text"` makes a source deliver the
+fetched bytes as **one string** in `.value` — the whole file, unparsed — with the same
+explicit `fetch()` and the same derivable lifecycle:
+
+```declare-fragment
+article: DataSource [ url = "notes.md", format = "text" ],
+doc: Markdown [ visible = { article.loaded }, text = { article.value || "" } ],
+```
+
+The split is by what the material *is*. JSON is structure you address **into** — `:path`,
+replication, `schema`. Text is a document you render **whole** — there is nothing to
+navigate, so none of the structural machinery applies; the one string is read wherever a
+constraint wants it. This is how an authored Markdown file becomes an app's material
+*directly*, with no generated wrapper beside it — this site's FAQ, its Get Started page,
+and the language document itself are `.md` files fetched exactly this way. (HTML comments
+in a loaded file are annotation, and annotation never renders — so files carrying
+generator markers or editorial notes display clean.)
+
 ## Schema: validation at the boundary
 
 An optional `schema = [ field: type, arr[]: [ … ] ]` (brackets, never braces — a shape

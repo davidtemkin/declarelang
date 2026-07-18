@@ -434,7 +434,7 @@ below some size instead of reflowing.
 **The App fills its host by default** — the root is sized by its host, not its content, so
 `App [ … ]` with no size line fills the window and resizes with it; an explicit size makes
 a fixed widget. The host is the window for a top-level app and the **container element**
-for an embedded one — an app rendered inside another app's tree (an `HTML` island, a live
+for an embedded one — an app rendered inside another app's tree (a `DOMIsland`, a live
 preview) detects that automatically and wires to its container instead of seizing the
 window, so apps nest. `hostWidth`/`hostHeight` are read-only intrinsics for the rare app
 whose box is a nontrivial function of the host (aspect-locked); ordinary responsive code
@@ -482,7 +482,7 @@ any program URL returns the document a crawler gets.
 - **Fonts:** a top-level `font Sans [ family = "system-ui" ]` declares a family (web fonts
   declare `Face` children); `fontFamily = [Sans, "system-ui", "sans-serif"]` is a fallback
   list; `fontWeight`/`italic` pick the face at the use site.
-- **`HTML [ … ]`** is the deliberate escape: an island of foreign browser content inside
+- **`DOMIsland [ … ]`** is the deliberate escape: an island of foreign browser content inside
   the tree, interactive by nature — and the host for **embedded child apps** (a live
   preview is a Declare app running inside a Declare app, no iframe; see §10).
 - Drawing attributes on any view: `fill`, `stroke = { stroke(1, theme.line) }`,

@@ -335,7 +335,7 @@ App [ fill = { app.theme.bg },
         // the running program — an embedded child app in a host island, swapped
         // to each clean recompile (renderChild); a floor-declaring app pans here
 
-        run: HTML [ x = 0, y = { parent.editorH + 6 + (app.liveReport != "" ? parent.report.height : 0) },
+        run: DOMIsland [ x = 0, y = { parent.editorH + 6 + (app.liveReport != "" ? parent.report.height : 0) },
             width = { parent.width },
             height = { parent.height - this.y },
             slot = { app.mode == "edit" ? "run:__raw__" : "" } ],

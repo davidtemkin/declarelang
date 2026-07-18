@@ -8,7 +8,7 @@ crawler sees.
 
 An `App` fills its host, and there are two hosts, auto-detected. **Top-level**, the app fills
 the browser window and tracks its size. **Embedded** — running inside another program's
-`HTML` island — it fills that container instead. You write the same app either way; it reads
+`DOMIsland` — it fills that container instead. You write the same app either way; it reads
 `app.width`/`app.height` and adapts, whether those come from the window or a parent box.
 Below a declared floor (`App [ minWidth = 480 ]`) the app holds its size and the stage pans
 natively, rather than reflowing into an unusable shape.
