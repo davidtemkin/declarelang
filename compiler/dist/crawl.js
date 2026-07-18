@@ -49,7 +49,14 @@ function crawlTransport(opts, refusals, pending) {
         return p;
     };
     return (url) => {
-        const respond = (value) => ({ ok: true, status: 200, json: () => Promise.resolve(value) });
+        // Resolvers hand back the file's MATERIAL — parsed JSON, or the raw string
+        // for a text file. Both DataSource formats read from the one response: a
+        // `format = "text"` source takes the string; json takes the value.
+        const respond = (value) => ({
+            ok: true, status: 200,
+            json: () => Promise.resolve(value),
+            text: () => Promise.resolve(typeof value === "string" ? value : JSON.stringify(value)),
+        });
         if (Object.prototype.hasOwnProperty.call(fixtures, url))
             return track(Promise.resolve(respond(fixtures[url])));
         if (isAbsoluteUrl(url)) {

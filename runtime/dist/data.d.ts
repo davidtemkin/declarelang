@@ -64,6 +64,11 @@ export declare function provideTransport(fn: Transport): Transport;
  *  turn: value + status settle together, ahead of one frame. */
 export declare class DataSource extends Dataset {
     url: string;
+    /** What the bytes ARE: "json" (the default — parsed, `:path` navigable) or
+     *  "text" (the raw string as `value` — a Markdown article, a source file).
+     *  Text is a first-class material: an authored .md is fetched directly, no
+     *  JSON-wrapping projection beside it. */
+    format: "json" | "text";
     /** The lifecycle, as one fact; the four doc-named booleans derive below. */
     status: "idle" | "loading" | "loaded" | "failed";
     error: string | null;

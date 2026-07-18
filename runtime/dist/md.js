@@ -36,6 +36,27 @@ function parseBlocks(lines, lo, hi) {
             i++;
             continue;
         }
+        // An HTML comment is annotation, never content — assembler markers,
+        // editorial notes — so a comment-opening line consumes through its `-->`
+        // (however many lines away; unclosed runs to the end) and emits nothing.
+        // Text after the close on the same line re-enters the block scan. A
+        // comment INSIDE a fence is code and never reaches here (the fence branch
+        // owns its lines); a comment mid-paragraph is the inline scan's case.
+        if (line.trimStart().startsWith("<!--")) {
+            let j = i, k = line.indexOf("-->", line.indexOf("<!--") + 4);
+            while (k === -1 && ++j < hi)
+                k = lines[j].indexOf("-->");
+            if (j >= hi)
+                break;
+            const rest = lines[j].slice(k + 3);
+            if (rest.trim() !== "") {
+                lines[j] = rest;
+                i = j;
+            }
+            else
+                i = j + 1;
+            continue;
+        }
         // Thematic break (before list — `***` is a rule, not a bullet).
         if (RE_RULE.test(line)) {
             out.push({ t: "rule" });
@@ -292,6 +313,13 @@ export function parseInline(src) {
         }
         // Autolink <https://…>
         if (c === "<") {
+            // An inline HTML comment vanishes (annotation, never content — the
+            // block phase's rule, inside a run of text). Unclosed swallows the rest.
+            if (src.startsWith("<!--", i)) {
+                const close = src.indexOf("-->", i + 4);
+                i = close === -1 ? src.length : close + 3;
+                continue;
+            }
             const gt = src.indexOf(">", i + 1);
             if (gt !== -1) {
                 const url = src.slice(i + 1, gt);

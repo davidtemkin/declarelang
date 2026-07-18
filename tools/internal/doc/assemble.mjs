@@ -195,25 +195,20 @@ const targets = [
   // a gated generated copy cannot drift — divergence fails docs.test)
   { name: "skill-discovery-copy", isFile: true, path: ".claude/skills/declare/SKILL.md", next: skillTarget.next },
   // the homepage's FAQ view: same authored-page discipline as Get Started —
-  // the setup trio is a GENERATED block (the ops registry, compact form),
-  // and faq.json is the gated wrap the DataSource reads
+  // the setup trio is a GENERATED block (the ops registry, compact form). The
+  // DataSource reads the authored file ITSELF (format = "text"); the markers
+  // are HTML comments, which Markdown drops — no JSON wrap beside it.
   (() => {
     const bare = "```\n" + spine.commands.setup.steps.filter((x) => x.cmd).map((x) => x.cmd).join("\n") + "\n```";
     const p = join(ROOT, "apps/homepage/declare-faq.md");
     const next = injectStr(readFileSync(p, "utf8"), "setup-commands-bare", bare);
     return { name: "faq-md", isFile: true, path: "apps/homepage/declare-faq.md", next };
   })(),
-  { name: "faq-json", isFile: true, path: "apps/homepage/faq.json",
-    next: (() => {
-      const bare = "```\n" + spine.commands.setup.steps.filter((x) => x.cmd).map((x) => x.cmd).join("\n") + "\n```";
-      let md = injectStr(readFileSync(join(ROOT, "apps/homepage/declare-faq.md"), "utf8"), "setup-commands-bare", bare);
-      md = md.replace(/<!-- \/?generated:[a-z-]+ -->\n?/g, "");
-      return JSON.stringify({ markdown: md }) + "\n";
-    })() },
   // the homepage's Get Started view: an AUTHORED page (apps/homepage/
   // getstarted.md — the voice is the homepage's) whose commands and flagship
-  // example are GENERATED blocks, then JSON-wrapped for the DataSource — so
-  // neither the quick-start nor the example can drift from the live sources
+  // example are GENERATED blocks. The DataSource reads this file directly
+  // (format = "text"); the in-app Language view reads docs/declare.md itself
+  // the same way — the JSON-wrap projections retired with the text format.
   (() => {
     const p = join(ROOT, "apps/homepage/getstarted.md");
     let next = readFileSync(p, "utf8");
@@ -221,20 +216,6 @@ const targets = [
     next = injectStr(next, "flagship-example", flagshipExample);
     return { name: "getstarted-md", isFile: true, path: "apps/homepage/getstarted.md", next };
   })(),
-  { name: "getstarted-json", isFile: true, path: "apps/homepage/getstarted.json",
-    next: (() => {
-      let md = readFileSync(join(ROOT, "apps/homepage/getstarted.md"), "utf8");
-      md = injectStr(md, "setup-commands", setupBlock(spine));
-      md = injectStr(md, "flagship-example", flagshipExample);
-      md = md.replace(/<!-- \/?generated:[a-z-]+ -->\n?/g, "");
-      return JSON.stringify({ markdown: md }) + "\n";
-    })() },
-  // the homepage's in-app "one file" view: the core doc as the app's OWN
-  // material (docs/system-design/location.md §9 — beside the app, JSON-wrapped
-  // because DataSource/diskDataResolver speak JSON, not raw text). Gated like
-  // every projection, so the homepage can never render a drifted declare.md.
-  { name: "homepage-language", isFile: true, path: "apps/homepage/language.json",
-    next: JSON.stringify({ markdown: readFileSync(join(ROOT, "docs/declare.md"), "utf8") }) + "\n" },
 ];
 
 let stale = 0;

@@ -487,6 +487,8 @@ const DataSourceSchema: ComponentSchema = {
   base: DatasetSchema,
   attrs: {
     url: { kind: "string" },
+    // "json" (default) or "text" — what the fetched bytes are (data.ts).
+    format: { kind: "string" },
   },
 };
 

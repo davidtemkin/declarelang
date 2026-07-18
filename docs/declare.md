@@ -295,6 +295,11 @@ App [ width = 420, height = 260, fill = #0B141B, textColor = gainsboro,
   `shown = { data.loaded }` — instead of being toggled imperatively. Even "navigation" can
   be a function of data: `.clear()` returns to the entry screen because both screens
   re-derive.
+- `format = "text"` fetches the bytes as one **string** in `.value` (the default is
+  `"json"`, parsed and `:path`-navigable). Text is for textual material rendered whole —
+  `doc: Markdown [ text = { article.value || "" } ]` over an authored `.md` file, no
+  JSON wrapping. (Markdown drops HTML comments — annotation in a loaded file never
+  renders.)
 - An optional `schema = [ field: type, arr[]: [ … ] ]` (brackets, never braces — a shape
   *declares*, it doesn't run) does two things: the response is **validated at the
   boundary** on receipt (malformed data yields `.failed`/`.error`, never `undefined` three

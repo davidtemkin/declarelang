@@ -96,7 +96,7 @@ Declare abstracts the renderer away — you declare what the UI is, and the runt
 <p>·</p>
 <p>© 2026 David Temkin</p>
 <a href="#home"><p>Declare</p></a>
-<a href="#getstarted"><p>Get Started</p></a>
+<a href="#getstarted"><p>Getting Started</p></a>
 <a href="#why"><p>Why Declare</p></a>
 <a href="#faq"><p>FAQ</p></a>
 <a href="apps/calendar/calendar.declare"><p>Declare Calendar</p></a>
@@ -128,7 +128,7 @@ Declare abstracts the renderer away — you declare what the UI is, and the runt
 <p>·</p>
 <p>© 2026 David Temkin</p>
 <a href="#home"><h3>Declare</h3></a>
-<a href="#getstarted"><p>Get Started</p></a>
+<a href="#getstarted"><p>Getting Started</p></a>
 <a href="#why"><p>Why Declare</p></a>
 <a href="#faq"><p>FAQ</p></a>
 <a href="apps/calendar/calendar.declare"><p>Declare Calendar</p></a>
@@ -251,7 +251,7 @@ text  = { data.failed ? data.error : "Loading…" },   // reacts to a data resou
         ],
     ]</code></pre>
 <ul><li><code>key = :field</code> makes replication <strong>keyed</strong>: when data changes, instances are reconciled by that field — only the changed rows rebuild. The replicated node itself is anonymous, but names <em>inside</em> it (<code>n:</code>, <code>s:</code> above) are fine — they resolve per instance.</li><li>A <strong><code>DataSource</code></strong> is a remote resource whose lifecycle is reactive state: <code>url</code>, explicit <strong><code>.fetch()</code></strong> (nothing loads automatically), then <code>.idle / .loading / .loaded /
-.failed</code>, <code>.value</code>, <code>.error</code>, <code>.clear()</code>. Screens <em>derive</em> from it — <code>shown = { data.loaded }</code> — instead of being toggled imperatively. Even "navigation" can be a function of data: <code>.clear()</code> returns to the entry screen because both screens re-derive.</li><li>An optional <code>schema = [ field: type, arr[]: [ … ] ]</code> (brackets, never braces — a shape <em>declares</em>, it doesn't run) does two things: the response is <strong>validated at the boundary</strong> on receipt (malformed data yields <code>.failed</code>/<code>.error</code>, never <code>undefined</code> three layers into a binding), and every <code>:path</code> is <strong>checked statically</strong> against the shape. With no schema, paths are dynamic: an unresolved path yields null and the bound attribute falls back to its default.</li><li>Reads inside constraints: <code>data.read(["events"])</code> is a tracked read of a region (literal path). Mutation: <code>data.set("events.3.d", 14)</code> — writes wake exactly what derives from them, keyed replication rebuilds only the changed rows.</li><li><strong>Two-way is opt-in with <code>&lt;-&gt;</code>, for leaf editors only:</strong> <code>TextInput [ text &lt;-&gt; :title ]</code> or <code>value &lt;-&gt; zip</code>. One-way <code>:path</code> everywhere else.</li><li>A derived dataset recomputes from its inputs: <code>cal: Dataset [ contents = { app.buildModel() } ]</code> — build the model <em>as a derivation</em> and navigation reduces to setting state.</li></ul>
+.failed</code>, <code>.value</code>, <code>.error</code>, <code>.clear()</code>. Screens <em>derive</em> from it — <code>shown = { data.loaded }</code> — instead of being toggled imperatively. Even "navigation" can be a function of data: <code>.clear()</code> returns to the entry screen because both screens re-derive.</li><li><code>format = "text"</code> fetches the bytes as one <strong>string</strong> in <code>.value</code> (the default is <code>"json"</code>, parsed and <code>:path</code>-navigable). Text is for textual material rendered whole — <code>doc: Markdown [ text = { article.value || "" } ]</code> over an authored <code>.md</code> file, no JSON wrapping. (Markdown drops HTML comments — annotation in a loaded file never renders.)</li><li>An optional <code>schema = [ field: type, arr[]: [ … ] ]</code> (brackets, never braces — a shape <em>declares</em>, it doesn't run) does two things: the response is <strong>validated at the boundary</strong> on receipt (malformed data yields <code>.failed</code>/<code>.error</code>, never <code>undefined</code> three layers into a binding), and every <code>:path</code> is <strong>checked statically</strong> against the shape. With no schema, paths are dynamic: an unresolved path yields null and the bound attribute falls back to its default.</li><li>Reads inside constraints: <code>data.read(["events"])</code> is a tracked read of a region (literal path). Mutation: <code>data.set("events.3.d", 14)</code> — writes wake exactly what derives from them, keyed replication rebuilds only the changed rows.</li><li><strong>Two-way is opt-in with <code>&lt;-&gt;</code>, for leaf editors only:</strong> <code>TextInput [ text &lt;-&gt; :title ]</code> or <code>value &lt;-&gt; zip</code>. One-way <code>:path</code> everywhere else.</li><li>A derived dataset recomputes from its inputs: <code>cal: Dataset [ contents = { app.buildModel() } ]</code> — build the model <em>as a derivation</em> and navigation reduces to setting state.</li></ul>
 <h2>8. States and motion</h2>
 <p>A <strong>state</strong> is a named, reversible bundle of attribute overrides, applied while a condition holds — the declarative replacement for mode-toggling:</p>
 <pre><code class="language-declare">App [ width = 360, height = 240, fill = #0B141B, textColor = whitesmoke,
@@ -347,7 +347,7 @@ theme = { app.dark ? app.darkTheme() : app.lightTheme() },   // light/dark: swap
 <p>·</p>
 <p>© 2026 David Temkin</p>
 <a href="#home"><h1>Declare</h1></a>
-<a href="#getstarted"><p>Get Started</p></a>
+<a href="#getstarted"><p>Getting Started</p></a>
 <a href="#why"><p>Why Declare</p></a>
 <a href="#faq"><p>FAQ</p></a>
 <a href="apps/calendar/calendar.declare"><p>Declare Calendar</p></a>
@@ -355,8 +355,8 @@ theme = { app.dark ? app.darkTheme() : app.lightTheme() },   // light/dark: swap
 <a href="https://github.com/davidtemkin/declarelang"><p>GitHub</p></a>
 </section>
 <section id="getstarted">
-<p>GET STARTED</p>
-<h1>Get started</h1>
+<p>GETTING STARTED</p>
+<h1>Getting started</h1>
 <p>Just as SQL is a domain-specific language for querying data, Declare is purpose-built for creating modern UIs. Here is how to run it locally and write your first program — no build step, no scaffold, no config.</p>
 <h2>Quick start</h2>
 <pre><code class="language-bash">git clone https://github.com/davidtemkin/declarelang.git &amp;&amp; cd declarelang</code></pre>
@@ -365,7 +365,7 @@ theme = { app.dark ? app.darkTheme() : app.lightTheme() },   // light/dark: swap
 <p>Install the toolchain's dependencies (TypeScript; esbuild and puppeteer-core for builds and visual tests). The clone ships prebuilt — no build step before first run.</p>
 <pre><code class="language-bash">npm start</code></pre>
 <p>Start the dev server on http://127.0.0.1:8200/ — browse to any .declare file's URL and the server compiles and returns the running app.</p>
-<p>Write a program to my-apps/hello.declare and browse to http://127.0.0.1:8200/my-apps/hello.declare — the program URL is the app's address.</p>
+<p>Write a program to my-apps/hello.declare and browse to http://127.0.0.1:8200/my-apps/hello.declare — the program URL is the app's address. </p>
 <h2>The whole model in one program</h2>
 <pre><code class="language-declare">App [ width = 400, height = 140, fill = darkslategray, textColor = whitesmoke,
 
@@ -390,7 +390,7 @@ theme = { app.dark ? app.darkTheme() : app.lightTheme() },   // light/dark: swap
 <p>·</p>
 <p>© 2026 David Temkin</p>
 <a href="#home"><h1>Declare</h1></a>
-<a href="#getstarted"><p>Get Started</p></a>
+<a href="#getstarted"><p>Getting Started</p></a>
 <a href="#why"><p>Why Declare</p></a>
 <a href="#faq"><p>FAQ</p></a>
 <a href="apps/calendar/calendar.declare"><p>Declare Calendar</p></a>
@@ -406,7 +406,7 @@ theme = { app.dark ? app.darkTheme() : app.lightTheme() },   // light/dark: swap
 <h3>Why should I use it?</h3>
 <p>Because most of what makes UI code hard isn't your application — it's the plumbing. In Declare there is no render lifecycle to manage, no state synchronization to orchestrate, no CSS cascade to fight, no build pipeline to configure. An application is a readable tree of declarations: the flagship calendar — four views, continuous zoom, drag-to-reschedule — is a few hundred lines you can read end to end, and it ships smaller than the <em>runtime alone</em> of most frameworks. And Declare is built for the era when much code is written by machines: the language is small enough to hand a model in its entirety, and strict enough to verify what comes back.</p>
 <h3>What kinds of applications is it designed to build?</h3>
-<p>Continuous, dynamic interfaces — the app-like web rather than the page-like web: calendars, dashboards, editors, data tools, product sites. Text and documents are first-class too (Markdown rendering is built in), so content-heavy apps work well. Everything on this site is a Declare program: the homepage you're reading, the documentation app, the calendar.</p>
+<p>Any kind of data-driven application, at any level of interactivity — Declare is designed for everyday apps with everyday needs: forms, lists, settings screens, dashboards, admin tools. It is especially well suited to continuous, dynamic interfaces — the app-like web rather than the page-like web: calendars, editors, data tools, product sites. Text and documents are first-class too (Markdown rendering is built in), so content-heavy apps work well. Everything on this site is a Declare program: the homepage you're reading, the documentation app, the calendar.</p>
 <h3>What specific features make it well-suited to continuous, dynamic user experiences?</h3>
 <p>Time and change live in the language instead of being bolted on:</p>
 <ul><li><strong>Constraints</strong> — any attribute can be a <code>{ }</code> expression; the compiler works out what it depends on, and it stays current. No re-render ceremony, no manual subscriptions.</li><li><strong>Animation as declaration</strong> — springs and animators are attributes; states are named bundles of overrides you can be <em>in</em> or <em>not in</em>.</li><li><strong>Layout as an attribute</strong> — how a view arranges its children is a value you set, not a system you fight.</li><li><strong>Data binding</strong> — UI replicates over data with a cursor (<code>datapath</code>), and two-way binding connects editable fields to the data they edit.</li><li><strong>One input model</strong> — pointer and keyboard events are routed identically on every renderer, with a built-in keyboard focus system.</li></ul>
@@ -487,7 +487,7 @@ npm start</code></pre>
 <p>·</p>
 <p>© 2026 David Temkin</p>
 <a href="#home"><h1>Declare</h1></a>
-<a href="#getstarted"><p>Get Started</p></a>
+<a href="#getstarted"><p>Getting Started</p></a>
 <a href="#why"><p>Why Declare</p></a>
 <a href="#faq"><p>FAQ</p></a>
 <a href="apps/calendar/calendar.declare"><p>Declare Calendar</p></a>

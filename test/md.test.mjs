@@ -183,5 +183,41 @@ test("nested emphasis inside strong", () => {
   assert.ok(n[0].inline.some((x) => x.t === "em"));
 });
 
+// ── HTML comments: annotation, never content ────────────────────────────────
+
+test("comment lines vanish at the block level (assembler markers in a loaded .md)", () => {
+  const b = parse("before\n\n<!-- generated:x -->\n\ncontent\n\n<!-- /generated:x -->\n\nafter");
+  assert.deepEqual(types(b), ["paragraph", "paragraph", "paragraph"]);
+  assert.equal(b[1].inline[0].value, "content");
+});
+
+test("a multi-line block comment consumes through its close", () => {
+  const b = parse("a\n\n<!-- one\ntwo\nthree -->\n\nb");
+  assert.deepEqual(types(b), ["paragraph", "paragraph"]);
+});
+
+test("text after a block comment's close on the same line re-enters the scan", () => {
+  const b = parse("<!-- note -->survivor");
+  assert.equal(b[0].t, "paragraph");
+  assert.equal(b[0].inline[0].value, "survivor");
+});
+
+test("an inline comment vanishes mid-paragraph", () => {
+  const joined = parseInline("keep <!-- drop --> this").map((x) => x.value ?? "").join("");
+  assert.ok(!joined.includes("drop"));
+  assert.ok(joined.includes("keep") && joined.includes("this"));
+});
+
+test("a comment inside a fence is code, preserved", () => {
+  const b = parse("```html\n<!-- generated:x -->\n```");
+  assert.equal(b[0].t, "code");
+  assert.ok(b[0].text.includes("<!-- generated:x -->"));
+});
+
+test("a comment inside a code span is code, preserved", () => {
+  const n = parseInline("use `<!-- marker -->` syntax");
+  assert.ok(n.some((x) => x.t === "code" && x.value === "<!-- marker -->"));
+});
+
 console.log(`\nmd: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -51,8 +51,12 @@ async function run() {
     // an absolute url is the network and fails the crawl loudly (the error page).
     const html = compiled.source === null ? null : await mod.crawlDocument(compiled.source, {
       deps: compiled.deps, links: compiled.links,
+      // Parse-else-raw, matching diskDataResolver byte for byte: JSON is the
+      // parsed value, a text file (a Markdown article) is its raw string.
       data: (url) => fetch(new URL(url, target), { cache: "no-cache" })
-        .then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        .then((r) => (r.ok ? r.text() : null))
+        .then((raw) => { if (raw === null) return null; try { return JSON.parse(raw); } catch { return raw; } })
+        .catch(() => null),
     });
     const esc = (s) => s.replace(/[&<]/g, (c) => (c === "&" ? "&amp;" : "&lt;"));
     const doc = html === null

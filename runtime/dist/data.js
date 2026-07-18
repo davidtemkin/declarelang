@@ -263,10 +263,10 @@ export class DataSource extends Dataset {
             const res = await transport(this.url);
             if (!res.ok)
                 throw new Error(`HTTP ${res.status} for ${this.url}`);
-            const json = await res.json();
+            const value = this.format === "text" ? await res.text() : await res.json();
             if (seq !== this.seq)
                 return; // superseded
-            setBound(this, "value", json);
+            setBound(this, "value", value);
             setBound(this, "status", "loaded");
         }
         catch (e) {
@@ -286,6 +286,7 @@ export class DataSource extends Dataset {
 }
 defineAttributes(DataSource, {
     url: { def: "" },
+    format: { def: "json" },
     status: { def: "idle" },
     error: { def: null },
 });

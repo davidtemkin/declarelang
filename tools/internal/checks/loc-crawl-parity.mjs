@@ -25,8 +25,11 @@ for (const rel of ["apps/homepage/homepage.declare", "apps/docs/docs.declare"]) 
     const m = await import("/bundles/declare-compiler.js");
     return m.crawlDocument(src, {
       deps, links,
+      // parse-else-raw — the boot-extract resolver's shape, diskDataResolver's twin
       data: (url) => fetch(new URL(url, location.origin + "/" + base), { cache: "no-cache" })
-        .then((res) => (res.ok ? res.json() : null)).catch(() => null),
+        .then((res) => (res.ok ? res.text() : null))
+        .then((raw) => { if (raw === null) return null; try { return JSON.parse(raw); } catch { return raw; } })
+        .catch(() => null),
     });
   }, r.source, r.deps, r.links, rel);
 

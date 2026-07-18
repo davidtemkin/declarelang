@@ -70,8 +70,15 @@ function crawlTransport(opts: CrawlOptions, refusals: Map<string, string>, pendi
     p.catch(() => {}).finally(() => pending.delete(p as Promise<unknown>));
     return p;
   };
-  return (url: string): Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }> => {
-    const respond = (value: unknown) => ({ ok: true, status: 200, json: () => Promise.resolve(value) });
+  return (url: string): Promise<{ ok: boolean; status: number; json: () => Promise<unknown>; text: () => Promise<string> }> => {
+    // Resolvers hand back the file's MATERIAL — parsed JSON, or the raw string
+    // for a text file. Both DataSource formats read from the one response: a
+    // `format = "text"` source takes the string; json takes the value.
+    const respond = (value: unknown) => ({
+      ok: true, status: 200,
+      json: () => Promise.resolve(value),
+      text: () => Promise.resolve(typeof value === "string" ? value : JSON.stringify(value)),
+    });
     if (Object.prototype.hasOwnProperty.call(fixtures, url)) return track(Promise.resolve(respond(fixtures[url])));
     if (isAbsoluteUrl(url)) {
       refusals.set(url, "a network url — network-fetched data is never indexed (docs/system-design/location.md §9)");

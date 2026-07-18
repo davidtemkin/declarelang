@@ -12,7 +12,7 @@ Because most of what makes UI code hard isn't your application — it's the plum
 
 ### What kinds of applications is it designed to build?
 
-Continuous, dynamic interfaces — the app-like web rather than the page-like web: calendars, dashboards, editors, data tools, product sites. Text and documents are first-class too (Markdown rendering is built in), so content-heavy apps work well. Everything on this site is a Declare program: the homepage you're reading, the documentation app, the calendar.
+Any kind of data-driven application, at any level of interactivity — Declare is designed for everyday apps with everyday needs: forms, lists, settings screens, dashboards, admin tools. It is especially well suited to continuous, dynamic interfaces — the app-like web rather than the page-like web: calendars, editors, data tools, product sites. Text and documents are first-class too (Markdown rendering is built in), so content-heavy apps work well. Everything on this site is a Declare program: the homepage you're reading, the documentation app, the calendar.
 
 ### What specific features make it well-suited to continuous, dynamic user experiences?
 

@@ -276,6 +276,11 @@ export function provideTransport(fn: Transport): Transport {
  *  turn: value + status settle together, ahead of one frame. */
 export class DataSource extends Dataset {
   declare url: string;
+  /** What the bytes ARE: "json" (the default — parsed, `:path` navigable) or
+   *  "text" (the raw string as `value` — a Markdown article, a source file).
+   *  Text is a first-class material: an authored .md is fetched directly, no
+   *  JSON-wrapping projection beside it. */
+  declare format: "json" | "text";
   /** The lifecycle, as one fact; the four doc-named booleans derive below. */
   declare status: "idle" | "loading" | "loaded" | "failed";
   declare error: string | null;
@@ -302,9 +307,9 @@ export class DataSource extends Dataset {
     try {
       const res = await transport(this.url);
       if (!res.ok) throw new Error(`HTTP ${res.status} for ${this.url}`);
-      const json: unknown = await res.json();
+      const value: unknown = this.format === "text" ? await res.text() : await res.json();
       if (seq !== this.seq) return; // superseded
-      setBound(this, "value", json);
+      setBound(this, "value", value);
       setBound(this, "status", "loaded");
     } catch (e) {
       if (seq !== this.seq) return;
@@ -324,6 +329,7 @@ export class DataSource extends Dataset {
 
 defineAttributes(DataSource, {
   url: { def: "" },
+  format: { def: "json" },
   status: { def: "idle" },
   error: { def: null },
 });

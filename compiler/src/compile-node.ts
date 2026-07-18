@@ -58,10 +58,18 @@ const LIBRARY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../lib
  *  the two crawls read the same bytes. */
 export function diskDataResolver(originDir: string): (url: string) => unknown {
   return (url: string): unknown => {
+    let raw: string;
     try {
-      return JSON.parse(readFileSync(resolve(originDir, url), "utf8"));
+      raw = readFileSync(resolve(originDir, url), "utf8");
     } catch {
       return null;
+    }
+    // The file's MATERIAL: parsed JSON when it is JSON, the raw string when it
+    // is text (a Markdown article a `format = "text"` source reads verbatim).
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return raw;
     }
   };
 }

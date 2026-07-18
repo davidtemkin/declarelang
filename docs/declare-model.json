@@ -251,7 +251,8 @@
    "DataSource": {
     "base": "Dataset",
     "attrs": {
-     "url": "string"
+     "url": "string",
+     "format": "string"
     },
     "prevailing": [],
     "readOnly": [],

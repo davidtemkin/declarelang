@@ -444,6 +444,8 @@ const DataSourceSchema = {
     base: DatasetSchema,
     attrs: {
         url: { kind: "string" },
+        // "json" (default) or "text" — what the fetched bytes are (data.ts).
+        format: { kind: "string" },
     },
 };
 // Animation v1 (animation.md §1). An Animator is an ordinary twin-table

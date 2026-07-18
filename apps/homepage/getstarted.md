@@ -1,4 +1,4 @@
-# Get started
+# Getting started
 
 Just as SQL is a domain-specific language for querying data, Declare is purpose-built for creating modern UIs. Here is how to run it locally and write your first program — no build step, no scaffold, no config.
 

@@ -2096,6 +2096,22 @@ await test("DataSource lifecycle: loading → loaded, one arrival burst", async 
   }
 });
 
+await test('DataSource format = "text": the raw string lands in value (an .md fetched directly)', async () => {
+  const realFetch = globalThis.fetch;
+  try {
+    const md = "# Title\n\n<!-- generated:x -->\nbody\n<!-- /generated:x -->\n";
+    globalThis.fetch = async () => ({ ok: true, text: async () => md, json: async () => { throw new Error("json() must not be called for text"); } });
+    const src = new DataSource();
+    src.url = "article.md";
+    src.format = "text";
+    await src.fetch();
+    assert.equal(src.status, "loaded");
+    assert.equal(src.value, md, "the bytes, as one string — no parsing, no wrapping");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
 await test("DataSource failure surfaces as .failed + .error; stale arrivals are discarded", async () => {
   const realFetch = globalThis.fetch;
   try {
