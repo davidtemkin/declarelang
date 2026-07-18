@@ -494,14 +494,33 @@ class ChapterDetail extends View [ width = { parent.width },
     pageLive: boolean = { app.mode == "guide" && app.chapter == classroot.cid },
     layout: SimpleLayout [ axis = y, spacing = 20 ],
 
+    // The chapter's content is its OWN file (chapters/<id>.json — the
+    // extractor's per-chapter projection), fetched EAGERLY at construction:
+    // the model carries only the spine, first paint waits only for the
+    // chapter the location names, and the rest stream in behind it — so
+    // switches are instant once landed, and a future in-app search can
+    // derive over the whole resident fleet. The crawl pulls these files
+    // through its data resolver; a missing one fails the build loudly.
+
+    src: DataSource [ ],
+    onInit() { this.src.url = "chapters/" + :id + ".json"; this.src.fetch() },
+
+    loading: Text [ visible = { classroot.src.loading }, fontSize = { 14 * app.fontScale }, textColor = { theme.muted }, text = "Loading the chapter…" ],
+    failed:  Text [ visible = { classroot.src.failed }, fontSize = { 14 * app.fontScale }, textColor = { theme.muted }, wrap = true, width = { parent.width },
+        text = { "The chapter did not load — " + (classroot.src.error || "") } ],
+
     // the guide is the primary reading surface: brighter body, looser leading (Segment defaults)
 
-    Segment [ datapath = :segs[], width = { parent.width }, live = { classroot.pageLive } ],
+    content: View [ width = { parent.width }, visible = { classroot.src.loaded }, datapath = { classroot.src.value },
+        layout: SimpleLayout [ axis = y, spacing = 20 ],
 
-    // a flagship runnable example the chapter opts into with `<!-- demo: <Class> -->`
+        Segment [ datapath = :segs[], width = { parent.width }, live = { classroot.pageLive } ],
 
-    demoBox: View [ width = { parent.width }, visible = { :demo.length > 0 },
-        Example [ datapath = :demo[], width = { parent.width }, live = { classroot.pageLive } ],
+        // a flagship runnable example the chapter opts into with `<!-- demo: <Class> -->`
+
+        demoBox: View [ width = { parent.width }, visible = { :demo.length > 0 },
+            Example [ datapath = :demo[], width = { parent.width }, live = { classroot.pageLive } ],
+            ],
         ],
     tail: View [ width = { parent.width }, height = 60 ],
     ]

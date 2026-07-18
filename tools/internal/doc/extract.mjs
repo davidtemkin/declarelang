@@ -13,7 +13,7 @@
 //
 // Run after `npm run build` (needs runtime/dist).
 
-import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
@@ -400,7 +400,7 @@ function readGuide() {
       .trim();
     const short = title.split("—")[0].trim();             // rail label: text before the em-dash
     const id = f.replace(/\.md$/, "");
-    return { id, num, title, short, part: partOf(num), markdown: md, segs: segmentize(md, "ch_" + id), demo };
+    return { id, num, title, short, part: partOf(num), segs: segmentize(md, "ch_" + id), demo };
   });
   const guideParts = [];
   for (const ch of guide) {
@@ -422,7 +422,26 @@ for (const [id, src] of Object.entries(genFiles)) {
   writeFileSync(path.join(DEMOS, id + ".declare"), src + "\n");
 }
 
-const model = { version: 1, buildId, nodes, roots, tree, guide, guideParts };
+// ── per-chapter content files (apps/docs/chapters/<id>.json) ──
+// The model carries the guide SPINE (id/num/title/short/part — what the rail
+// and cross-links need); each chapter's content ({ segs, demo }) is its own
+// generated file, fetched by the chapter's DataSource. Boot loads the spine
+// and streams chapters behind it; the crawl fetches them through the data
+// resolver, so a missing chapter fails the build loudly (never a silently
+// thinner document). Stale files from renamed/removed chapters are cleaned
+// first so nothing orphans.
+const CHAPTERS = path.join(ROOT, "apps/docs/chapters");
+if (!existsSync(CHAPTERS)) mkdirSync(CHAPTERS);
+const live = new Set(guide.map((ch) => ch.id + ".json"));
+for (const f of readdirSync(CHAPTERS)) {
+  if (f.endsWith(".json") && !live.has(f)) unlinkSync(path.join(CHAPTERS, f));
+}
+for (const ch of guide) {
+  writeFileSync(path.join(CHAPTERS, ch.id + ".json"), JSON.stringify({ segs: ch.segs, demo: ch.demo }) + "\n");
+}
+const spine = guide.map(({ id, num, title, short, part }) => ({ id, num, title, short, part }));
+
+const model = { version: 1, buildId, nodes, roots, tree, guide: spine, guideParts };
 writeFileSync(OUT, JSON.stringify(model, null, 2) + "\n");
 
 // ── report ──
