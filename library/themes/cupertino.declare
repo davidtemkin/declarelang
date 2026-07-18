@@ -1,0 +1,36 @@
+/*
+# Cupertino
+
+The Apple-fidelity record (library-charter §6: emulations are DATA riding
+one machinery, never code paths): macOS metrics — compact controls, 6px
+radii, the tight hairline focus halo hugging the control (gap 0), the
+System-Settings disabled treatment. The type stack (SF via -apple-system)
+is the consuming app's `fontFamily`, not a theme token.
+*/
+
+stylesheet Cupertino [
+    theme: Theme [
+        bg = #F5F5F7, surface = #FFFFFF, line = #C6C6C8,
+        text = #1D1D1F, textMuted = #6E6E73, textFaint = #AAB4BE,
+        accent = #007AFF, accentText = #FFFFFF,
+        control = #FFFFFF, controlActive = #E8F0FE,
+        depth = 1, focusRing = true,
+        controlRadius = 6, buttonRadius = 6, fieldRadius = 6, fieldPadding = 7,
+        buttonHeight = 28, switchWidth = 40, switchHeight = 24,
+        focusRingWidth = 3.5, focusRingGap = 0,
+        checkboxSize = 14, checkboxRadius = 3.5, disabledOpacity = 0.5 ],
+    ]
+
+
+stylesheet CupertinoDark [
+    theme: Theme [
+        bg = #1E1E1E, surface = #2C2C2E, line = #48484A,
+        text = #F2F2F7, textMuted = #98989D, textFaint = #AAB4BE,
+        accent = #0A84FF, accentText = #FFFFFF,
+        control = #3A3A3C, controlActive = #1C3D5F,
+        depth = 1, focusRing = true,
+        controlRadius = 6, buttonRadius = 6, fieldRadius = 6, fieldPadding = 7,
+        buttonHeight = 28, switchWidth = 40, switchHeight = 24,
+        focusRingWidth = 3.5, focusRingGap = 0,
+        checkboxSize = 14, checkboxRadius = 3.5, disabledOpacity = 0.5 ],
+    ]

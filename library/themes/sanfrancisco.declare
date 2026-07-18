@@ -1,0 +1,34 @@
+/*
+# San Francisco
+
+Declare's own look — named for where Declare is made — and ALSO the
+zero-declaration default: an app that never mentions a theme renders
+`SanFrancisco` (the light record), always (the determinism ruling,
+components-baseline.md Contract 2). These stylesheets are the AUTHORED
+truth for the preset: `tools/internal/gen-themes.mjs` projects every
+`library/themes/*.declare` theme record into `runtime/src/themes-data.ts`
+(gated for freshness), where `Themes.sanFrancisco(dark)` and the value.ts
+`DEFAULT_THEME` alias read them — one source, in the language.
+
+A record is COMPLETE, not a delta: every token the standard library
+consults is stated, so a preset reads whole with nothing to chase.
+*/
+
+stylesheet SanFrancisco [
+    theme: Theme [
+        bg = #F4F6FA, surface = #FFFFFF, line = #DBE1E9,
+        text = #1B2733, textMuted = #6C7A88, textFaint = #AAB4BE,
+        accent = #2E6FE0, accentText = #FFFFFF,
+        control = #E7EBF1, controlActive = #D3E2FC,
+        depth = 1, focusRing = true, controlRadius = 7 ],
+    ]
+
+
+stylesheet SanFranciscoDark [
+    theme: Theme [
+        bg = #0F1620, surface = #18212C, line = #2A3642,
+        text = #E7EEF2, textMuted = #9DB0BC, textFaint = #556673,
+        accent = #4C8DFF, accentText = #FFFFFF,
+        control = #223040, controlActive = #1F3B54,
+        depth = 1, focusRing = true, controlRadius = 7 ],
+    ]

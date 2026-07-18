@@ -1,4 +1,4 @@
-import { type Theme } from "./value.js";
+import type { Theme } from "./value.js";
 export declare const Themes: Readonly<{
     sanFrancisco: (dark?: boolean) => Theme;
     cupertino: (dark?: boolean) => Theme;

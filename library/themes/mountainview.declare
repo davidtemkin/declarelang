@@ -1,0 +1,36 @@
+/*
+# Mountain View
+
+The Material 3 record: pill buttons (buttonRadius saturates at half the
+height), square-ish fields, the grow-on-check switch thumb
+(switchThumbOff < the checked size), the bar-handle slider with its track
+gap, M3's 38% disabled opacity, and the offset focus indicator
+(width 3, gap 2). Roboto is the consuming app's `fontFamily`.
+*/
+
+stylesheet MountainView [
+    theme: Theme [
+        bg = #FFFBFE, surface = #FFFFFF, line = #79747E,
+        text = #1C1B1F, textMuted = #49454F, textFaint = #AAB4BE,
+        accent = #6750A4, accentText = #FFFFFF,
+        control = #E7E0EC, controlActive = #E8DEF8,
+        depth = 1, focusRing = true,
+        controlRadius = 4, buttonRadius = 999, fieldRadius = 4, fieldPadding = 12,
+        buttonHeight = 40, switchWidth = 52, switchHeight = 32, switchThumbOff = 16,
+        focusRingWidth = 3, focusRingGap = 2, sliderHandle = "bar",
+        checkboxSize = 18, checkboxRadius = 2, disabledOpacity = 0.38 ],
+    ]
+
+
+stylesheet MountainViewDark [
+    theme: Theme [
+        bg = #141218, surface = #211F26, line = #938F99,
+        text = #E6E0E9, textMuted = #CAC4D0, textFaint = #AAB4BE,
+        accent = #D0BCFF, accentText = #381E72,
+        control = #49454F, controlActive = #4A4458,
+        depth = 1, focusRing = true,
+        controlRadius = 4, buttonRadius = 999, fieldRadius = 4, fieldPadding = 12,
+        buttonHeight = 40, switchWidth = 52, switchHeight = 32, switchThumbOff = 16,
+        focusRingWidth = 3, focusRingGap = 2, sliderHandle = "bar",
+        checkboxSize = 18, checkboxRadius = 2, disabledOpacity = 0.38 ],
+    ]

@@ -8,6 +8,7 @@
 import { CSS_COLORS } from "./css-colors.js";
 import { validatePathData } from "./shape.js";
 import { motionToken, MOTION_TOKENS } from "./animate.js";
+import { THEME_RECORDS } from "./themes-data.js";
 /** The base of the translucent encoding — see the Color doc above. */
 const ALPHA = 0x100000000;
 /** Encode rgb (0xRRGGBB) + alpha (0…255) as one Color number. */
@@ -64,17 +65,11 @@ export function fillEqual(a, b) {
     return a.angle === b.angle && a.stops.length === b.stops.length &&
         a.stops.every((s, i) => s.offset === b.stops[i].offset && s.color === b.stops[i].color);
 }
-export const DEFAULT_THEME = Object.freeze({
-    bg: 0xF4F6FA, surface: 0xFFFFFF, line: 0xDBE1E9,
-    text: 0x1B2733, textMuted: 0x6C7A88, textFaint: 0xAAB4BE,
-    accent: 0x2E6FE0, accentText: 0xFFFFFF,
-    control: 0xE7EBF1, controlActive: 0xD3E2FC,
-    depth: 1,
-    focusRing: true,
-    // geometry tokens (library-charter §6): design-system IDENTITY is geometric,
-    // so the record carries shape as well as color — the library consults these
-    controlRadius: 7,
-});
+// The record itself is AUTHORED IN THE LANGUAGE — library/themes/
+// sanfrancisco.declare — and projected here through themes-data.ts
+// (gen-themes.mjs, freshness-gated), so the no-typing tier serves the very
+// object the authored preset declares.
+export const DEFAULT_THEME = THEME_RECORDS.SanFrancisco;
 export function isAlign(v) {
     return typeof v === "object" && v !== null && "align" in v;
 }
