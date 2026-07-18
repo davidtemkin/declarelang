@@ -60,10 +60,12 @@ export class FocusService {
     const old = this.current;
     this.current = view;
     if (old !== null) {
+      old.setPseudoState("focus", false); // CSS :focus (override-proof — not via focusChanged)
       old.focusChanged(false); // internal (native element) before the user event
       fireEvent(old, "blur");
     }
     if (view !== null) {
+      view.setPseudoState("focus", true);
       view.focusChanged(true);
       fireEvent(view, "focus");
     }

@@ -378,6 +378,25 @@ await test(":active and :focus states re-cascade", () => {
   v.setPseudoState("focus", false); settle(); assert.equal(v.fill, 0x111111);
 });
 
+const { Focus } = await import("../runtime/dist/focus.js");
+
+await test(":focus matches a focusable view via the focus service", () => {
+  const v = new View(); v.styleclass = "field"; v.focusable = true;
+  const nf = new View(); nf.styleclass = "field"; // NOT focusable
+  const root = new View(); root.appendChild(v); root.appendChild(nf);
+  root.cssRules = buildRuleSet(`.field { background-color: #111111 } .field:focus { background-color: #444444 }`);
+  settle();
+  assert.equal(v.fill, 0x111111);
+  Focus.setRoot(root); Focus.focus(v); settle();
+  assert.equal(v.fill, 0x444444);
+  Focus.focus(null); settle();
+  assert.equal(v.fill, 0x111111);
+  // a non-focusable view is never focused → never matches :focus
+  Focus.focus(nf); settle();
+  assert.equal(nf.fill, 0x111111);
+  Focus.reset();
+});
+
 await test("an owning binding outranks CSS (ownerOf gate)", () => {
   const v = new View();
   v.styleclass = "a";
