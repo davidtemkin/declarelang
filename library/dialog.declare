@@ -20,8 +20,16 @@ The idioms — one verb each, an optional callback receiving the picked id
     dlg.error("Could not connect", "The server refused the connection.")
 
 `ask` is Cancel / No / Yes-default; `error` renders the title in the
-theme's errorColor. Theming: scrimColor + scrimOpacity, the menuShadow
-family for the panel, errorColor for the error tone.
+theme's errorColor.
+
+Platform STRUCTURE is data (the scheme): `dialogWidth`,
+`dialogButtons` = "end" (a right-aligned row — SF, Material) | "stack"
+(the macOS alert — full-width buttons stacked, DEFAULT ON TOP) | "fill"
+(WinUI ContentDialog — equal-width buttons filling the row),
+`dialogAlign` = "left" | "center" (the macOS centered title),
+`dialogTitleSize` / `dialogBodySize`. Plus scrimColor + scrimOpacity
+(macOS barely dims — alerts separate by SHADOW; Material's spec scrim is
+32%; Fluent's smoke 30%), the menuShadow family, errorColor.
 */
 
 include [ "control.declare" ]
@@ -94,9 +102,11 @@ class Dialog extends View [ visible = { shown },
 
     kidsOf(b) { return b.children },
 
+    innerOf(box) { return this.arrangement == "stack" ? box.stackInner : box.rowInner },
+
     focusDefault() {
         if (!shown) return
-        const kids = this.kidsOf(this.panel.col.btns.inner)
+        const kids = this.kidsOf(this.innerOf(this.panel.col.btns))
         const d = kids.find((k) => k.primary)
         Focus.focus(d != null ? d : kids.length > 0 ? kids[kids.length - 1] : null)
         },
@@ -118,9 +128,16 @@ class Dialog extends View [ visible = { shown },
         else if (e.key == "Escape") this.pickCancel()
         },
 
-    // buttons → Button instances through the internal derived dataset
+    // buttons → Button instances through the internal derived dataset. The
+    // "stack" arrangement REORDERS: the default on top, cancel at the bottom
+    // (the macOS stacked alert); row arrangements keep authored order.
 
-    data: Dataset [ contents = { ({ b: classroot.buttons || [] }) } ],
+    arrangement: string = { typeof theme.dialogButtons == "string" ? theme.dialogButtons : "end" },
+    centered: boolean = { theme.dialogAlign == "center" },
+
+    data: Dataset [ contents = { ({ b: classroot.arrangement == "stack"
+        ? [...(classroot.buttons || [])].sort((p, q) => (q.default ? 1 : q.cancel ? -1 : 0) - (p.default ? 1 : p.cancel ? -1 : 0))
+        : classroot.buttons || [] }) } ],
 
     // the scrim: MODAL input blocking — every press lands here and stops
 
@@ -130,7 +147,8 @@ class Dialog extends View [ visible = { shown },
         onMouseDown() { },
         ],
 
-    panel: View [ width = 420, focustrap = true,
+    panel: View [ focustrap = true,
+        width = { typeof theme.dialogWidth == "number" ? theme.dialogWidth : 420 },
         x = { (app.width - this.width) / 2 },
         y = { Math.max(40, (app.height - this.height) / 3) },
         height = { this.col.height + 40 },
@@ -142,21 +160,46 @@ class Dialog extends View [ visible = { shown },
         col: View [ x = 20, y = 20, width = { parent.width - 40 },
             layout: SimpleLayout [ axis = y, spacing = 12 ],
 
-            ttl: Text [ fontSize = 15, fontWeight = semibold, wrap = true, width = { parent.width },
+            ttl: Text [ fontWeight = semibold, wrap = false,
+                fontSize = { typeof theme.dialogTitleSize == "number" ? theme.dialogTitleSize : 15 },
+                x = { classroot.centered ? Math.max(0, (parent.width - this.width) / 2) : 0 },
                 textColor = { classroot.tone == "error" ? (theme.errorColor != null ? theme.errorColor : 0xC93429) : theme.text },
                 text = { classroot.title } ],
 
-            msg: Text [ fontSize = 13, wrap = true, width = { parent.width },
+            msg: Text [ wrap = true, width = { parent.width },
+                fontSize = { typeof theme.dialogBodySize == "number" ? theme.dialogBodySize : 13 },
                 visible = { classroot.message != "" },
                 textColor = { theme.textMuted }, text = { classroot.message } ],
 
             gap: View [ width = 4, height = 4 ],
 
-            btns: View [ width = { parent.width }, height = { this.inner.height },
-                inner: View [ x = { parent.width - this.width }, height = { this.contentHeight },
+            btns: View [ width = { parent.width },
+                height = { classroot.arrangement == "stack" ? this.stackInner.height : this.rowInner.height },
+
+                // two arrangements, one visible — layout attributes are
+                // literal-only (the surface), so the axes are two containers
+
+                rowInner: View [ visible = { classroot.arrangement != "stack" },
+                    height = { this.contentHeight },
+                    x = { classroot.arrangement == "end" ? parent.width - this.width : 0 },
+                    width = { classroot.arrangement == "end" ? this.contentWidth : parent.width },
                     layout: SimpleLayout [ axis = x, spacing = 10 ],
                     datapath = { classroot.data.value },
-                    Button [ datapath = :b[], width = 86, label = { "" + :label },
+                    Button [ datapath = :b[], label = { "" + :label },
+                        width = { classroot.arrangement == "fill"
+                                ? (this.parent.width - 10 * (((classroot.buttons || []).length || 1) - 1)) / ((classroot.buttons || []).length || 1)
+                                : 86 },
+                        primary = { !!:default },
+                        onClick() { classroot.pick("" + :id) },
+                        ],
+                    ],
+
+                stackInner: View [ visible = { classroot.arrangement == "stack" },
+                    height = { this.contentHeight }, width = { parent.width },
+                    layout: SimpleLayout [ axis = y, spacing = 8 ],
+                    datapath = { classroot.data.value },
+                    Button [ datapath = :b[], label = { "" + :label },
+                        width = { this.parent.width },
                         primary = { !!:default },
                         onClick() { classroot.pick("" + :id) },
                         ],
