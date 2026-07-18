@@ -87,7 +87,12 @@ class TintDot extends View [ width = 16, height = 16, cornerRadius = 8,
 
 class TintRow extends View [
     hoverName: string = "",
-    height = { hoverName == "" ? 22 : 42 },
+    height = 42,                                 // the caption line is ALWAYS there — no height bounce
+
+    nameOf(c) {
+        return c == 0x2E6FE0 ? "Blue" : c == 0x6750A4 ? "Purple" : c == 0xE0447E ? "Pink"
+             : c == 0xD03A2F ? "Red" : c == 0x3A9E4C ? "Green" : ""
+        },
     dots: View [ x = 0, y = 3,
         layout: SimpleLayout [ axis = x, spacing = 7 ],
         TintDot [ c = #2E6FE0, name = "Blue",
@@ -112,7 +117,8 @@ class TintRow extends View [
             ],
         ],
     cap: Text [ x = 0, y = 25, fontSize = 12, textColor = { theme.textMuted },
-        visible = { hoverName != "" }, text = { "Tint: " + hoverName } ],
+        text = { hoverName != "" ? "Tint: " + hoverName
+               : app.accentPick == 0 ? "No tint" : "Tint: " + this.parent.nameOf(app.accentPick) } ],
     ]
 
 
@@ -176,6 +182,9 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 720,
             app.lastPick = id
             },
         ],
+
+    dlg: Dialog [ ],
+    lastDialog: string = "(none yet)",
 
     // ── chrome: title + the mode switcher + the transitions toggle ─────────
 
@@ -282,6 +291,21 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 720,
                         last: Text [ y = center, fontSize = 12, textColor = { theme.textFaint },
                             text = { "picked: " + app.lastPick } ],
                         ],
+                    ],
+
+                Section [ label = "Dialog",
+                    row: View [ layout: SimpleLayout [ axis = x, spacing = 14 ],
+                        Button [ width = 100, label = "Notice…",
+                            onClick() { app.dlg.notice("Saved", "Your changes were saved.", (id) => app.lastDialog = id) },
+                            ],
+                        Button [ width = 100, label = "Ask…",
+                            onClick() { app.dlg.ask("Save changes?", "Your unsaved changes will be lost.", (id) => app.lastDialog = id) },
+                            ],
+                        Button [ width = 100, label = "Error…",
+                            onClick() { app.dlg.error("Could not connect", "The server refused the connection.", (id) => app.lastDialog = id) },
+                            ],
+                        ],
+                    ans: Text [ fontSize = 12, textColor = { theme.textFaint }, text = { "answered: " + app.lastDialog } ],
                     ],
 
                 Section [ label = "TabSlider",

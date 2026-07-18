@@ -37,5 +37,18 @@ export const LANGUAGE_METHOD_EFFECTS = new Map([
     // to the §3 residue. The NAVIGATION effect itself — the link relation — is
     // extracted separately, by links.ts, from the CALL SITE.
     ["navigate", []],
+    // View.raise() (runtime/src/view.ts) — promotion: re-links the view as its
+    // parent's last child (planes.md §1, order-as-slot). Structural mutation,
+    // no reactive READ → pure for dependency analysis. A Menu raises at open;
+    // a Window raises on activation.
+    ["raise", []],
+    // View.scrollIntoView(align?) — the imperative reveal (backend.ts). Writes
+    // scroll state, reads no reactive cell → pure for analysis.
+    ["scrollIntoView", []],
+    // App.createView(tag, parent, props?) — imperative creation (planes.md §7,
+    // instantiate.ts). Constructs a subtree; reads no reactive cell at the call
+    // site → pure for analysis (the created instance's own bindings wire
+    // themselves through the ordinary pipeline).
+    ["createView", []],
 ]);
 //# sourceMappingURL=effects.js.map

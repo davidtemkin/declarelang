@@ -1,0 +1,167 @@
+/*
+# Dialog
+
+The modal tier (planes.md): a full-app SCRIM that swallows every press —
+modal input blocking, no light dismiss — under a centered panel with a
+focustrap. Buttons are RECORDS (the records door): `{ id, label,
+default?, cancel? }`, rendered as themed library Buttons right-aligned in
+the platform arrangement. Focus SAVES on open and RETURNS on close.
+
+Keyboard: Return picks the DEFAULT button (the macOS rule; a focused
+button also activates on Space/Enter — the pick guard makes the double
+harmless), Escape picks the cancel record when one exists, else just
+closes.
+
+The idioms — one verb each, an optional callback receiving the picked id
+(the `picked(id)` override remains the declarative seam):
+
+    dlg.notice("Saved", "Your changes were saved.")
+    dlg.ask("Save changes?", "Unsaved changes will be lost.", (id) => …)
+    dlg.error("Could not connect", "The server refused the connection.")
+
+`ask` is Cancel / No / Yes-default; `error` renders the title in the
+theme's errorColor. Theming: scrimColor + scrimOpacity, the menuShadow
+family for the panel, errorColor for the error tone.
+*/
+
+include [ "control.declare" ]
+
+include [ "button.declare" ]
+
+class Dialog extends View [ visible = { shown },
+    x = 0,
+    y = 0,
+    width = { app.width },
+    height = { app.height },
+
+    shown: boolean = false,
+    title: string = "",
+    message: string = "",
+    tone: string = "",
+    buttons: array = null,
+    saved: View = null,
+    cb: object = null,
+
+    // the delivery seam — override declaratively, or pass a callback to a verb
+
+    picked(id) { },
+
+    open(t, m, btns, tone_, cb_) {
+        title = "" + (t || "")
+        message = "" + (m || "")
+        tone = "" + (tone_ || "")
+        buttons = btns
+        this.cb = cb_ || null
+        saved = Focus.getFocus()
+        shown = true
+        this.raise()
+        setTimeout(() => this.focusDefault(), 0)
+        },
+
+    // ── the idioms ─────────────────────────────────────────────────────────
+
+    notice(t, m, cb_) { this.open(t, m, [({ id: "ok", label: "OK", default: true })], "", cb_) },
+
+    error(t, m, cb_) { this.open(t, m, [({ id: "ok", label: "OK", default: true })], "error", cb_) },
+
+    ask(t, m, cb_) {
+        this.open(t, m, [
+            ({ id: "cancel", label: "Cancel", cancel: true }),
+            ({ id: "no", label: "No" }),
+            ({ id: "yes", label: "Yes", default: true }),
+        ], "", cb_)
+        },
+
+    close() {
+        shown = false
+        const s = saved
+        saved = null
+        // restore DEFERRED: the in-flight keystroke must finish against the
+        // OLD focus — an immediate restore hands the same Enter to the opener,
+        // which re-activates and reopens (the re-entry the probe caught)
+        if (s != null) setTimeout(() => Focus.focus(s), 0)
+        },
+
+    pick(id) {
+        if (!shown) return                       // the double-activation guard
+        const f = this.cb
+        this.close()
+        this.picked(id)
+        if (f != null) this.callCb(f, id)
+        },
+
+    callCb(f, id) { f(id) },
+
+    kidsOf(b) { return b.children },
+
+    focusDefault() {
+        if (!shown) return
+        const kids = this.kidsOf(this.panel.col.btns.inner)
+        const d = kids.find((k) => k.primary)
+        Focus.focus(d != null ? d : kids.length > 0 ? kids[kids.length - 1] : null)
+        },
+
+    pickDefault() {
+        const b = (this.buttons || []).find((x) => x.default)
+        if (b != null) this.pick("" + b.id)
+        },
+
+    pickCancel() {
+        const b = (this.buttons || []).find((x) => x.cancel)
+        if (b != null) this.pick("" + b.id)
+        else this.close()
+        },
+
+    onKeyDown(e) <- Keys {
+        if (!shown) return
+        if (e.key == "Enter") this.pickDefault()
+        else if (e.key == "Escape") this.pickCancel()
+        },
+
+    // buttons → Button instances through the internal derived dataset
+
+    data: Dataset [ contents = { ({ b: classroot.buttons || [] }) } ],
+
+    // the scrim: MODAL input blocking — every press lands here and stops
+
+    scrim: View [ x = 0, y = 0, width = { app.width }, height = { app.height },
+        fill = { theme.scrimColor != null ? theme.scrimColor : 0x000000 },
+        opacity = { typeof theme.scrimOpacity == "number" ? theme.scrimOpacity : 0.32 },
+        onMouseDown() { },
+        ],
+
+    panel: View [ width = 420, focustrap = true,
+        x = { (app.width - this.width) / 2 },
+        y = { Math.max(40, (app.height - this.height) / 3) },
+        height = { this.col.height + 40 },
+        cornerRadius = { typeof theme.menuRadius == "number" ? theme.menuRadius + 2 : 10 },
+        fill = { theme.surface },
+        stroke = { stroke(1, theme.line) },
+        shadow = { theme.menuShadow != null ? theme.menuShadow : shadow(0, 12, 48, 0x00000040) },
+
+        col: View [ x = 20, y = 20, width = { parent.width - 40 },
+            layout: SimpleLayout [ axis = y, spacing = 12 ],
+
+            ttl: Text [ fontSize = 15, fontWeight = semibold, wrap = true, width = { parent.width },
+                textColor = { classroot.tone == "error" ? (theme.errorColor != null ? theme.errorColor : 0xC93429) : theme.text },
+                text = { classroot.title } ],
+
+            msg: Text [ fontSize = 13, wrap = true, width = { parent.width },
+                visible = { classroot.message != "" },
+                textColor = { theme.textMuted }, text = { classroot.message } ],
+
+            gap: View [ width = 4, height = 4 ],
+
+            btns: View [ width = { parent.width }, height = { this.inner.height },
+                inner: View [ x = { parent.width - this.width }, height = { this.contentHeight },
+                    layout: SimpleLayout [ axis = x, spacing = 10 ],
+                    datapath = { classroot.data.value },
+                    Button [ datapath = :b[], width = 86, label = { "" + :label },
+                        primary = { !!:default },
+                        onClick() { classroot.pick("" + :id) },
+                        ],
+                    ],
+                ],
+            ],
+        ],
+    ]

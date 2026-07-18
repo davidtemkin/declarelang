@@ -38,6 +38,9 @@ export const THEME_RECORDS = Object.freeze({
         menuRadius: 10,
         menuShadow: { "dx": 0, "dy": 12, "blur": 44, "color": 4294967360 },
         menuHl: { "angle": 180, "stops": [{ "offset": null, "color": 2066175 }, { "offset": null, "color": 26862 }] },
+        scrimColor: 0x000000,
+        scrimOpacity: 0.25,
+        errorColor: 0xC93429,
     }),
     CupertinoDark: Object.freeze({
         bg: 0x1E1E1E,
@@ -73,6 +76,9 @@ export const THEME_RECORDS = Object.freeze({
         menuRadius: 10,
         menuShadow: { "dx": 0, "dy": 12, "blur": 44, "color": 4294967411 },
         menuHl: { "angle": 180, "stops": [{ "offset": null, "color": 2854911 }, { "offset": null, "color": 684011 }] },
+        scrimColor: 0x000000,
+        scrimOpacity: 0.45,
+        errorColor: 0xFF6961,
     }),
     MountainView: Object.freeze({
         bg: 0xFFFBFE,
@@ -107,6 +113,9 @@ export const THEME_RECORDS = Object.freeze({
         menuShadow: { "dx": 0, "dy": 4, "blur": 12, "color": 4294967334 },
         menuHl: 0xE8DEF8,
         menuHlText: 0x1D192B,
+        scrimColor: 0x000000,
+        scrimOpacity: 0.4,
+        errorColor: 0xB3261E,
     }),
     MountainViewDark: Object.freeze({
         bg: 0x141218,
@@ -141,6 +150,9 @@ export const THEME_RECORDS = Object.freeze({
         menuShadow: { "dx": 0, "dy": 4, "blur": 12, "color": 4294967373 },
         menuHl: 0x4A4458,
         menuHlText: 0xE6E0E9,
+        scrimColor: 0x000000,
+        scrimOpacity: 0.55,
+        errorColor: 0xF2B8B5,
     }),
     Redmond: Object.freeze({
         bg: 0xF3F3F3,
@@ -181,6 +193,9 @@ export const THEME_RECORDS = Object.freeze({
         menuShadow: { "dx": 0, "dy": 8, "blur": 16, "color": 4294967344 },
         menuHl: 0xF0F0F0,
         menuHlText: 0x1B1B1B,
+        scrimColor: 0x000000,
+        scrimOpacity: 0.3,
+        errorColor: 0xC42B1C,
     }),
     RedmondDark: Object.freeze({
         bg: 0x202020,
@@ -221,6 +236,9 @@ export const THEME_RECORDS = Object.freeze({
         menuShadow: { "dx": 0, "dy": 8, "blur": 16, "color": 4294967385 },
         menuHl: 0x3D3D3D,
         menuHlText: 0xFFFFFF,
+        scrimColor: 0x000000,
+        scrimOpacity: 0.5,
+        errorColor: 0xFF99A4,
     }),
     SanFrancisco: Object.freeze({
         bg: 0xF4F6FA,
@@ -241,6 +259,9 @@ export const THEME_RECORDS = Object.freeze({
         menuRadius: 8,
         menuShadow: { "dx": 0, "dy": 10, "blur": 40, "color": 4294967352 },
         menuHl: { "angle": 180, "stops": [{ "offset": null, "color": 4094440 }, { "offset": null, "color": 2450390 }] },
+        scrimColor: 0x10151B,
+        scrimOpacity: 0.32,
+        errorColor: 0xC23528,
     }),
     SanFranciscoDark: Object.freeze({
         bg: 0x0F1620,
@@ -261,6 +282,9 @@ export const THEME_RECORDS = Object.freeze({
         menuRadius: 8,
         menuShadow: { "dx": 0, "dy": 10, "blur": 40, "color": 4294967398 },
         menuHl: { "angle": 180, "stops": [{ "offset": null, "color": 5937151 }, { "offset": null, "color": 4161519 }] },
+        scrimColor: 0x000000,
+        scrimOpacity: 0.5,
+        errorColor: 0xFF7A6E,
     }),
 });
 //# sourceMappingURL=themes-data.js.map

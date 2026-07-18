@@ -30,5 +30,6 @@
   "TabSlider": "tabslider.declare",
   "Tab": "tabslider.declare",
   "Tooltip": "tooltip.declare",
-  "Menu": "menu.declare"
+  "Menu": "menu.declare",
+  "Dialog": "dialog.declare"
 }

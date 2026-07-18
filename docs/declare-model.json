@@ -513,7 +513,8 @@
    "TabSlider": "library/tabslider.declare",
    "Tab": "library/tabslider.declare",
    "Tooltip": "library/tooltip.declare",
-   "Menu": "library/menu.declare"
+   "Menu": "library/menu.declare",
+   "Dialog": "library/dialog.declare"
   },
   "commands": {
    "setup": {
