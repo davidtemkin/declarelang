@@ -358,6 +358,8 @@
    "View": [
     "  scrollIntoView(align?: \"start\" | \"nearest\"): void;",
     "  raise(): void;",
+    "  removeChild(child: View): void;",
+    "  insertChild(child: View, index: number): void;",
     "  tabOrder(): View[];",
     "  tabDefault(): View[];",
     "  lookupStylesheet(name: string): any;"
