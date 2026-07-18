@@ -557,7 +557,12 @@ theme = { { bg: 0x0D151E, text: 0xE7EEF2, accent: 0x4C8DFF, line: 0x22323E } },
 fill  = { theme.bg },                                  // anywhere below
 theme = { { ...app.theme, accent: 0xE05252 } },        // partial override: plain TS spread
 theme = { app.dark ? app.darkTheme() : app.lightTheme() },   // light/dark: swap the record
+theme = { Themes.sanFrancisco(app.dark) },   // or a named preset following the system
 ```
+
+With no theme declared, an app renders the default — San Francisco light, **always**
+(deterministic by ruling: the zero-declaration look never varies by system dark mode;
+following the system is the one-line opt-in above).
 
 ## 13. What does NOT exist (do not invent it)
 

@@ -88,6 +88,25 @@ and swapping the record on `app.dark` flips the whole app between light and dark
 place. (Prevailing is not a framework privilege — a `prevailing accent: Color = …`
 declaration lets any class of your own inherit down the same way.)
 
+## Following the system's dark mode
+
+An app that never mentions a theme renders the default — **San Francisco light, always**.
+It deliberately does *not* follow the system's dark setting: the zero-declaration look is
+a deterministic contract (a screenshot of a themeless app is the same bytes on every
+machine, at every hour), and dark mode done honestly is a design decision, not a token
+flip — you should never ship a rendition you have never seen. Following the system is
+therefore a one-line declaration of intent:
+
+```declare-fragment
+theme = { Themes.sanFrancisco(app.dark) },   // opt in: follow the system, live
+```
+
+`app.dark` is reactive, so the flip happens the moment the system setting changes — no
+listener, no reload. The named presets (`Themes.sanFrancisco`, `Themes.cupertino`,
+`Themes.mountainView`) are each a function of that one fact, and the default record *is*
+`Themes.sanFrancisco(false)` — the same object — so opting in changes exactly one thing:
+which half of the pair you render when the system goes dark.
+
 ## There is no CSS
 
 Now the relief: no selectors, no cascade, no specificity wars, no `!important`, no media
