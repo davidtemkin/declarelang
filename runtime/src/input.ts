@@ -84,6 +84,18 @@ export function routeInput(
     held = t;
     if (t !== null) t.sink("mouseDown", t.x, t.y);
   });
+  // While a press is CAPTURED and moving (a drag), suppress the browser's
+  // text selection — a window drag crossing a selectable region (a Markdown
+  // viewer) otherwise starts painting a selection mid-drag. Restored on
+  // release/cancel; a plain click never trips it.
+  let selectionSuppressed = false;
+  const suppressSelection = (on: boolean): void => {
+    if (typeof document === "undefined" || on === selectionSuppressed) return;
+    selectionSuppressed = on;
+    document.body.style.userSelect = on ? "none" : "";
+    (document.body.style as CSSStyleDeclaration & { webkitUserSelect: string }).webkitUserSelect = on ? "none" : "";
+    if (on) document.getSelection()?.removeAllRanges();
+  };
   listen("pointermove", (e) => {
     // Hover tracking runs on every move (not just while dragging): resolve the
     // sink under the pointer and, when it changes, fire the out/over pair.
@@ -96,10 +108,12 @@ export function routeInput(
       if (t !== null) t.sink("mouseOver", t.x, t.y);
     }
     if (held === null || rootPoint === undefined) return;
+    suppressSelection(true);
     const p = rootPoint(e);
     held.sink("mouseMove", p.x, p.y);
   });
   listen("pointerup", (e) => {
+    suppressSelection(false);
     const t = resolve(e);
     const captor = held;
     held = null;
@@ -119,6 +133,7 @@ export function routeInput(
     if (e.pointerType === "touch") clearHover();
   });
   listen("pointercancel", (e) => {
+    suppressSelection(false);
     // The browser reclaimed the gesture (a touch turned into a scroll). End the
     // capture WITHOUT a click — the interaction was interrupted, not completed —
     // so a drag handler still gets its release (e.g. a slider freezes its value).
