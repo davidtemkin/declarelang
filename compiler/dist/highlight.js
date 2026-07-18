@@ -25,7 +25,7 @@
 // colours as an attribute while a top-level `style [ … ]` colours as a keyword.
 const KEYWORDS = new Set([
     "class", "extends", "prevailing", "readonly", "include", "use",
-    "font", "stylesheet", "style", "true", "false", "null",
+    "font", "stylesheet", "css", "style", "true", "false", "null",
 ]);
 const isDigit = (c) => c >= "0" && c <= "9";
 const isIdentStart = (c) => (c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || c === "_";

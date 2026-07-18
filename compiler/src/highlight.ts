@@ -32,7 +32,7 @@ export type Segment =
 // colours as an attribute while a top-level `style [ … ]` colours as a keyword.
 const KEYWORDS = new Set([
   "class", "extends", "prevailing", "readonly", "include", "use",
-  "font", "stylesheet", "style", "true", "false", "null",
+  "font", "stylesheet", "css", "style", "true", "false", "null",
 ]);
 
 const isDigit = (c: string) => c >= "0" && c <= "9";
