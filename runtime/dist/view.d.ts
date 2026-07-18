@@ -277,7 +277,19 @@ export declare class View extends Node {
      *  without stealing its clicks (LZX's `clickable` intent, made automatic).
      *  A handler receives one plain event argument — the pointer position in
      *  this view's own coordinates. */
-    private inputSink;
+    private buildSink;
+    /** (Re)install the input sink: a view is hit-testable when it has author
+     *  pointer handlers OR is interaction-tracked by a `:hover`/`:active` rule.
+     *  `flush` and `setInteractionTracked` both route through here. `setInput` is
+     *  only called on a real transition (so a handler-less untracked view stays
+     *  transparent, never touching `setInput`). */
+    refreshInputSink(): void;
+    /** The CSS applier marks a view interaction-tracked when a `:hover`/`:active`
+     *  rule can target it. Idempotent; on untrack it clears stale hover/active
+     *  (no `mouseOut` fires once the sink is gone). */
+    setInteractionTracked(on: boolean): void;
+    private interactionTracked;
+    private inputInstalled;
     /** Stand up the draw method as a tracked, re-recording computation. */
     private bindDraw;
     /** Re-record right now — the explicit half of draw-on-invalidation (the

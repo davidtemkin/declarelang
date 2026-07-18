@@ -338,6 +338,36 @@ await test("pseudo state re-cascades; reverts to base; author outranks", () => {
   assert.equal(v.fill, 0x0000ff);          // author outranks :hover
 });
 
+// minimal mock backend (mirrors test/unit.test.mjs) — surfaces log their calls.
+function mockBackend(log) {
+  const methods = ["setX", "setY", "setWidth", "setHeight", "setFill", "setCornerRadius",
+    "setStroke", "setShadow", "setVisible", "setOpacity", "setScale", "setScroll", "setScrollX",
+    "setClip", "setBoxClip", "setDrawing", "setText", "setTextStyle", "setImage", "setImageStretch",
+    "setInput", "setEditable", "activateEditable", "insertChild", "destroy", "scrollIntoView"];
+  const surface = () => { const s = {}; for (const m of methods) s[m] = (...a) => log.push([m, ...a]); return s; };
+  return { createSurface: surface, attachRoot: () => {} };
+}
+
+await test("interaction sink: :hover/:active set state + restyle; drag-off keeps :active", () => {
+  const log = [];
+  const root = new View();
+  const v = new View(); v.styleclass = "card"; root.appendChild(v);
+  root.attach(mockBackend(log), null);
+  root.cssRules = buildRuleSet(`.card { background-color: #111111 } .card:hover { background-color: #222222 } .card:active { background-color: #333333 }`);
+  settle();
+  const setInputs = log.filter(([m]) => m === "setInput");
+  const sink = setInputs[setInputs.length - 1][1]; // the interaction-tracked view's sink
+  assert.equal(typeof sink, "function");
+  sink("mouseOver", 0, 0); settle(); assert.equal(v.fill, 0x222222);          // :hover
+  sink("mouseDown", 0, 0); settle(); assert.equal(v.fill, 0x333333);          // :active wins (source order)
+  sink("mouseOut", 0, 0); settle();
+  assert.equal(v.pseudoState("hover"), false);
+  assert.equal(v.pseudoState("active"), true);                                // drag-off keeps :active
+  sink("mouseUp", 0, 0); settle();
+  assert.equal(v.pseudoState("active"), false);
+  assert.equal(v.fill, 0x111111);                                            // back to base
+});
+
 await test(":active and :focus states re-cascade", () => {
   const v = new View();
   v.styleclass = "b";

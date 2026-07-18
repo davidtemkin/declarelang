@@ -427,6 +427,9 @@ export class View extends Node {
     }
     disposeApplier(this);
     disposeCssApplier(this);
+    this.setPseudoState("hover", false);
+    this.setPseudoState("active", false);
+    this.setPseudoState("focus", false);
     disposeBindings(this);
     this.drawing?.dispose();
     this.drawing = null;
@@ -459,8 +462,7 @@ export class View extends Node {
     this.applyClip(this.clip);
     if (this.scrolls) s.setScroll(true, (y) => { this.scrollY = y; });
     if (this.scrollsX) s.setScrollX(true);
-    const sink = this.inputSink();
-    if (sink !== null) s.setInput(sink);
+    this.refreshInputSink();
     if (this.draw) this.bindDraw();
   }
 
@@ -481,11 +483,54 @@ export class View extends Node {
    *  without stealing its clicks (LZX's `clickable` intent, made automatic).
    *  A handler receives one plain event argument — the pointer position in
    *  this view's own coordinates. */
-  private inputSink(): InputSink | null {
+  private buildSink(): InputSink | null {
     const self = this as unknown as Record<string, unknown>;
-    if (!POINTER_TYPES.some((t) => typeof self[handlerName(t)] === "function")) return null;
-    return (type, x, y) => fireEvent(this, type, { x, y });
+    const hasHandlers = POINTER_TYPES.some((t) => typeof self[handlerName(t)] === "function");
+    if (!hasHandlers && !this.interactionTracked) return null;
+    return (type, x, y) => {
+      // Engine pseudo-state (only when a :hover/:active rule targets this view).
+      // `:active` survives a press-drag-off: mouseOut clears only hover; the
+      // captured mouseUp/cancel clears active (routeInput delivers it off-view).
+      if (this.interactionTracked) {
+        if (type === "mouseOver") this.setPseudoState("hover", true);
+        else if (type === "mouseOut") this.setPseudoState("hover", false);
+        else if (type === "mouseDown") this.setPseudoState("active", true);
+        else if (type === "mouseUp") this.setPseudoState("active", false);
+      }
+      fireEvent(this, type, { x, y }); // author handler (no-op when absent)
+    };
   }
+
+  /** (Re)install the input sink: a view is hit-testable when it has author
+   *  pointer handlers OR is interaction-tracked by a `:hover`/`:active` rule.
+   *  `flush` and `setInteractionTracked` both route through here. `setInput` is
+   *  only called on a real transition (so a handler-less untracked view stays
+   *  transparent, never touching `setInput`). */
+  refreshInputSink(): void {
+    const sink = this.buildSink();
+    if (sink !== null) {
+      this.surface?.setInput(sink);
+      this.inputInstalled = true;
+    } else if (this.inputInstalled) {
+      this.surface?.setInput(null);
+      this.inputInstalled = false;
+    }
+  }
+
+  /** The CSS applier marks a view interaction-tracked when a `:hover`/`:active`
+   *  rule can target it. Idempotent; on untrack it clears stale hover/active
+   *  (no `mouseOut` fires once the sink is gone). */
+  setInteractionTracked(on: boolean): void {
+    if (this.interactionTracked === on) return;
+    this.interactionTracked = on;
+    if (!on) {
+      this.setPseudoState("hover", false);
+      this.setPseudoState("active", false);
+    }
+    this.refreshInputSink();
+  }
+  private interactionTracked = false;
+  private inputInstalled = false;
 
   /** Stand up the draw method as a tracked, re-recording computation. */
   private bindDraw(): void {

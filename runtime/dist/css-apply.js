@@ -8,7 +8,7 @@
 // prevailing slot flows down by the ordinary follow.
 import { Constraint } from "./reactive.js";
 import { cssMap, cssWrite, cssClear, cssMarks, isSet, ownerOf, stylesheetMarks } from "./attributes.js";
-import { matched } from "./css-match.js";
+import { matched, matches, containsPointerPseudo } from "./css-match.js";
 const APPLIERS = new WeakMap();
 /** This class + its ancestors' names — subclass-aware tag matching. Immutable
  *  (a class never changes), so it needs no tracking and is memoized per class. */
@@ -58,9 +58,11 @@ export function ensureCssApplier(view) {
     const applier = new Constraint(`${v.constructor.name}'s css`, () => {
         const rules = v.cssRules; // tracked follow of the prevailing slot
         const offers = Object.create(null);
+        let tracked = false;
         if (rules !== null) {
+            const mv = asMatchView(v);
             const map = cssMap(v.constructor);
-            const decls = matched(asMatchView(v), rules);
+            const decls = matched(mv, rules);
             for (const [prop, raw] of decls) {
                 const entry = map[prop];
                 if (entry === undefined)
@@ -81,18 +83,22 @@ export function ensureCssApplier(view) {
                     continue; // malformed → skip
                 offers[entry.attr] = value;
             }
+            // Does a :hover/:active rule target this view (ignoring live pseudo
+            // state)? If so it needs an interaction sink (pointer hit-testing).
+            tracked = rules.rules.some((r) => containsPointerPseudo(r.selector) && matches(mv, r.selector, true));
         }
-        return offers;
-    }, (offers) => {
-        const o = offers;
+        return { offers, tracked };
+    }, (result) => {
+        const { offers, tracked } = result;
+        v.setInteractionTracked(tracked); // idempotent; side effect off the tracked path
         const marks = cssMarks(view);
         if (marks !== undefined) {
             for (const name of [...marks])
-                if (!(name in o))
+                if (!(name in offers))
                     cssClear(view, name);
         }
-        for (const name in o)
-            cssWrite(view, name, o[name]);
+        for (const name in offers)
+            cssWrite(view, name, offers[name]);
     });
     APPLIERS.set(view, applier);
     applier.run();
