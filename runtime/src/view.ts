@@ -16,7 +16,7 @@ import type { FontWeight } from "./measure.js";
 import { disposeApplier, stylesheetArrived, stylesheetByName, type Stylesheet } from "./stylesheet.js";
 import { POINTER_TYPES, type InputSink, type RenderBackend, type Surface } from "./backend.js";
 import { record, type Draw, type DisplayList } from "./draw.js";
-import { Constraint } from "./reactive.js";
+import { Constraint, Cell, isTracking } from "./reactive.js";
 import { bindDerived, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned } from "./attributes.js";
 import { coerceColor, coerceLength, coerceNumber, coerceString, coerceWeight } from "./css-coerce.js";
 import { cssRulesArrived, cssReparent, disposeCssApplier } from "./css-apply.js";
@@ -184,6 +184,31 @@ export class View extends Node {
    *  offers (below the class-dict) through per-view appliers (css-apply.ts).
    *  Assigning another RuleSet re-cascades live, one settle. */
   declare cssRules: RuleSet | null;
+
+  // Engine-owned interaction state for the CSS `:hover`/`:active`/`:focus`
+  // pseudo-classes. Deliberately NOT a reactive attribute — the component
+  // library already uses `hovered`/`pressed`/`focused` as author member names
+  // (control.declare), so these must stay OUT of the attribute namespace. Held
+  // as internal reactive cells instead: read (tracked) via pseudoState, written
+  // by the interaction sink / focus service via setPseudoState.
+  private $pseudoCells?: Record<string, Cell>;
+  private $pseudoVals?: Record<string, boolean>;
+
+  /** Read a pseudo-class's interaction state (`"hover"`/`"active"`/`"focus"`),
+   *  tracked so the CSS applier re-cascades when it changes. */
+  pseudoState(name: string): boolean {
+    ((this.$pseudoCells ??= {})[name] ??= new Cell());
+    if (isTracking()) this.$pseudoCells[name].track();
+    return this.$pseudoVals?.[name] ?? false;
+  }
+
+  /** Set a pseudo-class's interaction state (runtime only). */
+  setPseudoState(name: string, on: boolean): void {
+    const cur = this.$pseudoVals?.[name] ?? false;
+    if (cur === on) return;
+    (this.$pseudoVals ??= {})[name] = on;
+    this.$pseudoCells?.[name]?.changed();
+  }
 
   /** Resolve a declared stylesheet by name — the honest public call for
    *  reaching a stylesheet from inside a `{ }` body, where you are in real TS and

@@ -14,7 +14,7 @@ import { DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual } from "./value.js";
 import { disposeApplier, stylesheetArrived, stylesheetByName } from "./stylesheet.js";
 import { POINTER_TYPES } from "./backend.js";
 import { record } from "./draw.js";
-import { Constraint } from "./reactive.js";
+import { Constraint, Cell, isTracking } from "./reactive.js";
 import { bindDerived, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned } from "./attributes.js";
 import { coerceColor, coerceLength, coerceNumber, coerceString, coerceWeight } from "./css-coerce.js";
 import { cssRulesArrived, cssReparent, disposeCssApplier } from "./css-apply.js";
@@ -57,6 +57,30 @@ export class View extends Node {
      *  element's `link`. Read only by the static extractor (seo.ts) to wrap the
      *  subtree in `<a href>`; undefined for all but the handful of navigable views. */
     _navLink;
+    // Engine-owned interaction state for the CSS `:hover`/`:active`/`:focus`
+    // pseudo-classes. Deliberately NOT a reactive attribute — the component
+    // library already uses `hovered`/`pressed`/`focused` as author member names
+    // (control.declare), so these must stay OUT of the attribute namespace. Held
+    // as internal reactive cells instead: read (tracked) via pseudoState, written
+    // by the interaction sink / focus service via setPseudoState.
+    $pseudoCells;
+    $pseudoVals;
+    /** Read a pseudo-class's interaction state (`"hover"`/`"active"`/`"focus"`),
+     *  tracked so the CSS applier re-cascades when it changes. */
+    pseudoState(name) {
+        ((this.$pseudoCells ??= {})[name] ??= new Cell());
+        if (isTracking())
+            this.$pseudoCells[name].track();
+        return this.$pseudoVals?.[name] ?? false;
+    }
+    /** Set a pseudo-class's interaction state (runtime only). */
+    setPseudoState(name, on) {
+        const cur = this.$pseudoVals?.[name] ?? false;
+        if (cur === on)
+            return;
+        (this.$pseudoVals ??= {})[name] = on;
+        this.$pseudoCells?.[name]?.changed();
+    }
     /** Resolve a declared stylesheet by name — the honest public call for
      *  reaching a stylesheet from inside a `{ }` body, where you are in real TS and
      *  a bare `Dark` is (correctly) just an unresolved identifier, NOT sugar:

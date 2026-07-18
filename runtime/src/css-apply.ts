@@ -17,9 +17,7 @@ interface Styled {
   cssRules: RuleSet | null;
   styleclass: string;
   id: string;
-  hovered: boolean;
-  pressed: boolean;
-  focused: boolean;
+  pseudoState(name: string): boolean;
   setInteractionTracked(on: boolean): void;
   constructor: Function;
 }
@@ -57,7 +55,7 @@ function asMatchView(v: Styled): MatchView {
       return v.styleclass;
     },
     attr: (name) => (v as unknown as Record<string, unknown>)[name],
-    pseudo: (name) => (name === "hover" ? v.hovered : name === "active" ? v.pressed : v.focused),
+    pseudo: (name) => v.pseudoState(name),
     get parent() {
       return v.parent ? asMatchView(v.parent) : null;
     },

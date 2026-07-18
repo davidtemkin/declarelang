@@ -323,6 +323,31 @@ await test("CSS on a prevailing slot inherits to descendants via follow (no CSS 
   assert.equal(child.textColor, 0xff0000); // inherited by prevailing-follow
 });
 
+await test("pseudo state re-cascades; reverts to base; author outranks", () => {
+  const v = new View();
+  v.styleclass = "card";
+  v.cssRules = buildRuleSet(`.card { background-color: #111111 } .card:hover { background-color: #222222 }`);
+  settle();
+  assert.equal(v.fill, 0x111111);
+  v.setPseudoState("hover", true); settle();
+  assert.equal(v.fill, 0x222222);          // :hover (spec 20) wins
+  v.setPseudoState("hover", false); settle();
+  assert.equal(v.fill, 0x111111);          // reverts to base .card, not default
+  v.fill = 0x0000ff;                         // author $set
+  v.setPseudoState("hover", true); settle();
+  assert.equal(v.fill, 0x0000ff);          // author outranks :hover
+});
+
+await test(":active and :focus states re-cascade", () => {
+  const v = new View();
+  v.styleclass = "b";
+  v.cssRules = buildRuleSet(`.b { background-color: #111111 } .b:active { background-color: #333333 } .b:focus { background-color: #444444 }`);
+  settle();
+  v.setPseudoState("active", true); settle(); assert.equal(v.fill, 0x333333);
+  v.setPseudoState("active", false); v.setPseudoState("focus", true); settle(); assert.equal(v.fill, 0x444444);
+  v.setPseudoState("focus", false); settle(); assert.equal(v.fill, 0x111111);
+});
+
 await test("an owning binding outranks CSS (ownerOf gate)", () => {
   const v = new View();
   v.styleclass = "a";

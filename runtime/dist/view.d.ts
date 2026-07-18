@@ -131,6 +131,13 @@ export declare class View extends Node {
      *  offers (below the class-dict) through per-view appliers (css-apply.ts).
      *  Assigning another RuleSet re-cascades live, one settle. */
     cssRules: RuleSet | null;
+    private $pseudoCells?;
+    private $pseudoVals?;
+    /** Read a pseudo-class's interaction state (`"hover"`/`"active"`/`"focus"`),
+     *  tracked so the CSS applier re-cascades when it changes. */
+    pseudoState(name: string): boolean;
+    /** Set a pseudo-class's interaction state (runtime only). */
+    setPseudoState(name: string, on: boolean): void;
     /** Resolve a declared stylesheet by name — the honest public call for
      *  reaching a stylesheet from inside a `{ }` body, where you are in real TS and
      *  a bare `Dark` is (correctly) just an unresolved identifier, NOT sugar:
