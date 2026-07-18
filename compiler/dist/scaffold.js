@@ -104,7 +104,7 @@ declare function back(overshoot: number): MotionCurve;
 declare function steps(n: number, jump?: "jumpStart" | "jumpEnd"): MotionCurve;
 declare function laszlo(beginPole: number, endPole: number): MotionCurve;
 declare const Focus: { focus(v: unknown): void; blur(): void; next(): void; prev(): void; byKeyboard(): boolean };
-declare const Themes: { sanFrancisco(dark?: boolean): Record<string, unknown>; cupertino(dark?: boolean): Record<string, unknown>; mountainView(dark?: boolean): Record<string, unknown>; tint(c: number, dark?: boolean): number };
+declare const Themes: { sanFrancisco(dark?: boolean): Record<string, unknown>; cupertino(dark?: boolean): Record<string, unknown>; mountainView(dark?: boolean): Record<string, unknown>; redmond(dark?: boolean): Record<string, unknown>; tint(c: number, dark?: boolean): number };
 declare const Keys: { isDown(code: string): boolean; held(): string[] };
 declare function setTimeout(fn: (...args: any[]) => void, ms?: number): number;
 declare function clearTimeout(id: number): void;

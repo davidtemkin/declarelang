@@ -70,7 +70,8 @@ class FocusRing extends View [ opacity = 0,
         if (g.root != app) return
         const gap = typeof theme.focusRingGap == "number" ? theme.focusRingGap : 0
         const lw = typeof theme.focusRingWidth == "number" ? theme.focusRingWidth : 3
-        const off = gap + lw / 2
+        const iw = typeof theme.focusRingInnerWidth == "number" ? theme.focusRingInnerWidth : 0
+        const off = gap + iw + lw / 2
         tx = g.x - off; ty = g.y - off; tw = g.w + 2 * off; th = g.h + 2 * off
         trad = g.rad + off
         // Only a FOCUS CHANGE flies. The same control moving under a resting
@@ -139,7 +140,6 @@ class FocusRing extends View [ opacity = 0,
 
     draw(d) {
         const w = this.width, h = this.height
-        const r = Math.max(2, Math.min(rad, Math.min(w, h) / 2))
         const Q = Math.PI / 2
         const dist = Math.abs(this.x - tx) + Math.abs(this.y - ty) + Math.abs(this.width - tw) + Math.abs(this.height - th)
         const small = Math.min(w, h) < 40
@@ -149,19 +149,28 @@ class FocusRing extends View [ opacity = 0,
         // code path) for its possible return: fully open in motion, arms
         // sweeping shut inside the last 16px of settle.
         const cov = theme.focusSights == true && !small ? Math.max(0.22, 1 - dist / 16) : 1
-        const ax = Math.max(0, (w / 2 - r) * cov)      // horizontal arm length
-        const ay = Math.max(0, (h / 2 - r) * cov)      // vertical arm length
-        d.strokeStyle = typeof theme.focusColor == "number" ? theme.focusColor : theme.accent
-        d.lineWidth = typeof theme.focusRingWidth == "number" ? theme.focusRingWidth : 3
-        d.beginPath()
-        // top-left corner: arc + arms
-        d.moveTo(r + ax, 0); d.lineTo(r, 0); d.arc(r, r, r, -Q, Math.PI, true); d.lineTo(0, r + ay)
-        // top-right
-        d.moveTo(w - r - ax, 0); d.lineTo(w - r, 0); d.arc(w - r, r, r, -Q, 0); d.lineTo(w, r + ay)
-        // bottom-right
-        d.moveTo(w, h - r - ay); d.lineTo(w, h - r); d.arc(w - r, h - r, r, 0, Q); d.lineTo(w - r - ax, h)
-        // bottom-left
-        d.moveTo(r + ax, h); d.lineTo(r, h); d.arc(r, h - r, r, Q, Math.PI); d.lineTo(0, h - r - ay)
-        d.stroke()
+        const lw = typeof theme.focusRingWidth == "number" ? theme.focusRingWidth : 3
+        // The indicator is ONE band or TWO, by data: `focusRingInnerWidth` > 0
+        // adds an inner stroke between the control and the outer one — the
+        // Fluent (Redmond) two-tone focus rectangle, black over white. Both
+        // passes are the same outline at different insets; the flight, the
+        // sights, and the silhouette machinery are shared, not forked.
+        const iw = typeof theme.focusRingInnerWidth == "number" ? theme.focusRingInnerWidth : 0
+        const pass = (ins, lwp, color) => {
+            const r = Math.max(1, Math.min(rad - ins, Math.min(w, h) / 2 - ins))
+            const ax = Math.max(0, ((w - 2 * ins) / 2 - r) * cov)      // horizontal arm length
+            const ay = Math.max(0, ((h - 2 * ins) / 2 - r) * cov)      // vertical arm length
+            d.strokeStyle = color
+            d.lineWidth = lwp
+            d.beginPath()
+            // each corner: arc + arms, inset symmetrically
+            d.moveTo(ins + r + ax, ins); d.lineTo(ins + r, ins); d.arc(ins + r, ins + r, r, -Q, Math.PI, true); d.lineTo(ins, ins + r + ay)
+            d.moveTo(w - ins - r - ax, ins); d.lineTo(w - ins - r, ins); d.arc(w - ins - r, ins + r, r, -Q, 0); d.lineTo(w - ins, ins + r + ay)
+            d.moveTo(w - ins, h - ins - r - ay); d.lineTo(w - ins, h - ins - r); d.arc(w - ins - r, h - ins - r, r, 0, Q); d.lineTo(w - ins - r - ax, h - ins)
+            d.moveTo(ins + r + ax, h - ins); d.lineTo(ins + r, h - ins); d.arc(ins + r, h - ins - r, r, Q, Math.PI); d.lineTo(ins, h - ins - r - ay)
+            d.stroke()
+            }
+        pass(0, lw, typeof theme.focusColor == "number" ? theme.focusColor : theme.accent)
+        if (iw > 0) pass((lw + iw) / 2, iw, typeof theme.focusRingInnerColor == "number" ? theme.focusRingInnerColor : theme.surface)
         },
     ]

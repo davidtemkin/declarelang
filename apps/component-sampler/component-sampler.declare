@@ -76,14 +76,14 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 720,
     // the active tint (Themes.tint) so nothing keeps a stale tone.
 
     theme = { ({
-        ...(style == "mountainView" ? Themes.mountainView(darkUI) : style == "cupertino" ? Themes.cupertino(darkUI) : Themes.sanFrancisco(darkUI)),
+        ...(style == "mountainView" ? Themes.mountainView(darkUI) : style == "cupertino" ? Themes.cupertino(darkUI) : style == "redmond" ? Themes.redmond(darkUI) : Themes.sanFrancisco(darkUI)),
         focusAnimate: animateFocus,
         ...(accentPick != 0 ? ({ accent: accentPick, controlActive: Themes.tint(accentPick, darkUI) }) : ({})),
     }) },
 
     // the type stack is part of the emulation: Roboto for Mountain View, SF for Cupertino
 
-    fontFamily = { style == "mountainView" ? "Roboto, system-ui, sans-serif" : style == "cupertino" ? "-apple-system, system-ui, sans-serif" : "system-ui, sans-serif" },
+    fontFamily = { style == "mountainView" ? "Roboto, system-ui, sans-serif" : style == "cupertino" ? "-apple-system, system-ui, sans-serif" : style == "redmond" ? "'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif" : "system-ui, sans-serif" },
 
     // ── chrome: title + the mode switcher + the transitions toggle ─────────
 
@@ -106,6 +106,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 720,
                 Radio [ choice = "sanFrancisco", label = "San Francisco" ],
                 Radio [ choice = "mountainView", label = "Mountain View" ],
                 Radio [ choice = "cupertino", label = "Cupertino" ],
+                Radio [ choice = "redmond", label = "Redmond" ],
                 ],
             RadioGroup [ value = { app.colorMode },
                 input(v) { app.colorMode = v },

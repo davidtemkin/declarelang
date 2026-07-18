@@ -64,17 +64,28 @@ class Slider extends Control [
 
     barStyle() { return theme.sliderHandle == "bar" },
 
+    // Fluent's (Redmond) thumb: a 20px round grabber, surface-filled, with an
+    // accent DOT inside that grows a touch on hover/press. One more value of
+    // the same token — data, not a fork.
+
+    dotStyle() { return theme.sliderHandle == "dot" },
+
     track: View [ y = 12, height = 4, cornerRadius = 2, fill = { theme.control },
         x     = { classroot.barStyle() ? classroot.thumb.x + classroot.thumb.width + 5 : 0 },
         width = { classroot.barStyle() ? Math.max(0, classroot.width - this.x) : classroot.width } ],
     bar: View [ y = 12, height = 4, cornerRadius = 2, fill = { theme.accent },
         width = { classroot.barStyle() ? Math.max(0, classroot.thumb.x - 5) : 9 + (classroot.width - 18) * frac } ],
     thumb: View [
-        width  = { classroot.barStyle() ? 5 : 18 },
-        height = { classroot.barStyle() ? 24 : 18 },
-        y      = { classroot.barStyle() ? 2 : 5 },
+        width  = { classroot.barStyle() ? 5 : classroot.dotStyle() ? 20 : 18 },
+        height = { classroot.barStyle() ? 24 : classroot.dotStyle() ? 20 : 18 },
+        y      = { classroot.barStyle() ? 2 : classroot.dotStyle() ? 4 : 5 },
         cornerRadius = { this.width / 2 },
-        x = { (classroot.width - 18) * frac + (classroot.barStyle() ? 6 : 0) },
+        x = { (classroot.width - 18) * frac + (classroot.barStyle() ? 6 : classroot.dotStyle() ? -1 : 0) },
         fill = { classroot.barStyle() ? theme.accent : theme.surface },
-        stroke = { classroot.barStyle() ? stroke(0, theme.accent) : stroke(1, classroot.hovered || classroot.pressed ? theme.accent : theme.line) } ],
+        stroke = { classroot.barStyle() ? stroke(0, theme.accent) : stroke(1, classroot.hovered || classroot.pressed ? theme.accent : theme.line) },
+        dot: View [ visible = { classroot.dotStyle() },
+            width  = { classroot.hovered || classroot.pressed ? 14 : 12 },
+            height = { this.width }, cornerRadius = { this.width / 2 },
+            x = center, y = center, fill = { theme.accent } ],
+        ],
     ]

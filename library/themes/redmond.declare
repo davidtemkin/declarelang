@@ -1,0 +1,44 @@
+/*
+# Redmond
+
+The Fluent-fidelity record (Windows 11): 4px radii on everything, the
+Windows accent blue (light-on-dark flips to the pale #4CC2FF with DARK
+text on it), compact 32px buttons, the 40×20 toggle with its 12px
+off-thumb, the round slider grabber with the accent dot
+(`sliderHandle = "dot"`), and Fluent's two-tone focus RECTANGLE — a 2px
+outer stroke over a 1px inner separator (`focusRingInnerWidth`), black
+over white in light, white over black in dark. Windows focus does not
+fly: `focusRing = "rest"` — the indicator appears in place and stays.
+Segoe UI is the consuming app's `fontFamily`, not a theme token.
+*/
+
+stylesheet Redmond [
+    theme: Theme [
+        bg = #F3F3F3, surface = #FFFFFF, line = #D1D1D1,
+        text = #1B1B1B, textMuted = #5D5D5D, textFaint = #9A9A9A,
+        accent = #0067C0, accentText = #FFFFFF,
+        control = #FBFBFB, controlActive = #C7DEF1,
+        depth = 0.5, focusRing = "rest",
+        controlRadius = 4, buttonRadius = 4, fieldRadius = 4, fieldPadding = 10,
+        buttonHeight = 32, switchWidth = 40, switchHeight = 20, switchThumbOff = 12,
+        focusRingWidth = 2, focusRingGap = 0, focusRingInnerWidth = 1,
+        focusColor = #000000, focusRingInnerColor = #FFFFFF,
+        sliderHandle = "dot",
+        checkboxSize = 20, checkboxRadius = 4, disabledOpacity = 0.36 ],
+    ]
+
+
+stylesheet RedmondDark [
+    theme: Theme [
+        bg = #202020, surface = #2B2B2B, line = #404040,
+        text = #FFFFFF, textMuted = #C5C5C5, textFaint = #8B8B8B,
+        accent = #4CC2FF, accentText = #000000,
+        control = #343434, controlActive = #2B4553,
+        depth = 0.5, focusRing = "rest",
+        controlRadius = 4, buttonRadius = 4, fieldRadius = 4, fieldPadding = 10,
+        buttonHeight = 32, switchWidth = 40, switchHeight = 20, switchThumbOff = 12,
+        focusRingWidth = 2, focusRingGap = 0, focusRingInnerWidth = 1,
+        focusColor = #FFFFFF, focusRingInnerColor = #000000,
+        sliderHandle = "dot",
+        checkboxSize = 20, checkboxRadius = 4, disabledOpacity = 0.36 ],
+    ]

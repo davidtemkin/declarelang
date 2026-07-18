@@ -6,7 +6,7 @@
 // default: an app that never mentions a theme renders sanFrancisco(light)
 // (value.ts DEFAULT_THEME IS the San Francisco light record — one object,
 // not a copy, so the fallback tier can never drift from the named preset).
-// (Flutter half-shares the idea — Material + Cupertino; Redmond is next.)
+// (Flutter half-shares the idea — Material + Cupertino; Redmond: landed.)
 //
 // Each preset is a FUNCTION of the one resolved mode fact (dark), returning a
 // plain token record for the prevailing `theme` slot:
@@ -30,6 +30,7 @@ export const Themes = Object.freeze({
     sanFrancisco: (dark) => (dark ? R.SanFranciscoDark : R.SanFrancisco),
     cupertino: (dark) => (dark ? R.CupertinoDark : R.Cupertino),
     mountainView: (dark) => (dark ? R.MountainViewDark : R.MountainView),
+    redmond: (dark) => (dark ? R.RedmondDark : R.Redmond),
     /** An active tone derived from an accent — 22% over the surface tone. */
     tint(c, dark) {
         const base = dark ? 0x22 : 0xFF;
