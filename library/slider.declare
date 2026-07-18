@@ -41,6 +41,7 @@ class Slider extends Control [
     onMouseDown(e) {
         if (disabled) return
         pressed = true
+        focusVisible = false                     // a press clears the :focus-visible channel (Control's rule)
         Focus.focus(this)                        // a click claims focus (Control's rule — this override must keep it)
         v0 = quant(min + (max - min) * ((e.x - 9) / (width - 18)))
         input(v0)

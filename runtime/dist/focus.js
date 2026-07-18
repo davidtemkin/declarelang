@@ -12,14 +12,24 @@
 // §mutation. Keyboard delivery to the focused view (Keys → onKeyDown/onKeyUp)
 // is wired by the runtime entry, not here, keeping this layer independent.
 import { View, fireEvent, setFocusDiscardHook } from "./view.js";
-import { Constraint } from "./reactive.js";
+import { Cell, Constraint } from "./reactive.js";
 export class FocusService {
     current = null;
     rootView = null;
     /** Whether the LAST focus change was keyboard-driven (Tab traversal). The
      *  focus-visible modality: a ring/indicator shows only for keyboard focus —
-     *  a pointer press focuses silently (the click itself is the feedback). */
+     *  a pointer press focuses silently (the click itself is the feedback).
+     *  A REACTIVE fact: `byKeyboard()` is a tracked read, so a component's
+     *  styling constraint (a Tab header's focus edge) re-derives when the
+     *  modality flips — same slot, event handlers and constraints alike. */
     keyboard = false;
+    keyboardCell = new Cell();
+    setKeyboard(v) {
+        if (this.keyboard === v)
+            return;
+        this.keyboard = v;
+        this.keyboardCell.changed();
+    }
     /** Subscribers to focus CHANGES (`onFocusChange(v) <- Focus`, language §8) —
      *  called with the newly focused view (or null on blur) after the change
      *  settles. What the traveling focus indicator rides. */
@@ -48,6 +58,7 @@ export class FocusService {
      *  focus-visible modality gate an indicator reads: show for keyboard focus,
      *  stay hidden for pointer/programmatic focus. */
     byKeyboard() {
+        this.keyboardCell.track();
         return this.keyboard;
     }
     /** Test/lifecycle reset. */
@@ -64,7 +75,7 @@ export class FocusService {
      *  This public entry is the POINTER/PROGRAMMATIC path — it clears the
      *  keyboard modality; Tab traversal (move) sets it. */
     focus(view) {
-        this.keyboard = false;
+        this.setKeyboard(false);
         this.apply(view);
     }
     apply(view) {
@@ -166,7 +177,7 @@ export class FocusService {
         if (group.focustrap && atEdge)
             fireEvent(group, "escapeFocus");
         const nidx = (((idx + dir) % seq.length) + seq.length) % seq.length; // cyclic
-        this.keyboard = true; // Tab traversal — the focus-visible modality
+        this.setKeyboard(true); // Tab traversal — the focus-visible modality
         this.apply(seq[nidx]);
     }
     /** The focused view's subtree is being discarded (or hidden) — move focus to

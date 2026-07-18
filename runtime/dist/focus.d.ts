@@ -17,8 +17,13 @@ export declare class FocusService {
     private rootView;
     /** Whether the LAST focus change was keyboard-driven (Tab traversal). The
      *  focus-visible modality: a ring/indicator shows only for keyboard focus —
-     *  a pointer press focuses silently (the click itself is the feedback). */
+     *  a pointer press focuses silently (the click itself is the feedback).
+     *  A REACTIVE fact: `byKeyboard()` is a tracked read, so a component's
+     *  styling constraint (a Tab header's focus edge) re-derives when the
+     *  modality flips — same slot, event handlers and constraints alike. */
     private keyboard;
+    private readonly keyboardCell;
+    private setKeyboard;
     /** Subscribers to focus CHANGES (`onFocusChange(v) <- Focus`, language §8) —
      *  called with the newly focused view (or null on blur) after the change
      *  settles. What the traveling focus indicator rides. */

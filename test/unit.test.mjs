@@ -4620,6 +4620,29 @@ await test("focus: byKeyboard() — the focus-visible modality: Tab sets it, a d
   assert.equal(Focus.byKeyboard(), false, "clicking after tabbing clears it again");
 });
 
+await test("focus: byKeyboard() is a TRACKED read — a styling constraint follows the modality", async () => {
+  // The component channel's gate (a Tab header's focus edge): the constraint
+  // reads Focus.byKeyboard(), so a modality flip re-derives it — including a
+  // pointer press on an already-keyboard-focused control (edge must vanish).
+  Focus.reset();
+  const app = build(`App [ width = 100, height = 100,
+    a: View [ focusable = true ], b: View [ focusable = true ],
+  ]`);
+  Focus.setRoot(app);
+  const { Constraint } = await import("../runtime/dist/reactive.js");
+  const seen = [];
+  const k = new Constraint("test", () => Focus.byKeyboard(), (v) => seen.push(v));
+  k.run();
+  assert.deepEqual(seen, [false]);
+  Focus.focus(app.a);
+  Focus.next();               // keyboard modality on
+  settle();
+  assert.deepEqual(seen, [false, true], "Tab flipped the constraint on");
+  Focus.focus(app.a);         // a press on the focused control — modality clears
+  settle();
+  assert.deepEqual(seen, [false, true, false], "the press re-derived the edge away");
+});
+
 await test("focus: two apps on one page — Tab cycles within the focused view's OWN tree", () => {
   // The embedded-preview case: the page's rootView is the HOST app, but focus
   // sits in a second tree (the child app). Tab must cycle within the child,

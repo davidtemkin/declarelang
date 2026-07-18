@@ -21,6 +21,14 @@ class Control extends View [
     disabled: boolean = false,
     focused:  boolean = false,
 
+    // The :focus-visible channel for the control's OWN styling (a Tab header's
+    // focus edge): focused AND the focus arrived by keyboard. Captured at the
+    // focus event (the web's rule), cleared by blur — and by a pointer press on
+    // this very control, the one case with no focus event (Focus.focus on the
+    // already-focused target is a no-op, but the modality still cleared).
+
+    focusVisible: boolean = false,
+
     focusable = { !disabled },
 
     // The keyboard affordance is the app-level FocusRing (focusring.declare —
@@ -49,15 +57,15 @@ class Control extends View [
         setTimeout(() => { this.pressed = false }, flashMs)
         },
 
-    onFocus() { focused = true },
-    onBlur()  { focused = false },
+    onFocus() { focused = true; focusVisible = Focus.byKeyboard() },
+    onBlur()  { focused = false; focusVisible = false },
 
     onMouseOver() { if (!disabled) hovered = true },
     onMouseOut()  { hovered = false; pressed = false },
 
     // a click is also a focus claim — the keyboard picks up where the pointer left
 
-    onMouseDown() { if (!disabled) { pressed = true; Focus.focus(this) } },
+    onMouseDown() { if (!disabled) { pressed = true; focusVisible = false; Focus.focus(this) } },
     onMouseUp()   { pressed = false },
     onKeyDown(e) { if (!disabled && !e.repeat && (e.key == "Enter" || e.key == " ")) press() },
     ]

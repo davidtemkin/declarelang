@@ -57,12 +57,14 @@ class Tab extends Control [ width = { parent.width }, clip = true,
 
     // headers are FILLED, edgeless — an edge reads as an input field (David).
     // The one exception is the component channel of the focus model: while
-    // THIS tab holds keyboard focus, a darker-than-fill edge appears.
+    // THIS tab holds KEYBOARD focus (Control's focusVisible — the web's
+    // :focus-visible rule), a darker-than-fill edge appears. A pointer click
+    // focuses silently — the click is its own feedback, no edge.
 
     header: View [ width = { parent.width }, height = 34,
         cornerRadius = { theme.controlRadius },
         fill = { classroot.open || classroot.hovered || classroot.pressed ? theme.controlActive : theme.control },
-        stroke = { classroot.focused ? stroke(1, theme.textMuted) : null },
+        stroke = { classroot.focusVisible ? stroke(1, theme.textMuted) : null },
         t: Text [ x = 12, y = center, fontSize = 14, fontWeight = { classroot.open ? "semibold" : "medium" },
             textColor = { theme.text }, text = { classroot.label } ],
         ],
