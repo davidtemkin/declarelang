@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>declarelang · CSS engine playground</title>
+<style>
+  :root { color-scheme: dark; --ink:#e7ecf3; --dim:#8b93a7; --line:#232838; --panel:#12151f; --bg:#0a0c12; --accent:#22dd77; }
+  * { box-sizing: border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--ink);
+    font:14px/1.5 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  header.top { padding:18px 26px; border-bottom:1px solid var(--line); display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
+  header.top h1 { margin:0; font-size:16px; font-weight:650; letter-spacing:.2px; }
+  header.top .tag { color:var(--dim); font-size:12.5px; }
+  header.top .tag b { color:var(--accent); font-weight:600; }
+  main { display:grid; grid-template-columns: 1fr 420px; gap:0; height:calc(100vh - 61px); }
+  @media (max-width:960px){ main{ grid-template-columns:1fr; height:auto; } }
+  .stage { display:flex; align-items:center; justify-content:center; padding:28px; overflow:auto; }
+  #host { width:720px; height:470px; position:relative; border-radius:16px; overflow:hidden;
+    box-shadow:0 24px 70px rgba(0,0,0,.5), 0 0 0 1px var(--line); }
+  aside { border-left:1px solid var(--line); background:var(--panel); display:flex; flex-direction:column; min-height:0; }
+  .skins { display:flex; gap:8px; padding:14px 16px; border-bottom:1px solid var(--line); flex-wrap:wrap; align-items:center; }
+  .skins .lbl { color:var(--dim); font-size:12px; margin-right:2px; }
+  button.skin, button.act { background:#1a1f2e; color:var(--ink); border:1px solid var(--line);
+    padding:6px 12px; border-radius:8px; font-size:12.5px; cursor:pointer; transition:.15s; }
+  button.skin:hover, button.act:hover { border-color:#3a4256; background:#222838; }
+  button.skin.on { background:var(--accent); color:#062; border-color:var(--accent); font-weight:600; }
+  button.act { margin-left:auto; }
+  .editor { display:flex; flex-direction:column; min-height:0; flex:1; }
+  .editor .cap { padding:11px 16px 6px; color:var(--dim); font-size:11.5px; text-transform:uppercase; letter-spacing:.7px; display:flex; justify-content:space-between; }
+  .editor .cap .status { color:var(--accent); text-transform:none; letter-spacing:0; font-size:12px; }
+  .editor .cap .status.err { color:#ff6b6b; }
+  textarea { flex:1; margin:0 12px 12px; padding:14px; resize:none; border:1px solid var(--line);
+    background:#0c0f17; color:#cdd6e6; border-radius:10px; font:12.5px/1.65 "SF Mono",ui-monospace,Menlo,monospace;
+    tab-size:2; outline:none; }
+  textarea:focus { border-color:#33405a; }
+  .hint { padding:10px 16px 16px; color:var(--dim); font-size:11.5px; border-top:1px solid var(--line); }
+  .hint code { color:#b7c2d6; background:#161b28; padding:1px 5px; border-radius:4px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>declarelang · CSS engine</h1>
+  <span class="tag">A view tree built in the runtime, styled entirely by <b>standard CSS</b> — selectors, specificity, cascade — that the reactive engine re-cascades live. Type below.</span>
+</header>
+<main>
+  <div class="stage"><div id="host"></div></div>
+  <aside>
+    <div class="skins">
+      <span class="lbl">skin</span>
+      <button class="skin" data-skin="midnight">Midnight</button>
+      <button class="skin" data-skin="daylight">Daylight</button>
+      <button class="skin" data-skin="candy">Candy</button>
+      <button class="act" id="spotlight">Toggle .featured on card 2</button>
+    </div>
+    <div class="editor">
+      <div class="cap"><span>live stylesheet — <code>cssRules</code></span><span class="status" id="status">applied</span></div>
+      <textarea id="css" spellcheck="false"></textarea>
+    </div>
+    <div class="hint">
+      Hover a card → the runtime adds <code>hover</code> to its <code>styleclass</code> and <code>.card.hover</code> re-matches (specificity, one frame).
+      Selectors seen here: <code>App</code>, <code>Row</code>, <code>Card</code> (subclass-aware tag), <code>.title</code>, <code>#tagline</code>, <code>.card.featured</code>, <code>.card.hover</code>.
+    </div>
+  </aside>
+</main>
+
+<script type="module">
+import { App, View, Text, mountApp, DomBackend, settle } from "/runtime/dist/index.js";
+import { buildRuleSet } from "/runtime/dist/css-match.js";
+
+// ── Subclasses so CSS can target components by TYPE (subclass-aware tag match).
+class Row extends View {}
+class Card extends View {}
+
+// ── A tiny builder: mk(Ctor, props, children).
+function mk(Ctor, props = {}, children = []) {
+  const v = new Ctor();
+  for (const [k, val] of Object.entries(props)) v[k] = val;
+  for (const c of children) v.appendChild(c);
+  return v;
+}
+const text = (s, props = {}) => mk(Text, { text: s, ...props });
+
+// ── The UI: a header + a row of member cards, one "featured". Geometry lives
+//    in JS; APPEARANCE is 100% CSS. styleclass/id are the CSS hooks.
+const members = [
+  { name: "Ada",   role: "Compiler",  cls: "" },
+  { name: "Grace", role: "Runtime",   cls: "featured" },
+  { name: "Alan",  role: "Reactive",  cls: "" },
+  { name: "Edsger",role: "Layout",    cls: "" },
+];
+
+function card(m, i) {
+  return mk(Card, { x: 24 + i * 168, y: 118, width: 152, height: 224, styleclass: ("card " + m.cls).trim() }, [
+    text(m.name, { x: 18, y: 22, styleclass: "title" }),
+    text(m.role, { x: 18, y: 50, styleclass: "subtitle" }),
+    mk(View, { x: 18, y: 176, width: 116, height: 30, styleclass: "badge" }, [
+      text("online", { x: 12, y: 6, styleclass: "badgetext" }),
+    ]),
+  ]);
+}
+
+const cards = members.map(card);
+const roster = mk(Row, { id: "roster", x: 0, y: 0, width: 720, height: 470 }, cards);
+const app = mk(App, { width: 720, height: 470 }, [
+  text("Declare × CSS", { id: "brand", x: 26, y: 26 }),
+  text("styled by a live stylesheet", { id: "tagline", x: 26, y: 54 }),
+  roster,
+]);
+
+mountApp(app, document.getElementById("host"), new DomBackend());
+
+// ── Hover → toggle `hover` in the card's styleclass (reactive re-cascade).
+for (const c of cards) {
+  const el = c.surface?.element;
+  if (!el) continue;
+  el.addEventListener("pointerenter", () => {
+    if (!/\bhover\b/.test(c.styleclass)) c.styleclass = (c.styleclass + " hover").trim();
+  });
+  el.addEventListener("pointerleave", () => {
+    c.styleclass = c.styleclass.replace(/\s*\bhover\b/g, "").trim();
+  });
+}
+
+// ── The star: type CSS → rebuild the RuleSet → the engine re-cascades live.
+const cssBox = document.getElementById("css");
+const statusEl = document.getElementById("status");
+function apply() {
+  try {
+    app.cssRules = buildRuleSet(cssBox.value);
+    settle();
+    statusEl.textContent = "applied"; statusEl.className = "status";
+  } catch (e) {
+    statusEl.textContent = String(e.message || e); statusEl.className = "status err";
+  }
+}
+cssBox.addEventListener("input", apply);
+
+// ── Skins (complete stylesheets, hot-swapped in one click / one frame).
+const SKINS = {
+  midnight: `/* Midnight — the default. Tag, id, class, compound + specificity. */
+App        { background-color: #0e1018 }
+#brand     { color: #eef2fb; font-size: 22px; font-weight: bold; letter-spacing: 1px }
+#tagline   { color: #5b647c; font-size: 12px }
+
+Card       { background-color: #171b28; border-radius: 16px }
+.title     { color: #e7ecf6; font-size: 19px; font-weight: bold }
+.subtitle  { color: #7f8aa6; font-size: 12px; letter-spacing: 1px }
+.badge     { background-color: #10331f; border-radius: 8px }
+.badgetext { color: #22dd77; font-size: 11px; letter-spacing: 1px }
+
+/* compound: beats .card by specificity */
+.card.featured { background-color: #14243a }
+.card.featured .title { color: #6cc4ff }
+
+/* reactive: added on hover, removed on leave */
+.card.hover { background-color: #202636 }`,
+
+  daylight: `/* Daylight — same views, a light skin. One click, one re-cascade. */
+App        { background-color: #eef1f6 }
+#brand     { color: #1a2030; font-size: 22px; font-weight: bold; letter-spacing: 1px }
+#tagline   { color: #7d879b; font-size: 12px }
+
+Card       { background-color: #ffffff; border-radius: 16px }
+.title     { color: #1c2333; font-size: 19px; font-weight: bold }
+.subtitle  { color: #8b93a7; font-size: 12px; letter-spacing: 1px }
+.badge     { background-color: #e6f6ec; border-radius: 8px }
+.badgetext { color: #12a150; font-size: 11px; letter-spacing: 1px }
+
+.card.featured { background-color: #eef6ff }
+.card.featured .title { color: #1f6feb }
+.card.hover { background-color: #f2f5fb }`,
+
+  candy: `/* Candy — a loud skin to show it is really just CSS. */
+App        { background-color: #241033 }
+#brand     { color: #ffd6f2; font-size: 23px; font-weight: bold; letter-spacing: 1px }
+#tagline   { color: #b77fd6; font-size: 12px }
+
+Card       { background-color: #3a1657; border-radius: 22px }
+.title     { color: #ffe3fb; font-size: 19px; font-weight: bold }
+.subtitle  { color: #d59cf2; font-size: 12px; letter-spacing: 1px }
+.badge     { background-color: #ff4fa3; border-radius: 14px }
+.badgetext { color: #2a0a1c; font-size: 11px; font-weight: bold; letter-spacing: 1px }
+
+.card.featured { background-color: #5a2088; border-radius: 26px }
+.card.featured .title { color: #7cf5c0 }
+.card.hover { background-color: #4a1c6e }`,
+};
+
+function setSkin(name) {
+  cssBox.value = SKINS[name];
+  apply();
+  for (const b of document.querySelectorAll("button.skin")) b.classList.toggle("on", b.dataset.skin === name);
+}
+for (const b of document.querySelectorAll("button.skin")) b.addEventListener("click", () => setSkin(b.dataset.skin));
+
+// Spotlight: toggle `.featured` on card 2 (Alan) to show class-driven restyle.
+document.getElementById("spotlight").addEventListener("click", () => {
+  const c = cards[2];
+  c.styleclass = /featured/.test(c.styleclass)
+    ? c.styleclass.replace(/\s*featured/, "")
+    : (c.styleclass + " featured").trim();
+});
+
+setSkin("midnight");
+window.__app = app;
+</script>
+</body>
+</html>
