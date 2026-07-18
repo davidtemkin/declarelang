@@ -1,4 +1,15 @@
 import { type AttrType } from "./value.js";
+/** The check-time CSS-property vocabulary: the twin of the runtime `css:`
+ *  mappings on `View` (defineAttributes) — the source of truth is view.ts, and a
+ *  parity guard (css.test.mjs) asserts key/attr equality against `cssMap(View)`.
+ *  `kind` labels the value type for error messages (the coercer can't report
+ *  its own). Keyed by W3C property name; `coerce` is the SAME pure function the
+ *  runtime uses, so value validation cannot drift. */
+export declare const CSS_PROPERTIES: Readonly<Record<string, {
+    attr: string;
+    coerce: (raw: string) => unknown;
+    kind: string;
+}>>;
 export interface ComponentSchema {
     readonly name: string;
     readonly base: ComponentSchema | null;

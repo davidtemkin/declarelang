@@ -9,6 +9,27 @@
 // front-end (APPROACH §5) reuses check — and therefore these schemas — with
 // no runtime import. instantiate.ts keeps the twin tag → class table.
 import { enumType } from "./value.js";
+import { coerceColor, coerceLength, coerceNumber, coerceString, coerceWeight } from "./css-coerce.js";
+/** The check-time CSS-property vocabulary: the twin of the runtime `css:`
+ *  mappings on `View` (defineAttributes) — the source of truth is view.ts, and a
+ *  parity guard (css.test.mjs) asserts key/attr equality against `cssMap(View)`.
+ *  `kind` labels the value type for error messages (the coercer can't report
+ *  its own). Keyed by W3C property name; `coerce` is the SAME pure function the
+ *  runtime uses, so value validation cannot drift. */
+export const CSS_PROPERTIES = {
+    left: { attr: "x", coerce: coerceLength, kind: "length" },
+    top: { attr: "y", coerce: coerceLength, kind: "length" },
+    width: { attr: "width", coerce: coerceLength, kind: "length" },
+    height: { attr: "height", coerce: coerceLength, kind: "length" },
+    "background-color": { attr: "fill", coerce: coerceColor, kind: "color" },
+    "border-radius": { attr: "cornerRadius", coerce: coerceLength, kind: "length" },
+    opacity: { attr: "opacity", coerce: coerceNumber, kind: "number" },
+    color: { attr: "textColor", coerce: coerceColor, kind: "color" },
+    "font-size": { attr: "fontSize", coerce: coerceLength, kind: "length" },
+    "font-family": { attr: "fontFamily", coerce: coerceString, kind: "string" },
+    "font-weight": { attr: "fontWeight", coerce: coerceWeight, kind: "weight" },
+    "letter-spacing": { attr: "letterSpacing", coerce: coerceLength, kind: "length" },
+};
 // The formalized weight vocabulary (CSS 100–900 tokens + normal/bold aliases),
 // shared by View's `fontWeight`/`headingWeight` and the `font` face keys.
 const FONT_WEIGHT = enumType("FontWeight", "thin", "extralight", "light", "regular", "normal", "medium", "semibold", "bold", "extrabold", "black");

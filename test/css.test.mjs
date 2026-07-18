@@ -416,6 +416,17 @@ await test("no-thrash: a stable cascade settles without exceeding the cycle guar
   assert.equal(v.fill, 0x22dd77);
 });
 
+await test("CSS_PROPERTIES parity with runtime cssMap(View)", async () => {
+  const { cssMap } = await import("../runtime/dist/attributes.js");
+  const { CSS_PROPERTIES } = await import("../runtime/dist/schema.js");
+  const runtime = cssMap(View);
+  assert.deepEqual(Object.keys(CSS_PROPERTIES).sort(), Object.keys(runtime).sort());
+  for (const k of Object.keys(runtime)) {
+    assert.equal(CSS_PROPERTIES[k].attr, runtime[k].attr, `attr for ${k}`);
+    assert.equal(CSS_PROPERTIES[k].coerce, runtime[k].coerce, `coerce fn for ${k}`);
+  }
+});
+
 await test("parseCss carries selector + decl offsets (comments masked, not stripped)", () => {
   const css = `.a { color: red }`;
   const r = parseCss(css)[0];
