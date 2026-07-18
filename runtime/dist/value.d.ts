@@ -99,6 +99,8 @@ export declare function isPercent(v: AttrValue): v is Percent;
 export type AttrType = {
     readonly kind: "length" | "number" | "boolean" | "string" | "color" | "shape";
 } | {
+    readonly kind: "array" | "object" | "view";
+} | {
     readonly kind: "enum";
     readonly name: string;
     readonly tokens: readonly string[];

@@ -63,6 +63,7 @@ import { bindConstraint, bindPercent, bindAlign, bindData, bindDatapath, bindCur
 import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
 import { Replicator } from "./replicate.js";
 import { provideViewCreator } from "./view.js";
+import { toCursor } from "./data.js";
 import { TAGS, LAYOUTS, LAYOUT_BASES, DATA, ANIMATORS, ANIMATOR_GROUPS, STATES } from "./registry.js";
 /** Build a Node/View tree from a parsed Program or Element fragment (no
  *  rendering). */
@@ -1022,11 +1023,20 @@ export function createViewIn(root, tag, parent, props) {
     const ps = parent.surface;
     if (ps !== null && parent.backend !== null)
         made.view.attach(parent.backend, ps, null);
-    made.finish();
+    // Props land BEFORE finish — the replicator's own order ("linked, attached,
+    // and cursored"): a `datapath` prop must be in place when the instance's
+    // bindings first evaluate, or its `:path` reads boot against nothing. The
+    // datapath slot holds a CURSOR — a raw record prop converts through
+    // toCursor (it must be a tagged place: a record from a dataset's tree).
     if (props !== undefined) {
-        for (const [k, v] of Object.entries(props))
-            made.view[k] = v;
+        for (const [k, v] of Object.entries(props)) {
+            const val = k === "datapath" && v !== null && !v?.data
+                ? toCursor(v, "createView: the datapath prop")
+                : v;
+            made.view[k] = val;
+        }
     }
+    made.finish();
     return made.view;
 }
 /** The construct pipeline as a value (replicate.ts's Materialize): build one

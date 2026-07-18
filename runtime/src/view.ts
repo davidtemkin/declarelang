@@ -451,6 +451,18 @@ export class View extends Node {
     this.surface?.scrollIntoView(align);
   }
 
+  /** Promotion (planes.md §1 — order is a slot): re-link this view as its
+   *  parent's LAST child, tree and surface both — above its siblings, since
+   *  stacking is source order. The verb form of z-order: no numbers, ever.
+   *  A Menu raises at open; a Window raises on activation. */
+  raise(): void {
+    const p = this.parent;
+    if (!(p instanceof View) || p.children[p.children.length - 1] === this) return;
+    p.removeChild(this);
+    p.insertChild(this, p.children.length);
+    if (this.surface !== null && p.surface !== null) p.surface.insertChild(this.surface, null);
+  }
+
   /** This view's input route, or null when it answers no pointer event —
    *  interactivity *derives* from declared handlers (Decisions §R5): a view
    *  with none is never wired (pay-per-use) and stays transparent to input,

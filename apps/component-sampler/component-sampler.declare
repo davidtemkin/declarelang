@@ -12,6 +12,8 @@ The Mountain View and Cupertino records here are PLACEHOLDERS awaiting the fidel
 passes — the switching machinery is the point of this skeleton.
 */
 
+use [ TintRow ]
+
 font Roboto [
     Face [ src = "../../assets/fonts/roboto/roboto-400.woff2" ],
     Face [ src = "../../assets/fonts/roboto/roboto-500.woff2", weight = medium ],
@@ -55,6 +57,19 @@ class Swatch extends Control [ width = 26, height = 26, cornerRadius = 13,
     ]
 
 
+// A custom menu-item CONTENT class — rung 2 of the record door: named in the
+// items DATA (`kind: "TintRow"`), created by name (app.createView through the
+// menu's row host), fed `props` as its datapath context. Rendering only —
+// highlight/pick/keyboard stay the menu's.
+
+class TintRow extends View [ height = 22,
+    layout: SimpleLayout [ axis = x, spacing = 6 ],
+    Text [ y = center, fontSize = 12, textColor = { theme.textMuted }, text = { "" + (:label || "") } ],
+    View [ y = 3, width = 46, height = 16, cornerRadius = 4, fill = { gradient("90deg", 0x2E6FE0, 0x3A9E4C) } ],
+    View [ y = 3, width = 46, height = 16, cornerRadius = 4, fill = { gradient("90deg", 0xE0447E, 0xC7A400) } ],
+    ]
+
+
 class Section extends View [ width = { parent.width },
     label: string = "",
     layout: SimpleLayout [ axis = y, spacing = 10 ],
@@ -66,6 +81,8 @@ class Section extends View [ width = { parent.width },
 App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 720,
 
     style: string = "sanFrancisco",
+    menuLocked: boolean = true,
+    lastPick: string = "(none yet)",
     colorMode: string = "system",              // light | system | dark — ORTHOGONAL to the theme (the islands.md arrangement)
     darkUI: boolean = { colorMode == "dark" || (colorMode == "system" && app.dark) },
     animateFocus: boolean = true,
@@ -89,6 +106,25 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 720,
     // the type stack is part of the emulation: Roboto for Mountain View, SF for Cupertino
 
     fontFamily = { style == "mountainView" ? "Roboto, system-ui, sans-serif" : style == "cupertino" ? "-apple-system, system-ui, sans-serif" : style == "redmond" ? "'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif" : "system-ui, sans-serif" },
+
+    // ── the options menu: the full record vocabulary in one declaration ────
+
+    optionsMenu: Menu [
+        items = { [
+            ({ id: "new", label: "New Event", key: "⌘N" }),
+            ({ id: "dup", label: "Duplicate", key: "⌘D" }),
+            ({ id: "lock", label: "Locked", checked: app.menuLocked }),
+            ({ divider: true }),
+            ({ id: "share", label: "Share", submenu: [({ id: "mail", label: "Mail" })] }),
+            ({ kind: "TintRow", props: ({ label: "Tints" }) }),
+            ({ divider: true }),
+            ({ id: "delete", label: "Delete", key: "⌫", enabled: !app.menuLocked }),
+        ] },
+        picked(id) {
+            if (id == "lock") app.menuLocked = !app.menuLocked
+            app.lastPick = id
+            },
+        ],
 
     // ── chrome: title + the mode switcher + the transitions toggle ─────────
 
@@ -184,6 +220,16 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 720,
                         Field [ label = "Email", labelWidth = 60,
                             TextInput [ width = 220, height = 30, text = "d@t.com" ],
                             ],
+                        ],
+                    ],
+
+                Section [ label = "Menu",
+                    row: View [ layout: SimpleLayout [ axis = x, spacing = 14 ],
+                        Button [ width = 130, label = "Options ▾",
+                            onClick() { app.optionsMenu.openFor(this) },
+                            ],
+                        last: Text [ y = center, fontSize = 12, textColor = { theme.textFaint },
+                            text = { "picked: " + app.lastPick } ],
                         ],
                     ],
 

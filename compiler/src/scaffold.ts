@@ -141,6 +141,9 @@ export function tsType(t: AttrType): string {
     case "styles": return "string[]"; // a static bundle-name list
     case "stylesheet": return "string | null"; // a declared stylesheet by name
     case "font": return "string"; // fontFamily reads as a family string in a { } body
+    case "array": return "any[]";
+    case "object": return "any";
+    case "view": return "View | null";
   }
 }
 
@@ -196,6 +199,7 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
   ],
   View: [
     `  scrollIntoView(align?: "start" | "nearest"): void;`,
+    `  raise(): void;`,
     // The keyboard-traversal protocol (focus.ts): a view's tabOrder() decides
     // the members Tab descends into — override it to gate traversal (a closed
     // TabSlider pane contributes none); tabDefault() is the default the

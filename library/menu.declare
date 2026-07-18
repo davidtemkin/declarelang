@@ -1,0 +1,155 @@
+/*
+# Menu
+
+The record-driven menu (planes.md §4–§6): items are DATA — the component
+arranges; the author never composes rows. The standard record covers real OS
+menus:
+
+    { id, label, key?, enabled?, checked?, divider?, submenu?, kind?, props? }
+
+- `key` renders right-aligned (display only — registration is the Keys
+  service's, later).
+- `enabled: false` dims the row (theme.disabledOpacity) and refuses pick.
+- `{ divider: true }` is a separator line.
+- `submenu: [ …records… ]` marks a cascade (the ▸ arrow; the cascade itself
+  lands with the roving-keyboard stage).
+- `kind: "ClassName"` renders the row's CONTENT with a named author class
+  (app.createView — keep data-only classes with `use [ Name ]`), passed
+  `props` as its datapath context. Behavior stays the row's: highlight,
+  pick, keyboard are the menu's, always.
+
+Declared ONCE, opened by many (the worked example): rows carry
+`onContextMenu(e) { app.rowMenu.openAt(this, e) }`; the menu's `items`
+constraint derives from `opener` — per-row variation with zero per-row
+instances, live while open. `openAt` point-positions (the context-menu
+rule); `openFor` drops below a control (the attached-menu rule); both
+RAISE the menu (promotion — order is a slot) and clamp inside the app.
+
+Dismissal: the BACKDROP (a full-app child under the panel) — a press
+outside closes AND is swallowed, the Mac rule (planes.md §12.1, resolved
+for v1); Escape closes; pick closes after delivery.
+*/
+
+include [ "control.declare" ]
+
+class Menu extends View [ visible = { shown }, width = 220,
+    height = { this.panel.height },              // the panel; the backdrop deliberately overflows
+
+    items: array = null,
+    opener: View = null,
+    shown: boolean = false,
+
+    // the delivery seam — the app overrides; the id is the whole message
+
+    picked(id) { },
+
+    openAt(v, e) {
+        let x = e.x
+        let y = e.y
+        let n = v
+        while (n != null) { x += n.x || 0; y += n.y || 0; n = n.parent }
+        this.place(x, y)
+        opener = v
+        shown = true
+        this.raise()
+        },
+
+    openFor(v) {
+        let x = 0
+        let y = 0
+        let n = v
+        while (n != null) { x += n.x || 0; y += n.y || 0; n = n.parent }
+        this.place(x, y + v.height + 4)
+        opener = v
+        shown = true
+        this.raise()
+        },
+
+    place(x, y) {
+        this.x = Math.max(4, Math.min(app.width - this.width - 4, x))
+        this.y = Math.max(4, Math.min(app.height - this.height - 4, y))
+        },
+
+    close() { shown = false; opener = null },
+
+    pick(id) { this.picked(id); this.close() },
+
+    onKeyUp(e) <- Keys { if (shown && e.key == "Escape") this.close() },
+
+    // items → rows through an INTERNAL derived dataset (the author passes a
+    // plain array — the no-dataset-requirement ruling; the wrap is ours)
+
+    data: Dataset [ contents = { ({ rows: classroot.items || [] }) } ],
+
+    // the backdrop: the light-dismiss stratum in embryonic form — a full-app
+    // press-catcher UNDER the panel; outside presses close and are SWALLOWED
+
+    back: View [ x = { -classroot.x }, y = { -classroot.y },
+        width = { app.width }, height = { app.height },
+        onMouseDown() { classroot.close() },
+        ],
+
+    // the panel
+
+    panel: View [ width = { classroot.width },
+        height = { this.body.height + 10 },   // body auto-extends (a real slot; contentHeight is a getter)
+        cornerRadius = { typeof theme.menuRadius == "number" ? theme.menuRadius : 6 },
+        fill = { theme.surface },
+        stroke = { stroke(1, theme.line) },
+        shadow = { shadow(0, 6, 24, 0x00000030) },
+
+        body: View [ x = 0, y = 5, width = { parent.width },
+            layout: SimpleLayout [ axis = y, spacing = 0 ],
+            datapath = { classroot.data.value },
+
+            View [ datapath = :rows[], width = { parent.width },
+                divider:  boolean = { !!:divider },
+                enabled:  boolean = { :enabled != false },
+                sub:      boolean = { !!:submenu },
+                custom:   string  = { typeof :kind == "string" ? "" + :kind : "" },
+                hovered:  boolean = false,
+                height = { divider ? 9 : custom != "" ? Math.max(26, this.host.height + 8) : 26 },
+                opacity = { enabled ? 1 : (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) },
+
+                onMouseOver() { if (enabled && !divider) hovered = true },
+                onMouseOut()  { hovered = false },
+                onClick() { if (enabled && !divider && !sub) classroot.pick("" + :id) },
+
+                onInit() {
+                    if (custom != "") app.createView(custom, this.host, ({ datapath: :props }))
+                    },
+
+                // the hover highlight — inset, rounded, accent (the Mac read)
+
+                hl: View [ x = 5, y = 1, width = { parent.width - 10 }, height = { parent.height - 2 },
+                    cornerRadius = 4, visible = { parent.hovered },
+                    fill = { theme.accent } ],
+
+                rule: View [ x = 10, y = 4, width = { parent.width - 20 }, height = 1,
+                    visible = { parent.divider }, fill = { theme.line } ],
+
+                check: Text [ x = 8, y = center, fontSize = 12, visible = { !parent.divider && !!:checked },
+                    textColor = { parent.hovered ? theme.accentText : theme.text }, text = "✓" ],
+
+                lbl: Text [ x = 24, y = center, fontSize = 13, visible = { !parent.divider && parent.custom == "" },
+                    textColor = { parent.hovered ? theme.accentText : theme.text },
+                    text = { "" + (:label || "") } ],
+
+                key: Text [ y = center, fontSize = 12,
+                    x = { parent.width - this.width - 12 },
+                    visible = { !parent.divider && !parent.sub && :key != null },
+                    textColor = { parent.hovered ? theme.accentText : theme.textMuted },
+                    text = { "" + (:key || "") } ],
+
+                arrow: Text [ y = center, fontSize = 11, visible = { parent.sub },
+                    x = { parent.width - this.width - 10 },
+                    textColor = { parent.hovered ? theme.accentText : theme.textMuted }, text = "▸" ],
+
+                // a `kind` row's author-rendered content region
+
+                host: View [ x = 10, y = 4, width = { parent.width - 20 },
+                    visible = { parent.custom != "" } ],
+                ],
+            ],
+        ],
+    ]

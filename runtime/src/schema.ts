@@ -464,10 +464,12 @@ const DatasetSchema: ComponentSchema = {
   base: null,
   // `contents` is a derived Dataset's value, always a `{ }` constraint (the
   // JSON body is the literal alternative). checkDataNode enforces the `{ }`
-  // form and a code value bypasses `kind` in checkAttr, so the kind here is a
-  // formality — bare `string` keeps the schema simple.
+  // form and a code value bypasses `kind` in checkAttr — but the TYPED
+  // surface flows from this kind, so it is `object` (any): a derived
+  // dataset computes arbitrary structure (the records door made the old
+  // `string` formality a real typecheck error).
   attrs: {
-    contents: { kind: "string" },
+    contents: { kind: "object" },
   },
 };
 

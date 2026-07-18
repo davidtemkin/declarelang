@@ -182,6 +182,10 @@ export function isPercent(v: AttrValue): v is Percent {
  *  that member shape here; the only literal such a slot coerces is `null`). */
 export type AttrType =
   | { readonly kind: "length" | "number" | "boolean" | "string" | "color" | "shape" }
+  // The records door (planes.md §4): structured slots — an array of records,
+  // a plain record, a View reference. Literal form: null only; the values
+  // arrive from `{ }` bindings (plain TS) and runtime writes.
+  | { readonly kind: "array" | "object" | "view" }
   | { readonly kind: "enum"; readonly name: string; readonly tokens: readonly string[] }
   | { readonly kind: "component"; readonly of: string }
   // R8: a slot whose value is a *place in a dataset* (View.datapath — the
@@ -245,6 +249,14 @@ const DECLARED_TYPES: Readonly<Record<string, AttrType>> = {
   Color: { kind: "color" },
   Length: { kind: "length" },
   Shape: { kind: "shape" },
+  // The records door (planes.md §4 — components arrange records): a slot
+  // holding an ARRAY of records (`items`), a plain OBJECT record, or a VIEW
+  // reference (`opener`). Literal defaults are null-only — structured values
+  // arrive from `{ }` bindings and runtime writes; the names stay precise
+  // (no `any` in the vocabulary) so a declaration still documents intent.
+  array: { kind: "array" },
+  object: { kind: "object" },
+  View: { kind: "view" },
 };
 
 /** Resolve a written declaration type name (`count: number`), or null when
@@ -306,6 +318,15 @@ export function coerce(type: AttrType, lit: Literal): Coerced {
       // are standing relationships check.ts routes before coercion.
       if (lit.kind === "ident" && lit.name === "null") return ok(null);
       return fail("a datapath (':field.path', a { } expression yielding a place in a dataset, or null)");
+    case "array":
+      if (lit.kind === "ident" && lit.name === "null") return ok(null);
+      return fail("an array — a { } binding (plain TS: items = { [ … ] }), or null");
+    case "object":
+      if (lit.kind === "ident" && lit.name === "null") return ok(null);
+      return fail("an object — a { } binding (plain TS), or null");
+    case "view":
+      if (lit.kind === "ident" && lit.name === "null") return ok(null);
+      return fail("a View reference — assigned at runtime (an opener, a target), or null");
     case "slotref":
       // The `attribute` token names a slot on the target; it stays a bare
       // string at runtime. That the named slot exists and is numeric is

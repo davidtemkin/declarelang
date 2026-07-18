@@ -373,6 +373,13 @@ export function coerceData(type, v, def) {
             return typeof v === "string" ? v : def;
         case "enum":
             return typeof v === "string" && type.tokens.includes(v) ? v : def;
+        // the records door: a data-borne array/record binds as itself
+        case "array":
+            return Array.isArray(v) ? v : def;
+        case "object":
+            return typeof v === "object" ? v : def;
+        case "view":
+            return def; // a View reference never arrives from data
         case "cursor":
         case "component":
         case "record":

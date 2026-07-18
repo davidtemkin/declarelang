@@ -96,6 +96,14 @@ const DECLARED_TYPES = {
     Color: { kind: "color" },
     Length: { kind: "length" },
     Shape: { kind: "shape" },
+    // The records door (planes.md §4 — components arrange records): a slot
+    // holding an ARRAY of records (`items`), a plain OBJECT record, or a VIEW
+    // reference (`opener`). Literal defaults are null-only — structured values
+    // arrive from `{ }` bindings and runtime writes; the names stay precise
+    // (no `any` in the vocabulary) so a declaration still documents intent.
+    array: { kind: "array" },
+    object: { kind: "object" },
+    View: { kind: "view" },
 };
 /** Resolve a written declaration type name (`count: number`), or null when
  *  the name is not in the declarable vocabulary. */
@@ -153,6 +161,18 @@ export function coerce(type, lit) {
             if (lit.kind === "ident" && lit.name === "null")
                 return ok(null);
             return fail("a datapath (':field.path', a { } expression yielding a place in a dataset, or null)");
+        case "array":
+            if (lit.kind === "ident" && lit.name === "null")
+                return ok(null);
+            return fail("an array — a { } binding (plain TS: items = { [ … ] }), or null");
+        case "object":
+            if (lit.kind === "ident" && lit.name === "null")
+                return ok(null);
+            return fail("an object — a { } binding (plain TS), or null");
+        case "view":
+            if (lit.kind === "ident" && lit.name === "null")
+                return ok(null);
+            return fail("a View reference — assigned at runtime (an opener, a target), or null");
         case "slotref":
             // The `attribute` token names a slot on the target; it stays a bare
             // string at runtime. That the named slot exists and is numeric is
