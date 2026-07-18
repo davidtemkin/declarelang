@@ -5018,6 +5018,12 @@ await test("checkCss: unknown property, bad value, unknown tag, syntax, malforme
   assert.equal(errs(`css X { Card { background-color: #2d7; color: white; font-family: whatever } .card:hover { opacity: 0.5 } } class Card extends View [ ] App [ ]`).length, 0);
 });
 
+await test("checkCss: a comma-grouped bad decl reports once, not per selector", () => {
+  const src = `css X { .a, .b { font-size: banana } } App [ ]`;
+  const errs = check(parseProgram(src), src).filter((e) => /font-size/.test(e.message));
+  assert.equal(errs.length, 1);
+});
+
 await test("checkCss: positions point at the offending token", () => {
   const src = `css X {\n  Card { colour: red }\n} class Card extends View [ ] App [ ]`;
   const e = check(parseProgram(src), src)[0];

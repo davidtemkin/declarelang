@@ -259,17 +259,24 @@ function checkCss(program, schemas, source, errors) {
             }
             throw e;
         }
+        // Comma-grouped selectors expand to sibling rules sharing one decls map;
+        // check each declaration set once (dedupe by map identity) so a bad value
+        // in `.a, .b { … }` reports once, not per selector.
+        const checkedDecls = new WeakSet();
         for (const rule of rules) {
             // Declarations: unknown property, then malformed/wrong-type value.
-            for (const [prop, value] of rule.decls) {
-                const pos = rule.declPos.get(prop);
-                const entry = CSS_PROPERTIES[prop];
-                if (entry === undefined) {
-                    errors.push(new NeoError(`unknown CSS property '${prop}'`, at(pos?.namePos ?? rule.selPos)));
-                    continue;
-                }
-                if (entry.coerce(value) === undefined) {
-                    errors.push(new NeoError(`'${value}' is not a ${entry.kind} for '${prop}'`, at(pos?.valuePos ?? rule.selPos)));
+            if (!checkedDecls.has(rule.decls)) {
+                checkedDecls.add(rule.decls);
+                for (const [prop, value] of rule.decls) {
+                    const pos = rule.declPos.get(prop);
+                    const entry = CSS_PROPERTIES[prop];
+                    if (entry === undefined) {
+                        errors.push(new NeoError(`unknown CSS property '${prop}'`, at(pos?.namePos ?? rule.selPos)));
+                        continue;
+                    }
+                    if (entry.coerce(value) === undefined) {
+                        errors.push(new NeoError(`'${value}' is not a ${entry.kind} for '${prop}'`, at(pos?.valuePos ?? rule.selPos)));
+                    }
                 }
             }
             // Unknown tag selectors (case-sensitive — a `css` block names Declare
