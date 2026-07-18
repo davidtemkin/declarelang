@@ -667,7 +667,7 @@ App [ clip = true, minWidth = 480, minHeight = 420,
 
         themeSwitch: View [ x = 196, height = 34, width = 94, y = { (app.barH - 34) / 2 }, visible = { app.showTheme },
             cornerRadius = 10, fill = { theme.trackBg },
-            s1: ThemeSeg [ x = 2,  m = "light", glyph = "☀" ],
+            s1: ThemeSeg [ x = 2,  m = "light", glyph = "☀︎" ],
             s2: ThemeSeg [ x = 32, m = "auto",  glyph = "◐" ],
             s3: ThemeSeg [ x = 62, m = "dark",  glyph = "☾" ],
             ],

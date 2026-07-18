@@ -374,7 +374,7 @@ App [ fill = { app.theme.bg },
 
         themeSwitch: View [ y = { (app.barH - 30) / 2 }, x = { app.hostWidth - 94 - 16 }, height = 30, width = 94,
             cornerRadius = 8, fill = { app.theme.track },
-            s1: ThemeSeg [ x = 2, m = "light", glyph = "☀" ],
+            s1: ThemeSeg [ x = 2, m = "light", glyph = "☀︎" ],
             s2: ThemeSeg [ x = 32, m = "auto", glyph = "◐" ],
             s3: ThemeSeg [ x = 62, m = "dark", glyph = "☾" ],
             ],
