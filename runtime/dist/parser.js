@@ -696,6 +696,17 @@ class Parser {
         this.expect("rbracket", "']'");
         return { name: name.text, body, pos: kw.pos };
     }
+    /** `css Name { …raw CSS… }` — the standard-CSS channel's compile-time source.
+     *  The body is a `{ … }` region, which the tokenizer already captured whole as
+     *  a `code` token (its `str` holds the verbatim inner text, its `pos` the `{`);
+     *  we take that raw text and its offset — the CSS itself is parsed + checked
+     *  later (css-parse.ts / checkCss). No `[ ]` members, unlike the others. */
+    parseCssDecl() {
+        this.expect("ident", "'css'");
+        const name = this.expect("ident", "the css block's name");
+        const body = this.expect("code", "a { … } css body");
+        return { name: name.text, text: body.str ?? "", bodyOffset: body.pos.offset + 1 };
+    }
 }
 /** Parse a component fragment — one element, no class declarations. The
  *  entry tools and tests use for pieces; a whole source goes through
@@ -713,6 +724,7 @@ export function parse(source) {
 function parseTopDecls(p) {
     const classes = [];
     const stylesheets = [];
+    const csses = [];
     const styles = [];
     const fonts = [];
     const includes = [];
@@ -730,6 +742,8 @@ function parseTopDecls(p) {
             classes.push(p.parseClass());
         else if (p.atTop("stylesheet"))
             stylesheets.push(p.parseTopDecl("stylesheet"));
+        else if (p.atTop("css"))
+            csses.push(p.parseCssDecl());
         else if (p.atTop("style"))
             styles.push(p.parseTopDecl("style"));
         else if (p.atTop("font"))
@@ -737,17 +751,17 @@ function parseTopDecls(p) {
         else
             break;
     }
-    return { classes, stylesheets, styles, fonts, includes, includeSpans, uses };
+    return { classes, stylesheets, csses, styles, fonts, includes, includeSpans, uses };
 }
 /** Parse a whole Declare source: `include`s and top-level declarations
  *  (classes, stylesheets, style bundles — in any order), then the root
  *  instance. */
 export function parseProgram(source) {
     const p = new Parser(tokenize(source));
-    const { classes, stylesheets, styles, fonts, includes, includeSpans, uses } = parseTopDecls(p);
+    const { classes, stylesheets, csses, styles, fonts, includes, includeSpans, uses } = parseTopDecls(p);
     const root = p.parseElement();
     p.expect("eof", "end of input");
-    return { classes, stylesheets, styles, fonts, includes, includeSpans, uses, root };
+    return { classes, stylesheets, csses, styles, fonts, includes, includeSpans, uses, root };
 }
 /** Parse an INCLUDED file (composition.md §1): the same top-level
  *  declarations as a program, then eof — a library declares classes,

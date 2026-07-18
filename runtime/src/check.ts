@@ -75,7 +75,7 @@ const RESERVED = CONSTRUCTOR_NAMES;
  *  array means the tree is well-typed and safe to instantiate. */
 export function check(input: Element | Program): NeoError[] {
   const program: Program =
-    "root" in input ? input : { classes: [], stylesheets: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], root: input };
+    "root" in input ? input : { classes: [], stylesheets: [], csses: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], root: input };
   const { infos, schemas, errors } = programSchemas(program.classes);
   const env = checkStyleDecls(program, schemas, errors);
   // A class body checks as an instance of its own (just-registered) class:

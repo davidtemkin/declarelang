@@ -4982,6 +4982,26 @@ await test("settleHeadless: text measures and auto-extents settle without a DOM"
 
 // ── CSS type-checking (design-docs/css-typecheck.md) ────────────────────────
 
+await test("parser: css Name { … } captures the raw body", () => {
+  const p = parseProgram(`css Dark { Card { background-color: #171b28 } .card:hover { background-color: #202636 } }
+    App [ ]`);
+  assert.equal(p.csses.length, 1);
+  assert.equal(p.csses[0].name, "Dark");
+  assert.match(p.csses[0].text, /Card \{ background-color: #171b28 \}/);
+  assert.match(p.csses[0].text, /\.card:hover/);
+});
+await test("parser: css bodyOffset points at the raw body in source", () => {
+  const src = `css Dark { Card { color: red } } App [ ]`;
+  const p = parseProgram(src);
+  assert.equal(src.slice(p.csses[0].bodyOffset, p.csses[0].bodyOffset + p.csses[0].text.length), p.csses[0].text);
+});
+await test("parser: empty css block is valid; brace-in-comment does not truncate", () => {
+  assert.equal(parseProgram(`css E {} App [ ]`).csses[0].text.trim(), "");
+  const p = parseProgram(`css C { /* } */ Card { color: red } } App [ ]`);
+  assert.match(p.csses[0].text, /Card \{ color: red \}/);
+});
+
+
 await test("checker: styleclass/id are string attributes on View", () => {
   const errs = (src) => check(parseProgram(src)).map((e) => e.message);
   assert.equal(errs(`App [ View [ styleclass = "card", id = "hero" ] ]`).length, 0);

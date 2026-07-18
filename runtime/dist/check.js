@@ -55,7 +55,7 @@ const RESERVED = CONSTRUCTOR_NAMES;
  *  Element fragment. Returns every error found, in source order — an empty
  *  array means the tree is well-typed and safe to instantiate. */
 export function check(input) {
-    const program = "root" in input ? input : { classes: [], stylesheets: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], root: input };
+    const program = "root" in input ? input : { classes: [], stylesheets: [], csses: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], root: input };
     const { infos, schemas, errors } = programSchemas(program.classes);
     const env = checkStyleDecls(program, schemas, errors);
     // A class body checks as an instance of its own (just-registered) class:

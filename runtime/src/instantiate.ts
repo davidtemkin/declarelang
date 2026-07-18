@@ -123,7 +123,7 @@ type Pending =
  *  rendering). */
 export function instantiate(input: Element | Program): View {
   const program: Program =
-    "root" in input ? input : { classes: [], stylesheets: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], root: input };
+    "root" in input ? input : { classes: [], stylesheets: [], csses: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], root: input };
   const { infos, schemas, errors } = programSchemas(program.classes);
   if (errors.length > 0) throw errors[0];
   const tags: Record<string, ViewCtor> = { ...TAGS };

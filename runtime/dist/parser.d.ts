@@ -153,6 +153,16 @@ export interface TopDecl {
     body: Element;
     pos: Pos;
 }
+/** A top-level `css Name { …raw CSS… }` declaration (design-docs/css-typecheck):
+ *  the standard-CSS channel's compile-time source. The body is captured verbatim
+ *  as raw text (the tokenizer's `{ … }` code token already holds it in `str`);
+ *  `bodyOffset` is the source offset of the body's first char, so the checker can
+ *  position CSS errors. Compiled to a RuleSet (`buildRuleSet`) at instantiate. */
+export interface CssDecl {
+    name: string;
+    text: string;
+    bodyOffset: number;
+}
 /** One `include` entry — a quoted, relative path and the position of its
  *  string literal (composition.md §1). The directive `include [ "a", "b" ]`
  *  yields one IncludeRef per path; resolution is a front-end phase
@@ -179,6 +189,7 @@ export interface Span {
 export interface Program {
     classes: ClassDecl[];
     stylesheets: TopDecl[];
+    csses: CssDecl[];
     styles: TopDecl[];
     fonts: TopDecl[];
     includes: IncludeRef[];
@@ -199,6 +210,7 @@ export interface Program {
 export interface Library {
     classes: ClassDecl[];
     stylesheets: TopDecl[];
+    csses: CssDecl[];
     styles: TopDecl[];
     fonts: TopDecl[];
     includes: IncludeRef[];
