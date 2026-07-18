@@ -4980,4 +4980,18 @@ await test("settleHeadless: text measures and auto-extents settle without a DOM"
   }
 });
 
+// ── CSS type-checking (design-docs/css-typecheck.md) ────────────────────────
+
+await test("checker: styleclass/id are string attributes on View", () => {
+  const errs = (src) => check(parseProgram(src)).map((e) => e.message);
+  assert.equal(errs(`App [ View [ styleclass = "card", id = "hero" ] ]`).length, 0);
+  assert.match(errs(`App [ View [ styleclass = 5 ] ]`)[0], /styleclass|string/i);
+});
+
+await test("checker: cssRules accepts null; a bare name errors pre-routing", () => {
+  const errs = (src) => check(parseProgram(src)).map((e) => e.message);
+  assert.equal(errs(`App [ cssRules = null ]`).length, 0);
+  assert.match(errs(`App [ cssRules = Dark ]`)[0], /css block/i);
+});
+
 summarize("unit");

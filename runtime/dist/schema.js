@@ -124,6 +124,12 @@ const ViewSchema = {
         // (provide it anywhere → that subtree reskins; swap = one settle).
         styles: { kind: "styles" },
         stylesheet: { kind: "stylesheet" },
+        // The standard-CSS channel's slots (css-apply.ts): styleclass/id are the
+        // selector hooks; cssRules names a declared `css` block (resolved like a
+        // stylesheet name — see the cssRules AttrType kind).
+        styleclass: { kind: "string" },
+        id: { kind: "string" },
+        cssRules: { kind: "cssRules" },
         // R7: how the view arranges its children — a component-typed slot
         // (language §5: "a reactive Layout attribute you set on the view",
         // Appendix A: "Layout is an attribute, not a child"), written as the

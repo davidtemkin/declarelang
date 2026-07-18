@@ -372,6 +372,7 @@ export function coerceData(type, v, def) {
         case "motion":
         case "styles":
         case "stylesheet":
+        case "cssRules":
         case "font":
         case "slotref":
             return def; // never data-bound in a useful form; total for safety

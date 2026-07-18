@@ -39,6 +39,7 @@ const UNSTYLABLE = {
     cursor: "a data cursor is structure",
     styles: "a bundle list cannot arrive through the styling channels",
     stylesheet: "a stylesheet cannot set the stylesheet",
+    cssRules: "a css block cannot arrive through the styling channels",
 };
 /** The scope nouns of language §11 — never legal as member or parameter names.
  *  `app` is the running-App noun (compiles to `this.root`); reserving it here

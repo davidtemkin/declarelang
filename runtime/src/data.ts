@@ -403,6 +403,7 @@ export function coerceData(type: AttrType, v: unknown, def: unknown): unknown {
     case "motion":
     case "styles":
     case "stylesheet":
+    case "cssRules":
     case "font":
     case "slotref":
       return def; // never data-bound in a useful form; total for safety

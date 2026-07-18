@@ -133,6 +133,7 @@ export function tsType(t) {
         case "motion": return "Motion"; // the token union + MotionCurve brand (prelude)
         case "styles": return "string[]"; // a static bundle-name list
         case "stylesheet": return "string | null"; // a declared stylesheet by name
+        case "cssRules": return "string | null"; // a declared css block by name
         case "font": return "string"; // fontFamily reads as a family string in a { } body
     }
 }

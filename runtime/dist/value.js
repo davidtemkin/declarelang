@@ -178,6 +178,10 @@ export function coerce(type, lit) {
             if (lit.kind === "ident" && lit.name === "null")
                 return ok(null);
             return fail("a stylesheet declared in this program (by name), or null");
+        case "cssRules":
+            if (lit.kind === "ident" && lit.name === "null")
+                return ok(null);
+            return fail("a css block declared in this program (by name), or null");
         case "font":
             // A raw family string is the literal form; a `font Name` reference (an
             // ident) resolves against program declarations — routed in

@@ -207,6 +207,11 @@ export type AttrType =
   // coercion here only answers the null form.
   | { readonly kind: "styles" }
   | { readonly kind: "stylesheet" }
+  // The standard-CSS channel's `cssRules` slot: a declared `css` block by name
+  // (a prevailing slot holding a RuleSet). Resolves against the program's `css`
+  // declarations — the checker routes it with program context, exactly like
+  // `stylesheet`; coercion here only answers the null form.
+  | { readonly kind: "cssRules" }
   // Fonts: `fontFamily` — either a declared `font Name` reference (an ident,
   // resolved against the program's declarations to a family string at
   // instantiate, like `stylesheet`) or a raw family string (the legacy
@@ -318,6 +323,9 @@ export function coerce(type: AttrType, lit: Literal): Coerced {
     case "stylesheet":
       if (lit.kind === "ident" && lit.name === "null") return ok(null);
       return fail("a stylesheet declared in this program (by name), or null");
+    case "cssRules":
+      if (lit.kind === "ident" && lit.name === "null") return ok(null);
+      return fail("a css block declared in this program (by name), or null");
     case "font":
       // A raw family string is the literal form; a `font Name` reference (an
       // ident) resolves against program declarations — routed in

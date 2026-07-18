@@ -115,6 +115,8 @@ export type AttrType = {
 } | {
     readonly kind: "stylesheet";
 } | {
+    readonly kind: "cssRules";
+} | {
     readonly kind: "font";
 };
 /** Declare an enum attribute type: `enumType("Stretch", "none", "width", …)`
