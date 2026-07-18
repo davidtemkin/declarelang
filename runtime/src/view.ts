@@ -16,6 +16,14 @@ import type { FontWeight } from "./measure.js";
 import { disposeApplier, stylesheetArrived, stylesheetByName, type Stylesheet } from "./stylesheet.js";
 import { POINTER_TYPES, type InputSink, type RenderBackend, type Surface } from "./backend.js";
 import { Tip } from "./tip.js";
+
+// Imperative creation's injection seam (instantiate.ts provides; the cycle
+// view→instantiate is broken the same way focus.ts's discard hook is).
+type ViewCreator = (root: View, tag: string, parent: View, props?: Record<string, unknown>) => View;
+let viewCreator: ViewCreator | null = null;
+export function provideViewCreator(fn: ViewCreator): void {
+  viewCreator = fn;
+}
 import { record, type Draw, type DisplayList } from "./draw.js";
 import { Constraint } from "./reactive.js";
 import { bindDerived, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned } from "./attributes.js";
@@ -709,6 +717,17 @@ export class App extends View {
    *  the call statically (links.ts → `<a href>` in the static extraction), and at
    *  runtime the host opens `to`. DOM-free: bodies never touch window.location, so
    *  navigation rides this channel like `editing` — one clear way, analyzable. */
+  /** Imperative creation (planes.md §7): instantiate a component by NAME
+   *  into `parent`, a full citizen (bindings installed, init fired). Resolves
+   *  against this tree's program registry; a name referenced only here needs
+   *  `use [ Name ]` to survive static tracing. `props` are post-init writes
+   *  (`datapath: record` gives the instance a data context — replication's
+   *  convention). */
+  createView(tag: string, parent: View, props?: Record<string, unknown>): View {
+    if (viewCreator === null) throw new Error("createView: the instantiation module is not loaded");
+    return viewCreator(this, tag, parent, props);
+  }
+
   navigate(to: string): void { this.pendingNav = to; }
 
   /** The reveal intent held from `location`'s trailing `@name` (location.md §6) —

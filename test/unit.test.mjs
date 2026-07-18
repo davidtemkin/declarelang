@@ -4620,6 +4620,31 @@ await test("focus: byKeyboard() — the focus-visible modality: Tab sets it, a d
   assert.equal(Focus.byKeyboard(), false, "clicking after tabbing clears it again");
 });
 
+await test("createView: imperative creation by name — a full citizen, loudly-checked names", () => {
+  const app = build(`class Chip extends View [ width = 30, height = 10,
+    label: string = "",
+    t: Text [ text = { classroot.label } ],
+  ]
+App [ width = 200, height = 100,
+  slot: View [ x = 10, y = 10, width = 100, height = 60 ],
+]`);
+  const made = app.createView("Chip", app.slot, { label: "made", x: 5 });
+  assert.equal(made.constructor.name, "Chip");
+  assert.equal(app.slot.children[app.slot.children.length - 1], made, "inserted LAST among the parent's children");
+  assert.equal(made.parent, app.slot);
+  assert.equal(made.x, 5, "props are ordinary writes");
+  settle();
+  assert.equal(made.t.text, "made", "bindings installed and settled — a full citizen");
+  const before = app.slot.children.length;
+  app.slot.removeChild(made);   // removal and teardown are two verbs (the replicator's own order)
+  made.discard();
+  assert.equal(app.slot.children.length, before - 1, "removeChild + discard — the imperative lifecycle's exit");
+  const builtin = app.createView("Text", app, { text: "raw" });
+  assert.equal(builtin.constructor.name, "Text", "built-in tags resolve too");
+  assert.throws(() => app.createView("Nope", app), /no component named 'Nope'.*use \[ Nope \]/s,
+    "an unknown name throws and NAMES the fix");
+});
+
 await test("tip: the attribute auto-provides the Tooltip singleton (the FocusRing mechanism)", () => {
   const r = compile(`App [ width=100, height=100, b: View [ tip = "hello", onClick() { } ] ]`);
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));

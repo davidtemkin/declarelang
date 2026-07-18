@@ -3,6 +3,8 @@ import { type Color, type Fill, type Shadow, type Stroke, type Theme } from "./v
 import type { FontWeight } from "./measure.js";
 import { type Stylesheet } from "./stylesheet.js";
 import { type RenderBackend, type Surface } from "./backend.js";
+type ViewCreator = (root: View, tag: string, parent: View, props?: Record<string, unknown>) => View;
+export declare function provideViewCreator(fn: ViewCreator): void;
 import { type Draw } from "./draw.js";
 import type { LinkTarget } from "./parser.js";
 import type { Cursor } from "./data.js";
@@ -365,6 +367,13 @@ export declare class App extends View {
      *  the call statically (links.ts → `<a href>` in the static extraction), and at
      *  runtime the host opens `to`. DOM-free: bodies never touch window.location, so
      *  navigation rides this channel like `editing` — one clear way, analyzable. */
+    /** Imperative creation (planes.md §7): instantiate a component by NAME
+     *  into `parent`, a full citizen (bindings installed, init fired). Resolves
+     *  against this tree's program registry; a name referenced only here needs
+     *  `use [ Name ]` to survive static tracing. `props` are post-init writes
+     *  (`datapath: record` gives the instance a data context — replication's
+     *  convention). */
+    createView(tag: string, parent: View, props?: Record<string, unknown>): View;
     navigate(to: string): void;
     /** The reveal intent held from `location`'s trailing `@name` (location.md §6) —
      *  null when the location carries no anchor. Retained across settles until the

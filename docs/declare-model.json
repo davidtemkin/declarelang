@@ -351,6 +351,7 @@
   "api": {
    "App": [
     "  navigate(to: string): void;",
+    "  createView(tag: string, parent: View, props?: Record<string, unknown>): View;",
     "  readonly demoSources: Readonly<Record<string, any>>;",
     "  readonly liveReport: string;"
    ],

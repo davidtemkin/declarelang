@@ -183,6 +183,7 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
   // is the migration signal, and the extractor reads the CALL (links.ts).
   App: [
     `  navigate(to: string): void;`,
+    `  createView(tag: string, parent: View, props?: Record<string, unknown>): View;`,
     // INTERIM (capabilities.md §7): the two host-fed live-demo channels the
     // demo-hosting site apps still read — `demoSources` (host-seeded name→source
     // map, host-client.js) and `liveReport` (the last live recompile's rendered

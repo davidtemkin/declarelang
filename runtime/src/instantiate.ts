@@ -64,6 +64,7 @@ import { defineAttributes, setBound, type AttrSpec } from "./attributes.js";
 import { bindConstraint, bindPercent, bindAlign, bindData, bindDatapath, bindCursor } from "./bind.js";
 import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
 import { Replicator } from "./replicate.js";
+import { provideViewCreator } from "./view.js";
 import { TAGS, LAYOUTS, LAYOUT_BASES, DATA, ANIMATORS, ANIMATOR_GROUPS, STATES } from "./registry.js";
 
 type ViewCtor = new () => View;
@@ -161,6 +162,11 @@ export function instantiate(input: Element | Program): View {
   if (!(root instanceof View)) {
     throw new DeclareError(`the root must be a view, not a ${program.root.tag}`, program.root.pos);
   }
+  // The build context outlives the build for IMPERATIVE CREATION (planes.md
+  // §7 — real apps create views at runtime): app.createView resolves names
+  // against this tree's own classes + built-ins. Weak by root, so a
+  // discarded tree releases its context with it.
+  CONTEXTS.set(root, ctx);
   // The registry a body's `this.lookupStylesheet("Dark")` resolves against —
   // keyed by the tree root, registered before pass two so a `stylesheet = { … }`
   // binding's first evaluation can already look a stylesheet up.
@@ -1058,6 +1064,38 @@ function appendChildren(from: Element, parentView: View, croot: View, ctx: Ctx, 
   }
 }
 
+const CONTEXTS = new WeakMap<object, Ctx>();
+
+/** Imperative creation (planes.md §7): instantiate `tag` by NAME into
+ *  `parent`, on the tree rooted at `root` — the same construct pipeline as
+ *  replication (one materializer instance: construct → link → attach →
+ *  finish), so a created view is a full citizen: bindings installed, init
+ *  fired, discard reachable. `props` are ordinary post-init writes (a
+ *  `datapath` prop gives the instance a record context — the replication
+ *  convention, reused). Name resolution is the program's registry: a class
+ *  referenced ONLY here is invisible to static tracing — keep it with
+ *  `use [ Name ]` (instantiation.md §8). Throws loudly on unknown names. */
+export function createViewIn(root: View, tag: string, parent: View, props?: Record<string, unknown>): View {
+  const ctx = CONTEXTS.get(root);
+  if (ctx === undefined) {
+    throw new DeclareError(`createView: this tree was not built from a program (no registry to resolve '${tag}' against)`);
+  }
+  if (!Object.hasOwn(ctx.tags, tag)) {
+    const hint = tag in TAGS ? "" : ` — declare the class, include its library, or keep it with 'use [ ${tag} ]'`;
+    throw new DeclareError(`createView: no component named '${tag}'${hint}`);
+  }
+  const el = { tag, name: null, attrs: [], decls: [], methods: [], children: [], pos: { line: 0, col: 0 } } as unknown as Element;
+  const made = materializer(ctx)(el, parent);
+  parent.insertChild(made.view, parent.children.length);
+  const ps = parent.surface;
+  if (ps !== null && parent.backend !== null) made.view.attach(parent.backend, ps, null);
+  made.finish();
+  if (props !== undefined) {
+    for (const [k, v] of Object.entries(props)) (made.view as unknown as Record<string, unknown>)[k] = v;
+  }
+  return made.view;
+}
+
 /** The construct pipeline as a value (replicate.ts's Materialize): build one
  *  instance with its OWN pending list — its relationships install (and its
  *  init fires) via `finish`, once the replicator has linked, attached, and
@@ -1084,3 +1122,5 @@ function materializer(ctx: Ctx) {
     }
   };
 }
+
+provideViewCreator(createViewIn);

@@ -14,6 +14,10 @@ import { DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual } from "./value.js";
 import { disposeApplier, stylesheetArrived, stylesheetByName } from "./stylesheet.js";
 import { POINTER_TYPES } from "./backend.js";
 import { Tip } from "./tip.js";
+let viewCreator = null;
+export function provideViewCreator(fn) {
+    viewCreator = fn;
+}
 import { record } from "./draw.js";
 import { Constraint } from "./reactive.js";
 import { bindDerived, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned } from "./attributes.js";
@@ -518,6 +522,17 @@ export class App extends View {
      *  the call statically (links.ts → `<a href>` in the static extraction), and at
      *  runtime the host opens `to`. DOM-free: bodies never touch window.location, so
      *  navigation rides this channel like `editing` — one clear way, analyzable. */
+    /** Imperative creation (planes.md §7): instantiate a component by NAME
+     *  into `parent`, a full citizen (bindings installed, init fired). Resolves
+     *  against this tree's program registry; a name referenced only here needs
+     *  `use [ Name ]` to survive static tracing. `props` are post-init writes
+     *  (`datapath: record` gives the instance a data context — replication's
+     *  convention). */
+    createView(tag, parent, props) {
+        if (viewCreator === null)
+            throw new Error("createView: the instantiation module is not loaded");
+        return viewCreator(this, tag, parent, props);
+    }
     navigate(to) { this.pendingNav = to; }
     /** The reveal intent held from `location`'s trailing `@name` (location.md §6) —
      *  null when the location carries no anchor. Retained across settles until the
