@@ -459,9 +459,8 @@ export class View extends Node {
     if (!handled && this.tip === "") return null;
     return (type, x, y) => {
       if (this.tip !== "") {
-        if (type === "mouseOver") Tip.over(this, x, y);
+        if (type === "mouseOver") Tip.over(this);
         else if (type === "mouseOut") Tip.out(this);
-        else if (type === "mouseMove") Tip.move(this, x, y);
         else if (type === "mouseDown") Tip.hide();
       }
       if (handled) fireEvent(this, type, { x, y });

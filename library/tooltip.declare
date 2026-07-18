@@ -37,7 +37,7 @@ class Tooltip extends View [ visible = { shown && tipText != "" },
     onTip(e) <- Tip {
         if (e == null || e.root != app) { shown = false; return }
         ex = e.x; ey = e.y; ew = e.w; eh = e.h
-        px = e.px; py = e.py
+        px = app.pointerX; py = app.pointerY      // the pointer as it RESTS at show
         tipText = e.text
         shown = true
         },

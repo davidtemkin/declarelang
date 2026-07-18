@@ -24,20 +24,16 @@ class TipService {
     current = null;
     shown = false;
     warmUntil = 0;
-    lastLocalX = 0;
-    lastLocalY = 0;
     /** Subscribe (`onTip(e) <- Tip`). Returns the unsubscribe thunk. */
     onTip(fn) {
         this.handlers.add(fn);
         return () => this.handlers.delete(fn);
     }
-    /** The pointer entered a tip-carrying view (x/y in the view's own coords). */
-    over(view, x = 0, y = 0) {
+    /** The pointer entered a tip-carrying view. */
+    over(view) {
         if (view === this.current)
             return;
         this.current = view;
-        this.lastLocalX = x;
-        this.lastLocalY = y;
         this.clearTimer();
         if (this.shown || Date.now() < this.warmUntil) {
             this.publish(view); // showing, or still warm — retarget instantly (the OS rule)
@@ -50,15 +46,6 @@ class TipService {
             if (this.current === view)
                 this.publish(view);
         }, delay);
-    }
-    /** Pointer movement inside the view, pre-show — keeps the at-pointer
-     *  placement honest (the tip appears where the cursor RESTS, not where it
-     *  entered). Ignored once shown. */
-    move(view, x, y) {
-        if (view !== this.current || this.shown)
-            return;
-        this.lastLocalX = x;
-        this.lastLocalY = y;
     }
     /** The pointer left the view. Hiding by DEPARTURE keeps the system warm. */
     out(view) {
@@ -103,8 +90,7 @@ class TipService {
             n = v.parent ?? null;
         }
         this.shown = true;
-        this.emit({ text, x, y, w: view.width, h: view.height,
-            px: x + this.lastLocalX, py: y + this.lastLocalY, root });
+        this.emit({ text, x, y, w: view.width, h: view.height, root });
     }
     emit(e) {
         for (const fn of [...this.handlers])
