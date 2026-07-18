@@ -13,8 +13,11 @@ export function buildRuleSet(cssText) {
 function tokens(s) {
     return s.trim() === "" ? [] : s.trim().split(/\s+/);
 }
-/** Do all of one simple selector's conditions hold on `view`? */
-function simpleMatches(view, conditions) {
+/** Do all of one simple selector's conditions hold on `view`? With
+ *  `forcePointer`, `:hover`/`:active` are treated as satisfied (the tracking
+ *  pass — "would this match if the pointer-pseudo were active"); `:focus` always
+ *  reads its real state. */
+function simpleMatches(view, conditions, forcePointer = false) {
     for (const c of conditions) {
         if (c.kind === "tag") {
             if (!view.tagChain.includes(c.name))
@@ -26,6 +29,12 @@ function simpleMatches(view, conditions) {
         }
         else if (c.kind === "class") {
             if (!tokens(view.styleclass).includes(c.name))
+                return false;
+        }
+        else if (c.kind === "pseudo") {
+            if (forcePointer && (c.name === "hover" || c.name === "active"))
+                continue;
+            if (!view.pseudo(c.name))
                 return false;
         }
         else {
@@ -57,22 +66,28 @@ function simpleMatches(view, conditions) {
 /** Does the full selector (descendant chain, ancestor-first) match `view`? The
  *  rightmost simple selector must match `view`; earlier ones must each match
  *  some strictly-higher ancestor, in order (standard descendant semantics). */
-export function matches(view, sel) {
+export function matches(view, sel, forcePointer = false) {
     if (sel.length === 0)
         return true;
     const last = sel[sel.length - 1];
-    if (!simpleMatches(view, last.conditions))
+    if (!simpleMatches(view, last.conditions, forcePointer))
         return false;
     let ancestorIdx = sel.length - 2;
     let node = view.parent;
     while (ancestorIdx >= 0) {
         if (node === null)
             return false;
-        if (simpleMatches(node, sel[ancestorIdx].conditions))
+        if (simpleMatches(node, sel[ancestorIdx].conditions, forcePointer))
             ancestorIdx--;
         node = node.parent;
     }
     return true;
+}
+/** Does any simple selector carry a `:hover`/`:active` pseudo? Static AST scan
+ *  (no view) — the applier uses it to decide whether a view needs an
+ *  interaction sink (pointer hit-testing). `:focus` is deliberately excluded. */
+export function containsPointerPseudo(sel) {
+    return sel.some((s) => s.conditions.some((c) => c.kind === "pseudo" && (c.name === "hover" || c.name === "active")));
 }
 /** The per-view cascade: declarations of all rules matching `view`, folded in
  *  ascending (specificity, sourceIndex) so a later/more-specific rule overrides

@@ -45,9 +45,24 @@ await test("parseSelectorText: descendant combinator", () => {
   ]);
 });
 
-await test("parseSelectorText: rejects unsupported combinators/pseudo", () => {
+await test("parseSelectorText: rejects unsupported combinators", () => {
   assert.throws(() => parseSelectorText("a > b"), /unsupported/i);
-  assert.throws(() => parseSelectorText("a:hover"), /unsupported/i);
+});
+
+await test("parseSelectorText: pseudo-classes :hover/:active/:focus", () => {
+  assert.deepEqual(parseSelectorText(".card:hover"), [{ conditions: [
+    { kind: "class", name: "card" }, { kind: "pseudo", name: "hover" }] }]);
+  assert.deepEqual(parseSelectorText("Button:active"), [{ conditions: [
+    { kind: "tag", name: "Button" }, { kind: "pseudo", name: "active" }] }]);
+  assert.deepEqual(parseSelectorText("#f:focus"), [{ conditions: [
+    { kind: "id", name: "f" }, { kind: "pseudo", name: "focus" }] }]);
+  assert.equal(parseSelectorText(".a:hover:focus")[0].conditions.filter((c) => c.kind === "pseudo").length, 2);
+  assert.throws(() => parseSelectorText(".a:bogus"), /unsupported/i);
+});
+
+await test("specificityOf: a pseudo adds 10", () => {
+  assert.equal(specificityOf(parseSelectorText(".card:hover")), 20);
+  assert.equal(specificityOf(parseSelectorText("view:hover")), 11);
 });
 
 await test("parseCss: rules, decls (raw strings), specificity, sourceIndex", () => {
@@ -78,7 +93,7 @@ await test("parseCss: rejects !important cleanly", () => {
   assert.throws(() => parseCss(`.a { color: red !important }`), /unsupported|important/i);
 });
 
-const { buildRuleSet, matches, matched } = await import("../runtime/dist/css-match.js");
+const { buildRuleSet, matches, matched, containsPointerPseudo } = await import("../runtime/dist/css-match.js");
 
 function fakeView(over = {}, parent = null) {
   return {
@@ -86,6 +101,7 @@ function fakeView(over = {}, parent = null) {
     id: over.id ?? "",
     styleclass: over.styleclass ?? "",
     attr: (n) => (over.attrs ?? {})[n],
+    pseudo: (n) => (over.pseudo ?? {})[n],
     parent,
   };
 }
@@ -131,6 +147,22 @@ await test("buildRuleSet parses text into rules", () => {
   const rs = buildRuleSet(".a { color: red }");
   assert.equal(rs.rules.length, 1);
   assert.equal(rs.rules[0].decls.get("color"), "red");
+});
+
+await test("matches: pseudo reads MatchView.pseudo", () => {
+  assert.equal(matches(fakeView({ styleclass: "card", pseudo: { hover: true } }), parseSelectorText(".card:hover")), true);
+  assert.equal(matches(fakeView({ styleclass: "card" }), parseSelectorText(".card:hover")), false);
+});
+
+await test("matches forcePointer + containsPointerPseudo", () => {
+  const v = fakeView({ styleclass: "card" }); // hover NOT set
+  assert.equal(matches(v, parseSelectorText(".card:hover")), false);
+  assert.equal(matches(v, parseSelectorText(".card:hover"), true), true);   // forced
+  assert.equal(matches(v, parseSelectorText(".card:focus"), true), false);  // focus not forced
+  assert.equal(containsPointerPseudo(parseSelectorText(".card:hover")), true);
+  assert.equal(containsPointerPseudo(parseSelectorText(".card:active")), true);
+  assert.equal(containsPointerPseudo(parseSelectorText(".card:focus")), false);
+  assert.equal(containsPointerPseudo(parseSelectorText(".card")), false);
 });
 
 await test("matched: specificity then source order; per-property last wins", () => {

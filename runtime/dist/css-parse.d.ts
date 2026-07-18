@@ -13,6 +13,9 @@ export type Condition = {
     name: string;
     op?: "=" | "~=" | "|=";
     value?: string;
+} | {
+    kind: "pseudo";
+    name: "hover" | "active" | "focus";
 };
 /** One simple selector — a set of conditions that must ALL hold (compound AND). */
 export interface SimpleSelector {

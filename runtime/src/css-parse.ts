@@ -12,7 +12,8 @@ export type Condition =
   | { kind: "tag"; name: string }
   | { kind: "id"; name: string }
   | { kind: "class"; name: string }
-  | { kind: "attr"; name: string; op?: "=" | "~=" | "|="; value?: string };
+  | { kind: "attr"; name: string; op?: "=" | "~=" | "|="; value?: string }
+  | { kind: "pseudo"; name: "hover" | "active" | "focus" };
 
 /** One simple selector — a set of conditions that must ALL hold (compound AND). */
 export interface SimpleSelector {
@@ -82,7 +83,14 @@ function parseSimple(token: string): SimpleSelector {
       }
       conditions.push(cond);
       i += m[0].length;
-    } else if (ch === ":" || ch === ">" || ch === "+" || ch === "~") {
+    } else if (ch === ":") {
+      const m = /^:([\w-]+)/.exec(token.slice(i));
+      if (!m || (m[1] !== "hover" && m[1] !== "active" && m[1] !== "focus")) {
+        throw new CssUnsupported(`unsupported pseudo-class near '${token.slice(i)}'`);
+      }
+      conditions.push({ kind: "pseudo", name: m[1] as "hover" | "active" | "focus" });
+      i += m[0].length;
+    } else if (ch === ">" || ch === "+" || ch === "~") {
       throw new CssUnsupported(`unsupported selector feature '${ch}'`);
     } else {
       throw new CssUnsupported(`unsupported selector near '${token.slice(i)}'`);

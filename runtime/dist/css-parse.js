@@ -63,7 +63,15 @@ function parseSimple(token) {
             conditions.push(cond);
             i += m[0].length;
         }
-        else if (ch === ":" || ch === ">" || ch === "+" || ch === "~") {
+        else if (ch === ":") {
+            const m = /^:([\w-]+)/.exec(token.slice(i));
+            if (!m || (m[1] !== "hover" && m[1] !== "active" && m[1] !== "focus")) {
+                throw new CssUnsupported(`unsupported pseudo-class near '${token.slice(i)}'`);
+            }
+            conditions.push({ kind: "pseudo", name: m[1] });
+            i += m[0].length;
+        }
+        else if (ch === ">" || ch === "+" || ch === "~") {
             throw new CssUnsupported(`unsupported selector feature '${ch}'`);
         }
         else {

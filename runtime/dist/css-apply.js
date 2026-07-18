@@ -41,6 +41,7 @@ function asMatchView(v) {
             return v.styleclass;
         },
         attr: (name) => v[name],
+        pseudo: (name) => (name === "hover" ? v.hovered : name === "active" ? v.pressed : v.focused),
         get parent() {
             return v.parent ? asMatchView(v.parent) : null;
         },
