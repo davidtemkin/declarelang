@@ -22,10 +22,28 @@ font Roboto [
 // stop, Space/Enter driving the same press() a click does, hover/press
 // states, and the ring hugging the circle (focus reads the cornerRadius)
 
-class Swatch extends Control [ width = 22, height = 22, cornerRadius = 11,
+class Swatch extends Control [ width = 26, height = 26, cornerRadius = 13,
     c: number = 0,
-    fill = { c == 0 ? theme.control : c },
-    stroke = { stroke(app.accentPick == c ? 2 : 1, app.accentPick == c ? theme.text : theme.line) },
+    on: boolean = { app.accentPick == c },
+
+    // the Apple treatment: plain discs; only the SELECTED swatch earns a ring
+    // — in its own color, with the background showing through as the gap.
+    // The ring is this control's bounds, the disc an inset child.
+
+    // every disc wears a THIN DEEPER ring of its own color (Apple's subtle
+    // containment — same hue at ~78% tone); selection adds the outer ring
+    // with the background gap
+
+    deep(v) {
+        const m = (ch) => Math.round(ch * 0.78)
+        return (m((v >> 16) & 255) << 16) | (m((v >> 8) & 255) << 8) | m(v & 255)
+        },
+
+    stroke = { on ? stroke(2, c == 0 ? theme.textMuted : c) : null },
+    disc: View [ x = 3, y = 3, width = 20, height = 20, cornerRadius = 10,
+        fill = { c == 0 ? theme.control : c },
+        stroke = { stroke(1, c == 0 ? theme.line : classroot.deep(c)) } ],
+
     press()   { app.accentPick = c },
     onClick() { if (!disabled) press() },
     ]
