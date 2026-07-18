@@ -53,10 +53,16 @@ export interface AttrSpec<S, V> {
    *  live and never overridden. checkAttr already refuses a declarative
    *  assignment; this is the runtime backstop for an imperative write. */
   readOnly?: boolean;
+  /** The W3C CSS property that feeds this attribute (e.g. "background-color"),
+   *  and the coercer turning a raw CSS value string into this attr's value.
+   *  Both must be present for the CSS channel (css-apply.ts) to target it. */
+  css?: string;
+  coerce?: (raw: string) => unknown;
 }
 
 type Push = (self: object, v: unknown) => void;
 type Equal = (a: unknown, b: unknown) => boolean;
+type CssEntry = { attr: string; coerce: (raw: string) => unknown };
 
 // Class → its attribute tables. All are prototype-chained objects mirroring
 // the class hierarchy (Text's defaults chain to View's), so "nearest declared
@@ -66,6 +72,10 @@ const DEFAULTS = new WeakMap<object, Record<string, unknown>>();
 const PUSHERS = new WeakMap<object, Record<string, Push | undefined>>();
 const PREVAILING = new WeakMap<object, Record<string, boolean | undefined>>();
 const EQUALS = new WeakMap<object, Record<string, Equal | undefined>>();
+// cssProp → { attr, coerce }: the reverse of each attribute's `css:` mapping,
+// prototype-chained like the others (a subclass inherits its base's map). The
+// CSS applier (css-apply.ts) reads this to translate a matched declaration.
+const CSSMAP = new WeakMap<object, Record<string, CssEntry>>();
 
 /** What one instance lazily grows; every piece absent until first needed. */
 interface Carrier {
@@ -81,6 +91,10 @@ interface Carrier {
    *  installed by the per-view applier, cleared on swap; below every author
    *  provision, above the follow and the declaration default). */
   $stylesheetMarks?: Set<string>;
+  /** CSS-provided slot names (the standard-CSS channel's rank-2b offers —
+   *  installed by the per-view CSS applier; below author provision AND the
+   *  class-dict stylesheet, above the follow and the declaration default). */
+  $cssMarks?: Set<string>;
 }
 
 /** Walk the constructor chain to the nearest class with a table, memoizing
@@ -113,12 +127,16 @@ export function defineAttributes<S extends object>(
   const pushers: Record<string, Push | undefined> = Object.create(tableFor(PUSHERS, parent));
   const prevailing: Record<string, boolean | undefined> = Object.create(tableFor(PREVAILING, parent));
   const equals: Record<string, Equal | undefined> = Object.create(tableFor(EQUALS, parent));
+  const cssmap: Record<string, CssEntry> = Object.create(tableFor(CSSMAP, parent));
   for (const name of Object.keys(specs) as (keyof S & string)[]) {
     const spec = specs[name]!;
     defaults[name] = spec.def;
     pushers[name] = spec.push as Push | undefined;
     prevailing[name] = spec.prevailing;
     equals[name] = spec.equal as Equal | undefined;
+    if (spec.css !== undefined && spec.coerce !== undefined) {
+      cssmap[spec.css] = { attr: name, coerce: spec.coerce };
+    }
     const follows = spec.prevailing === true;
     const defBinding = spec.defBinding;
     const defOuter = spec.defOuter === true;
@@ -178,6 +196,13 @@ export function defineAttributes<S extends object>(
   PUSHERS.set(ctor, pushers);
   PREVAILING.set(ctor, prevailing);
   EQUALS.set(ctor, equals);
+  CSSMAP.set(ctor, cssmap);
+}
+
+/** The class's reverse CSS map: cssProp → { attr, coerce }. Empty for a class
+ *  (and its bases) that declare no `css:` attributes. */
+export function cssMap(ctor: Function): Record<string, CssEntry> {
+  return tableFor(CSSMAP, ctor) ?? {};
 }
 
 /** Does this slot have a LOCAL provision — an author set (literal or direct
@@ -187,7 +212,8 @@ function provided(self: Carrier, name: string): boolean {
   return (
     (self.$set?.has(name) ?? false) ||
     self.$owners?.[name] !== undefined ||
-    (self.$stylesheetMarks?.has(name) ?? false)
+    (self.$stylesheetMarks?.has(name) ?? false) ||
+    (self.$cssMarks?.has(name) ?? false)
   );
 }
 
@@ -306,6 +332,7 @@ export function stylesheetWrite(self: object, name: string, v: unknown): void {
     tableFor(PREVAILING, self.constructor)?.[name] === true && !provided(carrier, name);
   (carrier.$stylesheetMarks ??= new Set()).add(name);
   write(self, name, v);
+  carrier.$cssMarks?.delete(name); // class-dict (rank-2) evicts any CSS (rank-2b) mark
   if (becameProvider) carrier.$cells?.[name]?.changed();
 }
 
@@ -330,6 +357,45 @@ export function stylesheetClear(self: object, name: string): void {
  *  colors. */
 export function stylesheetMarks(self: object): ReadonlySet<string> | undefined {
   return (self as Carrier).$stylesheetMarks;
+}
+
+// ── The CSS channel's write side (rank-2b, below the class-dict) ────────────
+//
+// Mirrors the stylesheet channel exactly, one tier lower. The per-view CSS
+// applier (css-apply.ts) is the only caller. `write` fires the slot cell's
+// changed() on a value change — that plus the applier's tracked provision
+// probe is what lets a class-dict install/clear (or an author $set) wake the
+// applier to withdraw or re-offer.
+
+/** Install a CSS-matched value on an unprovided slot. */
+export function cssWrite(self: object, name: string, v: unknown): void {
+  const carrier = self as Carrier;
+  const becameProvider =
+    tableFor(PREVAILING, self.constructor)?.[name] === true && !provided(carrier, name);
+  (carrier.$cssMarks ??= new Set()).add(name);
+  write(self, name, v);
+  if (becameProvider) carrier.$cells?.[name]?.changed();
+}
+
+/** Withdraw a CSS offer (the rule no longer matches, or a higher rank now
+ *  outranks it). Mirrors stylesheetClear: when the slot is otherwise
+ *  unprovided the stored value is removed, dependents wake, and the Surface
+ *  state is re-pushed with the now-effective value. */
+export function cssClear(self: object, name: string): void {
+  const carrier = self as Carrier;
+  if (carrier.$cssMarks === undefined || !carrier.$cssMarks.delete(name)) return;
+  if (provided(carrier, name)) return; // a higher-rank provision holds the value now
+  if (carrier.$attrs !== undefined && Object.hasOwn(carrier.$attrs, name)) {
+    delete carrier.$attrs[name];
+  }
+  carrier.$cells?.[name]?.changed();
+  const v = (self as Record<string, unknown>)[name]; // the effective fallback
+  tableFor(PUSHERS, self.constructor)?.[name]?.(self, v);
+}
+
+/** The CSS applier's bookkeeping: which slots this view's CSS currently colors. */
+export function cssMarks(self: object): ReadonlySet<string> | undefined {
+  return (self as Carrier).$cssMarks;
 }
 
 /** Was this slot ever author-set (a literal, or a direct assignment)?

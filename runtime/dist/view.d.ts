@@ -4,6 +4,7 @@ import type { FontWeight } from "./measure.js";
 import { type Stylesheet } from "./stylesheet.js";
 import { type RenderBackend, type Surface } from "./backend.js";
 import { type Draw } from "./draw.js";
+import type { RuleSet } from "./css-match.js";
 import type { LinkTarget } from "./parser.js";
 import type { Cursor } from "./data.js";
 /** What a layout strategy is to the View — the whole protocol: begin
@@ -119,6 +120,17 @@ export declare class View extends Node {
      *  offers through per-view appliers (stylesheet.ts); assigning another
      *  stylesheet re-skins live, one settle. */
     stylesheet: Stylesheet | null;
+    /** The space-separated CSS classes selecting this view (standard-CSS channel):
+     *  `.class` rules match by whitespace-tokenized membership. Default "". */
+    styleclass: string;
+    /** The CSS id selecting this view: `#id` rules match `id === name`. The
+     *  standard-CSS `#id` hook (independent of the compile-time scope nouns). */
+    id: string;
+    /** The prevailing CSS RuleSet (the standard-CSS channel): set one anywhere
+     *  and that subtree is styled by it — matched declarations land as rank-2b
+     *  offers (below the class-dict) through per-view appliers (css-apply.ts).
+     *  Assigning another RuleSet re-cascades live, one settle. */
+    cssRules: RuleSet | null;
     /** Resolve a declared stylesheet by name — the honest public call for
      *  reaching a stylesheet from inside a `{ }` body, where you are in real TS and
      *  a bare `Dark` is (correctly) just an unresolved identifier, NOT sugar:

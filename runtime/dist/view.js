@@ -16,6 +16,8 @@ import { POINTER_TYPES } from "./backend.js";
 import { record } from "./draw.js";
 import { Constraint } from "./reactive.js";
 import { bindDerived, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned } from "./attributes.js";
+import { coerceColor, coerceLength, coerceNumber, coerceString, coerceWeight } from "./css-coerce.js";
+import { cssRulesArrived, cssReparent, disposeCssApplier } from "./css-apply.js";
 import { handlerName } from "./schema.js";
 import { splitPath } from "./datapath.js";
 // view → the installed strategy's detach. Module-private bookkeeping rather
@@ -151,6 +153,11 @@ export class View extends Node {
                     d.run();
             }
         }
+        // Re-cascade the moved subtree against its (possibly new) ancestor chain —
+        // the CSS matcher's ancestor reads are structural, and parent is not
+        // reactive. (Manual appendChild/removeChild reparenting is wired in a later
+        // slice; this covers the replicator's reconcile path.)
+        cssReparent(this);
     }
     /** This view's own content's extent on a size axis, folded into the
      *  auto-extent max — 0 for a plain view; Image overrides with the bitmap's
@@ -238,6 +245,7 @@ export class View extends Node {
             undoLayout();
         }
         disposeApplier(this);
+        disposeCssApplier(this);
         disposeBindings(this);
         this.drawing?.dispose();
         this.drawing = null;
@@ -340,16 +348,16 @@ export class View extends Node {
     }
 }
 defineAttributes(View, {
-    x: { def: 0, push: (v, n) => v.surface?.setX(n) },
-    y: { def: 0, push: (v, n) => v.surface?.setY(n) },
-    width: { def: 0, push: (v, n) => v.surface?.setWidth(n) },
-    height: { def: 0, push: (v, n) => v.surface?.setHeight(n) },
-    fill: { def: null, push: (v, f) => v.surface?.setFill(f), equal: fillEqual },
-    cornerRadius: { def: 0, push: (v, r) => v.surface?.setCornerRadius(r) },
+    x: { def: 0, push: (v, n) => v.surface?.setX(n), css: "left", coerce: coerceLength },
+    y: { def: 0, push: (v, n) => v.surface?.setY(n), css: "top", coerce: coerceLength },
+    width: { def: 0, push: (v, n) => v.surface?.setWidth(n), css: "width", coerce: coerceLength },
+    height: { def: 0, push: (v, n) => v.surface?.setHeight(n), css: "height", coerce: coerceLength },
+    fill: { def: null, push: (v, f) => v.surface?.setFill(f), equal: fillEqual, css: "background-color", coerce: coerceColor },
+    cornerRadius: { def: 0, push: (v, r) => v.surface?.setCornerRadius(r), css: "border-radius", coerce: coerceLength },
     stroke: { def: null, push: (v, st) => v.surface?.setStroke(st), equal: strokeEqual },
     shadow: { def: null, push: (v, sh) => v.surface?.setShadow(sh), equal: shadowEqual },
     visible: { def: true, push: (v, b) => v.surface?.setVisible(b) },
-    opacity: { def: 1, push: (v, o) => v.surface?.setOpacity(o) },
+    opacity: { def: 1, push: (v, o) => v.surface?.setOpacity(o), css: "opacity", coerce: coerceNumber },
     // Scale + pivot ride one transform at the seam: any of the three re-pushes
     // the combined value (transform + transform-origin on the DOM).
     scale: { def: 1, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },
@@ -367,12 +375,12 @@ defineAttributes(View, {
     // The prevailing built-ins: model-side on View (no push — Text's style
     // derive is the consumer that crosses the seam). Defaults are the
     // browser-native text defaults Text carried through R3–R9.
-    textColor: { def: 0x000000, prevailing: true },
+    textColor: { def: 0x000000, prevailing: true, css: "color", coerce: coerceColor },
     selectable: { def: false, prevailing: true },
-    fontSize: { def: 16, prevailing: true },
-    fontFamily: { def: "sans-serif", prevailing: true },
-    fontWeight: { def: "normal", prevailing: true },
-    letterSpacing: { def: 0, prevailing: true },
+    fontSize: { def: 16, prevailing: true, css: "font-size", coerce: coerceLength },
+    fontFamily: { def: "sans-serif", prevailing: true, css: "font-family", coerce: coerceString },
+    fontWeight: { def: "normal", prevailing: true, css: "font-weight", coerce: coerceWeight },
+    letterSpacing: { def: 0, prevailing: true, css: "letter-spacing", coerce: coerceLength },
     // Rich-text structure overrides — consumed by Markdown/HTMLText (null colour =
     // the theme-aware house token; headingWeight = the house bold).
     headingColor: { def: null, prevailing: true },
@@ -404,6 +412,12 @@ defineAttributes(View, {
     },
     // The cursor is model state: bindings read it (tracked), nothing renders it.
     datapath: { def: null },
+    // The standard-CSS channel (css-apply.ts). styleclass/id are plain model
+    // slots the matcher reads (tracked); cssRules is a prevailing slot whose
+    // pusher installs appliers down the subtree (mirrors stylesheetArrived).
+    styleclass: { def: "" },
+    id: { def: "" },
+    cssRules: { def: null, prevailing: true, push: (v) => cssRulesArrived(v) },
 });
 /** The cursor in effect at `node`: the nearest ancestor-or-self datapath
  *  (language §9 — "descendants read fields relative to it"). Each level's

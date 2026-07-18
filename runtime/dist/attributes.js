@@ -34,6 +34,10 @@ const DEFAULTS = new WeakMap();
 const PUSHERS = new WeakMap();
 const PREVAILING = new WeakMap();
 const EQUALS = new WeakMap();
+// cssProp → { attr, coerce }: the reverse of each attribute's `css:` mapping,
+// prototype-chained like the others (a subclass inherits its base's map). The
+// CSS applier (css-apply.ts) reads this to translate a matched declaration.
+const CSSMAP = new WeakMap();
 /** Walk the constructor chain to the nearest class with a table, memoizing
  *  the answer for classes that declare nothing of their own (App). Classes
  *  declare their attributes at module load, before any instance exists, so
@@ -61,12 +65,16 @@ export function defineAttributes(ctor, specs) {
     const pushers = Object.create(tableFor(PUSHERS, parent));
     const prevailing = Object.create(tableFor(PREVAILING, parent));
     const equals = Object.create(tableFor(EQUALS, parent));
+    const cssmap = Object.create(tableFor(CSSMAP, parent));
     for (const name of Object.keys(specs)) {
         const spec = specs[name];
         defaults[name] = spec.def;
         pushers[name] = spec.push;
         prevailing[name] = spec.prevailing;
         equals[name] = spec.equal;
+        if (spec.css !== undefined && spec.coerce !== undefined) {
+            cssmap[spec.css] = { attr: name, coerce: spec.coerce };
+        }
         const follows = spec.prevailing === true;
         const defBinding = spec.defBinding;
         const defOuter = spec.defOuter === true;
@@ -125,6 +133,12 @@ export function defineAttributes(ctor, specs) {
     PUSHERS.set(ctor, pushers);
     PREVAILING.set(ctor, prevailing);
     EQUALS.set(ctor, equals);
+    CSSMAP.set(ctor, cssmap);
+}
+/** The class's reverse CSS map: cssProp → { attr, coerce }. Empty for a class
+ *  (and its bases) that declare no `css:` attributes. */
+export function cssMap(ctor) {
+    return tableFor(CSSMAP, ctor) ?? {};
 }
 /** Does this slot have a LOCAL provision — an author set (literal or direct
  *  write), an owning binding, or a stylesheet entry's installed offer?
@@ -132,7 +146,8 @@ export function defineAttributes(ctor, specs) {
 function provided(self, name) {
     return ((self.$set?.has(name) ?? false) ||
         self.$owners?.[name] !== undefined ||
-        (self.$stylesheetMarks?.has(name) ?? false));
+        (self.$stylesheetMarks?.has(name) ?? false) ||
+        (self.$cssMarks?.has(name) ?? false));
 }
 /** followRead's "no provider anywhere" — distinct from a provided null. */
 const NOTHING = Symbol("no provider");
@@ -240,6 +255,7 @@ export function stylesheetWrite(self, name, v) {
     const becameProvider = tableFor(PREVAILING, self.constructor)?.[name] === true && !provided(carrier, name);
     (carrier.$stylesheetMarks ??= new Set()).add(name);
     write(self, name, v);
+    carrier.$cssMarks?.delete(name); // class-dict (rank-2) evicts any CSS (rank-2b) mark
     if (becameProvider)
         carrier.$cells?.[name]?.changed();
 }
@@ -265,6 +281,43 @@ export function stylesheetClear(self, name) {
  *  colors. */
 export function stylesheetMarks(self) {
     return self.$stylesheetMarks;
+}
+// ── The CSS channel's write side (rank-2b, below the class-dict) ────────────
+//
+// Mirrors the stylesheet channel exactly, one tier lower. The per-view CSS
+// applier (css-apply.ts) is the only caller. `write` fires the slot cell's
+// changed() on a value change — that plus the applier's tracked provision
+// probe is what lets a class-dict install/clear (or an author $set) wake the
+// applier to withdraw or re-offer.
+/** Install a CSS-matched value on an unprovided slot. */
+export function cssWrite(self, name, v) {
+    const carrier = self;
+    const becameProvider = tableFor(PREVAILING, self.constructor)?.[name] === true && !provided(carrier, name);
+    (carrier.$cssMarks ??= new Set()).add(name);
+    write(self, name, v);
+    if (becameProvider)
+        carrier.$cells?.[name]?.changed();
+}
+/** Withdraw a CSS offer (the rule no longer matches, or a higher rank now
+ *  outranks it). Mirrors stylesheetClear: when the slot is otherwise
+ *  unprovided the stored value is removed, dependents wake, and the Surface
+ *  state is re-pushed with the now-effective value. */
+export function cssClear(self, name) {
+    const carrier = self;
+    if (carrier.$cssMarks === undefined || !carrier.$cssMarks.delete(name))
+        return;
+    if (provided(carrier, name))
+        return; // a higher-rank provision holds the value now
+    if (carrier.$attrs !== undefined && Object.hasOwn(carrier.$attrs, name)) {
+        delete carrier.$attrs[name];
+    }
+    carrier.$cells?.[name]?.changed();
+    const v = self[name]; // the effective fallback
+    tableFor(PUSHERS, self.constructor)?.[name]?.(self, v);
+}
+/** The CSS applier's bookkeeping: which slots this view's CSS currently colors. */
+export function cssMarks(self) {
+    return self.$cssMarks;
 }
 /** Was this slot ever author-set (a literal, or a direct assignment)?
  *  The R4 replacement for R3's 0-as-unset: auto-size asks this, so an
