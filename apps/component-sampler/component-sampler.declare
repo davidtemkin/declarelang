@@ -18,11 +18,16 @@ font Roboto [
     ]
 
 
-class Swatch extends View [ width = 22, height = 22, cornerRadius = 11,
+// a swatch is a CONTROL: the base supplies the whole keyboard story — a Tab
+// stop, Space/Enter driving the same press() a click does, hover/press
+// states, and the ring hugging the circle (focus reads the cornerRadius)
+
+class Swatch extends Control [ width = 22, height = 22, cornerRadius = 11,
     c: number = 0,
     fill = { c == 0 ? theme.control : c },
     stroke = { stroke(app.accentPick == c ? 2 : 1, app.accentPick == c ? theme.text : theme.line) },
-    onClick() { app.accentPick = c },
+    press()   { app.accentPick = c },
+    onClick() { if (!disabled) press() },
     ]
 
 
@@ -143,14 +148,12 @@ App [ fill = { theme.bg }, minWidth = 560,
             TabSlider [ width = 300,
                 Tab [ label = "First", initial = true,
                     View [ width = { parent.width }, height = 70, fill = { theme.surface },
-                        Text [ x = 12, y = 10, textColor = { theme.textMuted }, text = "Pane one" ],
-                        Button [ x = 12, y = 32, width = 110, label = "In pane 1" ],
+                        Button [ x = 12, y = center, width = 110, label = "In pane 1" ],
                         ],
                     ],
                 Tab [ label = "Second",
                     View [ width = { parent.width }, height = 70, fill = { theme.surface },
-                        Text [ x = 12, y = 10, textColor = { theme.textMuted }, text = "Pane two" ],
-                        Button [ x = 12, y = 32, width = 110, label = "In pane 2" ],
+                        Button [ x = 12, y = center, width = 110, label = "In pane 2" ],
                         ],
                     ],
                 Tab [ label = "Third",
