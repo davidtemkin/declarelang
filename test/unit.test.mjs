@@ -5041,6 +5041,14 @@ await test("checkCss Tier-2 does not false-fire on .class/#id (positive)", () =>
   assert.equal(errs(`css X { .anything { color: red; opacity: 0.5 } #x { left: 5px } } App [ ]`).length, 0);
 });
 
+await test("a checked css block styles a view via cssRules = Name", () => {
+  const app = build(`css Dark { .box { background-color: #2d7 } }
+    App [ width = 100, height = 100, cssRules = Dark, b: View [ styleclass = "box" ] ]`);
+  app.attach(mockBackend([]), null);
+  settle();
+  assert.equal(app.b.fill, 0x22dd77);
+});
+
 await test("checker: styleclass/id are string attributes on View", () => {
   const errs = (src) => check(parseProgram(src)).map((e) => e.message);
   assert.equal(errs(`App [ View [ styleclass = "card", id = "hero" ] ]`).length, 0);

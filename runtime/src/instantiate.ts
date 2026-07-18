@@ -58,6 +58,7 @@ import { attrType, descendsFrom, type ComponentSchema } from "./schema.js";
 import { checkAttr, checkMethod, checkDecl, checkComponentValue, withDecls, programSchemas, manyPathOf, checkEntry, checkThemeRecord, coerceToken, type ClassInfo } from "./check.js";
 import { buildStylesheet, ensureApplier, registerStylesheets, type Stylesheet, type StylesheetField } from "./stylesheet.js";
 import { ensureCssApplier } from "./css-apply.js";
+import { buildRuleSet, type RuleSet } from "./css-match.js";
 import { buildFonts, collectFaces, registerFontFaces, type Font } from "./font.js";
 import { compileBody, compileExpr } from "./expr.js";
 import { isPercent, type AttrType, type Theme } from "./value.js";
@@ -93,6 +94,7 @@ interface Ctx {
    *  Stylesheet each — a swap is one equality-gated write) and its style bundles
    *  (the bodies; their sets expand into the provision merge per view). */
   stylesheets: Map<string, Stylesheet>;
+  csses: Map<string, RuleSet>;
   /** The program's `font` declarations, resolved: `fontFamily = Name` becomes
    *  a family string (static, unlike the stylesheet channel). */
   fonts: Map<string, Font>;
@@ -152,6 +154,7 @@ export function instantiate(input: Element | Program): View {
     schemas,
     classes,
     stylesheets: buildStylesheets(program, schemas),
+    csses: new Map(program.csses.map((c) => [c.name, buildRuleSet(c.text)])),
     fonts: buildFonts(program.fonts),
     bundles: collectBundles(program),
     pending: [],
@@ -544,6 +547,21 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
         );
       }
       (view as unknown as Record<string, unknown>)[attr.name] = stylesheet;
+      continue;
+    }
+    // `cssRules = Dark` → the interned RuleSet; its pusher (view.ts) installs
+    // the CSS appliers under this subtree (mirrors the stylesheet path).
+    if (t0?.kind === "cssRules" && attr.value.kind === "ident" && attr.value.name !== "null") {
+      const rules = ctx.csses.get(attr.value.name);
+      if (rules === undefined) {
+        throw new NeoError(
+          ctx.csses.size > 0
+            ? `no css block named '${attr.value.name}' — declared css blocks: ${[...ctx.csses.keys()].join(", ")}`
+            : `no css block named '${attr.value.name}' — this program declares no css blocks`,
+          attr.value.pos
+        );
+      }
+      (view as unknown as Record<string, unknown>)[attr.name] = rules;
       continue;
     }
     // `fontFamily = Name` / `[Name, "Helvetica", "sans-serif"]` → a CSS family

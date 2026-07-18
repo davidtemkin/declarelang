@@ -56,6 +56,7 @@ import { attrType, descendsFrom } from "./schema.js";
 import { checkAttr, checkMethod, checkDecl, checkComponentValue, withDecls, programSchemas, manyPathOf, checkEntry, checkThemeRecord, coerceToken } from "./check.js";
 import { buildStylesheet, ensureApplier, registerStylesheets } from "./stylesheet.js";
 import { ensureCssApplier } from "./css-apply.js";
+import { buildRuleSet } from "./css-match.js";
 import { buildFonts, collectFaces, registerFontFaces } from "./font.js";
 import { compileBody, compileExpr } from "./expr.js";
 import { isPercent } from "./value.js";
@@ -98,6 +99,7 @@ export function instantiate(input) {
         schemas,
         classes,
         stylesheets: buildStylesheets(program, schemas),
+        csses: new Map(program.csses.map((c) => [c.name, buildRuleSet(c.text)])),
         fonts: buildFonts(program.fonts),
         bundles: collectBundles(program),
         pending: [],
@@ -487,6 +489,18 @@ function construct(el, outer, ctx, parentSchema = null) {
                     : `no stylesheet named '${attr.value.name}' — this program declares no stylesheets`, attr.value.pos);
             }
             view[attr.name] = stylesheet;
+            continue;
+        }
+        // `cssRules = Dark` → the interned RuleSet; its pusher (view.ts) installs
+        // the CSS appliers under this subtree (mirrors the stylesheet path).
+        if (t0?.kind === "cssRules" && attr.value.kind === "ident" && attr.value.name !== "null") {
+            const rules = ctx.csses.get(attr.value.name);
+            if (rules === undefined) {
+                throw new NeoError(ctx.csses.size > 0
+                    ? `no css block named '${attr.value.name}' — declared css blocks: ${[...ctx.csses.keys()].join(", ")}`
+                    : `no css block named '${attr.value.name}' — this program declares no css blocks`, attr.value.pos);
+            }
+            view[attr.name] = rules;
             continue;
         }
         // `fontFamily = Name` / `[Name, "Helvetica", "sans-serif"]` → a CSS family
