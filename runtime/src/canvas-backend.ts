@@ -453,6 +453,16 @@ class CanvasSurface implements Surface {
     this.edit = spec;
     if (el !== null) {
       if (el.value !== spec.value) el.value = spec.value; // guard the caret against an echo
+      // Parity with the DOM backend's editable: the field's inset, the
+      // spellcheck election, and the wrap mode all come from the one spec —
+      // the overlay is the same editable, positioned differently.
+      el.spellcheck = spec.spellcheck;
+      el.style.padding = spec.padding > 0 ? `${spec.padding}px` : "0";
+      if (el instanceof HTMLTextAreaElement) {
+        el.wrap = spec.wrap ? "soft" : "off";
+        el.style.whiteSpace = spec.wrap ? "pre-wrap" : "pre";
+        el.style.overflow = "auto";
+      }
       (el as HTMLInputElement).placeholder = spec.placeholder;
       applyCanvasEditStyle(el, spec.style);
     }
