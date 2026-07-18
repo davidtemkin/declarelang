@@ -496,6 +496,7 @@
    "codes": []
   },
   "library": {
+   "$provide": "library/[object Object],[object Object]",
    "Bar": "library/bar.declare",
    "Control": "library/control.declare",
    "Checkbox": "library/checkbox.declare",

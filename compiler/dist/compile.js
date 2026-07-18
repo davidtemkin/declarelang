@@ -148,26 +148,14 @@ export function compile(source, opts = {}) {
     // magic tags this is `source` unchanged, so single-file offsets are identical.
     let mainSource = exciseSpans(source, main.includeSpans);
     const libSources = [...resolved.sources, ...auto.sources];
-    // The traveling focus indicator RIDES IN with the component library (OL's
-    // `canvas.focusclass` default, reborn): a program whose classes include a
-    // Control descendant gets `FocusRing [ ],` appended to its App root — the
-    // keyboard affordance arrives with the components, undeclared. Suppressed
-    // when the author defines or instantiates FocusRing themselves (which is
-    // also how placement/config is customized); a wholesale opt-out (OL's
-    // focusclass=null) is a follow-up App-slot ruling.
+    // Library-provided singletons ride in by MANIFEST RULE (`$provide` in
+    // autoincludes.json): the FocusRing with any Control descendant (OL's
+    // `canvas.focusclass` default, reborn), the Tooltip with any `tip`
+    // attribute — each suppressed when the author declares that name
+    // themselves (the customization path). The trigger vocabulary and the
+    // executor live below; the ASSOCIATIONS are the library's data.
     {
         const byName = new Map(auto.program.classes.map((c) => [c.name, c]));
-        const descendsControl = (name) => {
-            const seen = new Set();
-            for (let c = byName.get(name); c !== undefined && !seen.has(c.name); c = byName.get(c.base ?? "")) {
-                if (c.name === "Control")
-                    return true;
-                seen.add(c.name);
-                if (c.base === undefined || c.base === null)
-                    break;
-            }
-            return false;
-        };
         const treeHas = (el, tag) => el.tag === tag || el.children.some((ch) => treeHas(ch, tag));
         // Splice an auto-provided singleton as the LAST App child. The preceding
         // member may have closed INLINE (no trailing comma — the inline-]& rule),
@@ -183,31 +171,59 @@ export function compile(source, opts = {}) {
             const needsComma = i >= 0 && src[i] !== "," && src[i] !== "[";
             return src.slice(0, close) + (needsComma ? "," : "") + snippet + src.slice(close);
         };
-        const usesControl = auto.program.classes.some((c) => descendsControl(c.name));
-        const hasOwnRing = byName.has("FocusRing") || treeHas(main.root, "FocusRing");
-        const autoHost = host;
-        if (usesControl && !hasOwnRing && typeof autoHost.autoincludes === "function" && typeof autoHost.resolveLibrary === "function") {
-            const path = autoHost.autoincludes()["FocusRing"];
-            const lib = path !== undefined ? autoHost.resolveLibrary(path) : null;
-            if (lib !== null && lib !== undefined && !resolved.visited.has(lib.canonical)) {
-                libSources.push(lib.source);
-                mainSource = spliceLast(mainSource, "\n    // the traveling focus indicator — provided with the component library\n\n    FocusRing [ ],\n");
+        // ── PROVIDED SINGLETONS — data, not code paths ────────────────────────
+        // The library manifest's `$provide` rules say when a program has EARNED a
+        // library-provided singleton (the FocusRing with any Control descendant;
+        // the Tooltip with any `tip` attribute). The compiler executes ONE
+        // generic rule over a small trigger vocabulary — `baseUsed` (a declared
+        // class descends from the named base) and `attributeUsed` (any element
+        // sets the named attribute) — includes the class's own manifest file, and
+        // splices `Class [ ],` as the LAST App child (source order stacks, so
+        // last = above content). A program that declares its own instance or
+        // class of that name suppresses the provision — the customization path.
+        // Adding a provided singleton is a manifest edit, never a compiler edit.
+        const descendsFromNamed = (name, base) => {
+            const seen = new Set();
+            for (let c = byName.get(name); c !== undefined && !seen.has(c.name); c = byName.get(c.base ?? "")) {
+                if (c.name === base)
+                    return true;
+                seen.add(c.name);
+                if (c.base === undefined || c.base === null)
+                    break;
+                if (c.base === base)
+                    return true;
             }
-        }
-        // The Tooltip singleton arrives when any view carries a `tip` attribute
-        // (planes.md tier 1 — the attribute IS the whole use-site surface). Same
-        // mechanism as the ring: auto-include the library file, splice the
-        // singleton as the LAST App child — source order stacks, so last = above
-        // everything, the floating tier's v1 realization.
-        const elHasTip = (el) => el.attrs.some((a) => a.name === "tip") || el.children.some(elHasTip);
-        const usesTip = elHasTip(main.root) || auto.program.classes.some((c) => elHasTip(c.body));
-        const hasOwnTooltip = byName.has("Tooltip") || treeHas(main.root, "Tooltip");
-        if (usesTip && !hasOwnTooltip && typeof autoHost.autoincludes === "function" && typeof autoHost.resolveLibrary === "function") {
-            const path = autoHost.autoincludes()["Tooltip"];
-            const lib = path !== undefined ? autoHost.resolveLibrary(path) : null;
-            if (lib !== null && lib !== undefined && !resolved.visited.has(lib.canonical)) {
-                libSources.push(lib.source);
-                mainSource = spliceLast(mainSource, "\n    // the tooltip singleton — provided with the component library (tip = attribute)\n\n    Tooltip [ ],\n");
+            return false;
+        };
+        const elUsesAttr = (el, name) => el.attrs.some((a) => a.name === name) || el.children.some((ch) => elUsesAttr(ch, name));
+        const attrUsed = (name) => elUsesAttr(main.root, name) || auto.program.classes.some((c) => elUsesAttr(c.body, name));
+        const autoHost = host;
+        if (typeof autoHost.autoincludes === "function" && typeof autoHost.resolveLibrary === "function") {
+            const manifest = autoHost.autoincludes();
+            const rules = manifest["$provide"];
+            if (Array.isArray(rules)) {
+                for (const rule of rules) {
+                    if (rule === null || typeof rule !== "object")
+                        continue;
+                    const r = rule;
+                    const cls = typeof r.class === "string" ? r.class : null;
+                    if (cls === null)
+                        continue;
+                    const when = r.when ?? {};
+                    const triggered = (typeof when.baseUsed === "string" && auto.program.classes.some((c) => descendsFromNamed(c.name, when.baseUsed))) ||
+                        (typeof when.attributeUsed === "string" && attrUsed(when.attributeUsed));
+                    if (!triggered)
+                        continue;
+                    if (byName.has(cls) || treeHas(main.root, cls))
+                        continue; // the program provides its own
+                    const path = manifest[cls];
+                    const lib = typeof path === "string" ? autoHost.resolveLibrary(path) : null;
+                    if (lib === null || lib === undefined || resolved.visited.has(lib.canonical))
+                        continue;
+                    libSources.push(lib.source);
+                    const comment = typeof r.comment === "string" ? r.comment : `${cls} — provided with the component library`;
+                    mainSource = spliceLast(mainSource, `\n    // ${comment}\n\n    ${cls} [ ],\n`);
+                }
             }
         }
     }

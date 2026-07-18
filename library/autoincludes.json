@@ -1,4 +1,20 @@
 {
+  "$provide": [
+    {
+      "class": "FocusRing",
+      "when": {
+        "baseUsed": "Control"
+      },
+      "comment": "the traveling focus indicator — provided with the component library"
+    },
+    {
+      "class": "Tooltip",
+      "when": {
+        "attributeUsed": "tip"
+      },
+      "comment": "the tooltip singleton — provided with the component library (tip = attribute)"
+    }
+  ],
   "Bar": "bar.declare",
   "Control": "control.declare",
   "Checkbox": "checkbox.declare",
