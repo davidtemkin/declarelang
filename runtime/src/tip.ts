@@ -21,11 +21,17 @@ export interface TipEvent {
   readonly y: number;
   readonly w: number;
   readonly h: number;
+  /** The pointer's root-space position at show — for the Cupertino placement
+   *  (macOS help tags appear near the CURSOR, not under the control). */
+  readonly px: number;
+  readonly py: number;
   /** The target's tree root — a page can host several apps (islands); each
    *  app's Tooltip stands down for foreign targets, like the FocusRing. */
   readonly root: View;
 }
 
+// The default show delay; a theme overrides per platform (`tooltipDelay` —
+// macOS help tags and Windows tooltips both wait ~1s, Material ~500ms).
 const SHOW_DELAY_MS = 500;
 // After a tip hides by the pointer LEAVING (not by a press), the system stays
 // WARM briefly: entering another tip-carrying control inside this window shows
@@ -39,6 +45,8 @@ class TipService {
   private current: View | null = null;
   private shown = false;
   private warmUntil = 0;
+  private lastLocalX = 0;
+  private lastLocalY = 0;
 
   /** Subscribe (`onTip(e) <- Tip`). Returns the unsubscribe thunk. */
   onTip(fn: (e: TipEvent | null) => void): () => void {
@@ -46,19 +54,32 @@ class TipService {
     return () => this.handlers.delete(fn);
   }
 
-  /** The pointer entered a tip-carrying view. */
-  over(view: View): void {
+  /** The pointer entered a tip-carrying view (x/y in the view's own coords). */
+  over(view: View, x = 0, y = 0): void {
     if (view === this.current) return;
     this.current = view;
+    this.lastLocalX = x;
+    this.lastLocalY = y;
     this.clearTimer();
     if (this.shown || Date.now() < this.warmUntil) {
       this.publish(view); // showing, or still warm — retarget instantly (the OS rule)
       return;
     }
+    const theme = (view as unknown as { theme?: Record<string, unknown> }).theme;
+    const delay = typeof theme?.tooltipDelay === "number" ? theme.tooltipDelay : SHOW_DELAY_MS;
     this.timer = setTimeout(() => {
       this.timer = null;
       if (this.current === view) this.publish(view);
-    }, SHOW_DELAY_MS);
+    }, delay);
+  }
+
+  /** Pointer movement inside the view, pre-show — keeps the at-pointer
+   *  placement honest (the tip appears where the cursor RESTS, not where it
+   *  entered). Ignored once shown. */
+  move(view: View, x: number, y: number): void {
+    if (view !== this.current || this.shown) return;
+    this.lastLocalX = x;
+    this.lastLocalY = y;
   }
 
   /** The pointer left the view. Hiding by DEPARTURE keeps the system warm. */
@@ -102,7 +123,8 @@ class TipService {
       n = v.parent ?? null;
     }
     this.shown = true;
-    this.emit({ text, x, y, w: view.width, h: view.height, root });
+    this.emit({ text, x, y, w: view.width, h: view.height,
+      px: x + this.lastLocalX, py: y + this.lastLocalY, root });
   }
 
   private emit(e: TipEvent | null): void {

@@ -19,7 +19,8 @@ stylesheet Cupertino [
         buttonHeight = 28, switchWidth = 40, switchHeight = 24,
         focusRingWidth = 3.5, focusRingGap = 0,
         checkboxSize = 14, checkboxRadius = 3.5, disabledOpacity = 0.5,
-        tooltipBg = #F0F0F0, tooltipText = #1D1D1F, tooltipLine = #C6C6C8 ],
+        tooltipBg = #F0F0F0, tooltipText = #1D1D1F, tooltipLine = #C6C6C8,
+        tooltipPlacement = "pointer", tooltipDelay = 1000, tooltipSize = 11 ],
     ]
 
 
@@ -34,5 +35,6 @@ stylesheet CupertinoDark [
         buttonHeight = 28, switchWidth = 40, switchHeight = 24,
         focusRingWidth = 3.5, focusRingGap = 0,
         checkboxSize = 14, checkboxRadius = 3.5, disabledOpacity = 0.5,
-        tooltipBg = #2C2C2E, tooltipText = #F2F2F7, tooltipLine = #48484A ],
+        tooltipBg = #2C2C2E, tooltipText = #F2F2F7, tooltipLine = #48484A,
+        tooltipPlacement = "pointer", tooltipDelay = 1000, tooltipSize = 11 ],
     ]

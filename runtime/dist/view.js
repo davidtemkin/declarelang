@@ -316,9 +316,11 @@ export class View extends Node {
         return (type, x, y) => {
             if (this.tip !== "") {
                 if (type === "mouseOver")
-                    Tip.over(this);
+                    Tip.over(this, x, y);
                 else if (type === "mouseOut")
                     Tip.out(this);
+                else if (type === "mouseMove")
+                    Tip.move(this, x, y);
                 else if (type === "mouseDown")
                     Tip.hide();
             }

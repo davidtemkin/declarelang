@@ -32,6 +32,9 @@ export const THEME_RECORDS = Object.freeze({
         tooltipBg: 0xF0F0F0,
         tooltipText: 0x1D1D1F,
         tooltipLine: 0xC6C6C8,
+        tooltipPlacement: "pointer",
+        tooltipDelay: 1000,
+        tooltipSize: 11,
     }),
     CupertinoDark: Object.freeze({
         bg: 0x1E1E1E,
@@ -61,6 +64,9 @@ export const THEME_RECORDS = Object.freeze({
         tooltipBg: 0x2C2C2E,
         tooltipText: 0xF2F2F7,
         tooltipLine: 0x48484A,
+        tooltipPlacement: "pointer",
+        tooltipDelay: 1000,
+        tooltipSize: 11,
     }),
     MountainView: Object.freeze({
         bg: 0xFFFBFE,
@@ -155,6 +161,8 @@ export const THEME_RECORDS = Object.freeze({
         tooltipBg: 0xFBFBFB,
         tooltipText: 0x1B1B1B,
         tooltipLine: 0xD1D1D1,
+        tooltipPlacement: "above",
+        tooltipDelay: 1000,
     }),
     RedmondDark: Object.freeze({
         bg: 0x202020,
@@ -189,6 +197,8 @@ export const THEME_RECORDS = Object.freeze({
         tooltipBg: 0x2C2C2C,
         tooltipText: 0xFFFFFF,
         tooltipLine: 0x404040,
+        tooltipPlacement: "above",
+        tooltipDelay: 1000,
     }),
     SanFrancisco: Object.freeze({
         bg: 0xF4F6FA,

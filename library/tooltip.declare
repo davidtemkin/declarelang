@@ -8,15 +8,19 @@ view in the program carries a tip (the FocusRing auto-arrival mechanism);
 declare your own `Tooltip [ ]` (or subclass) to replace the rendition.
 
 It listens to the Tip service (`onTip(e) <- Tip`), which owns the platform
-conventions (the show delay, instant retarget while showing, hide on
-press). Placement: below the target, centered, flipping above when there is
-no room, clamped inside the app. Pure chrome — never focusable, never a
-pointer target, always above content (the auto-splice puts it last in the
-App, and source order stacks).
+conventions (the show delay — `tooltipDelay`, ~1s on the Apple and Windows
+platforms, ~500ms Material — instant retarget while showing, hide on
+press). PLACEMENT is theme data too (`tooltipPlacement`): "below" (the
+default — under the target, centered, flipping above at the edge), "above"
+(Fluent/WinUI's default, flipping below), or "pointer" (the macOS help tag —
+offset below-right of where the cursor rests). Always clamped inside the
+app. Pure chrome — never focusable, never a pointer target, always above
+content (the auto-splice puts it last in the App, and source order stacks).
 
 Theming (the four cities carry the tokens): `tooltipBg` / `tooltipText` /
-`tooltipLine` (null = no border). Cupertino and Redmond wear bordered
-surface chips; San Francisco and Mountain View the inverse chip.
+`tooltipLine` (null = no border) / `tooltipSize` (11 on macOS, 12
+elsewhere). Cupertino and Redmond wear bordered surface chips; San
+Francisco and Mountain View the inverse chip.
 */
 
 class Tooltip extends View [ visible = { shown && tipText != "" },
@@ -27,30 +31,42 @@ class Tooltip extends View [ visible = { shown && tipText != "" },
     ey: number = 0,
     ew: number = 0,
     eh: number = 0,
+    px: number = 0,                              // the pointer at show (the "pointer" placement)
+    py: number = 0,
 
     onTip(e) <- Tip {
         if (e == null || e.root != app) { shown = false; return }
         ex = e.x; ey = e.y; ew = e.w; eh = e.h
+        px = e.px; py = e.py
         tipText = e.text
         shown = true
         },
 
-    // geometry derives from the label's measured size; placement flips above
-    // the target when below would leave the app, and clamps horizontally
+    // geometry derives from the label's measured size; placement is a theme
+    // election (below | above | pointer), always flipped when it would leave
+    // the app and clamped horizontally
+
+    placement: string = { typeof theme.tooltipPlacement == "string" ? theme.tooltipPlacement : "below" },
 
     width  = { this.t.width + 16 },
     height = { this.t.height + 10 },
-    x = { Math.max(4, Math.min(app.width - this.width - 4, ex + (ew - this.width) / 2)) },
-    y = { ey + eh + 7 + this.height > app.height ? ey - this.height - 7 : ey + eh + 7 },
+    x = { Math.max(4, Math.min(app.width - this.width - 4,
+            placement == "pointer" ? px + 10 : ex + (ew - this.width) / 2)) },
+    y = { placement == "pointer"
+            ? (py + 18 + this.height > app.height ? py - this.height - 8 : py + 18)
+            : placement == "above"
+                ? (ey - this.height - 7 < 0 ? ey + eh + 7 : ey - this.height - 7)
+                : (ey + eh + 7 + this.height > app.height ? ey - this.height - 7 : ey + eh + 7) },
 
     cornerRadius = 4,
     fill   = { typeof theme.tooltipBg == "number" ? theme.tooltipBg : 0x1B2733 },
     stroke = { typeof theme.tooltipLine == "number" ? stroke(1, theme.tooltipLine) : null },
 
     // pure chrome: never a pointer target
-    containsPoint(px, py) { return false },
 
-    t: Text [ x = 8, y = 5, fontSize = 12,
+    containsPoint(cx, cy) { return false },
+
+    t: Text [ x = 8, y = 5, fontSize = { typeof theme.tooltipSize == "number" ? theme.tooltipSize : 12 },
         textColor = { typeof theme.tooltipText == "number" ? theme.tooltipText : 0xF4F6FA },
         text = { classroot.tipText } ],
     ]
