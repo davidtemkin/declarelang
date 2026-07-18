@@ -46,6 +46,7 @@
 import { parseProgram } from "../../runtime/dist/parser.js";
 import { DeclareError, DeclareErrors } from "../../runtime/dist/errors.js";
 import { check, programSchemas } from "../../runtime/dist/check.js";
+import { SCHEMAS, descendsFrom } from "../../runtime/dist/schema.js";
 import { serializeDeps } from "../../runtime/dist/deps.js";
 import { serializeLinks } from "../../runtime/dist/links.js";
 import { annotateProgram } from "./dep-extract.js";
@@ -195,8 +196,28 @@ export function compile(source, opts = {}) {
             }
             return false;
         };
-        const elUsesAttr = (el, name) => el.attrs.some((a) => a.name === name) || el.children.some((ch) => elUsesAttr(ch, name));
-        const attrUsed = (name) => elUsesAttr(main.root, name) || auto.program.classes.some((c) => elUsesAttr(c.body, name));
+        // An element's tag descends from a BUILT-IN base: walk the declared-class
+        // chain to its terminal name, then the schema chain. This is what scopes
+        // `attributeUsed` — on a View descendant a schema-owned name like `tip`
+        // can only mean the schema's slot (redeclaration is refused), but on a
+        // Node-descended class an attribute named `tip` is the AUTHOR'S slot and
+        // must never trigger provision (David's catch).
+        const tagDescendsFrom = (tag, base) => {
+            let name = tag;
+            const seen = new Set();
+            while (byName.has(name) && !seen.has(name)) {
+                seen.add(name);
+                const b = byName.get(name)?.base;
+                if (b === undefined || b === null)
+                    return false;
+                name = b;
+            }
+            const schema = Object.hasOwn(SCHEMAS, name) ? SCHEMAS[name] : null;
+            return schema !== null && (schema.name === base || descendsFrom(schema, base));
+        };
+        const elUsesAttr = (el, name, onBase) => (el.attrs.some((a) => a.name === name) && (onBase === null || tagDescendsFrom(el.tag, onBase))) ||
+            el.children.some((ch) => elUsesAttr(ch, name, onBase));
+        const attrUsed = (name, onBase) => elUsesAttr(main.root, name, onBase) || auto.program.classes.some((c) => elUsesAttr(c.body, name, onBase));
         const autoHost = host;
         if (typeof autoHost.autoincludes === "function" && typeof autoHost.resolveLibrary === "function") {
             const manifest = autoHost.autoincludes();
@@ -211,7 +232,8 @@ export function compile(source, opts = {}) {
                         continue;
                     const when = r.when ?? {};
                     const triggered = (typeof when.baseUsed === "string" && auto.program.classes.some((c) => descendsFromNamed(c.name, when.baseUsed))) ||
-                        (typeof when.attributeUsed === "string" && attrUsed(when.attributeUsed));
+                        (typeof when.attributeUsed === "string" &&
+                            attrUsed(when.attributeUsed, typeof when.onBase === "string" ? when.onBase : null));
                     if (!triggered)
                         continue;
                     if (byName.has(cls) || treeHas(main.root, cls))

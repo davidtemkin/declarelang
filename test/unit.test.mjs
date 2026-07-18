@@ -4630,6 +4630,13 @@ await test("tip: the attribute auto-provides the Tooltip singleton (the FocusRin
   const own = compile(`App [ width=100, height=100, b: View [ tip = "x", onClick() { } ], t: Tooltip [ ] ]`);
   assert.equal(own.errors.length, 0, "an app-declared Tooltip compiles (bare-tag auto-include)");
   assert.ok(!own.source.includes("// the tooltip singleton — provided"), "an app-declared Tooltip suppresses the auto splice");
+  // The trigger is SCOPED to View descendants (the manifest's onBase): a
+  // Node-descended class owns its own attribute names — an attr named `tip`
+  // there is the author's slot (a gratuity, a pen tip), never a tooltip.
+  const node = compile(`class Meter extends Node [ tip: number = 15 ]
+App [ width=100, height=100, m: Meter [ tip = 20 ], t: Text [ text = "x" ] ]`);
+  assert.equal(node.errors.length, 0, node.errors.map((e) => e.message).join("; "));
+  assert.ok(!node.source.includes("class Tooltip"), "tip on a NON-View node does not summon the Tooltip");
 });
 
 await test("tip: the service's platform conventions — delay, warm retarget, press cools", async () => {

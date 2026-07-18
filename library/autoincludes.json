@@ -10,7 +10,8 @@
     {
       "class": "Tooltip",
       "when": {
-        "attributeUsed": "tip"
+        "attributeUsed": "tip",
+        "onBase": "View"
       },
       "comment": "the tooltip singleton — provided with the component library (tip = attribute)"
     }
