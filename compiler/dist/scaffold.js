@@ -192,6 +192,8 @@ export const LANGUAGE_API = {
     View: [
         `  scrollIntoView(align?: "start" | "nearest"): void;`,
         `  raise(): void;`,
+        `  removeChild(child: View): void;`,
+        `  insertChild(child: View, index: number): void;`,
         // The keyboard-traversal protocol (focus.ts): a view's tabOrder() decides
         // the members Tab descends into — override it to gate traversal (a closed
         // TabSlider pane contributes none); tabDefault() is the default the

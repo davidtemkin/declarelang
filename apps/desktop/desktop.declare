@@ -1,0 +1,376 @@
+/*
+# The desktop
+
+The layers phase's everything-at-once proof (planes.md §11): a
+high-fidelity Mac desktop, in Declare, under the Cupertino theme. Two real
+apps — "Finder" (a column browser over this repository's own
+documentation) and "Viewer" (Markdown windows reading the actual .md
+files via `format = "text"`) — plus the structural pieces every ruling in
+the layers design exercises at once:
+
+- WINDOWS are a layer: created imperatively (`app.createView` — planes.md
+  §7), dragged by their title bars (the captured-pointer pattern), RAISED
+  on activation (promotion — order is a slot), resized by the corner
+  grip, closed by the traffic light. The front window derives its look
+  from `app.frontWin` — activation is one View-typed slot.
+- The DOCK is continuous presence: magnification is a pointer-derived
+  constraint (the no-isolation clause made visible — icons read
+  `app.pointerX/Y` directly), painted-only scale, springless and
+  interruptible by construction because it IS derivation.
+- The MENU BAR is the record-driven Menu opened below its titles;
+  commands route through one `command(id)` seam.
+
+Icons are DRAWN (no bitmaps — the weather app's image-elimination
+precedent); the open-source icon harvest is a later pass.
+*/
+
+use [ FinderWindow, ViewerWindow ]
+
+// ── a desktop window: chrome once, contents per subclass ─────────────────────
+
+class Window extends View [ width = 560, height = 400, cornerRadius = 10, clip = true,
+    fill = { theme.surface },
+    stroke = { stroke(1, theme.line) },
+    shadow = { app.frontWin == this ? shadow(0, 18, 48, 0x00000059) : shadow(0, 8, 24, 0x00000030) },
+
+    title: string = "",
+    active: boolean = { app.frontWin == this },
+
+    // drag bookkeeping (the captured-move pattern: root-space anchors)
+
+    px0: number = 0,
+    py0: number = 0,
+    wx0: number = 0,
+    wy0: number = 0,
+    dragging: boolean = false,
+    sizing: boolean = false,
+
+    activate() { app.frontWin = this; this.raise() },
+    onMouseDown() { this.activate() },
+
+    bar: View [ width = { parent.width }, height = 34,
+        fill = { classroot.active ? theme.control : theme.bg },
+        onMouseDown() {
+            classroot.activate()
+            classroot.dragging = true
+            classroot.px0 = app.pointerX
+            classroot.py0 = app.pointerY
+            classroot.wx0 = classroot.x
+            classroot.wy0 = classroot.y
+            },
+        onMouseMove() {
+            if (!classroot.dragging) return
+            classroot.x = Math.max(-200, Math.min(app.width - 60, classroot.wx0 + app.pointerX - classroot.px0))
+            classroot.y = Math.max(25, Math.min(app.height - 60, classroot.wy0 + app.pointerY - classroot.py0))
+            },
+        onMouseUp() { classroot.dragging = false },
+
+        // the traffic lights — close is real; the others are set dressing
+
+        close: View [ x = 12, y = 11, width = 12, height = 12, cornerRadius = 6,
+            fill = { classroot.active ? 0xFF5F57 : theme.line },
+            onClick() { app.closeWin(classroot) },
+            ],
+        mini: View [ x = 32, y = 11, width = 12, height = 12, cornerRadius = 6,
+            fill = { classroot.active ? 0xFEBC2E : theme.line } ],
+        zoom: View [ x = 52, y = 11, width = 12, height = 12, cornerRadius = 6,
+            fill = { classroot.active ? 0x28C840 : theme.line } ],
+
+        cap: Text [ x = center, y = center, fontSize = 13, fontWeight = semibold,
+            textColor = { classroot.active ? theme.text : theme.textMuted },
+            text = { classroot.title } ],
+        ],
+
+    // the corner grip — resize is the drag pattern pointed at width/height
+
+    grip: View [ width = 16, height = 16,
+        x = { parent.width - 16 }, y = { parent.height - 16 },
+        onMouseDown() {
+            classroot.activate()
+            classroot.sizing = true
+            classroot.px0 = app.pointerX
+            classroot.py0 = app.pointerY
+            classroot.wx0 = classroot.width
+            classroot.wy0 = classroot.height
+            },
+        onMouseMove() {
+            if (!classroot.sizing) return
+            classroot.width = Math.max(320, classroot.wx0 + app.pointerX - classroot.px0)
+            classroot.height = Math.max(200, classroot.wy0 + app.pointerY - classroot.py0)
+            },
+        onMouseUp() { classroot.sizing = false },
+        ],
+    ]
+
+
+// ── Finder: a column browser over the repository's own documentation ─────────
+
+class FinderWindow extends Window [ title = "Documentation",
+
+    sel1: string = "",                           // the selected folder
+    sel2: string = "",                           // the selected file (its path)
+    sel2name: string = "",
+
+    tree: Dataset {
+        { "folders": [
+            { "name": "Language", "files": [
+                { "name": "declare.md", "path": "../../docs/declare.md" },
+                { "name": "FAQ", "path": "../../apps/homepage/declare-faq.md" },
+                { "name": "Getting started", "path": "../../apps/homepage/getstarted.md" } ] },
+            { "name": "Guide", "files": [
+                { "name": "The shape of Declare", "path": "../../docs/guide/00-shape.md" },
+                { "name": "The tree", "path": "../../docs/guide/20-tree.md" },
+                { "name": "Constraints", "path": "../../docs/guide/21-constraints.md" },
+                { "name": "Reach", "path": "../../docs/guide/22-reach.md" },
+                { "name": "Data", "path": "../../docs/guide/27-data.md" },
+                { "name": "Continuity", "path": "../../docs/guide/28-continuity.md" } ] },
+            { "name": "Design", "files": [
+                { "name": "Layers", "path": "../../docs/system-design/planes.md" },
+                { "name": "Style", "path": "../../docs/system-design/style.md" },
+                { "name": "Islands", "path": "../../docs/system-design/islands.md" } ] }
+        ] }
+        },
+
+    body: View [ x = 0, y = 34, width = { parent.width }, height = { parent.height - 34 },
+        datapath = { classroot.tree.value },
+        row: View [ width = { parent.width }, height = { parent.height },
+            layout: SimpleLayout [ axis = x, spacing = 0 ],
+
+            col1: View [ width = 150, height = { parent.height }, fill = { theme.bg },
+                inner: View [ x = 0, y = 6, width = { parent.width },
+                    layout: SimpleLayout [ axis = y, spacing = 1 ],
+                    View [ datapath = :folders[], width = { parent.width }, height = 26,
+                        fname: string = { "" + :name },
+                        on: boolean = { classroot.sel1 == this.fname },
+                        onClick() { classroot.activate(); classroot.sel1 = this.fname; classroot.sel2 = "" },
+                        hl: View [ x = 4, y = 0, width = { parent.width - 8 }, height = 26, cornerRadius = 5,
+                            visible = { parent.on }, fill = { theme.accent } ],
+                        Text [ x = 12, y = center, fontSize = 13,
+                            textColor = { parent.on ? theme.accentText : theme.text }, text = { parent.fname } ],
+                        ],
+                    ],
+                edge: View [ x = { parent.width - 1 }, y = 0, width = 1, height = { parent.height }, fill = { theme.line } ],
+                ],
+
+            col2: View [ width = 210, height = { parent.height },
+                inner: View [ x = 0, y = 6, width = { parent.width },
+                    layout: SimpleLayout [ axis = y, spacing = 1 ],
+                    View [ datapath = :folders[], width = { parent.width },
+                        visible = { classroot.sel1 == "" + :name },
+                        height = { this.visible ? this.files.height : 0 },
+                        files: View [ width = { parent.width },
+                            layout: SimpleLayout [ axis = y, spacing = 1 ],
+                            View [ datapath = :files[], width = { parent.width }, height = 26,
+                                fpath: string = { "" + :path },
+                                fname: string = { "" + :name },
+                                on: boolean = { classroot.sel2 == this.fpath },
+                                onClick() { classroot.activate(); classroot.sel2 = this.fpath; classroot.sel2name = this.fname },
+                                hl: View [ x = 4, y = 0, width = { parent.width - 8 }, height = 26, cornerRadius = 5,
+                                    visible = { parent.on }, fill = { theme.accent } ],
+                                Text [ x = 12, y = center, fontSize = 13,
+                                    textColor = { parent.on ? theme.accentText : theme.text }, text = { parent.fname } ],
+                                ],
+                            ],
+                        ],
+                    ],
+                edge: View [ x = { parent.width - 1 }, y = 0, width = 1, height = { parent.height }, fill = { theme.line } ],
+                ],
+
+            col3: View [ width = { Math.max(120, classroot.width - 360) }, height = { parent.height },
+                info: View [ x = 16, y = 18, width = { parent.width - 32 },
+                    visible = { classroot.sel2 != "" },
+                    layout: SimpleLayout [ axis = y, spacing = 10 ],
+                    doc: View [ width = 56, height = 66, cornerRadius = 6, fill = { theme.bg },
+                        stroke = { stroke(1, theme.line) },
+                        Text [ x = center, y = center, fontSize = 22, textColor = { theme.textFaint }, text = "M↓" ],
+                        ],
+                    nm: Text [ fontSize = 13, fontWeight = semibold, wrap = true, width = { parent.width },
+                        textColor = { theme.text }, text = { classroot.sel2name } ],
+                    pth: Text [ fontSize = 11, wrap = true, width = { parent.width },
+                        textColor = { theme.textFaint }, text = { classroot.sel2 } ],
+                    Button [ width = 96, label = "Open", primary = true,
+                        onClick() { app.openViewer(classroot.sel2, classroot.sel2name) },
+                        ],
+                    ],
+                hint: Text [ x = center, y = center, fontSize = 12, textColor = { theme.textFaint },
+                    visible = { classroot.sel2 == "" }, text = "Select a document" ],
+                ],
+            ],
+        ],
+    ]
+
+
+// ── Viewer: a Markdown window over the real file, fetched as text ────────────
+
+class ViewerWindow extends Window [ width = 640, height = 460,
+    path: string = "",
+
+    src: DataSource [ format = "text", url = { classroot.path } ],
+    onInit() { this.src.fetch() },
+
+    body: View [ x = 0, y = 34, width = { parent.width }, height = { parent.height - 34 },
+        scrolls = true, selectable = true,
+        pad: View [ x = 24, y = 18, width = { parent.width - 48 },
+            loading: Text [ fontSize = 13, textColor = { theme.textFaint },
+                visible = { classroot.src.loading }, text = "Loading…" ],
+            failed: Text [ fontSize = 13, textColor = { theme.textFaint }, wrap = true, width = { parent.width },
+                visible = { classroot.src.failed },
+                text = { "Could not load — " + (classroot.src.error || "") } ],
+            doc: Markdown [ width = { parent.width }, visible = { classroot.src.loaded },
+                text = { classroot.src.value || "" } ],
+            tail: View [ width = 4, height = 30 ],
+            ],
+        ],
+    ]
+
+
+// ── a dock icon: drawn, labeled, magnifying from the pointer ────────────────
+
+class DockIcon extends View [ width = 52, height = 52,
+    name: string = "",
+    hue1: Color = #4A90D9,
+    hue2: Color = #2E5FA3,
+    glyph: string = "",
+    hovered: boolean = false,
+
+    // magnification IS derivation: distance from the pointer, mapped to scale
+    // — reading app.pointerX/Y across the tree is the no-isolation clause
+
+    cx: number = { this.parent.parent.x + this.parent.x + this.x + this.width / 2 },
+    near: number = { app.pointerY > app.height - 110 ? Math.max(0, 1 - Math.abs(app.pointerX - this.cx) / 130) : 0 },
+    scale = { 1 + 0.55 * near },
+    pivotX = 26,
+    pivotY = 52,
+
+    onMouseOver() { hovered = true },
+    onMouseOut()  { hovered = false },
+
+    plate: View [ x = 2, y = 2, width = 48, height = 48, cornerRadius = 11,
+        fill = { gradient(this.parent.hue1, this.parent.hue2) },
+        Text [ x = center, y = center, fontSize = 22, textColor = 0xFFFFFF, text = { classroot ? "" + this.parent.parent.glyph : "" } ],
+        ],
+
+    tag: Text [ y = -26, fontSize = 12, fontWeight = semibold,
+        x = { (this.parent.width - this.width) / 2 },
+        visible = { hovered }, textColor = { theme.text }, text = { name } ],
+    ]
+
+
+class MenuTitle extends View [ height = 25,
+    label: string = "",
+    bold: boolean = false,
+    hovered: boolean = false,
+    width = { this.t.width + 20 },
+    fill = { hovered ? theme.controlActive : null },
+    cornerRadius = 5,
+    onMouseOver() { hovered = true },
+    onMouseOut()  { hovered = false },
+    t: Text [ x = 10, y = center, fontSize = 13,
+        fontWeight = { classroot.bold ? "bold" : "regular" },
+        textColor = { theme.text }, text = { classroot.label } ],
+    ]
+
+
+App [ minWidth = 900, minHeight = 600,
+    theme = { Themes.cupertino(app.dark) },
+    fontFamily = "-apple-system, system-ui, sans-serif",
+    fill = { gradient(0x7FA8D9, 0x4A6FA5) },
+
+    frontWin: View = null,
+    winCount: number = 0,
+
+    // ── the command seam: the menu bar, the dock, and keys all route here ──
+
+    command(id) {
+        if (id == "new-finder") this.newFinder()
+        else if (id == "new-viewer") this.openViewer("../../docs/declare.md", "declare.md")
+        else if (id == "close") { if (frontWin != null) this.closeWin(frontWin) }
+        else if (id == "dark") app.darkMode = !app.darkMode
+        },
+
+    darkMode: boolean = false,
+
+    newFinder() {
+        winCount = winCount + 1
+        const w = this.createView("FinderWindow", this.wins, ({ x: 90 + (winCount % 7) * 28, y: 70 + (winCount % 7) * 26 }))
+        frontWin = w
+        },
+
+    openViewer(p, nm) {
+        if (p == "") return
+        winCount = winCount + 1
+        const w = this.createView("ViewerWindow", this.wins, ({ path: p, title: "" + nm, x: 160 + (winCount % 7) * 28, y: 60 + (winCount % 7) * 26 }))
+        frontWin = w
+        },
+
+    closeWin(w) {
+        if (frontWin == w) frontWin = null
+        this.wins.removeChild(w)
+        w.discard()
+        },
+
+    onInit() { this.newFinder() },
+
+    // ── the windows layer: a structural container; order is promotion ──────
+
+    wins: View [ x = 0, y = 25, width = { app.width }, height = { app.height - 25 } ],
+
+    // ── the menu bar ───────────────────────────────────────────────────────
+
+    finderMenu: Menu [ picked(id) { app.command(id) },
+        items = { [
+            ({ id: "about", label: "About This Desktop", enabled: false }),
+            ({ divider: true }),
+            ({ id: "dark", label: app.darkMode ? "Light Appearance" : "Dark Appearance" }),
+        ] },
+        ],
+
+    fileMenu: Menu [ picked(id) { app.command(id) },
+        items = { [
+            ({ id: "new-finder", label: "New Finder Window", key: "⌘N" }),
+            ({ id: "new-viewer", label: "New Viewer", key: "⌘O" }),
+            ({ divider: true }),
+            ({ id: "close", label: "Close Window", key: "⌘W", enabled: app.frontWin != null }),
+        ] },
+        ],
+
+    bar: View [ x = 0, y = 0, width = { app.width }, height = 25, fill = { theme.surface }, opacity = 0.92,
+        row: View [ x = 12, y = 0, height = 25,
+            layout: SimpleLayout [ axis = x, spacing = 2 ],
+            MenuTitle [ label = "Finder", bold = true,
+                onClick() { app.finderMenu.openFor(this) },
+                ],
+            MenuTitle [ label = "File",
+                onClick() { app.fileMenu.openFor(this) },
+                ],
+            ],
+        clock: Text [ x = { parent.width - this.width - 14 }, y = center, fontSize = 12,
+            textColor = { theme.text }, text = "Fri 3:34 PM" ],
+        ],
+
+    // ── the dock ───────────────────────────────────────────────────────────
+
+    dock: View [ height = 66,
+        width = { this.plate.width },
+        x = { (app.width - this.width) / 2 },
+        y = { app.height - 76 },
+        plate: View [ x = 0, y = 6, height = 60, width = { parent.row.width + 20 },
+            cornerRadius = 16, fill = { theme.surface }, opacity = 0.75,
+            stroke = { stroke(1, theme.line) } ],
+        row: View [ x = 10, y = 8, height = 52,
+            layout: SimpleLayout [ axis = x, spacing = 8 ],
+            DockIcon [ name = "Finder", glyph = "⌘", hue1 = #59B0F6, hue2 = #1D6FD1,
+                onClick() { app.newFinder() },
+                ],
+            DockIcon [ name = "Viewer", glyph = "M↓", hue1 = #8E7CE8, hue2 = #5A46B8,
+                onClick() { app.openViewer("../../docs/declare.md", "declare.md") },
+                ],
+            DockIcon [ name = "Guide", glyph = "✎", hue1 = #F49B45, hue2 = #C96B1D,
+                onClick() { app.openViewer("../../docs/guide/00-shape.md", "The shape of Declare") },
+                ],
+            DockIcon [ name = "FAQ", glyph = "?", hue1 = #55BD6C, hue2 = #2E8B47,
+                onClick() { app.openViewer("../../apps/homepage/declare-faq.md", "FAQ") },
+                ],
+            ],
+        ],
+    ]
