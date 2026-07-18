@@ -1,0 +1,10 @@
+App [ fill = white, textColor = black,
+    facts: Dataset { { "rows": [
+        { "label": "reactive", "n": 92 },
+        { "label": "compiled", "n": 78 },
+        { "label": "small",    "n": 64 } ] } },
+    View [ x = 28, y = 26, datapath = { parent.facts.value },
+        layout: SimpleLayout [ axis = y, spacing = 16 ],
+        Bar [ width = 300, datapath = :rows[], label = :label, value = :n ],
+        ],
+    ]

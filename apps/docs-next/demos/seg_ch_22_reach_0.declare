@@ -1,0 +1,6 @@
+class Panel extends View [ width = 200, height = 60, fill = whitesmoke,
+    Text [ x = 12, y = 20, text = { app.dark ? "night" : "day" } ],
+    ]
+
+App [ Panel [ x = 20, y = 20 ],
+    ]

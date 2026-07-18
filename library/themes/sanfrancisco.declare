@@ -21,7 +21,8 @@ stylesheet SanFrancisco [
         accent = #2E6FE0, accentText = #FFFFFF,
         control = #E7EBF1, controlActive = #D3E2FC,
         depth = 1, focusRing = true, controlRadius = 7,
-        tooltipBg = #1B2733, tooltipText = #F4F6FA ],
+        tooltipBg = #1B2733, tooltipText = #F4F6FA,
+        menuRadius = 8, menuShadow = shadow(0, 10, 40, #00000038), menuHl = gradient(#3E79E8, #2563D6) ],
     ]
 
 
@@ -32,5 +33,6 @@ stylesheet SanFranciscoDark [
         accent = #4C8DFF, accentText = #FFFFFF,
         control = #223040, controlActive = #1F3B54,
         depth = 1, focusRing = true, controlRadius = 7,
-        tooltipBg = #E7EEF2, tooltipText = #0F1620 ],
+        tooltipBg = #E7EEF2, tooltipText = #0F1620,
+        menuRadius = 8, menuShadow = shadow(0, 10, 40, #00000066), menuHl = gradient(#5A97FF, #3F7FEF) ],
     ]

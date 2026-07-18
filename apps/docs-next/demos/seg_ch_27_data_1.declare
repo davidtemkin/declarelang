@@ -1,0 +1,9 @@
+App [ width = 300, height = 120, fill = white, textColor = black,
+    people: Dataset { { "rows": [ { "name": "Ada" } ] } },
+    list: View [ x = 20, y = 20, datapath = { people.value },
+        View [ datapath = :rows[],
+            TextInput [ width = 200, height = 30, padding = 6, cornerRadius = 6, fill = gainsboro,
+                text <-> :name ],
+            ],
+        ],
+    ]

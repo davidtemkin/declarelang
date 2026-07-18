@@ -26,7 +26,8 @@ stylesheet Redmond [
         sliderHandle = "dot",
         checkboxSize = 20, checkboxRadius = 4, disabledOpacity = 0.36,
         tooltipBg = #FBFBFB, tooltipText = #1B1B1B, tooltipLine = #D1D1D1,
-        tooltipPlacement = "above", tooltipDelay = 1000 ],
+        tooltipPlacement = "above", tooltipDelay = 1000,
+        menuRadius = 8, menuShadow = shadow(0, 8, 16, #00000030), menuHl = #F0F0F0, menuHlText = #1B1B1B ],
     ]
 
 
@@ -44,5 +45,6 @@ stylesheet RedmondDark [
         sliderHandle = "dot",
         checkboxSize = 20, checkboxRadius = 4, disabledOpacity = 0.36,
         tooltipBg = #2C2C2C, tooltipText = #FFFFFF, tooltipLine = #404040,
-        tooltipPlacement = "above", tooltipDelay = 1000 ],
+        tooltipPlacement = "above", tooltipDelay = 1000,
+        menuRadius = 8, menuShadow = shadow(0, 8, 16, #00000059), menuHl = #3D3D3D, menuHlText = #FFFFFF ],
     ]

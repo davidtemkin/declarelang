@@ -1,0 +1,4 @@
+App [
+    box: View [ opacity = 0,
+        fadeIn: Animator [ attribute = opacity, to = 1, duration = 300, started = true ] ]
+]

@@ -93,10 +93,10 @@ class Menu extends View [ visible = { shown }, width = 220,
 
     panel: View [ width = { classroot.width },
         height = { this.body.height + 10 },   // body auto-extends (a real slot; contentHeight is a getter)
-        cornerRadius = { typeof theme.menuRadius == "number" ? theme.menuRadius : 6 },
+        cornerRadius = { typeof theme.menuRadius == "number" ? theme.menuRadius : 8 },
         fill = { theme.surface },
         stroke = { stroke(1, theme.line) },
-        shadow = { shadow(0, 6, 24, 0x00000030) },
+        shadow = { theme.menuShadow != null ? theme.menuShadow : shadow(0, 10, 40, 0x00000038) },
 
         body: View [ x = 0, y = 5, width = { parent.width },
             layout: SimpleLayout [ axis = y, spacing = 0 ],
@@ -113,7 +113,12 @@ class Menu extends View [ visible = { shown }, width = 220,
 
                 onMouseOver() { if (enabled && !divider) hovered = true },
                 onMouseOut()  { hovered = false },
-                onClick() { if (enabled && !divider && !sub) classroot.pick("" + :id) },
+
+                // a `kind` row owns its own interior interactivity (the Finder
+                // tag-dots idiom): no row-level pick, no row highlight — the
+                // content's elements claim their own clicks (deepest sink wins)
+
+                onClick() { if (enabled && !divider && !sub && custom == "") classroot.pick("" + :id) },
 
                 onInit() {
                     if (custom != "") app.createView(custom, this.host, ({ datapath: :props }))
@@ -122,28 +127,28 @@ class Menu extends View [ visible = { shown }, width = 220,
                 // the hover highlight — inset, rounded, accent (the Mac read)
 
                 hl: View [ x = 5, y = 1, width = { parent.width - 10 }, height = { parent.height - 2 },
-                    cornerRadius = 4, visible = { parent.hovered },
-                    fill = { theme.accent } ],
+                    cornerRadius = 5, visible = { parent.hovered && parent.custom == "" },
+                    fill = { theme.menuHl != null ? theme.menuHl : theme.accent } ],
 
                 rule: View [ x = 10, y = 4, width = { parent.width - 20 }, height = 1,
                     visible = { parent.divider }, fill = { theme.line } ],
 
                 check: Text [ x = 8, y = center, fontSize = 12, visible = { !parent.divider && !!:checked },
-                    textColor = { parent.hovered ? theme.accentText : theme.text }, text = "✓" ],
+                    textColor = { parent.hovered ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.text }, text = "✓" ],
 
                 lbl: Text [ x = 24, y = center, fontSize = 13, visible = { !parent.divider && parent.custom == "" },
-                    textColor = { parent.hovered ? theme.accentText : theme.text },
+                    textColor = { parent.hovered ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.text },
                     text = { "" + (:label || "") } ],
 
                 key: Text [ y = center, fontSize = 12,
                     x = { parent.width - this.width - 12 },
                     visible = { !parent.divider && !parent.sub && :key != null },
-                    textColor = { parent.hovered ? theme.accentText : theme.textMuted },
+                    textColor = { parent.hovered ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.textMuted },
                     text = { "" + (:key || "") } ],
 
                 arrow: Text [ y = center, fontSize = 11, visible = { parent.sub },
                     x = { parent.width - this.width - 10 },
-                    textColor = { parent.hovered ? theme.accentText : theme.textMuted }, text = "▸" ],
+                    textColor = { parent.hovered ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.textMuted }, text = "▸" ],
 
                 // a `kind` row's author-rendered content region
 

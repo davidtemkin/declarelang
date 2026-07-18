@@ -1,0 +1,12 @@
+App [ width = 420, height = 200, fill = whitesmoke, location = "home",
+
+    home: View [ visible = { app.location == "home" }, x = 20, y = 20,
+        Text [ text = "Home — click to visit the detail view" ],
+        onClick() { app.location = "detail" },
+        ],
+
+    detail: View [ visible = { app.location == "detail" }, x = 20, y = 20,
+        Text [ text = "Detail — the URL now ends in #detail. Back returns." ],
+        onClick() { app.location = "home" },
+        ],
+    ]

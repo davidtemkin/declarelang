@@ -36,6 +36,9 @@ export const THEME_RECORDS: Readonly<Record<string, Readonly<Record<string, unkn
     tooltipPlacement: "pointer",
     tooltipDelay: 1000,
     tooltipSize: 11,
+    menuRadius: 10,
+    menuShadow: {"dx":0,"dy":12,"blur":44,"color":4294967360},
+    menuHl: {"angle":180,"stops":[{"offset":null,"color":2066175},{"offset":null,"color":26862}]},
   }),
   CupertinoDark: Object.freeze({
     bg: 0x1E1E1E,
@@ -68,6 +71,9 @@ export const THEME_RECORDS: Readonly<Record<string, Readonly<Record<string, unkn
     tooltipPlacement: "pointer",
     tooltipDelay: 1000,
     tooltipSize: 11,
+    menuRadius: 10,
+    menuShadow: {"dx":0,"dy":12,"blur":44,"color":4294967411},
+    menuHl: {"angle":180,"stops":[{"offset":null,"color":2854911},{"offset":null,"color":684011}]},
   }),
   MountainView: Object.freeze({
     bg: 0xFFFBFE,
@@ -98,6 +104,10 @@ export const THEME_RECORDS: Readonly<Record<string, Readonly<Record<string, unkn
     disabledOpacity: 0.38,
     tooltipBg: 0x313033,
     tooltipText: 0xF4EFF4,
+    menuRadius: 4,
+    menuShadow: {"dx":0,"dy":4,"blur":12,"color":4294967334},
+    menuHl: 0xE8DEF8,
+    menuHlText: 0x1D192B,
   }),
   MountainViewDark: Object.freeze({
     bg: 0x141218,
@@ -128,6 +138,10 @@ export const THEME_RECORDS: Readonly<Record<string, Readonly<Record<string, unkn
     disabledOpacity: 0.38,
     tooltipBg: 0xE6E1E5,
     tooltipText: 0x313033,
+    menuRadius: 4,
+    menuShadow: {"dx":0,"dy":4,"blur":12,"color":4294967373},
+    menuHl: 0x4A4458,
+    menuHlText: 0xE6E0E9,
   }),
   Redmond: Object.freeze({
     bg: 0xF3F3F3,
@@ -164,6 +178,10 @@ export const THEME_RECORDS: Readonly<Record<string, Readonly<Record<string, unkn
     tooltipLine: 0xD1D1D1,
     tooltipPlacement: "above",
     tooltipDelay: 1000,
+    menuRadius: 8,
+    menuShadow: {"dx":0,"dy":8,"blur":16,"color":4294967344},
+    menuHl: 0xF0F0F0,
+    menuHlText: 0x1B1B1B,
   }),
   RedmondDark: Object.freeze({
     bg: 0x202020,
@@ -200,6 +218,10 @@ export const THEME_RECORDS: Readonly<Record<string, Readonly<Record<string, unkn
     tooltipLine: 0x404040,
     tooltipPlacement: "above",
     tooltipDelay: 1000,
+    menuRadius: 8,
+    menuShadow: {"dx":0,"dy":8,"blur":16,"color":4294967385},
+    menuHl: 0x3D3D3D,
+    menuHlText: 0xFFFFFF,
   }),
   SanFrancisco: Object.freeze({
     bg: 0xF4F6FA,
@@ -217,6 +239,9 @@ export const THEME_RECORDS: Readonly<Record<string, Readonly<Record<string, unkn
     controlRadius: 7,
     tooltipBg: 0x1B2733,
     tooltipText: 0xF4F6FA,
+    menuRadius: 8,
+    menuShadow: {"dx":0,"dy":10,"blur":40,"color":4294967352},
+    menuHl: {"angle":180,"stops":[{"offset":null,"color":4094440},{"offset":null,"color":2450390}]},
   }),
   SanFranciscoDark: Object.freeze({
     bg: 0x0F1620,
@@ -234,5 +259,8 @@ export const THEME_RECORDS: Readonly<Record<string, Readonly<Record<string, unkn
     controlRadius: 7,
     tooltipBg: 0xE7EEF2,
     tooltipText: 0x0F1620,
+    menuRadius: 8,
+    menuShadow: {"dx":0,"dy":10,"blur":40,"color":4294967398},
+    menuHl: {"angle":180,"stops":[{"offset":null,"color":5937151},{"offset":null,"color":4161519}]},
   }),
 });

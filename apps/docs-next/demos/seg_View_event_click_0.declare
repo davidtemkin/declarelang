@@ -1,0 +1,3 @@
+App [
+    View [ width = 80, height = 44, cornerRadius = 6, fill = gainsboro, onClick() { fill = 0x4169E1 } ]
+]

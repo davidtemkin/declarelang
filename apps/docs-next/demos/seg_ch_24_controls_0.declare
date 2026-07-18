@@ -1,0 +1,7 @@
+App [ width = 240, height = 100, fill = white, textColor = black,
+    col: View [ x = 20, y = 20,
+        layout: SimpleLayout [ axis = y, spacing = 12 ],
+        mute: Checkbox [ label = "Mute" ],
+        Text [ text = { mute.checked ? "muted" : "on" } ],
+        ],
+    ]

@@ -1,0 +1,18 @@
+class Card extends View [ width = 280, height = 40,
+    label: string = "",
+    value: number = 0,
+
+    name: Text [ x = 0, y = 0, text = { classroot.label } ],
+    pct:  Text [ x = 244, y = 0, width = 36, text = { `${classroot.value}%` } ],
+    track: View [ x = 0, y = 24, width = 280, height = 10, cornerRadius = 5, fill = whitesmoke,
+        bar: View [ height = 10, cornerRadius = 5,
+            width = { classroot.value / 100 * 280 },
+            fill = { classroot.value >= app.goal ? 0x4169E1 : 0xC0C0C0 } ],
+        ],
+    ]
+
+App [ fill = white, textColor = #1A1A1E,
+    fontFamily = ["system-ui", "sans-serif"], fontSize = 15,
+    goal: number = 50,
+    Card [ x = 24, y = 24, label = "Reactive", value = 92 ],
+    ]

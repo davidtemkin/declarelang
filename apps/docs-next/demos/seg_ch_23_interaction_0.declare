@@ -1,0 +1,12 @@
+App [ width = 220, height = 100, fill = white,
+    btn: View [ x = 20, y = 20, width = 160, height = 44, cornerRadius = 8,
+        hovered: boolean = false,
+        pressed: boolean = false,
+        onMouseOver() { hovered = true },
+        onMouseOut()  { hovered = false; pressed = false },
+        onMouseDown() { pressed = true },
+        onMouseUp()   { pressed = false },
+        fill = { pressed ? 0x2E5BD0 : hovered ? 0x3B74FF : 0x4C8DFF },
+        Text [ x = 44, y = 14, textColor = white, text = "Press me" ],
+        ],
+    ]

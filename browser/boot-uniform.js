@@ -247,7 +247,11 @@ export default async function boot(cfg) {
     try {
       const client = await loadCompiler().then(ensureLibrary);    // idempotent; covers the fast path, where the slow-path registration never ran
       const out = await client.compile(src);
-      return out.source ? { source: out.source, deps: out.deps } : null;  // one result: source + static deps
+      // Success is source + static deps; a compile FAILURE hands back { report } so an
+      // editing surface can show the diagnostic (the contract host-client documents and
+      // the codeviewer host already honors). null stays "compiler not warm — no change".
+      return out.source ? { source: out.source, deps: out.deps }
+           : out.report != null ? { report: out.report } : null;
     } catch { return null; }
   };
 

@@ -34,7 +34,7 @@ class Checkbox extends Control [
     width   = { this.box.width + (label == "" ? 0 : 8 + this.cap.width) },
     opacity = { disabled ? (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) : 1 },
 
-    box: View [ y = 2,
+    box: View [ y = { (parent.height - this.height) / 2 },
         width  = { typeof theme.checkboxSize == "number" ? theme.checkboxSize : 20 },
         height = { this.width },
         cornerRadius = { typeof theme.checkboxRadius == "number" ? theme.checkboxRadius : Math.min(8, Math.max(3, theme.controlRadius - 2)) },
@@ -60,6 +60,11 @@ class Checkbox extends Control [
                 },
             ],
         ],
-    cap: Text [ x = 28, y = center, wrap = false, textColor = { theme.text },
+
+    // the label rides the BOX, not a constant: its gap is box-relative (the
+    // box's size is a theme fact — 14 in Cupertino, 20 in Redmond), and both
+    // center in the control's height, so they align automatically everywhere
+
+    cap: Text [ x = { parent.box.width + 8 }, y = center, wrap = false, textColor = { theme.text },
         visible = { label != "" }, text = { label } ],
     ]

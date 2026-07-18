@@ -59,14 +59,32 @@ class Swatch extends Control [ width = 26, height = 26, cornerRadius = 13,
 
 // A custom menu-item CONTENT class — rung 2 of the record door: named in the
 // items DATA (`kind: "TintRow"`), created by name (app.createView through the
-// menu's row host), fed `props` as its datapath context. Rendering only —
-// highlight/pick/keyboard stay the menu's.
+// menu's row host), fed `props` as its datapath context. The Finder tag-dots
+// idiom: the row's INTERIOR is individually interactive — each dot claims its
+// own click (deepest sink wins), applies the accent, and closes the menu; the
+// row wrapper suppresses its own pick and highlight for kind rows.
+
+class TintDot extends View [ width = 16, height = 16, cornerRadius = 8,
+    c: Color = #2E6FE0,
+    hovered: boolean = false,
+    fill = { c },
+    stroke = { hovered ? stroke(2, theme.text) : app.accentPick == c ? stroke(2, theme.textMuted) : null },
+    onMouseOver() { hovered = true },
+    onMouseOut()  { hovered = false },
+    onClick() { app.accentPick = app.accentPick == c ? 0 : c || 0; app.optionsMenu.close() },
+    ]
+
 
 class TintRow extends View [ height = 22,
-    layout: SimpleLayout [ axis = x, spacing = 6 ],
-    Text [ y = center, fontSize = 12, textColor = { theme.textMuted }, text = { "" + (:label || "") } ],
-    View [ y = 3, width = 46, height = 16, cornerRadius = 4, fill = { gradient("90deg", 0x2E6FE0, 0x3A9E4C) } ],
-    View [ y = 3, width = 46, height = 16, cornerRadius = 4, fill = { gradient("90deg", 0xE0447E, 0xC7A400) } ],
+    Text [ x = 0, y = center, fontSize = 12, textColor = { theme.textMuted }, text = { "" + (:label || "") } ],
+    dots: View [ x = 40, y = 3,
+        layout: SimpleLayout [ axis = x, spacing = 7 ],
+        TintDot [ c = #2E6FE0 ],
+        TintDot [ c = #6750A4 ],
+        TintDot [ c = #E0447E ],
+        TintDot [ c = #D03A2F ],
+        TintDot [ c = #3A9E4C ],
+        ],
     ]
 
 

@@ -20,7 +20,8 @@ stylesheet Cupertino [
         focusRingWidth = 3.5, focusRingGap = 0,
         checkboxSize = 14, checkboxRadius = 3.5, disabledOpacity = 0.5,
         tooltipBg = #F0F0F0, tooltipText = #1D1D1F, tooltipLine = #C6C6C8,
-        tooltipPlacement = "pointer", tooltipDelay = 1000, tooltipSize = 11 ],
+        tooltipPlacement = "pointer", tooltipDelay = 1000, tooltipSize = 11,
+        menuRadius = 10, menuShadow = shadow(0, 12, 44, #00000040), menuHl = gradient(#1F86FF, #0068EE) ],
     ]
 
 
@@ -36,5 +37,6 @@ stylesheet CupertinoDark [
         focusRingWidth = 3.5, focusRingGap = 0,
         checkboxSize = 14, checkboxRadius = 3.5, disabledOpacity = 0.5,
         tooltipBg = #2C2C2E, tooltipText = #F2F2F7, tooltipLine = #48484A,
-        tooltipPlacement = "pointer", tooltipDelay = 1000, tooltipSize = 11 ],
+        tooltipPlacement = "pointer", tooltipDelay = 1000, tooltipSize = 11,
+        menuRadius = 10, menuShadow = shadow(0, 12, 44, #00000073), menuHl = gradient(#2B8FFF, #0A6FEB) ],
     ]
