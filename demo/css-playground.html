@@ -55,7 +55,7 @@
     </div>
     <div class="editor">
       <div class="cap"><span>live stylesheet — <code>cssRules</code></span><span class="status" id="status">applied</span></div>
-      <textarea id="css" spellcheck="false"></textarea>
+      <textarea id="css" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
     </div>
     <div class="hint">
       Hover a card → the runtime adds <code>hover</code> to its <code>styleclass</code> and <code>.card.hover</code> re-matches (specificity, one frame).
@@ -108,19 +108,29 @@ const app = mk(App, { width: 720, height: 470 }, [
   roster,
 ]);
 
-mountApp(app, document.getElementById("host"), new DomBackend());
+const host = document.getElementById("host");
+mountApp(app, host, new DomBackend());
 
 // ── Hover → toggle `hover` in the card's styleclass (reactive re-cascade).
-for (const c of cards) {
-  const el = c.surface?.element;
-  if (!el) continue;
-  el.addEventListener("pointerenter", () => {
-    if (!/\bhover\b/.test(c.styleclass)) c.styleclass = (c.styleclass + " hover").trim();
-  });
-  el.addEventListener("pointerleave", () => {
-    c.styleclass = c.styleclass.replace(/\s*\bhover\b/g, "").trim();
-  });
-}
+// The DOM backend gives every view `pointer-events: none` (the app hit-tests
+// itself), so we hit-test on the host container — real pointer events reach it
+// because the view divs are transparent to pointing.
+const addHover = (c) => { if (!/\bhover\b/.test(c.styleclass)) c.styleclass = (c.styleclass + " hover").trim(); };
+const dropHover = (c) => { c.styleclass = c.styleclass.replace(/\s*\bhover\b/g, "").trim(); };
+let hovered = null;
+host.addEventListener("pointermove", (e) => {
+  let hit = null;
+  for (const c of cards) {
+    const el = c.surface?.element; if (!el) continue;
+    const r = el.getBoundingClientRect();
+    if (e.clientX >= r.left && e.clientX < r.right && e.clientY >= r.top && e.clientY < r.bottom) { hit = c; break; }
+  }
+  if (hit === hovered) return;
+  if (hovered) dropHover(hovered);
+  if (hit) addHover(hit);
+  hovered = hit;
+});
+host.addEventListener("pointerleave", () => { if (hovered) { dropHover(hovered); hovered = null; } });
 
 // ── The star: type CSS → rebuild the RuleSet → the engine re-cascades live.
 const cssBox = document.getElementById("css");
