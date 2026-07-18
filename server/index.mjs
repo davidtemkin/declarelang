@@ -24,6 +24,7 @@ import path from "node:path";
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
+import { watch } from "node:fs";
 import { compile, isUpToDate, diskProbe, crawlDocument, diskDataResolver, crawlerDocument } from "../compiler/dist/compile-node.js";
 import { highlight } from "../compiler/dist/highlight.js";
 import { requestType, REQ, runWrapper, programName } from "../browser/serve-core.js";
@@ -424,3 +425,31 @@ http.createServer((req, res) => {
   send(res, 404, "not found", "text/plain");
 }).listen(PORT, "127.0.0.1", () =>
   console.log(`Declare dev server → http://127.0.0.1:${PORT}/`));
+
+// ── dev build-watch (the server-side twin of the SW's version check) ─────────
+// Armed by server/dev.mjs (DECLARE_DEV_WATCH=1): when the build outputs this
+// process imported at startup change on disk — a tsc rebuild, esbuild, a
+// gen-themes run, a library or manifest edit — the in-memory modules are
+// stale, and ESM offers no purge. Exit 42; the supervisor respawns into the
+// fresh build. Debounced so one rebuild's many writes cost one restart.
+if (process.env.DECLARE_DEV_WATCH === "1") {
+  const WATCH_DIRS = ["compiler/dist", "runtime/dist", "bundles", "library", "browser"];
+  let pending = null;
+  const trip = (dir, file) => {
+    if (pending !== null) return;
+    pending = setTimeout(() => {
+      console.log(`dev: ${dir}/${file ?? ""} changed — reloading (exit 42)`);
+      process.exit(42);
+    }, 400);
+  };
+  for (const dir of WATCH_DIRS) {
+    const abs = path.join(ROOT, dir);
+    if (!existsSync(abs)) continue;
+    try {
+      watch(abs, { recursive: true }, (_ev, file) => trip(dir, file));
+    } catch {
+      watch(abs, (_ev, file) => trip(dir, file));
+    }
+  }
+}
+
