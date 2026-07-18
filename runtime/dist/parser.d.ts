@@ -162,6 +162,7 @@ export interface CssDecl {
     name: string;
     text: string;
     bodyOffset: number;
+    pos: Pos;
 }
 /** One `include` entry — a quoted, relative path and the position of its
  *  string literal (composition.md §1). The directive `include [ "a", "b" ]`

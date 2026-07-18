@@ -42,11 +42,13 @@ export interface StyleEnv {
   readonly bundles: ReadonlyMap<string, Element>;
   readonly stylesheets: ReadonlySet<string>;
   readonly fonts: ReadonlySet<string>;
+  /** Declared `css` block names (`cssRules = Dark` resolves against these). */
+  readonly csses: ReadonlySet<string>;
   /** (bundle, schema) pairs already validated — one report per pairing. */
   readonly validated: Set<string>;
 }
 
-const EMPTY_ENV: StyleEnv = { bundles: new Map(), stylesheets: new Set(), fonts: new Set(), validated: new Set() };
+const EMPTY_ENV: StyleEnv = { bundles: new Map(), stylesheets: new Set(), fonts: new Set(), csses: new Set(), validated: new Set() };
 
 /** Attribute kinds a stylesheet entry or style bundle may never set —
  *  structural relationships, not values (recorded v1 refusals). */
@@ -224,11 +226,13 @@ export function checkStyleDecls(
   const bundles = new Map<string, Element>();
   const stylesheets = new Set<string>();
   const fonts = new Set<string>();
+  const csses = new Set<string>();
   const taken = (name: string): boolean =>
-    Object.hasOwn(schemas, name) || bundles.has(name) || stylesheets.has(name) || fonts.has(name);
+    Object.hasOwn(schemas, name) || bundles.has(name) || stylesheets.has(name) || fonts.has(name) || csses.has(name);
+  const dup = (name: string): string => `there is already a component, stylesheet, style, font, or css block named '${name}'`;
   for (const s of program.styles) {
     if (taken(s.name)) {
-      errors.push(new NeoError(`there is already a component, stylesheet, style, or font named '${s.name}'`, s.pos));
+      errors.push(new NeoError(dup(s.name), s.pos));
       continue;
     }
     errors.push(...checkStyleBody(s));
@@ -236,7 +240,7 @@ export function checkStyleDecls(
   }
   for (const s of program.stylesheets) {
     if (taken(s.name)) {
-      errors.push(new NeoError(`there is already a component, stylesheet, style, or font named '${s.name}'`, s.pos));
+      errors.push(new NeoError(dup(s.name), s.pos));
       continue;
     }
     errors.push(...checkStylesheetBody(s, schemas));
@@ -244,13 +248,20 @@ export function checkStyleDecls(
   }
   for (const f of program.fonts) {
     if (taken(f.name)) {
-      errors.push(new NeoError(`there is already a component, stylesheet, style, or font named '${f.name}'`, f.pos));
+      errors.push(new NeoError(dup(f.name), f.pos));
       continue;
     }
     errors.push(...checkFontBody(f));
     fonts.add(f.name);
   }
-  return { bundles, stylesheets, fonts, validated: new Set() };
+  for (const c of program.csses) {
+    if (taken(c.name)) {
+      errors.push(new NeoError(dup(c.name), c.pos));
+      continue;
+    }
+    csses.add(c.name);
+  }
+  return { bundles, stylesheets, fonts, csses, validated: new Set() };
 }
 
 /** A style bundle carries attribute sets only — a look, not a component.

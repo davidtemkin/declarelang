@@ -2814,7 +2814,7 @@ await test("check: stylesheet entries validate against the named class — loud,
   assert.match(errs(`stylesheet S [ theme: Theme [ t = card(1) ] ] App [ ]`)[0],
     /theme\.t: a token is a number, string, boolean, color, or a value constructor/);
   assert.match(errs(`stylesheet S [ ] stylesheet S [ ] App [ ]`)[0],
-    /already a component, stylesheet, style, or font named 'S'/);
+    /already a component, stylesheet, style, font, or css block named 'S'/);
   // An entry is a stylesheet member — nowhere else.
   assert.match(errs(`App [ Button: [ fill = navy ] ]`)[0],
     /'Button: \[ … \]' is a class-keyed entry — it belongs in a stylesheet/);
@@ -2880,7 +2880,7 @@ await test("font: declarations are checked — unknown ref, non-Face child, bad 
   assert.match(errs(`font F [ family = "X", Weight [ src = "x.woff2" ] ] App [ ]`)[0], /font F: 'Weight' is not a Face/);
   assert.match(errs(`font F [ ] App [ ]`)[0], /font F: declare a family .* or at least one Face/);
   assert.match(errs(`font F [ Face [ src = 12 ] ] App [ ]`)[0], /a face source is a URL string/);
-  assert.match(errs(`font S [ family = "a" ] style S [ ] App [ ]`)[0], /already a component, stylesheet, style, or font named 'S'/);
+  assert.match(errs(`font S [ family = "a" ] style S [ ] App [ ]`)[0], /already a component, stylesheet, style, font, or css block named 'S'/);
 });
 
 await test("font: a fallback list validates each name — an undeclared item is a positioned error", () => {
@@ -5001,6 +5001,11 @@ await test("parser: empty css block is valid; brace-in-comment does not truncate
   assert.match(p.csses[0].text, /Card \{ color: red \}/);
 });
 
+await test("checker: a css name collides with the one namespace", () => {
+  const errs = (src) => check(parseProgram(src)).map((e) => e.message);
+  assert.match(errs(`css S { } css S { } App [ ]`)[0], /already a component, stylesheet, style, font, or css block named 'S'/);
+  assert.match(errs(`stylesheet S [ ] css S { } App [ ]`)[0], /already a component, stylesheet, style, font, or css block named 'S'/);
+});
 
 await test("checker: styleclass/id are string attributes on View", () => {
   const errs = (src) => check(parseProgram(src)).map((e) => e.message);

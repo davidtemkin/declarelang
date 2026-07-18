@@ -195,6 +195,7 @@ export interface CssDecl {
   name: string;
   text: string;
   bodyOffset: number;
+  pos: Pos;
 }
 
 /** One `include` entry — a quoted, relative path and the position of its
@@ -828,10 +829,10 @@ class Parser {
    *  we take that raw text and its offset — the CSS itself is parsed + checked
    *  later (css-parse.ts / checkCss). No `[ ]` members, unlike the others. */
   parseCssDecl(): CssDecl {
-    this.expect("ident", "'css'");
+    const kw = this.expect("ident", "'css'");
     const name = this.expect("ident", "the css block's name");
     const body = this.expect("code", "a { … } css body");
-    return { name: name.text, text: body.str ?? "", bodyOffset: body.pos.offset + 1 };
+    return { name: name.text, text: body.str ?? "", bodyOffset: body.pos.offset + 1, pos: kw.pos };
   }
 }
 

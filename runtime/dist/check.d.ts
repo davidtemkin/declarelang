@@ -10,6 +10,8 @@ export interface StyleEnv {
     readonly bundles: ReadonlyMap<string, Element>;
     readonly stylesheets: ReadonlySet<string>;
     readonly fonts: ReadonlySet<string>;
+    /** Declared `css` block names (`cssRules = Dark` resolves against these). */
+    readonly csses: ReadonlySet<string>;
     /** (bundle, schema) pairs already validated — one report per pairing. */
     readonly validated: Set<string>;
 }
