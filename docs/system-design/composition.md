@@ -113,6 +113,39 @@ The payoff is the demo/site brevity goal: a sample reads as *just its logic*,
 the component appearing from nowhere — and the sample and the page share the
 one component source, so they cannot drift.
 
+### Provided singletons — the `$provide` rules
+
+A second, stricter tier of the same manifest: some library components are not
+*referenced* into a program but *earned* by it — the `FocusRing` when any
+Control descendant is used (OL's `canvas.focusclass` default), the `Tooltip`
+when any View-descended element sets a `tip`. The associations are DATA, never
+compiler code paths (ruled 2026-07-18, after David's challenge — "how can an
+attribute named tip be *known* to mean tooltip-needed?" It can't; it must be
+declared):
+
+```json
+"$provide": [
+  { "class": "FocusRing", "when": { "baseUsed": "Control" }, "comment": "…" },
+  { "class": "Tooltip",
+    "when": { "attributeUsed": "tip", "onBase": "View" }, "comment": "…" }
+]
+```
+
+The compiler executes ONE generic rule over a small trigger vocabulary —
+`baseUsed` (a declared class descends from the named base) and
+`attributeUsed`/`onBase` (an element whose tag descends from `onBase` sets the
+named attribute; the scope matters — on a View descendant a schema-owned name
+like `tip` can mean only the schema's slot, since redeclaration is refused,
+while a Node-descended class owns its own names and must never trigger
+provision). A triggered rule includes the class's manifest file and splices
+`Class [ ],` as the LAST App child — source order stacks, so last = above
+content. A program that declares that name itself (an instance or a class)
+suppresses the provision: the customization path. The `$` prefix keeps the
+entry invisible to the bare-tag machinery (no authorable tag starts with one).
+Adding a provided singleton is a manifest edit, never a compiler edit — and
+the spliced result is visible in the merged source, comment-marked, so the
+compiled program honestly CONTAINS what it uses.
+
 > **These bundled components are simple PLACEHOLDERS, to be revisited.** They
 > exist to implement the current samples, with baseline styleability (override a
 > colour, a size) and a dead-easy-to-read body — not to be a real component set.
