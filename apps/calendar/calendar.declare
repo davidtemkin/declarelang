@@ -158,33 +158,33 @@ class TabPill extends View [ cornerRadius = 10, fill = { theme.pillBg },
     ]
 
 
-class NavArrow extends View [ width = 36, height = 34, cornerRadius = 10,
-    dir: number = 1,
-    glyph: string = "",
+// the pressed/hovered pill machinery the arrows and Today share — state, handlers,
+// and the fill; each concrete button adds its content and its action
+
+class BarButton extends View [ height = 34, cornerRadius = 10,
     hovered: boolean = false,
     pressed: boolean = false,
     fill = { classroot.pressed ? theme.pillBg : theme.trackBg },
-    g: Text [ width = { parent.width }, textAlign = center, y = 6, fontSize = 18, wrap = false,
-        textColor = { classroot.pressed || classroot.hovered ? theme.textPrimary : theme.textMuted }, text = { classroot.glyph } ],
     onMouseOver() { classroot.hovered = true },
     onMouseOut()  { classroot.hovered = false; classroot.pressed = false },
     onMouseDown() { classroot.pressed = true },
     onMouseUp()   { classroot.pressed = false },
+    ]
+
+
+class NavArrow extends BarButton [ width = 36,
+    dir: number = 1,
+    glyph: string = "",
+    g: Text [ width = { parent.width }, textAlign = center, y = 6, fontSize = 18, wrap = false,
+        textColor = { classroot.pressed || classroot.hovered ? theme.textPrimary : theme.textMuted }, text = { classroot.glyph } ],
     onClick()     { app.step(classroot.dir) },
     ]
 
 
-class TextButton extends View [ width = 64, height = 34, cornerRadius = 10,
+class TextButton extends BarButton [ width = 64,
     label: string = "",
-    hovered: boolean = false,
-    pressed: boolean = false,
-    fill = { classroot.pressed ? theme.pillBg : theme.trackBg },
     t: Text [ width = { parent.width }, textAlign = center, y = 9, fontSize = 13, wrap = false, fontWeight = medium,
         textColor = { classroot.pressed || classroot.hovered ? theme.textPrimary : theme.textMuted }, text = { classroot.label } ],
-    onMouseOver() { classroot.hovered = true },
-    onMouseOut()  { classroot.hovered = false; classroot.pressed = false },
-    onMouseDown() { classroot.pressed = true },
-    onMouseUp()   { classroot.pressed = false },
     onClick()     { app.today() },
     ]
 
@@ -244,15 +244,19 @@ class DetailSection extends View [ clip = true, cornerRadius = 10, fill = { them
 // Below the floor the calendar degrades instead of adapting (the grid needs its
 // rows; the bar needs its controls), so it declares one and the stage pans.
 
-App [ clip = true, minWidth = 480, minHeight = 420,
+App [ clip = true, minWidth = 480, minHeight = 420, appName = "Declare Calendar",
     fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
 
     /* Colours are two role-named palettes; `theme` swaps between them. `themeMode`
-       is Light / Dark / Auto — Auto follows the OS through `app.dark`. */
+       is Light / Dark / Auto — Auto follows the ENVIRONMENT: the host's
+       `app.env.dark` when this app runs embedded (a desktop passing its
+       appearance through), else the OS through `app.dark`. */
 
     theme = { app.isDark ? app.darkTheme() : app.lightTheme() },
     themeMode: string = "auto",
-    isDark: boolean = { app.themeMode == "auto" ? app.dark : app.themeMode == "dark" },
+    isDark: boolean = { app.themeMode == "auto"
+        ? (app.env.dark != null ? app.env.dark == true : app.dark)
+        : app.themeMode == "dark" },
 
     // layout constants
 
@@ -300,7 +304,13 @@ App [ clip = true, minWidth = 480, minHeight = 420,
     downX: number = 0,
     downY: number = 0,
 
-    data: DataSource [ url = "data/events.json" ],
+    /* The address is ENVIRONMENT-AWARE: standalone, the fixture sits beside the
+       app; hosted (the desktop passes env.base — its own transport's path to
+       this app's home), the same relative address resolves through that base.
+       `auto` covers the hosted case, where env lands after init: the url
+       CHANGES when base arrives and the source refetches the right address. */
+
+    data: DataSource [ auto = true, url = { ("" + (app.env.base || "")) + "data/events.json" } ],
 
     /* The model is DERIVED, not built: `cal.contents` recomputes when the visible
        month or the events change, and keyed replication (`:key`, `:id`) makes each
@@ -413,7 +423,7 @@ App [ clip = true, minWidth = 480, minHeight = 420,
         todayBg: 0x14304F, dropTargetBg: 0x1E3C5E, dropTargetRing: 0x6BA4F0, hairline: 0x22323E, gridLine: 0x1B2934,
         textPrimary: 0xE7EEF2, textMuted: 0x8A9BA6, textFaint: 0x54626E, dayNumber: 0xC7D3DC, bodyText: 0xB4C2CC,
         hourLabel: 0x53636F, chevron: 0x6C7C89,
-        accent: 0x4C8DFF, accentTeal: 0x37E0C8, accentSoft: 0x8FB6F0, currentDayText: 0x9CC4FF, todayText: 0x7FB0FF,
+        accent: 0x4C8DFF, accentTeal: 0x37E0C8, currentDayText: 0x9CC4FF, todayText: 0x7FB0FF,
         trackBg: 0x131F29, pillBg: 0x244463,
         sectionBg: 0x16222E, sectionOpenBg: 0x1B2B3B,
         miniBg: 0x121C26, miniCurrentBg: 0x14283F, miniDayText: 0x9FB0BB, miniDayFaint: 0x33414C,
@@ -424,7 +434,7 @@ App [ clip = true, minWidth = 480, minHeight = 420,
         todayBg: 0xDCE9FF, dropTargetBg: 0xC7DDFF, dropTargetRing: 0x2E6FE0, hairline: 0xDBE1E9, gridLine: 0xE4E9EF,
         textPrimary: 0x1B2733, textMuted: 0x6C7A88, textFaint: 0xAAB4BE, dayNumber: 0x2A3542, bodyText: 0x3E4C59,
         hourLabel: 0x99A5B0, chevron: 0x9AA5B0,
-        accent: 0x2E6FE0, accentTeal: 0x12A594, accentSoft: 0x3B7BE6, currentDayText: 0x2E6FE0, todayText: 0x2E6FE0,
+        accent: 0x2E6FE0, accentTeal: 0x12A594, currentDayText: 0x2E6FE0, todayText: 0x2E6FE0,
         trackBg: 0xE7EBF1, pillBg: 0xD3E2FC,
         sectionBg: 0xF1F5F9, sectionOpenBg: 0xE6EEF8,
         miniBg: 0xFFFFFF, miniCurrentBg: 0xE7F0FF, miniDayText: 0x3E4C59, miniDayFaint: 0xBFC8D2,
@@ -560,7 +570,7 @@ App [ clip = true, minWidth = 480, minHeight = 420,
         const n = new Date()
         this.todayKey = this.keyOf(n); this.year = n.getFullYear(); this.month = n.getMonth() + 1; this.anchorKey = this.todayKey
         this.nr = this.monthRows      // start on the real row count so the month just shows, no squish-in
-        this.data.fetch()
+        if (app.env.base == null) this.data.fetch()      // hosted: auto refetches when env.base lands
         },
 
     /* ## Keyboard
@@ -626,15 +636,30 @@ App [ clip = true, minWidth = 480, minHeight = 420,
     panel: View [ width = 340, height = { app.bodyH }, y = { app.barH }, fill = { theme.panelBg }, x = { app.width - app.panelInset },
         datapath = { app.data.value != null ? app.data.value.events.find(e => e.id == app.selectedId) : null },
         edge: View [ width = 1, height = { parent.height }, fill = { theme.hairline } ],
-        close: Text [ x = { parent.width - 36 }, y = 16, fontSize = 22, wrap = false, textColor = { theme.textFaint }, text = "×",
-            onClick() { app.closeDetail() },
-            ],
-        rail:  View [ x = 26, y = 30, width = 4, height = 46, cornerRadius = 2, fill = { app.catText(:category) } ],
-        time:  Text [ x = 40, y = 62, fontSize = 13, wrap = false, textColor = { theme.accentSoft }, text = { app.shortTime(:start) + " – " + app.shortTime(:end) } ],
-        title: TextInput [ x = 38, y = 26, width = { parent.width - 76 }, height = 30, wrap = true, fontSize = 18, fontWeight = bold,
-            textColor = { theme.textPrimary }, placeholder = "Untitled event", text <-> :title ],
-        secs: View [ x = 22, y = 104, width = { parent.width - 44 },
+        secs: View [ x = 22, y = 24, width = { parent.width - 44 },
             layout: SimpleLayout [ axis = y, spacing = 8 ],
+
+            /* The EVENT section — the title block in the sections' own grammar: the
+               same card, its label row carrying the panel's close where the others
+               carry their chevron, the category colour as the card's left edge, and
+               the read-only date · time under the editable title. */
+
+            ev: View [ width = { parent.width }, height = 112, cornerRadius = 10, clip = true, fill = { theme.sectionBg },
+                rail: View [ width = 4, height = { parent.height }, fill = { app.catText(:category) } ],
+                hdr: View [ width = { parent.width }, height = 40,
+                    lbl: Text [ x = 15, y = 16, fontSize = 12, fontWeight = bold, wrap = false, letterSpacing = 1,
+                        textColor = { theme.textMuted }, text = "EVENT" ],
+                    close: Text [ x = { parent.width - 28 }, y = 12, fontSize = 17, wrap = false,
+                        textColor = { theme.chevron }, text = "×",
+                        onClick() { app.closeDetail() },
+                        ],
+                    ],
+                title: TextInput [ x = 13, y = 40, width = { parent.width - 26 }, height = 32, fontSize = 16, fontWeight = bold,
+                    textColor = { theme.textPrimary }, placeholder = "Untitled event", text <-> :title ],
+                meta: Text [ x = 15, y = 84, fontSize = 12.5, wrap = false, textColor = { theme.textMuted },
+                    text = { app.dayLabel(:y + "-" + :m + "-" + :d) + "  ·  " + app.shortTime(:start) + " – " + app.shortTime(:end) } ],
+                ],
+
             DetailSection [ idx = 0, label = "NOTES",     field = "notes" ],
             DetailSection [ idx = 1, label = "LOCATION",  field = "location" ],
             DetailSection [ idx = 2, label = "ATTENDEES", field = "attendees" ],
@@ -661,7 +686,13 @@ App [ clip = true, minWidth = 480, minHeight = 420,
 
         brand: View [ x = 20, y = { (app.barH - 22) / 2 }, height = 22,
             layout: SimpleLayout [ axis = x, spacing = 5 ],
-            Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textFill = { gradient("90deg", theme.accent, theme.accentTeal) }, text = "Declare" ],
+
+            // the word "Declare" is the way home — navigate() resolves against the
+            // DISTRO root, so this works on either host at any mount point
+
+            Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textFill = { gradient("90deg", theme.accent, theme.accentTeal) }, text = "Declare",
+                onClick() { app.navigate("apps/homepage/homepage.declare") },
+                ],
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textColor = { theme.textPrimary }, text = "Calendar" ],
             ],
 

@@ -24,8 +24,11 @@ right. What's on it:
   neighbors displace and the plate's edges push outward. Its motion was
   MEASURED against the real dock, as were the open/close window zooms
   and the traffic lights' exact dimensions.
-- The **menu bar** is whole menus as records; ⌘-shortcuts dispatch from
-  the same records, and holding ⌘ shows them all (the Newton HUD).
+- The **menu bar** is whole menus as records, and CONTEXTUAL: it belongs
+  to the front window's application (Files, Markdown, Declare Calendar),
+  with the brand mark in the para-Apple slot, About windows, a live
+  Window menu, and a Help menu whose search field is a real input inside
+  the overlay. ⌘-shortcuts dispatch from the same records.
 
 Icons are DRAWN (no bitmaps — the weather app's image-elimination
 precedent); the open-source icon harvest and the vibrancy material are
@@ -39,7 +42,7 @@ the recorded next passes.
 // is invisible to that analysis. `use` is the explicit bridge: keep these
 // classes registered for creation by name.
 
-use [ FinderWindow, ViewerWindow, AppWindow ]
+use [ FinderWindow, ViewerWindow, AppWindow, AboutWindow, BrandMark, HelpSearch ]
 
 // ── a desktop window: chrome once, contents per subclass ─────────────────────
 
@@ -62,6 +65,11 @@ class Window extends View [ width = 560, height = 400, cornerRadius = 10, clip =
     minH: number = 120,
     grab: number = 8,                            // edge strip thickness (grabbable band)
     corner: number = 16,                         // corner strip size (wins over the edges)
+
+    // a PLAIN window (an About box) is close-to-dismiss only: no resize, no
+    // shade, no zoom — the strips vanish and the yellow/green lights go inert
+
+    plain: boolean = false,
 
     // the macOS open animation, MEASURED (burst captures of a real file open,
     // 2026-07-18): the window zooms FROM THE FILE'S POSITION — ~15% scale at
@@ -122,7 +130,10 @@ class Window extends View [ width = 560, height = 400, cornerRadius = 10, clip =
     saveY: number = 0,
     saveW: number = 0,
 
-    activate() { app.frontWin = this; this.raise() },
+    // activating any REAL window dismisses open About boxes — they're modals
+    // in spirit: clicking anywhere else lets them go (the red light works too)
+
+    activate() { app.frontWin = this; this.raise(); if (!plain) app.dismissAbouts() },
     onMouseDown() { this.activate() },
 
     // subclass content attaches AFTER the base's children, so any content that
@@ -162,6 +173,7 @@ class Window extends View [ width = 560, height = 400, cornerRadius = 10, clip =
     wl0: number = 0,                             // window x at size start (left-edge modes)
 
     beginSize(mode) {
+        if (plain) return
         this.activate()
         sizeMode = "" + mode
         px0 = app.pointerX
@@ -237,13 +249,13 @@ class Window extends View [ width = 560, height = 400, cornerRadius = 10, clip =
                 on = { classroot.active || classroot.lightsHover }, showGlyph = { classroot.lightsHover },
                 onMouseOver() { classroot.lightsHover = true },
                 onMouseOut()  { classroot.lightsHover = false },
-                onClick() { classroot.shadeToggle() },
+                onClick() { if (!classroot.plain) classroot.shadeToggle() },
                 ],
             zoom: TrafficLight [ x = 40, c = #61C554, rim = #4CAF45, ink = #145E14, sym = "zoom",
                 on = { classroot.active || classroot.lightsHover }, showGlyph = { classroot.lightsHover },
                 onMouseOver() { classroot.lightsHover = true },
                 onMouseOut()  { classroot.lightsHover = false },
-                onClick() { classroot.zoomToggle() },
+                onClick() { if (!classroot.plain) classroot.zoomToggle() },
                 ],
             ],
 
@@ -262,25 +274,25 @@ class Window extends View [ width = 560, height = 400, cornerRadius = 10, clip =
     // either vertical edge, ↕ for the bottom, and the two diagonals for the
     // corners. The corners overlap the edges' ends and win the hit-test.
 
-    edgeL: View [ x = 0, y = { classroot.barH }, width = { classroot.grab },
+    edgeL: View [ x = 0, y = { classroot.barH }, width = { classroot.grab }, visible = { !classroot.plain },
         height = { parent.height - classroot.barH - classroot.corner }, cursor = "ew-resize",
         onMouseDown() { classroot.beginSize("l") },
         onMouseMove() { classroot.moveSize() },
         onMouseUp()   { classroot.sizeMode = "" },
         ],
-    edgeR: View [ x = { parent.width - classroot.grab }, y = { classroot.barH }, width = { classroot.grab },
+    edgeR: View [ x = { parent.width - classroot.grab }, y = { classroot.barH }, width = { classroot.grab }, visible = { !classroot.plain },
         height = { parent.height - classroot.barH - classroot.corner }, cursor = "ew-resize",
         onMouseDown() { classroot.beginSize("r") },
         onMouseMove() { classroot.moveSize() },
         onMouseUp()   { classroot.sizeMode = "" },
         ],
-    edgeB: View [ x = { classroot.corner }, y = { parent.height - classroot.grab },
+    edgeB: View [ x = { classroot.corner }, y = { parent.height - classroot.grab }, visible = { !classroot.plain },
         width = { parent.width - 2 * classroot.corner }, height = { classroot.grab }, cursor = "ns-resize",
         onMouseDown() { classroot.beginSize("b") },
         onMouseMove() { classroot.moveSize() },
         onMouseUp()   { classroot.sizeMode = "" },
         ],
-    cornerBL: View [ x = 0, y = { parent.height - classroot.corner },
+    cornerBL: View [ x = 0, y = { parent.height - classroot.corner }, visible = { !classroot.plain },
         width = { classroot.corner }, height = { classroot.corner }, cursor = "nesw-resize",
         onMouseDown() { classroot.beginSize("lb") },
         onMouseMove() { classroot.moveSize() },
@@ -289,7 +301,7 @@ class Window extends View [ width = 560, height = 400, cornerRadius = 10, clip =
 
     // the bottom-right corner also DRAWS its affordance (the classic grip)
 
-    grip: View [ x = { parent.width - classroot.corner }, y = { parent.height - classroot.corner },
+    grip: View [ x = { parent.width - classroot.corner }, y = { parent.height - classroot.corner }, visible = { !classroot.plain },
         width = { classroot.corner }, height = { classroot.corner }, cursor = "nwse-resize",
         onMouseDown() { classroot.beginSize("rb") },
         onMouseMove() { classroot.moveSize() },
@@ -355,6 +367,110 @@ class TrafficLight extends View [ y = 0, width = 14, height = 14, cornerRadius =
                 d.closePath(); d.fill()
                 }
             },
+        ],
+    ]
+
+
+// ── the brand mark: Declare's identity in the para-Apple slot ────────────────
+//
+// The OG image's mark — a rounded square holding the two brackets — rendered
+// monochrome for the menu bar, the way the Apple logo is: solid menu-bar ink,
+// brackets knocked out. (The gradient version stays the social-card identity;
+// a colored mark would shout in a monochrome bar.)
+
+class BrandMark extends View [ width = 18, height = 18, cornerRadius = 9,
+    fill = { theme.text },
+    Text [ x = center, y = center, fontSize = 9, fontWeight = bold,
+        textColor = { theme.surface }, text = "[ ]" ],
+    ]
+
+
+// ── the Help menu's search field — a REAL input living in a menu overlay ─────
+//
+// Rendered as a Menu `kind:` row: the row's chrome (no highlight, no pick) is
+// the menu's; inside is the library SearchField — the macOS pill — with a
+// live TextInput: keyboard focus inside a raised layer, the case David
+// flagged as the interesting focus test.
+
+class HelpSearch extends View [ height = 40,
+    width = { parent.width },
+
+    // the field reaches to 12px from the MENU's edges (the captured original),
+    // past the kind-row host's standard 24px inset — hence the negative x
+
+    sf: SearchField [ x = -12, y = 5, width = { parent.width + 10 }, height = 30 ],
+    ]
+
+
+// ── About windows: the Apple treatment — vertical, an image, close to dismiss ─
+//
+// One class serves the desktop and all three applications: `forApp` picks the
+// art, the name, and the blurb. `plain` windows (About boxes) give up resize
+// and shade/zoom — the close light is the whole interface, as on the Mac.
+
+class AboutWindow extends Window [ width = 280, height = 380, plain = true,
+    forApp: string = "desktop",                  // desktop | files | markdown | calendar
+
+    aname: string = { this.forApp == "files" ? "Files"
+        : this.forApp == "markdown" ? "Markdown"
+        : this.forApp == "calendar" ? "Declare Calendar"
+        : this.forApp == "declareviewer" ? "Declare Viewer" : "Declare Desktop" },
+
+    blurb: string = { this.forApp == "files" ? "Browses the live documentation model — every chapter, every element."
+        : this.forApp == "markdown" ? "Renders the real files, and reference pages synthesized from the model."
+        : this.forApp == "declareviewer" ? "Reader, source, and live editor over any Declare program — here, hosted as an embedded app."
+        : this.forApp == "calendar" ? "The actual apps/calendar, running as an embedded child app in this window's island."
+        : "A Mac desktop, declared. Windows, dock, and menus are views and records — measured against the originals." },
+
+    body: View [ x = 0, y = { classroot.barH }, width = { parent.width }, height = { parent.height - classroot.barH },
+        col: View [ x = 24, y = 22, width = { parent.width - 48 },
+            layout: SimpleLayout [ axis = y, spacing = 10 ],
+
+            art: View [ x = center, width = 96, height = 96, cornerRadius = 22, clip = true,
+                fill = { classroot.forApp == "markdown" ? gradient(0x8E7CE8, 0x5A46B8)
+                    : classroot.forApp == "files" ? gradient(0x59B0F6, 0x1D6FD1)
+                    : classroot.forApp == "calendar" ? gradient(0xFFFFFF, 0xEFEFF2)
+                    : classroot.forApp == "declareviewer" ? gradient(0x3A3A44, 0x1C1C24)
+                    : gradient(0x4AA8E8, 0x35C4B5) },
+
+                // per-app art, authored in a 48-box and doubled (the dock's rule)
+
+                a: View [ x = 0, y = 0, width = 48, height = 48, scale = 2,
+                    draw(d) {
+                        const k = classroot.forApp
+                        if (k == "calendar") {
+                            d.fillStyle = 0xFB4238
+                            d.fillRect(0, 0, 48, 13)
+                            }
+                        else if (k == "files") {
+                            d.fillStyle = 0xFFFFFF
+                            d.beginPath()
+                            d.moveTo(10, 15); d.lineTo(20, 15); d.lineTo(22, 18); d.lineTo(38, 18)
+                            d.lineTo(38, 34); d.lineTo(10, 34)
+                            d.closePath(); d.fill()
+                            }
+                        },
+                    ],
+                t: Text [ x = center, y = center, fontSize = 34, fontWeight = bold, textColor = 0xFFFFFF,
+                    visible = { classroot.forApp == "markdown" || classroot.forApp == "desktop" || classroot.forApp == "declareviewer" },
+                    text = { classroot.forApp == "markdown" ? "M↓" : classroot.forApp == "declareviewer" ? "‹›" : "[ ]" } ],
+                cwk: Text [ x = center, y = 4, fontWeight = bold, textColor = 0xFFFFFF, fontSize = 15,
+                    visible = { classroot.forApp == "calendar" }, text = { app.dayName } ],
+                cnum: Text [ x = center, y = 30, fontSize = 46, textColor = 0x1D1D1F,
+                    visible = { classroot.forApp == "calendar" }, text = { "" + app.dayNum } ],
+                ],
+
+            nm: Text [ x = center, fontSize = 17, fontWeight = bold, textColor = { theme.text },
+                text = { classroot.aname } ],
+            ver: Text [ x = center, fontSize = 11, textColor = { theme.textMuted },
+                text = "Version pre-1.0" ],
+            gap: View [ width = 4, height = 2 ],
+            bl: Text [ fontSize = 11, wrap = true, width = { parent.width }, textAlign = center,
+                textColor = { theme.textMuted }, text = { classroot.blurb } ],
+            gap2: View [ width = 4, height = 8 ],
+            cp: Text [ x = center, fontSize = 10, textColor = { theme.textFaint },
+                text = "Built in Declare · MIT · © 2026 David Temkin" ],
+            ],
         ],
     ]
 
@@ -591,8 +707,22 @@ class FinderWindow extends Window [ title = "Documentation",
 
 class AppWindow extends Window [ width = 880, height = 560,
     appPath: string = "",
+    extraEnv: string = "",                       // appended env parameters ("program=…")
+
+    // the slot's ENV segment (after `|`) is the embedding environment — the
+    // host parses it into the child's reactive `app.env`, at mount and on
+    // every change: toggling the desktop's appearance re-marks the slot and
+    // the hosted app re-derives (its Auto mode follows `app.env.dark`)
+
+    // a press ANYWHERE in the hosted app also lands here (the router remaps
+    // embedded presses to the island — dom-backend), so clicking the child's
+    // content raises this window exactly as clicking any window body does
+
     island: DOMIsland [ x = 0, y = { classroot.barH }, width = { parent.width }, height = { parent.height - classroot.barH },
-        slot = { "run:" + classroot.appPath } ],
+        onMouseDown() { classroot.activate() },
+        slot = { "run:" + classroot.appPath + "|dark=" + (app.darkMode ? "1" : "0")
+            + (classroot.extraEnv != "" ? "&" + classroot.extraEnv : "") },
+        ],
     ]
 
 
@@ -620,7 +750,13 @@ class ViewerWindow extends Window [ width = 640, height = 460,
 
     body: View [ x = 0, y = { classroot.barH }, width = { parent.width }, height = { parent.height - classroot.barH },
         scrolls = true, selectable = true,
-        pad: View [ x = 24, y = 18, width = { parent.width - 48 },   // reading margins
+
+        // reading margins: 24 at the sides, 18 above — and the pad's explicit
+        // height adds the SAME 18 below the measured document, so the scroll
+        // extent ends with breathing room instead of flush text
+
+        pad: View [ x = 24, y = 18, width = { parent.width - 48 },
+            height = { this.doc.height + 18 },
             loading: Text [ fontSize = 13, textColor = { theme.textFaint },
                 visible = { classroot.inline == "" && classroot.src.loading }, text = "Loading…" ],
             failed: Text [ fontSize = 13, textColor = { theme.textFaint }, wrap = true, width = { parent.width },
@@ -630,7 +766,6 @@ class ViewerWindow extends Window [ width = 640, height = 460,
                 visible = { classroot.inline != "" || classroot.src.loaded },
                 dark = { app.darkMode },
                 text = { classroot.inline != "" ? classroot.inline : (classroot.src.value || "") } ],
-            tail: View [ width = 4, height = 30 ],
             ],
         ],
     ]
@@ -680,7 +815,23 @@ class DockIcon extends View [
 
     width  = { this.rest * (1 + 0.5 * Math.pow(Math.max(0, this.near * this.env), 2)) },
     height = { this.width },
-    y = { parent.height - this.height - this.strip },   // bottom-anchored above the dot strip
+    y = { parent.height - this.height - this.strip - this.hopY },   // bottom-anchored above the dot strip
+
+    // the LAUNCH BOUNCE (Apple's): a ballistic arc — decelerating up, gravity
+    // down — twice, ~560ms per bounce, poked by the app on an application's
+    // FIRST open (or its first after a Quit). The group cascades `attribute`
+    // to its members; each leg is one half of the parabola.
+
+    hopY: number = 0,
+
+    bounce: AnimatorGroup [ attribute = hopY, process = sequential,
+        Animator [ to = 30, duration = 300, motion = quadOut ],
+        Animator [ to = 0, duration = 260, motion = quadIn ],
+        Animator [ to = 30, duration = 300, motion = quadOut ],
+        Animator [ to = 0, duration = 260, motion = quadIn ],
+        ],
+
+    poke() { this.bounce.start() },
 
     onMouseOver() { hovered = true },
     onMouseOut()  { hovered = false },
@@ -757,8 +908,11 @@ class DockIcon extends View [
 
     // the running-app dot, centered in the strip below the icon
 
+    // the dot marks IS-RUNNING and never bounces: adding hopY back cancels the
+    // icon's launch-bounce offset, pinning the dot to the strip
+
     dot: View [ width = 4, height = 4, cornerRadius = 2,
-        x = { (parent.width - 4) / 2 }, y = { parent.height + 3 },
+        x = { (parent.width - 4) / 2 }, y = { parent.height + 3 + this.parent.hopY },
         visible = { running }, fill = { theme.textMuted } ],
 
     // the label pill — the dock's own quasi-tooltip, matched to the captured
@@ -796,7 +950,7 @@ App [ minWidth = 900, minHeight = 600,
 
     fill = { app.darkMode ? gradient(0x2A3A55, 0x18222F) : gradient(0x7FA8D9, 0x4A6FA5) },
 
-    menuBarH: number = 25,                       // the system menu bar; the windows layer starts below it
+    menuBarH: number = 32,                       // the system menu bar (measured from the real one); windows below it
 
     // activation is ONE View-typed slot: every window derives its look (shadow
     // depth, bar tone, lights) from whether it IS this value
@@ -805,19 +959,100 @@ App [ minWidth = 900, minHeight = 600,
     winCount: number = 0,                        // ever-opened count — staggers spawn positions
     viewerCount: number = 0,                     // open viewers, for the dock's running dot
 
+    // ── the application model: three "applications" share this desktop —
+    // Files (the Finder), Markdown (the viewer), and Declare Calendar (the
+    // hosted app) — and the menu bar is CONTEXTUAL: it belongs to the front
+    // window's application, exactly as the Mac's does. A window's app is
+    // read from its class; About windows carry theirs explicitly.
+
+    pathOf(w) { return w != null && w.appPath ? "" + w.appPath : "" },   // any-seam: an AppWindow's program
+
+    appOf(w) {
+        if (w == null) return "files"
+        const c = w.constructor.name
+        if (c == "ViewerWindow") return "markdown"
+        if (c == "AppWindow") return this.pathOf(w).indexOf("viewer") >= 0 ? "declareviewer" : "calendar"
+        if (c == "AboutWindow") return "" + w.forApp
+        return "files"
+        },
+
+    activeApp: string = { this.appOf(app.frontWin) },
+
+    nameOf(a) {
+        return a == "markdown" ? "Markdown" : a == "calendar" ? "Declare Calendar"
+            : a == "declareviewer" ? "Declare Viewer"
+            : a == "desktop" ? "Declare Desktop" : "Files"
+        },
+
+    // View & Edit Source opens the RUNNING PROGRAM ITSELF in the Declare
+    // Viewer — as an EMBEDDED APP in a desktop window: the AppWindow hosts
+    // apps/viewer, and `program=` in its env segment names the subject (a
+    // path valid in THIS app's transport base). The viewer self-loads that
+    // program's ?segments and ?file artifacts — reader mode by default.
+
+    sourceRel(a) {
+        return a == "calendar" ? "../calendar/calendar.declare"
+            : a == "declareviewer" ? "../viewer/viewer.declare"
+            : "desktop.declare"
+        },
+
+    openSource(a) {
+        this.openApp("../../viewer/viewer", "Declare Viewer", null, "program=" + this.sourceRel(a))
+        },
+
     // ── the command seam: the menu bar, the dock, and keys all route here ──
 
     command(id) {
-        if (id == "new-finder") this.newFinder()
-        else if (id == "new-viewer") this.openViewer("../../docs/declare.md", "declare.md")
+        if (id == "new") {
+            if (activeApp == "markdown") this.openViewer("../../docs/declare.md", "declare.md")
+            else if (activeApp == "calendar") this.openApp("../../calendar/calendar", "Calendar", null, "base=../calendar/")
+            else this.newFinder()
+            }
+        else if (id == "open") this.openViewer("../../docs/declare.md", "declare.md")
         else if (id == "close") { if (frontWin != null) this.closeWin(frontWin) }
         else if (id == "dark") app.darkMode = !app.darkMode
+        else if (id == "about-desktop") this.openAbout("desktop")
+        else if (id == "about-app") this.openAbout(this.activeApp)
+        else if (id == "source-desktop") this.openSource("desktop")
+        else if (id == "source") this.openSource(this.activeApp)
+        else if (id == "quit") this.quitApp(this.activeApp)
+        else if (id.indexOf("win:") == 0) this.focusWin(this.wins.children[+id.slice(4)])
         },
+
+    focusWin(w) { if (w != null) w.activate() },
+
+    // Quit closes every window of that application — each by its own
+    // reverse zoom (Files has no Quit: like the Finder, it's always running)
+
+    quitApp(a) {
+        const doomed = this.wins.children.filter((w) => this.appOf(w) == a)
+        for (const w of doomed) this.closeWin(w)
+        },
+
+    openAbout(a) {
+        winCount = winCount + 1
+        winSeq = winSeq + 1
+        const w = this.createView("AboutWindow", this.wins, ({ forApp: "" + a,
+            x: (app.width - 280) / 2 + (winCount % 3) * 16, y: 110 + (winCount % 3) * 14 }))
+        frontWin = w
+        },
+
+    // a press that lands on NOTHING deeper (the wallpaper) also dismisses —
+    // the App root is the sink of last resort
+
+    dismissAbouts() {
+        const doomed = this.wins.children.filter((w) => this.isPlain(w))
+        for (const w of doomed) this.closeWin(w)
+        },
+
+    onMouseDown() { this.dismissAbouts() },
 
     darkMode: boolean = false,
 
     newFinder() {
+        this.dismissAbouts()
         winCount = winCount + 1
+        winSeq = winSeq + 1
         // spawn positions cascade macOS-style, wrapping after a handful
         const w = this.createView("FinderWindow", this.wins, ({ x: 90 + (winCount % 7) * 28, y: 46 + (winCount % 7) * 26 }))
         frontWin = w
@@ -838,40 +1073,79 @@ App [ minWidth = 900, minHeight = 600,
         return ({ x: ox, y: oy })
         },
 
+    // A FIRST open (count 0 — or 0 again after Quit) is a LAUNCH: the dock
+    // icon bounces (Apple's timing) and the window appears mid-second-bounce,
+    // as a fast-launching Mac app's does. Later opens are instant.
+
     openViewer(p, nm, v) {
         if (p == "") return
-        winCount = winCount + 1
-        viewerCount = viewerCount + 1
-        const wx = 160 + (winCount % 7) * 28
-        const wy = 36 + (winCount % 7) * 26
-        const o = this.originOf(v)
-        const w = this.createView("ViewerWindow", this.wins, ({ path: p, title: "" + nm, x: wx, y: wy,
-            bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - this.menuBarH : -1,
-            bornFrom: v != null ? v : null }))
-        frontWin = w
+        const first = viewerCount == 0 && !mdLaunching
+        if (first) mdLaunching = true
+        const go = () => {
+            mdLaunching = false
+            viewerCount = viewerCount + 1
+            this.dismissAbouts()
+            winCount = winCount + 1
+            winSeq = winSeq + 1
+            const wx = 160 + (winCount % 7) * 28
+            const wy = 36 + (winCount % 7) * 26
+            const o = this.originOf(v)
+            const w = this.createView("ViewerWindow", this.wins, ({ path: p, title: "" + nm, x: wx, y: wy,
+                bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - this.menuBarH : -1,
+                bornFrom: v != null ? v : null }))
+            frontWin = w
+            }
+        if (first) { this.dock.row.viewerIcon.poke(); setTimeout(go, 900) }
+        else go()
         },
 
     // a FULL Declare app in a window — the path is demos/-relative (the slot
-    // convention), so "../../calendar/calendar" runs the real calendar
+    // convention): "../../calendar/calendar" runs the real calendar,
+    // "../../viewer/viewer" the Declare Viewer. `envExtra` appends to the
+    // window's env segment ("program=…"). The two hosted apps count
+    // separately (running dots + Quit are per application); only Calendar has
+    // a dock icon, so only it launch-bounces.
 
-    appWinCount: number = 0,
+    calCount: number = 0,
+    dvCount: number = 0,
+    launching: boolean = false,                  // calendar mid-launch-bounce
+    mdLaunching: boolean = false,                // markdown mid-launch-bounce
 
-    openApp(p, nm, v) {
-        winCount = winCount + 1
-        appWinCount = appWinCount + 1
-        const wx = 110 + (winCount % 5) * 30
-        const wy = 24 + (winCount % 5) * 22
-        const o = this.originOf(v)
-        const w = this.createView("AppWindow", this.wins, ({ appPath: "" + p, title: "" + nm, x: wx, y: wy,
-            bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - this.menuBarH : -1,
-            bornFrom: v != null ? v : null }))
-        frontWin = w
+    openApp(p, nm, v, envExtra) {
+        const isCal = ("" + p).indexOf("calendar") >= 0
+        // the launch gate: counts move INSIDE go(), so the running dot appears
+        // when the app HAS launched (mid-second-bounce), not at the click —
+        // launching guards a double-click during the bounce
+        const first = isCal && calCount == 0 && !launching
+        if (first) launching = true
+        const go = () => {
+            launching = false
+            if (isCal) calCount = calCount + 1
+            else dvCount = dvCount + 1
+            this.dismissAbouts()
+            winCount = winCount + 1
+            winSeq = winSeq + 1
+            const wx = 110 + (winCount % 5) * 30
+            const wy = 24 + (winCount % 5) * 22
+            const o = this.originOf(v)
+            const w = this.createView("AppWindow", this.wins, ({ appPath: "" + p, title: "" + nm, x: wx, y: wy,
+                extraEnv: envExtra != null ? "" + envExtra : "",
+                bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - this.menuBarH : -1,
+                bornFrom: v != null ? v : null }))
+            frontWin = w
+            }
+        if (first) { this.dock.row.calIcon.poke(); setTimeout(go, 900) }
+        else go()
         },
 
     closeWin(w) { w.beginClose() },              // the reverse zoom; removal on its onStop
 
     reallyClose(w) {
-        if (w.constructor.name == "AppWindow") appWinCount = appWinCount - 1
+        winSeq = winSeq + 1
+        if (w.constructor.name == "AppWindow") {
+            if (this.appOf(w) == "calendar") calCount = calCount - 1
+            else dvCount = dvCount - 1
+            }
         if (frontWin == w) frontWin = null
         if (w.constructor.name == "ViewerWindow") viewerCount = viewerCount - 1
         this.wins.removeChild(w)
@@ -924,65 +1198,109 @@ App [ minWidth = 900, minHeight = 600,
 
     onInit() { this.docsModel.fetch(); this.newFinder(); this.tick(); setInterval(() => this.tick(), 15000) },
 
-    // ── the Newton keys model, proven at app level (planes.md §12): shortcuts
-    // are the MENUS' OWN RECORDS, aggregated into one registry — nothing is
-    // declared twice. A raw-Keys dispatcher walks the registry; holding ⌘
-    // surfaces the whole map as a HUD (the Newton ruling's demo).
+    // ── ⌘-shortcuts dispatch from the MENUS' OWN RECORDS (the Newton
+    // direction, planes.md §9): one registry, derived from whatever the
+    // contextual bar currently shows, so the active application's keys are
+    // automatically the live set — nothing declared twice. (The hold-⌘ HUD
+    // that proved the model is retired from this Mac-faithful desktop; these
+    // records are exactly the registry it needs to come back.)
 
     keyRegistry: array = { (app.menus || [])
         .flatMap((m) => (m.items || []).filter((r) => r.key).map((r) => ({ menu: "" + m.label, ...r }))) },
 
-    hudGroups: array = { (app.menus || [])
-        .map((m) => ({ name: "" + m.label, rows: (app.keyRegistry || []).filter((r) => r.menu == "" + m.label) }))
-        .filter((g) => g.rows.length > 0) },
-    hudData: Dataset [ contents = { ({ g: app.hudGroups }) } ],
-
-    hudShown: boolean = false,
-    hudSeq: number = 0,
-
-    showHud() { hudShown = true; this.hud.raise() },
-    hideHud() { hudSeq = hudSeq + 1; hudShown = false },
-
     onKeyDown(e) <- Keys {
-        if (e.key == "Meta" && !e.repeat) {
-            hudSeq = hudSeq + 1
-            const s = hudSeq
-            // a HELD ⌘ (650ms, still down) opens the HUD; a quick chord never does
-            setTimeout(() => { if (hudSeq == s && (Keys.isDown("MetaLeft") || Keys.isDown("MetaRight"))) this.showHud() }, 650)
-            return
-            }
-        if (!e.meta || e.repeat) return
+        if (!e.meta || e.repeat || e.key == "Meta") return
         if (this.bar.mb.shown) return                // an open menu owns the keyboard
         const combo = "⌘" + (e.key.length == 1 ? e.key.toUpperCase() : e.key)
         const hit = (this.keyRegistry || []).find((r) => r.key == combo && r.enabled != false)
-        if (hit != null) { this.hideHud(); this.command("" + hit.id) }
+        if (hit != null) this.command("" + hit.id)
         },
-
-    onKeyUp(e) <- Keys { if (e.key == "Meta") this.hideHud() },
 
     // ── the windows layer: a structural container; order is promotion ──────
 
     wins: View [ x = 0, y = { app.menuBarH }, width = { app.width }, height = { app.height - app.menuBarH } ],
 
-    // ── the menu bar: whole menus as RECORDS on the App — the same array
-    // feeds the MenuBar, the key registry, and the HUD ─────────────────────
+    winSeq: number = 0,                          // bumped on every open/close, so window LISTS re-derive
+
+    // ── the menu bar: whole menus as RECORDS, and CONTEXTUAL — the array
+    // re-derives from the active application (and from winSeq/frontWin for
+    // the Window menu), so the bar follows focus the way the Mac's does,
+    // live even while a menu is open ───────────────────────────────────────
 
     menus: array = { [
-        ({ id: "finder", label: "Finder", bold: true, items: [
-            ({ id: "about", label: "About This Desktop", enabled: false }),
+        ({ id: "brand", label: "Declare", kind: "BrandMark", items: [
+            ({ id: "about-desktop", label: "About Declare Desktop", icon: "▢" }),
             ({ divider: true }),
-            ({ id: "dark", label: app.darkMode ? "Light Appearance" : "Dark Appearance", key: "⌘K" }),
+            ({ id: "dark", label: "Dark Mode", key: "⌘K", icon: "◐", checked: app.darkMode }),
+            ({ divider: true }),
+            ({ id: "source-desktop", label: "View & Edit Source", icon: "‹›" }),
         ] }),
+        ({ id: "app", label: this.nameOf(this.activeApp), bold: true,
+            items: this.appMenuItems(this.activeApp) }),
         ({ id: "file", label: "File", items: [
-            ({ id: "new-finder", label: "New Finder Window", key: "⌘N" }),
-            ({ id: "new-viewer", label: "New Viewer", key: "⌘O" }),
+            ({ id: "new", label: "New", key: "⌘N" }),
+            ({ id: "open", label: "Open…", key: "⌘O", enabled: this.activeApp != "calendar" }),
             ({ divider: true }),
             ({ id: "close", label: "Close Window", key: "⌘W", enabled: app.frontWin != null }),
         ] }),
+
+        // the standard Edit suite — present and keyed, honestly disabled:
+        // nothing on this desktop edits yet
+
+        ({ id: "edit", label: "Edit", items: [
+            ({ id: "undo", label: "Undo", key: "⌘Z", enabled: false }),
+            ({ id: "redo", label: "Redo", key: "⇧⌘Z", enabled: false }),
+            ({ divider: true }),
+            ({ id: "cut", label: "Cut", key: "⌘X", enabled: false }),
+            ({ id: "copy", label: "Copy", key: "⌘C", enabled: false }),
+            ({ id: "paste", label: "Paste", key: "⌘V", enabled: false }),
+            ({ divider: true }),
+            ({ id: "selall", label: "Select All", key: "⌘A", enabled: false }),
+        ] }),
+        ({ id: "window", label: "Window", items: this.windowItems(this.winSeq, app.frontWin) }),
+        ({ id: "help", label: "Help", items: [
+            ({ id: "hsearch", kind: "HelpSearch" }),
+            ({ id: "help-app", label: this.nameOf(this.activeApp) + " Help", icon: "💡︎" }),
+        ] }),
     ] },
 
+    // the application menu: About, source, and — except for Files, which
+    // like the real Finder is always running — Quit
+
+    appMenuItems(a) {
+        const nm = this.nameOf(a)
+        const out = []
+        out.push(({ id: "about-app", label: "About " + nm }))
+        out.push(({ divider: true }))
+        out.push(({ id: "source", label: "View & Edit Source" }))
+        if (a != "files") {
+            out.push(({ divider: true }))
+            out.push(({ id: "quit", label: "Quit " + nm, key: "⌘Q" }))
+            }
+        return out
+        },
+
+    // the Window menu is LIVE STATE AS RECORDS: the active application's open
+    // windows, front one checked. `seq` and `front` arrive as ARGUMENTS so
+    // the menus constraint above visibly reads them — its re-derive hooks.
+
+    isPlain(w) { return w != null && w.plain == true },      // any-typed seams for a View-typed list
+    titleOf(w) { return w != null && w.title ? "" + w.title : "" },
+
+    windowItems(seq, front) {
+        const a = this.activeApp
+        const ws = this.wins.children
+        const out = []
+        for (let i = 0; i < ws.length; i++) {
+            if (this.isPlain(ws[i]) || this.appOf(ws[i]) != a) continue
+            out.push(({ id: "win:" + i, label: this.titleOf(ws[i]) || this.nameOf(a), checked: ws[i] == front }))
+            }
+        if (out.length == 0) out.push(({ id: "nowin", label: "No Windows", enabled: false }))
+        return out
+        },
+
     bar: View [ x = 0, y = 0, width = { app.width }, height = { app.menuBarH }, fill = { theme.surface }, opacity = 0.92,
-        mb: MenuBar [ x = 12, menus = { app.menus },
+        mb: MenuBar [ x = 10, height = { parent.height }, menus = { app.menus },
             picked(id) { app.command(id) },
             ],
         clock: Text [ x = { parent.width - this.width - 14 }, y = center, fontSize = 13,
@@ -1018,7 +1336,7 @@ App [ minWidth = 900, minHeight = 600,
                 running = true,
                 onClick() { app.newFinder() },
                 ],
-            DockIcon [ ix = 1, name = "Viewer", glyph = "M↓", hue1 = #8E7CE8, hue2 = #5A46B8,
+            viewerIcon: DockIcon [ ix = 1, name = "Viewer", glyph = "M↓", hue1 = #8E7CE8, hue2 = #5A46B8,
                 running = { app.viewerCount > 0 },
                 onClick() { app.openViewer("../../docs/declare.md", "declare.md") },
                 ],
@@ -1032,45 +1350,14 @@ App [ minWidth = 900, minHeight = 600,
             // the plausible-Mac-application set: enough items for the
             // magnification wave to read like the real dock's
 
-            DockIcon [ ix = 4, name = "Calendar", kind = "calendar", hue1 = #FFFFFF, hue2 = #EFEFF2,
-                running = { app.appWinCount > 0 },
-                onClick() { app.openApp("../../calendar/calendar", "Calendar", this) },
+            calIcon: DockIcon [ ix = 4, name = "Calendar", kind = "calendar", hue1 = #FFFFFF, hue2 = #EFEFF2,
+                running = { app.calCount > 0 },
+                onClick() { app.openApp("../../calendar/calendar", "Calendar", this, "base=../calendar/") },
                 ],
             DockIcon [ ix = 5, name = "Notes", kind = "notes", hue1 = #FFFFFF, hue2 = #F2F2EE ],
             DockIcon [ ix = 6, name = "Mail", kind = "mail", hue1 = #1E8CFB, hue2 = #1667D9 ],
             DockIcon [ ix = 7, name = "Music", glyph = "♪", hue1 = #FB5C74, hue2 = #FA233B ],
             DockIcon [ ix = 8, name = "Terminal", kind = "terminal", hue1 = #3A3A40, hue2 = #17171B ],
-            ],
-        ],
-
-    // ── the hold-⌘ HUD: the registry made visible — every shortcut the app
-    // answers to, grouped by the menu that owns it, greyed when disabled ─────
-
-    hud: View [ visible = { app.hudShown },
-        width = { this.card.width }, height = { this.card.height },
-        x = { (app.width - this.width) / 2 },
-        y = { app.height - this.height - 130 },
-        card: View [ width = { this.cols.contentWidth + 48 }, height = { this.cols.contentHeight + 40 },
-            cornerRadius = 14, fill = 0x1E1E23, opacity = 0.93,
-            stroke = { stroke(1, 0xFFFFFF1F) },
-            shadow = { shadow(0, 14, 40, 0x00000059) },
-            cols: View [ x = 24, y = 20, height = { this.contentHeight }, width = { this.contentWidth },
-                layout: SimpleLayout [ axis = x, spacing = 36 ],
-                datapath = { app.hudData.value },
-                View [ datapath = :g[], width = 220, height = { 24 + this.lst.contentHeight },
-                    ttl: Text [ fontSize = 11, fontWeight = semibold, textColor = 0x9A9AA2,
-                        text = { ("" + :name).toUpperCase() } ],
-                    lst: View [ y = 24, width = { parent.width },
-                        layout: SimpleLayout [ axis = y, spacing = 7 ],
-                        View [ datapath = :rows[], width = { parent.width }, height = 18,
-                            opacity = { :enabled == false ? 0.4 : 1 },
-                            lab: Text [ fontSize = 13, textColor = 0xF2F2F5, text = { "" + :label } ],
-                            k: Text [ fontSize = 13, textColor = 0x9A9AA2,
-                                x = { parent.width - this.width }, text = { "" + :key } ],
-                            ],
-                        ],
-                    ],
-                ],
             ],
         ],
     ]

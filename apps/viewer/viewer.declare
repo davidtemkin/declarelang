@@ -123,6 +123,21 @@ class ThemeSeg extends View [ m: string = "",
 
 App [ fill = { app.theme.bg },
 
+    // the page title is the viewed file itself ("calendar.declare") — the seeds
+    // land after boot, so the served title stands until the path arrives
+
+    appName = { (app.demoSources["__path__"] || "").split("/").pop() || "" },
+
+    // EMBEDDED self-loading: a HOST (the desktop) passes `env.program` — a
+    // program path valid in the host's transport base — and this app fetches
+    // its own reader artifacts from that program URL's ?segments and ?file
+    // requests: the same bytes the serve wrapper seeds via demoSources,
+    // pulled by the app itself, on either hosting mode. A seeded
+    // demoSources still wins wherever both exist.
+
+    segSrc: DataSource [ format = "text", auto = true, url = { app.env.program ? "" + app.env.program + "?segments" : "" } ],
+    rawSrc: DataSource [ format = "text", auto = true, url = { app.env.program ? "" + app.env.program + "?file" : "" } ],
+
     barH: number = 52,
     topM: number = 40,    // reader top margin (foot matches it at the bottom)
     headH: number = { 46 * app.fontScale },    // filename title + rule, above the body
@@ -149,23 +164,44 @@ App [ fill = { app.theme.bg },
     doc: Dataset [ contents = { app.parseDoc() } ],
 
     parseDoc() {
-        const raw = (app.demoSources && app.demoSources["__source__"]) || "[]"
+        const raw = (app.demoSources && app.demoSources["__source__"]) || app.segSrc.value || "[]"
         let segs = []
-        try { segs = JSON.parse(raw) } catch (e) { segs = [] }
+        // two shapes for one material: the seeded channel is the BARE array; the
+        // ?segments request wraps it ({ path, segments }) — accept either
+        try { const p = JSON.parse(raw); segs = Array.isArray(p) ? p : (p && p.segments) || [] } catch (e) { segs = [] }
+        // graceful floor: a host with no highlighter (?segments is a recorded
+        // gap on the static host) still reads — the raw file as ONE code block
+        if (segs.length == 0 && (app.rawSrc.value || "") != "") {
+            const e = ("" + app.rawSrc.value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+            segs = [({ kind: "code", html: "<pre>" + e + "</pre>" })]
+            }
         return ({ segments: segs.map(s => ({ kind: s.kind, md: s.md || "", html: s.html || "" })) })
         },
 
     // the verbatim file as one escaped, monospace <pre> — the plain-text view
 
     plainHtml() {
-        const raw = (app.demoSources && app.demoSources["__raw__"]) || ""
+        const raw = (app.demoSources && app.demoSources["__raw__"]) || app.rawSrc.value || ""
         const e = raw.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
         return "<pre>" + e + "</pre>"
         },
 
     // the file's tree-relative path, split so the header can bold the filename
 
-    filePath() { return (app.demoSources && app.demoSources["__path__"]) || "source" },
+    filePath() { return (app.demoSources && app.demoSources["__path__"]) || (app.env.program ? "" + app.env.program : "source") },
+
+    // the compiler's line count for the viewed file (host-seeded __metrics__:
+    // lineMetrics() — total / code / comment / blank), rendered beside the title
+
+    metaLabel() {
+        let m = null
+        try { m = JSON.parse((app.demoSources && app.demoSources["__metrics__"]) || "null") } catch (e) { m = null }
+        // self-loading: the ?segments payload carries the same metrics
+        if (m == null && app.segSrc.value) {
+            try { const p = JSON.parse(app.segSrc.value); m = (p && p.metrics) || null } catch (e) { m = null }
+            }
+        return m == null ? "" : "· " + m.total + " lines, " + m.code + " code"
+        },
     dirName() { const p = app.filePath(); const i = p.lastIndexOf("/"); return i < 0 ? "" : p.slice(0, i + 1) },
     baseName() { const p = app.filePath(); const i = p.lastIndexOf("/"); return i < 0 ? p : p.slice(i + 1) },
 
@@ -210,6 +246,12 @@ App [ fill = { app.theme.bg },
             title: View [ layout: SimpleLayout [ axis = x, spacing = 0 ],
                 d: Text [ fontSize = { 21 * app.fontScale }, wrap = false, textColor = { app.theme.muted }, text = { app.dirName() } ],
                 n: Text [ fontSize = { 21 * app.fontScale }, fontWeight = bold, wrap = false, textColor = { app.theme.text }, text = { app.baseName() } ],
+
+                // the size of the thing, quietly: the compiler's own count
+
+                gapm: View [ width = 10, height = 1 ],
+                m: Text [ y = { 8 * app.fontScale }, fontSize = { 13 * app.fontScale }, wrap = false,
+                    textColor = { app.theme.muted }, text = { app.metaLabel() } ],
                 ],
 
             // a blue→teal thread of the brand accent, the origin of the code spine
@@ -274,7 +316,7 @@ App [ fill = { app.theme.bg },
             multiline = true, spellcheck = false, wrap = false, padding = 14,
             fontFamily = [Mono, "monospace"], fontSize = 12, textColor = { app.codeFg() },
             fill = { app.theme.codeBg },
-            initial = { app.demoSources["__raw__"] || "" },
+            initial = { app.demoSources["__raw__"] || app.rawSrc.value || "" },
             onInput() { parent.edited = true; app.liveCard = "__raw__"; app.liveSource = text },
             ],
 
@@ -292,7 +334,7 @@ App [ fill = { app.theme.bg },
             onMouseOut()  { hovered = false },
             onClick() {
                 if (!parent.edited) return
-                const raw = app.demoSources["__raw__"] || ""
+                const raw = app.demoSources["__raw__"] || app.rawSrc.value || ""
                 parent.editor.text = raw
                 parent.edited = false
                 app.liveCard = "__raw__"; app.liveSource = raw
@@ -320,16 +362,18 @@ App [ fill = { app.theme.bg },
             onMouseUp()    { dragging = false },
             ],
 
-        // the error sandwich: the last recompile's report, only while one stands
+        // the error sandwich: the last recompile's report IN FULL, only while one
+        // stands — the wrapped multi-line text is the docs/homepage treatment (a
+        // single unwrapped line showed only the report's "1 error" summary)
 
         report: View [ visible = { app.liveReport != "" }, x = 0, y = { parent.editorH + 6 },
             width = { parent.width }, clip = true,
-            height = { Math.min(170, this.body.height + 20) },
+            height = { Math.min(200, this.msg.height + 20) },
             fill = { app.isDark ? 0x2A1517 : 0xFDECEC },
-            body: View [ x = 14, y = 10, width = { parent.width - 28 }, scrollsX = true, height = { this.contentHeight },
-                Text [ fontFamily = [Mono, "monospace"], fontSize = 11, wrap = false,
-                    textColor = { app.isDark ? 0xFF8B8B : 0xB42318 }, text = { app.liveReport } ],
-                ],
+            bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { app.isDark ? 0xE0525E : 0xC93B47 } ],
+            msg: Text [ x = 14, y = 10, width = { parent.width - 28 }, wrap = true,
+                fontFamily = [Mono, "monospace"], fontSize = 11,
+                textColor = { app.isDark ? 0xFF8B8B : 0xB42318 }, text = { app.liveReport } ],
             ],
 
         // the running program — an embedded child app in a host island, swapped
@@ -359,8 +403,14 @@ App [ fill = { app.theme.bg },
 
         brand: View [ x = 20, y = { (app.barH - 22) / 2 }, height = 22,
             layout: SimpleLayout [ axis = x, spacing = 5 ],
+
+            // "Declare" is the way home — navigate() resolves against the distro
+            // root, so this works on either host at any mount point
+
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
-                textFill = { gradient("90deg", app.theme.accent, app.theme.accentTeal) }, text = "Declare" ],
+                textFill = { gradient("90deg", app.theme.accent, app.theme.accentTeal) }, text = "Declare",
+                onClick() { app.navigate("apps/homepage/homepage.declare") },
+                ],
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
                 textColor = { app.theme.text }, text = "Viewer" ],
             ],
