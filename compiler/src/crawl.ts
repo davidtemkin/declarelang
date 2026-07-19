@@ -159,10 +159,20 @@ export function canonKey(location: string, defaultLoc: string): string {
  *  any boot needed data the crawl could not honestly supply (the loud-failure rule):
  *  the message names each url and the fix. */
 export async function crawlLocations(source: string, opts: CrawlOptions = {}): Promise<CrawlDoc[]> {
+  return (await crawlAll(source, opts)).docs;
+}
+
+/** The crawl plus the app's settled `appName` — the human name the crawled
+ *  page's <title> should carry (SEO: the extractor reads the SETTLED value, so
+ *  a constraint-derived name is as extractable as a literal). One title per
+ *  crawl, matching the one-document ruling (the program URL is the sole
+ *  address); "" when the app declares no name — the caller keeps its default. */
+async function crawlAll(source: string, opts: CrawlOptions = {}): Promise<{ docs: CrawlDoc[]; title: string }> {
   const refusals = new Map<string, string>();
   // The declared default = a fresh boot's location, so `""`/default canonicalize.
   const probe = await bootAt(source, opts, "", refusals);
   const defaultLoc = probe.location;
+  const title = probe.appName;
   probe.discard();
 
   const byKey = new Map<string, CrawlDoc>();
@@ -204,7 +214,7 @@ export async function crawlLocations(source: string, opts: CrawlOptions = {}): P
   const seen = new Set<CrawlDoc>();
   const out: CrawlDoc[] = [];
   for (const doc of byKey.values()) if (!seen.has(doc)) { seen.add(doc); out.push(doc); }
-  return out;
+  return { docs: out, title };
 }
 
 /** A small, stable content hash (FNV-1a) — deterministic across Node and the
@@ -223,8 +233,16 @@ const escId = (s: string): string => s.replace(/&/g, "&amp;").replace(/"/g, "&qu
  *  into a click-through addresses the live app identically. This is what `?extract`
  *  returns and `?crawler` bakes when the caller asks for the crawl. */
 export async function crawlDocument(source: string, opts: CrawlOptions = {}): Promise<string> {
-  const docs = await crawlLocations(source, opts);
+  return (await crawlExtract(source, opts)).html;
+}
+
+/** crawlDocument plus the settled `appName` as `title` — for callers baking a
+ *  full page around the extraction (`crawlerDocument`, the run-page `<title>`),
+ *  so the crawled page is named by the app, not the filename. "" = no declared
+ *  name; the caller falls back to whatever it titled the page before. */
+export async function crawlExtract(source: string, opts: CrawlOptions = {}): Promise<{ html: string; title: string }> {
+  const { docs, title } = await crawlAll(source, opts);
   const parts = [docs[0].html];
   for (const d of docs.slice(1)) parts.push(`<section id="${escId(d.key)}">\n${d.html}\n</section>`);
-  return parts.join("\n");
+  return { html: parts.join("\n"), title };
 }

@@ -34,7 +34,7 @@ export type { CompileOptions, Compiled } from "./compile.js";
 // points (compile-browser.ts carries the same block): the browser compiler
 // does everything the Node one can, as architecture and as principle.
 export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
-export { crawlLocations, crawlDocument, fragmentHrefs, canonKey, type CrawlDoc, type CrawlOptions } from "./crawl.js";
+export { crawlLocations, crawlDocument, crawlExtract, fragmentHrefs, canonKey, type CrawlDoc, type CrawlOptions } from "./crawl.js";
 export { highlight, lineMetrics, type LineMetrics } from "./highlight.js";
 export type { ExtractOptions, Extracted } from "./static-html.js";
 export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";

@@ -34,7 +34,7 @@ export { highlight } from "./highlight.js";
 // principle). browser/boot-extract.js composes these with compileTracked below for
 // the static host's `?extract`. See static-html.ts / headless.ts.
 export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
-export { crawlLocations, crawlDocument, fragmentHrefs, canonKey } from "./crawl.js";
+export { crawlLocations, crawlDocument, crawlExtract, fragmentHrefs, canonKey } from "./crawl.js";
 export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
 /** Collapse `.` / `..` segments in a POSIX-ish path so the resolved key matches
  *  how the warm-load stores prefetched files (e.g. "library/bar.declare"). */

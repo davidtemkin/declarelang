@@ -37,6 +37,7 @@ export const LANGUAGE_METHOD_EFFECTS = new Map([
     // to the §3 residue. The NAVIGATION effect itself — the link relation — is
     // extracted separately, by links.ts, from the CALL SITE.
     ["navigate", []],
+    ["openWindow", []],
     // View.raise() (runtime/src/view.ts) — promotion: re-links the view as its
     // parent's last child (planes.md §1, order-as-slot). Structural mutation,
     // no reactive READ → pure for dependency analysis. A Menu raises at open;

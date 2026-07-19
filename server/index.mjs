@@ -25,9 +25,9 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from "
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { watch } from "node:fs";
-import { compile, isUpToDate, diskProbe, crawlDocument, diskDataResolver, crawlerDocument } from "../compiler/dist/compile-node.js";
-import { highlight } from "../compiler/dist/highlight.js";
-import { requestType, REQ, runWrapper, programName } from "../browser/serve-core.js";
+import { compile, isUpToDate, diskProbe, crawlExtract, diskDataResolver, crawlerDocument } from "../compiler/dist/compile-node.js";
+import { highlight, lineMetrics } from "../compiler/dist/highlight.js";
+import { requestType, REQ, runWrapper, programName, directoryProgram } from "../browser/serve-core.js";
 import { writeProduction } from "../tools/declarec.mjs";
 import { parseFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
 import { rebuildStale } from "../tools/internal/bundle-freshness.mjs";
@@ -92,7 +92,9 @@ function serveSource(res, absPath, relPath, rt, backendClass) {
   try { segments = highlight(source); }
   catch (e) { return send(res, 500, String((e && e.message) || e), "text/plain"); }
   if (rt === REQ.SEGMENTS)
-    return send(res, 200, JSON.stringify({ path: relPath, segments }), "application/json");
+    // metrics ride along so a self-loading viewer (an embedded one reading
+    // ?segments) shows the same line count the seeded channel provides
+    return send(res, 200, JSON.stringify({ path: relPath, segments, metrics: lineMetrics(source) }), "application/json");
   // The viewer's opening tab, straight from the request type — the viewer's INITIAL
   // location (docs/system-design/location.md §4): reader (highlighted + Markdown), source
   // (verbatim in the viewer), edit (workbench).
@@ -123,7 +125,8 @@ function sourcePage(relPath, segments, rawSource, backendClass, mode = "") {
     // __source__ = the highlight() segments (JSON); __raw__ = the verbatim source
     // (for the plain-text toggle — segments can't reconstruct it faithfully);
     // __path__ = the file shown. The viewer reads them off app.demoSources.
-    seeds: { __source__: JSON.stringify(segments), __raw__: rawSource, __path__: relPath },
+    seeds: { __source__: JSON.stringify(segments), __raw__: rawSource, __path__: relPath,
+      __metrics__: JSON.stringify(lineMetrics(rawSource)) },   // total/code/comment/blank — the compiler's own count
   };
   return `<!doctype html><meta charset="utf-8"><title>${esc(title)} — source</title>
 <base href="/apps/viewer/">
@@ -154,16 +157,17 @@ async function serveExtract(res, absPath, relPath) {
   // silently partial document. Typecheck is always on (a phase of the one compile).
   const compiled = compile(source, { originDir: path.dirname(absPath) });
   if (compiled.source === null) return send(res, 422, compiled.report, "text/plain; charset=utf-8");
-  let html;
+  let extracted;
   try {
-    html = await crawlDocument(compiled.source, {
+    extracted = await crawlExtract(compiled.source, {
       deps: compiled.deps, links: compiled.links,
       data: diskDataResolver(path.dirname(absPath)),
     });
   } catch (e) {
     return send(res, 422, String((e && e.message) || e), "text/plain; charset=utf-8");
   }
-  return send(res, 200, crawlerDocument(html, relPath.split("/").pop()));
+  // the document's <title>: the app's settled appName, else the filename
+  return send(res, 200, crawlerDocument(extracted.html, extracted.title || relPath.split("/").pop()));
 }
 
 const send = (res, code, body, type) => {
@@ -192,18 +196,24 @@ async function declareRunPage(urlPath, flags = DEFAULT_FLAGS) {
   // (a network DataSource) logs the loud message and serves the app un-baked, since
   // the page's first job is running — `?extract` is the surface that hard-fails.
   let staticBlock = "";
+  let title = "";
   if (flags.crawler) {
     try {
       const abs = path.join(ROOT, urlPath.replace(/^\/+/, ""));
       const compiled = compile(readFileSync(abs, "utf8"), { originDir: path.dirname(abs) });
-      const h = compiled.source === null ? null : await crawlDocument(compiled.source, {
+      const ex = compiled.source === null ? null : await crawlExtract(compiled.source, {
         deps: compiled.deps, links: compiled.links,
         data: diskDataResolver(path.dirname(abs)),
       });
-      if (h !== null) staticBlock = `<div id="declare-static">\n${h}\n</div>`;
+      if (ex !== null) {
+        staticBlock = `<div id="declare-static">\n${ex.html}\n</div>`;
+        title = ex.title;    // the settled appName names the crawled page (SEO reads this <title>)
+      }
     } catch (e) { console.error("crawler embed failed:", e.message); }
   }
-  return runWrapper({ name: programName(urlPath), bootUrl: "/bundles/declare-boot.js", staticBlock, iconBase: "/assets/" });
+  // `main` is passed explicitly (not left to location.pathname) so the shell also
+  // works when served at a directory-program URL (…/calendar/ for calendar.declare).
+  return runWrapper({ name: programName(urlPath), bootUrl: "/bundles/declare-boot.js", staticBlock, iconBase: "/assets/", main: urlPath, title });
 }
 
 function serveFrom(res, baseDir, rel) {
@@ -264,7 +274,9 @@ async function ensureProdBuild(name, backend = "dom") {
     toolchain: toolchainFingerprint(),
   };
   const fresh = (m) => {
-    if (!m || !m.closure || !existsSync(path.join(outDir, m.appName))) return false;
+    // `!m.moduleName` also retires disk manifests from before the appName→moduleName
+    // rename (path.join would throw on undefined) — they just rebuild once.
+    if (!m || !m.closure || !m.moduleName || !existsSync(path.join(outDir, m.moduleName))) return false;
     try { return isUpToDate(m.closure, propsNow, diskProbe); } catch { return false; }
   };
   let man = prodMem.get(key);
@@ -274,7 +286,7 @@ async function ensureProdBuild(name, backend = "dom") {
   }
   const built = await writeProduction({ source, name, srcDir: dir, outDir, render: backend, props: { toolchain: propsNow.toolchain } });  // miss → build
   if (!built.ok) return { error: built.errors, report: built.report };
-  man = { closure: built.closure, dir: outDir, appName: built.appName, sizes: built.sizes, assets: built.assets, used: built.usedComponents, builtAt: Date.now() };
+  man = { closure: built.closure, dir: outDir, moduleName: built.moduleName, sizes: built.sizes, assets: built.assets, used: built.usedComponents, builtAt: Date.now() };
   writeFileSync(manPath, JSON.stringify(man, null, 2));
   prodMem.set(key, man);
   return man;
@@ -367,6 +379,26 @@ http.createServer((req, res) => {
     //   …?file, or a plain FETCH (include, curl)  → the raw source bytes (text/plain)
     // The navigate/fetch split (Sec-Fetch-Mode, mirrored by the SW) means a bare RUN
     // navigation renders, while a subresource fetch of the same URL gets the bytes.
+    // ── The DIRECTORY-PROGRAM rule (serve-core.directoryProgram; the SW mirrors it):
+    // a URL naming a directory is a program URL for its name-matched program —
+    // …/name/ ≡ …/name/name.declare — with every request type composing identically.
+    // The no-slash form 301s to the slash form first (GitHub Pages' own behavior for
+    // a real directory), so relative resolution stays uniform across hosts. Existence
+    // gates the rule: a URL with no name-matched program behaves exactly as before.
+    if (!p.endsWith(".declare")) {
+      const cand = directoryProgram(p);
+      if (cand !== null) {
+        const cabs = path.join(ROOT, cand.replace(/^\/+/, ""));
+        if (cabs.startsWith(ROOT + path.sep) && existsSync(cabs) && statSync(cabs).isFile()) {
+          if (!p.endsWith("/")) {
+            res.writeHead(301, { location: p + "/" + new URL(req.url, "http://x").search });
+            return res.end();
+          }
+          p = cand;   // the program serves at its pretty directory URL
+        }
+      }
+    }
+
     if (p.endsWith(".declare")) {
       const params = new URL(req.url, "http://x").searchParams;
       const rt = requestType(params);

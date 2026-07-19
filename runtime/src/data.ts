@@ -293,13 +293,28 @@ export class DataSource extends Dataset {
   get loaded(): boolean { return this.status === "loaded"; }
   get failed(): boolean { return this.status === "failed"; }
 
+  /** `auto = true`: fetch whenever a NON-EMPTY url arrives or changes — the
+   *  reactive-address case, where the url derives from late-landing state
+   *  (`url = { app.env.program ? … : "" }`) and no handler exists to call
+   *  fetch() at the right moment. Push-driven off the url/auto slots; a
+   *  re-derive to the SAME address never refetches. Resolves the recorded
+   *  auto-fetch question: explicit fetch() stays the default, auto is opt-in. */
+  declare auto: boolean;
+  private autoUrl = "";
+
+  maybeAuto(): void {
+    if (!this.auto || this.url === "" || this.url === this.autoUrl) return;
+    this.autoUrl = this.url;
+    void this.fetch();
+  }
+
   /** Discards a superseded request: only the latest fetch/clear may land
    *  (the Image loader's sequence discipline). */
   private seq = 0;
 
   /** Fetch `url` (JSON over HTTP). Explicit by design — the weather app's
    *  entry screen decides when (`doEnterDown() { weatherData.fetch() }`);
-   *  whether a source should ever auto-fetch is a recorded open question. */
+   *  `auto = true` is the opt-in for reactive addresses (above). */
   async fetch(): Promise<void> {
     const seq = ++this.seq;
     setBound(this, "status", "loading");
@@ -328,7 +343,10 @@ export class DataSource extends Dataset {
 }
 
 defineAttributes(DataSource, {
-  url: { def: "" },
+  // both pushes route through maybeAuto, so `auto = true` + a url that lands
+  // later (or the reverse order) fetches exactly once per distinct address
+  url: { def: "", push: (d, _v) => (d as DataSource).maybeAuto() },
+  auto: { def: false, push: (d, _v) => (d as DataSource).maybeAuto() },
   format: { def: "json" },
   status: { def: "idle" },
   error: { def: null },

@@ -220,6 +220,14 @@ const AppSchema: ComponentSchema = {
     // the OS colour-scheme, `prefers-color-scheme: dark` — the runtime feeds it and
     // keeps it live as the system theme flips, so an app themes off `app.dark`.
     dark: { kind: "boolean" },
+    // The EMBEDDING ENVIRONMENT's parameters — a record the HOST provides and
+    // keeps live (an island's slot marker carries `|k=v&k2=v2` after the
+    // program path; host-client parses, coerces, and writes the whole record).
+    // A hosted app reads them REACTIVELY (`app.env.dark`) exactly as it reads
+    // `app.dark` — the clean pass-through for a desktop hosting a child app
+    // and pushing its appearance (or anything else) down. `{}` when top-level
+    // or when the host passes nothing, so reads never null-crash.
+    env: { kind: "object" },
     // `location` — the app's slice of the URL, the FRAGMENT (docs/system-design/location.md).
     // A two-way built-in the host wires with `TextInput.text`'s echo discipline:
     // seeded from the URL fragment BEFORE first settle (a deep link is just an
@@ -248,6 +256,14 @@ const AppSchema: ComponentSchema = {
     // A declared policy (readable statically), not clamp math in a constraint.
     minWidth: { kind: "number" },
     minHeight: { kind: "number" },
+    // `appName` — the app's human name; hosts surface it where names go (today:
+    // the browser page title, mirrored per settle by host-client; the extractor
+    // reads the SETTLED value for the crawled page's <title>). A literal
+    // (`appName = "Declare Calendar"`) or a constraint (the viewer derives the
+    // viewed file's name) — an ordinary reactive attr, so "dynamic title" is
+    // not a mechanism, just a binding. "" (the default) = no opinion; the host
+    // keeps its served title.
+    appName: { kind: "string" },
   },
   // hostWidth/hostHeight are read-only to user code (the runtime feeds them; a
   // set is a compile error) — like View's contentWidth/contentHeight.
@@ -497,6 +513,9 @@ const DataSourceSchema: ComponentSchema = {
     url: { kind: "string" },
     // "json" (default) or "text" — what the fetched bytes are (data.ts).
     format: { kind: "string" },
+    // auto-fetch on url arrival/change (data.ts maybeAuto) — the opt-in for
+    // REACTIVE addresses; explicit fetch() stays the default discipline.
+    auto: { kind: "boolean" },
   },
 };
 

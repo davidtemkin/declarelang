@@ -114,7 +114,18 @@ export class DomBackend implements RenderBackend {
         // (globally-shared) sink a second time — every non-idempotent click
         // handler in an island ran twice (an island Checkbox toggled on+off per
         // click, a counter counted by 2).
-        if (el !== null && el.closest("[data-declare-app]") !== rootEl) return null;
+        //
+        // But the press is not INVISIBLE to the embedding app: it REMAPS to the
+        // innermost OWNED element containing the child's root — the island — and
+        // the sink walk continues from there. The child keeps the event for its
+        // own views; the host hears a press ON ITS ISLAND (a different view, so
+        // no double delivery), which is how a desktop window hosting an embedded
+        // app comes to the front when its content is clicked.
+        while (el !== null) {
+          const owner = el.closest("[data-declare-app]");
+          if (owner === rootEl || owner === null) break;
+          el = owner.parentElement;
+        }
         while (el !== null) {
           if (SINKS.has(el)) break;
           el = el === rootEl ? null : el.parentElement;

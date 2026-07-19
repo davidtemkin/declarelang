@@ -30,7 +30,7 @@ import path from "node:path";
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, unlinkSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
-import { compileTracked, crawlDocument, diskDataResolver, crawlerDocument, lineMetrics } from "../../compiler/dist/compile-node.js";
+import { compileTracked, crawlExtract, diskDataResolver, crawlerDocument, lineMetrics } from "../../compiler/dist/compile-node.js";
 import { fnv1a } from "../../compiler/dist/closure.js";
 import { prewarmKey } from "../../browser/prewarm-cache.js";
 import { buildProduction } from "../declarec.mjs";
@@ -140,12 +140,13 @@ for (const prog of PROGRAMS) {
     // The CRAWLED document — every reachable location's content in the one page
     // (location.md §7). Data resolves from the program's own directory only (the
     // build-time rule); a network DataSource fails this script loudly.
-    const html = await crawlDocument(tracked.source, {
+    const ex = await crawlExtract(tracked.source, {
       deps: tracked.deps, links: tracked.links,
       data: diskDataResolver(path.join(ROOT, path.dirname(prog.main))),
     });
     const name = path.basename(prog.main).replace(/\.declare$/, "");
-    const document = html === null ? crawlerDocument("", name) : crawlerDocument(html, name);
+    // the document's <title>: the app's settled appName, else the filename
+    const document = ex === null ? crawlerDocument("", name) : crawlerDocument(ex.html, ex.title || name);
     writeArtifact(prewarmKey(prog.main, "crawler", {}), {
       main: prog.main, kind: "crawler", props: {},
       document,

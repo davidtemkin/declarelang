@@ -249,12 +249,19 @@ export class DataSource extends Dataset {
     get loading() { return this.status === "loading"; }
     get loaded() { return this.status === "loaded"; }
     get failed() { return this.status === "failed"; }
+    autoUrl = "";
+    maybeAuto() {
+        if (!this.auto || this.url === "" || this.url === this.autoUrl)
+            return;
+        this.autoUrl = this.url;
+        void this.fetch();
+    }
     /** Discards a superseded request: only the latest fetch/clear may land
      *  (the Image loader's sequence discipline). */
     seq = 0;
     /** Fetch `url` (JSON over HTTP). Explicit by design — the weather app's
      *  entry screen decides when (`doEnterDown() { weatherData.fetch() }`);
-     *  whether a source should ever auto-fetch is a recorded open question. */
+     *  `auto = true` is the opt-in for reactive addresses (above). */
     async fetch() {
         const seq = ++this.seq;
         setBound(this, "status", "loading");
@@ -285,7 +292,10 @@ export class DataSource extends Dataset {
     }
 }
 defineAttributes(DataSource, {
-    url: { def: "" },
+    // both pushes route through maybeAuto, so `auto = true` + a url that lands
+    // later (or the reverse order) fetches exactly once per distinct address
+    url: { def: "", push: (d, _v) => d.maybeAuto() },
+    auto: { def: false, push: (d, _v) => d.maybeAuto() },
     format: { def: "json" },
     status: { def: "idle" },
     error: { def: null },

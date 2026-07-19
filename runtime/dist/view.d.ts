@@ -341,6 +341,10 @@ export declare class App extends View {
      *  the runtime. Theme an app off it: `fill = { app.dark ? 0x0B141B : 0xFFFFFF }`
      *  or drive a `theme` record from it. Read-only to user code. */
     dark: boolean;
+    /** The embedding environment's parameters (see schema.ts `env`): a record
+     *  the host provides and keeps live; `{}` when top-level. Read reactively —
+     *  `theme = { Themes.x(app.env.dark == true) }` follows the host's flips. */
+    env: Record<string, unknown>;
     /** The shipping page's over-the-wire size in KB (gzipped) and its Declare
      *  source line count — provided by the host/build (see index.ts note), 0
      *  until set. Reactive reads: a stat bound to them settles when they land. */
@@ -384,6 +388,14 @@ export declare class App extends View {
      *  convention). */
     createView(tag: string, parent: View, props?: Record<string, unknown>): View;
     navigate(to: string): void;
+    /** app→host channel for openWindow, exactly like pendingNav: the verb writes
+     *  it, the host polls it on the next frame and window.opens (still inside the
+     *  click's transient user activation, so it isn't popup-blocked). */
+    pendingOpen: string;
+    /** openWindow(to) — navigate's NEW-WINDOW sibling (a "View Source" that must
+     *  not replace the running app). Same discipline: bodies never touch
+     *  `window`, the intent rides a channel the host owns. */
+    openWindow(to: string): void;
     /** The reveal intent held from `location`'s trailing `@name` (location.md §6) —
      *  null when the location carries no anchor. Retained across settles until the
      *  name appears in a settled tree; re-armed or cancelled when `location` changes. */
@@ -408,6 +420,12 @@ export declare class App extends View {
      *  own formula and wins untouched. */
     minWidth: number;
     minHeight: number;
+    /** The app's human name — hosts surface it where names go: the page title
+     *  (host-client mirrors it per settle, before the location history push so
+     *  back/forward entries carry the state's name) and the crawled document's
+     *  <title> (the extractor reads the settled value). Author-settable, literal
+     *  or constraint; "" (the default) leaves the host's served title alone. */
+    appName: string;
     /** The App's auto-extent is the HOST, not its content: an unset width/height
      *  follows hostWidth/hostHeight (reactive on resize), so the root app fills its
      *  enclosing area with no declaration — the near-universal case. An explicit

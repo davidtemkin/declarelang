@@ -137,15 +137,66 @@ async function pruneBuckets(build) {
   } catch {}
 }
 
+// ── The LAUNCHER entry URL (`index.html?apps/calendar`) ──────────────────────
+// One shareable URL that works COLD on a static host: a bare-path query on an
+// entry page names a target program; the page installs the service worker
+// FIRST, then navigates — so the `.declare` (or directory-program) URL arrives
+// with the SW already in control and becomes a run page instead of raw source.
+// The same URL is consistent under the dev server: the server marks its HTML
+// (`__declareServer`), no SW is wanted, and the launcher redirects immediately
+// (the server answers the target directly). Gated on cfg.launcher so ordinary
+// run pages never reinterpret their own query params (?render, ?viewer…).
+
+/** The launch target from a bare-path query, else null. The grammar: the whole
+ *  search string is the target when it reads as a relative path (contains "/"
+ *  with no "=" before it) — `?apps/calendar`, `?apps/docs/docs.declare?render=canvas`.
+ *  Ordinary flag queries (?crawler, ?render=canvas) never match. */
+function launchTarget() {
+  const raw = location.search.slice(1);
+  if (raw === "") return null;
+  const slash = raw.indexOf("/"), eq = raw.indexOf("=");
+  if (slash < 0 || (eq >= 0 && eq < slash)) return null;
+  let url;
+  try { url = new URL(decodeURIComponent(raw), location.href); } catch { return null; }
+  // Same-origin and inside this entry page's directory — kills absolute URLs,
+  // protocol-relative hosts, and `..` escapes (URL normalizes them first).
+  const base = new URL("./", location.href);
+  if (url.origin !== base.origin || !url.pathname.startsWith(base.pathname)) return null;
+  if (url.hash === "" && location.hash !== "") url.hash = location.hash;   // carry the fragment through
+  return url;
+}
+
+/** Install the SW (static host), then hand the navigation over. Under the dev
+ *  server (marker) or with no SW support, redirect at once — the server serves
+ *  the target directly. `ready` never rejects, so a bounded race keeps a
+ *  broken registration (private mode, plain-http LAN) from hanging the launch:
+ *  on timeout we navigate anyway — no worse than today's cold link. */
+async function launchTo(url) {
+  document.title = "Declare · launching…";
+  if (!window.__declareServer && "serviceWorker" in navigator) {
+    registerServiceWorker();
+    await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise((r) => setTimeout(r, 4000)),
+    ]);
+  }
+  location.replace(url.href);
+}
+
 /**
  * @param cfg {{
  *   main: string,                  // page's .declare, relative to the page (e.g. "./calendar.declare")
  *   backend?: "DomBackend"|"CanvasBackend",
  *   pageWeight?: number, sourceLines?: number,
  *   demos?: string[],              // (site) demo names under <main-dir>/demos/<name>.declare to seed
+ *   launcher?: boolean,            // entry page: a bare-path query launches that program (see launchTarget)
  * }}
  */
 export default async function boot(cfg) {
+  if (cfg.launcher) {
+    const target = launchTarget();
+    if (target !== null) { await launchTo(target); return; }
+  }
   registerServiceWorker();
 
   const mainUrl = new URL(cfg.main, location.href);

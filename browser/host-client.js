@@ -105,8 +105,19 @@ export async function bootHost(cfg) {
     mirrored = app.location;                            // the host wrote it — don't echo it back as a push
   };
   addEventListener("popstate", onPop);
+  // app.appName → document.title, the same mirror-per-settle discipline as
+  // location (the app never touches document; the name rides a declared attr
+  // the host owns). "" = no opinion — the served title stands. Mirrored BEFORE
+  // the history push below, so back/forward entries are labeled with the state
+  // they represent (the browser snapshots document.title at push time).
+  const servedTitle = document.title;
+  let titled = "";                                      // what document.title currently reflects
   const locTick = () => {
     if (stopped) return;
+    if (app.appName !== titled) {
+      titled = app.appName;
+      document.title = app.appName || servedTitle;
+    }
     if (app.location !== mirrored) {                   // the app navigated — one push per changed settle
       mirrored = app.location;
       const frag = app.location === locationInitial ? "" : app.location;   // clean URL at the default (§3)
@@ -136,11 +147,14 @@ export async function bootHost(cfg) {
   const navTick = () => {
     if (stopped) return;
     if (app.pendingNav) { const u = app.pendingNav; app.pendingNav = ""; location.href = new URL(u, DISTRO_ROOT).href; }
+    // openWindow's channel: a NEW window/tab. The rAF after the click is still
+    // inside the browser's transient user activation, so this isn't popup-blocked.
+    if (app.pendingOpen) { const u = app.pendingOpen; app.pendingOpen = ""; window.open(new URL(u, DISTRO_ROOT).href, "_blank"); }
     raf.nav = requestAnimationFrame(navTick);
   };
   raf.nav = requestAnimationFrame(navTick);
 
-  const runIsland = (demo) => host.querySelector('[data-declare-slot="run:' + demo + '"]');
+  const runIsland = (demo) => host.querySelector('[data-declare-slot^="run:' + demo + '"]');   // ^= : the slot may carry an env segment
 
   // Render an ALREADY-COMPILED program as an embedded child app inside <box>. The
   // box lives inside THIS app's marked tree, so the child auto-detects it is embedded
@@ -196,11 +210,38 @@ export async function bootHost(cfg) {
   // duplicate compiles, and only set `wired` once we actually have output. A null keeps
   // the box eligible so the next rAF tick retries — the preview mounts the moment the
   // compiler is ready, whether the editor was opened before or after it loaded.
+  // The slot marker's ENV segment: after the program path, `|k=v&k2=v2` is the
+  // embedding environment — parsed here, coerced (true/false/numeric), and
+  // written WHOLESALE to the child app's reactive `app.env`, at mount and on
+  // every later change (the invoker's slot is a constraint, so a host flipping
+  // dark mode re-marks the slot and the child re-derives — the clean
+  // pass-through).
+  const parseEnv = (q) => {
+    const env = {};
+    for (const pair of (q || "").split("&")) {
+      if (!pair) continue;
+      const eq = pair.indexOf("=");
+      const k = eq < 0 ? pair : pair.slice(0, eq);
+      const v = eq < 0 ? "true" : pair.slice(eq + 1);
+      env[k] = v === "true" || v === "1" ? true : v === "false" || v === "0" ? false
+        : v !== "" && !isNaN(Number(v)) ? Number(v) : v;
+    }
+    return env;
+  };
+
   function mountPreviews() {
     host.querySelectorAll('[data-declare-slot^="run:"]').forEach(async (box) => {
+      const spec = box.dataset.declareSlot.split(":").slice(1).join(":").split("|");
+      const name = spec[0];
+      const env = parseEnv(spec[1]);
+      const ejson = JSON.stringify(env);
+      // live env sync for an already-mounted child
+      if (box.__childApp && box.dataset.envJson !== ejson) {
+        box.dataset.envJson = ejson;
+        box.__childApp.env = env;
+      }
       if (box.dataset.wired || box.dataset.wiring) return;
       box.dataset.wiring = "1";                              // in-flight: one compile at a time
-      const name = box.dataset.declareSlot.split(":")[1];
       // precompiled entries are a bare compiled-source string (the legacy static
       // artifact channel); normalize to the `{ source }` result shape renderChild
       // takes. A live compile already returns `{ source, deps }`.
@@ -212,13 +253,19 @@ export async function bootHost(cfg) {
         try { compiled = await cfg.prewarm(name); } catch {}
       }
       if (compiled == null) {
+        // "__"-named slots are LIVE-EDIT channels (__raw__, __page__), never
+        // fetchable files: unseeded, they mount only when an edit publishes
+        // through watchLive — skip quietly instead of 404-ing every frame.
+        if (name.startsWith("__") && seeds[name] == null) { delete box.dataset.wiring; return; }
         const src = await sourceFor(name);                  // seed, or fetched on demand
         compiled = src == null ? null : await compile(src); // src null (fetch failed) ⇒ retry next tick
       }
       delete box.dataset.wiring;
       if (!compiled || !compiled.source) return;             // compiler not warm / source not in yet — retry next tick
       box.dataset.wired = "1";                               // committed: don't remount
-      renderChild(box, compiled);
+      renderChild(box, compiled).then(() => {
+        if (box.__childApp) { box.dataset.envJson = ejson; box.__childApp.env = env; }
+      });
     });
   }
   const mtick = () => { if (stopped) return; mountPreviews(); raf.mount = requestAnimationFrame(mtick); };
@@ -229,20 +276,30 @@ export async function bootHost(cfg) {
   // AND feeds the rendered report to `app.liveReport` (a delegate that reports failure
   // returns `{ report }` instead of null), so an editing surface can show the error; a
   // clean compile clears it. A null result (compiler not warm / network) changes nothing.
-  let liveSig = app.liveCard + "\x00" + app.liveSource, liveTimer;
+  // Live edits are watched on EVERY app on the page — the page app AND each
+  // embedded child (an embedded Declare Viewer's Edit tab publishes
+  // liveCard/liveSource on ITS OWN app) — with the child's preview island
+  // scoped to the child's box so two hosted viewers never cross wires.
+  const liveSigs = new WeakMap(), liveTimers = new WeakMap();
+  const watchLive = (theApp, scope) => {
+    const sig = theApp.liveCard + "\x00" + theApp.liveSource;
+    if (liveSigs.get(theApp) === sig) return;
+    liveSigs.set(theApp, sig);
+    const box = scope.querySelector('[data-declare-slot^="run:' + theApp.liveCard + '"]');
+    const body = theApp.liveSource;
+    clearTimeout(liveTimers.get(theApp));
+    if (box) liveTimers.set(theApp, setTimeout(async () => {
+      const r = await compile(body);
+      if (r && r.source) { theApp.liveReport = ""; renderChild(box, r); }
+      else if (r && r.report != null) theApp.liveReport = String(r.report);
+    }, 180));
+  };
   const liveTick = () => {
     if (stopped) return;
-    const sig = app.liveCard + "\x00" + app.liveSource;
-    if (sig !== liveSig) {
-      liveSig = sig;
-      const box = runIsland(app.liveCard), body = app.liveSource;
-      clearTimeout(liveTimer);
-      if (box) liveTimer = setTimeout(async () => {
-        const r = await compile(body);
-        if (r && r.source) { app.liveReport = ""; renderChild(box, r); }
-        else if (r && r.report != null) app.liveReport = String(r.report);
-      }, 180);
-    }
+    watchLive(app, host);
+    host.querySelectorAll('[data-declare-slot^="run:"]').forEach((box) => {
+      if (box.__childApp) watchLive(box.__childApp, box);
+    });
     raf.live = requestAnimationFrame(liveTick);
   };
   raf.live = requestAnimationFrame(liveTick);

@@ -43,3 +43,11 @@ export declare function crawlLocations(source: string, opts?: CrawlOptions): Pro
  *  into a click-through addresses the live app identically. This is what `?extract`
  *  returns and `?crawler` bakes when the caller asks for the crawl. */
 export declare function crawlDocument(source: string, opts?: CrawlOptions): Promise<string>;
+/** crawlDocument plus the settled `appName` as `title` — for callers baking a
+ *  full page around the extraction (`crawlerDocument`, the run-page `<title>`),
+ *  so the crawled page is named by the app, not the filename. "" = no declared
+ *  name; the caller falls back to whatever it titled the page before. */
+export declare function crawlExtract(source: string, opts?: CrawlOptions): Promise<{
+    html: string;
+    title: string;
+}>;

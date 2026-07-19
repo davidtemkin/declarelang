@@ -556,6 +556,14 @@ export class App extends View {
         return viewCreator(this, tag, parent, props);
     }
     navigate(to) { this.pendingNav = to; }
+    /** app→host channel for openWindow, exactly like pendingNav: the verb writes
+     *  it, the host polls it on the next frame and window.opens (still inside the
+     *  click's transient user activation, so it isn't popup-blocked). */
+    pendingOpen = "";
+    /** openWindow(to) — navigate's NEW-WINDOW sibling (a "View Source" that must
+     *  not replace the running app). Same discipline: bodies never touch
+     *  `window`, the intent rides a channel the host owns. */
+    openWindow(to) { this.pendingOpen = to; }
     /** The reveal intent held from `location`'s trailing `@name` (location.md §6) —
      *  null when the location carries no anchor. Retained across settles until the
      *  name appears in a settled tree; re-armed or cancelled when `location` changes. */
@@ -607,6 +615,9 @@ export class App extends View {
         }
     }
 }
+// One shared, frozen empty record for every top-level app's `env` — safe to
+// share because hosts REPLACE the record wholesale, never mutate it.
+const EMPTY_ENV = Object.freeze({});
 defineAttributes(App, {
     // Stored reactive slots the runtime feeds (index.ts). Read-only to USER code
     // via schema.readOnly (a compile error) — not `readOnly: true` here, which
@@ -620,6 +631,10 @@ defineAttributes(App, {
     hovering: { def: false },
     pointerOverText: { def: false },
     dark: { def: false },
+    // the embedding environment's parameters (schema.ts): the HOST replaces the
+    // whole record on every change (never mutates), so the default may be one
+    // shared frozen empty object — reads like `app.env.dark` never null-crash
+    env: { def: EMPTY_ENV },
     pageWeight: { def: 0 },
     sourceLines: { def: 0 },
     // `location` — the app's URL fragment (docs/system-design/location.md). A stored reactive
@@ -633,6 +648,8 @@ defineAttributes(App, {
     // the size floor (bindExtent) — author-settable, 0 = none
     minWidth: { def: 0 },
     minHeight: { def: 0 },
+    // the app's human name (page title etc.) — author-settable, "" = host default
+    appName: { def: "" },
 });
 /** DOMIsland — a foreign-content island (design: the `DOMIsland [ … ]` view). A leaf View
  *  whose box Declare lays out and constrains normally, but whose interior is

@@ -28,12 +28,12 @@
 // and the dev server's are ONE function (browser/serve-core.js) — needs a modern browser
 // (Chrome 91+ / Safari 16.4+ / Firefox 111+).
 
-import { requestType, REQ, runWrapper, programName, escapeHtml } from "./browser/serve-core.js";
+import { requestType, REQ, runWrapper, programName, escapeHtml, directoryProgram } from "./browser/serve-core.js";
 
 // BUILD_ID — a content hash of the platform (runtime + compiler bundle + web client +
 // this worker + index.html), stamped by tools/internal/stamp-version.mjs. Left "dev" when unstamped
 // (local serving); a real deploy stamps it so cache-busting + the SW self-update engage.
-const BUILD_ID = "bcad6857b627";
+const BUILD_ID = "475ce439600a";
 
 const ROOT = new URL("./", self.location);            // <origin>/…/  (this worker's dir == the distro root)
 const ORIGIN = ROOT.origin;
@@ -88,6 +88,31 @@ self.addEventListener("fetch", (event) => {
     // FILE / SEGMENTS / BUILD → fall through to revalidate() below (the raw bytes).
   }
 
+  // The DIRECTORY-PROGRAM rule, mirrored from the dev server (serve-core.
+  // directoryProgram): …/name/ is a program URL for …/name/name.declare when that
+  // source exists. The candidate is probed over the network, so the rule never
+  // shadows a real asset — a miss falls through to plain revalidation. The
+  // no-slash form redirects to the slash form (the host's own behavior for a
+  // real directory), keeping relative resolution uniform.
+  if (req.mode === "navigate" && !url.pathname.endsWith(".declare")) {
+    const cand = directoryProgram(url.pathname);
+    if (cand !== null) {
+      event.respondWith((async () => {
+        const probe = await fetch(new URL(cand, url.origin).href, { method: "HEAD", cache: "no-cache" }).catch(() => null);
+        if (probe === null || !probe.ok) return revalidate(req);
+        if (!url.pathname.endsWith("/")) return Response.redirect(url.pathname + "/" + url.search, 301);
+        const purl = new URL(url.href);
+        purl.pathname = cand;
+        const view = requestType(url.searchParams);
+        if (view === REQ.READER || view === REQ.SOURCE || view === REQ.EDIT) return sourcePageResponse(purl, view);
+        if (view === REQ.EXTRACT) return extractPageResponse(purl);
+        if (view === REQ.RUN) return hostPageResponse(purl);
+        return revalidate(new Request(purl.href));   // FILE / SEGMENTS / BUILD → the candidate's bytes
+      })());
+      return;
+    }
+  }
+
   // Everything else → revalidate against the host (fresh-on-deploy, cache as offline fallback).
   event.respondWith(revalidate(req));
 });
@@ -118,6 +143,9 @@ async function hostPageResponse(url) {
     name: programName(url.pathname),
     bootUrl: new URL("bundles/declare-boot.js", ROOT).href + "?v=" + BUILD_ID,
     iconBase: new URL("assets/", ROOT).href,
+    // explicit, so the shell also works at a directory-program URL (the caller
+    // passes the CANDIDATE pathname there, not the page's own)
+    main: url.pathname,
   });
   return new Response(html, { status: 200, headers: { "Content-Type": "text/html;charset=utf-8", "Cache-Control": "no-cache" } });
 }
