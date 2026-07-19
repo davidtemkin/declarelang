@@ -542,10 +542,17 @@ App [ minWidth = 900, minHeight = 600,
         width = { this.plate.width },
         x = { (app.width - this.width) / 2 },
         y = { app.height - 82 },
-        plate: View [ x = 0, y = { parent.height - 61 }, height = 61, width = { parent.row.width + 18 },
+
+        // sampled from the real dock (2026-07-18): at REST the icons sit
+        // clearly INSIDE the plate; a magnified icon crests above its top —
+        // bottom-anchored, top rises. The row must be dock-height: the icons'
+        // bottom anchor reads parent.height, and a shorter row floated them
+        // above the plate at rest (the bug this sampling caught).
+
+        plate: View [ x = 0, y = { parent.height - 64 }, height = 64, width = { parent.row.width + 18 },
             cornerRadius = 20, fill = { app.darkMode ? 0x2A2A30 : 0xFCFCFE }, opacity = 0.72,
             stroke = { stroke(1, app.darkMode ? 0xFFFFFF33 : 0xFFFFFF80) } ],
-        row: View [ x = 9, y = 0, height = 70,
+        row: View [ x = 9, y = 0, height = { parent.height },
             layout: SimpleLayout [ axis = x, spacing = 8 ],
             DockIcon [ ix = 0, name = "Finder", glyph = "⌘", hue1 = #59B0F6, hue2 = #1D6FD1,
                 running = true,
