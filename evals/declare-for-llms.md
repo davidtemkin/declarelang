@@ -302,7 +302,7 @@ Also provided, undeclared: keyboard focus travels the controls (Tab / Shift-Tab;
 | you want | read |
 |---|---|
 | the full language spec (~680 lines, authoritative) | `docs/system-design/declare-language.md` |
-| the guided tour, concept by concept | `docs/guide/00-overview.md` → `10-tutorial.md` → … |
+| the guided tour, concept by concept | `docs/guide/01-thinking-in-declare.md` → `02-two-brackets.md` → … → `13-calendar.md` |
 | the idiom at real scale, annotated | `apps/calendar/calendar.declare` · `apps/homepage/homepage.declare` |
 | what's deliberately not settled yet | `docs/system-design/declare-language.md` §13 |
 | the reactivity model's rules | `docs/system-design/constraints.md` |

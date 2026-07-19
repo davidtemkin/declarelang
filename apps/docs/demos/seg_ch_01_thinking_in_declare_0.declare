@@ -1,0 +1,13 @@
+App [ width = 400, height = 140, fill = darkslategray, textColor = whitesmoke,
+
+    count: number = 0,                               // reactive state
+
+    add: View [ x = 20, y = 20, width = 108, height = 34, cornerRadius = 8, fill = royalblue,
+        onClick() { count = count + 1 },
+        Text [ x = 16, y = 8, text = "Add one" ],
+        ],
+
+    Text [ y = 74, x = { (parent.width - this.width) / 2 },
+        text = { `Clicked ${count} times` },         // re-runs whenever count changes
+        ],
+    ]

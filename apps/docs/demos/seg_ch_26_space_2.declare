@@ -1,8 +1,0 @@
-App [ fill = white, textColor = black, minWidth = 360,
-    col: View [ x = { app.width < 480 ? 16 : 40 }, y = 24,
-        width = { app.width - (app.width < 480 ? 32 : 80) },
-        layout: SimpleLayout [ axis = y, spacing = 10 ],
-        Text [ fontSize = { app.width < 480 ? 20 : 30 }, fontWeight = bold, text = "Responsive" ],
-        Text [ textColor = slategray, text = "gutters and size key off app.width" ],
-        ],
-    ]

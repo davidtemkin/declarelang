@@ -282,7 +282,7 @@ tight code and wide prose.
 
 ## anchor
 Names this view as a **reveal target** for a location's `@name` suffix
-(`#guide/22-reach@intro` scrolls to the view with `anchor = "intro"`). The `<a name>`
+(`#guide/04-tree@intro` scrolls to the view with `anchor = "intro"`). The `<a name>`
 lineage, reborn reactive: the anchor namespace is named views (this attribute) plus
 heading slugs inside rendered rich text — a heading needs nothing from you. Resolution
 prefers views over slugs, preorder-first.

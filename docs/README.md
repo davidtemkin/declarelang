@@ -11,7 +11,7 @@ teaching corpus.) The governing spec is
 | where | what | start at |
 |---|---|---|
 | [`declare.md`](declare.md) | **The core doc** — the whole language stated once: spec, rationale, and the working brief. | top |
-| [`guide/`](guide/) | **The guide** — the teaching path, in chapter order (the numeric prefix is ordering, not identity). | [`00-shape.md`](guide/00-shape.md) |
+| [`guide/`](guide/) | **The guide** — the teaching path, in chapter order (the numeric prefix is ordering, not identity). | [`01-thinking-in-declare.md`](guide/01-thinking-in-declare.md) |
 | [`operational/`](operational/) | **Operating the toolchain** — server, builds, verify, format, flags. | [`getting-started.md`](operational/getting-started.md) |
 | the reference | **Generated from the `@api` surface** — browsable in the docs app (`apps/docs/`); the data rides [`declare-model.json`](declare-model.json). | the docs app |
 | [`declare-model.json`](declare-model.json) | **The comprehensive machine model** — the SPINE (schemas, enum tokens, flags, requests, diagnostic codes, library, commands) + links + reference + guide, assembled from the live registries (`tools/internal/doc/assemble.mjs`); its `meta.pipeline` describes its own derivation. Generated; do not edit. | — |
@@ -23,8 +23,8 @@ reference to look things up.
 ## Linking — `declare-docs:` symbolic IDs
 
 Docs link to each other by **symbolic ID**, never by file path or heading text:
-`[Reach](declare-docs:guide:reach)`. IDs are *generated* from the corpus — a guide
-chapter's ID is its filename minus the ordering prefix (`20-tree.md` → `guide:tree`),
+`[Reach](declare-docs:guide:tree)`. IDs are *generated* from the corpus — a guide
+chapter's ID is its filename minus the ordering prefix (`04-tree.md` → `guide:tree`),
 an operational page's is its filename (`operational:verify`), a reference symbol's is
 the symbol itself (`View.width`) — so files renumber and move freely under stable IDs.
 

@@ -48,5 +48,5 @@ Two delimiters carry the whole model: **`[ … ]`** is the view tree — compone
 ## Where everything is
 
 - [**docs/declare.md**](https://github.com/davidtemkin/declarelang/blob/main/docs/declare.md) — the whole language, in one file, for you and your model.
-- [**The guide**](https://github.com/davidtemkin/declarelang/blob/main/docs/guide/00-shape.md) — how to think in Declare, starting from an app just like the one above.
+- [**The guide**](https://github.com/davidtemkin/declarelang/blob/main/docs/guide/01-thinking-in-declare.md) — how to think in Declare, starting from an app just like the one above.
 - [**GitHub**](https://github.com/davidtemkin/declarelang) — the full source. The homepage you are reading is itself a Declare app, and every app is editable in the browser.

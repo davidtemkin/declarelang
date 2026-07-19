@@ -53,7 +53,7 @@ cover; fetch the one chapter your task needs).
 ## The inventory (resident on purpose — you will NOT think to look these up)
 
 <!-- generated:inventory -->
-- **Built-ins you must not redeclare** (read-only ones are computed for you): every View has `x y width height fill cornerRadius stroke shadow visible opacity scale pivotX pivotY clip scrolls tip scrollsX scrollY textColor fontSize fontFamily fontWeight letterSpacing headingColor headingWeight linkColor codeColor codeSize codeFamily codeBackground codeRule richTextLayout theme selectable styles stylesheet layout datapath focusable focustrap anchor` and read-only `contentWidth contentHeight`; App adds `scrollY pointerX pointerY hovering pointerOverText location minWidth minHeight` and read-only `hostWidth hostHeight dark`. `location` is the URL fragment (two-way: write it to navigate, derive state from it, never assign the derived state); `anchor` names a view as an `@name` reveal target. Naming a derived value `contentWidth` is an error — pick `bodyW`, `colW`, etc.
+- **Built-ins you must not redeclare** (read-only ones are computed for you): every View has `x y width height fill cornerRadius stroke shadow visible opacity scale pivotX pivotY clip scrolls tip scrollsX scrollY textColor fontSize fontFamily fontWeight letterSpacing headingColor headingWeight linkColor codeColor codeSize codeFamily codeBackground codeRule richTextLayout theme selectable cursor styles stylesheet layout datapath focusable focustrap anchor` and read-only `contentWidth contentHeight`; App adds `scrollY pointerX pointerY hovering pointerOverText location minWidth minHeight` and read-only `hostWidth hostHeight dark`. `location` is the URL fragment (two-way: write it to navigate, derive state from it, never assign the derived state); `anchor` names a view as an `@name` reveal target. Naming a derived value `contentWidth` is an error — pick `bodyW`, `colW`, etc.
 - **Token values, not CSS values**: `FontWeight` = thin extralight light regular normal medium semibold bold extrabold black; `TextAlign` = left center right; `Stretch` = none width height both; `Axis` = x y; `Process` = sequential simultaneous — NEVER numeric weights (700 is CSS). Layout `axis` is a literal — to change arrangement responsively, constrain each child's `x`/`y` off a flag.
 - **Dataset mutation verbs** (from handlers): `data.set(path, v)` · `data.insert(path, index, v)` · `data.removeAt(path, index)` · `data.move(path, from, to)` — a verb's path is a DOTTED STRING (`"rows"`, `"rows.3.done"`); only `read` takes an array (`data.read(["rows"])`). Adding a row: `tasks.insert("rows", tasks.read(["rows"]).length, ({ label: t, done: false }))`.
 - **The standard library**: `$provide`, `Checkbox`, `Button`, `Switch`, `Slider`, `RadioGroup`, `Radio`, `Field`, `ProgressBar`, `TabSlider`, `Tab`, `Tooltip`, `Menu`, `MenuBar`, `Dialog`, plus the built-in `TextInput` — values flow derive-down (`value = { app.x }`) and deliver-up (`input(v) { app.x = v }` — the built-in TextInput's event is `onInput(v)`).
@@ -67,18 +67,16 @@ README.md) — not to this file's location.
 
 | task involves | read |
 |---|---|
-| first program, program shape | docs/guide/00-shape.md |
-| lists, replication, datasets, editing data | docs/guide/27-data.md |
-| layout, sizing, responsive | docs/guide/26-space.md |
-| buttons, sliders, inputs (the standard library) | docs/guide/24-controls.md |
-| colors, borders, shadows, themes, type | docs/guide/25-appearance.md |
-| hover/press/drag, keyboard | docs/guide/23-interaction.md |
-| states, springs, animation | docs/guide/28-continuity.md |
-| `this`/`parent`/`classroot`/`app` confusion | docs/guide/22-reach.md |
-| classes, composition, named children | docs/guide/20-tree.md |
-| constraints not updating, setter rules | docs/guide/21-constraints.md |
-| text, Markdown, images | docs/guide/30-content.md |
-| deep links, the URL, anchors, crawlers | docs/guide/33-addressable.md |
+| first program, program shape, the two delimiters | docs/guide/02-two-brackets.md |
+| lists, replication, datasets, editing data, Markdown/loading documents | docs/guide/08-data.md |
+| layout, sizing, positions, responsive | docs/guide/05-space.md |
+| buttons, sliders, inputs (the standard library); hover/press/drag, keyboard | docs/guide/07-interaction.md |
+| colors, borders, shadows, themes, type, fonts | docs/guide/06-style.md |
+| states, springs, animation | docs/guide/09-motion-and-modes.md |
+| whole-arrangement motion (sprung scalars, derived geometry) | docs/guide/10-arrangement.md |
+| `this`/`parent`/`classroot`/`app` confusion; classes, composition, named children | docs/guide/04-tree.md |
+| constraints not updating, setter rules | docs/guide/03-relationships.md |
+| deep links, the URL, anchors, crawlers; run/verify/ship | docs/guide/11-loop.md |
 | the whole language, terse | docs/declare.md |
 | an exact fact — attribute names, enum tokens, flags, commands, diagnostic codes | docs/declare-model.json (`spine` — grep it; don't read it whole) |
 

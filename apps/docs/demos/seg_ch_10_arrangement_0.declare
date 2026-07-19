@@ -1,0 +1,36 @@
+class Cell extends View [ cornerRadius = 6, fill = #18242F, clip = true,
+    x = { :col * app.colW + 2 },
+    y = { (:row - app.r0) * app.rowH + 2 },
+    width = { app.colW - 4 },
+    height = { app.rowH - 4 },
+    onClick() { app.pick(:row) },
+    n: Text [ x = 8, y = 6, fontSize = 12, textColor = #C7D3DC, text = { "" + :n } ],
+    ]
+
+App [ width = 420, height = 240, fill = #0D151E,
+    mode: string = "month",
+    anchorRow: number = 0,
+
+    r0To: number = { app.mode == "week" ? app.anchorRow : 0 },
+    nrTo: number = { app.mode == "week" ? 1 : 3 },
+    r0: number = 0,
+    nr: number = 3,
+    Spring [ attribute = r0, to = { app.r0To }, stiffness = 150, damping = 24 ],
+    Spring [ attribute = nr, to = { app.nrTo }, stiffness = 150, damping = 24 ],
+
+    colW: number = { (app.width - 32) / 7 },
+    rowH: number = { (app.height - 32) / app.nr },
+
+    pick(r) { if (this.mode == "month") { this.anchorRow = r; this.mode = "week" } else this.mode = "month" },
+    cells() {
+        const out = []
+        for (let i = 0; i < 21; i++) out.push({ n: i + 1, col: i % 7, row: Math.floor(i / 7) })
+        return { cells: out }
+        },
+    grid: Dataset [ contents = { app.cells() } ],
+
+    board: View [ x = 16, y = 16, width = { app.width - 32 }, height = { app.height - 32 }, clip = true,
+        datapath = { grid.value },
+        Cell [ datapath = :cells[], key = :n ],
+        ],
+    ]

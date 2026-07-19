@@ -45,4 +45,4 @@ around **45 KB gzipped**. Four things keep it small:
 checked against a closure hash so a warm start skips compilation without trusting a stale
 artifact. It keeps the compile-on-request model fast; it is not a `declarec` build. Keeping
 those two "precompiled" senses distinct avoids confusion. The concepts are
-[Ship it](declare-docs:guide:shipping); this page is the commands.
+[Ship it](declare-docs:guide:loop); this page is the commands.

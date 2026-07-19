@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "buildId": "bde3f35fcee4",
+  "buildId": "7a20c4be9e2a",
   "nodes": {
     "View.x": {
       "id": "View.x",
@@ -16,7 +16,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 512
+        "line": 543
       },
       "parent": "View",
       "seeAlso": [],
@@ -40,7 +40,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 513
+        "line": 544
       },
       "parent": "View",
       "seeAlso": [],
@@ -64,7 +64,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 514
+        "line": 545
       },
       "parent": "View",
       "seeAlso": [],
@@ -88,7 +88,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 515
+        "line": 546
       },
       "parent": "View",
       "seeAlso": [],
@@ -115,7 +115,7 @@
               "id": "seg_View_fill_0",
               "source": "App [\n    View [ fill = { gradient(\"90deg\", 0x1E2A36, 0x0B141B) } ]\n]",
               "lines": 3,
-              "stageH": 200
+              "stageH": 224
             }
           ]
         }
@@ -123,7 +123,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 516
+        "line": 547
       },
       "parent": "View",
       "seeAlso": [],
@@ -147,7 +147,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 517
+        "line": 548
       },
       "parent": "View",
       "seeAlso": [],
@@ -171,7 +171,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 518
+        "line": 549
       },
       "parent": "View",
       "seeAlso": [],
@@ -195,7 +195,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 519
+        "line": 550
       },
       "parent": "View",
       "seeAlso": [],
@@ -219,7 +219,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 520
+        "line": 551
       },
       "parent": "View",
       "seeAlso": [],
@@ -243,7 +243,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 521
+        "line": 552
       },
       "parent": "View",
       "seeAlso": [],
@@ -267,7 +267,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 524
+        "line": 556
       },
       "parent": "View",
       "seeAlso": [],
@@ -291,7 +291,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 525
+        "line": 557
       },
       "parent": "View",
       "seeAlso": [],
@@ -315,7 +315,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 526
+        "line": 558
       },
       "parent": "View",
       "seeAlso": [],
@@ -339,7 +339,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 533
+        "line": 565
       },
       "parent": "View",
       "seeAlso": [],
@@ -363,7 +363,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 537
+        "line": 569
       },
       "parent": "View",
       "seeAlso": [],
@@ -387,7 +387,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 538
+        "line": 570
       },
       "parent": "View",
       "seeAlso": [],
@@ -411,7 +411,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 539
+        "line": 571
       },
       "parent": "View",
       "seeAlso": [],
@@ -435,7 +435,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 540
+        "line": 572
       },
       "parent": "View",
       "seeAlso": [],
@@ -459,7 +459,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 544
+        "line": 576
       },
       "parent": "View",
       "seeAlso": [],
@@ -483,7 +483,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 546
+        "line": 578
       },
       "parent": "View",
       "seeAlso": [],
@@ -507,7 +507,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 547
+        "line": 579
       },
       "parent": "View",
       "seeAlso": [],
@@ -531,7 +531,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 548
+        "line": 580
       },
       "parent": "View",
       "seeAlso": [],
@@ -555,7 +555,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 549
+        "line": 581
       },
       "parent": "View",
       "seeAlso": [],
@@ -579,7 +579,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 552
+        "line": 584
       },
       "parent": "View",
       "seeAlso": [],
@@ -603,7 +603,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 553
+        "line": 585
       },
       "parent": "View",
       "seeAlso": [],
@@ -627,7 +627,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 554
+        "line": 586
       },
       "parent": "View",
       "seeAlso": [],
@@ -651,7 +651,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 555
+        "line": 587
       },
       "parent": "View",
       "seeAlso": [],
@@ -675,7 +675,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 556
+        "line": 588
       },
       "parent": "View",
       "seeAlso": [],
@@ -699,7 +699,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 557
+        "line": 589
       },
       "parent": "View",
       "seeAlso": [],
@@ -723,7 +723,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 558
+        "line": 590
       },
       "parent": "View",
       "seeAlso": [],
@@ -747,7 +747,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 559
+        "line": 591
       },
       "parent": "View",
       "seeAlso": [],
@@ -771,7 +771,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 560
+        "line": 592
       },
       "parent": "View",
       "seeAlso": [],
@@ -795,7 +795,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 561
+        "line": 593
       },
       "parent": "View",
       "seeAlso": [],
@@ -819,13 +819,32 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 545
+        "line": 577
       },
       "parent": "View",
       "seeAlso": [],
       "type": "boolean",
       "default": "false",
       "prevailing": true,
+      "readOnly": false,
+      "inheritedFrom": null
+    },
+    "View.cursor": {
+      "id": "View.cursor",
+      "name": "cursor",
+      "kind": "attribute",
+      "doc": null,
+      "docSegs": [],
+      "api": false,
+      "source": {
+        "file": "runtime/src/view.ts",
+        "line": 553
+      },
+      "parent": "View",
+      "seeAlso": [],
+      "type": "string",
+      "default": "\"\"",
+      "prevailing": false,
       "readOnly": false,
       "inheritedFrom": null
     },
@@ -843,7 +862,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 562
+        "line": 594
       },
       "parent": "View",
       "seeAlso": [],
@@ -867,7 +886,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 565
+        "line": 597
       },
       "parent": "View",
       "seeAlso": [],
@@ -891,7 +910,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 566
+        "line": 598
       },
       "parent": "View",
       "seeAlso": [],
@@ -915,7 +934,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 579
+        "line": 611
       },
       "parent": "View",
       "seeAlso": [],
@@ -939,7 +958,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 527
+        "line": 559
       },
       "parent": "View",
       "seeAlso": [],
@@ -963,7 +982,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 528
+        "line": 560
       },
       "parent": "View",
       "seeAlso": [],
@@ -987,7 +1006,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 532
+        "line": 564
       },
       "parent": "View",
       "seeAlso": [],
@@ -1054,7 +1073,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 188
+        "line": 200
       },
       "parent": "View",
       "seeAlso": [],
@@ -1070,7 +1089,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 250
+        "line": 262
       },
       "parent": "View",
       "seeAlso": [],
@@ -1086,7 +1105,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 270
+        "line": 282
       },
       "parent": "View",
       "seeAlso": [],
@@ -1102,7 +1121,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 283
+        "line": 295
       },
       "parent": "View",
       "seeAlso": [],
@@ -1118,7 +1137,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 294
+        "line": 306
       },
       "parent": "View",
       "seeAlso": [],
@@ -1134,7 +1153,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 357
+        "line": 375
       },
       "parent": "View",
       "seeAlso": [],
@@ -1150,7 +1169,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 368
+        "line": 386
       },
       "parent": "View",
       "seeAlso": [],
@@ -1166,7 +1185,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 375
+        "line": 393
       },
       "parent": "View",
       "seeAlso": [],
@@ -1182,7 +1201,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 385
+        "line": 403
       },
       "parent": "View",
       "seeAlso": [],
@@ -1203,11 +1222,27 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 442
+        "line": 461
       },
       "parent": "View",
       "seeAlso": [],
       "signature": "scrollIntoView(align?: \"start\" | \"nearest\"): void",
+      "returns": "void"
+    },
+    "View.method.raise": {
+      "id": "View.method.raise",
+      "name": "raise",
+      "kind": "method",
+      "doc": null,
+      "docSegs": [],
+      "api": false,
+      "source": {
+        "file": "runtime/src/view.ts",
+        "line": 469
+      },
+      "parent": "View",
+      "seeAlso": [],
+      "signature": "raise(): void",
       "returns": "void"
     },
     "View.method.invalidateDraw": {
@@ -1219,7 +1254,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 486
+        "line": 517
       },
       "parent": "View",
       "seeAlso": [],
@@ -1235,7 +1270,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 504
+        "line": 535
       },
       "parent": "View",
       "seeAlso": [],
@@ -1259,7 +1294,7 @@
               "id": "seg_View_event_click_0",
               "source": "App [\n    View [ width = 80, height = 44, cornerRadius = 6, fill = gainsboro, onClick() { fill = 0x4169E1 } ]\n]",
               "lines": 3,
-              "stageH": 200
+              "stageH": 224
             }
           ]
         }
@@ -1272,6 +1307,21 @@
       "parent": "View",
       "seeAlso": [],
       "signature": "onClick()"
+    },
+    "View.event.dblClick": {
+      "id": "View.event.dblClick",
+      "name": "dblClick",
+      "kind": "event",
+      "doc": null,
+      "docSegs": [],
+      "api": false,
+      "source": {
+        "file": "runtime/src/schema.ts",
+        "line": 0
+      },
+      "parent": "View",
+      "seeAlso": [],
+      "signature": "onDblClick()"
     },
     "View.event.mouseDown": {
       "id": "View.event.mouseDown",
@@ -1510,7 +1560,7 @@
               "id": "seg_View_0",
               "source": "App [\n    View [ width = 200, height = 120, fill = white, cornerRadius = 8,\n      Text [ text = \"hello\", x = 12, y = 12 ]\n    ]\n]",
               "lines": 5,
-              "stageH": 200
+              "stageH": 224
             }
           ]
         }
@@ -1566,6 +1616,7 @@
         "View.richTextLayout",
         "View.theme",
         "View.selectable",
+        "View.cursor",
         "View.styles",
         "View.stylesheet",
         "View.layout",
@@ -1587,11 +1638,13 @@
         "View.method.alignBand",
         "View.method.discard",
         "View.method.scrollIntoView",
+        "View.method.raise",
         "View.method.invalidateDraw",
         "View.method.applyClip"
       ],
       "events": [
         "View.event.click",
+        "View.event.dblClick",
         "View.event.mouseDown",
         "View.event.mouseUp",
         "View.event.mouseMove",
@@ -1609,7 +1662,7 @@
           "name": "View",
           "lines": 11,
           "source": "// View.declare — a View is a box: size + decoration + children + interaction\n\nApp [\n    View [ x = 28, y = 26, width = 240, height = 150, cornerRadius = 16,\n        hot: boolean = false,\n        fill = { hot ? 0xE0533D : 0x2E6BE6 },\n        onClick() { hot = !hot },\n        Text [ x = 20, y = 20, fontSize = 15, fontWeight = semibold,\n            textColor = whitesmoke, text = \"click to recolor\" ],\n        ],\n    ]",
-          "stageH": 250
+          "stageH": 274
         }
       ]
     },
@@ -1627,7 +1680,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 779
+        "line": 822
       },
       "parent": "App",
       "seeAlso": [],
@@ -1651,7 +1704,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 780
+        "line": 823
       },
       "parent": "App",
       "seeAlso": [],
@@ -1675,7 +1728,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 781
+        "line": 824
       },
       "parent": "App",
       "seeAlso": [],
@@ -1699,7 +1752,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 782
+        "line": 825
       },
       "parent": "App",
       "seeAlso": [],
@@ -1723,7 +1776,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 783
+        "line": 826
       },
       "parent": "App",
       "seeAlso": [],
@@ -1747,7 +1800,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 784
+        "line": 827
       },
       "parent": "App",
       "seeAlso": [],
@@ -1771,7 +1824,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 785
+        "line": 828
       },
       "parent": "App",
       "seeAlso": [],
@@ -1795,7 +1848,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 786
+        "line": 829
       },
       "parent": "App",
       "seeAlso": [],
@@ -1822,7 +1875,7 @@
               "id": "seg_App_location_0",
               "source": "App [ location = \"home\",\n    why: View [ visible = { app.location == \"why\" } ],\n]",
               "lines": 3,
-              "stageH": 200
+              "stageH": 224
             }
           ]
         }
@@ -1830,7 +1883,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 794
+        "line": 837
       },
       "parent": "App",
       "seeAlso": [],
@@ -1854,7 +1907,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 798
+        "line": 841
       },
       "parent": "App",
       "seeAlso": [],
@@ -1878,7 +1931,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 799
+        "line": 842
       },
       "parent": "App",
       "seeAlso": [],
@@ -1887,6 +1940,22 @@
       "prevailing": false,
       "readOnly": false,
       "inheritedFrom": null
+    },
+    "App.method.createView": {
+      "id": "App.method.createView",
+      "name": "createView",
+      "kind": "method",
+      "doc": null,
+      "docSegs": [],
+      "api": false,
+      "source": {
+        "file": "runtime/src/view.ts",
+        "line": 750
+      },
+      "parent": "App",
+      "seeAlso": [],
+      "signature": "createView(tag: string, parent: View, props?: Record<string, unknown>): View",
+      "returns": "View"
     },
     "App.method.navigate": {
       "id": "App.method.navigate",
@@ -1902,7 +1971,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 712
+        "line": 755
       },
       "parent": "App",
       "seeAlso": [],
@@ -1918,7 +1987,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 728
+        "line": 771
       },
       "parent": "App",
       "seeAlso": [],
@@ -1942,7 +2011,7 @@
               "id": "seg_App_0",
               "source": "App [ fill = white,\n    header: View [ width = { app.hostWidth }, opacity = { 1 - app.scrollY / 200 } ],\n]",
               "lines": 3,
-              "stageH": 200
+              "stageH": 224
             }
           ]
         }
@@ -1971,6 +2040,7 @@
         "App.minHeight"
       ],
       "methods": [
+        "App.method.createView",
         "App.method.navigate",
         "App.method.resolveReveal"
       ],
@@ -2170,7 +2240,7 @@
               "id": "seg_Text_0",
               "source": "App [\n    View [ textColor = royalblue, fontSize = 14,\n      Text [ text = \"inherits the panel's style\" ]\n    ]\n]",
               "lines": 5,
-              "stageH": 200
+              "stageH": 224
             }
           ]
         }
@@ -2538,7 +2608,7 @@
           "name": "Markdown",
           "lines": 13,
           "source": "// Markdown.declare — author prose in Markdown; it renders as real, wrapped views\n\nApp [\n    Markdown [ x = 28, y = 20, width = 400, text = \"\"\"\n# Declare\n\nA **declarative** UI language:\n\n- reactive `{ }` constraints\n- native layout, both backends\n- text authored in Markdown\n\"\"\" ],\n    ]",
-          "stageH": 250
+          "stageH": 274
         }
       ]
     },
@@ -2607,7 +2677,7 @@
               "id": "seg_HTMLText_accents_0",
               "source": "App [\n    HTMLText [ width = { parent.width }, scale = 1.6,\n      accents = { { accent: gradient(\"90deg\", 0x4C8DFF, 0x37E0C8) } },\n      html = \"<h2><span class='accent'>Declare</span> is the UI language for the AI era.</h2>\" ]\n]",
               "lines": 5,
-              "stageH": 200
+              "stageH": 224
             }
           ]
         },
@@ -2646,7 +2716,7 @@
               "id": "seg_HTMLText_0",
               "source": "App [\n    HTMLText [ width = { parent.width },\n      html = \"<h3>Notice</h3><p>Loaded content with <b>bold</b>, <i>italic</i>, and a <a href='#'>link</a>.</p>\" ]\n]",
               "lines": 4,
-              "stageH": 200
+              "stageH": 224
             }
           ]
         }
@@ -2684,7 +2754,7 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 819
+        "line": 862
       },
       "parent": "DOMIsland",
       "seeAlso": [],
@@ -3006,7 +3076,7 @@
               "id": "seg_TextInput_0",
               "source": "App [ fill = white, textColor = black,\n    contact: Dataset { { \"email\": \"ada@example.com\" } },\n    form: View [ x = 24, y = 24, datapath = { app.contact.value },\n        email: TextInput [ width = 240, height = 30, padding = 6, cornerRadius = 6,\n            fill = gainsboro,\n            text <-> :email,\n            validate(v) { return v.includes(\"@\") ? null : \"not an email\" } ] ],\n    ]",
               "lines": 8,
-              "stageH": 200
+              "stageH": 224
             }
           ]
         }
@@ -3044,7 +3114,7 @@
           "name": "TextInput",
           "lines": 11,
           "source": "// TextInput.declare — the field is the source of truth; the Text reads its text live\n\nApp [ fill = white, textColor = black,\n    View [ x = 28, y = 30,\n        layout: SimpleLayout [ axis = y, spacing = 16 ],\n        field: TextInput [ width = 300, height = 34, padding = 8, cornerRadius = 8,\n            fill = gainsboro, placeholder = \"type here\" ],\n        Text [ fontSize = 22, fontWeight = semibold,\n            text = { \"hello, \" + (parent.field.text || \"world\") } ],\n        ],\n    ]",
-          "stageH": 250
+          "stageH": 274
         }
       ]
     },
@@ -3113,7 +3183,7 @@
               "id": "seg_SimpleLayout_0",
               "source": "App [\n    View [ layout: SimpleLayout [ axis = y, spacing = 10 ],\n        Text [ text = \"one\" ],\n        Text [ text = \"two\" ],\n    ]\n]",
               "lines": 6,
-              "stageH": 200
+              "stageH": 224
             }
           ]
         }
@@ -3139,7 +3209,7 @@
           "name": "SimpleLayout",
           "lines": 11,
           "source": "// SimpleLayout.declare — children stacked down the y axis, evenly spaced\n\nApp [ fill = white, textColor = black,\n    View [ x = 28, y = 24,\n        layout: SimpleLayout [ axis = y, spacing = 12 ],\n        Bar [ width = 320, label = \"north\", value = 72, tint = royalblue ],\n        Bar [ width = 320, label = \"east\",  value = 54, tint = dodgerblue ],\n        Bar [ width = 320, label = \"south\", value = 88, tint = cornflowerblue ],\n        Bar [ width = 320, label = \"west\",  value = 41, tint = lightskyblue ],\n        ],\n    ]",
-          "stageH": 250
+          "stageH": 274
         }
       ]
     },
@@ -3208,7 +3278,7 @@
               "id": "seg_WrappingLayout_0",
               "source": "App [\n    View [ width = { parent.width }, layout: WrappingLayout [ spacing = 8, lineSpacing = 8 ] ]\n]",
               "lines": 3,
-              "stageH": 200
+              "stageH": 224
             }
           ]
         }
@@ -3234,7 +3304,7 @@
           "name": "WrappingLayout",
           "lines": 22,
           "source": "// WrappingLayout.declare — a horizontal flow of chips that wraps to new rows\n\nclass Chip extends View [ height = 30, cornerRadius = 15, fill = steelblue,\n    label: string = \"\",\n    Text [ x = 12, y = 7, fontSize = 13, fontWeight = semibold,\n        textColor = whitesmoke, text = { classroot.label } ],\n    ]\n\n\nApp [\n    View [ x = 24, y = 24, width = 320,\n        layout: WrappingLayout [ spacing = 10, lineSpacing = 10 ],\n        Chip [ width = 74, label = \"views\" ],\n        Chip [ width = 92, label = \"reactive\" ],\n        Chip [ width = 78, label = \"layout\" ],\n        Chip [ width = 68, label = \"text\" ],\n        Chip [ width = 96, label = \"animator\" ],\n        Chip [ width = 66, label = \"state\" ],\n        Chip [ width = 86, label = \"dataset\" ],\n        Chip [ width = 90, label = \"markdown\" ],\n        ],\n    ]",
-          "stageH": 250
+          "stageH": 274
         }
       ]
     },
@@ -3351,7 +3421,7 @@
       },
       "parent": "Dataset",
       "seeAlso": [],
-      "type": "string",
+      "type": "object",
       "default": null,
       "prevailing": false,
       "readOnly": false,
@@ -3518,7 +3588,7 @@
           "name": "Dataset",
           "lines": 10,
           "source": "App [ fill = white, textColor = black,\n    facts: Dataset { { \"rows\": [\n        { \"label\": \"reactive\", \"n\": 92 },\n        { \"label\": \"compiled\", \"n\": 78 },\n        { \"label\": \"small\",    \"n\": 64 } ] } },\n    View [ x = 28, y = 26, datapath = { parent.facts.value },\n        layout: SimpleLayout [ axis = y, spacing = 16 ],\n        Bar [ width = 300, datapath = :rows[], label = :label, value = :n ],\n        ],\n    ]",
-          "stageH": 250
+          "stageH": 274
         }
       ]
     },
@@ -4059,7 +4129,7 @@
               "id": "seg_Animator_0",
               "source": "App [\n    box: View [ opacity = 0,\n        fadeIn: Animator [ attribute = opacity, to = 1, duration = 300, started = true ] ]\n]",
               "lines": 4,
-              "stageH": 200
+              "stageH": 224
             }
           ]
         }
@@ -4106,7 +4176,7 @@
           "name": "Animator",
           "lines": 10,
           "source": "// Animator.declare — click the box; the Animator drives its x to the target\n\nApp [\n    View [ x = 28, y = 88, width = 80, height = 80, cornerRadius = 12, fill = dodgerblue,\n        onClick() { slide.start() },\n        Text [ x = 18, y = 30, fontSize = 15, fontWeight = semibold,\n            textColor = whitesmoke, text = \"click\" ],\n        slide: Animator [ attribute = x, to = 460, duration = 500, motion = easeOut ],\n        ],\n    ]",
-          "stageH": 250
+          "stageH": 274
         }
       ]
     },
@@ -4549,7 +4619,7 @@
               "id": "seg_AnimatorGroup_0",
               "source": "App [\n    reveal: AnimatorGroup [ process = sequential, duration = 200,\n        Animator [ attribute = opacity, to = 1 ],\n        Animator [ attribute = y,       to = 0 ] ]\n]",
               "lines": 5,
-              "stageH": 200
+              "stageH": 224
             }
           ]
         }
@@ -4785,7 +4855,7 @@
               "id": "seg_Spring_0",
               "source": "App [\n    dot: View [ width = 10, height = 10, cornerRadius = 5, fill = turquoise,\n        followX: Spring [ attribute = x, to = { app.pointerX - 5 },\n                          stiffness = 120, damping = 14, mass = 0.6 ] ]\n]",
               "lines": 5,
-              "stageH": 200
+              "stageH": 224
             }
           ]
         }
@@ -4819,7 +4889,7 @@
           "name": "Spring",
           "lines": 11,
           "source": "App [ on: boolean = false,\n    onMouseDown() { on = !on },\n    View [ x = 28, y = 26,\n        layout: SimpleLayout [ axis = y, spacing = 24 ],\n        Text [ textColor = slategray, text = \"click anywhere to toggle\" ],\n        View [ height = 64, width = 64, cornerRadius = 32, fill = dodgerblue,\n            Spring [ attribute = x, to = { on ? 240 : 0 },\n                stiffness = 190, damping = 17 ],\n            ],\n        ],\n    ]",
-          "stageH": 250
+          "stageH": 274
         }
       ]
     },
@@ -5056,9 +5126,25 @@
           "name": "State",
           "lines": 12,
           "source": "App [ fill = white, textColor = black,\n    open: boolean = false,\n    onMouseDown() { open = !open },\n    card: View [ x = 28, y = 26, width = 300, height = 72,\n        cornerRadius = 10, fill = whitesmoke,\n        Text [ x = 16, y = 16, fontWeight = bold, text = \"Summary\" ],\n        big: State [ applied = { open }, height = 184, fill = lightsteelblue,\n            Text [ x = 16, y = 54, width = 268, wrap = true,\n                text = \"height, colour, and this whole line swap in together\" ],\n            ],\n        ],\n    ]",
-          "stageH": 250
+          "stageH": 274
         }
       ]
+    },
+    "Node.method.trackStructure": {
+      "id": "Node.method.trackStructure",
+      "name": "trackStructure",
+      "kind": "method",
+      "doc": null,
+      "docSegs": [],
+      "api": false,
+      "source": {
+        "file": "runtime/src/node.ts",
+        "line": 25
+      },
+      "parent": "Node",
+      "seeAlso": [],
+      "signature": "trackStructure(): void",
+      "returns": "void"
     },
     "Node.method.appendChild": {
       "id": "Node.method.appendChild",
@@ -5069,7 +5155,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/node.ts",
-        "line": 32
+        "line": 56
       },
       "parent": "Node",
       "seeAlso": [],
@@ -5085,7 +5171,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/node.ts",
-        "line": 39
+        "line": 64
       },
       "parent": "Node",
       "seeAlso": [],
@@ -5101,7 +5187,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/node.ts",
-        "line": 46
+        "line": 72
       },
       "parent": "Node",
       "seeAlso": [],
@@ -5117,7 +5203,7 @@
       "api": false,
       "source": {
         "file": "runtime/src/node.ts",
-        "line": 60
+        "line": 89
       },
       "parent": "Node",
       "seeAlso": [],
@@ -5147,6 +5233,7 @@
       "origin": "ts",
       "attributes": [],
       "methods": [
+        "Node.method.trackStructure",
         "Node.method.appendChild",
         "Node.method.insertChild",
         "Node.method.removeChild",
@@ -5194,7 +5281,7 @@
               "id": "seg_View_0",
               "source": "App [\n    View [ width = 200, height = 120, fill = white, cornerRadius = 8,\n      Text [ text = \"hello\", x = 12, y = 12 ]\n    ]\n]",
               "lines": 5,
-              "stageH": 200
+              "stageH": 224
             }
           ]
         }
@@ -5224,7 +5311,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 512
+            "line": 543
           },
           "parent": "View",
           "seeAlso": [],
@@ -5248,7 +5335,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 513
+            "line": 544
           },
           "parent": "View",
           "seeAlso": [],
@@ -5272,7 +5359,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 514
+            "line": 545
           },
           "parent": "View",
           "seeAlso": [],
@@ -5296,7 +5383,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 515
+            "line": 546
           },
           "parent": "View",
           "seeAlso": [],
@@ -5323,7 +5410,7 @@
                   "id": "seg_View_fill_0",
                   "source": "App [\n    View [ fill = { gradient(\"90deg\", 0x1E2A36, 0x0B141B) } ]\n]",
                   "lines": 3,
-                  "stageH": 200
+                  "stageH": 224
                 }
               ]
             }
@@ -5331,7 +5418,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 516
+            "line": 547
           },
           "parent": "View",
           "seeAlso": [],
@@ -5355,7 +5442,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 517
+            "line": 548
           },
           "parent": "View",
           "seeAlso": [],
@@ -5379,7 +5466,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 518
+            "line": 549
           },
           "parent": "View",
           "seeAlso": [],
@@ -5403,7 +5490,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 519
+            "line": 550
           },
           "parent": "View",
           "seeAlso": [],
@@ -5427,7 +5514,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 520
+            "line": 551
           },
           "parent": "View",
           "seeAlso": [],
@@ -5451,7 +5538,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 521
+            "line": 552
           },
           "parent": "View",
           "seeAlso": [],
@@ -5475,7 +5562,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 524
+            "line": 556
           },
           "parent": "View",
           "seeAlso": [],
@@ -5499,7 +5586,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 525
+            "line": 557
           },
           "parent": "View",
           "seeAlso": [],
@@ -5523,7 +5610,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 526
+            "line": 558
           },
           "parent": "View",
           "seeAlso": [],
@@ -5547,7 +5634,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 533
+            "line": 565
           },
           "parent": "View",
           "seeAlso": [],
@@ -5571,7 +5658,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 537
+            "line": 569
           },
           "parent": "View",
           "seeAlso": [],
@@ -5595,7 +5682,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 538
+            "line": 570
           },
           "parent": "View",
           "seeAlso": [],
@@ -5619,7 +5706,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 539
+            "line": 571
           },
           "parent": "View",
           "seeAlso": [],
@@ -5643,7 +5730,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 540
+            "line": 572
           },
           "parent": "View",
           "seeAlso": [],
@@ -5667,7 +5754,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 544
+            "line": 576
           },
           "parent": "View",
           "seeAlso": [],
@@ -5691,7 +5778,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 546
+            "line": 578
           },
           "parent": "View",
           "seeAlso": [],
@@ -5715,7 +5802,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 547
+            "line": 579
           },
           "parent": "View",
           "seeAlso": [],
@@ -5739,7 +5826,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 548
+            "line": 580
           },
           "parent": "View",
           "seeAlso": [],
@@ -5763,7 +5850,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 549
+            "line": 581
           },
           "parent": "View",
           "seeAlso": [],
@@ -5787,7 +5874,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 552
+            "line": 584
           },
           "parent": "View",
           "seeAlso": [],
@@ -5811,7 +5898,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 553
+            "line": 585
           },
           "parent": "View",
           "seeAlso": [],
@@ -5835,7 +5922,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 554
+            "line": 586
           },
           "parent": "View",
           "seeAlso": [],
@@ -5859,7 +5946,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 555
+            "line": 587
           },
           "parent": "View",
           "seeAlso": [],
@@ -5883,7 +5970,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 556
+            "line": 588
           },
           "parent": "View",
           "seeAlso": [],
@@ -5907,7 +5994,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 557
+            "line": 589
           },
           "parent": "View",
           "seeAlso": [],
@@ -5931,7 +6018,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 558
+            "line": 590
           },
           "parent": "View",
           "seeAlso": [],
@@ -5955,7 +6042,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 559
+            "line": 591
           },
           "parent": "View",
           "seeAlso": [],
@@ -5979,7 +6066,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 560
+            "line": 592
           },
           "parent": "View",
           "seeAlso": [],
@@ -6003,7 +6090,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 561
+            "line": 593
           },
           "parent": "View",
           "seeAlso": [],
@@ -6027,7 +6114,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 545
+            "line": 577
           },
           "parent": "View",
           "seeAlso": [],
@@ -6051,7 +6138,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 562
+            "line": 594
           },
           "parent": "View",
           "seeAlso": [],
@@ -6075,7 +6162,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 565
+            "line": 597
           },
           "parent": "View",
           "seeAlso": [],
@@ -6099,7 +6186,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 566
+            "line": 598
           },
           "parent": "View",
           "seeAlso": [],
@@ -6123,7 +6210,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 579
+            "line": 611
           },
           "parent": "View",
           "seeAlso": [],
@@ -6147,7 +6234,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 527
+            "line": 559
           },
           "parent": "View",
           "seeAlso": [],
@@ -6171,7 +6258,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 528
+            "line": 560
           },
           "parent": "View",
           "seeAlso": [],
@@ -6195,7 +6282,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 532
+            "line": 564
           },
           "parent": "View",
           "seeAlso": [],
@@ -6272,7 +6359,7 @@
                   "id": "seg_View_event_click_0",
                   "source": "App [\n    View [ width = 80, height = 44, cornerRadius = 6, fill = gainsboro, onClick() { fill = 0x4169E1 } ]\n]",
                   "lines": 3,
-                  "stageH": 200
+                  "stageH": 224
                 }
               ]
             }
@@ -6522,7 +6609,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 442
+            "line": 461
           },
           "parent": "View",
           "seeAlso": [],
@@ -6535,7 +6622,7 @@
           "name": "View",
           "lines": 11,
           "source": "// View.declare — a View is a box: size + decoration + children + interaction\n\nApp [\n    View [ x = 28, y = 26, width = 240, height = 150, cornerRadius = 16,\n        hot: boolean = false,\n        fill = { hot ? 0xE0533D : 0x2E6BE6 },\n        onClick() { hot = !hot },\n        Text [ x = 20, y = 20, fontSize = 15, fontWeight = semibold,\n            textColor = whitesmoke, text = \"click to recolor\" ],\n        ],\n    ]",
-          "stageH": 250
+          "stageH": 274
         }
       ]
     },
@@ -6555,7 +6642,7 @@
               "id": "seg_App_0",
               "source": "App [ fill = white,\n    header: View [ width = { app.hostWidth }, opacity = { 1 - app.scrollY / 200 } ],\n]",
               "lines": 3,
-              "stageH": 200
+              "stageH": 224
             }
           ]
         }
@@ -6579,7 +6666,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 779
+            "line": 822
           },
           "parent": "App",
           "seeAlso": [],
@@ -6603,7 +6690,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 780
+            "line": 823
           },
           "parent": "App",
           "seeAlso": [],
@@ -6627,7 +6714,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 781
+            "line": 824
           },
           "parent": "App",
           "seeAlso": [],
@@ -6651,7 +6738,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 782
+            "line": 825
           },
           "parent": "App",
           "seeAlso": [],
@@ -6675,7 +6762,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 783
+            "line": 826
           },
           "parent": "App",
           "seeAlso": [],
@@ -6699,7 +6786,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 784
+            "line": 827
           },
           "parent": "App",
           "seeAlso": [],
@@ -6723,7 +6810,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 785
+            "line": 828
           },
           "parent": "App",
           "seeAlso": [],
@@ -6747,7 +6834,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 786
+            "line": 829
           },
           "parent": "App",
           "seeAlso": [],
@@ -6774,7 +6861,7 @@
                   "id": "seg_App_location_0",
                   "source": "App [ location = \"home\",\n    why: View [ visible = { app.location == \"why\" } ],\n]",
                   "lines": 3,
-                  "stageH": 200
+                  "stageH": 224
                 }
               ]
             }
@@ -6782,7 +6869,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 794
+            "line": 837
           },
           "parent": "App",
           "seeAlso": [],
@@ -6806,7 +6893,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 798
+            "line": 841
           },
           "parent": "App",
           "seeAlso": [],
@@ -6830,7 +6917,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 799
+            "line": 842
           },
           "parent": "App",
           "seeAlso": [],
@@ -6857,7 +6944,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 712
+            "line": 755
           },
           "parent": "App",
           "seeAlso": [],
@@ -6883,7 +6970,7 @@
               "id": "seg_Text_0",
               "source": "App [\n    View [ textColor = royalblue, fontSize = 14,\n      Text [ text = \"inherits the panel's style\" ]\n    ]\n]",
               "lines": 5,
-              "stageH": 200
+              "stageH": 224
             }
           ]
         }
@@ -7260,7 +7347,7 @@
           "name": "Markdown",
           "lines": 13,
           "source": "// Markdown.declare — author prose in Markdown; it renders as real, wrapped views\n\nApp [\n    Markdown [ x = 28, y = 20, width = 400, text = \"\"\"\n# Declare\n\nA **declarative** UI language:\n\n- reactive `{ }` constraints\n- native layout, both backends\n- text authored in Markdown\n\"\"\" ],\n    ]",
-          "stageH": 250
+          "stageH": 274
         }
       ]
     },
@@ -7280,7 +7367,7 @@
               "id": "seg_HTMLText_0",
               "source": "App [\n    HTMLText [ width = { parent.width },\n      html = \"<h3>Notice</h3><p>Loaded content with <b>bold</b>, <i>italic</i>, and a <a href='#'>link</a>.</p>\" ]\n]",
               "lines": 4,
-              "stageH": 200
+              "stageH": 224
             }
           ]
         }
@@ -7355,7 +7442,7 @@
                   "id": "seg_HTMLText_accents_0",
                   "source": "App [\n    HTMLText [ width = { parent.width }, scale = 1.6,\n      accents = { { accent: gradient(\"90deg\", 0x4C8DFF, 0x37E0C8) } },\n      html = \"<h2><span class='accent'>Declare</span> is the UI language for the AI era.</h2>\" ]\n]",
                   "lines": 5,
-                  "stageH": 200
+                  "stageH": 224
                 }
               ]
             },
@@ -7422,7 +7509,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 819
+            "line": 862
           },
           "parent": "DOMIsland",
           "seeAlso": [],
@@ -7453,7 +7540,7 @@
               "id": "seg_TextInput_0",
               "source": "App [ fill = white, textColor = black,\n    contact: Dataset { { \"email\": \"ada@example.com\" } },\n    form: View [ x = 24, y = 24, datapath = { app.contact.value },\n        email: TextInput [ width = 240, height = 30, padding = 6, cornerRadius = 6,\n            fill = gainsboro,\n            text <-> :email,\n            validate(v) { return v.includes(\"@\") ? null : \"not an email\" } ] ],\n    ]",
               "lines": 8,
-              "stageH": 200
+              "stageH": 224
             }
           ]
         }
@@ -7680,7 +7767,7 @@
           "name": "TextInput",
           "lines": 11,
           "source": "// TextInput.declare — the field is the source of truth; the Text reads its text live\n\nApp [ fill = white, textColor = black,\n    View [ x = 28, y = 30,\n        layout: SimpleLayout [ axis = y, spacing = 16 ],\n        field: TextInput [ width = 300, height = 34, padding = 8, cornerRadius = 8,\n            fill = gainsboro, placeholder = \"type here\" ],\n        Text [ fontSize = 22, fontWeight = semibold,\n            text = { \"hello, \" + (parent.field.text || \"world\") } ],\n        ],\n    ]",
-          "stageH": 250
+          "stageH": 274
         }
       ]
     },
@@ -7700,7 +7787,7 @@
               "id": "seg_SimpleLayout_0",
               "source": "App [\n    View [ layout: SimpleLayout [ axis = y, spacing = 10 ],\n        Text [ text = \"one\" ],\n        Text [ text = \"two\" ],\n    ]\n]",
               "lines": 6,
-              "stageH": 200
+              "stageH": 224
             }
           ]
         }
@@ -7766,7 +7853,7 @@
           "name": "SimpleLayout",
           "lines": 11,
           "source": "// SimpleLayout.declare — children stacked down the y axis, evenly spaced\n\nApp [ fill = white, textColor = black,\n    View [ x = 28, y = 24,\n        layout: SimpleLayout [ axis = y, spacing = 12 ],\n        Bar [ width = 320, label = \"north\", value = 72, tint = royalblue ],\n        Bar [ width = 320, label = \"east\",  value = 54, tint = dodgerblue ],\n        Bar [ width = 320, label = \"south\", value = 88, tint = cornflowerblue ],\n        Bar [ width = 320, label = \"west\",  value = 41, tint = lightskyblue ],\n        ],\n    ]",
-          "stageH": 250
+          "stageH": 274
         }
       ]
     },
@@ -7786,7 +7873,7 @@
               "id": "seg_WrappingLayout_0",
               "source": "App [\n    View [ width = { parent.width }, layout: WrappingLayout [ spacing = 8, lineSpacing = 8 ] ]\n]",
               "lines": 3,
-              "stageH": 200
+              "stageH": 224
             }
           ]
         }
@@ -7852,7 +7939,7 @@
           "name": "WrappingLayout",
           "lines": 22,
           "source": "// WrappingLayout.declare — a horizontal flow of chips that wraps to new rows\n\nclass Chip extends View [ height = 30, cornerRadius = 15, fill = steelblue,\n    label: string = \"\",\n    Text [ x = 12, y = 7, fontSize = 13, fontWeight = semibold,\n        textColor = whitesmoke, text = { classroot.label } ],\n    ]\n\n\nApp [\n    View [ x = 24, y = 24, width = 320,\n        layout: WrappingLayout [ spacing = 10, lineSpacing = 10 ],\n        Chip [ width = 74, label = \"views\" ],\n        Chip [ width = 92, label = \"reactive\" ],\n        Chip [ width = 78, label = \"layout\" ],\n        Chip [ width = 68, label = \"text\" ],\n        Chip [ width = 96, label = \"animator\" ],\n        Chip [ width = 66, label = \"state\" ],\n        Chip [ width = 86, label = \"dataset\" ],\n        Chip [ width = 90, label = \"markdown\" ],\n        ],\n    ]",
-          "stageH": 250
+          "stageH": 274
         }
       ]
     },
@@ -7959,7 +8046,7 @@
           },
           "parent": "Dataset",
           "seeAlso": [],
-          "type": "string",
+          "type": "object",
           "default": null,
           "prevailing": false,
           "readOnly": false,
@@ -8079,7 +8166,7 @@
           "name": "Dataset",
           "lines": 10,
           "source": "App [ fill = white, textColor = black,\n    facts: Dataset { { \"rows\": [\n        { \"label\": \"reactive\", \"n\": 92 },\n        { \"label\": \"compiled\", \"n\": 78 },\n        { \"label\": \"small\",    \"n\": 64 } ] } },\n    View [ x = 28, y = 26, datapath = { parent.facts.value },\n        layout: SimpleLayout [ axis = y, spacing = 16 ],\n        Bar [ width = 300, datapath = :rows[], label = :label, value = :n ],\n        ],\n    ]",
-          "stageH": 250
+          "stageH": 274
         }
       ]
     },
@@ -8210,7 +8297,7 @@
               "id": "seg_Animator_0",
               "source": "App [\n    box: View [ opacity = 0,\n        fadeIn: Animator [ attribute = opacity, to = 1, duration = 300, started = true ] ]\n]",
               "lines": 4,
-              "stageH": 200
+              "stageH": 224
             }
           ]
         }
@@ -8550,7 +8637,7 @@
           "name": "Animator",
           "lines": 10,
           "source": "// Animator.declare — click the box; the Animator drives its x to the target\n\nApp [\n    View [ x = 28, y = 88, width = 80, height = 80, cornerRadius = 12, fill = dodgerblue,\n        onClick() { slide.start() },\n        Text [ x = 18, y = 30, fontSize = 15, fontWeight = semibold,\n            textColor = whitesmoke, text = \"click\" ],\n        slide: Animator [ attribute = x, to = 460, duration = 500, motion = easeOut ],\n        ],\n    ]",
-          "stageH": 250
+          "stageH": 274
         }
       ]
     },
@@ -8570,7 +8657,7 @@
               "id": "seg_AnimatorGroup_0",
               "source": "App [\n    reveal: AnimatorGroup [ process = sequential, duration = 200,\n        Animator [ attribute = opacity, to = 1 ],\n        Animator [ attribute = y,       to = 0 ] ]\n]",
               "lines": 5,
-              "stageH": 200
+              "stageH": 224
             }
           ]
         }
@@ -8945,7 +9032,7 @@
               "id": "seg_Spring_0",
               "source": "App [\n    dot: View [ width = 10, height = 10, cornerRadius = 5, fill = turquoise,\n        followX: Spring [ attribute = x, to = { app.pointerX - 5 },\n                          stiffness = 120, damping = 14, mass = 0.6 ] ]\n]",
               "lines": 5,
-              "stageH": 200
+              "stageH": 224
             }
           ]
         }
@@ -9059,7 +9146,7 @@
           "name": "Spring",
           "lines": 11,
           "source": "App [ on: boolean = false,\n    onMouseDown() { on = !on },\n    View [ x = 28, y = 26,\n        layout: SimpleLayout [ axis = y, spacing = 24 ],\n        Text [ textColor = slategray, text = \"click anywhere to toggle\" ],\n        View [ height = 64, width = 64, cornerRadius = 32, fill = dodgerblue,\n            Spring [ attribute = x, to = { on ? 240 : 0 },\n                stiffness = 190, damping = 17 ],\n            ],\n        ],\n    ]",
-          "stageH": 250
+          "stageH": 274
         }
       ]
     },
@@ -9215,7 +9302,7 @@
           "name": "State",
           "lines": 12,
           "source": "App [ fill = white, textColor = black,\n    open: boolean = false,\n    onMouseDown() { open = !open },\n    card: View [ x = 28, y = 26, width = 300, height = 72,\n        cornerRadius = 10, fill = whitesmoke,\n        Text [ x = 16, y = 16, fontWeight = bold, text = \"Summary\" ],\n        big: State [ applied = { open }, height = 184, fill = lightsteelblue,\n            Text [ x = 16, y = 54, width = 268, wrap = true,\n                text = \"height, colour, and this whole line swap in together\" ],\n            ],\n        ],\n    ]",
-          "stageH": 250
+          "stageH": 274
         }
       ]
     },
@@ -9241,253 +9328,193 @@
   ],
   "guide": [
     {
-      "id": "00-shape",
-      "num": 0,
-      "title": "The shape of Declare",
-      "short": "The shape of Declare",
-      "part": "Orientation"
+      "id": "01-thinking-in-declare",
+      "num": 1,
+      "title": "Thinking in Declare",
+      "short": "Start here",
+      "part": "The idea"
     },
     {
-      "id": "10-tutorial",
+      "id": "02-two-brackets",
+      "num": 2,
+      "title": "Two brackets",
+      "short": "Two brackets",
+      "part": "The idea"
+    },
+    {
+      "id": "03-relationships",
+      "num": 3,
+      "title": "Standing relationships",
+      "short": "Relationships",
+      "part": "The idea"
+    },
+    {
+      "id": "04-tree",
+      "num": 4,
+      "title": "The tree is the app",
+      "short": "The tree",
+      "part": "Building"
+    },
+    {
+      "id": "05-space",
+      "num": 5,
+      "title": "Space is arithmetic",
+      "short": "Space",
+      "part": "Building"
+    },
+    {
+      "id": "06-style",
+      "num": 6,
+      "title": "Style is state",
+      "short": "Style",
+      "part": "Building"
+    },
+    {
+      "id": "07-interaction",
+      "num": 7,
+      "title": "Interaction is delivery",
+      "short": "Interaction",
+      "part": "Building"
+    },
+    {
+      "id": "08-data",
+      "num": 8,
+      "title": "Data is a place, not an event",
+      "short": "Data",
+      "part": "Building"
+    },
+    {
+      "id": "09-motion-and-modes",
+      "num": 9,
+      "title": "Motion is a target; a mode is a bundle",
+      "short": "Motion & modes",
+      "part": "Continuity"
+    },
+    {
+      "id": "10-arrangement",
       "num": 10,
-      "title": "Tutorial: build one small app",
-      "short": "Tutorial: build one small app",
-      "part": "Orientation"
+      "title": "Arrangement animates",
+      "short": "Arrangement",
+      "part": "Continuity"
     },
     {
-      "id": "20-tree",
-      "num": 20,
-      "title": "The tree: composition and classes",
-      "short": "The tree: composition and classes",
-      "part": "Fundamentals"
+      "id": "11-loop",
+      "num": 11,
+      "title": "Run it, check it, ship it",
+      "short": "The loop",
+      "part": "In practice"
     },
     {
-      "id": "21-constraints",
-      "num": 21,
-      "title": "Living values: constraints",
-      "short": "Living values: constraints",
-      "part": "Fundamentals"
+      "id": "12-with-an-llm",
+      "num": 12,
+      "title": "Writing with an LLM",
+      "short": "With an LLM",
+      "part": "In practice"
     },
     {
-      "id": "22-reach",
-      "num": 22,
-      "title": "Reach: the four nouns",
-      "short": "Reach: the four nouns",
-      "part": "Fundamentals"
-    },
-    {
-      "id": "23-interaction",
-      "num": 23,
-      "title": "Interaction: events and input",
-      "short": "Interaction: events and input",
-      "part": "Fundamentals"
-    },
-    {
-      "id": "24-controls",
-      "num": 24,
-      "title": "The controls: the standard library",
-      "short": "The controls: the standard library",
-      "part": "Fundamentals"
-    },
-    {
-      "id": "25-appearance",
-      "num": 25,
-      "title": "Appearance: drawing and theming",
-      "short": "Appearance: drawing and theming",
-      "part": "Fundamentals"
-    },
-    {
-      "id": "26-space",
-      "num": 26,
-      "title": "Space: sizing and layout",
-      "short": "Space: sizing and layout",
-      "part": "Fundamentals"
-    },
-    {
-      "id": "27-data",
-      "num": 27,
-      "title": "Data: cursors, replication, sources",
-      "short": "Data: cursors, replication, sources",
-      "part": "Fundamentals"
-    },
-    {
-      "id": "28-continuity",
-      "num": 28,
-      "title": "Continuity: states and springs",
-      "short": "Continuity: states and springs",
-      "part": "Fundamentals"
-    },
-    {
-      "id": "30-content",
-      "num": 30,
-      "title": "Content: text, Markdown, images",
-      "short": "Content: text, Markdown, images",
-      "part": "In Depth"
-    },
-    {
-      "id": "31-environment",
-      "num": 31,
-      "title": "Environment: hosts and embedding",
-      "short": "Environment: hosts and embedding",
-      "part": "In Depth"
-    },
-    {
-      "id": "32-canon",
-      "num": 32,
-      "title": "The canon: formatting and house style",
-      "short": "The canon: formatting and house style",
-      "part": "In Depth"
-    },
-    {
-      "id": "33-addressable",
-      "num": 33,
-      "title": "Addressable: location and anchors",
-      "short": "Addressable: location and anchors",
-      "part": "In Depth"
-    },
-    {
-      "id": "40-checking",
-      "num": 40,
-      "title": "Check it: verify and the diagnostics",
-      "short": "Check it: verify and the diagnostics",
-      "part": "In Depth"
-    },
-    {
-      "id": "41-shipping",
-      "num": 41,
-      "title": "Ship it",
-      "short": "Ship it",
-      "part": "In Depth"
-    },
-    {
-      "id": "42-calendar",
-      "num": 42,
-      "title": "Anatomy of the calendar",
-      "short": "Anatomy of the calendar",
-      "part": "In Depth"
+      "id": "13-calendar",
+      "num": 13,
+      "title": "Declare Calendar",
+      "short": "Declare Calendar",
+      "part": "In practice"
     }
   ],
   "guideParts": [
     {
-      "part": "Orientation",
+      "part": "The idea",
       "chapters": [
         {
-          "id": "00-shape",
-          "num": 0,
-          "title": "The shape of Declare",
-          "short": "The shape of Declare"
+          "id": "01-thinking-in-declare",
+          "num": 1,
+          "title": "Thinking in Declare",
+          "short": "Start here"
         },
         {
-          "id": "10-tutorial",
+          "id": "02-two-brackets",
+          "num": 2,
+          "title": "Two brackets",
+          "short": "Two brackets"
+        },
+        {
+          "id": "03-relationships",
+          "num": 3,
+          "title": "Standing relationships",
+          "short": "Relationships"
+        }
+      ]
+    },
+    {
+      "part": "Building",
+      "chapters": [
+        {
+          "id": "04-tree",
+          "num": 4,
+          "title": "The tree is the app",
+          "short": "The tree"
+        },
+        {
+          "id": "05-space",
+          "num": 5,
+          "title": "Space is arithmetic",
+          "short": "Space"
+        },
+        {
+          "id": "06-style",
+          "num": 6,
+          "title": "Style is state",
+          "short": "Style"
+        },
+        {
+          "id": "07-interaction",
+          "num": 7,
+          "title": "Interaction is delivery",
+          "short": "Interaction"
+        },
+        {
+          "id": "08-data",
+          "num": 8,
+          "title": "Data is a place, not an event",
+          "short": "Data"
+        }
+      ]
+    },
+    {
+      "part": "Continuity",
+      "chapters": [
+        {
+          "id": "09-motion-and-modes",
+          "num": 9,
+          "title": "Motion is a target; a mode is a bundle",
+          "short": "Motion & modes"
+        },
+        {
+          "id": "10-arrangement",
           "num": 10,
-          "title": "Tutorial: build one small app",
-          "short": "Tutorial: build one small app"
+          "title": "Arrangement animates",
+          "short": "Arrangement"
         }
       ]
     },
     {
-      "part": "Fundamentals",
+      "part": "In practice",
       "chapters": [
         {
-          "id": "20-tree",
-          "num": 20,
-          "title": "The tree: composition and classes",
-          "short": "The tree: composition and classes"
+          "id": "11-loop",
+          "num": 11,
+          "title": "Run it, check it, ship it",
+          "short": "The loop"
         },
         {
-          "id": "21-constraints",
-          "num": 21,
-          "title": "Living values: constraints",
-          "short": "Living values: constraints"
+          "id": "12-with-an-llm",
+          "num": 12,
+          "title": "Writing with an LLM",
+          "short": "With an LLM"
         },
         {
-          "id": "22-reach",
-          "num": 22,
-          "title": "Reach: the four nouns",
-          "short": "Reach: the four nouns"
-        },
-        {
-          "id": "23-interaction",
-          "num": 23,
-          "title": "Interaction: events and input",
-          "short": "Interaction: events and input"
-        },
-        {
-          "id": "24-controls",
-          "num": 24,
-          "title": "The controls: the standard library",
-          "short": "The controls: the standard library"
-        },
-        {
-          "id": "25-appearance",
-          "num": 25,
-          "title": "Appearance: drawing and theming",
-          "short": "Appearance: drawing and theming"
-        },
-        {
-          "id": "26-space",
-          "num": 26,
-          "title": "Space: sizing and layout",
-          "short": "Space: sizing and layout"
-        },
-        {
-          "id": "27-data",
-          "num": 27,
-          "title": "Data: cursors, replication, sources",
-          "short": "Data: cursors, replication, sources"
-        },
-        {
-          "id": "28-continuity",
-          "num": 28,
-          "title": "Continuity: states and springs",
-          "short": "Continuity: states and springs"
-        }
-      ]
-    },
-    {
-      "part": "In Depth",
-      "chapters": [
-        {
-          "id": "30-content",
-          "num": 30,
-          "title": "Content: text, Markdown, images",
-          "short": "Content: text, Markdown, images"
-        },
-        {
-          "id": "31-environment",
-          "num": 31,
-          "title": "Environment: hosts and embedding",
-          "short": "Environment: hosts and embedding"
-        },
-        {
-          "id": "32-canon",
-          "num": 32,
-          "title": "The canon: formatting and house style",
-          "short": "The canon: formatting and house style"
-        },
-        {
-          "id": "33-addressable",
-          "num": 33,
-          "title": "Addressable: location and anchors",
-          "short": "Addressable: location and anchors"
-        },
-        {
-          "id": "40-checking",
-          "num": 40,
-          "title": "Check it: verify and the diagnostics",
-          "short": "Check it: verify and the diagnostics"
-        },
-        {
-          "id": "41-shipping",
-          "num": 41,
-          "title": "Ship it",
-          "short": "Ship it"
-        },
-        {
-          "id": "42-calendar",
-          "num": 42,
-          "title": "Anatomy of the calendar",
-          "short": "Anatomy of the calendar"
+          "id": "13-calendar",
+          "num": 13,
+          "title": "Declare Calendar",
+          "short": "Declare Calendar"
         }
       ]
     }

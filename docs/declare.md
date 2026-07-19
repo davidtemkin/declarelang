@@ -11,7 +11,7 @@ in agreement by the checks that gate every commit: every complete program below 
 under the current toolchain.*
 
 *Language status: pre-1.0, under active design (2026-07). The narrative learning path:
-[the guide](guide/00-overview.md). Per-element detail: [the reference](reference/). Design
+[the guide](guide/01-thinking-in-declare.md). Per-element detail: [the reference](reference/). Design
 history and unsettled questions: [`system-design/`](system-design/) — background, not truth.*
 
 ---
@@ -686,7 +686,7 @@ making it:
 
 | you want | read |
 |---|---|
-| the guided tour, concept by concept | [`docs/guide/`](guide/00-overview.md) |
+| the guided tour, concept by concept | [`docs/guide/`](guide/01-thinking-in-declare.md) |
 | every attribute, method, event, diagnostic | [`docs/reference/`](reference/) — generated from the source |
 | install / dev server / build, step by step | [`docs/operational/`](operational/) |
 | the idiom at real scale, annotated | `apps/calendar/calendar.declare` · `apps/homepage/homepage.declare` · `apps/controls/` |

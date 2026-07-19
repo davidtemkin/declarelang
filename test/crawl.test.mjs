@@ -41,24 +41,24 @@ await test("crawl: docs emits a document per chapter AND per reference class (da
     data: diskDataResolver(path.join(ROOT, "apps/docs")) });
   const guide = docs.filter((d) => d.key.startsWith("guide/")).map((d) => d.key);
   const ref = docs.filter((d) => d.key.startsWith("reference/")).map((d) => d.key);
-  // guide/00-shape is the DEFAULT (canonicalized to ""), so it is the "" doc — every
+  // guide/01-thinking-in-declare is the DEFAULT (canonicalized to ""), so it is the "" doc — every
   // OTHER chapter has its own key. The whole guide + reference is reached from the rails.
-  assert.ok(guide.includes("guide/20-tree"), "a mid chapter is reached from the rail");
-  assert.ok(guide.includes("guide/42-calendar"), "the last chapter is reached too");
-  assert.ok(guide.length >= 15, `most chapters emitted (got ${guide.length})`);
+  assert.ok(guide.includes("guide/04-tree"), "a mid chapter is reached from the rail");
+  assert.ok(guide.includes("guide/13-calendar"), "the last chapter is reached too");
+  assert.ok(guide.length >= 12, `most chapters emitted (got ${guide.length})`);   // 13 chapters − the default ("" doc)
   assert.ok(ref.includes("reference/View") && ref.includes("reference/Text"), "reference classes are reached");
-  const tree = docs.find((d) => d.key === "guide/20-tree");
-  assert.ok(tree.html.includes("keeps most Declare code flat"),
+  const tree = docs.find((d) => d.key === "guide/04-tree");
+  assert.ok(tree.html.includes("keeps Declare code flat"),
     "the chapter PROSE is in its section — the per-chapter content file arrived through the crawl's resolver");
   assert.ok(ref.length >= 15, `most reference classes emitted (got ${ref.length})`);
   const shape = docs.find((d) => d.key === "");
-  assert.ok(shape.html.includes('href="#guide/20-tree"'), "the default page links the other chapters (the rail is the sitemap)");
+  assert.ok(shape.html.includes('href="#guide/04-tree"'), "the default page links the other chapters (the rail is the sitemap)");
 });
 
 await test("crawl: canonical key strips the anchor and canonicalizes the declared default (dedup rules 1–2)", () => {
-  assert.equal(canonKey("guide/20-tree@components-are-classes", "guide/00-shape"), "guide/20-tree", "anchor stripped");
-  assert.equal(canonKey("guide/00-shape", "guide/00-shape"), "", "the declared default → the empty key");
-  assert.equal(canonKey("", "guide/00-shape"), "", "an empty fragment → the empty key (same page as the default)");
+  assert.equal(canonKey("guide/04-tree@components-are-classes", "guide/01-thinking-in-declare"), "guide/04-tree", "anchor stripped");
+  assert.equal(canonKey("guide/01-thinking-in-declare", "guide/01-thinking-in-declare"), "", "the declared default → the empty key");
+  assert.equal(canonKey("", "guide/01-thinking-in-declare"), "", "an empty fragment → the empty key (same page as the default)");
   assert.equal(canonKey("why", "home"), "why", "a non-default location keeps its own key");
 });
 

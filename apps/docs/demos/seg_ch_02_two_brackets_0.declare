@@ -1,0 +1,12 @@
+App [ width = 340, height = 120, fill = #10202B, textColor = whitesmoke,
+    person: Dataset { { "name": "Ada Lovelace", "role": "analyst" } },
+    card: View [ x = 20, y = 20, width = 300, height = 80, cornerRadius = 10,
+        fill = #1C3A4F,                                     // bare: a literal color
+        datapath = { person.value },
+        name: Text [ x = 16, y = 16, fontWeight = bold, text = :name ],    // from data
+        role: Text [ x = 16, y = 44, textColor = #9DB0BC, text = :role ],
+        badge: View [ y = 16, width = 10, height = 10, cornerRadius = 5, fill = mediumseagreen,
+            x = { parent.width - 26 },                      // braces: stays true
+            ],
+        ],
+    ]

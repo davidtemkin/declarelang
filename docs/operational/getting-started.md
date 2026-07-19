@@ -120,7 +120,7 @@ covers `declarec` and hosting.
 
 ## Where next
 
-- **Learn it properly** — [the guide](declare-docs:guide:shape), in order.
+- **Learn it properly** — [the guide](declare-docs:guide:thinking-in-declare), in order.
   It teaches you to think in Declare, starting from an app just like this one.
 - **Hold the whole language at once** — [`declare.md`](declare-docs:spec:core),
   the complete surface stated once.

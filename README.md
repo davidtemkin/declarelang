@@ -57,7 +57,7 @@ not reconstructed from runtime code. And there's no wall to hit: the declarative
 the DSL; the logic inside it is plain TypeScript. Specific where that pays, general
 everywhere else.
 
-→ How to think in it: [the guide](docs/guide/00-overview.md). The language in full:
+→ How to think in it: [the guide](docs/guide/01-thinking-in-declare.md). The language in full:
 [`docs/system-design/declare-language.md`](docs/system-design/declare-language.md).
 
 ## The whole model in one program

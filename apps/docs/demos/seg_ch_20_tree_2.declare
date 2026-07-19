@@ -1,7 +1,0 @@
-App [ width = 200, height = 90, fill = white, textColor = black,
-    tally: View [ x = 20, y = 20,
-        n: number = 0,                         // its own attribute
-        onClick() { n = n + 1 },               // its own handler
-        Text [ text = { `taps: ${n}` } ],
-        ],
-    ]

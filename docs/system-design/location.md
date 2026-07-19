@@ -47,12 +47,12 @@ writes flow both ways, suppressed on echo):
   `dark` flipping. The app handles no popstate event; state re-derives.
 
 The app **owns its location grammar**: `location` is one opaque-to-the-runtime
-string the app parses and produces (`why`, `guide/22-reach`,
+string the app parses and produces (`why`, `guide/04-tree`,
 `37.77,-122.41,12z`). Parsing is ordinary visible code:
 
 ```declare-fragment
-mode:    string = { (app.location || "guide/00-shape").split("@")[0].split("/")[0] },
-chapter: string = { (app.location || "guide/00-shape").split("@")[0].split("/")[1] || "00-shape" },
+mode:    string = { (app.location || "guide/01-thinking-in-declare").split("@")[0].split("/")[0] },
+chapter: string = { (app.location || "guide/01-thinking-in-declare").split("@")[0].split("/")[1] || "00-shape" },
 ```
 
 **Single-writer discipline** (the displacement rule enforces it): derived state
@@ -87,7 +87,7 @@ orthogonal layer that was previously missing or hand-hacked:
 |---|---|---|
 | path — `apps/docs/docs.declare` | which program | the file system |
 | query — `?view=edit`, `?build`, `?render`, `?crawler` | what the host does with it | the host (requests × modifiers, requests.md) |
-| fragment — `#guide/22-reach` | where inside the running app | the app (`location`) |
+| fragment — `#guide/04-tree` | where inside the running app | the app (`location`) |
 
 - Fragment, not path or query, for the live form: works identically under the
   Node server and static+SW hosting (no rewrite rules), and fragments are never
@@ -97,7 +97,7 @@ orthogonal layer that was previously missing or hand-hacked:
   query into the viewer's initial location, and the `__mode__` seed dies.
 - `navigate()` remains the out-of-app action (capabilities.md §6). Location is
   within-app. Cross-app deep links compose:
-  `app.navigate("apps/docs/docs.declare#guide/22-reach")`.
+  `app.navigate("apps/docs/docs.declare#guide/04-tree")`.
 - `declare-docs:` symbolic links never appear in URLs; a resolver maps symbol →
   location write. The fragment is the symbol's runtime shadow.
 
@@ -107,9 +107,9 @@ The unification across "in and out of text runs": one currency, the location
 string.
 
 ```declare-fragment
-onClick() { app.location = "guide/21-constraints" }        // out of a text run
-[Constraints](#guide/21-constraints)                        // in one (Markdown)
-docs.declare#guide/21-constraints                           // from outside
+onClick() { app.location = "guide/03-relationships" }        // out of a text run
+[Constraints](#guide/03-relationships)                        // in one (Markdown)
+docs.declare#guide/03-relationships                           // from outside
 ```
 
 In rendered rich text a fragment href becomes a real `<a href="#…">` and the
@@ -278,7 +278,7 @@ cases:
   complete example of the model. Retires the hand-wired hash mirroring
   (browser/host-client.js:73).
 - **Docs app — the compound grammar + anchor.** `mode`/`chapter` parsed from
-  `guide/22-reach`, the `@`-anchor into a chapter's headings, the
+  `guide/04-tree`, the `@`-anchor into a chapter's headings, the
   `declare-docs:` resolver writing location (gaining history for free), and —
   because its content arrives by DataSource — THE living test of the pending
   reveal on a cold deep link. Retires the back-button bug.
@@ -306,7 +306,7 @@ prewarm regenerated. Phase-specific acceptance on top:
   hosts); per-settle history, push-only; echo suppression; the default rule
   (§3) including clean-URL-at-default. Retires all three hacks (§1). GATE adds:
   live chromium checks — deep-link cold boot to `#why` and to
-  `#guide/22-reach`; back/forward walking docs chapters and returning to the
+  `#guide/04-tree`; back/forward walking docs chapters and returning to the
   homepage default with a clean URL; unit tests pinning seed/echo/default.
 - **Phase B — `@` reveal.** Heading slugs in the rich-text renderer (BOTH
   backends, same slugger as the doc system), the anchor namespace

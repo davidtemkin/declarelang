@@ -1,0 +1,51 @@
+class BCard extends View [ width = { parent.width }, height = 32, cornerRadius = 7, fill = #1C3A4F,
+    onClick() { app.advance(:id) },
+    t: Text [ x = 10, y = 8, fontSize = 12, wrap = false, text = :t ],
+    ]
+
+class Column extends View [ width = 132,
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    name: Text [ fontSize = 11, fontWeight = bold, textColor = #8A9BA6, text = :name ],
+    BCard [ datapath = :cards[], key = :id ],
+    ]
+
+App [ width = 470, height = 250, fill = #0D151E, textColor = whitesmoke,
+    raw: Dataset {
+        { "cards": [ { "id": 1, "col": 0, "t": "Outline the guide" },
+                     { "id": 2, "col": 0, "t": "Fix the rail" },
+                     { "id": 3, "col": 1, "t": "Draft the data chapter" },
+                     { "id": 4, "col": 2, "t": "Set up the sandbox" } ] }
+        },
+    nextId: number = 5,
+
+    colNames() { return ["To do", "Doing", "Done"] },
+    buildCols() {
+        const cards = this.raw.read(["cards"]) ?? []
+        return { cols: this.colNames().map((n, i) => ({ name: n, cards: cards.filter(c => c.col == i) })) }
+        },
+    board: Dataset [ contents = { app.buildCols() } ],
+
+    advance(id) {
+        const cards = this.raw.read(["cards"])
+        const i = cards.findIndex(c => c.id == id)
+        if (i >= 0 && cards[i].col < 2) this.raw.set("cards." + i + ".col", cards[i].col + 1)
+        },
+    add() {
+        const t = this.entryRow.entry.text
+        if (t == "") return
+        this.raw.insert("cards", this.raw.read(["cards"]).length, ({ id: this.nextId, col: 0, t: t }))
+        this.nextId = this.nextId + 1
+        this.entryRow.entry.text = ""
+        },
+
+    cols: View [ x = 16, y = 16, datapath = { board.value },
+        layout: SimpleLayout [ axis = x, spacing = 14 ],
+        Column [ datapath = :cols[] ],
+        ],
+    entryRow: View [ x = 16, y = { app.height - 54 },
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        entry: TextInput [ width = 250, height = 40, padding = 10, cornerRadius = 8,
+            fill = #16222E, placeholder = "Add a task" ],
+        Button [ label = "Add", primary = true, onClick() { app.add() } ],
+        ],
+    ]

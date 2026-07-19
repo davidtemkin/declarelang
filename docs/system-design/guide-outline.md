@@ -1,5 +1,7 @@
 # The Declare Guide — outline, narrative order, and the reasoning
 
+**SUPERSEDED 2026-07-18** by the shipped 13-chapter rewrite (plan: [`guide-proposal.md`](guide-proposal.md); chapters: `docs/guide/01-…13-`). Kept as design history.
+
 **Status:** PROPOSED 2026-07-14 (Fable editorial pass) — the fresh top-to-bottom design
 David ruled (supersedes the keep/update table in [`docs-ia.md`](docs-ia.md) §5 and the old
 `docs/guide/outline.md`). This is the blueprint another agent fleshes out chapter by
