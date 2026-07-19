@@ -240,6 +240,17 @@ origin — is nearly free BECAUSE shortcuts are data, and is itself an early
 layer deliverable. Sequencing: `key:` display-only with Menu; live registry
 + HUD with the desktop's menu bar.
 
+STATUS (2026-07-18, proven at APP level in apps/desktop): the registry is
+one constraint over the menu-bar records (`flatMap` of items with `key:` —
+nothing declared twice), the dispatcher is a raw-Keys subscriber matching
+`⌘`+key against it (enabled respected, open menus own the keyboard), and
+the hold-⌘ HUD derives its grouped columns from the same array. The
+promotion to a language/library service (the focus-walk, view-level
+records) remains open (§12.7). One host finding for that design: a
+BROWSER host reserves some combos outright (Safari will not deliver ⌘N/⌘W
+to the page) — the registry must be able to carry a shortcut as display
+truth even where the host refuses delivery.
+
 ## 10. Extraction, crawl, verification
 
 Layers are ephemeral chrome: absent at t=0, excluded from the crawled
@@ -279,6 +290,15 @@ only as each component demands it (no speculative machinery):
    daedalOS, Puter — at tens of thousands of lines with hand-managed
    z-order).
 
+   STATUS (2026-07-18): 1–3 landed in the sampler; 4 is standing — windows
+   (move, edge/corner resize, shade, zoom, activation-as-slot), Finder over
+   the real docs, Markdown viewers, dock magnification-by-layout, MenuBar
+   (a library component: whole menus as records, one live Menu, macOS
+   tracking; Menu.place() now works nested), live keys registry + hold-⌘
+   HUD, real dark mode. Remaining passes: plane material (vibrancy),
+   openly-licensed icon harvest, and the input primitives the desktop
+   registered (cursor attribute, dblclick/contextmenu, drag).
+
 ## 12. Open rulings
 
 1. Light-dismiss delivery: swallow-and-dismiss (Mac menus) vs
@@ -293,4 +313,8 @@ only as each component demands it (no speculative machinery):
    — the small schema.
 6. Multi-select context-menu convention (`opener` = clicked row; actions
    consult `app.selection`) — document as convention.
-7. Newton-keys record schema + registration timing (with the desktop).
+7. Newton-keys record schema + registration timing — the app-level proof
+   (§9 STATUS) fixes the record shape (`key:` on menu items, one derived
+   registry, HUD grouped by owning menu); open is the promotion to a
+   service (focus-walk resolution, view-level records) and how the
+   registry expresses host-reserved combos (display-only under browsers).
