@@ -346,25 +346,38 @@ class FinderWindow extends Window [ title = "Documentation",
     sel2: string = "",                           // the selected file (its path)
     sel2name: string = "",
 
-    tree: Dataset {
-        { "folders": [
-            { "name": "Language", "files": [
-                { "name": "declare.md", "path": "../../docs/declare.md" },
-                { "name": "FAQ", "path": "../../apps/homepage/declare-faq.md" },
-                { "name": "Getting started", "path": "../../apps/homepage/getstarted.md" } ] },
-            { "name": "Guide", "files": [
-                { "name": "Thinking in Declare", "path": "../../docs/guide/01-thinking-in-declare.md" },
-                { "name": "The tree", "path": "../../docs/guide/04-tree.md" },
-                { "name": "Relationships", "path": "../../docs/guide/03-relationships.md" },
-                { "name": "Space", "path": "../../docs/guide/05-space.md" },
-                { "name": "Data", "path": "../../docs/guide/08-data.md" },
-                { "name": "Motion & modes", "path": "../../docs/guide/09-motion-and-modes.md" } ] },
-            { "name": "Design", "files": [
-                { "name": "Layers", "path": "../../docs/system-design/planes.md" },
-                { "name": "Style", "path": "../../docs/system-design/style.md" },
-                { "name": "Islands", "path": "../../docs/system-design/islands.md" } ] }
-        ] }
-        },
+    // the tree DERIVES from the LIVE documentation model (app.docsModel — the
+    // docs app's own spine, fetched once): the Guide folder lists every
+    // chapter as authored, the Reference folder every element in the language
+    // model — nothing here goes stale when the docs move. A "ref:" path opens
+    // a reference page SYNTHESIZED from the model rather than a fetched file.
+
+    tree: Dataset [ contents = { ({ folders: [
+        ({ name: "Language", files: [
+            ({ name: "declare.md", path: "../../docs/declare.md" }),
+            ({ name: "FAQ", path: "../../apps/homepage/declare-faq.md" }),
+            ({ name: "Getting started", path: "../../apps/homepage/getstarted.md" }),
+        ] }),
+        ({ name: "Guide", files: ((app.docsModel.value || ({ })).guide || [])
+            .map((c) => ({ name: c.num + ". " + c.title, path: "../../docs/guide/" + c.id + ".md" })) }),
+        ({ name: "Reference", files: ((app.docsModel.value || ({ })).roots || [])
+            .map((r) => ({ name: "" + r, path: "ref:" + r })) }),
+        ({ name: "Design", files: [
+            ({ name: "Layers", path: "../../docs/system-design/planes.md" }),
+            ({ name: "Style", path: "../../docs/system-design/style.md" }),
+            ({ name: "Composition", path: "../../docs/system-design/composition.md" }),
+            ({ name: "Constraints", path: "../../docs/system-design/constraints.md" }),
+            ({ name: "Animation", path: "../../docs/system-design/animation.md" }),
+        ] }),
+        ({ name: "Operational", files: [
+            ({ name: "Getting started", path: "../../docs/operational/getting-started.md" }),
+            ({ name: "Building", path: "../../docs/operational/building.md" }),
+            ({ name: "The dev server", path: "../../docs/operational/dev-server.md" }),
+            ({ name: "Flags", path: "../../docs/operational/flags.md" }),
+            ({ name: "Format", path: "../../docs/operational/format.md" }),
+            ({ name: "Verify", path: "../../docs/operational/verify.md" }),
+        ] }),
+    ] }) } ],
 
     // draggable column widths — clamped: never too narrow to read, never so
     // wide the preview vanishes. The dividers are captured-drag strips laid
@@ -465,7 +478,8 @@ class FinderWindow extends Window [ title = "Documentation",
                         textColor = { theme.text }, text = { classroot.sel2name } ],
                     pth: Text [ fontSize = 11, wrap = true, width = { parent.width },
                         textAlign = center,
-                        textColor = { theme.textFaint }, text = { classroot.sel2 } ],
+                        textColor = { theme.textFaint },
+                        text = { classroot.sel2.indexOf("ref:") == 0 ? "from the documentation model" : classroot.sel2 } ],
                     Button [ x = center, width = 96, label = "Open", primary = true,
                         onClick() { app.openViewer(classroot.sel2, classroot.sel2name, this) },
                         ],
@@ -497,6 +511,12 @@ class FinderWindow extends Window [ title = "Documentation",
 class ViewerWindow extends Window [ width = 640, height = 460,
     path: string = "",
 
+    // a "ref:" path renders a page SYNTHESIZED from the documentation model
+    // (reactive — the page fills in when the model arrives); anything else is
+    // the real file fetched as text
+
+    inline: string = { this.path.indexOf("ref:") == 0 ? app.buildRef(this.path.slice(4)) : "" },
+
     src: DataSource [ format = "text", url = { classroot.path } ],
 
     // the scrolling body is a REAL pointer target covering the whole window,
@@ -504,7 +524,7 @@ class ViewerWindow extends Window [ width = 640, height = 460,
     // strips re-promote above it (order is a slot) or edge drags never land
 
     onInit() {
-        this.src.fetch()
+        if (this.inline == "") this.src.fetch()
         this.edgeL.raise()
         this.edgeR.raise()
         this.edgeB.raise()
@@ -516,13 +536,14 @@ class ViewerWindow extends Window [ width = 640, height = 460,
         scrolls = true, selectable = true,
         pad: View [ x = 24, y = 18, width = { parent.width - 48 },
             loading: Text [ fontSize = 13, textColor = { theme.textFaint },
-                visible = { classroot.src.loading }, text = "Loading…" ],
+                visible = { classroot.inline == "" && classroot.src.loading }, text = "Loading…" ],
             failed: Text [ fontSize = 13, textColor = { theme.textFaint }, wrap = true, width = { parent.width },
-                visible = { classroot.src.failed },
+                visible = { classroot.inline == "" && classroot.src.failed },
                 text = { "Could not load — " + (classroot.src.error || "") } ],
-            doc: Markdown [ width = { parent.width }, visible = { classroot.src.loaded },
+            doc: Markdown [ width = { parent.width },
+                visible = { classroot.inline != "" || classroot.src.loaded },
                 dark = { app.darkMode },
-                text = { classroot.src.value || "" } ],
+                text = { classroot.inline != "" ? classroot.inline : (classroot.src.value || "") } ],
             tail: View [ width = 4, height = 30 ],
             ],
         ],
@@ -680,7 +701,30 @@ App [ minWidth = 900, minHeight = 600,
         clockText = wd + " " + mo + " " + d.getDate() + " " + h12 + ":" + mm + " " + (d.getHours() >= 12 ? "PM" : "AM")
         },
 
-    onInit() { this.newFinder(); this.tick(); setInterval(() => this.tick(), 15000) },
+    // ── the documentation model: ONE fetch of the docs app's own spine; the
+    // Finder's Guide + Reference folders and the synthesized reference pages
+    // all derive from it ──────────────────────────────────────────────────
+
+    docsModel: DataSource [ url = "../../apps/docs/docs-model.json" ],
+
+    buildRef(name) {
+        const m = this.docsModel.value
+        if (m == null || m.nodes == null) return "# " + name + "\n\nLoading the documentation model…"
+        const n = m.nodes[name]
+        let md = "# " + name + "\n\n" + (n != null && n.doc ? "" + n.doc : "*(no element doc)*")
+        const pre = name + "."
+        const keys = Object.keys(m.nodes).filter((k) => k.indexOf(pre) == 0)
+        if (keys.length > 0) {
+            md = md + "\n\n---\n\n## Attributes\n"
+            for (const k of keys) {
+                const d = ("" + (m.nodes[k].doc || "")).split("\n\n")[0]
+                md = md + "\n**" + k.slice(pre.length) + "** — " + d + "\n"
+                }
+            }
+        return md
+        },
+
+    onInit() { this.docsModel.fetch(); this.newFinder(); this.tick(); setInterval(() => this.tick(), 15000) },
 
     // ── the Newton keys model, proven at app level (planes.md §12): shortcuts
     // are the MENUS' OWN RECORDS, aggregated into one registry — nothing is
