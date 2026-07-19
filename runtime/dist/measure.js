@@ -88,14 +88,24 @@ export function wrapLines(text, font, width, letterSpacing = 0) {
     const out = [];
     for (const seg of text.split("\n")) {
         let cur = "";
+        // Break opportunities are the BROWSER'S: at spaces (the space collapses
+        // at the break), and after "/" or "-" inside a word — how engines wrap
+        // paths, URLs, and hyphenated words; the delimiter stays with the line it
+        // ends. Without these a spaceless path measured as ONE line while the DOM
+        // rendered two (the desktop's preview pane caught it), so the model's
+        // height under-counted and layouts stacked into the overflow.
         for (const word of seg.split(" ")) {
-            const trial = cur === "" ? word : cur + " " + word;
-            if (cur !== "" && m.measureText(trial).width > width) {
-                out.push(cur);
-                cur = word;
+            const chunks = word.split(/(?<=[/-])/);
+            for (let j = 0; j < chunks.length; j++) {
+                const glue = j === 0 && cur !== "" ? " " : "";
+                const trial = cur === "" ? chunks[j] : cur + glue + chunks[j];
+                if (cur !== "" && m.measureText(trial).width > width) {
+                    out.push(cur);
+                    cur = chunks[j];
+                }
+                else
+                    cur = trial;
             }
-            else
-                cur = trial;
         }
         out.push(cur);
     }

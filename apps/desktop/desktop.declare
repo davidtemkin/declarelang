@@ -40,6 +40,19 @@ class Window extends View [ width = 560, height = 400, cornerRadius = 10, clip =
     title: string = "",
     active: boolean = { app.frontWin == this },
 
+    // the macOS open animation, MEASURED (burst captures of a real file open,
+    // 2026-07-18): the window zooms FROM THE FILE'S POSITION — ~15% scale at
+    // the icon, ~95% within the first ~100ms, settled by ~230ms; a strong
+    // ease-out. bornX/bornY carry the origin in window coords (-1 = no origin:
+    // a new window zooms gently from its own center instead).
+
+    bornX: number = -1,
+    bornY: number = -1,
+    pivotX = { this.bornX >= 0 ? this.bornX : this.width / 2 },
+    pivotY = { this.bornY >= 0 ? this.bornY : this.height / 2 },
+    born: Animator [ attribute = scale, from = { classroot.bornX >= 0 ? 0.15 : 0.85 }, to = 1,
+        duration = 230, motion = cubicOut, started = true ],
+
     // drag/resize bookkeeping (the captured-move pattern: root-space anchors)
 
     px0: number = 0,
@@ -221,8 +234,12 @@ class TrafficLight extends View [ y = 0, width = 14, height = 14, cornerRadius =
     sym: string = "",                            // "close" | "min" | "zoom"
     on: boolean = false,                         // the window's active state, fed at the use site
     showGlyph: boolean = false,                  // bar-hover, fed at the use site
-    fill = { on ? c : theme.line },
-    stroke = { stroke(1, on && rim != null ? rim : 0x00000012) },
+
+    // the rims are HAIRLINES (David's reference: "very thin and subtle") — a
+    // half-pixel stroke, hue-toned when lit, barely-there grey when not
+
+    fill = { on ? c : (app.darkMode ? 0x54545A : 0xD2D2D6) },
+    stroke = { stroke(0.5, on && rim != null ? rim : 0x00000014) },
 
     g: View [ x = 0, y = 0, width = 14, height = 14,
         visible = { classroot.showGlyph && classroot.on },
@@ -311,12 +328,12 @@ class FinderWindow extends Window [ title = "Documentation",
                 { "name": "FAQ", "path": "../../apps/homepage/declare-faq.md" },
                 { "name": "Getting started", "path": "../../apps/homepage/getstarted.md" } ] },
             { "name": "Guide", "files": [
-                { "name": "The shape of Declare", "path": "../../docs/guide/00-shape.md" },
-                { "name": "The tree", "path": "../../docs/guide/20-tree.md" },
-                { "name": "Constraints", "path": "../../docs/guide/21-constraints.md" },
-                { "name": "Reach", "path": "../../docs/guide/22-reach.md" },
-                { "name": "Data", "path": "../../docs/guide/27-data.md" },
-                { "name": "Continuity", "path": "../../docs/guide/28-continuity.md" } ] },
+                { "name": "Thinking in Declare", "path": "../../docs/guide/01-thinking-in-declare.md" },
+                { "name": "The tree", "path": "../../docs/guide/04-tree.md" },
+                { "name": "Relationships", "path": "../../docs/guide/03-relationships.md" },
+                { "name": "Space", "path": "../../docs/guide/05-space.md" },
+                { "name": "Data", "path": "../../docs/guide/08-data.md" },
+                { "name": "Motion & modes", "path": "../../docs/guide/09-motion-and-modes.md" } ] },
             { "name": "Design", "files": [
                 { "name": "Layers", "path": "../../docs/system-design/planes.md" },
                 { "name": "Style", "path": "../../docs/system-design/style.md" },
@@ -372,7 +389,7 @@ class FinderWindow extends Window [ title = "Documentation",
                                 // single click selects; DOUBLE click opens — the
                                 // Finder idiom, on the platform dblClick event
 
-                                onDblClick() { app.openViewer(this.fpath, this.fname) },
+                                onDblClick() { app.openViewer(this.fpath, this.fname, this) },
                                 hl: View [ x = 4, y = 0, width = { parent.width - 8 }, height = 26, cornerRadius = 5,
                                     visible = { parent.on }, fill = { theme.accent } ],
                                 FileIcon [ x = 12, y = center ],
@@ -395,6 +412,10 @@ class FinderWindow extends Window [ title = "Documentation",
                     layout: SimpleLayout [ axis = y, spacing = 12 ],
                     doc: View [ x = center, width = 56, height = 66, cornerRadius = 6, fill = { theme.bg },
                         stroke = { stroke(1, theme.line) },
+
+                        // the big icon opens on double-click too, zooming from itself
+
+                        onDblClick() { app.openViewer(classroot.sel2, classroot.sel2name, this) },
                         Text [ x = center, y = center, fontSize = 22, textColor = { theme.textFaint }, text = "M↓" ],
 
                         // the Finder dog-ear: cut the corner, then the fold flap
@@ -421,7 +442,7 @@ class FinderWindow extends Window [ title = "Documentation",
                         textAlign = center,
                         textColor = { theme.textFaint }, text = { classroot.sel2 } ],
                     Button [ x = center, width = 96, label = "Open", primary = true,
-                        onClick() { app.openViewer(classroot.sel2, classroot.sel2name) },
+                        onClick() { app.openViewer(classroot.sel2, classroot.sel2name, this) },
                         ],
                     ],
                 hint: Text [ x = center, y = center, fontSize = 12, textColor = { theme.textFaint },
@@ -586,11 +607,27 @@ App [ minWidth = 900, minHeight = 600,
         frontWin = w
         },
 
-    openViewer(p, nm) {
+    // `v` is the view the open came FROM (the double-clicked icon/row) — the
+    // window zooms from its center, the measured macOS behavior; omitted
+    // (menu, dock, ⌘O) the window zooms gently from its own center.
+
+    openViewer(p, nm, v) {
         if (p == "") return
         winCount = winCount + 1
         viewerCount = viewerCount + 1
-        const w = this.createView("ViewerWindow", this.wins, ({ path: p, title: "" + nm, x: 160 + (winCount % 7) * 28, y: 36 + (winCount % 7) * 26 }))
+        const wx = 160 + (winCount % 7) * 28
+        const wy = 36 + (winCount % 7) * 26
+        let ox = -1
+        let oy = -1
+        if (v != null) {
+            ox = v.width / 2
+            oy = v.height / 2
+            let n = v
+            while (n != null) { ox += n.x || 0; oy += n.y || 0; n = n.parent }
+            ox = ox - wx
+            oy = oy - wy - 25                    // wins layer offset
+            }
+        const w = this.createView("ViewerWindow", this.wins, ({ path: p, title: "" + nm, x: wx, y: wy, bornX: ox, bornY: oy }))
         frontWin = w
         },
 
@@ -715,7 +752,7 @@ App [ minWidth = 900, minHeight = 600,
                 onClick() { app.openViewer("../../docs/declare.md", "declare.md") },
                 ],
             DockIcon [ ix = 2, name = "Guide", glyph = "✎", hue1 = #F49B45, hue2 = #C96B1D,
-                onClick() { app.openViewer("../../docs/guide/00-shape.md", "The shape of Declare") },
+                onClick() { app.openViewer("../../docs/guide/01-thinking-in-declare.md", "Thinking in Declare") },
                 ],
             DockIcon [ ix = 3, name = "FAQ", glyph = "?", hue1 = #55BD6C, hue2 = #2E8B47,
                 onClick() { app.openViewer("../../apps/homepage/declare-faq.md", "FAQ") },
