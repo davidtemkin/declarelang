@@ -1,0 +1,46 @@
+/*
+# SearchField
+
+The macOS search pill (AppKit's NSSearchField, as it appears in Help menus,
+toolbars, and System Settings): a CAPSULE — corner radius is half the
+height — with a drawn magnifier at the left and a chromeless native input
+inside. The TextInput's themed self-chrome (fill/stroke/radius derives) is
+displaced by author nulls, so the pill is the only box; focus shows as the
+caret, exactly as the captured original does.
+
+`text` mirrors the live value; `input(v)` is the delivery seam
+(components-baseline.md, Contract 1) — override it to hand the query to its
+owner.
+*/
+
+include [ "control.declare" ]
+
+class SearchField extends View [ width = 200, height = 28,
+    placeholder: string = "Search",
+    text: string = "",
+
+    input(v) { text = "" + v },
+
+    cornerRadius = { this.height / 2 },
+    fill = { theme.surface },
+    stroke = { stroke(1, theme.line) },
+
+    mag: View [ x = 10, y = { (parent.height - 14) / 2 }, width = 14, height = 14,
+        draw(d) {
+            d.strokeStyle = theme.textFaint
+            d.lineWidth = 1.5
+            d.lineCap = "round"
+            d.beginPath()
+            d.arc(6, 6, 4.2, 0, Math.PI * 2, false)
+            d.moveTo(9.4, 9.4)
+            d.lineTo(12.5, 12.5)
+            d.stroke()
+            },
+        ],
+
+    inp: TextInput [ x = 28, y = { (parent.height - 18) / 2 }, width = { parent.width - 38 }, height = 18,
+        fontSize = 13, fill = null, stroke = null, cornerRadius = 0,
+        placeholder = { classroot.placeholder },
+        onInput(v) { classroot.input(v) },
+        ],
+    ]

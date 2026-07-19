@@ -5,10 +5,12 @@ The record-driven menu (planes.md §4–§6): items are DATA — the component
 arranges; the author never composes rows. The standard record covers real OS
 menus:
 
-    { id, label, key?, enabled?, checked?, divider?, submenu?, kind?, props? }
+    { id, label, key?, icon?, enabled?, checked?, divider?, submenu?, kind?, props? }
 
 - `key` renders right-aligned (display only — registration is the Keys
   service's, later).
+- `icon` is a leading text glyph (⚙, ⌂, …), the macOS menu convention —
+  the label shifts right to make its column.
 - `enabled: false` dims the row (theme.disabledOpacity) and refuses pick.
 - `{ divider: true }` is a separator line.
 - `submenu: [ …records… ]` marks a cascade (the ▸ arrow; the cascade itself
@@ -207,7 +209,7 @@ class Menu extends View [ visible = { shown }, width = 220,
                 sub:      boolean = { !!:submenu },
                 custom:   string  = { typeof :kind == "string" ? "" + :kind : "" },
                 hovered:  boolean = false,
-                height = { divider ? 9 : custom != "" ? Math.max(26, this.host.height + 8) : 26 },
+                height = { divider ? 9 : custom != "" ? Math.max(26, this.host.height + 8) : (typeof theme.menuRow == "number" ? theme.menuRow : 26) },
                 opacity = { enabled ? 1 : (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) },
 
                 onMouseOver() {
@@ -247,7 +249,12 @@ class Menu extends View [ visible = { shown }, width = 220,
                 check: Text [ x = 8, y = center, fontSize = 12, visible = { !parent.divider && !!:checked },
                     textColor = { (parent.hovered || classroot.activeRow == parent) ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.text }, text = "✓" ],
 
-                lbl: Text [ x = 24, y = center, fontSize = 13, visible = { !parent.divider && parent.custom == "" },
+                ico: Text [ x = 14, y = center, fontSize = 13, visible = { !parent.divider && parent.custom == "" && :icon != null },
+                    textColor = { (parent.hovered || classroot.activeRow == parent) ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.text },
+                    text = { "" + (:icon || "") } ],
+
+                lbl: Text [ y = center, fontSize = 13, visible = { !parent.divider && parent.custom == "" },
+                    x = { :icon != null ? 40 : 24 },
                     textColor = { (parent.hovered || classroot.activeRow == parent) ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.text },
                     text = { "" + (:label || "") } ],
 
@@ -277,7 +284,7 @@ class Menu extends View [ visible = { shown }, width = 220,
 
                 // a `kind` row's author-rendered content region
 
-                host: View [ x = 24, y = 4, width = { parent.width - 34 },
+                host: View [ x = 24, y = 4, width = { parent.width - 34 }, height = { this.contentHeight },
                     visible = { parent.custom != "" } ],
                 ],
             ],

@@ -25,6 +25,7 @@
   "RadioGroup": "radiogroup.declare",
   "Radio": "radiogroup.declare",
   "Field": "field.declare",
+  "SearchField": "searchfield.declare",
   "ProgressBar": "progressbar.declare",
   "FocusRing": "focusring.declare",
   "TabSlider": "tabslider.declare",

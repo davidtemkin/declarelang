@@ -23,6 +23,11 @@ include [ "menu.declare" ]
 
 class MenuBar extends View [ height = 25,
 
+    // menu records: { id, label, bold?, kind?, items } — `kind` names an
+    // author class rendered AS the title (a brand mark in the para-Apple
+    // slot); behavior stays the title's (open, track). Keep kind-only
+    // classes with `use [ Name ]`, exactly as Menu's kind rows do.
+
     menus: array = null,
 
     // the delivery seam — the id is the whole message
@@ -83,17 +88,27 @@ class MenuBar extends View [ height = 25,
     row: View [ height = { parent.height },
         layout: SimpleLayout [ axis = x, spacing = 2 ],
         datapath = { classroot.data.value },
-        View [ datapath = :m[], height = { parent.height },
+
+        // the title highlight is the Mac's: inset above and below (the bar is
+        // taller than the capsule), radius between rounded-rect and pill
+
+        View [ datapath = :m[], height = { parent.height - 8 }, y = 4,
             mid: string = { "" + :id },
+            kd: string = { typeof :kind == "string" ? "" + :kind : "" },
             open: boolean = { classroot.menu.shown && classroot.openId == this.mid },
-            width = { this.t.width + 20 },
-            cornerRadius = 5,
+            width = { (this.kd != "" ? this.host.contentWidth : this.t.width) + 20 },
+            cornerRadius = 8,
             fill = { this.open ? theme.controlActive : null },
             onMouseOver() { classroot.trackMenu(this) },
             onClick() { if (this.open) classroot.menu.close(); else classroot.openMenu(this) },
+            onInit() { if (this.kd != "") app.createView(this.kd, this.host, ({ })) },
             t: Text [ x = 10, y = center, fontSize = 14,
+                visible = { parent.kd == "" },
                 fontWeight = { :bold ? "bold" : "regular" },
                 textColor = { theme.text }, text = { "" + :label } ],
+            host: View [ x = 10, y = center,
+                visible = { parent.kd != "" },
+                width = { this.contentWidth }, height = { this.contentHeight } ],
             ],
         ],
     ]
