@@ -15,9 +15,9 @@ selects what the URL returns; exactly one applies, and their absence runs the ap
 |---|---|---|
 | run | *(none)* | the running app (default) |
 | build | `?build` → `/build/<name>/` | the standalone `declarec` artifact (built once, cached) |
-| reader | `?view=reader` | the code viewer, reader tab — highlighted source, block comments as Markdown |
-| source | `?view=source` | the code viewer, verbatim-source tab |
-| edit | `?view=edit` | the code viewer, live-edit tab |
+| reader | `?viewer=reader` | the code viewer, reader tab — highlighted source, block comments as Markdown |
+| source | `?viewer=source` | the code viewer, verbatim-source tab |
+| edit | `?viewer=edit` | the code viewer, live-edit tab |
 | file | `?file` | the exact source bytes, `text/plain` (curl, an `include`) |
 | segments | `?segments` | the highlighter's segments as JSON |
 | extract | `?extract` | the static-extraction document — semantic HTML for crawlers |
@@ -39,7 +39,7 @@ The URL has three layers, and they do not overlap: the **path** picks the progra
 (`#…`) is `app.location` — *where in the app* (docs/system-design/location.md). A running app owns its
 fragment: it seeds `app.location` from `#…` before the first paint, pushes one history entry per
 navigation, and writes it back on back/forward. So `foo.declare#why` deep-links into the app's
-`why` location, `foo.declare?view=reader` opens the reader — and `foo.declare?view=reader#why` is
+`why` location, `foo.declare?viewer=reader` opens the reader — and `foo.declare?viewer=reader#why` is
 both at once, because the query and the fragment answer different questions. The `?extract`
 document follows these fragment links too: it crawls each reachable location and emits ONE
 document — the default page, then each location's content as a `<section>` whose `id` is that

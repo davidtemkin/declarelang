@@ -108,7 +108,7 @@ misbehavior — they are written to be trusted, applied, and recompiled. That lo
 
 The program URL takes modifiers, one query parameter each:
 
-- `?view=source` — read the compiled source beside the running app; `?view=edit`
+- `?viewer=source` — read the compiled source beside the running app; `?viewer=edit`
   edits it in the browser.
 - `?render=canvas` — render to a single canvas instead of the DOM: the same
   program, a different backend.

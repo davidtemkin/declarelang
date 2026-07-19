@@ -104,7 +104,7 @@ The missing front door (audit §4) plus the run-the-toolchain surface:
      browse to `http://127.0.0.1:8200/my-apps/hello.declare` — the URL *is* the app.
   4. **The loop** — edit on disk, reload (compile-on-request); then break it on purpose
      and read the diagnostic: it names the fix. The loop *is* the first lesson.
-  5. **The address does more** — `?view=source|edit`, `?render=canvas`, `?build`; one
+  5. **The address does more** — `?viewer=source|edit`, `?render=canvas`, `?build`; one
      line each, linking to `dev-server.md` / the guide.
   *Riders on the main repo (flagged, not done from this copy):* add `my-apps/` to
   `.gitignore`; link the page from the homepage header and root README.
@@ -174,7 +174,7 @@ empirical record (`language-learnings.md`, the E-series, brief §10):
 |---|---|---|---|
 | 40 | Checking your program | **write-new** | The verify ladder as a user concept; "the diagnostic names the fix — trust it, apply it, recompile." The CLI page is operational. |
 | 41 | Shipping | update | Narrative + concepts; command detail thins out to `operational/building.md`. |
-| 42 | Anatomy of the calendar | **write-new, capstone (rescoped 2026-07-14)** | NOT a front-to-back read — a source inspection showed the morphing core is nested-lerp virtuoso code, states/layout/stdlib barely appear, and ~100 lines are inert TS helpers. Instead: an excerpt-driven tour of the four load-bearing mechanisms — the focus rectangle (four sprung scalars all geometry derives from), derived-scalar modes (`blockness`), the derived model + keyed replication, drag-through-`data.set` — ~10 quoted lines each, with the live `?view=reader` page as the full-source companion. Framed honestly as the language's ceiling, not its floor. |
+| 42 | Anatomy of the calendar | **write-new, capstone (rescoped 2026-07-14)** | NOT a front-to-back read — a source inspection showed the morphing core is nested-lerp virtuoso code, states/layout/stdlib barely appear, and ~100 lines are inert TS helpers. Instead: an excerpt-driven tour of the four load-bearing mechanisms — the focus rectangle (four sprung scalars all geometry derives from), derived-scalar modes (`blockness`), the derived model + keyed replication, drag-through-`data.set` — ~10 quoted lines each, with the live `?viewer=reader` page as the full-source companion. Framed honestly as the language's ceiling, not its floor. |
 
 **Moves out:** getting-started material → `operational/` (00 and 10 link to it);
 `90-docs-internals.md` → `system-design/` (category A, per the audit).

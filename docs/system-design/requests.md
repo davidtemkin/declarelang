@@ -19,7 +19,7 @@ address.
 
 ## Requests
 
-One key selects the artifact. `?view=` is the one key that takes a value, because the
+One key selects the artifact. `?viewer=` is the one key that takes a value, because the
 viewer is a single app with tabs; everything else is a bare presence key, and the
 absence of all of them is `run`. Every name is lowercase — there is no camelCase in the
 URL surface.
@@ -28,16 +28,16 @@ URL surface.
 |---|---|---|
 | **run** | *(none)* — the default | the running app, in a generated wrapper. Rides prewarm → cache → compile in the browser. |
 | **build** | `?build` | the standalone, minified, self-contained deployable (the `declarec` artifact). A *directory* of files — see the transport note below. |
-| **reader** | `?view=reader` | the **viewer** app, reader tab: highlighted source with `/* */` prose rendered as Markdown. |
-| **source** | `?view=source` | the **viewer** app, **Source** tab: the verbatim source shown *in the viewer*. (Distinct from `?file`.) |
-| **edit** | `?view=edit` | the **viewer** app, live-edit tab: source in an editor, the running program below, compile errors between. |
+| **reader** | `?viewer=reader` | the **viewer** app, reader tab: highlighted source with `/* */` prose rendered as Markdown. |
+| **source** | `?viewer=source` | the **viewer** app, **Source** tab: the verbatim source shown *in the viewer*. (Distinct from `?file`.) |
+| **edit** | `?viewer=edit` | the **viewer** app, live-edit tab: source in an editor, the running program below, compile errors between. |
 | **file** | `?file` | the raw source **bytes** (`text/plain`) — what an `include`, the compiler, or `curl` reads. |
 | **segments** | `?segments` | the highlighter's output as **JSON** (`highlight()` segments — the reader's data alone). |
 | **extract** | `?extract` | the **static-extraction** document alone (`text/html`) — the program's content as semantic HTML at its t=0 snapshot, for crawlers and AI readers (capabilities.md §5). |
 
-`source` vs `file` is the split that removes the old collision: `?view=source` is the
+`source` vs `file` is the split that removes the old collision: `?viewer=source` is the
 viewer *showing* you the source; `?file` is the actual file. Before this scheme,
-`?view=source` returned raw bytes and the viewer's Source tab was unreachable by URL.
+`?viewer=source` returned raw bytes and the viewer's Source tab was unreachable by URL.
 
 ## Modifiers
 

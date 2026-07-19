@@ -9,7 +9,7 @@
 //   npm start                                   # http://127.0.0.1:8200/  (the homepage)
 //   /apps/calendar-sample/calendar-sample.declare   # run it (DOM backend)
 //   …?render=canvas                             # Canvas backend (a modifier)
-//   …?view=reader | ?view=source | ?view=edit   # the viewer app, on that tab
+//   …?viewer=reader | ?viewer=source | ?viewer=edit   # the viewer app, on that tab
 //   …?file                                      # the raw source bytes (curl / an include)
 //   …?extract                                   # the static-extraction document alone (crawlers)
 //   …?build   →   /build/<name>/                # the discrete, self-contained declarec build
@@ -81,7 +81,7 @@ function withServerMarker(html) {
 }
 
 // The VIEWER requests (reqtypes.ts) for one .declare file: READER / SOURCE / EDIT open
-// the code-viewer app on that tab; SEGMENTS hands back highlight()'s JSON on its own.
+// the Viewer app on that tab; SEGMENTS hands back highlight()'s JSON on its own.
 // (The raw bytes are ?file, served by the callers directly.) `relPath` is the file's
 // tree-relative path, used for the JSON's `path` and the page title.
 function serveSource(res, absPath, relPath, rt, backendClass) {
@@ -100,25 +100,25 @@ function serveSource(res, absPath, relPath, rt, backendClass) {
   return send(res, 200, withServerMarker(sourcePage(relPath, segments, source, backendClass, mode)));
 }
 
-// The code-viewer app (apps/codeviewer) booted for ONE source file: the
+// The Viewer app (apps/viewer) booted for ONE source file: the
 // server has already run highlight(), so it seeds the segments through the host→
 // app channel (cfg.seeds → app.demoSources) — the viewer is a plain consumer, no
 // bespoke wiring. The viewer renders prose segments as Markdown and code segments
 // as coloured <pre> (its own accents map themes them), plus size + light/dark
-// controls. So `foo.declare?view=reader` is a live, self-contained source page.
+// controls. So `foo.declare?viewer=reader` is a live, self-contained source page.
 function sourcePage(relPath, segments, rawSource, backendClass, mode = "") {
-  const dir = path.join(EXAMPLES, "codeviewer");
-  const src = readFileSync(path.join(dir, "codeviewer.declare"), "utf8");
+  const dir = path.join(EXAMPLES, "viewer");
+  const src = readFileSync(path.join(dir, "viewer.declare"), "utf8");
   const r = compile(src, { originDir: dir });
   if (r.errors.length) {
-    return `<!doctype html><meta charset="utf-8"><title>codeviewer — compile errors</title>
+    return `<!doctype html><meta charset="utf-8"><title>viewer — compile errors</title>
 <pre style="color:#c33;font:13px/1.5 ui-monospace,monospace;padding:20px;white-space:pre-wrap">${
       esc(r.report)}</pre>`;
   }
   const title = relPath.split("/").pop();
   const cfg = {
     backend: backendClass, source: r.source, deps: r.deps,
-    // The ?view= request's opening tab → the viewer's initial location (§4 above).
+    // The ?viewer= request's opening tab → the viewer's initial location (§4 above).
     location: mode,
     // __source__ = the highlight() segments (JSON); __raw__ = the verbatim source
     // (for the plain-text toggle — segments can't reconstruct it faithfully);
@@ -126,7 +126,7 @@ function sourcePage(relPath, segments, rawSource, backendClass, mode = "") {
     seeds: { __source__: JSON.stringify(segments), __raw__: rawSource, __path__: relPath },
   };
   return `<!doctype html><meta charset="utf-8"><title>${esc(title)} — source</title>
-<base href="/apps/codeviewer/">
+<base href="/apps/viewer/">
 <style>html,body{margin:0;padding:0}</style>
 <div id="host"></div>
 <script type="module">
@@ -360,7 +360,7 @@ http.createServer((req, res) => {
     // …/calendar.lzx?lzt=…) — identical here and on the SW static host. One request
     // per URL (reqtypes.ts); docs/system-design/requests.md is the full surface.
     //   NAVIGATE to …/app.declare                → the running app (RUN, default)
-    //   …?view=reader | ?view=source | ?view=edit → the viewer app, on that tab
+    //   …?viewer=reader | ?viewer=source | ?viewer=edit → the viewer app, on that tab
     //   …?segments                                → the reader's highlight JSON
     //   …?extract                                 → the static-extraction document
     //   …?build                                   → 302 to /build/<name>/ (a directory)

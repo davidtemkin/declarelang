@@ -774,13 +774,19 @@ App [ fill = { theme.bg },
             // rendition Declare Calendar uses for its own name
 
             brand: View [ width = { parent.width }, height = 23,
-                layout: SimpleLayout [ axis = x, spacing = 5 ],
-                Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 18,
-                    fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
-                    textFill = { gradient("90deg", theme.accent, theme.accent2) }, text = "Declare" ],
-                Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 18,
-                    fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
-                    textColor = { theme.text }, text = "Docs" ],
+
+                // the house brand rendition, x-aligned with Calendar's and Viewer's
+                // (their bars start the brand at 20; this rail's column starts at 16)
+
+                row: View [ x = 4, height = 22,
+                    layout: SimpleLayout [ axis = x, spacing = 5 ],
+                    Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 18,
+                        fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
+                        textFill = { gradient("90deg", theme.accent, theme.accent2) }, text = "Declare" ],
+                    Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 18,
+                        fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
+                        textColor = { theme.text }, text = "Docs" ],
+                    ],
                 ],
             g0:    View [ height = 12 ],
             modes: View [ width = { parent.width },

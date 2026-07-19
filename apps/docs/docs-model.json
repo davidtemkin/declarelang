@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "buildId": "7a20c4be9e2a",
+  "buildId": "3548a0e6a7f7",
   "nodes": {
     "View.x": {
       "id": "View.x",
@@ -996,10 +996,10 @@
       "id": "View.anchor",
       "name": "anchor",
       "kind": "attribute",
-      "doc": "Names this view as a **reveal target** for a location's `@name` suffix\n(`#guide/22-reach@intro` scrolls to the view with `anchor = \"intro\"`). The `<a name>`\nlineage, reborn reactive: the anchor namespace is named views (this attribute) plus\nheading slugs inside rendered rich text — a heading needs nothing from you. Resolution\nprefers views over slugs, preorder-first.",
+      "doc": "Names this view as a **reveal target** for a location's `@name` suffix\n(`#guide/04-tree@intro` scrolls to the view with `anchor = \"intro\"`). The `<a name>`\nlineage, reborn reactive: the anchor namespace is named views (this attribute) plus\nheading slugs inside rendered rich text — a heading needs nothing from you. Resolution\nprefers views over slugs, preorder-first.",
       "docSegs": [
         {
-          "md": "Names this view as a **reveal target** for a location's `@name` suffix\n(`#guide/22-reach@intro` scrolls to the view with `anchor = \"intro\"`). The `<a name>`\nlineage, reborn reactive: the anchor namespace is named views (this attribute) plus\nheading slugs inside rendered rich text — a heading needs nothing from you. Resolution\nprefers views over slugs, preorder-first.",
+          "md": "Names this view as a **reveal target** for a location's `@name` suffix\n(`#guide/04-tree@intro` scrolls to the view with `anchor = \"intro\"`). The `<a name>`\nlineage, reborn reactive: the anchor namespace is named views (this attribute) plus\nheading slugs inside rendered rich text — a heading needs nothing from you. Resolution\nprefers views over slugs, preorder-first.",
           "code": []
         }
       ],
@@ -6272,10 +6272,10 @@
           "id": "View.anchor",
           "name": "anchor",
           "kind": "attribute",
-          "doc": "Names this view as a **reveal target** for a location's `@name` suffix\n(`#guide/22-reach@intro` scrolls to the view with `anchor = \"intro\"`). The `<a name>`\nlineage, reborn reactive: the anchor namespace is named views (this attribute) plus\nheading slugs inside rendered rich text — a heading needs nothing from you. Resolution\nprefers views over slugs, preorder-first.",
+          "doc": "Names this view as a **reveal target** for a location's `@name` suffix\n(`#guide/04-tree@intro` scrolls to the view with `anchor = \"intro\"`). The `<a name>`\nlineage, reborn reactive: the anchor namespace is named views (this attribute) plus\nheading slugs inside rendered rich text — a heading needs nothing from you. Resolution\nprefers views over slugs, preorder-first.",
           "docSegs": [
             {
-              "md": "Names this view as a **reveal target** for a location's `@name` suffix\n(`#guide/22-reach@intro` scrolls to the view with `anchor = \"intro\"`). The `<a name>`\nlineage, reborn reactive: the anchor namespace is named views (this attribute) plus\nheading slugs inside rendered rich text — a heading needs nothing from you. Resolution\nprefers views over slugs, preorder-first.",
+              "md": "Names this view as a **reveal target** for a location's `@name` suffix\n(`#guide/04-tree@intro` scrolls to the view with `anchor = \"intro\"`). The `<a name>`\nlineage, reborn reactive: the anchor namespace is named views (this attribute) plus\nheading slugs inside rendered rich text — a heading needs nothing from you. Resolution\nprefers views over slugs, preorder-first.",
               "code": []
             }
           ],

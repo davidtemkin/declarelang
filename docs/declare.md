@@ -667,7 +667,7 @@ making it:
    (`npm start` → `http://127.0.0.1:8200/`), navigating to `…/<path>/<name>.declare`
    compiles on request and renders — edit on disk, reload, see it. The same address takes
    modifiers and views: `?render=canvas` (own-pixels renderer — same source, same pixels),
-   `?view=edit` (source editor + live result + errors, in the browser), `?view=reader`
+   `?viewer=edit` (source editor + live result + errors, in the browser), `?viewer=reader`
    (annotated, highlighted source), `?extract` (the static-extraction document crawlers
    see). Typechecking of every `{ }` body is part of every compile — there is no flag.
 3. **Read the errors.** Every compile error carries a code (`DECLARE####`), a line/column, and

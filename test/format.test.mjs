@@ -3,7 +3,7 @@
 //
 //   1. IDEMPOTENCE — format(format(x)) === format(x), byte-equal, for every
 //      corpus file (apps/**/[a-z]*.declare + library/*.declare).
-//   2. EXEMPLAR — apps/codeviewer/codeviewer.declare is the canon's
+//   2. EXEMPLAR — apps/viewer/viewer.declare is the canon's
 //      exemplar: formatting it must be a PERFECT no-op (its alignment slip,
 //      glued comment blocks, and 3-space trailing gaps were fixed in-file as
 //      canon fixes under the 2026-07-13 rulings).
@@ -88,8 +88,8 @@ for (const file of corpus) {
 // trailing-comment gaps below the ruled 4-space minimum. Canon and exemplar
 // now agree byte-for-byte; any regression in either fails here.
 
-await test("exemplar: codeviewer.declare formats to itself, byte-exact", () => {
-  const file = resolve(ROOT, "apps/codeviewer/codeviewer.declare");
+await test("exemplar: viewer.declare formats to itself, byte-exact", () => {
+  const file = resolve(ROOT, "apps/viewer/viewer.declare");
   const src = readFileSync(file, "utf8");
   const out = formatSource(src);
   if (out !== src) {

@@ -1,18 +1,18 @@
-// codeviewer — a live, syntax-highlighted view of a Declare source file.
+// Declare Viewer — a live, syntax-highlighted view of a Declare source file.
 //
 // It renders nothing on its own: the server runs the compiler's highlight()
 // (compiler/src/highlight.ts) over a `.declare` file and hands the resulting
 // SEGMENTS to this app through the host→app seed channel (app.demoSources), so
-// the viewer is a plain consumer. Each segment is either PROSE — the Markdown
+// the Viewer is a plain consumer. Each segment is either PROSE — the Markdown
 // carried in a block comment, rendered by the Markdown component — or CODE — a
 // run of syntax-highlighted <pre> HTML whose per-token <span> classes this app's
 // `accents` map colours (theme-aware, so the same segments render light or dark).
 //
-// Reach it with a request type (reqtypes.ts): `foo.declare?view=reader` (the program
-// URL is the address — a directory carries no behavior). The Reader / Source / Live-edit
-// triple (?view=reader | ?view=source | ?view=edit) switches
-// between the rendered view, the verbatim source, and an editing workbench (the
-// source in an editor, the running program below it, compile errors sandwiched
+// Reach it with a request type (reqtypes.ts): a bare `foo.declare?viewer` opens the
+// default Reader tab (the program URL is the address — a directory carries no
+// behavior). The Reader / Source / Edit triple (?viewer=reader | source | edit)
+// switches between the rendered view, the verbatim source, and an editing workbench
+// (the source in an editor, the running program below it, compile errors sandwiched
 // between); the A stepper zooms every text size; the ☀/◐/☾ switch picks
 // Light / System / Dark.
 
@@ -77,14 +77,14 @@ class SizeBtn extends View [ width = 34, height = 30, cornerRadius = 6,
     ]
 
 
-// one text segment of the Reader-view / Source-text pair — a two-segment switch
-// (styled like the theme one); the active segment wears the pill.
+// one segment of the Reader / Source / Edit switch (styled like the theme one);
+// the active segment wears the pill.
 
 class ModeSeg extends View [ m: string = "",
     lbl: string = "",
     hovered: boolean = false,
 
-    width = 96, height = { parent.height },
+    width = 80, height = { parent.height },
 
     bg: View [ x = 2, y = 2, width = { parent.width - 4 }, height = { parent.height - 4 }, cornerRadius = 6,
         fill = { app.mode == classroot.m ? app.theme.pill : null } ],
@@ -128,7 +128,7 @@ App [ fill = { app.theme.bg },
     headH: number = { 46 * app.fontScale },    // filename title + rule, above the body
 
     // "reader" = highlighted + Markdown, "source" = verbatim, "edit" = live
-    // workbench — the viewer's location (docs/system-design/location.md). The `?view=` request
+    // workbench — the viewer's location (docs/system-design/location.md). The `?viewer=` request
     // seeds the opening tab (the host translates the query into the initial
     // location); a tab click writes `app.location` and this derives back from it, so
     // the tab is a single source of truth that back/forward walk for free.
@@ -349,13 +349,32 @@ App [ fill = { app.theme.bg },
             width = { parent.width }, height = { parent.height } ],
         ],
 
-    // top bar: type-size stepper (left) · Reader / Source / Live edit (centre) · theme (right)
+    // top bar: the brand (left) · Reader / Source / Edit (centre) · type-size
+    // stepper + theme (right). The brand is the house rendition — gradient
+    // "Declare", solid app name — sized and placed as in Calendar and Docs.
 
     bar: View [ x = 0, y = 0, width = { app.hostWidth }, height = { app.barH }, fill = { app.theme.surface },
 
         hair: View [ x = 0, y = { app.barH - 1 }, width = { parent.width }, height = 1, fill = { app.theme.line } ],
 
-        size: View [ y = { (app.barH - 30) / 2 }, x = 16, height = 30, width = { this.contentWidth },
+        brand: View [ x = 20, y = { (app.barH - 22) / 2 }, height = 22,
+            layout: SimpleLayout [ axis = x, spacing = 5 ],
+            Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
+                textFill = { gradient("90deg", app.theme.accent, app.theme.accentTeal) }, text = "Declare" ],
+            Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
+                textColor = { app.theme.text }, text = "Viewer" ],
+            ],
+
+        modeSwitch: View [ y = { (app.barH - 30) / 2 }, height = 30, width = 244,
+            x = { Math.max(200, (app.hostWidth - 244) / 2) },
+            cornerRadius = 8, fill = { app.theme.track },
+            r: ModeSeg [ x = 2,   m = "reader", lbl = "Reader" ],
+            s: ModeSeg [ x = 82,  m = "source", lbl = "Source" ],
+            e: ModeSeg [ x = 162, m = "edit",   lbl = "Edit" ],
+            ],
+
+        size: View [ y = { (app.barH - 30) / 2 }, x = { parent.themeSwitch.x - this.width - 8 }, height = 30,
+            width = { this.contentWidth },
             cornerRadius = 8, fill = { app.theme.surface }, stroke = { stroke(1, app.theme.line) },
             layout: SimpleLayout [ axis = x, spacing = 0 ],
             SizeBtn [ glyph = 11, delta = -0.1 ],
@@ -363,13 +382,6 @@ App [ fill = { app.theme.bg },
             SizeBtn [ glyph = 15, delta = 0 ],
             d2: View [ width = 1, height = 18, y = 6, fill = { app.theme.line } ],
             SizeBtn [ glyph = 19, delta = 0.1 ],
-            ],
-
-        modeSwitch: View [ y = { (app.barH - 30) / 2 }, x = { (app.hostWidth - 290) / 2 }, height = 30, width = 290,
-            cornerRadius = 8, fill = { app.theme.track },
-            r: ModeSeg [ x = 2,   m = "reader", lbl = "Reader view" ],
-            s: ModeSeg [ x = 98,  m = "source", lbl = "Source text" ],
-            e: ModeSeg [ x = 194, m = "edit",   lbl = "Live edit" ],
             ],
 
         themeSwitch: View [ y = { (app.barH - 30) / 2 }, x = { app.hostWidth - 94 - 16 }, height = 30, width = 94,

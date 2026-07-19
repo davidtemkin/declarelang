@@ -660,9 +660,9 @@ App [ clip = true, minWidth = 480, minHeight = 420,
         rule: View [ y = { parent.height - 1 }, width = { parent.width }, height = 1, fill = { theme.hairline } ],
 
         brand: View [ x = 20, y = { (app.barH - 22) / 2 }, height = 22,
-            layout: SimpleLayout [ axis = x, spacing = 4 ],
-            Text [ fontSize = 19, fontWeight = bold, wrap = false, textFill = { gradient("90deg", theme.accent, theme.accentTeal) }, text = "Declare" ],
-            Text [ fontSize = 19, fontWeight = bold, wrap = false, textColor = { theme.textPrimary }, text = "Calendar" ],
+            layout: SimpleLayout [ axis = x, spacing = 5 ],
+            Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textFill = { gradient("90deg", theme.accent, theme.accentTeal) }, text = "Declare" ],
+            Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textColor = { theme.textPrimary }, text = "Calendar" ],
             ],
 
         themeSwitch: View [ x = 196, height = 34, width = 94, y = { (app.barH - 34) / 2 }, visible = { app.showTheme },

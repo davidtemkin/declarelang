@@ -19,10 +19,11 @@ console.log("serve-core parity");
 await test("requestType maps the query to a request (the classifier both hosts share)", () => {
   assert.equal(requestType(params("")), REQ.RUN);                     // default
   assert.equal(requestType(params("render=canvas")), REQ.RUN);       // a modifier, not a request
-  assert.equal(requestType(params("view=reader")), REQ.READER);      // ?view= = the viewer's tabs
-  assert.equal(requestType(params("view=source")), REQ.SOURCE);      // the viewer's Source tab
-  assert.equal(requestType(params("view=edit")), REQ.EDIT);
-  assert.equal(requestType(params("view=bogus")), REQ.RUN);          // unknown view → safe default
+  assert.equal(requestType(params("viewer=reader")), REQ.READER);      // ?viewer= = the Viewer’s tabs
+  assert.equal(requestType(params("viewer=source")), REQ.SOURCE);      // the viewer's Source tab
+  assert.equal(requestType(params("viewer=edit")), REQ.EDIT);
+  assert.equal(requestType(params("viewer=bogus")), REQ.READER);  // unknown value → the Viewer default
+  assert.equal(requestType(params("viewer")), REQ.READER);       // bare ?viewer → the Reader          // unknown view → safe default
   assert.equal(requestType(params("build")), REQ.BUILD);             // bare presence keys
   assert.equal(requestType(params("file")), REQ.FILE);
   assert.equal(requestType(params("segments")), REQ.SEGMENTS);

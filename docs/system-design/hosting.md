@@ -110,7 +110,7 @@ the service worker is installed:
 | request on `…/app.declare` | you get |
 |---|---|
 | a top-level **navigation** (no params) | the RUNNING app, in a generated wrapper |
-| `?view=reader` / `?view=source` / `?view=edit` | the **viewer** app on that tab (literate reader / verbatim source / live edit) |
+| `?viewer=reader` / `?viewer=source` / `?viewer=edit` | the **viewer** app on that tab (literate reader / verbatim source / live edit) |
 | `?segments` | the reader's highlight data as JSON |
 | `?extract` | the **static extraction** document — content as semantic HTML (`text/html`) |
 | `?file` | the EXACT source file (the bytes, `text/plain`) |
@@ -162,16 +162,16 @@ Orthogonal to *how* a source compiles (the modifiers above) is *what* a URL retu
 for it — the **request type** (`compiler/src/reqtypes.ts`), modeled on OpenLaszlo's
 `lzt`, exactly one per URL. `requestType(URLSearchParams-like)` reads them: `run` (the
 app, the default, no param); `build` (`?build` → the standalone deployable, served at a
-directory address); the three viewer tabs `?view=reader` / `?view=source` / `?view=edit`
+directory address); the three viewer tabs `?viewer=reader` / `?viewer=source` / `?viewer=edit`
 (the literate reader; the verbatim source shown *in* the viewer; the live-edit
 workbench); `file` (`?file` → the exact source bytes, `text/plain`); `segments`
 (`?segments` → the reader's highlight JSON on its own); and `extract` (`?extract` → the
-static-extraction document alone, content as semantic HTML). `?view=` is the one key
+static-extraction document alone, content as semantic HTML). `?viewer=` is the one key
 that takes a value (its three tabs); everything else is a bare presence key, and the
 absence of all is `run`. `?extract` is distinct from the bare `?crawler` *modifier*, which
 embeds the same document in the run page rather than returning it alone. The server
 (`server/index.mjs`) applies it on both the `apps/<name>/` route and any `.declare`
-file path; the viewer requests boot the code viewer (`apps/codeviewer`) on the named
+file path; the viewer requests boot the code viewer (`apps/viewer`) on the named
 tab, `segments` returns the highlight JSON, `file` answers a plain fetch with the exact
 bytes, and `extract` compiles through the front-end and serves the extracted document.
 The static host's service worker mirrors these, extracting `extract` **in the browser**

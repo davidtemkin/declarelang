@@ -56,7 +56,7 @@ Side by side, yes; interleaved, no. A Declare app embeds in any page — includi
 
 ### How do I deep-link into an app? Is there a router?
 
-There's no router object — location is an attribute, like everything else. An app declares `location` on its root and the host wires it to the URL fragment: writing it navigates (one history entry per change), the back button writes it back, and a deep link is just an initial value — state *derives* from location the same way everything else derives. The documentation app on this site works this way: `#guide/27-data` opens that chapter directly, and a trailing anchor can scroll a specific heading into view. Apps opt in — a demo that declares no location simply has none — and static extraction follows an app's locations, so deep-linkable content is also crawlable content.
+There's no router object — location is an attribute, like everything else. An app declares `location` on its root and the host wires it to the URL fragment: writing it navigates (one history entry per change), the back button writes it back, and a deep link is just an initial value — state *derives* from location the same way everything else derives. The documentation app on this site works this way: `#guide/08-data` opens that chapter directly, and a trailing anchor can scroll a specific heading into view. Apps opt in — a demo that declares no location simply has none — and static extraction follows an app's locations, so deep-linkable content is also crawlable content.
 
 ### How do Declare-written sites handle crawlers and SEO without server-side rendering?
 
@@ -64,7 +64,7 @@ Through static extraction, which is built into the compiler. The compiler runs t
 
 ### What benefits does in-browser compilation bring? Can I ship a Declare site without the compiler?
 
-Because the compiler runs in the page, the page can edit and re-run itself: every sample on this site is live-editable — change the source and the app re-renders as you type. It restores view-source culture: "View and edit source" on any app here opens the viewer — a highlighted reader, the verbatim source, and a live-edit tab (`?view=edit` on the program's URL). And it means development needs no build step — the dev server and the browser use the *same* compiler with byte-identical output. For production you don't ship the compiler: the `declarec` build precompiles everything into a small artifact, no compiler aboard.
+Because the compiler runs in the page, the page can edit and re-run itself: every sample on this site is live-editable — change the source and the app re-renders as you type. It restores view-source culture: "View and edit source" on any app here opens the viewer — a highlighted reader, the verbatim source, and a live-edit tab (`?viewer=edit` on the program's URL). And it means development needs no build step — the dev server and the browser use the *same* compiler with byte-identical output. For production you don't ship the compiler: the `declarec` build precompiles everything into a small artifact, no compiler aboard.
 
 ### What does Declare's renderer-independence bring to the table?
 

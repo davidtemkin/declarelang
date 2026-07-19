@@ -1,13 +1,15 @@
 // reqtypes — the request-TYPE vocabulary: what a program URL should RETURN, as
 // distinct from the compile MODIFIERS (flags.ts) that decide HOW it compiles. The two
-// are orthogonal — `?view=reader&render=canvas` asks for the reader view of the canvas
-// build — and both are read the same way from a URL query, so a single documented
-// model spans the dev server and the service-worker static host. See
+// are orthogonal — `?viewer=reader&render=canvas` asks for the Viewer's reader tab on
+// the canvas build — and both are read the same way from a URL query, so a single
+// documented model spans the dev server and the service-worker static host. See
 // docs/system-design/requests.md (the normative surface) and docs/system-design/hosting.md (the narrative).
 //
-// Exactly ONE request per URL, from a small flat set. `?view=` is the one key that
-// takes a value, because the viewer is a single app with tabs (reader / source / edit);
-// every other request is a bare presence key, and the absence of all of them is `run`.
+// Exactly ONE request per URL, from a small flat set. `?viewer=` is the one key that
+// takes a value, because Declare Viewer is a single app with tabs (Reader / Source /
+// Edit) — and a BARE `?viewer` opens its default tab, the Reader, so "open this in the
+// Viewer" is one word. Every other request is a bare presence key, and the absence of
+// all of them is `run`.
 // Modeled on OpenLaszlo's `lzt` request types, extensible: a new artifact slots in as a
 // new REQ value without a second scheme.
 export const REQ = {
@@ -18,15 +20,16 @@ export const REQ = {
      *  DIRECTORY of files, so it is served at a directory address, not inlined at the
      *  .declare URL (docs/system-design/requests.md §"Transport notes"). Was the old `?prod`. */
     BUILD: "build",
-    /** The READER: the viewer app's default tab — highlighted source with block-comment
-     *  prose rendered as Markdown (the code-viewer app, rendered by the runtime). */
+    /** The READER: Declare Viewer's default tab — highlighted source with block-comment
+     *  prose rendered as Markdown (the Viewer app, rendered by the runtime). A bare
+     *  `?viewer` lands here. */
     READER: "reader",
-    /** The viewer app's SOURCE tab: the verbatim source shown IN the viewer. Distinct
-     *  from FILE (the raw bytes) — this is the viewer displaying the source, reachable by
+    /** The Viewer's SOURCE tab: the verbatim source shown IN the Viewer. Distinct
+     *  from FILE (the raw bytes) — this is the Viewer displaying the source, reachable by
      *  URL for the first time under this scheme. */
     SOURCE: "source",
-    /** The viewer app's live-EDIT tab: source in an editor, the running program below,
-     *  compile errors between. The same app as READER/SOURCE (the viewer owns the tabs);
+    /** The Viewer's EDIT tab: source in an editor, the running program below,
+     *  compile errors between. The same app as READER/SOURCE (the Viewer owns the tabs);
      *  this is the deep link to the workbench. */
     EDIT: "edit",
     /** The raw source FILE — the bytes, `text/plain`. What an `include`, the compiler, or
@@ -43,16 +46,17 @@ export const REQ = {
      *  a run/build page rather than returning it alone. */
     EXTRACT: "extract",
 };
-/** The three viewer tabs — the values `?view=` accepts (the viewer is one app). */
+/** The three Viewer tabs — the values `?viewer=` accepts (the Viewer is one app). */
 const VIEWS = new Set([REQ.READER, REQ.SOURCE, REQ.EDIT]);
-/** The request type a URL asks for. `?view=reader|source|edit` opens the viewer app on
- *  that tab; a bare `?build` / `?file` / `?segments` / `?extract` asks for that
- *  artifact; anything else (including an absent or unknown request) is RUN — the safe
- *  default, so an ordinary app URL is unaffected. */
+/** The request type a URL asks for. `?viewer=reader|source|edit` opens Declare Viewer
+ *  on that tab, and a bare (or unrecognized-value) `?viewer` opens its default tab,
+ *  the Reader; a bare `?build` / `?file` / `?segments` / `?extract` asks for that
+ *  artifact; anything else (including an absent request) is RUN — the safe default,
+ *  so an ordinary app URL is unaffected. */
 export function requestType(params) {
-    const v = params.get("view");
-    if (v !== null && VIEWS.has(v))
-        return v;
+    const v = params.get("viewer");
+    if (v !== null)
+        return VIEWS.has(v) ? v : REQ.READER;
     if (params.has("build"))
         return REQ.BUILD;
     if (params.has("file"))

@@ -227,7 +227,7 @@ that knows library attribute names.
 
 ## 7. Live demo editing — the component ruling (RULED, interim wiring)
 
-Three site apps (docs, homepage, codeviewer) host editable demo cards: an
+Three site apps (docs, homepage, viewer) host editable demo cards: an
 editor, a preview island the host recompiles into, a diagnostics pane. The
 capability originally leaked onto the base App as eight schema attributes —
 wrong by this document's own principle: most apps are not code editors, and

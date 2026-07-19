@@ -5214,7 +5214,7 @@ await test("location: a schema attr — settable in [ ], writable from handlers,
   // The Phase-A pinning tests (location.md §11.3): the DEFAULT RULE's literal form
   // must check (§3 — `App [ location = "home" ]`), a handler write must flow, and
   // a constraint reading it must re-derive. Host wiring (seed/echo/history) is
-  // chromium-tested (loc-homepage.mjs / loc-codeviewer.mjs); this pins the
+  // chromium-tested (loc-homepage.mjs / loc-viewer.mjs); this pins the
   // language surface those tests stand on.
   const r = compile(`App [ width = 100, height = 100, location = "home",
     why: View [ visible = { app.location == "why" } ],

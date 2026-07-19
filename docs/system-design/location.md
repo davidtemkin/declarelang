@@ -11,14 +11,14 @@ seo-and-semantics.md.
 In Declare, "where the user is" is attribute values, and "going somewhere" is
 setting them. The corpus proves it three times over: the homepage is
 `route: string = "home"` with `visible = { app.route == "why" }`; the docs app
-is `mode`/`chapter`/`selected`; the codeviewer is `mode`. There is no missing
+is `mode`/`chapter`/`selected`; the viewer is `mode`. There is no missing
 control-flow concept — no route tables, no matchers, no nested routers. Those
 are framework answers to a problem reactive derivation does not have.
 
 What is missing is exactly one binding: **designated app state ↔ the browser
 location**. Today that binding exists only as per-app hand-wiring — the host
 hardcodes the homepage's `#why` hash mirroring (browser/host-client.js:73), and
-the codeviewer smuggles its opening tab through the `demoSources.__mode__` seed.
+the viewer smuggles its opening tab through the `demoSources.__mode__` seed.
 Two hand-built instances plus the docs app needing a third (its back button
 currently exits the app) is the rule-of-three signal that this is one real
 abstraction.
@@ -86,13 +86,13 @@ orthogonal layer that was previously missing or hand-hacked:
 | layer | question it answers | owner |
 |---|---|---|
 | path — `apps/docs/docs.declare` | which program | the file system |
-| query — `?view=edit`, `?build`, `?render`, `?crawler` | what the host does with it | the host (requests × modifiers, requests.md) |
+| query — `?viewer=edit`, `?build`, `?render`, `?crawler` | what the host does with it | the host (requests × modifiers, requests.md) |
 | fragment — `#guide/04-tree` | where inside the running app | the app (`location`) |
 
 - Fragment, not path or query, for the live form: works identically under the
   Node server and static+SW hosting (no rewrite rules), and fragments are never
   sent to the server — location state stays client-side by construction.
-- `?view=reader|source|edit` keeps its spelling. As a *request* it selects the
+- `?viewer=reader|source|edit` keeps its spelling. As a *request* it selects the
   viewer program; *which tab* is viewer-app state — the host translates the
   query into the viewer's initial location, and the `__mode__` seed dies.
 - `navigate()` remains the out-of-app action (capabilities.md §6). Location is
@@ -282,7 +282,7 @@ cases:
   `declare-docs:` resolver writing location (gaining history for free), and —
   because its content arrives by DataSource — THE living test of the pending
   reveal on a cold deep link. Retires the back-button bug.
-- The codeviewer picks up the `?view=` → initial-location translation and
+- The viewer picks up the `?viewer=` → initial-location translation and
   retires the `demoSources.__mode__` seed.
 
 **Docs are DoD in the same pass** (documentation.md §6): guide ch31

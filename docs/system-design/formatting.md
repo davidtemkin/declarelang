@@ -23,7 +23,7 @@ alignment — the original §3 "hallmark" — was reversed to **single space**
 indent** (§2.5). **Revised 2026-07-12:** top-level declarations are separated
 by **one** blank line, not two (§2.1). **Revised 2026-07-13** (the
 formatter-v1 rulings, raised while building the tool and settled against the
-exemplar, `apps/codeviewer/codeviewer.declare`): the trailing comma is a
+exemplar, `apps/viewer/viewer.declare`): the trailing comma is a
 **terminator** at hanging closes and omitted at inline closes (§2.1); the
 formatter is **line-preserving** — it never packs or re-wraps, header filling
 is authoring guidance (§2.2, §4 — ratified with recorded hesitation);

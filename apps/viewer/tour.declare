@@ -4,7 +4,7 @@
 This file is a **literate** Declare program: the block comments you're reading are
 rendered as Markdown, and the code between them is syntax-highlighted. View it with
 
-    apps/codeviewer/tour.declare?view=reader
+    apps/viewer/tour.declare?viewer
 
 Everything below is real, compilable Declare — and it follows the house formatting
 (docs/system-design/formatting.md): four-space indent, a trailing comma on every member, and a

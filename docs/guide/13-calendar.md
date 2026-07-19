@@ -9,7 +9,7 @@ about seven hundred with its detailed comments — and understanding all of it. 
 `apps/calendar/calendar.declare` in your running distro, or the **Run Declare
 Calendar** button on the homepage. Switch Month to Week to Day to Year. Drag an
 event somewhere else. Click one open and edit it. Interrupt every transition
-halfway. Then open the source beside this chapter — `?view=reader` on the same URL
+halfway. Then open the source beside this chapter — `?viewer=reader` on the same URL
 gives you the annotated reading view.
 
 This is not a line-by-line walk, because you don't need one — most of the file is
@@ -107,7 +107,7 @@ sequence that could be caught halfway.
 
 ## What you just did
 
-Read the rest of the file at `?view=reader`; it is written to be read, and none of
+Read the rest of the file at `?viewer=reader`; it is written to be read, and none of
 it will surprise you now. Then sit with what happened here. Four mechanisms — sprung
 scalars, derived character, a derived model, edits as writes — carry everything that
 looks impossible, and every one is a concept from this guide doing its ordinary job

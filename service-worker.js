@@ -33,7 +33,7 @@ import { requestType, REQ, runWrapper, programName, escapeHtml } from "./browser
 // BUILD_ID — a content hash of the platform (runtime + compiler bundle + web client +
 // this worker + index.html), stamped by tools/internal/stamp-version.mjs. Left "dev" when unstamped
 // (local serving); a real deploy stamps it so cache-busting + the SW self-update engage.
-const BUILD_ID = "3548a0e6a7f7";
+const BUILD_ID = "bcad6857b627";
 
 const ROOT = new URL("./", self.location);            // <origin>/…/  (this worker's dir == the distro root)
 const ORIGIN = ROOT.origin;
@@ -66,8 +66,8 @@ self.addEventListener("fetch", (event) => {
   // BROWSE-TO-RUN — a NAVIGATION to `…/<name>.declare` becomes a generated page, from
   // the SHARED classifier (serve-core → reqtypes.ts), so one URL model spans both hosts:
   //   RUN (default)            → the run page (host wrapper booting the platform bundle);
-  //   ?view=reader|source|edit → the viewer app on that tab (boot-source.js, highlight
-  //                              in-browser — the code-viewer, its Source/Edit tabs);
+  //   ?viewer=reader|source|edit → the viewer app on that tab (boot-source.js, highlight
+  //                              in-browser — Declare Viewer — its Source/Edit tabs);
   //   ?extract                 → the STATIC-EXTRACTION document (boot-seo.js compiles +
   //                              executes headlessly IN-BROWSER — the extractor the dev
   //                              server runs in Node);
@@ -122,9 +122,9 @@ async function hostPageResponse(url) {
   return new Response(html, { status: 200, headers: { "Content-Type": "text/html;charset=utf-8", "Cache-Control": "no-cache" } });
 }
 
-// The VIEWER page for a `…/<name>.declare?view=reader|source|edit` navigation. It boots
-// browser/boot-source.js, which highlights the target IN-BROWSER and renders the code-viewer
-// app (apps/codeviewer) on the requested tab (`tab` → ?mode= → the viewer's __mode__:
+// The VIEWER page for a `…/<name>.declare?viewer=reader|source|edit` navigation. It boots
+// browser/boot-source.js, which highlights the target IN-BROWSER and renders the Viewer
+// app (apps/viewer) on the requested tab (`tab` → ?mode= → the viewer's __mode__:
 // reader = highlighted + Markdown, source = verbatim, edit = live workbench). No `<base>`:
 // the boot module resolves the viewer + runtime against its own ABSOLUTE URL, and takes the
 // target only as the ?src= param, so nothing relative on this page needs diverting. ?v busts.

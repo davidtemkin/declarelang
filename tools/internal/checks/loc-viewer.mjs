@@ -21,9 +21,9 @@ async function clickText(t, pg=page) {
   await pg.mouse.click(box.x, box.y); await wait(600);
 }
 
-// 1) ?view=reader → opens on reader (seeded from the request), clean URL
-await page.goto(BASE + "?view=reader", { waitUntil: "networkidle0", timeout: 30000 }); await wait(2000);
-check("?view=reader → reader tab, no fragment", await state(), { mode: "reader", hash: "" });
+// 1) ?viewer=reader → opens on reader (seeded from the request), clean URL
+await page.goto(BASE + "?viewer=reader", { waitUntil: "networkidle0", timeout: 30000 }); await wait(2000);
+check("?viewer=reader → reader tab, no fragment", await state(), { mode: "reader", hash: "" });
 
 // 2) click "Live edit" → edit mode + #edit fragment
 await clickText("Live edit");
@@ -37,10 +37,10 @@ check("click Source text → source + #source", await state(), { mode: "source",
 await page.evaluate(() => history.back()); await wait(700);
 check("back → edit tab", await state(), { mode: "edit", hash: "#edit" });
 
-// 5) fresh ?view=edit → opens directly on the edit tab (the request → initial location)
+// 5) fresh ?viewer=edit → opens directly on the edit tab (the request → initial location)
 const p2 = await b.newPage(); await p2.setViewport({ width: 1200, height: 900 });
-await p2.goto(BASE + "?view=edit", { waitUntil: "networkidle0", timeout: 30000 }); await wait(2000);
-check("?view=edit → edit tab on load", await state(p2), { mode: "edit" });
+await p2.goto(BASE + "?viewer=edit", { waitUntil: "networkidle0", timeout: 30000 }); await wait(2000);
+check("?viewer=edit → edit tab on load", await state(p2), { mode: "edit" });
 
 console.log(`\n${failures===0?"ALL GREEN":failures+" FAILED"}`);
 await b.close();
