@@ -49,7 +49,7 @@ async function run() {
     // DataSource url is the app's own material, fetched same-origin from beside the
     // program (the deployed copy of the same file the Node crawl reads from disk);
     // an absolute url is the network and fails the crawl loudly (the error page).
-    const html = compiled.source === null ? null : await mod.crawlDocument(compiled.source, {
+    const ex = compiled.source === null ? null : await mod.crawlExtract(compiled.source, {
       deps: compiled.deps, links: compiled.links,
       // Parse-else-raw, matching diskDataResolver byte for byte: JSON is the
       // parsed value, a text file (a Markdown article) is its raw string.
@@ -59,10 +59,10 @@ async function run() {
         .catch(() => null),
     });
     const esc = (s) => s.replace(/[&<]/g, (c) => (c === "&" ? "&amp;" : "&lt;"));
-    const doc = html === null
+    const doc = ex === null
       ? `<!doctype html><meta charset="utf-8"><title>${esc(name)} — extraction failed</title>
 <pre style="white-space:pre-wrap;font:13px/1.5 ui-monospace,monospace;padding:20px">${esc(compiled.report || "compile failed")}</pre>`
-      : mod.crawlerDocument(html, name);
+      : mod.crawlerDocument(ex.html, ex.title || name);
     writeDoc(doc);
   } catch (e) {
     document.body.textContent = "Declare — static extraction failed: " + ((e && e.message) || e);

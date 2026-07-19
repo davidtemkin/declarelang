@@ -21,7 +21,7 @@ import { compileProgram } from "../compiler/dist/declarec.js";
 import { REGISTRY_MANIFEST } from "../runtime/dist/registry.js";
 import { parseArgvFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
 import { highlight } from "../compiler/dist/highlight.js";
-import { compile as compileFull, crawlDocument, diskDataResolver, crawlerDocument } from "../compiler/dist/compile-node.js";
+import { compile as compileFull, crawlExtract, diskDataResolver, crawlerDocument } from "../compiler/dist/compile-node.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const RUNTIME = resolve(HERE, "../runtime/dist"); // the run-path lives here
@@ -121,7 +121,7 @@ export async function buildProduction(source, opts = {}) {
     plugins: slim ? [slimPlugin] : [],
   });
   const appJs = result.outputFiles[0].text;
-  const appName = `app.${shortHash(appJs)}.js`;
+  const moduleName = `app.${shortHash(appJs)}.js`;
 
   // `--crawler`: the extracted static document (docs/system-design/capabilities.md §5) baked
   // into the host element — content for crawlers and AI readers that never run
@@ -130,16 +130,19 @@ export async function buildProduction(source, opts = {}) {
   // — the SAME compile the app itself gets (typecheck already gated the build
   // above, so it is skipped here).
   let staticBlock = "";
+  let pageTitle = name;
   if (opts.crawler) {
     const compiled = compileFull(source, { originDir: opts.originDir, typecheck: false });
     // The CRAWLED document (location.md §7) — every reachable location's content in
     // the one page. Data resolves from the app's own directory (the build-time rule);
     // a network DataSource fails the build loudly, by design.
-    const h = compiled.source === null ? null : await crawlDocument(compiled.source, {
+    const ex = compiled.source === null ? null : await crawlExtract(compiled.source, {
       deps: compiled.deps, links: compiled.links,
       data: opts.originDir ? diskDataResolver(opts.originDir) : undefined,
     });
-    if (h) staticBlock = `<div id="declare-static">\n${h}\n</div>`;
+    if (ex && ex.html) staticBlock = `<div id="declare-static">\n${ex.html}\n</div>`;
+    // the settled appName names the deployed page — the <title> SEO reads
+    if (ex && ex.title) pageTitle = ex.title;
   }
 
   // A crawler block (--crawler) is removed BEFORE first paint by a synchronous classic
@@ -151,12 +154,12 @@ export async function buildProduction(source, opts = {}) {
     ? `<script>document.getElementById("declare-static")?.remove()</script>\n`
     : "";
   const html =
-    `<!doctype html><meta charset="utf-8"><title>${name}</title>\n` +
+    `<!doctype html><meta charset="utf-8"><title>${pageTitle.replace(/</g, "&lt;")}</title>\n` +
     `<meta name="viewport" content="width=device-width, initial-scale=1">\n` +
     `<style>html,body{margin:0;padding:0;height:100%}</style>\n` +
     `<div id="host">${staticBlock}</div>\n` +
     clearStatic +
-    `<script type="module" src="./${appName}"></script>\n`;
+    `<script type="module" src="./${moduleName}"></script>\n`;
 
   const sizes = {
     programRaw: programJson.length,
@@ -171,7 +174,7 @@ export async function buildProduction(source, opts = {}) {
     ok: true, errors: [], warnings: built.warnings, diagnostics: built.diagnostics, report: built.report,
     closure: built.closure, program: built.program, sizes,
     usedComponents: built.usedComponents, slim,
-    files: [{ name: "index.html", contents: html }, { name: appName, contents: appJs }],
+    files: [{ name: "index.html", contents: html }, { name: moduleName, contents: appJs }],
   };
 }
 
@@ -200,7 +203,7 @@ async function copyAssets(srcDir, outDir) {
 
 /** Build an app AND write the deployable tree to `outDir` (generated files +
  *  copied assets). The shared emit used by the CLI and the dev server. Returns
- *  the buildProduction result plus `{ outDir, appName, assets }`. On a compile
+ *  the buildProduction result plus `{ outDir, moduleName, assets }`. On a compile
  *  error, returns `{ ok:false, errors }` and writes nothing. */
 export async function writeProduction({ source, name = "app", srcDir = null, outDir, stripPos = true, render, slim = true, crawler = false, props }) {
   const out = await buildProduction(source, { name, originDir: srcDir, stripPos, render, slim, crawler, props });
@@ -209,8 +212,8 @@ export async function writeProduction({ source, name = "app", srcDir = null, out
   await mkdir(outDir, { recursive: true });
   for (const f of out.files) await writeFile(join(outDir, f.name), f.contents);
   const assets = srcDir ? await copyAssets(srcDir, outDir) : [];
-  const appName = out.files.find((f) => f.name.startsWith("app."))?.name;
-  return { ...out, outDir, appName, assets };
+  const moduleName = out.files.find((f) => f.name.startsWith("app."))?.name;
+  return { ...out, outDir, moduleName, assets };
 }
 
 async function cli(argv) {
@@ -285,11 +288,11 @@ async function cli(argv) {
   // the build above, so it is skipped on this second pass.
   if (doExtract) {
     const compiled = compileFull(source, { originDir: srcDir, typecheck: false });
-    const html = compiled.source === null ? null : await crawlDocument(compiled.source, {
+    const ex = compiled.source === null ? null : await crawlExtract(compiled.source, {
       deps: compiled.deps, links: compiled.links,
       data: srcDir ? diskDataResolver(srcDir) : undefined,
     });
-    const doc = html === null ? null : crawlerDocument(html, name);
+    const doc = ex === null ? null : crawlerDocument(ex.html, ex.title || name);
     if (doc !== null) {
       await writeFile(join(outDir, `${name}.extract.html`), doc);
       if (!quiet) console.log(`  ${name}.extract.html   ${kb(doc.length)} raw  (static extraction)`);
@@ -299,7 +302,7 @@ async function cli(argv) {
   const assets = out.assets;
   if (!quiet) {
     console.log(`declarec ✓ ${name} → ${outDir}  (${ms} ms)`);
-    console.log(`  ${out.appName}`);
+    console.log(`  ${out.moduleName}`);
     console.log(`    program JSON   ${kb(out.sizes.programRaw)}  (embedded)`);
     console.log(`    app bundle     ${kb(out.sizes.appRaw)} raw   ${kb(out.sizes.appGzip)} gzip`);
     console.log(`    index.html     ${kb(out.sizes.htmlRaw)} raw   ${kb(out.sizes.htmlGzip)} gzip`);

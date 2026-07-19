@@ -30,6 +30,19 @@ export function escapeHtml(s) {
 }
 
 /** The program's display name from its URL path — the run page's title. */
+/** The DIRECTORY-PROGRAM rule (docs/system-design/requests.md): a URL naming a
+ *  directory is a program URL for that directory's NAME-MATCHED program —
+ *  `…/name/` (or `…/name`) means `…/name/name.declare`, with every request type
+ *  and modifier composing exactly as on the explicit URL. This derives the
+ *  candidate only; the caller probes existence, so the rule can never shadow a
+ *  real asset. A dotted final segment is file-like and never a program directory. */
+export function directoryProgram(pathname) {
+  const trimmed = pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+  const name = trimmed.slice(trimmed.lastIndexOf("/") + 1);
+  if (name === "" || name.includes(".")) return null;
+  return trimmed + "/" + name + ".declare";
+}
+
 export function programName(urlPath) {
   return urlPath.replace(/.*\//, "").replace(/\.declare$/, "");
 }
@@ -50,7 +63,7 @@ export function programName(urlPath) {
  *   iconBase?: string|null,   // if set, emit favicon links resolved against it (…/ ending in a slash)
  * }}
  */
-export function runWrapper({ name, bootUrl, staticBlock = "", iconBase = null }) {
+export function runWrapper({ name, bootUrl, staticBlock = "", iconBase = null, main = null, title = "" }) {
   const icons = iconBase
     ? `<link rel="icon" type="image/svg+xml" href="${escapeHtml(iconBase + "favicon.svg")}">\n` +
       `<link rel="icon" type="image/png" sizes="256x256" href="${escapeHtml(iconBase + "favicon.png")}">\n`
@@ -68,8 +81,12 @@ export function runWrapper({ name, bootUrl, staticBlock = "", iconBase = null })
   const clearStatic = staticBlock
     ? `\n<script>document.getElementById("declare-static")?.remove()</script>`
     : "";
+  // `title` — the app's settled `appName` when the caller extracted one (the
+  // crawler-baked page, where the <title> is what SEO reads); used VERBATIM, no
+  // "· Declare" suffix — the app named itself. "" = the filename template; the
+  // host swaps in the live appName at first settle either way (host-client.js).
   return `<!doctype html><meta charset="utf-8">
-<title>${escapeHtml(name)} · Declare</title>
+<title>${escapeHtml(title || name + " · Declare")}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark light">
 ${icons}<style>html,body{margin:0;padding:0;background:#0B141B}</style>
@@ -77,6 +94,6 @@ ${icons}<style>html,body{margin:0;padding:0;background:#0B141B}</style>
 <script type="module">
   import boot from ${JSON.stringify(bootUrl)};
   const q = new URLSearchParams(location.search);
-  boot({ main: location.pathname, backend: q.get("render") === "canvas" ? "CanvasBackend" : undefined });
+  boot({ main: ${JSON.stringify(main)} ?? location.pathname, backend: q.get("render") === "canvas" ? "CanvasBackend" : undefined });
 </script>`;
 }

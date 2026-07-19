@@ -11,6 +11,7 @@
 import { bootHost } from "./host-client.js";
 import { registerServiceWorker } from "./register-sw.js";
 import { loadCompiler, ensureLibrary } from "./compiler-client.js";
+import { lineMetrics } from "../compiler/dist/highlight.js";   // dependency-free; the same count the server seeds
 
 const ROOT = new URL("../", import.meta.url);
 // The file to display — an absolute URL the SW passed on this module's own URL — and
@@ -50,7 +51,8 @@ async function run() {
       // translates it into the viewer's INITIAL location (docs/system-design/location.md §4).
       // A real URL fragment still wins, so a shared `…#source` deep link holds.
       location: mode,
-      seeds: { __source__: JSON.stringify(segments), __raw__: raw, __path__: relPath },
+      seeds: { __source__: JSON.stringify(segments), __raw__: raw, __path__: relPath,
+        __metrics__: JSON.stringify(lineMetrics(raw)) },
       // the live-edit mode's recompile seam — the same in-browser client,
       // reporting failure as `{ report }` so the viewer's diagnostics pane fills
       compile: async (s) => {

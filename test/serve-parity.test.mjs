@@ -10,7 +10,7 @@
 
 import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
-import { requestType, REQ, runWrapper, programName } from "../browser/serve-core.js";
+import { requestType, REQ, runWrapper, programName, directoryProgram } from "../browser/serve-core.js";
 
 const params = (q) => new URLSearchParams(q);
 
@@ -18,6 +18,13 @@ console.log("serve-core parity");
 
 await test("requestType maps the query to a request (the classifier both hosts share)", () => {
   assert.equal(requestType(params("")), REQ.RUN);                     // default
+
+  // the DIRECTORY-PROGRAM rule: candidate derivation only (existence is the caller's probe)
+  assert.equal(directoryProgram("/apps/calendar/"), "/apps/calendar/calendar.declare");
+  assert.equal(directoryProgram("/apps/calendar"), "/apps/calendar/calendar.declare");   // no-slash form (hosts 301 to the slash)
+  assert.equal(directoryProgram("/apps/docs.declare"), null);   // a dotted segment is file-like, never a program dir
+  assert.equal(directoryProgram("/"), null);                    // the root names nothing
+  assert.equal(directoryProgram("/x/foo.bar/"), null);
   assert.equal(requestType(params("render=canvas")), REQ.RUN);       // a modifier, not a request
   assert.equal(requestType(params("viewer=reader")), REQ.READER);      // ?viewer= = the Viewer’s tabs
   assert.equal(requestType(params("viewer=source")), REQ.SOURCE);      // the viewer's Source tab
@@ -40,7 +47,7 @@ await test("runWrapper produces a valid RUN shell that boots the given bundle", 
   const html = runWrapper({ name: "calendar", bootUrl: "/bundles/declare-boot.js" });
   assert.match(html, /<div id="host"><\/div>/);                      // empty host (no staticBlock)
   assert.match(html, /import boot from "\/bundles\/declare-boot\.js"/);
-  assert.match(html, /boot\(\{ main: location\.pathname/);           // main = the program's own URL
+  assert.match(html, /boot\(\{ main: null \?\? location\.pathname/);           // main = the program's own URL
   assert.match(html, /<title>calendar · Declare<\/title>/);
 });
 
