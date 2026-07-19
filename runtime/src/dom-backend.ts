@@ -105,11 +105,17 @@ export class DomBackend implements RenderBackend {
       () => rootEl.isConnected,
       (e) => {
         let el = e.target instanceof HTMLElement && rootEl.contains(e.target) ? e.target : null;
+        // Ownership BEFORE the sink walk: the target's nearest enclosing app root
+        // must be this rootEl, or the event belongs to an embedded child app and
+        // its own router. This cannot be a check inside the walk — a sinked
+        // element is exactly a pointer-events:auto element, so the browser's
+        // hit-test lands directly ON it and the walk breaks there, never reaching
+        // the child's root boundary; the outer router would then fire the
+        // (globally-shared) sink a second time — every non-idempotent click
+        // handler in an island ran twice (an island Checkbox toggled on+off per
+        // click, a counter counted by 2).
+        if (el !== null && el.closest("[data-declare-app]") !== rootEl) return null;
         while (el !== null) {
-          // Stop at a nested app root: an embedded child's tree is inside THIS
-          // rootEl, so without this guard the outer router would walk up into the
-          // child, find its (globally-shared) sink, and fire it a second time.
-          if (el !== rootEl && el.hasAttribute("data-declare-app")) return null;
           if (SINKS.has(el)) break;
           el = el === rootEl ? null : el.parentElement;
         }

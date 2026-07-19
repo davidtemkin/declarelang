@@ -77,9 +77,23 @@ class Menu extends View [ visible = { shown }, width = 220,
         this.raise()
         },
 
+    // place() takes ROOT-space targets (openAt/openFor compute them by
+    // walking up) and converts to parent-space, so a Menu works declared at
+    // App level OR inside a component (MenuBar owns one). The chain offset
+    // is snapshotted at open — menu chrome doesn't move while a menu is up.
+
+    offX: number = 0,
+    offY: number = 0,
+
     place(x, y) {
-        this.x = Math.max(4, Math.min(app.width - this.width - 4, x))
-        this.y = Math.max(4, Math.min(app.height - this.height - 4, y))
+        let px = 0
+        let py = 0
+        let n = this.parent
+        while (n != null) { px += n.x || 0; py += n.y || 0; n = n.parent }
+        offX = px
+        offY = py
+        this.x = Math.max(4, Math.min(app.width - this.width - 4, x)) - px
+        this.y = Math.max(4, Math.min(app.height - this.height - 4, y)) - py
         },
 
     close() {
@@ -169,7 +183,7 @@ class Menu extends View [ visible = { shown }, width = 220,
     // press-catcher UNDER the panel; outside presses close and are SWALLOWED
 
     back: View [ visible = { classroot.isRoot },
-        x = { -classroot.x }, y = { -classroot.y },
+        x = { -classroot.x - classroot.offX }, y = { -classroot.y - classroot.offY },
         width = { app.width }, height = { app.height },
         onMouseDown() { classroot.rootClose() },
         ],

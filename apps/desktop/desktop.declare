@@ -370,21 +370,6 @@ class DockIcon extends View [
     ]
 
 
-class MenuTitle extends View [ height = 25,
-    label: string = "",
-    bold: boolean = false,
-    hovered: boolean = false,
-    width = { this.t.width + 20 },
-    fill = { hovered ? theme.controlActive : null },
-    cornerRadius = 5,
-    onMouseOver() { hovered = true },
-    onMouseOut()  { hovered = false },
-    t: Text [ x = 10, y = center, fontSize = 14,
-        fontWeight = { classroot.bold ? "bold" : "regular" },
-        textColor = { theme.text }, text = { classroot.label } ],
-    ]
-
-
 App [ minWidth = 900, minHeight = 600,
     theme = { Themes.cupertino(app.darkMode) },
     fontFamily = "-apple-system, system-ui, sans-serif",
@@ -447,13 +432,11 @@ App [ minWidth = 900, minHeight = 600,
     // declared twice. A raw-Keys dispatcher walks the registry; holding ⌘
     // surfaces the whole map as a HUD (the Newton ruling's demo).
 
-    keyRegistry: array = { [
-        ...(app.finderMenu.items || []).filter((r) => r.key).map((r) => ({ menu: "Finder", ...r })),
-        ...(app.fileMenu.items || []).filter((r) => r.key).map((r) => ({ menu: "File", ...r })),
-    ] },
+    keyRegistry: array = { (app.menus || [])
+        .flatMap((m) => (m.items || []).filter((r) => r.key).map((r) => ({ menu: "" + m.label, ...r }))) },
 
-    hudGroups: array = { ["Finder", "File"]
-        .map((m) => ({ name: m, rows: (app.keyRegistry || []).filter((r) => r.menu == m) }))
+    hudGroups: array = { (app.menus || [])
+        .map((m) => ({ name: "" + m.label, rows: (app.keyRegistry || []).filter((r) => r.menu == "" + m.label) }))
         .filter((g) => g.rows.length > 0) },
     hudData: Dataset [ contents = { ({ g: app.hudGroups }) } ],
 
@@ -471,7 +454,7 @@ App [ minWidth = 900, minHeight = 600,
             return
             }
         if (!e.meta || e.repeat) return
-        if (this.finderMenu.shown || this.fileMenu.shown) return     // an open menu owns the keyboard
+        if (this.bar.mb.shown) return                // an open menu owns the keyboard
         const combo = "⌘" + (e.key.length == 1 ? e.key.toUpperCase() : e.key)
         const hit = (this.keyRegistry || []).find((r) => r.key == combo && r.enabled != false)
         if (hit != null) { this.hideHud(); this.command("" + hit.id) }
@@ -483,34 +466,26 @@ App [ minWidth = 900, minHeight = 600,
 
     wins: View [ x = 0, y = 25, width = { app.width }, height = { app.height - 25 } ],
 
-    // ── the menu bar ───────────────────────────────────────────────────────
+    // ── the menu bar: whole menus as RECORDS on the App — the same array
+    // feeds the MenuBar, the key registry, and the HUD ─────────────────────
 
-    finderMenu: Menu [ picked(id) { app.command(id) },
-        items = { [
+    menus: array = { [
+        ({ id: "finder", label: "Finder", bold: true, items: [
             ({ id: "about", label: "About This Desktop", enabled: false }),
             ({ divider: true }),
             ({ id: "dark", label: app.darkMode ? "Light Appearance" : "Dark Appearance", key: "⌘K" }),
-        ] },
-        ],
-
-    fileMenu: Menu [ picked(id) { app.command(id) },
-        items = { [
+        ] }),
+        ({ id: "file", label: "File", items: [
             ({ id: "new-finder", label: "New Finder Window", key: "⌘N" }),
             ({ id: "new-viewer", label: "New Viewer", key: "⌘O" }),
             ({ divider: true }),
             ({ id: "close", label: "Close Window", key: "⌘W", enabled: app.frontWin != null }),
-        ] },
-        ],
+        ] }),
+    ] },
 
     bar: View [ x = 0, y = 0, width = { app.width }, height = 25, fill = { theme.surface }, opacity = 0.92,
-        row: View [ x = 12, y = 0, height = 25,
-            layout: SimpleLayout [ axis = x, spacing = 2 ],
-            MenuTitle [ label = "Finder", bold = true,
-                onClick() { app.finderMenu.openFor(this) },
-                ],
-            MenuTitle [ label = "File",
-                onClick() { app.fileMenu.openFor(this) },
-                ],
+        mb: MenuBar [ x = 12, menus = { app.menus },
+            picked(id) { app.command(id) },
             ],
         clock: Text [ x = { parent.width - this.width - 14 }, y = center, fontSize = 13,
             textColor = { theme.text }, text = { app.clockText } ],

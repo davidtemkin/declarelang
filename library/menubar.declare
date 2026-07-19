@@ -1,0 +1,74 @@
+/*
+# MenuBar
+
+The record-driven menu bar (planes.md §4–§6): whole menus are DATA —
+
+    menus = { [ ({ id, label, bold?, items: [ …menu records… ] }), … ] }
+
+— and the component arranges. ONE internal Menu serves every title; its
+`items` constraint derives from the open title's record, so item state
+(enabled, checked, labels) stays LIVE while the menu is up. Because the
+records are the single declaration, an app can derive its key registry
+from the same array the bar renders — nothing is declared twice (the
+Newton keys direction, proven in apps/desktop).
+
+Tracking is the macOS behavior: titles do NOT highlight on mere hover;
+a click opens (and highlights) a title; while any menu is open, moving
+across another title switches to it; clicking the open title closes.
+
+Delivery is the one seam: `picked(id)` — override at the use site.
+*/
+
+include [ "menu.declare" ]
+
+class MenuBar extends View [ height = 25,
+
+    menus: array = null,
+
+    // the delivery seam — the id is the whole message
+
+    picked(id) { },
+
+    openId: string = "",
+    shown: boolean = { this.menu.shown },
+
+    width = { this.row.contentWidth },
+
+    openMenu(t) {
+        openId = "" + t.mid
+        this.menu.openFor(t)
+        // the menu self-raises, which lifts its full-app backdrop over the
+        // titles — but macOS keeps the bar HOT while a menu is open (that is
+        // what tracking is). Promote the row back above the backdrop; the
+        // panel drops below the bar, so nothing occludes visually.
+        this.row.raise()
+        },
+
+    // while open, crossing another title switches to it (menu tracking)
+
+    trackMenu(t) { if (this.menu.shown && "" + t.mid != openId) this.openMenu(t) },
+
+    menu: Menu [
+        items = { ((classroot.menus || []).find((m) => "" + m.id == classroot.openId) || ({ })).items || [] },
+        picked(id) { classroot.picked(id) },
+        ],
+
+    data: Dataset [ contents = { ({ m: classroot.menus || [] }) } ],
+
+    row: View [ height = { parent.height },
+        layout: SimpleLayout [ axis = x, spacing = 2 ],
+        datapath = { classroot.data.value },
+        View [ datapath = :m[], height = { parent.height },
+            mid: string = { "" + :id },
+            open: boolean = { classroot.menu.shown && classroot.openId == this.mid },
+            width = { this.t.width + 20 },
+            cornerRadius = 5,
+            fill = { this.open ? theme.controlActive : null },
+            onMouseOver() { classroot.trackMenu(this) },
+            onClick() { if (this.open) classroot.menu.close(); else classroot.openMenu(this) },
+            t: Text [ x = 10, y = center, fontSize = 14,
+                fontWeight = { :bold ? "bold" : "regular" },
+                textColor = { theme.text }, text = { "" + :label } ],
+            ],
+        ],
+    ]
