@@ -11,7 +11,10 @@ configuration. Here they hang off one fact:
 > crawling it, and building it.**
 
 With the dev server up, navigating to `…/my-apps/hello.declare` compiles and renders
-it. The *same address* answers `?viewer=edit` (a live editor beside the running result),
+it — and a directory URL is the same address in short form: `…/apps/calendar/` means
+`…/apps/calendar/calendar.declare`, because a directory containing a program that
+matches its name *is* that program's address. The *same address* answers
+`?viewer=edit` (a live editor beside the running result),
 `?viewer=reader` (the source as an annotated, highlighted document), `?render=canvas`
 (the own-pixels renderer from [chapter 6](declare-docs:guide:style)), and `?extract`
 (what a crawler sees — below). No project scaffold, no route config, no build step

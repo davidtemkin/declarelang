@@ -655,7 +655,7 @@ class ThemeBtn extends View [ width = 32, height = 30, cornerRadius = 6,
 A fixed left rail plus a scrolling detail pane, over the model.
 */
 
-App [ fill = { theme.bg },
+App [ fill = { theme.bg }, appName = "Declare Docs",
 
     /* Navigation is ONE string — `location`, the URL fragment (docs/system-design/location.md).
        The grammar is this app's own: `<mode>/<cursor>[@heading]` (`guide/04-tree`,
@@ -780,9 +780,15 @@ App [ fill = { theme.bg },
 
                 row: View [ x = 4, height = 22,
                     layout: SimpleLayout [ axis = x, spacing = 5 ],
+
+                    // "Declare" is the way home — navigate() resolves against the
+                    // distro root, so this works on either host at any mount point
+
                     Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 18,
                         fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
-                        textFill = { gradient("90deg", theme.accent, theme.accent2) }, text = "Declare" ],
+                        textFill = { gradient("90deg", theme.accent, theme.accent2) }, text = "Declare",
+                        onClick() { app.navigate("apps/homepage/homepage.declare") },
+                        ],
                     Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 18,
                         fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
                         textColor = { theme.text }, text = "Docs" ],

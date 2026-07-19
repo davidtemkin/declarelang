@@ -390,6 +390,13 @@ responsive layout reads these), `app.dark` (OS dark mode), `app.pointerX` / `app
 floor declares it as policy — `App [ minWidth = 600 ]` — rather than writing `Math.max`
 clamps into size constraints (§10).
 
+`appName` is the app's human name — the host surfaces it where names go, today the
+browser page title (and the crawled document's `<title>`; the extractor reads the
+*settled* value, so a derived name is as extractable as a literal). A literal names
+the app once — `App [ appName = "Declare Calendar" ]` — and a constraint names it
+live: the viewer titles itself with whichever file it is showing. Unset, the host's
+own title stands.
+
 ## 10. Sizing and the host
 
 A view's size on each axis is one of three things, chosen by what the source says:
@@ -665,7 +672,9 @@ making it:
    them.
 2. **Run it at its URL.** The program URL is the app's address: with the dev server up
    (`npm start` → `http://127.0.0.1:8200/`), navigating to `…/<path>/<name>.declare`
-   compiles on request and renders — edit on disk, reload, see it. The same address takes
+   compiles on request and renders — edit on disk, reload, see it. A directory whose
+   name matches its program is the same address in short form: `…/apps/calendar/` ≡
+   `…/apps/calendar/calendar.declare`. The same address takes
    modifiers and views: `?render=canvas` (own-pixels renderer — same source, same pixels),
    `?viewer=edit` (source editor + live result + errors, in the browser), `?viewer=reader`
    (annotated, highlighted source), `?extract` (the static-extraction document crawlers

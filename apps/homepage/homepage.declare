@@ -445,7 +445,8 @@ content natively; the chrome further down (header, cursor) are its
 **siblings**, not its children, so they never move.
 */
 
-App [ theme = { ({
+App [ appName = "Declare",
+    theme = { ({
         // text, brightest to faintest
         text: 0xE7EEF2, lead: 0x9DB0BC, muted: 0x8A9BA6, dim: 0x6A7C89, faint: 0x556673,
         // the blue accent and its interaction shades; links brighten past accent

@@ -43,6 +43,18 @@ The whole tree is served from a dumb static host (GitHub Pages, `.nojekyll`) wit
 Node and no compiler on the critical path. Every path is relative, so it is
 subpath-portable — a project page under `/<repo>/` resolves everything the same.
 
+**The launcher URL** (`index.html?apps/calendar`) is the shareable cold-start entry: a
+bare-path query on the entry page names a target program; the page installs the service
+worker FIRST, then navigates, so the `.declare` (or directory-program) URL arrives with
+the SW in control and becomes a run page — where a cold direct link would have served
+raw source. Under the dev server the same URL redirects immediately (the server marker
+suppresses the SW and the server answers the target itself), so one URL form works on
+both hosts. Grammar and the same-origin/no-escape guards: `boot-uniform.js
+launchTarget()`; gated on the entry page's `launcher: true` so run pages never
+reinterpret their own query params. A query that reads as flags (`?render=canvas`) is
+never a launch; the target's own query and fragment ride through
+(`index.html?apps/docs/docs.declare#guide/04-tree`).
+
 The model is **compile-in-the-browser, cache the output, closure-check freshness**
 (`browser/boot-uniform.js` — the deployed `.declare` source is the single source of
 truth; there is no per-app precompiled artifact to fall stale):

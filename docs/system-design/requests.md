@@ -39,6 +39,19 @@ URL surface.
 viewer *showing* you the source; `?file` is the actual file. Before this scheme,
 `?viewer=source` returned raw bytes and the viewer's Source tab was unreachable by URL.
 
+**The directory-program rule.** A URL naming a directory is a program URL for that
+directory's *name-matched* program: `…/name/` (or `…/name` — hosts 301 to the slash
+form, the same canonicalization a static host applies to a real directory) means
+`…/name/name.declare` when that file exists, and every request type and modifier above
+composes exactly as on the explicit URL — `apps/calendar/?viewer`,
+`apps/docs/?render=canvas`. The rule is fully general and unregistered
+(serve-core.js `directoryProgram`, applied identically by the dev server and the
+service worker): existence gates it, so it never shadows a real asset, and a dotted
+final segment is file-like and never a program directory. On a cold static host (no
+service worker yet) a directory URL degrades to the host's 404 exactly as an explicit
+`.declare` URL degrades to raw bytes — the rule exists wherever the platform is
+present, and nowhere else.
+
 ## Modifiers
 
 Two, and they compose onto `run` and `build` (nothing else):
