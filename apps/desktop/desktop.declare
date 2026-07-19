@@ -28,7 +28,7 @@ precedent); the open-source icon harvest, cursor styles for resize
 affordance, and the vibrancy material are the recorded next passes.
 */
 
-use [ FinderWindow, ViewerWindow ]
+use [ FinderWindow, ViewerWindow, AppWindow ]
 
 // ── a desktop window: chrome once, contents per subclass ─────────────────────
 
@@ -531,6 +531,24 @@ class FinderWindow extends Window [ title = "Documentation",
 
 // ── Viewer: a Markdown window over the real file, fetched as text ────────────
 
+// ── AppWindow: a FULL DECLARE APP in a desktop window ────────────────────────
+//
+// The island carries `slot = "run:<path>"` — the page host's preview machinery
+// (browser/host-client.js, the same pipeline behind the homepage and docs
+// islands) fetches the program, compiles it on the boot ladder (prewarm →
+// cache → in-browser compile; identical on the dev server and the static
+// host), and renders it as an EMBEDDED CHILD APP: its own reactive graph, its
+// own input router (the app-root ownership rule), sized to the island's box.
+// The slot name is demos/-relative, so "../../calendar/calendar" reaches the
+// real app — no copy, no shim.
+
+class AppWindow extends Window [ width = 880, height = 560,
+    appPath: string = "",
+    island: DOMIsland [ x = 0, y = 35, width = { parent.width }, height = { parent.height - 35 },
+        slot = { "run:" + classroot.appPath } ],
+    ]
+
+
 class ViewerWindow extends Window [ width = 640, height = 460,
     path: string = "",
 
@@ -739,30 +757,51 @@ App [ minWidth = 900, minHeight = 600,
     // window zooms from its center, the measured macOS behavior; omitted
     // (menu, dock, ⌘O) the window zooms gently from its own center.
 
+    // the origin view's center in APP coords, for the zoom's birth spot
+
+    originOf(v) {
+        if (v == null) return null
+        let ox = v.width / 2
+        let oy = v.height / 2
+        let n = v
+        while (n != null) { ox += n.x || 0; oy += n.y || 0; n = n.parent }
+        return ({ x: ox, y: oy })
+        },
+
     openViewer(p, nm, v) {
         if (p == "") return
         winCount = winCount + 1
         viewerCount = viewerCount + 1
         const wx = 160 + (winCount % 7) * 28
         const wy = 36 + (winCount % 7) * 26
-        let ox = -1
-        let oy = -1
-        if (v != null) {
-            ox = v.width / 2
-            oy = v.height / 2
-            let n = v
-            while (n != null) { ox += n.x || 0; oy += n.y || 0; n = n.parent }
-            ox = ox - wx
-            oy = oy - wy - 25                    // wins layer offset
-            }
+        const o = this.originOf(v)
         const w = this.createView("ViewerWindow", this.wins, ({ path: p, title: "" + nm, x: wx, y: wy,
-            bornX: ox, bornY: oy, bornFrom: v != null ? v : null }))
+            bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - 25 : -1,
+            bornFrom: v != null ? v : null }))
+        frontWin = w
+        },
+
+    // a FULL Declare app in a window — the path is demos/-relative (the slot
+    // convention), so "../../calendar/calendar" runs the real calendar
+
+    appWinCount: number = 0,
+
+    openApp(p, nm, v) {
+        winCount = winCount + 1
+        appWinCount = appWinCount + 1
+        const wx = 110 + (winCount % 5) * 30
+        const wy = 24 + (winCount % 5) * 22
+        const o = this.originOf(v)
+        const w = this.createView("AppWindow", this.wins, ({ appPath: "" + p, title: "" + nm, x: wx, y: wy,
+            bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - 25 : -1,
+            bornFrom: v != null ? v : null }))
         frontWin = w
         },
 
     closeWin(w) { w.beginClose() },              // the reverse zoom; removal on its onStop
 
     reallyClose(w) {
+        if (w.constructor.name == "AppWindow") appWinCount = appWinCount - 1
         if (frontWin == w) frontWin = null
         if (w.constructor.name == "ViewerWindow") viewerCount = viewerCount - 1
         this.wins.removeChild(w)
@@ -920,7 +959,10 @@ App [ minWidth = 900, minHeight = 600,
             // the plausible-Mac-application set: enough items for the
             // magnification wave to read like the real dock's
 
-            DockIcon [ ix = 4, name = "Calendar", kind = "calendar", hue1 = #FFFFFF, hue2 = #EFEFF2 ],
+            DockIcon [ ix = 4, name = "Calendar", kind = "calendar", hue1 = #FFFFFF, hue2 = #EFEFF2,
+                running = { app.appWinCount > 0 },
+                onClick() { app.openApp("../../calendar/calendar", "Calendar", this) },
+                ],
             DockIcon [ ix = 5, name = "Notes", kind = "notes", hue1 = #FFFFFF, hue2 = #F2F2EE ],
             DockIcon [ ix = 6, name = "Mail", kind = "mail", hue1 = #1E8CFB, hue2 = #1667D9 ],
             DockIcon [ ix = 7, name = "Music", glyph = "♪", hue1 = #FB5C74, hue2 = #FA233B ],
