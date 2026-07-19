@@ -205,6 +205,12 @@ export async function bootHost(cfg) {
       // artifact channel); normalize to the `{ source }` result shape renderChild
       // takes. A live compile already returns `{ source, deps }`.
       let compiled = precompiled[name] != null ? { source: precompiled[name] } : null;
+      // The VALIDATED prewarm tier, same as the page boot's (boot-uniform wires
+      // it in): a slot whose program is on the committed prewarm list mounts
+      // with no compiler and no compile; null (absent/stale) falls through.
+      if (compiled == null && typeof cfg.prewarm === "function") {
+        try { compiled = await cfg.prewarm(name); } catch {}
+      }
       if (compiled == null) {
         const src = await sourceFor(name);                  // seed, or fetched on demand
         compiled = src == null ? null : await compile(src); // src null (fetch failed) ⇒ retry next tick

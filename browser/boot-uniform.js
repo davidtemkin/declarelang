@@ -271,11 +271,31 @@ export default async function boot(cfg) {
   }
   const demoBase = new URL("demos/", mainDir).href;              // where mountPreviews fetches unseeded previews
 
+  // Prewarm for ISLANDS — the same VALIDATED tier the page boot rides, offered
+  // to the host's preview mounts: a slot path that resolves to a program on the
+  // committed prewarm list (bundles/cache/), still validating against the
+  // deployed source, mounts with NO compiler and NO compile — the app-in-a-
+  // window case (a desktop window hosting apps/calendar) opens instantly even
+  // on a static cold visit where the compiler bundle hasn't landed. Never
+  // trusted, only validated: a stale or absent artifact returns null and the
+  // mount falls through to the live-compile path exactly as before. Islands
+  // always render on the DOM backend (renderChild), so the key uses render:dom
+  // regardless of the page's own backend.
+  const prewarmChild = async (name) => {
+    try {
+      const u = new URL(name + ".declare", demoBase);
+      const rel = relativize(u, ROOT);
+      if (!rel) return null;
+      const warm = await loadPrewarm({ root: ROOT, relMain: rel, kind: "run", props: { render: "dom" }, fetchImpl: fetch });
+      return warm ? { source: warm.program, deps: warm.deps } : null;
+    } catch { return null; }
+  };
+
   const sRender = perfStage("render");
   const app = await bootHost({                                     // render first — nothing below delays first paint
     source: program, deps, backend: cfg.backend,
     pageWeight: cfg.pageWeight, sourceLines: cfg.sourceLines,
-    seeds, demoBase, compile: liveCompile,
+    seeds, demoBase, compile: liveCompile, prewarm: prewarmChild,
   });
   sRender.end();
   // The number every stage leads to: the first frame the compositor PAINTS

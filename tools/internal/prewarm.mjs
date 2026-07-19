@@ -49,6 +49,7 @@ const PROGRAMS = [
   { main: "apps/homepage/homepage.declare", props: { render: "dom" }, kinds: ["run", "crawler"] },
   { main: "apps/calendar/calendar.declare", props: { render: "dom" }, kinds: ["run"] },
   { main: "apps/docs/docs.declare", props: { render: "dom" }, kinds: ["run", "crawler"] },
+  { main: "apps/desktop/desktop.declare", props: { render: "dom" }, kinds: ["run"] },
 ];
 
 const toPosix = (p) => p.split(path.sep).join("/");
