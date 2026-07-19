@@ -96,7 +96,9 @@ class Window extends View [ width = 560, height = 400, cornerRadius = 10, clip =
     barHover: boolean = false,
 
     bar: View [ width = { parent.width }, height = 35,
-        fill = { classroot.active ? gradient(0xFAFAFC, 0xE6E6EA) : theme.bg },
+        fill = { classroot.active
+                ? (app.darkMode ? gradient(0x3B3B40, 0x2E2E32) : gradient(0xFAFAFC, 0xE6E6EA))
+                : theme.bg },
         onMouseOver() { classroot.barHover = true },
         onMouseOut()  { classroot.barHover = false },
         onMouseDown() {
@@ -296,6 +298,7 @@ class ViewerWindow extends Window [ width = 640, height = 460,
                 visible = { classroot.src.failed },
                 text = { "Could not load — " + (classroot.src.error || "") } ],
             doc: Markdown [ width = { parent.width }, visible = { classroot.src.loaded },
+                dark = { app.darkMode },
                 text = { classroot.src.value || "" } ],
             tail: View [ width = 4, height = 30 ],
             ],
@@ -383,9 +386,9 @@ class MenuTitle extends View [ height = 25,
 
 
 App [ minWidth = 900, minHeight = 600,
-    theme = { Themes.cupertino(app.dark) },
+    theme = { Themes.cupertino(app.darkMode) },
     fontFamily = "-apple-system, system-ui, sans-serif",
-    fill = { gradient(0x7FA8D9, 0x4A6FA5) },
+    fill = { app.darkMode ? gradient(0x2A3A55, 0x18222F) : gradient(0x7FA8D9, 0x4A6FA5) },
 
     frontWin: View = null,
     winCount: number = 0,
@@ -439,6 +442,43 @@ App [ minWidth = 900, minHeight = 600,
 
     onInit() { this.newFinder(); this.tick(); setInterval(() => this.tick(), 15000) },
 
+    // ── the Newton keys model, proven at app level (planes.md §12): shortcuts
+    // are the MENUS' OWN RECORDS, aggregated into one registry — nothing is
+    // declared twice. A raw-Keys dispatcher walks the registry; holding ⌘
+    // surfaces the whole map as a HUD (the Newton ruling's demo).
+
+    keyRegistry: array = { [
+        ...(app.finderMenu.items || []).filter((r) => r.key).map((r) => ({ menu: "Finder", ...r })),
+        ...(app.fileMenu.items || []).filter((r) => r.key).map((r) => ({ menu: "File", ...r })),
+    ] },
+
+    hudGroups: array = { ["Finder", "File"]
+        .map((m) => ({ name: m, rows: (app.keyRegistry || []).filter((r) => r.menu == m) }))
+        .filter((g) => g.rows.length > 0) },
+    hudData: Dataset [ contents = { ({ g: app.hudGroups }) } ],
+
+    hudShown: boolean = false,
+    hudSeq: number = 0,
+
+    showHud() { hudShown = true; this.hud.raise() },
+    hideHud() { hudSeq = hudSeq + 1; hudShown = false },
+
+    onKeyDown(e) <- Keys {
+        if (e.key == "Meta" && !e.repeat) {
+            hudSeq = hudSeq + 1
+            const s = hudSeq
+            setTimeout(() => { if (hudSeq == s && (Keys.isDown("MetaLeft") || Keys.isDown("MetaRight"))) this.showHud() }, 650)
+            return
+            }
+        if (!e.meta || e.repeat) return
+        if (this.finderMenu.shown || this.fileMenu.shown) return     // an open menu owns the keyboard
+        const combo = "⌘" + (e.key.length == 1 ? e.key.toUpperCase() : e.key)
+        const hit = (this.keyRegistry || []).find((r) => r.key == combo && r.enabled != false)
+        if (hit != null) { this.hideHud(); this.command("" + hit.id) }
+        },
+
+    onKeyUp(e) <- Keys { if (e.key == "Meta") this.hideHud() },
+
     // ── the windows layer: a structural container; order is promotion ──────
 
     wins: View [ x = 0, y = 25, width = { app.width }, height = { app.height - 25 } ],
@@ -449,7 +489,7 @@ App [ minWidth = 900, minHeight = 600,
         items = { [
             ({ id: "about", label: "About This Desktop", enabled: false }),
             ({ divider: true }),
-            ({ id: "dark", label: app.darkMode ? "Light Appearance" : "Dark Appearance" }),
+            ({ id: "dark", label: app.darkMode ? "Light Appearance" : "Dark Appearance", key: "⌘K" }),
         ] },
         ],
 
@@ -483,8 +523,8 @@ App [ minWidth = 900, minHeight = 600,
         x = { (app.width - this.width) / 2 },
         y = { app.height - 82 },
         plate: View [ x = 0, y = { parent.height - 58 }, height = 58, width = { parent.row.width + 18 },
-            cornerRadius = 20, fill = 0xFCFCFE, opacity = 0.72,
-            stroke = { stroke(1, 0xFFFFFF80) } ],
+            cornerRadius = 20, fill = { app.darkMode ? 0x2A2A30 : 0xFCFCFE }, opacity = 0.72,
+            stroke = { stroke(1, app.darkMode ? 0xFFFFFF33 : 0xFFFFFF80) } ],
         row: View [ x = 9, y = 0, height = 70,
             layout: SimpleLayout [ axis = x, spacing = 8 ],
             DockIcon [ ix = 0, name = "Finder", glyph = "⌘", hue1 = #59B0F6, hue2 = #1D6FD1,
@@ -500,6 +540,37 @@ App [ minWidth = 900, minHeight = 600,
                 ],
             DockIcon [ ix = 3, name = "FAQ", glyph = "?", hue1 = #55BD6C, hue2 = #2E8B47,
                 onClick() { app.openViewer("../../apps/homepage/declare-faq.md", "FAQ") },
+                ],
+            ],
+        ],
+
+    // ── the hold-⌘ HUD: the registry made visible — every shortcut the app
+    // answers to, grouped by the menu that owns it, greyed when disabled ─────
+
+    hud: View [ visible = { app.hudShown },
+        width = { this.card.width }, height = { this.card.height },
+        x = { (app.width - this.width) / 2 },
+        y = { app.height - this.height - 130 },
+        card: View [ width = { this.cols.contentWidth + 48 }, height = { this.cols.contentHeight + 40 },
+            cornerRadius = 14, fill = 0x1E1E23, opacity = 0.93,
+            stroke = { stroke(1, 0xFFFFFF1F) },
+            shadow = { shadow(0, 14, 40, 0x00000059) },
+            cols: View [ x = 24, y = 20, height = { this.contentHeight }, width = { this.contentWidth },
+                layout: SimpleLayout [ axis = x, spacing = 36 ],
+                datapath = { app.hudData.value },
+                View [ datapath = :g[], width = 220, height = { 24 + this.lst.contentHeight },
+                    ttl: Text [ fontSize = 11, fontWeight = semibold, textColor = 0x9A9AA2,
+                        text = { ("" + :name).toUpperCase() } ],
+                    lst: View [ y = 24, width = { parent.width },
+                        layout: SimpleLayout [ axis = y, spacing = 7 ],
+                        View [ datapath = :rows[], width = { parent.width }, height = 18,
+                            opacity = { :enabled == false ? 0.4 : 1 },
+                            lab: Text [ fontSize = 13, textColor = 0xF2F2F5, text = { "" + :label } ],
+                            k: Text [ fontSize = 13, textColor = 0x9A9AA2,
+                                x = { parent.width - this.width }, text = { "" + :key } ],
+                            ],
+                        ],
+                    ],
                 ],
             ],
         ],
