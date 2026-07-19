@@ -35,6 +35,7 @@ export type DrawOp =
   | { readonly op: "fillStyle"; readonly v: string }
   | { readonly op: "strokeStyle"; readonly v: string }
   | { readonly op: "lineWidth"; readonly v: number }
+  | { readonly op: "lineCap"; readonly v: CanvasLineCap }
   | { readonly op: "fillRect"; readonly x: number; readonly y: number; readonly w: number; readonly h: number }
   | { readonly op: "beginPath" }
   | { readonly op: "moveTo"; readonly x: number; readonly y: number }
@@ -82,6 +83,9 @@ export class Draw {
     this.ops.push({ op: "lineWidth", v });
   }
   get lineWidth(): number { return this.readOnly("lineWidth"); }
+
+  set lineCap(v: string) { this.ops.push({ op: "lineCap", v: v as CanvasLineCap }); }
+  get lineCap(): string { return this.readOnly("lineCap"); }
 
   fillRect(x: number, y: number, w: number, h: number): void {
     this.ops.push({ op: "fillRect", x, y, w, h });
@@ -180,6 +184,7 @@ export function replay(ctx: CanvasRenderingContext2D, list: DisplayList): void {
       case "fillStyle": ctx.fillStyle = o.v; break;
       case "strokeStyle": ctx.strokeStyle = o.v; break;
       case "lineWidth": ctx.lineWidth = o.v; break;
+      case "lineCap": ctx.lineCap = o.v; break;
       case "fillRect": ctx.fillRect(o.x, o.y, o.w, o.h); break;
       case "beginPath": ctx.beginPath(); break;
       case "moveTo": ctx.moveTo(o.x, o.y); break;

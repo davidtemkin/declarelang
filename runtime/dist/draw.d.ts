@@ -17,6 +17,9 @@ export type DrawOp = {
     readonly op: "lineWidth";
     readonly v: number;
 } | {
+    readonly op: "lineCap";
+    readonly v: CanvasLineCap;
+} | {
     readonly op: "fillRect";
     readonly x: number;
     readonly y: number;
@@ -81,6 +84,8 @@ export declare class Draw {
     get strokeStyle(): string;
     set lineWidth(v: number);
     get lineWidth(): number;
+    set lineCap(v: string);
+    get lineCap(): string;
     fillRect(x: number, y: number, w: number, h: number): void;
     beginPath(): void;
     moveTo(x: number, y: number): void;

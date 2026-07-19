@@ -45,6 +45,8 @@ export class Draw {
         this.ops.push({ op: "lineWidth", v });
     }
     get lineWidth() { return this.readOnly("lineWidth"); }
+    set lineCap(v) { this.ops.push({ op: "lineCap", v: v }); }
+    get lineCap() { return this.readOnly("lineCap"); }
     fillRect(x, y, w, h) {
         this.ops.push({ op: "fillRect", x, y, w, h });
         this.mark(x, y, x + w, y + h);
@@ -132,6 +134,9 @@ export function replay(ctx, list) {
                 break;
             case "lineWidth":
                 ctx.lineWidth = o.v;
+                break;
+            case "lineCap":
+                ctx.lineCap = o.v;
                 break;
             case "fillRect":
                 ctx.fillRect(o.x, o.y, o.w, o.h);

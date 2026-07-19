@@ -119,15 +119,15 @@ class Window extends View [ width = 560, height = 400, cornerRadius = 10, clip =
         // the traffic lights — all three real: close, shade, zoom. Grey when
         // the window is inactive; glyphs surface on bar hover (the macOS rule).
 
-        close: TrafficLight [ x = 13, c = #EC6A5E, glyph = "×",
+        close: TrafficLight [ x = 13, c = #EC6A5E, rim = #D25349, ink = #7B1006, sym = "close",
             on = { classroot.active }, showGlyph = { classroot.barHover },
             onClick() { app.closeWin(classroot) },
             ],
-        mini: TrafficLight [ x = 33, c = #F5BF4F, glyph = "−",
+        mini: TrafficLight [ x = 33, c = #F5BF4F, rim = #D9A340, ink = #8F5B00, sym = "min",
             on = { classroot.active }, showGlyph = { classroot.barHover },
             onClick() { classroot.shadeToggle() },
             ],
-        zoom: TrafficLight [ x = 53, c = #61C554, glyph = "+",
+        zoom: TrafficLight [ x = 53, c = #61C554, rim = #4CAF45, ink = #145E14, sym = "zoom",
             on = { classroot.active }, showGlyph = { classroot.barHover },
             onClick() { classroot.zoomToggle() },
             ],
@@ -171,16 +171,50 @@ class Window extends View [ width = 560, height = 400, cornerRadius = 10, clip =
     ]
 
 
+// The lights match the captured Safari originals: hairline rim in a darker
+// tone of the fill (never black), and the hover glyphs are Apple's DRAWN
+// iconography in a dark tone of the same hue — thick rounded ×, − bar, and
+// the fullscreen pair of triangles split along the "/" diagonal.
+
 class TrafficLight extends View [ y = 11.5, width = 12, height = 12, cornerRadius = 6,
-    c: Color = #EC6A5E,
-    glyph: string = "",
+    c:   Color = #EC6A5E,
+    rim: Color = #D25349,
+    ink: Color = #7B1006,
+    sym: string = "",                            // "close" | "min" | "zoom"
     on: boolean = false,                         // the window's active state, fed at the use site
     showGlyph: boolean = false,                  // bar-hover, fed at the use site
     fill = { on ? c : theme.line },
-    stroke = { stroke(1, 0x00000022) },
-    t: Text [ x = center, y = center, fontSize = 8, fontWeight = bold, textColor = 0x00000073,
+    stroke = { stroke(1, on && rim != null ? rim : 0x00000012) },
+
+    g: View [ x = 0, y = 0, width = 12, height = 12,
         visible = { classroot.showGlyph && classroot.on },
-        text = { classroot.glyph } ],
+        draw(d) {
+            d.strokeStyle = classroot.ink
+            d.fillStyle = classroot.ink
+            d.lineCap = "round"
+            if (classroot.sym == "close") {
+                d.lineWidth = 1.5
+                d.beginPath()
+                d.moveTo(3.8, 3.8); d.lineTo(8.2, 8.2)
+                d.moveTo(8.2, 3.8); d.lineTo(3.8, 8.2)
+                d.stroke()
+                }
+            else if (classroot.sym == "min") {
+                d.lineWidth = 1.6
+                d.beginPath()
+                d.moveTo(3, 6); d.lineTo(9, 6)
+                d.stroke()
+                }
+            else if (classroot.sym == "zoom") {
+                d.beginPath()
+                d.moveTo(3.5, 3.5); d.lineTo(7.3, 3.5); d.lineTo(3.5, 7.3)
+                d.closePath(); d.fill()
+                d.beginPath()
+                d.moveTo(8.5, 8.5); d.lineTo(4.7, 8.5); d.lineTo(8.5, 4.7)
+                d.closePath(); d.fill()
+                }
+            },
+        ],
     ]
 
 
@@ -325,11 +359,18 @@ class DockIcon extends View [
     cx0: number = { app.width / 2 + (this.ix - (this.slots - 1) / 2) * 56 },
     near: number = { app.pointerY > app.height - 96 ? Math.max(0, 1 - Math.abs(app.pointerX - this.cx0) / 150) : 0 },
 
+    // `near` is the TARGET; the width rides `mag`, a sprung follower — so
+    // leaving the dock collapses with the real dock's brief settle instead of
+    // a one-frame snap (the constraint alone was instantaneous)
+
+    mag: number = 0,
+    sp: Spring [ attribute = mag, to = { classroot.near }, stiffness = 260, damping = 30, epsilon = 0.001 ],
+
     // real width: neighbors displace, the plate's edges push outward
 
-    width  = { 48 * (1 + 0.5 * this.near * this.near) },
+    width  = { 48 * (1 + 0.5 * Math.max(0, this.mag) * Math.max(0, this.mag)) },
     height = { this.width },
-    y = { parent.height - this.height - 8 },     // bottom-anchored above the dot strip
+    y = { parent.height - this.height - 9 },     // bottom-anchored above the dot strip
 
     onMouseOver() { hovered = true },
     onMouseOut()  { hovered = false },
@@ -348,21 +389,25 @@ class DockIcon extends View [
         x = { (parent.width - 4) / 2 }, y = { parent.height + 3 },
         visible = { running }, fill = { theme.textMuted } ],
 
-    // the label pill — the dock's own quasi-tooltip: a rounded chip with a
-    // pointer tick, centered above the hovered icon
+    // the label pill — the dock's own quasi-tooltip, matched to the captured
+    // original: frosted chip with a pointer tick, NO shadow, and a CONSTANT
+    // screen height — the icon under it magnifies; the pill must not ride it
+    // (y cancels the icon's own y so the pill stays 34px above the dock top)
 
     pill: View [ visible = { hovered },
-        width = { this.t.width + 22 }, height = 24, cornerRadius = 7,
-        x = { (parent.width - this.width) / 2 }, y = -36,
-        fill = { theme.surface }, stroke = { stroke(1, theme.line) },
-        shadow = { shadow(0, 3, 10, 0x00000030) },
-        t: Text [ x = center, y = center, fontSize = 12, textColor = { theme.text },
+        width = { this.t.width + 26 }, height = 26, cornerRadius = 9,
+        x = { (parent.width - this.width) / 2 },
+        y = { parent.height - 103 },
+        fill = { app.darkMode ? 0x2E2E33 : 0xF5F5F7 },
+        stroke = { stroke(1, app.darkMode ? 0x00000059 : 0xD8D8DD) },
+        t: Text [ x = center, y = center, fontSize = 13,
+            textColor = { app.darkMode ? 0xF2F2F5 : 0x1D1D1F },
             text = { classroot ? "" + this.parent.parent.name : "" } ],
-        tick: View [ width = 8, height = 8, x = { (parent.width - 8) / 2 }, y = 20,
+        tick: View [ width = 10, height = 6, x = { (parent.width - 10) / 2 }, y = 25,
             draw(d) {
-                d.fillStyle = theme.surface
+                d.fillStyle = app.darkMode ? 0x2E2E33 : 0xF5F5F7
                 d.beginPath()
-                d.moveTo(0, 0); d.lineTo(8, 0); d.lineTo(4, 5)
+                d.moveTo(0, 0); d.lineTo(10, 0); d.lineTo(5, 5.5)
                 d.fill()
                 },
             ],
@@ -497,7 +542,7 @@ App [ minWidth = 900, minHeight = 600,
         width = { this.plate.width },
         x = { (app.width - this.width) / 2 },
         y = { app.height - 82 },
-        plate: View [ x = 0, y = { parent.height - 58 }, height = 58, width = { parent.row.width + 18 },
+        plate: View [ x = 0, y = { parent.height - 61 }, height = 61, width = { parent.row.width + 18 },
             cornerRadius = 20, fill = { app.darkMode ? 0x2A2A30 : 0xFCFCFE }, opacity = 0.72,
             stroke = { stroke(1, app.darkMode ? 0xFFFFFF33 : 0xFFFFFF80) } ],
         row: View [ x = 9, y = 0, height = 70,
