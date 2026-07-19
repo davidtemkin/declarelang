@@ -885,7 +885,7 @@ await test("check() rejects a typo'd handler, naming the handlers it knows", () 
   const [err] = check(parse("View [ onClik() { } ]"));
   // names the typo and lists the handlers it knows (the set grows with the
   // schema — pin the stable leading pointer handlers, not the whole tail)
-  assert.match(err.message, /View has no 'onClik' event — its handlers: onClick, onMouseDown, onMouseUp, onMouseMove/);
+  assert.match(err.message, /View has no 'onClik' event — its handlers: onClick, onDblClick, onMouseDown, onMouseUp, onMouseMove/);
   assert.equal(err.pos.col, 8);
 });
 

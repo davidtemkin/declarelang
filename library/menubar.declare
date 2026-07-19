@@ -48,6 +48,31 @@ class MenuBar extends View [ height = 25,
 
     trackMenu(t) { if (this.menu.shown && "" + t.mid != openId) this.openMenu(t) },
 
+    // ── arrows walk the bar while a menu is open (macOS): Left/Right move to
+    // the adjacent title's menu. The open Menu keeps the keys when a submenu
+    // is up (Left backs out of it) or when the rover sits on a submenu row
+    // (Right enters it) — the guards below yield exactly those cases.
+
+    rowsOf() { return this.row.children },
+
+    hasSub(r) { return r != null && r.sub == true },
+
+    stepMenu(d) {
+        const ms = menus || []
+        const i = ms.findIndex((m) => "" + m.id == this.openId)
+        if (i < 0 || ms.length < 2) return
+        const nid = "" + ms[(i + d + ms.length) % ms.length].id
+        const t = this.rowsOf().find((r) => "" + r.mid == nid)
+        if (t != null) this.openMenu(t)
+        },
+
+    onKeyDown(e) <- Keys {
+        if (!this.menu.shown) return
+        if (this.menu.subShown(this.menu.child)) return
+        if (e.key == "ArrowLeft") this.stepMenu(-1)
+        else if (e.key == "ArrowRight") { if (!this.hasSub(this.menu.activeRow)) this.stepMenu(1) }
+        },
+
     menu: Menu [
         items = { ((classroot.menus || []).find((m) => "" + m.id == classroot.openId) || ({ })).items || [] },
         picked(id) { classroot.picked(id) },

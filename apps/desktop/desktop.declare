@@ -106,14 +106,12 @@ class Window extends View [ width = 560, height = 400, cornerRadius = 10, clip =
         if (sizeMode.indexOf("b") >= 0) this.height = Math.max(120, wh0 + dy)
         },
 
-    barHover: boolean = false,
+    lightsHover: boolean = false,
 
     bar: View [ width = { parent.width }, height = 35,
         fill = { classroot.active
                 ? (app.darkMode ? gradient(0x3B3B40, 0x2E2E32) : gradient(0xFAFAFC, 0xE6E6EA))
                 : theme.bg },
-        onMouseOver() { classroot.barHover = true },
-        onMouseOut()  { classroot.barHover = false },
         onMouseDown() {
             classroot.activate()
             classroot.dragging = true
@@ -130,19 +128,33 @@ class Window extends View [ width = 560, height = 400, cornerRadius = 10, clip =
         onMouseUp() { classroot.dragging = false },
 
         // the traffic lights — all three real: close, shade, zoom. Grey when
-        // the window is inactive; glyphs surface on bar hover (the macOS rule).
+        // the window is inactive. The rollover state belongs to the LIGHTS
+        // BLOCK alone (the bounding rectangle of the three circles — David's
+        // reference), not the bar: hovering it colorizes even an inactive
+        // window's lights and surfaces the glyphs; the rest of the bar never
+        // does.
 
-        close: TrafficLight [ x = 13, c = #EC6A5E, rim = #D25349, ink = #7B1006, sym = "close",
-            on = { classroot.active }, showGlyph = { classroot.barHover },
-            onClick() { app.closeWin(classroot) },
-            ],
-        mini: TrafficLight [ x = 33, c = #F5BF4F, rim = #D9A340, ink = #8F5B00, sym = "min",
-            on = { classroot.active }, showGlyph = { classroot.barHover },
-            onClick() { classroot.shadeToggle() },
-            ],
-        zoom: TrafficLight [ x = 53, c = #61C554, rim = #4CAF45, ink = #145E14, sym = "zoom",
-            on = { classroot.active }, showGlyph = { classroot.barHover },
-            onClick() { classroot.zoomToggle() },
+        lights: View [ x = 13, y = 10.5, width = 54, height = 14,
+            onMouseOver() { classroot.lightsHover = true },
+            onMouseOut()  { classroot.lightsHover = false },
+            close: TrafficLight [ x = 0, c = #EC6A5E, rim = #D25349, ink = #7B1006, sym = "close",
+                on = { classroot.active || classroot.lightsHover }, showGlyph = { classroot.lightsHover },
+                onMouseOver() { classroot.lightsHover = true },
+                onMouseOut()  { classroot.lightsHover = false },
+                onClick() { app.closeWin(classroot) },
+                ],
+            mini: TrafficLight [ x = 20, c = #F5BF4F, rim = #D9A340, ink = #8F5B00, sym = "min",
+                on = { classroot.active || classroot.lightsHover }, showGlyph = { classroot.lightsHover },
+                onMouseOver() { classroot.lightsHover = true },
+                onMouseOut()  { classroot.lightsHover = false },
+                onClick() { classroot.shadeToggle() },
+                ],
+            zoom: TrafficLight [ x = 40, c = #61C554, rim = #4CAF45, ink = #145E14, sym = "zoom",
+                on = { classroot.active || classroot.lightsHover }, showGlyph = { classroot.lightsHover },
+                onMouseOver() { classroot.lightsHover = true },
+                onMouseOut()  { classroot.lightsHover = false },
+                onClick() { classroot.zoomToggle() },
+                ],
             ],
 
         cap: Text [ x = center, y = center, fontSize = 13, fontWeight = semibold,
@@ -202,7 +214,7 @@ class Window extends View [ width = 560, height = 400, cornerRadius = 10, clip =
 // iconography in a dark tone of the same hue — thick rounded ×, − bar, and
 // the fullscreen pair of triangles split along the "/" diagonal.
 
-class TrafficLight extends View [ y = 11.5, width = 12, height = 12, cornerRadius = 6,
+class TrafficLight extends View [ y = 0, width = 14, height = 14, cornerRadius = 7,
     c:   Color = #EC6A5E,
     rim: Color = #D25349,
     ink: Color = #7B1006,
@@ -212,35 +224,75 @@ class TrafficLight extends View [ y = 11.5, width = 12, height = 12, cornerRadiu
     fill = { on ? c : theme.line },
     stroke = { stroke(1, on && rim != null ? rim : 0x00000012) },
 
-    g: View [ x = 0, y = 0, width = 12, height = 12,
+    g: View [ x = 0, y = 0, width = 14, height = 14,
         visible = { classroot.showGlyph && classroot.on },
         draw(d) {
             d.strokeStyle = classroot.ink
             d.fillStyle = classroot.ink
             d.lineCap = "round"
             if (classroot.sym == "close") {
-                d.lineWidth = 1.5
+                d.lineWidth = 1.6
                 d.beginPath()
-                d.moveTo(3.8, 3.8); d.lineTo(8.2, 8.2)
-                d.moveTo(8.2, 3.8); d.lineTo(3.8, 8.2)
+                d.moveTo(4.5, 4.5); d.lineTo(9.5, 9.5)
+                d.moveTo(9.5, 4.5); d.lineTo(4.5, 9.5)
                 d.stroke()
                 }
             else if (classroot.sym == "min") {
-                d.lineWidth = 1.6
+                d.lineWidth = 1.8
                 d.beginPath()
-                d.moveTo(3, 6); d.lineTo(9, 6)
+                d.moveTo(3.5, 7); d.lineTo(10.5, 7)
                 d.stroke()
                 }
             else if (classroot.sym == "zoom") {
                 d.beginPath()
-                d.moveTo(3.5, 3.5); d.lineTo(7.3, 3.5); d.lineTo(3.5, 7.3)
+                d.moveTo(4.1, 4.1); d.lineTo(8.5, 4.1); d.lineTo(4.1, 8.5)
                 d.closePath(); d.fill()
                 d.beginPath()
-                d.moveTo(8.5, 8.5); d.lineTo(4.7, 8.5); d.lineTo(8.5, 4.7)
+                d.moveTo(9.9, 9.9); d.lineTo(5.5, 9.9); d.lineTo(9.9, 5.5)
                 d.closePath(); d.fill()
                 }
             },
         ],
+    ]
+
+
+// ── small drawn Finder iconography: the macOS folder, and the dog-eared page ─
+
+class FolderIcon extends View [ width = 17, height = 13,
+    draw(d) {
+        const rr = (x, y, w, h, r) => {
+            d.beginPath()
+            d.moveTo(x + r, y)
+            d.lineTo(x + w - r, y); d.arc(x + w - r, y + r, r, -Math.PI / 2, 0, false)
+            d.lineTo(x + w, y + h - r); d.arc(x + w - r, y + h - r, r, 0, Math.PI / 2, false)
+            d.lineTo(x + r, y + h); d.arc(x + r, y + h - r, r, Math.PI / 2, Math.PI, false)
+            d.lineTo(x, y + r); d.arc(x + r, y + r, r, Math.PI, Math.PI * 1.5, false)
+            d.closePath()
+            }
+        d.fillStyle = 0x4E9FEA
+        rr(0, 0, 7.5, 4, 1.5); d.fill()              // the back tab
+        d.fillStyle = 0x6AB2F5
+        rr(0, 1.8, 17, 11, 1.5); d.fill()            // the body
+        d.fillStyle = 0x8CC4F8
+        rr(0, 1.8, 17, 3.2, 1.5); d.fill()           // the top lip highlight
+        },
+    ]
+
+
+class FileIcon extends View [ width = 13, height = 16,
+    draw(d) {
+        d.fillStyle = 0xFFFFFF
+        d.strokeStyle = 0xB4B4BA
+        d.lineWidth = 1
+        d.beginPath()
+        d.moveTo(0.5, 0.5); d.lineTo(8.5, 0.5); d.lineTo(12.5, 4.5)
+        d.lineTo(12.5, 15.5); d.lineTo(0.5, 15.5)
+        d.closePath(); d.fill(); d.stroke()
+        d.fillStyle = 0xDDDDE2                       // the dog-ear fold
+        d.beginPath()
+        d.moveTo(8.5, 0.5); d.lineTo(8.5, 4.5); d.lineTo(12.5, 4.5)
+        d.closePath(); d.fill(); d.stroke()
+        },
     ]
 
 
@@ -295,7 +347,8 @@ class FinderWindow extends Window [ title = "Documentation",
                         onClick() { classroot.activate(); classroot.sel1 = this.fname; classroot.sel2 = "" },
                         hl: View [ x = 4, y = 0, width = { parent.width - 8 }, height = 26, cornerRadius = 5,
                             visible = { parent.on }, fill = { theme.accent } ],
-                        Text [ x = 12, y = center, fontSize = 13,
+                        FolderIcon [ x = 11, y = center ],
+                        Text [ x = 34, y = center, fontSize = 13,
                             textColor = { parent.on ? theme.accentText : theme.text }, text = { parent.fname } ],
                         ],
                     ],
@@ -315,9 +368,15 @@ class FinderWindow extends Window [ title = "Documentation",
                                 fname: string = { "" + :name },
                                 on: boolean = { classroot.sel2 == this.fpath },
                                 onClick() { classroot.activate(); classroot.sel2 = this.fpath; classroot.sel2name = this.fname },
+
+                                // single click selects; DOUBLE click opens — the
+                                // Finder idiom, on the platform dblClick event
+
+                                onDblClick() { app.openViewer(this.fpath, this.fname) },
                                 hl: View [ x = 4, y = 0, width = { parent.width - 8 }, height = 26, cornerRadius = 5,
                                     visible = { parent.on }, fill = { theme.accent } ],
-                                Text [ x = 12, y = center, fontSize = 13,
+                                FileIcon [ x = 12, y = center ],
+                                Text [ x = 32, y = center, fontSize = 13,
                                     textColor = { parent.on ? theme.accentText : theme.text }, text = { parent.fname } ],
                                 ],
                             ],
@@ -337,6 +396,23 @@ class FinderWindow extends Window [ title = "Documentation",
                     doc: View [ x = center, width = 56, height = 66, cornerRadius = 6, fill = { theme.bg },
                         stroke = { stroke(1, theme.line) },
                         Text [ x = center, y = center, fontSize = 22, textColor = { theme.textFaint }, text = "M↓" ],
+
+                        // the Finder dog-ear: cut the corner, then the fold flap
+
+                        ear: View [ x = { parent.width - 17 }, y = 0, width = 17, height = 17,
+                            draw(d) {
+                                d.fillStyle = theme.surface
+                                d.beginPath()
+                                d.moveTo(1, -1); d.lineTo(18, -1); d.lineTo(18, 16)
+                                d.closePath(); d.fill()
+                                d.fillStyle = 0xE3E3E8
+                                d.strokeStyle = 0xC6C6CC
+                                d.lineWidth = 1
+                                d.beginPath()
+                                d.moveTo(0.5, 0.5); d.lineTo(15.5, 15.5); d.lineTo(0.5, 15.5)
+                                d.closePath(); d.fill(); d.stroke()
+                                },
+                            ],
                         ],
                     nm: Text [ fontSize = 13, fontWeight = semibold, wrap = true, width = { parent.width },
                         textAlign = center,
@@ -376,7 +452,19 @@ class ViewerWindow extends Window [ width = 640, height = 460,
     path: string = "",
 
     src: DataSource [ format = "text", url = { classroot.path } ],
-    onInit() { this.src.fetch() },
+
+    // the scrolling body is a REAL pointer target covering the whole window,
+    // and subclass children attach after the base's — so the Window's resize
+    // strips re-promote above it (order is a slot) or edge drags never land
+
+    onInit() {
+        this.src.fetch()
+        this.edgeL.raise()
+        this.edgeR.raise()
+        this.edgeB.raise()
+        this.cornerBL.raise()
+        this.grip.raise()
+        },
 
     body: View [ x = 0, y = 35, width = { parent.width }, height = { parent.height - 35 },
         scrolls = true, selectable = true,
@@ -412,18 +500,20 @@ class DockIcon extends View [
     // fixed: 56px pitch about the app's center
 
     cx0: number = { app.width / 2 + (this.ix - (this.slots - 1) / 2) * 56 },
-    near: number = { app.pointerY > app.height - 96 ? Math.max(0, 1 - Math.abs(app.pointerX - this.cx0) / 150) : 0 },
 
-    // `near` is the TARGET; the width rides `mag`, a sprung follower — so
-    // leaving the dock collapses with the real dock's brief settle instead of
-    // a one-frame snap (the constraint alone was instantaneous)
+    // MEASURED against the real dock (burst region-captures at ~75ms frames,
+    // 2026-07-18): inside the strip, magnification TRACKS the pointer with no
+    // visible lag; enter and exit each complete within ~one frame (≲100-150ms).
+    // So `near` (the horizontal falloff) is an UNSPRUNG constraint — instant
+    // response — and only the enter/exit ENVELOPE (the dock's `hot`, sprung at
+    // ~100ms) animates. The earlier per-icon spring (~300ms) read as syrup.
 
-    mag: number = 0,
-    sp: Spring [ attribute = mag, to = { classroot.near }, stiffness = 260, damping = 30, epsilon = 0.001 ],
+    near: number = { Math.max(0, 1 - Math.abs(app.pointerX - this.cx0) / 150) },
+    env: number = { this.parent.parent.hot },
 
     // real width: neighbors displace, the plate's edges push outward
 
-    width  = { 48 * (1 + 0.5 * Math.max(0, this.mag) * Math.max(0, this.mag)) },
+    width  = { 48 * (1 + 0.5 * Math.pow(Math.max(0, this.near * this.env), 2)) },
     height = { this.width },
     y = { parent.height - this.height - 9 },     // bottom-anchored above the dot strip
 
@@ -597,6 +687,13 @@ App [ minWidth = 900, minHeight = 600,
         width = { this.plate.width },
         x = { (app.width - this.width) / 2 },
         y = { app.height - 82 },
+
+        // the enter/exit envelope the icons scale by — sprung to the measured
+        // ~100ms; inside the strip the icons track the pointer directly
+
+        hot: number = 0,
+        heat: Spring [ attribute = hot, to = { app.pointerY > app.height - 96 ? 1 : 0 },
+            stiffness = 900, damping = 55, epsilon = 0.001 ],
 
         // sampled from the real dock (2026-07-18): at REST the icons sit
         // clearly INSIDE the plate; a magnified icon crests above its top —

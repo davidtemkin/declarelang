@@ -42,7 +42,7 @@ export type Stretch = "none" | "width" | "height" | "both";
  *  `onClick`). A click is not a platform event here — the shared router
  *  (input.ts) synthesizes it as "press and release resolved to the same
  *  view", so both backends decide it identically by construction. */
-export type PointerType = "mouseDown" | "mouseUp" | "click" | "mouseMove" | "mouseOver" | "mouseOut";
+export type PointerType = "mouseDown" | "mouseUp" | "click" | "dblClick" | "mouseMove" | "mouseOver" | "mouseOut";
 export declare const POINTER_TYPES: readonly PointerType[];
 /** A view's input route across the seam — one call per delivered event,
  *  with the point in the receiving view's own coordinates. Having a sink is

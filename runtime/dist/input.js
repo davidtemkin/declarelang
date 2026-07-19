@@ -39,6 +39,12 @@ export function routeInput(alive, resolve, rootPoint, onHover) {
     // coordinates are in ROOT space (app-relative), so a handler can hit-test the
     // whole tree; down/up stay view-local.
     let held = null;
+    // Double-click pairing (platform-level, both backends): a second click on
+    // the SAME view within the interval also fires dblClick; the third starts a
+    // fresh cycle (macOS's rule — triple is double + single, not two doubles).
+    let lastClickKey = null;
+    let lastClickAt = 0;
+    const DBL_MS = 400;
     // Hover: the sink the pointer was last OVER, so a move that crosses into a
     // different sink (or off all of them) fires mouseOut on the old + mouseOver on
     // the new — the rollover pair, resolved by the same seam as click.
@@ -129,8 +135,18 @@ export function routeInput(alive, resolve, rootPoint, onHover) {
             captor.sink("mouseUp", p.x, p.y);
             // Click rule: press and release resolved to the same view (an excursion
             // in between is fine; releasing elsewhere clicks nothing).
-            if (t !== null && t.key === captor.key)
+            if (t !== null && t.key === captor.key) {
                 captor.sink("click", t.x, t.y);
+                const now = Date.now();
+                if (lastClickKey === captor.key && now - lastClickAt < DBL_MS) {
+                    captor.sink("dblClick", t.x, t.y);
+                    lastClickKey = null;
+                }
+                else {
+                    lastClickKey = captor.key;
+                    lastClickAt = now;
+                }
+            }
         }
         else if (t !== null) {
             t.sink("mouseUp", t.x, t.y);

@@ -194,7 +194,7 @@ const ViewSchema: ComponentSchema = {
   // event `init` (Appendix A's onInit). Hover (mouseOver/Out) waits for its
   // consuming rung — it needs retained enter/leave tracking, not just a
   // per-event hit test.
-  events: ["click", "mouseDown", "mouseUp", "mouseMove", "mouseOver", "mouseOut", "init", "focus", "blur", "escapeFocus", "keyDown", "keyUp"],
+  events: ["click", "dblClick", "mouseDown", "mouseUp", "mouseMove", "mouseOver", "mouseOut", "init", "focus", "blur", "escapeFocus", "keyDown", "keyUp"],
 };
 
 // App is the root View plus the app's reactive environment. `hostWidth`/
