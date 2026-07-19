@@ -142,6 +142,11 @@ class Compositor {
       (e) => {
         const r = this.canvas!.getBoundingClientRect();
         return { x: e.clientX - r.left, y: e.clientY - r.top };
+      },
+      // One host element paints everything, so the per-view cursor is applied
+      // here as the hover target changes (the DOM backend brushes per element).
+      (t) => {
+        if (this.canvas !== null) this.canvas.style.cursor = t !== null && t.cursor !== undefined ? t.cursor : "";
       }
     );
     // Tap-to-dismiss for native editable overlays: a pointerdown that lands on the
@@ -247,6 +252,7 @@ class CanvasSurface implements Surface {
   private box: Path2D | null = null;
   visible = true;
   opacity = 1;
+  cursorStyle = "";
   /** Uniform scale about (pivotX, pivotY) in this surface's own coordinates;
    *  1 = identity. Applied in the paint walk and inverted in the hit walk. */
   scaleK = 1;
@@ -326,6 +332,10 @@ class CanvasSurface implements Surface {
   setHeight(v: number): void { this.height = v; this.box = null; if (this.boxClip) this.clipPath = null; this.compositor.invalidate(); }
   setVisible(v: boolean): void { this.visible = v; this.compositor.invalidate(); }
   setOpacity(o: number): void { this.opacity = o; this.compositor.invalidate(); }
+
+  // Paint-inert: the cursor rides the hover walk (hit() carries it to the
+  // router's onHover, which brushes the host element) — nothing to repaint.
+  setCursor(c: string): void { this.cursorStyle = c; }
   setScale(scale: number, px: number, py: number): void {
     this.scaleK = scale; this.pivotX = px; this.pivotY = py; this.compositor.invalidate();
   }
@@ -575,7 +585,7 @@ class CanvasSurface implements Surface {
       if (t !== null) return t;
     }
     if (this.sink !== null && inBox) {
-      return { key: this, sink: this.sink, x: lx, y: ly };
+      return { key: this, sink: this.sink, x: lx, y: ly, cursor: this.cursorStyle !== "" ? this.cursorStyle : undefined };
     }
     return null;
   }

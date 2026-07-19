@@ -107,6 +107,13 @@ export interface Surface {
   setVisible(visible: boolean): void;
   setOpacity(opacity: number): void;
 
+  /** The pointer cursor shown while the pointer is over this surface (a CSS
+   *  cursor keyword; "" = inherit). The DOM brushes style.cursor on the
+   *  view's element; the canvas resolves it on the hover walk and brushes
+   *  the host element. Applies to views that take input (a sink is the hit
+   *  target on both backends). */
+  setCursor(cursor: string): void;
+
   /** Uniform scale about a pivot in the view's own coordinates (paint-only,
    *  never layout). scale 1 = identity; the DOM brushes a CSS transform, the
    *  Canvas walk applies ctx.scale about the pivot (and its inverse on the hit

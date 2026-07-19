@@ -168,6 +168,10 @@ class Example extends View [ width = { parent.width },
     esrc:   string = { :source },
     estage: number = { :stageH || 250 },   // extractor-measured stage height — the frame FITS the settled app
     live:   boolean = false,             // the parent gates the preview: it mounts only when this is true
+
+    // this island's edit failed to compile (host publishes the report; see RunBlock)
+
+    broken: boolean = { app.liveCard == cname && app.liveReport != "" },
     layout: SimpleLayout [ axis = y, spacing = 0 ],   // the preview frame abuts the code block below, no gap
 
     head: View [ width = { parent.width },
@@ -185,7 +189,7 @@ class Example extends View [ width = { parent.width },
 
     panel: View [ width = { parent.width }, fill = { theme.chipBg },
         height = { Math.min(classroot.elines * 17 * app.fontScale + 72, 540) },
-        bar:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = 0xE6B450 ],
+        bar:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { classroot.broken ? theme.errBar : 0xE6B450 } ],
         fname: Mono [ x = 18, y = 10, fontSize = { 11 * app.fontScale }, fontWeight = semibold, textColor = { theme.strong },
             text = { classroot.cname + ".declare" } ],
 
@@ -198,11 +202,38 @@ class Example extends View [ width = { parent.width },
             width = { this.lbl.width + 14 },
             ],
 
+        // Revert — restore the pristine source and republish (see RunBlock)
+
+        rev: View [ y = 5, height = 20, cornerRadius = 6, stroke = { stroke(1, theme.line) },
+            hovered: boolean = false,
+            x = { parent.tag.x - this.width - 10 },
+            width = { this.rlbl.width + 16 },
+            fill = { hovered ? theme.hover : null },
+            onMouseOver() { hovered = true },
+            onMouseOut()  { hovered = false },
+            onClick() { classroot.panel.field.text = classroot.esrc
+                        app.liveCard = classroot.cname
+                        app.liveSource = classroot.esrc },
+            rlbl: Text [ x = 8, y = 3, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 11, fontWeight = semibold,
+                textColor = { parent.hovered ? theme.text : theme.muted }, text = "Revert" ],
+            ],
+
         // a line of breathing room below the label before the code starts
 
         hair:  View [ x = 18, y = 51, width = { parent.width - 30 }, height = 1, fill = { theme.line } ],
         field: DocField [ x = 18, y = 60, width = { parent.width - 30 }, height = { parent.height - 68 },
             editName = { classroot.cname }, src = { classroot.esrc } ],
+        ],
+
+    // the compile report at the island (see RunBlock — same surface)
+
+    err: View [ width = { parent.width }, fill = { theme.errBg },
+        visible = { classroot.broken },
+        height = { this.msg.height + 20 },
+        bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { theme.errBar } ],
+        msg: Text [ x = 18, y = 10, width = { parent.width - 36 }, wrap = true,
+            fontFamily = [Code, "ui-monospace", "monospace"], fontSize = { 12 * app.fontScale },
+            textColor = { theme.errText }, text = { app.liveReport } ],
         ],
 
     // the live preview island — the host mounts the compiled child app here. The slot
@@ -241,6 +272,11 @@ class RunBlock extends View [ width = { parent.width },
     rlines: number  = { :lines },
     rstage: number  = { :stageH || 200 },   // extractor-measured stage height — the frame FITS the settled app
     live:   boolean = false,
+
+    // this island's edit is the one that failed to compile — the host publishes the
+    // report on app.liveReport (cleared by a clean compile), keyed by app.liveCard
+
+    broken: boolean = { app.liveCard == rid && app.liveReport != "" },
     layout: SimpleLayout [ axis = y, spacing = 0 ],   // the preview frame abuts the code block, no gap
 
     // same code-box grammar as a static block (chipBg tint, 8px radius, 13px face),
@@ -248,19 +284,47 @@ class RunBlock extends View [ width = { parent.width },
 
     editor: View [ width = { parent.width }, fill = { theme.chipBg },
         height = { Math.min(classroot.rlines * 16 * app.fontScale + 54, 440) },
-        bar:  View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = 0xE6B450 ],
+        bar:  View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { classroot.broken ? theme.errBar : 0xE6B450 } ],
         tag:  View [ x = 18, y = 7, height = 17, cornerRadius = 3, fill = 0xE6B450,
             lbl: Mono [ x = 7, y = 3, fontSize = 10, letterSpacing = 1, fontWeight = semibold, textColor = 0x1A1A1A,
                 text = "LIVE · EDITABLE", wrap = false ],
             width = { this.lbl.width + 14 },
             ],
+
+        // Revert restores the pristine source and republishes it
+
+        rev: View [ y = 5, height = 20, cornerRadius = 6, stroke = { stroke(1, theme.line) },
+            hovered: boolean = false,
+            x = { parent.width - this.width - 10 },
+            width = { this.rlbl.width + 16 },
+            fill = { hovered ? theme.hover : null },
+            onMouseOver() { hovered = true },
+            onMouseOut()  { hovered = false },
+            onClick() { classroot.editor.field.text = classroot.rsrc
+                        app.liveCard = classroot.rid
+                        app.liveSource = classroot.rsrc },
+            rlbl: Text [ x = 8, y = 3, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 11, fontWeight = semibold,
+                textColor = { parent.hovered ? theme.text : theme.muted }, text = "Revert" ],
+            ],
         hint: Muted [ y = 9, fontSize = { 11 * app.fontScale }, italic = true, text = "runs live below ↓",
-            x = { parent.width - this.width - 14 } ],
+            x = { parent.rev.x - this.width - 12 } ],
 
         // a line of breathing room below the label before the code starts
 
         field: DocField [ x = 18, y = 46, width = { parent.width - 30 }, height = { parent.height - 54 },
             editName = { classroot.rid }, src = { classroot.rsrc } ],
+        ],
+
+    // the compile report, at the island — a broken edit shows its error right here
+    // (the last good render stays below it)
+
+    err: View [ width = { parent.width }, fill = { theme.errBg },
+        visible = { classroot.broken },
+        height = { this.msg.height + 20 },
+        bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { theme.errBar } ],
+        msg: Text [ x = 18, y = 10, width = { parent.width - 36 }, wrap = true,
+            fontFamily = [Code, "ui-monospace", "monospace"], fontSize = { 12 * app.fontScale },
+            textColor = { theme.errText }, text = { app.liveReport } ],
         ],
 
     stage: View [ width = { parent.width }, height = { classroot.rstage }, fill = { theme.chipBg },
@@ -629,8 +693,8 @@ App [ fill = { theme.bg },
        dark-authored examples). */
 
     theme = { darkUI
-        ? ({ bg: 0x0B141B, rail: 0x0D1922, surface: 0x0C1620, chipBg: 0x14232E, hover: 0x152633, sel: 0x1C2D39, mchipBg: 0x172436, echipBg: 0x241F12, modeOn: 0x1F3B54, chipHov: 0x1C3243, mchipHov: 0x213649, echipHov: 0x332B18, line: 0x1E313C, rule: 0x345B84, edge: 0x1B2C39, accent: 0x4C8DFF, accent2: 0x37E0C8, chipTeal: 0x9FD9CE, chipBlue: 0xA9C7FF, chipAmber: 0xE7C98A, text: 0xE7EEF2, body: 0xC4CFD8, code: 0xC7D3DC, strong: 0xB7C6D2, mtail: 0x9FB3C2, tabIdle: 0x9BB0BE, refDim: 0x98A7B1, muted: 0x8A9BA6, modeOff: 0x7C93A2, sigDim: 0x6E8494, eyebrow: 0x55707F, tag: 0x4F6472 })
-        : ({ bg: 0xF6F8FA, rail: 0xECF0F4, surface: 0xFFFFFF, chipBg: 0xE9EFF4, hover: 0xE4EBF1, sel: 0xDBE5EE, mchipBg: 0xE7EDF6, echipBg: 0xF5EFE0, modeOn: 0xD1DFF0, chipHov: 0xD9E4ED, mchipHov: 0xD4DEEF, echipHov: 0xECE3CD, line: 0xDCE3E9, rule: 0xB6C8DA, edge: 0xE0E6EC, accent: 0x2F6FE0, accent2: 0x12A08D, chipTeal: 0x15806E, chipBlue: 0x3355C2, chipAmber: 0x8F6F28, text: 0x172530, body: 0x2E3B46, code: 0x2B3843, strong: 0x3A4A56, mtail: 0x4F5F6B, tabIdle: 0x55636F, refDim: 0x51606C, muted: 0x6A7883, modeOff: 0x74828D, sigDim: 0x84929D, eyebrow: 0x93A0AA, tag: 0xA2AEB8 }) },
+        ? ({ bg: 0x0B141B, rail: 0x0D1922, surface: 0x0C1620, chipBg: 0x14232E, hover: 0x152633, sel: 0x1C2D39, mchipBg: 0x172436, echipBg: 0x241F12, modeOn: 0x1F3B54, chipHov: 0x1C3243, mchipHov: 0x213649, echipHov: 0x332B18, line: 0x1E313C, rule: 0x345B84, edge: 0x1B2C39, accent: 0x4C8DFF, accent2: 0x37E0C8, chipTeal: 0x9FD9CE, chipBlue: 0xA9C7FF, chipAmber: 0xE7C98A, text: 0xE7EEF2, body: 0xC4CFD8, code: 0xC7D3DC, strong: 0xB7C6D2, mtail: 0x9FB3C2, tabIdle: 0x9BB0BE, refDim: 0x98A7B1, muted: 0x8A9BA6, modeOff: 0x7C93A2, sigDim: 0x6E8494, eyebrow: 0x55707F, tag: 0x4F6472, errBg: 0x2A1518, errBar: 0xE0525E, errText: 0xF2A0A6 })
+        : ({ bg: 0xF6F8FA, rail: 0xECF0F4, surface: 0xFFFFFF, chipBg: 0xE9EFF4, hover: 0xE4EBF1, sel: 0xDBE5EE, mchipBg: 0xE7EDF6, echipBg: 0xF5EFE0, modeOn: 0xD1DFF0, chipHov: 0xD9E4ED, mchipHov: 0xD4DEEF, echipHov: 0xECE3CD, line: 0xDCE3E9, rule: 0xB6C8DA, edge: 0xE0E6EC, accent: 0x2F6FE0, accent2: 0x12A08D, chipTeal: 0x15806E, chipBlue: 0x3355C2, chipAmber: 0x8F6F28, text: 0x172530, body: 0x2E3B46, code: 0x2B3843, strong: 0x3A4A56, mtail: 0x4F5F6B, tabIdle: 0x55636F, refDim: 0x51606C, muted: 0x6A7883, modeOff: 0x74828D, sigDim: 0x84929D, eyebrow: 0x93A0AA, tag: 0xA2AEB8, errBg: 0xFBE9EA, errBar: 0xC93B47, errText: 0x8E2830 }) },
 
     /* Code-vs-prose coherence, matching the source-viewer reader: prose (and
        every non-code block) wraps to a reading measure while code fills the

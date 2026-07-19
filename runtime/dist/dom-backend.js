@@ -280,6 +280,7 @@ class DomSurface {
             this.rasterize(); });
     }
     setVisible(v) { this.element.style.display = v ? "" : "none"; }
+    setCursor(c) { this.element.style.cursor = c; }
     setOpacity(o) {
         this.element.style.opacity = String(o);
         // opacity 0 prunes the subtree for input, like the canvas walk (its

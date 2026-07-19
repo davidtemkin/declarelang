@@ -7,6 +7,10 @@ export interface HitTarget {
     sink: InputSink;
     x: number;
     y: number;
+    /** The view's `cursor` attribute, when set — the canvas backend resolves it
+     *  on the hover walk (its host is one element; the DOM brushes per-element
+     *  style.cursor instead and leaves this unset). */
+    cursor?: string;
 }
 /** Start routing window pointer input through `resolve`. `alive` gates the
  *  whole route (false = the tree is gone; the listeners remove themselves
@@ -14,4 +18,4 @@ export interface HitTarget {
 export declare function routeInput(alive: () => boolean, resolve: (e: MouseEvent) => HitTarget | null, rootPoint?: (e: MouseEvent) => {
     x: number;
     y: number;
-}): void;
+}, onHover?: (t: HitTarget | null) => void): void;

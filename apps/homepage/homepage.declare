@@ -288,6 +288,19 @@ class SourcePanel extends View [ width = { parent.width < 760 ? parent.width : M
     hairline: View [ y = 31, width = { parent.width }, height = 1, fill = { theme.panelLine } ],
     field: CodeField [ x = 12, y = 40, width = { parent.width - 24 }, height = { parent.height - 48 },
         editName = { classroot.editName }, src = { classroot.src } ],
+
+    // the compile report, at the panel — a broken edit shows its error right here
+    // (the last good preview keeps running beside it); host feeds app.liveReport
+
+    err: View [ width = { parent.width }, fill = #2A1518,
+        visible = { app.liveCard == classroot.editName && app.liveReport != "" },
+        y = { parent.height - this.height },
+        height = { this.msg.height + 16 },
+        bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = #E0525E ],
+        msg: Text [ x = 14, y = 8, width = { parent.width - 28 }, wrap = true,
+            fontFamily = [Mono, "monospace"], fontSize = 11, textColor = #F2A0A6,
+            text = { app.liveReport } ],
+        ],
     ]
 
 
@@ -342,6 +355,21 @@ class FullPageEditor extends View [ width = { app.width }, height = { app.height
             onClick()     { app.editing = false },
             lbl: Text [ x = 13, y = 6, fontSize = 13, textColor = { theme.text }, text = "Close ✕" ],
             ],
+
+        // Revert — the pristine page source back in the editor, recompiled
+
+        revert: View [ y = 8, height = 28, cornerRadius = 8, stroke = { stroke(1, theme.line) },
+            hovered: boolean = false,
+            x = { parent.close.x - this.width - 10 },
+            width = { this.lbl.width + 26 },
+            fill = { hovered ? theme.hover : theme.surface },
+            onMouseOver() { hovered = true },
+            onMouseOut()  { hovered = false },
+            onClick()     { classroot.code.text = classroot.pageSource
+                            app.liveCard = "__page__"
+                            app.liveSource = classroot.pageSource },
+            lbl: Text [ x = 13, y = 6, fontSize = 13, textColor = { theme.text }, text = "Revert" ],
+            ],
         ],
 
     // source: no wrap (long lines scroll horizontally) + 16px inset off the edge
@@ -365,6 +393,18 @@ class FullPageEditor extends View [ width = { app.width }, height = { app.height
     preview: PreviewFrame [ x = { classroot.splitX + 6 }, y = 44,
         width = { parent.width - classroot.splitX - 6 }, height = { parent.height - 44 },
         runName = "__page__", active = { classroot.open } ],
+
+    // the compile report for a broken page edit, over the bottom of the code pane
+
+    err: View [ x = 0, width = { classroot.splitX }, fill = #2A1518,
+        visible = { classroot.open && app.liveCard == "__page__" && app.liveReport != "" },
+        y = { parent.height - this.height },
+        height = { this.msg.height + 16 },
+        bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = #E0525E ],
+        msg: Text [ x = 16, y = 8, width = { parent.width - 32 }, wrap = true,
+            fontFamily = [Mono, "monospace"], fontSize = 12, textColor = #F2A0A6,
+            text = { app.liveReport } ],
+        ],
     ]
 
 

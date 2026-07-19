@@ -43,6 +43,10 @@ export declare class View extends Node {
     shadow: Shadow | null;
     visible: boolean;
     opacity: number;
+    /** The pointer cursor while over this view (a CSS cursor keyword —
+     *  "ew-resize", "col-resize", "pointer", …; "" = inherit). Meaningful on
+     *  views that take input: the sink is the hit target on both backends. */
+    cursor: string;
     /** Uniform paint-only scale about (pivotX, pivotY), the view's own
      *  coordinates (default the top-left corner); 1 = no transform. Spring it for
      *  zoom effects — it never affects layout, exactly like opacity. */

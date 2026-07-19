@@ -31,7 +31,7 @@
 /** Start routing window pointer input through `resolve`. `alive` gates the
  *  whole route (false = the tree is gone; the listeners remove themselves
  *  on the next event). */
-export function routeInput(alive, resolve, rootPoint) {
+export function routeInput(alive, resolve, rootPoint, onHover) {
     // The pressed view captures the pointer: while held, `mouseMove` (and the
     // eventual release) go to IT, not to whatever is under the pointer — the
     // capture a drag needs. (For touch the browser already implicitly captures the
@@ -63,8 +63,24 @@ export function routeInput(alive, resolve, rootPoint) {
     listen("pointerdown", (e) => {
         const t = resolve(e);
         held = t;
-        if (t !== null)
+        if (t !== null) {
+            // The browser ANCHORS its native text selection at mousedown; flipping
+            // user-select off on the first captured move (below) is too late in
+            // Safari, which keeps painting the already-anchored selection through a
+            // window drag — selecting text in whatever selectable region sits under
+            // the drag path. A press that lands on a sink over NON-selectable,
+            // non-editable content cancels the default here, so no anchor is ever
+            // planted. Selectable regions (user-select: text) and native editables
+            // keep their defaults — click-to-select and click-to-focus still work.
+            const el = typeof Element !== "undefined" && e.target instanceof Element ? e.target : null;
+            const editable = typeof HTMLElement !== "undefined" &&
+                el instanceof HTMLElement &&
+                (el.isContentEditable || el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT");
+            const selectable = el !== null && typeof getComputedStyle === "function" && getComputedStyle(el).userSelect === "text";
+            if (el !== null && !editable && !selectable)
+                e.preventDefault();
             t.sink("mouseDown", t.x, t.y);
+        }
     });
     // While a press is CAPTURED and moving (a drag), suppress the browser's
     // text selection — a window drag crossing a selectable region (a Markdown
@@ -86,6 +102,8 @@ export function routeInput(alive, resolve, rootPoint) {
         const t = resolve(e);
         const key = t !== null ? t.key : null;
         if (key !== hoveredKey) {
+            if (onHover !== undefined)
+                onHover(t);
             if (hoveredSink !== null)
                 hoveredSink("mouseOut", 0, 0);
             hoveredKey = key;

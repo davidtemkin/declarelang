@@ -27,6 +27,7 @@ class HeadlessSurface implements Surface {
   setShadow(_shadow: Shadow | null): void {}
   setVisible(_visible: boolean): void {}
   setOpacity(_opacity: number): void {}
+  setCursor(_cursor: string): void {}
   setScale(_scale: number, _pivotX: number, _pivotY: number): void {}
   setClip(_pathData: string | null): void {}
   setBoxClip(_on: boolean): void {}

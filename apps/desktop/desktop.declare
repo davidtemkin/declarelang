@@ -78,6 +78,8 @@ class Window extends View [ width = 560, height = 400, cornerRadius = 10, clip =
             }
         },
 
+    wl0: number = 0,                             // window x at size start (left-edge modes)
+
     beginSize(mode) {
         this.activate()
         sizeMode = "" + mode
@@ -85,12 +87,23 @@ class Window extends View [ width = 560, height = 400, cornerRadius = 10, clip =
         py0 = app.pointerY
         wx0 = this.width
         wh0 = this.height
+        wl0 = this.x
         },
+
+    // modes compose macOS's grabbable set: "l" | "r" | "b" | "lb" | "rb".
+    // A left-edge drag keeps the RIGHT edge fixed: x follows the width.
 
     moveSize() {
         if (sizeMode == "") return
-        if (sizeMode != "b") this.width = Math.max(340, wx0 + app.pointerX - px0)
-        if (sizeMode != "r") this.height = Math.max(120, wh0 + app.pointerY - py0)
+        const dx = app.pointerX - px0
+        const dy = app.pointerY - py0
+        if (sizeMode.indexOf("r") >= 0) this.width = Math.max(340, wx0 + dx)
+        if (sizeMode.indexOf("l") >= 0) {
+            const w = Math.max(340, wx0 - dx)
+            this.x = wl0 + (wx0 - w)
+            this.width = w
+            }
+        if (sizeMode.indexOf("b") >= 0) this.height = Math.max(120, wh0 + dy)
         },
 
     barHover: boolean = false,
@@ -141,21 +154,34 @@ class Window extends View [ width = 560, height = 400, cornerRadius = 10, clip =
         sep: View [ x = 0, y = 34, width = { parent.width }, height = 1, fill = { theme.line } ],
         ],
 
-    // edge + corner resize strips (cursor styles are a recorded follow-up —
-    // affordance is the drawn corner grip)
+    // resize strips — every edge and corner macOS makes grabbable except the
+    // top (the title bar owns it): left/right edges, bottom edge, and the two
+    // bottom corners, each with its macOS cursor. Three unique shapes: ↔ for
+    // either vertical edge, ↕ for the bottom, and the two diagonals for the
+    // corners. 8px strips (was 6) and 16px corners (was 14) — easier to grab.
 
-    edgeR: View [ width = 6, x = { parent.width - 6 }, y = 35, height = { parent.height - 49 },
+    edgeL: View [ width = 8, x = 0, y = 35, height = { parent.height - 51 }, cursor = "ew-resize",
+        onMouseDown() { classroot.beginSize("l") },
+        onMouseMove() { classroot.moveSize() },
+        onMouseUp()   { classroot.sizeMode = "" },
+        ],
+    edgeR: View [ width = 8, x = { parent.width - 8 }, y = 35, height = { parent.height - 51 }, cursor = "ew-resize",
         onMouseDown() { classroot.beginSize("r") },
         onMouseMove() { classroot.moveSize() },
         onMouseUp()   { classroot.sizeMode = "" },
         ],
-    edgeB: View [ height = 6, x = 0, y = { parent.height - 6 }, width = { parent.width - 14 },
+    edgeB: View [ height = 8, x = 16, y = { parent.height - 8 }, width = { parent.width - 32 }, cursor = "ns-resize",
         onMouseDown() { classroot.beginSize("b") },
         onMouseMove() { classroot.moveSize() },
         onMouseUp()   { classroot.sizeMode = "" },
         ],
-    grip: View [ width = 14, height = 14,
-        x = { parent.width - 14 }, y = { parent.height - 14 },
+    cornerBL: View [ width = 16, height = 16, x = 0, y = { parent.height - 16 }, cursor = "nesw-resize",
+        onMouseDown() { classroot.beginSize("lb") },
+        onMouseMove() { classroot.moveSize() },
+        onMouseUp()   { classroot.sizeMode = "" },
+        ],
+    grip: View [ width = 16, height = 16, cursor = "nwse-resize",
+        x = { parent.width - 16 }, y = { parent.height - 16 },
         onMouseDown() { classroot.beginSize("rb") },
         onMouseMove() { classroot.moveSize() },
         onMouseUp()   { classroot.sizeMode = "" },
@@ -163,8 +189,8 @@ class Window extends View [ width = 560, height = 400, cornerRadius = 10, clip =
             d.strokeStyle = theme.textFaint
             d.lineWidth = 1
             d.beginPath()
-            d.moveTo(4, 12); d.lineTo(12, 4)
-            d.moveTo(8, 12); d.lineTo(12, 8)
+            d.moveTo(6, 14); d.lineTo(14, 6)
+            d.moveTo(10, 14); d.lineTo(14, 10)
             d.stroke()
             },
         ],
@@ -246,12 +272,21 @@ class FinderWindow extends Window [ title = "Documentation",
         ] }
         },
 
+    // draggable column widths — clamped: never too narrow to read, never so
+    // wide the preview vanishes. The dividers are captured-drag strips laid
+    // OVER the column seams, each with the column-resize cursor.
+
+    c1w: number = 150,
+    c2w: number = 210,
+    cw0: number = 0,
+    cpx0: number = 0,
+
     body: View [ x = 0, y = 35, width = { parent.width }, height = { parent.height - 35 },
         datapath = { classroot.tree.value },
         row: View [ width = { parent.width }, height = { parent.height },
             layout: SimpleLayout [ axis = x, spacing = 0 ],
 
-            col1: View [ width = 150, height = { parent.height }, fill = { theme.bg },
+            col1: View [ width = { classroot.c1w }, height = { parent.height }, fill = { theme.bg },
                 inner: View [ x = 0, y = 6, width = { parent.width },
                     layout: SimpleLayout [ axis = y, spacing = 1 ],
                     View [ datapath = :folders[], width = { parent.width }, height = 26,
@@ -267,7 +302,7 @@ class FinderWindow extends Window [ title = "Documentation",
                 edge: View [ x = { parent.width - 1 }, y = 0, width = 1, height = { parent.height }, fill = { theme.line } ],
                 ],
 
-            col2: View [ width = 210, height = { parent.height },
+            col2: View [ width = { classroot.c2w }, height = { parent.height },
                 inner: View [ x = 0, y = 6, width = { parent.width },
                     layout: SimpleLayout [ axis = y, spacing = 1 ],
                     View [ datapath = :folders[], width = { parent.width },
@@ -291,25 +326,45 @@ class FinderWindow extends Window [ title = "Documentation",
                 edge: View [ x = { parent.width - 1 }, y = 0, width = 1, height = { parent.height }, fill = { theme.line } ],
                 ],
 
-            col3: View [ width = { Math.max(120, classroot.width - 360) }, height = { parent.height },
+            // the preview pane, macOS-composed: icon, name, and path all
+            // CENTERED, the Open button centered BELOW the last text line —
+            // the column layout stacks it, so wrapped text can never overlap it
+
+            col3: View [ width = { Math.max(120, classroot.width - classroot.c1w - classroot.c2w) }, height = { parent.height },
                 info: View [ x = 16, y = 18, width = { parent.width - 32 },
                     visible = { classroot.sel2 != "" },
-                    layout: SimpleLayout [ axis = y, spacing = 10 ],
-                    doc: View [ width = 56, height = 66, cornerRadius = 6, fill = { theme.bg },
+                    layout: SimpleLayout [ axis = y, spacing = 12 ],
+                    doc: View [ x = center, width = 56, height = 66, cornerRadius = 6, fill = { theme.bg },
                         stroke = { stroke(1, theme.line) },
                         Text [ x = center, y = center, fontSize = 22, textColor = { theme.textFaint }, text = "M↓" ],
                         ],
                     nm: Text [ fontSize = 13, fontWeight = semibold, wrap = true, width = { parent.width },
+                        textAlign = center,
                         textColor = { theme.text }, text = { classroot.sel2name } ],
                     pth: Text [ fontSize = 11, wrap = true, width = { parent.width },
+                        textAlign = center,
                         textColor = { theme.textFaint }, text = { classroot.sel2 } ],
-                    Button [ width = 96, label = "Open", primary = true,
+                    Button [ x = center, width = 96, label = "Open", primary = true,
                         onClick() { app.openViewer(classroot.sel2, classroot.sel2name) },
                         ],
                     ],
                 hint: Text [ x = center, y = center, fontSize = 12, textColor = { theme.textFaint },
                     visible = { classroot.sel2 == "" }, text = "Select a document" ],
                 ],
+            ],
+
+        // the column dividers ride the seams (over the hairline edges), with
+        // reasonable limits: 110–300 for the sidebar, 130–360 for the files
+
+        div1: View [ width = 7, x = { classroot.c1w - 3 }, y = 0, height = { parent.height }, cursor = "col-resize",
+            onMouseDown() { classroot.activate(); classroot.cw0 = classroot.c1w; classroot.cpx0 = app.pointerX },
+            onMouseMove() { if (classroot.cw0 > 0) classroot.c1w = Math.max(110, Math.min(300, classroot.cw0 + app.pointerX - classroot.cpx0)) },
+            onMouseUp() { classroot.cw0 = 0 },
+            ],
+        div2: View [ width = 7, x = { classroot.c1w + classroot.c2w - 3 }, y = 0, height = { parent.height }, cursor = "col-resize",
+            onMouseDown() { classroot.activate(); classroot.cw0 = classroot.c2w; classroot.cpx0 = app.pointerX },
+            onMouseMove() { if (classroot.cw0 > 0) classroot.c2w = Math.max(130, Math.min(360, classroot.cw0 + app.pointerX - classroot.cpx0)) },
+            onMouseUp() { classroot.cw0 = 0 },
             ],
         ],
     ]

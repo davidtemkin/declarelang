@@ -121,6 +121,10 @@ const ViewSchema = {
         // (the app is a UI, not a document). Declared on View so any container provides
         // it, like the text-style slots; only Text acts on the effective value.
         selectable: { kind: "boolean" },
+        // The pointer cursor while over this view (a CSS cursor keyword; "" =
+        // inherit) — resize affordances, drag handles. Meaningful on views that
+        // take input (the sink is the hit target on both backends).
+        cursor: { kind: "string" },
         // The other two styling channels: an ordered bundle list (static, ruled
         // v1 — consumed at construction) and the prevailing stylesheet slot
         // (provide it anywhere → that subtree reskins; swap = one settle).

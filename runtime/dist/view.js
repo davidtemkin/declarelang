@@ -286,6 +286,8 @@ export class View extends Node {
             s.setShadow(this.shadow);
         s.setVisible(this.visible);
         s.setOpacity(this.opacity);
+        if (this.cursor !== "")
+            s.setCursor(this.cursor);
         if (this.scale !== 1 || this.pivotX !== 0 || this.pivotY !== 0)
             s.setScale(this.scale, this.pivotX, this.pivotY);
         this.applyClip(this.clip);
@@ -397,6 +399,7 @@ defineAttributes(View, {
     shadow: { def: null, push: (v, sh) => v.surface?.setShadow(sh), equal: shadowEqual },
     visible: { def: true, push: (v, b) => v.surface?.setVisible(b) },
     opacity: { def: 1, push: (v, o) => v.surface?.setOpacity(o) },
+    cursor: { def: "", push: (v, c) => v.surface?.setCursor(c) },
     // Scale + pivot ride one transform at the seam: any of the three re-pushes
     // the combined value (transform + transform-origin on the DOM).
     scale: { def: 1, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },

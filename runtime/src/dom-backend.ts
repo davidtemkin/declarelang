@@ -299,6 +299,8 @@ class DomSurface implements Surface {
 
   setVisible(v: boolean): void { this.element.style.display = v ? "" : "none"; }
 
+  setCursor(c: string): void { this.element.style.cursor = c; }
+
   setOpacity(o: number): void {
     this.element.style.opacity = String(o);
     // opacity 0 prunes the subtree for input, like the canvas walk (its
