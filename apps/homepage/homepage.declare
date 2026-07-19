@@ -1026,7 +1026,7 @@ App [ theme = { ({
     // pointer (loose + low-mass = the slower, longer trail). Two position
     // Springs; the native cursor stays visible and leads, the dot follows.
 
-    cursor: View [ width = 10, height = 10, cornerRadius = 5, fill = { theme.accent2 }, opacity = 0.9,
+    pointerDot: View [ width = 10, height = 10, cornerRadius = 5, fill = { theme.accent2 }, opacity = 0.9,
         shadow = { shadow(0, 0, 12, theme.accent2) },
 
         // Only for a HOVERING pointer (mouse / trackpad) — `app.hovering` is false

@@ -76,7 +76,7 @@ One program renders through managed DOM elements or directly to a single canvas 
 
 Concretely, from the flagship comparison (a full-featured calendar built twice, once in Declare and once in React, measured side by side):
 
-- **Size**: the entire Declare calendar — application *and* runtime — ships at about 50 KB gzipped as served on this site (the homepage's number is measured live from the deployed artifacts, which is why it varies by a kilobyte); the `declarec` production build is smaller still, around 45 KB. The React equivalent is roughly twice the wire weight, with more than twice the source code.
+- **Size**: the entire Declare calendar — application *and* runtime — ships at about 54 KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte). The React equivalent is roughly twice the wire weight, with more than twice the source code.
 - **Responsiveness**: measured input latency was several times lower in the Declare version. When you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.
 - **Startup**: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.
 

@@ -476,7 +476,7 @@ rung-5 semantic repair**, with three named residents:
 - **E-12 — rung-5 reports name the failure, not the direction** (harness/report).
   Behavior reports ("expected list to grow past 3 rows") lack the where-to-look the
   syntax rungs now have. Candidate: rung-5 report lines gain a routing pointer
-  (data-shaped assertion → "see docs/guide/27-data.md §mutation"), which the
+  (data-shaped assertion → "see docs/guide/08-data.md §editing"), which the
   skill-arm sandbox can actually follow.
 
 Token anomaly RESOLVED as accounting, not spend: the captured usage detail shows
