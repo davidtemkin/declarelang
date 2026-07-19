@@ -48,10 +48,35 @@ class Window extends View [ width = 560, height = 400, cornerRadius = 10, clip =
 
     bornX: number = -1,
     bornY: number = -1,
+    bornFrom: View = null,                       // the view the open came from, for the RETURN trip
     pivotX = { this.bornX >= 0 ? this.bornX : this.width / 2 },
     pivotY = { this.bornY >= 0 ? this.bornY : this.height / 2 },
     born: Animator [ attribute = scale, from = { classroot.bornX >= 0 ? 0.15 : 0.85 }, to = 1,
         duration = 230, motion = cubicOut, started = true ],
+
+    // …and the open runs in REVERSE on close: the window shrinks back to its
+    // return spot — recomputed at close time from the origin view (the finder
+    // may have moved), falling back to the birth snapshot if it's gone.
+
+    closing: boolean = false,
+
+    beginClose() {
+        if (closing) return
+        closing = true
+        if (bornFrom != null) {
+            let ox = bornFrom.width / 2
+            let oy = bornFrom.height / 2
+            let n = bornFrom
+            let top = null
+            while (n != null) { ox += n.x || 0; oy += n.y || 0; top = n; n = n.parent }
+            if (top == app) { bornX = ox - this.x; bornY = oy - this.y - 25 }
+            }
+        this.die.start()
+        },
+
+    die: Animator [ attribute = scale, to = 0.15, duration = 200, motion = cubicIn,
+        onStop() { app.reallyClose(classroot) },
+        ],
 
     // drag/resize bookkeeping (the captured-move pattern: root-space anchors)
 
@@ -627,11 +652,14 @@ App [ minWidth = 900, minHeight = 600,
             ox = ox - wx
             oy = oy - wy - 25                    // wins layer offset
             }
-        const w = this.createView("ViewerWindow", this.wins, ({ path: p, title: "" + nm, x: wx, y: wy, bornX: ox, bornY: oy }))
+        const w = this.createView("ViewerWindow", this.wins, ({ path: p, title: "" + nm, x: wx, y: wy,
+            bornX: ox, bornY: oy, bornFrom: v != null ? v : null }))
         frontWin = w
         },
 
-    closeWin(w) {
+    closeWin(w) { w.beginClose() },              // the reverse zoom; removal on its onStop
+
+    reallyClose(w) {
         if (frontWin == w) frontWin = null
         if (w.constructor.name == "ViewerWindow") viewerCount = viewerCount - 1
         this.wins.removeChild(w)

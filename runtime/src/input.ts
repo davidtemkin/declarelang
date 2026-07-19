@@ -67,6 +67,9 @@ export function routeInput(
   let lastClickKey: object | null = null;
   let lastClickAt = 0;
   const DBL_MS = 400;
+  // The current press began over selectable/editable content (set at
+  // pointerdown): selection suppression stands down for this gesture.
+  let pressOnSelectable = false;
   // Hover: the sink the pointer was last OVER, so a move that crosses into a
   // different sink (or off all of them) fires mouseOut on the old + mouseOver on
   // the new — the rollover pair, resolved by the same seam as click.
@@ -109,6 +112,12 @@ export function routeInput(
         (el.isContentEditable || el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT");
       const selectable = el !== null && typeof getComputedStyle === "function" && getComputedStyle(el).userSelect === "text";
       if (el !== null && !editable && !selectable) e.preventDefault();
+      // A press that BEGINS on selectable/editable content is (potentially) a
+      // text-selection gesture: the captured-move suppression below must stand
+      // down for this gesture, or dragging across a Markdown body clears the
+      // selection the browser is painting (an enclosing sink — a window's
+      // activate-on-press — still captures, so events flow as ever).
+      pressOnSelectable = editable || selectable;
       t.sink("mouseDown", t.x, t.y);
     }
   });
@@ -137,7 +146,7 @@ export function routeInput(
       if (t !== null) t.sink("mouseOver", t.x, t.y);
     }
     if (held === null || rootPoint === undefined) return;
-    suppressSelection(true);
+    if (!pressOnSelectable) suppressSelection(true);
     const p = rootPoint(e);
     held.sink("mouseMove", p.x, p.y);
   });
