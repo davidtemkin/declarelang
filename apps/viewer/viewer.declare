@@ -136,7 +136,14 @@ App [ fill = { app.theme.bg },
     // demoSources still wins wherever both exist.
 
     segSrc: DataSource [ format = "text", auto = true, url = { app.env.program ? "" + app.env.program + "?segments" : "" } ],
-    rawSrc: DataSource [ format = "text", auto = true, url = { app.env.program ? "" + app.env.program + "?file" : "" } ],
+
+    // when the raw file lands (the env-driven embedded case has no seeds),
+    // PUBLISH it on the live channel: the edit pane's island then runs the
+    // viewed program as soon as the tab opens — no first keystroke needed
+
+    rawSrc: DataSource [ format = "text", auto = true, url = { app.env.program ? "" + app.env.program + "?file" : "" },
+        onLoad() { if (app.liveCard == "") { app.liveCard = "__raw__"; app.liveSource = "" + (this.value || "") } },
+        ],
 
     barH: number = 52,
     topM: number = 40,    // reader top margin (foot matches it at the bottom)
