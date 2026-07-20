@@ -2,6 +2,7 @@ import { lzxToDeclare } from "../lzx/dist/transpile.js";
 import { parseLzx } from "../lzx/dist/parse.js";
 import { buildNaming } from "../lzx/dist/naming.js";
 import { SCHEMAS as _schemas } from "../runtime/dist/schema.js";
+import { emitProgram } from "../lzx/dist/emit.js";
 import { test, summarize } from "./harness.mjs";
 
 await test("lzxToDeclare exists and returns the result shape", () => {
@@ -117,6 +118,29 @@ await test("user class names use case-insensitive identity, preserving declared 
 await test("reports a collision when two names map to one identifier", () => {
   const { collisions } = buildNaming(["BorderedBox", "borderedbox"]);
   if (collisions.length !== 1 || collisions[0].lzxNames.length !== 2) throw new Error("collision");
+});
+
+// ── Task 4: emission IR + serializer ───────────────────────────────────────
+
+await test("emits a minimal App with a literal attribute", () => {
+  const out = emitProgram({ classes: [], root: {
+    tag: "App", name: null, attrs: [{ name: "width", value: { kind: "literal", text: "240" } }],
+    decls: [], methods: [], children: [] } });
+  if (!/App \[/.test(out) || !/width = 240/.test(out)) throw new Error("out: " + out);
+});
+
+await test("emits a constraint, named child, method, and class base-first", () => {
+  const out = emitProgram({
+    classes: [{ name: "Foo", base: "View", body: {
+      tag: "Foo", name: null, attrs: [{ name: "x", value: { kind: "code", src: "parent.width / 2" } }],
+      decls: [], methods: [{ name: "onClick", params: [], body: "count = count + 1" }], children: [] } }],
+    root: { tag: "App", name: null, attrs: [], decls: [], methods: [],
+      children: [{ tag: "Foo", name: "foo", attrs: [], decls: [], methods: [], children: [] }] } });
+  if (!/class Foo extends View \[/.test(out)) throw new Error("class");
+  if (!/x = \{ parent\.width \/ 2 \}/.test(out)) throw new Error("constraint: " + out);
+  if (!/onClick\(\) \{ count = count \+ 1 \}/.test(out)) throw new Error("method: " + out);
+  if (!/foo: Foo/.test(out)) throw new Error("named child");
+  if (out.indexOf("class Foo") > out.indexOf("App [")) throw new Error("ordering");
 });
 
 summarize("lzx");
