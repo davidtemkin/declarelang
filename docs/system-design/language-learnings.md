@@ -40,6 +40,25 @@ Nothing below is settled. Decisions already *implemented* this session are marke
   depth (`app.hostWidth`) instead of relying on `classroot` coinciding with the App.
 - **D8 — HTML-island content measurement.** Let Declare auto-size to foreign content
   (a reported extent), or accept explicit island sizes? (§9)
+- **D9 — Records-first inversion for cross-tree coupling (from the desktop's
+  minimize-to-dock, 2026-07-19).** The dock's minimized section couples two trees —
+  windows in the wins layer, tiles in the dock — through hand-maintained parallel
+  state (records rebuilt at membership boundaries). Every bug in the feature's
+  history lived in that imperative seam (animator races, stale bookkeeping); no
+  declared relationship ever mis-derived. The complete fix is the planes design's
+  own records criterion turned inward: make "minimized" a RECORDS-FIRST fact — one
+  record list that windows, tiles, badges, and the dock's width all DERIVE from —
+  so even membership is a derivation, not a rebuild. Take up together with D10 as
+  part of the planes/records work, not as another desktop patch. (David, 2026-07-19)
+- **D10 — Reparenting.** A minimized window that PHYSICALLY joins the dock's tree
+  (`view.reparent(newParent)` or equivalent) would collapse the cross-tree mirror
+  entirely: one tree, one layout, z-order and frost correct for free. OpenLaszlo
+  never allowed it; David rules it worth having IF it coheres, has a simple API,
+  and breaks nothing. Known hazards to design around: replicated rows are
+  DISCARDED on record changes (a reparented child must not die with its row);
+  constraints reading `parent.*` must re-bind across the move. Belongs in the
+  planes/records design round with D9. Related, landed 2026-07-19: `Animator
+  .settled` — arrival as a reactive fact, the animation twin of `.loaded`.
 
 **Product / UX (all implemented this session, all reversible)**
 - **P1 ⚙ — Source editor → Declare-native `TextInput` card. SHIPPED.** The editor is
