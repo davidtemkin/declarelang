@@ -104,7 +104,11 @@ class MenuBar extends View [ height = 25,
             onInit() { if (this.kd != "") app.createView(this.kd, this.host, ({ })) },
             t: Text [ x = 10, y = center, fontSize = 14,
                 visible = { parent.kd == "" },
-                fontWeight = { :bold ? "bold" : "regular" },
+
+                // medium, not regular: the browser's grayscale antialiasing
+                // renders 400 a shade thinner than platform menu text
+
+                fontWeight = { :bold ? "bold" : "medium" },
                 textColor = { theme.text }, text = { "" + :label } ],
             host: View [ x = 10, y = center,
                 visible = { parent.kd != "" },

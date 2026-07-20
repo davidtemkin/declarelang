@@ -1,12 +1,11 @@
 /*
 # SearchField
 
-The macOS search pill (AppKit's NSSearchField, as it appears in Help menus,
-toolbars, and System Settings): a CAPSULE — corner radius is half the
-height — with a drawn magnifier at the left and a chromeless native input
-inside. The TextInput's themed self-chrome (fill/stroke/radius derives) is
-displaced by author nulls, so the pill is the only box; focus shows as the
-caret, exactly as the captured original does.
+The macOS-style search pill (the kind that lives in Help menus, toolbars,
+and settings panes): a CAPSULE — corner radius is half the height — with a
+drawn magnifier at the left and a chromeless native input inside. The
+TextInput's themed self-chrome (fill/stroke/radius derives) is displaced
+by author nulls, so the pill is the only box; focus shows as the caret.
 
 `text` mirrors the live value; `input(v)` is the delivery seam
 (components-baseline.md, Contract 1) — override it to hand the query to its
