@@ -114,9 +114,11 @@ await test("contentAttrFor is per-tag", () => {
   if (naming.contentAttrFor("Text") !== "text") throw new Error("Text content");
 });
 
-await test("user class names use case-insensitive identity, preserving declared form", () => {
+await test("user class names fold case-insensitively and emit PascalCase (internal caps kept)", () => {
   const { naming } = buildNaming(["weatherSummary"]);
-  if (naming.classNameFor("weathersummary") !== "weatherSummary") throw new Error("ci identity");
+  // case-insensitive fold to the declared form, then first-char uppercased
+  if (naming.classNameFor("weathersummary") !== "WeatherSummary") throw new Error("ci identity: " + naming.classNameFor("weathersummary"));
+  if (naming.classNameFor("weatherSummary") !== "WeatherSummary") throw new Error("exact");
 });
 
 await test("reports a collision when two names map to one identifier", () => {
@@ -204,5 +206,28 @@ for (const f of ["view-1.lzx", "text-1.lzx"]) {
     if (c.errors.length) throw new Error(`${f} compile errors:\n${c.report}\n--- emitted ---\n${r.declare}`);
   });
 }
+
+// ── Task 8: class / attribute / method / handler ───────────────────────────
+
+await test("maps <class> with <attribute> and <method>, root instantiates it", () => {
+  const r = lzxToDeclare(`<canvas><class name="myBox" extends="view"><attribute name="n" type="number" value="3"/><method name="bump" args="d">n = n + d</method></class><myBox/></canvas>`);
+  if (r.declare === null) throw new Error("null; gaps=" + JSON.stringify(r.gaps));
+  if (!/class MyBox extends View \[/.test(r.declare)) throw new Error("no class: " + r.declare);
+  if (!/n: number = 3/.test(r.declare)) throw new Error("no decl: " + r.declare);
+  if (!/bump\(d\) \{ n = n \+ d \}/.test(r.declare)) throw new Error("no method: " + r.declare);
+  if (!/MyBox \[|MyBox,/.test(r.declare)) throw new Error("root should instantiate MyBox: " + r.declare);
+});
+
+await test("maps <handler name> to an on-method and reference to a subscription", () => {
+  const r = lzxToDeclare(`<canvas><view><handler name="onclick">doThing()</handler><handler name="onidle" reference="watcher">tick()</handler></view></canvas>`);
+  if (!/onClick\(\) \{ doThing\(\) \}/.test(r.declare)) throw new Error("handler: " + r.declare);
+  if (!/onIdle\(\) <- watcher \{ tick\(\) \}/.test(r.declare)) throw new Error("subscription: " + r.declare);
+});
+
+await test("path-valued reference source is a subscription-source gap, not a <-", () => {
+  const r = lzxToDeclare(`<canvas><view><handler name="ontick" reference="classroot.ms">go()</handler></view></canvas>`);
+  if (!r.gaps.some((g) => g.s13Ref === "subscription-source")) throw new Error("no gap; gaps=" + JSON.stringify(r.gaps));
+  if (/<- classroot\.ms/.test(r.declare)) throw new Error("must not emit path source: " + r.declare);
+});
 
 summarize("lzx");

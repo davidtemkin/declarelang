@@ -30,6 +30,7 @@ export interface Naming {
   attrTypeFor(declareTag: string, declareAttr: string): AttrTypeKind;
   contentAttrFor(declareTag: string): string | null;
   classNameFor(lzxName: string): string;
+  isUserClass(lzxName: string): boolean;
 }
 
 /** The built-in schema's attribute-type kind for tag+attr, walking the base
@@ -74,7 +75,11 @@ export function buildNaming(userClassNames: string[]): { naming: Naming; collisi
     attrFor(lzxAttr) { return ATTR_TABLE[lzxAttr.toLowerCase()] ?? lzxAttr; },
     attrTypeFor(declareTag, declareAttr) { return schemaKind(declareTag, declareAttr); },
     contentAttrFor(declareTag) { return CONTENT_ATTR[declareTag] ?? null; },
-    classNameFor(lzxName) { return canonical.get(lzxName.toLowerCase()) ?? lzxName; },
+    // Emit PascalCase tags: uppercase the first char of the canonical declared
+    // form, preserving internal caps (conditionIcon→ConditionIcon) and the
+    // case-insensitive fold (mybox/myBox → one class, emitted MyBox).
+    classNameFor(lzxName) { const d = canonical.get(lzxName.toLowerCase()) ?? lzxName; return d.charAt(0).toUpperCase() + d.slice(1); },
+    isUserClass(lzxName) { return canonical.has(lzxName.toLowerCase()); },
   };
   return { naming, collisions };
 }

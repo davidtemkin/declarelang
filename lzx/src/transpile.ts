@@ -16,7 +16,14 @@ export function lzxToDeclare(src: string): TranspileResult {
   }
   const sink = makeSink();
   const prog = mapDoc(doc, naming, sink);
-  const declare = prog ? emitProgram(prog) : null;
+  let declare: string | null = null;
+  if (prog) {
+    // A raw LZX body can carry content that breaks the emitted `{ }` structure
+    // (unbalanced braces, statement syntax formatSource rejects). Degrade to a
+    // diagnostic rather than throwing, so a consumer always gets a result.
+    try { declare = emitProgram(prog); }
+    catch (e) { diagnostics.push({ message: `emit failed: ${(e as Error).message}`, pos: { line: 1, col: 1, offset: 0 }, severity: "error" }); }
+  }
   return { declare, gaps: sink.gaps, diagnostics };
 }
 
