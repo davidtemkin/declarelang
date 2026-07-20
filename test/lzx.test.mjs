@@ -289,4 +289,16 @@ await test("canvas knobs are dropped with an info gap", () => {
   if (!/width = 100/.test(r.declare)) throw new Error("width should survive");
 });
 
+// ── Task 13: weather.lzx oracle fixture ────────────────────────────────────
+
+await test("weather.lzx transpiles (skeleton) and reports its known gap families", () => {
+  const r = lzxToDeclare(readFileSync("/Users/maxcarlsonold/openlaszlo-5.0/examples/weather/weather.lzx", "utf8"));
+  const refs = new Set(r.gaps.map((g) => g.s13Ref));
+  // weather.lzx uses resources with sprite frames, XPath datapaths, and a
+  // <datapointer> — but no <state> (it animates via standalone animatorgroups).
+  for (const expected of ["resources-and-fonts", "datapath-xpath", "imperative-data-mutation"]) {
+    if (!refs.has(expected)) throw new Error("missing gap family: " + expected + "; got " + [...refs]);
+  }
+});
+
 summarize("lzx");

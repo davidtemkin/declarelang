@@ -118,6 +118,10 @@ function mapElement(el: LzxNode, naming: Naming, sink: GapSink, classes: DClass[
   const tag = resolveTag(el.tag, naming);
   if (tag === null) {
     sink.add({ kind: `unknown tag <${el.tag}>`, severity: "blocking", s13Ref: "unknown-tag", pos: el.pos, note: `no built-in mapping or user class for <${el.tag}>` });
+    // Still walk the subtree for GAPS (nested datapath/state/resource) — the
+    // oracle should see the whole tree, not stop at the first unknown parent.
+    // The emitted members are discarded (the node itself can't be emitted).
+    mapMembers(el, el.tag, naming, sink, classes);
     return null;
   }
   const members = mapMembers(el, tag, naming, sink, classes);
@@ -152,6 +156,8 @@ function mapMembers(el: LzxNode, tag: string, naming: Naming, sink: GapSink, cla
     if (low === "attribute") { const d = mapAttribute(c, tag, naming, sink); if (d) decls.push(d); continue; }
     if (low === "method" || low === "handler") { const m = mapMethod(c, tag, naming, sink); if (m) methods.push(m); continue; }
     if (low === "state") { mapState(c, sink); continue; }
+    if (low === "resource" || low === "font" || low === "face") { sink.add({ kind: `<${low}>`, severity: "degraded", s13Ref: "resources-and-fonts", pos: c.pos, note: "declarative asset/font registration has no settled surface" }); continue; }
+    if (low === "datapointer") { sink.add({ kind: "<datapointer>", severity: "degraded", s13Ref: "imperative-data-mutation", pos: c.pos, note: "imperative data cursor has no Declare surface" }); continue; }
     const childName = c.attrs.find((a) => a.name.toLowerCase() === "id" || a.name.toLowerCase() === "name")?.value;
     const mapped = mapElement(c, naming, sink, classes);
     if (mapped) children.push({ ...mapped, name: childName ?? null });
