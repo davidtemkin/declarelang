@@ -1,5 +1,7 @@
 import { lzxToDeclare } from "../lzx/dist/transpile.js";
 import { parseLzx } from "../lzx/dist/parse.js";
+import { buildNaming } from "../lzx/dist/naming.js";
+import { SCHEMAS as _schemas } from "../runtime/dist/schema.js";
 import { test, summarize } from "./harness.mjs";
 
 await test("lzxToDeclare exists and returns the result shape", () => {
@@ -64,6 +66,57 @@ await test("treats CDATA as opaque raw text", () => {
 await test("skips comments inside content", () => {
   const doc = parseLzx(`<x><!-- note --><view/></x>`);
   if (doc.root.children.length !== 1 || doc.root.children[0].tag !== "view") throw new Error("kids");
+});
+
+// ── Task 3: naming ─────────────────────────────────────────────────────────
+
+await test("maps built-in tags case-insensitively", () => {
+  const { naming } = buildNaming([]);
+  if (naming.tagFor("canvas") !== "App") throw new Error("canvas");
+  if (naming.tagFor("VIEW") !== "View") throw new Error("VIEW");
+  if (naming.tagFor("simplelayout") !== "SimpleLayout") throw new Error("simplelayout");
+  if (naming.tagFor("nosuchtag") !== null) throw new Error("unknown");
+});
+
+await test("attribute aliases are schema-anchored (bgcolor→fill)", () => {
+  const { naming } = buildNaming([]);
+  if (naming.attrFor("bgcolor") !== "fill") throw new Error("bgcolor");
+  if (naming.attrFor("minheight") !== "minHeight") throw new Error("minheight");
+  if (naming.attrFor("onclick") !== "onClick") throw new Error("onclick");
+});
+
+await test("every alias target is a real schema attribute key (anchoring invariant)", () => {
+  const keys = new Set();
+  for (const s of Object.values(_schemas)) {
+    for (let sc = s; sc; sc = sc.base) for (const k of Object.keys(sc.attrs)) keys.add(k);
+  }
+  const { naming } = buildNaming([]);
+  for (const lzx of ["bgcolor", "minheight", "minwidth", "fontsize", "fontweight", "fontfamily", "cornerradius"]) {
+    const target = naming.attrFor(lzx);
+    if (!keys.has(target)) throw new Error(`alias ${lzx}→${target} not a schema key`);
+  }
+});
+
+await test("attrTypeFor resolves a Color slot", () => {
+  const { naming } = buildNaming([]);
+  if (naming.attrTypeFor("View", "fill") !== "color") throw new Error("fill type: " + naming.attrTypeFor("View", "fill"));
+  if (naming.attrTypeFor("View", "width") !== "length") throw new Error("width type");
+});
+
+await test("contentAttrFor is per-tag", () => {
+  const { naming } = buildNaming([]);
+  if (naming.contentAttrFor("Button") !== "label") throw new Error("Button content");
+  if (naming.contentAttrFor("Text") !== "text") throw new Error("Text content");
+});
+
+await test("user class names use case-insensitive identity, preserving declared form", () => {
+  const { naming } = buildNaming(["weatherSummary"]);
+  if (naming.classNameFor("weathersummary") !== "weatherSummary") throw new Error("ci identity");
+});
+
+await test("reports a collision when two names map to one identifier", () => {
+  const { collisions } = buildNaming(["BorderedBox", "borderedbox"]);
+  if (collisions.length !== 1 || collisions[0].lzxNames.length !== 2) throw new Error("collision");
 });
 
 summarize("lzx");
