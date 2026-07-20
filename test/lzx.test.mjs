@@ -176,4 +176,19 @@ await test("records an unknown-tag gap for an unmapped child", () => {
   if (!sink.gaps.some((g) => g.s13Ref === "unknown-tag")) throw new Error("no unknown-tag gap");
 });
 
+// ── Task 6: end-to-end lzxToDeclare ────────────────────────────────────────
+
+await test("transpiles a button: inline handler + content→label", () => {
+  const r = lzxToDeclare(`<canvas height="30"><button onclick="animate('x', 100, 1000, true)">Move me</button></canvas>`);
+  if (r.declare === null) throw new Error("null; gaps=" + JSON.stringify(r.gaps));
+  if (!/Button \[/.test(r.declare)) throw new Error("no Button");
+  if (!/onClick\(\) \{ animate\('x', 100, 1000, true\) \}/.test(r.declare)) throw new Error("handler: " + r.declare);
+  if (!/label = "Move me"/.test(r.declare)) throw new Error("label: " + r.declare);
+});
+
+await test("maps <text>Hello</text> content to text", () => {
+  const r = lzxToDeclare(`<canvas><text>Hello world!</text></canvas>`);
+  if (!/text = "Hello world!"/.test(r.declare)) throw new Error("text: " + r.declare);
+});
+
 summarize("lzx");

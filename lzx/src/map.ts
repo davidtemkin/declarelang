@@ -26,18 +26,28 @@ function mapElement(el: LzxNode, naming: Naming, sink: GapSink): DNode | null {
     sink.add({ kind: `unknown tag <${el.tag}>`, severity: "blocking", s13Ref: "unknown-tag", pos: el.pos, note: `no built-in mapping or user class for <${el.tag}>` });
     return null;
   }
+  const methods: DNode["methods"] = [];
   const attrs: DAttr[] = [];
   for (const a of el.attrs) {
+    if (/^on[A-Za-z]/.test(a.name)) {           // onclick / onmouseup / onInit …
+      methods.push({ name: naming.attrFor(a.name), params: [], body: a.value });
+      continue;
+    }
     const name = naming.attrFor(a.name);
-    const kind = naming.attrTypeFor(tag, name);
-    attrs.push({ name, value: mapValue(a.value, kind, a.pos, sink) });
+    attrs.push({ name, value: mapValue(a.value, naming.attrTypeFor(tag, name), a.pos, sink) });
   }
   const children: DNode[] = [];
   for (const c of el.children) {
     const mapped = mapElement(c, naming, sink);
     if (mapped) children.push(mapped);
   }
-  return { tag, name: null, attrs, decls: [], methods: [], children };
+  const text = el.text.trim();
+  if (text !== "" && children.length === 0) {
+    const slot = naming.contentAttrFor(tag);
+    if (slot) attrs.push({ name: slot, value: { kind: "literal", text: JSON.stringify(text) } });
+    else sink.add({ kind: `text content on <${el.tag}>`, severity: "info", s13Ref: "unknown-tag", pos: el.pos, note: `${tag} has no content slot` });
+  }
+  return { tag, name: null, attrs, decls: [], methods, children };
 }
 
 /** A raw LZX attribute string → a Declare value, typed by the target slot's
