@@ -134,8 +134,14 @@ function mapMembers(el: LzxNode, tag: string, naming: Naming, sink: GapSink, cla
   const children: DNode[] = [];
 
   for (const a of el.attrs) {
-    if (a.name.toLowerCase() === "id" || a.name.toLowerCase() === "name") continue; // handled by the parent as the child's name
-    if (/^on[A-Za-z]/.test(a.name)) { methods.push({ name: onName(a.name, naming), params: [], body: a.value }); continue; }
+    const alow = a.name.toLowerCase();
+    if (alow === "id" || alow === "name") continue; // handled by the parent as the child's name
+    if (tag === "App" && CANVAS_KNOBS.has(alow)) { sink.add({ kind: `canvas ${alow}`, severity: "info", s13Ref: "unknown-tag", pos: a.pos, note: "canvas-level knob has no App slot" }); continue; }
+    if (alow === "datapath") { mapDatapath(a.value, a.pos, attrs, sink); continue; }
+    if (/^on[A-Za-z]/.test(a.name)) {
+      if (isAttrChangeHandler(a.name, tag, naming)) { sink.add({ kind: `${a.name} change handler`, severity: "degraded", s13Ref: "attr-change-handler", pos: a.pos, note: "LZX attribute-change events map to reactive constraints, not handlers" }); continue; }
+      methods.push({ name: onName(a.name, naming), params: [], body: a.value }); continue;
+    }
     const name = naming.attrFor(a.name);
     attrs.push({ name, value: mapValue(a.value, naming.attrTypeFor(tag, name), a.pos, sink) });
   }
@@ -144,7 +150,8 @@ function mapMembers(el: LzxNode, tag: string, naming: Naming, sink: GapSink, cla
     const low = c.tag.toLowerCase();
     if (low === "class") { const dc = mapClass(c, naming, sink, classes); if (dc) classes.push(dc); continue; }
     if (low === "attribute") { const d = mapAttribute(c, tag, naming, sink); if (d) decls.push(d); continue; }
-    if (low === "method" || low === "handler") { const m = mapMethod(c, naming, sink); if (m) methods.push(m); continue; }
+    if (low === "method" || low === "handler") { const m = mapMethod(c, tag, naming, sink); if (m) methods.push(m); continue; }
+    if (low === "state") { mapState(c, sink); continue; }
     const childName = c.attrs.find((a) => a.name.toLowerCase() === "id" || a.name.toLowerCase() === "name")?.value;
     const mapped = mapElement(c, naming, sink, classes);
     if (mapped) children.push({ ...mapped, name: childName ?? null });
@@ -185,9 +192,13 @@ function mapAttribute(el: LzxNode, enclosingTag: string, naming: Naming, sink: G
 /** LZX `<method>`/`<handler>` → a Declare method. `args` → params (AS3 `:Type`
  *  stripped). A `<handler reference=…>` with a BARE-ident source → a `<-`
  *  subscription; a path source → subscription-source gap (no `<-`). */
-function mapMethod(el: LzxNode, naming: Naming, sink: GapSink): DMethod | null {
+function mapMethod(el: LzxNode, enclosingTag: string, naming: Naming, sink: GapSink): DMethod | null {
   const raw = attrMap(el.attrs);
   const rawName = raw["name"] ?? "onEvent";
+  if (isAttrChangeHandler(rawName, enclosingTag, naming)) {
+    sink.add({ kind: `${rawName} change handler`, severity: "degraded", s13Ref: "attr-change-handler", pos: el.pos, note: "LZX attribute-change events map to reactive constraints, not handlers" });
+    return null;
+  }
   const name = onName(rawName, naming);
   // Strip AS3 `:Type` annotations AND LZX `=default` values from each param.
   const params = (raw["args"] ?? "").split(",").map((p) => p.trim().split(/[:=]/)[0].trim()).filter((p) => p !== "");
@@ -201,6 +212,51 @@ function mapMethod(el: LzxNode, naming: Naming, sink: GapSink): DMethod | null {
     sink.add({ kind: `path subscription source '${ref}'`, severity: "degraded", s13Ref: "subscription-source", pos: el.pos, note: "<- accepts a bare identifier only" });
   }
   return { name, params, body };
+}
+
+const CANVAS_KNOBS = new Set(["debug", "proxied", "history", "compileroptions", "runtime"]);
+
+// LZX DOM-ish events (as opposed to attribute-change events). A handler whose
+// suffix is NOT one of these but IS a known attribute is an attribute-change
+// handler (no Declare handler surface — a reactive constraint instead).
+const DOM_EVENTS = new Set([
+  "click", "dblclick", "mousedown", "mouseup", "mouseover", "mouseout", "mousemove",
+  "mouseenter", "mouseleave", "init", "focus", "blur", "keydown", "keyup", "keypress",
+  "idle", "data", "timer", "contextmenu", "mousewheel", "dragstart", "dragging", "dragstop",
+]);
+
+function isAttrChangeHandler(rawName: string, enclosingTag: string, naming: Naming): boolean {
+  if (!/^on[a-zA-Z]/.test(rawName)) return false;
+  const suffix = rawName.slice(2).toLowerCase();
+  if (DOM_EVENTS.has(suffix)) return false;
+  return naming.attrTypeFor(enclosingTag, naming.attrFor(suffix)) !== "unknown";
+}
+
+/** A trivial LZX datapath (`a/b/@c`) → a `:a.b.c` path attribute. A datapath
+ *  carrying XPath (predicates `[1]`, `text()`, functions, dataset qualifiers)
+ *  has no `:path` surface → a datapath-xpath gap, and the cursor is dropped. */
+function mapDatapath(value: string, pos: Pos, attrs: DAttr[], sink: GapSink): void {
+  if (/[[\](:)]|text\(|position\(/.test(value)) {
+    sink.add({ kind: `xpath datapath '${value}'`, severity: "degraded", s13Ref: "datapath-xpath", pos, note: "predicate/function/qualified XPath has no :path surface" });
+    return;
+  }
+  const path = value.split("/").map((s) => s.replace(/^@/, "").trim()).filter((s) => s !== "").join(".");
+  if (path === "") return;
+  attrs.push({ name: "datapath", value: { kind: "path", path, many: false } });
+}
+
+/** `<state>` → a `state-form` gap (real translation is Phase 2 — the parser-
+ *  accepted state surface is unsettled). An embedded animator adds an
+ *  animation-choreography gap. The state is not emitted. */
+function mapState(el: LzxNode, sink: GapSink): void {
+  sink.add({ kind: "<state>", severity: "degraded", s13Ref: "state-form", pos: el.pos, note: "real state translation deferred to Phase 2" });
+  const hasAnimator = (n: LzxNode): boolean => {
+    const t = n.tag.toLowerCase();
+    return t === "animator" || t === "animatorgroup" || n.children.some(hasAnimator);
+  };
+  if (hasAnimator(el)) {
+    sink.add({ kind: "<animatorgroup> in state", severity: "degraded", s13Ref: "animation-choreography", pos: el.pos, note: "state end-states lose the animation timeline" });
+  }
 }
 
 /** An `on<event>` name → Declare handler name: a multi-word alias from the

@@ -253,4 +253,40 @@ await test("rewrites getAttribute to a plain read", () => {
   if (!/var w = this\.width/.test(r.declare)) throw new Error("getAttribute: " + r.declare);
 });
 
+// ── Task 10: datapaths ─────────────────────────────────────────────────────
+
+await test("maps a trivial datapath to a :path", () => {
+  const r = lzxToDeclare(`<canvas><view datapath="item/@code"/></canvas>`);
+  if (!/datapath = :item\.code/.test(r.declare)) throw new Error("datapath: " + r.declare);
+});
+
+await test("records datapath-xpath gap for an indexed/predicate path", () => {
+  const r = lzxToDeclare(`<canvas><view datapath="item[1]/condition/@code"/></canvas>`);
+  if (!r.gaps.some((g) => g.s13Ref === "datapath-xpath")) throw new Error("no gap; gaps=" + JSON.stringify(r.gaps));
+  if (/datapath = :/.test(r.declare)) throw new Error("should not emit an xpath datapath: " + r.declare);
+});
+
+// ── Task 11: <state> → state-form gap (real translation deferred) ───────────
+
+await test("<state> records a state-form gap and is not emitted", () => {
+  const r = lzxToDeclare(`<canvas><view><state name="big" applied="\${x}"><animatorgroup><animator attribute="width" to="400"/></animatorgroup></state></view></canvas>`);
+  if (!r.gaps.some((g) => g.s13Ref === "state-form")) throw new Error("no state-form gap");
+  if (!r.gaps.some((g) => g.s13Ref === "animation-choreography")) throw new Error("no animation gap");
+  if (/state|State/.test(r.declare)) throw new Error("state should not be emitted: " + r.declare);
+});
+
+// ── Task 12: on<attribute> change handlers + canvas knobs ───────────────────
+
+await test("on<attribute> change handler is a gap, not an onX method", () => {
+  const r = lzxToDeclare(`<canvas><view onwidth="doLayout()"/></canvas>`);
+  if (!r.gaps.some((g) => g.s13Ref === "attr-change-handler")) throw new Error("no attr-change-handler gap");
+  if (/onWidth/.test(r.declare)) throw new Error("must not emit onWidth: " + r.declare);
+});
+
+await test("canvas knobs are dropped with an info gap", () => {
+  const r = lzxToDeclare(`<canvas debug="true" width="100"/>`);
+  if (/debug/.test(r.declare)) throw new Error("debug should be dropped: " + r.declare);
+  if (!/width = 100/.test(r.declare)) throw new Error("width should survive");
+});
+
 summarize("lzx");
