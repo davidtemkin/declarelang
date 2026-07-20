@@ -3,6 +3,8 @@ import { parseLzx } from "../lzx/dist/parse.js";
 import { buildNaming } from "../lzx/dist/naming.js";
 import { SCHEMAS as _schemas } from "../runtime/dist/schema.js";
 import { emitProgram } from "../lzx/dist/emit.js";
+import { mapDoc } from "../lzx/dist/map.js";
+import { makeSink } from "../lzx/dist/gaps.js";
 import { test, summarize } from "./harness.mjs";
 
 await test("lzxToDeclare exists and returns the result shape", () => {
@@ -141,6 +143,37 @@ await test("emits a constraint, named child, method, and class base-first", () =
   if (!/onClick\(\) \{ count = count \+ 1 \}/.test(out)) throw new Error("method: " + out);
   if (!/foo: Foo/.test(out)) throw new Error("named child");
   if (out.indexOf("class Foo") > out.indexOf("App [")) throw new Error("ordering");
+});
+
+// ── Task 5: mapDoc core ────────────────────────────────────────────────────
+
+await test("maps <canvas> to App and round-trips through emit", () => {
+  const prog = mapDoc(parseLzx(`<canvas width="240"/>`), buildNaming([]).naming, makeSink());
+  const out = emitProgram(prog);
+  if (!/App \[/.test(out) || !/width = 240/.test(out)) throw new Error("out: " + out);
+});
+
+await test("emits a Color slot as a bare ident, not a string", () => {
+  const prog = mapDoc(parseLzx(`<canvas><view bgcolor="red"/></canvas>`), buildNaming([]).naming, makeSink());
+  const out = emitProgram(prog);
+  if (!/fill = red/.test(out)) throw new Error("expected bare fill = red; got: " + out);
+});
+
+await test("maps ${expr} to a code constraint", () => {
+  const prog = mapDoc(parseLzx("<canvas width=\"${1 + 2}\"/>"), buildNaming([]).naming, makeSink());
+  if (!/width = \{ 1 \+ 2 \}/.test(emitProgram(prog))) throw new Error("constraint");
+});
+
+await test("records a constraint-timing gap for $once{}", () => {
+  const sink = makeSink();
+  mapDoc(parseLzx("<canvas width=\"$once{1}\"/>"), buildNaming([]).naming, sink);
+  if (!sink.gaps.some((g) => g.s13Ref === "constraint-timing")) throw new Error("no gap");
+});
+
+await test("records an unknown-tag gap for an unmapped child", () => {
+  const sink = makeSink();
+  mapDoc(parseLzx(`<canvas><frobnicate/></canvas>`), buildNaming([]).naming, sink);
+  if (!sink.gaps.some((g) => g.s13Ref === "unknown-tag")) throw new Error("no unknown-tag gap");
 });
 
 summarize("lzx");
