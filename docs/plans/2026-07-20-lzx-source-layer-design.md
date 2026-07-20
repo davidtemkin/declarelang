@@ -109,16 +109,15 @@ Two architectures were rejected:
   bracket grammar that fusing them makes the clean parser fragile for little
   gain.
 
-### Source-position fidelity (review round 1, finding I3)
+### Source-position fidelity (review round 1, finding I3; scoped in plan review)
 
 `compile()` positions every diagnostic against offsets in the *emitted* Declare
 text, and `formatSource` re-flows lines — so **second-order (compile-stage) gaps
-are Declare-positioned, not `.lzx`-positioned**. Phase 1 accepts this and
-mitigates with a **coarse line-origin map** (`LzxDoc` node `Pos` → emitted line),
-built by the emitter *before* formatting, so a second-order diagnostic can be
-traced back to its originating `.lzx` element best-effort. A byte-accurate source
-map is out of scope for Phase 1. First-order gaps (from `map.ts`/`gaps.ts`)
-always carry the true `.lzx` `Pos`.
+are Declare-positioned, not `.lzx`-positioned**. First-order gaps (from
+`map.ts`/`gaps.ts`) always carry the true `.lzx` `Pos`. A coarse `.lzx`-origin
+map for *second-order* diagnostics is **deferred to Phase 2** (YAGNI — no Phase-1
+consumer reads it; building unused mapping machinery is avoided). Phase 1's
+`TranspileResult` is therefore `{ declare, gaps, diagnostics }`, no `originMap`.
 
 ### Why the readable `.declare` artifact matters
 
@@ -142,8 +141,8 @@ lzx/
     naming.ts     # LZX names → Declare identifiers (schema-derived tables + collision handling)
     map.ts        # LzxDoc → Declare Element fragments; the Appendix-B core
     gaps.ts       # the gap registry — unmapped constructs → structured diagnostics
-    emit.ts       # Declare Element fragments → house-style .declare text (+ origin map)
-    transpile.ts  # the one entry: lzxToDeclare(src, opts) → { declare, gaps, diagnostics, originMap }
+    emit.ts       # Declare Element fragments → house-style .declare text
+    transpile.ts  # the one entry: lzxToDeclare(src, opts) → { declare, gaps, diagnostics }  (originMap → Phase 2)
   dist/           # committed, like every area
   test/           # unit + golden + corpus-sweep harness
 tools/
@@ -251,7 +250,10 @@ independently testable. Confirmed against real corpus LZX:
   by Declare tag+attr; (3) an in-file `<attribute type=…>` declaration the
   transpiler has itself seen on the enclosing class; (4) **literal fallback**.
   This is `map.ts`'s one sanctioned reach outside `LzxDoc`, into the static
-  `schema.ts` tables (allowed by the one-way `runtime/` dependency).
+  `schema.ts` tables (allowed by the one-way `runtime/` dependency). The resolved
+  type also **determines the emitted literal form** (plan review): a `Color` slot
+  emits `bgcolor="red"` → `fill = red` (bare color ident), whereas a `string` slot
+  emits `"red"` — so schema consultation is *needed* in Phase 1, not deferred.
 - **`setAttribute`/`getAttribute`** — normalized by the balanced scanner per the
   Tier-1 line above (verbatim + gap on the ambiguous tail).
 - **Handlers.** `<handler name="onclick">…</handler>` → `onClick() { … }`;
@@ -273,22 +275,28 @@ independently testable. Confirmed against real corpus LZX:
   function form is a `degraded`-or-`blocking` gap (`s13Ref: datapath-xpath`).
   This hits the weather fixture directly (its `@code`/`@day` map; its `item[1]`
   indexed paths do not).
-- **States are not a blanket 1:1** (review round 2; 726 uses, **0** `when=`, 366
-  `applied=`). `<state applied="${expr}">` → the reactive gate form with
-  `{ expr }` (recoverable); `applied="literal"` or code-driven `apply()`/
-  `remove()` → the code-driven state form (§10 supports both) or `degraded`.
-  A `<state>` containing `<animatorgroup>`/`<animator>` → state end-states
-  without the timeline (`s13Ref: animation-choreography`). Any `<state>` form
-  that does not reduce to a parser-accepted state element (e.g. dynamic
-  `apply()`/`remove()` with no recoverable predicate) → `s13Ref: state-form`.
-- **Text content → the natural attribute.** `<button>Move me</button>` →
-  `text = "Move me"` (per-tag rule).
+- **States — real translation is Phase 2** (review round 2 + plan review). The
+  parser-accepted state surface is itself unsettled: `state … when { }` is not a
+  production, and user-subclassing `State` "isn't wired yet" (`check.ts:161`).
+  Rather than emit against a moving target, **Phase 1 records `<state>` as a
+  `degraded` `state-form` gap** (with `animation-choreography` when it contains
+  `<animatorgroup>`/`<animator>`) and does not translate it. Phase 2 does the
+  real mapping once the state surface settles. (Corpus: 726 uses, **0** `when=`,
+  366 `applied=` — the imperative-to-reactive translation is non-trivial and
+  worth doing deliberately, not under a Phase-1 deadline.)
+- **Text content → the natural attribute, per-tag** (plan review: not universal).
+  A **content-attribute table** keyed by Declare tag: `Button`/control →
+  `label` (`Button` has no `text` attr — `library/src/button.declare`), `Text` →
+  `text`. `<button>Move me</button>` → `label = "Move me"`. A tag with no content
+  slot → `info` gap, content dropped.
 - **Canvas-level knobs with no App slot** (`debug=` 672×, `proxied=`, `history=`,
   `compileroptions=`) → dropped with an `info`-level note, not emitted.
 - **`id` vs `name`.** Both → a named child `foo: Type [ … ]`. A **cross-subtree
   reference to an LZX `id`** (a global handle reached from a sibling subtree) has
-  **no Declare lexical-scope surface** (§11) and is a **`blocking` gap**, not a
-  silent broken emit (review round 1, finding 3/I3-consistency).
+  **no Declare lexical-scope surface** (§11). Detecting it needs whole-program
+  reference analysis (a symbol table + body scan), so the **`blocking`-gap
+  detection is Phase 2**; Phase 1 emits the named child and lets any resulting
+  out-of-scope reference surface as a *second-order* compile gap.
 
 ### `gaps.ts` — the completeness oracle (C)
 
@@ -322,8 +330,8 @@ Serializing from a well-formed `Element` tree guarantees bracket/brace balance;
 free-form templates do not. Bodies are opaque strings placed into `{ }` / method
 slots — their *internal* validity is the compile stage's concern, but the
 serializer guarantees the surrounding structure balances. After serialization,
-pipe through `formatSource` for house style. The emitter also produces the coarse
-origin map (above).
+pipe through `formatSource` for house style. (The coarse second-order origin map
+is Phase 2 — see Source-position fidelity above.)
 
 **Class ordering (review round 2, I3).** `check.ts:138` requires a base class to
 be declared **above** its subclass within the single emitted file (`compile.ts`'s
@@ -335,8 +343,8 @@ but a correctness requirement with a trivial fix.
 ### `transpile.ts`
 
 The one entry point:
-`lzxToDeclare(src, opts) → { declare, gaps, diagnostics, originMap }`. Pure, no
-I/O, browser-safe.
+`lzxToDeclare(src, opts) → { declare, gaps, diagnostics }`. Pure, no I/O,
+browser-safe. (`originMap` → Phase 2.)
 
 ## Testing & the corpus harness
 
