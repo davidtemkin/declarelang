@@ -5,6 +5,8 @@ import { SCHEMAS as _schemas } from "../runtime/dist/schema.js";
 import { emitProgram } from "../lzx/dist/emit.js";
 import { mapDoc } from "../lzx/dist/map.js";
 import { makeSink } from "../lzx/dist/gaps.js";
+import { compile } from "../compiler/dist/compile-node.js";
+import { readFileSync } from "node:fs";
 import { test, summarize } from "./harness.mjs";
 
 await test("lzxToDeclare exists and returns the result shape", () => {
@@ -190,5 +192,17 @@ await test("maps <text>Hello</text> content to text", () => {
   const r = lzxToDeclare(`<canvas><text>Hello world!</text></canvas>`);
   if (!/text = "Hello world!"/.test(r.declare)) throw new Error("text: " + r.declare);
 });
+
+// ── Task 7: real reference-file goldens (settled must compile clean) ────────
+
+const REF = "/Users/maxcarlsonold/openlaszlo-5.0/docs/reference/programs";
+for (const f of ["view-1.lzx", "text-1.lzx"]) {
+  await test(`settled reference ${f} transpiles and compiles clean`, () => {
+    const r = lzxToDeclare(readFileSync(`${REF}/${f}`, "utf8"));
+    if (r.declare === null) throw new Error(`${f}: null declare; gaps=` + JSON.stringify(r.gaps));
+    const c = compile(r.declare, { typecheck: false });
+    if (c.errors.length) throw new Error(`${f} compile errors:\n${c.report}\n--- emitted ---\n${r.declare}`);
+  });
+}
 
 summarize("lzx");
