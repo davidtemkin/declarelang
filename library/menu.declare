@@ -250,9 +250,44 @@ class Menu extends View [ visible = { shown }, width = 220,
                 check: Text [ x = 8, y = center, fontSize = 12, visible = { !parent.divider && !!:checked },
                     textColor = { (parent.hovered || classroot.activeRow == parent) ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.text }, text = "✓" ],
 
-                ico: Text [ x = 14, y = center, fontSize = 13, visible = { !parent.divider && parent.custom == "" && :icon != null },
+                ico: Text [ x = 14, y = center, fontSize = 13, visible = { !parent.divider && parent.custom == "" && :icon != null && :icon != "lightbulb" },
                     textColor = { (parent.hovered || classroot.activeRow == parent) ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.text },
                     text = { "" + (:icon || "") } ],
+
+                // `icon: "lightbulb"` renders a DRAWN bulb (the macOS Help
+                // affordance) — a monochrome outline no text glyph matches,
+                // in the same slot and color as a glyph icon would take
+
+                bulb: View [ x = 11, y = center, width = 13, height = 16,
+                    visible = { !parent.divider && parent.custom == "" && :icon == "lightbulb" },
+                    draw(d) {
+                        const on = parent.hovered || classroot.activeRow == parent
+                        const c = on ? (typeof theme.menuHlText == "number" ? theme.menuHlText : theme.accentText) : theme.text
+                        d.strokeStyle = c
+                        d.lineWidth = 1.25
+                        d.lineCap = "round"
+                        d.lineJoin = "round"
+                        // the glass — a near-full circle, open at the base
+                        d.beginPath()
+                        d.arc(6.5, 5.6, 4.6, Math.PI * 0.72, Math.PI * 0.28, false)
+                        d.stroke()
+                        // neck shoulders down to the base
+                        d.beginPath()
+                        d.moveTo(3.6, 8.6); d.lineTo(4.1, 10.4)
+                        d.moveTo(9.4, 8.6); d.lineTo(8.9, 10.4)
+                        d.stroke()
+                        // the screw base — two thread lines and a rounded foot
+                        d.beginPath()
+                        d.moveTo(4.1, 10.7); d.lineTo(8.9, 10.7)
+                        d.moveTo(4.5, 12.3); d.lineTo(8.5, 12.3)
+                        d.moveTo(5.4, 13.9); d.lineTo(7.6, 13.9)
+                        d.stroke()
+                        // the filament, a small hanging loop
+                        d.beginPath()
+                        d.moveTo(5.3, 5.2); d.lineTo(6.5, 7.1); d.lineTo(7.7, 5.2)
+                        d.stroke()
+                        },
+                    ],
 
                 lbl: Text [ y = center, fontSize = 13, visible = { !parent.divider && parent.custom == "" },
                     x = { :icon != null ? 40 : 24 },

@@ -7,35 +7,35 @@ right. What's on it:
 
 - **Windows** are a layer: created imperatively (`app.createView` —
   planes.md §7), dragged by their title bars, resized from every edge
-  and bottom corner (each with its macOS cursor), RAISED on activation
+  and bottom corner (each with its macOS cursor), raised on activation
   (promotion — order is a slot), shaded/zoomed/closed by real traffic
   lights. One `Window` class carries all of that chrome; three
   subclasses carry the content.
 - **Finder** browses this repository's own documentation, its tree
-  DERIVED from the docs app's live model — every guide chapter, every
+  derived from the docs app's live model — every guide chapter, every
   element in the language reference. Columns scroll, clip, and drag.
 - **Viewer** renders any of those documents (real files fetched as
   text; reference pages synthesized from the model). **AppWindow**
-  hosts an entire OTHER Declare app as an embedded child — the dock's
+  hosts an entire other Declare app as an embedded child — the dock's
   Calendar opens the actual apps/calendar.
-- The **dock** magnifies by LAYOUT, not paint: each icon's real width
-  is a constraint over its RESTING slot center (the source must never
+- The **dock** magnifies by layout, not paint: each icon's real width
+  is a constraint over its resting slot center (the source must never
   read the magnified geometry — that would be a feedback loop), so
   neighbors displace and the plate's edges push outward. Minimized
-  windows park in the dock as LIVE thumbnails — dock citizens riding
+  windows park in the dock as live thumbnails — dock citizens riding
   the same wave, wearing their app's icon as a badge.
-- The **menu bar** is whole menus as records, and CONTEXTUAL: it belongs
+- The **menu bar** is whole menus as records, and contextual: it belongs
   to the front window's application (Files, Markdown, Declare Calendar),
   with the brand mark in the para-Apple slot, About windows, a live
   Window menu, and a Help menu whose search field is a real input inside
   the overlay. ⌘-shortcuts dispatch from the same records.
 
-Icons are DRAWN (no bitmaps — the weather app's image-elimination
+Icons are drawn (no bitmaps — the weather app's image-elimination
 precedent); the open-source icon harvest and the vibrancy material are
 the recorded next passes.
 */
 
-// The window classes below are created ONLY at runtime, by name —
+// The window classes below are created only at runtime, by name —
 // `app.createView("FinderWindow", …)` — never as a declared tag. Class
 // reachability is otherwise a static fact (unused classes are dropped, which
 // is what tree-shakes production builds), and a name inside a runtime string
@@ -50,12 +50,10 @@ class Window extends View [ width = 560, height = 400, clip = true,
     fill = { theme.surface },
     stroke = { stroke(1, theme.line) },
 
-    // the front window floats on a deeper shadow — depth tracks activation
-
     // shadow inks: the front window floats on a deeper, softer shadow; an
     // inactive one sits closer to the desktop on a lighter, tighter one.
-    // (# alpha literals live in declaration position — the 0x form is ruled
-    // 6-digit opaque, so 0x000000XX would paint navy.)
+    // (Alpha colors live in declaration position — `#` literals — because the
+    // 0x form is defined as 6-digit opaque, so 0x000000XX would paint navy.)
 
     inkHi: Color = #0000006B,
     inkLo: Color = #00000047,
@@ -74,34 +72,34 @@ class Window extends View [ width = 560, height = 400, clip = true,
     grab: number = 8,                            // edge strip thickness (grabbable band)
     corner: number = 16,                         // corner strip size (wins over the edges)
 
-    // a PLAIN window (an About box) is close-to-dismiss only: no resize, no
+    // a plain window (an About box) is close-to-dismiss only: no resize, no
     // shade, no zoom — the strips vanish and the yellow/green lights go inert
 
     plain: boolean = false,
 
-    // CUSTOM-CHROME windows (Stickies) keep the base's behavior — drag
+    // custom-chrome windows (Stickies) keep the base's behavior — drag
     // bookkeeping, activation, shade/zoom, resize strips — but drop the
     // standard title bar and grip art, and supply their own chrome on top
 
     chrome: boolean = true,
 
-    // the macOS-style open zoom: the window grows FROM THE FILE'S POSITION —
+    // the macOS-style open zoom: the window grows from the file's position —
     // small at the icon, most of the way within the first frames, settled in
     // under a quarter second; a strong ease-out. bornX/bornY carry the origin in window coords (-1 = no origin:
     // a new window zooms gently from its own center instead).
 
     bornX: number = -1,
     bornY: number = -1,
-    bornFrom: View = null,                       // the view the open came from, for the RETURN trip
+    bornFrom: View = null,                       // the view the open came from, for the return trip
     pivotX = { this.bornX >= 0 ? this.bornX : this.width / 2 },
     pivotY = { this.bornY >= 0 ? this.bornY : this.height / 2 },
     born: Animator [ attribute = baseScale, from = { classroot.bornX >= 0 ? 0.15 : 0.85 }, to = 1,
         duration = 230, motion = cubicOut, started = true ],
 
-    // ── the geometry SPLIT that makes a minimized window a dock citizen ──
-    // Everything imperative (drag, spawn, the zoom animators) writes the BASE
-    // slots wx/wy/baseScale; the real x/y/scale are CONSTRAINTS blending base
-    // geometry toward a dock slot the window computes FOR ITSELF — the same
+    // ── the geometry split that makes a minimized window a dock citizen ──
+    // Everything imperative (drag, spawn, the zoom animators) writes the base
+    // slots wx/wy/baseScale; the real x/y/scale are constraints blending base
+    // geometry toward a dock slot the window computes for itself — the same
     // wave math the icons run, over the same live inputs. So a parked window
     // magnifies, displaces, and rides the dock's widening exactly as an icon
     // does: not a placed thumbnail but a member of the wave. `miniT` (the
@@ -111,13 +109,13 @@ class Window extends View [ width = 560, height = 400, clip = true,
     wy: number = 0,
     baseScale: number = 1,                       // the free-window scale — the zoom animators drive this
     dockSlot: number = -1,                       // ≥0 = my slot in the dock's minimized section
-    miniT: number = 0,                           // the park blend: 0 = free, 1 = docked (animated — THE journey)
+    miniT: number = 0,                           // the park blend: 0 = free, 1 = docked (animated — the journey)
 
-    // my slot comes from THE ONE mini layout (app.miniLayout — left-anchored
+    // my slot comes from the one mini layout (app.miniLayout — left-anchored
     // like the icon row, so a magnified thumbnail grows rightward and can
     // never cross the divider): x/w are the slot's live geometry; rw is the
     // resting width, so w/rw is my share of the magnification wave. The
-    // macOS treatment: the thumbnail keeps its aspect, sits CENTERED
+    // macOS treatment: the thumbnail keeps its aspect, sits centered
     // vertically in the cell, and rounds its corners at thumbnail scale.
 
     slotW: number = { app.miniLayout != null && this.dockSlot >= 0 && this.dockSlot < app.miniLayout.length ? app.miniLayout[this.dockSlot].w : 48 },
@@ -135,9 +133,9 @@ class Window extends View [ width = 560, height = 400, clip = true,
     y = { this.wy + (this.parkY - this.wy) * this.miniT },
     scale = { this.baseScale + (this.parkScale - this.baseScale) * this.miniT },
 
-    // each journey STOPS the other before starting (a restore mid-park must
+    // each journey stops the other before starting (a restore mid-park must
     // not leave two animators racing miniT), and each completion handler
-    // verifies it actually ARRIVED — an interrupted animator's stop must
+    // verifies it actually arrived — an interrupted animator's stop must
     // never commit the destination's state (the phantom-slot bug)
 
     miniGo: Animator [ attribute = miniT, to = 1, duration = 260, motion = cubicIn,
@@ -147,7 +145,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
         onStop() { if (classroot.miniT <= 0.01) app.unparked(classroot) },
         ],
 
-    // …and the open runs in REVERSE on close: the window shrinks back to its
+    // …and the open runs in reverse on close: the window shrinks back to its
     // return spot — recomputed at close time from the origin view (the finder
     // may have moved), falling back to the birth snapshot if it's gone.
 
@@ -184,7 +182,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
     sizeMode: string = "",                       // "" | "r" | "b" | "rb"
 
     // shade (Stickies' collapse widget) and zoom (green) remember what they
-    // displace; MINIMIZE (yellow) is the Mac's — the window zooms down INTO
+    // displace; minimize (yellow) is the Mac's — the window zooms down into
     // the dock's minimized-windows section (the open/close animation's curve,
     // aimed at the tile) and back out when its tile is clicked
 
@@ -196,18 +194,18 @@ class Window extends View [ width = 560, height = 400, clip = true,
     saveY: number = 0,
     saveW: number = 0,
 
-    // minimize does NOT hide: the window PARKS at its dock tile, scaled to
-    // fit — a LIVE thumbnail (an embedded app inside keeps running; its DOM
+    // minimize does not hide: the window parks at its dock tile, scaled to
+    // fit — a live thumbnail (an embedded app inside keeps running; its DOM
     // island never unmounts, only transforms). The tile above it is the
     // click target, so the parked window can't be poked at 8% scale.
 
-    // activating any REAL window dismisses open About boxes — they're modals
+    // activating any real window dismisses open About boxes — they're modals
     // in spirit: clicking anywhere else lets them go (the red light works too)
 
     activate() { app.frontWin = this; this.raise(); if (!plain) app.dismissAbouts() },
     onMouseDown() { this.activate() },
 
-    // subclass content attaches AFTER the base's children, so any content that
+    // subclass content attaches after the base's children, so any content that
     // reaches the window's edges would eat the resize strips' events — the
     // chrome re-promotes above everything (order is a slot). Subclasses that
     // override onInit call raiseChrome() themselves.
@@ -223,7 +221,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
 
     onInit() { this.raiseChrome() },
 
-    // shade collapses the window to ITS BAR (the old macOS window-shade);
+    // shade collapses the window to its bar (the old macOS window-shade);
     // zoom fills the desktop, leaving the dock's band clear at the bottom
 
     shadeToggle() {
@@ -256,7 +254,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
         },
 
     // modes compose macOS's grabbable set: "l" | "r" | "b" | "lb" | "rb".
-    // A left-edge drag keeps the RIGHT edge fixed: x follows the width.
+    // A left-edge drag keeps the right edge fixed: x follows the width.
 
     moveSize() {
         if (sizeMode == "") return
@@ -299,8 +297,8 @@ class Window extends View [ width = 560, height = 400, clip = true,
         onMouseUp() { classroot.dragging = false },
 
         // the traffic lights — all three real: close, shade, zoom. Grey when
-        // the window is inactive. The rollover state belongs to the LIGHTS
-        // BLOCK alone (the bounding rectangle of the three circles — David's
+        // the window is inactive. The rollover state belongs to the lights
+        // block alone (the bounding rectangle of the three circles — David's
         // reference), not the bar: hovering it colorizes even an inactive
         // window's lights and surfaces the glyphs; the rest of the bar never
         // does.
@@ -335,7 +333,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
             textColor = { classroot.active ? theme.text : theme.textMuted },
             text = { classroot.title } ],
 
-        // the separator under the title bar — present active OR not
+        // the separator under the title bar — present active or not
 
         sep: View [ x = 0, y = { classroot.barH - 1 }, width = { parent.width }, height = 1, fill = { theme.line } ],
         ],
@@ -371,7 +369,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
         onMouseUp()   { classroot.sizeMode = "" },
         ],
 
-    // the bottom-right corner also DRAWS its affordance (the classic grip)
+    // the bottom-right corner also draws its affordance (the classic grip)
 
     grip: View [ x = { parent.width - classroot.corner }, y = { parent.height - classroot.corner }, visible = { !classroot.plain && !classroot.shaded },
         width = { classroot.corner }, height = { classroot.corner }, cursor = "nwse-resize",
@@ -389,14 +387,14 @@ class Window extends View [ width = 560, height = 400, clip = true,
             },
         ],
 
-    // ── the FIRST-CLICK VEIL (the macOS rule, and it is SWAPPABLE —
+    // ── the first-click veil (the macOS rule, and it is swappable —
     // app.firstClickActivatesOnly): a background window's content is covered
-    // by this transparent view, so a click there RAISES the window and goes
+    // by this transparent view, so a click there raises the window and goes
     // no further — the content (built-in or an embedded app's island alike)
-    // never hears it, because the veil IS the hit target and events do not
+    // never hears it, because the veil is the hit target and events do not
     // bubble. The chrome stays live: the title bar, lights, and this veil
     // itself all activate. It sits topmost (raiseChrome) and only exists
-    // while the window is in the BACKGROUND, so an active window's content
+    // while the window is in the background, so an active window's content
     // receives everything as before.
 
     veil: View [ visible = { !classroot.active && app.firstClickActivatesOnly },
@@ -408,7 +406,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
 
 
 // The traffic lights, macOS-style: hairline rim in a darker
-// tone of the fill (never black), and the hover glyphs are Apple's DRAWN
+// tone of the fill (never black), and the hover glyphs are Apple's drawn
 // iconography in a dark tone of the same hue — thick rounded ×, − bar, and
 // the fullscreen pair of triangles split along the "/" diagonal.
 
@@ -420,7 +418,7 @@ class TrafficLight extends View [ y = 0, width = 14, height = 14, cornerRadius =
     on: boolean = false,                         // the window's active state, fed at the use site
     showGlyph: boolean = false,                  // bar-hover, fed at the use site
 
-    // the rims are HAIRLINES (David's reference: "very thin and subtle") — a
+    // the rims are hairlines (David's reference: "very thin and subtle") — a
     // half-pixel stroke, hue-toned when lit, barely-there grey when not
 
     fill = { on ? c : (app.darkMode ? 0x54545A : 0xD2D2D6) },
@@ -463,7 +461,7 @@ class TrafficLight extends View [ y = 0, width = 14, height = 14, cornerRadius =
 
 // ── the brand mark: Declare's identity in the para-Apple slot ────────────────
 //
-// The OG image's mark — a rounded square holding the two brackets — rendered
+// The mark — a rounded square holding the two brackets — rendered
 // monochrome for the menu bar, the way the Apple logo is: solid menu-bar ink,
 // brackets knocked out. (The gradient version stays the social-card identity;
 // a colored mark would shout in a monochrome bar.)
@@ -478,7 +476,7 @@ class BrandMark extends View [ width = 18, height = 18, cornerRadius = 9,
     ]
 
 
-// ── the Help menu's search field — a REAL input living in a menu overlay ─────
+// ── the Help menu's search field — a real input living in a menu overlay ─────
 //
 // Rendered as a Menu `kind:` row: the row's chrome (no highlight, no pick) is
 // the menu's; inside is the library SearchField — the macOS pill — with a
@@ -488,7 +486,7 @@ class BrandMark extends View [ width = 18, height = 18, cornerRadius = 9,
 class HelpSearch extends View [ height = 40,
     width = { parent.width },
 
-    // the field reaches to 12px from the MENU's edges,
+    // the field reaches to 12px from the menu's edges,
     // past the kind-row host's standard 24px inset — hence the negative x
 
     sf: SearchField [ x = -12, y = 5, width = { parent.width + 10 }, height = 30 ],
@@ -650,11 +648,11 @@ class FinderWindow extends Window [ title = "Documentation",
     sel2: string = "",                           // the selected file (its path)
     sel2name: string = "",
 
-    // the tree DERIVES from the LIVE documentation model (app.docsModel — the
+    // the tree derives from the live documentation model (app.docsModel — the
     // docs app's own spine, fetched once): the Guide folder lists every
     // chapter as authored, the Reference folder every element in the language
     // model — nothing here goes stale when the docs move. A "ref:" path opens
-    // a reference page SYNTHESIZED from the model rather than a fetched file.
+    // a reference page synthesized from the model rather than a fetched file.
 
     tree: Dataset [ contents = { ({ folders: [
         ({ name: "Language", files: [
@@ -685,7 +683,7 @@ class FinderWindow extends Window [ title = "Documentation",
 
     // draggable column widths — clamped: never too narrow to read, never so
     // wide the preview vanishes. The dividers are captured-drag strips laid
-    // OVER the column seams, each with the column-resize cursor.
+    // over the column seams, each with the column-resize cursor.
 
     c1w: number = 150,                           // sidebar width (drag: 110–300)
     c2w: number = 210,                           // file-list width (drag: 130–360)
@@ -699,8 +697,8 @@ class FinderWindow extends Window [ title = "Documentation",
         row: View [ width = { parent.width }, height = { parent.height },
             layout: SimpleLayout [ axis = x, spacing = 0 ],
 
-            // each column CLIPS to its box (no text bleeding across the seam)
-            // and SCROLLS its own overflow — per-column native scroll, the
+            // each column clips to its box (no text bleeding across the seam)
+            // and scrolls its own overflow — per-column native scroll, the
             // macOS column-view behavior
 
             col1: View [ width = { classroot.c1w }, height = { parent.height }, fill = { theme.bg }, clip = true,
@@ -737,7 +735,7 @@ class FinderWindow extends Window [ title = "Documentation",
                                     on: boolean = { classroot.sel2 == this.fpath },
                                     onClick() { classroot.activate(); classroot.sel2 = this.fpath; classroot.sel2name = this.fname },
 
-                                    // single click selects; DOUBLE click opens — the
+                                    // single click selects; double click opens — the
                                     // Finder idiom, on the platform dblClick event
 
                                     onDblClick() { app.openViewer(this.fpath, this.fname, this) },
@@ -755,7 +753,7 @@ class FinderWindow extends Window [ title = "Documentation",
                 ],
 
             // the preview pane, macOS-composed: icon, name, and path all
-            // CENTERED, the Open button centered BELOW the last text line —
+            // centered, the Open button centered below the last text line —
             // the column layout stacks it, so wrapped text can never overlap it
 
             col3: View [ width = { Math.max(120, classroot.width - classroot.c1w - classroot.c2w) }, height = { parent.height }, clip = true,
@@ -820,13 +818,13 @@ class FinderWindow extends Window [ title = "Documentation",
     ]
 
 
-// ── AppWindow: a FULL DECLARE APP in a desktop window ────────────────────────
+// ── AppWindow: a full Declare app in a desktop window ────────────────────────
 //
 // The island carries `slot = "run:<path>"` — the page host's preview machinery
 // (browser/host-client.js, the same pipeline behind the homepage and docs
 // islands) fetches the program, compiles it on the boot ladder (prewarm →
 // cache → in-browser compile; identical on the dev server and the static
-// host), and renders it as an EMBEDDED CHILD APP: its own reactive graph, its
+// host), and renders it as an embedded child app: its own reactive graph, its
 // own input router (the app-root ownership rule), sized to the island's box.
 // The slot name is demos/-relative, so "../../calendar/calendar" reaches the
 // real app — no copy, no shim.
@@ -840,7 +838,7 @@ class AppWindow extends Window [ width = 880, height = 560,
     // every change: toggling the desktop's appearance re-marks the slot and
     // the hosted app re-derives (its Auto mode follows `app.env.dark`)
 
-    // a press ANYWHERE in the hosted app also lands here (the router remaps
+    // a press anywhere in the hosted app also lands here (the router remaps
     // embedded presses to the island — dom-backend), so clicking the child's
     // content raises this window exactly as clicking any window body does
 
@@ -857,7 +855,7 @@ class AppWindow extends Window [ width = 880, height = 560,
 class ViewerWindow extends Window [ width = 640, height = 460,
     path: string = "",
 
-    // a "ref:" path renders a page SYNTHESIZED from the documentation model
+    // a "ref:" path renders a page synthesized from the documentation model
     // (reactive — the page fills in when the model arrives); anything else is
     // the real file fetched as text
 
@@ -865,7 +863,7 @@ class ViewerWindow extends Window [ width = 640, height = 460,
 
     src: DataSource [ format = "text", url = { classroot.path } ],
 
-    // the scrolling body is a REAL pointer target covering the whole window,
+    // the scrolling body is a real pointer target covering the whole window,
     // and subclass children attach after the base's — so the Window's resize
     // strips re-promote above it (order is a slot) or edge drags never land
 
@@ -878,7 +876,7 @@ class ViewerWindow extends Window [ width = 640, height = 460,
         scrolls = true, selectable = true,
 
         // reading margins: 24 at the sides, 18 above — and the pad's explicit
-        // height adds the SAME 18 below the measured document, so the scroll
+        // height adds the same 18 below the measured document, so the scroll
         // extent ends with breathing room instead of flush text
 
         pad: View [ x = 24, y = 18, width = { parent.width - 48 },
@@ -897,11 +895,11 @@ class ViewerWindow extends Window [ width = 640, height = 460,
     ]
 
 
-// ── the Stickies note: a CUSTOM window type in the classic Stickies
-// spirit. Square corners; #FEF49C paper; the ACTIVE
+// ── the Stickies note: a custom window type in the classic Stickies
+// spirit. Square corners; #FEF49C paper; the active
 // state grows a saturated #FEEA3D title strip carrying olive-outlined pale
 // widgets — the close box at the left, the zoom triangle and the collapse
-// box at the right — and the INACTIVE note is chromeless: strip and widgets
+// box at the right — and the inactive note is chromeless: strip and widgets
 // vanish into the paper. All the base Window's behavior (drag bookkeeping,
 // activation shadow, shade, resize edges) carries through `chrome = false` —
 // the styling system's proof that chrome is a skin, not the skeleton. ──────
@@ -912,7 +910,7 @@ class StickyWindow extends Window [ width = 300, height = 250, chrome = false,
     note: string = "",                           // the note's seed text
 
     // the note's palette: paper #FEF49C, active strip #FEEA3D, widget
-    // linework #DBC501 dark olive over #FFF49C pale, and a HALF-pixel
+    // linework #DBC501 dark olive over #FFF49C pale, and a half-pixel
     // #4E4E52 rim — a full CSS pixel reads as drawn-on lines, not an edge
 
     fill = #FEF49C,
@@ -938,7 +936,7 @@ class StickyWindow extends Window [ width = 300, height = 250, chrome = false,
             },
         onMouseUp() { classroot.dragging = false },
 
-        // the strip's widgets: DARK OLIVE outlines around PALE interiors —
+        // the strip's widgets: dark olive outlines around pale interiors —
         // the close box 11px in from the left, the zoom triangle (right
         // angle at bottom-right) and the collapse box in from the right
 
@@ -958,7 +956,7 @@ class StickyWindow extends Window [ width = 300, height = 250, chrome = false,
                 },
             ],
         collapseW: View [ visible = { classroot.active }, x = { parent.width - 21 }, y = 2.25, width = 8, height = 8,
-            onClick() { classroot.shadeToggle() },   // collapse-to-strip IS the Stickies move
+            onClick() { classroot.shadeToggle() },   // collapse-to-strip is the Stickies move
             draw(d) {
                 d.fillStyle = 0xFFF49C
                 d.fillRect(0.7, 0.7, 6.6, 6.6)
@@ -974,7 +972,7 @@ class StickyWindow extends Window [ width = 300, height = 250, chrome = false,
             ],
         ],
 
-    // the note body is FORMATTED — a Markdown field on the paper (no input
+    // the note body is formatted — a Markdown field on the paper (no input
     // chrome, no focus ring; the note's text is authored, not typed)
 
     pad: View [ x = 12, y = { classroot.barH + 6 }, clip = true,
@@ -986,16 +984,16 @@ class StickyWindow extends Window [ width = 300, height = 250, chrome = false,
     ]
 
 
-// ── a minimized window's dock tile: an INVISIBLE click target that runs the
-// SAME magnification wave as the icons (so its hit area and label track the
-// growing thumbnail beneath) — the visual is the WINDOW ITSELF, parked live
+// ── a minimized window's dock tile: an invisible click target that runs the
+// same magnification wave as the icons (so its hit area and label track the
+// growing thumbnail beneath) — the visual is the window itself, parked live
 // at this slot. The tile sits in the dock layer above the parked window, so
 // a click restores instead of poking the tiny content; its pill is the
 // DockIcon's, showing the window's title (or its app's name, untitled). ─────
 
 class MiniTile extends View [
 
-    // a STATIC POOL member (no replication, no Dataset): `ix` is assigned at
+    // a static pool member (no replication, no Dataset): `ix` is assigned at
     // the use site, and every property below is a pure constraint over the
     // app's mini state — one atomic write to miniRecs re-derives the whole
     // tile, so no per-row machinery exists to go stale
@@ -1007,7 +1005,7 @@ class MiniTile extends View [
     kind: string = { this.on ? "" + app.miniRecs[this.ix].kind : "" },
     hovered: boolean = false,
 
-    // geometry straight from THE mini layout (the same entries the parked
+    // geometry straight from the mini layout (the same entries the parked
     // window reads), translated into the minis section's local space
 
     slotW: number = { app.miniLayout != null && this.ix < app.miniLayout.length ? app.miniLayout[this.ix].w : 48 },
@@ -1022,17 +1020,17 @@ class MiniTile extends View [
     onMouseOut()  { hovered = false },
     onClick() { app.restoreMiniAt(this.ix) },
 
-    // the APP-ICON BADGE — on the TILE (the dock layer, above the plate's
-    // frost, so it renders crisp), GATED BY GEOMETRY: it shows exactly while
-    // the window is SEATED in this slot — its visual width equals the slot's
+    // the app-icon badge — on the tile (the dock layer, above the plate's
+    // frost, so it renders crisp), gated by geometry: it shows exactly while
+    // the window is seated in this slot — its visual width equals the slot's
     // (both sides derive from the same layout entry, so the equality holds
-    // through the magnification wave, and NEVER mid-journey: a traveling or
+    // through the magnification wave, and never mid-journey: a traveling or
     // restored window's scale·width can't match). Pure derived fact — no
     // arrival bookkeeping at all.
 
     seated: boolean = { app.seatCheck(app.miniWins, this.ix, this.slotW, app.winSeq, app.pointerX, app.dock.hot) },
 
-    // the badge is THE APP'S OWN DOCK ICON at badge scale (David's rule) —
+    // the badge is the app'S own dock icon at badge scale (David's rule) —
     // same class, same art, so the calendar badge carries the live date.
     // Its wave/size/position constraints are displaced at this use site, and
     // its pointer handlers forward to the tile (so no second pill appears).
@@ -1083,7 +1081,7 @@ class MiniTile extends View [
     ]
 
 
-// ── a dock icon: drawn, labeled, magnifying BY LAYOUT from resting centers ───
+// ── a dock icon: drawn, labeled, magnifying by layout from resting centers ───
 
 class DockIcon extends View [
 
@@ -1096,7 +1094,7 @@ class DockIcon extends View [
     hue2: Color = #2E5FA3,
     glyph: string = "",                          // a text glyph icon (⌘, ♪, …) …
     gsize: number = 0.42,                        //   … at this fraction of the plate (wide marks set less)
-    kind: string = "",                           // … OR drawn art: calendar | notes | mail | terminal | pencil | stickies
+    kind: string = "",                           // … or drawn art: calendar | notes | mail | terminal | pencil | stickies
     running: boolean = false,
     hovered: boolean = false,
 
@@ -1107,30 +1105,30 @@ class DockIcon extends View [
     reach: number = 150,                         // magnification falloff radius, px of pointer distance
     strip: number = 9,                           // the running-dot band under the icons
 
-    // the RESTING slot center in app coords — the magnification's source must
+    // the resting slot center in app coords — the magnification's source must
     // not read the magnified layout (a feedback loop); resting geometry is
     // fixed: `pitch` about the app's center
 
     cx0: number = { app.width / 2 + (this.ix - (this.slots - 1) / 2) * this.pitch - app.miniSpan / 2 },
 
-    // inside the strip, magnification TRACKS the pointer with no visible lag —
-    // so `near` (the horizontal falloff) is an UNSPRUNG constraint, instant
-    // response — and only the enter/exit ENVELOPE (the dock's `hot`, sprung
+    // inside the strip, magnification tracks the pointer with no visible lag —
+    // so `near` (the horizontal falloff) is an unsprung constraint, instant
+    // response — and only the enter/exit envelope (the dock's `hot`, sprung
     // fast, ~100ms) animates. An earlier per-icon spring (~300ms) read as syrup.
 
     near: number = { Math.max(0, 1 - Math.abs(app.pointerX - this.cx0) / this.reach) },
     env: number = { this.parent.parent.hot },
 
-    // the REAL width grows to 1.5× at the peak: neighbors displace, the
+    // the real width grows to 1.5× at the peak: neighbors displace, the
     // plate's edges push outward — magnification by layout, not paint
 
     width  = { this.rest * (1 + 0.5 * Math.pow(Math.max(0, this.near * this.env), 2)) },
     height = { this.width },
     y = { parent.height - this.height - this.strip - this.hopY },   // bottom-anchored above the dot strip
 
-    // the LAUNCH BOUNCE (Apple's): a ballistic arc — decelerating up, gravity
+    // the launch bounce (Apple's): a ballistic arc — decelerating up, gravity
     // down — twice, ~560ms per bounce, poked by the app on an application's
-    // FIRST open (or its first after a Quit). The group cascades `attribute`
+    // first open (or its first after a Quit). The group cascades `attribute`
     // to its members; each leg is one half of the parabola.
 
     hopY: number = 0,
@@ -1151,7 +1149,7 @@ class DockIcon extends View [
         cornerRadius = { parent.width * 0.23 }, clip = true,
         fill = { gradient(this.parent.hue1, this.parent.hue2) },
 
-        // glyph sizes stay FRACTIONAL: rounding them made the art tick in
+        // glyph sizes stay fractional: rounding them made the art tick in
         // whole-pixel steps while the plate glides subpixel — visible jitter
 
         g: Text [ x = center, y = center, fontWeight = semibold, textColor = 0xFFFFFF,
@@ -1159,7 +1157,7 @@ class DockIcon extends View [
             visible = { classroot.glyph != "" },
             text = { classroot ? "" + this.parent.parent.glyph : "" } ],
 
-        // drawn app art, authored in the RESTING 48-box and scaled with the
+        // drawn app art, authored in the resting 48-box and scaled with the
         // plate — the plausible-Mac-app set the dock's wave needed
 
         art: View [ x = 0, y = 0, width = 48, height = 48,
@@ -1220,7 +1218,7 @@ class DockIcon extends View [
                     d.stroke()
                     }
                 else if (k == "pencil") {
-                    // the pencil, drawn: eraser upper-left, TIP LOWER-RIGHT
+                    // the pencil, drawn: eraser upper-left, tip lower-right
                     // (a horizontal flip of the glyph it replaces), spanning
                     // most of the plate. Body + tip in white; the eraser seam
                     // and ferrule struck back across it in the plate's hue.
@@ -1259,9 +1257,9 @@ class DockIcon extends View [
                 },
             ],
 
-        // the calendar's LIVE face — the real weekday and day, from the clock
+        // the calendar's live face — the real weekday and day, from the clock
 
-        // the weekday sits CENTERED in the red band (13/48 of the plate)
+        // the weekday sits centered in the red band (13/48 of the plate)
 
         cwk: Text [ x = center, y = { (this.parent.width / 48 * 13 - this.height) / 2 },
             fontWeight = bold, textColor = 0xFFFFFF,
@@ -1276,7 +1274,7 @@ class DockIcon extends View [
 
     // the running-app dot, centered in the strip below the icon
 
-    // the dot marks IS-RUNNING and never bounces: adding hopY back cancels the
+    // the dot marks is-running and never bounces: adding hopY back cancels the
     // icon's launch-bounce offset, pinning the dot to the strip
 
     dot: View [ width = 4, height = 4, cornerRadius = 2,
@@ -1284,8 +1282,8 @@ class DockIcon extends View [
         visible = { running }, fill = { theme.textMuted } ],
 
     // the label pill — the dock's own quasi-tooltip: a frosted chip with a
-    // pointer tick, NO shadow, and a CONSTANT screen height. The icon under it magnifies; the pill must not ride it —
-    // its y is written so the icon's own bottom-anchored y CANCELS out,
+    // pointer tick, no shadow, and a constant screen height. The icon under it magnifies; the pill must not ride it —
+    // its y is written so the icon's own bottom-anchored y cancels out,
     // pinning the pill 34px above the dock's top whatever the icon's size.
 
     pill: View [ visible = { hovered },
@@ -1310,8 +1308,8 @@ class DockIcon extends View [
     ]
 
 
-// The desktop TRACKS the browser window: no size floor (a floor makes the
-// page scroll — a desktop never scrolls), and the root CLIPS, so windows
+// The desktop tracks the browser window: no size floor (a floor makes the
+// page scroll — a desktop never scrolls), and the root clips, so windows
 // hanging past an edge are cropped where they lie, never moved. Everything
 // anchored to edges (menu bar width, the clock's right edge, the dock's
 // bottom seat) re-derives from app.width/app.height on every host resize.
@@ -1324,10 +1322,10 @@ App [ clip = true, appName = "Declare Desktop",
 
     fill = { app.darkMode ? gradient(0x2A3A55, 0x18222F) : gradient(0x7FA8D9, 0x4A6FA5) },
 
-    // ── window-activation policy: the macOS rule — a click on a BACKGROUND
+    // ── window-activation policy: the macOS rule — a click on a background
     // window only brings it forward; the app inside hears nothing until the
     // window is front. Flip to false for click-through (the first click both
-    // activates AND lands in the content). ─────────────────────────────────
+    // activates and lands in the content). ─────────────────────────────────
 
     firstClickActivatesOnly: boolean = true,
 
@@ -1338,8 +1336,8 @@ App [ clip = true, appName = "Declare Desktop",
     dockFloor: number = 13,                      // the icons' resting bottom line, up from the desktop's bottom edge
     badgeEdge: number = 18,                      // a minimized window's app badge, at rest (hangs 2px past the thumb)
 
-    // activation is ONE View-typed slot: every window derives its look (shadow
-    // depth, bar tone, lights) from whether it IS this value
+    // activation is one View-typed slot: every window derives its look (shadow
+    // depth, bar tone, lights) from whether it is this value
 
     frontWin: View = null,
     winCount: number = 0,                        // ever-opened count — staggers spawn positions
@@ -1347,7 +1345,7 @@ App [ clip = true, appName = "Declare Desktop",
 
     // ── the application model: three "applications" share this desktop —
     // Files (the Finder), Markdown (the viewer), and Declare Calendar (the
-    // hosted app) — and the menu bar is CONTEXTUAL: it belongs to the front
+    // hosted app) — and the menu bar is contextual: it belongs to the front
     // window's application, exactly as the Mac's does. A window's app is
     // read from its class; About windows carry theirs explicitly.
 
@@ -1372,10 +1370,10 @@ App [ clip = true, appName = "Declare Desktop",
             : a == "desktop" ? "Declare Desktop" : "Files"
         },
 
-    // View & Edit Source opens the RUNNING PROGRAM ITSELF in the Declare
-    // Viewer — as an EMBEDDED APP in a desktop window: the AppWindow hosts
+    // View & Edit Source opens the running program itself in the Declare
+    // Viewer — as an embedded app in a desktop window: the AppWindow hosts
     // apps/viewer, and `program=` in its env segment names the subject (a
-    // path valid in THIS app's transport base). The viewer self-loads that
+    // path valid in this app's transport base). The viewer self-loads that
     // program's ?segments and ?file artifacts — reader mode by default.
 
     sourceRel(a) {
@@ -1416,8 +1414,8 @@ App [ clip = true, appName = "Declare Desktop",
     focusWin(w) { if (w == null) return; if (this.isMin(w)) this.restoreMini(w); else w.activate() },
 
     // Quit closes every window of that application — each by its own reverse
-    // zoom — and clears its RUNNING flag (Files has no Quit: like the Finder,
-    // it's always running). Running is an APPLICATION state, not a window
+    // zoom — and clears its running flag (Files has no Quit: like the Finder,
+    // it's always running). Running is an application state, not a window
     // count: closing the last window leaves the app running (and its dock
     // dot lit), exactly as macOS does — only Quit ends it.
 
@@ -1430,7 +1428,7 @@ App [ clip = true, appName = "Declare Desktop",
         else if (a == "stickies") stRunning = false
         },
 
-    // a dock icon's click, macOS's way: a running app's icon RAISES its open
+    // a dock icon's click, macOS's way: a running app's icon raises its open
     // windows (in their stacking order, so the front one ends front); with
     // none open — running or not — the app's default open runs instead
 
@@ -1443,10 +1441,10 @@ App [ clip = true, appName = "Declare Desktop",
         open()
         },
 
-    // ── minimize-to-dock (the Mac's): a minimized window becomes a DOCK
-    // CITIZEN — its geometry constraints (Window.miniCx …) run the icons'
+    // ── minimize-to-dock (the Mac's): a minimized window becomes a dock
+    // citizen — its geometry constraints (Window.miniCx …) run the icons'
     // own wave math, so it magnifies and displaces with the row; the dock's
-    // span is SPRUNG, so the plate widens smoothly to admit it. The records
+    // span is sprung, so the plate widens smoothly to admit it. The records
     // here drive the invisible hit tiles and their label pills. ────────────
 
     isMin(w) { return w != null && w.dockSlot != null && w.dockSlot >= 0 },
@@ -1460,14 +1458,14 @@ App [ clip = true, appName = "Declare Desktop",
     miniRecs: array = null,
 
     // compact the slot indices and rebuild the tile records — after every
-    // park, unpark, and close-of-parked. Slot widths are PER WINDOW: the
-    // thumbnail keeps its window's aspect, its LONGER edge matching an app
+    // park, unpark, and close-of-parked. Slot widths are per window: the
+    // thumbnail keeps its window's aspect, its longer edge matching an app
     // icon's edge, so it is never wider or taller than an icon.
 
     sizeOf(w) { return ({ w: w.width, h: w.height }) },
 
-    // miniWins mirrors the records BY INDEX with the window references — a
-    // PARALLEL app attr, kept OUT of the records: records are data, and a
+    // miniWins mirrors the records by index with the window references — a
+    // parallel app attr, kept out of the records: records are data, and a
     // View's circular graph must never enter data-shaped state
 
     miniWins: array = null,
@@ -1479,7 +1477,7 @@ App [ clip = true, appName = "Declare Desktop",
         for (let i = 0; i < ws.length; i++) {
             this.setIx(ws[i], i)
             const z = this.sizeOf(ws[i])
-            // the LONGER edge matches an app icon's edge: a minimized
+            // the longer edge matches an app icon's edge: a minimized
             // window is never wider or taller than an icon
             const slotW = Math.round(z.w * (this.iconEdge / Math.max(z.w, z.h)))
             out.push(({ ix: i, label: this.labelFor(ws[i]), kind: this.appOf(ws[i]), w: slotW }))
@@ -1489,23 +1487,23 @@ App [ clip = true, appName = "Declare Desktop",
         miniWins = ws
         miniCount = out.length
         // the section: divider zone (17) + the slots + the last badge's 2px
-        // overhang, so the plate's right margin starts at the BADGE's edge
+        // overhang, so the plate's right margin starts at the badge's edge
         miniGoal = out.length > 0 ? total + 9 + 2 : 0
         },
 
-    // the minimized section's width — SPRUNG toward the rebuilt goal, so
+    // the minimized section's width — sprung toward the rebuilt goal, so
     // admitting or releasing a tile widens and narrows the dock as motion
 
     miniGoal: number = 0,
     miniSpan: number = 0,
     spanSpring: Spring [ attribute = miniSpan, to = { app.miniGoal }, stiffness = 380, damping = 34, epsilon = 0.5 ],
 
-    // ── THE mini layout: one computation both the parked windows and their
-    // hit tiles read (deps arrive as ARGUMENTS, so the constraint visibly
+    // ── the mini layout: one computation both the parked windows and their
+    // hit tiles read (deps arrive as arguments, so the constraint visibly
     // tracks them — the windowItems pattern). Left-anchored accumulation,
     // exactly like the icon row's layout: a magnified thumbnail pushes its
-    // neighbors RIGHT and never crosses the divider on its left. The wave's
-    // falloff runs over RESTING centers (the icons' anti-feedback rule).
+    // neighbors right and never crosses the divider on its left. The wave's
+    // falloff runs over resting centers (the icons' anti-feedback rule).
 
     miniLayout: array = { this.computeMiniLayout(app.miniRecs, app.pointerX, app.dock.hot,
         app.dock.x, app.dock.row.width, app.miniSpan, app.width) },
@@ -1546,10 +1544,10 @@ App [ clip = true, appName = "Declare Desktop",
     startPark(w) { w.miniBack.stop(); w.bornX = 0; w.bornY = 0; w.miniGo.start() },
     startUnpark(w) { w.miniGo.stop(); w.miniBack.start() },
 
-    // SETTLED-park state rides the RECORDS (the badge derives from its
+    // settled-park state rides the records (the badge derives from its
     // record's `full`, plain data — no reactive aggregation in constraints):
     // full only after the arriving journey completes, and cleared the
-    // INSTANT the journey home begins
+    // instant the journey home begins
 
     homingOf(w) { return w != null && w.homing == true },
     setHoming(w, v) { w.homing = v },
@@ -1566,14 +1564,14 @@ App [ clip = true, appName = "Declare Desktop",
 
     bringFront(w) { w.activate() },              // any-seam (focusWin would recurse via isMin)
 
-    // seatedness for a tile's badge: the window's VISUAL width equals the
+    // seatedness for a tile's badge: the window's visual width equals the
     // slot's — geometry, not bookkeeping. Deps arrive as arguments (the
     // windowItems pattern); winSeq re-derives it at every journey boundary
     // (miniGo's completion nudges it), pointer/hot cover the wave frames.
 
     seatCheck(wins, i, slotW, seq, px, hot) {
         const w = wins != null && i >= 0 && i < wins.length ? wins[i] : null
-        if (w == null || w.homing == true) return false   // homing = leaving NOW: the badge goes first
+        if (w == null || w.homing == true) return false   // homing = leaving now: the badge goes first
         return w.scale < 0.9 && Math.abs(w.scale * w.width - slotW) < 0.5
         },
 
@@ -1582,8 +1580,8 @@ App [ clip = true, appName = "Declare Desktop",
     restoreMini(w) {
         if (w == null || !this.isMin(w) || this.homingOf(w)) return   // already on the way home
         this.setHoming(w, true)
-        this.startUnpark(w)                      // the slot stays MINE until the journey home ends
-        this.bringFront(w)                       // FRONTMOST from the first frame of the journey
+        this.startUnpark(w)                      // the slot stays mine until the journey home ends
+        this.bringFront(w)                       // frontmost from the first frame of the journey
         winSeq = winSeq + 1
         },
 
@@ -1610,7 +1608,7 @@ App [ clip = true, appName = "Declare Desktop",
         frontWin = w
         },
 
-    // a press that lands on NOTHING deeper (the wallpaper) also dismisses —
+    // a press that lands on nothing deeper (the wallpaper) also dismisses —
     // the App root is the sink of last resort
 
     dismissAbouts() {
@@ -1631,11 +1629,11 @@ App [ clip = true, appName = "Declare Desktop",
         frontWin = w
         },
 
-    // Every open verb takes `v`, the view the open came FROM (the
+    // Every open verb takes `v`, the view the open came from (the
     // double-clicked row or icon): the window zooms from its center — the
     // macOS behavior — and shrinks back to it on close. With no
     // origin (menu, dock, ⌘O) a window zooms gently from its own center.
-    // originOf resolves that center in APP coords by walking the parents.
+    // originOf resolves that center in app coords by walking the parents.
 
     originOf(v) {
         if (v == null) return null
@@ -1646,7 +1644,7 @@ App [ clip = true, appName = "Declare Desktop",
         return ({ x: ox, y: oy })
         },
 
-    // A FIRST open (count 0 — or 0 again after Quit) is a LAUNCH: the dock
+    // A first open (count 0 — or 0 again after Quit) is a launch: the dock
     // icon bounces (Apple's timing) and the window appears mid-second-bounce,
     // as a fast-launching Mac app's does. Later opens are instant.
 
@@ -1673,7 +1671,7 @@ App [ clip = true, appName = "Declare Desktop",
         else go()
         },
 
-    // a FULL Declare app in a window — the path is demos/-relative (the slot
+    // a full Declare app in a window — the path is demos/-relative (the slot
     // convention): "../../calendar/calendar" runs the real calendar,
     // "../../viewer/viewer" the Declare Viewer. `envExtra` appends to the
     // window's env segment ("program=…"). The two hosted apps count
@@ -1683,7 +1681,7 @@ App [ clip = true, appName = "Declare Desktop",
     calCount: number = 0,
     dvCount: number = 0,
 
-    // RUNNING is per application and survives its windows: set when a launch
+    // running is per application and survives its windows: set when a launch
     // completes, cleared only by Quit — the dock dots read exactly these
 
     mdRunning: boolean = false,
@@ -1698,8 +1696,8 @@ App [ clip = true, appName = "Declare Desktop",
 
     openApp(p, nm, v, envExtra) {
         const isCal = ("" + p).indexOf("calendar") >= 0
-        // the launch gate: flags move INSIDE go(), so the running dot appears
-        // when the app HAS launched (mid-second-bounce), not at the click —
+        // the launch gate: flags move inside go(), so the running dot appears
+        // when the app has launched (mid-second-bounce), not at the click —
         // the mid-launch flag guards a double-click during the bounce
         const first = !(isCal ? calRunning : dvRunning) && !(isCal ? launching : dvLaunching)
         if (first) { if (isCal) launching = true; else dvLaunching = true }
@@ -1711,7 +1709,7 @@ App [ clip = true, appName = "Declare Desktop",
             winSeq = winSeq + 1
             const wx = 110 + (winCount % 5) * 30
             const wy = 24 + (winCount % 5) * 22
-            // the calendar wants ROOM — a month grid reads best wide; the
+            // the calendar wants room — a month grid reads best wide; the
             // viewer keeps the base app-window size
             const ww = isCal ? 1000 : 880
             const wh = isCal ? 680 : 560
@@ -1727,7 +1725,7 @@ App [ clip = true, appName = "Declare Desktop",
         else go()
         },
 
-    // ── Stickies: the BUILT-IN application — its notes are StickyWindows in
+    // ── Stickies: the built-in application — its notes are StickyWindows in
     // this very program, no island involved. The welcome note pre-opens at
     // boot (so Stickies boots running, dot lit, no bounce — it was already
     // up when you arrived); later launches bounce like any app's.
@@ -1782,7 +1780,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         this.rebuildMinis()                      // a Quit can take a minimized window's tile with it
         },
 
-    // the menu-bar clock is LIVE — a hardcoded time sitting one pixel column
+    // the menu-bar clock is live — a hardcoded time sitting one pixel column
     // from the real menu bar's is the first thing the eye catches
 
     clockText: string = "",
@@ -1801,7 +1799,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         dayNum = d.getDate()
         },
 
-    // ── the documentation model: ONE fetch of the docs app's own spine; the
+    // ── the documentation model: one fetch of the docs app's own spine; the
     // Finder's Guide + Reference folders and the synthesized reference pages
     // all derive from it ──────────────────────────────────────────────────
 
@@ -1826,13 +1824,13 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
 
     // 15s ticks catch the minute flip well within a minute-precision display
 
-    // the welcome note is DEFERRED one tick: its position derives from
+    // the welcome note is deferred one tick: its position derives from
     // app.width, which is not yet live inside onInit (the host wires sizes
     // after construction) — an immediate open would land on the fallback floor
 
     onInit() { this.docsModel.fetch(); this.newFinder(); setTimeout(() => this.openWelcome(), 0); this.tick(); setInterval(() => this.tick(), 15000) },
 
-    // ── ⌘-shortcuts dispatch from the MENUS' OWN RECORDS (the Newton
+    // ── ⌘-shortcuts dispatch from the menus' own records (the Newton
     // direction, planes.md §9): one registry, derived from whatever the
     // contextual bar currently shows, so the active application's keys are
     // automatically the live set — nothing declared twice. (The hold-⌘ HUD
@@ -1854,9 +1852,9 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
 
     wins: View [ x = 0, y = { app.menuBarH }, width = { app.width }, height = { app.height - app.menuBarH } ],
 
-    winSeq: number = 0,                          // bumped on every open/close, so window LISTS re-derive
+    winSeq: number = 0,                          // bumped on every open/close, so window lists re-derive
 
-    // ── the menu bar: whole menus as RECORDS, and CONTEXTUAL — the array
+    // ── the menu bar: whole menus as records, and contextual — the array
     // re-derives from the active application (and from winSeq/frontWin for
     // the Window menu), so the bar follows focus the way the Mac's does,
     // live even while a menu is open ───────────────────────────────────────
@@ -1894,7 +1892,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         ({ id: "window", label: "Window", items: this.windowItems(this.winSeq, app.frontWin) }),
         ({ id: "help", label: "Help", items: [
             ({ id: "hsearch", kind: "HelpSearch" }),
-            ({ id: "help-app", label: this.nameOf(this.activeApp) + " Help", icon: "?" }),
+            ({ id: "help-app", label: this.nameOf(this.activeApp) + " Help", icon: "lightbulb" }),
         ] }),
     ] },
 
@@ -1914,8 +1912,8 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         return out
         },
 
-    // the Window menu is LIVE STATE AS RECORDS: the active application's open
-    // windows, front one checked. `seq` and `front` arrive as ARGUMENTS so
+    // the Window menu is live state as records: the active application's open
+    // windows, front one checked. `seq` and `front` arrive as arguments so
     // the menus constraint above visibly reads them — its re-derive hooks.
 
     isPlain(w) { return w != null && w.plain == true },      // any-typed seams for a View-typed list
@@ -1952,13 +1950,13 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         // the enter/exit envelope the icons scale by — sprung fast (~100ms), so
         // entry reads as one quick motion; inside the strip the icons track
         // the pointer directly.
-        // The band has HYSTERESIS: it arms at 96px above the bottom edge, but
-        // while hot it holds to 118 — past a MAGNIFIED icon's crest (~106).
+        // The band has hysteresis: it arms at 96px above the bottom edge, but
+        // while hot it holds to 118 — past a magnified icon's crest (~106).
         // Without it, hovering the top of a grown icon sat above the arming
         // line, collapsing the dock under the pointer — a pump the real dock
         // (whose hover region follows the magnified extent) never shows.
 
-        // `hovering` gates the whole band: when the pointer LEAVES the
+        // `hovering` gates the whole band: when the pointer leaves the
         // browser window the platform clears it, so the dock cools instead
         // of staying magnified at the pointer's last known column
 
@@ -1968,7 +1966,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         heat: Spring [ attribute = hot, to = { app.hovering && app.pointerY > app.height - (parent.hot > 0.5 ? parent.holdBand : parent.armBand) ? 1 : 0 },
             stiffness = 900, damping = 55, epsilon = 0.001 ],
 
-        // at REST the icons sit clearly INSIDE the plate; a magnified icon
+        // at rest the icons sit clearly inside the plate; a magnified icon
         // crests above its top — bottom-anchored, top rises. The row must be
         // dock-height: the icons' bottom anchor reads parent.height, and a
         // shorter row would float them above the plate at rest.
@@ -1982,7 +1980,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         row: View [ x = 9, y = 0, height = { parent.height },
             layout: SimpleLayout [ axis = x, spacing = 8 ],
 
-            // a RUNNING app's icon raises its open windows instead of opening
+            // a running app's icon raises its open windows instead of opening
             // more — dockOpen: raise if any, else the app's default open
             // (which itself decides launch-bounce vs instant by the flag)
 
@@ -1995,14 +1993,14 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
                 onClick() { app.dockOpen("markdown", () => app.openViewer("../../docs/declare.md", "declare.md")) },
                 ],
 
-            // Guide is a DOCUMENT icon (no running state): it always opens
+            // Guide is a document icon (no running state): it always opens
             // its document — in the Markdown application
 
             DockIcon [ ix = 2, name = "Guide", kind = "pencil", hue1 = #F49B45, hue2 = #C96B1D,
                 onClick() { app.openViewer("../../docs/guide/01-thinking-in-declare.md", "Thinking in Declare") },
                 ],
 
-            // the Declare Viewer as a dock APPLICATION: launches (bounce, dot,
+            // the Declare Viewer as a dock application: launches (bounce, dot,
             // Quit) like the others, hosting the real apps/viewer as an
             // embedded app — opened, by default, on this program's own source
 
@@ -2028,8 +2026,8 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
             DockIcon [ ix = 8, name = "Terminal", kind = "terminal", hue1 = #3A3A40, hue2 = #17171B ],
             ],
 
-        // ── the MINIMIZED-WINDOWS section (the Mac's): a vertical divider,
-        // then a hit tile per minimized window — the VISUALS are the parked
+        // ── the minimized-window section (the Mac's): a vertical divider,
+        // then a hit tile per minimized window — the visuals are the parked
         // windows themselves, riding the same wave (Window.miniCx). The
         // section exists only while the sprung span is open; the divider
         // fades with the widening, so growth reads as one motion, no seam.
@@ -2043,7 +2041,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
                 fill = { app.darkMode ? this.inkD : this.inkL },
                 ],
 
-            // a STATIC POOL of tiles, not replication: each is a pure
+            // a static pool of tiles, not replication: each is a pure
             // constraint reader over the app's mini state, positioned from
             // the shared layout — there is no per-row machinery to go stale
 

@@ -1014,12 +1014,12 @@ App [ appName = "Declare",
 
             // redundant at phone width (section 02 links it) — drop it before the nav rides the wordmark
 
-            NavLink [ label = "Declare Calendar", url = "apps/calendar/calendar.declare", visible = { app.width >= 620 } ],
+            NavLink [ label = "Calendar", url = "apps/calendar/calendar.declare", visible = { app.width >= 620 } ],
 
             // desktop drops first as the window narrows — the widest link, kept
             // only while the nav clears the wordmark
 
-            NavLink [ label = "Declare Desktop", url = "apps/desktop/desktop.declare", visible = { app.width >= 760 } ],
+            NavLink [ label = "Desktop", url = "apps/desktop/desktop.declare", visible = { app.width >= 760 } ],
             NavLink [ label = "Docs", url = "apps/docs/docs.declare" ],
             ],
         ],
