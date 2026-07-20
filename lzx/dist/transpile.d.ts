@@ -1,4 +1,4 @@
-import type { Gap } from "./gaps.js";
+import { type Gap } from "./gaps.js";
 export interface LzxDiagnostic {
     message: string;
     pos: {
@@ -13,4 +13,4 @@ export interface TranspileResult {
     gaps: Gap[];
     diagnostics: LzxDiagnostic[];
 }
-export declare function lzxToDeclare(_src: string): TranspileResult;
+export declare function lzxToDeclare(src: string): TranspileResult;
