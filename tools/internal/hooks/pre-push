@@ -1,0 +1,17 @@
+#!/bin/sh
+#
+# pre-push: mirror the pushed tree to davidtemkin.com/declare (Firebase
+# Hosting, via ~/Code/Mesa/scripts/deploy-declare.sh). The content gate is
+# the same as GitHub Pages': the COMMITTED tree at HEAD — what goes to
+# origin goes to the site. Non-fatal by design: a hosting hiccup must never
+# block a push (GitHub Pages doesn't either); the script can always be
+# re-run by hand.
+
+if [ -x "$HOME/Code/Mesa/scripts/deploy-declare.sh" ]; then
+  "$HOME/Code/Mesa/scripts/deploy-declare.sh" HEAD \
+    || echo "pre-push: Firebase deploy FAILED — push continues; re-run ~/Code/Mesa/scripts/deploy-declare.sh by hand"
+else
+  echo "pre-push: ~/Code/Mesa/scripts/deploy-declare.sh not found — skipping the davidtemkin.com/declare mirror"
+fi
+
+exit 0
