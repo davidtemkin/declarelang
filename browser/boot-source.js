@@ -11,7 +11,11 @@
 import { bootHost } from "./host-client.js";
 import { registerServiceWorker } from "./register-sw.js";
 import { loadCompiler, ensureLibrary } from "./compiler-client.js";
-import { lineMetrics } from "../compiler/dist/highlight.js";   // dependency-free; the same count the server seeds
+// highlight + lineMetrics are DEPENDENCY-FREE (no TS, no compiler bundle): the
+// segmenter the server runs is the same module, imported directly — so a source
+// page never needs the compiler download just to render segments.
+import { highlight, lineMetrics } from "../compiler/dist/highlight.js";
+import { loadPrewarm } from "./prewarm-cache.js";
 
 const ROOT = new URL("../", import.meta.url);
 // The file to display — an absolute URL the SW passed on this module's own URL — and
@@ -25,38 +29,53 @@ async function run() {
   const host = document.getElementById("host");
   if (!target) return showError(host, "no source URL — the Service Worker did not pass ?src=…");
   try {
-    const viewerUrl = new URL("apps/viewer/viewer.declare", ROOT);
-    // In parallel: the one compiler client (worker or inline, library registered
-    // as its default), the viewer shell source, and the target file being viewed.
-    // Nothing depends on another, so one round-trip.
-    const [client, viewerSrc, raw] = await Promise.all([
-      loadCompiler().then(ensureLibrary),
-      fetch(viewerUrl, { cache: "no-cache" }).then((r) => { if (!r.ok) throw new Error(r.status + " fetching the code viewer"); return r.text(); }),
-      fetch(target, { cache: "no-cache" }).then((r) => { if (!r.ok) throw new Error(r.status + " fetching " + target); return r.text(); }),
-    ]);
-    const out = await client.compile(viewerSrc);
-    if (!out.source) {
-      // The compile's own rendered report — the ONE renderer's output.
-      return showError(host, out.report || "the code viewer failed to compile");
+    // The compiler client warm-loads in the BACKGROUND from the start — live-edit
+    // recompiles await it (first edit waits, nothing else does). It leaves the
+    // paint path entirely when the viewer itself comes precompiled below.
+    const clientP = loadCompiler().then(ensureLibrary);
+    clientP.catch(() => {});                        // surfaces on first use, not as an unhandled rejection
+    const raw = await fetch(target, { cache: "no-cache" })
+      .then((r) => { if (!r.ok) throw new Error(r.status + " fetching " + target); return r.text(); });
+
+    // The viewer app itself: PREWARM first (bundles/cache/ — the committed
+    // precompiled artifact, validated by content hash like every prewarm hit), so
+    // a reader/source tab paints with NO compiler download; a stale/absent
+    // artifact falls through to the in-browser compile of the viewer source.
+    let source, deps;
+    const warm = await loadPrewarm({ root: ROOT, relMain: "apps/viewer/viewer.declare",
+      kind: "run", props: { render: "dom" }, fetchImpl: fetch });
+    if (warm) {
+      source = warm.program; deps = warm.deps;
+    } else {
+      const viewerSrc = await fetch(new URL("apps/viewer/viewer.declare", ROOT), { cache: "no-cache" })
+        .then((r) => { if (!r.ok) throw new Error(r.status + " fetching the code viewer"); return r.text(); });
+      const out = await (await clientP).compile(viewerSrc);
+      if (!out.source) {
+        // The compile's own rendered report — the ONE renderer's output.
+        return showError(host, out.report || "the code viewer failed to compile");
+      }
+      source = out.source; deps = out.deps;
     }
-    // highlight() → the prose/code SEGMENTS the viewer renders; __raw__ = the verbatim
-    // file (the plain-text toggle — segments can't reconstruct it faithfully); __path__ =
-    // the tree-relative path shown in the head. The viewer reads them off app.demoSources.
-    const segments = await client.highlight(raw);
+    // highlight() → the prose/code SEGMENTS the viewer renders — run DIRECTLY (the
+    // dependency-free module above, the very code the compiler bundle re-exports);
+    // __raw__ = the verbatim file (the plain-text toggle — segments can't reconstruct
+    // it faithfully); __path__ = the tree-relative path shown in the head. The viewer
+    // reads them off app.demoSources.
+    const segments = highlight(raw);
     const relPath = new URL(target).pathname.replace(new URL(ROOT).pathname, "");
     document.title = (relPath.split("/").pop() || "source") + " — source";
     await bootHost({
-      source: out.source,
+      source, deps,
       // The `?viewer=reader|source|edit` request selects the opening tab; the host
       // translates it into the viewer's INITIAL location (docs/system-design/location.md §4).
       // A real URL fragment still wins, so a shared `…#source` deep link holds.
       location: mode,
       seeds: { __source__: JSON.stringify(segments), __raw__: raw, __path__: relPath,
         __metrics__: JSON.stringify(lineMetrics(raw)) },
-      // the live-edit mode's recompile seam — the same in-browser client,
+      // the live-edit mode's recompile seam — the warm-loading client above,
       // reporting failure as `{ report }` so the viewer's diagnostics pane fills
       compile: async (s) => {
-        const o = await client.compile(s);
+        const o = await (await clientP).compile(s);
         return o.source ? { source: o.source, deps: o.deps } : { report: o.report || "compile failed" };
       },
     });

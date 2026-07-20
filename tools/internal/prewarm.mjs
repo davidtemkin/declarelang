@@ -50,6 +50,17 @@ const PROGRAMS = [
   { main: "apps/calendar/calendar.declare", props: { render: "dom" }, kinds: ["run"] },
   { main: "apps/docs/docs.declare", props: { render: "dom" }, kinds: ["run", "crawler"] },
   { main: "apps/desktop/desktop.declare", props: { render: "dom" }, kinds: ["run"] },
+  // every View Source / ?viewer= page boots the viewer — high-traffic on the
+  // static deploy, so its first paint deserves the compiler-free path too
+  { main: "apps/viewer/viewer.declare", props: { render: "dom" }, kinds: ["run"] },
+  // the homepage's live demo panels (index.html `demos: […]`): prewarmed, the
+  // previews mount the moment the page paints — no compiler download on the
+  // path at all (host-client tries cfg.prewarm before the live-compile tier).
+  // Islands always render on the DOM backend, so render:dom is the one key.
+  { main: "apps/homepage/demos/components.declare", props: { render: "dom" }, kinds: ["run"] },
+  { main: "apps/homepage/demos/reactivity.declare", props: { render: "dom" }, kinds: ["run"] },
+  { main: "apps/homepage/demos/spring.declare", props: { render: "dom" }, kinds: ["run"] },
+  { main: "apps/homepage/demos/states.declare", props: { render: "dom" }, kinds: ["run"] },
 ];
 
 const toPosix = (p) => p.split(path.sep).join("/");

@@ -177,7 +177,23 @@ class Button extends View [ height = 46, cornerRadius = 9,
 
 One line, shared by every page of the site — the scrolling front page and the
 in-app Why / Language views alike: provenance left, legal right.
+
+A `FootLink` is the footer's link rendition: the eyebrow treatment with the
+teal hover and the brighter pressed tap feedback, navigating on click.
 */
+
+class FootLink extends FootLabel [
+    to: string = "",
+    hovered: boolean = false,
+    pressed: boolean = false,
+    textColor = { pressed ? theme.accent2Press : hovered ? theme.accent2 : theme.muted },
+    onMouseOver() { hovered = true },
+    onMouseOut()  { hovered = false; pressed = false },
+    onMouseDown() { pressed = true },
+    onMouseUp()   { pressed = false },
+    onClick()     { app.navigate(to) },
+    ]
+
 
 class Footer extends View [ width = { parent.width },
     layout: SimpleLayout [ axis = y, spacing = 16 ],
@@ -199,33 +215,20 @@ class Footer extends View [ width = { parent.width },
 
             // source affordance in the same eyebrow treatment
 
-            src: FootLabel [ hovered: boolean = false,
-                pressed: boolean = false,
-
-                // pressed brightens past the hover teal — the tap feedback on touch
-
-                textColor = { pressed ? theme.accent2Press : hovered ? theme.accent2 : theme.muted },
-                onMouseOver() { hovered = true },
-                onMouseOut()  { hovered = false; pressed = false },
-                onMouseDown() { pressed = true },
-                onMouseUp()   { pressed = false },
-                onClick()     { app.navigate("apps/homepage/homepage.declare?viewer") },
-                text = "View Source",
-                ],
+            src: FootLink [ to = "apps/homepage/homepage.declare?viewer", text = "View Source" ],
             ],
 
         right: View [ x = { parent.width - this.width },
             layout: SimpleLayout [ axis = x, spacing = 12 ],
 
-            // the license is a real artifact (repo-root LICENSE) — the label opens it
+            // the deep artifacts, then the legal line; the license is a real
+            // artifact (repo-root LICENSE) — the label opens it
 
-            lic: FootLabel [ hovered: boolean = false,
-                textColor = { hovered ? theme.accent2 : theme.muted },
-                onMouseOver() { hovered = true },
-                onMouseOut()  { hovered = false },
-                onClick()     { app.navigate("https://github.com/davidtemkin/declarelang/blob/main/LICENSE") },
-                text = "MIT License",
-                ],
+            FootLink [ to = "apps/docs/docs.declare", text = "Docs" ],
+            FootLabel [ textColor = { theme.faint }, text = "·" ],
+            FootLink [ to = "https://github.com/davidtemkin/declarelang", text = "GitHub" ],
+            FootLabel [ textColor = { theme.faint }, text = "·" ],
+            lic: FootLink [ to = "https://github.com/davidtemkin/declarelang/blob/main/LICENSE", text = "MIT License" ],
             FootLabel [ textColor = { theme.faint }, text = "·" ],
             FootLabel [ text = "© 2026 David Temkin" ],
             ],
@@ -1012,8 +1015,12 @@ App [ appName = "Declare",
             // redundant at phone width (section 02 links it) — drop it before the nav rides the wordmark
 
             NavLink [ label = "Declare Calendar", url = "apps/calendar/calendar.declare", visible = { app.width >= 620 } ],
+
+            // desktop drops first as the window narrows — the widest link, kept
+            // only while the nav clears the wordmark
+
+            NavLink [ label = "Declare Desktop", url = "apps/desktop/desktop.declare", visible = { app.width >= 760 } ],
             NavLink [ label = "Docs", url = "apps/docs/docs.declare" ],
-            NavLink [ label = "GitHub", url = "https://github.com/davidtemkin/declarelang" ],
             ],
         ],
 
