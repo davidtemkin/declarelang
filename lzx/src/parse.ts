@@ -12,6 +12,11 @@ export interface LzxDoc { root: LzxNode | null; errors: LzxError[] }
 const NAME_START = /[A-Za-z_:]/;
 const NAME_CHAR = /[A-Za-z0-9_:.\-]/;
 
+const ENTITIES: Record<string, string> = { "&lt;": "<", "&gt;": ">", "&amp;": "&", "&quot;": '"', "&apos;": "'" };
+function decodeEntities(s: string): string {
+  return s.replace(/&(?:lt|gt|amp|quot|apos);/g, (m) => ENTITIES[m] ?? m);
+}
+
 class Reader {
   i = 0; line = 1; col = 1;
   readonly errors: LzxError[] = [];
@@ -99,7 +104,7 @@ function parseAttrs(r: Reader): LzxAttr[] {
         while (!r.eof() && !/[\s>/]/.test(r.peek())) { value += r.peek(); r.adv(); }
       }
     }
-    attrs.push({ name, value, pos });
+    attrs.push({ name, value: decodeEntities(value), pos });
   }
   return attrs;
 }
@@ -114,15 +119,25 @@ function parseContent(r: Reader, tag: string): { children: LzxNode[]; text: stri
       if (r.peek() === ">") r.adv();
       break;
     }
+    if (r.startsWith("<![CDATA[")) {
+      r.adv(9);
+      let raw = "";
+      while (!r.eof() && !r.startsWith("]]>")) { raw += r.peek(); r.adv(); }
+      if (r.startsWith("]]>")) r.adv(3);
+      text += raw; // opaque — no entity decoding
+      continue;
+    }
     if (r.startsWith("<!--")) { r.adv(4); skipUntil(r, "-->"); continue; }
+    else if (r.startsWith("<!")) { skipUntil(r, ">"); continue; }
     if (r.startsWith("<?")) { skipUntil(r, "?>"); continue; }
     if (r.peek() === "<") {
       const child = parseElement(r);
       if (child) children.push(child); else r.adv();
       continue;
     }
-    text += r.peek();
-    r.adv();
+    let chunk = "";
+    while (!r.eof() && r.peek() !== "<") { chunk += r.peek(); r.adv(); }
+    text += decodeEntities(chunk);
   }
   return { children, text };
 }

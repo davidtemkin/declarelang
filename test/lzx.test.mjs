@@ -44,4 +44,26 @@ await test("records a 1-based line/col Pos on the root", () => {
   if (doc.root.pos.line !== 2 || doc.root.pos.col !== 3) throw new Error("pos: " + JSON.stringify(doc.root.pos));
 });
 
+// ── Task 2: CDATA + entities ───────────────────────────────────────────────
+
+await test("decodes the five XML entities in text", () => {
+  const doc = parseLzx(`<x>a &lt; b &amp;&amp; c &gt; d &quot;e&quot; &apos;f&apos;</x>`);
+  if (doc.root.text.trim() !== `a < b && c > d "e" 'f'`) throw new Error("text: " + JSON.stringify(doc.root.text));
+});
+
+await test("decodes entities in attribute values", () => {
+  const doc = parseLzx(`<x cond="a &lt; b"/>`);
+  if (doc.root.attrs[0].value !== "a < b") throw new Error("val: " + doc.root.attrs[0].value);
+});
+
+await test("treats CDATA as opaque raw text", () => {
+  const doc = parseLzx(`<method><![CDATA[ if (a < b && c > d) x(); ]]></method>`);
+  if (doc.root.text.trim() !== "if (a < b && c > d) x();") throw new Error("cdata: " + JSON.stringify(doc.root.text));
+});
+
+await test("skips comments inside content", () => {
+  const doc = parseLzx(`<x><!-- note --><view/></x>`);
+  if (doc.root.children.length !== 1 || doc.root.children[0].tag !== "view") throw new Error("kids");
+});
+
 summarize("lzx");
