@@ -162,7 +162,14 @@ App [ fill = { app.theme.bg },
     themeMode: string = "auto",
     liveCard: string = "",      // the edit tab republishes each keystroke on this pair …
     liveSource: string = "",    // … and the host recompiles it, feeding app.liveReport back
-    isDark: boolean = { app.themeMode == "auto" ? app.dark : app.themeMode == "dark" },
+
+    // auto follows the HOST's appearance: an embedding desktop passes its
+    // dark mode through env.dark (live — the calendar's rule); standalone,
+    // the system preference decides. Light/Dark stay explicit overrides.
+
+    isDark: boolean = { app.themeMode == "auto"
+        ? (app.env.dark != null ? app.env.dark == true : app.dark)
+        : app.themeMode == "dark" },
     theme = { app.isDark ? app.darkTheme() : app.lightTheme() },
 
     // The highlight() segments, seeded by the server as a JSON string on the

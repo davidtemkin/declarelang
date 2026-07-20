@@ -1711,8 +1711,13 @@ App [ clip = true,
             winSeq = winSeq + 1
             const wx = 110 + (winCount % 5) * 30
             const wy = 24 + (winCount % 5) * 22
+            // the calendar wants ROOM — a month grid reads best wide; the
+            // viewer keeps the base app-window size
+            const ww = isCal ? 1000 : 880
+            const wh = isCal ? 680 : 560
             const o = this.originOf(v)
             const w = this.createView("AppWindow", this.wins, ({ appPath: "" + p, title: "" + nm, wx: wx, wy: wy,
+                width: ww, height: wh,
                 extraEnv: envExtra != null ? "" + envExtra : "",
                 bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - this.menuBarH : -1,
                 bornFrom: v != null ? v : null }))
