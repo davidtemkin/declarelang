@@ -30,7 +30,7 @@ import path from "node:path";
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, unlinkSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
-import { compileTracked, crawlExtract, diskDataResolver, crawlerDocument, lineMetrics } from "../../compiler/dist/compile-node.js";
+import { compileTracked, crawlExtract, diskDataResolver, crawlerDocument, lineMetrics, highlight } from "../../compiler/dist/compile-node.js";
 import { fnv1a } from "../../compiler/dist/closure.js";
 import { prewarmKey } from "../../browser/prewarm-cache.js";
 import { buildProduction } from "../declarec.mjs";
@@ -164,6 +164,20 @@ for (const prog of PROGRAMS) {
       closure: browserClosure(tracked.closure, {}),   // backend-independent
     });
     sizes.push(`crawler ${((document.length) / 1024).toFixed(1)}KB`);
+  }
+  {
+    // The VIEWER artifacts — every prebaked app ships its reader too: the
+    // highlighted segments and line metrics the dev server serves as
+    // `?segments`, here committed so the static host's viewer (standalone or
+    // embedded) shows the same reader. Validated against the ONE file the
+    // segments derive from — the program's own source.
+    const payload = { path: prog.main, segments: highlight(src), metrics: lineMetrics(src) };
+    writeArtifact(prewarmKey(prog.main, "segments", {}), {
+      main: prog.main, kind: "segments", props: {},
+      payload,
+      closure: { entries: [{ id: prog.main, kind: "file", v: { hash: fnv1a(src) } }], props: {} },
+    });
+    sizes.push(`segments ${(gzipSync(Buffer.from(JSON.stringify(payload))).length / 1024).toFixed(1)}KB gz`);
   }
   console.log(`  ${prog.main.padEnd(38)} ${closureRun.entries.length} dep(s) · ${sizes.join(" · ")}`);
 }

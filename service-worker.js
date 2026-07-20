@@ -29,11 +29,13 @@
 // (Chrome 91+ / Safari 16.4+ / Firefox 111+).
 
 import { requestType, REQ, runWrapper, programName, escapeHtml, directoryProgram } from "./browser/serve-core.js";
+import { prewarmKey, relativize } from "./browser/prewarm-cache.js";
+import { fnv1a } from "./compiler/dist/closure.js";
 
 // BUILD_ID — a content hash of the platform (runtime + compiler bundle + web client +
 // this worker + index.html), stamped by tools/internal/stamp-version.mjs. Left "dev" when unstamped
 // (local serving); a real deploy stamps it so cache-busting + the SW self-update engage.
-const BUILD_ID = "e71d414e2c67";
+const BUILD_ID = "a5b52ef6c004";
 
 const ROOT = new URL("./", self.location);            // <origin>/…/  (this worker's dir == the distro root)
 const ORIGIN = ROOT.origin;
@@ -73,11 +75,22 @@ self.addEventListener("fetch", (event) => {
   //                              server runs in Node);
   //   ?file / a plain fetch    → the EXACT source bytes (falls through to revalidate(),
   //                              same as an `include` the compiler reads, or curl).
-  // SEGMENTS + BUILD are GAPS on this compiler-free host (no bundler/highlighter in the
-  // SW yet): they fall through to the source bytes rather than erroring — uniformity
-  // follow-ups (design/requests.md). (The `?seo` FLAG — embed the crawler block in a run
+  // BUILD remains a GAP on this compiler-free host (no bundler in the SW): it falls
+  // through to the source bytes rather than erroring — a uniformity follow-up
+  // (design/requests.md). (The `?seo` FLAG — embed the crawler block in a run
   // page — is a BUILD-time affair here: crawlers don't install service workers, so
   // declarec/committed pages carry it, not this worker.)
+
+  // SEGMENTS — the viewer's reader artifacts, PREBAKED: every prewarmed program
+  // ships { path, segments, metrics } in bundles/cache/ (tools/internal/prewarm.mjs),
+  // validated here against the deployed source's hash. Any GET qualifies (the
+  // embedded viewer FETCHES this; the address bar navigates to it) — a miss or a
+  // stale artifact falls through to the raw bytes, the viewer's plain-code fallback.
+  if (url.pathname.endsWith(".declare") && requestType(url.searchParams) === REQ.SEGMENTS) {
+    event.respondWith(segmentsResponse(url, req));
+    return;
+  }
+
   if (req.mode === "navigate" && url.pathname.endsWith(".declare")) {
     const view = requestType(url.searchParams);
     if (view === REQ.RUN) { event.respondWith(hostPageResponse(url)); return; }
@@ -116,6 +129,24 @@ self.addEventListener("fetch", (event) => {
   // Everything else → revalidate against the host (fresh-on-deploy, cache as offline fallback).
   event.respondWith(revalidate(req));
 });
+
+// SEGMENTS: serve the prebaked viewer artifact for this program — the same
+// { path, segments, metrics } JSON the dev server computes — after proving it
+// still matches the deployed source (one content-hash check against the one
+// file segments derive from). Any failure falls through to the raw bytes.
+async function segmentsResponse(url, req) {
+  try {
+    const mainUrl = new URL(url.pathname, url.origin);
+    const rel = relativize(mainUrl.href, ROOT.href);
+    const art = await (await revalidate(new Request(new URL("bundles/cache/" + prewarmKey(rel, "segments", {}) + ".json", ROOT).href))).json();
+    const src = await (await revalidate(new Request(mainUrl.href))).text();
+    const want = art?.closure?.entries?.[0]?.v?.hash;
+    if (art?.payload == null || want == null || fnv1a(src) !== want) return revalidate(req);
+    return new Response(JSON.stringify(art.payload), { headers: { "content-type": "application/json" } });
+  } catch {
+    return revalidate(req);
+  }
+}
 
 // Always ask the host whether the asset changed (`no-cache` = conditional GET). A changed
 // file comes back 200 and re-populates the cache; an unchanged one validates cheaply. The
