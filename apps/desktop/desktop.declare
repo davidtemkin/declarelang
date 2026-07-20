@@ -1316,7 +1316,7 @@ class DockIcon extends View [
 // anchored to edges (menu bar width, the clock's right edge, the dock's
 // bottom seat) re-derives from app.width/app.height on every host resize.
 
-App [ clip = true,
+App [ clip = true, appName = "Declare Desktop",
     theme = { Themes.cupertino(app.darkMode) },
     fontFamily = "-apple-system, system-ui, sans-serif",
 
