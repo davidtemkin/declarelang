@@ -135,7 +135,8 @@ export function loadLibraryOnce() {
 async function loadLibrary() {
   try {
     const manifest = await fetch(new URL("library/autoincludes.json", DISTRO), { cache: "no-cache" }).then((r) => r.json());
-    const names = [...new Set(Object.values(manifest))];
+    // values are filenames — skip the structured entries ($provide is a rule list)
+    const names = [...new Set(Object.values(manifest).filter((v) => typeof v === "string"))];
     const files = {};
     await Promise.all(names.map(async (rel) => {
       const res = await fetch(new URL("library/" + rel, DISTRO), { cache: "no-cache" });

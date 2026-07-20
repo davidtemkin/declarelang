@@ -40,6 +40,13 @@ export declare class Animator extends Node implements Animatable {
     started: boolean;
     /** Freeze in place; resume continues (LZX). */
     paused: boolean;
+    /** ARRIVAL as a reactive fact — the animation twin of a DataSource's
+     *  `.loaded`: true only after a run completes NATURALLY at its destination;
+     *  false while running, after a mid-flight stop(), and before any run.
+     *  `visible = { open.settled }` says "this exists only at the settled
+     *  end-state" — no onStop bookkeeping, no interruption guards: a restart
+     *  clears it, an interrupted stop never sets it. */
+    settled: boolean;
     private running;
     /** Group-driven: an enclosing AnimatorGroup registers the clock and ticks
      *  us, so start()/stop() must NOT touch the shared clock themselves. */

@@ -7,6 +7,7 @@ export type Literal = {
     kind: "number";
     value: number;
     hex: boolean;
+    hexLen?: number;
     pos: Pos;
 } | {
     kind: "percent";

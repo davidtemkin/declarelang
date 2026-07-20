@@ -109,7 +109,8 @@ declare const Keys: { isDown(code: string): boolean; held(): string[] };
 declare function setTimeout(fn: (...args: any[]) => void, ms?: number): number;
 declare function clearTimeout(id: number): void;
 declare function setInterval(fn: (...args: any[]) => void, ms?: number): number;
-declare function clearInterval(id: number): void;`;
+declare function clearInterval(id: number): void;
+declare const console: { log(...args: unknown[]): void; warn(...args: unknown[]): void; error(...args: unknown[]): void };`;
 /** One AttrType (value.ts) → its TypeScript type, mirroring the value model.
  *  Enum and record arms reference a NAMED type (`type Stretch = …`, `Theme`)
  *  emitted in the prelude / near-use; component references the peer

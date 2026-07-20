@@ -121,6 +121,13 @@ export class Animator extends Node implements Animatable {
   declare started: boolean;
   /** Freeze in place; resume continues (LZX). */
   declare paused: boolean;
+  /** ARRIVAL as a reactive fact — the animation twin of a DataSource's
+   *  `.loaded`: true only after a run completes NATURALLY at its destination;
+   *  false while running, after a mid-flight stop(), and before any run.
+   *  `visible = { open.settled }` says "this exists only at the settled
+   *  end-state" — no onStop bookkeeping, no interruption guards: a restart
+   *  clears it, an interrupted stop never sets it. */
+  declare settled: boolean;
 
   // ── Per-run state: set by start(), read by tick(), cleared by end(). All
   //    the driving inputs are SAMPLED at start (animation.md §1) so writing
@@ -231,6 +238,7 @@ export class Animator extends Node implements Animatable {
     this.elapsed = 0;
     this.lastNow = null;
     this.running = true;
+    setBound(this, "settled", false);   // a new journey un-settles (see `settled`)
     if (!this.grouped) sharedClock.add(this);
     this.fire("onStart");
   }
@@ -278,6 +286,7 @@ export class Animator extends Node implements Animatable {
     const t = this.runDuration > 0 ? Math.min(this.elapsed / this.runDuration, 1) : 1;
     if (t >= 1) {
       this.releaseSlot(true); // natural completion: land the full delta / exact expected
+      setBound(this, "settled", true); // arrived — BEFORE onStop, so its handler reads the settled truth
       this.end(); // resumes a displaced owner (when last) + fires onStop, which MAY restart us
       return this.running; // an onStop that called start() keeps the ticker alive; else false → dropped
     }
@@ -352,6 +361,7 @@ defineAttributes(Animator, {
   repeat: { def: 1 },
   started: { def: false },
   paused: { def: false },
+  settled: { def: false },
 });
 
 /** AnimatorGroup — coordinates several animators (or nested groups) in

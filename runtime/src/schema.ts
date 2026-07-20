@@ -517,6 +517,9 @@ const DataSourceSchema: ComponentSchema = {
     // REACTIVE addresses; explicit fetch() stays the default discipline.
     auto: { kind: "boolean" },
   },
+  // fired when a fetch lands, after value+status settle — the imperative
+  // arrival hook (constraints keep deriving from .loaded)
+  events: ["load"],
 };
 
 // Animation v1 (animation.md §1). An Animator is an ordinary twin-table
@@ -541,6 +544,9 @@ const AnimatorSchema: ComponentSchema = {
     relative: { kind: "boolean" },
     started: { kind: "boolean" },
     paused: { kind: "boolean" },
+    // ARRIVAL as a reactive fact (animator.ts) — the animation twin of a
+    // DataSource's .loaded: true only at an uninterrupted destination.
+    settled: { kind: "boolean" },
   },
   // Bare event names (like View's ["click", …]); handlerName() prefixes `on`,
   // so these answer the onStart / onStop / onRepeat handlers (animation.md §1).

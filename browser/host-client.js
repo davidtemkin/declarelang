@@ -282,16 +282,22 @@ export async function bootHost(cfg) {
   // scoped to the child's box so two hosted viewers never cross wires.
   const liveSigs = new WeakMap(), liveTimers = new WeakMap();
   const watchLive = (theApp, scope) => {
+    if (!theApp.liveCard) return;                        // nothing published yet
     const sig = theApp.liveCard + "\x00" + theApp.liveSource;
     if (liveSigs.get(theApp) === sig) return;
-    liveSigs.set(theApp, sig);
     const box = scope.querySelector('[data-declare-slot^="run:' + theApp.liveCard + '"]');
+    // the island may not be MOUNTED yet (the viewer's edit pane slots its
+    // island only in edit mode; the channel can publish first) — don't burn
+    // the signature; retry each tick until the box appears
+    if (!box) return;
+    liveSigs.set(theApp, sig);
     const body = theApp.liveSource;
     clearTimeout(liveTimers.get(theApp));
-    if (box) liveTimers.set(theApp, setTimeout(async () => {
+    liveTimers.set(theApp, setTimeout(async () => {
       const r = await compile(body);
       if (r && r.source) { theApp.liveReport = ""; renderChild(box, r); }
       else if (r && r.report != null) theApp.liveReport = String(r.report);
+      else liveSigs.delete(theApp);                      // compiler not warm — retry
     }, 180));
   };
   const liveTick = () => {

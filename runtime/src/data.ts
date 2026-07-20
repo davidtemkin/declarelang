@@ -326,6 +326,11 @@ export class DataSource extends Dataset {
       if (seq !== this.seq) return; // superseded
       setBound(this, "value", value);
       setBound(this, "status", "loaded");
+      // the arrival EVENT (`onLoad`), after value+status settle: the hook for
+      // work a constraint must not do — publish, chain a dependent fetch. The
+      // status booleans stay the constraint-facing surface.
+      const h = (this as unknown as Record<string, unknown>)["onLoad"];
+      if (typeof h === "function") h.call(this);
     } catch (e) {
       if (seq !== this.seq) return;
       setBound(this, "error", e instanceof Error ? e.message : String(e));

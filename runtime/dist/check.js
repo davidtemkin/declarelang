@@ -78,12 +78,56 @@ export function check(input) {
             errors.push(new DeclareError(`use [ ${name} ]: unknown component '${name}' — a use entry names a built-in or a declared/included class`, program.root.pos));
         }
     }
+    // The 0x-alpha trap: `0x…` literals are RULED 6-digit opaque, so an
+    // 8-digit form is ALWAYS a mistake — the alpha byte would paint as blue
+    // (0x00000059 IS the number 89, an opaque near-black navy). Caught in both
+    // positions: literal attrs/decls via the parser's preserved digit count,
+    // and `{ }`/method bodies by scanning their source (an 8-hex-digit literal
+    // in interface code is a color intent, not arithmetic).
+    for (const info of infos)
+        scanHexAlpha(info.decl.body, errors);
+    scanHexAlpha(program.root, errors);
     // Members of different kinds interleave freely in source but are checked
     // per kind (attrs, then methods, then the child recursion); a stable sort
     // on position restores the promised source order. Every check error is
     // positioned, so the fallback never actually fires.
     errors.sort((a, b) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0));
     return errors;
+}
+const HEX_ALPHA_MSG = "an 0x color is 6-digit opaque — 8 digits would paint the alpha byte as blue; " +
+    "write #RRGGBBAA (a declaration-position literal: declare `ink: Color = #…` and read it)";
+function scanHexAlpha(el, errors) {
+    const scanCode = (src, pos) => {
+        const m = /0[xX][0-9a-fA-F]{8}\b/.exec(src);
+        if (m !== null)
+            errors.push(new DeclareError(`'${m[0]}': ${HEX_ALPHA_MSG}`, pos));
+    };
+    const scanLit = (v) => {
+        if (v.kind === "number" && v.hex && v.hexLen === 8) {
+            errors.push(new DeclareError(`'0x${v.value.toString(16).padStart(v.hexLen, "0")}' has ${v.hexLen} digits: ${HEX_ALPHA_MSG}`, v.pos));
+        }
+        else if (v.kind === "code") {
+            scanCode(v.src, v.pos);
+        }
+        else if (v.kind === "call") {
+            for (const a of v.args)
+                scanLit(a);
+        }
+        else if (v.kind === "list") {
+            for (const item of v.items)
+                scanLit(item);
+        }
+    };
+    for (const a of el.attrs)
+        scanLit(a.value);
+    for (const d of el.decls) {
+        if (d.def !== null)
+            scanLit(d.def);
+    }
+    for (const m of el.methods)
+        scanCode(m.body, m.bodyPos ?? m.pos);
+    for (const c of el.children)
+        scanHexAlpha(c, errors);
 }
 /** Register a program's classes: validate each declaration and produce the
  *  program's schema table — the built-ins plus one ComponentSchema per class,
@@ -793,6 +837,10 @@ function checkDataNode(el, schema, errors) {
         errors.push(new DeclareError(`${el.tag}.${d.name}: a data node declares no new attributes`, d.pos));
     }
     for (const m of el.methods) {
+        // event handlers pass: a DataSource declares `load` (schema events), so
+        // `onLoad() { … }` is its arrival hook, not a new lifecycle method
+        if (el.tag === "DataSource" && m.name === "onLoad")
+            continue;
         errors.push(new DeclareError(`${el.tag}.${m.name}: a data node has no method members — its lifecycle (fetch, clear, set, …) is built in`, m.pos));
     }
     for (const c of el.children) {

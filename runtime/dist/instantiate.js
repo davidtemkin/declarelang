@@ -610,10 +610,21 @@ function effectiveStyles(sources, eff) {
  *  DataSource waits for fetch; attributes land like a view's (literals now,
  *  `{ }` bindings in pass two). Mirrors checkDataNode for unchecked trees. */
 function constructData(el, schema, outer, ctx) {
-    if (el.decls.length > 0 || el.methods.length > 0 || el.children.length > 0) {
+    const handlers = el.methods.filter((m) => el.tag === "DataSource" && m.name === "onLoad");
+    if (el.decls.length > 0 || el.methods.length > handlers.length || el.children.length > 0) {
         throw new DeclareError(`a ${el.tag} takes attributes only`, el.pos);
     }
     const node = new DATA[el.tag]();
+    // the declared event handler (schema events: DataSource fires `load`),
+    // installed like an animator's — in place before any binding runs
+    for (const m of handlers) {
+        const c = compileBody(m.params, m.body);
+        if ("error" in c)
+            throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
+        const fn = c.fn;
+        node[m.name] =
+            (...args) => fn.call(node, node.parent, outer, ...args);
+    }
     for (const a of el.attrs) {
         const r = checkAttr(schema, a);
         if (!r.ok)

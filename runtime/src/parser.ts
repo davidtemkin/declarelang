@@ -60,7 +60,7 @@ import { Diag } from "./diagnostics.js";
  *  admits the hex-written numeric form (language §6), so the written form is
  *  part of the literal, not a lexer detail to discard. */
 export type Literal =
-  | { kind: "number"; value: number; hex: boolean; pos: Pos }
+  | { kind: "number"; value: number; hex: boolean; hexLen?: number; pos: Pos }
   | { kind: "percent"; value: number; pos: Pos } // `50%` — a parent-relative Length
   | { kind: "string"; value: string; pos: Pos }
   | { kind: "hexColor"; raw: string; pos: Pos } // `#RGB` / `#RRGGBB`
@@ -260,6 +260,7 @@ interface Token {
   num?: number;
   str?: string;
   hex?: boolean;
+  hexLen?: number;
 }
 
 const isDigit = (c: string) => c >= "0" && c <= "9";
@@ -445,7 +446,9 @@ function tokenize(src: string): Token[] {
         text += "0x"; advance(); advance();
         let hex = "";
         while (i < src.length && isHex(src[i])) { hex += src[i]; advance(); }
-        tokens.push({ kind: "number", text: text + hex, pos: start, num: parseInt(hex, 16) * (text[0] === "-" ? -1 : 1), hex: true });
+        // the digit count survives to the checker: `0x` colors are RULED
+        // 6-digit opaque, so an 8-digit form (alpha intent) can be caught
+        tokens.push({ kind: "number", text: text + hex, pos: start, num: parseInt(hex, 16) * (text[0] === "-" ? -1 : 1), hex: true, hexLen: hex.length });
         continue;
       }
       while (i < src.length && isDigit(src[i])) { text += src[i]; advance(); }
@@ -730,7 +733,7 @@ class Parser {
   parseLiteral(): Literal {
     const t = this.next();
     switch (t.kind) {
-      case "number": return { kind: "number", value: t.num!, hex: t.hex === true, pos: t.pos };
+      case "number": return { kind: "number", value: t.num!, hex: t.hex === true, hexLen: t.hexLen, pos: t.pos };
       case "percent": return { kind: "percent", value: t.num!, pos: t.pos };
       case "string": return { kind: "string", value: t.str!, pos: t.pos };
       case "hexColor": return { kind: "hexColor", raw: t.text, pos: t.pos };
