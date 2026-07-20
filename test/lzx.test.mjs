@@ -230,4 +230,27 @@ await test("path-valued reference source is a subscription-source gap, not a <-"
   if (/<- classroot\.ms/.test(r.declare)) throw new Error("must not emit path source: " + r.declare);
 });
 
+// ── Task 9: setAttribute / getAttribute balanced-scanner rewrite ────────────
+
+await test("rewrites this.path.setAttribute('name', value) to an assignment", () => {
+  const r = lzxToDeclare(`<canvas><view><handler name="onclick">this.top.titlebox.setAttribute('fgcolor', 0xFFFFFF)</handler></view></canvas>`);
+  if (!/this\.top\.titlebox\.fgcolor = 0xFFFFFF/.test(r.declare)) throw new Error("rewrite: " + r.declare);
+});
+
+await test("balances a compound value with nested calls and commas", () => {
+  const r = lzxToDeclare(`<canvas><view><handler name="onclick">error.setAttribute('text', "E: " + f(a, b))</handler></view></canvas>`);
+  if (!/error\.text = "E: " \+ f\(a, b\)/.test(r.declare)) throw new Error("compound: " + r.declare);
+});
+
+await test("leaves a computed-name setAttribute verbatim and records a dynamic-body gap", () => {
+  const r = lzxToDeclare(`<canvas><view><handler name="onclick">x.setAttribute(nm, v)</handler></view></canvas>`);
+  if (!/x\.setAttribute\(nm, v\)/.test(r.declare)) throw new Error("verbatim: " + r.declare);
+  if (!r.gaps.some((g) => g.s13Ref === "dynamic-body")) throw new Error("no dynamic-body gap");
+});
+
+await test("rewrites getAttribute to a plain read", () => {
+  const r = lzxToDeclare(`<canvas><view><handler name="onclick">var w = this.getAttribute('width')</handler></view></canvas>`);
+  if (!/var w = this\.width/.test(r.declare)) throw new Error("getAttribute: " + r.declare);
+});
+
 summarize("lzx");

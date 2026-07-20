@@ -13,7 +13,84 @@ export function mapDoc(doc: LzxDoc, naming: Naming, sink: GapSink): DProgram | n
   const classes: DClass[] = [];
   const root = mapElement(doc.root, naming, sink, classes);
   if (!root) return null;
-  return { classes, root };
+  const prog: DProgram = { classes, root };
+  rewriteProgramBodies(prog, sink);
+  return prog;
+}
+
+const NOWHERE: Pos = { line: 1, col: 1, offset: 0 };
+
+/** Post-map pass: rewrite `setAttribute`/`getAttribute` (Appendix B's "no
+ *  bypass" rule) in every method body and `code` value, across the whole tree. */
+function rewriteProgramBodies(prog: DProgram, sink: GapSink): void {
+  const walk = (n: DNode): void => {
+    for (const m of n.methods) m.body = rewriteBody(m.body, sink);
+    for (const a of n.attrs) if (a.value.kind === "code") a.value.src = rewriteBody(a.value.src, sink);
+    for (const d of n.decls) if (d.def?.kind === "code") d.def.src = rewriteBody(d.def.src, sink);
+    n.children.forEach(walk);
+  };
+  for (const c of prog.classes) walk(c.body);
+  walk(prog.root);
+}
+
+/** Rewrite `receiver.setAttribute('name', expr)` → `receiver.name = expr` and
+ *  `receiver.getAttribute('name')` → `receiver.name`, using a paren/string-
+ *  balanced scan (not a regex). Any other shape (computed name, wrong arity) is
+ *  left verbatim and recorded as a `dynamic-body` gap. */
+function rewriteBody(body: string, sink: GapSink): string {
+  const CALL = /\.(set|get)Attribute\s*\(/;
+  let out = "";
+  let i = 0;
+  for (;;) {
+    const m = CALL.exec(body.slice(i));
+    if (!m) { out += body.slice(i); break; }
+    const callIdx = i + m.index;
+    const parenIdx = callIdx + m[0].length - 1;
+    let r = callIdx;
+    while (r > 0 && /[\w.$]/.test(body[r - 1]!)) r--;
+    const receiver = body.slice(r, callIdx);
+    const parsed = scanArgs(body, parenIdx);
+    const isSet = m[1] === "set";
+    out += body.slice(i, r);
+    if (parsed && receiver !== "" && isStringLit(parsed.args[0] ?? "") &&
+        ((isSet && parsed.args.length === 2) || (!isSet && parsed.args.length === 1))) {
+      const name = parsed.args[0]!.slice(1, -1);
+      out += isSet ? `${receiver}.${name} = ${parsed.args[1]}` : `${receiver}.${name}`;
+      i = parsed.end + 1;
+    } else {
+      const end = parsed ? parsed.end : body.length - 1;
+      out += body.slice(r, end + 1);
+      sink.add({ kind: `${m[1]}Attribute not rewritable`, severity: "degraded", s13Ref: "dynamic-body", pos: NOWHERE, note: "computed name or non-standard argument shape" });
+      i = end + 1;
+    }
+  }
+  return out;
+}
+
+/** Scan a balanced argument list. `open` indexes the `(`; returns the top-level
+ *  comma-split args and the index of the matching `)`, or null if unbalanced. */
+function scanArgs(s: string, open: number): { args: string[]; end: number } | null {
+  let i = open + 1, depth = 1, quote = "";
+  const args: string[] = [];
+  let cur = "";
+  while (i < s.length) {
+    const ch = s[i]!;
+    if (quote !== "") { cur += ch; if (ch === quote && s[i - 1] !== "\\") quote = ""; i++; continue; }
+    if (ch === "'" || ch === '"' || ch === "`") { quote = ch; cur += ch; i++; continue; }
+    if (ch === "(" || ch === "[" || ch === "{") { depth++; cur += ch; i++; continue; }
+    if (ch === ")" || ch === "]" || ch === "}") {
+      depth--;
+      if (depth === 0) { if (cur.trim() !== "" || args.length > 0) args.push(cur.trim()); return { args, end: i }; }
+      cur += ch; i++; continue;
+    }
+    if (ch === "," && depth === 1) { args.push(cur.trim()); cur = ""; i++; continue; }
+    cur += ch; i++;
+  }
+  return null;
+}
+
+function isStringLit(s: string): boolean {
+  return /^'[^']*'$/.test(s) || /^"[^"]*"$/.test(s);
 }
 
 /** Resolve an element's tag to a Declare tag: a built-in, else a user class,
