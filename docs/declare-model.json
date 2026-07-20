@@ -262,7 +262,9 @@
     },
     "prevailing": [],
     "readOnly": [],
-    "events": []
+    "events": [
+     "load"
+    ]
    },
    "Animator": {
     "base": null,
@@ -275,7 +277,8 @@
      "motion": "motion",
      "relative": "boolean",
      "started": "boolean",
-     "paused": "boolean"
+     "paused": "boolean",
+     "settled": "boolean"
     },
     "prevailing": [],
     "readOnly": [],
