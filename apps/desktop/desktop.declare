@@ -218,6 +218,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
         this.edgeB.raise()
         this.cornerBL.raise()
         this.grip.raise()
+        this.veil.raise()                        // topmost of all — a background window's first-click catcher
         },
 
     onInit() { this.raiseChrome() },
@@ -386,6 +387,22 @@ class Window extends View [ width = 560, height = 400, clip = true,
             d.moveTo(10, 14); d.lineTo(14, 10)
             d.stroke()
             },
+        ],
+
+    // ── the FIRST-CLICK VEIL (the macOS rule, and it is SWAPPABLE —
+    // app.firstClickActivatesOnly): a background window's content is covered
+    // by this transparent view, so a click there RAISES the window and goes
+    // no further — the content (built-in or an embedded app's island alike)
+    // never hears it, because the veil IS the hit target and events do not
+    // bubble. The chrome stays live: the title bar, lights, and this veil
+    // itself all activate. It sits topmost (raiseChrome) and only exists
+    // while the window is in the BACKGROUND, so an active window's content
+    // receives everything as before.
+
+    veil: View [ visible = { !classroot.active && app.firstClickActivatesOnly },
+        x = 0, y = { classroot.barH },
+        width = { parent.width }, height = { parent.height - classroot.barH },
+        onMouseDown() { classroot.activate() },
         ],
     ]
 
@@ -1307,6 +1324,13 @@ App [ clip = true,
 
     fill = { app.darkMode ? gradient(0x2A3A55, 0x18222F) : gradient(0x7FA8D9, 0x4A6FA5) },
 
+    // ── window-activation policy: the macOS rule — a click on a BACKGROUND
+    // window only brings it forward; the app inside hears nothing until the
+    // window is front. Flip to false for click-through (the first click both
+    // activates AND lands in the content). ─────────────────────────────────
+
+    firstClickActivatesOnly: boolean = true,
+
     // ── shared desktop geometry: named once, read by every constraint below ──
 
     menuBarH: number = 32,                       // the system menu bar's height; windows live below it
@@ -1797,7 +1821,11 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
 
     // 15s ticks catch the minute flip well within a minute-precision display
 
-    onInit() { this.docsModel.fetch(); this.newFinder(); this.openWelcome(); this.tick(); setInterval(() => this.tick(), 15000) },
+    // the welcome note is DEFERRED one tick: its position derives from
+    // app.width, which is not yet live inside onInit (the host wires sizes
+    // after construction) — an immediate open would land on the fallback floor
+
+    onInit() { this.docsModel.fetch(); this.newFinder(); setTimeout(() => this.openWelcome(), 0); this.tick(); setInterval(() => this.tick(), 15000) },
 
     // ── ⌘-shortcuts dispatch from the MENUS' OWN RECORDS (the Newton
     // direction, planes.md §9): one registry, derived from whatever the
