@@ -83,18 +83,28 @@ export class Spring extends Animator {
    *  state — read live each frame — so the spring resumes from wherever the
    *  value actually is, and a mid-flight retarget just curves toward the new
    *  `to`. Returns false (drops off the clock) once at rest. */
+  /** Consume the DECLARATION SNAP at init (instantiate's animator walk): the
+   *  first computed target is a boot fact, so the slot takes it outright — a
+   *  Switch declared checked renders checked; it does not slide there.
+   *  Physics governs every change AFTER this. Priming must happen HERE, not
+   *  lazily at the first wake: a spring whose boot target equals the slot's
+   *  default never wakes at boot (the equality gate swallows the push), and
+   *  a lazy primer would then swallow the first REAL change instead — the
+   *  calendar's month→year zoom snapping while year→month animated. */
+  prime(): void {
+    if (this.primed) return;
+    this.primed = true;
+    const t = this.resolveTarget();
+    if (t !== null && this.attribute !== "") drive(t, this.attribute, this.to);
+    this.vel = 0;
+  }
+
   override tick(now: number): boolean {
     if (!this.springRunning) return false;
-    // The FIRST target is a declaration, not a destination: on this spring's
-    // first-ever tick — after the boot has settled, so `to` is FRESH — the
-    // slot SNAPS to it and the spring sleeps (a Switch declared checked
-    // renders checked; it does not slide there). Physics engages from the
-    // second target on: a CHANGE is what motion means.
+    // The lazy fallback for a spring constructed outside the init walk —
+    // same declaration-snap semantics, consumed on the first-ever tick.
     if (!this.primed) {
-      this.primed = true;
-      const t0 = this.resolveTarget();
-      if (t0 !== null && this.attribute !== "") drive(t0, this.attribute, this.to);
-      this.vel = 0;
+      this.prime();
       this.springRunning = false;
       sharedClock.remove(this);
       return false;

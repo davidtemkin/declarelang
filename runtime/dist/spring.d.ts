@@ -27,5 +27,14 @@ export declare class Spring extends Animator {
      *  state — read live each frame — so the spring resumes from wherever the
      *  value actually is, and a mid-flight retarget just curves toward the new
      *  `to`. Returns false (drops off the clock) once at rest. */
+    /** Consume the DECLARATION SNAP at init (instantiate's animator walk): the
+     *  first computed target is a boot fact, so the slot takes it outright — a
+     *  Switch declared checked renders checked; it does not slide there.
+     *  Physics governs every change AFTER this. Priming must happen HERE, not
+     *  lazily at the first wake: a spring whose boot target equals the slot's
+     *  default never wakes at boot (the equality gate swallows the push), and
+     *  a lazy primer would then swallow the first REAL change instead — the
+     *  calendar's month→year zoom snapping while year→month animated. */
+    prime(): void;
     tick(now: number): boolean;
 }

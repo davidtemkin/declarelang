@@ -52,6 +52,7 @@ import { Node, onDiscard } from "./node.js";
 import { subscribeToSource } from "./sources.js";
 import { Layout } from "./layout.js";
 import { Animator, AnimatorGroup } from "./animator.js";
+import { Spring } from "./spring.js";
 import { State, type Override } from "./state.js";
 import { Constraint } from "./reactive.js";
 import { attrType, descendsFrom, type ComponentSchema } from "./schema.js";
@@ -236,6 +237,10 @@ function initTree(view: View): void {
   // cost. Idempotent (autoStart fires once per lifetime), so a replicated
   // subtree's own initTree covers its animators too.
   for (const child of view.children) {
+    // A Spring consumes its declaration snap here — its first computed
+    // target renders outright; physics governs every change after (the
+    // boot-equal-to-default case never wakes, so priming cannot be lazy).
+    if (child instanceof Spring) child.prime();
     if (child instanceof Animator || child instanceof AnimatorGroup) child.autoStart();
     // Apply a state's initial value once linked. A gated state has usually
     // already synced from its gate's first run in pass two (idempotent here); a

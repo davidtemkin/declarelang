@@ -207,7 +207,71 @@ App [ fill = { app.theme.bg },
         if (m == null && app.segSrc.value) {
             try { const p = JSON.parse(app.segSrc.value); m = (p && p.metrics) || null } catch (e) { m = null }
             }
+        // a static host serves the raw file but answers no ?segments — count
+        // the lines HERE, so the label holds on every hosting mode
+        if (m == null && app.rawSrc.value) m = this.localMetrics(app.rawSrc.value)
         return m == null ? "" : "· " + m.total + " lines, " + m.code + " code"
+        },
+
+    // the compiler's line classification in miniature: comments mask OUT,
+    // """ text blocks and whole { } constraint bodies mask IN (a // inside a
+    // body is body, not comment — the compiler's rule), and a line counts
+    // as code when anything masked-in and non-blank survives on it
+
+    localMetrics(src) {
+        const s = "" + src
+        const n = s.length
+        let total = 0
+        let code = 0
+        let has = false
+        let depth = 0                            // { } body nesting — everything inside is code
+        let inBlock = false                      // /* */ outside a body — comment
+        let inText = false                       // """ block — code
+        let bodyBlock = false                    // /* */ inside a body — still code, braces ignored
+        let i = 0
+        while (i < n) {
+            const c = s[i]
+            if (c == "\n") { total = total + 1; if (has) code = code + 1; has = false; i = i + 1; continue }
+            if (inBlock) { if (c == "*" && s[i + 1] == "/") { inBlock = false; i = i + 2 } else i = i + 1; continue }
+            if (inText) {
+                if (c != " " && c != "\t" && c != "\r") has = true
+                if (c == "\"" && s[i + 1] == "\"" && s[i + 2] == "\"") { inText = false; i = i + 3 } else i = i + 1
+                continue
+                }
+            if (depth > 0) {
+                if (c != " " && c != "\t" && c != "\r") has = true
+                if (bodyBlock) { if (c == "*" && s[i + 1] == "/") { bodyBlock = false; i = i + 2 } else i = i + 1; continue }
+                if (c == "/" && s[i + 1] == "*") { bodyBlock = true; i = i + 2; continue }
+                if (c == "/" && s[i + 1] == "/") { while (i < n && s[i] != "\n") i = i + 1; continue }
+                if (c == "\"" || c == "'") {
+                    const q = c
+                    i = i + 1
+                    while (i < n && s[i] != q) { if (s[i] == "\\") i = i + 1; i = i + 1 }
+                    i = i + 1
+                    continue
+                    }
+                if (c == "{") depth = depth + 1
+                if (c == "}") depth = depth - 1
+                i = i + 1
+                continue
+                }
+            if (c == "/" && s[i + 1] == "*") { inBlock = true; i = i + 2; continue }
+            if (c == "/" && s[i + 1] == "/") { while (i < n && s[i] != "\n") i = i + 1; continue }
+            if (c == "\"" && s[i + 1] == "\"" && s[i + 2] == "\"") { inText = true; has = true; i = i + 3; continue }
+            if (c == "\"" || c == "'") {
+                const q = c
+                has = true
+                i = i + 1
+                while (i < n && s[i] != q) { if (s[i] == "\\") i = i + 1; i = i + 1 }
+                i = i + 1
+                continue
+                }
+            if (c == "{") { depth = 1; has = true; i = i + 1; continue }
+            if (c != " " && c != "\t" && c != "\r") has = true
+            i = i + 1
+            }
+        if (n > 0 && s[n - 1] != "\n") { total = total + 1; if (has) code = code + 1 }
+        return ({ total: total, code: code })
         },
     dirName() { const p = app.filePath(); const i = p.lastIndexOf("/"); return i < 0 ? "" : p.slice(0, i + 1) },
     baseName() { const p = app.filePath(); const i = p.lastIndexOf("/"); return i < 0 ? p : p.slice(i + 1) },
