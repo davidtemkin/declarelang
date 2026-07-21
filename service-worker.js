@@ -35,7 +35,7 @@ import { fnv1a } from "./compiler/dist/closure.js";
 // BUILD_ID — a content hash of the platform (runtime + compiler bundle + web client +
 // this worker + index.html), stamped by tools/internal/stamp-version.mjs. Left "dev" when unstamped
 // (local serving); a real deploy stamps it so cache-busting + the SW self-update engage.
-const BUILD_ID = "5d75cec574b9";
+const BUILD_ID = "6e52a0fc189e";
 
 const ROOT = new URL("./", self.location);            // <origin>/…/  (this worker's dir == the distro root)
 const ORIGIN = ROOT.origin;
@@ -70,7 +70,7 @@ self.addEventListener("fetch", (event) => {
   //   RUN (default)            → the run page (host wrapper booting the platform bundle);
   //   ?viewer=reader|source|edit → the viewer app on that tab (boot-source.js, highlight
   //                              in-browser — Declare Viewer — its Source/Edit tabs);
-  //   ?extract                 → the STATIC-EXTRACTION document (boot-seo.js compiles +
+  //   ?extract                 → the STATIC-EXTRACTION document (boot-extract.js compiles +
   //                              executes headlessly IN-BROWSER — the extractor the dev
   //                              server runs in Node);
   //   ?file / a plain fetch    → the EXACT source bytes (falls through to revalidate(),
@@ -206,12 +206,12 @@ async function sourcePageResponse(url, tab) {
 }
 
 // The STATIC-EXTRACTION page for `…/<name>.declare?extract`. It boots
-// browser/boot-seo.js, which compiles the target in-browser, executes it headlessly
+// browser/boot-extract.js, which compiles the target in-browser, executes it headlessly
 // (no mount) and REWRITES this page as the extracted semantic-HTML document —
 // the same artifact the dev server's serveExtract() sends, via the browser path.
 async function extractPageResponse(url) {
   const appUrl = url.origin + url.pathname;           // the .declare (query dropped)
-  const bootUrl = new URL("browser/boot-seo.js", ROOT).href;
+  const bootUrl = new URL("browser/boot-extract.js", ROOT).href;
   const name = programName(url.pathname);
   const html = `<!doctype html><meta charset="utf-8">
 <title>${escapeHtml(name)} — static extraction · Declare</title>

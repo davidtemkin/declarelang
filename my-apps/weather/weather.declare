@@ -1,0 +1,324 @@
+/*
+# NeoWeather
+
+A small but complete weather app in Declare, mirroring the classic
+apps/weather/weather.lzx. Its data is the bundled static file
+data/weather.json; it's one file, and the classes below are all specific to
+it. Three named fonts: `Chrome` and `Body` are already on the machine,
+`Title` is a web font downloaded from its .woff2 file.
+*/
+
+font Chrome [ family = "Tahoma" ]
+
+font Body   [ family = "Helvetica" ]
+
+font Title  [ Face [ src = "resources/fonts/work-sans-700.woff2", weight = bold ],
+    ]
+
+
+/*
+## Building blocks
+
+A labelled stat row, the tab slider that keeps exactly one tab open, a drawn
+beveled bar, the sliding weather tab itself, a one-day forecast row, and a
+full-window `Screen` layer switched by a flag.
+*/
+
+// StatRow — one "Label: value" row. Its two Texts read label/value from the row
+// instance (classroot); the { } around a value means "recompute when it changes".
+
+class StatRow extends View [
+    label: string = "",
+    value: string = "",
+
+    layout: SimpleLayout [ axis = x, spacing = -10 ],
+
+    labelText: Text [ width = 90, text = { classroot.label } ],
+    valueText: Text [ width = 160, fontWeight = normal, text = { classroot.value } ],
+    ]
+
+
+// TabSlider — lays the tabs out in a vertical stack and keeps exactly one open.
+// Clicking a tab calls select(), which opens that tab and closes the others.
+
+class TabSlider extends View [ width = 100%,
+
+    layout: SimpleLayout [ axis = y ],
+
+    select(tab) {
+        for (const child of this.children) child.setSelected(child === tab)
+        },
+    ]
+
+
+// BeveledBar — a filled bar with a 1px light line along the top edge and a dark
+// line along the bottom, for a raised look. It draws these itself (no image).
+
+class BeveledBar extends View [
+    highlight: Color = #FFFFFF,
+    lowlight:  Color = #000000,
+
+    draw(d) {
+        d.fillStyle = highlight
+        d.fillRect(0, 0, width, 1)
+        d.fillStyle = lowlight
+        d.fillRect(0, height - 1, width, 1)
+        },
+    ]
+
+
+// WeatherTab — a 25px-tall header bar that grows to reveal its content when the
+// tab is selected, and shrinks back when another tab is picked.
+
+class WeatherTab extends View [ width = 100%,
+
+    label: string = "default title",
+    selected: boolean = false,
+    openHeight: number = 255,
+
+    height = { selected ? openHeight : 25 },
+    slide: Animator [ attribute = height, duration = 300, motion = laszloBoth ],
+
+    // With clip on, anything past the box edge is hidden — so as the height grows
+    // the content is wiped into view from the top instead of appearing all at once.
+
+    clip = true,
+
+    // height is a live value: openHeight when selected, else 25. The animator drives
+    // it during the slide, then the constraint takes back over — so it settles
+    // exactly on 255 or 25.
+
+    setSelected(on) {
+        slide.to = on ? openHeight : 25
+        slide.start()
+        selected = on
+        },
+
+    header: View [ width = { parent.width },
+
+        onClick() { classroot.parent.select(classroot) },
+
+        bg: BeveledBar [ width = { parent.width }, height = 25,
+            fill = #6F79A7, highlight = #BCC4E2, lowlight = #1A2452,
+            opacity = { selected ? 0.33 : 1 } ],
+        icon: Image [ source = "resources/slider_icon2.png", x = 2, y = 3 ],
+        caption: Text [ text = { label }, x = 15, y = 4, textShadow = shadow(1, 1, 0, #3B4057),
+            textColor = { selected ? 0xFFFFFF : 0xCAD0EC } ],
+        ],
+    ]
+
+
+// WeatherSummary — one forecast day (icon, day, description, hi/lo). Its :fields
+// read from whichever forecast entry it's bound to.
+
+class WeatherSummary extends View [ fill = #000000, width = 34, height = 34, x = 10,
+    fontFamily = [Body, "Arial", "sans-serif"], fontSize = 12,
+
+    icon: Image [ x = 1, y = 1, width = 32, height = 32, stretches = both,
+        source = { :code != null ? `resources/icons/${:code}.gif` : "" } ],
+
+    day: Text [ x = 42, width = 140, text = :day ],
+    desc: Text [ x = 42, y = 14, width = 120, fontSize = 11, fontWeight = normal, text = :text ],
+
+    hiLabel: Text [ x = 165, text = "Hi:" ],
+    loLabel: Text [ x = 165, y = 14, text = "Lo:" ],
+    hi: Text [ x = 188, width = 60, text = :high ],
+    lo: Text [ x = 188, y = 14, width = 60, text = :low ],
+    ]
+
+
+// Screen — a full-window layer that fades in or out based on its shown flag.
+
+class Screen extends View [ width = 100%, height = 100%,
+
+    shown: boolean = false,
+
+    opacity = { shown ? 1 : 0 },
+    visible = { opacity > 0 },
+    ]
+
+
+/*
+## The app
+
+A 240×320 window over a background photo, with two full-window Screens — the
+zip-entry splash and the weather report — switched on whether the weather
+data has loaded.
+*/
+
+App [ width = 240, height = 320, fill = #EAEAEA,
+    fontFamily = [Chrome, "Geneva", "sans-serif"], fontSize = 9,
+    fontWeight = bold, textColor = #FFFFFF,
+
+    zip: string = "94403",
+
+    // The app's data source. The screens below switch on its .loading / .loaded /
+    // .failed flags, and read the weather from its .value (or .error).
+
+    weatherData: DataSource [ url = "data/weather.json" ],
+
+    bg: Image [ source = "resources/weather_bg.jpg" ],
+
+    /* ## The entry screen
+       Shown until the data loads: the splash art, a status line for the
+       loading / error states, and the zip bar that slides away on submit. */
+
+    splash: Screen [ shown = { !weatherData.loaded },
+
+        // The splash background. Its "Rain or Shine?" title is painted into the
+        // image itself, not drawn as live text.
+
+        art: Image [ source = "resources/weather_splash2.jpg" ],
+
+        status: Text [ x = 15, y = 230, width = 240, textColor = #000099,
+            text = { weatherData.failed ? "Server error: " + weatherData.error
+                   : weatherData.loading ? "Loading weather data..." : "" } ],
+
+        zipBtn: View [ y = 245, x = 0,
+
+            // These two animate the whole zip bar: off to the left when you submit,
+            // and back when you return or the fetch fails.
+
+            slideOut: Animator [ attribute = x, to = -2000, duration = 333, motion = laszloBoth ],
+            slideIn:  Animator [ attribute = x, to = 0, duration = 333, motion = laszloBoth ],
+
+            // The rounded pill behind the zip row: a top-to-bottom gradient with
+            // rounded corners. Clicking it fetches the weather (and slides the bar away).
+
+            pill: View [ width = 236, height = 28, opacity = 0.7, cornerRadius = 13,
+                fill = gradient(stop(0, #C2C2DC), stop(0.08, #797AB4),
+                stop(0.92, #797AB4), stop(1, #27283B)),
+                onClick() {
+                    slideOut.start()
+                    weatherData.fetch().then(() => {
+                        if (weatherData.failed) slideIn.start()
+                        else App.report.topBar.slideDown.start()
+                        })
+                    },
+                ],
+
+            // y = 9 (not a rounder number) nudges this label to line up exactly with
+            // where the original app draws it.
+
+            caption: Text [ text = "Enter Zip Code:", x = 15, y = 9,
+                textShadow = shadow(1, 0, 0, #222222) ],
+
+            // The zip box: it looks like a text field but isn't editable yet — it
+            // just displays App.zip.
+
+            field: View [ x = 120, y = 5, width = 80, height = 20,
+                fill = #FFFFFF, stroke = stroke(2, #1A1A1A),
+
+                entry: Text [ x = 3, y = 4, text = { App.zip }, textColor = #000000 ],
+                ],
+
+            ok: Text [ text = "OK", x = 205, y = 9, textShadow = shadow(1, 0, 0, #222222) ],
+            ],
+        ],
+
+    /* ## The report screen
+       Shown once the data loads. Its datapath points the whole subtree at a
+       slice of the loaded JSON; the :paths below (:location.city,
+       :item.condition.temp, …) read fields from it. */
+
+    report: Screen [ shown = { weatherData.loaded }, datapath = { weatherData.value?.rss?.channel },
+
+        // The top bar. It sets the font once here (family, weight, size, color) and
+        // the title / label / zip Texts below inherit it, so none of them repeat it.
+
+        topBar: BeveledBar [ y = -16, opacity = 0, width = 240, height = 16,
+            fill = #3F4977, highlight = #6F79A7, lowlight = #1A2452,
+            fontFamily = Title, fontWeight = bold, fontSize = 10, textColor = #FFFFFF,
+
+            // The bar slides down into view after a successful fetch, and back up
+            // when you return to the splash.
+
+            slideDown: AnimatorGroup [ process = simultaneous, duration = 333, motion = laszloBoth,
+                Animator [ attribute = y, to = 0 ],
+                Animator [ attribute = opacity, to = 1 ],
+                ],
+            slideUp: AnimatorGroup [ process = simultaneous, duration = 333, motion = laszloBoth,
+                Animator [ attribute = y, to = -16 ],
+                Animator [ attribute = opacity, to = 0 ],
+                ],
+
+            onMouseUp() {
+                slideUp.start()
+                App.splash.zipBtn.slideIn.start()
+                weatherData.clear()
+                },
+
+            title:    Text [ text = "Rain or Shine?", x = 8, y = 3, textShadow = shadow(1, 1, 0, #1A2452) ],
+            bullet:   View [ x = 150, y = 6, width = 5, height = 5, fill = #BCC4E2 ],
+            zipLabel: Text [ text = "Zipcode:", x = 159, y = 3, textShadow = shadow(1, 1, 0, #1A2452) ],
+            zip:      Text [ text = { App.zip }, x = 208, y = 3, width = 100, textColor = #CAD0EC, textShadow = shadow(1, 1, 0, #1A2452) ],
+            ],
+
+        weatherContent: TabSlider [ y = 15, height = 305,
+
+            conditionsTab: WeatherTab [ label = "Current Conditions", selected = true,
+
+                currentData: View [ y = 35, width = 240,
+
+                    layout: SimpleLayout [ axis = y, spacing = 10 ],
+
+                    form: View [ width = 240, fontFamily = [Body, "Arial", "sans-serif"], fontSize = 14,
+
+                        where: Text [ x = 15, width = 240,
+                            text = { :location.city + ", " + :location.region } ],
+
+                        iconBox: View [ x = 26, y = 28, width = 52, height = 52, fill = #FFFFFF ],
+                        icon: Image [ x = 26, y = 28, width = 64, height = 64,
+                            source = { :item.condition.code != null
+                                     ? `resources/icons/${:item.condition.code}.gif` : "" } ],
+
+                        temp: Text [ x = 95, y = 20, width = 240, fontSize = 60, text = :item.condition.temp ],
+                        desc: Text [ x = 15, y = 90, width = 240, text = :item.condition.text ],
+                        ],
+
+                    moreData: View [ x = 15,
+
+                        layout: SimpleLayout [ axis = y, spacing = 1 ],
+
+                        StatRow [ label = "Humidity:", value = :atmosphere.humidity ],
+                        StatRow [ label = "Barometer:", value = :atmosphere.pressure ],
+                        StatRow [ label = "Windspeed:", value = :wind.speed ],
+                        StatRow [ label = "Sunrise:", value = :astronomy.sunrise ],
+                        StatRow [ label = "Sunset:", value = :astronomy.sunset ],
+                        StatRow [ label = "Wind Chill:", value = :wind.chill ],
+
+                        // The original shows a 7th row (observation date), but the mock
+                        // data has no value for it, so this stops at 6.
+
+                        ],
+                    ],
+                ],
+
+            radarTab: WeatherTab [ label = "Radar Maps",
+
+                radarData: View [ y = 35, width = 240, height = 162,
+
+                    // The radar image is mostly transparent (just the map lines), so we
+                    // tint its background and drop a shadow directly on the image.
+
+                    radarscan: Image [ x = 20, y = 20, width = 200, height = 135, stretches = both,
+                        source = "resources/radar_us.png",
+                        fill = #00000054, shadow = shadow(3, 3, 0, #00000054) ],
+                    ],
+                ],
+
+            forecastTab: WeatherTab [ label = "Forecast",
+
+                forecastData: View [ y = 35,
+
+                    layout: SimpleLayout [ axis = y, spacing = 10 ],
+
+                    // The trailing [] builds one WeatherSummary per item in the
+                    // forecast array, each bound to its own entry.
+
+                    WeatherSummary [ datapath = :item.forecast[] ],
+                    ],
+                ],
+            ],
+        ],
+    ]
