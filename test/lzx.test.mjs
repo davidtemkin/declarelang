@@ -369,4 +369,27 @@ await test("<dataset> maps to Dataset; its data children are NOT walked", () => 
   if (!/Dataset/.test(r.declare ?? "")) throw new Error("Dataset not emitted: " + r.declare);
 });
 
+// ── Library mapping Task 5: attribute + handler dropping ───────────────────
+
+await test("mapped edittext keeps schema attrs, drops unknown, compiles clean", () => {
+  const r = lzxToDeclare(`<canvas><edittext text="hi" width="200" enabled="false"/></canvas>`);
+  if (!/TextInput \[/.test(r.declare)) throw new Error("no TextInput: " + r.declare);
+  if (!/text = "hi"/.test(r.declare) || !/width = 200/.test(r.declare)) throw new Error("dropped a schema attr: " + r.declare);
+  if (/enabled/.test(r.declare)) throw new Error("enabled should be dropped: " + r.declare);
+  if (!r.gaps.some((g) => g.s13Ref === "unmapped-attr")) throw new Error("no unmapped-attr gap");
+  const c = compile(r.declare, { typecheck: false });
+  if (c.errors.length) throw new Error("compile errors:\n" + c.report);
+});
+await test("mapped image keeps source via alias and compiles clean", () => {
+  const r = lzxToDeclare(`<canvas><image src="a.png" width="64"/></canvas>`);
+  if (!/source = "a.png"/.test(r.declare)) throw new Error("source dropped: " + r.declare);
+  const c = compile(r.declare, { typecheck: false });
+  if (c.errors.length) throw new Error("compile errors:\n" + c.report);
+});
+await test("a handler for an undeclared event on a schema tag is dropped", () => {
+  const r = lzxToDeclare(`<canvas><image onclick="go()" onfrobnicate="x()"/></canvas>`);
+  if (!/onClick\(\)/.test(r.declare)) throw new Error("onclick (valid) should be kept: " + r.declare);
+  if (/onFrobnicate/.test(r.declare)) throw new Error("onfrobnicate (undeclared) should be dropped: " + r.declare);
+});
+
 summarize("lzx");

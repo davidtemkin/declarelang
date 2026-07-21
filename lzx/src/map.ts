@@ -171,10 +171,14 @@ function mapMembers(el: LzxNode, tag: string, naming: Naming, sink: GapSink, cla
     if (alow === "datapath") { mapDatapath(a.value, a.pos, attrs, sink); continue; }
     if (/^on[A-Za-z]/.test(a.name)) {
       if (isAttrChangeHandler(a.name, tag, naming)) { sink.add({ kind: `${a.name} change handler`, severity: "degraded", s13Ref: "attr-change-handler", pos: a.pos, note: "LZX attribute-change events map to reactive constraints, not handlers" }); continue; }
-      methods.push({ name: onName(a.name, naming), params: [], body: a.value }); continue;
+      const ev = onName(a.name, naming);
+      if (naming.hasSchema(tag) && !naming.declaresEvent(tag, ev)) { sink.add({ kind: `${tag}.${ev} unmapped event`, severity: "degraded", s13Ref: "unmapped-attr", pos: a.pos, note: "handler for an event the schema does not declare" }); continue; }
+      methods.push({ name: ev, params: [], body: a.value }); continue;
     }
     const name = naming.attrFor(a.name);
-    attrs.push({ name, value: mapValue(a.value, naming.attrTypeFor(tag, name), a.pos, sink) });
+    const kind = naming.attrTypeFor(tag, name);
+    if (naming.hasSchema(tag) && kind === "unknown") { sink.add({ kind: `${tag}.${name} unmapped`, severity: "degraded", s13Ref: "unmapped-attr", pos: a.pos, note: "attribute has no slot on the mapped schema" }); continue; }
+    attrs.push({ name, value: mapValue(a.value, kind, a.pos, sink) });
   }
 
   if (tag === "Dataset") {
