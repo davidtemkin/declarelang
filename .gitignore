@@ -19,6 +19,11 @@ evals/runs/
 # binary is a per-machine build artifact (macOS-only, regenerated with swiftc).
 tools/internal/pointer
 
+# your own scratch apps: the getting-started home (operational:getting-started,
+# guide:loop) is yours, local, and never part of the distro — the committed
+# examples live in apps/.
+my-apps/
+
 # misc
 *.log
 .DS_Store
