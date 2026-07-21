@@ -1,3 +1,26 @@
+// Position-independent routing for LZX constructs that are NOT UI components:
+// documentation prose and language constructs. Runs in mapElement (before
+// resolveTag) so it fires at ROOT (e.g. <library>) and child position alike.
+const SPECIAL = {
+    doc: { ref: "documentation", sev: "info", note: "documentation prose" },
+    include: { ref: "modules", sev: "degraded", note: "<include> module directive" },
+    import: { ref: "modules", sev: "degraded", note: "<import> module directive" },
+    library: { ref: "modules", sev: "degraded", note: "<library> module root", walk: true },
+    event: { ref: "event-decl", sev: "degraded", note: "<event> declaration" },
+    setter: { ref: "custom-setter", sev: "degraded", note: "<setter>" },
+    remotecall: { ref: "rpc", sev: "degraded", note: "<remotecall>" },
+    rpc: { ref: "rpc", sev: "degraded", note: "<rpc>" },
+    param: { ref: "rpc", sev: "degraded", note: "<param> RPC argument" },
+    stylesheet: { ref: "styling", sev: "degraded", note: "<stylesheet>" },
+    script: { ref: "script-block", sev: "degraded", note: "<script> block" },
+};
+function routeSpecial(el, sink) {
+    const s = SPECIAL[el.tag.toLowerCase()];
+    if (!s)
+        return null;
+    sink.add({ kind: s.note, severity: s.sev, s13Ref: s.ref, pos: el.pos, note: s.note });
+    return s.walk ? "walk" : "handled";
+}
 export function mapDoc(doc, naming, sink) {
     if (!doc.root)
         return null;
@@ -141,9 +164,16 @@ function mapElement(el, naming, sink, classes) {
         sink.add({ kind: `mixin/with on <${el.tag}>`, severity: "blocking", s13Ref: "mixins", pos: el.pos, note: "no Declare multiple-inheritance surface" });
         return null;
     }
+    const special = routeSpecial(el, sink);
+    if (special === "handled")
+        return null;
+    if (special === "walk") {
+        mapMembers(el, el.tag, naming, sink, classes);
+        return null;
+    }
     const tag = resolveTag(el.tag, naming);
     if (tag === null) {
-        sink.add({ kind: `unknown tag <${el.tag}>`, severity: "blocking", s13Ref: "unknown-tag", pos: el.pos, note: `no built-in mapping or user class for <${el.tag}>` });
+        sink.add({ kind: `unmapped component <${el.tag}>`, severity: "degraded", s13Ref: "library-component", pos: el.pos, note: `OL component <${el.tag}> has no Declare equivalent` });
         // Still walk the subtree for GAPS (nested datapath/state/resource) — the
         // oracle should see the whole tree, not stop at the first unknown parent.
         // The emitted members are discarded (the node itself can't be emitted).
@@ -178,11 +208,28 @@ function mapMembers(el, tag, naming, sink, classes) {
                 sink.add({ kind: `${a.name} change handler`, severity: "degraded", s13Ref: "attr-change-handler", pos: a.pos, note: "LZX attribute-change events map to reactive constraints, not handlers" });
                 continue;
             }
-            methods.push({ name: onName(a.name, naming), params: [], body: a.value });
+            const ev = onName(a.name, naming);
+            if (naming.hasSchema(tag) && !naming.declaresEvent(tag, ev)) {
+                sink.add({ kind: `${tag}.${ev} unmapped event`, severity: "degraded", s13Ref: "unmapped-attr", pos: a.pos, note: "handler for an event the schema does not declare" });
+                continue;
+            }
+            methods.push({ name: ev, params: [], body: a.value });
             continue;
         }
         const name = naming.attrFor(a.name);
-        attrs.push({ name, value: mapValue(a.value, naming.attrTypeFor(tag, name), a.pos, sink) });
+        const kind = naming.attrTypeFor(tag, name);
+        if (naming.hasSchema(tag) && kind === "unknown") {
+            sink.add({ kind: `${tag}.${name} unmapped`, severity: "degraded", s13Ref: "unmapped-attr", pos: a.pos, note: "attribute has no slot on the mapped schema" });
+            continue;
+        }
+        attrs.push({ name, value: mapValue(a.value, kind, a.pos, sink) });
+    }
+    if (tag === "Dataset") {
+        // A <dataset> body is XML DATA, not components — don't walk its data
+        // children (item/day/…). Its own attributes (above) are kept; JSON-body
+        // conversion is a deferred follow-up.
+        sink.add({ kind: "<dataset> body", severity: "degraded", s13Ref: "dataset-body", pos: el.pos, note: "XML data body not converted to JSON (deferred)" });
+        return { attrs, decls, methods, children };
     }
     for (const c of el.children) {
         const low = c.tag.toLowerCase();

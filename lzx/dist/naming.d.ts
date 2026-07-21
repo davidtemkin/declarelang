@@ -11,6 +11,8 @@ export interface Naming {
     contentAttrFor(declareTag: string): string | null;
     classNameFor(lzxName: string): string;
     isUserClass(lzxName: string): boolean;
+    hasSchema(declareTag: string): boolean;
+    declaresEvent(declareTag: string, handlerName: string): boolean;
 }
 export declare function buildNaming(userClassNames: string[]): {
     naming: Naming;
