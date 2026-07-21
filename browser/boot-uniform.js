@@ -73,6 +73,26 @@ const perfDone = (() => {
 // Platform version the commit hook stamps. Absent (un-stamped dev tree) → "dev":
 // the closure check alone still gates freshness. Salts the key + names the bucket.
 async function platformBuild() {
+  // The page ALREADY carries the build id: every host shell loads this bundle
+  // as `declare-boot.js?v=BUILD_ID` — the cache-buster the SW sets on its
+  // synthesized pages (service-worker.js hostPageResponse) and stamp-version
+  // writes into index.html. Reading it off our own module URL is free.
+  //
+  // The fetch below is the fallback, and it is not cheap: `no-cache` forces a
+  // network revalidation on EVERY boot, warm or cold, and it is SERIAL in front
+  // of the prewarm lookup — the key can't be computed until the build is known.
+  // On a host with ~200ms TTFB that is a round trip before anything can paint.
+  //
+  // Getting it wrong cannot ship a wrong program: the build id is a cache
+  // NAMESPACE, never a correctness gate. The prewarm key is content-addressed
+  // (prewarmKey = main + kind + props, no build) and the artifact is validated
+  // by content hash besides, so prewarm is unaffected by a stale stamp. What a
+  // stale one costs is CacheStorage reuse — reads and writes land in
+  // `declare-compiled-<wrong>`, and pruneBuckets drops the real bucket, so the
+  // next boot recompiles once. Slower, never wrong. (Verified: a deliberately
+  // bogus `?v` still renders the calendar from prewarm.)
+  const stamped = new URL(import.meta.url).searchParams.get("v");
+  if (stamped) return stamped;
   try {
     const r = await fetch(new URL("bundles/version.json", ROOT), { cache: "no-cache" });
     if (r.ok) return (await r.json()).build || "dev";

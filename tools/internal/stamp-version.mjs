@@ -36,6 +36,15 @@ const SW = join(ROOT, "service-worker.js");
 const VERSION_JSON = join(ROOT, "bundles", "version.json");   // the build record (lives beside the built bundles)
 const BUILD_RE = /const BUILD_ID = "[^"]*";/;
 
+// The entry page loads the platform bundle with the build id as its cache-buster
+// — `declare-boot.js?v=<build>` — matching what the service worker puts on the
+// pages IT synthesizes. boot-uniform reads the id straight off its own module URL,
+// which spares every boot a serial, `no-cache` fetch of version.json before the
+// prewarm key can be computed. Like the worker's BUILD_ID line, this is stamped
+// INTO a file that is itself hashed, so it is normalized away before hashing.
+const INDEX_HTML = join(ROOT, "index.html");
+const BOOTV_RE = /(\.\/bundles\/declare-boot\.js)(\?v=[^"']*)?/g;
+
 // Platform inputs whose change should bust all caches + force a worker update. NOT bare "." —
 // the runtime's own dist and the compiler bundle carry all the compiled behavior, `browser/` the
 // client + the boot modules the worker's host page loads. `bundles/version.json` is skipped in the
@@ -63,6 +72,8 @@ if (!BUILD_RE.test(swText)) {
   process.exit(1);
 }
 
+const indexText = existsSync(INDEX_HTML) ? readFileSync(INDEX_HTML, "utf8") : null;
+
 const h = createHash("sha256");
 // Hash the worker with its BUILD_ID line NORMALIZED, so stamping isn't self-referential.
 h.update(swText.replace(BUILD_RE, 'const BUILD_ID = "";'));
@@ -70,16 +81,26 @@ for (const input of INPUTS) {
   if (input === "service-worker.js") continue;   // already hashed (normalized) above
   for (const f of walk(join(ROOT, input))) {
     h.update(relative(ROOT, f));     // path (so renames/moves count)
+    // index.html carries the same stamp — normalize its `?v=` away too, for the
+    // same reason, or every stamp would change the hash that produced it.
+    if (indexText !== null && f === INDEX_HTML) { h.update(indexText.replace(BOOTV_RE, "$1?v=")); continue; }
     h.update(readFileSync(f));       // content
   }
 }
 const build = h.digest("hex").slice(0, 12);
 
 const current = (swText.match(/const BUILD_ID = "([^"]*)";/) || [])[1];
+const stampIndex = () => {
+  if (indexText === null) return;
+  const next = indexText.replace(BOOTV_RE, `$1?v=${build}`);
+  if (next !== indexText) writeFileSync(INDEX_HTML, next);
+};
 if (current === build) {
+  stampIndex();                       // the id is settled; the page may still be un-stamped
   console.log("stamp-version: unchanged (BUILD_ID =", build + ")");
   process.exit(0);
 }
 writeFileSync(SW, swText.replace(BUILD_RE, `const BUILD_ID = "${build}";`));
 writeFileSync(VERSION_JSON, JSON.stringify({ build }, null, 2) + "\n");
+stampIndex();
 console.log("stamp-version: BUILD_ID", current || "(none)", "->", build);
