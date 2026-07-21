@@ -360,4 +360,13 @@ await test("a <param> inside <doc> is documentation, not rpc (ordering)", () => 
   if (!r.gaps.some((g) => g.s13Ref === "documentation")) throw new Error("no documentation gap");
 });
 
+// ── Library mapping Task 4: dataset suppression ────────────────────────────
+
+await test("<dataset> maps to Dataset; its data children are NOT walked", () => {
+  const r = lzxToDeclare(`<canvas><dataset name="d"><item><day>Mon</day></item></dataset></canvas>`);
+  if (r.gaps.some((g) => g.kind.includes("item") || g.kind.includes("day"))) throw new Error("walked dataset data: " + JSON.stringify(r.gaps));
+  if (!r.gaps.some((g) => g.s13Ref === "dataset-body")) throw new Error("no dataset-body gap");
+  if (!/Dataset/.test(r.declare ?? "")) throw new Error("Dataset not emitted: " + r.declare);
+});
+
 summarize("lzx");

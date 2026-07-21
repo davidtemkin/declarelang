@@ -177,6 +177,14 @@ function mapMembers(el: LzxNode, tag: string, naming: Naming, sink: GapSink, cla
     attrs.push({ name, value: mapValue(a.value, naming.attrTypeFor(tag, name), a.pos, sink) });
   }
 
+  if (tag === "Dataset") {
+    // A <dataset> body is XML DATA, not components — don't walk its data
+    // children (item/day/…). Its own attributes (above) are kept; JSON-body
+    // conversion is a deferred follow-up.
+    sink.add({ kind: "<dataset> body", severity: "degraded", s13Ref: "dataset-body", pos: el.pos, note: "XML data body not converted to JSON (deferred)" });
+    return { attrs, decls, methods, children };
+  }
+
   for (const c of el.children) {
     const low = c.tag.toLowerCase();
     if (low === "class") { const dc = mapClass(c, naming, sink, classes); if (dc) classes.push(dc); continue; }
