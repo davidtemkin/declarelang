@@ -295,6 +295,11 @@ const DOMIslandSchema = {
     base: ViewSchema,
     attrs: {
         slot: { kind: "string" },
+        // the reverse of `env` (host→child): the mounted child app's `appName`,
+        // reflected UP by the host so a hosting window can title itself by the
+        // child (the viewer names its window by the file it is showing). Host-fed,
+        // like the read-only environment channels; "" until a child is up.
+        childName: { kind: "string" },
     },
 };
 // TextInput (Layer 3, docs/system-design/input.md): an editable text field — the first

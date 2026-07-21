@@ -689,10 +689,11 @@ export class DOMIsland extends View {
     flush(s) {
         super.flush(s);
         if (this.slot !== "")
-            s.setEmbed(this.slot);
+            s.setEmbed(this.slot, this);
     }
 }
 defineAttributes(DOMIsland, {
-    slot: { def: "", push: (v, id) => v.surface?.setEmbed(id) },
+    slot: { def: "", push: (v, id) => v.surface?.setEmbed(id, v) },
+    childName: { def: "" },
 });
 //# sourceMappingURL=view.js.map

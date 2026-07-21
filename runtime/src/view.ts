@@ -913,13 +913,15 @@ defineAttributes(App, {
  *  — setEmbed is a no-op there for now.) */
 export class DOMIsland extends View {
   declare slot: string;
+  declare childName: string;
 
   protected flush(s: Surface): void {
     super.flush(s);
-    if (this.slot !== "") s.setEmbed(this.slot);
+    if (this.slot !== "") s.setEmbed(this.slot, this);
   }
 }
 
 defineAttributes(DOMIsland, {
-  slot: { def: "", push: (v, id) => v.surface?.setEmbed(id) },
+  slot: { def: "", push: (v, id) => v.surface?.setEmbed(id, v) },
+  childName: { def: "" },
 });

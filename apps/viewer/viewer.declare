@@ -126,7 +126,7 @@ App [ fill = { app.theme.bg },
     // the page title is the viewed file itself ("calendar.declare") — the seeds
     // land after boot, so the served title stands until the path arrives
 
-    appName = { (app.demoSources["__path__"] || "").split("/").pop() || "" },
+    appName = { ((app.env.program ? "" + app.env.program : (app.demoSources["__path__"] || "")).split("/").pop()) || "" },
 
     // EMBEDDED self-loading: a HOST (the desktop) passes `env.program` — a
     // program path valid in the host's transport base — and this app fetches

@@ -42,7 +42,7 @@ the recorded next passes.
 // is invisible to that analysis. `use` is the explicit bridge: keep these
 // classes registered for creation by name.
 
-use [ FinderWindow, ViewerWindow, AppWindow, AboutWindow, StickyWindow, BrandMark, HelpSearch ]
+use [ FinderWindow, ViewerWindow, AppWindow, AboutWindow, StickyWindow, BrandMark, HelpSearch, AppGlyph, CautionBadge ]
 
 // ── a desktop window: chrome once, contents per subclass ─────────────────────
 
@@ -473,18 +473,70 @@ class TrafficLight extends View [ y = 0, width = 14, height = 14, cornerRadius =
 
 // ── the brand mark: Declare's identity in the para-Apple slot ────────────────
 //
-// The mark — a rounded square holding the two brackets — rendered
-// monochrome for the menu bar, the way the Apple logo is: solid menu-bar ink,
-// brackets knocked out. (The gradient version stays the social-card identity;
-// a colored mark would shout in a monochrome bar.)
+// Declare's answer to the Apple logo: a WHITE disc carrying the brackets in
+// black, monospace — legible on the wallpaper the way the white Apple mark is,
+// and a clean counterpart to the colored dock icon. One space between the
+// brackets, the monospace `[ ]`.
 
 class BrandMark extends View [ width = 18, height = 18, cornerRadius = 9,
-    fill = { theme.text },
+    fill = #FFFFFF,
 
-    // two spaces between the brackets (the dock icon's mark), shrunk to fit the circle
+    Text [ x = center, y = center, fontSize = 9, fontWeight = bold,
+        textColor = #000000, text = "[ ]" ],
+    ]
 
-    Text [ x = center, y = center, fontSize = 8, fontWeight = bold,
-        textColor = { theme.surface }, text = "[  ]" ],
+
+// ── a standalone app icon: the dock's plate + illustration for a given kind/
+// glyph, at any size. Reused by the "Not implemented" alert so an app's mark is
+// identical there and in the dock (one renderer, app.drawKindArt). ───────────
+
+class AppGlyph extends View [ width = { this.edge }, height = { this.edge },
+    edge: number = 64,
+    kind: string = "",
+    glyph: string = "",
+    gsize: number = 0.42,
+    hue1: Color = #4A90D9,
+    hue2: Color = #2E5FA3,
+    cornerRadius = { this.edge * 0.23 }, clip = true,
+    fill = { gradient(this.hue1 != null ? this.hue1 : 0x4A90D9, this.hue2 != null ? this.hue2 : 0x2E5FA3) },
+
+    g: Text [ x = center, y = center, fontWeight = semibold, textColor = #FFFFFF,
+        fontSize = { classroot.edge * classroot.gsize },
+        visible = { classroot.glyph != "" },
+        text = { classroot.glyph } ],
+    art: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height },
+        visible = { classroot.kind != "" },
+        draw(d) { d.scale(this.width / 48, this.width / 48); app.drawKindArt(d, classroot.kind, classroot.hue1) },
+        ],
+    ]
+
+
+// ── the caution badge — macOS's warning mark: a rounded yellow triangle with a
+// ! , over a white halo so it separates from any app icon. Drawn in a 48-box. ─
+
+class CautionBadge extends View [ width = { this.edge }, height = { this.edge },
+    edge: number = 30,
+    draw(d) {
+        d.scale(this.edge / 48, this.edge / 48)
+        const tri = (e, r) => {
+            const P = [[24, 5 - e], [44 + e, 41 + e * 0.5], [4 - e, 41 + e * 0.5]]
+            d.beginPath()
+            d.moveTo((P[0][0] + P[2][0]) / 2, (P[0][1] + P[2][1]) / 2)
+            d.arcTo(P[0][0], P[0][1], P[1][0], P[1][1], r)
+            d.arcTo(P[1][0], P[1][1], P[2][0], P[2][1], r)
+            d.arcTo(P[2][0], P[2][1], P[0][0], P[0][1], r)
+            d.closePath()
+            }
+        d.fillStyle = 0xFFFFFF                        // the halo
+        tri(2.6, 7); d.fill()
+        const g = d.createLinearGradient(0, 3, 0, 43)
+        g.addColorStop(0, "#FFD426"); g.addColorStop(1, "#F5B800")
+        d.fillStyle = g
+        tri(0, 6); d.fill()
+        d.fillStyle = 0x3A2E00                        // the exclamation
+        d.fillRect(22, 17, 4, 13)
+        d.beginPath(); d.arc(24, 34, 2.3, 0, 6.3, false); d.fill()
+        },
     ]
 
 
@@ -580,10 +632,6 @@ class AboutWindow extends Window [ width = 280, height = 380, plain = true,
                             d.moveTo(8, 27); d.lineTo(40, 27)
                             d.moveTo(8, 35); d.lineTo(26, 35)
                             d.stroke()
-                            d.fillStyle = 0xE9D76A
-                            d.beginPath()
-                            d.moveTo(48, 33); d.lineTo(33, 48); d.lineTo(48, 48)
-                            d.closePath(); d.fill()
                             }
                         },
                     ],
@@ -654,11 +702,18 @@ class FileIcon extends View [ width = 13, height = 16,
 
 // ── Finder: a column browser over the repository's own documentation ─────────
 
-class FinderWindow extends Window [ title = "Documentation",
+class FinderWindow extends Window [
 
-    sel1: string = "",                           // the selected folder
+    sel1: string = "",                           // the selected top-level folder
+    sel1b: string = "",                          // the selected SUBfolder (2nd level), when the tree nests
     sel2: string = "",                           // the selected file (its path)
     sel2name: string = "",
+
+    // the window's name IS the selected folder — the deepest one open — and
+    // falls back to "Documentation" at the top level (nothing selected). Tracks
+    // a second folder level automatically when the JSON nests one.
+
+    title = { this.sel1b != "" ? this.sel1b : (this.sel1 != "" ? this.sel1 : "Documentation") },
 
     // the tree derives from the live documentation model (app.docsModel — the
     // docs app's own spine, fetched once): the Guide folder lists every
@@ -845,6 +900,13 @@ class AppWindow extends Window [ width = 880, height = 560,
     appPath: string = "",
     extraEnv: string = "",                       // appended env parameters ("program=…")
 
+    // the window's name is the HOSTED app's name, reflected up from the embedded
+    // child (`island.childName`): the viewer titles by the file it shows and
+    // follows its navigation. `appTitle` is the fallback until the child is up.
+
+    appTitle: string = "",
+    title = { this.island.childName != "" ? this.island.childName : this.appTitle },
+
     // the slot's ENV segment (after `|`) is the embedding environment — the
     // host parses it into the child's reactive `app.env`, at mount and on
     // every change: toggling the desktop's appearance re-marks the slot and
@@ -866,6 +928,12 @@ class AppWindow extends Window [ width = 880, height = 560,
 
 class ViewerWindow extends Window [ width = 640, height = 460,
     path: string = "",
+
+    // the window's name is the FILE being viewed — its basename, not the path
+    // (a "ref:" page names the element). The same basename rule the standalone
+    // viewer app titles itself by, so the two agree.
+
+    title = { this.path.indexOf("ref:") == 0 ? this.path.slice(4) : (this.path.split("/").pop() || "") },
 
     // a "ref:" path renders a page synthesized from the documentation model
     // (reactive — the page fills in when the model arrives); anything else is
@@ -1205,16 +1273,6 @@ class DockIcon extends View [
             draw(d) {
                 d.scale(this.width / 48, this.width / 48)
                 const k = classroot.kind
-                // rounded rectangle on the path (the draw surface has arcs,
-                // not a roundRect) — shared by the folder's panels
-                const rr = (x, y, w, h, r) => {
-                    d.moveTo(x + r, y)
-                    d.lineTo(x + w - r, y); d.arc(x + w - r, y + r, r, -Math.PI / 2, 0, false)
-                    d.lineTo(x + w, y + h - r); d.arc(x + w - r, y + h - r, r, 0, Math.PI / 2, false)
-                    d.lineTo(x + r, y + h); d.arc(x + r, y + h - r, r, Math.PI / 2, Math.PI, false)
-                    d.lineTo(x, y + r); d.arc(x + r, y + r, r, Math.PI, Math.PI * 1.5, false)
-                    d.closePath()
-                    }
                 if (k == "calendar") {
                     d.fillStyle = 0xFFFFFF
                     d.fillRect(0, 0, 48, 48)
@@ -1233,79 +1291,7 @@ class DockIcon extends View [
                     d.font = "27px -apple-system, system-ui, sans-serif"
                     d.fillText("" + app.dayNum, 24, 31)
                     }
-                else if (k == "files") {
-                    // the folder: a back panel with its tab, then a brighter
-                    // front panel over the lower half — two whites on the
-                    // plate's blue
-                    d.fillStyle = 0xD9E7FA
-                    d.beginPath()
-                    rr(9, 13.5, 14, 8, 2)
-                    d.fill()
-                    d.beginPath()
-                    rr(9, 16, 30, 19, 2.5)
-                    d.fill()
-                    d.fillStyle = 0xFFFFFF
-                    d.beginPath()
-                    rr(9, 20, 30, 15, 2.5)
-                    d.fill()
-                    }
-                else if (k == "mail") {
-                    d.fillStyle = 0xFFFFFF
-                    d.beginPath()
-                    d.moveTo(9, 15); d.lineTo(39, 15); d.lineTo(39, 34); d.lineTo(9, 34)
-                    d.closePath(); d.fill()
-                    d.strokeStyle = 0xB9C6DB
-                    d.lineWidth = 1.6
-                    d.beginPath()
-                    d.moveTo(9.5, 15.8); d.lineTo(24, 26); d.lineTo(38.5, 15.8)
-                    d.stroke()
-                    }
-                else if (k == "terminal") {
-                    d.strokeStyle = 0xFFFFFF
-                    d.lineWidth = 2.6
-                    d.lineCap = "round"
-                    d.beginPath()
-                    d.moveTo(14, 18.5); d.lineTo(20, 24); d.lineTo(14, 29.5)
-                    d.moveTo(24, 30); d.lineTo(32.5, 30)
-                    d.stroke()
-                    }
-                else if (k == "pencil") {
-                    // the pencil, drawn: eraser upper-left, tip lower-right
-                    // (a horizontal flip of the glyph it replaces), spanning
-                    // most of the plate. Body + tip in white; the eraser seam
-                    // and ferrule struck back across it in the plate's hue.
-                    d.fillStyle = 0xFFFFFF
-                    d.beginPath()
-                    d.moveTo(7.8, 12.2); d.lineTo(14.2, 5.8); d.lineTo(35.7, 27.3); d.lineTo(29.3, 33.7)
-                    d.closePath(); d.fill()
-                    d.beginPath()
-                    d.moveTo(35.7, 27.3); d.lineTo(29.3, 33.7); d.lineTo(39.5, 37.5)
-                    d.closePath(); d.fill()
-                    d.strokeStyle = classroot.hue1
-                    d.lineWidth = 1.6
-                    d.beginPath()
-                    d.moveTo(11.4, 15.7); d.lineTo(17.7, 9.4)
-                    d.moveTo(13.5, 17.8); d.lineTo(19.8, 11.5)
-                    d.stroke()
-                    }
-                else if (k == "stickies") {
-                    // the sticky note: all-yellow paper, saturated strip,
-                    // faint ruled lines, a folded corner — kin to the real
-                    // Stickies icon, distinct from the white Notes plate
-                    d.fillStyle = 0xF3DC49
-                    d.fillRect(0, 0, 48, 10)
-                    d.strokeStyle = 0xE0CE66
-                    d.lineWidth = 2
-                    d.beginPath()
-                    d.moveTo(8, 19); d.lineTo(40, 19)
-                    d.moveTo(8, 27); d.lineTo(40, 27)
-                    d.moveTo(8, 35); d.lineTo(26, 35)
-                    d.stroke()
-                    d.fillStyle = 0xE9D76A
-                    d.beginPath()
-                    d.moveTo(48, 33); d.lineTo(33, 48); d.lineTo(48, 48)
-                    d.closePath(); d.fill()
-                    }
+                else { app.drawKindArt(d, k, classroot.hue1) }
                 },
             ],
 
@@ -1375,9 +1361,10 @@ App [ clip = true, appName = "Declare Desktop",
     theme = { Themes.cupertino(app.darkMode) },
     fontFamily = "-apple-system, system-ui, sans-serif",
 
-    // the wallpaper — a plain gradient, darkened with the appearance
+    // a dark solid beneath the drawn wallpaper (the `wallpaper` view covers it;
+    // this only shows before first paint / outside its bounds)
 
-    fill = { app.darkMode ? gradient(0x2A3A55, 0x18222F) : gradient(0x7FA8D9, 0x4A6FA5) },
+    fill = 0x0A0612,
 
     // ── window-activation policy: the macOS rule — a click on a background
     // window only brings it forward; the app inside hears nothing until the
@@ -1389,6 +1376,7 @@ App [ clip = true, appName = "Declare Desktop",
     // ── shared desktop geometry: named once, read by every constraint below ──
 
     menuBarH: number = 32,                       // the system menu bar's height; windows live below it
+    wallSeed: number = 7,                        // the generative wallpaper's seed; ` (backtick) cycles it
     iconEdge: number = 56,                       // a dock icon's resting edge — measured off the real Mac dock (55.5pt)
     dockFloor: number = 13,                      // the icons' resting bottom line, up from the desktop's bottom edge
     badgeEdge: number = 20,                      // a minimized window's app badge, at rest (measured ~20pt, bottom-right of the thumb)
@@ -1438,6 +1426,86 @@ App [ clip = true, appName = "Declare Desktop",
             if (a <= xs[i + 1]) return ys[i] + (ys[i + 1] - ys[i]) * (a - xs[i]) / (xs[i + 1] - xs[i])
             }
         return 1
+        },
+
+    // an app illustration in the 48-unit authoring box (the caller has already
+    // scaled to size, and painted the plate hue behind). The plate-hued `kind`s
+    // only — the live calendar face is drawn by each caller, which owns the day
+    // data. ONE renderer, shared by the dock icons and the "Not implemented"
+    // alert, so an app's icon is identical wherever it appears.
+
+    drawKindArt(d, kind, hue1) {
+        const rr = (x, y, w, h, r) => {
+            d.moveTo(x + r, y)
+            d.lineTo(x + w - r, y); d.arc(x + w - r, y + r, r, -Math.PI / 2, 0, false)
+            d.lineTo(x + w, y + h - r); d.arc(x + w - r, y + h - r, r, 0, Math.PI / 2, false)
+            d.lineTo(x + r, y + h); d.arc(x + r, y + h - r, r, Math.PI / 2, Math.PI, false)
+            d.lineTo(x, y + r); d.arc(x + r, y + r, r, Math.PI, Math.PI * 1.5, false)
+            d.closePath()
+            }
+        if (kind == "files") {
+            d.fillStyle = 0xD9E7FA
+            d.beginPath()
+            rr(9, 13.5, 14, 8, 2)
+            d.fill()
+            d.beginPath()
+            rr(9, 16, 30, 19, 2.5)
+            d.fill()
+            d.fillStyle = 0xFFFFFF
+            d.beginPath()
+            rr(9, 20, 30, 15, 2.5)
+            d.fill()
+            }
+        else if (kind == "mail") {
+            d.fillStyle = 0xFFFFFF
+            d.beginPath()
+            d.moveTo(9, 15); d.lineTo(39, 15); d.lineTo(39, 34); d.lineTo(9, 34)
+            d.closePath(); d.fill()
+            d.strokeStyle = 0xB9C6DB
+            d.lineWidth = 1.6
+            d.beginPath()
+            d.moveTo(9.5, 15.8); d.lineTo(24, 26); d.lineTo(38.5, 15.8)
+            d.stroke()
+            }
+        else if (kind == "terminal") {
+            d.strokeStyle = 0xFFFFFF
+            d.lineWidth = 2.6
+            d.lineCap = "round"
+            d.beginPath()
+            d.moveTo(14, 18.5); d.lineTo(20, 24); d.lineTo(14, 29.5)
+            d.moveTo(24, 30); d.lineTo(32.5, 30)
+            d.stroke()
+            }
+        else if (kind == "pencil") {
+            // the pencil: eraser upper-left, tip lower-right. Body + tip in
+            // white; the eraser seam struck back in the plate's hue.
+            d.fillStyle = 0xFFFFFF
+            d.beginPath()
+            d.moveTo(7.8, 12.2); d.lineTo(14.2, 5.8); d.lineTo(35.7, 27.3); d.lineTo(29.3, 33.7)
+            d.closePath(); d.fill()
+            d.beginPath()
+            d.moveTo(35.7, 27.3); d.lineTo(29.3, 33.7); d.lineTo(39.5, 37.5)
+            d.closePath(); d.fill()
+            d.strokeStyle = hue1 != null ? hue1 : 0xFFFFFF   // hue is always supplied; the guard just narrows the nullable Color param
+            d.lineWidth = 1.6
+            d.beginPath()
+            d.moveTo(11.4, 15.7); d.lineTo(17.7, 9.4)
+            d.moveTo(13.5, 17.8); d.lineTo(19.8, 11.5)
+            d.stroke()
+            }
+        else if (kind == "stickies") {
+            // all-yellow paper (the plate's yellow is the background), a
+            // saturated strip and faint ruled lines
+            d.fillStyle = 0xF3DC49
+            d.fillRect(0, 0, 48, 10)
+            d.strokeStyle = 0xE0CE66
+            d.lineWidth = 2
+            d.beginPath()
+            d.moveTo(8, 19); d.lineTo(40, 19)
+            d.moveTo(8, 27); d.lineTo(40, 27)
+            d.moveTo(8, 35); d.lineTo(26, 35)
+            d.stroke()
+            }
         },
 
     // the label pill's silhouette — ONE path (a STADIUM body: fully-rounded
@@ -1537,10 +1605,11 @@ App [ clip = true, appName = "Declare Desktop",
             else this.openViewer("../../docs/declare.md", "declare.md")
             }
         else if (id == "close") { if (frontWin != null) this.closeWin(frontWin) }
-        else if (id == "dark") app.darkMode = !app.darkMode
+        else if (id == "dark") { app.darkChoice = !app.darkMode; app.darkLocked = true }
         else if (id == "about-desktop") this.openAbout("desktop")
         else if (id == "about-app") this.openAbout(this.activeApp)
         else if (id == "source-desktop") this.openSource("desktop")
+        else if (id == "home") app.navigate("apps/homepage/homepage.declare")   // distro-root-relative → works on dev server AND static host
         else if (id == "source") this.openSource(this.activeApp)
         else if (id == "quit") this.quitApp(this.activeApp)
         else if (id.indexOf("win:") == 0) this.focusWin(this.wins.children[+id.slice(4)])
@@ -1781,7 +1850,35 @@ App [ clip = true, appName = "Declare Desktop",
 
     onMouseDown() { this.dismissAbouts() },
 
-    darkMode: boolean = false,
+    // appearance: follow the OS colour scheme (app.dark) by DEFAULT; the menu's
+    // Dark/Light item LOCKS the choice to the user's pick from that point on
+    // (system flips no longer move it). schema.ts §dark names exactly this pattern.
+
+    darkLocked: boolean = false,
+    darkChoice: boolean = false,
+    darkMode: boolean = { this.darkLocked ? this.darkChoice : app.dark },
+
+    // ── the "Not implemented" alert: one app-modal macOS-26 sheet the inert
+    // dock apps raise. A single slot of state — `notImpl` fills it (name +
+    // icon), the OK button clears it. `alertName == ""` ⇒ no alert.
+
+    alertName: string = "",
+    alertHead: string = "",                      // the terse per-app headline ("No." / "Nope." / …)
+    alertKind: string = "",
+    alertGlyph: string = "",
+    alertGsize: number = 0.42,
+    alertHue1: Color = #4A90D9,
+    alertHue2: Color = #2E5FA3,
+    notImpl(head, name, kind, glyph, gsize, h1, h2) {
+        alertHead = head
+        alertName = name
+        alertKind = kind
+        alertGlyph = glyph
+        alertGsize = gsize
+        alertHue1 = h1
+        alertHue2 = h2
+        },
+    dismissAlert() { alertName = "" },
 
     newFinder() {
         this.dismissAbouts()
@@ -1825,7 +1922,7 @@ App [ clip = true, appName = "Declare Desktop",
             const wx = 160 + (winCount % 7) * 28
             const wy = 36 + (winCount % 7) * 26
             const o = this.originOf(v)
-            const w = this.createView("ViewerWindow", this.wins, ({ path: p, title: "" + nm, wx: wx, wy: wy,
+            const w = this.createView("ViewerWindow", this.wins, ({ path: p, wx: wx, wy: wy,
                 bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - this.menuBarH : -1,
                 bornFrom: v != null ? v : null }))
             this.frontOpen(w)
@@ -1870,14 +1967,22 @@ App [ clip = true, appName = "Declare Desktop",
             this.dismissAbouts()
             winCount = winCount + 1
             winSeq = winSeq + 1
-            const wx = 110 + (winCount % 5) * 30
-            const wy = 24 + (winCount % 5) * 22
-            // the calendar wants room — a month grid reads best wide; the
-            // viewer keeps the base app-window size
-            const ww = isCal ? 1000 : 880
-            const wh = isCal ? 680 : 560
+            let wx = 110 + (winCount % 5) * 30
+            let wy = 24 + (winCount % 5) * 22
+            let ww = 880, wh = 560
+            // the calendar opens smaller than a full app window and CLEARS the
+            // dock — its height caps to the room above the dock — and centres
+            // horizontally, the reference default. The viewer keeps base size.
+            if (isCal) {
+                wy = 28
+                // clear the dock (height caps to the room above it) AND never
+                // fall below the calendar's own min (480 × 420) — clamp to both.
+                ww = Math.max(480, Math.min(920, this.width - 80))
+                wh = Math.max(420, Math.min(600, this.height - this.menuBarH - wy - 168))   // 168 ≈ dock footprint + gap
+                wx = Math.round((this.width - ww) / 2)
+                }
             const o = this.originOf(v)
-            const w = this.createView("AppWindow", this.wins, ({ appPath: "" + p, title: "" + nm, wx: wx, wy: wy,
+            const w = this.createView("AppWindow", this.wins, ({ appPath: "" + p, appTitle: "" + nm, wx: wx, wy: wy,
                 width: ww, height: wh,
                 extraEnv: envExtra != null ? "" + envExtra : "",
                 bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - this.menuBarH : -1,
@@ -1924,7 +2029,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         stRunning = true
         winSeq = winSeq + 1
         const w = this.createView("StickyWindow", this.wins, ({ note: this.welcomeNote,
-            width: 400, height: 345, wx: Math.max(760, app.width - 424), wy: 120 }))
+            width: 400, height: 345, wx: Math.max(440, app.width - 490), wy: 120 }))
         this.frontOpen(w)
         },
 
@@ -1957,7 +2062,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         const mo = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()]
         const h12 = d.getHours() % 12 == 0 ? 12 : d.getHours() % 12
         const mm = (d.getMinutes() < 10 ? "0" : "") + d.getMinutes()
-        clockText = wd + " " + mo + " " + d.getDate() + " " + h12 + ":" + mm + " " + (d.getHours() >= 12 ? "PM" : "AM")
+        clockText = wd + " " + mo + " " + d.getDate() + "  " + h12 + ":" + mm + " " + (d.getHours() >= 12 ? "PM" : "AM")
         dayName = wd.toUpperCase()
         dayNum = d.getDate()
         },
@@ -2004,6 +2109,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         .flatMap((m) => (m.items || []).filter((r) => r.key).map((r) => ({ menu: "" + m.label, ...r }))) },
 
     onKeyDown(e) <- Keys {
+        if (e.key == "`" && !e.meta && !e.repeat) { app.wallSeed = app.wallSeed + 1; return }   // cycle the wallpaper (selection/debug)
         if (!e.meta || e.repeat || e.key == "Meta") return
         if (this.bar.mb.shown) return                // an open menu owns the keyboard
         const combo = "⌘" + (e.key.length == 1 ? e.key.toUpperCase() : e.key)
@@ -2011,39 +2117,102 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         if (hit != null) this.command("" + hit.id)
         },
 
-    // ── the wallpaper: an original flowing composition, drawn ──────────────
+    // ── the wallpaper: a generative mesh field, drawn ──────────────────────
     //
-    // A blue linear base with warm and cool radial glows floated over it —
-    // real Canvas gradients (a transparent outer stop is the soft falloff),
-    // overlapping into a varied, aurora-like field. Handler-less, so a desktop
-    // press still dismisses an About box.
+    // A hue-tinted dark ground with five saturated colour poles, biased to the
+    // edges and melted together with a big blur() under a `lighten` blend — a
+    // bold, cohesive gradient field. It is a PURE FUNCTION of `app.wallSeed`: a
+    // seeded PRNG picks the palette (a per-seed colour scheme keeps hues
+    // cohesive rather than muddy) and the pole layout, so pressing ` (backtick)
+    // bumps the seed and rotates through the generated space. Handler-less, so a
+    // desktop press still dismisses an About box.
+    //
+    // Only draw()-subset primitives: radial gradients, filter blur(),
+    // globalCompositeOperation. No images, no per-pixel — see draw.ts.
+    //
+    // ── drawn ONCE, then paint-scaled ──────────────────────────────────────
+    // The mesh is recorded in a FIXED reference box (refW×refH constants), so
+    // its display list never changes with the window — only `app.wallSeed`
+    // rebuilds it. On resize the view is COVER-scaled to fill (uniform, aspect
+    // preserved; the tighter axis fits, the other overflows and clips) and
+    // re-centered — all paint-only transforms. So the field never re-rasters
+    // on resize.
+    //
+    // Why it must: on WebKit the 2D canvas is DEFERRED — draw() only records;
+    // the raster flushes lazily. Re-recording this field every resize frame
+    // (five full-screen radial fills + blur) measured 24ms/flush in Safari
+    // (~42fps) — the whole compositor stalls and the dock trails the window.
+    // A cached raster + a CSS scale is 17ms (~60fps). (Chrome's GPU raster is
+    // eager: 8ms either way, which is why the lag never showed there.) This is
+    // the dock icons' own `face`-scale trick — the Mesa "CSS-transform bridge."
+    // 1920×1200 covers a common maximized window at scale ≤ 1 (crisp) and
+    // upscales gently past it (a blurred field hides the softness).
 
-    wallpaper: View [ x = 0, y = 0, width = { app.width }, height = { app.height },
+    wallpaper: View [ refW: number = 1920,
+        refH: number = 1200,
+        width = { this.refW }, height = { this.refH },
+        x = { (app.width - this.refW) / 2 }, y = { (app.height - this.refH) / 2 },
+        pivotX = { this.refW / 2 }, pivotY = { this.refH / 2 },
+        scale = { Math.max(app.width / this.refW, app.height / this.refH) },
         draw(d) {
             const W = this.width
             const H = this.height
-            const dark = app.darkMode
-            // the blue base — a vertical linear gradient, deep at top
-            const base = d.createLinearGradient(0, 0, 0, H)
-            base.addColorStop(0, dark ? "#161c2e" : "#3a5c9c")
-            base.addColorStop(1, dark ? "#0c1220" : "#6298ce")
-            d.fillStyle = base
+            const hsl = (h, s, l) => "hsl(" + (((h % 360) + 360) % 360) + "," + s + "%," + l + "%)"
+            // seeded PRNG (mulberry32) — deterministic per app.wallSeed
+            let a = (app.wallSeed >>> 0) || 1
+            const rnd = () => {
+                a = (a + 1831565813) | 0                          // mulberry32 increment, in decimal (a bare hex literal reads as a Color in Declare)
+                let t = Math.imul(a ^ (a >>> 15), 1 | a)
+                t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+                return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+                }
+            const hue0 = rnd() * 360
+            // a COHESIVE colour scheme per seed, so complementaries don't meet
+            // and mud out; hue0 + scheme swing strongly seed to seed
+            const scheme = Math.floor(rnd() * 3)                 // 0 analogous · 1 triad · 2 split-complementary
+            const hueFor = () => {
+                if (scheme == 0) return hue0 + (rnd() - 0.5) * 100
+                if (scheme == 1) return hue0 + [0, 120, 240][Math.floor(rnd() * 3)] + (rnd() - 0.5) * 26
+                return rnd() < 0.72 ? hue0 + (rnd() - 0.5) * 74 : hue0 + 180 + (rnd() - 0.5) * 40
+                }
+            // dark, hue-tinted ground
+            d.fillStyle = hsl(hue0, 52, 5)
             d.fillRect(0, 0, W, H)
-            // each glow: a radial gradient from a translucent core to a fully
-            // transparent rim — the falloff is the gradient, no stacking
-            const span = Math.max(W, H)
-            const a = dark ? 0.11 : 0.22
-            const glow = (cx, cy, radius, rgb, core) => {
-                const g = d.createRadialGradient(cx, cy, 0, cx, cy, radius)
-                g.addColorStop(0, "rgba(" + rgb + "," + core + ")")
-                g.addColorStop(1, "rgba(" + rgb + ",0)")
+            // five poles biased to the edges/corners, so the centre never piles to white
+            const spots = [[0.17, 0.24], [0.82, 0.2], [0.5, 0.54], [0.2, 0.82], [0.83, 0.8]]
+            const blurPx = Math.round(Math.max(W, H) * 0.05)
+            d.save()
+            d.filter = "blur(" + blurPx + "px)"
+            d.globalCompositeOperation = "lighten"                // per-channel max keeps overlaps saturated, not grey
+            for (const s of spots) {
+                const px = (s[0] + (rnd() - 0.5) * 0.18) * W
+                const py = (s[1] + (rnd() - 0.5) * 0.18) * H
+                const r = (0.36 + rnd() * 0.26) * Math.max(W, H)
+                const h = hueFor()
+                const sat = 70 + rnd() * 22
+                const li = 44 + rnd() * 12
+                const g = d.createRadialGradient(px, py, 0, px, py, r)
+                g.addColorStop(0, hsl(h, sat, li))
+                g.addColorStop(0.5, hsl(h, sat, li * 0.62))
+                g.addColorStop(1, "rgba(0,0,0,0)")
                 d.fillStyle = g
                 d.fillRect(0, 0, W, H)
                 }
-            glow(W * 0.16, H * 0.20, span * 0.55, "255,138,96", a)    // warm coral, upper-left
-            glow(W * 0.86, H * 0.28, span * 0.50, "92,208,228", a)    // cyan, upper-right
-            glow(W * 0.64, H * 0.90, span * 0.60, "150,108,222", a)   // violet, lower
-            glow(W * 0.42, H * 0.55, span * 0.35, "255,202,128", a * 0.55)  // warm highlight, center
+            d.restore()
+            // strong vignette — contrast, framing, and a darker centre-out that
+            // keeps the field from washing out
+            const v = d.createRadialGradient(W / 2, H * 0.45, H * 0.1, W / 2, H * 0.5, W * 0.72)
+            v.addColorStop(0, "rgba(0,0,0,0)")
+            v.addColorStop(1, "rgba(0,0,6,0.62)")
+            d.fillStyle = v
+            d.fillRect(0, 0, W, H)
+            // a faint top scrim so the (background-less) menu bar's light text
+            // stays legible over any palette
+            const top = d.createLinearGradient(0, 0, 0, 48)
+            top.addColorStop(0, "rgba(0,0,0,0.30)")
+            top.addColorStop(1, "rgba(0,0,0,0)")
+            d.fillStyle = top
+            d.fillRect(0, 0, W, 48)
             },
         ],
 
@@ -2060,11 +2229,12 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
 
     menus: array = { [
         ({ id: "brand", label: "Declare", kind: "BrandMark", items: [
-            ({ id: "about-desktop", label: "About Declare Desktop", icon: "▢" }),
+            ({ id: "about-desktop", label: "About Declare Desktop", icon: "[ ]" }),
             ({ divider: true }),
-            ({ id: "dark", label: "Dark Mode", key: "⌘K", icon: "◐", checked: app.darkMode }),
+            ({ id: "dark", label: app.darkMode ? "Light Mode" : "Dark Mode", key: "⌘K", icon: "◐" }),
             ({ divider: true }),
             ({ id: "source-desktop", label: "View & Edit Source", icon: "‹›" }),
+            ({ id: "home", label: "Declare Home" }),
         ] }),
         ({ id: "app", label: this.nameOf(this.activeApp), bold: true,
             items: this.appMenuItems(this.activeApp) }),
@@ -2130,13 +2300,18 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         return out
         },
 
-    bar: View [ x = 0, y = 0, width = { app.width }, height = { app.menuBarH }, fill = { theme.surface }, opacity = 0.92,
-        mb: MenuBar [ x = 10, height = { parent.height }, menus = { app.menus },
+    // no background: the menu bar's words render straight on the wallpaper, the
+    // way current macOS does. `ink` turns the titles light; the wallpaper's top
+    // scrim keeps them legible over any palette.
+
+    bar: View [ x = 0, y = 0, width = { app.width }, height = { app.menuBarH },
+        menuInk: Color = 0xF2F2F5,
+        mb: MenuBar [ x = 10, height = { parent.height }, menus = { app.menus }, ink = { parent.menuInk },
             picked(id) { app.command(id) },
             ],
         clock: Text [ x = { parent.width - this.width - 14 }, y = center, fontSize = 13,
             fontWeight = medium,                 // 400 reads thin under browser antialiasing; medium matches the platform density
-            textColor = { theme.text }, text = { app.clockText } ],
+            textColor = { parent.menuInk }, text = { app.clockText } ],
         ],
 
     // ── the dock ───────────────────────────────────────────────────────────
@@ -2226,18 +2401,11 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
                 onClick() { app.dockOpen("markdown", () => app.openViewer("../../docs/declare.md", "declare.md")) },
                 ],
 
-            // Guide is a document icon (no running state): it always opens
-            // its document — in the Markdown application
-
-            DockIcon [ ix = 2, name = "Guide", kind = "pencil", hue1 = #F49B45, hue2 = #C96B1D,
-                onClick() { app.openViewer("../../docs/guide/01-thinking-in-declare.md", "Thinking in Declare") },
-                ],
-
             // the Declare Viewer as a dock application: launches (bounce, dot,
             // Quit) like the others, hosting the real apps/viewer as an
             // embedded app — opened, by default, on this program's own source
 
-            dvIcon: DockIcon [ ix = 3, name = "Declare Viewer", glyph = "[  ]", gsize = 0.42,
+            dvIcon: DockIcon [ ix = 2, name = "Declare Viewer", glyph = "[  ]", gsize = 0.42,
                 hue1 = #2E6FE0, hue2 = #12A594,   // the brand's blue→teal accent thread
                 running = { app.dvRunning },
                 onClick() { app.dockOpen("declareviewer", () => app.openApp("../../viewer/viewer", "Declare Viewer", this, "program=desktop.declare")) },
@@ -2246,17 +2414,30 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
             // the plausible-Mac-application set: enough items for the
             // magnification wave to read like the real dock's
 
-            calIcon: DockIcon [ ix = 4, name = "Calendar", kind = "calendar", hue1 = #FFFFFF, hue2 = #EFEFF2,
+            calIcon: DockIcon [ ix = 3, name = "Calendar", kind = "calendar", hue1 = #FFFFFF, hue2 = #EFEFF2,
                 running = { app.calRunning },
                 onClick() { app.dockOpen("calendar", () => app.openApp("../../calendar/calendar", "Calendar", this, "base=../calendar/")) },
                 ],
-            stIcon: DockIcon [ ix = 5, name = "Stickies", kind = "stickies", hue1 = #FCF4A7, hue2 = #F3E27E,
+            stIcon: DockIcon [ ix = 4, name = "Stickies", kind = "stickies", hue1 = #FCF4A7, hue2 = #F3E27E,
                 running = { app.stRunning },
                 onClick() { app.dockOpen("stickies", () => app.newSticky("", this)) },
                 ],
-            DockIcon [ ix = 6, name = "Mail", kind = "mail", hue1 = #1E8CFB, hue2 = #1667D9 ],
-            DockIcon [ ix = 7, name = "Music", glyph = "♪", gsize = 0.52, hue1 = #FB5C74, hue2 = #FA233B ],
-            DockIcon [ ix = 8, name = "Terminal", kind = "terminal", hue1 = #3A3A40, hue2 = #17171B ],
+
+            // "Write" — an inert placeholder (a pencil), to the right of
+            // Stickies; does nothing when clicked
+
+            DockIcon [ ix = 5, name = "Write", kind = "pencil", hue1 = #F49B45, hue2 = #C96B1D,
+                onClick() { app.notImpl("No.", "Write", "pencil", "", 0.42, 0xF49B45, 0xC96B1D) },
+                ],
+            DockIcon [ ix = 6, name = "Mail", kind = "mail", hue1 = #1E8CFB, hue2 = #1667D9,
+                onClick() { app.notImpl("Nope.", "Mail", "mail", "", 0.42, 0x1E8CFB, 0x1667D9) },
+                ],
+            DockIcon [ ix = 7, name = "Music", glyph = "♪", gsize = 0.52, hue1 = #FB5C74, hue2 = #FA233B,
+                onClick() { app.notImpl("Nah.", "Music", "", "♪", 0.52, 0xFB5C74, 0xFA233B) },
+                ],
+            DockIcon [ ix = 8, name = "Terminal", kind = "terminal", hue1 = #3A3A40, hue2 = #17171B,
+                onClick() { app.notImpl("Not.", "Terminal", "terminal", "", 0.42, 0x3A3A40, 0x17171B) },
+                ],
             ],
 
         // ── the minimized-window section (the Mac's): a vertical divider,
@@ -2285,6 +2466,55 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
                 MiniTile [ ix = 3 ],
                 MiniTile [ ix = 4 ],
                 MiniTile [ ix = 5 ],
+                ],
+            ],
+        ],
+
+    // ── the "Not implemented" alert: a macOS-26 Liquid Glass sheet, app-modal
+    // (the scrim swallows every press) and frontmost so it sits over all chrome.
+    // Its icon reuses the very renderer the dock draws (app.drawKindArt), badged
+    // with a caution triangle — the accurate app-icon-forward treatment.
+
+    alert: View [ visible = { app.alertName != "" },
+        x = 0, y = 0, width = { app.width }, height = { app.height },
+        onMouseDown() { },                           // modal: presses on the scrim do nothing
+
+        scrim: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height }, fill = #00000026 ],
+
+        panel: View [ width = 300, height = 422,
+            // macOS positions alerts SLIGHTLY ABOVE centre (NSWindow.center) — the
+            // top gap ≈ 1/3 of the empty vertical space, never dead-centre.
+
+            x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 3 },
+            cornerRadius = 20,
+            fill = { theme.menuMaterial != null ? theme.menuMaterial : theme.surface },
+            stroke = stroke(1, #FFFFFF80),
+            shadow = shadow(0, 16, 50, #00000059),
+
+            icon: AppGlyph [ x = 118, y = 26, edge = 64,
+                kind = { app.alertKind }, glyph = { app.alertGlyph }, gsize = { app.alertGsize },
+                hue1 = { app.alertHue1 }, hue2 = { app.alertHue2 } ],
+            badge: CautionBadge [ x = 162, y = 70, edge = 30 ],
+
+            title: Text [ x = center, y = 112, fontSize = 15, fontWeight = semibold,
+                textColor = { theme.text }, text = { app.alertHead } ],
+            msg: Text [ x = 20, y = 136, width = 260, wrap = true, textAlign = center,
+                fontSize = 12, textColor = { theme.textMuted },
+                text = { "Declare Desktop doesn't include " + app.alertName + "." } ],
+
+            // the payoff — a rounded, shadowed image; no standard alert slot, so
+            // the treatment (mask + soft shadow) makes it read as deliberate
+
+            rick: Image [ source = "rick.jpeg", x = 22, y = 184, width = 256, height = 160,
+                stretches = both, cornerRadius = 10, clip = true,
+                hairOnDark: Color = #FFFFFF2E,
+                hairOnLight: Color = #0000002E,
+                stroke = { stroke(1, (app.darkMode ? this.hairOnDark : this.hairOnLight) ?? 0) },
+                ],
+
+            ok: Button [ x = 16, y = { parent.height - 46 }, width = { parent.width - 32 },
+                label = "OK", primary = true,
+                onClick() { app.dismissAlert() },
                 ],
             ],
         ],

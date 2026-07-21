@@ -130,7 +130,7 @@ export async function bootHost(cfg) {
   };
   raf.loc = requestAnimationFrame(locTick);
 
-  // The Inspector (browser/inspector-boot.js) — ⌥⌘D, or `?inspect` on the URL.
+  // The Inspector (browser/inspector-boot.js) — ⌥⌘D, or `?inspector` on the URL.
   // Lazily imported so a page that never opens it pays nothing.
   import("./inspector-boot.js").then((m) => m.wireInspector(app)).catch(() => {});
 

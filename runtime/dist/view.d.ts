@@ -462,5 +462,6 @@ export declare class App extends View {
  *  — setEmbed is a no-op there for now.) */
 export declare class DOMIsland extends View {
     slot: string;
+    childName: string;
     protected flush(s: Surface): void;
 }

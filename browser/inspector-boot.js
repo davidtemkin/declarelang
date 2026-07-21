@@ -83,7 +83,7 @@ export function originOfElement(el) {
 }
 
 /** Wire the toggle: ⌥⌘D anywhere, and auto-open when the page URL carries
- *  `?inspect`. Called by host-client once the subject app is mounted. */
+ *  `?inspector`. Called by host-client once the subject app is mounted. */
 export function wireInspector(subject) {
   addEventListener("keydown", (e) => {
     if (e.altKey && e.metaKey && (e.key === "d" || e.key === "D" || e.code === "KeyD")) {
@@ -93,7 +93,7 @@ export function wireInspector(subject) {
     }
   });
   const q = new URLSearchParams(location.search);
-  if (q.has("inspect")) {
+  if (q.has("inspector")) {
     openInspector(subject).catch((err) => console.error("[Declare] Inspector:", err));
   }
 }

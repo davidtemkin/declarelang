@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "buildId": "8574ae62659d",
+  "buildId": "138b6bcef259",
   "nodes": {
     "View.x": {
       "id": "View.x",
@@ -2848,7 +2848,26 @@
       "api": true,
       "source": {
         "file": "runtime/src/view.ts",
-        "line": 924
+        "line": 925
+      },
+      "parent": "DOMIsland",
+      "seeAlso": [],
+      "type": "string",
+      "default": "\"\"",
+      "prevailing": false,
+      "readOnly": false,
+      "inheritedFrom": null
+    },
+    "DOMIsland.childName": {
+      "id": "DOMIsland.childName",
+      "name": "childName",
+      "kind": "attribute",
+      "doc": null,
+      "docSegs": [],
+      "api": false,
+      "source": {
+        "file": "runtime/src/view.ts",
+        "line": 926
       },
       "parent": "DOMIsland",
       "seeAlso": [],
@@ -2891,7 +2910,8 @@
       "subclasses": [],
       "origin": "ts",
       "attributes": [
-        "DOMIsland.slot"
+        "DOMIsland.slot",
+        "DOMIsland.childName"
       ],
       "methods": [],
       "events": [],
@@ -7694,7 +7714,7 @@
           "api": true,
           "source": {
             "file": "runtime/src/view.ts",
-            "line": 924
+            "line": 925
           },
           "parent": "DOMIsland",
           "seeAlso": [],

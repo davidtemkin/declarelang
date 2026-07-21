@@ -189,7 +189,7 @@ export interface Surface {
      *  element (data attribute on DOM) and mount foreign content (an editor, a
      *  preview iframe) inside it — the sanctioned seam for embedding non-Declare UI
      *  that must track the view as the page scrolls. No-op off the DOM. */
-    setEmbed(id: string): void;
+    setEmbed(id: string, view?: unknown): void;
     /** The view's recorded drawing (draw.ts); null clears it. The Canvas
      *  backend replays it during the composite walk; the DOM backend
      *  rasterizes it into this view's own <canvas>, sized by the recording's

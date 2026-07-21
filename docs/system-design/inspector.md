@@ -106,7 +106,7 @@ Zoom fills the viewport. Since there is exactly one Inspector window it is alway
 active window, so the background-window resize interaction documented in
 `desktop-vs-macos-web.md` §3 does not arise.
 
-Toggled with **⌥⌘D**, or by adding `?inspect` to any program URL. Opening it never reloads
+Toggled with **⌥⌘D**, or by adding `?inspector` to any program URL. Opening it never reloads
 or disturbs the app. Window position and size are not persisted in v1 (§7).
 
 A slim toolbar across the top of the window's content:

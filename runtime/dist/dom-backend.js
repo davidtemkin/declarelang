@@ -177,13 +177,26 @@ export class DomBackend {
         }, true);
     }
 }
-// Scrollbars are the platform's own. An earlier build injected a persistent,
-// space-reserving `::-webkit-scrollbar` (+ `scrollbar-gutter: stable`) so a bar was
-// always visible — but styling `::-webkit-scrollbar` opts Safari OUT of its native
-// overlay bar and into a wide, always-on legacy one, which is not what a macOS app
-// should look like. We now inject nothing: `overflow: auto` gives each pane the OS
-// default — an overlay bar that appears on scroll and widens on hover (macOS), or
-// the classic bar the OS/user setting dictates elsewhere.
+let embedMirrorFrame = 0;
+function reflectEmbeddedNames() {
+    const boxes = document.querySelectorAll('[data-declare-slot^="run:"]');
+    for (let i = 0; i < boxes.length; i++) {
+        const box = boxes[i];
+        const view = box.__declareView;
+        if (view === undefined)
+            continue;
+        const name = box.__childApp !== undefined && typeof box.__childApp.appName === "string" ? box.__childApp.appName : "";
+        if (view.childName !== name)
+            view.childName = name;
+    }
+    return boxes.length > 0;
+}
+function ensureEmbeddedNameMirror() {
+    if (embedMirrorFrame !== 0 || typeof requestAnimationFrame === "undefined" || typeof document === "undefined")
+        return;
+    const tick = () => { embedMirrorFrame = reflectEmbeddedNames() ? requestAnimationFrame(tick) : 0; };
+    embedMirrorFrame = requestAnimationFrame(tick);
+}
 class DomSurface {
     element;
     textEl = null;
@@ -578,14 +591,16 @@ class DomSurface {
         }
         return host.offsetHeight; // forced layout → the flowed height
     }
-    setEmbed(id) {
+    setEmbed(id, view) {
         // An HTML island: the host queries `[data-declare-slot="…"]` and mounts foreign
         // content inside this Declare-sized element; the tenant fills the box (100%), so
         // Declare's width/height constraints drive its size with no coordinate sync.
         const s = this.element.style;
         const webkit = s;
+        const el = this.element;
         if (id === "") {
             delete this.element.dataset.declareSlot;
+            delete el.__declareView;
             // Back to the painted-UI defaults: pointer-inert, unselectable.
             s.pointerEvents = "none";
             s.userSelect = "";
@@ -593,6 +608,10 @@ class DomSurface {
         }
         else {
             this.element.dataset.declareSlot = id;
+            // the view back-reference the name-mirror writes `childName` onto, plus a
+            // start of that mirror (self-retiring, so it only runs while islands live)
+            el.__declareView = view;
+            ensureEmbeddedNameMirror();
             // A live foreign surface, not painted UI: its interior owns hits and
             // native text selection. Declare's model makes every view pointer-inert
             // (pointerEvents:none) and unselectable (user-select:none inherits from

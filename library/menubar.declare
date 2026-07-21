@@ -30,6 +30,13 @@ class MenuBar extends View [ height = 25,
 
     menus: array = null,
 
+    // optional title-ink override: when set, the menu TITLES render in this
+    // colour instead of `theme.text` — for a bar drawn straight over a
+    // wallpaper (no background), where the platform text turns light. Null =
+    // the theme's text colour, as before. The dropdown menus stay themed.
+
+    ink: Color = null,
+
     // the delivery seam — the id is the whole message
 
     picked(id) { },
@@ -97,8 +104,12 @@ class MenuBar extends View [ height = 25,
             kd: string = { typeof :kind == "string" ? "" + :kind : "" },
             open: boolean = { classroot.menu.shown && classroot.openId == this.mid },
             width = { (this.kd != "" ? this.host.contentWidth : this.t.width) + 20 },
-            cornerRadius = 8,
-            fill = { this.open ? theme.controlActive : null },
+            cornerRadius = 6,
+
+            // the open/arrow-nav title highlight — a translucent frosted capsule
+            // when the theme names one (macOS), else the solid controlActive
+
+            fill = { this.open ? (theme.menuTitleHl != null ? theme.menuTitleHl : theme.controlActive) : null },
             onMouseOver() { classroot.trackMenu(this) },
             onClick() { if (this.open) classroot.menu.close(); else classroot.openMenu(this) },
             onInit() { if (this.kd != "") app.createView(this.kd, this.host, ({ })) },
@@ -109,7 +120,7 @@ class MenuBar extends View [ height = 25,
                 // renders 400 a shade thinner than platform menu text
 
                 fontWeight = { :bold ? "bold" : "medium" },
-                textColor = { theme.text }, text = { "" + :label } ],
+                textColor = { classroot.ink != null ? classroot.ink : theme.text }, text = { "" + :label } ],
             host: View [ x = 10, y = center,
                 visible = { parent.kd != "" },
                 width = { this.contentWidth }, height = { this.contentHeight } ],

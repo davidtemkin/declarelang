@@ -11,8 +11,8 @@ a whole program instead of one stylesheet.
 
 ```
 ⌥⌘D            on any page
-?inspect       on any program URL — http://…/apps/calendar/calendar.declare?inspect
-               (a directory URL is the same address — …/apps/calendar/?inspect)
+?inspector     on any program URL — http://…/apps/calendar/calendar.declare?inspector
+               (a directory URL is the same address — …/apps/calendar/?inspector)
 ```
 
 It is itself a Declare program (`apps/inspector/inspector.declare`) reading another one

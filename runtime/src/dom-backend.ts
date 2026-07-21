@@ -191,6 +191,39 @@ export class DomBackend implements RenderBackend {
 // default — an overlay bar that appears on scroll and widens on hover (macOS), or
 // the classic bar the OS/user setting dictates elsewhere.
 
+// ── embedded-app NAME reflection (the reverse of the `env` channel) ──────────
+//
+// A `run:` island's mounted child app publishes its `appName` UP to the host
+// DOMIsland view's `childName`, so a hosting window (the desktop's AppWindow)
+// can title itself by the child — the viewer names its window by the file it is
+// showing, and follows in-app navigation. `setEmbed` links the box → its
+// DOMIsland view (`box.__declareView`); the host mounts the child on the same
+// box (`box.__childApp`, the island-runner convention). ONE rAF loop polls every
+// run-island and writes the name across, self-retiring the moment none remain
+// (idle-zero, exactly like the animation clock).
+
+interface NameBox extends HTMLElement {
+  __declareView?: { childName?: string };
+  __childApp?: { appName?: unknown };
+}
+let embedMirrorFrame = 0;
+function reflectEmbeddedNames(): boolean {
+  const boxes = document.querySelectorAll<NameBox>('[data-declare-slot^="run:"]');
+  for (let i = 0; i < boxes.length; i++) {
+    const box = boxes[i];
+    const view = box.__declareView;
+    if (view === undefined) continue;
+    const name = box.__childApp !== undefined && typeof box.__childApp.appName === "string" ? box.__childApp.appName : "";
+    if (view.childName !== name) view.childName = name;
+  }
+  return boxes.length > 0;
+}
+function ensureEmbeddedNameMirror(): void {
+  if (embedMirrorFrame !== 0 || typeof requestAnimationFrame === "undefined" || typeof document === "undefined") return;
+  const tick = (): void => { embedMirrorFrame = reflectEmbeddedNames() ? requestAnimationFrame(tick) : 0; };
+  embedMirrorFrame = requestAnimationFrame(tick);
+}
+
 class DomSurface implements Surface {
   readonly element: HTMLDivElement;
   private textEl: HTMLSpanElement | null = null;
@@ -573,20 +606,26 @@ class DomSurface implements Surface {
     return host.offsetHeight;      // forced layout → the flowed height
   }
 
-  setEmbed(id: string): void {
+  setEmbed(id: string, view?: unknown): void {
     // An HTML island: the host queries `[data-declare-slot="…"]` and mounts foreign
     // content inside this Declare-sized element; the tenant fills the box (100%), so
     // Declare's width/height constraints drive its size with no coordinate sync.
     const s = this.element.style;
     const webkit = s as CSSStyleDeclaration & { webkitUserSelect: string };
+    const el = this.element as HTMLElement & { __declareView?: unknown };
     if (id === "") {
       delete this.element.dataset.declareSlot;
+      delete el.__declareView;
       // Back to the painted-UI defaults: pointer-inert, unselectable.
       s.pointerEvents = "none";
       s.userSelect = "";
       webkit.webkitUserSelect = "";
     } else {
       this.element.dataset.declareSlot = id;
+      // the view back-reference the name-mirror writes `childName` onto, plus a
+      // start of that mirror (self-retiring, so it only runs while islands live)
+      el.__declareView = view;
+      ensureEmbeddedNameMirror();
       // A live foreign surface, not painted UI: its interior owns hits and
       // native text selection. Declare's model makes every view pointer-inert
       // (pointerEvents:none) and unselectable (user-select:none inherits from

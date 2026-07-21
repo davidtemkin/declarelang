@@ -372,66 +372,52 @@ element from its resolved fill, so the chrome only the BROWSER draws — the scr
 multiline field, the selection highlight, the placeholder, autofill — follows the field's
 own background instead of rendering light inside a dark box.
 
-## L-19 — Unknown URL parameters pass silently · medium · **proposed: strict in dev only**
+## L-19 — Unknown URL parameters pass silently · **ruled: leave it**
 
-`?inspector` instead of `?inspect` loads the app and does nothing. Every platform flag
-behaves this way: a typo is indistinguishable from not passing the flag at all.
+A mistyped platform flag loads the app and does nothing — a typo is indistinguishable
+from not passing the flag at all. Two things were considered and both declined.
 
-**Ruled (David, 2026-07-20): no aliases.** One word per thing. Accepting a near-miss
-teaches that near-misses work generally, which is a worse contract than a flag that
-plainly does not exist. The right answer to a typo is a loud error.
+**No aliases (David, 2026-07-20).** One word per thing. Accepting a near-miss teaches
+that near-misses work generally, which is a worse contract than a flag that plainly does
+not exist. The Inspector's flag is now spelled **`?inspector`** — the one word, matching
+what the tool is called everywhere else — and `?inspect` is simply not a flag.
 
-### Is erroring tenable? — yes, because the namespace is closed
+**No strict checking, for now (David, 2026-07-20).** Erroring on unrecognized parameters
+looked tenable on paper: the top-level query string is entirely platform-owned. Verified
+— a top-level app's `app.env` is `{}` no matter what the URL carries; `env` is the
+*embedding* environment and arrives only through an island's slot spec
+(`data-declare-slot="run:name|k=v&k=v"`, host-client.js), which is how the desktop passes
+`program=` to a hosted Viewer and `base=` to a hosted Calendar. No app reads the query
+string at top level, so there is no app namespace for a checker to collide with.
 
-The top-level query string is **entirely platform-owned**. Verified: a top-level app's
-`app.env` is `{}` no matter what the URL carries. `env` is the *embedding* environment
-and arrives only through an island's slot spec (`data-declare-slot="run:name|k=v&k=v"`,
-host-client.js), which is how the desktop passes `program=` to a hosted Viewer and
-`base=` to a hosted Calendar. **No app reads the query string at top level**, so there is
-no app namespace for a checker to collide with — an unknown key is unambiguously a mistake.
+It was declined anyway, and the reason is the good one: **the obvious scoping does not
+hold.** The plan was strict in development and silent in production, on the grounds that
+the flags presuppose a compiler or the dev server and mean nothing in a `declarec`
+artifact — and that a deployed page must tolerate `?utm_source`, `?fbclid`, `?gclid`,
+which every shared link picks up. But you may perfectly well want to run a **development**
+page with a tracking parameter attached before switching to a production build. The
+dev/production line is not the same line as the platform/foreign-parameter line, so
+strictness in dev would refuse legitimate URLs. Too much change, and the unknowns bite
+later.
 
-The surface is 15 keys, read across four layers:
+If it is ever revisited, the shape that would work is a **single registry both the reader
+and the checker consume** (the one-source/many-consumers discipline `tools/internal/ops.mjs`
+already uses for procedures), plus an explicit way for an app to *declare* the parameters
+it reads — which is also what would make them typed and reactive instead of a stringly
+lookup. Same medicine as [L-18](#l-18). For the record, the surface today is 15 keys read
+across four layers:
 
 ```
-?inspect              inspector-boot.js
+?inspector            inspector-boot.js
 ?render               serve-core.js · boot-uniform.js
-?viewer  ?debug ?profile   server (index.mjs, serve.mjs)
+?viewer ?debug ?profile   server (index.mjs, serve.mjs)
 ?extract ?build       tools (ops.mjs)
 ?segments ?file       prewarm.mjs
-?src     ?mode        boot-extract.js · boot-source.js
+?src ?mode            boot-extract.js · boot-source.js
 ?etag                 boot-uniform.js
 ?backtrace ?lzbacktrace ?lzprofile   (legacy/debug)
 ```
 
-Plus one **non-keyed** form the checker must not misread: the launcher's bare path,
-`index.html?apps/calendar` (boot-uniform.js `launchTarget()` — it is positional, and is
-distinguished from a key by having a `/` before any `=`).
-
-### Why it must be development-only
-
-The flags are a *development* surface — `?render`, `?extract`, `?build`, `?viewer`,
-`?segments`, `?file`, `?src` all presuppose a compiler or the dev server, and mean nothing
-in a `declarec` artifact. That is what makes strictness safe, and it is also what makes
-it **mandatory** to scope: a deployed page must tolerate `?utm_source=`, `?fbclid=`,
-`?gclid=` and every other tracking parameter a shared link picks up. Erroring on those
-would break every link anyone shares. So:
-
-- **dev server + in-page compiler present → refuse**, naming the near-miss
-  (`unknown ?inspector — did you mean ?inspect?`), which is what serves the ruling above:
-  typos become loud instead of becoming aliases.
-- **production build → ignore, silently**, exactly as today.
-
-### Prospects as the flag set grows
-
-Good, if the list is a **single registry both the reader and the checker consume** — the
-same one-source/many-consumers discipline `tools/internal/ops.mjs` already uses for
-procedures. Adding a flag is adding an entry; forgetting to is loud (your new flag errors
-in dev) rather than silent. The real work is that the 15 keys are read in four different
-layers today, so the registry has to cover all of them or the checker will reject a flag
-some other layer honours.
-
-One forward-looking gap: if a third-party app ever wants its own top-level query
-parameter, strictness blocks it. The answer is not to loosen the check but to let an app
-*declare* the parameters it reads — which is also what would make them typed and reactive
-instead of a stringly-typed lookup. Same medicine as [L-18](#l-18): make the contract
-explicit and checkable rather than guessing.
+plus one **non-keyed** form any future checker must not misread: the launcher's bare
+path, `index.html?apps/calendar` (boot-uniform.js `launchTarget()`), positional and
+distinguished by a `/` before any `=`.

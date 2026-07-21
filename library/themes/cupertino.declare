@@ -22,6 +22,7 @@ stylesheet Cupertino [
         tooltipBg = #F0F0F0, tooltipText = #1D1D1F, tooltipLine = #C6C6C8,
         tooltipPlacement = "pointer", tooltipDelay = 1000, tooltipSize = 11,
         menuRadius = 13, menuRow = 32, menuShadow = shadow(0, 12, 44, #00000040), menuHl = gradient(#1F86FF, #0068EE),
+        menuMaterial = #F9F9FBDB, menuTitleHl = #FFFFFF24,   // frosted menu panel + the open/nav title highlight (subtle translucent shape so white title text stays legible; true blur pending the backdrop attr)
         scrimColor = #000000, scrimOpacity = 0.12, errorColor = #C93429,
         dialogWidth = 260, dialogButtons = "stack", dialogAlign = "center", dialogTitleSize = 13, dialogBodySize = 12,
         buttonBorder = #C6C6C8 ],
@@ -42,6 +43,7 @@ stylesheet CupertinoDark [
         tooltipBg = #2C2C2E, tooltipText = #F2F2F7, tooltipLine = #48484A,
         tooltipPlacement = "pointer", tooltipDelay = 1000, tooltipSize = 11,
         menuRadius = 13, menuRow = 32, menuShadow = shadow(0, 12, 44, #00000073), menuHl = gradient(#2B8FFF, #0A6FEB),
+        menuMaterial = #2C2C2EE6, menuTitleHl = #FFFFFF26,   // frosted dark menu panel + title highlight (translucent; blur pending the backdrop attr)
         scrimColor = #000000, scrimOpacity = 0.3, errorColor = #FF6961,
         dialogWidth = 260, dialogButtons = "stack", dialogAlign = "center", dialogTitleSize = 13, dialogBodySize = 12,
         buttonBorder = #5A5A5E ],

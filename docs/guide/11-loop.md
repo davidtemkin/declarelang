@@ -136,7 +136,7 @@ __declare.explain("app.dock.calendar", "width")
 // → the expression, every read-path it was wired to, and their live values
 ```
 
-The same answers have a face: press **⌥⌘D** on any page, or add `?inspect` to a program
+The same answers have a face: press **⌥⌘D** on any page, or add `?inspector` to a program
 URL, and the [Inspector](declare-docs:operational:inspector) opens over the running app.
 Click a value to see what produced it; click *select* and click the app to find out
 which view a press actually reaches; type a new expression at it and watch the program
