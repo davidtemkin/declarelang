@@ -18,10 +18,10 @@
     "test:all": "npm test && npm run test:ladder"
   },
   "dependencies": {
+    "esbuild": "^0.28.1",
     "typescript": "^5.9.3"
   },
   "devDependencies": {
-    "esbuild": "^0.28.1",
     "puppeteer-core": "^23.11.1"
   }
 }
