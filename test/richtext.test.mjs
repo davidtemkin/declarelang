@@ -88,7 +88,7 @@ if (!CHROME) {
   });
 
   // A <pre> with colored spans is one preformatted, monospace element with
-  // whitespace preserved and per-token colour — the syntax-highlight primitive.
+  // whitespace preserved and per-token color — the syntax-highlight primitive.
   const preDoc = `App [ width = 480, selectable = true,
     HTMLText [ x = 10, y = 10, width = 460,
       accents = { { kw: 0xC678DD, ty: 0xE5C07B } },
@@ -120,8 +120,8 @@ if (!CHROME) {
     assert.ok(pre.probe.mono, "not monospace");
     assert.ok(pre.probe.indent, "indentation not preserved");
   });
-  await test("a <pre> keeps its per-token accent colours", () => {
-    assert.ok(pre.probe.colors >= 2, "expected ≥2 span colours, got " + pre.probe.colors);
+  await test("a <pre> keeps its per-token accent colors", () => {
+    assert.ok(pre.probe.colors >= 2, "expected ≥2 span colors, got " + pre.probe.colors);
   });
 
   const canvas = await render("canvas");

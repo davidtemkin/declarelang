@@ -13,3 +13,9 @@ export declare function instantiate(input: Element | Program): View;
  *  referenced ONLY here is invisible to static tracing — keep it with
  *  `use [ Name ]` (instantiation.md §8). Throws loudly on unknown names. */
 export declare function createViewIn(root: View, tag: string, parent: View, props?: Record<string, unknown>): View;
+/** Instantiate a PARSED element into a live parent — the Inspector's
+ *  `Tag [ … ]` evaluation. Unlike createViewIn (which synthesizes an empty
+ *  element from a tag name), this takes the real parsed node, so nested
+ *  children, `{ }` constraints and declarations all materialize exactly as
+ *  they would in source. Resolves against the SUBJECT tree's registry. */
+export declare function createElementIn(root: View, el: Element, parent: View): View;

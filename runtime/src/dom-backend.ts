@@ -311,6 +311,7 @@ class DomSurface implements Surface {
   setVisible(v: boolean): void { this.element.style.display = v ? "" : "none"; }
 
   setCursor(c: string): void { this.element.style.cursor = c; }
+  setPointerEvents(m: string): void { this.element.style.pointerEvents = m; }
 
   setOpacity(o: number): void {
     this.element.style.opacity = String(o);
@@ -472,8 +473,8 @@ class DomSurface implements Surface {
       // NOT wrap — long lines keep their shape and the block scrolls HORIZONTALLY
       // (native overflow-x), the way an editor shows code. Its height stays a stable
       // lines×lineHeight (no width-dependent reflow), so the flow measures it cleanly.
-      // Its runs carry the monospace family and per-token colours, so it is one
-      // contiguous, selectable, syntax-coloured element.
+      // Its runs carry the monospace family and per-token colors, so it is one
+      // contiguous, selectable, syntax-colored element.
       const be = doc.createElement(b.pre ? "pre" : /^h[1-6]$/.test(b.tag) ? b.tag : "p");
       // A heading carries its anchor slug so a `@name` reveal (location.md §6) can
       // find this exact element and scroll it into view natively.
@@ -509,9 +510,9 @@ class DomSurface implements Surface {
         rs.fontWeight = cssWeight(r.weight);
         if (r.italic) rs.fontStyle = "italic";
         rs.color = colorToCss(r.color);
-        // A themed accent fill overrides the solid colour: a gradient clips a
+        // A themed accent fill overrides the solid color: a gradient clips a
         // background to the glyphs (matching Text.textFill and the Canvas ramp),
-        // a solid fill is just that colour.
+        // a solid fill is just that color.
         if (r.fill != null) {
           if (isGradient(r.fill)) {
             rs.backgroundImage = `linear-gradient(${r.fill.angle}deg, ${r.fill.stops.map((g) => colorToCss(g.color) + (g.offset === null ? "" : ` ${g.offset * 100}%`)).join(", ")})`;

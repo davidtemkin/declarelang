@@ -43,8 +43,8 @@ const PROSE = {
     quoteIndent: 20,
     cellGap: 18,
 };
-// The rich-element colours (headings, code, links, rules, quotes) come in a dark and
-// a light set; `C` points at the one matching the app's colour scheme, chosen per
+// The rich-element colors (headings, code, links, rules, quotes) come in a dark and
+// a light set; `C` points at the one matching the app's color scheme, chosen per
 // rebuild from the root App's `dark` (below). Body text is themed separately via the
 // `bodyColor` attribute, so a caller can dim prose independently of the scheme.
 const COLORS_DARK = {
@@ -200,7 +200,7 @@ function rectAt(x, y, w, h, fill) {
 // of word-by-word. Only the STRUCTURE around them (markers, rules, the code box)
 // is plain views.
 /** Flatten an inline tree to fully-resolved runs for the seam — the effective
- *  font, colour, and (for `code`) chip are baked in so a backend just realizes
+ *  font, color, and (for `code`) chip are baked in so a backend just realizes
  *  what it is told. Mirrors `flatten`, then bakes the per-run family. */
 function richRunsOf(inline, style, family) {
     const atoms = [];
@@ -213,7 +213,7 @@ function richRunsOf(inline, style, family) {
             text: a.text, size: s.size, weight: s.weight, italic: s.italic,
             family: s.mono ? CODEFAM : family, strike: s.strike, color: s.color, tracking: s.tracking,
         };
-        // inline code reads as a coloured mono word, not a filled chip/button
+        // inline code reads as a colored mono word, not a filled chip/button
         if (s.link !== undefined)
             run.href = s.link;
         if (s.fill !== undefined)
@@ -591,10 +591,10 @@ function buildBlocks(blocks, width, bodyColor, ctx) {
     c.layout = yStack(PROSE.blockGap);
     return c;
 }
-/** A preformatted, monospace flow that KEEPS its accent-coloured runs — the
+/** A preformatted, monospace flow that KEEPS its accent-colored runs — the
  *  syntax-highlighted code block (`<pre>` from HTMLText). Whitespace is preserved
  *  and the runs' own `\n`s are the line breaks; on DOM it's one contiguous,
- *  selectable `<pre>` with per-token colour. The mono family rides in as the
+ *  selectable `<pre>` with per-token color. The mono family rides in as the
  *  `family` arg (a non-`mono` base style, so no inline-code chip behind each run);
  *  `<span class>` accents still compose their fill on top. */
 // The code text's left indent inside a box: the base pad, plus room for the
@@ -743,7 +743,7 @@ function buildTable(b, width, bodyColor, ctx) {
     table.layout = yStack(PROSE.itemGap);
     return table;
 }
-/** A blockquote — its content (recursed, in the quote colour) indented past a left
+/** A blockquote — its content (recursed, in the quote color) indented past a left
  *  rule that spans the content height reactively (a late re-flow lengthens it). */
 function buildQuote(b, width, ctx) {
     const outer = new View();
@@ -793,7 +793,7 @@ export class RichText extends View {
         c.run();
         onDiscard(this, () => c.dispose());
     }
-    /** The colour scheme for the house rich-element palette: the explicit `dark`
+    /** The color scheme for the house rich-element palette: the explicit `dark`
      *  override if set (an app whose own theme selector differs from the OS), else
      *  the root App's OS `dark`, read by walking to the tree root. */
     isDark() {
@@ -838,7 +838,7 @@ export class RichText extends View {
         // `Text` does — so rich text is no longer the one text in the language that
         // ignores its inherited style. Size/weight/tracking follow fontSize/fontWeight/
         // letterSpacing; their View defaults (16/normal/0) match the house body, so
-        // prose that sets nothing renders unchanged. Colour stays on the theme-aware
+        // prose that sets nothing renders unchanged. Color stays on the theme-aware
         // `bodyColor` house default (textColor's default is opaque black, which would
         // break dark-mode prose), overridable via `bodyColor`.
         BODY = { size: this.fontSize || PROSE.body, weight: this.fontWeight || "normal", tracking: this.letterSpacing || 0 };

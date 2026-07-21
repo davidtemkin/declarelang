@@ -21,7 +21,7 @@ export type Block =
   | { t: "code"; lang: string; text: string }
   // A preformatted flow that KEEPS its inline runs (spans/accents), unlike `code`
   // which is flat text. Only HTML `<pre>` produces it (Markdown fences stay `code`);
-  // it is how syntax-coloured code renders — monospace, whitespace preserved.
+  // it is how syntax-colored code renders — monospace, whitespace preserved.
   | { t: "pre"; inline: Inline[] }
   | { t: "blockquote"; blocks: Block[] }
   | { t: "list"; ordered: boolean; start: number; items: ListItem[] }

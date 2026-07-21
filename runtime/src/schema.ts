@@ -108,7 +108,7 @@ const ViewSchema: ComponentSchema = {
     // `Markdown`/`HTMLText` renders its headings/links/inline-code from these;
     // like the text slots they are prevailing (set once on a container → all
     // prose below picks them up) and declared on View so any ancestor provides
-    // them. Colours default `null` = the theme-aware house token; `headingWeight`
+    // them. Colors default `null` = the theme-aware house token; `headingWeight`
     // defaults to the house `bold`.
     headingColor: { kind: "color" },
     headingWeight: FONT_WEIGHT,
@@ -152,6 +152,11 @@ const ViewSchema: ComponentSchema = {
     // inherit) — resize affordances, drag handles. Meaningful on views that
     // take input (the sink is the hit target on both backends).
     cursor: { kind: "string" },
+    // Whether this view (and its subtree, CSS-inheriting) takes pointer
+    // events at all: "auto" (the default) or "none". A view that is pure
+    // decoration over live content — a highlight rectangle, a full-viewport
+    // chrome overlay — declares "none" so presses reach what is beneath it.
+    pointerEvents: { kind: "string" },
     // The other two styling channels: an ordered bundle list (static, ruled
     // v1 — consumed at construction) and the prevailing stylesheet slot
     // (provide it anywhere → that subtree reskins; swap = one settle).
@@ -217,7 +222,7 @@ const AppSchema: ComponentSchema = {
     pointerY: { kind: "number" },
     hovering: { kind: "boolean" },
     pointerOverText: { kind: "boolean" },
-    // the OS colour-scheme, `prefers-color-scheme: dark` — the runtime feeds it and
+    // the OS color-scheme, `prefers-color-scheme: dark` — the runtime feeds it and
     // keeps it live as the system theme flips, so an app themes off `app.dark`.
     dark: { kind: "boolean" },
     // The EMBEDDING ENVIRONMENT's parameters — a record the HOST provides and
@@ -377,14 +382,14 @@ export const RichTextSchema: ComponentSchema = {
   attrs: {
     // Prose tuning: `lineHeight` is a leading multiplier on the natural line box
     // (1 = tight, the default; 1.5 = airy); `bodyColor` overrides the running-text
-    // colour (null = the theme-aware house body). Body size/weight/tracking follow
+    // color (null = the theme-aware house body). Body size/weight/tracking follow
     // the ambient text style (fontSize/fontWeight/letterSpacing), like a `Text`.
     lineHeight: { kind: "number" },
     bodyColor: { kind: "color" },
     // `scale` multiplies the house structure sizes (headings, code) — a font-size
     // zoom a reader control can drive; 1 = the natural sizes.
     scale: { kind: "number" },
-    // `dark` overrides which colour scheme the house rich-element palette (the
+    // `dark` overrides which color scheme the house rich-element palette (the
     // inline-code chip, the fenced-code box, rules, quotes) is drawn from. Unset
     // (null) follows the root App's OS `dark`; set it to an app's OWN effective
     // theme when a Light/Dark selector can differ from the OS: `dark = { app.isDark }`.

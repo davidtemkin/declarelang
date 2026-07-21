@@ -105,6 +105,48 @@ compiler anticipates — the fix by name. The diagnostics
 are the same ones you've been meeting when you break this guide's examples — trust
 them, apply them, recompile. That habit is worth more than any chapter of this book.
 
+The last two rungs are worth reaching for once a program does something. Rung 5 opens
+the app in a real browser, drives it with real input, and asserts by **view path**
+rather than DOM selectors, so a check survives any change to how a view is realized:
+
+```js
+export default async ({ drive, expect }) => {
+  await drive.click("app.dock.calendar");
+  await drive.settleMotion();                       // motion runs to rest, frame-exact
+  await expect.visible("app.wins.0");
+  await expect.approx("app.dock.calendar", "width", 72, 1);
+};
+```
+
+`settleMotion` is the interesting one: it takes the app's clock and runs animation to
+rest deterministically, so a spring can be asserted at all — otherwise its value at any
+instant depends on frame timing.
+
+### When it passes and still misbehaves
+
+A green rung means *that rung* found nothing. The first four run with no browser at
+all — approximated text metrics, no CSS, no layout engine, no input routing — so a
+whole class of problem is invisible to them: a transparent view swallowing presses, a
+size that only goes wrong against real fonts, anything that appears only in a bundled
+build. When the checker is happy and the program is not, stop re-reading the source and
+**ask the running program**:
+
+```js
+__declare.explain("app.dock.calendar", "width")
+// → the expression, every read-path it was wired to, and their live values
+```
+
+The same answers have a face: press **⌥⌘D** on any page, or add `?inspect` to a program
+URL, and the [Inspector](declare-docs:operational:inspector) opens over the running app.
+Click a value to see what produced it; click *select* and click the app to find out
+which view a press actually reaches; type a new expression at it and watch the program
+change. Someone has told you about Smalltalk. They were insufferable about it. They
+were also right about one specific thing: the program is a live thing you can ask
+questions of, not a file you re-run — and that is what this is for.
+
+Both the assert vocabulary and the bridge are documented in
+[Introspection](declare-docs:operational:introspection).
+
 ## Ship it
 
 Three ways to run, one compiler, and the choice is only *where the compile happens*:

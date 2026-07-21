@@ -9,7 +9,7 @@ the 500ms slider motion and mode-aware navigation (SPEC §12 B–D). Grid
 geometry is exact; the chrome is drawn — no images except the logo/menubar
 holdouts — "geometry exact, chrome or better".
 
-Colours (SPEC §3–4; sampled + source-verified) — day-cell bodies: weekday
+Colors (SPEC §3–4; sampled + source-verified) — day-cell bodies: weekday
 `#9BA9B1` · weekend `#879BA8` · out-of-month `#768A97` · selected/hilite
 `#D3D3D3`. Event categories: default / holiday / astro / milestone.
 */

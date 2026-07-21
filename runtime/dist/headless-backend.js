@@ -21,6 +21,7 @@ class HeadlessSurface {
     setShadow(_shadow) { }
     setVisible(_visible) { }
     setOpacity(_opacity) { }
+    setPointerEvents() { }
     setCursor(_cursor) { }
     setScale(_scale, _pivotX, _pivotY) { }
     setClip(_pathData) { }

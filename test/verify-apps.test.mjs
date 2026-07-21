@@ -6,7 +6,9 @@
 // runtime change that breaks a real program fails here, in seconds, no browser.
 //
 // The slow rungs (5–6: real input, pixels) stay in the perceptual suite and in
-// per-app assert/state scripts, run pre-release — not on every commit.
+// per-app assert/state scripts, run pre-release — not on every commit. They are
+// not optional, only deferred: test/ladder.test.mjs (`npm run test:ladder`)
+// climbs them for every app that ships an assert/states script.
 import { spawnSync } from "node:child_process";
 import { readdirSync, existsSync, statSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";

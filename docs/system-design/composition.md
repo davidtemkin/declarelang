@@ -148,7 +148,7 @@ compiled program honestly CONTAINS what it uses.
 
 > **These bundled components are simple PLACEHOLDERS, to be revisited.** They
 > exist to implement the current samples, with baseline styleability (override a
-> colour, a size) and a dead-easy-to-read body — not to be a real component set.
+> color, a size) and a dead-easy-to-read body — not to be a real component set.
 > A proper library (the widget vocabulary, its theming contract, its API
 > surface) is its own dedicated design + research effort, to follow. Until then,
 > treat `library/*.declare` as scaffolding: coherent, but not load-bearing.

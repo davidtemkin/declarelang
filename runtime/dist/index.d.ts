@@ -41,6 +41,8 @@ export { instantiate } from "./instantiate.js";
 export { forEachCodeValue, serializeDeps, applyDeps } from "./deps.js";
 export { forEachElement, serializeLinks, applyLinks, type SerializedLink } from "./links.js";
 export { renderProgram, renderProgramAsync, mountApp, disposeApp, loadFonts, reflectAppName } from "./boot.js";
+export { Inspect, setInspectionTarget, inspectionTarget } from "./inspect-service.js";
+export { viewAt, dependentsOf, expandValue, slotsOf } from "./inspect.js";
 export type { FontSpec } from "./boot.js";
 export { Node } from "./node.js";
 export { View, App, DOMIsland, inheritedCursor, onDiscard } from "./view.js";

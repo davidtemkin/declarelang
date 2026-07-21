@@ -9,7 +9,7 @@ the blueprint grid, the sticky header, the pointer dot — sits absolutely
 around the centered column.
 
 `{ }` bodies are TypeScript, so colors there are `0x…`; `[ ]` literal slots
-take `#…`. Every colour on the page has a name in the App's `theme` record —
+take `#…`. Every color on the page has a name in the App's `theme` record —
 the palette lives there, once, and nowhere else.
 */
 
@@ -48,7 +48,7 @@ class Lead extends Text [ fontSize = 19, fontWeight = normal, textColor = { them
 class Body extends Text [ fontSize = 17, fontWeight = normal, textColor = { theme.muted }, selectable = true ]
 
 // an article paragraph (the "Why" view) — HTML flow, so its `"""` source wraps
-// at the writer's margin and the line breaks collapse away in the rendering
+// at the writer’s margin and the line breaks collapse away in the rendering
 
 class Para extends HTMLText [ fontSize = 18, lineHeight = 1.2, width = { parent.width },
     bodyColor = { theme.lead }, selectable = true,
@@ -59,7 +59,7 @@ class Para extends HTMLText [ fontSize = 18, lineHeight = 1.2, width = { parent.
 ## The header pills
 
 A nav link is a padded pill: it fills with surface-2 on hover (a rounded rect
-behind the text, not just a colour change), and `pressed` deepens the pill and
+behind the text, not just a color change), and `pressed` deepens the pill and
 lights the label — the tap feedback a touch device gets in place of hover.
 Width auto-fits the label plus 12px of padding each side.
 */
@@ -97,7 +97,7 @@ class NavLink extends View [ height = 33, cornerRadius = 8,
 
 The repeated shapes the numbered sections are built from: an idea `Card`
 (§01), a `Point` with its accent top-rule and a big gradient `Metric` (§02),
-and the footer's separator `Dot`.
+and the footer’s separator `Dot`.
 */
 
 class Card extends View [ width = { Math.min(357, parent.width) }, height = 172, cornerRadius = 10,
@@ -147,7 +147,7 @@ class Dot extends Body [ fontSize = 14, textColor = { theme.faint }, text = "·"
 
 Primary fills accent and brightens on hover; secondary lifts to surface-2 and
 answers a press with an accent ring. Press feedback is what a touch device
-sees in place of hover — both are driven by the view's own handlers.
+sees in place of hover — both are driven by the view’s own handlers.
 */
 
 class Button extends View [ height = 46, cornerRadius = 9,
@@ -178,7 +178,7 @@ class Button extends View [ height = 46, cornerRadius = 9,
 One line, shared by every page of the site — the scrolling front page and the
 in-app Why / Language views alike: provenance left, legal right.
 
-A `FootLink` is the footer's link rendition: the eyebrow treatment with the
+A `FootLink` is the footer’s link rendition: the eyebrow treatment with the
 teal hover and the brighter pressed tap feedback, navigating on click.
 */
 
@@ -201,7 +201,7 @@ class Footer extends View [ width = { parent.width },
     row: View [ width = { parent.width }, height = { this.left.height },
 
         // two groups on one line: provenance LEFT, legal RIGHT (x derives
-        // from the group's own measured width — right-justified reactively)
+        // from the group’s own measured width — right-justified reactively)
 
         left: View [ layout: SimpleLayout [ axis = x, spacing = 12 ],
 
@@ -241,13 +241,13 @@ class Footer extends View [ width = { parent.width },
 
 The heart of the page: every demo is real Declare, compiled and running. A
 `CodeField` is a native editable field seeded (uncontrolled, `initial`) from
-the demo's source — it follows the source until you type, then holds the
+the demo’s source — it follows the source until you type, then holds the
 edit, publishing each keystroke on `App.liveSource` for the host to
 recompile. A `SourcePanel` frames it (LIVE·EDITABLE chip, Revert, hairline);
 a `PreviewFrame` hosts the compiled app as an **embedded child app** — no
-iframe — so the preview can't drift from the source. Its `active` flag gates
+iframe — so the preview can’t drift from the source. Its `active` flag gates
 the island slot, which is what bounds the full-page-editor recursion: a
-closed editor's preview renders nothing, so the page source containing that
+closed editor’s preview renders nothing, so the page source containing that
 very editor only descends one level per user click.
 */
 
@@ -307,6 +307,47 @@ class SourcePanel extends View [ width = { parent.width < 760 ? parent.width : M
     ]
 
 
+// The Inspector pitch, occupying a PreviewFrame’s slot in the last demo row —
+// prose and one button where the running app usually sits, because that demo
+// runs full width beneath instead. `app.inspect(slot)` rides the App’s inspect
+// channel; the host opens the real Inspector on that island’s child app.
+
+class InspectorPitch extends View [ width = { parent.width < 760 ? parent.width : Math.floor((parent.width - 20) * 0.42) },
+    slot: string = "",
+
+    // The block sits CENTRED in the height the example claims beside it: the
+    // inner column auto-sizes to its content, and `y = center` puts that block
+    // in the middle of the panel rather than stranding it at the top.
+
+    inner: View [ x = 0, y = center, width = { parent.width },
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+
+        // One treatment, the caption’s — Body, so it reads as page prose and is
+        // selectable like the rest of the copy.
+
+        lead: Body [ width = { parent.width }, fontSize = 15,
+            text = "The bar’s width and colors are derived from one number that can change. Open the Inspector and see what expression produced the bar’s width and color." ],
+
+        also: Body [ width = { parent.width }, fontSize = 15,
+            text = "Try typing “level = 5” or any other Declare expression, and watch it take effect live." ],
+
+        open: View [ x = center, height = 38, cornerRadius = 9,
+            hovered: boolean = false,
+            pressed: boolean = false,
+            width = { this.cap.width + 34 },
+            fill = { pressed ? theme.accentPress : hovered ? theme.accentHover : theme.accent },
+            onMouseOver() { hovered = true },
+            onMouseOut()  { hovered = false; pressed = false },
+            onMouseDown() { pressed = true },
+            onMouseUp()   { pressed = false },
+            onClick()     { app.inspect(classroot.slot) },
+            cap: Text [ x = 17, y = 10, fontSize = 14, fontWeight = semibold, wrap = false,
+                textColor = { theme.ink }, text = "Try the Inspector" ],
+            ],
+        ],
+    ]
+
+
 class PreviewFrame extends View [ width = { parent.width < 760 ? parent.width : Math.floor((parent.width - 20) * 0.42) },
     runName: string = "",
     active: boolean = true,
@@ -319,11 +360,11 @@ class PreviewFrame extends View [ width = { parent.width < 760 ? parent.width : 
 ## The whole-page editor
 
 The same `CodeField` + embedded preview as the demo cards, at page scale: the
-page's own source on the left, the page it compiles to on the right. It's a
-full-window overlay shown when `app.editing` — it reads the App's own size
+page’s own source on the left, the page it compiles to on the right. It’s a
+full-window overlay shown when `app.editing` — it reads the App’s own size
 through the `app` noun, so it always fills whatever the page fills.
 `pageSource` is threaded in from the host (`demoSources.__page__` — the
-page's own text), and the preview island is `active` only while open, so the
+page’s own text), and the preview island is `active` only while open, so the
 recursion stays bounded by clicks.
 */
 
@@ -442,7 +483,7 @@ class SectionHead extends View [ width = { parent.width },
 ## The page
 
 The palette lives once as a prevailing `theme` token record — every semantic
-type class defaults its colour to `{ theme.… }`, so the whole page reskins
+type class defaults its color to `{ theme.… }`, so the whole page reskins
 from this one place. The scroller fills the viewport and scrolls its taller
 content natively; the chrome further down (header, cursor) are its
 **siblings**, not its children, so they never move.
@@ -469,7 +510,7 @@ App [ appName = "Declare",
 
     // in-app location: "home" (the scrolling page), "why" (the mini-article),
     // "language" (the one-file core doc, rendered in-app), or "getstarted" (the
-    // quick-start guide, rendered the same way) — the app's slice of the
+    // quick-start guide, rendered the same way) — the app’s slice of the
     // URL (docs/system-design/location.md). `location` is a BUILT-IN App attribute;
     // setting it here declares the INITIAL, which is the default: the host shows a
     // clean URL at "home" and `#why`/`#language` elsewhere, seeds it from a deep
@@ -478,9 +519,9 @@ App [ appName = "Declare",
 
     location = "home",
 
-    // the page's textual material, fetched DIRECTLY as text (format = "text"):
+    // the page’s textual material, fetched DIRECTLY as text (format = "text"):
     // the core doc itself (docs/declare.md — up the tree, but still the
-    // deployed repo's own material), the getting-started guide, and the FAQ.
+    // deployed repo’s own material), the getting-started guide, and the FAQ.
     // The authored .md files carry assembler markers as HTML comments, which
     // Markdown drops — so there is no JSON-wrap projection beside this file,
     // and a drifted copy is impossible because there is no copy. stats.json
@@ -493,7 +534,7 @@ App [ appName = "Declare",
     faq: DataSource [ url = "declare-faq.md", format = "text" ],
     onInit() { this.lang.fetch(); this.stats.fetch(); this.guide.fetch(); this.faq.fetch() },
 
-    // the whole-page source editor's state: `editing` toggles the overlay, and
+    // the whole-page source editor’s state: `editing` toggles the overlay, and
     // `liveCard`/`liveSource` name the demo an inline editor is republishing and
     // its current text — the host recompiles that pair live.
 
@@ -511,7 +552,7 @@ App [ appName = "Declare",
     scroller: View [ width = { app.width }, height = { app.height }, scrolls = true, visible = { app.location == "home" },
 
         // full-bleed blueprint behind the column, sized to the page (a percent
-        // height stays out of the page's own auto-extent, so no cycle)
+        // height stays out of the page’s own auto-extent, so no cycle)
 
         grid: GridBg [ x = 0, y = 0, width = { app.width }, height = { parent.page.height } ],
 
@@ -523,7 +564,7 @@ App [ appName = "Declare",
             layout: SimpleLayout [ axis = y, spacing = 112 ],
 
             /* ### Hero — the name, the claim, and the two doors in
-               (GitHub, or edit this page's own source) */
+               (GitHub, or edit this page’s own source) */
 
             hero: View [ width = { parent.width },
                 layout: SimpleLayout [ axis = y, spacing = 24 ],
@@ -547,7 +588,7 @@ App [ appName = "Declare",
                         layout: SimpleLayout [ axis = y, spacing = 12 ],
                         HTMLText [ width = { Math.min(680, parent.width) }, fontSize = 19, lineHeight = 1.2, bodyColor = { theme.lead }, selectable = true,
                             accents = { ({ g: theme.brand }) },
-                            html = "Just as SQL is a domain-specific language for database queries, <span class='g'>Declare</span> is a DSL for user interfaces. Its whole surface fits in your head — and inside an LLM's context window." ],
+                            html = "Just as SQL is a domain-specific language for database queries, <span class='g'>Declare</span> is a DSL for user interfaces. Its whole surface fits in your head — and inside an LLM’s context window." ],
                         Lead [ width = { Math.min(680, parent.width) },
                             text = "This page is written in it. By an LLM." ],
                         ],
@@ -584,7 +625,7 @@ App [ appName = "Declare",
                     to = { app.scroller.scrollY + app.height > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
                 layout: SimpleLayout [ axis = y, spacing = 36 ],
 
-                // the headline stands alone (SectionHead's lead slot would sit ABOVE
+                // the headline stands alone (SectionHead’s lead slot would sit ABOVE
                 // the actions row — here the CTA comes between headline and copy)
 
                 head: View [ width = { parent.width },
@@ -642,9 +683,9 @@ App [ appName = "Declare",
                     lead = "The relationships that matter — structure, data, reactivity — are explicit in the language, not hidden in imperative steps or a runtime graph." ],
                 cards: View [ width = { parent.width },
                     layout: WrappingLayout [ spacing = 24, lineSpacing = 24 ],
-                    Card [ title = "Analyzable", body = "A program's whole structure — components, data, what reacts to what — is right there in the source. The compiler reads it statically; so can an LLM." ],
-                    Card [ title = "Predictable", body = "One clear way to write each thing, and the compiler rejects the rest — no dependency arrays, no keys, no stale-value bugs. An LLM's mistake is a compile error that names the fix — not an app that quietly runs wrong." ],
-                    Card [ title = "Runnable", body = "The compiler runs in the browser, so code renders the moment it exists — no build, no deploy. Write it and it's live." ],
+                    Card [ title = "Analyzable", body = "A program’s whole structure — components, data, what reacts to what — is right there in the source. The compiler reads it statically; so can an LLM." ],
+                    Card [ title = "Predictable", body = "One clear way to write each thing, and the compiler rejects the rest — no dependency arrays, no keys, no stale-value bugs. An LLM’s mistake is a compile error that names the fix — not an app that quietly runs wrong." ],
+                    Card [ title = "Runnable", body = "The compiler runs in the browser, so code renders the moment it exists — no build, no deploy. Write it and it’s live." ],
                     ],
                 pull: Heading [ fontSize = 28, width = { parent.width }, textAlign = center,
                     text = "Everything that makes it legible to an LLM makes it legible to you." ],
@@ -728,6 +769,39 @@ App [ appName = "Declare",
                     ],
                 ],
 
+            /* ### 07 — the Inspector. The last panel, and the only one whose
+               subject is the tooling: its source sits at half width with the
+               pitch beside it, and the demo runs FULL WIDTH beneath so there is
+               something worth pointing at. The button rides App.inspect, which
+               opens the real Inspector on this island’s child app. */
+
+            s7: View [ width = { parent.width },
+                layout: SimpleLayout [ axis = y, spacing = 36 ],
+                SectionHead [ num = "07", head = "Ask it why.",
+                    lead = "Every value in a Declare program knows where it came from — so the running program can be asked, rather than reasoned about from the source." ],
+                demo7: View [ width = { parent.width },
+                    layout: SimpleLayout [ axis = y, spacing = 14 ],
+                    caption: Body [ fontSize = 15, width = { parent.width },
+                        text = "One value moves; a width and two colors follow it through a Spring. Click the demo to raise the level, then open the Inspector and look at what any of them is made of." ],
+                    cards: View [ width = { parent.width },
+                        layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ],
+                        SourcePanel    [ editName = "derived", height = 236,
+                            src = { app.demoSources.derived || "" } ],
+                        InspectorPitch [ slot = "run:derived", height = 236 ],
+                        ],
+
+                    // the stage’s fill matches the demo app’s own, so the island
+                    // reads as part of one surface instead of a pasted rectangle
+
+                    stage: View [ width = { parent.width }, height = 150,
+                        cornerRadius = 12, clip = true, fill = 0x151A22,
+                        stroke = { stroke(1, theme.panelLine) },
+                        PreviewFrame [ x = center, y = 0, height = 150,
+                            width = { Math.min(460, parent.width) }, runName = "derived" ],
+                        ],
+                    ],
+                ],
+
             /* ### The manifesto band — centered, an accent rule above and below */
 
             manifesto: View [ width = { parent.width }, opacity = 0,
@@ -748,7 +822,7 @@ App [ appName = "Declare",
             /* ### The closing call to action — the primary blue button that
                leads into the getting-started page, centered above the footer */
 
-            /* the page flow's 112px would sit both above and below this one
+            /* the page flow’s 112px would sit both above and below this one
                short row — the button pulls up into the gap (negative y, no
                clip) and the zero-height container lets the footer follow
                closer: ~88px above, ~90px below instead of 112/112 */
@@ -784,8 +858,8 @@ App [ appName = "Declare",
                 Heading [ fontSize = { app.width < 700 ? 32 : 42 }, width = { parent.width },
                     text = "Why a new language, now?" ],
                 Para [ html = """
-                    Start with the obvious objection. LLMs write code now, and they're
-                    best at the languages they've seen the most — so the winning move is
+                    Start with the obvious objection. LLMs write code now, and they’re
+                    best at the languages they’ve seen the most — so the winning move is
                     to use whatever has the biggest corpus and let the model figure it
                     out. By that logic the era of new programming languages is over.
                     """ ],
@@ -796,7 +870,7 @@ App [ appName = "Declare",
                     looks like the billion lines it trained on — and resemblance is not
                     correctness. Meanwhile, less and less of the code passes under human
                     eyes, which leaves the language and its compiler as the one reviewer
-                    that is always present. Handing the writing to a machine doesn't make
+                    that is always present. Handing the writing to a machine doesn’t make
                     the language irrelevant. It makes it load-bearing.
                     """ ],
                 Heading [ fontSize = 24, width = { parent.width }, text = "Two kinds of leverage" ],
@@ -815,7 +889,7 @@ App [ appName = "Declare",
                     never trained on from a spec in context — in recent studies, a small
                     language purpose-designed for LLM use, with zero training exposure,
                     beat the same model writing Python, its best-trained language. And
-                    what bounds a model's ability to repair its own mistakes is the
+                    what bounds a model’s ability to repair its own mistakes is the
                     quality of the feedback: a compiler that explains beats one that
                     merely rejects, by a double-digit margin.
                     """ ],
@@ -839,30 +913,37 @@ App [ appName = "Declare",
                     ],
                 Heading [ fontSize = 24, width = { parent.width }, text = "Designed in, not bolted on" ],
                 Para [ html = """
-                    Declare's declarative layer is small — the whole language fits in a
-                    model's context window with room left for your app — and everything
+                    Declare’s declarative layer is small — the whole language fits in a
+                    model’s context window with room left for your app — and everything
                     inside a { } is ordinary TypeScript, so the hard part of generation
                     rides the largest corpus there is. Where Declare looks familiar, it
                     behaves the way a model — or you — will assume: assignment is
-                    assignment, and there is no bypass to forget. Where it's genuinely
+                    assignment, and there is no bypass to forget. Where it’s genuinely
                     new, it looks new — brackets for structure, :path for data — a
                     visible cue to consult the spec instead of autocompleting from memory.
                     """ ],
                 Para [ html = """
-                    And because a UI's real structure — components, state, data, what
+                    And because a UI’s real structure — components, state, data, what
                     reacts to what — is expressed in the language, the compiler can see
-                    all of it: it extracts every binding's dependencies statically,
+                    all of it: it extracts every binding’s dependencies statically,
                     checks the shape of the tree, and types the seams. What a model
                     reasons about is exactly what the compiler verifies, and its errors
                     are written for that loop — each one states the rule and names the
                     rewrite that fixes it, because the primary reader of a compiler
                     message, now, is a model deciding what to do next.
                     """ ],
-                Heading [ fontSize = 24, width = { parent.width }, text = "What it's actually for" ],
+                Para [ html = """
+                    Indexable content is there from the start: the compiler runs your
+                    program at build time and serializes what it renders, so what a
+                    visitor sees and what a crawler sees can never drift. No server-side
+                    rendering, no hydration. That’s why this page works on a static host
+                    like GitHub Pages.
+                    """ ],
+                Heading [ fontSize = 24, width = { parent.width }, text = "What it’s actually for" ],
                 Para [ html = """
                     All of that is the floor, not the point. The point is what a language
                     makes sayable. The most prized layer of modern UI — the continuity
-                    you feel in the best native software, where a view doesn't switch so
+                    you feel in the best native software, where a view doesn’t switch so
                     much as become the next one, where motion carries meaning and
                     everything stays interruptible — has always been bespoke: specialist
                     craft, one interaction at a time, locked to a platform. It is also
@@ -891,9 +972,9 @@ App [ appName = "Declare",
                 Para [ html = """
                     None of this trades away the human. What makes code legible to a
                     model is what makes it fast for you to read — and you are still the
-                    reader who decides. You don't teach an LLM Declare with a million
+                    reader who decides. You don’t teach an LLM Declare with a million
                     examples. You hand it the language and let the compiler keep it
-                    honest. The corpus will come; the language doesn't need it first.
+                    honest. The corpus will come; the language doesn’t need it first.
                     """ ],
                 gap: View [ width = 8, height = 64 ],
                 Footer [ width = { parent.width } ],

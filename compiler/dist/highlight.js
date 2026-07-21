@@ -3,7 +3,7 @@
 // SEGMENTS: prose (the Markdown carried in a `/* … */` comment) interleaved with
 // code (syntax-highlighted `<pre>` HTML). The viewer renders prose through the
 // Markdown component and code through HTMLText — one contiguous, selectable
-// monospace flow per code segment (the preformatted-flow primitive), coloured by
+// monospace flow per code segment (the preformatted-flow primitive), colored by
 // the app's own `accents` map so light/dark stays a render-time decision.
 //
 // Why in the compiler, not a hand-scanner in a `{ }` body: this reuses the
@@ -14,15 +14,15 @@
 // construction, and comments (which `tokenize` drops as trivia) are preserved
 // here because the viewer must render them.
 // The role vocabulary — short class names the viewer's `accents` map keys on.
-// A token with no role is emitted as plain text (body colour): whitespace,
+// A token with no role is emitted as plain text (body color): whitespace,
 // brackets, commas, and bare identifiers that are neither a type nor an
-// attribute name read as structure, not colour.
+// attribute name read as structure, not color.
 //   k keyword   t type (Uppercase)   a attribute name (ident before `=`)
-//   s string    n number/percent     h hex colour   p datapath (`:a.b`)
+//   s string    n number/percent     h hex color   p datapath (`:a.b`)
 //   o operator (`<->`)   b `{ }` expression body   c line comment
 // The reserved words the parser special-cases, plus the literal constants. An
 // attribute *use* (ident before `=`) wins over the keyword class, so `style = …`
-// colours as an attribute while a top-level `style [ … ]` colours as a keyword.
+// colors as an attribute while a top-level `style [ … ]` colors as a keyword.
 const KEYWORDS = new Set([
     "class", "extends", "prevailing", "readonly", "include", "use",
     "font", "stylesheet", "style", "true", "false", "null",
@@ -234,7 +234,7 @@ export function highlight(src) {
             i = Math.min(j + 2, n);
             continue;
         }
-        // `// …` — a line comment stays in the code, coloured.
+        // `// …` — a line comment stays in the code, colored.
         if (c === "/" && src[i + 1] === "/") {
             let j = i + 2;
             while (j < n && src[j] !== "\n")
@@ -294,7 +294,7 @@ export function highlight(src) {
             i = j;
             continue;
         }
-        // `#RGB` / `#RRGGBB` colour literal
+        // `#RGB` / `#RRGGBB` color literal
         if (c === "#") {
             let j = i + 1;
             while (j < n && isHex(src[j]))

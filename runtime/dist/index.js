@@ -72,6 +72,8 @@ export { forEachCodeValue, serializeDeps, applyDeps } from "./deps.js";
 export { forEachElement, serializeLinks, applyLinks } from "./links.js";
 // Precompiled production entry + render glue (compiler-free) — see boot.ts.
 export { renderProgram, renderProgramAsync, mountApp, disposeApp, loadFonts, reflectAppName } from "./boot.js";
+export { Inspect, setInspectionTarget, inspectionTarget } from "./inspect-service.js";
+export { viewAt, dependentsOf, expandValue, slotsOf } from "./inspect.js";
 export { Node } from "./node.js";
 export { View, App, DOMIsland, inheritedCursor, onDiscard } from "./view.js";
 export { Text } from "./text.js";
@@ -106,7 +108,8 @@ import { setKeysFocusProbe } from "./keys.js";
 import { Themes as Themes_ } from "./themes.js";
 import { Focus as FocusService_ } from "./focus.js";
 import { Keys as KeysService_ } from "./keys.js";
-setBodyServices({ Focus: FocusService_, Keys: KeysService_, Themes: Themes_ });
+import { Inspect as Inspect_ } from "./inspect-service.js";
+setBodyServices({ Focus: FocusService_, Keys: KeysService_, Themes: Themes_, Inspect: Inspect_ });
 setKeysFocusProbe(() => FocusService_.getFocus() !== null);
 export { Themes } from "./themes.js";
 //# sourceMappingURL=index.js.map

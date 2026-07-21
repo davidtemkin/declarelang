@@ -105,6 +105,17 @@ what compiles is, far more often than you are used to, what you meant. The machi
 story and the human story are the same story — the workflow, and what was built to
 make it trustworthy, is [chapter 12](declare-docs:guide:with-an-llm).
 
+One more consequence of "one thing," and it lands a tier out. A re-render exists to
+reconcile a UI that drifted from its state; **hydration** is the same reconciliation
+one level up — between a server's render of your interface and the browser's second
+render of the same thing. Both exist because the interface was assembled from parts
+that have to be made to agree. When the interface is one expressible unit, small
+enough to ship whole, there is nothing to reconcile at either scale: the compiler runs
+the program at build time and serializes what it renders, so crawlers read that and
+people get the app. You will still want a server for anything real — data, accounts,
+the things a browser has no business owning — but not one whose job is your front end.
+[The loop](declare-docs:guide:loop) shows the mechanism.
+
 ## What it opens
 
 Everything above is about cost — the same interfaces, for less. The more interesting

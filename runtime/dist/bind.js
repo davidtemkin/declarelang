@@ -36,6 +36,11 @@ deps) {
     }
     const fn = c.fn;
     const k = new Constraint(`${view.constructor.name}.${name}`, () => fn.call(view, view.parent, classroot), (v) => setBound(view, name, v));
+    // Retain the authored text + position for the Inspector (inspect.ts explain()).
+    k.source = src;
+    if (pos != null && typeof pos.line === "number") {
+        k.sourcePos = { line: pos.line, col: pos.col ?? 0 };
+    }
     own(view, name, k);
     // The static path prewires STABLE-slot edges (attribute cells, a Dataset's
     // `.value` slot — they outlive every recompute). A read of a DATA REGION

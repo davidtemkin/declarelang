@@ -28,10 +28,12 @@ export declare function disposeApp(app: App): void;
  *  adapter, and window-fed environment attributes. An EMBEDDED app (a preview in
  *  an island) owns only its box — it takes its host from that element and does NOT
  *  seize the page's global focus/keys singletons (the outer app keeps them). */
-export declare function wireInput(app: App, host: HTMLElement): void;
+export declare function wireInput(app: App, host: HTMLElement, chrome?: boolean): void;
 /** Mount an already-instantiated App: attach to the backend, root it in `host`,
  *  wire input. The shared tail of every render path. */
-export declare function mountApp(app: App, host: HTMLElement, backend: RenderBackend): App;
+export declare function mountApp(app: App, host: HTMLElement, backend: RenderBackend, opts?: {
+    chrome?: boolean;
+}): App;
 /** `app.appName` → `document.title` — the ONE place that mapping lives. Call it
  *  per settle with the title the page was SERVED: an empty `appName` means "no
  *  opinion" and leaves the served title standing. Returns the name now

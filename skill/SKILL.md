@@ -53,7 +53,7 @@ cover; fetch the one chapter your task needs).
 ## The inventory (resident on purpose — you will NOT think to look these up)
 
 <!-- generated:inventory -->
-- **Built-ins you must not redeclare** (read-only ones are computed for you): every View has `x y width height fill cornerRadius stroke shadow visible opacity scale pivotX pivotY clip scrolls tip scrollsX scrollY textColor fontSize fontFamily fontWeight letterSpacing headingColor headingWeight linkColor codeColor codeSize codeFamily codeBackground codeRule richTextLayout theme selectable cursor styles stylesheet layout datapath focusable focustrap anchor` and read-only `contentWidth contentHeight`; App adds `scrollY pointerX pointerY hovering pointerOverText env location minWidth minHeight appName` and read-only `hostWidth hostHeight dark`. `location` is the URL fragment (two-way: write it to navigate, derive state from it, never assign the derived state); `anchor` names a view as an `@name` reveal target. Naming a derived value `contentWidth` is an error — pick `bodyW`, `colW`, etc.
+- **Built-ins you must not redeclare** (read-only ones are computed for you): every View has `x y width height fill cornerRadius stroke shadow visible opacity scale pivotX pivotY clip scrolls tip scrollsX scrollY textColor fontSize fontFamily fontWeight letterSpacing headingColor headingWeight linkColor codeColor codeSize codeFamily codeBackground codeRule richTextLayout theme selectable cursor pointerEvents styles stylesheet layout datapath focusable focustrap anchor` and read-only `contentWidth contentHeight`; App adds `scrollY pointerX pointerY hovering pointerOverText env location minWidth minHeight appName` and read-only `hostWidth hostHeight dark`. `location` is the URL fragment (two-way: write it to navigate, derive state from it, never assign the derived state); `anchor` names a view as an `@name` reveal target. Naming a derived value `contentWidth` is an error — pick `bodyW`, `colW`, etc.
 - **Token values, not CSS values**: `FontWeight` = thin extralight light regular normal medium semibold bold extrabold black; `TextAlign` = left center right; `Stretch` = none width height both; `Axis` = x y; `Process` = sequential simultaneous — NEVER numeric weights (700 is CSS). Layout `axis` is a literal — to change arrangement responsively, constrain each child's `x`/`y` off a flag.
 - **Dataset mutation verbs** (from handlers): `data.set(path, v)` · `data.insert(path, index, v)` · `data.removeAt(path, index)` · `data.move(path, from, to)` — a verb's path is a DOTTED STRING (`"rows"`, `"rows.3.done"`); only `read` takes an array (`data.read(["rows"])`). Adding a row: `tasks.insert("rows", tasks.read(["rows"]).length, ({ label: t, done: false }))`.
 - **The standard library**: `$provide`, `Checkbox`, `Button`, `Switch`, `Slider`, `RadioGroup`, `Radio`, `Field`, `SearchField`, `ProgressBar`, `TabSlider`, `Tab`, `Tooltip`, `Menu`, `MenuBar`, `Dialog`, plus the built-in `TextInput` — values flow derive-down (`value = { app.x }`) and deliver-up (`input(v) { app.x = v }` — the built-in TextInput's event is `onInput(v)`).
@@ -77,6 +77,7 @@ README.md) — not to this file's location.
 | `this`/`parent`/`classroot`/`app` confusion; classes, composition, named children | docs/guide/04-tree.md |
 | constraints not updating, setter rules | docs/guide/03-relationships.md |
 | deep links, the URL, anchors, crawlers; run/verify/ship | docs/guide/11-loop.md |
+| a program that COMPILES but misbehaves; querying a running app; assert scripts | docs/operational/introspection.md |
 | the whole language, terse | docs/declare.md |
 | an exact fact — attribute names, enum tokens, flags, commands, diagnostic codes | docs/declare-model.json (`spine` — grep it; don't read it whole) |
 
@@ -86,3 +87,21 @@ Write the complete program in one ```declare fence. If a checker report comes
 back: every diagnostic names its fix — apply exactly what it names, change
 nothing else, resubmit. The compiler reports ALL syntax-level mistakes at once;
 trust the list.
+
+**When it compiles clean but behaves wrong, STOP re-reading the source.** Green
+rungs 1–4 mean the checker found nothing, not that nothing is wrong: those rungs
+run in a synthetic environment with no browser engine, so layout against real
+fonts, paint, input routing, and anything that only exists in a bundled build are
+invisible to them. Ask the running program instead — it answers as data:
+
+```js
+__declare.explain("app.dock.calIcon", "width")  // WHY this value: the expression,
+                                                // its read-paths, their live values
+__declare.at(x, y)                              // what view is actually under a point
+__declare.slots("app.bar")                      // every slot + where its value came from
+```
+
+That is the fastest route to the two failure modes source-reading cannot find: a
+value derived from something you did not expect, and a press landing on a view you
+did not expect (later siblings cover earlier ones — for hit-testing, not only
+paint). Full surface: docs/operational/introspection.md.

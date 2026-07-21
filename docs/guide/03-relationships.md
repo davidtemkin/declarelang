@@ -124,3 +124,11 @@ know why assignment is safe and when it displaces, and you know what reactivity 
 — which is to say, you now hold the whole runtime model. What remains is craft.
 
 [Next: **The tree is the app** →](declare-docs:guide:tree)
+
+---
+
+You can watch this happen rather than take it on faith. Press **⌥⌘D** on any running
+page to open the [Inspector](declare-docs:operational:inspector), click a value that a
+constraint owns, and it shows you the expression that produced it and every value that
+expression just read — updating as you interact. It is the fastest way to check that
+your picture of what-depends-on-what matches the program's.

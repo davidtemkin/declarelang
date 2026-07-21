@@ -1149,4 +1149,22 @@ function materializer(ctx: Ctx) {
   };
 }
 
+/** Instantiate a PARSED element into a live parent — the Inspector's
+ *  `Tag [ … ]` evaluation. Unlike createViewIn (which synthesizes an empty
+ *  element from a tag name), this takes the real parsed node, so nested
+ *  children, `{ }` constraints and declarations all materialize exactly as
+ *  they would in source. Resolves against the SUBJECT tree's registry. */
+export function createElementIn(root: View, el: Element, parent: View): View {
+  const ctx = CONTEXTS.get(root);
+  if (ctx === undefined) {
+    throw new DeclareError("evaluate: this tree was not built from a program (no registry to resolve against)");
+  }
+  const made = materializer(ctx)(el, parent);
+  parent.insertChild(made.view, parent.children.length);
+  const ps = parent.surface;
+  if (ps !== null && parent.backend !== null) made.view.attach(parent.backend, ps, null);
+  made.finish();
+  return made.view;
+}
+
 provideViewCreator(createViewIn);

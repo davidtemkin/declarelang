@@ -83,10 +83,19 @@ export function disposeApp(app: App): void {
  *  adapter, and window-fed environment attributes. An EMBEDDED app (a preview in
  *  an island) owns only its box — it takes its host from that element and does NOT
  *  seize the page's global focus/keys singletons (the outer app keeps them). */
-export function wireInput(app: App, host: HTMLElement): void {
+export function wireInput(app: App, host: HTMLElement, chrome = false): void {
+  // `chrome` — a CHROME app (the Inspector): it owns its own box and input like
+  // an embedded app, but is mounted at page level rather than inside another
+  // app's tree. It must never seize the page's focus root, the keys adapter, or
+  // the `__declare` bridge, all of which belong to the app it is inspecting.
   const embedded = isEmbedded(host);
-  wireEnvironment(app, host, embedded);
-  if (embedded) return;
+  // A CHROME app covers the viewport, so it reads the WINDOW environment like a
+  // top-level app does — pointer, size, scroll. Reading the host ELEMENT instead
+  // would strand it: a chrome overlay sets `pointer-events: none` so the app
+  // beneath stays usable, and an element that takes no pointer events never sees
+  // pointermove, which would freeze app.pointerX and break every drag it owns.
+  wireEnvironment(app, host, chrome ? false : embedded);
+  if (chrome || embedded) return;
   Focus.setRoot(app);
   Keys.listen(() => app.surface !== null);
   deliverKeys(Keys, Focus);
@@ -96,7 +105,7 @@ export function wireInput(app: App, host: HTMLElement): void {
   (window as unknown as { __declare?: unknown }).__declare = bridgeFor(app);
 }
 
-/** Feed `app.dark` from the OS colour scheme and keep it live as the system theme
+/** Feed `app.dark` from the OS color scheme and keep it live as the system theme
  *  flips. Returns an unsubscribe so an embedded app's re-render can drop the listener. */
 function wireColorScheme(app: App): () => void {
   const mq = window.matchMedia("(prefers-color-scheme: dark)");
@@ -175,10 +184,10 @@ function wireEnvironmentEmbedded(app: App, host: HTMLElement): void {
 
 /** Mount an already-instantiated App: attach to the backend, root it in `host`,
  *  wire input. The shared tail of every render path. */
-export function mountApp(app: App, host: HTMLElement, backend: RenderBackend): App {
+export function mountApp(app: App, host: HTMLElement, backend: RenderBackend, opts: { chrome?: boolean } = {}): App {
   app.attach(backend, null);
   backend.attachRoot(host, app.surface!);
-  wireInput(app, host);
+  wireInput(app, host, opts.chrome === true);
   return app;
 }
 

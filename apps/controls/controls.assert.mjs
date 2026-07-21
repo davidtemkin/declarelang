@@ -46,9 +46,13 @@ export default async ({ drive, expect }) => {
   if (!p.constraint || p.constraint.static !== true) expect.fail("slider value should be a static-wired constraint");
   if (!p.constraint.deps.includes("this.root.volume")) expect.fail(`unexpected deps: ${p.constraint.deps}`);
 
-  // the traveling focus ring (compiler-injected, last App child): after a
-  // click it heads for the clicked control — settle the motion, then its
-  // geometry brackets the radio row's dot
+  // the traveling focus ring (compiler-injected, last App child). A POINTER
+  // press clears keyboard modality, so the ring stays hidden — :focus-visible
+  // semantics, focusring.declare's stated rule. Tabbing re-enters keyboard
+  // modality and the ring appears, travelling to the newly focused control.
+  await drive.settleMotion();
+  await expect.hidden("app.3");
+  await drive.tab();
   await drive.settleMotion();
   await expect.visible("app.3");
 };

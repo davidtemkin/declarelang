@@ -603,3 +603,133 @@ sufficient one tier down; every remaining failure mode is repair-stability (capa
 or behavior-rung teaching (E-11/E-12 landed, unmeasured at N). The triage engine has
 cleared its backlog: remaining register items are E-14 (Dataset JSON did-you-mean,
 land next compiler touch) and the task-corpus expansion (3→8) for statistical power.
+
+---
+
+## 2026-07-20 — building the Inspector (a Declare app about another Declare app)
+
+The Inspector is an unusual client: it is a Declare program mounted *over* another
+one, so it exercised overlay/chrome paths nothing else touches, and it re-derived
+several findings the desktop had already produced — independent corroboration
+rather than a second opinion.
+
+### 17. Hit-test order is emergent from declaration order, and nothing declares it
+### → RULED 2026-07-20 (David): the semantics STAND. Declared order is z-order in the
+### initial state; resolve with documentation and a clear statement, not a language
+### change. See open-items.md L-7 for what the statement must carry.
+
+Bit twice in one day, in two different programs:
+
+- `desktop.declare`'s resize strips are unreachable on a **background** window,
+  because the first-click `veil` (`visible = { !active && … }`, raised last by
+  `raiseChrome()`) spans the whole content area and covers them. Resize works
+  perfectly on the active window; on an inactive one the press only activates.
+- The Inspector's **column seam** could not be grabbed, because `whyCol` was
+  declared after it and painted over it. Same shape, same hour, unrelated code.
+
+Both are correct per the language's rule (later siblings paint and hit above
+earlier ones) and both are invisible in the source: the covering view is somewhere
+else in the file, and the covered one looks fine. `raiseChrome()` exists in the
+desktop precisely to fight this, which is the tell — an app should not need a
+method whose job is to restore an ordering the author already expressed.
+
+**The cost is diagnosis, not authoring.** I spent an hour and filed a WRONG bug
+report ("resize is broken") before finding the veil. The Inspector now answers it
+in seconds — but that only means the tool pays for itself, not that the language
+is fine.
+
+**Resolution (ruled).** The rule is kept. What the documentation must carry, beyond
+the rule itself: (a) a later sibling covers an earlier one for HIT-TESTING, not only
+for paint — that is the half that surprises; and (b) when chrome must stay above
+subclass content, the base class re-asserts order, so `raiseChrome()` is a named
+idiom rather than something each app rediscovers. The cheap complement is tooling,
+not language: the Inspector already has `viewAt`, so surfacing "what would a press
+here hit?" turns this class of bug from an hour into seconds.
+
+### 18. Reactive collections — the SAME workaround, arrived at independently
+
+`desktop.declare` bumps `winSeq = winSeq + 1` in **11 places** so that window
+lists re-derive. Writing the Inspector I invented the identical thing four times
+over without noticing: `openSeq`, `vseq`, `lineSeq`, and a `tick` interval — every
+one of them a manual invalidation because a structural change (a child added, a
+collection replaced, a foreign object mutated) is not a reactive event.
+
+Two independent programs, same wart, same shape. PuruVJ's Svelte-5 post names
+this exact pattern (`array.push()` then `array = array`) as the *diagnostic
+symptom* of compile-time dependency detection, and it is the thing that pushed
+Svelte to runtime signals. This is now the highest-leverage item on this list.
+
+The fix does **not** require abandoning static extraction (which is what buys the
+crawler, `?extract`, verification, and the Inspector's `deps` list): keep static
+extraction of *which* collection is read, and make the collection notify on
+structural change. Svelte kept a compiler and made the data structures reactive;
+same move.
+
+### 19. `constructor.name` is load-bearing and a bundler eats it
+
+`explain()`'s constraint label, `inspect()`'s node kind, and `desktop.declare`'s
+own `appOf(w)` dispatch all key off `constructor.name`. In a minified bundle the
+runtime's `App` becomes `Pe`, so the Inspector's tree read "Pe" for the root and
+constraint labels read `t.width`.
+
+Worse, name *shape* cannot discriminate: a real two-letter user class (`Ev`, in
+the calendar) is indistinguishable from a minified `Pe`. I resolved it by
+checking the property **descriptor** — `instantiate.ts synthesize()` stamps real
+class names with `Object.defineProperty` (non-configurable), while JS-inferred
+names are configurable — which works but is a trick, not a design.
+
+**Candidate:** stamp the authored component name on the instance (`$kind`) at
+materialize time and have everything read that. Also retires the stringly-typed
+`w.constructor.name == "ViewerWindow"` dispatch in the desktop, which silently
+returns the wrong application if a class is renamed.
+
+### 20. No fragment-compile entry point, so tooling must re-implement scope
+
+To evaluate `width` typed into the Inspector, the runtime's `compileExpr` is not
+enough: the **compiler** rewrites free identifiers (`width` → `this.width`,
+`app` → the root) before a body is ever compiled. With only the runtime half, the
+very spelling the language teaches is rejected. I wrote a `qualify()` that
+re-does that rewrite against the live object — duplicated logic that can drift
+from the compiler it imitates.
+
+**Candidate:** the `compileFragment(src, scope)` of `inspector.md` §6.2 —
+expression / assignment / binding / view-literal, returning `{ fn, deps,
+diagnostics }` from the *same* free-identifier and dep-extraction path a `{ }`
+slot takes. Wanted by any REPL, any live-editing surface, and any agent that
+wants to evaluate against a running program.
+
+### 21. A slot cannot be rebound — only bound once
+
+`bindConstraint` refuses a slot that already has an owner ("already bound by …"),
+so installing a constraint at runtime meant reaching for `disown()` first. Right
+for compile time; but "replace this slot's constraint" is the central verb of
+live editing and has no public spelling.
+
+### 22. `:field` on a cursor-less view yields null, silently
+
+Documented behaviour (an unresolved `:path` is null), and correct inside a
+constraint. In a REPL it is a lie: the developer cannot tell "the field is null"
+from "there is no data here" from "you typo'd the field". The Inspector now
+refuses both cases explicitly and lists the keys the record *does* have — but it
+had to reach past the language to do it (`inheritedCursor` + the cursor record).
+Worth asking whether a strict read (`::field`?) or a compile-time warning belongs
+in the language, since the same ambiguity is silently present in every app.
+
+### 23. Papercuts (each cost a compile cycle)
+
+- **A record/array literal is not a legal declaration default**: `open: object =
+  ({ })` is refused, so state that wants to start as `{ }` must default `null` and
+  be initialised in `onInit`, and every reader needs `|| ({ })`. (Cf. §11's
+  general object attribute, which landed; this is its remaining edge.)
+- **`TextInput.text` will not two-way bind to an app attribute** — `text <-> app.entry`
+  is refused (datapaths only). The diagnostic names the workaround, which is good,
+  but "a field editing a plain attribute" is the common case in a tool.
+- **`pointerEvents` did not exist.** Added in this branch (schema + View + all three
+  backends). Overlay chrome, decoration, and highlight layers all need it; §5's
+  "a handler-less view is pointer-events:none" is the same subject from the other
+  side, and the two should be reconciled into one stated rule.
+- **A chrome/overlay app read its environment from the host ELEMENT**, which is
+  `pointer-events: none` by construction, so `app.pointerX` never updated and every
+  drag it owned silently did nothing. Fixed by giving `mountApp` a `chrome` mode
+  that reads the window. The general lesson: where an app's environment comes from
+  should be an explicit mount decision, not inferred (cf. §7, §15).

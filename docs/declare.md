@@ -684,9 +684,13 @@ making it:
    message states the rule you broke and the one rewrite that resolves it. Trust the
    message; apply the named fix; recompile. All independent errors in a phase are reported
    together.
-4. **Verify** — `node tools/verify.mjs <file>` climbs the ladder: compiles, boots
-   headlessly, and runs behavioral assertions where the program declares them. Use it as
-   the oracle before you trust a change.
+4. **Verify** — `node tools/verify.mjs <file>` climbs the ladder: parse, resolution,
+   typecheck and settle run with no browser (fast, and the reason to run them
+   constantly); the behavior and visual rungs drive the app in headless Chromium with
+   real input and a deterministic clock. Use it as the oracle before you trust a change.
+   When a program passes yet still misbehaves, ask the running app instead of re-reading
+   the source: `__declare.explain(path, attr)` answers *why* a slot holds its value —
+   the expression, the read-paths it was wired to, and their live values.
 5. **Ship** — `node tools/declarec.mjs <file>` emits a self-contained production bundle
    (app + runtime, ~50 KB gzipped); the same artifact is one request away at
    `<program-url>?build`. `--crawler` bakes the crawler document into the shipped page.

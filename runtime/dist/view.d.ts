@@ -47,6 +47,10 @@ export declare class View extends Node {
      *  "ew-resize", "col-resize", "pointer", …; "" = inherit). Meaningful on
      *  views that take input: the sink is the hit target on both backends. */
     cursor: string;
+    /** "none" makes this view and its subtree transparent to the pointer, so
+     *  presses fall through to whatever is behind (an overlay's rule). "" /
+     *  "auto" = the normal behaviour. */
+    pointerEvents: string;
     /** Uniform paint-only scale about (pivotX, pivotY), the view's own
      *  coordinates (default the top-left corner); 1 = no transform. Spring it for
      *  zoom effects — it never affects layout, exactly like opacity. */
@@ -86,7 +90,7 @@ export declare class View extends Node {
     letterSpacing: number;
     /** Rich-text STRUCTURE style, prevailing: a `Markdown`/`HTMLText` renders its
      *  headings/links/inline-code from these; a plain View just carries them for
-     *  its rich-text descendants. Colours are `null` = the theme-aware house token;
+     *  its rich-text descendants. Colors are `null` = the theme-aware house token;
      *  `headingWeight` defaults to the house `bold`. */
     headingColor: Color;
     headingWeight: FontWeight;
@@ -339,7 +343,7 @@ export declare class App extends View {
      *  custom app cursor reads it to YIELD to the I-beam over a text field:
      *  `cursor: View [ visible = { !classroot.pointerOverText } ]`. */
     pointerOverText: boolean;
-    /** The OS colour-scheme preference (`prefers-color-scheme: dark`), fed live by
+    /** The OS color-scheme preference (`prefers-color-scheme: dark`), fed live by
      *  the runtime. Theme an app off it: `fill = { app.dark ? 0x0B141B : 0xFFFFFF }`
      *  or drive a `theme` record from it. Read-only to user code. */
     dark: boolean;
@@ -394,6 +398,17 @@ export declare class App extends View {
      *  it, the host polls it on the next frame and window.opens (still inside the
      *  click's transient user activation, so it isn't popup-blocked). */
     pendingOpen: string;
+    /** app→host channel for the Inspector (the third of the same shape). A button
+     *  calls `app.inspect("run:spring")` naming an island slot — or `""` for this
+     *  app itself — and the host opens the Inspector on that subject. A plain
+     *  field, not a reactive attribute: nothing renders from it, and no Declare
+     *  source reads it. */
+    pendingInspect: string | null;
+    /** inspect(slot) — the Inspector SERVICE ACTION. `slot` names an embedded
+     *  app's island ("run:spring"); omit it to inspect this app. Like navigate(),
+     *  the intent rides a channel the host owns, so a `{ }` body never touches
+     *  the document. */
+    inspect(slot?: string): void;
     /** openWindow(to) — navigate's NEW-WINDOW sibling (a "View Source" that must
      *  not replace the running app). Same discipline: bodies never touch
      *  `window`, the intent rides a channel the host owns. */

@@ -195,7 +195,7 @@ language's own lexical shape (strings, `{ }` bodies captured whole, triple-quote
 datapaths, comments), so it classifies exactly what the compiler tokenizes and a `{ }`
 body's contents (regex included) never corrupt the scan. It splits a file into prose
 segments (Markdown lifted from `/* */` comments) and code segments (`<pre>` HTML with a
-role class per token, coloured by the viewer's theme-aware `accents`). It runs live on
+role class per token, colored by the viewer's theme-aware `accents`). It runs live on
 the server route and ahead of time via `declarec --highlight` (→ a `.highlight.json`).
 Block comments are lexer trivia (`parser.ts`), so literate `.declare` files — prose in
 comments, code between — both compile and view.

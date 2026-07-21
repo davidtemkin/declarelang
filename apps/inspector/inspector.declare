@@ -1,0 +1,850 @@
+/*
+# Declare Inspector
+
+A live object browser for a running Declare app — written in Declare, about
+another Declare program. It answers three questions that no component
+devtool can: what object is this, **why** is that value what it is, and what
+happens if I change it right now.
+
+Everything it knows comes through the `Inspect` service (runtime
+inspect-service.ts): the host names a subject once, and this program queries it
+like any other data source. It never reaches into the subject's objects — so the
+same app could later inspect a subject in another frame with only the transport
+changing.
+
+The root declares `pointerEvents = "none"` and only the window and the pick
+overlay take it back: the app being inspected must stay fully usable while you
+inspect it.
+*/
+
+font Sans [ family = "system-ui" ]
+
+font Mono [ family = "ui-monospace" ]
+
+// ── palette ──────────────────────────────────────────────────────────────────
+// One record, read by everything. A developer tool earns its keep at 2am, so
+// the contrast is deliberately high and the accents are few.
+
+class Ink extends View [ ]
+
+// ── small type components ────────────────────────────────────────────────────
+
+class Label extends Text [ fontSize = 12, fontFamily = [Sans, "system-ui", "sans-serif"],
+    textColor = { app.c.muted }, wrap = false,
+    ]
+
+
+class Code extends Text [ fontSize = 11.5, fontFamily = [Mono, "monospace"],
+    textColor = { app.c.text }, wrap = false,
+    ]
+
+
+// ── a toolbar button ─────────────────────────────────────────────────────────
+
+class Tool extends View [ height = 22, cornerRadius = 6,
+    glyph: string = "",
+    on: boolean = false,
+    hovered: boolean = false,
+    width = { this.g.width + 16 },
+    stroke = { stroke(1, classroot.on ? app.c.accent : app.c.line) },
+    fill = { classroot.on ? app.c.accent : (classroot.hovered ? app.c.hover : null) },
+    onMouseOver() { hovered = true },
+    onMouseOut() { hovered = false },
+    g: Text [ x = 8, y = center, fontSize = 11.5, fontFamily = [Mono, "monospace"], wrap = false,
+        textColor = { classroot.on ? app.c.onAccent : (classroot.hovered ? app.c.text : app.c.muted) },
+        text = { classroot.glyph } ],
+    ]
+
+
+// ── a disclosure triangle ────────────────────────────────────────────────────
+// Drawn, not typed: a glyph triangle sits on the text baseline and jitters
+// between fonts. 7px, rotating 90° when open.
+
+// The drawn arrow is 7px, but a 7px CLICK target is a mis-click generator. The
+// view is a full row-height box with the arrow centred in it — the affordance is
+// small, the target is not.
+
+class Twisty extends View [ width = 18, height = 19,
+    open: boolean = false,
+    shown: boolean = true,
+    hovered: boolean = false,
+    onMouseOver() { hovered = true },
+    onMouseOut() { hovered = false },
+    draw(d) {
+        if (!classroot.shown) return
+        d.fillStyle = classroot.hovered ? app.c.text : app.c.faint
+        d.beginPath()
+        if (classroot.open) { d.moveTo(5, 8); d.lineTo(13, 8); d.lineTo(9, 13) }
+        else { d.moveTo(7, 5); d.lineTo(12, 9.5); d.lineTo(7, 14) }
+        d.closePath()
+        d.fill()
+        },
+    ]
+
+
+// A draggable divider: an 8px target with a 1px rule, tinting on hover so it
+// announces itself. Vertical for the columns; the console divider is its
+// horizontal twin below.
+
+class Seam extends View [ width = 8, y = 0,
+    which: string = "a",
+    hovered: boolean = false,
+    cursor = "col-resize",
+    fill = { classroot.hovered || app.seam == classroot.which ? app.c.seamOn : null },
+    onMouseOver() { hovered = true },
+    onMouseOut() { hovered = false },
+    onMouseDown() { app.beginSeam(classroot.which) },
+    onMouseMove() { app.moveSeam() },
+    onMouseUp() { app.endSeam() },
+    ]
+
+
+// ── the window's traffic light (close only — there is nowhere to minimise) ───
+
+class Dot extends View [ width = 11, height = 11, cornerRadius = 6,
+    hovered: boolean = false,
+    fill = #FF5F57,
+    stroke = { stroke(0.5, 0xD1443B) },
+    onMouseOver() { hovered = true },
+    onMouseOut() { hovered = false },
+    onClick() { app.shown = false },
+    mark: Text [ visible = { classroot.hovered }, x = center, y = center, fontSize = 9,
+        fontWeight = bold, textColor = 0x7B1006, text = "×" ],
+    ]
+
+
+App [ pointerEvents = "none", appName = "Declare Inspector",
+    fontFamily = [Sans, "system-ui", "sans-serif"],
+
+    shown: boolean = true,
+
+    // ── the palette ──────────────────────────────────────────────────────────
+
+    // A developer tool that looked like the app it inspects would be a liability:
+    // you must never wonder which surface you are reading. So the light rendition
+    // is deliberately atypical — MIDDLE GREY chrome with lighter emphasis, a
+    // palette no product ships — rather than the usual near-white panel.
+
+    darkUI: boolean = false,
+
+    c: object = { app.darkUI ? ({
+        bg:      0x12161C, panel:   0x171C24, raised:  0x1C232D, bar:     0x1A202A,
+        line:    0x2A313C, hover:   0x222B37, field:   0x0D1117, seamOn:  0x3A4453, selBg: 0x2C3E5C,
+        text:    0xE6EDF3, muted:   0x9AA5B4, faint:   0x6B7684,
+        accent:  0x4C8DFF, accent2: 0x2DD4BF, amber:   0xE0A54F, danger:  0xFF7B72,
+        str:     0x9ECE6A, num:     0xE0A54F, onAccent: 0xFFFFFF,
+        }) : ({
+        bg:      0xFFFFFF, panel:   0xF5F6F8, raised:  0xFFFFFF, bar:     0xEDEEF1,
+        line:    0xD9DCE1, hover:   0xEBEFF5, field:   0xFFFFFF, seamOn:  0xC3C8D0, selBg: 0xD3E1FA,
+        text:    0x1A1D23, muted:   0x59616E, faint:   0x8C95A1,
+        accent:  0x2563EB, accent2: 0x0D8F86, amber:   0xB45309, danger:  0xD03434,
+        str:     0x15803D, num:     0xA85A0B, onAccent: 0xFFFFFF,
+        }) },
+
+    // ── window geometry (drag + resize live here) ────────────────────────────
+
+    winX: number = 40,
+    winY: number = 60,
+    winW: number = 900,
+    winH: number = 540,
+    px0: number = 0,
+    py0: number = 0,
+    wx0: number = 0,
+    wy0: number = 0,
+    ww0: number = 0,
+    wh0: number = 0,
+    dragging: boolean = false,
+    sizing: string = "",
+
+    // pane geometry — the two column seams and the console divider are dragged,
+    // so each is state the user owns rather than a fixed fraction
+
+    colA: number = 250,
+    colB: number = 360,
+    consoleH: number = 116,
+    seam: string = "",
+    seam0: number = 0,
+    beginSeam(which) { seam = "" + which; px0 = app.pointerX; py0 = app.pointerY
+        seam0 = which == "a" ? colA : which == "b" ? colB : consoleH },
+    moveSeam() {
+        if (seam == "") return
+        if (seam == "a") colA = Math.max(150, Math.min(app.winW - 320, seam0 + app.pointerX - px0))
+        else if (seam == "b") colB = Math.max(200, Math.min(app.winW - app.colA - 160, seam0 + app.pointerX - px0))
+        else consoleH = Math.max(60, Math.min(app.winH - 200, seam0 - (app.pointerY - py0)))
+        },
+    endSeam() { seam = "" },
+
+    beginDrag() { dragging = true; px0 = app.pointerX; py0 = app.pointerY; wx0 = winX; wy0 = winY },
+    moveDrag() {
+        if (!dragging) return
+        winX = Math.max(-200, Math.min(app.width - 120, wx0 + app.pointerX - px0))
+        winY = Math.max(0, Math.min(app.height - 60, wy0 + app.pointerY - py0))
+        },
+    endDrag() { dragging = false },
+
+    beginSize(m) { sizing = "" + m; px0 = app.pointerX; py0 = app.pointerY; ww0 = winW; wh0 = winH },
+    moveSize() {
+        if (sizing == "") return
+        if (sizing.indexOf("r") >= 0) winW = Math.max(620, ww0 + app.pointerX - px0)
+        if (sizing.indexOf("b") >= 0) winH = Math.max(300, wh0 + app.pointerY - py0)
+        },
+    endSize() { sizing = "" },
+
+    // ── selection + expansion state ──────────────────────────────────────────
+
+    sel: string = "app",
+    selAttr: string = "",
+    hoverPath: string = "",
+    picking: boolean = false,
+
+    open: object = null,
+    openSeq: number = 0,
+    toggle(p) {
+        const o = ({ ...(app.open || ({ })) })
+        if (o[p]) delete o[p]
+        else o[p] = true
+        app.open = o
+        app.openSeq = app.openSeq + 1
+        },
+    isOpen(p) { return (app.open || ({ }))[p] == true },
+
+    // value-tree expansion, keyed "attr/trail.join('.')"
+
+    vopen: object = null,
+    vseq: number = 0,
+    vtoggle(k) {
+        const o = ({ ...(app.vopen || ({ })) })
+        if (o[k]) delete o[k]
+        else o[k] = true
+        app.vopen = o
+        app.vseq = app.vseq + 1
+        },
+
+    // ── the refresh pulse ────────────────────────────────────────────────────
+    // The subject is not our reactive graph, so nothing here can be woken BY it.
+    // A modest tick re-derives what is on screen; it is passed as an argument to
+    // every derived list so the constraint visibly depends on it.
+
+    tick: number = 0,
+    running: boolean = true,
+    frozen: boolean = false,
+    freezeToggle() {
+        app.frozen = !app.frozen
+        if (app.frozen) Inspect.clock.manual()
+        else Inspect.clock.auto()
+        },
+    stepFrame() {
+        if (!app.frozen) { app.frozen = true; Inspect.clock.manual() }
+        Inspect.clock.step(16.7)
+        app.tick = app.tick + 1
+        },
+    onInit() { app.darkUI = app.dark; app.open = ({ app: true }); app.vopen = ({ }); setInterval(() => { if (app.shown && app.running) app.tick = app.tick + 1 }, 110) },
+
+    // ── selection helpers ────────────────────────────────────────────────────
+
+    selKind: string = { Inspect.ready() ? Inspect.kindOf(app.sel) : "" },
+    selName(t, p) { const r = (Inspect.rows(app.open || ({ })) || []).find((x) => x.path == p); return r != null ? "" + r.name : "" },
+    crumbs: array = { app.sel.split(".") },
+
+    hasData: boolean = { app.tick >= 0 && Inspect.ready() ? Inspect.hasData(app.sel) : false },
+
+    select(p) {
+        if (p == "" ) return
+        app.sel = p
+        app.selAttr = ""
+        // open every ancestor so the tree reveals the selection
+        const parts = p.split(".")
+        const o = ({ ...(app.open || ({ })) })
+        let acc = ""
+        for (const s of parts) { acc = acc == "" ? s : acc + "." + s; o[acc] = true }
+        app.open = o
+        app.openSeq = app.openSeq + 1
+        },
+
+    // ── the tree ─────────────────────────────────────────────────────────────
+
+    treeRows(t, s) { return Inspect.ready() ? Inspect.rows(app.open || ({ })) : [] },
+    tree: Dataset [ contents = { ({ rows: app.treeRows(app.tick, app.openSeq) }) } ],
+
+    // ── slots of the selected object ─────────────────────────────────────────
+    // Each slot may open into a value tree (records, arrays, a Dataset's value);
+    // a View-valued slot is a LINK, never an inline expansion — the view graph
+    // is cyclic, and one subject at a time is what a developer wants anyway.
+
+    slotRows(t, p, v) {
+        if (!Inspect.ready()) return []
+        const out = []
+        // A view under a `datapath` reads its `:fields` from a record. That
+        // record IS part of what this object is, so it leads the pane rather
+        // than hiding behind the slots — and its keys are exactly what a `:`
+        // expression in the strip below can reach.
+        const drows = Inspect.dataRows(p)
+        if (drows.length > 0) {
+            out.push(({ key: "·data", label: "data", text: ":" + drows.length + " fields", depth: 0,
+                kind: "record", origin: "data", motion: false, canOpen: true,
+                isOpen: (app.vopen || ({ }))["·data"] != false, swatch: "", trail: "" }))
+            if ((app.vopen || ({ }))["·data"] != false) {
+                for (const d of drows) {
+                    out.push(({ key: "·data/" + d.key, label: ":" + d.key, text: d.text, depth: 1,
+                        kind: d.kind, origin: "data", motion: false, canOpen: false,
+                        isOpen: false, swatch: "", trail: "" }))
+                    }
+                }
+            }
+        for (const s of Inspect.slots(p)) {
+            out.push(({ key: s.attr, label: s.attr, text: s.text, depth: 0, kind: s.kind,
+                origin: s.origin, motion: s.motion, canOpen: s.open, isOpen: (app.vopen || ({ }))[s.attr] == true,
+                swatch: s.color != null ? s.color : "", trail: "" }))
+            if (s.open && (app.vopen || ({ }))[s.attr] == true) app.walkValue(out, p, s.attr, [], 1)
+            }
+        return out
+        },
+
+    walkValue(out, p, attr, trail, depth) {
+        if (depth > 6) return
+        const slice = Inspect.expand(p, attr, trail)
+        const entries = slice.entries || []
+        for (const e of entries) {
+            const key = attr + "/" + [...trail, e.key].join(".")
+            const isOpen = (app.vopen || ({ }))[key] == true
+            out.push(({ key: key, label: e.key, text: e.text, depth: depth, kind: e.kind,
+                origin: "value", motion: false, canOpen: e.open, isOpen: isOpen,
+                swatch: "", trail: [...trail, e.key].join(".") }))
+            if (e.open && isOpen) app.walkValue(out, p, attr, [...trail, e.key], depth + 1)
+            }
+        },
+
+    // memoised for the same reason the tree is: this feeds replication, and an
+    // identical list must not look like a new one
+
+    lastSlotSig: string = "",
+    lastSlotRows: array = null,
+    slotRowsMemo(t, p, v) {
+        const rows = app.slotRows(t, p, v)
+        const sig = JSON.stringify(rows)
+        if (sig == app.lastSlotSig && app.lastSlotRows != null) return app.lastSlotRows
+        app.lastSlotSig = sig
+        app.lastSlotRows = rows
+        return rows
+        },
+    slots: Dataset [ contents = { ({ rows: app.slotRowsMemo(app.tick, app.sel, app.vseq) }) } ],
+
+    // ── the why pane ─────────────────────────────────────────────────────────
+
+    why: object = { app.tick >= 0 && Inspect.ready() && app.selAttr != "" ? Inspect.explain(app.sel, app.selAttr) : null },
+    whyDeps(t, p, a) {
+        const w = app.why
+        if (w == null || w.constraint == null || w.constraint.deps == null) return []
+        return w.constraint.deps.map((d) => ({ path: "" + d, value: Inspect.depValue(p, "" + d) }))
+        },
+    lastDepSig: string = "",
+    lastDepRows: array = null,
+    depRowsMemo(t, p, a) {
+        const rows = app.whyDeps(t, p, a)
+        const sig = JSON.stringify(rows)
+        if (sig == app.lastDepSig && app.lastDepRows != null) return app.lastDepRows
+        app.lastDepSig = sig
+        app.lastDepRows = rows
+        return rows
+        },
+    deps: Dataset [ contents = { ({ rows: app.depRowsMemo(app.tick, app.sel, app.selAttr) }) } ],
+    depCount: number = { (app.whyDeps(app.tick, app.sel, app.selAttr) || []).length },
+
+    whyValue: string = { app.why != null ? "" + app.why.value : "" },
+    whySource: string = { app.why != null && app.why.constraint != null && app.why.constraint.source != null
+        ? "{ " + app.why.constraint.source + " }" : "" },
+    whyLabel: string = { app.why != null && app.why.constraint != null ? "" + app.why.constraint.label : "" },
+    whyStatic: boolean = { app.why != null && app.why.constraint != null && app.why.constraint.static == true },
+    whyLive: boolean = { app.why != null && app.why.constraint != null && app.why.constraint.live == true },
+    whyHow: string = {
+        app.why == null || app.why.constraint == null ? ""
+        : app.why.constraint.live == true ? "live-bound · temporary, lost on reload"
+        : app.why.constraint.static == true ? "wired statically by the compiler"
+        : "tracked at runtime" },
+    whyLine: string = { app.why != null && app.why.constraint != null && app.why.constraint.pos != null
+        ? "line " + app.why.constraint.pos.line : "" },
+    whyOrigin: string = {
+        app.why == null ? ""
+        : app.why.constraint != null ? "constraint"
+        : app.why.set == true ? "set imperatively"
+        : "class default" },
+    whySpring: string = { app.why != null && app.why.spring != null
+        ? "spring → " + app.why.spring.target + "   stiffness " + app.why.spring.stiffness + "   damping " + app.why.spring.damping
+        : "" },
+
+    // ── the evaluate strip ───────────────────────────────────────────────────
+
+    entry: string = "",
+    lines: array = null,
+    lineSeq: number = 0,
+
+    say(rec) {
+        const prev = app.lines || []
+        app.lines = [...prev.slice(-40), rec]
+        app.lineSeq = app.lineSeq + 1
+        },
+
+    submit(src) {
+        const s = ("" + src).trim()
+        if (s == "") return
+        const r = Inspect.evaluate(app.sel, s)
+        app.say(({ input: s, text: "" + r.text, verb: "" + r.verb, ok: r.ok == true,
+            temp: r.temporary == true, at: app.sel }))
+        app.entry = ""
+        app.tick = app.tick + 1
+        this.win.console.scroll.list.end.scrollIntoView()
+        },
+
+    log: Dataset [ contents = { ({ rows: (app.lineSeq >= 0 ? (app.lines || []) : []) }) } ],
+
+    // ── the pick overlay ─────────────────────────────────────────────────────
+
+    // While picking, the view under the pointer is a CONSTRAINT over the live
+    // pointer rather than an event handler's bookkeeping — it cannot fall out
+    // of step with the pointer, and it re-derives with the tick like everything
+    // else here.
+
+    pickPath: string = { app.picking && app.tick >= 0 && Inspect.ready() ? Inspect.at(app.pointerX, app.pointerY) : "" },
+    aimPath: string = { app.picking ? app.pickPath : app.hoverPath },
+    hoverRect: object = { app.tick >= 0 && app.aimPath != "" && Inspect.ready() ? Inspect.rect(app.aimPath) : null },
+    selRect: object = { app.tick >= 0 && Inspect.ready() ? Inspect.rect(app.sel) : null },
+    depRect: object = { app.tick >= 0 && app.depHover != "" && Inspect.ready() ? Inspect.rect(app.depHover) : null },
+    depHover: string = "",
+
+    // the picking sheet: takes the pointer only while armed, so a click lands
+    // here instead of in the app underneath
+
+    pickSheet: View [ visible = { app.picking }, x = 0, y = 0,
+        width = { app.width }, height = { app.height },
+        pointerEvents = { app.picking ? "auto" : "none" },
+        cursor = "crosshair",
+        onClick() {
+            if (app.pickPath != "") app.select(app.pickPath)
+            app.picking = false
+            },
+        ],
+
+    // outlines — pure decoration, never interactive
+
+    outline: View [ visible = { app.shown && app.selRect != null }, pointerEvents = "none",
+        x = { app.selRect != null ? app.selRect.x : 0 },
+        y = { app.selRect != null ? app.selRect.y : 0 },
+        width = { app.selRect != null ? app.selRect.width : 0 },
+        height = { app.selRect != null ? app.selRect.height : 0 },
+        stroke = { stroke(1, app.c.accent) },
+        tag: View [ x = 0, y = { parent.height }, height = 16, cornerRadius = 3,
+            width = { this.t.width + 12 }, fill = { app.c.accent },
+            t: Text [ x = 6, y = center, fontSize = 10, fontWeight = medium, wrap = false,
+                textColor = 0xFFFFFF, text = { app.selKind + "  " + Math.round(parent.parent.width) + "×" + Math.round(parent.parent.height) } ],
+            ],
+        ],
+
+    hoverOutline: View [ visible = { app.hoverRect != null && app.aimPath != app.sel }, pointerEvents = "none",
+        x = { app.hoverRect != null ? app.hoverRect.x : 0 },
+        y = { app.hoverRect != null ? app.hoverRect.y : 0 },
+        width = { app.hoverRect != null ? app.hoverRect.width : 0 },
+        height = { app.hoverRect != null ? app.hoverRect.height : 0 },
+        fill = #4C8DFF22,
+        stroke = { stroke(1, app.c.accent2) },
+        tag: View [ visible = { app.picking }, x = 0, y = -17, height = 16, cornerRadius = 3,
+            width = { this.t.width + 12 }, fill = { app.c.accent2 },
+            t: Text [ x = 6, y = center, fontSize = 10, fontWeight = medium, wrap = false,
+                textColor = 0x08201E, text = { app.aimPath } ],
+            ],
+        ],
+
+    depOutline: View [ visible = { app.depRect != null }, pointerEvents = "none",
+        x = { app.depRect != null ? app.depRect.x : 0 },
+        y = { app.depRect != null ? app.depRect.y : 0 },
+        width = { app.depRect != null ? app.depRect.width : 0 },
+        height = { app.depRect != null ? app.depRect.height : 0 },
+        fill = #2DD4BF1F,
+        stroke = { stroke(1.5, app.c.accent2) } ],
+
+    // ── the window ───────────────────────────────────────────────────────────
+
+    win: View [ visible = { app.shown }, pointerEvents = "auto",
+        x = { app.winX }, y = { app.winY },
+        width = { app.winW }, height = { app.winH },
+        cornerRadius = 11, clip = true,
+        fill = { app.c.bg },
+        stroke = { stroke(1, app.c.line) },
+        shade: Color = #00000090,
+        shadow = { shadow(0, 18, 44, this.shade != null ? this.shade : 0) },
+
+        // title bar — drag handle
+
+        bar: View [ width = { parent.width }, height = 34, fill = { app.c.bar },
+            onMouseDown() { app.beginDrag() },
+            onMouseMove() { app.moveDrag() },
+            onMouseUp() { app.endDrag() },
+            Dot [ x = 13, y = 11 ],
+            title: Text [ x = center, y = center, fontSize = 12.5, fontWeight = semibold,
+                textColor = { app.c.text }, text = "Declare Inspector" ],
+            sub: Text [ x = { parent.width - this.width - 14 }, y = center, fontSize = 11,
+                fontFamily = [Mono, "monospace"], textColor = { app.c.faint },
+                text = { Inspect.ready() ? (Inspect.stats().nodes + " nodes · " + Inspect.stats().ownedSlots + " slots") : "no subject" } ],
+            rule: View [ x = 0, y = 33, width = { parent.width }, height = 1, fill = { app.c.line } ],
+            ],
+
+        // toolbar
+
+        tools: View [ x = 0, y = 34, width = { parent.width }, height = 34,
+            row: View [ x = 10, y = 6,
+                layout: SimpleLayout [ axis = x, spacing = 6 ],
+
+                // "select" rather than "pick": it is the verb DevTools uses for
+                // the same gesture, so the muscle memory transfers.
+
+                Tool [ glyph = "◎ select", on = { app.picking },
+                    tip = "Click any view in the app to select it. Esc cancels.",
+                    onClick() { app.picking = !app.picking; app.hoverPath = "" },
+                    ],
+
+                // These drive the SUBJECT's driven clock, not our refresh rate:
+                // freeze stops its animation where it stands so a spring can be
+                // read mid-flight, and step advances exactly one frame.
+
+                Tool [ glyph = { app.frozen ? "▶ resume" : "⏸ freeze" }, on = { app.frozen },
+                    tip = "Freeze the app's animation where it stands, so a spring can be read mid-flight",
+                    onClick() { app.freezeToggle() },
+                    ],
+                Tool [ glyph = "⏭ frame", tip = "Advance the frozen app by one animation frame",
+                    onClick() { app.stepFrame() },
+                    ],
+                Tool [ glyph = { app.darkUI ? "☀ light" : "☾ dark" },
+                    tip = "Switch the Inspector's own rendition",
+                    onClick() { app.darkUI = !app.darkUI },
+                    ],
+                ],
+            crumbBox: View [ x = { parent.row.x + parent.row.width + 18 }, y = 0,
+                width = { Math.max(0, parent.width - this.x - (parent.dataBadge.visible ? 96 : 16)) },
+                height = { parent.height }, clip = true,
+                crumb: Text [ x = 0, y = center, fontSize = 11, fontFamily = [Mono, "monospace"],
+                    wrap = false, textColor = { app.c.muted },
+                    text = { app.sel.split(".").join(" › ") } ],
+                ],
+            dataBadge: View [ visible = { app.hasData }, height = 17, cornerRadius = 4,
+                x = { parent.width - this.width - 12 }, y = center,
+                width = { this.t.width + 12 }, fill = #2DD4BF22,
+                rim: Color = #2DD4BF66,
+                stroke = { stroke(1, this.rim != null ? this.rim : 0) },
+                t: Text [ x = 6, y = center, fontSize = 10, fontWeight = medium, wrap = false,
+                    textColor = { app.c.accent2 }, text = "has data" ],
+                ],
+            rule: View [ x = 0, y = 33, width = { parent.width }, height = 1, fill = { app.c.line } ],
+            ],
+
+        // ── the three panes ──────────────────────────────────────────────────
+
+        panes: View [ x = 0, y = 68, width = { parent.width },
+            height = { parent.height - 68 - app.consoleH },
+
+            wA: number = { Math.min(app.colA, parent.width - 340) },
+            wB: number = { Math.min(app.colB, parent.width - this.wA - 170) },
+
+            // TREE ------------------------------------------------------------
+
+            treeCol: View [ x = 0, y = 0, width = { parent.wA }, height = { parent.height },
+                clip = true, fill = { app.c.panel },
+                head: Label [ x = 12, y = 8, fontSize = 10, fontWeight = semibold,
+                    letterSpacing = 0.8, textColor = { app.c.faint }, text = "TREE" ],
+                body: View [ x = 0, y = 26, width = { parent.width }, height = { parent.height - 26 },
+                    scrolls = true,
+                    list: View [ x = 0, y = 2, width = { parent.width }, height = { this.contentHeight + 8 },
+                        datapath = { app.tree.value },
+                        layout: SimpleLayout [ axis = y, spacing = 0 ],
+                        View [ datapath = :rows[], width = { parent.width }, height = 19,
+                            rp: string = { "" + :path },
+                            on: boolean = { app.sel == this.rp },
+                            hovered: boolean = false,
+                            fill = { this.on ? app.c.accent : (this.hovered ? app.c.hover : null) },
+                            onMouseOver() { hovered = true; app.hoverPath = this.rp },
+                            onMouseOut() { hovered = false; if (app.hoverPath == this.rp) app.hoverPath = "" },
+                            onClick() { app.select(this.rp) },
+                            tw: Twisty [ x = { 2 + :depth * 11 }, y = 0,
+                                shown = { :hasKids == true }, open = { app.isOpen(parent.rp) },
+                                onClick() { app.toggle(parent.rp) },
+                                ],
+                            nm: Text [ x = { 21 + :depth * 11 }, y = center, fontSize = 11.5, wrap = false,
+                                fontFamily = [Mono, "monospace"],
+                                opacity = { :visible == true ? 1 : 0.45 },
+                                textColor = { parent.on ? 0xFFFFFF : app.c.text },
+                                text = { "" + (:name != "" ? :name : :kind) } ],
+                            kd: Text [ x = { 21 + :depth * 11 + parent.nm.width + 7 }, y = center,
+                                fontSize = 10.5, wrap = false, fontFamily = [Mono, "monospace"],
+                                visible = { :name != "" },
+                                textColor = { parent.on ? 0xD8E6FF : app.c.faint },
+                                text = { "" + :kind } ],
+                            dot: View [ visible = { :constrained == true }, width = 4, height = 4,
+                                cornerRadius = 2, x = { parent.width - 14 }, y = center,
+                                fill = { parent.on ? 0xFFFFFF : app.c.accent2 } ],
+                            mo: Text [ visible = { :motion == true }, x = { parent.width - 26 }, y = center,
+                                fontSize = 9, wrap = false, textColor = { app.c.amber }, text = "◈" ],
+                            ],
+                        ],
+                    ],
+                edge: View [ x = { parent.width - 1 }, y = 0, width = 1, height = { parent.height }, fill = { app.c.line } ],
+                ],
+
+            // OBJECT ----------------------------------------------------------
+
+            objCol: View [ x = { parent.wA }, y = 0, width = { parent.wB }, height = { parent.height },
+                clip = true, fill = { app.c.raised },
+                head: Label [ x = 12, y = 8, fontSize = 10, fontWeight = semibold,
+                    letterSpacing = 0.8, textColor = { app.c.faint }, text = "OBJECT" ],
+                sig: Text [ x = 12, y = 24, fontSize = 11.5, fontFamily = [Mono, "monospace"], wrap = false,
+                    textColor = { app.c.accent2 },
+                    text = { app.selKind + " [" } ],
+                body: View [ x = 0, y = 42, width = { parent.width }, height = { parent.height - 60 },
+                    scrolls = true,
+                    list: View [ x = 0, y = 0, width = { parent.width }, height = { this.contentHeight + 6 },
+                        datapath = { app.slots.value },
+                        layout: SimpleLayout [ axis = y, spacing = 0 ],
+                        View [ datapath = :rows[], width = { parent.width }, height = 18,
+                            k: string = { "" + :key },
+                            on: boolean = { app.selAttr == this.k },
+                            hovered: boolean = false,
+                            fill = { this.on ? app.c.selBg : (this.hovered ? app.c.hover : null) },
+                            onMouseOver() { hovered = true },
+                            onMouseOut() { hovered = false },
+                            onClick() {
+                                if (:depth == 0) app.selAttr = this.k
+                                if (:canOpen == true) app.vtoggle(this.k)
+                                },
+                            tw: Twisty [ x = { 10 + :depth * 12 }, y = 0,
+                                shown = { :canOpen == true }, open = { :isOpen == true },
+
+                                // its own handler: a press here never reaches the
+                                // row (events do not bubble), so the triangle has
+                                // to fold the value itself
+
+                                onClick() { if (:canOpen == true) app.vtoggle(parent.k) },
+                                ],
+                            nm: Text [ x = { 29 + :depth * 12 }, y = center, fontSize = 11.5, wrap = false,
+                                fontFamily = [Mono, "monospace"],
+                                textColor = { :origin == "data" ? app.c.accent2 : (:origin == "value" ? app.c.muted : app.c.text) },
+                                text = { "" + :label } ],
+                            eq: Text [ x = { 29 + :depth * 12 + parent.nm.width + 6 }, y = center,
+                                fontSize = 11.5, wrap = false, fontFamily = [Mono, "monospace"],
+                                textColor = { app.c.faint }, text = "=" ],
+                            sw: View [ visible = { :swatch != "" }, width = 9, height = 9, cornerRadius = 2,
+                                x = { 29 + :depth * 12 + parent.nm.width + 18 }, y = center,
+                                fill = { parseInt(("" + :swatch).slice(1), 16) },
+                                stroke = { stroke(1, app.c.line) } ],
+
+                            // a long value (a font stack, a path) must not run under
+                            // the provenance marker: clip it to the space before
+                            // it — measured from the marker ITSELF, since a nested
+                            // data row carries no marker and a flat reserve would
+                            // cost it a hundred pixels of value for nothing.
+
+                            vbox: View [ y = 0, height = 18, clip = true,
+                                x = { 29 + :depth * 12 + parent.nm.width + 18 + (:swatch != "" ? 14 : 0) },
+                                width = { Math.max(0, parent.width - this.x
+                                    - (parent.mark.width > 0 ? parent.mark.width + 20 : 12)) },
+                                vl: Text [ x = 0, y = center,
+                                    fontSize = 11.5, wrap = false, fontFamily = [Mono, "monospace"],
+                                    textColor = { :kind == "view" ? app.c.accent
+                                        : (:kind == "primitive" && ("" + :text).indexOf("\"") == 0) ? app.c.str
+                                        : :kind == "record" || :kind == "array" || :kind == "dataset" ? app.c.muted
+                                        : app.c.num },
+                                    text = { "" + :text + (:kind == "view" ? " ›" : "") } ],
+                                ],
+                            mark: Text [ x = { parent.width - this.width - 12 }, y = center,
+                                fontSize = 9.5, wrap = false, fontFamily = [Mono, "monospace"],
+                                textColor = { :origin == "constraint" ? app.c.accent2
+                                    : :origin == "set" ? app.c.amber : app.c.faint },
+                                text = { :origin == "constraint" ? "⟵ constraint"
+                                    : :origin == "set" ? "← set"
+                                    : :origin == "data" ? ""
+                                    : :origin == "value" ? "" : "default" } ],
+                            ],
+                        ],
+                    ],
+                close: Text [ visible = { 46 + this.parent.body.list.height < this.parent.height },
+                    x = 12, y = { 46 + this.parent.body.list.height },
+                    fontSize = 11.5,
+                    fontFamily = [Mono, "monospace"], textColor = { app.c.accent2 }, text = "]" ],
+                edge: View [ x = { parent.width - 1 }, y = 0, width = 1, height = { parent.height }, fill = { app.c.line } ],
+                ],
+
+            // WHY -------------------------------------------------------------
+
+            whyCol: View [ x = { parent.wA + parent.wB }, y = 0,
+                width = { parent.width - parent.wA - parent.wB }, height = { parent.height },
+                clip = true, fill = { app.c.panel },
+                head: Label [ x = 12, y = 8, fontSize = 10, fontWeight = semibold,
+                    letterSpacing = 0.8, textColor = { app.c.faint }, text = "WHY" ],
+
+                empty: Text [ visible = { app.selAttr == "" }, x = 12, y = 34, width = { parent.width - 24 },
+                    wrap = true, fontSize = 11.5, textColor = { app.c.faint },
+                    text = "Select a slot to see what produced its value." ],
+
+                pane: View [ visible = { app.selAttr != "" }, x = 0, y = 26,
+                    width = { parent.width }, height = { parent.height - 26 }, scrolls = true,
+                    inner: View [ x = 12, y = 4, width = { parent.width - 24 },
+                        height = { this.contentHeight + 12 },
+                        layout: SimpleLayout [ axis = y, spacing = 8 ],
+
+                        lead: Text [ width = { parent.width }, wrap = true, fontSize = 13,
+                            fontFamily = [Mono, "monospace"], textColor = { app.c.text },
+                            text = { app.selAttr + " = " + app.whyValue } ],
+
+                        origin: Text [ width = { parent.width }, wrap = true, fontSize = 10.5,
+                            textColor = { app.whyLive ? app.c.amber : (app.whyStatic ? app.c.accent2 : app.c.muted) },
+                            text = { app.whyOrigin + (app.whyLabel != "" ? "  ·  " + app.whyLabel : "")
+                                + (app.whyHow != "" ? "  ·  " + app.whyHow : "") } ],
+
+                        srcBox: View [ visible = { app.whySource != "" }, width = { parent.width },
+                            height = { this.t.height + 18 }, cornerRadius = 6,
+                            fill = { app.c.field }, stroke = { stroke(1, app.c.line) },
+                            t: Text [ x = 9, y = 9, width = { parent.width - 18 }, wrap = true,
+                                fontSize = 11, fontFamily = [Mono, "monospace"],
+                                textColor = { app.c.str }, text = { app.whySource } ],
+                            ],
+
+                        where: Text [ visible = { app.whyLine != "" && !app.whyLive }, width = { parent.width }, wrap = false,
+                            fontSize = 10.5, fontFamily = [Mono, "monospace"],
+                            textColor = { app.c.faint }, text = { app.whyLine } ],
+
+                        spring: Text [ visible = { app.whySpring != "" }, width = { parent.width }, wrap = true,
+                            fontSize = 10.5, fontFamily = [Mono, "monospace"],
+                            textColor = { app.c.amber }, text = { app.whySpring } ],
+
+                        depHead: Text [ visible = { app.whyLabel != "" && app.depCount > 0 }, width = { parent.width },
+                            fontSize = 10, fontWeight = semibold, letterSpacing = 0.8,
+                            textColor = { app.c.faint }, text = "DEPENDS ON" ],
+
+                        noDeps: Text [ visible = { app.whyLabel != "" && app.depCount == 0 },
+                            width = { parent.width }, wrap = true, fontSize = 10.5,
+                            textColor = { app.c.faint },
+                            text = "No static edges — this one re-tracks its reads on every run (a derived extent, or a read through data)." ],
+
+                        depList: View [ width = { parent.width }, height = { this.contentHeight },
+                            datapath = { app.deps.value },
+                            layout: SimpleLayout [ axis = y, spacing = 0 ],
+                            View [ datapath = :rows[], width = { parent.width }, height = 18,
+                                rp: string = { "" + :path },
+                                hovered: boolean = false,
+                                fill = { this.hovered ? app.c.hover : null },
+                                onMouseOver() { hovered = true; app.depHover = Inspect.depTargetPath(app.sel, this.rp) },
+                                onMouseOut() { hovered = false; app.depHover = "" },
+                                onClick() { const t = Inspect.depTargetPath(app.sel, this.rp); if (t != "") app.select(t) },
+                                p: Text [ x = 2, y = center, fontSize = 10.5, wrap = false,
+                                    fontFamily = [Mono, "monospace"], textColor = { app.c.muted },
+                                    text = { "" + :path } ],
+                                v: Text [ x = { parent.width - this.width - 4 }, y = center, fontSize = 10.5,
+                                    wrap = false, fontFamily = [Mono, "monospace"],
+                                    textColor = { app.c.num }, text = { "" + :value } ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+
+            // The seams come LAST so no column paints over them — a divider a
+            // later sibling covers is a divider you cannot grab.
+
+            seamA: Seam [ x = { parent.wA - 4 }, height = { parent.height }, which = "a" ],
+            seamB: Seam [ x = { parent.wA + parent.wB - 4 }, height = { parent.height }, which = "b" ],
+            ],
+
+        // ── transcript + evaluate strip ──────────────────────────────────────
+
+        console: View [ x = 0, y = { parent.height - app.consoleH }, width = { parent.width },
+            height = { app.consoleH },
+            fill = { app.c.bg },
+            rule: View [ x = 0, y = 0, width = { parent.width }, height = 1, fill = { app.c.line } ],
+
+            // inside the console's own box — an overlapping strip would sit on
+            // top of the pane content above it while being dragged
+
+            seamC: View [ x = 0, y = 0, width = { parent.width }, height = 7, cursor = "row-resize",
+                hovered: boolean = false,
+                fill = { this.hovered || app.seam == "c" ? app.c.seamOn : null },
+                onMouseOver() { hovered = true },
+                onMouseOut() { hovered = false },
+                onMouseDown() { app.beginSeam("c") },
+                onMouseMove() { app.moveSeam() },
+                onMouseUp() { app.endSeam() },
+                ],
+
+            scroll: View [ x = 0, y = 4, width = { parent.width }, height = { parent.height - 42 }, scrolls = true,
+                list: View [ x = 10, y = 0, width = { parent.width - 20 }, height = { this.contentHeight + 4 },
+                    datapath = { app.log.value },
+                    layout: SimpleLayout [ axis = y, spacing = 1 ],
+                    View [ datapath = :rows[], width = { parent.width },
+                        height = { this.msg.height + 14 },
+                        inp: Text [ x = 0, y = 0, fontSize = 10.5, wrap = false,
+                            fontFamily = [Mono, "monospace"], textColor = { app.c.faint },
+                            text = { "› " + :input } ],
+                        msg: Text [ x = 12, y = 13, width = { parent.width - 12 }, wrap = true,
+                            fontSize = 11, fontFamily = [Mono, "monospace"],
+                            textColor = { :ok == true ? (:temp == true ? app.c.amber : app.c.text) : app.c.danger },
+                            text = { "" + :text } ],
+                        ],
+
+                    // the scroll anchor: a zero-size view at the end of the
+                    // transcript that submit() reveals, so the newest line is
+                    // always the one you are looking at
+
+                    end: View [ width = 1, height = 1 ],
+                    ],
+                ],
+
+            hint: View [ visible = { (app.lines || []).length == 0 }, x = 10, y = 6,
+                width = { parent.width - 20 },
+                layout: SimpleLayout [ axis = y, spacing = 3 ],
+                Text [ fontSize = 10.5, fontFamily = [Mono, "monospace"], wrap = false,
+                    textColor = { app.c.faint }, text = "width                        read a slot" ],
+                Text [ fontSize = 10.5, fontFamily = [Mono, "monospace"], wrap = false,
+                    textColor = { app.c.faint }, text = "{ app.width / 2 }            evaluate here" ],
+                Text [ fontSize = 10.5, fontFamily = [Mono, "monospace"], wrap = false,
+                    textColor = { app.c.faint }, text = "width = { parent.width / 3 }  bind it live" ],
+                Text [ fontSize = 10.5, fontFamily = [Mono, "monospace"], wrap = false,
+                    textColor = { app.c.faint }, text = "Text [ text = \"hi\" ]         add a view" ],
+                ],
+
+            prompt: View [ x = 10, y = { parent.height - 34 }, width = { parent.width - 20 }, height = 26,
+                field: TextInput [ x = 0, y = 0, width = { parent.width }, height = 26,
+                    cornerRadius = 6, fill = { app.c.field }, stroke = { stroke(1, app.c.line) },
+                    padding = 9,
+                    fontSize = 12, fontFamily = [Mono, "monospace"],
+                    textColor = { app.c.text },
+                    placeholder = { "evaluate in " + app.sel },
+                    onEnter() { app.submit(this.text); this.text = "" },
+                    ],
+                ],
+            ],
+
+        // resize grips
+
+        edgeR: View [ x = { parent.width - 6 }, y = 34, width = 6, height = { parent.height - 40 },
+            cursor = "ew-resize",
+            onMouseDown() { app.beginSize("r") },
+            onMouseMove() { app.moveSize() },
+            onMouseUp() { app.endSize() },
+            ],
+        edgeB: View [ x = 0, y = { parent.height - 6 }, width = { parent.width - 14 }, height = 6,
+            cursor = "ns-resize",
+            onMouseDown() { app.beginSize("b") },
+            onMouseMove() { app.moveSize() },
+            onMouseUp() { app.endSize() },
+            ],
+        grip: View [ x = { parent.width - 14 }, y = { parent.height - 14 }, width = 14, height = 14,
+            cursor = "nwse-resize",
+            onMouseDown() { app.beginSize("rb") },
+            onMouseMove() { app.moveSize() },
+            onMouseUp() { app.endSize() },
+            draw(d) {
+                d.strokeStyle = app.c.faint
+                d.lineWidth = 1
+                d.beginPath()
+                d.moveTo(4, 12); d.lineTo(12, 4)
+                d.moveTo(8, 12); d.lineTo(12, 8)
+                d.stroke()
+                },
+            ],
+        ],
+    ]

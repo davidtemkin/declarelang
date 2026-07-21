@@ -61,6 +61,7 @@ const PROGRAMS = [
   { main: "apps/homepage/demos/reactivity.declare", props: { render: "dom" }, kinds: ["run"] },
   { main: "apps/homepage/demos/spring.declare", props: { render: "dom" }, kinds: ["run"] },
   { main: "apps/homepage/demos/states.declare", props: { render: "dom" }, kinds: ["run"] },
+  { main: "apps/homepage/demos/derived.declare", props: { render: "dom" }, kinds: ["run"] },
 ];
 
 const toPosix = (p) => p.split(path.sep).join("/");

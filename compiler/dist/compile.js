@@ -96,7 +96,7 @@ const BROWSER_GLOBALS = new Set([
 ]);
 // The runtime services in body scope (expr.ts setBodyServices): bare `Focus`
 // in a handler is the service, never a member to resolve.
-const RUNTIME_SERVICES = new Set(["Focus", "Keys", "Themes"]);
+const RUNTIME_SERVICES = new Set(["Focus", "Keys", "Themes", "Inspect"]);
 const isKnownGlobal = (name) => name in globalThis || BROWSER_GLOBALS.has(name) || RUNTIME_SERVICES.has(name);
 /** Compile a Declare source: full diagnostics (include resolve + check + scope
  *  resolution), and a SELF-CONTAINED resolved source the zero-dependency

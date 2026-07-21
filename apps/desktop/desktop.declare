@@ -1116,6 +1116,16 @@ class DockIcon extends View [
     pitch: number = { app.iconEdge + 16 },       // slot-center spacing (rest + 16 gap — measured 72pt on 56pt icons)
     strip: number = 16,                          // the running-dot band under the icons (measured 16pt bottom margin; icons centered)
 
+    // the face is rendered ONCE at this fixed reference size and paint-scaled to
+    // the live magnified width (the plate's `scale` below). It must be ≥ the
+    // largest magnified size (rest · 1.55 ≈ 87pt) so the transform only ever
+    // DOWNsamples the hi-res raster — smooth, no shimmer — while the illustration
+    // and rim draw()s invalidate only on real content change (calendar day,
+    // theme), never per magnification frame. This keeps the wave inside Safari's
+    // frame budget: 9 GPU blits, not 9 vector re-rasters, every frame.
+
+    face: number = 96,
+
     // the resting slot center in app coords — the magnification's source must
     // not read the magnified layout (a feedback loop); resting geometry is
     // fixed: `pitch` about the app's center
@@ -1161,8 +1171,15 @@ class DockIcon extends View [
     onMouseOver() { hovered = true },
     onMouseOut()  { hovered = false },
 
-    plate: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height },
-        cornerRadius = { parent.width * 0.23 }, clip = true,
+    plate: View [ x = 0, y = 0, width = { classroot.face }, height = { classroot.face },
+        // paint-only magnification: the face is drawn once at `face`px and the
+        // GPU scales it (about the top-left, so it fills the bottom-anchored box)
+        // to the live width — no per-frame re-raster of the illustration or rim.
+        // The DockIcon's LAYOUT width still grows, so neighbours displace as
+        // before: the wave stays layout, only the paint of each icon is cached.
+
+        scale = { classroot.width / classroot.face },
+        cornerRadius = { this.width * 0.23 }, clip = true,
         fill = { gradient(this.parent.hue1, this.parent.hue2) },
 
         // glyph sizes stay fractional: rounding them made the art tick in

@@ -161,7 +161,7 @@ so a heading container can loosen all its text at once.
 ## theme
 A prevailing record of design tokens, read inside `{ }` as `theme.accent`, `theme.muted`,
 etc. Provide it on a container and the subtree styles off it — the escape from hard-coded
-colours when you don't want a full `stylesheet`.
+colors when you don't want a full `stylesheet`.
 
 ## styles
 An ordered list of `style` bundles applied at **construction** — **static in v1**: unlike

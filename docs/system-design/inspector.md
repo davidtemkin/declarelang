@@ -331,9 +331,28 @@ renderer for its display.
     rather than a rival, and it is exactly the mapping that was missing when this
     repository's own desktop was being tested.
 
+### 6.4a Ruled: the Inspector requires the compiler
+
+**Ruling (David, 2026-07-20).** No partial or degraded mode. The Inspector loads the
+in-browser compiler, full stop, and `inspector-boot.js` keeps its single path
+(`loadCompiler → compile → mount`). No prewarm artifact for the Inspector's own
+program either: with the compiler paid for anyway, prewarming would save one
+~700-line compile at the cost of another artifact for the commit hook to keep fresh.
+
+Rationale beyond simplicity: `validateExpr` routes to the compiler's TypeScript
+validator whenever the compiler is loaded, so requiring it means the evaluate strip
+*always* gives real positioned diagnostics rather than the runtime's bare
+`new Function` message. The simpler arrangement is also the better-behaved one.
+
+Consequence to state in the operational page: on a page that has not already warmed
+the compiler (a `declarec` build), first open fetches ~1 MB. That makes the Inspector
+a development-time tool by construction. Measured on the static deploy, ordinary pages
+begin warming the compiler at first-frame (~120 ms) as a matter of course, so it opens
+immediately there.
+
 ### 6.5 Deferred (v2+)
 
-Embedded child apps (a desktop hosting real apps wants to inspect *into* an island);
+Embedded child apps — see §6.6, now costed, because the homepage demo depends on it;
 moldable per-type views; time-travel over the driven clock; editing a *class* rather than
 an instance and having live instances follow; the Inspector inspecting itself.
 
@@ -382,3 +401,42 @@ and the Sources panel remains the right tool.
 **Coexists with `console.log`.** Bodies are TypeScript; logging works and should keep
 working. The Inspector is for *state and causality*; `console.log` remains the fastest way
 to answer *did this run*. The formatter (§6.4) and `$v` make the two directions cheap.
+
+## 6.6 Embedded inspection — costed
+
+Wanted for two reasons: a desktop that hosts real apps in windows cannot currently
+inspect into them, and the homepage panel (§10) needs the Inspector pointed at a live
+demo island.
+
+Originally estimated at three parts; the second is **gone**, because the homepage panel
+opens the *real* floating window rather than an embedded rendition — which is better
+anyway, since a visitor sees the genuine tool and not a diagram of it.
+
+1. **Target a child app.** `host-client` already retains `box.__childApp` for every
+   preview island, so this is `setInspectionTarget(childApp)` instead of the page app,
+   plus a way for the opener to say which. Small.
+2. ~~An inline/docked shell~~ — **not needed**.
+3. **Coordinate mapping.** `Inspect.at(x, y)` and the highlight rects are in the
+   *subject's* root space; for an island that is the box, not the viewport, while the
+   Inspector's own pointer is viewport-based. One offset threaded both ways. This is the
+   subtle part: get it wrong and the outline lands somewhere plausible and false, which
+   survives a casual check.
+
+## 10. The homepage panel
+
+Settled shape: the **last** demo panel on the homepage keeps its code block at half
+width; the freed right column carries a short explanation and a **Try the Inspector**
+button; the demo app runs full width beneath. Before the click it is simply a running
+Declare app beside its source. The button opens the real Inspector over it.
+
+Why a button rather than opening it with the panel: the demo mounts immediately from
+its prewarmed artifact and never waits on the compiler, opening the Inspector stays a
+deliberate and explained act on a marketing page, and if the compiler is slow the demo
+still runs. It is not deferring the download — pages begin warming the compiler at
+first-frame regardless — so by the time a visitor has read the code it is resident and
+the Inspector opens at once.
+
+Choose the demo by what the **Why** pane will show: `spring` or `reactivity` give a real
+`{ … }` expression with live dependency values, which is the payoff. `states` explains
+less well in a provenance pane. No video — it would cost page weight against a page that
+quotes its own wire size.

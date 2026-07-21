@@ -67,7 +67,7 @@ test("blockquote recurses to blocks", () => {
 
 test("pre is a preformatted flow: whitespace verbatim, spans survive", () => {
   // <pre> keeps its inline runs (so <span class> accents flow inside) rather than
-  // flattening to plain text — this is what carries syntax colour.
+  // flattening to plain text — this is what carries syntax color.
   const b = parseHtml("<pre>line1\n  <span class='k'>line2</span></pre>")[0];
   assert.equal(b.t, "pre");
   assert.equal(b.inline[0].t, "text");

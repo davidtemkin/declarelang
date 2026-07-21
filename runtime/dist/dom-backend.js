@@ -292,6 +292,7 @@ class DomSurface {
     }
     setVisible(v) { this.element.style.display = v ? "" : "none"; }
     setCursor(c) { this.element.style.cursor = c; }
+    setPointerEvents(m) { this.element.style.pointerEvents = m; }
     setOpacity(o) {
         this.element.style.opacity = String(o);
         // opacity 0 prunes the subtree for input, like the canvas walk (its
@@ -455,8 +456,8 @@ class DomSurface {
             // NOT wrap — long lines keep their shape and the block scrolls HORIZONTALLY
             // (native overflow-x), the way an editor shows code. Its height stays a stable
             // lines×lineHeight (no width-dependent reflow), so the flow measures it cleanly.
-            // Its runs carry the monospace family and per-token colours, so it is one
-            // contiguous, selectable, syntax-coloured element.
+            // Its runs carry the monospace family and per-token colors, so it is one
+            // contiguous, selectable, syntax-colored element.
             const be = doc.createElement(b.pre ? "pre" : /^h[1-6]$/.test(b.tag) ? b.tag : "p");
             // A heading carries its anchor slug so a `@name` reveal (location.md §6) can
             // find this exact element and scroll it into view natively.
@@ -509,9 +510,9 @@ class DomSurface {
                 if (r.italic)
                     rs.fontStyle = "italic";
                 rs.color = colorToCss(r.color);
-                // A themed accent fill overrides the solid colour: a gradient clips a
+                // A themed accent fill overrides the solid color: a gradient clips a
                 // background to the glyphs (matching Text.textFill and the Canvas ramp),
-                // a solid fill is just that colour.
+                // a solid fill is just that color.
                 if (r.fill != null) {
                     if (isGradient(r.fill)) {
                         rs.backgroundImage = `linear-gradient(${r.fill.angle}deg, ${r.fill.stops.map((g) => colorToCss(g.color) + (g.offset === null ? "" : ` ${g.offset * 100}%`)).join(", ")})`;

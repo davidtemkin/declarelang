@@ -247,7 +247,7 @@ class DetailSection extends View [ clip = true, cornerRadius = 10, fill = { them
 App [ clip = true, minWidth = 480, minHeight = 420, appName = "Declare Calendar",
     fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
 
-    /* Colours are two role-named palettes; `theme` swaps between them. `themeMode`
+    /* Colors are two role-named palettes; `theme` swaps between them. `themeMode`
        is Light / Dark / Auto — Auto follows the ENVIRONMENT: the host's
        `app.env.dark` when this app runs embedded (a desktop passing its
        appearance through), else the OS through `app.dark`. */
@@ -382,7 +382,7 @@ App [ clip = true, minWidth = 480, minHeight = 420, appName = "Declare Calendar"
     lerp(a, b, t)  { return a + (b - a) * t },
     clamp(v, a, b) { return Math.max(a, Math.min(b, v)) },
 
-    // blend two 0xRRGGBB colours channel-wise
+    // blend two 0xRRGGBB colors channel-wise
 
     mix(a, b, t) {
         const c = (x, y) => Math.round(x + (y - x) * t)
@@ -416,7 +416,7 @@ App [ clip = true, minWidth = 480, minHeight = 420, appName = "Declare Calendar"
     catFill(c) { const t = this.theme; return c == "holiday" ? t.holidayBg : c == "astro" ? t.astroBg : c == "milestone" ? t.milestoneBg : t.defaultBg },
     catText(c) { const t = this.theme; return c == "holiday" ? t.holidayText : c == "astro" ? t.astroText : c == "milestone" ? t.milestoneText : t.defaultText },
 
-    // ── the two palettes — every colour in the app, named by role ──
+    // ── the two palettes — every color in the app, named by role ──
 
     darkTheme() { return ({
         pageBg: 0x0D151E, panelBg: 0x101A24, cellBg: 0x18242F, outOfMonthBg: 0x101922, weekendBg: 0x141F2A,
@@ -641,7 +641,7 @@ App [ clip = true, minWidth = 480, minHeight = 420, appName = "Declare Calendar"
 
             /* The EVENT section — the title block in the sections' own grammar: the
                same card, its label row carrying the panel's close where the others
-               carry their chevron, the category colour as the card's left edge, and
+               carry their chevron, the category color as the card's left edge, and
                the read-only date · time under the editable title. */
 
             ev: View [ width = { parent.width }, height = 112, cornerRadius = 10, clip = true, fill = { theme.sectionBg },

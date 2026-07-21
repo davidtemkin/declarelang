@@ -7,7 +7,7 @@ export declare abstract class RichText extends View {
     lineHeight: number;
     bodyColor: number | null;
     scale: number;
-    /** Colour-scheme override (null = follow the App's OS `dark`). */
+    /** Color-scheme override (null = follow the App's OS `dark`). */
     dark: boolean | null;
     private built;
     /** Parse the current source into the block tree. */
@@ -25,7 +25,7 @@ export declare abstract class RichText extends View {
      *  and the view's measured height no longer matches its painted height. */
     protected flush(s: Surface): void;
     attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
-    /** The colour scheme for the house rich-element palette: the explicit `dark`
+    /** The color scheme for the house rich-element palette: the explicit `dark`
      *  override if set (an app whose own theme selector differs from the OS), else
      *  the root App's OS `dark`, read by walking to the tree root. */
     private isDark;

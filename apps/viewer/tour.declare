@@ -38,7 +38,7 @@ class Counter extends View [ width = 200, height = 40,
 ## Data and lists
 
 A `Dataset` holds records; `datapath` replicates one child per record, and a
-`:field` reads that record. Colours are `#hex` or `0x` literals, strings are
+`:field` reads that record. Colors are `#hex` or `0x` literals, strings are
 quoted, and `:paths` point into data.
 */
 

@@ -23,7 +23,7 @@ prose.** Rank what's left by value:
 1. **Prior-correction / gotcha — the highest.** Where Declare *deviates from the
    common pattern* is exactly where a model is confidently wrong and a human assumes
    instead of checking. A doc here is a **prior override**, not a gap-fill. The ones
-   that actually saved a reader in this codebase: `0x` vs `#` colours, **no DOM in
+   that actually saved a reader in this codebase: `0x` vs `#` colors, **no DOM in
    `{ }`**, `DataSource.fetch()` is explicit (no auto-load), `prevailing` slots follow
    an ancestor, `layout` is an *attribute not a child*, read-only intrinsics, the `app`
    noun. None are derivable; all counter a reasonable default. Write these first.
@@ -79,7 +79,7 @@ one clause is the right length. Don't pad it to look thorough.
 **To standard (leads with the gotcha, then the consequence, then the shape):**
 > What paints the box: a solid `Color` or a `gradient(…)`. `null` (the default) paints
 > **nothing** — an unfilled box is invisible but still lays out and still catches
-> clicks. In a `[ ]` literal a colour is `#RRGGBB`; inside a `{ }` body it is
+> clicks. In a `[ ]` literal a color is `#RRGGBB`; inside a `{ }` body it is
 > `0xRRGGBB` — the one place the spelling differs.
 > ```declare
 > View [ fill = { gradient("90deg", 0x1E2A36, 0x0B141B) } ]

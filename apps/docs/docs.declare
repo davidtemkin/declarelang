@@ -10,8 +10,8 @@ the runtime Markdown component. This one app is both the in-browser docs and
 (once built) the web docs; the live object browser is this same view reached
 from an instance.
 
-`{ }` bodies are TypeScript → `0x…` colours and expressions; `[ ]` literal
-slots take `#…` / named colours. Every colour reads `theme.<token>` — one
+`{ }` bodies are TypeScript → `0x…` colors and expressions; `[ ]` literal
+slots take `#…` / named colors. Every color reads `theme.<token>` — one
 prevailing record on the App (see it there), so the whole document reskins
 from one place.
 */
@@ -686,7 +686,7 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
     fontScale: number = 1.0,                   // reader font-size zoom for the CONTENT pane (the A stepper drives it; nav is fixed)
     themeMode: string = "system",              // "light" | "system" | "dark" — the ☀◐☾ switch; system follows app.dark
 
-    // the ONE resolved fact every colour decision reads — the theme record AND
+    // the ONE resolved fact every color decision reads — the theme record AND
     // the Markdown rich-element palette must agree, or an override leaves
     // headings in the OS scheme while the chrome switches (seen in the wild)
 
@@ -700,8 +700,8 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
     liveSource: string = "",                   // … and its current source — the host recompiles this pair live
                                                // (app.liveReport — BUILT-IN — carries the host's rendered compile report; islands display it)
 
-    /* The whole palette in one prevailing record, switched by the OS colour
-       scheme (`app.dark`, fed live by the runtime) — every colour below reads
+    /* The whole palette in one prevailing record, switched by the OS color
+       scheme (`app.dark`, fed live by the runtime) — every color below reads
        `theme.<token>`, so the docs render dark or light and follow the system
        theme as it flips. The dark set is the original tuned palette; the
        live-preview canvas stays a fixed dark in both themes (the demos are

@@ -322,6 +322,9 @@ class CanvasSurface {
         this.clipPath = null; this.compositor.invalidate(); }
     setVisible(v) { this.visible = v; this.compositor.invalidate(); }
     setOpacity(o) { this.opacity = o; this.compositor.invalidate(); }
+    // pointer-events is a DOM compositing concept; the canvas paints its own
+    // display list and hit-tests it, so there is nothing to yield to here.
+    setPointerEvents() { }
     // Paint-inert: the cursor rides the hover walk (hit() carries it to the
     // router's onHover, which brushes the host element) — nothing to repaint.
     setCursor(c) { this.cursorStyle = c; }

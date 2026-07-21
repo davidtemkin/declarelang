@@ -110,6 +110,27 @@ declare function steps(n: number, jump?: "jumpStart" | "jumpEnd"): MotionCurve;
 declare function laszlo(beginPole: number, endPole: number): MotionCurve;
 declare const Focus: { focus(v: unknown): void; blur(): void; next(): void; prev(): void; byKeyboard(): boolean; getFocus(): any };
 declare const Themes: { sanFrancisco(dark?: boolean): Record<string, unknown>; cupertino(dark?: boolean): Record<string, unknown>; mountainView(dark?: boolean): Record<string, unknown>; redmond(dark?: boolean): Record<string, unknown>; tint(c: number, dark?: boolean): number };
+declare const Inspect: {
+  ready(): boolean;
+  rows(open: Record<string, boolean>): { path: string; name: string; kind: string; depth: number; hasKids: boolean; visible: boolean; constrained: boolean; motion: boolean }[];
+  node(path: string): any;
+  kindOf(path: string): string;
+  slots(path: string): { attr: string; text: string; kind: string; open: boolean; origin: string; motion: boolean; viewKind?: string; color?: string }[];
+  explain(path: string, attr: string): any;
+  depValue(path: string, readPath: string): string;
+  depTargetPath(path: string, readPath: string): string;
+  expand(path: string, attr: string, trail: readonly string[]): any;
+  dependents(attr: string): { path: string; attr: string; label: string }[];
+  rect(path: string): { x: number; y: number; width: number; height: number } | null;
+  at(x: number, y: number): string;
+  stats(): { nodes: number; ownedSlots: number; motionBusy: boolean };
+  hasData(path: string): boolean;
+  dataKeys(path: string): string[];
+  dataRows(path: string): { key: string; text: string; kind: string; open: boolean }[];
+  dataPreview(path: string): string;
+  evaluate(path: string, src: string): { ok: boolean; input: string; text: string; verb: string; temporary?: boolean };
+  clock: { manual(): void; auto(): void; step(ms?: number): void; settleMotion(maxMs?: number): boolean; now(): number };
+};
 declare const Keys: { isDown(code: string): boolean; held(): string[] };
 declare function setTimeout(fn: (...args: any[]) => void, ms?: number): number;
 declare function clearTimeout(id: number): void;
@@ -188,6 +209,11 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
   App: [
     `  navigate(to: string): void;`,
     `  openWindow(to: string): void;`,
+    // The Inspector service action (view.ts App.inspect): a button calls
+    // `app.inspect("run:<slot>")` to open the Inspector on an embedded app, or
+    // `app.inspect()` for this one. Rides the same host-polled channel shape as
+    // navigate/openWindow — a `{ }` body never touches the document.
+    `  inspect(slot?: string): void;`,
     `  createView(tag: string, parent: View, props?: Record<string, unknown>): View;`,
     // INTERIM (capabilities.md §7): the two host-fed live-demo channels the
     // demo-hosting site apps still read — `demoSources` (host-seeded name→source

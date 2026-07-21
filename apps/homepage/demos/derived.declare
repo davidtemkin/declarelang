@@ -1,0 +1,20 @@
+App [ textColor = whitesmoke, fill = 0x151A22,
+    level: number = 3,
+    t: number = 3,
+    ease: Spring [ attribute = t, to = { level }, stiffness = 170, damping = 20 ],
+    onMouseDown() { level = level >= 5 ? 1 : level + 1 },
+
+    readout: Text [ x = 22, y = 20, fontSize = 34, fontWeight = bold,
+        textColor = { t > 3.4 ? 0xFF9F4A : 0x59C2FF },
+        text = { "level " + level } ],
+
+    track: View [ x = 22, y = 74, height = 14, cornerRadius = 7, fill = 0x232B36,
+        width = { parent.width - 44 },
+        bar: View [ x = 0, y = 0, height = 14, cornerRadius = 7,
+            width = { parent.width * (t / 5) },
+            fill = { t > 3.4 ? 0xFF9F4A : 0x59C2FF } ],
+        ],
+
+    hint: Text [ x = 22, y = 104, fontSize = 12, textColor = 0x8A97A6,
+        text = "click to raise it — the width and the color both follow" ],
+    ]

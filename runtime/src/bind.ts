@@ -50,6 +50,11 @@ export function bindConstraint(
     () => fn.call(view, view.parent, classroot),
     (v) => setBound(view, name, v)
   );
+  // Retain the authored text + position for the Inspector (inspect.ts explain()).
+  k.source = src;
+  if (pos != null && typeof (pos as { line?: number }).line === "number") {
+    k.sourcePos = { line: (pos as { line: number }).line, col: (pos as { col?: number }).col ?? 0 };
+  }
   own(view, name, k);
   // The static path prewires STABLE-slot edges (attribute cells, a Dataset's
   // `.value` slot — they outlive every recompute). A read of a DATA REGION

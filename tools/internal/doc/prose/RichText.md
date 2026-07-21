@@ -16,7 +16,7 @@ Leading multiplier on the natural line height — `1` (the default) is tight, `1
 Tune prose density without touching the font size.
 
 ## bodyColor
-Overrides the running-text colour (`null` = the theme-aware house body). Headings and inline
+Overrides the running-text color (`null` = the theme-aware house body). Headings and inline
 code keep their own tokens, so this dims **body text only** — the hierarchy stays crisp. (Body
 weight/size/tracking come from the ambient `fontWeight`/`fontSize`/`letterSpacing`.)
 

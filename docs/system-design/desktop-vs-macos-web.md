@@ -173,7 +173,7 @@ Both have it; they are not the same feature.
 
 **macos-web** stores `preferences.theme.scheme` (persisted) and components opt in with
 `class:dark={preferences.theme.scheme === 'dark'}`, styling through CSS custom properties.
-The Action Center also offers **accent colours**, a **notch** toggle and **reduced
+The Action Center also offers **accent colors**, a **notch** toggle and **reduced
 motion** — real preference surface Declare Desktop has no counterpart for. The wallpaper,
 being a photograph, does not respond.
 
@@ -291,7 +291,7 @@ feedback problem Declare avoids by construction.
 
 **macos-web wins on asset fidelity and polish-per-pixel.** Real Ventura wallpapers,
 photographic app icons, genuine `backdrop-filter` vibrancy, a boot sequence, accent
-colours, PWA/offline. At a glance it looks more like a Mac than Declare Desktop does, and
+colors, PWA/offline. At a glance it looks more like a Mac than Declare Desktop does, and
 that is a real achievement worth respecting.
 
 **Declare Desktop wins decisively on behaviour.** The verbs that make a desktop a desktop —

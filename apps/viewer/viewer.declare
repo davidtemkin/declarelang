@@ -6,7 +6,7 @@
 // the Viewer is a plain consumer. Each segment is either PROSE — the Markdown
 // carried in a block comment, rendered by the Markdown component — or CODE — a
 // run of syntax-highlighted <pre> HTML whose per-token <span> classes this app's
-// `accents` map colours (theme-aware, so the same segments render light or dark).
+// `accents` map colors (theme-aware, so the same segments render light or dark).
 //
 // Reach it with a request type (reqtypes.ts): a bare `foo.declare?viewer` opens the
 // default Reader tab (the program URL is the address — a directory carries no
@@ -19,7 +19,7 @@
 
 font Mono [ family = "ui-monospace" ]
 
-// one segment: prose (Markdown) OR code (coloured, monospace <pre>). Exactly one
+// one segment: prose (Markdown) OR code (colored, monospace <pre>). Exactly one
 // child is visible, so the segment's auto-height is that child's height. Prose is
 // inset (a narrower reading column); code spans the full width, so the two read as
 // distinct — commentary vs. program — and code gets the room.
@@ -287,7 +287,7 @@ App [ fill = { app.theme.bg },
 
     codeFg() { return app.isDark ? 0xABB2BF : 0x24292F },
 
-    // role → colour, theme-aware. Keys match the <span class> names highlight()
+    // role → color, theme-aware. Keys match the <span class> names highlight()
     // emits: k t a s n h p o b c. Dark = One Dark; light = a cool, light-native
     // set (gold-on-white reads as a dark-mode leftover, so types go purple/blue).
 
@@ -339,7 +339,7 @@ App [ fill = { app.theme.bg },
                 fill = { gradient("90deg", app.theme.accent, app.theme.accentTeal) } ],
             ],
 
-        // highlighted view: prose + coloured code segments
+        // highlighted view: prose + colored code segments
 
         col: View [ visible = { app.mode == "reader" }, y = { app.topM + app.headH }, width = { app.hostWidth - 96 },
             x = { Math.max(24, (parent.width - this.width) / 2) },

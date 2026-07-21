@@ -107,6 +107,10 @@ export class View extends Node {
    *  "ew-resize", "col-resize", "pointer", …; "" = inherit). Meaningful on
    *  views that take input: the sink is the hit target on both backends. */
   declare cursor: string;
+  /** "none" makes this view and its subtree transparent to the pointer, so
+   *  presses fall through to whatever is behind (an overlay's rule). "" /
+   *  "auto" = the normal behaviour. */
+  declare pointerEvents: string;
   /** Uniform paint-only scale about (pivotX, pivotY), the view's own
    *  coordinates (default the top-left corner); 1 = no transform. Spring it for
    *  zoom effects — it never affects layout, exactly like opacity. */
@@ -147,7 +151,7 @@ export class View extends Node {
   declare letterSpacing: number;
   /** Rich-text STRUCTURE style, prevailing: a `Markdown`/`HTMLText` renders its
    *  headings/links/inline-code from these; a plain View just carries them for
-   *  its rich-text descendants. Colours are `null` = the theme-aware house token;
+   *  its rich-text descendants. Colors are `null` = the theme-aware house token;
    *  `headingWeight` defaults to the house `bold`. */
   declare headingColor: Color;
   declare headingWeight: FontWeight;
@@ -564,6 +568,7 @@ defineAttributes(View, {
   visible: { def: true, push: (v, b) => v.surface?.setVisible(b) },
   opacity: { def: 1, push: (v, o) => v.surface?.setOpacity(o) },
   cursor: { def: "", push: (v, c: string) => v.surface?.setCursor(c) },
+  pointerEvents: { def: "", push: (v, c: string) => v.surface?.setPointerEvents(c) },
   // Scale + pivot ride one transform at the seam: any of the three re-pushes
   // the combined value (transform + transform-origin on the DOM).
   scale: { def: 1, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },
@@ -592,7 +597,7 @@ defineAttributes(View, {
   fontFamily: { def: "sans-serif", prevailing: true },
   fontWeight: { def: "normal", prevailing: true },
   letterSpacing: { def: 0, prevailing: true },
-  // Rich-text structure overrides — consumed by Markdown/HTMLText (null colour =
+  // Rich-text structure overrides — consumed by Markdown/HTMLText (null color =
   // the theme-aware house token; headingWeight = the house bold).
   headingColor: { def: null, prevailing: true },
   headingWeight: { def: "bold", prevailing: true },
@@ -714,7 +719,7 @@ export class App extends View {
    *  custom app cursor reads it to YIELD to the I-beam over a text field:
    *  `cursor: View [ visible = { !classroot.pointerOverText } ]`. */
   declare pointerOverText: boolean;
-  /** The OS colour-scheme preference (`prefers-color-scheme: dark`), fed live by
+  /** The OS color-scheme preference (`prefers-color-scheme: dark`), fed live by
    *  the runtime. Theme an app off it: `fill = { app.dark ? 0x0B141B : 0xFFFFFF }`
    *  or drive a `theme` record from it. Read-only to user code. */
   declare dark: boolean;
@@ -775,6 +780,19 @@ export class App extends View {
    *  it, the host polls it on the next frame and window.opens (still inside the
    *  click's transient user activation, so it isn't popup-blocked). */
   pendingOpen = "";
+
+  /** app→host channel for the Inspector (the third of the same shape). A button
+   *  calls `app.inspect("run:spring")` naming an island slot — or `""` for this
+   *  app itself — and the host opens the Inspector on that subject. A plain
+   *  field, not a reactive attribute: nothing renders from it, and no Declare
+   *  source reads it. */
+  pendingInspect: string | null = null;
+
+  /** inspect(slot) — the Inspector SERVICE ACTION. `slot` names an embedded
+   *  app's island ("run:spring"); omit it to inspect this app. Like navigate(),
+   *  the intent rides a channel the host owns, so a `{ }` body never touches
+   *  the document. */
+  inspect(slot = ""): void { this.pendingInspect = slot; }
 
   /** openWindow(to) — navigate's NEW-WINDOW sibling (a "View Source" that must
    *  not replace the running app). Same discipline: bodies never touch

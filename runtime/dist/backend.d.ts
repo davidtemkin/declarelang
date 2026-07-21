@@ -2,7 +2,7 @@ import type { Fill, Shadow, Stroke } from "./value.js";
 import type { TextStyle, FontWeight } from "./measure.js";
 import type { DisplayList } from "./draw.js";
 /** One styled run of rich text (or a hard line break). Fully RESOLVED — the
- *  RichText component bakes the effective font/colour into each run so a backend
+ *  RichText component bakes the effective font/color into each run so a backend
  *  just realizes what it is told (no palette knowledge across the seam). */
 export type RichRun = {
     text: string;
@@ -114,6 +114,9 @@ export interface Surface {
      *  the host element. Applies to views that take input (a sink is the hit
      *  target on both backends). */
     setCursor(cursor: string): void;
+    /** "none" = this element and its subtree are transparent to the pointer;
+     *  "" / "auto" = normal. Overlay chrome (the Inspector) relies on it. */
+    setPointerEvents(mode: string): void;
     /** Uniform scale about a pivot in the view's own coordinates (paint-only,
      *  never layout). scale 1 = identity; the DOM brushes a CSS transform, the
      *  Canvas walk applies ctx.scale about the pivot (and its inverse on the hit

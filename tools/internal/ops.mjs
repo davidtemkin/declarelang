@@ -50,6 +50,17 @@ export const OPS = {
         testCmd: "node tools/format.mjs --check my-apps/__ops_smoke.declare",
         expect: { exitCode: 0 }, test: true,
         docs: "declare-docs:operational:format" },
+      { id: "test", cmd: "npm test",
+        description: "The per-commit suite: 21 files, and rungs 1–4 for every app and component in the corpus. No browser — seconds, not minutes.",
+        test: false, docs: "declare-docs:operational:verify" },
+      { id: "test-ladder", cmd: "npm run test:ladder",
+        description: "The SLOW rungs, pre-release: every app shipping a <name>.assert.mjs or <name>.states.mjs beside it is climbed to R5 (real input) and R6 (pixels vs baselines) in headless Chromium. Discovery-based, so a new script is picked up by existing. `npm run test:all` runs both suites.",
+        // the smoke test proves DISCOVERY only — climbing the real rungs here
+        // would pull Chromium into the per-commit suite, which is the split
+        // this entry exists to keep.
+        testCmd: "node test/ladder.test.mjs --list",
+        expect: { exitCode: 0, stdoutIncludes: "app(s) discovered" }, test: true,
+        docs: "declare-docs:operational:verify" },
     ],
   },
   maintaining: {

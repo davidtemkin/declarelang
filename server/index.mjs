@@ -106,7 +106,7 @@ function serveSource(res, absPath, relPath, rt, backendClass) {
 // server has already run highlight(), so it seeds the segments through the host→
 // app channel (cfg.seeds → app.demoSources) — the viewer is a plain consumer, no
 // bespoke wiring. The viewer renders prose segments as Markdown and code segments
-// as coloured <pre> (its own accents map themes them), plus size + light/dark
+// as colored <pre> (its own accents map themes them), plus size + light/dark
 // controls. So `foo.declare?viewer=reader` is a live, self-contained source page.
 function sourcePage(relPath, segments, rawSource, backendClass, mode = "") {
   const dir = path.join(EXAMPLES, "viewer");

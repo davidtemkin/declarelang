@@ -415,6 +415,7 @@ defineAttributes(View, {
     visible: { def: true, push: (v, b) => v.surface?.setVisible(b) },
     opacity: { def: 1, push: (v, o) => v.surface?.setOpacity(o) },
     cursor: { def: "", push: (v, c) => v.surface?.setCursor(c) },
+    pointerEvents: { def: "", push: (v, c) => v.surface?.setPointerEvents(c) },
     // Scale + pivot ride one transform at the seam: any of the three re-pushes
     // the combined value (transform + transform-origin on the DOM).
     scale: { def: 1, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },
@@ -443,7 +444,7 @@ defineAttributes(View, {
     fontFamily: { def: "sans-serif", prevailing: true },
     fontWeight: { def: "normal", prevailing: true },
     letterSpacing: { def: 0, prevailing: true },
-    // Rich-text structure overrides — consumed by Markdown/HTMLText (null colour =
+    // Rich-text structure overrides — consumed by Markdown/HTMLText (null color =
     // the theme-aware house token; headingWeight = the house bold).
     headingColor: { def: null, prevailing: true },
     headingWeight: { def: "bold", prevailing: true },
@@ -575,6 +576,17 @@ export class App extends View {
      *  it, the host polls it on the next frame and window.opens (still inside the
      *  click's transient user activation, so it isn't popup-blocked). */
     pendingOpen = "";
+    /** app→host channel for the Inspector (the third of the same shape). A button
+     *  calls `app.inspect("run:spring")` naming an island slot — or `""` for this
+     *  app itself — and the host opens the Inspector on that subject. A plain
+     *  field, not a reactive attribute: nothing renders from it, and no Declare
+     *  source reads it. */
+    pendingInspect = null;
+    /** inspect(slot) — the Inspector SERVICE ACTION. `slot` names an embedded
+     *  app's island ("run:spring"); omit it to inspect this app. Like navigate(),
+     *  the intent rides a channel the host owns, so a `{ }` body never touches
+     *  the document. */
+    inspect(slot = "") { this.pendingInspect = slot; }
     /** openWindow(to) — navigate's NEW-WINDOW sibling (a "View Source" that must
      *  not replace the running app). Same discipline: bodies never touch
      *  `window`, the intent rides a channel the host owns. */

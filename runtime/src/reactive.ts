@@ -89,6 +89,18 @@ export class Constraint {
   private stamp = 0;
   private runs = 0;
 
+  /** The body's SOURCE TEXT and position, when this constraint came from a
+   *  `{ }` in a program (bind.ts sets them). The Inspector's "why" answer is
+   *  this string; null for constraints the runtime builds itself (extent
+   *  derives, percent/align bindings) and for live-bound ones typed at
+   *  runtime, which are marked separately by `isStatic` being false. */
+  source: string | null = null;
+  sourcePos: { line: number; col: number } | null = null;
+  /** Installed at RUNTIME by the Inspector's evaluate strip rather than compiled
+   *  from source — so the UI can say "temporary" honestly instead of implying it
+   *  has the same standing as a compiled constraint. */
+  live = false;
+
   constructor(
     /** For error messages: "View.width", "Text.draw", … */
     readonly label: string,

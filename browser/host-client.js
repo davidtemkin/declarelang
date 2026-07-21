@@ -130,6 +130,10 @@ export async function bootHost(cfg) {
   };
   raf.loc = requestAnimationFrame(locTick);
 
+  // The Inspector (browser/inspector-boot.js) — ⌥⌘D, or `?inspect` on the URL.
+  // Lazily imported so a page that never opens it pays nothing.
+  import("./inspector-boot.js").then((m) => m.wireInspector(app)).catch(() => {});
+
   app.__teardown = () => {
     stopped = true;
     for (const k in raf) cancelAnimationFrame(raf[k]);
@@ -149,6 +153,18 @@ export async function bootHost(cfg) {
     // openWindow's channel: a NEW window/tab. The rAF after the click is still
     // inside the browser's transient user activation, so this isn't popup-blocked.
     if (app.pendingOpen) { const u = app.pendingOpen; app.pendingOpen = ""; window.open(new URL(u, DISTRO_ROOT).href, "_blank"); }
+    // app.inspect(slot) — open the Inspector on an embedded app (or on this one
+    // when the slot is empty). The island's box gives the subject's page origin,
+    // which the Inspector needs to pick and highlight in the right place.
+    if (app.pendingInspect !== null) {
+      const slot = app.pendingInspect;
+      app.pendingInspect = null;
+      const box = slot ? host.querySelector(`[data-declare-slot="${slot}"]`) : null;
+      const child = box && box.__childApp ? box.__childApp : null;
+      import("./inspector-boot.js")
+        .then((m) => m.openInspector(child ?? app, child && box ? m.originOfElement(box) : undefined))
+        .catch((e) => console.error("[Declare] Inspector:", e));
+    }
     raf.nav = requestAnimationFrame(navTick);
   };
   raf.nav = requestAnimationFrame(navTick);
