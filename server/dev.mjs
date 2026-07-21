@@ -24,7 +24,7 @@ let child = null;
 let stopping = false;
 
 const start = () => {
-  child = spawn(process.execPath, [SERVER], {
+  child = spawn(process.execPath, [SERVER, ...process.argv.slice(2)], {
     stdio: "inherit",
     env: { ...process.env, DECLARE_DEV_WATCH: "1" },
   });

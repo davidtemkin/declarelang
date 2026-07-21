@@ -1915,6 +1915,11 @@
     "title": "The dev server",
     "kind": "operational"
    },
+   "operational:embedding": {
+    "path": "docs/operational/embedding.md",
+    "title": "Embedding Declare in a project",
+    "kind": "operational"
+   },
    "operational:flags": {
     "path": "docs/operational/flags.md",
     "title": "Modifiers (flags)",
@@ -2037,7 +2042,13 @@
    ],
    "docs/operational/dev-server.md": [
     "operational:building",
+    "operational:embedding",
     "operational:flags"
+   ],
+   "docs/operational/embedding.md": [
+    "operational:building",
+    "operational:dev-server",
+    "operational:getting-started"
    ],
    "docs/operational/flags.md": [
     "operational:dev-server"
@@ -2050,6 +2061,7 @@
     "guide:thinking-in-declare",
     "operational:building",
     "operational:dev-server",
+    "operational:embedding",
     "reference:index",
     "spec:core"
    ],

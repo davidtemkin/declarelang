@@ -124,4 +124,6 @@ covers `declarec` and hosting.
   It teaches you to think in Declare, starting from an app just like this one.
 - **Hold the whole language at once** — [`declare.md`](declare-docs:spec:core),
   the complete surface stated once.
+- **Put it in a real project** — [Embedding Declare](declare-docs:operational:embedding),
+  when your app should live in its own repo next to a back end rather than in `my-apps/`.
 - **Look something up** — the [reference](declare-docs:reference:index).

@@ -14,7 +14,7 @@ selects what the URL returns; exactly one applies, and their absence runs the ap
 | request | URL | returns |
 |---|---|---|
 | run | *(none)* | the running app (default) |
-| build | `?build` → `/build/<name>/` | the standalone `declarec` artifact (built once, cached) |
+| build | `?build` → `/build/<program-dir>/` | the standalone `declarec` artifact (built once, cached) |
 | reader | `?viewer=reader` | the code viewer, reader tab — highlighted source, block comments as Markdown |
 | source | `?viewer=source` | the code viewer, verbatim-source tab |
 | edit | `?viewer=edit` | the code viewer, live-edit tab |
@@ -53,3 +53,13 @@ compile result out — source, dependencies, structured diagnostics, and the ren
 Like every surface it **always typechecks**; that is a mandatory phase of the one compile, not
 a flag. See [flags](declare-docs:operational:flags) for the modifier surface and
 [building](declare-docs:operational:building) for `declarec`.
+
+## Serving another project
+
+The server serves the distro by default, but it can serve *your* project instead, with the
+platform mounted alongside from the installation. Run it from a directory with a
+`declare.json` and it prints a mount table: your project at `/`, the platform at `/declare/`,
+and any proxied prefixes forwarded to your back end. Your programs are at their own paths
+(`frontend/shop.declare` → `/shop.declare`); the platform and the distro's example apps are
+under `/declare/`. Every request type above works unchanged. That is how a Declare front end
+lives in a product's own repo — see [Embedding Declare](declare-docs:operational:embedding).
