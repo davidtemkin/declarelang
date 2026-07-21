@@ -118,8 +118,14 @@ function collectLocals(sf: ts.Node, params: readonly string[]): Set<string> {
 
 interface BodyDeps { reads: Set<string>; calls: { name: string; receiver: string }[]; errors: DepError[] }
 
-/** Extract read-paths + callees + residue errors from one body. */
-function extractBody(sf: ts.Node, locals: Set<string>): BodyDeps {
+/** Extract read-paths + callees + residue errors from one body.
+ *
+ *  `inlinable` decides whether `<receiver>.<name>` is a computed `{ }` default to
+ *  be INLINED (no cell to subscribe to) or an ordinary subscribable slot. It is
+ *  passed in rather than read from the global name map so the decision can take
+ *  the receiver into account; omitted (method summaries, whose frame is unknown
+ *  until rebased) it falls back to the name-only test. */
+function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: string, name: string) => boolean): BodyDeps {
   const reads = new Set<string>();
   const calls: { name: string; receiver: string }[] = [];
   const errors: DepError[] = [];
@@ -158,7 +164,8 @@ function extractBody(sf: ts.Node, locals: Set<string>): BodyDeps {
     let pathEnd: ts.Node = base;
     for (const s of ordered) {
       if (ts.isPropertyAccessExpression(s) && s.parent && ts.isCallExpression(s.parent) && s.parent.expression === s) continue;
-      if (ts.isPropertyAccessExpression(s) && COMPUTED_DEFAULTS.has(s.name.text)) {
+      if (ts.isPropertyAccessExpression(s) && COMPUTED_DEFAULTS.has(s.name.text)
+          && (inlinable === undefined || inlinable(pathTextOf(s.expression), s.name.text))) {
         // A read of a computed `{ }` default is a formula, not a subscribable slot:
         // inline it like a method call so its (branch-union) deps become ours, rather
         // than recording the slot itself (which has no cell to fire).
@@ -232,7 +239,33 @@ let USER_METHODS = new Map<string, { params: string[]; body: string }>();
 // So reading one is not a subscribable edge; it must be INLINED like a zero-arg
 // method call, unioning its (branch-union) deps. Keyed by name (as methods are);
 // same-named defaults on different elements union — a sound over-approximation.
-let COMPUTED_DEFAULTS = new Map<string, string[]>();
+let COMPUTED_DEFAULTS = new Map<string, { src: string; owner: unknown; classRoot: unknown }[]>();
+
+// WHICH element owns each computed `{ }` default, so the inline decision can be
+// made against the RECEIVER rather than the bare name. Without this, a name
+// declared on an inner view shadows the same name on the app: a read of
+// `app.colA` matches the inner `colA` and inlines that formula — into itself, in
+// the constraint that defines it — and the real edge to the app's slot is lost.
+// Silent and wrong: extraction "succeeds", the slot never re-fires
+// (open-items.md L-17).
+let DEFAULT_OWNERS = new Map<string, Set<unknown>>();   // attr name → elements declaring it as a computed default
+let PARENT_OF = new Map<unknown, unknown>();            // element → its parent element (instance tree only)
+let PROGRAM_ROOT: unknown = null;
+
+/** The element a receiver path names, when that is statically knowable.
+ *  `undefined` = not knowable (a `parent` inside a class body is the USE site,
+ *  which varies per instantiation), and the caller must stay conservative. */
+function receiverElement(receiver: string, owner: unknown, classRoot: unknown): unknown | undefined {
+  const p = receiver.replace(/(\.root)+/g, ".root");
+  if (p === "this") return owner;
+  if (p === "this.root") return PROGRAM_ROOT;              // `app.x` resolves here
+  if (p === "classroot") return classRoot ?? undefined;
+  if (p === "parent") {
+    if (classRoot != null) return undefined;               // inside a class: the use site is unknown
+    return PARENT_OF.has(owner) ? PARENT_OF.get(owner) : undefined;
+  }
+  return undefined;
+}
 
 interface Summaries { own: Map<string, BodyDeps>; trans: (name: string, receiver: string) => { reads: Set<string>; errors: DepError[] } }
 
@@ -247,8 +280,16 @@ function buildMethodSummaries(): Summaries {
   // EXPRESSION (parseBody expr-mode), and same-named defaults union into one summary.
   for (const [name, bodies] of COMPUTED_DEFAULTS) {
     for (const body of bodies) {
-      const sf = parseBody(body, true);
-      const d: BodyDeps = sf ? extractBody(sf, collectLocals(sf, [])) : { reads: new Set(), calls: [], errors: [] };
+      const sf = parseBody(body.src, true);
+      // Resolved against the element that DECLARES this default — otherwise a
+      // default reading the app's same-named slot inlines itself, the recursion
+      // guard returns nothing, and the edge vanishes (L-17).
+      const inlinable = (receiver: string, nm: string): boolean => {
+        const el = receiverElement(receiver, body.owner, body.classRoot);
+        if (el === undefined) return true;
+        return DEFAULT_OWNERS.get(nm)?.has(el) === true;
+      };
+      const d: BodyDeps = sf ? extractBody(sf, collectLocals(sf, []), inlinable) : { reads: new Set(), calls: [], errors: [] };
       const ex = own.get(name);
       if (ex) { for (const r of d.reads) ex.reads.add(r); ex.calls.push(...d.calls); ex.errors.push(...d.errors); }
       else own.set(name, d);
@@ -292,32 +333,47 @@ export interface ExtractedConstraint {
 export function extractProgram(program: Program): ExtractedConstraint[] {
   USER_METHODS = new Map();
   COMPUTED_DEFAULTS = new Map();
-  const constraints: { tag: string; name: string | null; attr: string; src: string; offset: number; node: CodeValue }[] = [];
-  const collect = (el: Element): void => {
+  DEFAULT_OWNERS = new Map();
+  PARENT_OF = new Map();
+  PROGRAM_ROOT = program.root;
+  type Owned = { tag: string; name: string | null; attr: string; src: string; offset: number; node: CodeValue; owner: unknown; classRoot: unknown };
+  const constraints: Owned[] = [];
+  const collect = (el: Element, classRoot: unknown): void => {
     for (const m of el.methods as Method[]) USER_METHODS.set(m.name, { params: m.params, body: m.body ?? "" });
-    for (const a of el.attrs as Attr[]) { const v = asCode(a.value); if (v) constraints.push({ tag: el.tag, name: el.name ?? null, attr: a.name, src: v.src, offset: v.pos?.offset ?? 0, node: v }); }
+    for (const a of el.attrs as Attr[]) { const v = asCode(a.value); if (v) constraints.push({ tag: el.tag, name: el.name ?? null, attr: a.name, src: v.src, offset: v.pos?.offset ?? 0, node: v, owner: el, classRoot }); }
     for (const d of el.decls as AttrDecl[]) {
       const v = asCode(d.def);
       if (v) {
-        constraints.push({ tag: el.tag, name: el.name ?? null, attr: d.name, src: v.src, offset: v.pos?.offset ?? 0, node: v });
+        constraints.push({ tag: el.tag, name: el.name ?? null, attr: d.name, src: v.src, offset: v.pos?.offset ?? 0, node: v, owner: el, classRoot });
         // a `{ }` DECL default is an inline formula, not a cell — register it so reads
         // of it are inlined (a `name = { }` attribute is a standing constraint, so it
         // stays a normal subscribable read-path and is NOT registered here).
+        const entry = { src: v.src, owner: el as unknown, classRoot };
         const prev = COMPUTED_DEFAULTS.get(d.name);
-        if (prev) prev.push(v.src); else COMPUTED_DEFAULTS.set(d.name, [v.src]);
+        if (prev) prev.push(entry); else COMPUTED_DEFAULTS.set(d.name, [entry]);
+        const owners = DEFAULT_OWNERS.get(d.name);
+        if (owners) owners.add(el); else DEFAULT_OWNERS.set(d.name, new Set([el]));
       }
     }
-    for (const c of el.children) collect(c);
+    for (const c of el.children) { PARENT_OF.set(c, el); collect(c, classRoot); }
   };
-  collect(program.root);
-  for (const c of program.classes) collect(c.body);
+  collect(program.root, null);
+  for (const c of program.classes) collect(c.body, c.body);
 
   const { trans } = buildMethodSummaries();
   const out: ExtractedConstraint[] = [];
   for (const c of constraints) {
     const sf = parseBody(c.src, true);
     if (!sf) { out.push({ tag: c.tag, name: c.name, attr: c.attr, offset: c.offset, node: c.node, reads: [], errors: [{ message: "unparseable body", offset: c.offset }] }); continue; }
-    const r = extractBody(sf, collectLocals(sf, []));
+    // Inline a computed default only when the receiver actually OWNS one of that
+    // name. When the receiver cannot be resolved statically, stay conservative and
+    // fall back to the name-only test — the pre-L-17 behaviour.
+    const inlinable = (receiver: string, name: string): boolean => {
+      const el = receiverElement(receiver, c.owner, c.classRoot);
+      if (el === undefined) return true;
+      return DEFAULT_OWNERS.get(name)?.has(el) === true;
+    };
+    const r = extractBody(sf, collectLocals(sf, []), inlinable);
     const reads = new Set<string>(r.reads);
     const errors = [...r.errors];
     for (const call of r.calls) { const sub = trans(call.name, call.receiver); for (const rd of sub.reads) reads.add(rd); for (const e of sub.errors) errors.push(e); }

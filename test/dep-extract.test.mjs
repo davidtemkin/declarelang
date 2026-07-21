@@ -233,6 +233,52 @@ App [ width = 100, height = 100, g: G [ value = "a", R [ choice = "a" ] ] ]`);
   assert.ok(!reads.some((p) => p.includes("(")), "no parens in dep paths: " + JSON.stringify(reads));
 });
 
+test("a computed default does NOT shadow a same-named app slot (L-17)", () => {
+  // The inline decision used to be made on the bare NAME: an inner view declaring
+  // `colA` captured every read of `colA` anywhere, including `app.colA` inside the
+  // very default that defines it. It inlined into itself, the recursion guard
+  // returned nothing, and the edge to the app's slot was silently dropped — the
+  // slot changed and no consumer re-ran (the Inspector's undraggable pane seams).
+  // The receiver decides now: `app.colA` is a plain cell on the root and stays a
+  // subscribable read; `parent.colA` IS the inner default and still inlines.
+  const r = extract(`App [ width = 400, height = 300,
+    colA: number = 250,
+    panes: View [ width = 400, height = 200,
+        colA: number = { Math.min(app.colA, parent.width - 40) },
+        treeCol: View [ width = { parent.colA }, height = 40 ],
+        ],
+    ]`);
+  const own = readsOf(r, "colA", "panes");
+  assert.ok(own.includes("this.root.colA"), "the default keeps its edge to the app slot: " + JSON.stringify(own));
+  assert.ok(!own.some((p) => p === "this.root.parent.width"),
+    "and never inlines itself into an impossible path: " + JSON.stringify(own));
+
+  const consumer = readsOf(r, "width", "treeCol");
+  assert.ok(consumer.includes("parent.root.colA"),
+    "the consumer inlines the default and inherits its app-slot edge: " + JSON.stringify(consumer));
+  assert.ok(consumer.includes("parent.parent.width"),
+    "and the default's other read, rebased: " + JSON.stringify(consumer));
+});
+
+test("shadowing still inlines the RIGHT default when two elements share a name", () => {
+  // Two different views each declare `k` as a computed default. Each reader must
+  // inline its own parent's formula, not whichever was registered last.
+  const r = extract(`App [ width = 400, height = 300, a: number = 1, b: number = 2,
+    one: View [ width = 100, height = 100,
+        k: number = { app.a },
+        kid: View [ width = { parent.k }, height = 10 ],
+        ],
+    two: View [ width = 100, height = 100,
+        k: number = { app.b },
+        kid: View [ width = { parent.k }, height = 10 ],
+        ],
+    ]`);
+  const kids = r.filter((c) => c.name === "kid" && c.attr === "width").map((c) => c.reads.sort());
+  assert.equal(kids.length, 2, "two consumers");
+  assert.ok(kids.some((k) => k.includes("parent.root.a")), "one inlines app.a: " + JSON.stringify(kids));
+  assert.ok(kids.some((k) => k.includes("parent.root.b")), "the other inlines app.b: " + JSON.stringify(kids));
+});
+
 console.log("\n─ D. self-dependence: a constraint may not read its own slot ─");
 
 // The check fires inside compile() (annotate → hard constraint-phase error), so

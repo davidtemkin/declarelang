@@ -540,12 +540,12 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
         panes: View [ x = 0, y = 68, width = { parent.width },
             height = { parent.height - 68 - app.consoleH },
 
-            wA: number = { Math.min(app.colA, parent.width - 340) },
-            wB: number = { Math.min(app.colB, parent.width - this.wA - 170) },
+            colA: number = { Math.min(app.colA, parent.width - 340) },
+            colB: number = { Math.min(app.colB, parent.width - this.colA - 170) },
 
             // TREE ------------------------------------------------------------
 
-            treeCol: View [ x = 0, y = 0, width = { parent.wA }, height = { parent.height },
+            treeCol: View [ x = 0, y = 0, width = { parent.colA }, height = { parent.height },
                 clip = true, fill = { app.c.panel },
                 head: Label [ x = 12, y = 8, fontSize = 10, fontWeight = semibold,
                     letterSpacing = 0.8, textColor = { app.c.faint }, text = "TREE" ],
@@ -589,7 +589,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
 
             // OBJECT ----------------------------------------------------------
 
-            objCol: View [ x = { parent.wA }, y = 0, width = { parent.wB }, height = { parent.height },
+            objCol: View [ x = { parent.colA }, y = 0, width = { parent.colB }, height = { parent.height },
                 clip = true, fill = { app.c.raised },
                 head: Label [ x = 12, y = 8, fontSize = 10, fontWeight = semibold,
                     letterSpacing = 0.8, textColor = { app.c.faint }, text = "OBJECT" ],
@@ -671,8 +671,8 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
 
             // WHY -------------------------------------------------------------
 
-            whyCol: View [ x = { parent.wA + parent.wB }, y = 0,
-                width = { parent.width - parent.wA - parent.wB }, height = { parent.height },
+            whyCol: View [ x = { parent.colA + parent.colB }, y = 0,
+                width = { parent.width - parent.colA - parent.colB }, height = { parent.height },
                 clip = true, fill = { app.c.panel },
                 head: Label [ x = 12, y = 8, fontSize = 10, fontWeight = semibold,
                     letterSpacing = 0.8, textColor = { app.c.faint }, text = "WHY" ],
@@ -746,8 +746,8 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
             // The seams come LAST so no column paints over them — a divider a
             // later sibling covers is a divider you cannot grab.
 
-            seamA: Seam [ x = { parent.wA - 4 }, height = { parent.height }, which = "a" ],
-            seamB: Seam [ x = { parent.wA + parent.wB - 4 }, height = { parent.height }, which = "b" ],
+            seamA: Seam [ x = { parent.colA - 4 }, height = { parent.height }, which = "a" ],
+            seamB: Seam [ x = { parent.colA + parent.colB - 4 }, height = { parent.height }, which = "b" ],
             ],
 
         // ── transcript + evaluate strip ──────────────────────────────────────

@@ -262,11 +262,14 @@ this register was being written, and it briefly put a wrong claim into
 prints (`synthetic metrics`). Purely a rename; not worth churning on its own, worth
 doing the next time that file is opened.
 
-## L-17 — A shadowed name silently drops a dependency in the extractor · **high**
+## L-17 — A shadowed name silently dropped a dependency in the extractor · **fixed**
 
-The dep extractor **inlines** a constraint's reads through intermediate constraints.
-When resolving a read path it matches by NAME, and it resolves against the wrong
-declaration when an inner view declares an attribute that shadows one on the app.
+The dep extractor **inlines** a constraint's reads through intermediate constraints —
+a computed `{ }` default has no cell to subscribe to, so its formula's reads must become
+the reader's. The decision of *what is a computed default* was keyed on the bare NAME,
+with no regard for the receiver. An inner view declaring a name that also exists on the
+app therefore captured every read of that name in the program — including `app.<name>`
+inside the very default that defines it.
 
 Reduced from the real case (the Inspector's pane seams, which would not drag):
 
@@ -279,29 +282,35 @@ App [ colA: number = 250,                              // written by the drag ha
     ]
 ```
 
-Extracted reads, from `extractProgram`:
+`this.root.colA` matched the name, so the default inlined **into itself**; the recursion
+guard returned an empty summary, and what survived was `this.root.parent.width` — not a
+path that means anything (`root` has no `parent`). The edge to `app.colA` was gone. The
+handler wrote the slot, `panes.colA` re-derived because `parent.width` woke it, and every
+consumer of `parent.colA` never re-ran. The panes did not move.
 
-```
-View#panes.colA     ⟵ ["parent.width", "this.root.parent.width"]   ← app.colA GONE
-View#treeCol.width  ⟵ ["parent.parent.width"]                      ← no colA edge at all
-```
+This was the nastiest failure mode in this register: **silent and wrong**, not loud and
+absent. Rungs 1–4 passed, the app booted, the value visibly changed in the Inspector —
+only the propagation was missing, which reads as "the drag doesn't work" rather than
+"a dependency was dropped".
 
-`this.root.colA` should resolve to the **App**'s slot. Instead it re-resolves to
-`panes.colA` — the constraint is inlined into itself — and the surviving path
-`this.root.parent.width` is not a path that means anything. The dependency on
-`app.colA` is dropped, so the handler writes it, `panes.colA` re-derives (it is woken by
-`parent.width`), and every consumer of `parent.colA` never re-runs. The panes do not move.
+**Fixed** in `compiler/src/dep-extract.ts`: the inline decision now resolves the
+RECEIVER to an element and inlines only if that element actually declares a computed
+default of that name. `this` is the owner, `this.root` (and the `app.` spelling) is the
+program root, `classroot` is the enclosing class root, and `parent` is the owner's parent
+in the instance tree. Where the receiver cannot be resolved statically — `parent` inside a
+class body names the *use* site, which varies per instantiation — it falls back to the
+name-only test, so the change only ever narrows over-eager inlining. The same resolution
+is applied when a default's own summary is built, which is where the self-inline happened.
 
-Why this one is nastier than the rest in this register: it is **silent and wrong**, not
-loud and absent. Rungs 1–4 pass, the app boots, the value visibly changes in the
-Inspector — only the propagation is missing, which reads as "the drag doesn't work"
-rather than "a dependency was dropped". Nothing in the ladder catches it, because
-extraction *succeeded*; it just succeeded with the wrong answer. There is also no
-diagnostic for a read path that resolves to nonsense (`this.root.parent.width` should be
-refusable at compile time — `root` has no `parent`).
+Extracted reads for the case above are now
+`panes.colA ⟵ ["this.root.colA", "parent.width"]` and
+`treeCol.width ⟵ ["parent.root.colA", "parent.parent.width"]`.
 
-Worked around in `apps/inspector/inspector.declare` by renaming the inner slots `wA`/`wB`
-(re-extracted: `["this.root.colA", "parent.width"]`, and consumers now carry
-`parent.root.colA`). The workaround is a rename, so nothing depends on it staying —
-but the extractor should either resolve the scope correctly or **refuse the shadow**,
-and a residue check that rejects impossible paths would have caught it either way.
+Guarded by two cases in `test/dep-extract.test.mjs` — the shadowing case itself, and two
+sibling elements declaring the same default name, each consumer inlining its own. The
+Inspector carries the natural shadowing spelling again; the rename that worked around it
+is reverted.
+
+Still open, and worth doing separately: nothing refuses an impossible read path. A
+residue check rejecting `root.parent` and friends at compile time would have caught this
+from the other direction.
