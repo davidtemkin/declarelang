@@ -4,9 +4,33 @@
 // attribute values, the constraint-timing prefixes, and unknown-tag/mixin gaps.
 import type { LzxDoc, LzxNode, LzxAttr } from "./parse.js";
 import type { Naming, AttrTypeKind } from "./naming.js";
-import type { GapSink } from "./gaps.js";
+import type { GapSink, Severity, S13Ref } from "./gaps.js";
 import type { Pos } from "./pos.js";
 import type { DProgram, DClass, DNode, DAttr, DDecl, DMethod, DValue } from "./ir.js";
+
+// Position-independent routing for LZX constructs that are NOT UI components:
+// documentation prose and language constructs. Runs in mapElement (before
+// resolveTag) so it fires at ROOT (e.g. <library>) and child position alike.
+const SPECIAL: Record<string, { ref: S13Ref; sev: Severity; note: string; walk?: true }> = {
+  doc:        { ref: "documentation", sev: "info",     note: "documentation prose" },
+  include:    { ref: "modules",       sev: "degraded", note: "<include> module directive" },
+  import:     { ref: "modules",       sev: "degraded", note: "<import> module directive" },
+  library:    { ref: "modules",       sev: "degraded", note: "<library> module root", walk: true },
+  event:      { ref: "event-decl",    sev: "degraded", note: "<event> declaration" },
+  setter:     { ref: "custom-setter", sev: "degraded", note: "<setter>" },
+  remotecall: { ref: "rpc",           sev: "degraded", note: "<remotecall>" },
+  rpc:        { ref: "rpc",           sev: "degraded", note: "<rpc>" },
+  param:      { ref: "rpc",           sev: "degraded", note: "<param> RPC argument" },
+  stylesheet: { ref: "styling",       sev: "degraded", note: "<stylesheet>" },
+  script:     { ref: "script-block",  sev: "degraded", note: "<script> block" },
+};
+
+function routeSpecial(el: LzxNode, sink: GapSink): "handled" | "walk" | null {
+  const s = SPECIAL[el.tag.toLowerCase()];
+  if (!s) return null;
+  sink.add({ kind: s.note, severity: s.sev, s13Ref: s.ref, pos: el.pos, note: s.note });
+  return s.walk ? "walk" : "handled";
+}
 
 export function mapDoc(doc: LzxDoc, naming: Naming, sink: GapSink): DProgram | null {
   if (!doc.root) return null;
@@ -115,6 +139,9 @@ function mapElement(el: LzxNode, naming: Naming, sink: GapSink, classes: DClass[
     sink.add({ kind: `mixin/with on <${el.tag}>`, severity: "blocking", s13Ref: "mixins", pos: el.pos, note: "no Declare multiple-inheritance surface" });
     return null;
   }
+  const special = routeSpecial(el, sink);
+  if (special === "handled") return null;
+  if (special === "walk") { mapMembers(el, el.tag, naming, sink, classes); return null; }
   const tag = resolveTag(el.tag, naming);
   if (tag === null) {
     sink.add({ kind: `unknown tag <${el.tag}>`, severity: "blocking", s13Ref: "unknown-tag", pos: el.pos, note: `no built-in mapping or user class for <${el.tag}>` });

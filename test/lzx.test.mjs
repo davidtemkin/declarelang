@@ -335,4 +335,29 @@ await test("every TAG_TABLE value is a schema key or a library class (two-sided 
   }
 });
 
+// ── Library mapping Task 3: routeSpecial ───────────────────────────────────
+
+await test("<doc> is skipped (not emitted, children not walked) with a documentation gap", () => {
+  const r = lzxToDeclare(`<canvas><view><doc><p>hi</p><classname>Foo</classname></doc></view></canvas>`);
+  if (r.gaps.some((g) => g.kind.includes("<p>") || g.kind.includes("classname"))) throw new Error("walked into doc: " + JSON.stringify(r.gaps));
+  if (!r.gaps.some((g) => g.s13Ref === "documentation")) throw new Error("no documentation gap");
+});
+await test("language constructs route to their categories", () => {
+  const cases = [["include", "modules"], ["event", "event-decl"], ["setter", "custom-setter"], ["remotecall", "rpc"], ["param", "rpc"], ["stylesheet", "styling"], ["script", "script-block"]];
+  for (const [tag, ref] of cases) {
+    const r = lzxToDeclare(`<canvas><view><${tag}/></view></canvas>`);
+    if (!r.gaps.some((g) => g.s13Ref === ref)) throw new Error(`<${tag}> should → ${ref}; got ${JSON.stringify(r.gaps.map((g) => g.s13Ref))}`);
+  }
+});
+await test("<library> ROOT routes to modules and its classes are still walked (not dropped)", () => {
+  const r = lzxToDeclare(`<library><class name="myThing" extends="view"/></library>`);
+  if (!r.gaps.some((g) => g.s13Ref === "modules")) throw new Error("no modules gap for library root");
+  if (r.gaps.some((g) => g.s13Ref === "unknown-tag" && g.kind.includes("library"))) throw new Error("library should not be unknown-tag");
+});
+await test("a <param> inside <doc> is documentation, not rpc (ordering)", () => {
+  const r = lzxToDeclare(`<canvas><view><doc><param>x</param></doc></view></canvas>`);
+  if (r.gaps.some((g) => g.s13Ref === "rpc")) throw new Error("doc param leaked to rpc");
+  if (!r.gaps.some((g) => g.s13Ref === "documentation")) throw new Error("no documentation gap");
+});
+
 summarize("lzx");
