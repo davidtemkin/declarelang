@@ -145,7 +145,8 @@ Add them to the returned `naming` object (inside `buildNaming`):
     hasSchema(declareTag) { return declareTag in SCHEMAS; },
     declaresEvent(declareTag, handlerName) {
       const sc = SCHEMAS[declareTag];
-      return sc !== undefined && eventsOf(sc).includes(eventOfHandler(handlerName));
+      const ev = eventOfHandler(handlerName); // string | null
+      return sc !== undefined && ev !== null && eventsOf(sc).includes(ev);
     },
 ```
 
@@ -291,24 +292,22 @@ git commit -m "lzx(lib): suppress <dataset> child recursion (data is not compone
 
 **Files:** Modify `lzx/src/map.ts`. Test: append.
 
-- [ ] **Step 1: Write failing tests**
+- [ ] **Step 1: Write failing tests** (the test file already imports `compile` from `compiler/dist/compile-node.js` — Phase-1 Task 7 — so reuse it; do NOT add a second import)
 
 ```js
-import { compile as _compile } from "../compiler/dist/compile-node.js";
-
 await test("mapped edittext keeps schema attrs, drops unknown, compiles clean", () => {
   const r = lzxToDeclare(`<canvas><edittext text="hi" width="200" enabled="false"/></canvas>`);
   if (!/TextInput \[/.test(r.declare)) throw new Error("no TextInput: " + r.declare);
   if (!/text = "hi"/.test(r.declare) || !/width = 200/.test(r.declare)) throw new Error("dropped a schema attr: " + r.declare);
   if (/enabled/.test(r.declare)) throw new Error("enabled should be dropped: " + r.declare);
   if (!r.gaps.some((g) => g.s13Ref === "unmapped-attr")) throw new Error("no unmapped-attr gap");
-  const c = _compile(r.declare, { typecheck: false });
+  const c = compile(r.declare, { typecheck: false });
   if (c.errors.length) throw new Error("compile errors:\n" + c.report);
 });
 await test("mapped image keeps source via alias and compiles clean", () => {
   const r = lzxToDeclare(`<canvas><image src="a.png" width="64"/></canvas>`);
   if (!/source = "a.png"/.test(r.declare)) throw new Error("source dropped: " + r.declare);
-  const c = _compile(r.declare, { typecheck: false });
+  const c = compile(r.declare, { typecheck: false });
   if (c.errors.length) throw new Error("compile errors:\n" + c.report);
 });
 await test("a handler for an undeclared event on a schema tag is dropped", () => {
@@ -404,7 +403,14 @@ git commit -m "lzx(lib): residue → library-component (scoped to the tag-unreso
 
 and include `libraryRoots` in the return + print it in `main` (`console.log(\`library-root (class-only): ${s.libraryRoots}\`)`).
 
-- [ ] **Step 2: Run the full sweep** — Run: `node tools/lzx-transpile.mjs /Users/maxcarlsonold/openlaszlo-5.0 --compile --report` — Expected: a new ranked table; `unknown-tag` collapsed, `documentation`/`dataset-body`/`modules`/`library-component` carrying the redistributed weight; `compiled-clean` NOT lower than the Phase-1 408. Capture the numbers.
+- [ ] **Step 2: Run the full sweep** — Run: `node tools/lzx-transpile.mjs /Users/maxcarlsonold/openlaszlo-5.0 --compile --report` — Expected: a new ranked table; `unknown-tag` collapsed, `documentation`/`dataset-body`/`modules`/`library-component` carrying the redistributed weight. Capture the numbers.
+
+- [ ] **Step 2b: ASSERT no compiled-clean regression** (the spec's key invariant — a hard check, not an eyeball). Run:
+
+```bash
+node -e 'import("./tools/lzx-transpile.mjs").then(m=>{const s=m.sweep("/Users/maxcarlsonold/openlaszlo-5.0",{compile:true}); const BASE=408; console.log("compiled-clean:",s.compiledClean,"baseline:",BASE); if(s.compiledClean < BASE){console.error("REGRESSION: compiled-clean dropped below baseline"); process.exit(1);} console.log("OK — no regression");})'
+```
+Expected: `OK — no regression` and exit 0. If it exits 1, a mapped component is failing `check()` — fix the drop/alias (do not lower the baseline).
 
 - [ ] **Step 3: Rewrite `design-docs/lzx-coverage.md`** with the new distribution (headline transpiled/compiled-clean, library-root count, the ranked gap table with `library-component` now the honest top signal, and a one-line note that `unknown-tag` now means only genuine strays).
 
