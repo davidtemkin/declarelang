@@ -30,9 +30,12 @@ export function sweep(dir, opts = {}) {
   const rows = files.map((f) => { try { return transpileFile(f, opts); } catch (e) { return { path: f, declare: null, gaps: [], compileErrors: [], error: String(e) }; } });
   const transpiled = rows.filter((r) => r.declare !== null).length;
   const compiledClean = rows.filter((r) => r.declare !== null && r.compileErrors.length === 0).length;
+  // Library-root files (a <library> root, no App) legitimately produce no
+  // runnable output — class-only, not a transpile failure.
+  const libraryRoots = files.filter((f) => /^\s*(?:<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<![^>]*>|\s)*<library\b/i.test(readFileSync(f, "utf8"))).length;
   const byRef = {};
   for (const r of rows) for (const g of r.gaps) byRef[g.s13Ref] = (byRef[g.s13Ref] ?? 0) + 1;
-  return { total: rows.length, transpiled, compiledClean, byRef, rows };
+  return { total: rows.length, transpiled, compiledClean, libraryRoots, byRef, rows };
 }
 
 function main() {
@@ -43,7 +46,7 @@ function main() {
   if (!target) { console.error("usage: node tools/lzx-transpile.mjs <file|dir> [--compile] [--report]"); process.exit(2); }
   if (statSync(target).isDirectory()) {
     const s = sweep(target, { compile: compileFlag });
-    console.log(`transpiled ${s.transpiled}/${s.total}` + (compileFlag ? `, compiled-clean ${s.compiledClean}/${s.total}` : ""));
+    console.log(`transpiled ${s.transpiled}/${s.total}` + (compileFlag ? `, compiled-clean ${s.compiledClean}/${s.total}` : "") + `, library-root (class-only) ${s.libraryRoots}`);
     if (report) {
       const sorted = Object.entries(s.byRef).sort((a, b) => b[1] - a[1]);
       console.log("gaps by category (desc):");
