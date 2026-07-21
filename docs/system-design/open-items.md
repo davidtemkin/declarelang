@@ -314,3 +314,60 @@ is reverted.
 Still open, and worth doing separately: nothing refuses an impossible read path. A
 residue check rejecting `root.parent` and friends at compile time would have caught this
 from the other direction.
+
+## L-18 — A house component's themed self-chrome falls back silently · medium
+
+`TextInput` carries **self-chrome**: `text-input.ts` derives its own `fill`, `stroke`,
+`cornerRadius` and `padding` from the prevailing theme, reading the v1 role names
+`components-baseline.md` §5 rules — `surface`, `line`, `accent`, `fieldRadius`. When the
+theme does not carry a role, it falls back to a hardcoded constant:
+
+```ts
+bindDerived(this, "fill", () => tok("surface", 0xFFFFFF));
+```
+
+An app that hand-rolls a palette in its OWN vocabulary therefore gets a **white box** —
+in a dark rendition, near-invisible text on white. Found in the calendar, whose palette
+names roles `pageBg`/`cellBg`/`sectionBg`/`hairline` and never says `surface`. The
+calendar uses exactly one house component, and it is the only thing that broke: the
+failure is precisely at the seam between an app's private vocabulary and a component
+expecting the house one.
+
+The same anti-pattern as [L-17](#l-17): a missing input yields a plausible-looking wrong
+value rather than a diagnostic. A theme is an untyped `object`, so an absent role and a
+role deliberately left out are indistinguishable.
+
+Latent in other programs on the same seam — none of these define the roles, and each is
+one dark rendition away from the same white box:
+
+```
+calendar-sample    TextInput×2   surface=0  line=0
+component-sampler  TextInput×3   surface=0  line=0
+controls           TextInput×1   surface=0  line=0
+desktop            TextInput×1   surface=0  line=1
+```
+
+**Not the fix applied.** The chrome is a *yielding* derive — `if (!isSet(this, "fill") &&
+ownerOf(this, "fill") === null)` — so assigning `fill`/`stroke` displaces it entirely,
+which is what `SearchField` already does ("displaced by author nulls"). The calendar now
+styles its two fields in its own vocabulary (`fieldBg`/`fieldEdge`) and will move onto
+the house rendition wholesale when it adopts the component library. There is no rawer
+editable to reach for and none is needed: `TextInput` IS the base (`Editor` above it is
+abstract), and displacement is the supported escape.
+
+What should change:
+
+1. **A component should declare which theme roles it reads**, so a theme missing one is a
+   compile-time diagnostic rather than a white box. The roles are already ruled; nothing
+   checks them.
+2. **The fallback constants are the wrong shape.** A light-mode constant is not a neutral
+   default — it is a guess that is wrong half the time. Refusing, or deriving from the
+   App's `dark` intrinsic, both beat a hardcoded `0xFFFFFF`.
+
+**Fixed alongside:** `focused` was maintained by the runtime and read by the house focus
+edge, but absent from `EditorSchema` — so a component could style on focus and an author
+who displaced that chrome could not. Now declared, and the calendar's fields render their
+own focus edge with it. Also `dom-backend.ts` now sets `color-scheme` on the editable
+element from its resolved fill, so the chrome only the BROWSER draws — the scrollbar in a
+multiline field, the selection highlight, the placeholder, autofill — follows the field's
+own background instead of rendering light inside a dark box.

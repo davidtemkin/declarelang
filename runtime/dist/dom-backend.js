@@ -35,6 +35,27 @@ function applyEditStyle(el, st) {
     const m = fontMetrics(fontString(st));
     s.lineHeight = m.ascent + m.descent + "px";
 }
+/** Perceived lightness of a solid color, 0 (black) → 1 (white) — sRGB relative
+ *  luminance, the same weights the contrast math everywhere uses. */
+function luminanceOf(c) {
+    const ch = (v) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); };
+    return 0.2126 * ch((c >> 16) & 0xFF) + 0.7152 * ch((c >> 8) & 0xFF) + 0.0722 * ch(c & 0xFF);
+}
+/** Tell the platform which scheme the editable's own box is, so the chrome only
+ *  the BROWSER draws follows it: the scrollbar inside a multiline field, the
+ *  selection highlight, the placeholder, autofill. Declare styles the text, but
+ *  none of those are ours to paint — left unset they render light-on-light
+ *  inside a dark field. Read from the field's resolved fill rather than any
+ *  app-level dark flag: the box's own background is the thing they sit on, and
+ *  it is a fact the surface already has. A gradient or an unfilled field keeps
+ *  the platform default. */
+function applyEditScheme(el, fill) {
+    if (fill === null || typeof fill !== "number") {
+        el.style.colorScheme = "";
+        return;
+    }
+    el.style.colorScheme = luminanceOf(fill) < 0.4 ? "dark" : "light";
+}
 /** Element → its surface's input sink. Setting a sink is also what flips the
  *  element's pointer-events on, so membership here and native hit-testability
  *  are the same fact. Module-level (not per-backend) because DomBackend is
@@ -227,6 +248,10 @@ class DomSurface {
     // *model* anywhere. Cross-backend identity is pinned by the suite.
     setFill(f) {
         this.fillV = f;
+        // an editable already mounted here re-reads the scheme: a themed field's
+        // fill arrives (and flips light↔dark) after the element exists
+        if (this.editEl !== null)
+            applyEditScheme(this.editEl, f);
         if (isGradient(f)) {
             this.box.gradient = f;
             this.box.fill = null;
@@ -647,6 +672,7 @@ class DomSurface {
         }
         el.placeholder = spec.placeholder;
         applyEditStyle(el, spec.style);
+        applyEditScheme(el, this.fillV);
     }
     activateEditable(active) {
         if (this.editEl === null)

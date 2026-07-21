@@ -228,8 +228,18 @@ class DetailSection extends View [ clip = true, cornerRadius = 10, fill = { them
             textColor = { theme.chevron }, text = { app.openSection == classroot.idx ? "–" : "+" } ],
         onClick() { app.openSection = classroot.idx },
         ],
+
+    // A TextInput carries its own themed chrome, derived from the HOUSE role
+    // names (`surface`, `line`) that this app's palette does not speak — left
+    // alone it falls back to a white box. The derives YIELD to an author
+    // assignment, so the field is styled here in the app's own vocabulary,
+    // focus edge included. (When the calendar moves onto the component library
+    // this goes away and the house rendition takes over.)
+
     content: TextInput [ x = 13, y = 50, width = { parent.width - 26 }, height = { parent.height - 60 }, multiline = true, wrap = true,
         fontSize = 13, textColor = { theme.bodyText }, placeholder = { "Add " + classroot.field },
+        fill = { theme.fieldBg },
+        stroke = { stroke(1, this.focused ? theme.accent : theme.fieldEdge) },
         text <-> { classroot.field } ],
     open: State [ applied = { app.openSection == classroot.idx }, fill = { theme.sectionOpenBg } ],
     ]
@@ -425,6 +435,7 @@ App [ clip = true, minWidth = 480, minHeight = 420, appName = "Declare Calendar"
         hourLabel: 0x53636F, chevron: 0x6C7C89,
         accent: 0x4C8DFF, accentTeal: 0x37E0C8, currentDayText: 0x9CC4FF, todayText: 0x7FB0FF,
         trackBg: 0x131F29, pillBg: 0x244463,
+        fieldBg: 0x0F1A25, fieldEdge: 0x2A3B49,
         sectionBg: 0x16222E, sectionOpenBg: 0x1B2B3B,
         miniBg: 0x121C26, miniCurrentBg: 0x14283F, miniDayText: 0x9FB0BB, miniDayFaint: 0x33414C,
         holidayBg: 0x14321F, holidayText: 0x74D89B, astroBg: 0x241F3D, astroText: 0xB6A6F0,
@@ -436,6 +447,7 @@ App [ clip = true, minWidth = 480, minHeight = 420, appName = "Declare Calendar"
         hourLabel: 0x99A5B0, chevron: 0x9AA5B0,
         accent: 0x2E6FE0, accentTeal: 0x12A594, currentDayText: 0x2E6FE0, todayText: 0x2E6FE0,
         trackBg: 0xE7EBF1, pillBg: 0xD3E2FC,
+        fieldBg: 0xFFFFFF, fieldEdge: 0xDBE1E9,
         sectionBg: 0xF1F5F9, sectionOpenBg: 0xE6EEF8,
         miniBg: 0xFFFFFF, miniCurrentBg: 0xE7F0FF, miniDayText: 0x3E4C59, miniDayFaint: 0xBFC8D2,
         holidayBg: 0xDCF3E4, holidayText: 0x1E7A44, astroBg: 0xEBE6FB, astroText: 0x5B3FB8,
@@ -655,7 +667,10 @@ App [ clip = true, minWidth = 480, minHeight = 420, appName = "Declare Calendar"
                         ],
                     ],
                 title: TextInput [ x = 13, y = 40, width = { parent.width - 26 }, height = 32, fontSize = 16, fontWeight = bold,
-                    textColor = { theme.textPrimary }, placeholder = "Untitled event", text <-> :title ],
+                    textColor = { theme.textPrimary }, placeholder = "Untitled event",
+                    fill = { theme.fieldBg },
+                    stroke = { stroke(1, this.focused ? theme.accent : theme.fieldEdge) },
+                    text <-> :title ],
                 meta: Text [ x = 15, y = 84, fontSize = 12.5, wrap = false, textColor = { theme.textMuted },
                     text = { app.dayLabel(:y + "-" + :m + "-" + :d) + "  ·  " + app.shortTime(:start) + " – " + app.shortTime(:end) } ],
                 ],

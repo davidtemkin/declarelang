@@ -315,6 +315,12 @@ const EditorSchema = {
         error: { kind: "string" }, // the current validation error, "" when valid
         valid: { kind: "boolean" }, // does the draft pass validate()?
         dirty: { kind: "boolean" }, // does the draft differ from the committed value?
+        // Does the field hold keyboard focus? Maintained by the runtime, and the
+        // fact the house field-chrome's own focus edge derives from — declared here
+        // so an author who DISPLACES that chrome (assigning `fill`/`stroke`, the
+        // yielding-derive escape) can still render the focus affordance. Read-only
+        // in practice: writing it does not move platform focus, `Focus.focus(v)` does.
+        focused: { kind: "boolean" },
     },
 };
 const TextInputSchema = {
