@@ -1,7 +1,9 @@
-App [ fill = white, fontFamily = ["Helvetica Neue", "sans-serif"], fontSize = 15, fontWeight = bold, textColor = black,
-    topBar: View [ x = 20, y = 20,
-        layout: SimpleLayout [ axis = y, spacing = 6 ],
-        Text [ text = "Rain or Shine?" ],
-        Text [ text = "94110", textColor = royalblue ],   // overrides only the color
+class Heading extends Text [ fontWeight = bold, textColor = { theme.text } ]
+
+App [ fill = { theme.surface }, theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, accent: 0x4C8DFF, surface: 0x101E28 }) },
+    col: View [ x = 20, y = 20,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        Heading [ text = "Signals" ],
+        Text [ textColor = { theme.muted }, text = "muted subtitle" ],
         ],
     ]

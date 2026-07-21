@@ -123,7 +123,19 @@ class Window extends View [ width = 560, height = 400, clip = true,
     slotX: number = { app.miniLayout != null && this.dockSlot >= 0 && this.dockSlot < app.miniLayout.length ? app.miniLayout[this.dockSlot].x : 0 },
     parkScale: number = { this.slotW / Math.max(1, this.width) },
     waveMag: number = { this.slotW / Math.max(1, this.slotRestW) },
-    parkY: number = { app.height - app.dockFloor - app.iconEdge / 2 * this.waveMag - this.height * this.parkScale / 2 - app.menuBarH },
+
+    // the thumbnail is CENTRED in the plate (measured: real minimized windows
+    // centre with ~12px margins, not bottom-anchored like the icons). Plate
+    // centre sits 49.5px off the screen bottom (5.5 gap + 44 half-plate); the
+    // window's visual centre (parkY + menuBar + halfVisualHeight) lands there.
+
+    // the thumbnail scales around the badge baseline (~14px above the plate
+    // floor, screen y = app.height − 19), NOT its own centre — so on rollover
+    // it grows UPWARD (its bottom moves away from the plate floor, never toward
+    // it), matching the real dock. At rest (waveMag 1) this is the plate-centre
+    // (…− 49.5…), so a resting thumbnail is still centred.
+
+    parkY: number = { app.height - 19 - 30.5 * this.waveMag - this.height * this.parkScale / 2 - app.menuBarH },
 
     baseRadius: number = 10,                     // the window's normal corner rounding
     thumbRadius: number = 3.5,                   // …and its rounding at thumbnail scale, in dock pixels
@@ -202,7 +214,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
     // activating any real window dismisses open About boxes — they're modals
     // in spirit: clicking anywhere else lets them go (the red light works too)
 
-    activate() { app.frontWin = this; this.raise(); if (!plain) app.dismissAbouts() },
+    activate() { app.frontWin = this; this.raise(app.lowestMini()); if (!plain) app.dismissAbouts() },
     onMouseDown() { this.activate() },
 
     // subclass content attaches after the base's children, so any content that
@@ -1009,12 +1021,13 @@ class MiniTile extends View [
     // window reads), translated into the minis section's local space
 
     slotW: number = { app.miniLayout != null && this.ix < app.miniLayout.length ? app.miniLayout[this.ix].w : 48 },
+    slotH: number = { app.miniLayout != null && this.ix < app.miniLayout.length ? app.miniLayout[this.ix].h : 48 },
     slotRestW: number = { app.miniLayout != null && this.ix < app.miniLayout.length ? app.miniLayout[this.ix].rw : 48 },
     waveMag: number = { this.slotW / Math.max(1, this.slotRestW) },
-    x = { (app.miniLayout != null && this.ix < app.miniLayout.length ? app.miniLayout[this.ix].x : 0) - (app.dock.x + app.dock.row.width + 17) },
+    x = { (app.miniLayout != null && this.ix < app.miniLayout.length ? app.miniLayout[this.ix].x : 0) - (app.dock.x + app.dock.row.width + 32) },
     width = { this.slotW },
-    height = { app.iconEdge * this.waveMag },
-    y = { parent.height - this.height - 9 },
+    height = { this.slotH },   // the thumbnail's aspect height (not icon-square), so the badge lands on the thumbnail's own corner
+    y = { parent.height - 13.5 - 30.5 * this.waveMag - this.height / 2 },   // scales around the badge baseline (grows upward on rollover), = plate-centre at rest — matches the parked window
 
     onMouseOver() { hovered = true },
     onMouseOut()  { hovered = false },
@@ -1038,8 +1051,15 @@ class MiniTile extends View [
     badge: DockIcon [
         visible = { classroot.seated },
         width = { app.badgeEdge * classroot.waveMag }, height = { app.badgeEdge * classroot.waveMag },
-        x = { parent.width - (app.badgeEdge - 2) * classroot.waveMag },
-        y = { parent.height - (app.badgeEdge - 2) * classroot.waveMag },
+
+        // x tracks the thumbnail's right edge (2px inside it); y sits on the
+        // dock's COMMON badge baseline (13.5px above the plate floor), NOT the
+        // thumbnail's own bottom — so, as on the real Mac, a short/landscape
+        // thumbnail's badge hangs below it while a tall one stays contained.
+        // Tile centre is the plate centre; baseline = centre + (44 − 13.5).
+
+        x = { parent.width - (app.badgeEdge + 2) * classroot.waveMag },
+        y = { parent.height / 2 + (30.5 - app.badgeEdge) * classroot.waveMag },
         kind = { classroot.kind == "calendar" ? "calendar" : classroot.kind == "stickies" ? "stickies" : classroot.kind == "files" ? "files" : "" },
         glyph = { classroot.kind == "markdown" ? "M↓" : classroot.kind == "declareviewer" ? "[  ]" : "" },
         gsize = { classroot.kind == "declareviewer" ? 0.42 : 0.42 },
@@ -1056,27 +1076,19 @@ class MiniTile extends View [
         onClick() { app.restoreMiniAt(classroot.ix) },
         ],
 
-    // the label pill — the DockIcon's, verbatim geometry: constant screen
-    // height, pinned 34px above the dock's top whatever the tile's size
+    // the label pill — the DockIcon's, verbatim geometry: it floats just above
+    // the tile's OWN top (local y), tail tip meeting it, so it rides the
+    // magnified crest exactly as the app-icon pill does
 
     pill: View [ visible = { hovered },
-        width = { this.t.width + 26 }, height = 26, cornerRadius = 9,
+        width = { this.t.width + 26 }, height = 33,
         x = { (parent.width - this.width) / 2 },
-        y = { parent.height - (this.parent.parent.height - 9 + 34) },
-        fill = { app.darkMode ? 0x2E2E33 : 0xF5F5F7 },
-        darkRim: Color = #00000059,
-        stroke = { stroke(1, app.darkMode && this.darkRim != null ? this.darkRim : 0xD8D8DD) },
-        t: Text [ x = center, y = center, fontSize = 13,
+        y = { parent.height / 2 - 102 },   // pinned to the shared pill baseline (~62px above the plate top), same Y as the app-icon pills
+        bodyH: number = 22,
+        draw(d) { app.drawPill(d, this.width, this.bodyH, app.darkMode) },
+        t: Text [ x = center, y = { (this.parent.bodyH - this.height) / 2 }, fontSize = 13,
             textColor = { app.darkMode ? 0xF2F2F5 : 0x1D1D1F },
             text = { classroot ? "" + classroot.lbl : "" } ],
-        tick: View [ width = 10, height = 6, x = { (parent.width - 10) / 2 }, y = 25,
-            draw(d) {
-                d.fillStyle = app.darkMode ? 0x2E2E33 : 0xF5F5F7
-                d.beginPath()
-                d.moveTo(0, 0); d.lineTo(10, 0); d.lineTo(5, 5.5)
-                d.fill()
-                },
-            ],
         ],
     ]
 
@@ -1100,10 +1112,9 @@ class DockIcon extends View [
 
     // shared geometry — one place for the numbers the constraints below share
 
-    rest: number = 48,                           // resting icon size
-    pitch: number = 56,                          // slot-center spacing (rest + 8 gap)
-    reach: number = 150,                         // magnification falloff radius, px of pointer distance
-    strip: number = 9,                           // the running-dot band under the icons
+    rest: number = { app.iconEdge },             // resting icon size (the shared cell)
+    pitch: number = { app.iconEdge + 16 },       // slot-center spacing (rest + 16 gap — measured 72pt on 56pt icons)
+    strip: number = 16,                          // the running-dot band under the icons (measured 16pt bottom margin; icons centered)
 
     // the resting slot center in app coords — the magnification's source must
     // not read the magnified layout (a feedback loop); resting geometry is
@@ -1111,18 +1122,23 @@ class DockIcon extends View [
 
     cx0: number = { app.width / 2 + (this.ix - (this.slots - 1) / 2) * this.pitch - app.miniSpan / 2 },
 
-    // inside the strip, magnification tracks the pointer with no visible lag —
-    // so `near` (the horizontal falloff) is an unsprung constraint, instant
-    // response — and only the enter/exit envelope (the dock's `hot`, sprung
-    // fast, ~100ms) animates. An earlier per-icon spring (~300ms) read as syrup.
+    // magnification: the shared wave (app.dockMag) about my resting center,
+    // read off the SMOOTHED pointer (dockX) so it glides every frame, and
+    // scaled by the enter/exit envelope (the dock's `hot`) so entering and
+    // leaving glide too. Neighbors displace as the widths change — the wave
+    // is layout, not paint.
 
-    near: number = { Math.max(0, 1 - Math.abs(app.pointerX - this.cx0) / this.reach) },
-    env: number = { this.parent.parent.hot },
+    // per-icon width spring (macos-web's model): each icon SPRINGS its own
+    // magnification toward a target read off the RAW pointer, so every icon is
+    // always mid-flight during motion and the wave glides continuously — rather
+    // than a single shared pointer-spring that settles between the browser's
+    // coalesced pointer events and then steps. The resting center (cx0) still
+    // feeds the wave distance (anti-feedback).
 
-    // the real width grows to 1.5× at the peak: neighbors displace, the
-    // plate's edges push outward — magnification by layout, not paint
-
-    width  = { this.rest * (1 + 0.5 * Math.pow(Math.max(0, this.near * this.env), 2)) },
+    magTarget: number = { 1 + (app.dockMag(app.pointerX - this.cx0) - 1) * this.parent.parent.hotGate },
+    mag: number = 1,
+    magSpring: Spring [ attribute = mag, to = { classroot.magTarget }, stiffness = 1300, damping = 62, epsilon = 0.002 ],
+    width  = { this.rest * this.mag },
     height = { this.width },
     y = { parent.height - this.height - this.strip - this.hopY },   // bottom-anchored above the dot strip
 
@@ -1157,13 +1173,20 @@ class DockIcon extends View [
             visible = { classroot.glyph != "" },
             text = { classroot ? "" + this.parent.parent.glyph : "" } ],
 
-        // drawn app art, authored in the resting 48-box and scaled with the
+        // drawn app art, authored in a 48-unit box and scaled to fill the
         // plate — the plausible-Mac-app set the dock's wave needed
 
-        art: View [ x = 0, y = 0, width = 48, height = 48,
+        art: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height },
             visible = { classroot.kind != "" },
-            scale = { this.parent.width / classroot.rest },
+
+            // the illustration is drawn at the icon's LIVE size — a canvas
+            // scale inside draw() (vector, recomputed every frame) rather than
+            // a CSS transform stretching a fixed 48px raster, which re-samples
+            // and jitters a pixel as the magnification glides. The body keeps
+            // its 48-unit authoring coordinates; only the scale moved inward.
+
             draw(d) {
+                d.scale(this.width / 48, this.width / 48)
                 const k = classroot.kind
                 // rounded rectangle on the path (the draw surface has arcs,
                 // not a roundRect) — shared by the folder's panels
@@ -1180,6 +1203,18 @@ class DockIcon extends View [
                     d.fillRect(0, 0, 48, 48)
                     d.fillStyle = 0xFB4238
                     d.fillRect(0, 0, 48, 13)
+                    // the weekday and day are drawn in the SAME 48-unit space,
+                    // so the whole face — band, MON, and the number — scales as
+                    // one unit at any size (dock crest or badge); no per-glyph
+                    // font clamp to skew their relative sizes.
+                    d.textAlign = "center"
+                    d.fillStyle = 0xFFFFFF
+                    d.font = "bold 7.5px -apple-system, system-ui, sans-serif"
+                    d.textBaseline = "middle"
+                    d.fillText(app.dayName, 24, 7)
+                    d.fillStyle = 0x1D1D1F
+                    d.font = "27px -apple-system, system-ui, sans-serif"
+                    d.fillText("" + app.dayNum, 24, 31)
                     }
                 else if (k == "files") {
                     // the folder: a back panel with its tab, then a brighter
@@ -1257,19 +1292,30 @@ class DockIcon extends View [
                 },
             ],
 
-        // the calendar's live face — the real weekday and day, from the clock
+        // the calendar's live weekday + day are drawn inside `art` (one 48-unit
+        // face that scales whole), not as separate Text children
 
-        // the weekday sits centered in the red band (13/48 of the plate)
+        // the tile's glossy edge — the same top-lit rim the dock plate carries,
+        // scaled to the icon and drawn at its LIVE size (no raster jitter as it
+        // magnifies). A 1px white highlight, brightest along the top and fading
+        // down — the sheen a real app-icon squircle catches from above.
 
-        cwk: Text [ x = center, y = { (this.parent.width / 48 * 13 - this.height) / 2 },
-            fontWeight = bold, textColor = 0xFFFFFF,
-            fontSize = { Math.max(6, this.parent.width * 0.16) },
-            visible = { classroot.kind == "calendar" },
-            text = { app.dayName } ],
-        cnum: Text [ x = center, y = { this.parent.height * 0.26 }, textColor = 0x1D1D1F,
-            fontSize = { this.parent.width * 0.56 },
-            visible = { classroot.kind == "calendar" },
-            text = { "" + app.dayNum } ],
+        rim: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height },
+            draw(d) {
+                const w = this.width
+                const h = this.height
+                const r = w * 0.23
+                const g = d.createLinearGradient(0, 0, 0, h)
+                g.addColorStop(0, "rgba(255,255,255,0.42)")
+                g.addColorStop(0.34, "rgba(255,255,255,0.07)")
+                g.addColorStop(1, "rgba(255,255,255,0)")
+                d.strokeStyle = g
+                d.lineWidth = 1
+                d.beginPath()
+                d.roundRect(0.5, 0.5, w - 1, h - 1, r - 0.5)
+                d.stroke()
+                },
+            ],
         ],
 
     // the running-app dot, centered in the strip below the icon
@@ -1278,32 +1324,26 @@ class DockIcon extends View [
     // icon's launch-bounce offset, pinning the dot to the strip
 
     dot: View [ width = 4, height = 4, cornerRadius = 2,
-        x = { (parent.width - 4) / 2 }, y = { parent.height + 3 + this.parent.hopY },
+        x = { (parent.width - 4) / 2 }, y = { parent.height + 6 + this.parent.hopY },
         visible = { running }, fill = { theme.textMuted } ],
 
     // the label pill — the dock's own quasi-tooltip: a frosted chip with a
-    // pointer tick, no shadow, and a constant screen height. The icon under it magnifies; the pill must not ride it —
-    // its y is written so the icon's own bottom-anchored y cancels out,
-    // pinning the pill 34px above the dock's top whatever the icon's size.
+    // downward pointer tick, no shadow. It floats just above the hovered
+    // icon's OWN top (local y = 0), so its tail tip meets the icon and — since
+    // the hovered icon is the wave's peak — it clears every neighbour. As the
+    // icon magnifies (top rises), the pill rides up with it, matching the real
+    // dock's tooltip, which sits above the magnified crest (measured: tail tip
+    // ~1–2px above the icon top).
 
     pill: View [ visible = { hovered },
-        width = { this.t.width + 26 }, height = 26, cornerRadius = 9,
+        width = { this.t.width + 26 }, height = 33,
         x = { (parent.width - this.width) / 2 },
-        y = { parent.height - (this.parent.parent.height - classroot.strip + 34) },
-        fill = { app.darkMode ? 0x2E2E33 : 0xF5F5F7 },
-        darkRim: Color = #00000059,
-        stroke = { stroke(1, app.darkMode && this.darkRim != null ? this.darkRim : 0xD8D8DD) },
-        t: Text [ x = center, y = center, fontSize = 13,
+        y = { parent.height - 130 },   // pinned to the shared pill baseline, robust to partial magnification (was -47, which only landed right at full magnification)
+        bodyH: number = 22,
+        draw(d) { app.drawPill(d, this.width, this.bodyH, app.darkMode) },
+        t: Text [ x = center, y = { (this.parent.bodyH - this.height) / 2 }, fontSize = 13,
             textColor = { app.darkMode ? 0xF2F2F5 : 0x1D1D1F },
             text = { classroot ? "" + this.parent.parent.name : "" } ],
-        tick: View [ width = 10, height = 6, x = { (parent.width - 10) / 2 }, y = 25,
-            draw(d) {
-                d.fillStyle = app.darkMode ? 0x2E2E33 : 0xF5F5F7
-                d.beginPath()
-                d.moveTo(0, 0); d.lineTo(10, 0); d.lineTo(5, 5.5)
-                d.fill()
-                },
-            ],
         ],
     ]
 
@@ -1332,9 +1372,87 @@ App [ clip = true, appName = "Declare Desktop",
     // ── shared desktop geometry: named once, read by every constraint below ──
 
     menuBarH: number = 32,                       // the system menu bar's height; windows live below it
-    iconEdge: number = 48,                       // a dock icon's resting edge — the cell every dock citizen shares
+    iconEdge: number = 56,                       // a dock icon's resting edge — measured off the real Mac dock (55.5pt)
     dockFloor: number = 13,                      // the icons' resting bottom line, up from the desktop's bottom edge
-    badgeEdge: number = 18,                      // a minimized window's app badge, at rest (hangs 2px past the thumb)
+    badgeEdge: number = 20,                      // a minimized window's app badge, at rest (measured ~20pt, bottom-right of the thumb)
+    thumbEdge: number = 64,                      // a minimized thumbnail's LONGER edge — measured 64pt (plate inner 88 − 12pt margins each side), so a thumb is bigger than an icon and centred, not icon-sized
+
+    // ── the dock's magnification wave ───────────────────────────────────────
+    //
+    // The wave has two jobs, and each gets its own smoothing so the motion is
+    // FRAME-paced, not pointer-EVENT-paced (browsers coalesce pointer events
+    // and deliver them irregularly — a magnification read straight off
+    // `pointerX` stutters, holding for several frames then jumping):
+    //
+    //   • dockX — a spring that chases the raw pointer. Everything the wave
+    //     touches reads dockX, so it re-derives every frame the spring ticks
+    //     (the shared clock delivers those smoothly), gliding between the
+    //     sparse pointer events. Its slight trail is the settle you feel.
+    //   • hot   — the enter/exit envelope (on the dock view): 0 when the
+    //     pointer is away from the dock band, 1 while over it. It scales the
+    //     whole wave, so entering and leaving glide instead of snapping.
+    //
+    // `dockMag` is the shape: distance-from-an-icon → magnification. The knots
+    // are MEASURED off this Mac's real dock (screen-captured, tile heights read
+    // in pixels): the hovered icon reaches ~1.55× and the wave falls off over
+    // four icon-pitches as a POINTED mountain (steep first step), the shape read
+    // below. Distance is to the RESTING center (cx0), never the magnified
+    // layout, so the wave can't feed back on itself.
+
+    dockX: number = 0,
+
+    // in-dock tracking: the wave sits under the cursor with ~1-frame lag and
+    // settles in ~110ms, critically damped (no tail) — the real dock's timing,
+    // measured frame-by-frame off a 60fps screen recording.
+
+    dockXSpring: Spring [ attribute = dockX, to = { app.pointerX }, stiffness = 1300, damping = 62, epsilon = 0.5 ],
+
+    dockMag(dist) {
+        const pitch = this.iconEdge + 16
+        const a = Math.abs(dist)
+        const xs = [0, pitch, 2 * pitch, 3 * pitch, 4 * pitch]
+        // MEASURED off this Mac's dock with icons added (apples-to-apples, same
+        // capture pipeline both sides): the peak is HIGHER (~1.55×) and the
+        // first-step drop STEEPER than the old broad curve — a pointed mountain,
+        // not a dome. peak · ±1 · ±2 · ±3 · ±4 = 1.55 · 1.35 · 1.18 · 1.06 · 1.0.
+        const ys = [1.55, 1.35, 1.18, 1.06, 1]
+        if (a >= xs[4]) return 1
+        for (let i = 0; i < 4; i++) {
+            if (a <= xs[i + 1]) return ys[i] + (ys[i + 1] - ys[i]) * (a - xs[i]) / (xs[i + 1] - xs[i])
+            }
+        return 1
+        },
+
+    // the label pill's silhouette — ONE path (a STADIUM body: fully-rounded
+    // left/right ends, r = half the body height, so the caps are true
+    // semicircles, NOT rounded-rectangle corners — plus a small FIXED triangle
+    // tail at bottom-centre). Filled translucent and stroked as a single outline
+    // so the border wraps the tail with no seam (the macOS dock tooltip).
+    // Measured off the real dock: body ~22pt, tail ~7pt, narrow ~16pt base,
+    // ~0.88 fill so the wallpaper shows through. The tail is FIXED — it does not
+    // grow with the name.
+
+    drawPill(d, w, bh, dark) {
+        const r = bh / 2                     // stadium: fully-rounded ends (semicircle caps)
+        const th = 7                         // FIXED triangle height — does NOT scale with the name
+        const hb = 8                         // FIXED triangle half-base (narrow)
+        const cx = w / 2
+        d.beginPath()
+        d.moveTo(r, 0)
+        d.lineTo(w - r, 0)                                       // top edge
+        d.arc(w - r, r, r, -Math.PI / 2, Math.PI / 2, false)    // right cap (semicircle)
+        d.lineTo(cx + hb, bh)                                    // bottom edge → triangle base
+        d.lineTo(cx, bh + th)                                    // down to the tip
+        d.lineTo(cx - hb, bh)                                    // back up
+        d.lineTo(r, bh)                                          // bottom edge
+        d.arc(r, r, r, Math.PI / 2, Math.PI * 1.5, false)       // left cap (semicircle)
+        d.closePath()
+        d.fillStyle = dark ? "rgba(46,46,51,0.9)" : "rgba(242,242,246,0.88)"
+        d.fill()
+        d.strokeStyle = dark ? "rgba(0,0,0,0.35)" : "rgba(196,196,204,0.85)"
+        d.lineWidth = 1
+        d.stroke()
+        },
 
     // activation is one View-typed slot: every window derives its look (shadow
     // depth, bar tone, lights) from whether it is this value
@@ -1479,16 +1597,19 @@ App [ clip = true, appName = "Declare Desktop",
             const z = this.sizeOf(ws[i])
             // the longer edge matches an app icon's edge: a minimized
             // window is never wider or taller than an icon
-            const slotW = Math.round(z.w * (this.iconEdge / Math.max(z.w, z.h)))
-            out.push(({ ix: i, label: this.labelFor(ws[i]), kind: this.appOf(ws[i]), w: slotW }))
+            const fit = this.thumbEdge / Math.max(z.w, z.h)
+            const slotW = Math.round(z.w * fit)
+            const slotH = Math.round(z.h * fit)
+            out.push(({ ix: i, label: this.labelFor(ws[i]), kind: this.appOf(ws[i]), w: slotW, h: slotH }))
             total += slotW + 8
             }
         miniRecs = out
         miniWins = ws
         miniCount = out.length
-        // the section: divider zone (17) + the slots + the last badge's 2px
-        // overhang, so the plate's right margin starts at the badge's edge
-        miniGoal = out.length > 0 ? total + 9 + 2 : 0
+        // the mini section's resting width added to the plate: the divider zone
+        // (34 = 16px left margin + line + 18px right) plus the slots and their
+        // gaps. `total` already counts a trailing 8px gap, so: total + 34 − 8.
+        miniGoal = out.length > 0 ? total + 26 : 0
         },
 
     // the minimized section's width — sprung toward the rebuilt goal, so
@@ -1505,25 +1626,30 @@ App [ clip = true, appName = "Declare Desktop",
     // neighbors right and never crosses the divider on its left. The wave's
     // falloff runs over resting centers (the icons' anti-feedback rule).
 
-    miniLayout: array = { this.computeMiniLayout(app.miniRecs, app.pointerX, app.dock.hot,
+    miniLayout: array = { this.computeMiniLayout(app.miniRecs, app.dockX, app.dock.hot,
         app.dock.x, app.dock.row.width, app.miniSpan, app.width) },
 
-    // 496 = the nine icons at rest (9·48 + 8 gaps of 8); 18 = the plate's
-    // side skirts (9 each); 17 = the divider zone (8 + line + 8); 150 = the
-    // wave's falloff radius (DockIcon.reach — one wave, two readers)
+    // iconRow = the nine icons + eight gaps at rest; 10 = the plate's side
+    // skirts (5 each); 5 = the row's inset in the plate; 17 = the divider
+    // zone (8 + line + 8). The wave itself is app.dockMag — one curve, read
+    // here for the tiles and by each DockIcon for the icons.
 
-    computeMiniLayout(recs, px, hot, dockX, rowW, span, appW) {
+    computeMiniLayout(recs, px, hot, dockLeftX, rowW, span, appW) {
         const rs = recs || []
-        const restDockX = (appW - (496 + 18 + span)) / 2
-        let rx = restDockX + 9 + 496 + 17           // first slot's resting left
-        let lx = dockX + 9 + rowW + 17              // …and its live left
+        const iconRow = 9 * app.iconEdge + 8 * 16   // the nine icons + eight gaps, at rest
+        // 32 = the plate's two 16px side skirts; 16 = the row's inset in the
+        // plate; 34 = the divider zone (16px left margin + line + 18px right
+        // margin) — the first thumbnail starts 34px past the last icon's edge
+        const restDockX = (appW - (iconRow + 32 + span)) / 2
+        let rx = restDockX + 16 + iconRow + 34      // first slot's resting left
+        let lx = dockLeftX + 16 + rowW + 34         // …and its live left
         const out = []
         for (const r of rs) {
             const cx0 = rx + r.w / 2
-            const near = Math.max(0, 1 - Math.abs(px - cx0) / 150)
-            const m = 1 + 0.5 * Math.pow(Math.max(0, near * hot), 2)
+            // the same wave the icons ride (app.dockMag), so tiles magnify in step
+            const m = 1 + (app.dockMag(px - cx0) - 1) * hot
             const w = r.w * m
-            out.push(({ x: lx, w: w, rw: r.w, cx: lx + w / 2 }))
+            out.push(({ x: lx, w: w, rw: r.w, h: (r.h || r.w) * m, cx: lx + w / 2 }))
             lx += w + 8
             rx += r.w + 8
             }
@@ -1558,11 +1684,31 @@ App [ clip = true, appName = "Declare Desktop",
         this.setIx(w, this.miniCount)
         this.rebuildMinis()
         if (frontWin == w) frontWin = null
+        w.raise()                                // the thumbnail pins to the top of the minimized band
         this.startPark(w)
         winSeq = winSeq + 1
         },
 
     bringFront(w) { w.activate() },              // any-seam (focusWin would recurse via isMin)
+
+    // ── the minimized band (the z-order fix): minimized windows' live
+    // thumbnails stay in `wins` (below the plate) but pin to the TOP of the
+    // layer, so a full-size window that reaches the dock can't cover them. A
+    // window that activates or opens raises only to just BENEATH the band —
+    // `raise(below)` with the band's floor — so the band always wins.
+    // `lowestMini` is that floor: the lowest-z SETTLED minimized window (a
+    // homing/restoring window is leaving the band, so it's excluded → the
+    // restoring window comes up to the front of the non-minimized band).
+
+    lowestMini() {
+        const ws = this.wins.children
+        for (let i = 0; i < ws.length; i++) { const w = ws[i]; if (this.isMin(w) && !this.homingOf(w)) return w }
+        return null
+        },
+
+    // bring a freshly-opened window to the front of the NON-minimized band
+
+    frontOpen(w) { frontWin = w; w.raise(this.lowestMini()) },
 
     // seatedness for a tile's badge: the window's visual width equals the
     // slot's — geometry, not bookkeeping. Deps arrive as arguments (the
@@ -1605,7 +1751,7 @@ App [ clip = true, appName = "Declare Desktop",
         winSeq = winSeq + 1
         const w = this.createView("AboutWindow", this.wins, ({ forApp: "" + a,
             wx: (app.width - 280) / 2 + (winCount % 3) * 16, wy: 110 + (winCount % 3) * 14 }))
-        frontWin = w
+        this.frontOpen(w)
         },
 
     // a press that lands on nothing deeper (the wallpaper) also dismisses —
@@ -1626,7 +1772,7 @@ App [ clip = true, appName = "Declare Desktop",
         winSeq = winSeq + 1
         // spawn positions cascade macOS-style, wrapping after a handful
         const w = this.createView("FinderWindow", this.wins, ({ wx: 90 + (winCount % 7) * 28, wy: 46 + (winCount % 7) * 26 }))
-        frontWin = w
+        this.frontOpen(w)
         },
 
     // Every open verb takes `v`, the view the open came from (the
@@ -1665,7 +1811,7 @@ App [ clip = true, appName = "Declare Desktop",
             const w = this.createView("ViewerWindow", this.wins, ({ path: p, title: "" + nm, wx: wx, wy: wy,
                 bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - this.menuBarH : -1,
                 bornFrom: v != null ? v : null }))
-            frontWin = w
+            this.frontOpen(w)
             }
         if (first) { this.dock.row.viewerIcon.poke(); setTimeout(go, 900) }
         else go()
@@ -1719,7 +1865,7 @@ App [ clip = true, appName = "Declare Desktop",
                 extraEnv: envExtra != null ? "" + envExtra : "",
                 bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - this.menuBarH : -1,
                 bornFrom: v != null ? v : null }))
-            frontWin = w
+            this.frontOpen(w)
             }
         if (first) { (isCal ? this.dock.row.calIcon : this.dock.row.dvIcon).poke(); setTimeout(go, 900) }
         else go()
@@ -1751,7 +1897,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
             winSeq = winSeq + 1
             const w = this.createView("StickyWindow", this.wins, ({ note: "" + (txt || "*A new note.*"),
                 wx: 480 + (winCount % 5) * 26, wy: 90 + (winCount % 5) * 24 }))
-            frontWin = w
+            this.frontOpen(w)
             }
         if (first) { this.dock.row.stIcon.poke(); setTimeout(go, 900) }
         else go()
@@ -1762,7 +1908,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         winSeq = winSeq + 1
         const w = this.createView("StickyWindow", this.wins, ({ note: this.welcomeNote,
             width: 400, height: 345, wx: Math.max(760, app.width - 424), wy: 120 }))
-        frontWin = w
+        this.frontOpen(w)
         },
 
     closeWin(w) { w.beginClose() },              // the reverse zoom; removal on its onStop
@@ -1847,6 +1993,42 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         const hit = (this.keyRegistry || []).find((r) => r.key == combo && r.enabled != false)
         if (hit != null) this.command("" + hit.id)
         },
+
+    // ── the wallpaper: an original flowing composition, drawn ──────────────
+    //
+    // A blue linear base with warm and cool radial glows floated over it —
+    // real Canvas gradients (a transparent outer stop is the soft falloff),
+    // overlapping into a varied, aurora-like field. Handler-less, so a desktop
+    // press still dismisses an About box.
+
+    wallpaper: View [ x = 0, y = 0, width = { app.width }, height = { app.height },
+        draw(d) {
+            const W = this.width
+            const H = this.height
+            const dark = app.darkMode
+            // the blue base — a vertical linear gradient, deep at top
+            const base = d.createLinearGradient(0, 0, 0, H)
+            base.addColorStop(0, dark ? "#161c2e" : "#3a5c9c")
+            base.addColorStop(1, dark ? "#0c1220" : "#6298ce")
+            d.fillStyle = base
+            d.fillRect(0, 0, W, H)
+            // each glow: a radial gradient from a translucent core to a fully
+            // transparent rim — the falloff is the gradient, no stacking
+            const span = Math.max(W, H)
+            const a = dark ? 0.11 : 0.22
+            const glow = (cx, cy, radius, rgb, core) => {
+                const g = d.createRadialGradient(cx, cy, 0, cx, cy, radius)
+                g.addColorStop(0, "rgba(" + rgb + "," + core + ")")
+                g.addColorStop(1, "rgba(" + rgb + ",0)")
+                d.fillStyle = g
+                d.fillRect(0, 0, W, H)
+                }
+            glow(W * 0.16, H * 0.20, span * 0.55, "255,138,96", a)    // warm coral, upper-left
+            glow(W * 0.86, H * 0.28, span * 0.50, "92,208,228", a)    // cyan, upper-right
+            glow(W * 0.64, H * 0.90, span * 0.60, "150,108,222", a)   // violet, lower
+            glow(W * 0.42, H * 0.55, span * 0.35, "255,202,128", a * 0.55)  // warm highlight, center
+            },
+        ],
 
     // ── the windows layer: a structural container; order is promotion ──────
 
@@ -1942,10 +2124,10 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
 
     // ── the dock ───────────────────────────────────────────────────────────
 
-    dock: View [ height = 78,
+    dock: View [ height = 150,
         width = { this.plate.width },
         x = { (app.width - this.width) / 2 },
-        y = { app.height - 82 },
+        y = { app.height - 155.5 },           // plate (88 tall, at the dock's bottom) sits 5.5px off the screen edge — measured
 
         // the enter/exit envelope the icons scale by — sprung fast (~100ms), so
         // entry reads as one quick motion; inside the strip the icons track
@@ -1960,25 +2142,59 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         // browser window the platform clears it, so the dock cools instead
         // of staying magnified at the pointer's last known column
 
-        armBand: number = 96,                    // the hover band arms this far above the bottom edge…
-        holdBand: number = 118,                  // …and holds to here while hot (past a magnified crest)
+        armBand: number = 100,                   // the hover band arms this far above the bottom edge (~plate top at 93.5)…
+        holdBand: number = 132,                  // …and holds to here while hot (past a magnified icon's crest ~104)
         hot: number = 0,
-        heat: Spring [ attribute = hot, to = { app.hovering && app.pointerY > app.height - (parent.hot > 0.5 ? parent.holdBand : parent.armBand) ? 1 : 0 },
-            stiffness = 900, damping = 55, epsilon = 0.001 ],
+
+        // hotGate is the INSTANT band result (0/1). The app icons read it as
+        // their wave gate, so their own per-icon mag springs do all the enter/
+        // leave smoothing (no double-spring). `hot` is the SPRUNG version — the
+        // mini section (a shared pointer-spring layout) still eases through it.
+
+        hotGate: number = { app.hovering && app.pointerY > app.height - (this.hot > 0.5 ? this.holdBand : this.armBand) ? 1 : 0 },
+
+        heat: Spring [ attribute = hot, to = { parent.hotGate }, stiffness = 3600, damping = 120, epsilon = 0.002 ],
 
         // at rest the icons sit clearly inside the plate; a magnified icon
         // crests above its top — bottom-anchored, top rises. The row must be
         // dock-height: the icons' bottom anchor reads parent.height, and a
         // shorter row would float them above the plate at rest.
 
-        plate: View [ x = 0, y = { parent.height - 64 }, height = 64, width = { parent.row.width + 18 + app.miniSpan + app.miniMagX },
-            cornerRadius = 20, fill = { app.darkMode ? 0x2A2A30 : 0xFCFCFE }, opacity = 0.72,
-            rimD: Color = #FFFFFF33,
-            rimL: Color = #FFFFFF80,
-            stroke = { stroke(1, app.darkMode ? (this.rimD != null ? this.rimD : 0) : (this.rimL != null ? this.rimL : 0)) },
+        plate: View [ x = 0, y = { parent.height - 88 }, height = 88, width = { parent.row.width + 32 + app.miniSpan + app.miniMagX },
+            cornerRadius = 27, fill = { app.darkMode ? 0x2A2A30 : 0xFCFCFE }, opacity = 0.4 ],
+
+        // the plate's edge rim — DRAWN, at full strength (the plate is
+        // translucent, so the rim rides a sibling above it, not inside its
+        // opacity). A top-lit inner highlight: a vertical white gradient stroke
+        // brightest along the TOP edge and fading down the sides to nothing at
+        // the floor — the "lit from above" bevel the real dock carries
+        // (measured: edge lum ~185 over the ~138 fill, fading through the
+        // corners as the rim winds around). A faint outer hairline sets the
+        // plate off from the wallpaper.
+
+        plateRim: View [ x = 0, y = { parent.height - 88 }, height = 88, width = { parent.plate.width },
+            draw(d) {
+                const w = this.width
+                const h = this.height
+                const r = 27
+                d.strokeStyle = app.darkMode ? "rgba(0,0,0,0.34)" : "rgba(112,124,148,0.22)"
+                d.lineWidth = 1
+                d.beginPath()
+                d.roundRect(0.5, 0.5, w - 1, h - 1, r - 0.5)
+                d.stroke()
+                const g = d.createLinearGradient(0, 0, 0, h)
+                g.addColorStop(0, app.darkMode ? "rgba(255,255,255,0.30)" : "rgba(255,255,255,0.62)")
+                g.addColorStop(0.42, app.darkMode ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.13)")
+                g.addColorStop(1, "rgba(255,255,255,0)")
+                d.strokeStyle = g
+                d.lineWidth = 1.5
+                d.beginPath()
+                d.roundRect(1.4, 1.4, w - 2.8, h - 2.8, r - 1.4)
+                d.stroke()
+                },
             ],
-        row: View [ x = 9, y = 0, height = { parent.height },
-            layout: SimpleLayout [ axis = x, spacing = 8 ],
+        row: View [ x = 16, y = 0, height = { parent.height },
+            layout: SimpleLayout [ axis = x, spacing = 16 ],
 
             // a running app's icon raises its open windows instead of opening
             // more — dockOpen: raise if any, else the app's default open
@@ -2033,11 +2249,11 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         // fades with the widening, so growth reads as one motion, no seam.
 
         minis: View [ visible = { app.miniSpan > 0.5 },
-            x = { parent.row.x + parent.row.width + 8 }, y = 0, height = { parent.height },
-            div: View [ x = 0, y = { parent.height - 56 }, width = 1, height = 48,
+            x = { parent.row.x + parent.row.width + 16 }, y = 0, height = { parent.height },
+            div: View [ x = 0, y = { parent.height - 77 }, width = 1, height = 65,
                 opacity = { Math.min(1, app.miniSpan / 26) },
-                inkD: Color = #FFFFFF38,
-                inkL: Color = #00000022,
+                inkD: Color = #FFFFFF48,
+                inkL: Color = #00000042,
                 fill = { app.darkMode ? this.inkD : this.inkL },
                 ],
 

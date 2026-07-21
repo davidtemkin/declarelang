@@ -26,7 +26,7 @@
 // seam's sink, derived from declared handlers).
 import { DeclareError } from "./errors.js";
 import { colorToCss, isGradient } from "./value.js";
-import { paintBox, realizeGradient } from "./boxpaint.js";
+import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.js";
 import { cssWeight, fontMetrics, fontString, textWidth, wrapLines } from "./measure.js";
 import { replay } from "./draw.js";
 import { onDprChange } from "./dpr.js";
@@ -718,6 +718,13 @@ class CanvasSurface {
             ctx.translate(this.pivotX, this.pivotY);
             ctx.scale(this.scaleK, this.scaleK);
             ctx.translate(-this.pivotX, -this.pivotY);
+        }
+        // The box's own drop shadow is painted BEFORE the clip, so it escapes the
+        // view's overflow exactly as a CSS box-shadow escapes overflow:hidden.
+        // (paintBox no longer casts it — it would land inside the clip.)
+        if (this.shadow !== null && this.width > 0 && this.height > 0) {
+            this.box ??= boxShape(this.width, this.height, this.cornerRadius);
+            paintBoxShadow(ctx, this.box, this.shadow);
         }
         const cpPaint = this.clipPathObj();
         if (cpPaint !== null)

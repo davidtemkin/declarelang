@@ -40,7 +40,7 @@ export { check, checkAttr, checkMethod, checkDecl, checkComponentValue, programS
 export { instantiate } from "./instantiate.js";
 export { forEachCodeValue, serializeDeps, applyDeps } from "./deps.js";
 export { forEachElement, serializeLinks, applyLinks, type SerializedLink } from "./links.js";
-export { renderProgram, renderProgramAsync, mountApp, disposeApp, loadFonts } from "./boot.js";
+export { renderProgram, renderProgramAsync, mountApp, disposeApp, loadFonts, reflectAppName } from "./boot.js";
 export type { FontSpec } from "./boot.js";
 export { Node } from "./node.js";
 export { View, App, DOMIsland, inheritedCursor, onDiscard } from "./view.js";

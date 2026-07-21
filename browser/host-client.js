@@ -14,7 +14,7 @@
 //
 // Relative import so the whole tree is subpath-portable (GitHub Pages project
 // pages live under /<repo>/): resolved against THIS module's URL, not the page's.
-import { renderAsync, build, mountApp, loadFonts, fontFacesOf, settle, disposeApp, DomBackend, CanvasBackend } from "../runtime/dist/index.js";
+import { renderAsync, build, mountApp, loadFonts, fontFacesOf, settle, disposeApp, reflectAppName, DomBackend, CanvasBackend } from "../runtime/dist/index.js";
 
 const BACKENDS = { DomBackend, CanvasBackend };
 
@@ -107,17 +107,16 @@ export async function bootHost(cfg) {
   addEventListener("popstate", onPop);
   // app.appName → document.title, the same mirror-per-settle discipline as
   // location (the app never touches document; the name rides a declared attr
-  // the host owns). "" = no opinion — the served title stands. Mirrored BEFORE
-  // the history push below, so back/forward entries are labeled with the state
-  // they represent (the browser snapshots document.title at push time).
+  // the host owns). "" = no opinion — the served title stands. The MAPPING
+  // lives once in the runtime (boot.js reflectAppName) — declarec builds drive
+  // the same function from their own frame loop; this host drives it here,
+  // BEFORE the history push below, so back/forward entries are labeled with
+  // the state they represent (the browser snapshots document.title at push).
   const servedTitle = document.title;
   let titled = "";                                      // what document.title currently reflects
   const locTick = () => {
     if (stopped) return;
-    if (app.appName !== titled) {
-      titled = app.appName;
-      document.title = app.appName || servedTitle;
-    }
+    titled = reflectAppName(app, servedTitle, titled);
     if (app.location !== mirrored) {                   // the app navigated — one push per changed settle
       mirrored = app.location;
       const frag = app.location === locationInitial ? "" : app.location;   // clean URL at the default (§3)

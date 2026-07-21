@@ -71,7 +71,7 @@ export { instantiate } from "./instantiate.js";
 export { forEachCodeValue, serializeDeps, applyDeps } from "./deps.js";
 export { forEachElement, serializeLinks, applyLinks } from "./links.js";
 // Precompiled production entry + render glue (compiler-free) — see boot.ts.
-export { renderProgram, renderProgramAsync, mountApp, disposeApp, loadFonts } from "./boot.js";
+export { renderProgram, renderProgramAsync, mountApp, disposeApp, loadFonts, reflectAppName } from "./boot.js";
 export { Node } from "./node.js";
 export { View, App, DOMIsland, inheritedCursor, onDiscard } from "./view.js";
 export { Text } from "./text.js";

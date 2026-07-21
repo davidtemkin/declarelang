@@ -15,6 +15,10 @@ workshop/
 # generated evals/RESULTS.md scoreboard (and the tasks) are committed.
 evals/runs/
 
+# internal dev tools compiled locally: the .swift source is tracked, the built
+# binary is a per-machine build artifact (macOS-only, regenerated with swiftc).
+tools/internal/pointer
+
 # misc
 *.log
 .DS_Store

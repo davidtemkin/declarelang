@@ -310,18 +310,33 @@ export class View extends Node {
     scrollIntoView(align) {
         this.surface?.scrollIntoView(align);
     }
-    /** Promotion (planes.md §1 — order is a slot): re-link this view as its
-     *  parent's LAST child, tree and surface both — above its siblings, since
-     *  stacking is source order. The verb form of z-order: no numbers, ever.
-     *  A Menu raises at open; a Window raises on activation. */
-    raise() {
+    /** Promotion (planes.md §1 — order is a slot): re-link this view among its
+     *  siblings, tree and surface both. `raise()` moves it to the FRONT (last
+     *  child — stacking is source order); `raise(below)` moves it to just BENEATH
+     *  a sibling instead, so a pinned band above it (e.g. the dock's minimized
+     *  windows) stays on top. Same parent only — the verb form of z-order, no
+     *  numbers. A Menu raises at open; a Window raises on activation. */
+    raise(below) {
         const p = this.parent;
-        if (!(p instanceof View) || p.children[p.children.length - 1] === this)
+        if (!(p instanceof View))
             return;
+        if (below == null || below === this || below.parent !== p) {
+            if (p.children[p.children.length - 1] === this)
+                return; // already frontmost
+            p.removeChild(this);
+            p.insertChild(this, p.children.length);
+            if (this.surface !== null && p.surface !== null)
+                p.surface.insertChild(this.surface, null);
+            return;
+        }
+        if (p.children[p.children.indexOf(below) - 1] === this)
+            return; // already just beneath `below`
         p.removeChild(this);
-        p.insertChild(this, p.children.length);
-        if (this.surface !== null && p.surface !== null)
-            p.surface.insertChild(this.surface, null);
+        const at = p.children.indexOf(below);
+        p.insertChild(this, at < 0 ? p.children.length : at);
+        if (this.surface !== null && p.surface !== null && below.surface !== null) {
+            p.surface.insertChild(this.surface, below.surface);
+        }
     }
     /** This view's input route, or null when it answers no pointer event —
      *  interactivity *derives* from declared handlers (Decisions §R5): a view

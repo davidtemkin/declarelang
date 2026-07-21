@@ -182,6 +182,40 @@ export function mountApp(app: App, host: HTMLElement, backend: RenderBackend): A
   return app;
 }
 
+/** `app.appName` → `document.title` — the ONE place that mapping lives. Call it
+ *  per settle with the title the page was SERVED: an empty `appName` means "no
+ *  opinion" and leaves the served title standing. Returns the name now
+ *  reflected, so the caller skips no-op writes.
+ *
+ *  Two hosts drive it, deliberately not one: `browser/host-client.js` calls it
+ *  from its own settle loop (BEFORE the location history push, so back/forward
+ *  entries are labelled with the state they represent), and `renderProgram*`
+ *  below drives it for `declarec` builds, which have no host client. Same
+ *  mapping, two drivers — never two copies of the rule. */
+export function reflectAppName(app: App, served: string, reflected: string): string {
+  if (typeof document === "undefined" || app.appName === reflected) return reflected;
+  document.title = app.appName || served;
+  return app.appName;
+}
+
+/** Drive reflectAppName from the frame loop, for hosts with no settle loop of
+ *  their own (the AOT entry). Top-level apps only: an embedded child app must
+ *  never retitle the page, which is why this is wired into renderProgram* — the
+ *  production page entry — and never into mountApp, which islands also use. */
+function startTitleMirror(app: App, host: HTMLElement): void {
+  if (typeof document === "undefined" || typeof requestAnimationFrame === "undefined") return;
+  const served = document.title;
+  let reflected = "";
+  const tick = (): void => {
+    // Self-retiring on a detached host, the same liveness rule the input
+    // router uses — a page app never detaches, so this costs one check a frame.
+    if (!host.isConnected) return;
+    reflected = reflectAppName(app, served, reflected);
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
 /** Render a PRECOMPILED program (the artifact `declarec` emits) — instantiate
  *  and mount, with NO parse and NO typecheck (both done at build time). This is
  *  the production entry point: importing it pulls the runtime's run-path only,
@@ -189,7 +223,9 @@ export function mountApp(app: App, host: HTMLElement, backend: RenderBackend): A
 export function renderProgram(program: Program, host: HTMLElement, backend: RenderBackend): App {
   const root = instantiate(program);
   if (!(root instanceof App)) throw new DeclareError("a program's root must be 'App [ … ]'", program.root.pos);
-  return mountApp(root, host, backend);
+  mountApp(root, host, backend);
+  startTitleMirror(root, host);
+  return root;
 }
 
 /** Like renderProgram(), but first loads the program's own web `font` faces so
@@ -198,5 +234,7 @@ export async function renderProgramAsync(program: Program, host: HTMLElement, ba
   const root = instantiate(program);
   if (!(root instanceof App)) throw new DeclareError("a program's root must be 'App [ … ]'", program.root.pos);
   await loadFonts(fontFacesOf(root));
-  return mountApp(root, host, backend);
+  mountApp(root, host, backend);
+  startTitleMirror(root, host);
+  return root;
 }

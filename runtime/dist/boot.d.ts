@@ -32,6 +32,17 @@ export declare function wireInput(app: App, host: HTMLElement): void;
 /** Mount an already-instantiated App: attach to the backend, root it in `host`,
  *  wire input. The shared tail of every render path. */
 export declare function mountApp(app: App, host: HTMLElement, backend: RenderBackend): App;
+/** `app.appName` → `document.title` — the ONE place that mapping lives. Call it
+ *  per settle with the title the page was SERVED: an empty `appName` means "no
+ *  opinion" and leaves the served title standing. Returns the name now
+ *  reflected, so the caller skips no-op writes.
+ *
+ *  Two hosts drive it, deliberately not one: `browser/host-client.js` calls it
+ *  from its own settle loop (BEFORE the location history push, so back/forward
+ *  entries are labelled with the state they represent), and `renderProgram*`
+ *  below drives it for `declarec` builds, which have no host client. Same
+ *  mapping, two drivers — never two copies of the rule. */
+export declare function reflectAppName(app: App, served: string, reflected: string): string;
 /** Render a PRECOMPILED program (the artifact `declarec` emits) — instantiate
  *  and mount, with NO parse and NO typecheck (both done at build time). This is
  *  the production entry point: importing it pulls the runtime's run-path only,

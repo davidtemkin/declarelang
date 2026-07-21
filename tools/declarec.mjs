@@ -88,6 +88,7 @@ export async function buildProduction(source, opts = {}) {
     : { cls: "DomBackend", file: "dom-backend.js" };
   const programJson = JSON.stringify(built.program);
   const entry =
+    `import ${JSON.stringify(join(RUNTIME, "index.js"))};\n` +
     `import { renderProgramAsync } from ${JSON.stringify(join(RUNTIME, "boot.js"))};\n` +
     `import { ${backend.cls} } from ${JSON.stringify(join(RUNTIME, backend.file))};\n` +
     `const PROGRAM = JSON.parse(${JSON.stringify(programJson)});\n` +

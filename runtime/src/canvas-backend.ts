@@ -28,7 +28,7 @@
 import { DeclareError } from "./errors.js";
 import type { EditableSpec, InputSink, RenderBackend, Stretch, Surface } from "./backend.js";
 import { colorToCss, isGradient, type Fill, type Gradient, type Shadow, type Stroke } from "./value.js";
-import { paintBox, realizeGradient } from "./boxpaint.js";
+import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.js";
 import { cssWeight, fontMetrics, fontString, textWidth, wrapLines, type TextStyle } from "./measure.js";
 import { replay, type DisplayList } from "./draw.js";
 import { onDprChange } from "./dpr.js";
@@ -716,6 +716,13 @@ class CanvasSurface implements Surface {
       ctx.translate(this.pivotX, this.pivotY);
       ctx.scale(this.scaleK, this.scaleK);
       ctx.translate(-this.pivotX, -this.pivotY);
+    }
+    // The box's own drop shadow is painted BEFORE the clip, so it escapes the
+    // view's overflow exactly as a CSS box-shadow escapes overflow:hidden.
+    // (paintBox no longer casts it — it would land inside the clip.)
+    if (this.shadow !== null && this.width > 0 && this.height > 0) {
+      this.box ??= boxShape(this.width, this.height, this.cornerRadius);
+      paintBoxShadow(ctx, this.box, this.shadow);
     }
     const cpPaint = this.clipPathObj();
       if (cpPaint !== null) ctx.clip(cpPaint);

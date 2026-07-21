@@ -31,8 +31,10 @@ export function paintBox(ctx, b, box) {
         return box;
     const r = b.cornerRadius;
     const st = b.stroke;
-    const sh = b.shadow;
-    if (r <= 0 && st === null && sh === null && b.gradient === null) {
+    // NB: the drop shadow is NOT painted here — it is cast OUTSIDE the box and
+    // must escape the view's own clip (as a CSS box-shadow escapes the element's
+    // overflow:hidden), so the caller paints it BEFORE clipping (paintBoxShadow).
+    if (r <= 0 && st === null && b.gradient === null) {
         if (b.fill !== null) {
             ctx.fillStyle = b.fill;
             ctx.fillRect(0, 0, w, h);
@@ -40,14 +42,8 @@ export function paintBox(ctx, b, box) {
         return box;
     }
     if (box === null) {
-        box = new Path2D();
-        if (r > 0)
-            box.roundRect(0, 0, w, h, r);
-        else
-            box.rect(0, 0, w, h);
+        box = boxShape(w, h, r);
     }
-    if (sh !== null)
-        paintBoxShadow(ctx, box, sh);
     if (b.gradient !== null) {
         ctx.fillStyle = realizeGradient(ctx, b.gradient, w, h);
         ctx.fill(box);
@@ -69,11 +65,24 @@ export function paintBox(ctx, b, box) {
     }
     return box;
 }
+/** The box shape as a Path2D — a rounded rect (r > 0) or a plain rect. Shared
+ *  by the fill/border paint and the drop-shadow paint so both trace the same
+ *  outline. */
+export function boxShape(w, h, r) {
+    const p = new Path2D();
+    if (r > 0)
+        p.roundRect(0, 0, w, h, r);
+    else
+        p.rect(0, 0, w, h);
+    return p;
+}
 /** The drop shadow, CSS box-shadow semantics: cast by the border box, never
- *  painted inside it. Canvas shadow state is DEVICE-space (untransformed),
- *  so offsets scale by the walk's transform; the shape itself is drawn far
- *  off-canvas with a compensating offset so only its shadow lands. */
-function paintBoxShadow(ctx, box, sh) {
+ *  painted inside it. Painted by the caller BEFORE the view's own clip, so it
+ *  escapes overflow the way a CSS box-shadow does. Canvas shadow state is
+ *  DEVICE-space (untransformed), so offsets scale by the walk's transform; the
+ *  shape itself is drawn far off-canvas with a compensating offset so only its
+ *  shadow lands. */
+export function paintBoxShadow(ctx, box, sh) {
     const K = 1e5;
     const m = ctx.getTransform();
     ctx.save();

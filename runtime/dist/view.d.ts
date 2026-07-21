@@ -271,11 +271,13 @@ export declare class View extends Node {
      *  the platform primitive — `reveal` is deliberately left free as a member name,
      *  e.g. a `reveal:` fade-in Spring.) */
     scrollIntoView(align?: "start" | "nearest"): void;
-    /** Promotion (planes.md §1 — order is a slot): re-link this view as its
-     *  parent's LAST child, tree and surface both — above its siblings, since
-     *  stacking is source order. The verb form of z-order: no numbers, ever.
-     *  A Menu raises at open; a Window raises on activation. */
-    raise(): void;
+    /** Promotion (planes.md §1 — order is a slot): re-link this view among its
+     *  siblings, tree and surface both. `raise()` moves it to the FRONT (last
+     *  child — stacking is source order); `raise(below)` moves it to just BENEATH
+     *  a sibling instead, so a pinned band above it (e.g. the dock's minimized
+     *  windows) stays on top. Same parent only — the verb form of z-order, no
+     *  numbers. A Menu raises at open; a Window raises on activation. */
+    raise(below?: View | null): void;
     /** This view's input route, or null when it answers no pointer event —
      *  interactivity *derives* from declared handlers (Decisions §R5): a view
      *  with none is never wired (pay-per-use) and stays transparent to input,

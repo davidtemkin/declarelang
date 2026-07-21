@@ -193,7 +193,7 @@ export const LANGUAGE_API = {
     ],
     View: [
         `  scrollIntoView(align?: "start" | "nearest"): void;`,
-        `  raise(): void;`,
+        `  raise(below?: View): void;`,
         `  removeChild(child: View): void;`,
         `  insertChild(child: View, index: number): void;`,
         // The keyboard-traversal protocol (focus.ts): a view's tabOrder() decides
