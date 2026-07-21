@@ -144,7 +144,7 @@ function mapElement(el: LzxNode, naming: Naming, sink: GapSink, classes: DClass[
   if (special === "walk") { mapMembers(el, el.tag, naming, sink, classes); return null; }
   const tag = resolveTag(el.tag, naming);
   if (tag === null) {
-    sink.add({ kind: `unknown tag <${el.tag}>`, severity: "blocking", s13Ref: "unknown-tag", pos: el.pos, note: `no built-in mapping or user class for <${el.tag}>` });
+    sink.add({ kind: `unmapped component <${el.tag}>`, severity: "degraded", s13Ref: "library-component", pos: el.pos, note: `OL component <${el.tag}> has no Declare equivalent` });
     // Still walk the subtree for GAPS (nested datapath/state/resource) — the
     // oracle should see the whole tree, not stop at the first unknown parent.
     // The emitted members are discarded (the node itself can't be emitted).

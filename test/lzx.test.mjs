@@ -392,4 +392,16 @@ await test("a handler for an undeclared event on a schema tag is dropped", () =>
   if (/onFrobnicate/.test(r.declare)) throw new Error("onfrobnicate (undeclared) should be dropped: " + r.declare);
 });
 
+// ── Library mapping Task 6: residue → library-component ────────────────────
+
+await test("an unmapped component tag is library-component, not unknown-tag", () => {
+  const r = lzxToDeclare(`<canvas><window title="x"/></canvas>`);
+  if (!r.gaps.some((g) => g.s13Ref === "library-component")) throw new Error("no library-component gap");
+  if (r.gaps.some((g) => g.s13Ref === "unknown-tag" && g.kind.includes("window"))) throw new Error("window should be library-component: " + JSON.stringify(r.gaps));
+});
+await test("a canvas knob stays its own gap, NOT library-component", () => {
+  const r = lzxToDeclare(`<canvas debug="true" width="100"/>`);
+  if (r.gaps.some((g) => g.s13Ref === "library-component")) throw new Error("knob wrongly recategorized: " + JSON.stringify(r.gaps));
+});
+
 summarize("lzx");
