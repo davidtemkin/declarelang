@@ -174,10 +174,12 @@ await test("records a constraint-timing gap for $once{}", () => {
   if (!sink.gaps.some((g) => g.s13Ref === "constraint-timing")) throw new Error("no gap");
 });
 
-await test("records an unknown-tag gap for an unmapped child", () => {
+await test("records a library-component gap for an unmapped child", () => {
+  // (Phase-2 update: residue at the tag-unresolved site is now library-component,
+  // the honest "OL component with no Declare home" signal — not unknown-tag.)
   const sink = makeSink();
   mapDoc(parseLzx(`<canvas><frobnicate/></canvas>`), buildNaming([]).naming, sink);
-  if (!sink.gaps.some((g) => g.s13Ref === "unknown-tag")) throw new Error("no unknown-tag gap");
+  if (!sink.gaps.some((g) => g.s13Ref === "library-component")) throw new Error("no library-component gap");
 });
 
 // ── Task 6: end-to-end lzxToDeclare ────────────────────────────────────────
