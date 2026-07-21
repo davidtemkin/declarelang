@@ -12,7 +12,7 @@ a whole program instead of one stylesheet.
 ```
 ⌥⌘D            on any page
 ?inspect       on any program URL — http://…/apps/calendar/calendar.declare?inspect
-               (?inspector is accepted too; a directory URL works — …/apps/calendar/?inspect)
+               (a directory URL is the same address — …/apps/calendar/?inspect)
 ```
 
 It is itself a Declare program (`apps/inspector/inspector.declare`) reading another one

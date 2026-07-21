@@ -92,12 +92,8 @@ export function wireInspector(subject) {
       else openInspector(subject).catch((err) => console.error("[Declare] Inspector:", err));
     }
   });
-  // `?inspect` is the documented spelling; `?inspector` is accepted because the
-  // tool is called the Inspector everywhere else and that is what people type.
-  // A near-miss here used to load the app and silently do nothing, which reads
-  // as "the Inspector is broken" rather than "that is not the flag".
   const q = new URLSearchParams(location.search);
-  if (q.has("inspect") || q.has("inspector")) {
+  if (q.has("inspect")) {
     openInspector(subject).catch((err) => console.error("[Declare] Inspector:", err));
   }
 }
