@@ -3,12 +3,15 @@
 // collisions are reported. Attribute-alias targets and type lookups are anchored
 // against the runtime's static schema tables (the retired backgroundColor is not
 // a target — the box-fill slot is `fill`).
-import { SCHEMAS } from "../../runtime/dist/schema.js"; // real export is SCHEMAS (uppercase), verified
+import { SCHEMAS, eventsOf, eventOfHandler } from "../../runtime/dist/schema.js"; // real export is SCHEMAS (uppercase), verified
 import type { ComponentSchema } from "../../runtime/dist/schema.js";
 
 const TAG_TABLE: Record<string, string> = {
   canvas: "App", view: "View", text: "Text", button: "Button",
   simplelayout: "SimpleLayout", dataset: "Dataset",
+  // schema-backed exact-equivalent components (no `node` — empty NodeSchema)
+  edittext: "TextInput", inputtext: "TextInput", image: "Image",
+  animator: "Animator", animatorgroup: "AnimatorGroup", wrappinglayout: "WrappingLayout",
 };
 
 const ATTR_TABLE: Record<string, string> = {
@@ -16,6 +19,8 @@ const ATTR_TABLE: Record<string, string> = {
   onclick: "onClick", onmouseup: "onMouseUp", oninit: "onInit",
   fontsize: "fontSize", fontweight: "fontWeight", fontfamily: "fontFamily",
   cornerradius: "cornerRadius",
+  // OL image source → Declare Image's `source` slot
+  src: "source", resource: "source", url: "source",
 };
 
 const CONTENT_ATTR: Record<string, string> = { Button: "label", Text: "text" };
@@ -31,6 +36,8 @@ export interface Naming {
   contentAttrFor(declareTag: string): string | null;
   classNameFor(lzxName: string): string;
   isUserClass(lzxName: string): boolean;
+  hasSchema(declareTag: string): boolean;
+  declaresEvent(declareTag: string, handlerName: string): boolean;
 }
 
 /** The built-in schema's attribute-type kind for tag+attr, walking the base
@@ -80,6 +87,12 @@ export function buildNaming(userClassNames: string[]): { naming: Naming; collisi
     // case-insensitive fold (mybox/myBox → one class, emitted MyBox).
     classNameFor(lzxName) { const d = canonical.get(lzxName.toLowerCase()) ?? lzxName; return d.charAt(0).toUpperCase() + d.slice(1); },
     isUserClass(lzxName) { return canonical.has(lzxName.toLowerCase()); },
+    hasSchema(declareTag) { return declareTag in SCHEMAS; },
+    declaresEvent(declareTag, handlerName) {
+      const sc = SCHEMAS[declareTag];
+      const ev = eventOfHandler(handlerName); // string | null
+      return sc !== undefined && ev !== null && eventsOf(sc).includes(ev);
+    },
   };
   return { naming, collisions };
 }

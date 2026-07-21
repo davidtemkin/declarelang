@@ -301,4 +301,38 @@ await test("weather.lzx transpiles (skeleton) and reports its known gap families
   }
 });
 
+// ── Library mapping Task 2: naming ─────────────────────────────────────────
+
+await test("hasSchema true for a schema tag, false for a library class", () => {
+  const { naming } = buildNaming([]);
+  if (!naming.hasSchema("TextInput")) throw new Error("TextInput should be schema-backed");
+  if (naming.hasSchema("Button")) throw new Error("Button is a library class, not a schema");
+});
+await test("declaresEvent walks the base chain", () => {
+  const { naming } = buildNaming([]);
+  if (!naming.declaresEvent("Image", "onClick")) throw new Error("Image should inherit View's click");
+  if (naming.declaresEvent("Image", "onFrobnicate")) throw new Error("no such event");
+  if (!naming.declaresEvent("Animator", "onStop")) throw new Error("Animator declares stop");
+});
+await test("image source aliases (src/resource/url) map to source", () => {
+  const { naming } = buildNaming([]);
+  for (const a of ["src", "resource", "url"]) if (naming.attrFor(a) !== "source") throw new Error(a + "→" + naming.attrFor(a));
+});
+await test("component tags map to schema-backed Declare tags", () => {
+  const { naming } = buildNaming([]);
+  if (naming.tagFor("edittext") !== "TextInput") throw new Error("edittext");
+  if (naming.tagFor("image") !== "Image") throw new Error("image");
+  if (naming.tagFor("animatorgroup") !== "AnimatorGroup") throw new Error("animatorgroup");
+  if (naming.tagFor("node") !== null) throw new Error("node must NOT be mapped (empty schema)");
+});
+await test("every TAG_TABLE value is a schema key or a library class (two-sided anchoring)", () => {
+  const keys = new Set(Object.keys(_schemas));
+  const libClasses = new Set(["Button","Checkbox","Radio","RadioGroup","Slider","Switch","Field","ProgressBar","Bar","FocusRing","Control"]);
+  const { naming } = buildNaming([]);
+  for (const lzx of ["canvas","view","text","button","simplelayout","dataset","edittext","inputtext","image","animator","animatorgroup","wrappinglayout"]) {
+    const t = naming.tagFor(lzx);
+    if (t && !keys.has(t) && !libClasses.has(t)) throw new Error(`${lzx}→${t} not anchored`);
+  }
+});
+
 summarize("lzx");
