@@ -23,15 +23,10 @@ export async function registerServiceWorker() {
   const swUrl = new URL("../service-worker.js", import.meta.url);
   const scope = new URL("./", swUrl).pathname;    // the distro root == the worker's own directory
 
-  // A new deploy activates a worker with a new BUILD_ID that posts `declare-updated`. If it
-  // differs from the build this page booted with, reload ONCE onto the fresh version. Setting
-  // sessionStorage BEFORE the reload guards against a loop (a second identical message no-ops).
-  navigator.serviceWorker.addEventListener("message", (e) => {
-    if (!e.data || e.data.type !== "declare-updated") return;
-    const seen = sessionStorage.getItem("declare-build");
-    sessionStorage.setItem("declare-build", e.data.build);
-    if (seen && seen !== e.data.build) location.reload();
-  });
+  // NO auto-reload, ever — a running page is never refreshed out from under you. The worker
+  // still updates its cache in the background; a new deploy is picked up only when YOU reload
+  // or navigate. (In the other config — the Node dev server — no worker registers at all, so
+  // there is no live reload anywhere.)
 
   try {
     // A MODULE worker (type: "module"): service-worker.js imports the shared serving

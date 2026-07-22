@@ -171,4 +171,28 @@ export function freeIdentifiers(src, opts) {
     visit(sf);
     return out;
 }
+/** Every `0xRRGGBBAA` (8-hex) numeric literal in a body, in source order — the
+ *  `0x` twin of the `#RRGGBBAA` literal. compile.ts lowers each to a
+ *  `colorWithAlpha(rgb, a)` call so it rides the same translucent Color
+ *  encoding and typechecks as `Color`; a color written where a number is
+ *  expected then fails on `Color`'s nullability. A genuine large integer uses
+ *  decimal (an 8-hex `0x` is reserved for color). Positions are relative to
+ *  `src`, matching freeIdentifiers; a body that does not parse yields none. */
+export function hexColor8Literals(src, expression) {
+    const text = expression ? `(${src}\n)` : src;
+    const delta = expression ? -1 : 0;
+    const sf = ts.createSourceFile("body.ts", text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    if (sf.parseDiagnostics.length > 0)
+        return [];
+    const out = [];
+    const visit = (node) => {
+        if (ts.isNumericLiteral(node) && /^0[xX][0-9a-fA-F]{8}$/.test(node.getText(sf))) {
+            const v = parseInt(node.getText(sf).slice(2), 16);
+            out.push({ start: node.getStart(sf) + delta, end: node.end + delta, rgb: (v >>> 8) & 0xffffff, a: v & 0xff });
+        }
+        ts.forEachChild(node, visit);
+    };
+    visit(sf);
+    return out;
+}
 //# sourceMappingURL=free-idents.js.map

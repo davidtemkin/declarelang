@@ -35,7 +35,7 @@ export function colorWithAlpha(rgb: number, a: number): number {
 /** A gradient stop: an explicit 0…1 offset, or null for even spacing. */
 export interface GradientStop {
   readonly offset: number | null;
-  readonly color: number;
+  readonly color: Color;
 }
 
 /** A linear gradient (a decoration Fill). `angle` is in degrees with CSS's
@@ -60,7 +60,7 @@ export function isGradient(f: Fill): f is Gradient {
  *  the box stays the layout/hit fact, per R5's hit-region rule). */
 export interface Stroke {
   readonly width: number;
-  readonly color: number;
+  readonly color: Color;
 }
 
 /** A drop shadow (`shadow` on the view box, `textShadow` on glyphs) — the
@@ -69,7 +69,7 @@ export interface Shadow {
   readonly dx: number;
   readonly dy: number;
   readonly blur: number;
-  readonly color: number;
+  readonly color: Color;
 }
 
 // ── The value constructors' RUNTIME forms — the same names inside `{ }`
@@ -96,9 +96,9 @@ export function gradient(...args: (number | string | GradientStop)[]): Gradient 
   return Object.freeze({ angle, stops: Object.freeze(stops) });
 }
 
-export const stop = (offset: number, color: number): GradientStop => Object.freeze({ offset, color });
-export const stroke = (width: number, color: number): Stroke => Object.freeze({ width, color });
-export const shadow = (dx: number, dy: number, blur: number, color: number): Shadow =>
+export const stop = (offset: number, color: Color): GradientStop => Object.freeze({ offset, color });
+export const stroke = (width: number, color: Color): Stroke => Object.freeze({ width, color });
+export const shadow = (dx: number, dy: number, blur: number, color: Color): Shadow =>
   Object.freeze({ dx, dy, blur, color });
 
 // Structural equality for the decoration values (ruled: the === write gate
@@ -284,12 +284,18 @@ const fail = (expected: string, found?: string): Coerced => ({ ok: false, expect
 export function coerce(type: AttrType, lit: Literal): Coerced {
   switch (type.kind) {
     case "length":
-      if (lit.kind === "number") return ok(lit.value);
+      if (lit.kind === "number") {
+        if (lit.hex && lit.hexLen === 8) return fail("a Length", `${describeLiteral(lit)} (an 8-digit 0x is an alpha color, not a number — write a number in decimal)`);
+        return ok(lit.value);
+      }
       if (lit.kind === "percent") return ok({ percent: lit.value });
       if (lit.kind === "ident" && (lit.name === "center" || lit.name === "end")) return ok({ align: lit.name });
       return fail("a Length (a number of pixels, a percent like 50%, or the position literals center | end on x/y)");
     case "number":
-      if (lit.kind === "number") return ok(lit.value);
+      if (lit.kind === "number") {
+        if (lit.hex && lit.hexLen === 8) return fail("a number", `${describeLiteral(lit)} (an 8-digit 0x is an alpha color, not a number — write a number in decimal)`);
+        return ok(lit.value);
+      }
       return fail("a number");
     case "boolean":
       if (lit.kind === "ident" && (lit.name === "true" || lit.name === "false")) {
@@ -372,6 +378,9 @@ function coerceColor(lit: Literal): Coerced {
   switch (lit.kind) {
     case "number":
       if (!lit.hex) return fail(COLOR, `${describeLiteral(lit)} (write a color in hex: 0x… or #…)`);
+      // 0xRRGGBBAA — the 0x twin of #RRGGBBAA: 8 hex digits carry alpha,
+      // riding the same translucent encoding (…FF normalizes to opaque rgb).
+      if (lit.hexLen === 8) return ok(colorWithAlpha((lit.value >>> 8) & 0xffffff, lit.value & 0xff));
       if (!Number.isInteger(lit.value) || lit.value < 0 || lit.value > 0xffffff) {
         return fail(COLOR, `${describeLiteral(lit)} (outside 0x000000–0xFFFFFF)`);
       }

@@ -28,7 +28,7 @@
 // never collide with a member.
 
 import { rewriteDatapaths } from "./datapath.js";
-import { gradient, shadow, stop, stroke } from "./value.js";
+import { colorWithAlpha, gradient, shadow, stop, stroke } from "./value.js";
 
 // The ruled value constructors, in scope inside every `{ }` body — the "one
 // vocabulary, two lexical homes" ruling: the same names the literal grammar
@@ -39,14 +39,20 @@ import { gradient, shadow, stop, stroke } from "./value.js";
 // constructor while bare `stroke` stays the slot.
 const DECOR = { gradient, stroke, shadow, stop };
 
+// The lowering target for `0xRRGGBBAA` literals (compile.ts rewrites each 8-hex
+// color literal to a colorWithAlpha(…) call): in scope so the resolved body can
+// call it, but NOT a user-written value constructor — kept out of DECOR so
+// CONSTRUCTOR_NAMES stays the four the grammar names.
+const LOWERED = { colorWithAlpha };
+
 // Runtime SERVICES in body scope — `Focus.focus(this)` in a click handler is
 // the canonical use. Injected by index.ts at load through this registry (not
 // an import: expr.ts sits below focus.ts in the module graph). The scope
 // object and prelude are rebuilt on injection, never per body evaluation.
-let SCOPE: Record<string, unknown> = { ...DECOR };
+let SCOPE: Record<string, unknown> = { ...DECOR, ...LOWERED };
 let PRELUDE = `const { ${Object.keys(SCOPE).join(", ")} } = $d;`;
 export function setBodyServices(services: Record<string, unknown>): void {
-  SCOPE = { ...DECOR, ...services };
+  SCOPE = { ...DECOR, ...LOWERED, ...services };
   PRELUDE = `const { ${Object.keys(SCOPE).join(", ")} } = $d;`;
 }
 

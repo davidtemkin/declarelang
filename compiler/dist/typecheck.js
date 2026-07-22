@@ -295,12 +295,15 @@ class CaseEmitter {
         }
         for (const d of el.decls) {
             const t = declaredType(d.type);
+            // A color with a concrete (non-null) default is non-null (see memberSig):
+            // nullable only where it means inherit/absent (`= null` or no default).
+            const nonNullColor = t !== null && t.kind === "color" && d.def !== null && !(d.def.kind === "ident" && d.def.name === "null");
             if (t === null)
                 members.push(`  readonly ${d.name}: any;`); // outside the declarable vocabulary — under-report
             else if (d.readOnly)
-                members.push(`  readonly ${d.name}: ${t.kind === "length" ? "number" : tsType(t)};`);
+                members.push(`  readonly ${d.name}: ${t.kind === "length" || nonNullColor ? "number" : tsType(t)};`);
             else
-                members.push(...memberSig(d.name, t));
+                members.push(...memberSig(d.name, t, nonNullColor));
         }
         for (const m of el.methods) {
             members.push(`  ${m.name}(${m.params.map((p) => `${p}?: any`).join(", ")}): any;`);

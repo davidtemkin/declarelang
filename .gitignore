@@ -30,3 +30,6 @@ my-apps/
 
 # NOTE: dist/ is intentionally committed (per-area compiler/dist, runtime/dist) so the
 # whole tree hosts and runs as-is, no build step — the OpenLaszlo distribution model.
+
+# the dev supervisor's per-port reload handle (server/dev.mjs; `npm run build:dev` signals it)
+server/.dev-reload.*.pid

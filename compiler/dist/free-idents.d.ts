@@ -21,3 +21,16 @@ export declare function freeIdentifiers(src: string, opts: {
     expression: boolean;
     bound: readonly string[];
 }): FreeIdent[] | null;
+/** Every `0xRRGGBBAA` (8-hex) numeric literal in a body, in source order — the
+ *  `0x` twin of the `#RRGGBBAA` literal. compile.ts lowers each to a
+ *  `colorWithAlpha(rgb, a)` call so it rides the same translucent Color
+ *  encoding and typechecks as `Color`; a color written where a number is
+ *  expected then fails on `Color`'s nullability. A genuine large integer uses
+ *  decimal (an 8-hex `0x` is reserved for color). Positions are relative to
+ *  `src`, matching freeIdentifiers; a body that does not parse yields none. */
+export declare function hexColor8Literals(src: string, expression: boolean): {
+    start: number;
+    end: number;
+    rgb: number;
+    a: number;
+}[];

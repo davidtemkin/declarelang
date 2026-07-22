@@ -651,9 +651,9 @@ The formatter must never change what a program *means*. Concretely:
   reorders a semantic token (attribute reordering is explicitly out of
   scope — §2.5).
 - **Original literal spellings preserved.** `0xCAD0EC` stays `0x…`;
-  `#CAD0EC` stays `#…`. (Once alpha-bearing `#RGBA`/`#RRGGBBAA` forms exist
-  per the styling ruling, the same rule covers them — the formatter never
-  normalizes a color literal's base or digit count.)
+  `#CAD0EC` stays `#…`. The alpha-bearing forms — `#RRGGBBAA` and the
+  8-hex `0xRRGGBBAA` — are covered the same way; the formatter never
+  normalizes a color literal's base or digit count.
 - **Comment text never changes** — only comment *placement* (indentation,
   surrounding blank lines) is something the formatter may adjust.
 

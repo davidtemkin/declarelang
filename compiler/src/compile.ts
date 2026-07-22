@@ -61,7 +61,7 @@ import { setBodySyntaxValidator } from "../../runtime/dist/expr.js";
 // every host goes through this file.
 setBodySyntaxValidator(tsBodySyntax);
 import type { ComponentSchema } from "../../runtime/dist/schema.js";
-import { freeIdentifiers } from "./free-idents.js";
+import { freeIdentifiers, hexColor8Literals } from "./free-idents.js";
 import { fillDatapaths } from "../../runtime/dist/datapath.js";
 import { CONSTRUCTOR_NAMES } from "../../runtime/dist/expr.js";
 import { resolveIncludes, resolveAutoIncludes, exciseSpans, NO_INCLUDES, type IncludeHost } from "../../runtime/dist/include.js";
@@ -581,6 +581,17 @@ class Resolver {
           break;
         }
       }
+    }
+    // Lower every 0xRRGGBBAA (8-hex) literal to a colorWithAlpha(…) call — the
+    // `0x` twin of #RRGGBBAA. Both the runtime (expr.ts injects colorWithAlpha)
+    // and the typecheck (scaffold declares it, returning Color) see this one
+    // resolved form, so a color in a numeric slot fails by Color's nullability.
+    for (const c of hexColor8Literals(fillDatapaths(src), expression)) {
+      this.edits.push({
+        start: bodyStart + c.start,
+        end: bodyStart + c.end,
+        text: `colorWithAlpha(0x${c.rgb.toString(16).padStart(6, "0")}, 0x${c.a.toString(16).padStart(2, "0")})`,
+      });
     }
   }
 

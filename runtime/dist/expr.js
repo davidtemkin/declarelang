@@ -27,7 +27,7 @@
 // calls). `$` is outside the language's identifier grammar, so `$data` can
 // never collide with a member.
 import { rewriteDatapaths } from "./datapath.js";
-import { gradient, shadow, stop, stroke } from "./value.js";
+import { colorWithAlpha, gradient, shadow, stop, stroke } from "./value.js";
 // The ruled value constructors, in scope inside every `{ }` body — the "one
 // vocabulary, two lexical homes" ruling: the same names the literal grammar
 // admits (`stroke = stroke(1, #B0B0B0)`) are ordinary functions in TS
@@ -36,14 +36,19 @@ import { gradient, shadow, stop, stroke } from "./value.js";
 // CALLEE-position uses of these names unresolved so `stroke(…)` is the
 // constructor while bare `stroke` stays the slot.
 const DECOR = { gradient, stroke, shadow, stop };
+// The lowering target for `0xRRGGBBAA` literals (compile.ts rewrites each 8-hex
+// color literal to a colorWithAlpha(…) call): in scope so the resolved body can
+// call it, but NOT a user-written value constructor — kept out of DECOR so
+// CONSTRUCTOR_NAMES stays the four the grammar names.
+const LOWERED = { colorWithAlpha };
 // Runtime SERVICES in body scope — `Focus.focus(this)` in a click handler is
 // the canonical use. Injected by index.ts at load through this registry (not
 // an import: expr.ts sits below focus.ts in the module graph). The scope
 // object and prelude are rebuilt on injection, never per body evaluation.
-let SCOPE = { ...DECOR };
+let SCOPE = { ...DECOR, ...LOWERED };
 let PRELUDE = `const { ${Object.keys(SCOPE).join(", ")} } = $d;`;
 export function setBodyServices(services) {
-    SCOPE = { ...DECOR, ...services };
+    SCOPE = { ...DECOR, ...LOWERED, ...services };
     PRELUDE = `const { ${Object.keys(SCOPE).join(", ")} } = $d;`;
 }
 /** The value-constructor names — the compile layer (compile.ts) skips these

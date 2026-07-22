@@ -16,7 +16,7 @@ export declare function colorWithAlpha(rgb: number, a: number): number;
 /** A gradient stop: an explicit 0…1 offset, or null for even spacing. */
 export interface GradientStop {
     readonly offset: number | null;
-    readonly color: number;
+    readonly color: Color;
 }
 /** A linear gradient (a decoration Fill). `angle` is in degrees with CSS's
  *  compass semantics — 0 points up, clockwise; the constructor's default is
@@ -35,7 +35,7 @@ export declare function isGradient(f: Fill): f is Gradient;
  *  the box stays the layout/hit fact, per R5's hit-region rule). */
 export interface Stroke {
     readonly width: number;
-    readonly color: number;
+    readonly color: Color;
 }
 /** A drop shadow (`shadow` on the view box, `textShadow` on glyphs) — the
  *  CSS box-shadow shape minus spread, until a consumer needs it. */
@@ -43,12 +43,12 @@ export interface Shadow {
     readonly dx: number;
     readonly dy: number;
     readonly blur: number;
-    readonly color: number;
+    readonly color: Color;
 }
 export declare function gradient(...args: (number | string | GradientStop)[]): Gradient;
-export declare const stop: (offset: number, color: number) => GradientStop;
-export declare const stroke: (width: number, color: number) => Stroke;
-export declare const shadow: (dx: number, dy: number, blur: number, color: number) => Shadow;
+export declare const stop: (offset: number, color: Color) => GradientStop;
+export declare const stroke: (width: number, color: Color) => Stroke;
+export declare const shadow: (dx: number, dy: number, blur: number, color: Color) => Shadow;
 export declare function shadowEqual(a: Shadow | null, b: Shadow | null): boolean;
 export declare function strokeEqual(a: Stroke | null, b: Stroke | null): boolean;
 export declare function fillEqual(a: Fill, b: Fill): boolean;

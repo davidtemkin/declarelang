@@ -2714,16 +2714,22 @@ await test("Text renders through the effective style: the style derive follows p
 
 // ── Styling rung: decoration values ─────────────────────────────────────────
 
-await test("Color: the #RGBA / #RRGGBBAA alpha forms (and 0x stays opaque)", () => {
+await test("Color: the #RGBA / #RRGGBBAA and 0xRRGGBBAA alpha forms (one representation)", () => {
   const c = (src) => checkAttr(SCHEMAS.View, attrOf(`View [ textColor=${src} ]`));
   assert.equal(colorToCss(c("#00000044").value), "#00000044", "alpha rides the value");
   assert.equal(colorToCss(c("#000000FF").value), "#000000", "…FF normalizes to opaque");
   assert.equal(colorToCss(c("#123A").value), "#112233aa", "short form doubles digits");
-  assert.equal(c("0x354D5B").value, 0x354d5b, "0x stays 6-digit opaque");
+  assert.equal(c("0x354D5B").value, 0x354d5b, "0x 6-digit stays opaque");
+  // B: 0xRRGGBBAA is the 0x twin of #RRGGBBAA — the SAME encoded value (one
+  // representation), and an 8-hex 0x now carries alpha rather than erroring.
+  assert.equal(c("0x00000044").value, c("#00000044").value, "0xRRGGBBAA === #RRGGBBAA");
+  assert.equal(c("0x00000044").value, colorWithAlpha(0x000000, 0x44));
+  assert.equal(colorToCss(c("0x000000FF").value), "#000000", "0x…FF normalizes to opaque");
   const bad = checkAttr(SCHEMAS.View, attrOf("View [ textColor=#12345 ]"));
   assert.match(bad.error.message, /3, 4, 6, or 8 hex digits/);
-  const dec = checkAttr(SCHEMAS.View, attrOf("View [ textColor=0x1FFFFFFF ]"));
-  assert.match(dec.error.message, /outside 0x000000–0xFFFFFF/, "no numeric alpha punning");
+  // The misuse is an 8-hex 0x in a NUMERIC slot — a real error naming the fix.
+  const num = checkAttr(SCHEMAS.View, attrOf("View [ width=0x00000044 ]"));
+  assert.match(num.error.message, /8-digit 0x is an alpha color/, "8-hex 0x is a color, not a number");
 });
 
 await test("decoration literals: gradient / stroke / shadow constructor forms", () => {

@@ -14,7 +14,6 @@
 
 import http from "node:http";
 import path from "node:path";
-import { watch, existsSync } from "node:fs";
 import { createDeclareServer } from "./create.mjs";
 import { loadConfig, ConfigError, CONFIG_NAME } from "./config.mjs";
 import { MountError } from "./mounts.mjs";
@@ -30,7 +29,7 @@ try {
 
 let server;
 try {
-  server = createDeclareServer({ ...cfg, watch: process.env.DECLARE_DEV_WATCH === "1" });
+  server = createDeclareServer({ ...cfg });
 } catch (e) {
   if (e instanceof MountError || e instanceof ProxyError) { console.error(`${e.message}`); process.exit(1); }
   throw e;
@@ -54,27 +53,10 @@ http.createServer(server.handler)
     console.log("");
   });
 
-// ── dev build-watch (unchanged): the server-side twin of the SW's version check.
-// When the build outputs this process imported at startup change on disk, the
-// in-memory modules are stale and ESM offers no purge. Exit 42; the supervisor
-// (server/dev.mjs) respawns into the fresh build. Meaningful only in distro mode,
-// where the platform is a live checkout being rebuilt; a node_modules platform
-// never trips it.
-if (process.env.DECLARE_DEV_WATCH === "1" && cfg.mode !== "workspace") {
-  const ROOT = server.mounts.platform.dir;
-  const WATCH_DIRS = ["compiler/dist", "runtime/dist", "bundles", "library", "browser"];
-  let pending = null;
-  const trip = (dir, file) => {
-    if (pending !== null) return;
-    pending = setTimeout(() => {
-      console.log(`dev: ${dir}/${file ?? ""} changed — reloading (exit 42)`);
-      process.exit(42);
-    }, 400);
-  };
-  for (const dir of WATCH_DIRS) {
-    const abs = path.join(ROOT, dir);
-    if (!existsSync(abs)) continue;
-    try { watch(abs, { recursive: true }, (_ev, file) => trip(dir, file)); }
-    catch { watch(abs, (_ev, file) => trip(dir, file)); }
-  }
-}
+// ── dev reload: BUILD-SIGNALED, never filesystem-watched ─────────────────────
+// This process watches nothing. A rebuild reloads it ONLY when the build asks:
+// `npm run build:dev` runs tsc, then tools/reload-dev.mjs signals the supervisor
+// (server/dev.mjs) to respawn this process with fresh modules (ESM offers no
+// in-place purge). Nothing restarts on unrelated writes, and open pages — which
+// hold no server connection once loaded and register no SW under the dev server
+// — are left entirely alone.

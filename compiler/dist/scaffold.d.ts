@@ -30,7 +30,7 @@ export declare const LANGUAGE_API: Readonly<Record<string, readonly string[]>>;
  *  is why `parent.width - 8` is the corpus-wide idiom and works). Model it as
  *  divergent accessors: `get(): number; set(v: Length)`. Symmetric kinds stay
  *  plain members. */
-export declare function memberSig(name: string, t: AttrType): string[];
+export declare function memberSig(name: string, t: AttrType, nonNullColor?: boolean): string[];
 /** Generate the scaffold for a program: the fixed prelude, the enum type
  *  aliases every schema references, and one `declare class` per schema (built-in
  *  + user), base-before-derived. Pure — the returned STRING is the whole

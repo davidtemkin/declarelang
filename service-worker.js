@@ -12,8 +12,8 @@
 //          preview bug). No file can silently lag a deploy.
 //        • a stamped BUILD_ID rides in this file. When the platform changes, the stamp
 //          rewrites BUILD_ID → THIS worker's bytes change → the browser installs a fresh
-//          worker whose `activate` drops the old cache bucket and RELOADS open clients.
-//          So even an already-open tab picks up a new deploy.
+//          worker whose `activate` drops the old cache bucket. Open tabs are NOT reloaded;
+//          a new deploy is picked up on the next manual load/navigation (no auto-reload).
 //
 //   2. BROWSE-TO-RUN — a top-level navigation to any `…/<name>.declare` returns a host
 //      page that fetches, compiles IN-BROWSER, and renders that program. So on the SAME
@@ -35,7 +35,7 @@ import { fnv1a } from "./compiler/dist/closure.js";
 // BUILD_ID — a content hash of the platform (runtime + compiler bundle + web client +
 // this worker + index.html), stamped by tools/internal/stamp-version.mjs. Left "dev" when unstamped
 // (local serving); a real deploy stamps it so cache-busting + the SW self-update engage.
-const BUILD_ID = "6e52a0fc189e";
+const BUILD_ID = "c255c3839457";
 
 const ROOT = new URL("./", self.location);            // <origin>/…/  (this worker's dir == the distro root)
 const ORIGIN = ROOT.origin;
@@ -48,14 +48,13 @@ const ASSET_CACHE = "declare-assets-" + BUILD_ID;
 // navigations (the homepage's, and any `.declare` browsed from it) without a reload.
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil((async () => {
-  // A new worker means a new BUILD_ID: drop every cache that isn't this build's bucket,
-  // then claim open clients and tell them the build changed. register-sw.js reloads once
-  // when the build it booted with differs (guarded against loops by sessionStorage).
+  // A new worker means a new BUILD_ID: drop every cache that isn't this build's bucket, then
+  // claim open clients so fresh navigations hit the new build. Open pages are NOT reloaded —
+  // a running program keeps the platform it booted with (loaded once, held in memory) and
+  // picks up the new build only on a manual reload/navigation. No auto-reload, in any config.
   const keys = await caches.keys();
   await Promise.all(keys.filter((k) => k !== ASSET_CACHE).map((k) => caches.delete(k)));
   await self.clients.claim();
-  for (const client of await self.clients.matchAll({ type: "window" }))
-    client.postMessage({ type: "declare-updated", build: BUILD_ID });
 })()));
 
 // ── Fetch routing ────────────────────────────────────────────────────────────

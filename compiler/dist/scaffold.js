@@ -88,16 +88,17 @@ const PRELUDE = `type Percent = { percent: number };
 type Length = number | Percent;
 type Color = number | null;
 type Shape = string | null;
-interface Gradient { angle: number; stops: readonly { offset: number | null; color: number }[] }
+interface Gradient { angle: number; stops: readonly { offset: number | null; color: Color }[] }
 type Fill = Color | Gradient;
-interface Stroke { width: number; color: number }
-interface Shadow { dx: number; dy: number; blur: number; color: number }
+interface Stroke { width: number; color: Color }
+interface Shadow { dx: number; dy: number; blur: number; color: Color }
 type Theme = Readonly<Record<string, any>>;
 type Cursor = unknown;
-declare function gradient(...args: (number | string | { offset: number | null; color: number })[]): Gradient;
-declare function stroke(width: number, color: number): Stroke;
-declare function stop(offset: number, color: number): { offset: number; color: number };
-declare function shadow(dx: number, dy: number, blur: number, color: number): Shadow;
+declare function gradient(...args: (Color | string | { offset: number | null; color: Color })[]): Gradient;
+declare function stroke(width: number, color: Color): Stroke;
+declare function stop(offset: number, color: Color): { offset: number; color: Color };
+declare function shadow(dx: number, dy: number, blur: number, color: Color): Shadow;
+declare function colorWithAlpha(rgb: number, a: number): number;
 type MotionCurve = { readonly __motion: true };
 declare function cubicBezier(x1: number, y1: number, x2: number, y2: number): MotionCurve;
 declare function back(overshoot: number): MotionCurve;
@@ -269,9 +270,14 @@ export const LANGUAGE_API = {
  *  is why `parent.width - 8` is the corpus-wide idiom and works). Model it as
  *  divergent accessors: `get(): number; set(v: Length)`. Symmetric kinds stay
  *  plain members. */
-export function memberSig(name, t) {
+export function memberSig(name, t, nonNullColor = false) {
     if (t.kind === "length")
         return [`  get ${name}(): number;`, `  set ${name}(v: Length);`];
+    // A color declared with a concrete (non-null) default is a plain color —
+    // reads never see null — so it is typed non-null. A `= null` (or absent)
+    // default keeps Color's nullability: the inherit / "no paint" slots.
+    if (t.kind === "color" && nonNullColor)
+        return [`  ${name}: number;`];
     return [`  ${name}: ${tsType(t)};`];
 }
 /** One schema → its `declare class`. Attributes come first (in schema order),
@@ -282,8 +288,19 @@ export function memberSig(name, t) {
 function emitClass(s, decl, rootType, extras) {
     const ext = s.base !== null ? ` extends ${s.base.name}` : "";
     const lines = [];
-    for (const [name, t] of Object.entries(s.attrs))
-        lines.push(...memberSig(name, t));
+    // A color slot is non-null unless it means inherit/absent — i.e. unless its
+    // default is `= null` (or it has none). So a concretely-defaulted user color
+    // reads as a plain color, never "possibly null", in every constraint.
+    const nonNullColors = new Set();
+    if (decl !== undefined) {
+        for (const d of decl.body.decls) {
+            if (d.def !== null && !(d.def.kind === "ident" && d.def.name === "null"))
+                nonNullColors.add(d.name);
+        }
+    }
+    for (const [name, t] of Object.entries(s.attrs)) {
+        lines.push(...memberSig(name, t, t.kind === "color" && nonNullColors.has(name)));
+    }
     if (s.base === null) {
         // The tree nouns (language §11) — on EVERY root class, not View alone:
         // Spring/State/Dataset bodies say `app` too (every node has parent/root;
