@@ -77,17 +77,22 @@ wins that land in the first hour. Check them off as they're addressed.
   statements into a method and call it" — rather than a generic failure.
 
 ### Documentation
-- [ ] **A5 — Text slant/italic (finding #4).** Document the mechanism for italic text, or
-  record it as a known gap on `Text` if none exists.
-- [ ] **A6 — Scalar and indexed data (finding #5).** Add one example each to the data chapter:
-  reading a scalar array element as a datum, and indexing a bound array (`:images[0]`) —
-  and state whether indexing is supported.
-- [ ] **A7 — Attribute-value forms note (finding #7).** One line in the guide: attribute
-  values are expressions, not statement blocks; handler bodies are the opposite.
-- [ ] **A8 — Attribute-surface reference (minor / through-line).** A per-component attribute
-  list (`Text`, `View`, `Image`, …), or editor autocomplete over the checker's own data, so
-  authors don't discover the surface by grepping examples and hitting errors. This is the
-  single highest-leverage doc/tooling item — it subsumes #4 and parts of #3/#5.
+- [x] **A5 — Text slant/italic (finding #4).** `italic = true` already works on `Text` and
+  is documented in the reference; the gap was discoverability. Added a guide mention in
+  06-style ("Slant is separate: `italic = true` … it does not prevail") next to the
+  prevailing text attributes. `fontStyle` was the author's wrong guess, not a missing feature.
+- [x] **A6 — Scalar and indexed data (finding #5).** Confirmed by probe: `:owner.name`
+  (nested) and `:images[0]` (indexed) both compile; a *scalar* datum has no `:` accessor.
+  Documented all three in 08-data (the `:path` section), with the reshape workaround and the
+  bare-scalar cursor recorded as a known gap.
+- [x] **A7 — Attribute-value forms note (finding #7).** Corrected the imprecise two-brackets
+  line (it said a `{ }` body "takes expressions and statements"): an **attribute value** `{ }`
+  is a single expression — statements go in a **method/handler body**, with the move-to-a-method
+  fix named.
+- [~] **A8 — Attribute-surface reference (minor / through-line).** Doc half **done**: the
+  reference is now code-derived per component (attribute tables per built-in and library
+  element) and browsable in the desktop Files app — authors no longer grep examples for the
+  surface. Editor autocomplete over the checker's data remains open.
 
 ### Capability (larger, optional)
 - [ ] **A9 — `DataSource` POST / body (finding #6).** A `method` / `body` on `DataSource` so

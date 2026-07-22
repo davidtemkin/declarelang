@@ -45,6 +45,14 @@ reconciliation **keyed**: when data changes, only rows whose key changed rebuild
 > you must remember, and never an array index. The shape is declared; the data
 > decides the count.
 
+A `:path` is a real path into the datum, so it reaches through structure the way you
+would expect: `:score` reads a field, `:owner.name` a nested field, and `:images[0]`
+indexes into a bound array. The one shape it does **not** read is a *scalar* datum —
+when a replicated array holds bare values (`"tags": ["new", "sale"]`), `datapath =
+:tags[]` instances a node per string, but there is no `:` that names the string
+itself. Give the values a field server-side (`[{ "label": "new" }, …]`) and read
+`:label`. (A bare-scalar cursor is a known gap.)
+
 ## Two kinds of source
 
 A **`Dataset`** holds embedded or computed data. Its literal body is **strict JSON**

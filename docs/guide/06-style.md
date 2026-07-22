@@ -38,7 +38,9 @@ seam rule from [chapter 2](declare-docs:guide:two-brackets), holding steady.
 
 Text style is four attributes — `textColor`, `fontSize`, `fontFamily` (a fallback
 list), `fontWeight` — and they are **prevailing**: an unset slot follows the nearest
-ancestor that sets it, live, until a descendant overrides it. Set them once, high:
+ancestor that sets it, live, until a descendant overrides it. (Slant is separate:
+`italic = true` on a `Text` renders the italic face, per-`Text` — it does not
+prevail.) Set them once, high:
 
 ```declare
 App [ fill = white, fontFamily = ["Helvetica Neue", "sans-serif"], fontSize = 15, fontWeight = bold, textColor = black,

@@ -72,9 +72,12 @@ The lesson generalizes: when Declare looks like something you know, it behaves t
 you'd assume; where it's genuinely different, it *looks* different, and the compiler
 holds the line rather than guessing. Two more edges of the seam worth knowing now:
 percentages exist only as bare literals (`width = 100%` ✓, `width = { 100% }` ✗ —
-compute from `parent.width` instead), and a `{ }` body takes TypeScript *expressions
-and statements*, not type syntax — no `as`, no generics; coerce structurally
-(`String(x)`, `x || ""`) when you must.
+compute from `parent.width` instead), and the two `{ }` positions are not the same: an
+**attribute value** `{ … }` is a single *expression* (`width = { parent.width - 40 }`)
+— a `let` or a second statement there will not compile, so move that logic into a
+method and call it (`width = { classroot.measure() }`); a **method or handler body**
+`{ … }` is where *statements* live. Neither takes type syntax — no `as`, no generics;
+coerce structurally (`String(x)`, `x || ""`) when you must.
 
 ## Everything in `[ ]` is a member, told apart by shape
 
