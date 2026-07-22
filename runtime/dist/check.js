@@ -26,6 +26,7 @@
 // element an anonymous schema, and named children join the one member
 // namespace.
 import { DeclareError } from "./errors.js";
+import { assembleBlocks, dispatchBlockChecks } from "./plugin.js";
 import { SCHEMAS, SUBSCRIPTION_SOURCES, attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName } from "./schema.js";
 import { Diag } from "./diagnostics.js";
 import { coerce, declaredType, describeLiteral, DECLARED_TYPE_NAMES } from "./value.js";
@@ -53,7 +54,7 @@ const RESERVED = CONSTRUCTOR_NAMES;
 /** Typecheck a parsed tree — a whole Program (classes + root) or a bare
  *  Element fragment. Returns every error found, in source order — an empty
  *  array means the tree is well-typed and safe to instantiate. */
-export function check(input) {
+export function check(input, plugins = [], source = "") {
     const program = "root" in input ? input : { classes: [], stylesheets: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], blocks: [], root: input };
     const { infos, schemas, errors } = programSchemas(program.classes);
     const env = checkStyleDecls(program, schemas, errors);
@@ -86,6 +87,21 @@ export function check(input) {
     // per kind (attrs, then methods, then the child recursion); a stable sort
     // on position restores the promised source order. Every check error is
     // positioned, so the fallback never actually fires.
+    // Block plugins: run each `keyword Name { … }` checker. `taken` is the full
+    // non-block top-level namespace (classes/built-ins ∪ stylesheet/style/font
+    // names) — so a block colliding with any of them is caught, in any source
+    // order. Inert when no plugin was passed (blocks is empty → no dispatch).
+    if (program.blocks.length > 0) {
+        const blockMap = assembleBlocks(plugins);
+        const taken = new Set(Object.keys(schemas));
+        for (const d of program.stylesheets)
+            taken.add(d.name);
+        for (const d of program.styles)
+            taken.add(d.name);
+        for (const d of program.fonts)
+            taken.add(d.name);
+        errors.push(...dispatchBlockChecks(program.blocks, blockMap, source, schemas, taken));
+    }
     errors.sort((a, b) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0));
     return errors;
 }

@@ -145,5 +145,53 @@ await test("blocks survive include resolution", async () => {
   assert.equal(program.blocks[0].name, "Kept");
 });
 
+// ── Task 3: check() block dispatch ───────────────────────────────────────
+import { check } from "../runtime/dist/check.js";
+
+await test("check runs a block plugin's checker and surfaces its errors", () => {
+  const src = "note N { all good }\nApp [ ]";
+  const prog = parseProgram(src, [notePlugin]);
+  assert.deepEqual(check(prog, [notePlugin], src), []);
+});
+
+await test("check positions an interior block error via posAt (exact)", () => {
+  const src = "note N { xx BAD yy }\nApp [ ]";
+  const prog = parseProgram(src, [notePlugin]);
+  const errs = check(prog, [notePlugin], src);
+  assert.equal(errs.length, 1);
+  assert.deepEqual(errs[0].pos, { line: 1, col: 13, offset: 12 });
+});
+
+await test("check catches a block colliding with a stylesheet — stylesheet first", () => {
+  const src = "stylesheet Dupe [ ]\nnote Dupe { x }\nApp [ ]";
+  const errs = check(parseProgram(src, [notePlugin]), [notePlugin], src);
+  assert.ok(errs.some((e) => /collides/.test(e.message)), "expected a collision error");
+});
+
+await test("check catches a block colliding with a stylesheet — block first (order-independent)", () => {
+  const src = "note Dupe { x }\nstylesheet Dupe [ ]\nApp [ ]";
+  const errs = check(parseProgram(src, [notePlugin]), [notePlugin], src);
+  assert.ok(errs.some((e) => /collides/.test(e.message)), "collision must be caught regardless of source order");
+});
+
+await test("check catches a block colliding with a class name", () => {
+  const src = "class Dupe [ ]\nnote Dupe { x }\nApp [ ]";
+  const errs = check(parseProgram(src, [notePlugin]), [notePlugin], src);
+  assert.ok(errs.some((e) => /collides/.test(e.message)), "block-vs-class collision must be caught");
+});
+
+await test("check positions an interior error across a newline in the body", () => {
+  const src = "note N {\n  BAD\n}\nApp [ ]";
+  const errs = check(parseProgram(src, [notePlugin]), [notePlugin], src);
+  assert.equal(errs.length, 1);
+  assert.equal(errs[0].pos.line, 2);
+  assert.equal(errs[0].pos.col, 3);
+});
+
+await test("check with no plugins ignores blocks (no crash, no error)", () => {
+  const prog = parseProgram("App [ ]");
+  assert.deepEqual(check(prog), []);
+});
+
 export { notePlugin };
 summarize("plugin");
