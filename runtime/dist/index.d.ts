@@ -2,6 +2,7 @@ import { type SerializedLink } from "./links.js";
 import { type IncludeHost } from "./include.js";
 import { App } from "./view.js";
 import type { RenderBackend } from "./backend.js";
+import type { Plugin } from "./plugin.js";
 /** Options for build()/render(): the file-access host `include` resolution
  *  rides and the including file's directory. Both default to a no-op — a
  *  source with zero `include`s behaves exactly as before, and the fs host
@@ -19,6 +20,9 @@ export interface BuildOptions {
      *  each navigable instance is stamped `_navLink` for the static extractor.
      *  Absent → no links (navigation still works; only extraction is affected). */
     links?: readonly SerializedLink[];
+    /** Top-level-syntax block plugins the parse/check/instantiate pipeline
+     *  dispatches to. Absent → no blocks (behavior identical to pre-seam). */
+    plugins?: readonly Plugin[];
 }
 /** Parse, resolve `include`s, typecheck, and instantiate a Declare source into
  *  its App tree (no rendering). Raises a DeclareErrors carrying *every* error at

@@ -238,5 +238,34 @@ await test("a throwing block instantiate surfaces the error", () => {
   assert.throws(() => instantiate(prog, [boomPlugin]), /intern failed/);
 });
 
+// ── Task 5: build() host entry ───────────────────────────────────────────
+import { build } from "../runtime/dist/index.js";
+
+await test("build() threads plugins through parse → check → instantiate", () => {
+  const calls = [];
+  const p = {
+    name: "note",
+    blocks: [{
+      keyword: "note", bodyKind: "code",
+      parse(pp) {
+        pp.expect("ident", "'note'");
+        const name = pp.expect("ident", "name");
+        const body = pp.expect("code", "body");
+        return { kind: "note", keyword: "note", name: name.text, text: body.str ?? "", bodyOffset: body.pos.offset + 1, pos: name.pos };
+      },
+      check() { return []; },
+      instantiate(node) { calls.push(node.name); },
+    }],
+  };
+  const app = build("note Wired { hello }\nApp [ ]", { plugins: [p] });
+  assert.equal(app.constructor.name, "App");
+  assert.deepEqual(calls, ["Wired"]);
+});
+
+await test("build() rejects a block program when a check error is present", () => {
+  const app = () => build("note N { xx BAD yy }\nApp [ ]", { plugins: [notePlugin] });
+  assert.throws(app, /BAD/);
+});
+
 export { notePlugin };
 summarize("plugin");

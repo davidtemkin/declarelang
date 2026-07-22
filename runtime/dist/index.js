@@ -29,9 +29,9 @@ import { mountApp, loadFonts } from "./boot.js";
  *  its App tree (no rendering). Raises a DeclareErrors carrying *every* error at
  *  once (include-resolution + type). */
 export function build(source, opts = {}) {
-    const parsed = parseProgram(source);
+    const parsed = parseProgram(source, opts.plugins);
     const { program, errors: incErrors } = resolveIncludes(parsed, opts.host ?? NO_INCLUDES, opts.originDir ?? "");
-    const errors = [...incErrors, ...check(program)];
+    const errors = [...incErrors, ...check(program, opts.plugins, source)];
     errors.sort((a, b) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0));
     if (errors.length > 0)
         throw new DeclareErrors(errors);
@@ -39,7 +39,7 @@ export function build(source, opts = {}) {
         applyDeps(program, opts.deps);
     if (opts.links !== undefined)
         applyLinks(program, opts.links);
-    const root = instantiate(program);
+    const root = instantiate(program, opts.plugins);
     if (!(root instanceof App)) {
         throw new DeclareError("a program's root must be 'App [ … ]'", program.root.pos);
     }

@@ -24,6 +24,7 @@ import { App } from "./view.js";
 import { fontFacesOf } from "./font.js";
 import type { RenderBackend } from "./backend.js";
 import { DeclareError, DeclareErrors } from "./errors.js";
+import type { Plugin } from "./plugin.js";
 // The render/wire/font glue lives in boot.ts (compiler-free) so the precompiled
 // production entry (`renderProgram`) can drop the parser + checker entirely.
 import { mountApp, loadFonts } from "./boot.js";
@@ -45,20 +46,23 @@ export interface BuildOptions {
    *  each navigable instance is stamped `_navLink` for the static extractor.
    *  Absent → no links (navigation still works; only extraction is affected). */
   links?: readonly SerializedLink[];
+  /** Top-level-syntax block plugins the parse/check/instantiate pipeline
+   *  dispatches to. Absent → no blocks (behavior identical to pre-seam). */
+  plugins?: readonly Plugin[];
 }
 
 /** Parse, resolve `include`s, typecheck, and instantiate a Declare source into
  *  its App tree (no rendering). Raises a DeclareErrors carrying *every* error at
  *  once (include-resolution + type). */
 export function build(source: string, opts: BuildOptions = {}): App {
-  const parsed = parseProgram(source);
+  const parsed = parseProgram(source, opts.plugins);
   const { program, errors: incErrors } = resolveIncludes(parsed, opts.host ?? NO_INCLUDES, opts.originDir ?? "");
-  const errors = [...incErrors, ...check(program)];
+  const errors = [...incErrors, ...check(program, opts.plugins, source)];
   errors.sort((a, b) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0));
   if (errors.length > 0) throw new DeclareErrors(errors);
   if (opts.deps !== undefined) applyDeps(program, opts.deps);
   if (opts.links !== undefined) applyLinks(program, opts.links);
-  const root = instantiate(program);
+  const root = instantiate(program, opts.plugins);
   if (!(root instanceof App)) {
     throw new DeclareError("a program's root must be 'App [ … ]'", program.root.pos);
   }
