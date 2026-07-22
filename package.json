@@ -15,7 +15,7 @@
     "build": "tsc -b",
     "build:dev": "tsc -b && node tools/reload-dev.mjs",
     "start": "node server/dev.mjs",
-    "test": "npm run build && node test/unit.test.mjs && node test/perceptual.test.mjs && node test/scaffold.test.mjs && node test/declarec.test.mjs && node test/databinding.test.mjs && node test/dep-extract.test.mjs && node test/static-constraint.test.mjs && node test/highlight.test.mjs && node test/docs.test.mjs && node test/inspect.test.mjs && node test/format.test.mjs && node test/md.test.mjs && node test/themes.test.mjs && node test/html.test.mjs && node test/richtext.test.mjs && node test/slim.test.mjs && node test/crawl.test.mjs && node test/prewarm.test.mjs && node test/serve-parity.test.mjs && node test/serve.test.mjs && node test/serve-browser.test.mjs && node test/verify-apps.test.mjs && node test/ops.test.mjs",
+    "test": "npm run build && node test/unit.test.mjs && node test/perceptual.test.mjs && node test/scaffold.test.mjs && node test/declarec.test.mjs && node test/databinding.test.mjs && node test/dep-extract.test.mjs && node test/static-constraint.test.mjs && node test/highlight.test.mjs && node test/docs.test.mjs && node test/inspect.test.mjs && node test/format.test.mjs && node test/md.test.mjs && node test/themes.test.mjs && node test/html.test.mjs && node test/richtext.test.mjs && node test/slim.test.mjs && node test/crawl.test.mjs && node test/prewarm.test.mjs && node test/serve-parity.test.mjs && node test/serve.test.mjs && node test/serve-browser.test.mjs && node test/verify-apps.test.mjs && node test/plugin.test.mjs && node test/ops.test.mjs",
     "test:ladder": "npm run build && node test/ladder.test.mjs",
     "test:all": "npm test && npm run test:ladder"
   },

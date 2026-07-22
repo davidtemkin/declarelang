@@ -97,6 +97,7 @@ export { coerce, enumType, isPercent, colorToCss, colorWithAlpha, isGradient, gr
 export { isSet, ownerOf } from "./attributes.js";
 export { CSS_COLORS } from "./css-colors.js";
 export { DeclareError, DeclareErrors } from "./errors.js";
+export { assembleBlocks, posOf, dispatchBlockChecks } from "./plugin.js";
 export { headingSlug } from "./slug.js";
 export { Keys, KeysService, normalize } from "./keys.js";
 export { Focus, FocusService, deliverKeys } from "./focus.js";
