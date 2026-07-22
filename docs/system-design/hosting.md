@@ -13,6 +13,18 @@ model** (`compiler/src/flags.ts`, §Compile flags); only the surface differs.
 immediately. That is the server's entire job — no chat, no persistent connection, no
 data API.
 
+**Where the compile runs is the one place the two hosts diverge, on purpose.** A run
+navigation resolves through the three boot tiers below (prewarm → cache → compile); what
+differs between hosts is only the *compile* tier. Under the dev server, boot detects the
+server (`window.__declareServer`, stamped on every page) and compiles on the server via
+`POST /compile`: the browser sends the source and gets the finished program back,
+downloading no compiler and preloading no component library — the Node compiler has both
+and resolves only what the program uses, demand-driven
+(`compiler/src/include-node.ts`). On a static host there is no server, so that same tier
+compiles **in the browser** instead. Same request surface, same run shell — only the
+location of the compile changes, which is why a large app with no prewarm still loads light
+in dev. `browser/boot-uniform.js` branches on the flag.
+
 The server also builds the standalone **build** artifact on demand and serves it at
 `/build/<name>/` (a `?build` request redirects there): the same `declarec` output
 (below), built once and cached on disk. `ensureProdBuild` keys the cache by a hash of
@@ -132,15 +144,28 @@ the service worker is installed:
 The navigate/fetch discrimination is the service worker's own (a top-level
 navigation vs a subresource request); the dev server applies the identical rule
 (`Sec-Fetch-Mode`), so a person and a program each get the representation they
-mean at one URL. Both hosts serve the SAME wrapper — a tiny shell booting the
+mean at one URL. Both hosts serve the SAME run shell — a tiny page booting the
 platform bundle with `main` = the program's own URL (the page's address IS the
 `.declare`, so the program's relative resources resolve against its directory
-for free) — which means browse-to-run rides the same **cached-output +
-closure-freshness** path as the app index pages: a revisit renders from cache
-after a HEAD re-probe of the source, no compiler, no recompile. The one
-irreducible gap is the very first visit to a bare static host, before the SW
-exists — a dumb host can serve only bytes, which is why the directory URL
-remains the address you publish.
+for free). From there boot walks three tiers to get a program:
+
+1. **Prewarm** — a committed precompiled artifact (`bundles/cache/`), validated against
+   the live source by re-probing its dependency closure (content hashes of the main file
+   and every `include`). Deployment-independent: it works the same on the dev server and a
+   static host, and when it hits, the program renders with no compiler and no compile. It
+   is a *validated cache, not a production build* — editing the program or any included
+   file changes a hash, fails the check, and falls through. (This is why prewarm can never
+   serve a stale program, and why the run page must boot from the deploy root so its
+   `relMain` matches the committed key.)
+2. **Cache** — a previous in-browser compile in CacheStorage, re-validated by its closure.
+   Static-host only; the dev server recompiles instead, to stay honest with the file on disk.
+3. **Compile** — the fallback, and the only tier that differs by host: on the dev server it
+   is `POST /compile` (server-side, no compiler shipped, library resolved demand-driven); on
+   a static host it is the in-browser compiler (fetched once, cached by `BUILD_ID`).
+
+The one irreducible gap is the very first visit to a bare static host, before the SW
+exists — a dumb host can serve only bytes, which is why the directory URL remains the
+address you publish.
 
 Cache-busting is content-hash driven (`BUILD_ID`, `tools/internal/stamp-version.mjs`).
 Because nothing is bundled ahead of time on this path, the `build` request doesn't

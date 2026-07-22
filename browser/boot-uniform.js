@@ -203,6 +203,24 @@ async function launchTo(url) {
   location.replace(url.href);
 }
 
+// Compile ON THE SERVER, via POST /compile. The dev server stamps
+// window.__declareServer on every page it emits (browser/register-sw.js); when it
+// is set, the Node compiler is right there — already demand-driven over the
+// component library and closure-tracking (compiler/src/include-node.ts) — so the
+// browser hands it the source and gets back the compiled program without ever
+// downloading the ~1 MB compiler bundle or preloading the library. A static host
+// has no server, so it keeps the in-browser compile path. This is the ONE point
+// where .declare handling deliberately differs between the two hosts: same request
+// surface, only WHERE the compile runs. `?main=` names the program so the server
+// resolves its `include`s and bare-tag library files against the right directory.
+// The returned shape ({ source, deps, report }) is exactly what compileTracked
+// yields for `source`/`deps`, so callers are agnostic to which path produced it.
+async function serverCompile(mainUrl, source) {
+  const r = await fetch("/compile?main=" + encodeURIComponent(mainUrl.pathname),
+    { method: "POST", body: source, headers: { "content-type": "text/plain" } });
+  return r.json();
+}
+
 /**
  * @param cfg {{
  *   main: string,                  // page's .declare, relative to the page (e.g. "./calendar.declare")
@@ -274,39 +292,48 @@ export default async function boot(cfg) {
     }
   }
 
-  // SLOW PATH — compile in-browser and cache the result + its closure. The
-  // client compiles in a module WORKER when the platform has one (off the main
-  // thread; identical output by construction), inline otherwise — and the
-  // auto-include library is registered as the compiler's DEFAULT
-  // (ensureLibrary), so every compile here and below resolves bare tags with
-  // no per-call ceremony.
+  // SLOW PATH — nothing precompiled to render, so compile now. TWO hosts:
+  //   • dev server (window.__declareServer): POST the source to /compile and let
+  //     the SERVER compile it — no compiler download, no library preload. The
+  //     server recompiles on every reload (localhost round trip is sub-100ms and
+  //     always fresh), so no client cache is written; the dev loop wants exactly
+  //     that. This is where the two hosts diverge (serverCompile, above).
+  //   • static host: compile IN-BROWSER in a module worker (off the main thread;
+  //     identical output by construction), inline otherwise, and cache the result
+  //     + its closure for the fast path. The auto-include library is registered as
+  //     the compiler's default (ensureLibrary) so bare tags resolve with no
+  //     per-call ceremony. compileTracked records the REAL closure (the main source
+  //     plus every include the host served); library reads stay OUT of it — gated
+  //     by BUILD_ID. The main entry carries the RESPONSE's validators (ETag /
+  //     Last-Modified + content hash) for the cheap headers-only re-probe.
   if (program === null) {
-    const sCompiler = perfStage("compiler+library");
+    const onServer = !!window.__declareServer;
     const sSource = perfStage("source-fetch");
+    const sCompiler = onServer ? null : perfStage("compiler+library");
     const [client, { res, source }] = await Promise.all([
-      loadCompiler().then(ensureLibrary).then((c) => { sCompiler.end(); return c; }),
+      onServer ? Promise.resolve(null)
+               : loadCompiler().then(ensureLibrary).then((c) => { sCompiler.end(); return c; }),
       fetch(mainUrl, { cache: "no-cache" })
         .then(async (r) => ({ res: r, source: await r.text() }))
         .then((x) => { sSource.end(); return x; }),
     ]);
-    // compileTracked records the REAL closure: the main source plus every file
-    // the include host served (a multi-file app's `include`s invalidate exactly
-    // like the main file). Library reads stay OUT of it — they ship with the
-    // distro and are gated by BUILD_ID, like OL5's LFC. The main entry carries
-    // the RESPONSE's validators (ETag/Last-Modified + content hash), so the
-    // cheap headers-only re-probe can prove freshness.
+    pageSource = source;
     const sCompile = perfStage("compile");
-    const out = await client.compileTracked(source, { mainId, mainValidator: validatorFromResponse(res, source), props });
+    const out = onServer
+      ? await serverCompile(mainUrl, source)
+      : await client.compileTracked(source, { mainId, mainValidator: validatorFromResponse(res, source), props });
     sCompile.end();
     if (!out.source) {
       // The compile's own rendered report — the ONE renderer's output (code,
-      // line/col, hint), identical bytes to what the CLI and server print.
+      // line/col, hint), identical bytes whether the CLI, the server, or the
+      // in-browser worker produced it.
       return showError(out.report || "compile failed");
     }
     program = out.source;
     deps = out.deps;                                               // static-constraint deps ride in the ONE compile result
-    pageSource = source;
-    toCache = { program, deps, source, closure: out.closure };     // written AFTER render, below (off the paint path)
+    // Only the in-browser compile has a closure to cache; a server compile is
+    // re-run each reload, so there is nothing (and no reason) to persist.
+    if (!onServer) toCache = { program, deps, source, closure: out.closure };
   }
 
   // Live-edit compile ("Edit this page" + demo previews). Warm-loaded in the
@@ -316,8 +343,11 @@ export default async function boot(cfg) {
   // previews render blank" obligation is gone by construction.
   const liveCompile = async (src) => {
     try {
-      const client = await loadCompiler().then(ensureLibrary);    // idempotent; covers the fast path, where the slow-path registration never ran
-      const out = await client.compile(src);
+      // Under the dev server, live edits compile on the server too (no compiler in
+      // the browser at all); on a static host, in the in-browser worker.
+      const out = window.__declareServer
+        ? await serverCompile(mainUrl, src)
+        : await loadCompiler().then(ensureLibrary).then((c) => c.compile(src));  // idempotent; covers the fast path, where the slow-path registration never ran
       // Success is source + static deps; a compile FAILURE hands back { report } so an
       // editing surface can show the diagnostic (the contract host-client documents and
       // the codeviewer host already honors). null stays "compiler not warm — no change".
@@ -376,7 +406,10 @@ export default async function boot(cfg) {
   requestAnimationFrame(() => requestAnimationFrame(() => { sFrame.end(); perfDone(path); }));
   if (toCache) await writeCache(build, key, toCache);              // durable before we signal readiness
   window.__declareBoot = { path, build, key };                     // freshness/debug signal (also aids the SW)
-  loadCompiler().then(ensureLibrary).catch(() => {});              // warm the compiler + library for the first live edit
+  // Warm the compiler + library for the first live edit — but ONLY on a static
+  // host. Under the dev server, live edits compile on the server (serverCompile),
+  // so pulling the compiler bundle here would defeat the whole point.
+  if (!window.__declareServer) loadCompiler().then(ensureLibrary).catch(() => {});
   return app;
 }
 

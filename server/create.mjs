@@ -65,6 +65,18 @@ export function createDeclareServer(config = {}) {
 
   const PLAT = mounts.platformPrefix;                      // e.g. "/declare/"
   const platURL = (rel) => PLAT + rel;                     // platform asset → its URL
+  // The RUN page boots the platform from the ROOT prefix when the platform IS the
+  // root (distro mode: "/" and "/declare/" are the same directory). boot-uniform
+  // derives its ROOT — the base for prewarm keys and library fetches — from where
+  // declare-boot.js is served, and the committed prewarm's relMain is relative to
+  // the deploy root where apps/ and bundles/ are siblings. Booting from "/declare/"
+  // would put ROOT at "/declare/" while the apps are served at "/", so relativize()
+  // can't strip the prefix and the prewarm key never matches — every distro app
+  // would needlessly recompile. In workspace mode the platform is a DISTINCT mount,
+  // so its own prefix is correct (and a workspace app has no committed prewarm
+  // anyway, so it compiles regardless).
+  const bootPrefix = mounts.platform.dir === mounts.root.dir ? "/" : PLAT;
+  const bootURL = (rel) => bootPrefix + rel;               // platform boot asset → its ROOT-consistent URL
   const VIEWER_DIR = path.join(PLATFORM_DIR, "apps", "viewer");
 
   // ── the no-SW marker (unchanged) ───────────────────────────────────────────
@@ -166,8 +178,8 @@ bootHost(cfg);
       } catch (e) { console.error("crawler embed failed:", e.message); }
     }
     return runWrapper({
-      name: programName(urlPath), bootUrl: platURL("bundles/declare-boot.js"),
-      staticBlock, iconBase: platURL("assets/"), main: urlPath, title,
+      name: programName(urlPath), bootUrl: bootURL("bundles/declare-boot.js"),
+      staticBlock, iconBase: bootURL("assets/"), main: urlPath, title,
     });
   }
 

@@ -46,12 +46,67 @@ document — the default page, then each location's content as a `<section>` who
 location — so the whole app is in the crawler view at the one program URL, and the fragment
 links resolve right there in the static page.
 
+## How a program gets rendered — the three tiers
+
+Navigating to a `.declare` returns a tiny run shell that boots the platform, which then has to
+turn that program into something running. It tries three tiers in order, and stops at the
+first that produces a program. The tiers are the same on the dev server and on a static host;
+only the last one — the compile — runs in a different place.
+
+**1. Prewarm — a committed, precompiled artifact.** A build step can commit a compiled program
+under `bundles/cache/`. Boot tries it first. It is **not a production build** and it does not
+replace compilation — it merely *skips* it when nothing has changed. The artifact carries the
+compile's dependency closure (the main file plus every `include`d file, each with a content
+hash). Boot re-fetches every file in that closure and re-hashes it; the artifact is used only
+if all of them still match. So **editing the program, or any file it includes, invalidates the
+prewarm** — the changed hash fails the check and boot falls through to compile. Prewarm is
+deployment-independent: it works identically on the dev server and a static host. When it hits,
+the program renders with **no compiler and no compile at all**.
+
+**2. Cache — a previous in-browser compile.** On a static host, a compile's result is written to
+CacheStorage keyed by its closure, so a repeat visit re-validates and reuses it without
+recompiling. The dev server does not use this tier — it recompiles instead (see below), which
+is what keeps the edit loop honest.
+
+**3. Compile — the fallback, and the one place the two hosts differ.** Nothing precompiled was
+usable, so the program is compiled now.
+
+- **On the dev server the compile runs on the server**, via `POST /compile`. The browser sends
+  the source and receives the finished program. It never downloads the compiler and never
+  fetches the component library — the server has both and resolves only what the program
+  actually uses. Every reload recompiles on the server (a localhost round trip is a few
+  milliseconds), so what you see is always current with the file on disk. No client cache is
+  written; the server is the source of truth.
+- **On a static host there is no server, so the compile runs in the browser.** The page pulls
+  the compiler bundle once (cached by the platform's build id thereafter) and compiles
+  client-side, then writes the result to the cache tier above.
+
+Same request surface either way; only where the compile runs changes. This is why the dev loop
+stays light even for a large app with no prewarm — the server does the work — and why a static
+deployment can serve a flagship app compiler-free when its prewarm is committed.
+
+## Editing and reload
+
+The dev server pushes nothing to open pages — there is no hot-reload socket, and a page holds
+no connection to the server once it has loaded. So a change on disk does **not** refresh the
+browser on its own. **Reload the page** and the change is picked up: the prewarm and cache tiers
+re-fetch and re-hash the files with `no-cache`, the edit fails their freshness check, and the
+compile tier runs against the current source (on the server, on the dev server). A reload
+always reflects the file on disk.
+
+Editing a program *in the browser* — the "Edit this page" surface — is a separate path: each
+change recompiles the edited source directly (on the server under the dev server, in the
+in-browser compiler on a static host) and re-renders, no reload involved.
+
 ## `POST /compile`
 
-The playground and the "Edit this page" editors use `POST /compile`: source in, the full
-compile result out — source, dependencies, structured diagnostics, and the rendered report.
-Like every surface it **always typechecks**; that is a mandatory phase of the one compile, not
-a flag. See [flags](declare-docs:operational:flags) for the modifier surface and
+`POST /compile` is that server-side compile as a plain endpoint: source in, the full compile
+result out — source, dependencies, structured diagnostics, and the rendered report. The dev
+server's run pages use it (that is how server-side compilation above works), as do the
+playground and the "Edit this page" editors. Pass `?main=<program-url>` so the server resolves
+the program's `include`s and bare-tag library files against the right directory. Like every
+surface it **always typechecks**; that is a mandatory phase of the one compile, not a flag. See
+[flags](declare-docs:operational:flags) for the modifier surface and
 [building](declare-docs:operational:building) for `declarec`.
 
 ## Serving another project

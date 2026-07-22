@@ -2,6 +2,16 @@
 
 **Status:** direction ruled 2026-07-13; numbers measured on this tree, worker transport and lazy-lib not yet built. The near-future goal is *real* in-browser development — edit a `.declare` and see it recompile, **including the full typecheck**, with no server. This note records what that costs, why it's realistic, and the architecture that gets there without breaking the one-compiler-API invariant (`constraints.md` §5, the uniform result).
 
+**Scope note (do not let this drift again):** "in-browser compile, no server" is the
+**static-host** path — a dumb host with the service worker, where there is no server to
+compile. It is *not* the universal dev model. Under the **dev server**, a run navigation
+compiles **on the server** (`POST /compile`), so the browser downloads no compiler and
+preloads no library; the in-browser compiler is loaded only on a static host (or for a live
+edit there). The two hosts share one run shell and one three-tier boot (prewarm → cache →
+compile) and differ *only* in where that compile tier runs. See
+[hosting.md](hosting.md) "Dynamic (dev server)" and "Browse-to-run", and
+[operational/dev-server](../operational/dev-server.md) "How a program gets rendered".
+
 ## 1. Separability — it's already real, not aspirational
 
 The whole plan rests on the compiler being separable from the runtime and from the app. It is, and one-way:
