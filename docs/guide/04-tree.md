@@ -103,12 +103,15 @@ answer: *which node am I talking about?* Four reserved words cover it —
 
 - **`this`** — the node the code is written on;
 - **`parent`** — that node's parent in the tree;
-- **`classroot`** — the instance of the class *in whose body the code is written*;
+- **`classroot`** — the root of the component you're defining, reached from any depth inside it;
 - **`app`** — the running app, reachable from any depth.
 
-The first two are what you expect. The law worth memorizing is the other two:
-`classroot` resolves by **where the code is written** — lexically, not by runtime
-ancestry. In a class body, it is that class's instance, however deeply the code nests:
+The first two are what you expect. The one worth internalizing is **`classroot`** — and
+it's simpler than its name suggests. A component is just a class you define; `classroot` is
+that class's own root. When a handler or binding buried several views deep needs to talk to
+the component itself — its attributes, its methods — that's `classroot`, reachable from any
+depth inside the class. Here `header`, `caption`, and `bg` all reach the `WeatherTab` they
+belong to, however deeply they nest:
 
 ```declare-fragment
 class WeatherTab extends View [
@@ -135,8 +138,9 @@ inside a component. Try it: give the running `StatRow` example above a binding l
 — because inside `StatRow`, `classroot` *is* the StatRow, which has no `dark`. The fix
 is `app.dark`: **`app` always means the running app**, from anywhere. Use it for
 app-wide state — `app.width` for responsive reads, `app.dark` for the system scheme,
-your own `app.muted` — even in code that happens to sit in the App's own body, where
-bare names also reach the App's attributes directly. (Inside any class body, a bare
+your own `app.muted`. And because `classroot` is *for* components, it has no meaning in
+the App itself: write it in the App's own body and the compiler stops you — reach an App
+attribute by its bare name, or through `app`. (Inside any class body, a bare
 name — `label`, `selected` — reads the enclosing class's attribute until something
 nearer shadows it; `classroot.label` is the explicit spelling.) One capitalization
 trap: bare `App` is the class; the instance is always `app`.

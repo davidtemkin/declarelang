@@ -1260,6 +1260,28 @@ await test("check(): scope nouns cannot be declared, named, or shadowed by param
   assert.match(msgs[2], /a parameter may not be named 'classroot'/);
 });
 
+await test("compile(): 'classroot' is a compile error in the App body, valid in a class", () => {
+  // classroot names the root of the component you are defining — meaningful only
+  // inside a class body. In the App there is no component to root (DECLARE4003).
+  const inApp = compile(`App [ count: number = 0, Text [ text = { "" + classroot.count } ] ]`, {});
+  assert.equal(inApp.source, null, "classroot in the App body must not compile");
+  assert.match(inApp.errors[0].message, /'classroot' is only for a component you define/);
+  // a use-site classroot inside the App is equally rejected
+  const useSite = compile(`class Chip extends View [ n: number = 0 ]\nApp [ v: number = 1, Chip [ n = { classroot.v } ] ]`, {});
+  assert.equal(useSite.source, null, "classroot at an App use-site must not compile");
+  // inside a class body it is fine, at any depth
+  const inClass = compile(`class Row extends View [ label: string = "", sel: boolean = false,\n  hdr: View [ onClick() { classroot.sel = true }, Text [ text = { classroot.label } ] ] ]\nApp [ Row [ label = "hi" ] ]`, {});
+  assert.deepEqual(inClass.errors, [], "classroot in a class body compiles");
+  // bare names and app. reach App attributes without classroot
+  assert.deepEqual(compile(`App [ count: number = 0, Text [ text = { "" + count } ] ]`, {}).errors, []);
+  assert.deepEqual(compile(`App [ count: number = 0, Text [ text = { "" + app.count } ] ]`, {}).errors, []);
+  // and a bare App-name rewrite stays idempotent (no classroot leaks into App output)
+  const out = compile(`App [ zip: number = 2, Text [ text = { "" + zip } ] ]`, {});
+  assert.ok(out.source.includes("this.root.zip") && !out.source.includes("classroot"),
+    "App bodies resolve to this.root, never classroot");
+  assert.equal(compile(out.source, {}).source, out.source, "resolve twice = resolve once");
+});
+
 await test("check(): 'app' is a scope noun — not declarable, nameable, or a parameter", () => {
   const msgs = check(parseProgram("App [ width=1, app: number = 1, k: View [ ], m(app) { } ]"))
     .map((e) => e.message);
@@ -1385,7 +1407,7 @@ await test("compile(): the anonymous-App top level — bare names in app-level b
     box: View [ zip: number = 2, Text [ text = { "" + zip + "/" + App.zip } ] ] ]`);
   assert.match(out, /total\(\) \{ return this\.zip \}/, "on the App root itself, bare = this (App IS the anonymous class)");
   assert.match(out, /parent\.zip/, "the nearer declaration wins");
-  assert.match(out, /classroot\.zip/, "App resolves lexically — the §11 qualified form");
+  assert.match(out, /this\.root\.zip/, "App.zip resolves lexically to the App (this.root, i.e. app) — the �11 qualified form; classroot is component-only");
 });
 
 await test("compile(): locals, parameters, and TS globals are never rewritten; shorthand stays an object literal", () => {
@@ -2329,7 +2351,7 @@ await test("replicated instances are full citizens: methods, classroot, user cla
     ]
   App [ width=100, height=100,
     d: Dataset { {"rows": [ {"n": "a"}, {"n": "b"} ]} },
-    list: View [ width = 50, height = 50, datapath = { classroot.d.value },
+    list: View [ width = 50, height = 50, datapath = { app.d.value },
       Row [ tag = "row", datapath = :rows[] ],
     ],
   ]`;
@@ -2359,8 +2381,8 @@ await test("compile(): :paths pass through untouched; resolution stays a fixpoin
   ]`;
   const compiled = compile(src);
   assert.deepEqual(compiled.errors, []);
-  assert.ok(compiled.source.includes("classroot.d.value"), "bare names resolve");
-  assert.ok(compiled.source.includes(`classroot.zip + ":" +`), "…even beside an island");
+  assert.ok(compiled.source.includes("this.root.d.value"), "bare names in the App body resolve to this.root (app), never classroot");
+  assert.ok(compiled.source.includes(`this.root.zip + ":" +`), "…even beside an island");
   assert.ok(compiled.source.includes("+ :n }"), "the island itself ships through");
   const again = compile(compiled.source);
   assert.deepEqual(again.errors, []);
@@ -4636,7 +4658,7 @@ await test("contentHeight over a replication-populated container re-derives on A
     n: number = 1,
     d: Dataset [ contents = { ({ rows: Array.from({ length: app.n }, (_, i) => ({ h: 20 + i * 30 })) }) } ],
     panel: View [ width = 100, height = { this.body.contentHeight + 10 },
-      body: View [ width = 100, datapath = { classroot.d.value },
+      body: View [ width = 100, datapath = { app.d.value },
         View [ datapath = :rows[], width = 10, height = { 0 + :h } ],
       ],
     ],

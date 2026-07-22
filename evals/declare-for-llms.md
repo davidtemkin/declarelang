@@ -20,7 +20,7 @@ App [ width = 400, height = 140, fill = #1E3A49, textColor = whitesmoke,
     count: number = 0,                               // reactive state
 
     add: View [ x = 20, y = 20, width = 108, height = 34, cornerRadius = 8, fill = #2E6BE6,
-        onClick() { classroot.count = classroot.count + 1 },
+        onClick() { count = count + 1 },
         Text [ x = 16, y = 8, text = "Add one" ],
         ],
 
@@ -197,10 +197,10 @@ Because layout, states, and springs sit on one reactive core, *arrangement* chan
 
 - **`this`** — the node the code is written on.
 - **`parent`** — its parent in the tree.
-- **`classroot`** — the instance of the class *in whose body the code is written*. Reach for it when `this` isn't the component root: a handler on a nested child that must act on its component says `classroot.select()`.
+- **`classroot`** — the root of the component you are defining: the top level of the class you are writing, reachable from any depth inside it. A component is just a class, and it may nest subviews several levels deep; from inside one, `classroot.x` reaches the component's own attribute and `classroot.select()` calls its method. The name says it — the root of your class.
 - **`app`** — the running App, from any depth: `app.width`, `app.dark`, `app.pointerX`.
 
-Inside a class body, a bare name (`label`, `count`) reads the enclosing class's attribute. The four nouns are reserved — nothing else may take their names. The most common scope mistake: on a deeply nested child, `this.foo` when the attribute lives on the component — write `classroot.foo`.
+Because `classroot` names the component you are defining, it is **only valid inside a class body** — in the App's own body it is a compile error; reach an App attribute by its bare name (`count`) or through `app` (`app.count`). Inside a class body a bare name (`label`, `count`) reads the enclosing class's attribute. The four nouns are reserved — nothing else may take their names. The most common scope mistake: on a deeply nested child, `this.foo` when the attribute lives on the component — write `classroot.foo`.
 
 Useful App-level reactive attributes: `app.width` / `app.height` (host size — responsive layout reads these), `app.dark` (OS dark mode), `app.pointerX` / `app.pointerY`, `app.hovering` (false on touch devices). An app with a usable floor declares it — `App [ minWidth = 600 ]` — and in a narrower host the app holds that width while the stage pans natively; declare the floor rather than writing `Math.max` clamps into size constraints.
 

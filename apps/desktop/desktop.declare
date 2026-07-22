@@ -742,181 +742,131 @@ opens a document in the Viewer.
 
 class FilesWindow extends Window [
 
-    sel1: string = "",                           // the selected top-level folder
-    sel1b: string = "",                          // the selected SUBfolder (2nd level), when the tree nests
-    sel2: string = "",                           // the selected file (its path)
-    sel2name: string = "",
+    // the SELECTION CHAIN: the open nodes' names, newline-joined, one per column
+    // ("" = nothing open). Every level of the hierarchy — even the top — is DATA
+    // (app.docsModel.value.browse, the one documentation model); this window
+    // chooses no categories of its own.
 
-    // the window's name IS the selected folder — the deepest one open — and
-    // falls back to "Documentation" at the top level (nothing selected). Tracks
-    // a second folder level automatically when the JSON nests one.
-
-    title = { this.sel1b != "" ? this.sel1b : (this.sel1 != "" ? this.sel1 : "Documentation") },
-
-    // the tree derives from the live documentation model (app.docsModel — the
-    // docs app's own spine, fetched once): the Guide folder lists every
-    // chapter as authored, the Reference folder every element in the language
-    // model — nothing here goes stale when the docs move. A "ref:" path opens
-    // a reference page synthesized from the model rather than a fetched file.
-
-    tree: Dataset [ contents = { ({ folders: [
-        ({ name: "Language", files: [
-            ({ name: "declare.md", path: "../../docs/declare.md" }),
-            ({ name: "FAQ", path: "../../apps/homepage/declare-faq.md" }),
-            ({ name: "Getting started", path: "../../apps/homepage/getstarted.md" }),
-        ] }),
-        ({ name: "Guide", files: ((app.docsModel.value || ({ })).guide || [])
-            .map((c) => ({ name: c.num + ". " + c.title, path: "../../docs/guide/" + c.id + ".md" })) }),
-        ({ name: "Reference", files: ((app.docsModel.value || ({ })).roots || [])
-            .map((r) => ({ name: "" + r, path: "ref:" + r })) }),
-        ({ name: "Design", files: [
-            ({ name: "Layers", path: "../../docs/system-design/planes.md" }),
-            ({ name: "Style", path: "../../docs/system-design/style.md" }),
-            ({ name: "Composition", path: "../../docs/system-design/composition.md" }),
-            ({ name: "Constraints", path: "../../docs/system-design/constraints.md" }),
-            ({ name: "Animation", path: "../../docs/system-design/animation.md" }),
-        ] }),
-        ({ name: "Operational", files: [
-            ({ name: "Getting started", path: "../../docs/operational/getting-started.md" }),
-            ({ name: "Building", path: "../../docs/operational/building.md" }),
-            ({ name: "The dev server", path: "../../docs/operational/dev-server.md" }),
-            ({ name: "Flags", path: "../../docs/operational/flags.md" }),
-            ({ name: "Format", path: "../../docs/operational/format.md" }),
-            ({ name: "Verify", path: "../../docs/operational/verify.md" }),
-        ] }),
-    ] }) } ],
-
-    // draggable column widths — clamped: never too narrow to read, never so
-    // wide the preview vanishes. The dividers are captured-drag strips laid
-    // over the column seams, each with the column-resize cursor.
-
-    c1w: number = 150,                           // sidebar width (drag: 110–300)
-    c2w: number = 210,                           // file-list width (drag: 130–360)
+    selPath: string = "",
+    colW: number = 230,                          // one column's width (drag any seam to resize all)
+    rowH: number = 26,                           // one row
     cw0: number = 0,                             // divider-drag anchors
     cpx0: number = 0,
 
-    rowH: number = 26,                           // one list row, both columns
+    // the window's name is the deepest open node, or "Documentation"
+
+    title = { this.selPath != "" ? (("" + this.selPath).split("\n").pop() ?? "Documentation") : "Documentation" },
+
+    // Walk `browse` along selPath into a flat list of columns: one LIST column
+    // per level (its child nodes), then a DETAIL column once the deepest
+    // selection is a leaf. Each item carries `at` — the exact selPath that opens
+    // it — so a row's click is one assignment and truncation is automatic (the
+    // list re-derives). Miller columns fall straight out of a recursive walk.
+
+    columnData(selPath, model) {
+        const parts = selPath == "" ? [] : selPath.split("\n")
+        const item = (n, p) => ({ name: "" + n.name, kind: "" + (n.kind || ""), label: "" + (n.label || ""),
+            hasKids: (n.children != null && n.children.length > 0),
+            path: "" + (n.path || ""), doc: "" + (n.doc || ""), preview: "" + (n.preview || ""),
+            at: p.join("\n") })
+        const cols = []
+        let level = ((model || ({ })).browse) || []
+        cols.push(({ items: level.map((n) => item(n, [n.name])) }))
+        for (let k = 0; k < parts.length; k = k + 1) {
+            const chosen = level.find((n) => n.name == parts[k])
+            if (chosen == null) break
+            const prefix = parts.slice(0, k + 1)
+            if (chosen.children != null && chosen.children.length > 0) {
+                level = chosen.children
+                cols.push(({ items: level.map((n) => item(n, prefix.concat([n.name]))) }))
+            } else {
+                cols.push(({ leaf: item(chosen, prefix) }))
+                break
+            }
+        }
+        return cols
+        },
+    cols: Dataset [ contents = { ({ list: classroot.columnData(classroot.selPath, app.docsModel.value) }) } ],
+
+    // open a leaf — every leaf is a document. An authored file (`path`) opens its
+    // source; a hydrated page (`doc`, assembled by the model) opens whole. Same
+    // Markdown window either way; the browser special-cases nothing.
+
+    openLeaf(leaf) {
+        const d = "" + (leaf.doc || ""), p = "" + (leaf.path || "")
+        if (d != "") { app.openDoc(d, "" + leaf.name, this); return }
+        if (p != "") app.openViewer("../../" + p, "" + leaf.name, this)
+        },
 
     body: View [ x = 0, y = { classroot.barH }, width = { parent.width }, height = { parent.height - classroot.barH },
-        datapath = { classroot.tree.value },
-        row: View [ width = { parent.width }, height = { parent.height },
-            layout: SimpleLayout [ axis = x, spacing = 0 ],
+        fill = { theme.bg },
 
-            // Each column clips to its box (no text bleeds across the seam) and
-            // scrolls its own overflow — a per-column native scroll.
+        // the column STRIP: a horizontal row as wide as the open columns need,
+        // inside a viewport that scrolls RIGHT (scrollsX) as they accumulate — a
+        // trackpad's horizontal delta drives it, and the runtime swallows that
+        // gesture so it never becomes Safari's back-swipe (dom-backend setScrollX).
 
-            col1: View [ width = { classroot.c1w }, height = { parent.height }, fill = { theme.bg }, clip = true,
-                inner: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height }, scrolls = true,
-                    list: View [ x = 0, y = 6, width = { parent.width }, height = { this.contentHeight + 12 },
-                        layout: SimpleLayout [ axis = y, spacing = 1 ],
-                        View [ datapath = :folders[], width = { parent.width }, height = { classroot.rowH },
-                            fname: string = { "" + :name },
-                            on: boolean = { classroot.sel1 == this.fname },
-                            onClick() { classroot.activate(); classroot.sel1 = this.fname; classroot.sel2 = "" },
-                            hl: View [ x = 4, y = 0, width = { parent.width - 8 }, height = { classroot.rowH }, cornerRadius = 5,
-                                visible = { parent.on }, fill = { theme.accent } ],
-                            FolderIcon [ x = 11, y = center ],
-                            Text [ x = 34, y = center, fontSize = 13,
-                                textColor = { parent.on ? theme.accentText : theme.text }, text = { parent.fname } ],
-                            ],
-                        ],
-                    ],
-                edge: View [ x = { parent.width - 1 }, y = 0, width = 1, height = { parent.height }, fill = { theme.line } ],
-                ],
+        strip: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height }, scrollsX = true,
+            datapath = { classroot.cols.value },
+            row: View [ x = 0, y = 0, width = { (classroot.cols.value.list || []).length * classroot.colW }, height = { parent.height },
+                layout: SimpleLayout [ axis = x, spacing = 0 ],
 
-            col2: View [ width = { classroot.c2w }, height = { parent.height }, clip = true,
-                inner: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height }, scrolls = true,
-                    list: View [ x = 0, y = 6, width = { parent.width }, height = { this.contentHeight + 12 },
-                        layout: SimpleLayout [ axis = y, spacing = 1 ],
-                        View [ datapath = :folders[], width = { parent.width },
-                            visible = { classroot.sel1 == "" + :name },
-                            height = { this.visible ? this.files.height : 0 },
-                            files: View [ width = { parent.width },
-                                layout: SimpleLayout [ axis = y, spacing = 1 ],
-                                View [ datapath = :files[], width = { parent.width }, height = { classroot.rowH },
-                                    fpath: string = { "" + :path },
-                                    fname: string = { "" + :name },
-                                    on: boolean = { classroot.sel2 == this.fpath },
-                                    onClick() { classroot.activate(); classroot.sel2 = this.fpath; classroot.sel2name = this.fname },
+                // ONE column per browse level (its child nodes), then the final
+                // leaf-DETAIL column once the deepest selection has no children.
 
-                                    // Single click selects; double-click opens, on the
-                                    // platform's double-click event.
+                View [ datapath = :list[], width = { classroot.colW }, height = { parent.height }, clip = true, fill = { theme.bg },
 
-                                    onDblClick() { app.openViewer(this.fpath, this.fname, this) },
-                                    hl: View [ x = 4, y = 0, width = { parent.width - 8 }, height = { classroot.rowH }, cornerRadius = 5,
-                                        visible = { parent.on }, fill = { theme.accent } ],
-                                    FileIcon [ x = 12, y = center ],
-                                    Text [ x = 32, y = center, fontSize = 13,
-                                        textColor = { parent.on ? theme.accentText : theme.text }, text = { parent.fname } ],
-                                    ],
+                    // a freshly-opened column reveals itself — the strip scrolls
+                    // right so drilling always brings the new column into view
+
+                    onInit() { setTimeout(() => this.scrollIntoView("nearest"), 0) },
+
+                    // a LIST column — this level's nodes as selectable rows
+
+                    lst: View [ visible = { :items != null }, x = 0, y = 0, width = { parent.width }, height = { parent.height }, scrolls = true,
+                        inner: View [ x = 0, y = 6, width = { parent.width }, height = { this.contentHeight + 12 },
+                            layout: SimpleLayout [ axis = y, spacing = 1 ],
+                            View [ datapath = :items[], width = { parent.width }, height = { classroot.rowH },
+                                on: boolean = { classroot.selPath != "" && (("" + classroot.selPath) + "\n").indexOf(("" + :at) + "\n") == 0 },
+                                onClick() { classroot.activate(); classroot.selPath = "" + :at },
+                                onDblClick() { if (!:hasKids) classroot.openLeaf(({ name: "" + :name, path: "" + :path, doc: "" + :doc })) },
+                                hl: View [ x = 4, y = 0, width = { parent.width - 8 }, height = { classroot.rowH }, cornerRadius = 5,
+                                    visible = { parent.on }, fill = { theme.accent } ],
+                                fo: FolderIcon [ x = 11, y = center, visible = { :hasKids } ],
+                                fi: FileIcon [ x = 12, y = center, visible = { !:hasKids } ],
+                                nm: Text [ x = 34, y = center, fontSize = 13, wrap = false, width = { parent.width - 52 },
+                                    textColor = { parent.on ? theme.accentText : theme.text }, text = { "" + :name } ],
+                                chev: Text [ x = { parent.width - 15 }, y = center, fontSize = 12, visible = { :hasKids },
+                                    textColor = { parent.on ? theme.accentText : theme.textFaint }, text = "›" ],
                                 ],
                             ],
+                        edge: View [ x = { parent.width - 1 }, y = 0, width = 1, height = { parent.height }, fill = { theme.line } ],
                         ],
-                    ],
-                edge: View [ x = { parent.width - 1 }, y = 0, width = 1, height = { parent.height }, fill = { theme.line } ],
-                ],
 
-            // The preview pane: icon, name, and path all centered, with the Open
-            // button below the last text line — the column layout stacks them, so
-            // wrapped text can never overlap the button.
+                    // the LEAF DETAIL column — name, kind, a preview, and Open
 
-            col3: View [ width = { Math.max(120, classroot.width - classroot.c1w - classroot.c2w) }, height = { parent.height }, clip = true,
-                info: View [ x = 16, y = 18, width = { parent.width - 32 },
-                    visible = { classroot.sel2 != "" },
-                    layout: SimpleLayout [ axis = y, spacing = 12 ],
-                    doc: View [ x = center, width = 56, height = 66, cornerRadius = 6, fill = { theme.bg },
-                        stroke = { stroke(1, theme.line) },
-
-                        // the big icon opens on double-click too, zooming from itself
-
-                        onDblClick() { app.openViewer(classroot.sel2, classroot.sel2name, this) },
-                        Text [ x = center, y = center, fontSize = 22, textColor = { theme.textFaint }, text = "M↓" ],
-
-                        // The page's dog-ear: cut the corner, then draw the fold flap.
-
-                        ear: View [ x = { parent.width - 17 }, y = 0, width = 17, height = 17,
-                            draw(d) {
-                                d.fillStyle = theme.surface
-                                d.beginPath()
-                                d.moveTo(1, -1); d.lineTo(18, -1); d.lineTo(18, 16)
-                                d.closePath(); d.fill()
-                                d.fillStyle = 0xE3E3E8
-                                d.strokeStyle = 0xC6C6CC
-                                d.lineWidth = 1
-                                d.beginPath()
-                                d.moveTo(0.5, 0.5); d.lineTo(15.5, 15.5); d.lineTo(0.5, 15.5)
-                                d.closePath(); d.fill(); d.stroke()
-                                },
+                    det: View [ visible = { :leaf != null }, x = 18, y = 20, width = { parent.width - 36 },
+                        layout: SimpleLayout [ axis = y, spacing = 11 ],
+                        dn: Text [ fontSize = 14, fontWeight = semibold, wrap = true, width = { parent.width },
+                            textColor = { theme.text }, text = { "" + :leaf.name } ],
+                        dk: Text [ fontSize = 11, wrap = false, textColor = { theme.textFaint },
+                            text = { "" + :leaf.label } ],
+                        dp: Text [ fontSize = 12, wrap = true, width = { parent.width },
+                            textColor = { theme.text }, text = { "" + :leaf.preview } ],
+                        Button [ width = 92, label = "Open", primary = true, visible = { :leaf.path != "" || :leaf.doc != "" },
+                            onClick() { classroot.openLeaf(:leaf) },
                             ],
                         ],
-                    nm: Text [ fontSize = 13, fontWeight = semibold, wrap = true, width = { parent.width },
-                        textAlign = center,
-                        textColor = { theme.text }, text = { classroot.sel2name } ],
-                    pth: Text [ fontSize = 11, wrap = true, width = { parent.width },
-                        textAlign = center,
-                        textColor = { theme.textFaint },
-                        text = { classroot.sel2.indexOf("ref:") == 0 ? "from the documentation model" : classroot.sel2 } ],
-                    Button [ x = center, width = 96, label = "Open", primary = true,
-                        onClick() { app.openViewer(classroot.sel2, classroot.sel2name, this) },
+
+                    // drag any seam to resize every column (uniform Finder-style width)
+
+                    grip: View [ x = { parent.width - 4 }, y = 0, width = 8, height = { parent.height }, cursor = "col-resize",
+                        onMouseDown() { classroot.activate(); classroot.cw0 = classroot.colW; classroot.cpx0 = app.pointerX },
+                        onMouseMove() { if (classroot.cw0 > 0) classroot.colW = Math.max(160, Math.min(420, classroot.cw0 + app.pointerX - classroot.cpx0)) },
+                        onMouseUp() { classroot.cw0 = 0 },
                         ],
                     ],
-                hint: Text [ x = center, y = center, fontSize = 12, textColor = { theme.textFaint },
-                    visible = { classroot.sel2 == "" }, text = "Select a document" ],
                 ],
-            ],
-
-        // the column dividers ride the seams (over the hairline edges), with
-        // reasonable limits: 110–300 for the sidebar, 130–360 for the files
-
-        div1: View [ width = 7, x = { classroot.c1w - 3 }, y = 0, height = { parent.height }, cursor = "col-resize",
-            onMouseDown() { classroot.activate(); classroot.cw0 = classroot.c1w; classroot.cpx0 = app.pointerX },
-            onMouseMove() { if (classroot.cw0 > 0) classroot.c1w = Math.max(110, Math.min(300, classroot.cw0 + app.pointerX - classroot.cpx0)) },
-            onMouseUp() { classroot.cw0 = 0 },
-            ],
-        div2: View [ width = 7, x = { classroot.c1w + classroot.c2w - 3 }, y = 0, height = { parent.height }, cursor = "col-resize",
-            onMouseDown() { classroot.activate(); classroot.cw0 = classroot.c2w; classroot.cpx0 = app.pointerX },
-            onMouseMove() { if (classroot.cw0 > 0) classroot.c2w = Math.max(130, Math.min(360, classroot.cw0 + app.pointerX - classroot.cpx0)) },
-            onMouseUp() { classroot.cw0 = 0 },
             ],
         ],
     ]
@@ -978,13 +928,16 @@ class ViewerWindow extends Window [ width = 640, height = 460,
     // (a "ref:" page names the element). The same basename rule the standalone
     // viewer app titles itself by, so the two agree.
 
-    title = { this.path.indexOf("ref:") == 0 ? this.path.slice(4) : (this.path.split("/").pop() || "") },
+    // a viewer opens either a real FILE (a `path` it fetches) or a HYDRATED doc
+    // handed over whole (`inlineDoc` — a page the model already assembled, e.g.
+    // an element's reference). `docName` titles a hydrated doc; a file titles by
+    // its basename.
 
-    // a "ref:" path renders a page synthesized from the documentation model
-    // (reactive — the page fills in when the model arrives); anything else is
-    // the real file fetched as text
+    inlineDoc: string = "",
+    docName: string = "",
+    title = { this.inlineDoc != "" ? this.docName : (this.path.split("/").pop() || "") },
 
-    inline: string = { this.path.indexOf("ref:") == 0 ? app.buildRef(this.path.slice(4)) : "" },
+    inline: string = { classroot.inlineDoc },
 
     src: DataSource [ format = "text", url = { classroot.path } ],
 
@@ -1993,6 +1946,33 @@ App [ clip = true, appName = "Declare Desktop",
         else go()
         },
 
+    // open a HYDRATED document — Markdown the model already assembled (an
+    // element's reference, the enums page). The same window as openViewer, but
+    // the page is handed over whole instead of a path to fetch.
+
+    openDoc(md, nm, v) {
+        if (md == "") return
+        const first = !mdRunning && !mdLaunching
+        if (first) mdLaunching = true
+        const go = () => {
+            mdLaunching = false
+            mdRunning = true
+            viewerCount = viewerCount + 1
+            this.dismissAbouts()
+            winCount = winCount + 1
+            winSeq = winSeq + 1
+            const wx = 160 + (winCount % 7) * 28
+            const wy = 36 + (winCount % 7) * 26
+            const o = this.originOf(v)
+            const w = this.createView("ViewerWindow", this.wins, ({ inlineDoc: "" + md, docName: "" + nm, wx: wx, wy: wy,
+                bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - this.menuBarH : -1,
+                bornFrom: v != null ? v : null }))
+            this.frontOpen(w)
+            }
+        if (first) { this.dock.row.viewerIcon.poke(); setTimeout(go, 900) }
+        else go()
+        },
+
     // a full Declare app in a window — the path is demos/-relative (the slot
     // convention): "../../calendar/calendar" runs the real calendar,
     // "../../viewer/viewer" the Declare Viewer. `envExtra` appends to the
@@ -2134,23 +2114,6 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
     // pages, all derive from it.
 
     docsModel: DataSource [ url = "../../docs/declare-model.json" ],
-
-    buildRef(name) {
-        const m = this.docsModel.value
-        if (m == null || m.nodes == null) return "# " + name + "\n\nLoading the documentation model…"
-        const n = m.nodes[name]
-        let md = "# " + name + "\n\n" + (n != null && n.doc ? "" + n.doc : "*(no element doc)*")
-        const pre = name + "."
-        const keys = Object.keys(m.nodes).filter((k) => k.indexOf(pre) == 0)
-        if (keys.length > 0) {
-            md = md + "\n\n---\n\n## Attributes\n"
-            for (const k of keys) {
-                const d = ("" + (m.nodes[k].doc || "")).split("\n\n")[0]
-                md = md + "\n**" + k.slice(pre.length) + "** — " + d + "\n"
-                }
-            }
-        return md
-        },
 
     // 15s ticks catch the minute flip well within a minute-precision display
 

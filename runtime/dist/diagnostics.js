@@ -144,6 +144,10 @@ export const Diag = {
     // 4xxx name resolution
     unresolved: (name, scope, pos) => err(code4(4001), `cannot resolve '${name}' — not a member of ${scope}, a parameter, or a global`, pos),
     shadowing: (message, pos) => err(code4(4002), message, pos),
+    // `classroot` reaches the root of the component (class) you are defining, so it
+    // is only meaningful inside a class body. In the App's own body there is no
+    // component to root — a bare name or `app.` reaches the App's attributes.
+    classrootInApp: (pos) => err(code4(4003), `'classroot' is only for a component you define (a class) — this code is in the App, which has no component root. Use a bare name for an App attribute (e.g. 'count'), or 'app.' (e.g. 'app.count').`, pos),
     // 5xxx module / include
     includeCollision: (message, pos) => err(code4(5001), message, pos),
     missingInclude: (path, pos) => err(code4(5002), `cannot find include "${path}"`, pos),

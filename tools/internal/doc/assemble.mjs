@@ -25,7 +25,7 @@
 // Chain position: after extract (it reads its output and scans the corpus), before
 // prewarm (nothing downstream reads it yet).
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FLAG_SPECS, DEFAULT_FLAGS } from "../../../compiler/dist/flags.js";
@@ -97,6 +97,94 @@ function buildSpine() {
   };
 }
 
+// ── the BROWSE tree: the single walkable IA over everything documented ────────
+// One hierarchy, every leaf placed exactly once — ZERO curation. It is the
+// structure the desktop column-browser walks and any agent reads, generated
+// here in the SAME pass as the flat sections, so it can never drift from them.
+// Categories are the designed IA; a leaf carries a `ref` into the flat
+// reference/guide/tenets (or a `path` for a doc file) plus a short preview for
+// the browser's detail pane. The flat sections remain the leaves' content store.
+const proseFile = (rel) => { try { return readFileSync(join(ROOT, rel), "utf8"); } catch { return ""; } };
+const preview = (text, n = 240) => text
+  .replace(/^\s*\/\*[\s\S]*?\*\//, "").replace(/<!--[\s\S]*?-->/g, "")   // leading block comment / html comments
+  .replace(/^#{1,6}\s.*$/m, "").replace(/[#*`_>|\[\]]/g, "").replace(/\s+/g, " ").trim().slice(0, n);
+const titleOf = (rel) => (proseFile(rel).match(/^#\s+(.+)$/m)?.[1] ?? rel.split("/").pop()).trim();
+const segText = (segs) => (segs ?? []).map((s) => s.md || "").join(" ");
+const segMd = (segs) => (segs ?? []).map((s) => s.md || "").filter(Boolean).join("\n\n");
+const fileLeaf = (name, rel, label = "Markdown file") => ({ name, kind: "doc", label, path: rel, preview: preview(proseFile(rel)) });
+const listDocs = (dir, label) => readdirSync(join(ROOT, dir)).filter((f) => f.endsWith(".md")).sort()
+  .map((f) => fileLeaf(titleOf(dir + "/" + f), dir + "/" + f, label));
+
+// ── hydrators: a structured node → a finished Markdown reference page. Purely
+// MECHANICAL (same input → same page), run HERE at build time so the model
+// carries the finished DOCUMENT — the desktop just renders it, and an LLM reads
+// the page rather than the raw JSON. This is where the docs consolidation lives.
+function elementDoc(id, ref) {
+  const c = ref[id];
+  const kind = c.origin === "library" ? "Component" : "Built-in element";
+  const L = [`# ${c.name}`, "", c.extends ? `*${kind} — extends \`${c.extends}\`*` : `*${kind}*`, ""];
+  if (c.doc) L.push(c.doc.trim(), "");
+  const pick = (ids) => ids.map((i) => ref[i]).filter((n) => n && n.api);
+  const attrs = pick(c.attributes), events = pick(c.events), methods = pick(c.methods);
+  if (attrs.length) {
+    L.push("## Attributes", "", "| name | type | default | |", "|---|---|---|---|");
+    for (const a of attrs) {
+      const badge = [a.prevailing ? "prevailing" : "", a.readOnly ? "read-only" : ""].filter(Boolean).join(" · ");
+      L.push(`| \`${a.name}\` | ${a.type ?? ""} | ${a.default != null ? "`" + a.default + "`" : ""} | ${badge} |`);
+    }
+    L.push("");
+    for (const a of attrs) if (a.doc) L.push(`**\`${a.name}\`** — ${a.doc.trim()}`, "");
+  }
+  if (events.length) { L.push("## Events", ""); for (const e of events) L.push(`- \`${e.signature ?? e.name}\`${e.doc ? " — " + e.doc.trim() : ""}`); L.push(""); }
+  if (methods.length) { L.push("## Methods", ""); for (const m of methods) L.push(`- \`${m.signature ?? m.name}\`${m.doc ? " — " + m.doc.trim() : ""}`); L.push(""); }
+  return L.join("\n");
+}
+const enumsDoc = (spine) => ["# Enums", "", "*The language's fixed token sets — write the token itself, never a CSS-style value.*", "",
+  ...Object.entries(spine.enums).map(([n, toks]) => `**${n}** — ${toks.map((t) => "`" + t + "`").join(" · ")}\n`)].join("\n");
+const flagsDoc = (spine) => ["# Compile flags", "", "*Modifiers on a program URL (`?…`), the `declarec` CLI (`--…`), and the JS API — one set of names.*", "",
+  "| flag | what it does | default |", "|---|---|---|", ...spine.flags.map((f) => `| \`${f.name}\` | ${f.description} | \`${f.default}\` |`)].join("\n");
+const diagnosticsDoc = (spine) => ["# Diagnostic codes", "", `*Every compiler diagnostic carries a \`${spine.diagnostics.prefix}####\` code, and its message names the fix.*`, "",
+  spine.diagnostics.codes.map((c) => "`" + c + "`").join(" · ")].join("\n");
+const requestsDoc = (spine) => ["# Request types", "", "*The addressable request surface of a program URL.*", "",
+  Object.keys(spine.requests).map((r) => "`" + r + "`").join(" · ")].join("\n");
+
+// ── the BROWSE tree: the single walkable IA. Every leaf is a DOCUMENT — either
+// an authored .md (a `path`) or a page hydrated from the structured model above
+// (an inline `doc`). Folders drill; documents open. One family, no special case.
+function buildBrowse(dm, spine) {
+  const ref = dm.reference;
+  const cat = (name, children) => ({ name, kind: "category", children });
+  const builtins = dm.roots.filter((id) => ref[id]?.origin !== "library");
+  const library = dm.roots.filter((id) => ref[id]?.origin === "library");
+  const elementLeaf = (id) => ({ name: ref[id].name, kind: "element",
+    label: ref[id].origin === "library" ? "Component" : "Built-in element",
+    doc: elementDoc(id, ref), preview: preview(ref[id].doc || "") });
+  const hydrated = (name, md) => ({ name, kind: "reference", label: "Reference", doc: md, preview: preview(md) });
+  const tenetLeaf = (t) => ({ name: t.title, kind: "tenet", label: "Tenet", doc: segMd(t.segs), preview: preview(segText(t.segs)) });
+  return [
+    cat("Language", [
+      fileLeaf("The language — declare.md", "docs/declare.md"),
+      cat("Tenets", (dm.tenets ?? []).map(tenetLeaf)),
+      fileLeaf("FAQ", "apps/homepage/declare-faq.md"),
+      fileLeaf("Getting started", "apps/homepage/getstarted.md"),
+    ]),
+    cat("Guide", (dm.guideParts ?? []).map((p) => cat(p.part,
+      p.chapters.map((ch) => fileLeaf(ch.num + ". " + ch.title, "docs/guide/" + ch.id + ".md", "Guide chapter"))))),
+    cat("Reference", [
+      cat("Built-ins", builtins.map(elementLeaf)),
+      cat("Standard library", library.map(elementLeaf)),
+    ]),
+    cat("Vocabulary", [
+      hydrated("Enums", enumsDoc(spine)),
+      hydrated("Flags", flagsDoc(spine)),
+      hydrated("Diagnostics", diagnosticsDoc(spine)),
+      hydrated("Requests", requestsDoc(spine)),
+    ]),
+    cat("Operational", listDocs("docs/operational")),
+    cat("Background — design notes (non-normative)", listDocs("docs/system-design")),
+  ];
+}
+
 // ── projection 1: the comprehensive JSON ─────────────────────────────────────
 
 function comprehensiveModel(spine) {
@@ -122,6 +210,7 @@ function comprehensiveModel(spine) {
     guide: docsModel.guide,
     guideParts: docsModel.guideParts,
     tenets: docsModel.tenets,
+    browse: buildBrowse(docsModel, spine),
   }, null, 1) + "\n";
 }
 

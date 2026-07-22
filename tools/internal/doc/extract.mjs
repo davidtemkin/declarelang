@@ -20,6 +20,7 @@ import ts from "typescript";
 import { SCHEMAS, RichTextSchema } from "../../../runtime/dist/schema.js";
 import { compile } from "../../../compiler/dist/compile-node.js";
 import { settleHeadless } from "../../../compiler/dist/headless.js";
+import { parseProgram } from "../../../runtime/dist/parser.js";
 
 // RichText is the abstract base of Markdown/HTMLText — documented, but not in the
 // instantiable SCHEMAS registry (like Layout). Fold it in for the extractor only.
@@ -347,6 +348,63 @@ for (const name of TARGETS) {
     example: readExample(clsId),
   };
   roots.push(clsId);
+}
+
+// ── the standard library: components authored as .declare (library/*.declare).
+// Their doc surface is not in the runtime SCHEMAS — it lives in the source: the
+// header /* # Name … */ block is the class prose, and the DECLARED members
+// (body.decls, body.methods) are the public interface (body.attrs are internal
+// style overrides — excluded). A declared member IS the API, so it is @api by
+// declaration (unlike the built-ins, where prose gates @api). Parsed with a
+// throwaway `App []` root so the program parser accepts a class-only file, and
+// emitted in the SAME node shape so the reference and tree treat them uniformly.
+const renderDefault = (def) =>
+  !def ? null
+  : def.kind === "string" ? JSON.stringify(def.value)
+  : def.kind === "number" ? String(def.value)
+  : def.kind === "ident"  ? def.name              // false / true / null
+  : null;                                         // computed/complex — omit
+const headerProse = (src) => {
+  const m = src.match(/^\s*\/\*([\s\S]*?)\*\//);
+  if (!m) return null;
+  return m[1].replace(/^\s*#\s*\S[^\n]*\n/, "").trim() || null;   // drop the leading "# Name" line
+};
+const LIBRARY = JSON.parse(readFileSync(path.join(ROOT, "library/autoincludes.json"), "utf8"));
+for (const [tag, file] of Object.entries(LIBRARY)) {
+  if (tag.startsWith("$") || typeof file !== "string") continue;  // $provide etc.
+  const rel = "library/" + file;
+  const abs = path.join(ROOT, rel);
+  if (!existsSync(abs) || nodes[tag]) continue;
+  const src = readFileSync(abs, "utf8");
+  let cls;
+  try { cls = parseProgram(src + "\nApp [ ]\n").classes.find((c) => c.name === tag); } catch { cls = null; }
+  if (!cls) continue;
+  const attributes = [], methods = [], events = [];
+  for (const d of cls.body.decls) {
+    const id = `${tag}.${d.name}`;
+    nodes[id] = { id, name: d.name, kind: "attribute", doc: null, docSegs: [], api: true,
+      source: { file: rel, line: 0 }, parent: tag, seeAlso: [],
+      type: d.type, default: renderDefault(d.def),
+      prevailing: !!d.prevailing, readOnly: !!d.readOnly, inheritedFrom: null };
+    attributes.push(id);
+  }
+  for (const m of cls.body.methods) {
+    const isEvent = /^on[A-Z]/.test(m.name);
+    const id = `${tag}.${isEvent ? "event" : "method"}.${m.name}`;
+    nodes[id] = { id, name: m.name, kind: isEvent ? "event" : "method", doc: null, docSegs: [], api: true,
+      source: { file: rel, line: 0 }, parent: tag, seeAlso: [],
+      signature: `${m.name}(${(m.params ?? []).map((p) => p.name ?? p).join(", ")})` };
+    (isEvent ? events : methods).push(id);
+  }
+  const baseName = cls.base ?? null;
+  if (baseName) (subclassIndex[baseName] ??= []).push(tag);
+  const prose = headerProse(src);
+  nodes[tag] = { id: tag, name: tag, kind: "class",
+    doc: prose, docSegs: segmentize(prose, tag), api: true,
+    source: { file: rel, line: 0 }, parent: null, seeAlso: [],
+    extends: baseName, subclasses: [], origin: "library",
+    attributes, methods, events, example: [] };
+  roots.push(tag);
 }
 
 // reverse edge: subclasses (only among documented classes carry a live link)

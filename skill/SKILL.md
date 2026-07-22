@@ -43,9 +43,11 @@ cover; fetch the one chapter your task needs).
 - **`<->` binds a DATAPATH only** (`text <-> :field`, editors only). Attribute
   wiring is derive-down (`value = { app.goal }`) + deliver-up
   (`onInput(v) { app.goal = v }`).
-- **Scope**: `this` (this node) · `parent` · `classroot` (the instance of the
-  class whose body the code is written in — lexical, the trap worth care) ·
-  `app` (the root, reachable anywhere). A replicated child cannot be named.
+- **Scope**: `this` (this node) · `parent` · `classroot` (the root of the
+  component you're defining — reach it from any depth inside the class; only
+  valid inside a class body, a compile error in the App — use a bare name or
+  `app` there) · `app` (the root, reachable anywhere). A replicated child cannot
+  be named.
 - **Data**: `datapath = :rows[]` replicates a child per row; `:field` reads
   relative to the cursor. Reading data in `{ }` uses `:paths` or
   `dataset.read([…])`. Decl defaults seed from data as `label: string = { :label }`.

@@ -120,8 +120,11 @@ function diagnose(
 
 /** Names bound in every body without being members: the scope-noun arguments of
  *  the compiled Function (expr.ts) and its own `arguments`. `this` is not an
- *  identifier and needs no entry. */
-const BOUND = ["parent", "classroot", "arguments"];
+ *  identifier and needs no entry. `classroot` is deliberately NOT here — it is
+ *  surfaced as a free identifier so the resolver can REJECT it in the App body
+ *  (there is no component to root there) and pass it through untouched in a
+ *  class body, where the runtime binds it. */
+const BOUND = ["parent", "arguments"];
 
 // Browser globals a body may reasonably touch that a Node-side compile does
 // not have in ITS globalThis. A curated list, not magic: the tsc compiler
@@ -551,6 +554,17 @@ class Resolver {
         });
         continue;
       }
+      if (id.name === "classroot") {
+        // `classroot` reaches the root of the component (class) the code is
+        // written in. In a class body it passes through untouched — the runtime
+        // binds it (expr.ts). In the App's own body (mainRoot set — the root and
+        // every anonymous view under it) there is no component to root, so it is
+        // an error, with the fix named: a bare name or `app.` reaches the App.
+        // (Stylesheet/bundle bodies resolve with mainRoot null and are left as
+        // they were — this rule is about the App block only.)
+        if (mainRoot !== null) this.errors.push(Diag.classrootInApp(this.posAt(bodyStart + id.start)));
+        continue;
+      }
       const pos = this.posAt(bodyStart + id.start);
       let k = levels.findIndex((lv) => this.surfaceOf(lv).all.has(id.name));
       let selfName = false;
@@ -564,7 +578,7 @@ class Resolver {
         }
         continue;
       }
-      const path = this.pathTo(k, levels.length);
+      const path = this.pathTo(k, levels.length, mainRoot !== null);
       const expr = selfName ? path : `${path}.${id.name}`;
       this.edits.push({
         start: bodyStart + id.start,
@@ -573,7 +587,12 @@ class Resolver {
       });
       for (let j = k + 1; j < levels.length; j++) {
         if (this.surfaceOf(levels[j]).declared.has(id.name)) {
-          const outer = `${this.pathTo(j, levels.length)}.${id.name}`;
+          // The outer reach the user should WRITE. In the App body the root is
+          // `app`, never `classroot` (classroot is a component-only noun); in a
+          // class body it stays `classroot`.
+          const outer = (mainRoot !== null && j === levels.length - 1)
+            ? `app.${id.name}`
+            : `${this.pathTo(j, levels.length)}.${id.name}`;
           this.warnings.push(Diag.shadowing(
             `bare '${id.name}' means ${describe(levels[k])}'s here, shadowing ${describe(levels[j])}'s '${id.name}' — write ${outer} to reach the outer one`,
             pos
@@ -596,11 +615,13 @@ class Resolver {
   }
 
   /** The explicit path to level `k` of `count` levels: the node itself, a
-   *  parent chain, or the body-root noun `classroot` (depth-independent, and
-   *  the doc's own idiom for reaching the class instance). */
-  private pathTo(k: number, count: number): string {
+   *  parent chain, or the body root. In a CLASS body the root is `classroot`
+   *  (the component instance). In the App body (`appRoot`) it is `this.root`
+   *  (i.e. `app`) — `classroot` never appears in App output, so a bare App-name
+   *  rewrite is idempotent and cannot collide with the App-body classroot ban. */
+  private pathTo(k: number, count: number, appRoot = false): string {
     if (k === 0) return "this";
-    if (k === count - 1) return "classroot";
+    if (k === count - 1) return appRoot ? "this.root" : "classroot";
     return Array<string>(k).fill("parent").join(".");
   }
 

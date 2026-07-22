@@ -367,19 +367,24 @@ four sprung scalars (`c0, r0, nc, nr`) that all cell geometry derives from.
 
 - **`this`** — the node the code is written on.
 - **`parent`** — its parent in the tree.
-- **`classroot`** — the instance of the class *in whose body the code is written*. Reach
-  for it when `this` isn't the component root: a handler on a nested child that must act
-  on its component says `classroot.select()`.
+- **`classroot`** — the root of the component you are defining (see below).
 - **`app`** — the running App, from any depth: `app.width`, `app.dark`, `app.pointerX`.
 
-`classroot` resolves by **where the code is lexically written**: in a class body it is that
-class's instance (so `classroot.someAppAttr` inside a component is `undefined` — a `View`
-has no App attributes; use `app`); in the App's own body it is the App (but write bare
-`{ count }` there, not `{ classroot.count }`); at a use site it is the *enclosing* class
-instance, skipping anonymous views up to the nearest real class. Inside a class body a
-bare name (`label`, `count`) reads the enclosing class's attribute until a nearer name
-shadows it. The four nouns are reserved — nothing else may take their names. The bare
-capital `App` is the *class*; the instance is always `app`.
+A component is just a class you define, and it may nest subviews several levels deep. From
+inside one of those subviews you will often need to reach the component itself — its own
+attributes and methods. That is what **`classroot`** is for: the top level of the class
+you are writing, reachable from any depth within it. A handler three levels down writes
+`classroot.select()` to call the component's method; a binding on a leaf writes
+`{ classroot.label }` to read its attribute. The name says it — the root of your class.
+
+Because `classroot` names the component you are defining, it is **only valid inside a class
+body**. In the App's own body there is no component to root, so `classroot` is a compile
+error there — reach an App attribute by its bare name (`count`) or through `app`
+(`app.count`). Inside a class body a bare name (`label`, `count`) already reads the
+enclosing class's attribute until a nearer name shadows it; `classroot.label` is the
+explicit spelling for when a nearer child shadows it. The four nouns are reserved —
+nothing else may take their names. The bare capital `App` is the *class*; the instance is
+always `app`.
 
 The most common scope mistake: on a deeply nested child, `this.foo` when the attribute
 lives on the component — write `classroot.foo`.

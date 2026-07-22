@@ -112,6 +112,18 @@ export class DomBackend {
             doc.body.style.height = "100%";
             doc.body.style.margin = "0";
         }
+        // A horizontal trackpad swipe over an app must never become the browser's
+        // back/forward history gesture — that navigates the whole page away, out from
+        // under the running app. A `scrollsX` pane swallows the delta where it can, but
+        // a swipe over non-scrolling content (or a scroller already at its edge) still
+        // reaches the page, so opt the root scroller OUT of the gesture at the source.
+        // X only: vertical rubber-band (the painted-bg overscroll above, and an
+        // exterior-scrolling app's own scroll) is left untouched. Top-level only — an
+        // embedded island must not reach up and change the host page's behavior.
+        if (!embedded) {
+            doc.documentElement.style.overscrollBehaviorX = "none";
+            doc.body.style.overscrollBehaviorX = "none";
+        }
         // Input: the browser's own hit-test picks the target (only sinked
         // surface elements accept pointer events — everything else is
         // pointer-inert, see DomSurface), so resolution is just "walk up to the
