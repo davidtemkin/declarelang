@@ -1,5 +1,6 @@
 import type { Element, Attr, Method, AttrDecl, ClassDecl, Program, Literal } from "./parser.js";
 import { DeclareError, type Pos } from "./errors.js";
+import type { Plugin } from "./plugin.js";
 import { type ComponentSchema } from "./schema.js";
 import { type AttrType, type AttrValue } from "./value.js";
 /** The styling declarations in scope while an element tree checks: the
@@ -16,7 +17,7 @@ export interface StyleEnv {
 /** Typecheck a parsed tree — a whole Program (classes + root) or a bare
  *  Element fragment. Returns every error found, in source order — an empty
  *  array means the tree is well-typed and safe to instantiate. */
-export declare function check(input: Element | Program): DeclareError[];
+export declare function check(input: Element | Program, plugins?: readonly Plugin[], source?: string): DeclareError[];
 /** One registered user class: its declaration, its schema, and its declared
  *  attributes' coerced defaults (undefined = "no default; starts undefined
  *  until set"). instantiate.ts synthesizes the runtime twin from this. */
