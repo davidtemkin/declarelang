@@ -7,6 +7,7 @@
   "license": "MIT",
   "author": "David Temkin",
   "bin": {
+    "declarelang": "bin/declare.mjs",
     "declare": "bin/declare.mjs"
   },
   "scripts": {

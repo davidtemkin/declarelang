@@ -1,12 +1,17 @@
 #!/usr/bin/env node
 // bin/declare — the Declare command line.
 //
-// Three verbs on the one package (packaging-options.md §7). `dev` and `build`
-// ship here; `vendor` is named so `declare help` is honest about the roadmap.
+// Installed under TWO names: `declarelang` (use this in npm scripts and any shell)
+// and `declare`. Prefer `declarelang`: `declare` is a bash builtin, so
+// `sh -c "declare dev"` — which is how npm runs a script — hits the builtin, not
+// this bin. `declare` works interactively on non-bash shells and via `npx declare`.
 //
-//   declare dev [--root DIR] [--proxy /p=URL] [PORT]   the dev server (server/dev.mjs)
-//   declare build FILE [-o DIR] [--canvas] [--crawler]  a production build (declarec)
-//   declare help                                        this
+// Three verbs on the one package (packaging-options.md §7). `dev` and `build`
+// ship here; `vendor` is named so `help` is honest about the roadmap.
+//
+//   declarelang dev [--root DIR] [--proxy /p=URL] [PORT]   the dev server (server/dev.mjs)
+//   declarelang build FILE [-o DIR] [--canvas] [--crawler]  a production build (declarec)
+//   declarelang help                                        this
 //
 // `dev` runs from your project: put a declare.json in it and its location is the
 // root mount, or pass --root. `build` is the same declarec the ?build request and
@@ -28,19 +33,22 @@ function run(script, args) {
   child.on("exit", (code) => process.exit(code ?? 0));
 }
 
-const HELP = `declare — the Declare toolchain
+const HELP = `declarelang — the Declare toolchain   (also aliased 'declare')
 
-  declare dev [--root DIR] [--proxy /prefix=URL] [--port N | N]
+  declarelang dev [--root DIR] [--proxy /prefix=URL] [--port N | N]
       Run the dev server. From inside a project with a declare.json, its
       location is the root mount; otherwise --root DIR, or the distro itself.
       --proxy forwards a URL prefix to a back end (repeatable).
 
-  declare build FILE [-o DIR] [--canvas] [--crawler] [--extract]
+  declarelang build FILE [-o DIR] [--canvas] [--crawler] [--extract]
       Precompile ONE app to a self-contained static directory (declarec).
       Deployable to any static host; no compiler and no distro at run time.
 
-  declare help
+  declarelang help
       This message.
+
+Use 'declarelang' in npm scripts — 'declare' is a bash builtin the shell
+intercepts. 'declare' still works interactively and via 'npx declare'.
 
 Docs: docs/operational/embedding.md · docs/operational/building.md`;
 
