@@ -351,8 +351,8 @@ class InspectorPitch extends View [ width = { parent.width < 760 ? parent.width 
 class PreviewFrame extends View [ width = { parent.width < 760 ? parent.width : Math.floor((parent.width - 20) * 0.42) },
     runName: string = "",
     active: boolean = true,
-    run: DOMIsland [ width = { parent.width }, height = { parent.height },
-        slot = { classroot.active ? "run:" + classroot.runName : "" } ],
+    run: AppIsland [ width = { parent.width }, height = { parent.height },
+        program = { classroot.active ? classroot.runName : "" } ],
     ]
 
 

@@ -1,0 +1,38 @@
+/*
+# AppIsland — a whole Declare program running inside a box
+
+`AppIsland` embeds a live Declare application: give it a `program` and it mounts
+that program as its own child app — its own reactive graph, input router, and
+stage — sized to this view's box. There is no coordinate sync: the tenant fills
+the box, so your width/height constraints size it like any view.
+
+It composes `DOMIsland` (the sanctioned foreign-content leaf) and builds the
+host's mount key from structured inputs, so callers never hand-splice the
+`run:…` wire. The page host (`browser/host-client.js`) sees the key on the box,
+resolves the program on its boot ladder — prewarm → cache → in-browser compile,
+identical on the dev server and a static host — and renders the child.
+
+- `program` — what to run: a program name, or a relative path
+  (`"../../calendar/calendar"` reaches the real app, no copy), or the reserved
+  `"__raw__"` live-edit channel (the running program is the host app's
+  `liveSource`, recompiled on change). `""` detaches the island — nothing mounts.
+- `env` — the embedding environment, in query form (`"dark=1&base=../x/"`),
+  delivered to the child's reactive `app.env` at mount and on every change.
+  Empty sends none, so the child keeps its own defaults (e.g. system appearance).
+- `childName` (inherited from `DOMIsland`) — the reverse channel: the running
+  child's `appName` reflected back up, so a host can title itself by what it shows.
+
+The window frame, activation, and titling belong to the caller — a desktop window
+adds an `onMouseDown` that raises itself and reads `childName` for its title; the
+homepage and the viewer just size the box. This primitive is only the embedding.
+*/
+
+class AppIsland extends DOMIsland [
+    program: string = "",
+    env: string = "",
+
+    // the host mount key: `run:<program>`, with the env query after `|`. No
+    // program → empty slot → the island stays detached (DOMIsland unmounts it).
+
+    slot = { program == "" ? "" : "run:" + program + (env == "" ? "" : "|" + env) },
+    ]

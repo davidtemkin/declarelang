@@ -136,10 +136,10 @@ class EventRow extends View [ width = { parent.width },
 
 An editable source field beside a running preview — the SAME machinery as the
 homepage's editable demos: a `TextInput` seeded from the demo source that
-republishes edits on `app.liveSource`, and a `DOMIsland` the host mounts
+republishes edits on `app.liveSource`, and an `AppIsland` the host mounts
 the compiled child app into. Both are keyed by the CLASS NAME: the editor
 seeds from `app.demoSources[<Class>]` (the server populates this from
-apps/docs/demos/), and the island's `run:<Class>` slot is what the host
+apps/docs/demos/), and the island's `program = <Class>` is what the host
 wires.
 */
 
@@ -241,8 +241,8 @@ class Example extends View [ width = { parent.width },
     // on the visible page) compiles at a time, even though every page is constructed.
 
     stage: View [ width = { parent.width }, height = { classroot.estage }, fill = { theme.chipBg },
-        run:     DOMIsland [ width = { parent.width }, height = { parent.height },
-            slot = { classroot.live ? "run:" + classroot.cname : "" } ],
+        run:     AppIsland [ width = { parent.width }, height = { parent.height },
+            program = { classroot.live ? classroot.cname : "" } ],
 
         // a blue rule (a darker shade of the chipBg box tint) divides the code above from the
         // running app below; the gold spine (drawn OVER both) continues the code's gold left bar
@@ -333,8 +333,8 @@ class RunBlock extends View [ width = { parent.width },
         ],
 
     stage: View [ width = { parent.width }, height = { classroot.rstage }, fill = { theme.chipBg },
-        run:     DOMIsland [ width = { parent.width }, height = { parent.height },
-            slot = { classroot.live ? "run:" + classroot.rid : "" } ],
+        run:     AppIsland [ width = { parent.width }, height = { parent.height },
+            program = { classroot.live ? classroot.rid : "" } ],
         divider: View [ x = 0, y = 0, width = { parent.width }, height = 2, fill = { theme.rule } ],
         spine:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = 0xE6B450 ],
         ],
@@ -698,7 +698,8 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
     railW: number = 236,
     liveCard: string = "",                     // the demo an inline editor is republishing (name) …
     liveSource: string = "",                   // … and its current source — the host recompiles this pair live
-                                               // (app.liveReport — BUILT-IN — carries the host's rendered compile report; islands display it)
+
+    // (app.liveReport — BUILT-IN — carries the host's rendered compile report; islands display it)
 
     /* The whole palette in one prevailing record, switched by the OS color
        scheme (`app.dark`, fed live by the runtime) — every color below reads
@@ -770,6 +771,7 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
         edge: View [ x = { app.railW - 1 }, y = 0, width = 1, height = { app.hostHeight }, fill = { theme.edge } ],
         col: View [ x = 16, y = 22, width = { app.railW - 32 },
             layout: SimpleLayout [ axis = y, spacing = 4 ],
+
             // the brand, one line — "Declare" in the gradient, "Docs" solid: the same
             // rendition Declare Calendar uses for its own name
 

@@ -421,6 +421,25 @@ function readGuide() {
 }
 const { guide, guideParts } = readGuide();
 
+// ── the tenets — the language's commitments (docs/tenets/*.md) ──
+// The interpretively-distilled promises the platform holds itself to (see
+// docs/tenets/README.md). Pure prose, no runnable demos — carried INLINE in the
+// model (they are small) so any reader has them whole: the docs app, or an LLM
+// writing Declare that wants the language's intent alongside the reference. Files
+// are `NN Word.md`; the leading number orders them, the Word is an opaque label.
+function readTenets() {
+  const dir = path.join(ROOT, "docs/tenets");
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir).filter((f) => /^\d+ .+\.md$/.test(f)).sort().map((f) => {
+    const num = parseInt(f, 10);
+    let md = readFileSync(path.join(dir, f), "utf8");
+    const title = (md.match(/^#\s+(.+)$/m)?.[1] ?? f).trim();
+    md = md.replace(/<!--[\s\S]*?-->/g, "").replace(/\n{3,}/g, "\n\n").trim();
+    return { id: "tenet-" + num, num, title, segs: segmentize(md, "tenet_" + num) };
+  });
+}
+const tenets = readTenets();
+
 // write the generated inline-example demo files (the server/host seed them by filename),
 // cleaning stale `seg_*` from a prior run first so nothing orphans. Hand-authored demos
 // (View.declare, State.declare, …) never start with `seg_`, so they're untouched.
@@ -450,7 +469,7 @@ for (const ch of guide) {
 }
 const spine = guide.map(({ id, num, title, short, part }) => ({ id, num, title, short, part }));
 
-const model = { version: 1, buildId, nodes, roots, tree, guide: spine, guideParts };
+const model = { version: 1, buildId, nodes, roots, tree, guide: spine, guideParts, tenets };
 writeFileSync(OUT, JSON.stringify(model, null, 2) + "\n");
 
 // ── report ──
@@ -460,5 +479,6 @@ console.log(`extract: wrote ${path.relative(ROOT, OUT)}`);
 console.log(`  classes: ${roots.join(", ")}`);
 console.log(`  nodes:   ${Object.keys(nodes).length} (${Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(", ")})`);
 console.log(`  guide:   ${guide.length} chapters in ${guideParts.length} parts (${guideParts.map((p) => p.part + ":" + p.chapters.length).join(", ")})`);
+console.log(`  tenets:  ${tenets.length} (${tenets.map((t) => t.title).join(" · ")})`);
 console.log(`  islands: ${Object.keys(genFiles).length} inline runnable examples written to apps/docs/demos/seg_*.declare`);
 console.log(`  @api:    ${documented} documented / ${Object.keys(nodes).length - documented} structural-only`);

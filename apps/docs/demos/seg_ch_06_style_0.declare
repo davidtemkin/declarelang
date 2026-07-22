@@ -1,7 +1,10 @@
-App [ fill = white, fontFamily = ["Helvetica Neue", "sans-serif"], fontSize = 15, fontWeight = bold, textColor = black,
-    topBar: View [ x = 20, y = 20,
-        layout: SimpleLayout [ axis = y, spacing = 6 ],
-        Text [ text = "Rain or Shine?" ],
-        Text [ text = "94110", textColor = royalblue ],   // overrides only the color
+App [ width = 300, height = 160, fill = whitesmoke,
+    card: View [ x = 30, y = 30, width = 240, height = 100, cornerRadius = 12,
+        fill = white,
+        stroke = { stroke(1, 0xD6DCE2) },
+        shadow = { shadow(0, 6, 18, 0x1A2A3833) },
+        Text [ x = 20, y = 20, fontSize = 16, fontWeight = bold, text = "Drawing" ],
+        Text [ x = 20, y = 48, textColor = slategray, opacity = 0.9,
+            text = "fill · stroke · shadow · radius" ],
         ],
     ]

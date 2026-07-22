@@ -925,13 +925,13 @@ class FilesWindow extends Window [
 /*
 ## AppWindow — a whole Declare app inside a desktop window
 
-A `DOMIsland` carries `slot = "run:<path>"`, and the page host's preview
-machinery (`browser/host-client.js`, the same pipeline behind the homepage and
-docs islands) fetches that program, compiles it on the boot ladder (prewarm →
-cache → in-browser compile, identical on the dev server and a static host),
-and renders it as an embedded child app — its own reactive graph, its own
-input router, sized to the island's box. The path is relative, so
-`"../../calendar/calendar"` reaches the real calendar app: no copy, no shim.
+The window frame around an `AppIsland` — the library's app-embedding primitive.
+Give the island a `program` and it mounts that app as its own child: its own
+reactive graph, input router, sized to the island's box. The path is relative,
+so `"../../calendar/calendar"` reaches the real calendar app: no copy, no shim.
+The window adds only what a window owns — the title (taken from the running
+child's own name, `island.childName`), activation, and the `dark` + `extraEnv`
+environment it hands the island.
 */
 
 class AppWindow extends Window [ width = 880, height = 560,
@@ -954,9 +954,10 @@ class AppWindow extends Window [ width = 880, height = 560,
     // embedded presses to the island — dom-backend), so clicking the child's
     // content raises this window exactly as clicking any window body does
 
-    island: DOMIsland [ x = 0, y = { classroot.barH }, width = { parent.width }, height = { parent.height - classroot.barH },
+    island: AppIsland [ x = 0, y = { classroot.barH }, width = { parent.width }, height = { parent.height - classroot.barH },
         onMouseDown() { classroot.activate() },
-        slot = { "run:" + classroot.appPath + "|dark=" + (app.darkMode ? "1" : "0")
+        program = { classroot.appPath },
+        env = { "dark=" + (app.darkMode ? "1" : "0")
             + (classroot.extraEnv != "" ? "&" + classroot.extraEnv : "") },
         ],
     ]

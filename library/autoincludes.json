@@ -33,5 +33,6 @@
   "Tooltip": "tooltip.declare",
   "Menu": "menu.declare",
   "MenuBar": "menubar.declare",
-  "Dialog": "dialog.declare"
+  "Dialog": "dialog.declare",
+  "AppIsland": "appisland.declare"
 }
