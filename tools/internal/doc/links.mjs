@@ -30,7 +30,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const MODEL = path.join(ROOT, "apps/docs/docs-model.json");
+const MODEL = path.join(ROOT, "docs/declare-model.json");
 
 // ── the registry ─────────────────────────────────────────────────────────────
 
@@ -60,14 +60,14 @@ export function buildRegistry() {
   }
   // The three pinned roots — registry-defined (not per-author invented), documented above.
   add("spec:core", path.join(ROOT, "docs/declare.md"), "spec");
-  ids["reference:index"] = { path: "apps/docs/docs-model.json", title: "Reference", kind: "reference" };
+  ids["reference:index"] = { path: "docs/declare-model.json", title: "Reference", kind: "reference" };
   ids["essay:why-declare"] = { path: "apps/homepage/homepage.declare", title: "Why Declare", kind: "essay" };
 
   // Reference symbols: the model's node keys are already the IDs (`View.width`).
   if (existsSync(MODEL)) {
     const model = JSON.parse(readFileSync(MODEL, "utf8"));
-    for (const key of Object.keys(model.nodes ?? {})) {
-      ids[key] = { path: "apps/docs/docs-model.json", title: key, kind: "reference" };
+    for (const key of Object.keys(model.reference ?? {})) {
+      ids[key] = { path: "docs/declare-model.json", title: key, kind: "reference" };
     }
   }
   return ids;

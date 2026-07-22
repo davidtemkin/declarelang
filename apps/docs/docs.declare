@@ -722,7 +722,7 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
     codeBackground = { theme.chipBg },
     codeRule = { theme.accent2 },
 
-    docs: DataSource [ url = "docs-model.json" ],
+    docs: DataSource [ url = "../../docs/declare-model.json" ],
     datapath = { docs.value },                 // root every :path below into the model
     onInit() { this.docs.fetch() },            // DataSource is explicit-fetch — kick it once, on construction
 

@@ -2133,7 +2133,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
     // Files browser's Guide and Reference folders, and the synthesized reference
     // pages, all derive from it.
 
-    docsModel: DataSource [ url = "../../apps/docs/docs-model.json" ],
+    docsModel: DataSource [ url = "../../docs/declare-model.json" ],
 
     buildRef(name) {
         const m = this.docsModel.value

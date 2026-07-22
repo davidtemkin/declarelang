@@ -9,7 +9,7 @@
 // file-prose path doc-system.md blesses) — later swapped for captured `/* *​/`
 // blocks with no change to this model or the renderer.
 //
-//   node tools/internal/doc/extract.mjs        # writes apps/docs/docs-model.json
+//   node tools/internal/doc/extract.mjs        # writes the doc tree into docs/declare-model.json (assemble augments it in place)
 //
 // Run after `npm run build` (needs runtime/dist).
 
@@ -32,7 +32,10 @@ const TARGETS = [                                        // the documented compo
   "Dataset", "DataSource",
   "Animator", "AnimatorGroup", "Spring", "State", "Node",
 ];
-const OUT = path.join(ROOT, "apps/docs/docs-model.json");
+// THE single documentation model. extract writes the walkable doc tree here;
+// assemble.mjs then augments the SAME file in place with the spine/links/meta.
+// One model, two scoped writers, no intermediate artifact.
+const OUT = path.join(ROOT, "docs/declare-model.json");
 const DEMOS = path.join(ROOT, "apps/docs/demos");         // generated islands land here (server seeds them)
 
 // ── inline runnable examples: every prose ```declare block becomes a live edit/run
@@ -469,7 +472,7 @@ for (const ch of guide) {
 }
 const spine = guide.map(({ id, num, title, short, part }) => ({ id, num, title, short, part }));
 
-const model = { version: 1, buildId, nodes, roots, tree, guide: spine, guideParts, tenets };
+const model = { version: 1, buildId, reference: nodes, roots, tree, guide: spine, guideParts, tenets };
 writeFileSync(OUT, JSON.stringify(model, null, 2) + "\n");
 
 // ── report ──
