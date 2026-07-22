@@ -278,5 +278,20 @@ await test("golden no-op: parsing without plugins matches a plugin-less shape", 
   assert.equal(frag.tag, "View");
 });
 
+// ── Robustness: a non-advancing plugin errors instead of hanging (OOM) ────
+await test("a block plugin whose parse does not advance the cursor errors, not hangs", () => {
+  const stuckPlugin = {
+    name: "stuck",
+    blocks: [{
+      keyword: "note", bodyKind: "code",
+      // Returns a node WITHOUT consuming any tokens — a plugin bug.
+      parse() { return { kind: "note", keyword: "note", name: "X", text: "", bodyOffset: 0, pos: { line: 1, col: 1, offset: 0 } }; },
+      check() { return []; },
+      instantiate() {},
+    }],
+  };
+  assert.throws(() => parseProgram("note X { y }\nApp [ ]", [stuckPlugin]), /did not consume any input/);
+});
+
 export { notePlugin };
 summarize("plugin");

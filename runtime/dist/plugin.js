@@ -18,8 +18,9 @@ export function assembleBlocks(plugins) {
     }
     return map;
 }
-/** Pure offset → 1-based line/col (twin of compile.ts's private posOf). The
- *  scan clamps to source length, but the returned `offset` is the raw input. */
+/** Pure offset → 1-based line/col (the in-range twin of compile.ts's private
+ *  posOf; agrees for every real body offset). The scan clamps to source length,
+ *  but the returned `offset` is the raw input. */
 export function posOf(source, offset) {
     let line = 1;
     let col = 1;

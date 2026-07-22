@@ -945,7 +945,17 @@ function parseTopDecls(p: Parser, blocks: Map<string, BlockPlugin>): {
     else {
       let matched: BlockPlugin | undefined;
       for (const [keyword, bp] of blocks) { if (p.atTop(keyword)) { matched = bp; break; } }
-      if (matched) blockNodes.push(p.parseBlock(matched));
+      if (matched) {
+        // Guard against a plugin whose `parse` fails to advance the cursor: it
+        // would leave `atTop` true forever and spin this loop into an OOM. A
+        // non-advancing plugin is a bug — surface it as a positioned error, not
+        // a hang. (Token objects are unique per position, so identity == no move.)
+        const before = p.peek();
+        blockNodes.push(p.parseBlock(matched));
+        if (p.peek() === before) {
+          throw new DeclareError(`the '${matched.keyword}' block plugin did not consume any input`, before.pos);
+        }
+      }
       else break;
     }
   }

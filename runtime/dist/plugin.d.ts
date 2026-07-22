@@ -51,8 +51,9 @@ export interface Plugin {
  *  duplicate keyword or one that shadows a built-in. Thrown as a plain Error:
  *  this is a host/config mistake, not a source diagnostic. */
 export declare function assembleBlocks(plugins: readonly Plugin[]): Map<string, BlockPlugin>;
-/** Pure offset → 1-based line/col (twin of compile.ts's private posOf). The
- *  scan clamps to source length, but the returned `offset` is the raw input. */
+/** Pure offset → 1-based line/col (the in-range twin of compile.ts's private
+ *  posOf; agrees for every real body offset). The scan clamps to source length,
+ *  but the returned `offset` is the raw input. */
 export declare function posOf(source: string, offset: number): Pos;
 /** PURE dispatch of block checkers. `taken` is the program's non-block
  *  top-level namespace (classes/built-ins ∪ stylesheet/style/font names);
