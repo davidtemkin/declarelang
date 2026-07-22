@@ -53,6 +53,7 @@
 // write such regexes as new RegExp("…"). Recorded in HANDOFF §R4.
 import { DeclareError, DeclareErrors } from "./errors.js";
 import { Diag } from "./diagnostics.js";
+import { assembleBlocks } from "./plugin.js";
 const isDigit = (c) => c >= "0" && c <= "9";
 const isIdentStart = (c) => (c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || c === "_";
 const isIdentPart = (c) => isIdentStart(c) || isDigit(c);
@@ -775,6 +776,11 @@ class Parser {
         this.expect("rbracket", "']'");
         return { name: name.text, body, pos: kw.pos };
     }
+    /** Dispatch a registered block: the plugin consumes `keyword Name { code }`
+     *  through this Parser (which satisfies BlockCursor structurally). */
+    parseBlock(bp) {
+        return bp.parse(this);
+    }
 }
 /** Parse a component fragment — one element, no class declarations. The
  *  entry tools and tests use for pieces; a whole source goes through
@@ -791,7 +797,7 @@ export function parse(source) {
  *  `include` directives, class declarations, and `stylesheet`/`style`
  *  bundles, in any order. Stops at the first token that opens none of them
  *  (the root element in a program, or eof in a library). */
-function parseTopDecls(p) {
+function parseTopDecls(p, blocks) {
     const classes = [];
     const stylesheets = [];
     const styles = [];
@@ -799,6 +805,7 @@ function parseTopDecls(p) {
     const includes = [];
     const includeSpans = [];
     const uses = [];
+    const blockNodes = [];
     for (;;) {
         if (p.atInclude()) {
             const { refs, span } = p.parseIncludeDirective();
@@ -815,31 +822,43 @@ function parseTopDecls(p) {
             styles.push(p.parseTopDecl("style"));
         else if (p.atTop("font"))
             fonts.push(p.parseTopDecl("font"));
-        else
-            break;
+        else {
+            let matched;
+            for (const [keyword, bp] of blocks) {
+                if (p.atTop(keyword)) {
+                    matched = bp;
+                    break;
+                }
+            }
+            if (matched)
+                blockNodes.push(p.parseBlock(matched));
+            else
+                break;
+        }
     }
-    return { classes, stylesheets, styles, fonts, includes, includeSpans, uses };
+    return { classes, stylesheets, styles, fonts, includes, includeSpans, uses, blocks: blockNodes };
 }
 /** Parse a whole Declare source: `include`s and top-level declarations
  *  (classes, stylesheets, style bundles — in any order), then the root
  *  instance. */
-export function parseProgram(source) {
+export function parseProgram(source, plugins = []) {
     const p = new Parser(tokenize(source));
-    const { classes, stylesheets, styles, fonts, includes, includeSpans, uses } = parseTopDecls(p);
+    const blocks = assembleBlocks(plugins);
+    const { classes, stylesheets, styles, fonts, includes, includeSpans, uses, blocks: blockNodes } = parseTopDecls(p, blocks);
     const root = p.parseElement();
     p.expect("eof", "end of input");
     if (p.errors.length > 0)
         throw new DeclareErrors(p.errors);
-    return { classes, stylesheets, styles, fonts, includes, includeSpans, uses, root };
+    return { classes, stylesheets, styles, fonts, includes, includeSpans, uses, blocks: blockNodes, root };
 }
 /** Parse an INCLUDED file (composition.md §1): the same top-level
  *  declarations as a program, then eof — a library declares classes,
  *  stylesheets, and styles, never a root. A stray root element is a
  *  positioned error: an included file is a library of definitions, not an
  *  App. */
-export function parseLibrary(source) {
+export function parseLibrary(source, plugins = []) {
     const p = new Parser(tokenize(source));
-    const decls = parseTopDecls(p);
+    const decls = parseTopDecls(p, assembleBlocks(plugins));
     if (p.peek().kind !== "eof") {
         throw Diag.strayRoot("an included file is a library of definitions — it declares classes, stylesheets, and styles, not an App/root", p.peek().pos);
     }

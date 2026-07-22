@@ -54,6 +54,8 @@
 
 import { DeclareError, DeclareErrors, type Pos } from "./errors.js";
 import { Diag } from "./diagnostics.js";
+import type { Plugin, BlockPlugin, BlockNode, BlockCursor } from "./plugin.js";
+import { assembleBlocks } from "./plugin.js";
 
 /** A literal value as written — the parser classifies syntax, not type.
  *  `hex` preserves whether a number was written `0x…`: the Color type only
@@ -226,6 +228,9 @@ export interface Program {
    *  library, or a developer class alike (one declaration, all three backends).
    *  Additive to what the tree + body scan already discover. */
   uses: string[];
+  /** Top-level plugin blocks (`keyword Name { … }`) in source order. Empty when
+   *  no block plugin was passed to parseProgram. */
+  blocks: BlockNode[];
   root: Element;
 }
 
@@ -244,6 +249,7 @@ export interface Library {
   /** A library may carry its OWN `use [ … ]` keep-list (its dynamic deps); the
    *  source-merge folds these into the program's `uses`. */
   uses: string[];
+  blocks: BlockNode[];
 }
 
 // ── Tokenizer ───────────────────────────────────────────────────────────────
@@ -884,6 +890,12 @@ class Parser {
     this.expect("rbracket", "']'");
     return { name: name.text, body, pos: kw.pos };
   }
+
+  /** Dispatch a registered block: the plugin consumes `keyword Name { code }`
+   *  through this Parser (which satisfies BlockCursor structurally). */
+  parseBlock(bp: BlockPlugin): BlockNode {
+    return bp.parse(this as unknown as BlockCursor);
+  }
 }
 
 /** Parse a component fragment — one element, no class declarations. The
@@ -901,7 +913,7 @@ export function parse(source: string): Element {
  *  `include` directives, class declarations, and `stylesheet`/`style`
  *  bundles, in any order. Stops at the first token that opens none of them
  *  (the root element in a program, or eof in a library). */
-function parseTopDecls(p: Parser): {
+function parseTopDecls(p: Parser, blocks: Map<string, BlockPlugin>): {
   classes: ClassDecl[];
   stylesheets: TopDecl[];
   styles: TopDecl[];
@@ -909,6 +921,7 @@ function parseTopDecls(p: Parser): {
   includes: IncludeRef[];
   includeSpans: Span[];
   uses: string[];
+  blocks: BlockNode[];
 } {
   const classes: ClassDecl[] = [];
   const stylesheets: TopDecl[] = [];
@@ -917,6 +930,7 @@ function parseTopDecls(p: Parser): {
   const includes: IncludeRef[] = [];
   const includeSpans: Span[] = [];
   const uses: string[] = [];
+  const blockNodes: BlockNode[] = [];
   for (;;) {
     if (p.atInclude()) {
       const { refs, span } = p.parseIncludeDirective();
@@ -928,21 +942,27 @@ function parseTopDecls(p: Parser): {
     else if (p.atTop("stylesheet")) stylesheets.push(p.parseTopDecl("stylesheet"));
     else if (p.atTop("style")) styles.push(p.parseTopDecl("style"));
     else if (p.atTop("font")) fonts.push(p.parseTopDecl("font"));
-    else break;
+    else {
+      let matched: BlockPlugin | undefined;
+      for (const [keyword, bp] of blocks) { if (p.atTop(keyword)) { matched = bp; break; } }
+      if (matched) blockNodes.push(p.parseBlock(matched));
+      else break;
+    }
   }
-  return { classes, stylesheets, styles, fonts, includes, includeSpans, uses };
+  return { classes, stylesheets, styles, fonts, includes, includeSpans, uses, blocks: blockNodes };
 }
 
 /** Parse a whole Declare source: `include`s and top-level declarations
  *  (classes, stylesheets, style bundles — in any order), then the root
  *  instance. */
-export function parseProgram(source: string): Program {
+export function parseProgram(source: string, plugins: readonly Plugin[] = []): Program {
   const p = new Parser(tokenize(source));
-  const { classes, stylesheets, styles, fonts, includes, includeSpans, uses } = parseTopDecls(p);
+  const blocks = assembleBlocks(plugins);
+  const { classes, stylesheets, styles, fonts, includes, includeSpans, uses, blocks: blockNodes } = parseTopDecls(p, blocks);
   const root = p.parseElement();
   p.expect("eof", "end of input");
   if (p.errors.length > 0) throw new DeclareErrors(p.errors);
-  return { classes, stylesheets, styles, fonts, includes, includeSpans, uses, root };
+  return { classes, stylesheets, styles, fonts, includes, includeSpans, uses, blocks: blockNodes, root };
 }
 
 /** Parse an INCLUDED file (composition.md §1): the same top-level
@@ -950,9 +970,9 @@ export function parseProgram(source: string): Program {
  *  stylesheets, and styles, never a root. A stray root element is a
  *  positioned error: an included file is a library of definitions, not an
  *  App. */
-export function parseLibrary(source: string): Library {
+export function parseLibrary(source: string, plugins: readonly Plugin[] = []): Library {
   const p = new Parser(tokenize(source));
-  const decls = parseTopDecls(p);
+  const decls = parseTopDecls(p, assembleBlocks(plugins));
   if (p.peek().kind !== "eof") {
     throw Diag.strayRoot(
       "an included file is a library of definitions — it declares classes, stylesheets, and styles, not an App/root",

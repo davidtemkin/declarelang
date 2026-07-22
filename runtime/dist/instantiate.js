@@ -69,7 +69,7 @@ import { TAGS, LAYOUTS, LAYOUT_BASES, DATA, ANIMATORS, ANIMATOR_GROUPS, STATES }
 /** Build a Node/View tree from a parsed Program or Element fragment (no
  *  rendering). */
 export function instantiate(input) {
-    const program = "root" in input ? input : { classes: [], stylesheets: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], root: input };
+    const program = "root" in input ? input : { classes: [], stylesheets: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], blocks: [], root: input };
     const { infos, schemas, errors } = programSchemas(program.classes);
     if (errors.length > 0)
         throw errors[0];

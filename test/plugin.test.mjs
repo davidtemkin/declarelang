@@ -80,5 +80,70 @@ await test("dispatchBlockChecks positions an interior error and detects collisio
   assert.equal(dup.filter((e) => /collides/.test(e.message)).length, 1);
 });
 
+// ── Task 2: parser dispatch ──────────────────────────────────────────────
+import { parseProgram } from "../runtime/dist/parser.js";
+
+await test("parseProgram dispatches a registered block keyword", () => {
+  const prog = parseProgram("note Hello { hi there }\nApp [ ]", [notePlugin]);
+  assert.equal(prog.blocks.length, 1);
+  assert.equal(prog.blocks[0].keyword, "note");
+  assert.equal(prog.blocks[0].name, "Hello");
+  assert.equal(prog.blocks[0].text.trim(), "hi there");
+  assert.equal(prog.root.tag, "App");
+});
+
+await test("parseProgram with NO plugins leaves the keyword contextual (parse error)", () => {
+  assert.throws(() => parseProgram("note Hello { hi }\nApp [ ]"), /end of input|Hello/);
+});
+
+await test("a bare program still parses with an empty blocks list", () => {
+  const prog = parseProgram("App [ ]");
+  assert.deepEqual(prog.blocks, []);
+});
+
+await test("an unregistered keyword is still usable as a component name", () => {
+  const prog = parseProgram("App [ note [ ] ]");
+  assert.equal(prog.root.children[0].tag, "note");
+  assert.deepEqual(prog.blocks, []);
+});
+
+await test("an empty block body parses to empty text", () => {
+  const prog = parseProgram("note E { }\nApp [ ]", [notePlugin]);
+  assert.equal(prog.blocks.length, 1);
+  assert.equal(prog.blocks[0].text.trim(), "");
+});
+
+await test("multiple blocks are kept in source order", () => {
+  const prog = parseProgram("note A { }\nnote B { }\nApp [ ]", [notePlugin]);
+  assert.deepEqual(prog.blocks.map((b) => b.name), ["A", "B"]);
+});
+
+await test("two different keywords from two plugins dispatch independently", () => {
+  const memoPlugin = {
+    name: "memo",
+    blocks: [{
+      keyword: "memo", bodyKind: "code",
+      parse(p) {
+        p.expect("ident", "'memo'");
+        const name = p.expect("ident", "name");
+        const body = p.expect("code", "body");
+        return { kind: "memo", keyword: "memo", name: name.text, text: body.str ?? "", bodyOffset: body.pos.offset + 1, pos: name.pos };
+      },
+      check() { return []; },
+      instantiate() {},
+    }],
+  };
+  const prog = parseProgram("note A { }\nmemo B { }\nApp [ ]", [notePlugin, memoPlugin]);
+  assert.deepEqual(prog.blocks.map((b) => b.keyword), ["note", "memo"]);
+});
+
+await test("blocks survive include resolution", async () => {
+  const { resolveIncludes, NO_INCLUDES } = await import("../runtime/dist/include.js");
+  const prog = parseProgram("note Kept { x }\nApp [ ]", [notePlugin]);
+  const { program } = resolveIncludes(prog, NO_INCLUDES, "");
+  assert.equal(program.blocks.length, 1);
+  assert.equal(program.blocks[0].name, "Kept");
+});
+
 export { notePlugin };
 summarize("plugin");
