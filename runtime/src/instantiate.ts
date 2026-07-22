@@ -47,6 +47,8 @@
 
 import type { Element, Attr, Method, Program } from "./parser.js";
 import { DeclareError } from "./errors.js";
+import type { Plugin, InstantiateCtx } from "./plugin.js";
+import { assembleBlocks } from "./plugin.js";
 import { View, fireEvent } from "./view.js";
 import { Node, onDiscard } from "./node.js";
 import { subscribeToSource } from "./sources.js";
@@ -124,7 +126,7 @@ type Pending =
 
 /** Build a Node/View tree from a parsed Program or Element fragment (no
  *  rendering). */
-export function instantiate(input: Element | Program): View {
+export function instantiate(input: Element | Program, plugins: readonly Plugin[] = []): View {
   const program: Program =
     "root" in input ? input : { classes: [], stylesheets: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], blocks: [], root: input };
   const { infos, schemas, errors } = programSchemas(program.classes);
@@ -176,6 +178,18 @@ export function instantiate(input: Element | Program): View {
   // The web faces the runtime loads before first paint (index.ts → loadFonts).
   registerFontFaces(root, collectFaces(ctx.fonts));
   installPending(ctx.pending, ctx);
+  // Block plugins: intern/validate each parsed block against the built tree.
+  // Runs after construction + pending install, before initTree. A PR-A block
+  // may validate and throw; per-view attachment is a deferred seam. Inert when
+  // no plugin was passed.
+  if (program.blocks.length > 0) {
+    const blockMap = assembleBlocks(plugins);
+    const ictx: InstantiateCtx = { root: root as View, schemas: ctx.schemas };
+    for (const node of program.blocks) {
+      const bp = blockMap.get(node.keyword);
+      if (bp !== undefined) bp.instantiate(node, ictx);
+    }
+  }
   // Construction-complete lifecycle (R5): the tree is linked, methods are
   // installed, every binding has evaluated once — so `onInit` sees settled
   // structure, and its writes settle (microtask) ahead of any first paint.

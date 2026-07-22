@@ -193,5 +193,50 @@ await test("check with no plugins ignores blocks (no crash, no error)", () => {
   assert.deepEqual(check(prog), []);
 });
 
+// ── Task 4: instantiate() block dispatch ─────────────────────────────────
+import { instantiate } from "../runtime/dist/instantiate.js";
+
+await test("instantiate invokes a block plugin's instantiate hook with node + root", () => {
+  const calls = [];
+  const spyPlugin = {
+    name: "spy",
+    blocks: [{
+      keyword: "note", bodyKind: "code",
+      parse(p) {
+        p.expect("ident", "'note'");
+        const name = p.expect("ident", "name");
+        const body = p.expect("code", "body");
+        return { kind: "note", keyword: "note", name: name.text, text: body.str ?? "", bodyOffset: body.pos.offset + 1, pos: name.pos };
+      },
+      check() { return []; },
+      instantiate(node, ctx) { calls.push({ name: node.name, rootTag: ctx.root.constructor.name }); },
+    }],
+  };
+  const prog = parseProgram("note Seen { x }\nApp [ ]", [spyPlugin]);
+  instantiate(prog, [spyPlugin]);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].name, "Seen");
+  assert.equal(calls[0].rootTag, "App");
+});
+
+await test("a throwing block instantiate surfaces the error", () => {
+  const boomPlugin = {
+    name: "boom",
+    blocks: [{
+      keyword: "note", bodyKind: "code",
+      parse(p) {
+        p.expect("ident", "'note'");
+        const name = p.expect("ident", "name");
+        const body = p.expect("code", "body");
+        return { kind: "note", keyword: "note", name: name.text, text: body.str ?? "", bodyOffset: body.pos.offset + 1, pos: name.pos };
+      },
+      check() { return []; },
+      instantiate() { throw new Error("intern failed"); },
+    }],
+  };
+  const prog = parseProgram("note X { y }\nApp [ ]", [boomPlugin]);
+  assert.throws(() => instantiate(prog, [boomPlugin]), /intern failed/);
+});
+
 export { notePlugin };
 summarize("plugin");
