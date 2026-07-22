@@ -194,6 +194,10 @@ export const Diag = {
   // component to root — a bare name or `app.` reaches the App's attributes.
   classrootInApp: (pos: Pos): DeclareError =>
     err(code4(4003), `'classroot' is only for a component you define (a class) — this code is in the App, which has no component root. Use a bare name for an App attribute (e.g. 'count'), or 'app.' (e.g. 'app.count').`, pos),
+  // A CSS color NAME resolved as a bare identifier inside { } — the name form is
+  // a bare-slot literal, not an identifier the { } world knows, so name the 0x form.
+  namedColorInExpr: (name: string, hex: string, pos: Pos): DeclareError =>
+    err(code4(4004), `'${name}' is a named color — the name form works only in a bare slot; inside { } write it as ${hex}.`, pos),
 
   // 5xxx module / include
   includeCollision: (message: string, pos?: Pos): DeclareError => err(code4(5001), message, pos),

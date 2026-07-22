@@ -75,7 +75,9 @@ function enumVocabularies() {
  *  source-derived (same file the compiler executes). */
 function diagnosticSpine() {
   const src = readFileSync(join(ROOT, "runtime/src/diagnostics.ts"), "utf8");
-  const codes = [...new Set([...src.matchAll(/"(\d{4})"/g)].map((m) => CODE_PREFIX + m[1]))].sort();
+  // The factories tag each diagnostic `code4(NNNN)` (code4 = the `DECLARE####`
+  // formatter) — enumerate those, not string literals, which was the old miss.
+  const codes = [...new Set([...src.matchAll(/code4\((\d{4})\)/g)].map((m) => CODE_PREFIX + m[1]))].sort();
   return { prefix: CODE_PREFIX, codes };
 }
 

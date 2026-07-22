@@ -61,6 +61,7 @@ setBodySyntaxValidator(tsBodySyntax);
 import { freeIdentifiers, hexColor8Literals } from "./free-idents.js";
 import { fillDatapaths } from "../../runtime/dist/datapath.js";
 import { CONSTRUCTOR_NAMES } from "../../runtime/dist/expr.js";
+import { CSS_COLORS } from "../../runtime/dist/css-colors.js";
 import { resolveIncludes, resolveAutoIncludes, exciseSpans, NO_INCLUDES } from "../../runtime/dist/include.js";
 import { typecheckBodies } from "./typecheck.js";
 import { Diag, toDiagnostic, renderReport } from "../../runtime/dist/diagnostics.js";
@@ -528,7 +529,15 @@ class Resolver {
             }
             if (k === -1) {
                 if (!isKnownGlobal(id.name)) {
-                    this.errors.push(Diag.unresolved(id.name, levels.map(describe).join(" → "), pos));
+                    if (Object.hasOwn(CSS_COLORS, id.name)) {
+                        // A bare CSS color name inside { } — a bare-slot literal, not an
+                        // identifier here; name the 0x form rather than a flat "unresolved".
+                        const hex = "0x" + CSS_COLORS[id.name].toString(16).padStart(6, "0");
+                        this.errors.push(Diag.namedColorInExpr(id.name, hex, pos));
+                    }
+                    else {
+                        this.errors.push(Diag.unresolved(id.name, levels.map(describe).join(" → "), pos));
+                    }
                 }
                 continue;
             }

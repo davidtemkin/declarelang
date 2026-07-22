@@ -55,11 +55,29 @@ export function stripEditsFor(src, expression) {
 export function tsBodySyntax(src, expression) {
     const text = expression ? `(${src}\n)` : `(function(){\n${src}\n})`;
     const sf = ts.createSourceFile("b.ts", text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    const what = expression ? "is not a valid expression" : "is not a valid method body";
     const diags = sf.parseDiagnostics;
     if (diags !== undefined && diags.length > 0) {
-        const what = expression ? "is not a valid expression" : "is not a valid method body";
         return `${what} — ${ts.flattenDiagnosticMessageText(diags[0].messageText, " ")}`;
     }
+    // A digit-first `#hex` (#334455) is an "Invalid character" parse error above; a
+    // letter-first one (#f00, #ff0000) lexes as a valid PrivateIdentifier and would
+    // surface only at typecheck. Catch it here so a bare-slot color is one structure-
+    // phase diagnostic either way — refineBodyError (expr.ts) adds the `0x…` fix. The
+    // AST node test means a `#hex` inside a string or comment is never mistaken for one.
+    let hexIdent = false;
+    const scan = (n) => {
+        if (hexIdent)
+            return;
+        if (ts.isPrivateIdentifier(n) && /^#[0-9a-fA-F]{3,8}$/.test(n.text)) {
+            hexIdent = true;
+            return;
+        }
+        ts.forEachChild(n, scan);
+    };
+    scan(sf);
+    if (hexIdent)
+        return `${what} — Invalid character.`;
     return null;
 }
 //# sourceMappingURL=strip-types.js.map

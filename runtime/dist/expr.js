@@ -82,28 +82,71 @@ export function compileExpr(src) {
 }
 let syntaxValidator = null;
 export function setBodySyntaxValidator(v) { syntaxValidator = v; }
+/** `#RGB`/`#RRGGBB`/`#RRGGBBAA` → the `0x…` form the { } world uses. Shorthand
+ *  (3/4 nibbles) is expanded, so the suggestion is exact. */
+function hashToOx(hex) {
+    const full = hex.length === 3 || hex.length === 4 ? hex.split("").map((c) => c + c).join("") : hex;
+    return "0x" + full.toLowerCase();
+}
+/** Does a failing attribute body look like statements rather than one expression?
+ *  Signals: TS flagged a reserved word (`const`/`let`/…), a statement keyword leads
+ *  a segment, or a `;` separates two non-empty parts. Consulted ONLY on an
+ *  already-failing body, so a miss just falls through to the raw parser message. */
+function looksLikeStatements(src, raw) {
+    if (/reserved word/i.test(raw))
+        return true;
+    if (/(^|[;{])\s*(let|const|var|if|for|while|switch|return|throw)\b/.test(src))
+        return true;
+    const semi = src.indexOf(";");
+    return semi >= 0 && src.slice(semi + 1).trim().length > 0;
+}
+/** Turn the two most common bare-slot mistakes inside { } into a targeted
+ *  fragment. Runs ONLY on an already-failing body — it can never relabel a body
+ *  that compiles — and keeps the raw fragment's "expression"/"method body" head. */
+function refineBodyError(src, raw, expression) {
+    const dash = raw.indexOf(" — ");
+    const head = dash >= 0 ? raw.slice(0, dash) : raw;
+    // `#` + a digit-first hex is TS's "Invalid character"; `#` + a letter-first hex
+    // (#f00, #ff0000) lexes as a private identifier — both are the same color mistake.
+    const hash = src.match(/#([0-9a-fA-F]{3,8})(?![0-9a-fA-F])/);
+    if (hash && /invalid character|private identifier/i.test(raw)) {
+        return `${head} — inside { } a color is written ${hashToOx(hash[1])}, not ${hash[0]} (the #… and named-color forms work only in bare slots)`;
+    }
+    if (expression && looksLikeStatements(src, raw)) {
+        return `${head} — an attribute value is one expression, not statements; move the logic into a method and call it (e.g. { classroot.compute() })`;
+    }
+    return raw;
+}
 /** Check `src` as an expression body — the injected TS validator when the
  *  compiler is present, else the JS gate. Returns the error fragment or null. */
 export function validateExpr(src) {
+    let e;
     if (syntaxValidator !== null) {
         const r = rewriteDatapaths(src);
         if ("error" in r)
             return r.error;
-        return syntaxValidator(r.src, true);
+        e = syntaxValidator(r.src, true);
     }
-    const c = compileExpr(src);
-    return "error" in c ? c.error : null;
+    else {
+        const c = compileExpr(src);
+        e = "error" in c ? c.error : null;
+    }
+    return e === null ? null : refineBodyError(src, e, true);
 }
 /** Check `src` as a statement body — same seam, statement-shaped. */
 export function validateBody(params, src) {
+    let e;
     if (syntaxValidator !== null) {
         const r = rewriteDatapaths(src);
         if ("error" in r)
             return r.error;
-        return syntaxValidator(r.src, false);
+        e = syntaxValidator(r.src, false);
     }
-    const c = compileBody(params, src);
-    return "error" in c ? c.error : null;
+    else {
+        const c = compileBody(params, src);
+        e = "error" in c ? c.error : null;
+    }
+    return e === null ? null : refineBodyError(src, e, false);
 }
 /** Compile a method member's *statement* body (R5) — the same seam as
  *  compileExpr, statement-shaped: no `return (…)` wrapping, so bodies hold

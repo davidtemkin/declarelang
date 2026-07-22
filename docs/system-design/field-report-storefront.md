@@ -68,13 +68,17 @@ wins that land in the first hour. Check them off as they're addressed.
   chips) size correctly instead of to the first-paint/empty string.
 
 ### Diagnostics
-- [ ] **A3 — Colors in `{ }` (finding #3).** Either accept `#RRGGBB` (plus an alpha form)
-  inside `{ }`, or replace the generic "Invalid character" parse error with a targeted one:
-  "named colors and `#…` only work outside `{ }`; write `0x…` here." The message alone
-  removes most of the pain.
-- [ ] **A4 — Expression-vs-statement error (finding #7).** When an attribute's `{ }` contains
-  statements (a `let`, multiple lines), say so — "an attribute value is an expression; move
-  statements into a method and call it" — rather than a generic failure.
+- [x] **A3 — Colors in `{ }` (finding #3).** Targeted diagnostic now, in both forms: a
+  `#`-hex color inside `{ }` (digit- *or* letter-first — the latter lexed as a private
+  identifier and slipped to typecheck; now caught at structure phase) reports "inside { } a
+  color is written 0x334455, not #334455 …", with shorthand expanded so the suggestion is
+  exact; a *named* color (`navy`) reports "'navy' is a named color … write it as 0x000080"
+  (DECLARE4004) instead of a flat "unresolved". A `#hex` inside a string is untouched.
+- [x] **A4 — Expression-vs-statement error (finding #7).** An attribute `{ }` holding
+  statements (a `let`/`const`, a `;`, multiple lines) now reports "an attribute value is one
+  expression, not statements; move the logic into a method and call it (e.g. { classroot.compute() })"
+  instead of a generic parser error. Method/handler bodies (where statements are legal) are
+  unaffected.
 
 ### Documentation
 - [x] **A5 — Text slant/italic (finding #4).** `italic = true` already works on `Text` and

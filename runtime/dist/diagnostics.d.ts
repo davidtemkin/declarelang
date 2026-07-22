@@ -47,6 +47,7 @@ export declare const Diag: {
     unresolved: (name: string, scope: string, pos: Pos) => DeclareError;
     shadowing: (message: string, pos: Pos) => DeclareError;
     classrootInApp: (pos: Pos) => DeclareError;
+    namedColorInExpr: (name: string, hex: string, pos: Pos) => DeclareError;
     includeCollision: (message: string, pos?: Pos) => DeclareError;
     missingInclude: (path: string, pos?: Pos) => DeclareError;
     strayRoot: (message: string, pos: Pos) => DeclareError;

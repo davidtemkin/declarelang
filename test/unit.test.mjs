@@ -1282,6 +1282,30 @@ await test("compile(): 'classroot' is a compile error in the App body, valid in 
   assert.equal(compile(out.source, {}).source, out.source, "resolve twice = resolve once");
 });
 
+await test("compile(): bare-slot forms inside { } name their fix — colors and statements (field report A3/A4)", () => {
+  // A3 — a `#`-hex color inside { }: the generic "Invalid character" becomes the 0x form.
+  const hex = compile(`App [ Text [ text = "hi", textColor = { #334455 } ] ]`, {});
+  assert.equal(hex.source, null);
+  assert.match(hex.errors[0].message, /inside \{ \} a color is written 0x334455, not #334455/);
+  // shorthand is expanded so the suggestion is exact
+  assert.match(compile(`App [ Text [ textColor = { #f00 } ] ]`, {}).errors[0].message, /0xff0000/);
+  // 8-hex (alpha) passes straight through
+  assert.match(compile(`App [ Text [ textColor = { #33445566 } ] ]`, {}).errors[0].message, /0x33445566/);
+  // A3c — a NAMED color inside { } resolves to a targeted diagnostic, not flat "unresolved"
+  const named = compile(`App [ Text [ textColor = { navy } ] ]`, {});
+  assert.equal(named.source, null);
+  assert.match(named.errors[0].message, /'navy' is a named color .* write it as 0x000080/);
+  assert.equal(named.diagnostics.find((d) => d.message.includes("named color")).code, "DECLARE4004");
+  // a DECLARED attribute that happens to share a color's name still resolves normally
+  assert.deepEqual(compile(`App [ teal: number = 1, Text [ text = { "" + teal } ] ]`, {}).errors, []);
+  // A4 — statements where an attribute value must be one expression
+  const stmts = compile(`App [ n: number = { let x = 1; x + 2 } ]`, {});
+  assert.equal(stmts.source, null);
+  assert.match(stmts.errors[0].message, /an attribute value is one expression, not statements; move the logic into a method/);
+  // a valid single expression is untouched
+  assert.deepEqual(compile(`App [ n: number = { 1 + 2 } ]`, {}).errors, []);
+});
+
 await test("check(): 'app' is a scope noun — not declarable, nameable, or a parameter", () => {
   const msgs = check(parseProgram("App [ width=1, app: number = 1, k: View [ ], m(app) { } ]"))
     .map((e) => e.message);

@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "8cb3eb5b9e56",
+  "buildId": "6196447a5699",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -509,7 +509,33 @@
   },
   "diagnostics": {
    "prefix": "DECLARE",
-   "codes": []
+   "codes": [
+    "DECLARE1000",
+    "DECLARE1001",
+    "DECLARE2000",
+    "DECLARE2001",
+    "DECLARE2002",
+    "DECLARE2003",
+    "DECLARE2004",
+    "DECLARE3000",
+    "DECLARE3001",
+    "DECLARE3002",
+    "DECLARE3003",
+    "DECLARE3004",
+    "DECLARE4000",
+    "DECLARE4001",
+    "DECLARE4002",
+    "DECLARE4003",
+    "DECLARE4004",
+    "DECLARE5000",
+    "DECLARE5001",
+    "DECLARE5002",
+    "DECLARE5003",
+    "DECLARE6000",
+    "DECLARE6001",
+    "DECLARE7000",
+    "DECLARE7001"
+   ]
   },
   "library": {
    "$provide": "library/[object Object],[object Object]",
@@ -20258,8 +20284,8 @@
      "name": "Diagnostics",
      "kind": "reference",
      "label": "Reference",
-     "doc": "# Diagnostic codes\n\n*Every compiler diagnostic carries a `DECLARE####` code, and its message names the fix.*\n\n",
-     "preview": "Every compiler diagnostic carries a DECLARE code, and its message names the fix."
+     "doc": "# Diagnostic codes\n\n*Every compiler diagnostic carries a `DECLARE####` code, and its message names the fix.*\n\n`DECLARE1000` · `DECLARE1001` · `DECLARE2000` · `DECLARE2001` · `DECLARE2002` · `DECLARE2003` · `DECLARE2004` · `DECLARE3000` · `DECLARE3001` · `DECLARE3002` · `DECLARE3003` · `DECLARE3004` · `DECLARE4000` · `DECLARE4001` · `DECLARE4002` · `DECLARE4003` · `DECLARE4004` · `DECLARE5000` · `DECLARE5001` · `DECLARE5002` · `DECLARE5003` · `DECLARE6000` · `DECLARE6001` · `DECLARE7000` · `DECLARE7001`",
+     "preview": "Every compiler diagnostic carries a DECLARE code, and its message names the fix. DECLARE1000 · DECLARE1001 · DECLARE2000 · DECLARE2001 · DECLARE2002 · DECLARE2003 · DECLARE2004 · DECLARE3000 · DECLARE3001 · DECLARE3002 · DECLARE3003 · DECLA"
     },
     {
      "name": "Requests",
