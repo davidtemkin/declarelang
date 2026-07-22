@@ -267,5 +267,16 @@ await test("build() rejects a block program when a check error is present", () =
   assert.throws(app, /BAD/);
 });
 
+// ── Task 6: golden no-op invariant ───────────────────────────────────────
+import { parse } from "../runtime/dist/parser.js";
+
+await test("golden no-op: parsing without plugins matches a plugin-less shape", () => {
+  const prog = parseProgram("App [ x = 1 ]");
+  assert.deepEqual(prog.blocks, []);
+  assert.equal(prog.root.tag, "App");
+  const frag = parse("View [ ]");
+  assert.equal(frag.tag, "View");
+});
+
 export { notePlugin };
 summarize("plugin");
