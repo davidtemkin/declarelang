@@ -21,6 +21,7 @@ export function provideViewCreator(fn) {
 import { record } from "./draw.js";
 import { Constraint } from "./reactive.js";
 import { bindDerived, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned } from "./attributes.js";
+import { Pointer } from "./pointer.js";
 import { handlerName } from "./schema.js";
 import { splitPath } from "./datapath.js";
 // view → the installed strategy's detach. Module-private bookkeeping rather
@@ -296,8 +297,10 @@ export class View extends Node {
         if (this.scrollsX)
             s.setScrollX(true);
         const sink = this.inputSink();
-        if (sink !== null)
+        if (sink !== null) {
             s.setInput(sink);
+            Pointer.register(sink, this); // interaction seam: map this sink -> this view
+        }
         if (this.draw)
             this.bindDraw();
     }

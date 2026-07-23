@@ -100,6 +100,7 @@ export { DeclareError, DeclareErrors } from "./errors.js";
 export { headingSlug } from "./slug.js";
 export { Keys, KeysService, normalize } from "./keys.js";
 export { Focus, FocusService, deliverKeys } from "./focus.js";
+export { Pointer, PointerService } from "./pointer.js";
 // The runtime services usable INSIDE `{ }` bodies (`Focus.focus(this)` in a
 // click handler): injected into body scope here — index.ts sits above both
 // expr.ts and the services in the module graph, so no cycle.

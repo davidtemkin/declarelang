@@ -28,6 +28,7 @@
 // per-sprite clickable state and a global event broker); read for intent —
 // deliver input to the view the user sees under the pointer — and rewritten
 // as one shared rule over one resolution seam.
+import { Pointer } from "./pointer.js";
 /** Start routing window pointer input through `resolve`. `alive` gates the
  *  whole route (false = the tree is gone; the listeners remove themselves
  *  on the next event). */
@@ -58,6 +59,7 @@ export function routeInput(alive, resolve, rootPoint, onHover) {
             hoveredSink("mouseOut", 0, 0);
         hoveredKey = null;
         hoveredSink = null;
+        Pointer.hover(null); // interaction seam: drop hover state on touch-release too
     };
     const listen = (type, handle) => {
         const listener = (e) => {
@@ -72,6 +74,7 @@ export function routeInput(alive, resolve, rootPoint, onHover) {
     listen("pointerdown", (e) => {
         const t = resolve(e);
         held = t;
+        Pointer.press(t !== null ? t.sink : null); // interaction seam
         if (t !== null) {
             // The browser ANCHORS its native text selection at mousedown; flipping
             // user-select off on the first captured move (below) is too late in
@@ -117,6 +120,7 @@ export function routeInput(alive, resolve, rootPoint, onHover) {
         const t = resolve(e);
         const key = t !== null ? t.key : null;
         if (key !== hoveredKey) {
+            Pointer.hover(t !== null ? t.sink : null); // interaction seam (independent of onHover)
             if (onHover !== undefined)
                 onHover(t);
             if (hoveredSink !== null)
@@ -138,6 +142,7 @@ export function routeInput(alive, resolve, rootPoint, onHover) {
         const t = resolve(e);
         const captor = held;
         held = null;
+        Pointer.press(null); // interaction seam
         if (captor !== null) {
             // The presser captured the pointer, so the release goes to IT (root-space
             // coords) — a drag drops on its owner even released over another view.
@@ -173,6 +178,7 @@ export function routeInput(alive, resolve, rootPoint, onHover) {
         // so a drag handler still gets its release (e.g. a slider freezes its value).
         const captor = held;
         held = null;
+        Pointer.press(null); // interaction seam
         if (captor !== null) {
             const p = rootPoint !== undefined ? rootPoint(e) : { x: captor.x, y: captor.y };
             captor.sink("mouseUp", p.x, p.y);
