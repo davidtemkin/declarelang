@@ -756,6 +756,7 @@ class FilesWindow extends Window [
     cpx0: number = 0,
     cwk: number = -1,                            // depth of the column being dragged
     pendingAt: string = "",                      // the item awaiting a possible second click (data-level double-click)
+    focusDepth: number = -1,                     // >=0: open pinned to this column at the LEFT edge (a folder opened into a new window), ancestors scroll-left; -1: reveal the deepest column
 
     // the window's name is the deepest open node, or "Documentation"
 
@@ -844,12 +845,13 @@ class FilesWindow extends Window [
                     width = { classroot.widths[:depth] != null ? classroot.widths[:depth] : classroot.colW },
 
                     // a freshly-opened column reveals itself — the strip scrolls
-                    // right to bring it into view, ANIMATED (not a pop). Deferred
-                    // past the double-click window (400ms) so a second click still
-                    // lands on the same, un-moved row — the view never slides out
-                    // from under the mouse mid-open (the double-click bug this fixes).
+                    // to bring it into view, ANIMATED (not a pop). Deferred past the
+                    // double-click window (400ms) so a second click still lands on the
+                    // same, un-moved row (the double-click bug this fixes). A window
+                    // opened onto a folder (focusDepth >= 0) instead pins THAT column to
+                    // the left edge, so its contents lead and the ancestors scroll-left.
 
-                    onInit() { setTimeout(() => this.scrollIntoView("nearest", true), 440) },
+                    onInit() { setTimeout(() => { const fd = classroot.focusDepth; if (fd < 0) this.scrollIntoView("nearest", true); else if (:depth == fd) this.scrollIntoView("start", true) }, 440) },
 
                     // a LIST column — this level's nodes as selectable rows
 
@@ -1945,13 +1947,16 @@ App [ clip = true, appName = "Declare Desktop",
         },
 
     // Double-clicking a folder (or File → Open on one) opens a NEW Files window
-    // ROOTED at that folder — its first column is the folder's own contents.
+    // drilled to that folder and PINNED so the folder's own column sits at the left
+    // edge (its contents lead) — but the whole tree is present, so you can scroll
+    // left all the way back to the root categories.
 
-    openFolderWindow(rootPath, v) {
+    openFolderWindow(folderPath, v) {
         this.dismissAbouts()
         winCount = winCount + 1
         winSeq = winSeq + 1
-        const w = this.createView("FilesWindow", this.wins, ({ wx: 90 + (winCount % 7) * 28, wy: 46 + (winCount % 7) * 26, rootPath: "" + rootPath }))
+        const depth = ("" + folderPath).split("\n").length - 1
+        const w = this.createView("FilesWindow", this.wins, ({ wx: 90 + (winCount % 7) * 28, wy: 46 + (winCount % 7) * 26, selPath: "" + folderPath, focusDepth: depth }))
         this.frontOpen(w)
         },
 

@@ -387,8 +387,10 @@ class DomSurface {
         // Native walks the scrollable ancestors (document included) and does the
         // offset math; block:start aligns the view to the top (the click-to-jump
         // index), block:nearest moves the minimum distance (the focus reveal).
-        // inline:nearest reveals a horizontal scroller too; smooth animates it.
-        this.element.scrollIntoView({ block: align, inline: "nearest", behavior: smooth ? "smooth" : "auto" });
+        // align drives BOTH axes: block for a vertical scroller, inline for a
+        // horizontal one — so "nearest" reveals minimally and "start" pins the
+        // element to the container's leading edge (a Miller strip's left). smooth animates.
+        this.element.scrollIntoView({ block: align, inline: align, behavior: smooth ? "smooth" : "auto" });
     }
     revealRichAnchor(slug, _within) {
         // The heading is a real element in the flow (setRichContent tagged it with
