@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
 import { ancestorChain, chainDiff } from "./interaction-tracker.mjs";
 import { Pointer } from "../runtime/dist/pointer.js";
+import { routeInput } from "../runtime/dist/input.js";
 
 // Plain {name, parent} mocks — the helpers only follow `.parent`.
 const A = { name: "A", parent: null };
@@ -54,6 +55,39 @@ await test("Pointer: reset drops subscribers and state", () => {
   Pointer.register(s, v);
   Pointer.hover(s);
   assert.equal(fired, 0, "handler removed by reset");
+});
+
+await test("routeInput feeds Pointer.hover/press with the registered view", () => {
+  Pointer.reset();
+  const handlers = {};
+  const realWindow = globalThis.window;
+  globalThis.window = {
+    addEventListener: (type, fn) => { (handlers[type] ??= []).push(fn); },
+    removeEventListener: (type, fn) => { handlers[type] = (handlers[type] ?? []).filter((h) => h !== fn); },
+  };
+  try {
+    const viewA = { name: "A" };
+    const sinkA = () => {};
+    Pointer.register(sinkA, viewA);
+    const targets = { A: { key: sinkA, sink: sinkA, x: 1, y: 2 } };
+
+    const hovers = [], presses = [];
+    Pointer.onHover((v) => hovers.push(v));
+    Pointer.onPress((v) => presses.push(v));
+
+    routeInput(() => true, (e) => targets[e.k] ?? null, (e) => ({ x: e.clientX, y: e.clientY }));
+    const fire = (type, k) => (handlers[type] ?? []).forEach((h) => h({ k, clientX: 10, clientY: 20, pointerType: "mouse" }));
+
+    fire("pointermove", "A");        // hover A
+    fire("pointerdown", "A");        // press A
+    fire("pointerup", "A");          // release
+    fire("pointermove", null);       // hover off
+
+    assert.deepEqual(hovers, [viewA, null], "hover fires on enter and leave");
+    assert.deepEqual(presses, [viewA, null], "press fires on down and release");
+  } finally {
+    globalThis.window = realWindow;
+  }
 });
 
 summarize("interaction");
