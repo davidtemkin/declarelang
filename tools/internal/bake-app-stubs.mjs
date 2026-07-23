@@ -61,6 +61,20 @@ for (const dir of stubDirs()) {
   // Preserve the stamped cache-buster across regeneration (stamp-version owns it).
   const prior = existsSync(out) ? readFileSync(out, "utf8") : "";
   const v = (prior.match(V_RE) || [])[2] ?? "?v=";
+  // A `demos/` dir means live-edit panels seeded from demos/<name>.declare. The page
+  // NAMES them in boot() (the curated root page does), but the SW's browse-to-run
+  // wrapper for a bare `<name>.declare` URL can't read the filesystem to know them —
+  // so commit a `demos.json` beside the program that boot falls back to (boot-uniform).
+  // EXCEPTION: the docs app names none — its ~50 inline-example editors seed ON
+  // DEMAND from the doc model as the reader scrolls (boot-uniform), never up front —
+  // so it gets no demos.json (pre-seeding all of them would be a load-time regression).
+  const demoDir = path.join(dir, "demos");
+  if (existsSync(demoDir) && name !== "docs") {
+    const demos = readdirSync(demoDir).filter((f) => f.endsWith(".declare")).map((f) => f.replace(/\.declare$/, "")).sort();
+    const dj = path.join(dir, "demos.json");
+    const djText = JSON.stringify(demos) + "\n";
+    if (!(existsSync(dj) && readFileSync(dj, "utf8") === djText)) { writeFileSync(dj, djText); wrote++; }
+  }
   // apps/<name>/ is always two levels below the tree root the platform deploys at.
   const html = MARKER + stubPage({
     name,

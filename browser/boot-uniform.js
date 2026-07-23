@@ -363,9 +363,17 @@ export default async function boot(cfg) {
   // (its ~50 inline examples' editors read their source from the doc model, and their
   // previews are fetched on demand as the reader scrolls to each page).
   const seeds = { __page__: pageSource };
-  if (Array.isArray(cfg.demos) && cfg.demos.length) {
+  // The page NAMES its demos in boot() (the curated root page does). When it doesn't
+  // — the SW's browse-to-run wrapper for a bare `<name>.declare` URL can't know them —
+  // fall back to a committed `demos.json` beside the program (bake-app-stubs writes it),
+  // so those editors carry source on the `.declare` URL too, not only the root page.
+  let demos = Array.isArray(cfg.demos) ? cfg.demos : [];
+  if (!demos.length) {
+    try { const j = await (await fetch(new URL("demos.json", mainDir), { cache: "no-cache" })).json(); if (Array.isArray(j)) demos = j; } catch {}
+  }
+  if (demos.length) {
     const sDemos = perfStage("demo-seeds");
-    await Promise.all(cfg.demos.map(async (name) => {
+    await Promise.all(demos.map(async (name) => {
       try { seeds[name] = await (await fetch(new URL("demos/" + name + ".declare", mainDir), { cache: "no-cache" })).text(); } catch {}
     }));
     sDemos.end();
