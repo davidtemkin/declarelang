@@ -129,6 +129,7 @@ export { headingSlug } from "./slug.js";
 export { Keys, KeysService, normalize } from "./keys.js";
 export type { KeyEvent } from "./keys.js";
 export { Focus, FocusService, deliverKeys } from "./focus.js";
+export { Pointer, PointerService } from "./pointer.js";
 
 // The runtime services usable INSIDE `{ }` bodies (`Focus.focus(this)` in a
 // click handler): injected into body scope here — index.ts sits above both
