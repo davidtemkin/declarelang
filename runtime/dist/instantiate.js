@@ -56,6 +56,7 @@ import { Constraint } from "./reactive.js";
 import { attrType, descendsFrom } from "./schema.js";
 import { checkAttr, checkMethod, checkDecl, checkComponentValue, withDecls, programSchemas, manyPathOf, checkEntry, checkThemeRecord, coerceToken } from "./check.js";
 import { buildStylesheet, ensureApplier, registerStylesheets } from "./stylesheet.js";
+import { runEnterHooks } from "./per-view.js";
 import { buildFonts, collectFaces, registerFontFaces } from "./font.js";
 import { compileBody, compileExpr } from "./expr.js";
 import { isPercent, isAlign } from "./value.js";
@@ -176,6 +177,7 @@ function initTree(view) {
     // through the slot pusher instead (stylesheetArrived). Parent before children,
     // so a provider's theme offer stands before its followers' fields read it.
     ensureApplier(view);
+    runEnterHooks(view); // generic per-view seam: plugin effects, parent-first
     for (const child of view.children) {
         if (child instanceof View)
             initTree(child);

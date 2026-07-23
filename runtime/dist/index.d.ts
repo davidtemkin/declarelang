@@ -74,6 +74,7 @@ export { headingSlug } from "./slug.js";
 export { Keys, KeysService, normalize } from "./keys.js";
 export type { KeyEvent } from "./keys.js";
 export { Focus, FocusService, deliverKeys } from "./focus.js";
+export { onEachView } from "./per-view.js";
 export type { RenderBackend, Surface, Stretch, PointerType, InputSink, EditableSpec } from "./backend.js";
 export type { LayoutStrategy } from "./view.js";
 export type { DrawOp, DisplayList, Bounds } from "./draw.js";
