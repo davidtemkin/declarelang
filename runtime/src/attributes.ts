@@ -81,6 +81,10 @@ interface Carrier {
    *  installed by the per-view applier, cleared on swap; below every author
    *  provision, above the follow and the declaration default). */
   $stylesheetMarks?: Set<string>;
+  /** Plugin-provided slot names (the generic provision tier — installed by a
+   *  plugin below author provision AND the built-in class-dict stylesheet,
+   *  above the follow and the declaration default). */
+  $providedMarks?: Set<string>;
 }
 
 /** Walk the constructor chain to the nearest class with a table, memoizing
@@ -187,7 +191,8 @@ function provided(self: Carrier, name: string): boolean {
   return (
     (self.$set?.has(name) ?? false) ||
     self.$owners?.[name] !== undefined ||
-    (self.$stylesheetMarks?.has(name) ?? false)
+    (self.$stylesheetMarks?.has(name) ?? false) ||
+    (self.$providedMarks?.has(name) ?? false)
   );
 }
 
@@ -330,6 +335,46 @@ export function stylesheetClear(self: object, name: string): void {
  *  colors. */
 export function stylesheetMarks(self: object): ReadonlySet<string> | undefined {
   return (self as Carrier).$stylesheetMarks;
+}
+
+// ── The generic plugin provision channel (a rung below the built-in stylesheet) ──
+//
+// A plugin's OFFER on an attribute: installed below author provision AND the
+// built-in class-dict stylesheet, above the declaration default. Any plugin may
+// use it (not CSS-specific). RAW, mirroring stylesheetWrite: the caller gates on
+// isProvided (plus its own offer record) so it yields per the ranking and may
+// update its own held slots — token-less cooperative first-provider-wins.
+
+/** Install a plugin-provided value on a slot (the generic provision tier). */
+export function provide(self: object, name: string, v: unknown): void {
+  const carrier = self as Carrier;
+  const becameProvider =
+    tableFor(PREVAILING, self.constructor)?.[name] === true && !provided(carrier, name);
+  (carrier.$providedMarks ??= new Set()).add(name);
+  write(self, name, v);
+  if (becameProvider) carrier.$cells?.[name]?.changed();
+}
+
+/** Withdraw a plugin-provided value. When the slot is otherwise unprovided the
+ *  stored value is removed (reads fall back through follow → default),
+ *  dependents wake, and the slot's Surface state is re-pushed. */
+export function withdraw(self: object, name: string): void {
+  const carrier = self as Carrier;
+  if (carrier.$providedMarks === undefined || !carrier.$providedMarks.delete(name)) return;
+  if (provided(carrier, name)) return; // author or the built-in stylesheet holds it now
+  if (carrier.$attrs !== undefined && Object.hasOwn(carrier.$attrs, name)) {
+    delete carrier.$attrs[name];
+  }
+  carrier.$cells?.[name]?.changed();
+  const v = (self as Record<string, unknown>)[name]; // the effective fallback
+  tableFor(PUSHERS, self.constructor)?.[name]?.(self, v);
+}
+
+/** Is this slot already spoken for — author set, a binding, the built-in
+ *  stylesheet, or the plugin tier? A plugin gates a NEW offer on this (AND on
+ *  its own offer record, so it may still update its own held slots). */
+export function isProvided(self: object, name: string): boolean {
+  return provided(self as Carrier, name);
 }
 
 /** Was this slot ever author-set (a literal, or a direct assignment)?
