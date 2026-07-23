@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
-import { ancestorChain, chainDiff } from "./interaction-tracker.mjs";
+import { ancestorChain, chainDiff, makeInteractionTracker } from "./interaction-tracker.mjs";
 import { Pointer } from "../runtime/dist/pointer.js";
 import { routeInput } from "../runtime/dist/input.js";
+import { Focus } from "../runtime/dist/focus.js";
+import { Constraint, settle } from "../runtime/dist/reactive.js";
+import { build } from "../runtime/dist/index.js";
 
 // Plain {name, parent} mocks — the helpers only follow `.parent`.
 const A = { name: "A", parent: null };
@@ -87,6 +90,64 @@ await test("routeInput feeds Pointer.hover/press with the registered view", () =
     assert.deepEqual(presses, [viewA, null], "press fires on down and release");
   } finally {
     globalThis.window = realWindow;
+  }
+});
+
+await test("tracker: hover/press propagate up the chain; focus is leaf-only", () => {
+  Pointer.reset();
+  Focus.reset();
+  const app = build(`App [ width = 100, height = 100,
+    a: View [ b: View [ c: View [ focusable = true ] ] ],
+  ]`);
+  const A = app.a, B = app.a.b, C = app.a.b.c;
+  const tr = makeInteractionTracker(Pointer, Focus);
+  try {
+    const sinkC = () => {};
+    Pointer.register(sinkC, C);
+
+    Pointer.hover(sinkC);
+    assert.equal(tr.isHovered(C), true, "leaf hovered");
+    assert.equal(tr.isHovered(B), true, "ancestor hovered (chain)");
+    assert.equal(tr.isHovered(A), true, "root-side ancestor hovered (chain)");
+
+    Pointer.hover(null);
+    assert.equal(tr.isHovered(C), false);
+    assert.equal(tr.isHovered(A), false);
+
+    Pointer.press(sinkC);
+    assert.equal(tr.isPressed(B), true, "press propagates up the chain");
+    Pointer.press(null);
+    assert.equal(tr.isPressed(B), false);
+
+    Focus.setRoot(app);
+    Focus.focus(C);
+    assert.equal(tr.isFocused(C), true, "focused leaf");
+    assert.equal(tr.isFocused(B), false, "focus is leaf-only (no :focus-within)");
+  } finally {
+    tr.dispose();
+  }
+});
+
+await test("tracker: isHovered is reactive under a constraint", () => {
+  Pointer.reset();
+  Focus.reset();
+  const app = build(`App [ width = 100, height = 100, a: View [ ] ]`);
+  const A = app.a;
+  const tr = makeInteractionTracker(Pointer, Focus);
+  try {
+    const sinkA = () => {};
+    Pointer.register(sinkA, A);
+    let runs = 0, last;
+    const c = new Constraint("test-hover", () => { last = tr.isHovered(A); return last; }, () => { runs++; }, 0);
+    c.run();
+    const before = runs;
+    Pointer.hover(sinkA);
+    settle();
+    assert.ok(runs > before, "constraint re-ran when hover changed");
+    assert.equal(last, true, "sees the new hovered state");
+    c.dispose();
+  } finally {
+    tr.dispose();
   }
 });
 
