@@ -283,13 +283,26 @@ export declare class View extends Node {
      *  numbers. A Menu raises at open; a Window raises on activation. */
     raise(below?: View | null): void;
     /** This view's input route, or null when it answers no pointer event —
-     *  interactivity *derives* from declared handlers (Decisions §R5): a view
-     *  with none is never wired (pay-per-use) and stays transparent to input,
-     *  which is what lets a decorative child sit over an interactive parent
-     *  without stealing its clicks (LZX's `clickable` intent, made automatic).
-     *  A handler receives one plain event argument — the pointer position in
-     *  this view's own coordinates. */
-    private inputSink;
+     *  interactivity *derives* from declared handlers (Decisions §R5), a non-empty
+     *  `tip`, or a plugin FORCING a sink (forceInputSink). A view with none is
+     *  never wired (pay-per-use) and stays transparent to input, which is what
+     *  lets a decorative child sit over an interactive parent without stealing its
+     *  clicks (LZX's `clickable` intent, made automatic). A handler receives one
+     *  plain event argument — the pointer position in this view's own coordinates. */
+    private buildSink;
+    /** Plugin tokens forcing this view to be hit-testable; see forceInputSink. */
+    private $sinkForcers?;
+    private inputInstalled;
+    /** Force this view to be hit-testable even with no pointer handler or tip
+     *  (a plugin marks views it needs pointer events for — e.g. a CSS `:hover`
+     *  rule's targets). `token` identifies the forcer so independent plugins do
+     *  not clobber one another; the sink exists while any token is held. */
+    forceInputSink(token: object, on: boolean): void;
+    /** (Re)install or remove this view's input sink to match its current reasons
+     *  to be hit-testable (author handler, tip, or a forced token), keeping its
+     *  Pointer registration in sync. The single path used at attach and whenever a
+     *  forcer toggles. No-op before attach — flush() installs then. */
+    refreshInputSink(): void;
     /** Stand up the draw method as a tracked, re-recording computation. */
     private bindDraw;
     /** Re-record right now — the explicit half of draw-on-invalidation (the
