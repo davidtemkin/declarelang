@@ -433,12 +433,14 @@ class Resolver {
     }
     /** Walk one body root (a class body, or the main tree — `mainRoot` set
      *  there enables the lexical `App` self-name). `ancestors` is innermost
-     *  first and ends at the body root. */
+     *  first and ends at the body root. `scope` names WHICH kind of body this is,
+     *  so `classroot` (valid only in a class) can be rejected everywhere else. */
     resolveElement(el, ancestors, mainRoot) {
+        const scope = mainRoot === null ? "class" : "app";
         const levels = [el, ...ancestors];
         for (const a of el.attrs) {
             if (a.value.kind === "code")
-                this.resolveBody(a.value.src, a.value.pos, true, [], levels, mainRoot);
+                this.resolveBody(a.value.src, a.value.pos, true, [], levels, mainRoot, scope);
         }
         // A declaration default that is a binding (the styling rung's ruled R6
         // unlock — `labelColor: Color = { theme.buttonText }`) resolves at the
@@ -447,10 +449,10 @@ class Resolver {
         // `this.theme` exactly as it would in a set.
         for (const d of el.decls) {
             if (d.def?.kind === "code")
-                this.resolveBody(d.def.src, d.def.pos, true, [], levels, mainRoot);
+                this.resolveBody(d.def.src, d.def.pos, true, [], levels, mainRoot, scope);
         }
         for (const m of el.methods)
-            this.resolveBody(m.body, m.bodyPos, false, m.params, levels, mainRoot);
+            this.resolveBody(m.body, m.bodyPos, false, m.params, levels, mainRoot, scope);
         for (const child of el.children)
             this.resolveElement(child, levels, mainRoot);
     }
@@ -465,7 +467,7 @@ class Resolver {
                 continue;
             for (const a of child.attrs) {
                 if (a.value.kind === "code")
-                    this.resolveBody(a.value.src, a.value.pos, true, [], [child], null);
+                    this.resolveBody(a.value.src, a.value.pos, true, [], [child], null, "stylesheet");
             }
         }
     }
@@ -477,10 +479,10 @@ class Resolver {
     resolveBundle(body) {
         for (const a of body.attrs) {
             if (a.value.kind === "code")
-                this.resolveBody(a.value.src, a.value.pos, true, [], [VIEW_LEVEL], null);
+                this.resolveBody(a.value.src, a.value.pos, true, [], [VIEW_LEVEL], null, "bundle");
         }
     }
-    resolveBody(src, brace, expression, params, levels, mainRoot) {
+    resolveBody(src, brace, expression, params, levels, mainRoot, scope) {
         const bodyStart = brace.offset + 1; // the body begins just after `{`
         // Datapath islands (R8) are not TypeScript: neutralize each with a
         // same-length, identifier-free filler so the TS parse sees valid source
@@ -510,14 +512,14 @@ class Resolver {
             }
             if (id.name === "classroot") {
                 // `classroot` reaches the root of the component (class) the code is
-                // written in. In a class body it passes through untouched — the runtime
-                // binds it (expr.ts). In the App's own body (mainRoot set — the root and
-                // every anonymous view under it) there is no component to root, so it is
-                // an error, with the fix named: a bare name or `app.` reaches the App.
-                // (Stylesheet/bundle bodies resolve with mainRoot null and are left as
-                // they were — this rule is about the App block only.)
-                if (mainRoot !== null)
-                    this.errors.push(Diag.classrootInApp(this.posAt(bodyStart + id.start)));
+                // written in — meaningful ONLY inside a class body, where it passes
+                // through untouched and the runtime binds it (expr.ts). Anywhere else
+                // (the App block, a stylesheet or style-bundle body) there is no
+                // component to root, so it is an error naming where the code actually is.
+                if (scope !== "class") {
+                    const where = scope === "app" ? "the App" : scope === "stylesheet" ? "a stylesheet" : "a style bundle";
+                    this.errors.push(Diag.classrootOutsideClass(where, this.posAt(bodyStart + id.start)));
+                }
                 continue;
             }
             const pos = this.posAt(bodyStart + id.start);

@@ -6,6 +6,9 @@
 # homepage's static extraction into index.html (tools/internal/bake-homepage-crawler.mjs) so the
 # root page carries its content for crawlers + LLMs; host-client clears it at boot,
 # so a stale bake would only ever affect the crawler snapshot, never a live user.
+# (0c) bake the cold-stub index.html into every program directory
+# (tools/internal/bake-app-stubs.mjs) so …/apps/<name>/ works on a COLD static host —
+# shadowed under the dev server, superseded by the SW once installed.
 # (1) rebuild any STALE platform bundle — stamp-version calls
 # tools/internal/bundle-freshness.mjs first, so a commit cannot ship a bundles artifact older
 # than its inputs; (2) stamp the cache-busting BUILD_ID so every deploy carries a
@@ -22,6 +25,7 @@
 node tools/internal/prewarm.mjs || exit 0
 node tools/internal/doc/assemble.mjs || exit 0
 node tools/internal/bake-homepage-crawler.mjs || exit 0
+node tools/internal/bake-app-stubs.mjs || exit 0
 node tools/internal/stamp-version.mjs || exit 0
-git add service-worker.js bundles index.html 2>/dev/null
+git add service-worker.js bundles index.html apps/*/index.html 2>/dev/null
 exit 0

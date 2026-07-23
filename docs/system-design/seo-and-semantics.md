@@ -1,4 +1,4 @@
-# SEO & semantics for the brochureware domain
+# SEO & semantics — the brochureware domain
 
 **Status:** DRAFT / exploration 2026-07-10 (David). Not settled — captured to return to.
 Grew out of a live SEO experiment (a headless prerender of the homepage) + the realization

@@ -258,8 +258,8 @@ defineAttributes(Dataset, {
  *  execution installs a REFUSING transport (capabilities.md §3: network is
  *  "fixtures, or honestly absent") so extraction/verify can never initiate a
  *  request — the source lands in `failed` with the reason, by construction. */
-type Transport = (url: string) => Promise<Response>;
-let transport: Transport = (url) => globalThis.fetch(url);
+type Transport = (url: string, init?: RequestInit) => Promise<Response>;
+let transport: Transport = (url, init) => globalThis.fetch(url, init);
 
 /** Swap the transport (headless installs a refuser; tests install stubs).
  *  Returns the PREVIOUS transport so a scoped caller can restore it. */
@@ -281,6 +281,14 @@ export class DataSource extends Dataset {
    *  Text is a first-class material: an authored .md is fetched directly, no
    *  JSON-wrapping projection beside it. */
   declare format: "json" | "text";
+  /** The HTTP method — "GET" (the default) or a body-carrying verb. A non-GET
+   *  request sends `body`, so a Declare app can POST to a real REST API without
+   *  a backend-for-frontend shim (field report A9). */
+  declare method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  /** The request payload for a non-GET `method`: an object or array is
+   *  JSON-encoded (with a JSON `Content-Type`); a string is sent verbatim (the
+   *  caller's own encoding); null = no body. Ignored for a GET. */
+  declare body: unknown;
   /** The lifecycle, as one fact; the four doc-named booleans derive below. */
   declare status: "idle" | "loading" | "loaded" | "failed";
   declare error: string | null;
@@ -312,15 +320,30 @@ export class DataSource extends Dataset {
    *  (the Image loader's sequence discipline). */
   private seq = 0;
 
-  /** Fetch `url` (JSON over HTTP). Explicit by design — the weather app's
-   *  entry screen decides when (`doEnterDown() { weatherData.fetch() }`);
-   *  `auto = true` is the opt-in for reactive addresses (above). */
+  /** The fetch init from `method`/`body`. A GET (the default) sends no body — a
+   *  bare url, unchanged. A non-GET carries `body`: an object/array is
+   *  JSON-encoded with a JSON `Content-Type`; a string is sent verbatim. */
+  private requestInit(): RequestInit | undefined {
+    const method = (this.method || "GET").toUpperCase();
+    if (method === "GET") return undefined;
+    const init: RequestInit = { method };
+    const body = this.body;
+    if (body != null) {
+      if (typeof body === "string") init.body = body;
+      else { init.body = JSON.stringify(body); init.headers = { "Content-Type": "application/json" }; }
+    }
+    return init;
+  }
+
+  /** Fetch `url` over HTTP. Explicit by design — the weather app's entry screen
+   *  decides when (`doEnterDown() { weatherData.fetch() }`); `auto = true` is the
+   *  opt-in for reactive addresses (above). A non-GET `method` sends `body`. */
   async fetch(): Promise<void> {
     const seq = ++this.seq;
     setBound(this, "status", "loading");
     setBound(this, "error", null);
     try {
-      const res = await transport(this.url);
+      const res = await transport(this.url, this.requestInit());
       if (!res.ok) throw new Error(`HTTP ${res.status} for ${this.url}`);
       const value: unknown = this.format === "text" ? await res.text() : await res.json();
       if (seq !== this.seq) return; // superseded
@@ -353,6 +376,8 @@ defineAttributes(DataSource, {
   url: { def: "", push: (d, _v) => (d as DataSource).maybeAuto() },
   auto: { def: false, push: (d, _v) => (d as DataSource).maybeAuto() },
   format: { def: "json" },
+  method: { def: "GET" },
+  body: { def: null },
   status: { def: "idle" },
   error: { def: null },
 });

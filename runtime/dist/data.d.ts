@@ -53,7 +53,7 @@ export declare class Dataset extends Node {
  *  execution installs a REFUSING transport (capabilities.md §3: network is
  *  "fixtures, or honestly absent") so extraction/verify can never initiate a
  *  request — the source lands in `failed` with the reason, by construction. */
-type Transport = (url: string) => Promise<Response>;
+type Transport = (url: string, init?: RequestInit) => Promise<Response>;
 /** Swap the transport (headless installs a refuser; tests install stubs).
  *  Returns the PREVIOUS transport so a scoped caller can restore it. */
 export declare function provideTransport(fn: Transport): Transport;
@@ -69,6 +69,14 @@ export declare class DataSource extends Dataset {
      *  Text is a first-class material: an authored .md is fetched directly, no
      *  JSON-wrapping projection beside it. */
     format: "json" | "text";
+    /** The HTTP method — "GET" (the default) or a body-carrying verb. A non-GET
+     *  request sends `body`, so a Declare app can POST to a real REST API without
+     *  a backend-for-frontend shim (field report A9). */
+    method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+    /** The request payload for a non-GET `method`: an object or array is
+     *  JSON-encoded (with a JSON `Content-Type`); a string is sent verbatim (the
+     *  caller's own encoding); null = no body. Ignored for a GET. */
+    body: unknown;
     /** The lifecycle, as one fact; the four doc-named booleans derive below. */
     status: "idle" | "loading" | "loaded" | "failed";
     error: string | null;
@@ -88,9 +96,13 @@ export declare class DataSource extends Dataset {
     /** Discards a superseded request: only the latest fetch/clear may land
      *  (the Image loader's sequence discipline). */
     private seq;
-    /** Fetch `url` (JSON over HTTP). Explicit by design — the weather app's
-     *  entry screen decides when (`doEnterDown() { weatherData.fetch() }`);
-     *  `auto = true` is the opt-in for reactive addresses (above). */
+    /** The fetch init from `method`/`body`. A GET (the default) sends no body — a
+     *  bare url, unchanged. A non-GET carries `body`: an object/array is
+     *  JSON-encoded with a JSON `Content-Type`; a string is sent verbatim. */
+    private requestInit;
+    /** Fetch `url` over HTTP. Explicit by design — the weather app's entry screen
+     *  decides when (`doEnterDown() { weatherData.fetch() }`); `auto = true` is the
+     *  opt-in for reactive addresses (above). A non-GET `method` sends `body`. */
     fetch(): Promise<void>;
     /** Reset to idle (the doc's "back to the entry screen — declaratively"). */
     clear(): void;

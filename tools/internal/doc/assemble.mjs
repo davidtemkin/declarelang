@@ -12,8 +12,9 @@
 //      table (operational/flags.md) and the setup commands
 //      (operational/getting-started.md) — so the pages' tables are literally
 //      projections, not prose kept honest by review.
-//   3. The skill's INVENTORY block (skill/SKILL.md) — the
-//      resident unknown-unknowns (E-13), derived instead of hand-written.
+//   3. A byte-copy of the authored skill/SKILL.md to .claude/skills/declare/
+//      SKILL.md — the gated Claude Code discovery copy (cannot drift; divergence
+//      fails docs.test).
 //
 // Markers: <!-- generated:<name> --> … <!-- /generated:<name> -->. Everything
 // between is owned by this tool; docs.test gates staleness by re-running the
@@ -107,15 +108,38 @@ function buildSpine() {
 // reference/guide/tenets (or a `path` for a doc file) plus a short preview for
 // the browser's detail pane. The flat sections remain the leaves' content store.
 const proseFile = (rel) => { try { return readFileSync(join(ROOT, rel), "utf8"); } catch { return ""; } };
-const preview = (text, n = 240) => text
-  .replace(/^\s*\/\*[\s\S]*?\*\//, "").replace(/<!--[\s\S]*?-->/g, "")   // leading block comment / html comments
-  .replace(/^#{1,6}\s.*$/m, "").replace(/[#*`_>|\[\]]/g, "").replace(/\s+/g, " ").trim().slice(0, n);
+const preview = (text, n = 240) => {
+  const t = text
+    .replace(/^\s*\/\*[\s\S]*?\*\//, "").replace(/<!--[\s\S]*?-->/g, "")   // leading block comment / html comments
+    .replace(/^#{1,6}\s.*$/m, "").replace(/[#*`_>|\[\]]/g, "").replace(/\s+/g, " ").trim();
+  return t.length > n ? t.slice(0, n).trimEnd() + "…" : t;   // an ellipsis marks a truncated excerpt
+};
 const titleOf = (rel) => (proseFile(rel).match(/^#\s+(.+)$/m)?.[1] ?? rel.split("/").pop()).trim();
 const segText = (segs) => (segs ?? []).map((s) => s.md || "").join(" ");
 const segMd = (segs) => (segs ?? []).map((s) => s.md || "").filter(Boolean).join("\n\n");
-const fileLeaf = (name, rel, label = "Markdown file") => ({ name, kind: "doc", label, path: rel, preview: preview(proseFile(rel)) });
-const listDocs = (dir, label) => readdirSync(join(ROOT, dir)).filter((f) => f.endsWith(".md")).sort()
-  .map((f) => fileLeaf(titleOf(dir + "/" + f), dir + "/" + f, label));
+const fileLeaf = (name, rel, label = "Markdown file", subtitle = "") => ({ name, subtitle, kind: "doc", label, path: rel, preview: preview(proseFile(rel)) });
+// A doc leaf splits its H1 for a two-line row: the TITLE (before an em-dash, with
+// a redundant leading "Declare" dropped — you are already inside Declare's docs)
+// over a SUBTITLE (the descriptor after it). Uniform across every doc leaf; an H1
+// with no descriptor simply has an empty subtitle.
+const clean = (s) => s.replace(/`/g, "").trim();   // rows are plain text — drop inline-code marks
+const docLeaf = (rel, label = "Markdown file") => {
+  const h1 = clean(titleOf(rel).replace(/^Declare\b\s*[—–-]?\s*/i, ""));
+  const m = h1.match(/^(.+?)(?:\s+[—–]\s+|:\s+)(.+)$/);
+  const title = (m ? m[1] : h1).trim().replace(/^./, (c) => c.toUpperCase());
+  return fileLeaf(title, rel, label, m ? m[2].trim() : "");
+};
+// Names double as selPath keys, so a folder's leaf names must stay unique; a rare
+// near-duplicate H1 folds its descriptor back on to keep the two distinct.
+const listDocs = (dir, label) => {
+  const seen = new Set();
+  return readdirSync(join(ROOT, dir)).filter((f) => f.endsWith(".md")).sort().map((f) => {
+    const leaf = docLeaf(dir + "/" + f, label);
+    while (seen.has(leaf.name)) { leaf.name = leaf.subtitle ? `${leaf.name} — ${leaf.subtitle}` : `${leaf.name} ·`; leaf.subtitle = ""; }
+    seen.add(leaf.name);
+    return leaf;
+  });
+};
 
 // ── hydrators: a structured node → a finished Markdown reference page. Purely
 // MECHANICAL (same input → same page), run HERE at build time so the model
@@ -155,23 +179,23 @@ const requestsDoc = (spine) => ["# Request types", "", "*The addressable request
 // (an inline `doc`). Folders drill; documents open. One family, no special case.
 function buildBrowse(dm, spine) {
   const ref = dm.reference;
-  const cat = (name, children) => ({ name, kind: "category", children });
+  const cat = (name, children, subtitle = "") => ({ name, subtitle, kind: "category", children });
   const builtins = dm.roots.filter((id) => ref[id]?.origin !== "library");
   const library = dm.roots.filter((id) => ref[id]?.origin === "library");
-  const elementLeaf = (id) => ({ name: ref[id].name, kind: "element",
+  const elementLeaf = (id) => ({ name: ref[id].name, subtitle: ref[id].extends ? "extends " + ref[id].extends : "", kind: "element",
     label: ref[id].origin === "library" ? "Component" : "Built-in element",
     doc: elementDoc(id, ref), preview: preview(ref[id].doc || "") });
-  const hydrated = (name, md) => ({ name, kind: "reference", label: "Reference", doc: md, preview: preview(md) });
-  const tenetLeaf = (t) => ({ name: t.title, kind: "tenet", label: "Tenet", doc: segMd(t.segs), preview: preview(segText(t.segs)) });
+  const hydrated = (name, md) => ({ name, subtitle: "", kind: "reference", label: "Reference", doc: md, preview: preview(md) });
+  const tenetLeaf = (t) => ({ name: t.title, subtitle: "", kind: "tenet", label: "Tenet", doc: segMd(t.segs), preview: preview(segText(t.segs)) });
   return [
     cat("Language", [
-      fileLeaf("The language — declare.md", "docs/declare.md"),
+      fileLeaf("The language", "docs/declare.md", "Markdown file", "declare.md — the whole language"),
       cat("Tenets", (dm.tenets ?? []).map(tenetLeaf)),
       fileLeaf("FAQ", "apps/homepage/declare-faq.md"),
       fileLeaf("Getting started", "apps/homepage/getstarted.md"),
     ]),
     cat("Guide", (dm.guideParts ?? []).map((p) => cat(p.part,
-      p.chapters.map((ch) => fileLeaf(ch.num + ". " + ch.title, "docs/guide/" + ch.id + ".md", "Guide chapter"))))),
+      p.chapters.map((ch) => fileLeaf(ch.num + ". " + (ch.short || ch.title), "docs/guide/" + ch.id + ".md", "Guide chapter"))))),
     cat("Reference", [
       cat("Built-ins", builtins.map(elementLeaf)),
       cat("Standard library", library.map(elementLeaf)),
@@ -183,7 +207,7 @@ function buildBrowse(dm, spine) {
       hydrated("Requests", requestsDoc(spine)),
     ]),
     cat("Operational", listDocs("docs/operational")),
-    cat("Background — design notes (non-normative)", listDocs("docs/system-design")),
+    cat("Background", listDocs("docs/system-design"), "design notes · non-normative"),
   ];
 }
 
@@ -200,7 +224,7 @@ function comprehensiveModel(spine) {
       pipeline: {
         assembledFrom: ["runtime schemas (live code)", "compiler/dist/scaffold LANGUAGE_API", "compiler/dist/flags FLAG_SPECS", "compiler/dist/reqtypes REQ", "runtime diagnostics catalog (source-scanned codes)", "library/autoincludes.json", "tools/ops.mjs (the operations registry)", "apps/docs/docs-model.json (extract.mjs)", "the declare-docs: link registry (links.mjs, called as a library)"],
         chain: "tsc → build-compiler → build-boot → extract → ASSEMBLE → prewarm → bake",
-        projections: ["docs/declare-model.json (this file — for programs)", "marker-injected blocks <!-- generated:NAME --> in docs/operational/flags.md + getting-started.md (for humans)", "the inventory block in skill/SKILL.md (for models — the resident unknown-unknowns)", ".claude/skills/declare/SKILL.md (a gated byte-copy for Claude Code auto-discovery)"],
+        projections: ["docs/declare-model.json (this file — for programs)", "marker-injected blocks <!-- generated:NAME --> in docs/operational/flags.md + getting-started.md (for humans)", ".claude/skills/declare/SKILL.md (a gated byte-copy of the authored skill/SKILL.md for Claude Code auto-discovery)"],
         gates: ["docs.test: assemble --check (staleness)", "docs.test: links --check", "ops.test: executes spine.commands entries marked test:true"],
       },
     },
@@ -250,20 +274,6 @@ function setupBlock(spine) {
     .join("\n\n");
 }
 
-function inventoryBlock(spine) {
-  const view = spine.schemas.View, app = spine.schemas.App;
-  const viewAttrs = Object.keys(view.attrs).filter((a) => !view.readOnly.includes(a));
-  const appOwn = Object.keys(app.attrs);
-  const lines = [
-    `- **Built-ins you must not redeclare** (read-only ones are computed for you): every View has \`${viewAttrs.join(" ")}\` and read-only \`${view.readOnly.join(" ")}\`; App adds \`${appOwn.filter((a) => !app.readOnly.includes(a)).join(" ")}\` and read-only \`${app.readOnly.join(" ")}\`. \`location\` is the URL fragment (two-way: write it to navigate, derive state from it, never assign the derived state); \`anchor\` names a view as an \`@name\` reveal target. Naming a derived value \`contentWidth\` is an error — pick \`bodyW\`, \`colW\`, etc.`,
-    `- **Token values, not CSS values**: ${Object.entries(spine.enums).filter(([n]) => n !== "Motion").map(([n, toks]) => `\`${n}\` = ${toks.join(" ")}`).join("; ")} — NEVER numeric weights (700 is CSS). Layout \`axis\` is a literal — to change arrangement responsively, constrain each child's \`x\`/\`y\` off a flag.`,
-    `- **Dataset mutation verbs** (from handlers): \`data.set(path, v)\` · \`data.insert(path, index, v)\` · \`data.removeAt(path, index)\` · \`data.move(path, from, to)\` — a verb's path is a DOTTED STRING (\`"rows"\`, \`"rows.3.done"\`); only \`read\` takes an array (\`data.read(["rows"])\`). Adding a row: \`tasks.insert("rows", tasks.read(["rows"]).length, ({ label: t, done: false }))\`.`,
-    `- **The standard library**: ${Object.keys(spine.library).filter((t) => !["Bar", "Control", "FocusRing"].includes(t)).map((t) => `\`${t}\``).join(", ")}, plus the built-in \`TextInput\` — values flow derive-down (\`value = { app.x }\`) and deliver-up (\`input(v) { app.x = v }\` — the built-in TextInput's event is \`onInput(v)\`).`,
-    `- **Compile modifiers**: ${spine.flags.map((f) => `\`${f.name}\``).join(", ")} (same names as URL \`?…\` and CLI \`--…\`). Diagnostic codes are \`${spine.diagnostics.prefix}####\`.`,
-  ];
-  return lines.join("\n");
-}
-
 // ── main ─────────────────────────────────────────────────────────────────────
 
 const spine = buildSpine();
@@ -276,19 +286,18 @@ const flagshipExample = (() => {
   if (!m) throw new Error("declare.md: no ```declare fence for the flagship example");
   return "```declare\n" + m[1] + "```";
 })();
-// the skill injection is computed FIRST so the .claude discovery copy (below)
-// projects the POST-injection bytes, not a stale read
-const skillTarget = inject("skill/SKILL.md", "inventory", inventoryBlock(spine));
+// SKILL.md is now fully AUTHORED (no generated block) — assemble no longer
+// writes it, only READS it to project the Claude Code discovery copy below.
+const skillSource = readFileSync(join(ROOT, "skill/SKILL.md"), "utf8");
 const targets = [
   { name: "declare-model", isFile: true, path: "docs/declare-model.json", next: comprehensiveModel(spine) },
   inject("docs/operational/flags.md", "flags-table", flagsTable(spine)),
   inject("docs/operational/getting-started.md", "setup-commands", setupBlock(spine)),
   inject("README.md", "setup-commands", setupBlock(spine)),
-  skillTarget,
-  // the Claude Code discovery copy — a BYTE-COPY projection of skill/SKILL.md
+  // the Claude Code discovery copy — a BYTE-COPY of the authored skill/SKILL.md
   // (a symlink would silently break on Windows checkouts and zip downloads;
   // a gated generated copy cannot drift — divergence fails docs.test)
-  { name: "skill-discovery-copy", isFile: true, path: ".claude/skills/declare/SKILL.md", next: skillTarget.next },
+  { name: "skill-discovery-copy", isFile: true, path: ".claude/skills/declare/SKILL.md", next: skillSource },
   // the homepage's FAQ view: same authored-page discipline as Get Started —
   // the setup trio is a GENERATED block (the ops registry, compact form). The
   // DataSource reads the authored file ITSELF (format = "text"); the markers

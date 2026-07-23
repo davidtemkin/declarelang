@@ -101,6 +101,8 @@ App [ width = 400, height = 100, fill = #0B141B,
 - **A single computed attribute wants a function, not a wrapper class**: `Image [ source = { iconUrl(:code) } ]` with a plain function in a `script { }` block, not `class WeatherIcon extends Image`.
 - Free TypeScript (models, helpers) lives in top-level `script { … }` blocks.
 
+**`classroot` — the component's own reference.** Inside a class you define, `classroot` is the root of that class, reachable from any depth within it: a handler or binding several levels deep writes `classroot.select()` or `{ classroot.label }` to reach the component's methods and attributes. A bare name (`label`) reads the enclosing class's attribute too; `classroot.label` is the explicit spelling when a nearer child shadows it. `classroot` is a reserved name and is meaningful only inside a class body.
+
 **Layout is an attribute, not a container type.** Every view defaults to absolute positioning by `x`/`y`; set a `layout:` member to arrange children — and because it's a reactive slot, it can be swapped or animated:
 
 ```declare-fragment
@@ -193,14 +195,15 @@ App [ width = 420, height = 120, fill = #0B141B,
 
 Because layout, states, and springs sit on one reactive core, *arrangement* changes animate too: spring a handful of geometry attributes and every constraint derived from them moves in lock-step — this is how a calendar's month morphs into its week (see `apps/calendar/calendar.declare`, ~500 lines, the idiom at full scale).
 
-## 8. Scope: four nouns
+## 8. Scope: three nouns
+
+Three reserved references let a `{ }` body reach a node without declaring it:
 
 - **`this`** — the node the code is written on.
 - **`parent`** — its parent in the tree.
-- **`classroot`** — the root of the component you are defining: the top level of the class you are writing, reachable from any depth inside it. A component is just a class, and it may nest subviews several levels deep; from inside one, `classroot.x` reaches the component's own attribute and `classroot.select()` calls its method. The name says it — the root of your class.
-- **`app`** — the running App, from any depth: `app.width`, `app.dark`, `app.pointerX`.
+- **`app`** — the running app, reachable from any depth, wherever the code is written: `app.width`, `app.dark`, `app.pointerX`, `app.navigate(…)`.
 
-Because `classroot` names the component you are defining, it is **only valid inside a class body** — in the App's own body it is a compile error; reach an App attribute by its bare name (`count`) or through `app` (`app.count`). Inside a class body a bare name (`label`, `count`) reads the enclosing class's attribute. The four nouns are reserved — nothing else may take their names. The most common scope mistake: on a deeply nested child, `this.foo` when the attribute lives on the component — write `classroot.foo`.
+`this` and `parent` are the tree at hand; `app` is the one reference that reaches the app from any depth without walking `parent` up the tree. These three names are reserved. The bare capital `App` is the class; the instance is always `app`.
 
 Useful App-level reactive attributes: `app.width` / `app.height` (host size — responsive layout reads these), `app.dark` (OS dark mode), `app.pointerX` / `app.pointerY`, `app.hovering` (false on touch devices). An app with a usable floor declares it — `App [ minWidth = 600 ]` — and in a narrower host the app holds that width while the stage pans natively; declare the floor rather than writing `Math.max` clamps into size constraints.
 

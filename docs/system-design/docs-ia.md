@@ -1,4 +1,4 @@
-# Docs IA, guide outline & editorial approach
+# Docs IA — guide outline & editorial approach
 
 **Status:** PROPOSED, 2026-07-14 (Fable IA/editorial pass); §2 and the guide rulings below
 are RULED (David, 2026-07-14) and in execution: **the core doc lands now** (written directly,

@@ -383,11 +383,12 @@ class DomSurface {
         // automatically — no per-resize re-derive.
         this.element.style.overflow = on ? "clip" : "";
     }
-    scrollIntoView(align = "start") {
+    scrollIntoView(align = "start", smooth = false) {
         // Native walks the scrollable ancestors (document included) and does the
         // offset math; block:start aligns the view to the top (the click-to-jump
         // index), block:nearest moves the minimum distance (the focus reveal).
-        this.element.scrollIntoView({ block: align });
+        // inline:nearest reveals a horizontal scroller too; smooth animates it.
+        this.element.scrollIntoView({ block: align, inline: "nearest", behavior: smooth ? "smooth" : "auto" });
     }
     revealRichAnchor(slug, _within) {
         // The heading is a real element in the flow (setRichContent tagged it with

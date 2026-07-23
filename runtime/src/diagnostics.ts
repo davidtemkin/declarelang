@@ -190,10 +190,10 @@ export const Diag = {
     err(code4(4001), `cannot resolve '${name}' — not a member of ${scope}, a parameter, or a global`, pos),
   shadowing: (message: string, pos: Pos): DeclareError => err(code4(4002), message, pos),
   // `classroot` reaches the root of the component (class) you are defining, so it
-  // is only meaningful inside a class body. In the App's own body there is no
-  // component to root — a bare name or `app.` reaches the App's attributes.
-  classrootInApp: (pos: Pos): DeclareError =>
-    err(code4(4003), `'classroot' is only for a component you define (a class) — this code is in the App, which has no component root. Use a bare name for an App attribute (e.g. 'count'), or 'app.' (e.g. 'app.count').`, pos),
+  // is meaningful ONLY inside a class body. `where` names the non-class body the
+  // code is actually in ("the App", "a stylesheet", "a style bundle").
+  classrootOutsideClass: (where: string, pos: Pos): DeclareError =>
+    err(code4(4003), `'classroot' is the root of a component you define — valid only inside a class body. This code is in ${where}, not a class. Reach values here by a bare name, 'this', or 'app'.`, pos),
   // A CSS color NAME resolved as a bare identifier inside { } — the name form is
   // a bare-slot literal, not an identifier the { } world knows, so name the 0x form.
   namedColorInExpr: (name: string, hex: string, pos: Pos): DeclareError =>

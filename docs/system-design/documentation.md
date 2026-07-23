@@ -1,4 +1,4 @@
-# The documentation system — governance
+# Documentation governance
 
 **Status:** RATIFIED-IN-PROGRESS, 2026-07-14 (David + Claude). This is the contract the
 documentation is built and maintained against. It **supersedes** the two stalled drafts

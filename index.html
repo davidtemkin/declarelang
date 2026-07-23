@@ -225,6 +225,21 @@ App [ width = 400, height = 100, fill = #0B141B,
     Chip [ label = "three" ],
     ]</code></pre>
 <ul><li><strong>The one root is <code>App</code></strong> — one per program; its body is the whole visible tree. If <code>width</code>/<code>height</code> are unset, the App fills its host (§10).</li><li><strong>Any instance can declare its own members inline</strong> (state, methods, handlers) without defining a class — the compiler synthesizes an anonymous subclass. The instance is a <em>subtype</em> of its base, so it fits anywhere the base is expected. Promote a one-off to a named <code>class</code> only when you instantiate it more than once — or when you need to <em>name</em> its type (to extend it, or take it as a parameter). The moment the type needs a name, you've outgrown the one-off.</li><li>Free TypeScript (models, helpers) lives in top-level <code>script { … }</code> blocks.</li></ul>
+<p>Inside a class, a bare name reaches the class's own attributes — <code>label</code> in <code>Chip</code> above is how <code>t</code> reads the Chip's <code>label</code>. When the reach is less direct — a handler, or a subview nested a few levels down, that must act on <strong>the component itself</strong> — name it with <strong><code>classroot</code></strong>: the root of the class you're defining, reachable from any depth inside it.</p>
+<pre><code class="language-declare">class WeatherTab extends View [ height = 30,
+    selected: boolean = false,
+    label: string = "",
+    select() { selected = !selected },
+    header: View [ width = { parent.width },
+        onClick() { classroot.select() },              // this = header; classroot = the WeatherTab
+        caption: Text [ text = { classroot.label } ],  // reaches the component from a leaf
+        ],
+    ]
+
+App [ width = 300, height = 60,
+    WeatherTab [ width = 120, label = "Today" ],
+    ]</code></pre>
+<p><code>classroot</code> (a reserved name) belongs to component authoring — it is your handle on the component from anywhere inside its class. Note <code>this</code> inside <code>header</code> is the header, not the tab: it's <code>classroot</code>, not <code>this</code>, that reaches the component's own state from a nested child. (<code>classroot.label</code> is also the explicit spelling when a nearer child shadows a bare <code>label</code>.)</p>
 <p><strong>Where does a piece of code live?</strong> The rest of the language keeps reinforcing this decision rule:</p>
 <ul><li>structure that <strong>repeats</strong> → a <strong>class</strong>;</li><li>a single <strong>computed attribute</strong> → a small <strong>function</strong> bound inline, <em>not</em> a wrapper class: <code>Image [ source = { iconUrl(:code) } ]</code>, never <code>class WeatherIcon extends Image</code>;</li><li>behavior that operates on a component's own state → a <strong>method</strong>;</li><li><strong>stateless</strong> logic shared across the tree → a free function in <code>script { }</code>.</li></ul>
 <p><strong>Layout is an attribute, not a container type.</strong> Every view defaults to absolute positioning by <code>x</code>/<code>y</code>; set a <code>layout:</code> member to arrange children — and because it's a reactive slot, it can be swapped or animated:</p>
@@ -295,11 +310,11 @@ text  = { data.failed ? data.error : "Loading…" },   // reacts to a data resou
     ]</code></pre>
 <p>(<code>Animator [ attribute = x, to = 0, duration = 333 ]</code> is the time-based sibling for the few cases that want a clock instead of physics; springs are the house idiom.)</p>
 <p>Because layout, states, and springs sit on one reactive core, <em>arrangement</em> changes animate too: spring a handful of geometry attributes and every constraint derived from them moves in lock-step. This is the §1 claim in mechanism form — the calendar's month-to-week zoom is four sprung scalars (<code>c0, r0, nc, nr</code>) that all cell geometry derives from.</p>
-<h2>9. Scope: four nouns</h2>
-<ul><li><strong><code>this</code></strong> — the node the code is written on.</li><li><strong><code>parent</code></strong> — its parent in the tree.</li><li><strong><code>classroot</code></strong> — the root of the component you are defining (see below).</li><li><strong><code>app</code></strong> — the running App, from any depth: <code>app.width</code>, <code>app.dark</code>, <code>app.pointerX</code>.</li></ul>
-<p>A component is just a class you define, and it may nest subviews several levels deep. From inside one of those subviews you will often need to reach the component itself — its own attributes and methods. That is what <strong><code>classroot</code></strong> is for: the top level of the class you are writing, reachable from any depth within it. A handler three levels down writes <code>classroot.select()</code> to call the component's method; a binding on a leaf writes <code>{ classroot.label }</code> to read its attribute. The name says it — the root of your class.</p>
-<p>Because <code>classroot</code> names the component you are defining, it is <strong>only valid inside a class body</strong>. In the App's own body there is no component to root, so <code>classroot</code> is a compile error there — reach an App attribute by its bare name (<code>count</code>) or through <code>app</code> (<code>app.count</code>). Inside a class body a bare name (<code>label</code>, <code>count</code>) already reads the enclosing class's attribute until a nearer name shadows it; <code>classroot.label</code> is the explicit spelling for when a nearer child shadows it. The four nouns are reserved — nothing else may take their names. The bare capital <code>App</code> is the <em>class</em>; the instance is always <code>app</code>.</p>
-<p>The most common scope mistake: on a deeply nested child, <code>this.foo</code> when the attribute lives on the component — write <code>classroot.foo</code>.</p>
+<h2>9. Scope: three nouns</h2>
+<p>Three reserved names let a <code>{ }</code> body reach a node without declaring it:</p>
+<ul><li><strong><code>this</code></strong> — the node the code is written on.</li><li><strong><code>parent</code></strong> — its parent in the tree.</li><li><strong><code>app</code></strong> — the running app, reachable from any depth: <code>app.width</code>, <code>app.dark</code>, <code>app.pointerX</code>, <code>app.navigate(…)</code>.</li></ul>
+<p><code>this</code> and <code>parent</code> are the tree at hand — the node you're on and what contains it. <code>app</code> is the one reference that reaches the app from <em>any</em> depth, without walking <code>parent</code> up the tree; use it for app-wide state and actions wherever the code sits.</p>
+<p>These three names are reserved — nothing else may take them. The bare capital <code>App</code> is the <em>class</em>; the instance is always <code>app</code>.</p>
 <p>Useful App-level reactive attributes: <code>app.width</code> / <code>app.height</code> (the app's own size — responsive layout reads these), <code>app.dark</code> (OS dark mode), <code>app.pointerX</code> / <code>app.pointerY</code> (the free pointer), <code>app.hovering</code> (false on touch devices). An app with a usable size floor declares it as policy — <code>App [ minWidth = 600 ]</code> — rather than writing <code>Math.max</code> clamps into size constraints (§10).</p>
 <p><code>appName</code> is the app's human name — the host surfaces it where names go, today the browser page title (and the crawled document's <code>&lt;title&gt;</code>; the extractor reads the <em>settled</em> value, so a derived name is as extractable as a literal). A literal names the app once — <code>App [ appName = "Declare Calendar" ]</code> — and a constraint names it live: the viewer titles itself with whichever file it is showing. Unset, the host's own title stands.</p>
 <h2>10. Sizing and the host</h2>
@@ -543,7 +558,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=56997910fea9";
+  import boot from "./bundles/declare-boot.js?v=e5c84ab92c75";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().

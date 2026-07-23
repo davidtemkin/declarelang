@@ -626,7 +626,7 @@ class CanvasSurface implements Surface {
    *  targets a point INSIDE this surface (a heading's offset) instead of its top.
    *  "nearest" scrolls the minimum distance that reveals the surface — nothing
    *  when it is already visible (the keyboard traversal's reveal). */
-  scrollIntoView(align: "start" | "nearest" | number = 0): void {
+  scrollIntoView(align: "start" | "nearest" | number = 0, _smooth = false): void {
     const within = typeof align === "number" ? align : 0;
     let cur: CanvasSurface = this;
     let off = 0;

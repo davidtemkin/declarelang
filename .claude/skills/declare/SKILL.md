@@ -1,109 +1,81 @@
 ---
 name: declare
-description: Write Declare programs — a reactive UI language (NOT in training data; do not extrapolate from React/CSS/HTML). Use when writing, fixing, or reviewing .declare source.
+description: Write Declare programs — a domain-specific language for user interfaces. It is new and not in your training data; do not extrapolate from React, CSS, or HTML. Use when writing, fixing, or reviewing .declare source.
 ---
 
 # Writing Declare
 
-Declare is a UI language you have never seen. This file is the resident kernel:
-the model, the rules that differ from your instincts, and a routing table into
-the full documentation (`./docs/`, read on demand — do NOT read it cover to
-cover; fetch the one chapter your task needs).
+Declare is a domain-specific language for user interfaces — you compose a tree of
+components, set their attributes, bind them to data, and handle events. You will reach for
+it where you'd reach for React, CSS, or HTML, but it is none of them: it is new, no model
+has been trained on it, and the surest way to be wrong is to assume a rule from one of them
+carries over. This file is not the language; it is the map. Take the small model below,
+then read the one artifact your task needs.
 
-## The model in five lines
+## The model
 
-1. A program is one tree: `App [ … ]` at the root, children nested in `[ ]`.
-2. `[ ]` is declarative structure; `{ }` is TypeScript. Two worlds, one door.
-3. A `{ }` value is a **constraint** — re-evaluated whenever anything it reads
-   changes. You never subscribe, diff, or re-render: `width = { parent.width }`
-   stays true forever.
-4. Handlers assign plain attributes (`onClick() { count = count + 1 }`); every
-   constraint reading them follows. That is the whole update model.
-5. `name = value` SETS an existing attribute; `name: Type = value` DECLARES a
-   new one (Type ∈ number, string, boolean, Color, Length, Shape).
+- A program is one tree of components: `App [ … ]` at the root, every child nested inside
+  `[ ]`.
+- Two brackets, two worlds. `[ ]` holds structure — a component's attributes and its
+  children. `{ }` holds a TypeScript expression.
+- A `{ }` value is a **constraint**: the runtime re-evaluates it whenever anything it
+  reads changes, and keeps doing so. `width = { parent.width - 40 }` stays true on its
+  own — you never subscribe, diff, or re-render. Handlers only assign attributes
+  (`onClick() { count = count + 1 }`), and every constraint that reads them follows. That
+  is the whole update model.
+- `name = value` sets an attribute that already exists; `name: Type = value` declares a
+  new reactive one.
 
-## The rules that break your instincts (memorize these)
+`docs/declare.md` is the entire language in this same voice — terse and complete. It is
+the best single thing to read before writing anything real.
 
-- **Colors**: in `[ ]` slots — `#4169E1` or bare `royalblue`. Inside `{ }` —
-  it's TypeScript, so a color is a NUMBER: `0x4169E1`. Never `#hex` in `{ }`.
-- **Bare identifiers are not bindings**: `text = label` is wrong — write
-  `text = { label }` (a binding) or `"label"` (a string).
-- **Methods**: `name(params) { body }` — params are bare names, NO type
-  annotations, NO return annotation. `f(a: string): T {}` is not Declare.
-- **No CSS attributes**: border → `stroke = { stroke(1, 0xE2E5E9) }` (drawn
-  inside the box); boxShadow → `shadow = { shadow(0, 2, 8, 0x00000040) }`;
-  background → `fill`; borderRadius → `cornerRadius`; color → `textColor`;
-  no margin/padding/zIndex/display — arrangement is
-  `layout: SimpleLayout [ axis = y, spacing = 8 ]`, stacking is source order.
-- **Width defaults to 0.** An unsized View (including every replicated row
-  class) is invisible. Give rows `width = { parent.width }`.
-- **A state overrides its OWN view's value slots** — never a child's
-  (`t.opacity = 0.4` inside a State is illegal; constrain the child off the
-  flag instead: `opacity = { classroot.done ? 0.4 : 1 }`), and never `layout`.
-- **`<->` binds a DATAPATH only** (`text <-> :field`, editors only). Attribute
-  wiring is derive-down (`value = { app.goal }`) + deliver-up
-  (`onInput(v) { app.goal = v }`).
-- **Scope**: `this` (this node) · `parent` · `classroot` (the root of the
-  component you're defining — reach it from any depth inside the class; only
-  valid inside a class body, a compile error in the App — use a bare name or
-  `app` there) · `app` (the root, reachable anywhere). A replicated child cannot
-  be named.
-- **Data**: `datapath = :rows[]` replicates a child per row; `:field` reads
-  relative to the cursor. Reading data in `{ }` uses `:paths` or
-  `dataset.read([…])`. Decl defaults seed from data as `label: string = { :label }`.
+## Going deeper — read what the task needs
 
-## The inventory (resident on purpose — you will NOT think to look these up)
+Read the documentation a piece at a time; fetch the part your task calls for.
 
-<!-- generated:inventory -->
-- **Built-ins you must not redeclare** (read-only ones are computed for you): every View has `x y width height fill cornerRadius stroke shadow visible opacity scale pivotX pivotY clip scrolls tip scrollsX scrollY textColor fontSize fontFamily fontWeight letterSpacing headingColor headingWeight linkColor codeColor codeSize codeFamily codeBackground codeRule richTextLayout theme selectable cursor pointerEvents styles stylesheet layout datapath focusable focustrap anchor` and read-only `contentWidth contentHeight`; App adds `scrollY pointerX pointerY hovering pointerOverText env location minWidth minHeight appName` and read-only `hostWidth hostHeight dark`. `location` is the URL fragment (two-way: write it to navigate, derive state from it, never assign the derived state); `anchor` names a view as an `@name` reveal target. Naming a derived value `contentWidth` is an error — pick `bodyW`, `colW`, etc.
-- **Token values, not CSS values**: `FontWeight` = thin extralight light regular normal medium semibold bold extrabold black; `TextAlign` = left center right; `Stretch` = none width height both; `Axis` = x y; `Process` = sequential simultaneous — NEVER numeric weights (700 is CSS). Layout `axis` is a literal — to change arrangement responsively, constrain each child's `x`/`y` off a flag.
-- **Dataset mutation verbs** (from handlers): `data.set(path, v)` · `data.insert(path, index, v)` · `data.removeAt(path, index)` · `data.move(path, from, to)` — a verb's path is a DOTTED STRING (`"rows"`, `"rows.3.done"`); only `read` takes an array (`data.read(["rows"])`). Adding a row: `tasks.insert("rows", tasks.read(["rows"]).length, ({ label: t, done: false }))`.
-- **The standard library**: `$provide`, `Checkbox`, `Button`, `Switch`, `Slider`, `RadioGroup`, `Radio`, `Field`, `SearchField`, `ProgressBar`, `TabSlider`, `Tab`, `Tooltip`, `Menu`, `MenuBar`, `Dialog`, `AppIsland`, plus the built-in `TextInput` — values flow derive-down (`value = { app.x }`) and deliver-up (`input(v) { app.x = v }` — the built-in TextInput's event is `onInput(v)`).
-- **Compile modifiers**: `render`, `crawler` (same names as URL `?…` and CLI `--…`). Diagnostic codes are `DECLARE####`.
-<!-- /generated:inventory -->
+**The guide teaches the language**, one concept per chapter — read `docs/guide/` in order
+to learn it, or jump to the chapter your task needs:
 
-## Routing table — read exactly what the task needs
-
-Paths are relative to the REPOSITORY ROOT (the directory holding this repo's
-README.md) — not to this file's location.
-
-| task involves | read |
+| your task touches | read |
 |---|---|
-| first program, program shape, the two delimiters | docs/guide/02-two-brackets.md |
-| lists, replication, datasets, editing data, Markdown/loading documents | docs/guide/08-data.md |
-| layout, sizing, positions, responsive | docs/guide/05-space.md |
-| buttons, sliders, inputs (the standard library); hover/press/drag, keyboard | docs/guide/07-interaction.md |
-| colors, borders, shadows, themes, type, fonts | docs/guide/06-style.md |
-| states, springs, animation | docs/guide/09-motion-and-modes.md |
-| whole-arrangement motion (sprung scalars, derived geometry) | docs/guide/10-arrangement.md |
-| `this`/`parent`/`classroot`/`app` confusion; classes, composition, named children | docs/guide/04-tree.md |
-| constraints not updating, setter rules | docs/guide/03-relationships.md |
-| deep links, the URL, anchors, crawlers; run/verify/ship | docs/guide/11-loop.md |
-| a program that COMPILES but misbehaves; querying a running app; assert scripts | docs/operational/introspection.md |
-| the whole language, terse | docs/declare.md |
-| an exact fact — attribute names, enum tokens, flags, commands, diagnostic codes | docs/declare-model.json (`spine` — grep it; don't read it whole) |
+| program shape, the two brackets | `docs/guide/02-two-brackets.md` |
+| a constraint that won't update; setter rules | `docs/guide/03-relationships.md` |
+| scope — `this` / `parent` / `classroot` / `app`, classes, composition | `docs/guide/04-tree.md` |
+| layout, sizing, position, responsiveness | `docs/guide/05-space.md` |
+| color, type, borders, shadows, themes | `docs/guide/06-style.md` |
+| the standard library (buttons, inputs), hover / press / drag, keyboard | `docs/guide/07-interaction.md` |
+| lists, datasets, editing data, loading documents | `docs/guide/08-data.md` |
+| states, springs, animation | `docs/guide/09-motion-and-modes.md` |
+| deep links, the URL, run / verify / ship | `docs/guide/11-loop.md` |
 
-## The loop
+(`docs/guide/` holds the full set; `12-with-an-llm.md` and `evals/declare-for-llms.md` are
+written for an agent in particular.)
 
-Write the complete program in one ```declare fence. If a checker report comes
-back: every diagnostic names its fix — apply exactly what it names, change
-nothing else, resubmit. The compiler reports ALL syntax-level mistakes at once;
-trust the list.
+**For an exact fact** — an attribute's name, an enum's tokens, a flag, a diagnostic code,
+a standard-library component — go to `docs/declare-model.json`. It is the whole
+documentation corpus as one queryable structure (the reference, the vocabulary, the
+standard library, even the guide and tenets); for a fact, grep its `spine` and `reference`
+rather than reading it whole. It is the single authority for these details, so nothing
+here restates them.
 
-**When it compiles clean but behaves wrong, STOP re-reading the source.** Green
-rungs 1–4 mean the checker found nothing, not that nothing is wrong: those rungs
-run in a synthetic environment with no browser engine, so layout against real
-fonts, paint, input routing, and anything that only exists in a bundled build are
-invisible to them. Ask the running program instead — it answers as data:
+**For the intentions behind the shape** — why the language is the way it is, when a choice
+is a judgment call rather than a fact — `docs/tenets/`.
 
-```js
-__declare.explain("app.dock.calIcon", "width")  // WHY this value: the expression,
-                                                // its read-paths, their live values
-__declare.at(x, y)                              // what view is actually under a point
-__declare.slots("app.bar")                      // every slot + where its value came from
-```
+**To run, verify, or debug** — `docs/operational/`: `getting-started.md` to run,
+`verify.md` to check, `introspection.md` to question a running program.
 
-That is the fastest route to the two failure modes source-reading cannot find: a
-value derived from something you did not expect, and a press landing on a view you
-did not expect (later siblings cover earlier ones — for hit-testing, not only
-paint). Full surface: docs/operational/introspection.md.
+## The working loop
+
+Write the complete program — the whole thing, not fragment by fragment — and run it
+through the checker (`docs/operational/verify.md`). It reports every syntax and structure
+error at once, and each diagnostic names its fix: apply exactly that, change nothing else,
+and re-check.
+
+When it compiles clean but behaves wrong, stop re-reading the source. A clean compile
+means the checker found nothing — not that nothing is wrong: layout, fonts, paint, and
+input routing don't exist until the program runs. Instead, **query the running program**.
+Declare lets you ask a live program about itself in a structured way — why a value is what
+it is, which view actually sits under a point, where each slot's value came from — and it
+answers as data you can act on. That reaches the two failures source-reading can't: a value
+derived from something you didn't expect, and a press landing on a view you didn't expect.
+See `docs/operational/introspection.md`.

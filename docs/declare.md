@@ -168,6 +168,33 @@ App [ width = 400, height = 100, fill = #0B141B,
   you've outgrown the one-off.
 - Free TypeScript (models, helpers) lives in top-level `script { … }` blocks.
 
+Inside a class, a bare name reaches the class's own attributes — `label` in `Chip` above
+is how `t` reads the Chip's `label`. When the reach is less direct — a handler, or a
+subview nested a few levels down, that must act on **the component itself** — name it with
+**`classroot`**: the root of the class you're defining, reachable from any depth inside it.
+
+```declare
+class WeatherTab extends View [ height = 30,
+    selected: boolean = false,
+    label: string = "",
+    select() { selected = !selected },
+    header: View [ width = { parent.width },
+        onClick() { classroot.select() },              // this = header; classroot = the WeatherTab
+        caption: Text [ text = { classroot.label } ],  // reaches the component from a leaf
+        ],
+    ]
+
+App [ width = 300, height = 60,
+    WeatherTab [ width = 120, label = "Today" ],
+    ]
+```
+
+`classroot` (a reserved name) belongs to component authoring — it is your handle on the
+component from anywhere inside its class. Note `this` inside `header` is the header, not the
+tab: it's `classroot`, not `this`, that reaches the component's own state from a nested
+child. (`classroot.label` is also the explicit spelling when a nearer child shadows a bare
+`label`.)
+
 **Where does a piece of code live?** The rest of the language keeps reinforcing this decision rule:
 
 - structure that **repeats** → a **class**;
@@ -363,31 +390,21 @@ too: spring a handful of geometry attributes and every constraint derived from t
 in lock-step. This is the §1 claim in mechanism form — the calendar's month-to-week zoom is
 four sprung scalars (`c0, r0, nc, nr`) that all cell geometry derives from.
 
-## 9. Scope: four nouns
+## 9. Scope: three nouns
+
+Three reserved names let a `{ }` body reach a node without declaring it:
 
 - **`this`** — the node the code is written on.
 - **`parent`** — its parent in the tree.
-- **`classroot`** — the root of the component you are defining (see below).
-- **`app`** — the running App, from any depth: `app.width`, `app.dark`, `app.pointerX`.
+- **`app`** — the running app, reachable from any depth: `app.width`, `app.dark`,
+  `app.pointerX`, `app.navigate(…)`.
 
-A component is just a class you define, and it may nest subviews several levels deep. From
-inside one of those subviews you will often need to reach the component itself — its own
-attributes and methods. That is what **`classroot`** is for: the top level of the class
-you are writing, reachable from any depth within it. A handler three levels down writes
-`classroot.select()` to call the component's method; a binding on a leaf writes
-`{ classroot.label }` to read its attribute. The name says it — the root of your class.
+`this` and `parent` are the tree at hand — the node you're on and what contains it. `app`
+is the one reference that reaches the app from *any* depth, without walking `parent` up the
+tree; use it for app-wide state and actions wherever the code sits.
 
-Because `classroot` names the component you are defining, it is **only valid inside a class
-body**. In the App's own body there is no component to root, so `classroot` is a compile
-error there — reach an App attribute by its bare name (`count`) or through `app`
-(`app.count`). Inside a class body a bare name (`label`, `count`) already reads the
-enclosing class's attribute until a nearer name shadows it; `classroot.label` is the
-explicit spelling for when a nearer child shadows it. The four nouns are reserved —
-nothing else may take their names. The bare capital `App` is the *class*; the instance is
-always `app`.
-
-The most common scope mistake: on a deeply nested child, `this.foo` when the attribute
-lives on the component — write `classroot.foo`.
+These three names are reserved — nothing else may take them. The bare capital `App` is the
+*class*; the instance is always `app`.
 
 Useful App-level reactive attributes: `app.width` / `app.height` (the app's own size —
 responsive layout reads these), `app.dark` (OS dark mode), `app.pointerX` / `app.pointerY`

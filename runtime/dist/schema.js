@@ -486,6 +486,10 @@ const DataSourceSchema = {
         url: { kind: "string" },
         // "json" (default) or "text" — what the fetched bytes are (data.ts).
         format: { kind: "string" },
+        // "GET" (default) or a body-carrying verb — a non-GET sends `body` (A9).
+        method: { kind: "string" },
+        // the non-GET request payload: an object/array (JSON-encoded) or a string.
+        body: { kind: "object" },
         // auto-fetch on url arrival/change (data.ts maybeAuto) — the opt-in for
         // REACTIVE addresses; explicit fetch() stays the default discipline.
         auto: { kind: "boolean" },

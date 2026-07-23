@@ -1260,15 +1260,22 @@ await test("check(): scope nouns cannot be declared, named, or shadowed by param
   assert.match(msgs[2], /a parameter may not be named 'classroot'/);
 });
 
-await test("compile(): 'classroot' is a compile error in the App body, valid in a class", () => {
+await test("compile(): 'classroot' is valid only inside a class body — App / stylesheet / bundle reject it", () => {
   // classroot names the root of the component you are defining — meaningful only
-  // inside a class body. In the App there is no component to root (DECLARE4003).
+  // inside a class body. Every other { } context rejects it (DECLARE4003).
   const inApp = compile(`App [ count: number = 0, Text [ text = { "" + classroot.count } ] ]`, {});
   assert.equal(inApp.source, null, "classroot in the App body must not compile");
-  assert.match(inApp.errors[0].message, /'classroot' is only for a component you define/);
+  assert.match(inApp.errors[0].message, /'classroot' is the root of a component you define — valid only inside a class body.*in the App/);
   // a use-site classroot inside the App is equally rejected
   const useSite = compile(`class Chip extends View [ n: number = 0 ]\nApp [ v: number = 1, Chip [ n = { classroot.v } ] ]`, {});
   assert.equal(useSite.source, null, "classroot at an App use-site must not compile");
+  // a stylesheet body is not a class definition either
+  const inSheet = compile(`stylesheet Dark [ View: [ opacity = { classroot.foo } ] ]\nApp [ width = 10, height = 10, stylesheet = { this.lookupStylesheet("Dark") }, View [ ] ]`, {});
+  assert.equal(inSheet.source, null, "classroot in a stylesheet must not compile");
+  assert.match(inSheet.errors.find((e) => /classroot/.test(e.message)).message, /valid only inside a class body.*a stylesheet/);
+  // nor a style bundle
+  const inBundle = compile(`style B [ opacity = { classroot.y } ]\nApp [ width = 10, height = 10, View [ styles = [B] ] ]`, {});
+  assert.equal(inBundle.source, null, "classroot in a style bundle must not compile");
   // inside a class body it is fine, at any depth
   const inClass = compile(`class Row extends View [ label: string = "", sel: boolean = false,\n  hdr: View [ onClick() { classroot.sel = true }, Text [ text = { classroot.label } ] ] ]\nApp [ Row [ label = "hi" ] ]`, {});
   assert.deepEqual(inClass.errors, [], "classroot in a class body compiles");
@@ -2156,6 +2163,43 @@ await test('DataSource format = "text": the raw string lands in value (an .md fe
   } finally {
     globalThis.fetch = realFetch;
   }
+});
+
+await test("DataSource A9: a non-GET method sends body (object→JSON, string verbatim); GET sends none", async () => {
+  const realFetch = globalThis.fetch;
+  try {
+    let captured;
+    globalThis.fetch = async (url, init) => { captured = { url, init }; return { ok: true, json: async () => ({ ok: 1 }) }; };
+    // POST with an object body → JSON-encoded + a JSON Content-Type
+    const post = new DataSource();
+    post.url = "/api/intent"; post.method = "POST"; post.body = { q: "night", size: 3 };
+    await post.fetch();
+    assert.equal(captured.url, "/api/intent");
+    assert.equal(captured.init.method, "POST");
+    assert.equal(captured.init.body, JSON.stringify({ q: "night", size: 3 }));
+    assert.equal(captured.init.headers["Content-Type"], "application/json");
+    // a string body is sent verbatim — the caller owns the encoding, no header imposed
+    const put = new DataSource();
+    put.url = "/api/raw"; put.method = "PUT"; put.body = "already-encoded";
+    await put.fetch();
+    assert.equal(captured.init.method, "PUT");
+    assert.equal(captured.init.body, "already-encoded");
+    assert.equal(captured.init.headers, undefined);
+    // the default GET sends no RequestInit — a bare url, unchanged
+    const get = new DataSource();
+    get.url = "/data.json";
+    await get.fetch();
+    assert.equal(captured.init, undefined, "GET passes no RequestInit");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+await test("DataSource A9: the compiler accepts method/body attributes", () => {
+  assert.deepEqual(
+    compile(`App [ s: DataSource [ url = "/x", method = "POST", body = { ({ a: 1 }) } ] ]`, {}).errors,
+    [],
+    "method and body are schema'd attributes");
 });
 
 await test("DataSource failure surfaces as .failed + .error; stale arrivals are discarded", async () => {
@@ -4710,6 +4754,31 @@ await test("contentHeight over a replication-populated container re-derives on A
   made.height = 130;
   settle();
   assert.equal(app.panel.height, 140, "post-arrival attr change re-derives (structural re-wire)");
+});
+
+await test("a Text's contentWidth measures its glyphs and re-measures on a bound-text change (field report A2)", () => {
+  // A container auto-sizing to a Text's contentWidth — a pill/badge. Before the
+  // fix a Text reported the base contentExtent (0), so the box never fit the
+  // glyphs and never grew when the bound text changed. Text.contentExtent now
+  // folds in the measured extent, read under tracking, so it re-derives on a
+  // text change the way a data-driven width should.
+  const r = compile(`App [ width = 400, height = 100,
+    label: string = "Hi",
+    pill: View [ height = 30, width = { 20 + this.t.contentWidth },
+      t: Text [ text = { app.label } ] ],
+  ]`, {});
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    assert.ok(app.pill.t.contentWidth > 0, `Text.contentWidth reflects glyphs (was the base 0), got ${app.pill.t.contentWidth}`);
+    const narrow = app.pill.width;
+    assert.ok(narrow > 20, `the box fits the short text (> 20 padding), got ${narrow}`);
+    app.label = "A much longer label than before";
+    settle();
+    assert.ok(app.pill.width > narrow + 40, `re-measured to the longer bound text: ${narrow} -> ${app.pill.width}`);
+  } finally {
+    app.discard();
+  }
 });
 
 await test("createView: imperative creation by name — a full citizen, loudly-checked names", () => {

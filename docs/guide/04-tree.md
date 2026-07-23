@@ -39,8 +39,30 @@ App [ fill = white, textColor = black,
 `StatRow` declares two attributes; its children bind to them; and now `StatRow [ … ]`
 is a leaf you can drop anywhere a `View` fits — your class *is* a `View` plus the
 members you added. Add a third `StatRow` line in the running example and watch the
-column grow. (`classroot` is how a child's binding reaches the enclosing class
-instance — its precise rule is just below; for now, read it as "this `StatRow`.")
+column grow.
+
+Those bindings reach the component through **`classroot`** — your handle on the component
+from anywhere inside its class. `labelText` and `valueText` sit one level in; a handler or
+binding buried several levels deep reaches the same way. `classroot` is the root of the
+class you're defining, reachable from any depth within it:
+
+```declare-fragment
+class WeatherTab extends View [
+    selected: boolean = false,
+    label: string = "",
+    header: View [
+        onClick() { classroot.select() },                 // `this` is header; classroot is the WeatherTab
+        caption: Text [ text = { classroot.label } ],
+        bg: View [ opacity = { classroot.selected ? 0.33 : 1 } ],
+        ],
+    ]
+```
+
+`this` inside `header` is the header, not the tab — so it's `classroot`, not `this`, that
+reaches the component's own state from a nested child. (A bare name — `label`, `selected` —
+reads the enclosing class's attribute too; `classroot.label` is the explicit spelling for
+when a nearer child shadows the name.) `classroot` reaches the component you're writing; for
+anything page-wide, that's `app` — the next section.
 
 > **From React:** a class here is the component *and* its props *and* its state in
 > one declaration — `label: string = ""` is settable from outside like a prop and
@@ -96,57 +118,21 @@ One small decision tree, which the rest of the language keeps reinforcing:
 - **stateless** logic shared across the tree → a free function in a top-level
   `script { … }` block, which is where plain-TypeScript models and helpers live.
 
-## Reach: the four nouns
+## Reach: three nouns
 
-Composition immediately raises the question every nested handler and binding must
-answer: *which node am I talking about?* Four reserved words cover it —
+Every nested handler and binding answers the same question — *which node am I talking
+about?* Three reserved references cover it for any code:
 
 - **`this`** — the node the code is written on;
 - **`parent`** — that node's parent in the tree;
-- **`classroot`** — the root of the component you're defining, reached from any depth inside it;
 - **`app`** — the running app, reachable from any depth.
 
-The first two are what you expect. The one worth internalizing is **`classroot`** — and
-it's simpler than its name suggests. A component is just a class you define; `classroot` is
-that class's own root. When a handler or binding buried several views deep needs to talk to
-the component itself — its attributes, its methods — that's `classroot`, reachable from any
-depth inside the class. Here `header`, `caption`, and `bg` all reach the `WeatherTab` they
-belong to, however deeply they nest:
+`this` and `parent` are the tree at hand: the node you're on, and what contains it. **`app`**
+is the one reference that reaches the running app from *any* depth, without walking `parent`
+up the tree — `app.width` for responsive reads, `app.dark` for the system scheme, your own
+`app.muted` for page-wide state. Wherever the code sits, `app` means the app.
 
-```declare-fragment
-class WeatherTab extends View [
-    selected: boolean = false,
-    label: string = "",
-    header: View [
-        onClick() { classroot.select() },                 // `this` is header; classroot is the WeatherTab
-        caption: Text [ text = { classroot.label } ],
-        bg: View [ opacity = { classroot.selected ? 0.33 : 1 } ],
-        ],
-    ]
-```
-
-The mistake this prevents is the most common one newcomers make: on a nested child,
-`this.selected` when the state lives on the component. And the *second* most common
-mistake is its mirror — reaching for an app-level value through `classroot` from
-inside a component. Try it: give the running `StatRow` example above a binding like
-`text = { classroot.dark ? "night" : "day" }` and the compiler stops you —
-
-```
-'dark' is not a member of StatRow — declare it (dark: <type> = …) or fix the name [DECLARE6001]
-```
-
-— because inside `StatRow`, `classroot` *is* the StatRow, which has no `dark`. The fix
-is `app.dark`: **`app` always means the running app**, from anywhere. Use it for
-app-wide state — `app.width` for responsive reads, `app.dark` for the system scheme,
-your own `app.muted`. And because `classroot` is *for* components, it has no meaning in
-the App itself: write it in the App's own body and the compiler stops you — reach an App
-attribute by its bare name, or through `app`. (Inside any class body, a bare
-name — `label`, `selected` — reads the enclosing class's attribute until something
-nearer shadows it; `classroot.label` is the explicit spelling.) One capitalization
-trap: bare `App` is the class; the instance is always `app`.
-
-The quick test, worth keeping: if the value belongs to *the reusable component you
-are writing*, it's `classroot`; if it belongs to *the whole running page*, it's `app`.
+One capitalization trap: bare `App` is the class; the instance is always `app`.
 
 ## Growing past one file
 

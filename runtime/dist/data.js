@@ -228,7 +228,7 @@ defineAttributes(Dataset, {
     // never read back (nothing tracks it); it is the author-facing write slot.
     contents: { def: null, push: (d, v) => { d.value = v; } },
 });
-let transport = (url) => globalThis.fetch(url);
+let transport = (url, init) => globalThis.fetch(url, init);
 /** Swap the transport (headless installs a refuser; tests install stubs).
  *  Returns the PREVIOUS transport so a scoped caller can restore it. */
 export function provideTransport(fn) {
@@ -259,15 +259,34 @@ export class DataSource extends Dataset {
     /** Discards a superseded request: only the latest fetch/clear may land
      *  (the Image loader's sequence discipline). */
     seq = 0;
-    /** Fetch `url` (JSON over HTTP). Explicit by design — the weather app's
-     *  entry screen decides when (`doEnterDown() { weatherData.fetch() }`);
-     *  `auto = true` is the opt-in for reactive addresses (above). */
+    /** The fetch init from `method`/`body`. A GET (the default) sends no body — a
+     *  bare url, unchanged. A non-GET carries `body`: an object/array is
+     *  JSON-encoded with a JSON `Content-Type`; a string is sent verbatim. */
+    requestInit() {
+        const method = (this.method || "GET").toUpperCase();
+        if (method === "GET")
+            return undefined;
+        const init = { method };
+        const body = this.body;
+        if (body != null) {
+            if (typeof body === "string")
+                init.body = body;
+            else {
+                init.body = JSON.stringify(body);
+                init.headers = { "Content-Type": "application/json" };
+            }
+        }
+        return init;
+    }
+    /** Fetch `url` over HTTP. Explicit by design — the weather app's entry screen
+     *  decides when (`doEnterDown() { weatherData.fetch() }`); `auto = true` is the
+     *  opt-in for reactive addresses (above). A non-GET `method` sends `body`. */
     async fetch() {
         const seq = ++this.seq;
         setBound(this, "status", "loading");
         setBound(this, "error", null);
         try {
-            const res = await transport(this.url);
+            const res = await transport(this.url, this.requestInit());
             if (!res.ok)
                 throw new Error(`HTTP ${res.status} for ${this.url}`);
             const value = this.format === "text" ? await res.text() : await res.json();
@@ -303,6 +322,8 @@ defineAttributes(DataSource, {
     url: { def: "", push: (d, _v) => d.maybeAuto() },
     auto: { def: false, push: (d, _v) => d.maybeAuto() },
     format: { def: "json" },
+    method: { def: "GET" },
+    body: { def: null },
     status: { def: "idle" },
     error: { def: null },
 });

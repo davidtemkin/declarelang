@@ -227,7 +227,7 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
     `  readonly liveReport: string;`,
   ],
   View: [
-    `  scrollIntoView(align?: "start" | "nearest"): void;`,
+    `  scrollIntoView(align?: "start" | "nearest", smooth?: boolean): void;`,
     `  raise(below?: View): void;`,
     `  removeChild(child: View): void;`,
     `  insertChild(child: View, index: number): void;`,

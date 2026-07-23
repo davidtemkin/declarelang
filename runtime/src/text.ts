@@ -66,6 +66,25 @@ export class Text extends View {
     super.attach(backend, parentSurface);
   }
 
+  /** A Text's own content folds into `contentWidth`/`contentHeight` as its
+   *  MEASURED glyph extent — the way an Image folds in its bitmap (view.ts
+   *  contentExtent). Without this a Text reported the base 0, so a container
+   *  sizing to `label.contentWidth` (an auto-sized pill/badge) always read
+   *  empty. Reads `text` and the font slots under tracking (contentExtent runs
+   *  tracked), so it re-measures when the text or style changes — the fix for
+   *  content-bound labels. The natural single-line width; height follows the
+   *  wrapped line count when the width is bounded, matching the derives above. */
+  protected override contentExtent(size: "width" | "height"): number {
+    const font = fontString(this);
+    if (size === "width") return Math.ceil(textWidth(this.text, font, this.letterSpacing));
+    const m = fontMetrics(font);
+    const bounded = (isSet(this, "width") || ownerOf(this, "width") !== null) && this.width > 0;
+    const lines = bounded && this.wrap
+      ? wrapLines(this.text, font, this.width, this.letterSpacing).length
+      : 1;
+    return Math.ceil((m.ascent + m.descent) * lines);
+  }
+
   /** The ink band (y axis): first line's cap top to the last line's baseline
    *  — what `y = center` centers (bind.ts bindAlign). Descenders hang below
    *  the band as overhang, per typographic convention. The x axis stays the

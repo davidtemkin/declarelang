@@ -55,7 +55,7 @@ The whole tree is served from a dumb static host (GitHub Pages, `.nojekyll`) wit
 Node and no compiler on the critical path. Every path is relative, so it is
 subpath-portable — a project page under `/<repo>/` resolves everything the same.
 
-**The launcher URL** (`index.html?apps/calendar`) is the shareable cold-start entry: a
+**The launcher URL** (`index.html?apps/calendar`) is the *universal* cold-start entry: a
 bare-path query on the entry page names a target program; the page installs the service
 worker FIRST, then navigates, so the `.declare` (or directory-program) URL arrives with
 the SW in control and becomes a run page — where a cold direct link would have served
@@ -65,7 +65,36 @@ both hosts. Grammar and the same-origin/no-escape guards: `boot-uniform.js
 launchTarget()`; gated on the entry page's `launcher: true` so run pages never
 reinterpret their own query params. A query that reads as flags (`?render=canvas`) is
 never a launch; the target's own query and fragment ride through
-(`index.html?apps/docs/docs.declare#guide/04-tree`).
+(`index.html?apps/docs/docs.declare#guide/04-tree`). For the distro's own `apps/`,
+the plainer **directory URL** also cold-starts directly — the committed stub below —
+so the launcher form is needed only for programs without one (a bare `.declare` deep
+link, `my-apps/`, a mounted project).
+
+### Cold directory URLs — the committed stub
+
+`…/apps/<name>/` — the directory-program form — is the address you publish, and it
+works on a **cold** static host: every program directory under `apps/` carries a
+generated `index.html` (`tools/internal/bake-app-stubs.mjs`), built from the same
+shell as the run page both hosts serve (`browser/serve-core.js` — `stubPage()` and
+`runWrapper()` share one template, parameterized only by the script block). It
+differs from the run page exactly where coldness demands it: `main` is computed **at
+runtime** by the shared `directoryProgram` rule, so one baked file survives any
+deploy prefix and both slash forms; and a request *modifier* (`?viewer`, `?extract` —
+unanswerable without a worker) boots the RUN view and reloads once the SW is ready,
+which then serves the requested mode.
+
+Each stub serves **exactly one navigation per visitor** — the cold one. The dev
+server shadows the file entirely (its directory-program rule answers before any
+static serving), and the installed SW intercepts the same URL thereafter; a static
+host that serves a directory's `index.html` (GitHub Pages, Firebase, S3, nginx) needs
+no rewrites, no `404.html`, no configuration. Lifecycle is the standard
+committed-artifact one: the pre-commit hook bakes the stubs *before*
+`stamp-version.mjs` stamps their `?v=` cache-buster and folds their normalized bytes
+into the `BUILD_ID` (a stub-template change busts deployed caches like any platform
+change); `test/serve-parity.test.mjs` locks shell identity with the run page and
+regenerates each committed stub from the live template, failing on drift. v1 bakes no
+crawler content into stubs — the root page remains the one curated SEO surface
+(`bake-homepage-crawler.mjs`); the `staticBlock` seam stays open.
 
 The model is **compile-in-the-browser, cache the output, closure-check freshness**
 (`browser/boot-uniform.js` — the deployed `.declare` source is the single source of
@@ -163,9 +192,10 @@ for free). From there boot walks three tiers to get a program:
    is `POST /compile` (server-side, no compiler shipped, library resolved demand-driven); on
    a static host it is the in-browser compiler (fetched once, cached by `BUILD_ID`).
 
-The one irreducible gap is the very first visit to a bare static host, before the SW
-exists — a dumb host can serve only bytes, which is why the directory URL remains the
-address you publish.
+The once-irreducible gap — the very first visit to a bare static host, before the SW
+exists — is closed for directory URLs by the committed stub (§Cold directory URLs
+above), which is why the directory URL is the address you publish. A cold *file* URL
+(`…/name.declare` with no worker) still serves what a dumb host can: the bytes.
 
 Cache-busting is content-hash driven (`BUILD_ID`, `tools/internal/stamp-version.mjs`).
 Because nothing is bundled ahead of time on this path, the `build` request doesn't

@@ -748,14 +748,18 @@ class FilesWindow extends Window [
     // chooses no categories of its own.
 
     selPath: string = "",
-    colW: number = 230,                          // one column's width (drag any seam to resize all)
-    rowH: number = 26,                           // one row
+    rootPath: string = "",                       // the folder this window is ROOTED at ("" = the whole tree); a double-clicked folder opens a new window rooted at itself
+    colW: number = 250,                          // default column width (fixed; drag a seam to resize)
+    widths: array = { [ ] },                     // per-column width overrides by depth — Finder resizes ONE column
+    rowH: number = 24,                           // one Finder row — icon + name, single line
     cw0: number = 0,                             // divider-drag anchors
     cpx0: number = 0,
+    cwk: number = -1,                            // depth of the column being dragged
+    pendingAt: string = "",                      // the item awaiting a possible second click (data-level double-click)
 
     // the window's name is the deepest open node, or "Documentation"
 
-    title = { this.selPath != "" ? (("" + this.selPath).split("\n").pop() ?? "Documentation") : "Documentation" },
+    title = { this.selPath != "" ? (("" + this.selPath).split("\n").pop() ?? "Documentation") : (this.rootPath != "" ? (("" + this.rootPath).split("\n").pop() ?? "Documentation") : "Documentation") },
 
     // Walk `browse` along selPath into a flat list of columns: one LIST column
     // per level (its child nodes), then a DETAIL column once the deepest
@@ -763,30 +767,39 @@ class FilesWindow extends Window [
     // it — so a row's click is one assignment and truncation is automatic (the
     // list re-derives). Miller columns fall straight out of a recursive walk.
 
-    columnData(selPath, model) {
+    columnData(selPath, model, rootPath) {
+        const rootParts = rootPath == "" ? [] : rootPath.split("\n")
         const parts = selPath == "" ? [] : selPath.split("\n")
         const item = (n, p) => ({ name: "" + n.name, kind: "" + (n.kind || ""), label: "" + (n.label || ""),
             hasKids: (n.children != null && n.children.length > 0),
             path: "" + (n.path || ""), doc: "" + (n.doc || ""), preview: "" + (n.preview || ""),
             at: p.join("\n") })
-        const cols = []
         let level = ((model || ({ })).browse) || []
-        cols.push(({ items: level.map((n) => item(n, [n.name])) }))
-        for (let k = 0; k < parts.length; k = k + 1) {
-            const chosen = level.find((n) => n.name == parts[k])
+        // descend to the window's ROOT folder — its children are the first column
+        for (let i = 0; i < rootParts.length; i = i + 1) {
+            const n = level.find((x) => x.name == rootParts[i])
+            if (n == null || n.children == null) return []
+            level = n.children
+        }
+        // the selPath BELOW the root drives the drill; `at` stays the absolute path
+        const drill = parts.slice(rootParts.length)
+        const cols = []
+        cols.push(({ items: level.map((n) => item(n, rootParts.concat([n.name]))), depth: 0 }))
+        for (let k = 0; k < drill.length; k = k + 1) {
+            const chosen = level.find((n) => n.name == drill[k])
             if (chosen == null) break
-            const prefix = parts.slice(0, k + 1)
+            const prefix = rootParts.concat(drill.slice(0, k + 1))
             if (chosen.children != null && chosen.children.length > 0) {
                 level = chosen.children
-                cols.push(({ items: level.map((n) => item(n, prefix.concat([n.name]))) }))
+                cols.push(({ items: level.map((n) => item(n, prefix.concat([n.name]))), depth: cols.length }))
             } else {
-                cols.push(({ leaf: item(chosen, prefix) }))
+                cols.push(({ leaf: item(chosen, prefix), depth: cols.length }))
                 break
             }
         }
         return cols
         },
-    cols: Dataset [ contents = { ({ list: classroot.columnData(classroot.selPath, app.docsModel.value) }) } ],
+    cols: Dataset [ contents = { ({ list: classroot.columnData(classroot.selPath, app.docsModel.value, classroot.rootPath) }) } ],
 
     // open a leaf — every leaf is a document. An authored file (`path`) opens its
     // source; a hydrated page (`doc`, assembled by the model) opens whole. Same
@@ -796,6 +809,17 @@ class FilesWindow extends Window [
         const d = "" + (leaf.doc || ""), p = "" + (leaf.path || "")
         if (d != "") { app.openDoc(d, "" + leaf.name, this); return }
         if (p != "") app.openViewer("../../" + p, "" + leaf.name, this)
+        },
+
+    // File → Open (⌘O) on this window's current selection: a document opens in the
+    // viewer, a folder opens a new window rooted at it — the double-click actions.
+
+    openSelection() {
+        if (this.selPath == "") return
+        const cols = this.columnData(this.selPath, app.docsModel.value, this.rootPath)
+        const last = cols[cols.length - 1]
+        if (last != null && last.leaf != null) this.openLeaf(last.leaf)
+        else app.openFolderWindow("" + this.selPath, this)
         },
 
     body: View [ x = 0, y = { classroot.barH }, width = { parent.width }, height = { parent.height - classroot.barH },
@@ -808,18 +832,24 @@ class FilesWindow extends Window [
 
         strip: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height }, scrollsX = true,
             datapath = { classroot.cols.value },
-            row: View [ x = 0, y = 0, width = { (classroot.cols.value.list || []).length * classroot.colW }, height = { parent.height },
+            row: View [ x = 0, y = 0, height = { parent.height },
+                width = { (classroot.cols.value.list || []).reduce((s, c) => s + (classroot.widths[c.depth] != null ? classroot.widths[c.depth] : classroot.colW), 0) },
                 layout: SimpleLayout [ axis = x, spacing = 0 ],
 
                 // ONE column per browse level (its child nodes), then the final
                 // leaf-DETAIL column once the deepest selection has no children.
+                // Each column keeps its own width (Finder: drag one seam, one column).
 
-                View [ datapath = :list[], width = { classroot.colW }, height = { parent.height }, clip = true, fill = { theme.bg },
+                View [ datapath = :list[], height = { parent.height }, clip = true, fill = { theme.bg },
+                    width = { classroot.widths[:depth] != null ? classroot.widths[:depth] : classroot.colW },
 
                     // a freshly-opened column reveals itself — the strip scrolls
-                    // right so drilling always brings the new column into view
+                    // right to bring it into view, ANIMATED (not a pop). Deferred
+                    // past the double-click window (400ms) so a second click still
+                    // lands on the same, un-moved row — the view never slides out
+                    // from under the mouse mid-open (the double-click bug this fixes).
 
-                    onInit() { setTimeout(() => this.scrollIntoView("nearest"), 0) },
+                    onInit() { setTimeout(() => this.scrollIntoView("nearest", true), 440) },
 
                     // a LIST column — this level's nodes as selectable rows
 
@@ -828,9 +858,17 @@ class FilesWindow extends Window [
                             layout: SimpleLayout [ axis = y, spacing = 1 ],
                             View [ datapath = :items[], width = { parent.width }, height = { classroot.rowH },
                                 on: boolean = { classroot.selPath != "" && (("" + classroot.selPath) + "\n").indexOf(("" + :at) + "\n") == 0 },
-                                onClick() { classroot.activate(); classroot.selPath = "" + :at },
-                                onDblClick() { if (!:hasKids) classroot.openLeaf(({ name: "" + :name, path: "" + :path, doc: "" + :doc })) },
-                                hl: View [ x = 4, y = 0, width = { parent.width - 8 }, height = { classroot.rowH }, cornerRadius = 5,
+                                onClick() {
+                                    classroot.activate()
+                                    const at = "" + :at
+                                    // data-level double-click: a second click on the SAME item (keyed by
+                                    // its path, not the view) within the window opens it — a folder into a
+                                    // NEW window rooted there, a document into the viewer. Robust to the
+                                    // row re-deriving and to the strip scrolling.
+                                    if (classroot.pendingAt == at) { classroot.pendingAt = ""; if (:hasKids) app.openFolderWindow(at, this); else classroot.openLeaf(({ name: "" + :name, path: "" + :path, doc: "" + :doc })) }
+                                    else { classroot.pendingAt = at; classroot.selPath = at; setTimeout(() => { if (classroot.pendingAt == at) classroot.pendingAt = "" }, 400) }
+                                    },
+                                hl: View [ x = 4, y = 2, width = { parent.width - 8 }, height = { classroot.rowH - 4 }, cornerRadius = 5,
                                     visible = { parent.on }, fill = { theme.accent } ],
                                 fo: FolderIcon [ x = 11, y = center, visible = { :hasKids } ],
                                 fi: FileIcon [ x = 12, y = center, visible = { !:hasKids } ],
@@ -858,12 +896,12 @@ class FilesWindow extends Window [
                             ],
                         ],
 
-                    // drag any seam to resize every column (uniform Finder-style width)
+                    // drag any seam to resize the columns (fixed width, Finder-style)
 
                     grip: View [ x = { parent.width - 4 }, y = 0, width = 8, height = { parent.height }, cursor = "col-resize",
-                        onMouseDown() { classroot.activate(); classroot.cw0 = classroot.colW; classroot.cpx0 = app.pointerX },
-                        onMouseMove() { if (classroot.cw0 > 0) classroot.colW = Math.max(160, Math.min(420, classroot.cw0 + app.pointerX - classroot.cpx0)) },
-                        onMouseUp() { classroot.cw0 = 0 },
+                        onMouseDown() { classroot.activate(); classroot.cwk = :depth; classroot.cw0 = parent.width; classroot.cpx0 = app.pointerX },
+                        onMouseMove() { if (classroot.cwk == :depth) { const nw = Math.max(150, Math.min(460, classroot.cw0 + app.pointerX - classroot.cpx0)); const a = [...classroot.widths]; a[:depth] = nw; classroot.widths = a } },
+                        onMouseUp() { classroot.cwk = -1 },
                         ],
                     ],
                 ],
@@ -1616,6 +1654,7 @@ App [ clip = true, appName = "Declare Desktop",
         else if (id == "open") {
             if (activeApp == "declareviewer") this.openApp("../../viewer/viewer", "Declare Viewer", null, "program=desktop.declare")
             else if (activeApp == "jots") this.newJot("", null)
+            else if (activeApp == "files" && frontWin != null) (frontWin as FilesWindow).openSelection()
             else this.openViewer("../../docs/declare.md", "declare.md")
             }
         else if (id == "close") { if (frontWin != null) this.closeWin(frontWin) }
@@ -1902,6 +1941,17 @@ App [ clip = true, appName = "Declare Desktop",
         winSeq = winSeq + 1
         // spawn positions cascade, wrapping after a handful
         const w = this.createView("FilesWindow", this.wins, ({ wx: 90 + (winCount % 7) * 28, wy: 46 + (winCount % 7) * 26 }))
+        this.frontOpen(w)
+        },
+
+    // Double-clicking a folder (or File → Open on one) opens a NEW Files window
+    // ROOTED at that folder — its first column is the folder's own contents.
+
+    openFolderWindow(rootPath, v) {
+        this.dismissAbouts()
+        winCount = winCount + 1
+        winSeq = winSeq + 1
+        const w = this.createView("FilesWindow", this.wins, ({ wx: 90 + (winCount % 7) * 28, wy: 46 + (winCount % 7) * 26, rootPath: "" + rootPath }))
         this.frontOpen(w)
         },
 

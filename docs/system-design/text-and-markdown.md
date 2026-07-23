@@ -1,4 +1,4 @@
-# Text wrapping + native Markdown
+# Text & Markdown — wrapping and native rendering
 
 **Status:** SETTLED 2026-07-08 (David). Surfaced by the homepage build: `Text` never wrapped
 (`white-space: pre`, "wrap semantics: open question"), blocking real prose. This is the ruling

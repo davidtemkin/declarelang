@@ -1,4 +1,4 @@
-# Declare — roadmap to "Foundation Complete"
+# Roadmap — to "Foundation Complete"
 
 The forward-looking companion to the `design/` rulings and `docs/system-design/history/build-journey.md`
 (the *how we got here*). This is the *how we finish* — the path from "it works for us" to a

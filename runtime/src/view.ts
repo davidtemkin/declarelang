@@ -462,8 +462,8 @@ export class View extends Node {
    *  Surface; a no-op before attach or with nothing scrolling above. (Named for
    *  the platform primitive — `reveal` is deliberately left free as a member name,
    *  e.g. a `reveal:` fade-in Spring.) */
-  scrollIntoView(align?: "start" | "nearest"): void {
-    this.surface?.scrollIntoView(align);
+  scrollIntoView(align?: "start" | "nearest", smooth?: boolean): void {
+    this.surface?.scrollIntoView(align, smooth);
   }
 
   /** Promotion (planes.md §1 — order is a slot): re-link this view among its

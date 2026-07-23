@@ -57,15 +57,25 @@ behavior, a few are diagnostics, and the rest are documentation — and the doc 
 wins that land in the first hour. Check them off as they're addressed.
 
 ### Runtime / semantics
-- [ ] **A1 — Async `location` writes (finding #1).** Make a write to `location` inside a
-  promise callback take effect (participate in the reactive transaction and push history),
-  or fail loudly if it can't. Confirm first whether this is specific to `location` or applies
-  to any reactive write inside `.then()`; the calendar sample writes ordinary state from a
-  `fetch().then()` and appears to work, so `location`'s URL/history sync is the suspect.
-  *Highest priority — silent no-op.*
-- [ ] **A2 — `contentWidth` re-measures on bound-value change (finding #2).** When a `Text`'s
-  bound value changes, recompute `contentWidth` so content-sized boxes (pills, badges,
-  chips) size correctly instead of to the first-paint/empty string.
+- [x] **A1 — Async `location` writes (finding #1).** *Does not reproduce on the current rev*
+  (the report predates some fixes; likely resolved as a side effect of the `app`→`this.root`
+  rewrite and sharper diagnostics). Verified in a real browser: a `location` write from a
+  microtask (`Promise.then`), a macrotask (`setTimeout`, ~fetch latency), and a direct async
+  write all take effect and push history — the URL/history mirror is a per-frame rAF loop
+  (`host-client.js` locTick), so it catches a change whenever it lands; timing is irrelevant.
+  The failure modes that *would* break it now fail LOUDLY at compile, not silently: `fetch`
+  is not a body global (a handler calling it errors "nothing in scope is named 'fetch'" —
+  DataSource is the network path, see A9), and a non-arrow `.then(function(){…})` callback
+  loses `this` so `app` (→`this.root`) breaks ("'this' implicitly has type any"). Nothing to
+  fix; the mechanism is sound.
+- [x] **A2 — `contentWidth` re-measures on bound-value change (finding #2).** Root cause was
+  deeper than "doesn't re-measure": `Text` never overrode `contentExtent`, so `contentWidth`/
+  `contentHeight` on a `Text` returned the base 0 — a box sizing to `label.contentWidth` read
+  empty for *any* text, static or bound. `Text.contentExtent` now folds in the measured glyph
+  extent (the natural single-line width; height by wrapped line count when bounded), read
+  under tracking, so it re-derives when `text` or the font changes. Verified real-browser: a
+  pill `width = { 20 + t.contentWidth }` fits its text and grows 36→198px when the bound label
+  lengthens; unit-tested headless (field report A2).
 
 ### Diagnostics
 - [x] **A3 — Colors in `{ }` (finding #3).** Targeted diagnostic now, in both forms: a
@@ -99,9 +109,12 @@ wins that land in the first hour. Check them off as they're addressed.
   surface. Editor autocomplete over the checker's data remains open.
 
 ### Capability (larger, optional)
-- [ ] **A9 — `DataSource` POST / body (finding #6).** A `method` / `body` on `DataSource` so
-  an app can call a typical REST API directly without a backend-for-frontend shim. Consider
-  a `format = "jsonl"` (or text-then-split) alongside it.
+- [x] **A9 — `DataSource` POST / body (finding #6).** `method` (default `"GET"`) and `body`
+  are now attributes on `DataSource`. A non-GET request sends `body`: an object/array is
+  JSON-encoded with a JSON `Content-Type`, a string is sent verbatim, GET sends none. The
+  transport seam was widened to carry a `RequestInit`; the headless refuser is unchanged
+  (network still honestly absent under extraction). Unit-tested (request shaping + the
+  compiler accepting the attrs). The `format = "jsonl"` idea is left as a separate follow-up.
 
 ### Deferred niceties
 - [ ] **A10 — Comma-terminator and `100%`-in-`{ }` gotchas (minor).** Either a targeted

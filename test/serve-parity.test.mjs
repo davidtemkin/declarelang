@@ -9,8 +9,11 @@
 // run-page branch, the normalized-equality assertion below would catch it.
 
 import assert from "node:assert/strict";
+import { readFileSync, existsSync } from "node:fs";
+import { join, dirname, basename } from "node:path";
+import { fileURLToPath } from "node:url";
 import { test, summarize } from "./harness.mjs";
-import { requestType, REQ, runWrapper, programName, directoryProgram } from "../browser/serve-core.js";
+import { requestType, REQ, runWrapper, programName, directoryProgram, stubPage } from "../browser/serve-core.js";
 
 const params = (q) => new URLSearchParams(q);
 
@@ -97,6 +100,49 @@ await test("both hosts' run shells are identical modulo host parameters", () => 
     .replace(/import boot from "[^"]*"/, 'import boot from "BOOT"')
     .replace(/href="[^"]*(favicon\.[a-z]+)"/g, 'href="ICON/$1"');
   assert.equal(norm(serverPage), norm(swPage));
+});
+
+// THE COLD STUB (apps/<name>/index.html — bake-app-stubs.mjs): same shell as the run
+// page, differing ONLY in the script block. Its two cold-only behaviors are locked
+// here: runtime main via the shared directory rule, and the modifier→reload handoff.
+await test("stubPage shares the run shell exactly, modulo the script block", () => {
+  const run = runWrapper({ name: "calendar", bootUrl: "/b.js", iconBase: "/assets/" });
+  const stub = stubPage({ name: "calendar", bootUrl: "/b.js", serveCoreUrl: "/browser/serve-core.js", iconBase: "/assets/" });
+  const shellOf = (s) => s.slice(0, s.indexOf('<script type="module">'));
+  assert.equal(shellOf(stub), shellOf(run));                          // identical head + host element
+});
+
+await test("stubPage computes main at runtime and hands modifiers to the worker", () => {
+  const stub = stubPage({ name: "calendar", bootUrl: "/b.js", serveCoreUrl: "/browser/serve-core.js" });
+  assert.match(stub, /main: directoryProgram\(location\.pathname\) \?\? location\.pathname/);
+  assert.match(stub, /requestType\(q\) !== REQ\.RUN/);                // only a modifier defers
+  assert.match(stub, /serviceWorker\.ready\.then\(\(\) => location\.reload\(\)\)/);
+  assert.match(stub, /import \{ requestType, REQ, directoryProgram \} from "\/browser\/serve-core\.js"/);
+});
+
+// FRESHNESS ORACLE: the committed stubs must be regenerable from the current template.
+// Editing stubPage() without rerunning bake-app-stubs.mjs (the pre-commit hook does)
+// fails here — the committed artifact may not drift from the code that generates it.
+await test("every committed app stub matches the current stubPage template", () => {
+  const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+  const norm = (s) => s.replace(/(declare-boot\.js)\?v=[^"']*/g, "$1?v=");
+  let checked = 0;
+  for (const dir of ["calendar", "desktop", "docs", "homepage", "viewer", "inspector"]) {
+    const f = join(ROOT, "apps", dir, "index.html");
+    if (!existsSync(f)) continue;
+    const committed = readFileSync(f, "utf8");
+    const expected = stubPage({
+      name: basename(dir),
+      bootUrl: "../../bundles/declare-boot.js?v=",
+      serveCoreUrl: "../../browser/serve-core.js",
+      iconBase: "../../assets/",
+    });
+    // committed = one generator marker line + the template (with a stamped ?v=)
+    const body = committed.slice(committed.indexOf("\n") + 1);
+    assert.equal(norm(body), norm(expected), `${dir}/index.html is stale — run tools/internal/bake-app-stubs.mjs`);
+    checked++;
+  }
+  assert.ok(checked > 0, "no committed stubs found to check");
 });
 
 summarize("serve-core parity");

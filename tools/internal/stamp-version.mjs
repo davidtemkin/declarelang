@@ -43,7 +43,10 @@ const BUILD_RE = /const BUILD_ID = "[^"]*";/;
 // prewarm key can be computed. Like the worker's BUILD_ID line, this is stamped
 // INTO a file that is itself hashed, so it is normalized away before hashing.
 const INDEX_HTML = join(ROOT, "index.html");
-const BOOTV_RE = /(\.\/bundles\/declare-boot\.js)(\?v=[^"']*)?/g;
+// Matches the boot import in the root page ("./bundles/…") AND in the generated app
+// stubs ("../../bundles/…" — tools/internal/bake-app-stubs.mjs), so one stamp rule
+// covers every committed page that loads the platform bundle.
+const BOOTV_RE = /((?:\.{1,2}\/)+bundles\/declare-boot\.js)(\?v=[^"']*)?/g;
 
 // Platform inputs whose change should bust all caches + force a worker update. NOT bare "." —
 // the runtime's own dist and the compiler bundle carry all the compiled behavior, `browser/` the
@@ -74,6 +77,18 @@ if (!BUILD_RE.test(swText)) {
 
 const indexText = existsSync(INDEX_HTML) ? readFileSync(INDEX_HTML, "utf8") : null;
 
+// The generated app stubs (apps/*/index.html — tools/internal/bake-app-stubs.mjs) are
+// platform shell, not app source: their bytes are a pure function of the stub template,
+// so a template change must bump the BUILD_ID (dropping the SW cache bucket) even
+// though apps/ at large is deliberately NOT a hashed input. Hashed and stamped exactly
+// like the root page: `?v=` normalized away before hashing.
+const APPS_DIR = join(ROOT, "apps");
+const stubFiles = existsSync(APPS_DIR)
+  ? readdirSync(APPS_DIR).sort()
+      .map((n) => join(APPS_DIR, n, "index.html"))
+      .filter((f) => existsSync(f))
+  : [];
+
 const h = createHash("sha256");
 // Hash the worker with its BUILD_ID line NORMALIZED, so stamping isn't self-referential.
 h.update(swText.replace(BUILD_RE, 'const BUILD_ID = "";'));
@@ -87,20 +102,27 @@ for (const input of INPUTS) {
     h.update(readFileSync(f));       // content
   }
 }
+for (const f of stubFiles) {
+  h.update(relative(ROOT, f));
+  h.update(readFileSync(f, "utf8").replace(BOOTV_RE, "$1?v="));
+}
 const build = h.digest("hex").slice(0, 12);
 
 const current = (swText.match(/const BUILD_ID = "([^"]*)";/) || [])[1];
-const stampIndex = () => {
-  if (indexText === null) return;
-  const next = indexText.replace(BOOTV_RE, `$1?v=${build}`);
-  if (next !== indexText) writeFileSync(INDEX_HTML, next);
+const stampPages = () => {
+  const pages = indexText !== null ? [INDEX_HTML, ...stubFiles] : stubFiles;
+  for (const f of pages) {
+    const text = readFileSync(f, "utf8");
+    const next = text.replace(BOOTV_RE, `$1?v=${build}`);
+    if (next !== text) writeFileSync(f, next);
+  }
 };
 if (current === build) {
-  stampIndex();                       // the id is settled; the page may still be un-stamped
+  stampPages();                       // the id is settled; a page may still be un-stamped
   console.log("stamp-version: unchanged (BUILD_ID =", build + ")");
   process.exit(0);
 }
 writeFileSync(SW, swText.replace(BUILD_RE, `const BUILD_ID = "${build}";`));
 writeFileSync(VERSION_JSON, JSON.stringify({ build }, null, 2) + "\n");
-stampIndex();
+stampPages();
 console.log("stamp-version: BUILD_ID", current || "(none)", "->", build);

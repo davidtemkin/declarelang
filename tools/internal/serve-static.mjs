@@ -72,6 +72,13 @@ http.createServer((req, res) => {
     if (err) return notFound();
     if (st.isFile()) return serve(fp, st);
     if (st.isDirectory()) {                 // serve <dir>/index.html (real-host behavior); NEVER a listing
+      // Real hosts (GitHub Pages, Firebase, S3, nginx) 301 a no-slash directory URL to
+      // the slash form before serving its index.html, so relative references resolve
+      // against the directory. Match them — the cold-stub pages depend on it.
+      if (!pathname.endsWith("/")) {
+        const q = new URL(req.url, "http://localhost").search;
+        res.writeHead(301, { Location: pathname + "/" + q }); return res.end();
+      }
       const idx = path.join(fp, "index.html");
       return fs.stat(idx, (e2, s2) => (e2 || !s2.isFile()) ? notFound() : serve(idx, s2));
     }
