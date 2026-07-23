@@ -37,7 +37,6 @@ import { buildProduction } from "../declarec.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
-const LIBRARY_ROOT = path.join(ROOT, "library");
 const CACHE_DIR = path.join(ROOT, "bundles", "cache");
 
 // The curated set. Small on purpose — the flagship, high-traffic pages, the ones
@@ -65,7 +64,6 @@ const PROGRAMS = [
 ];
 
 const toPosix = (p) => p.split(path.sep).join("/");
-const underLibrary = (abs) => abs === LIBRARY_ROOT || abs.startsWith(LIBRARY_ROOT + path.sep);
 
 /** Rewrite one disk closure entry for the browser: deploy-relative id + a
  *  content-hash validator (or {missing} preserved). Dirs are dropped by the
@@ -76,13 +74,16 @@ function browserEntry(e) {
   return { id, kind: "file", v: { hash: fnv1a(readFileSync(e.id, "utf8")) } };
 }
 
-/** The browser-shaped closure for a compile: the main file + local includes,
- *  each a deploy-relative content-hash entry. Library reads and the manifest are
- *  dropped — BUILD_ID gates them, exactly as the browser's own compileTracked
- *  excludes them (compile-browser.ts). */
+/** The browser-shaped closure for a compile: every FILE the compile read — the
+ *  main source, its `include`s, the auto-included component library it actually
+ *  resolved, and the manifest — each a deploy-relative content-hash entry. This is
+ *  the SAME set compileTracked records on both hosts; the browser re-probes it by
+ *  content hash exactly as the Node side re-probes by disk stat, so a component edit
+ *  invalidates uniformly with no build step. Only the runtime/compiler BUNDLE stays
+ *  out (a load-time artifact, BUILD_ID-gated). Dirs carry no source, so drop them. */
 function browserClosure(closure, props) {
   const entries = closure.entries
-    .filter((e) => e.kind === "file" && !underLibrary(e.id))
+    .filter((e) => e.kind === "file")
     .map(browserEntry);
   return { entries, props };
 }

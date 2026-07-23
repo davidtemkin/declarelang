@@ -22,14 +22,18 @@
 //
 // Two independent freshness gates, exactly mirroring OL5:
 //   • PLATFORM — BUILD_ID (bundles/version.json), the content hash the commit hook
-//     (tools/internal/stamp-version.mjs) stamps over runtime + compiler bundle + web
-//     client + library. It NAMES the cache bucket AND salts the key, so any
-//     platform/runtime/library change drops every cached compile at once (old
-//     buckets pruned on boot). The runtime is gated ONLY here — never in a
-//     per-app closure — just as OL5 keeps the LFC out of the closure.
-//   • APP SOURCE — the compile's dependency CLOSURE, each entry an ETag /
-//     Last-Modified / FNV-1a-hash validator (closure.ts). isUpToDate() re-probes
-//     it; an edit busts just that program's cache, no re-stamp needed.
+//     (tools/internal/stamp-version.mjs) stamps over the runtime + compiler bundle +
+//     web client. It NAMES the cache bucket AND salts the key, so a runtime/compiler
+//     change drops every cached compile at once (old buckets pruned on boot). The
+//     runtime/compiler BUNDLE is gated ONLY here — never in a per-app closure — just
+//     as OL5 keeps the LFC out of the closure: it is a load-time artifact, not a
+//     compiled-in source dep.
+//   • APP SOURCE — the compile's dependency CLOSURE: the main source AND every file
+//     it read (its includes and the auto-included component SOURCES it resolved —
+//     the referenced set only), each an ETag / Last-Modified / FNV-1a-hash validator
+//     (closure.ts). isUpToDate() re-probes it; an edit to the app OR to a component
+//     it uses busts just that program's cache, no re-stamp needed. A component is
+//     compile-time source, so it lives here — the same gate on both hosts.
 //
 // Relative imports resolve against THIS module's URL (…/browser/) → subpath-portable.
 import { bootHost } from "./host-client.js";
@@ -303,8 +307,9 @@ export default async function boot(cfg) {
   //     + its closure for the fast path. The auto-include library is registered as
   //     the compiler's default (ensureLibrary) so bare tags resolve with no
   //     per-call ceremony. compileTracked records the REAL closure (the main source
-  //     plus every include the host served); library reads stay OUT of it — gated
-  //     by BUILD_ID. The main entry carries the RESPONSE's validators (ETag /
+  //     plus every include AND every component SOURCE the host resolved — the
+  //     referenced set); only the runtime/compiler bundle stays out, gated by
+  //     BUILD_ID. The main entry carries the RESPONSE's validators (ETag /
   //     Last-Modified + content hash) for the cheap headers-only re-probe.
   if (program === null) {
     const onServer = !!window.__declareServer;

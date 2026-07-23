@@ -5026,7 +5026,7 @@ await test("uniform: the browser compiler's result is byte-identical to Node's (
   }
 });
 
-await test("browser compileTracked: an include is recorded in the closure; the library is not", async () => {
+await test("browser compileTracked: includes AND resolved components enter the closure; trackLibrary:false opts a component out", async () => {
   const browser = await import("../bundles/declare-compiler.js");
   // A multi-file app: the include must enter the closure with a content-hash
   // validator, so an edit to the INCLUDED file invalidates like a main edit.
@@ -5038,12 +5038,18 @@ await test("browser compileTracked: an include is recorded in the closure; the l
   assert.deepEqual(out.closure.entries.map((e) => e.id).sort(), ["apps/main.declare", "apps/part.declare"]);
   assert.ok(out.closure.entries.every((e) => typeof e.v.hash === "string"), "content-hash validators");
   assert.deepEqual(out.closure.props, { render: "dom" });
-  // A LIBRARY auto-include stays OUT (BUILD_ID gates the library, the OL5 LFC
-  // model) — the closure records app sources only.
+  // A resolved LIBRARY component is a compile-time SOURCE dependency — its text
+  // shapes the output like any include — so by default it enters the closure and
+  // is modification-checked by the same isUpToDate + probe (the referenced set
+  // only; the runtime BUNDLE stays out, gated by BUILD_ID).
   const lib = { manifest: { Bar9: "bar9.declare" }, files: { "library/bar9.declare": "class Bar9 extends View [ width = 10 ]" } };
   const out2 = browser.compileTracked("App [ width = 100, height = 100, Bar9 [ ] ]", { ...lib, mainId: "x.declare" });
   assert.ok(out2.source !== null, out2.report);
-  assert.deepEqual(out2.closure.entries.map((e) => e.id), ["x.declare"], "library reads are excluded");
+  assert.deepEqual(out2.closure.entries.map((e) => e.id).sort(), ["library/bar9.declare", "x.declare"], "a resolved component is recorded");
+  // trackLibrary:false opts library entries back out (a lightweight buffer compile).
+  const out3 = browser.compileTracked("App [ width = 100, height = 100, Bar9 [ ] ]", { ...lib, mainId: "x.declare", trackLibrary: false });
+  assert.ok(out3.source !== null, out3.report);
+  assert.deepEqual(out3.closure.entries.map((e) => e.id), ["x.declare"], "trackLibrary:false excludes the component");
 });
 
 await test("browser default library: setDefaultLibrary removes the per-call obligation", async () => {

@@ -124,7 +124,7 @@ export function compileTracked(source, opts = {}) {
     const libPrefix = (lib.libraryRoot ?? "library") + "/";
     const reads = new Map();
     const record = (r) => {
-        if (r !== null && (opts.trackLibrary === true || !r.canonical.startsWith(libPrefix)) && !reads.has(r.canonical)) {
+        if (r !== null && !reads.has(r.canonical) && (opts.trackLibrary !== false || !r.canonical.startsWith(libPrefix))) {
             reads.set(r.canonical, { id: r.canonical, kind: "file", v: opts.validators?.[r.canonical] ?? { hash: fnv1a(r.source) } });
         }
         return r;

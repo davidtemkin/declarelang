@@ -152,10 +152,16 @@ export interface BrowserTrackedOptions extends CompileOptions, BrowserFiles {
   /** Compiler properties that also gate cache staleness (e.g. `{ backend:
    *  "dom" }`). Frozen into the closure and compared by isUpToDate. */
   props?: Record<string, string>;
-  /** Record LIBRARY reads too. Default false — the library ships with the
-   *  distro and is gated by BUILD_ID (the OL5 model: the LFC never enters an
-   *  app's closure), so per-app closures stay small and library upgrades
-   *  invalidate through the service worker, not per-app probing. */
+  /** Whether to record auto-included LIBRARY components in the closure. Default
+   *  true: a component's SOURCE is a compile-time dependency — its text shapes the
+   *  compiled output exactly like an `include`d file — so it belongs in the closure
+   *  and is modification-checked by the same isUpToDate + probe as every other read
+   *  (the referenced set only, after auto-include resolution — never the whole
+   *  library). This is what keeps a component edit fresh on BOTH hosts without a
+   *  build step: the polymorphic probe (disk / fetch) catches it uniformly. Only the
+   *  RUNTIME/compiler BUNDLE stays out of the closure, gated by BUILD_ID — it is a
+   *  load-time artifact, not a compiled-in source dep. Pass false for a lightweight
+   *  buffer compile that wants no library entries. */
   trackLibrary?: boolean;
 }
 
@@ -171,7 +177,7 @@ export function compileTracked(source: string, opts: BrowserTrackedOptions = {})
   const libPrefix = (lib.libraryRoot ?? "library") + "/";
   const reads = new Map<string, ClosureEntry>();
   const record = <T extends { canonical: string; source: string } | null>(r: T): T => {
-    if (r !== null && (opts.trackLibrary === true || !r.canonical.startsWith(libPrefix)) && !reads.has(r.canonical)) {
+    if (r !== null && !reads.has(r.canonical) && (opts.trackLibrary !== false || !r.canonical.startsWith(libPrefix))) {
       reads.set(r.canonical, { id: r.canonical, kind: "file", v: opts.validators?.[r.canonical] ?? { hash: fnv1a(r.source) } });
     }
     return r;
