@@ -410,6 +410,7 @@ class DomSurface {
             // setScrollX). Native `overflow:auto` gives the OS overlay scrollbar.
             el.style.overflowY = "auto";
             el.style.overflowX = "hidden";
+            el.dataset.declareScroll = "1"; // a native scroller — its offset is preserved across a DOM move (insertChild)
             // `contain` gives THIS element its own native rubber-band (edge bounce +
             // momentum) while refusing to chain a scroll-past up to the pinned page —
             // so a pane bounces on its own edges and never flashes the document behind
@@ -446,6 +447,7 @@ class DomSurface {
             el.style.overflowX = "";
             el.style.touchAction = "";
             el.style.pointerEvents = "none";
+            delete el.dataset.declareScroll;
         }
     }
     wheelXListener;
@@ -455,6 +457,7 @@ class DomSurface {
             // Clip the box and scroll its overflowing WIDTH; vertical stays clipped.
             el.style.overflowX = "auto";
             el.style.overflowY = "hidden";
+            el.dataset.declareScroll = "1"; // a native scroller — offset preserved across a DOM move (insertChild)
             el.style.pointerEvents = "auto";
             if (this.wheelXListener === undefined) {
                 // Absolute-positioned content: the wheel won't drive it (as in setScroll),
@@ -480,6 +483,7 @@ class DomSurface {
             el.style.overflowX = "";
             el.style.overflowY = "";
             el.style.pointerEvents = "none";
+            delete el.dataset.declareScroll;
         }
     }
     /** Native rich-text flow (RichText). Build ONE flowing content element — a block
@@ -876,8 +880,22 @@ class DomSurface {
     }
     insertChild(child, before) {
         // insertBefore both parents and MOVES an existing child — exactly the
-        // seam's contract; null appends.
-        this.element.insertBefore(child.element, before === null ? null : before.element);
+        // seam's contract; null appends. A move relayouts the subtree, which resets
+        // any native scroller's offset inside it (Chrome) — so a window raised from
+        // behind would jump its scrolled interior to the origin. Snapshot the marked
+        // scrollers (setScroll/setScrollX) and restore them, making a raise a pure
+        // z-order change (the dock-focus expectation).
+        const el = child.element;
+        const scrollers = el.dataset.declareScroll ? [el] : [];
+        el.querySelectorAll("[data-declare-scroll]").forEach((s) => scrollers.push(s));
+        const saved = scrollers.map((s) => [s, s.scrollLeft, s.scrollTop]);
+        this.element.insertBefore(el, before === null ? null : before.element);
+        for (const [s, l, t] of saved) {
+            if (s.scrollLeft !== l)
+                s.scrollLeft = l;
+            if (s.scrollTop !== t)
+                s.scrollTop = t;
+        }
     }
     destroy() {
         this.gone = true; // quiets any armed dpr listener

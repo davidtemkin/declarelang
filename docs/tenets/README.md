@@ -37,11 +37,11 @@ is measured against.
 
 ## The five
 
-1. [What Declare is](1%20ROTAS.md) — its nature: a language, a standing structure, renderer-independent.
-2. [How you write it](2%20OPERA.md) — the two delimiters, TypeScript, no CSS, composition.
+1. [How it ships](1%20SATOR.md) — compile-anywhere, static extraction, no build step, and an honest posture.
+2. [The wager](2%20AREPO.md) — small, verifiable, built for the era of machine-written code.
 3. [The standing model](3%20TENET.md) — reactivity and continuity: the core idea.
-4. [The wager](4%20AREPO.md) — small, verifiable, built for the era of machine-written code.
-5. [How it ships](5%20SATOR.md) — compile-anywhere, static extraction, no build step, and an honest posture.
+4. [How you write it](4%20OPERA.md) — the two delimiters, TypeScript, no CSS, composition.
+5. [What Declare is](5%20ROTAS.md) — its nature: a language, a standing structure, renderer-independent.
 
 ## Status
 

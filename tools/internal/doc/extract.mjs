@@ -496,7 +496,7 @@ function readTenets() {
     let md = readFileSync(path.join(dir, f), "utf8");
     const title = (md.match(/^#\s+(.+)$/m)?.[1] ?? f).trim();
     md = md.replace(/<!--[\s\S]*?-->/g, "").replace(/\n{3,}/g, "\n\n").trim();
-    return { id: "tenet-" + num, num, title, segs: segmentize(md, "tenet_" + num) };
+    return { id: "tenet-" + num, num, title, name: f.replace(/\.md$/, ""), segs: segmentize(md, "tenet_" + num) };
   });
 }
 const tenets = readTenets();

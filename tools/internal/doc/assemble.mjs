@@ -186,7 +186,7 @@ function buildBrowse(dm, spine) {
     label: ref[id].origin === "library" ? "Component" : "Built-in element",
     doc: elementDoc(id, ref), preview: preview(ref[id].doc || "") });
   const hydrated = (name, md) => ({ name, subtitle: "", kind: "reference", label: "Reference", doc: md, preview: preview(md) });
-  const tenetLeaf = (t) => ({ name: t.title, subtitle: "", kind: "tenet", label: "Tenet", doc: segMd(t.segs), preview: preview(segText(t.segs)) });
+  const tenetLeaf = (t) => ({ name: t.name ?? t.title, subtitle: "", kind: "tenet", label: "Tenet", doc: segMd(t.segs), preview: preview(segText(t.segs)) });
   return [
     cat("Language", [
       fileLeaf("The language", "docs/declare.md", "Markdown file", "declare.md — the whole language"),
