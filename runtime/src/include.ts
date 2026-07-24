@@ -141,7 +141,7 @@ export function resolveIncludes(
   walk(program.includes, originDir);
 
   return {
-    program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], root: program.root },
+    program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], blocks: program.blocks, root: program.root },
     sources,
     errors,
     visited,
@@ -280,7 +280,7 @@ export function resolveAutoIncludes(
   for (const name of program.uses) pull(name, program.root.pos);
 
   return {
-    program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: program.uses, root: program.root },
+    program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: program.uses, blocks: program.blocks, root: program.root },
     sources,
     errors,
   };

@@ -1,4 +1,5 @@
 import { type Pos } from "./errors.js";
+import type { Plugin, BlockNode } from "./plugin.js";
 /** A literal value as written — the parser classifies syntax, not type.
  *  `hex` preserves whether a number was written `0x…`: the Color type only
  *  admits the hex-written numeric form (language §6), so the written form is
@@ -192,6 +193,9 @@ export interface Program {
      *  library, or a developer class alike (one declaration, all three backends).
      *  Additive to what the tree + body scan already discover. */
     uses: string[];
+    /** Top-level plugin blocks (`keyword Name { … }`) in source order. Empty when
+     *  no block plugin was passed to parseProgram. */
+    blocks: BlockNode[];
     root: Element;
 }
 /** An included file (composition.md §1): a library of top-level declarations
@@ -209,6 +213,7 @@ export interface Library {
     /** A library may carry its OWN `use [ … ]` keep-list (its dynamic deps); the
      *  source-merge folds these into the program's `uses`. */
     uses: string[];
+    blocks: BlockNode[];
 }
 /** Parse a component fragment — one element, no class declarations. The
  *  entry tools and tests use for pieces; a whole source goes through
@@ -217,10 +222,10 @@ export declare function parse(source: string): Element;
 /** Parse a whole Declare source: `include`s and top-level declarations
  *  (classes, stylesheets, style bundles — in any order), then the root
  *  instance. */
-export declare function parseProgram(source: string): Program;
+export declare function parseProgram(source: string, plugins?: readonly Plugin[]): Program;
 /** Parse an INCLUDED file (composition.md §1): the same top-level
  *  declarations as a program, then eof — a library declares classes,
  *  stylesheets, and styles, never a root. A stray root element is a
  *  positioned error: an included file is a library of definitions, not an
  *  App. */
-export declare function parseLibrary(source: string): Library;
+export declare function parseLibrary(source: string, plugins?: readonly Plugin[]): Library;
