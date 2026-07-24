@@ -1,20 +1,28 @@
 App [ textColor = whitesmoke, fill = 0x151A22,
+    warm: Color = 0xFF9F4A,
+    cool: Color = 0x59C2FF,
+    trackBg: Color = 0x232B36,
+    hintText: Color = 0x8A97A6,
+
     level: number = 3,
     t: number = 3,
     ease: Spring [ attribute = t, to = { level }, stiffness = 170, damping = 20 ],
     onMouseDown() { level = level >= 5 ? 1 : level + 1 },
 
-    readout: Text [ x = 22, y = 20, fontSize = 34, fontWeight = bold,
-        textColor = { t > 3.4 ? 0xFF9F4A : 0x59C2FF },
-        text = { "level " + level } ],
+    group: View [ x = center, y = center, width = 80%, height = { this.contentHeight },
+        layout: SimpleLayout [ axis = y, spacing = 20 ],
 
-    track: View [ x = 22, y = 74, height = 14, cornerRadius = 7, fill = 0x232B36,
-        width = { parent.width - 44 },
-        bar: View [ x = 0, y = 0, height = 14, cornerRadius = 7,
-            width = { parent.width * (t / 5) },
-            fill = { t > 3.4 ? 0xFF9F4A : 0x59C2FF } ],
+        readout: Text [ width = { parent.width }, textAlign = center, fontSize = 30, fontWeight = bold,
+            textColor = { t > 3.5 ? warm : cool },
+            text = { "level " + level } ],
+
+        track: View [ width = { parent.width }, height = 10, cornerRadius = 5, fill = { trackBg },
+            bar: View [ height = 10, cornerRadius = 5,
+                width = { parent.width * (t / 5) },
+                fill = { t > 3.5 ? warm : cool } ],
+            ],
+
+        hint: Text [ width = { parent.width }, textAlign = center, fontSize = 12, textColor = { hintText },
+            text = "click to raise it — the width and the color both follow" ],
         ],
-
-    hint: Text [ x = 22, y = 104, fontSize = 12, textColor = 0x8A97A6,
-        text = "click to raise it — the width and the color both follow" ],
     ]

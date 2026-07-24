@@ -24,14 +24,14 @@ things below it change when you click — the number, the bar's length, the bar'
 color?**
 
 ```declare
-App [ fill = #0B141B, textColor = whitesmoke,
+App [ fill = black, textColor = whitesmoke,
     v: number = 42,
     cool: Color = dodgerblue,
     warm: Color = turquoise,
-    onMouseDown() { v = (v + 17) % 100 },
-    View [ x = 28, y = 26,
-        layout: SimpleLayout [ axis = y, spacing = 18 ],
-        Text [ fontSize = 72, fontWeight = bold, text = { v + "" } ],
+    onMouseDown() { v = (v + 30) % 100 },
+    View [ x = 30, y = 30,
+        layout: SimpleLayout [ axis = y, spacing = 20 ],
+        Text [ fontSize = 70, fontWeight = bold, text = { `${v}` } ],
         Bar [ width = 300, value = { v },
             tint = { v < 50 ? cool : warm } ],
         ],
@@ -56,10 +56,43 @@ a constraint calls a method, the compiler reads *through* the call: bind
 `{ app.buildModel() }` and you depend on whatever `buildModel` reads, transitively,
 extracted for you. Calling methods from constraints is idiomatic, not cheating.
 
+Two properties of that analysis are worth internalizing, because between them they
+explain everything you will ever observe a constraint do.
+
+**It collects *potential* reads, not observed ones.** `{ a ? b : c }` depends on all
+three names — including whichever branch didn't run. You saw this in the opening
+example: `tint = { v < 50 ? cool : warm }` re-evaluates when `warm` changes even while
+`v` is 30 and the bar is showing `cool`; the recompute lands the same color and nothing
+paints. That union-over-branches is deliberate, and it errs on the only safe side: an
+extra edge costs a no-op recompute, while a missing edge would be a view showing a value
+that has since moved on — the bug this chapter opened by abolishing. When the compiler
+must choose, it subscribes.
+
+**It follows calls all the way down — and pins what it finds to the receiver.** If
+`total()` reads `this.price` and `this.qty`, then `{ card.total() }` depends on
+`card.price` and `card.qty`: a method's reads are *re-based* onto the object you called
+it on, however deep the call chain runs (recursion is handled; a cycle simply stops
+adding). Reads inside callbacks count too — `{ items.filter(x => x.price > app.limit) }`
+depends on `app.limit`, while `x`, the callback's own parameter, correctly does not.
+And the standard library plays by the same rules: a library method has no Declare body
+to read, so it *declares* its reactive effect to the compiler — user methods and
+library methods are analyzed on the same footing, and the familiar builtins
+(`Math.max`, `.toFixed()`, `.split()`) are known to read nothing reactive at all.
+
+One asymmetry is worth meeting before it meets you. A declaration with a computed
+default — `segIndex: number = { … }` — is a **formula, not a slot**: reading it inlines
+its expression, so *its* dependencies quietly become yours. A set attribute —
+`width = { … }` — is the opposite: a standing constraint that owns its slot, and
+reading the slot subscribes to the slot. The practical difference shows up exactly
+once: a computed default can make your constraint react to things you never named,
+because you inherited its inputs.
+
 Two consequences you will feel. It is **legible** — what a binding reacts to is never a
-runtime mystery; the expression *is* the dependency list. And it is **fast** — the
-wiring happens at compile time, so at runtime a tracked read is a plain field read, with
-no tracking branch on the hot path.
+runtime mystery; the expression *is* the dependency list, and the extracted graph ships
+with the program: the Inspector's *explain* view (end of this chapter) shows any
+value's wired read-paths live. And it is **fast** — the edges are bound to their cells
+once, at link time, so at runtime a tracked read is a plain field read, with no
+tracking branch on the hot path.
 
 > **From SwiftUI:** the mental model is close — declarative values the framework keeps
 > current — but there is no `body` being recomputed and diffed, and no property-wrapper
@@ -99,15 +132,24 @@ have for a long time.
 ## The one rule constraints obey
 
 A constraint must read *specific, named* things — a named slot, a literal datapath —
-so the compiler can wire it. Three instincts violate that, and each is a compile
-error that names the rewrite rather than a silent surprise:
+so the compiler can wire it. When it can't name every read, that is a **blocking
+compile error** (`DECLARE7001`, if you want to search for it) that names the rewrite
+rather than a silent surprise. Five instincts trigger it:
 
 - indexing by a runtime key (`this[someString]`) → name the slot, or move the lookup
   into a method the compiler can read through;
 - building a datapath at runtime → that is data-binding's job
   ([chapter 8](declare-docs:guide:data));
 - aggregating over the live view tree (`children.map(v => v.x)`) → that is what a
-  `layout` is for ([chapter 5](declare-docs:guide:space)).
+  `layout` is for ([chapter 5](declare-docs:guide:space));
+- calling something the compiler can't see into (host interop, a function-valued
+  attribute) → call an in-program method or a builtin — neither is a compromise,
+  since both are read through;
+- and the quiet one: **a slot reading itself.** `theme = { { ...theme, accent: red } }`
+  looks like a harmless override and is a cycle by construction — the constraint
+  invalidates itself on every run. The compiler refuses it and names the fix: derive
+  from a *base* (`{ { ...app.theme, accent: red } }` — a different slot), never from
+  the slot being defined.
 
 In practice the friction rounds to zero — across every real Declare program in the
 repository, all constraints are analyzable — and handler code is unrestricted

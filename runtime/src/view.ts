@@ -723,6 +723,11 @@ export class App extends View {
    *  the runtime. Theme an app off it: `fill = { app.dark ? 0x0B141B : 0xFFFFFF }`
    *  or drive a `theme` record from it. Read-only to user code. */
   declare dark: boolean;
+  /** "Am I running on a touch device?" — true when the device's primary pointer
+   *  is coarse (`pointer: coarse`), a phone or tablet. A stable device fact fed
+   *  live by the runtime, distinct from the transient `hovering`: switch mouse-only
+   *  affordances off with `visible = { !app.touchDevice }`. Read-only to user code. */
+  declare touchDevice: boolean;
   /** The embedding environment's parameters (see schema.ts `env`): a record
    *  the host provides and keeps live; `{}` when top-level. Read reactively —
    *  `theme = { Themes.x(app.env.dark == true) }` follows the host's flips. */
@@ -883,6 +888,7 @@ defineAttributes(App, {
   hovering: { def: false },
   pointerOverText: { def: false },
   dark: { def: false },
+  touchDevice: { def: false },
   // the embedding environment's parameters (schema.ts): the HOST replaces the
   // whole record on every change (never mutates), so the default may be one
   // shared frozen empty object — reads like `app.env.dark` never null-crash

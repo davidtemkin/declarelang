@@ -86,11 +86,13 @@ export declare function withDecls(schema: ComponentSchema, decls: readonly AttrD
  *  cursor-typed slot — today, View.datapath — is what replicates. */
 export declare function manyPathOf(el: Element, schemas: Readonly<Record<string, ComponentSchema>>): Attr | null;
 /** Validate a component-typed attribute's element value (R7: the `layout:`
- *  member). The element must name a component descending from `of`, and —
- *  this rung — carry literal attributes only: a strategy has no children or
- *  methods by nature, and `{ }`-driven layout attributes are a recorded open
- *  question. One message source: check() collects these, instantiate()
- *  throws the first. */
+ *  member). The element must name a component descending from `of`, and carry no
+ *  children or methods (a strategy has neither by nature). Attribute values may be
+ *  literals OR `{ }` constraints — a layout attribute is reactive like any other
+ *  (its setter re-flows: axis re-installs via rearm, spacing is read under
+ *  tracking), so a built-in strategy takes `{ }` exactly as a user layout subclass
+ *  already does (installLayoutClass). Only a `:path` cursor is refused. One message
+ *  source: check() collects these, instantiate() throws the first. */
 export declare function checkComponentValue(schemas: Readonly<Record<string, ComponentSchema>>, owner: string, attrName: string, of: string, el: Element): DeclareError[];
 /** One checked attribute: a coerced literal value, a `{ }` binding to
  *  install, a `:path` data relationship (R8), or the (unthrown) error. */

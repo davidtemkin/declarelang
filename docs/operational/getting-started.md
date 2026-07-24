@@ -55,22 +55,22 @@ inside it — a `data/` folder, say — resolve against the program URL for free
 Put this in `my-apps/hello.declare`:
 
 ```declare
-App [ width = 360, height = 200, fill = #14181F,
+App [ width = 360, height = 200, fill = midnightblue,
 
     count: number = 0,
 
     onClick() { count = count + 1 },
 
     Text [
-        x = 24, y = 28,
-        fontSize = 28, textColor = #E8EDF2,
+        x = 20, y = 30,
+        fontSize = 30, textColor = whitesmoke,
         text = { "Clicks: " + count } ],
 
     bar: View [
-        x = 24, y = 92,
-        height = 16, cornerRadius = 8,
-        fill = #4C8DFF,
-        width = { Math.min(count * 24, 312) } ],
+        x = 20, y = 90,
+        height = 20, cornerRadius = 10,
+        fill = royalblue,
+        width = { Math.min(count * 20, 320) } ],
     ]
 ```
 

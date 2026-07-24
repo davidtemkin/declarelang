@@ -5,7 +5,7 @@
       "when": {
         "baseUsed": "Control"
       },
-      "comment": "the traveling focus indicator — provided with the component library"
+      "comment": "the traveling focus indicator \u2014 provided with the component library"
     },
     {
       "class": "Tooltip",
@@ -13,7 +13,7 @@
         "attributeUsed": "tip",
         "onBase": "View"
       },
-      "comment": "the tooltip singleton — provided with the component library (tip = attribute)"
+      "comment": "the tooltip singleton \u2014 provided with the component library (tip = attribute)"
     }
   ],
   "Bar": "bar.declare",
@@ -34,5 +34,9 @@
   "Menu": "menu.declare",
   "MenuBar": "menubar.declare",
   "Dialog": "dialog.declare",
-  "AppIsland": "appisland.declare"
+  "AppIsland": "appisland.declare",
+  "Spacer": "spacer.declare",
+  "ResponsiveLayout": "responsive.declare",
+  "SimpleLayout": "simplelayout.declare",
+  "WrappingLayout": "wrappinglayout.declare"
 }

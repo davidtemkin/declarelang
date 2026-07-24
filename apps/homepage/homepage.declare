@@ -93,6 +93,34 @@ class NavLink extends View [ height = 33, cornerRadius = 8,
 
 
 /*
+## The mobile nav sheet
+
+At phone width the pill row would ride the wordmark, so it collapses to a kebab
+(the page's dot motif) that opens this sheet: a thumb-height row per destination,
+drawn from the same `navItems` as the pills. Same press feedback as a pill.
+*/
+
+class MobileNavRow extends View [ width = { parent.width }, height = 44, cornerRadius = 8,
+    label:   string = "",
+    url:     string = "",
+    to:      string = "",
+    hovered: boolean = false,
+    pressed: boolean = false,
+
+    fill = { pressed ? theme.pillPress : hovered ? theme.pillHover : null },
+    onMouseOver() { hovered = true },
+    onMouseOut()  { hovered = false; pressed = false },
+    onMouseDown() { pressed = true },
+    onMouseUp()   { pressed = false },
+    onClick()     { app.menuOpen = false; if (classroot.to != "") app.location = classroot.to; else if (classroot.url != "") app.navigate(classroot.url) },
+
+    lbl: Text [ x = 14, y = center, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 16, fontWeight = medium,
+        text = { classroot.label },
+        textColor = { classroot.hovered || classroot.pressed ? theme.text : theme.lead } ],
+    ]
+
+
+/*
 ## Section furniture
 
 The repeated shapes the numbered sections are built from: an idea `Card`
@@ -195,43 +223,40 @@ class FootLink extends FootLabel [
     ]
 
 
+// the footer separator: a faint dot that drops out once the row wraps, so no dot
+// is ever stranded at a line's end (the 620 line is where the row stops fitting)
+
+class FootSep extends FootLabel [ text = "·", textColor = { theme.faint }, visible = { parent.width >= 620 } ]
+
 class Footer extends View [ width = { parent.width },
     layout: SimpleLayout [ axis = y, spacing = 16 ],
     rule: View [ width = { parent.width }, height = 1, fill = { theme.line } ],
-    row: View [ width = { parent.width }, height = { this.left.height },
 
-        // two groups on one line: provenance LEFT, legal RIGHT (x derives
-        // from the group’s own measured width — right-justified reactively)
+    // one centered flow — every item on a line, dot-separated at full width. As
+    // the width narrows the separator dots drop out and the items wrap to centered
+    // rows (the wider spacing keeps them legible), so provenance and legal never
+    // collide the way a left/right split does. Dropping the dots on wrap is what
+    // avoids a stranded separator at a line's end.
 
-        left: View [ layout: SimpleLayout [ axis = x, spacing = 12 ],
+    row: View [ width = { parent.width }, height = { this.contentHeight },
+        layout: WrappingLayout [ align = center, spacing = { parent.width >= 620 ? 10 : 18 }, lineSpacing = 10 ],
 
-            // one text RUN, not two spaced views — HTMLText carries the brand
-            // accent inline, so "Built in Declare" keeps a word space, not a gap
+        // "Built in Declare" is one text RUN (HTMLText carries the brand accent
+        // inline), so it keeps a word space, not a gap
 
-            built: HTMLText [ width = 104, fontSize = 13, fontWeight = semibold, bodyColor = { theme.muted },
-                accents = { ({ g: theme.brand }) },
-                html = "Built in <span class='g'>Declare</span>" ],
-            FootLabel [ textColor = { theme.faint }, text = "·" ],
-
-            // source affordance in the same eyebrow treatment
-
-            src: FootLink [ to = "apps/homepage/homepage.declare?viewer", text = "View Source" ],
-            ],
-
-        right: View [ x = { parent.width - this.width },
-            layout: SimpleLayout [ axis = x, spacing = 12 ],
-
-            // the deep artifacts, then the legal line; the license is a real
-            // artifact (repo-root LICENSE) — the label opens it
-
-            FootLink [ to = "apps/docs/docs.declare", text = "Docs" ],
-            FootLabel [ textColor = { theme.faint }, text = "·" ],
-            FootLink [ to = "https://github.com/davidtemkin/declarelang", text = "GitHub" ],
-            FootLabel [ textColor = { theme.faint }, text = "·" ],
-            lic: FootLink [ to = "https://github.com/davidtemkin/declarelang/blob/main/LICENSE", text = "MIT License" ],
-            FootLabel [ textColor = { theme.faint }, text = "·" ],
-            FootLabel [ text = "© 2026 David Temkin" ],
-            ],
+        built: HTMLText [ width = 108, fontSize = 13, fontWeight = semibold, bodyColor = { theme.muted },
+            accents = { ({ g: theme.brand }) },
+            html = "Built in <span class='g'>Declare</span>" ],
+        FootSep [ ],
+        FootLink [ to = "apps/homepage/homepage.declare?viewer", text = "View Source" ],
+        FootSep [ ],
+        FootLink [ to = "apps/docs/docs.declare", text = "Docs" ],
+        FootSep [ ],
+        FootLink [ to = "https://github.com/davidtemkin/declarelang", text = "GitHub" ],
+        FootSep [ ],
+        lic: FootLink [ to = "https://github.com/davidtemkin/declarelang/blob/main/LICENSE", text = "MIT License" ],
+        FootSep [ ],
+        FootLabel [ text = "© 2026 David Temkin" ],
         ],
     ]
 
@@ -295,13 +320,13 @@ class SourcePanel extends View [ width = { parent.width < 760 ? parent.width : M
     // the compile report, at the panel — a broken edit shows its error right here
     // (the last good preview keeps running beside it); host feeds app.liveReport
 
-    err: View [ width = { parent.width }, fill = #2A1518,
+    err: View [ width = { parent.width }, fill = { theme.errBg },
         visible = { app.liveCard == classroot.editName && app.liveReport != "" },
         y = { parent.height - this.height },
         height = { this.msg.height + 16 },
-        bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = #E0525E ],
+        bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { theme.errBar } ],
         msg: Text [ x = 14, y = 8, width = { parent.width - 28 }, wrap = true,
-            fontFamily = [Mono, "monospace"], fontSize = 11, textColor = #F2A0A6,
+            fontFamily = [Mono, "monospace"], fontSize = 11, textColor = { theme.errText },
             text = { app.liveReport } ],
         ],
     ]
@@ -440,13 +465,13 @@ class FullPageEditor extends View [ width = { app.width }, height = { app.height
 
     // the compile report for a broken page edit, over the bottom of the code pane
 
-    err: View [ x = 0, width = { classroot.splitX }, fill = #2A1518,
+    err: View [ x = 0, width = { classroot.splitX }, fill = { theme.errBg },
         visible = { classroot.open && app.liveCard == "__page__" && app.liveReport != "" },
         y = { parent.height - this.height },
         height = { this.msg.height + 16 },
-        bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = #E0525E ],
+        bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { theme.errBar } ],
         msg: Text [ x = 16, y = 8, width = { parent.width - 32 }, wrap = true,
-            fontFamily = [Mono, "monospace"], fontSize = 12, textColor = #F2A0A6,
+            fontFamily = [Mono, "monospace"], fontSize = 12, textColor = { theme.errText },
             text = { app.liveReport } ],
         ],
     ]
@@ -503,7 +528,10 @@ App [ appName = "Declare",
         surface: 0x101E28, hover: 0x162A36, pillHover: 0x1C2D39, pillPress: 0x24384A,
         // rules and strokes
         line: 0x263D4C, panelLine: 0x1E313C, revertLine: 0x26414F, pointRule: 0x345B84,
-        grid: 0x172A38 }) },
+        grid: 0x172A38,
+        // the error strip, the demo stage, and the overlay grounds
+        errBg: 0x2A1518, errBar: 0xE0525E, errText: 0xF2A0A6,
+        stage: 0x151A22, scrim: 0x0B141BB3, shade: 0x00000066 }) },
     fill = { theme.ink },
     fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 17, fontWeight = normal,
     textColor = { theme.text },
@@ -542,6 +570,24 @@ App [ appName = "Declare",
     liveCard: string = "",
     liveSource: string = "",
 
+    // the site nav — ONE list of destinations, shared by the header pills (wide)
+    // and the mobile sheet (narrow), so a link added here appears in both and the
+    // two can never drift. `to` is an in-app location (a fragment), `url` an
+    // out-of-app target (the `navigate` service action) — each item uses one.
+    // `navData` is the datapath wrapper both surfaces replicate from; `menuOpen`
+    // is the sheet's toggle.
+
+    navItems: array = { [
+        ({ label: "Getting Started", to: "getstarted", url: "" }),
+        ({ label: "Why Declare",     to: "why",        url: "" }),
+        ({ label: "FAQ",             to: "faq",        url: "" }),
+        ({ label: "Calendar", to: "", url: "apps/calendar/calendar.declare" }),
+        ({ label: "Desktop",  to: "", url: "apps/desktop/desktop.declare" }),
+        ({ label: "Docs",     to: "", url: "apps/docs/docs.declare" }),
+        ] },
+    navSource: Dataset [ contents = { ({ items: app.navItems }) } ],
+    menuOpen: boolean = false,
+
     // the content measure and the centering gutter — the one geometry every
     // aligned edge on the page (column, wordmark, nav) derives from
 
@@ -561,7 +607,7 @@ App [ appName = "Declare",
 
         page: View [ width = { Math.min(app.measure, app.width - 48) },
             x = { app.gutter }, y = 96,
-            layout: SimpleLayout [ axis = y, spacing = 112 ],
+            layout: SimpleLayout [ axis = y, spacing = { parent.width < 660 ? 72 : 112 } ],
 
             /* ### Hero — the name, the claim, and the two doors in
                (GitHub, or edit this page’s own source) */
@@ -597,7 +643,7 @@ App [ appName = "Declare",
                 // the two doors in, side by side with a quiet dot between
 
                 learn: View [ width = { parent.width },
-                    layout: SimpleLayout [ axis = x, spacing = 16 ],
+                    layout: ResponsiveLayout [ plan = { [({ from: 600, flow: "row", gap: 16 }), ({ from: 0, flow: "stack", gap: 8 })] } ],
                     why: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
                         hovered: boolean = false,
                         textColor = { this.hovered ? theme.linkHover : theme.accent }, text = "Why a new language, now? →",
@@ -605,7 +651,7 @@ App [ appName = "Declare",
                         onMouseOut() { this.hovered = false },
                         onClick() { app.location = "why" },
                         ],
-                    Dot [ y = 1 ],
+                    Dot [ y = 1, visible = { parent.width >= 600 } ],
                     onefile: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
                         hovered: boolean = false,
                         textColor = { this.hovered ? theme.linkHover : theme.accent }, text = "Declare, in one file, for you and your LLM →",
@@ -635,7 +681,11 @@ App [ appName = "Declare",
                         text = "Declare Calendar: Concise. Clear. Continuous." ],
                     ],
 
-                actions: View [ layout: SimpleLayout [ axis = x, spacing = 18 ],
+                // the row spans the column so the plan answers to the COLUMN's
+                // width — a self-measuring (auto-width) row would read its own
+                // content and lock into whichever regime it booted in
+                actions: View [ width = { parent.width },
+                    layout: ResponsiveLayout [ plan = { [({ from: 480, flow: "row", gap: 18 }), ({ from: 0, flow: "stack", gap: 16 })] } ],
                     Button [ width = 240, label = "Run Declare Calendar →",
                         onClick() { app.navigate("apps/calendar/calendar.declare") },
                         ],
@@ -682,7 +732,7 @@ App [ appName = "Declare",
                 SectionHead [ num = "02", head = "Read it. Generate it. Run it.",
                     lead = "The relationships that matter — structure, data, reactivity — are explicit in the language, not hidden in imperative steps or a runtime graph." ],
                 cards: View [ width = { parent.width },
-                    layout: WrappingLayout [ spacing = 24, lineSpacing = 24 ],
+                    layout: WrappingLayout [ spacing = 24, lineSpacing = 24, align = center ],
                     Card [ title = "Analyzable", body = "A program’s whole structure — components, data, what reacts to what — is right there in the source. The compiler reads it statically; so can an LLM." ],
                     Card [ title = "Predictable", body = "One clear way to write each thing, and the compiler rejects the rest — no dependency arrays, no keys, no stale-value bugs. An LLM’s mistake is a compile error that names the fix — not an app that quietly runs wrong." ],
                     Card [ title = "Runnable", body = "The compiler runs in the browser, so code renders the moment it exists — no build, no deploy. Write it and it’s live." ],
@@ -794,7 +844,7 @@ App [ appName = "Declare",
                     // reads as part of one surface instead of a pasted rectangle
 
                     stage: View [ width = { parent.width }, height = 150,
-                        cornerRadius = 12, clip = true, fill = 0x151A22,
+                        cornerRadius = 12, clip = true, fill = { theme.stage },
                         stroke = { stroke(1, theme.panelLine) },
                         PreviewFrame [ x = center, y = 0, height = 150,
                             width = { Math.min(460, parent.width) }, runName = "derived" ],
@@ -894,7 +944,7 @@ App [ appName = "Declare",
                     merely rejects, by a double-digit margin.
                     """ ],
                 sources: View [ width = { parent.width },
-                    layout: SimpleLayout [ axis = x, spacing = 20 ],
+                    layout: ResponsiveLayout [ plan = { [({ from: 560, flow: "row", gap: 20 }), ({ from: 0, flow: "stack", gap: 8 })] } ],
                     lbl: Text [ fontSize = 14, wrap = false, textColor = { theme.faint }, text = "The studies:" ],
                     s1: Text [ fontSize = 14, wrap = false,
                         hovered: boolean = false,
@@ -1081,27 +1131,33 @@ App [ appName = "Declare",
             ],
 
         // primary nav — auto-width, right-aligned to the same gutter the content
-        // ends at (x = right edge − own width); the padded pills carry the spacing
+        // ends at (x = right edge − own width); the padded pills carry the spacing.
+        // WIDE (≥760): one NavLink per navItems entry. NARROW: the row would ride
+        // the wordmark, so it yields to the kebab and the whole list moves to the
+        // sheet — nothing is dropped, unlike a progressively-trimmed pill row.
 
-        nav: View [ y = 11, x = { app.width - app.gutter - this.width },
+        nav: View [ y = 11, x = { app.width - app.gutter - this.width }, visible = { app.width >= 760 },
             layout: SimpleLayout [ axis = x, spacing = 2 ],
-            NavLink [ label = "Getting Started", to = "getstarted" ],
-            NavLink [ label = "Why Declare", to = "why" ],
+            datapath = { app.navSource.value },
+            NavLink [ datapath = :items[], label = { :label }, to = { :to }, url = { :url } ],
+            ],
 
-            // FAQ sits right after the pitch — the question-form follow-on a
-            // new visitor reaches for before the deep artifacts
+        // the kebab — three stacked dots (the page's dot motif), the pill's own
+        // press feedback, toggling the sheet
 
-            NavLink [ label = "FAQ", to = "faq" ],
-
-            // redundant at phone width (section 02 links it) — drop it before the nav rides the wordmark
-
-            NavLink [ label = "Calendar", url = "apps/calendar/calendar.declare", visible = { app.width >= 620 } ],
-
-            // desktop drops first as the window narrows — the widest link, kept
-            // only while the nav clears the wordmark
-
-            NavLink [ label = "Desktop", url = "apps/desktop/desktop.declare", visible = { app.width >= 760 } ],
-            NavLink [ label = "Docs", url = "apps/docs/docs.declare" ],
+        kebab: View [ y = 11, width = 34, height = 33, cornerRadius = 8, visible = { app.width < 760 },
+            x = { app.width - app.gutter - this.width },
+            hovered: boolean = false,
+            pressed: boolean = false,
+            fill = { pressed ? theme.pillPress : hovered ? theme.pillHover : null },
+            onMouseOver() { hovered = true },
+            onMouseOut()  { hovered = false; pressed = false },
+            onMouseDown() { pressed = true },
+            onMouseUp()   { pressed = false },
+            onClick()     { app.menuOpen = !app.menuOpen },
+            d1: View [ x = center, y = 8,  width = 3, height = 3, cornerRadius = 1.5, fill = { parent.hovered || parent.pressed ? theme.text : theme.muted } ],
+            d2: View [ x = center, y = 15, width = 3, height = 3, cornerRadius = 1.5, fill = { parent.hovered || parent.pressed ? theme.text : theme.muted } ],
+            d3: View [ x = center, y = 22, width = 3, height = 3, cornerRadius = 1.5, fill = { parent.hovered || parent.pressed ? theme.text : theme.muted } ],
             ],
         ],
 
@@ -1128,5 +1184,26 @@ App [ appName = "Declare",
             stiffness = 120, damping = 14, mass = 0.6, epsilon = 0.05 ],
         followY: Spring [ attribute = y, to = { app.pointerY - 5 },
             stiffness = 120, damping = 14, mass = 0.6, epsilon = 0.05 ],
+        ],
+
+    // the mobile nav sheet — the kebab's menu, above everything. A dim scrim below
+    // the header catches an outside tap (and leaves the header + kebab lit, so the
+    // kebab still toggles it shut); the top-right panel lists every destination as
+    // a thumb-height row, replicated from the SAME navData as the pills. Auto-hides
+    // if the window is widened back past the breakpoint.
+
+    navSheet: View [ visible = { app.menuOpen && app.width < 760 }, width = { app.width }, height = { app.height },
+        scrim: View [ y = 56, width = { parent.width }, height = { parent.height - 56 }, fill = { theme.scrim },
+            onClick() { app.menuOpen = false },
+            ],
+        panel: View [ x = { app.width - app.gutter - this.width }, y = 62, width = 236, cornerRadius = 12,
+            fill = { theme.surface }, shadow = { shadow(0, 12, 40, theme.shade) },
+            height = { app.navItems.length * 44 + 12 },
+            list: View [ x = 6, y = 6, width = { parent.width - 12 },
+                layout: SimpleLayout [ axis = y, spacing = 0 ],
+                datapath = { app.navSource.value },
+                MobileNavRow [ datapath = :items[], label = { :label }, to = { :to }, url = { :url } ],
+                ],
+            ],
         ],
     ]

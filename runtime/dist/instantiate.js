@@ -906,18 +906,30 @@ function buildLayout(el, owner, ctx) {
     // methods (place(), …) and any set attributes, mirroring construct().
     if (userClass !== undefined) {
         const layout = new ctx.layoutCtors[el.tag]();
+        layout.parent = owner;
         installLayoutClass(layout, el, userClass, owner, ctx);
         return layout;
     }
-    // A built-in strategy (SimpleLayout): literal attributes only.
+    // A built-in strategy (SimpleLayout): a literal lands directly; a `{ }` binding
+    // installs a constraint over the strategy's slot — the same reactive path a user
+    // layout subclass takes (installLayoutClass), so `axis`/`spacing` re-flow live.
     const strategy = new LAYOUTS[el.tag]();
+    // Wire the arranged view (its `parent`) BEFORE the strategy's own attributes
+    // bind, so an `axis`/`spacing` constraint reading `parent.width` resolves at its
+    // first eval — attachTo re-wires the identical ref when the slot is pushed.
+    strategy.parent = owner;
     const schema = ctx.schemas[el.tag];
+    const croot = owner.classroot ?? owner;
     for (const a of el.attrs) {
+        if (a.value.kind === "code") {
+            bindConstraint(strategy, a.name, a.value.src, a.value.pos, croot);
+            continue;
+        }
         const r = checkAttr(schema, a);
         if (!r.ok)
             throw r.error;
         if (!("value" in r) || isPercent(r.value)) {
-            throw new DeclareError(`${el.tag}.${a.name}: a layout attribute takes a literal`, a.pos);
+            throw new DeclareError(`${el.tag}.${a.name}: a layout attribute takes a literal or { }`, a.pos);
         }
         strategy[a.name] = r.value;
     }

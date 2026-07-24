@@ -1,11 +1,11 @@
-// Compile a `{ }` body — the in-runtime evaluation path, and deliberately a
-// seam: the compiler front-end (APPROACH §5) will hand these bodies to tsc,
-// typecheck them against the component's declared attributes, and emit
-// prewired dependencies; this module is exactly what that replaces. Until
-// then a body is compiled with the platform's own parser (`new Function`) —
-// full TypeScript-*expression* syntax minus type annotations, zero
-// dependencies, and a real syntax check the checker can report at check time
-// with a source position.
+// Compile a `{ }` body — the in-runtime evaluation path. The compiler
+// front-end DOES hand bodies to tsc (typecheck.ts), consume their type syntax
+// (strip-types.ts removes `as`/`satisfies`/`!`/`<T>` before the source gets
+// here), and emit prewired dependencies (dep-extract.ts) — so what this module
+// receives is plain-JS text, compiled with `new Function`: zero dependencies,
+// and a real syntax check the checker can report at check time with a source
+// position. On an unannotated tree (direct instantiate) it remains the whole
+// evaluation story, tracking included.
 //
 // Scope inside a body: the three injected scope nouns of language §11 — `this`
 // (the node the code is on), `parent` (its view-tree parent), and `classroot`

@@ -32,7 +32,6 @@ import {
   Text,
   Image,
   Layout,
-  SimpleLayout,
   record,
   validatePathData,
   DeclareError,
@@ -1550,11 +1549,24 @@ await test("compileTracked(): the closure captures the auto-included library + m
 // The whole R7 surface is Node-testable: strategies are model machinery
 // (constraints over children geometry), no browser measurement involved.
 
+
+// ── Layout strategies live in the LIBRARY now (library/simplelayout.declare,
+// wrappinglayout.declare, responsive.declare, spacer.declare) — these tests
+// compile through the Node host (auto-include pulls the library classes in),
+// then boot the self-contained output on the runtime, exactly as every real
+// caller does. checkL surfaces the same post-merge check errors.
+const checkL = (src) => compile(src, {}).errors;
+const buildL = (src) => {
+  const r = compile(src, {});
+  if (r.errors.length > 0) throw new DeclareErrors(r.errors);
+  return build(r.source, { deps: r.deps, links: r.links });
+};
+
 await test("the layout member checks: axis is an enum, spacing a number, null legal", () => {
-  assert.deepEqual(check(parseProgram(
+  assert.deepEqual(checkL((
     "App [ width=1, height=1, layout: SimpleLayout [ axis = x, spacing = -10 ] ]")), []);
-  assert.deepEqual(check(parseProgram("App [ width=1, height=1, layout = null ]")), []);
-  const errs = check(parseProgram(
+  assert.deepEqual(checkL(("App [ width=1, height=1, layout = null ]")), []);
+  const errs = checkL((
     "App [ width=1, height=1, layout: SimpleLayout [ axis = up, spacing = \"wide\" ] ]"));
   assert.equal(errs.length, 2);
   assert.match(errs[0].message, /SimpleLayout\.axis expects an Axis \(one of x \| y\), got 'up'/);
@@ -1577,22 +1589,30 @@ await test("a layout is an attribute, not a child — every misplacement is a po
       /App\.layout = \{ … \}: a component slot takes a member .* constraining it is not yet surface/],
   ];
   for (const [src, re] of cases) {
-    const errs = check(parseProgram(src));
+    const errs = checkL((src));
     assert.ok(errs.length >= 1, src);
     assert.match(errs[0].message, re, src);
   }
   // The root itself cannot be a layout.
-  assert.match(check(parse("SimpleLayout [ ]"))[0].message, /a layout is an attribute, not a child/);
+  assert.match(checkL("SimpleLayout [ ]")[0].message, /a layout is an attribute, not a child/);
 });
 
-await test("a layout element takes literal attributes only — no decls, methods, children, or { }", () => {
-  const errs = check(parseProgram(`App [ width=1, height=1,
+await test("a layout element takes no decls, methods, or children; { } constraints ARE legal", () => {
+  const errs = checkL((`App [ width=1, height=1,
     layout: SimpleLayout [ gap: number = 2, poke() { 1 }, View [ ], spacing = { g } ] ]`));
-  assert.equal(errs.length, 4);
+  assert.equal(errs.length, 3);
   assert.match(errs[0].message, /SimpleLayout\.gap: a layout declares no new attributes/);
   assert.match(errs[1].message, /SimpleLayout\.poke: a layout has no methods/);
   assert.match(errs[2].message, /a layout has no children — it arranges its view's/);
-  assert.match(errs[3].message, /SimpleLayout\.spacing = \{ … \}: a layout attribute takes a literal/);
+  // A layout attribute is reactive like any other: `{ }` binds a constraint
+  // (the responsive stacking idiom), `:path` alone is refused.
+  const ok = checkL((`App [ width=1, height=1,
+    layout: SimpleLayout [ axis = { parent.width < 500 ? "y" : "x" }, spacing = { parent.width < 500 ? 6 : 12 } ] ]`));
+  assert.deepEqual(ok, [], "axis/spacing take { } constraints");
+  const path = checkL((`App [ width=1, height=1,
+    layout: SimpleLayout [ spacing = :gap ] ]`));
+  assert.equal(path.length, 1);
+  assert.match(path[0].message, /a layout attribute takes a literal or \{ \}/);
 });
 
 await test("a class may extend a layout strategy — custom layouts (class X extends TweenLayout)", () => {
@@ -1608,20 +1628,20 @@ await test("a class may extend a layout strategy — custom layouts (class X ext
 });
 
 await test("SimpleLayout stacks visible children in child order — the sanctioned semantic order", () => {
-  const app = build(`App [ width=100, height=200,
+  const app = buildL(`App [ width=100, height=200,
     layout: SimpleLayout [ axis = y, spacing = 4 ],
     View [ width=10, height=10 ],
     View [ width=10, height=20 ],
     View [ width=10, height=30 ] ]`);
   assert.deepEqual(app.children.map((c) => c.y), [0, 14, 38], "cursor = prev y + prev height + spacing");
   assert.deepEqual(app.children.map((c) => c.x), [0, 0, 0], "the cross axis is untouched");
-  assert.ok(app.layout instanceof SimpleLayout, "the strategy IS the attribute's value");
+  assert.equal(app.layout.constructor.name, "SimpleLayout", "the strategy IS the attribute's value");
   assert.ok(app.layout instanceof Layout);
   assert.equal(app.children.length, 3, "the layout member is not a child");
 });
 
 await test("axis = x stacks horizontally; negative spacing overlaps (the weather app's -10)", () => {
-  const app = build(`App [ width=200, height=100,
+  const app = buildL(`App [ width=200, height=100,
     layout: SimpleLayout [ axis = x, spacing = -10 ],
     View [ width=50, height=10 ], View [ width=50, height=10 ] ]`);
   assert.deepEqual(app.children.map((c) => c.x), [0, 40]);
@@ -1629,7 +1649,7 @@ await test("axis = x stacks horizontally; negative spacing overlaps (the weather
 });
 
 await test("a child's size change re-flows exactly the children after it", () => {
-  const app = build(`App [ width=100, height=200,
+  const app = buildL(`App [ width=100, height=200,
     layout: SimpleLayout [ axis = y ],
     View [ width=10, height=10 ], View [ width=10, height=20 ], View [ width=10, height=30 ] ]`);
   app.children[0].height = 15;
@@ -1637,14 +1657,17 @@ await test("a child's size change re-flows exactly the children after it", () =>
   assert.deepEqual(app.children.map((c) => c.y), [0, 15, 35], "successors moved");
 });
 
-await test("re-layout precision: the tail wakes nothing; a middle change runs only its successors", () => {
-  const app = build(`App [ width=100, height=200,
+await test("re-layout: ONE pass per change, equality-gated fan-out; a no-op write wakes nothing", () => {
+  const app = buildL(`App [ width=100, height=200,
     layout: SimpleLayout [ axis = y, spacing = 2 ],
     View [ width=10, height=10 ], View [ width=10, height=10 ],
     View [ width=10, height=10 ], View [ width=10, height=10 ] ]`);
   settle();
-  // Count layout-constraint runs through their tracked `spacing` reads (each
-  // laid child with a visible predecessor reads it exactly once per run).
+  // Count place() passes through the tracked `spacing` reads: the ONE
+  // pass-constraint reads spacing once per visible child per run (4 here) —
+  // so reads / 4 = passes. The kernel model: any relevant change re-runs the
+  // pass once; the equality gate at each slot write keeps downstream wakes
+  // (pushes, paints) to exactly the children that moved.
   const strategy = app.layout;
   const proto = Object.getPrototypeOf(strategy);
   const desc = Object.getOwnPropertyDescriptor(proto, "spacing");
@@ -1653,21 +1676,18 @@ await test("re-layout precision: the tail wakes nothing; a middle change runs on
     get() { reads++; return desc.get.call(this); },
     set(v) { desc.set.call(this, v); },
   });
-  app.children[3].height = 99; // the LAST child: no constraint reads it
+  app.children[1].height = 25; // arrange pass + shape watcher; [2] and [3] move
   settle();
-  assert.equal(reads, 0, "growing the tail re-runs no layout work at all");
-  app.children[1].height = 25; // wakes [2], whose move wakes [3]
-  settle();
-  assert.equal(reads, 2, "exactly the two successors re-ran");
+  assert.equal(reads, 8, "two place() runs — the arrange pass and the shape watcher");
   assert.deepEqual(app.children.map((c) => c.y), [0, 12, 39, 51]);
   reads = 0;
   app.children[0].height = 10; // unchanged value: equality-gated at the slot
   settle();
-  assert.equal(reads, 0, "a no-op write wakes nothing");
+  assert.equal(reads, 0, "a no-op write wakes nothing — not even the pass");
 });
 
 await test("invisible children are skipped and their space reclaimed; re-showing restores it", () => {
-  const app = build(`App [ width=100, height=200,
+  const app = buildL(`App [ width=100, height=200,
     layout: SimpleLayout [ axis = y ],
     View [ width=10, height=10 ], View [ width=10, height=20 ], View [ width=10, height=30 ] ]`);
   app.children[1].visible = false;
@@ -1680,7 +1700,7 @@ await test("invisible children are skipped and their space reclaimed; re-showing
 });
 
 await test("spacing is live: a write re-flows the stack through the ordinary wake", () => {
-  const app = build(`App [ width=100, height=200,
+  const app = buildL(`App [ width=100, height=200,
     layout: SimpleLayout [ axis = y ],
     View [ width=10, height=10 ], View [ width=10, height=10 ] ]`);
   app.layout.spacing = 8;
@@ -1689,7 +1709,7 @@ await test("spacing is live: a write re-flows the stack through the ordinary wak
 });
 
 await test("axis is structural: changing it re-installs, releasing the old axis", () => {
-  const app = build(`App [ width=100, height=200,
+  const app = buildL(`App [ width=100, height=200,
     layout: SimpleLayout [ axis = y ],
     View [ width=10, height=20 ], View [ width=30, height=20 ] ]`);
   app.layout.axis = "x";
@@ -1701,7 +1721,7 @@ await test("axis is structural: changing it re-installs, releasing the old axis"
 });
 
 await test("the layout owns laid positions: a direct write errors naming it; a literal is overridden", () => {
-  const app = build(`App [ width=100, height=200,
+  const app = buildL(`App [ width=100, height=200,
     layout: SimpleLayout [ axis = y ],
     View [ width=10, height=10 ], View [ width=10, height=10, y=99 ] ]`);
   // The Appendix-A-compatible rule: a laid-axis literal simply loses to the
@@ -1722,7 +1742,7 @@ await test("the layout owns laid positions: a direct write errors naming it; a l
 await test("a laid axis with its own author binding is a hard conflict — two owners, one slot", () => {
   for (const bound of ["y={ parent.height - 10 }", "y=50%"]) {
     assert.throws(
-      () => build(`App [ width=100, height=200,
+      () => buildL(`App [ width=100, height=200,
         layout: SimpleLayout [ axis = y ],
         View [ width=10, height=10, ${bound} ] ]`),
       /View\.y is already bound \(by App's SimpleLayout\[y\]\)/,
@@ -1732,10 +1752,16 @@ await test("a laid axis with its own author binding is a hard conflict — two o
 });
 
 await test("the layout slot is swappable and cancellable at runtime (the doc's reactive slot)", () => {
-  const app = build(`App [ width=100, height=200,
+  const app = buildL(`App [ width=100, height=200,
     layout: SimpleLayout [ axis = y ],
     View [ width=10, height=10 ], View [ width=10, height=10 ] ]`);
-  const swap = new SimpleLayout();
+  // an imperative swap uses a runtime-side strategy (the library SimpleLayout
+  // is a compiled class; the kernel seam is the same either way)
+  class TestStack extends Layout {
+    spacing = 0;
+    place() { let y = 0; return this.laid().map((c) => { const b = { y }; if (c.visible) y += c.height + this.spacing; return b; }); }
+  }
+  const swap = new TestStack();
   swap.spacing = 5;
   app.layout = swap; // uninstall old, install new — one write
   settle();
@@ -1749,7 +1775,10 @@ await test("the layout slot is swappable and cancellable at runtime (the doc's r
 
 await test("one strategy arranges one view", () => {
   const a = build("App [ width=1, height=1, View [ width=1, height=1 ] ]");
-  const s = new SimpleLayout();
+  class TestStack2 extends Layout {
+    place() { return this.laid().map(() => ({ y: 0 })); }
+  }
+  const s = new TestStack2();
   a.layout = s;
   const b = build("App [ width=1, height=1 ]");
   assert.throws(() => { b.layout = s; }, /already arranges a App — one strategy per view/);
@@ -1760,17 +1789,17 @@ await test("a class-body layout expands per instance; the use site overrides or 
       layout: SimpleLayout [ axis = y, spacing = 2 ],
       View [ width=10, height=10 ], View [ width=10, height=10 ] ]
     App [ width=100, height=100, s: Stack [ ${use} ] ]`;
-  const plain = build(src(""));
+  const plain = buildL(src(""));
   assert.equal(plain.s.children[1].y, 12, "the class body's arrangement runs on the instance");
-  const overridden = build(src("layout: SimpleLayout [ axis = y, spacing = 9 ]"));
+  const overridden = buildL(src("layout: SimpleLayout [ axis = y, spacing = 9 ]"));
   assert.equal(overridden.s.children[1].y, 19, "nearest provider wins — the use site's layout");
-  const cancelled = build(src("layout = null"));
+  const cancelled = buildL(src("layout = null"));
   assert.equal(cancelled.s.children[1].y, 0, "layout = null turns the inherited arrangement off");
   assert.equal(cancelled.s.layout, null);
 });
 
 await test("two instances of one class stack independently", () => {
-  const app = build(`class Stack extends View [
+  const app = buildL(`class Stack extends View [
       layout: SimpleLayout [ axis = y ],
       View [ width=10, height=10 ], View [ width=10, height=10 ] ]
     App [ width=100, height=100, a: Stack [ ], b: Stack [ ] ]`);
@@ -1781,14 +1810,14 @@ await test("two instances of one class stack independently", () => {
 });
 
 await test("the layout member's position among members is inert; CHILD order is semantic", () => {
-  const first = build(`App [ width=100, height=100, layout: SimpleLayout [ axis = y ],
+  const first = buildL(`App [ width=100, height=100, layout: SimpleLayout [ axis = y ],
     View [ width=10, height=10 ], View [ width=10, height=20 ] ]`);
-  const last = build(`App [ width=100, height=100,
+  const last = buildL(`App [ width=100, height=100,
     View [ width=10, height=10 ], View [ width=10, height=20 ],
     layout: SimpleLayout [ axis = y ] ]`);
   assert.deepEqual(first.children.map((c) => c.y), last.children.map((c) => c.y),
     "an attribute's position never matters — even this one's");
-  const swapped = build(`App [ width=100, height=100, layout: SimpleLayout [ axis = y ],
+  const swapped = buildL(`App [ width=100, height=100, layout: SimpleLayout [ axis = y ],
     View [ width=10, height=20 ], View [ width=10, height=10 ] ]`);
   assert.deepEqual(swapped.children.map((c) => c.y), [0, 20],
     "reordering children reorders the stack — tree order is the meaning");
@@ -1796,7 +1825,7 @@ await test("the layout member's position among members is inert; CHILD order is 
 
 await test("onInit sees laid positions (arrangement is part of construction)", () => {
   globalThis.__laidY = null;
-  build(`App [ width=100, height=100,
+  buildL(`App [ width=100, height=100,
     onInit() { globalThis.__laidY = this.children[1].y },
     layout: SimpleLayout [ axis = y, spacing = 1 ],
     View [ width=10, height=10 ], View [ width=10, height=10 ] ]`);
@@ -1804,7 +1833,7 @@ await test("onInit sees laid positions (arrangement is part of construction)", (
 });
 
 await test("a laid tree pushes positions across the seam like any other write", () => {
-  const app = build(`App [ width=100, height=200,
+  const app = buildL(`App [ width=100, height=200,
     layout: SimpleLayout [ axis = y ],
     View [ width=10, height=10 ], View [ width=10, height=10 ] ]`);
   const log = [];
@@ -2339,9 +2368,9 @@ await test("replication: a burst of edits reconciles once, to the final data", (
 });
 
 await test("replication + layout: the arrangement re-arms on tree mutation", () => {
-  const app = build(`App [ width=100, height=100,
+  const app = buildL(`App [ width=100, height=100,
     d: Dataset { {"rows": [ {"h": 10}, {"h": 20}, {"h": 30} ]} },
-    list: View [ width = 50, height = 90, datapath = { classroot.d.value },
+    list: View [ width = 50, height = 90, datapath = { app.d.value },
       layout: SimpleLayout [ axis = y, spacing = 2 ],
       View [ width = 5, height = :h, datapath = :rows[] ],
       foot: View [ width = 5, height = 5 ],
@@ -2467,7 +2496,7 @@ await test("compile(): :paths pass through untouched; resolution stays a fixpoin
 // intrinsic sizing.
 
 const attachedExtent = (source) => {
-  const app = build(source);
+  const app = buildL(source);
   app.attach(mockBackend([]), null);
   settle(); // the microtask wave that runs ahead of first paint
   return app;
@@ -3789,7 +3818,7 @@ await test("Animator: an onStop that start()s again restarts cleanly (re-entrant
 await test("Animator: displaces a LAYOUT-laid axis; the layout re-lays on completion", () => {
   const sched = fakeScheduler();
   setClock(new Clock(sched));
-  const app = build(`App [ width=100, height=100,
+  const app = buildL(`App [ width=100, height=100,
     layout: SimpleLayout [ axis=y, spacing=10 ],
     View [ height=20 ], View [ height=20 ] ]`);
   settle();
@@ -5154,6 +5183,67 @@ App [ width = 100, height = 100,
   const r = compile(src, { typecheck: true });
   assert.equal(r.source, null);
   assert.match(r.errors.map((e) => e.message).join("\n"), /nope/);
+});
+
+await test("typed bodies: a cast SHARING a body with a :path island strips and runs (island-aware slice)", () => {
+  const src = `App [ width = 200, height = 200,
+    d: Dataset { { "tags": ["a", "b"], "n": "5", "meta": { "kind": "pin" } } },
+    card: View [ datapath = { app.d.value },
+        t: Text [ text = { (:tags as string[]).join(" · ") } ],
+        u: Text [ text = { (:n as string) + "!" } ],
+        m: Text [ text = { (:meta as { kind: string }).kind } ],
+        ],
+    ]`;
+  const r = compile(src, { typecheck: true });
+  assert.notEqual(r.source, null, "compiles + typechecks: " + r.errors.map((e) => e.message).join("; "));
+  assert.ok(!r.source.includes(" as string"), "the casts are stripped from the emitted source");
+  assert.ok(!r.source.includes(" as {"), "the object-type cast is stripped too");
+  assert.ok(r.source.includes(":tags"), "the datapath island survives verbatim");
+  const app = instantiate(parseProgram(r.source));
+  settle();
+  assert.equal(app.card.t.text, "a · b", "array cast beside an island evaluates");
+  assert.equal(app.card.u.text, "5!", "primitive cast beside an island evaluates");
+  assert.equal(app.card.m.text, "pin", "a cast TYPE containing a colon does not confuse the island scan");
+});
+
+await test("typed bodies: TS-only forms that CANNOT run are rejected at check with the rule named", () => {
+  const cases = [
+    [`App [ width=1, height=1, t: Text [ text = { [1,2].map((x: number) => x + 1).join(":") } ] ]`,
+      /annotates a binding \('x'\).*cast narrows/],
+    [`App [ width=1, height=1, n: number = 0, onClick() { const k: number = 2; n = k } ]`,
+      /annotates a binding \('k'\)/],
+    [`App [ width=1, height=1, n: number = 0, onClick() { type K = number; n = 2 } ]`,
+      /declares a type — type declarations don't live in a \{ \} body/],
+    [`App [ width=1, height=1, t: Text [ text = { ((<T>(x: T) => x)("hi")) } ] ]`,
+      /type parameter|annotates a binding/],
+    [`App [ width=1, height=1, t: Text [ text = { ((x?) => "" + x)(1) } ] ]`,
+      /annotates a binding \('x'\)/],
+  ];
+  for (const [src, re] of cases) {
+    const r = compile(src, {});
+    assert.equal(r.source, null, "must be rejected: " + src);
+    assert.match(r.errors.map((e) => e.message).join("\n"), re, src);
+  }
+});
+
+await test("typed bodies: casts beside islands in a STATEMENT body (handler) strip and run", () => {
+  const src = `App [ width = 200, height = 200,
+    picked: string = "",
+    pick(v) { this.picked = v },
+    d: Dataset { { "title": "hello", "n": 3 } },
+    card: View [ datapath = { app.d.value },
+        onClick() { const t = (:title satisfies string)!; app.pick(t + "/" + (:n as number).toFixed(0)) },
+        ],
+    ]`;
+  const r = compile(src, { typecheck: true });
+  assert.notEqual(r.source, null, "compiles + typechecks: " + r.errors.map((e) => e.message).join("; "));
+  assert.ok(!r.source.includes("satisfies"), "satisfies is stripped");
+  assert.ok(!r.source.includes(" as number"), "the cast is stripped");
+  const app = instantiate(parseProgram(r.source));
+  settle();
+  app.card.onClick();
+  settle();
+  assert.equal(app.picked, "hello/3", "the stripped statement body runs against live data");
 });
 
 // ── static extraction (static-html.ts + headless.ts — docs/system-design/capabilities.md §4–5) ──

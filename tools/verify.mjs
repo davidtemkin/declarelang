@@ -80,14 +80,21 @@ try {
 // that's rung 4's honest report; rungs 1–3 are the real win here.)
 let probeNote = null;
 if (flags.wrap && !/^\s*App\s*\[/m.test(source)) {
-  const classes = [...source.matchAll(/^\s*class\s+([A-Za-z_]\w*)\s+extends\b/gm)].map((m) => m[1]);
-  if (classes.length === 0) {
+  // A layout strategy is an ATTRIBUTE, not a child (language §5) — probe it in
+  // the `layout:` slot of a view with a couple of children to arrange.
+  const decls = [...source.matchAll(/^\s*class\s+([A-Za-z_]\w*)\s+extends\s+([A-Za-z_]\w*)/gm)]
+    .map((m) => ({ name: m[1], base: m[2] }));
+  if (decls.length === 0) {
     console.error(`verify --wrap: no top-level 'class … extends' found in ${file}`);
     process.exit(2);
   }
-  const probe = classes.map((c) => `    ${c} [ ],`).join("\n");
+  const probe = decls.map((d) =>
+    /Layout$/.test(d.base)
+      ? `    probe${d.name}: View [ width = 400, height = 200,\n        layout: ${d.name} [ ],\n        View [ width = 40, height = 20 ],\n        View [ width = 40, height = 20 ],\n        ],`
+      : `    ${d.name} [ ],`
+  ).join("\n");
   source = `${source}\n\nApp [ width = 480, height = 320,\n${probe}\n    ]\n`;
-  probeNote = `component probe: App wrapping ${classes.join(", ")}`;
+  probeNote = `component probe: App wrapping ${decls.map((d) => d.name).join(", ")}`;
 }
 
 const out = compile(source, { typecheck: flags.typecheck });

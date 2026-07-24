@@ -756,6 +756,12 @@ class FilesWindow extends Window [
     cpx0: number = 0,
     cwk: number = -1,                            // depth of the column being dragged
     pendingAt: string = "",                      // the item awaiting a possible second click (data-level double-click)
+    pendingItem: object,                         // that item's record (name/path/doc/hasKids/at) — what a second click opens
+    pendingPX: number = 0,                       // the pointer at the first click (root space) — a double-click is
+    pendingPY: number = 0,                       //   time + POINTER distance, so a row sliding under the cursor
+
+    //   (the strip's reveal scroll) can never retarget the second click
+
     focusDepth: number = -1,                     // >=0: open pinned to this column at the LEFT edge (a folder opened into a new window), ancestors scroll-left; -1: reveal the deepest column
 
     // the window's name is the deepest open node, or "Documentation"
@@ -841,7 +847,14 @@ class FilesWindow extends Window [
                 // leaf-DETAIL column once the deepest selection has no children.
                 // Each column keeps its own width (Finder: drag one seam, one column).
 
-                View [ datapath = :list[], height = { parent.height }, clip = true, fill = { theme.bg },
+                // keyed by DEPTH — the stable identity of a column. columnData mints
+                // fresh records every derivation; unkeyed, a selection change rebuilt
+                // every column (the row emptied for a frame, the native scroller
+                // clamped to 0 — a visible left-pop before the reveal scrolled back).
+                // Keyed, a selection updates columns in place: no churn, no pop, and
+                // only a genuinely NEW (deeper) column runs its reveal.
+
+                View [ datapath = :list[], key = :depth, height = { parent.height }, clip = true, fill = { theme.bg },
                     width = { classroot.widths[:depth] != null ? classroot.widths[:depth] : classroot.colW },
 
                     // a freshly-opened column reveals itself — the strip scrolls
@@ -856,6 +869,21 @@ class FilesWindow extends Window [
                     // a LIST column — this level's nodes as selectable rows
 
                     lst: View [ visible = { :items != null }, x = 0, y = 0, width = { parent.width }, height = { parent.height }, scrolls = true,
+
+                        // a second click that lands on DEAD SPACE (the reveal slide moved
+                        // the rows out from under the pointer) still completes a pointer-
+                        // anchored double-click — rows don't bubble, so this fires only
+                        // when no row took the hit
+
+                        onClick() {
+                            const near = Math.abs(app.pointerX - classroot.pendingPX) < 6 && Math.abs(app.pointerY - classroot.pendingPY) < 6
+                            const it = classroot.pendingItem as any
+                            if (classroot.pendingAt != "" && it != null && near) {
+                                classroot.pendingAt = ""
+                                if (it.hasKids) app.openFolderWindow("" + it.at, this)
+                                else classroot.openLeaf(it)
+                            }
+                            },
                         inner: View [ x = 0, y = 6, width = { parent.width }, height = { this.contentHeight + 12 },
                             layout: SimpleLayout [ axis = y, spacing = 1 ],
                             View [ datapath = :items[], width = { parent.width }, height = { classroot.rowH },
@@ -863,12 +891,28 @@ class FilesWindow extends Window [
                                 onClick() {
                                     classroot.activate()
                                     const at = "" + :at
-                                    // data-level double-click: a second click on the SAME item (keyed by
-                                    // its path, not the view) within the window opens it — a folder into a
-                                    // NEW window rooted there, a document into the viewer. Robust to the
-                                    // row re-deriving and to the strip scrolling.
-                                    if (classroot.pendingAt == at) { classroot.pendingAt = ""; if (:hasKids) app.openFolderWindow(at, this); else classroot.openLeaf(({ name: "" + :name, path: "" + :path, doc: "" + :doc })) }
-                                    else { classroot.pendingAt = at; classroot.selPath = at; setTimeout(() => { if (classroot.pendingAt == at) classroot.pendingAt = "" }, 400) }
+                                    // data-level double-click, POINTER-anchored (the OS rule: two clicks
+                                    // within a time window AND a few px of pointer travel — row identity
+                                    // deliberately NOT consulted). The second click opens the PENDING item
+                                    // even when the strip's reveal scroll has slid a different row under
+                                    // the cursor; matching rows instead let a stray hit reselect an
+                                    // ancestor and truncate the columns back toward the root, and would
+                                    // pair two distant clicks through a row that slid between them.
+                                    const near = Math.abs(app.pointerX - classroot.pendingPX) < 6 && Math.abs(app.pointerY - classroot.pendingPY) < 6
+                                    const it = classroot.pendingItem as any
+                                    if (classroot.pendingAt != "" && it != null && near) {
+                                        classroot.pendingAt = ""
+                                        if (it.hasKids) app.openFolderWindow("" + it.at, this)
+                                        else classroot.openLeaf(it)
+                                    }
+                                    else {
+                                        classroot.pendingAt = at
+                                        classroot.pendingItem = ({ name: "" + :name, path: "" + :path, doc: "" + :doc, hasKids: !!:hasKids, at: at })
+                                        classroot.pendingPX = app.pointerX
+                                        classroot.pendingPY = app.pointerY
+                                        classroot.selPath = at
+                                        setTimeout(() => { if (classroot.pendingAt == at) classroot.pendingAt = "" }, 550)
+                                    }
                                     },
                                 hl: View [ x = 4, y = 2, width = { parent.width - 8 }, height = { classroot.rowH - 4 }, cornerRadius = 5,
                                     visible = { parent.on }, fill = { theme.accent } ],

@@ -1,0 +1,140 @@
+/*
+# ResponsiveLayout — arrange children differently at different widths.
+
+A view's children often want one arrangement when there is room and another
+when there isn't: three panels side by side on a wide screen, the same panels
+stacked on a phone; an optional control that appears only when space allows.
+ResponsiveLayout states those alternatives directly. You give it a list of
+**plans** — each one says *"from this width up, arrange the children like
+this"* — and it keeps the right plan applied as the view's width changes.
+Hiding, showing, and dividing the width are all part of a plan, not separate
+wiring.
+
+    bar: View [
+        layout: ResponsiveLayout [ plan = { [
+            { from: 900, flow: "row",  share: { logo: 15, nav: 55, actions: 30 } },
+            { from: 600, flow: "row",  share: { logo: 20, nav: 80, actions: 0 } },
+            { from: 0,   flow: "stack" },
+        ] } ],
+        logo:    Logo    [ ],
+        nav:     Nav     [ ],
+        actions: Actions [ ],
+    ]
+
+Each entry's `from` means *use this plan when the view is at least this wide*
+— the entry with the largest `from` that fits wins, wherever it sits in the
+list, and an entry with `from: 0` is the fallback for anything narrower.
+`flow` is the arrangement: `"row"` places children left to right; `"stack"`
+places them top to bottom. `share` divides the width (what is left of it
+after the gaps) among the children it NAMES — the names are the view's own
+child names, checked when the layout first arranges (a name with no child is
+a loud error). `logo: 15` gives logo 15% of it; **`0` hides that child while
+the plan is active** — so "the actions disappear on small screens" is just a
+number in the narrow plan, and they reappear by themselves when the view
+widens. A child a plan does NOT name is left alone: natural width, the flow
+just places it. `gap` sets the space between children (an entry may carry
+its own `gap` to override the layout's). Heights are never touched: children
+keep their own heights, and the view's height falls out of its content, as
+always.
+
+So the example reads as a storyboard: at 900 and up, a three-across row split
+15/55/30; between 600 and 900, the actions drop and the nav takes their room;
+below 600, everything stacks.
+
+**Slack and alignment.** When a row's children keep natural widths, the run
+may not fill the view — and where the run sits is said with structure, not a
+knob: a `Spacer [ ]` child absorbs the slack. Between two groups it pushes
+them apart; one on each side centers the run; one first right-aligns it. On
+the axis the flow does not manage, a child places itself with the ordinary
+literals (`y = center` in a row). Shares that fill the width leave no slack
+at all — *shares fill; naturals align.*
+
+**Nesting — who decides what.** A ResponsiveLayout watches its own view's
+width — not the window's. The parent's plan decides how much room each child
+gets; each child decides what to do with the room it got — if the child has
+its own ResponsiveLayout, its plans answer to its own width, automatically.
+Room flows down; each level responds locally. (A plan can only name direct
+children — managing a grandchild is the child's own plan's business.)
+
+**Division of labor.** ResponsiveLayout manages NAMED regions. A collection
+of uniform, replicated cards that should reflow to fit is the other tool:
+`WrappingLayout` (it wraps by fitting, no plan needed) with a width
+constraint on the card.
+
+**When the rules aren't enough.** A plan speaks width, flow, share, and gap.
+Whole alternate configurations beyond geometry are a `State` applied on a
+width condition; fully custom geometry is a subclass overriding `place()` —
+the same seam every layout in the library is built on.
+*/
+
+class ResponsiveLayout extends Layout [
+    plan: array = { [] },
+    gap: number = 10,
+
+    place() {
+        const view = this.view as any
+        const W = view.width
+        const kids = this.laid()
+        const plans = (Array.isArray(this.plan) ? this.plan : []) as any
+
+        // The active plan: the largest `from` that fits, wherever it sits in
+        // the list; nothing fits → the smallest `from` (the nearest regime).
+        let tier = null as any
+        for (const t of plans) { const f = t.from ?? 0; if (W >= f && (tier == null || f > (tier.from ?? 0))) tier = t }
+        if (tier == null) for (const t of plans) { if (tier == null || (t.from ?? 0) < (tier.from ?? 0)) tier = t }
+        if (tier == null) tier = ({ flow: "row" })
+
+        const stack = tier.flow == "stack"
+        const gap = typeof tier.gap == "number" ? tier.gap : this.gap
+        const share = tier.share != null && typeof tier.share == "object" ? tier.share : ({})
+
+        // Resolve the share names against the view's own children — loudly.
+        const shares = new Map()
+        for (const name of Object.keys(share)) {
+            const c = view[name]
+            if (c == null || kids.indexOf(c) < 0) {
+                throw new Error("the plan names '" + name + "', but " + view.constructor.name + " has no laid child named '" + name + "'")
+            }
+            shares.set(c, share[name])
+        }
+
+        const hidden = (c) => shares.get(c) === 0
+        const flexing = (c) => (c as any).flexes === true && !hidden(c)
+
+        // What the shares divide: the width left after the gaps between the
+        // visible children (row flow); in a stack a share is simply a percent
+        // of the view's width — heights are never touched by shares.
+        let visN = 0
+        for (const c of kids) if (c.visible && !hidden(c)) visN = visN + 1
+        const avail = W - gap * Math.max(0, visN - 1)
+        const shareW = (c) => (stack ? W : avail) * (shares.get(c) as number) / 100
+
+        // Rigid content along the FLOW axis, to size the spacers: widths in a
+        // row (a share is a width), the children's own heights in a stack.
+        let rigid = 0
+        let flexN = 0
+        for (const c of kids) {
+            if (!c.visible || hidden(c)) continue
+            if (flexing(c)) { flexN = flexN + 1; continue }
+            rigid = rigid + (stack ? c.height : (shares.has(c) ? shareW(c) : c.width))
+        }
+        const room = stack ? view.height - gap * Math.max(0, visN - 1) : avail
+        const each = flexN > 0 ? Math.max(0, room - rigid) / flexN : 0
+
+        let pos = 0
+        return kids.map((c) => {
+            if (hidden(c)) {
+                // excluded from the flow entirely: hidden, space reclaimed
+                return stack ? ({ y: pos, vis: false }) : ({ x: pos, vis: false })
+            }
+            const box = (stack ? ({ y: pos }) : ({ x: pos })) as any
+            if (shares.has(c)) box.w = shareW(c)                       // a share allocates WIDTH, both flows
+            if (flexing(c)) box[stack ? "h" : "w"] = each              // a spacer flexes along the flow axis
+            const adv = flexing(c) ? each
+                      : stack      ? c.height
+                      : shares.has(c) ? shareW(c) : c.width
+            if (c.visible) pos = pos + adv + gap
+            return box
+            })
+        },
+    ]

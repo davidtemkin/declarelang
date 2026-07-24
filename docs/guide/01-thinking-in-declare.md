@@ -31,12 +31,12 @@ App [ width = 400, height = 140, fill = darkslategray, textColor = whitesmoke,
 
     count: number = 0,                               // reactive state
 
-    add: View [ x = 20, y = 20, width = 108, height = 34, cornerRadius = 8, fill = royalblue,
+    add: View [ x = 20, y = 20, width = 120, height = 40, cornerRadius = 10, fill = royalblue,
         onClick() { count = count + 1 },
-        Text [ x = 16, y = 8, text = "Add one" ],
+        Text [ x = 20, y = 10, text = "Add one" ],
         ],
 
-    Text [ y = 74, x = { (parent.width - this.width) / 2 },
+    Text [ y = 80, x = { (parent.width - this.width) / 2 },
         text = { `Clicked ${count} times` },         // re-runs whenever count changes
         ],
     ]
@@ -127,12 +127,12 @@ App [ width = 360, height = 200, fill = white, textColor = black,
     open: boolean = false,
     t: number = 0,
     onClick() { open = !open },
-    grow: Spring [ attribute = t, to = { open ? 1 : 0 }, stiffness = 150, damping = 22 ],
-    card: View [ x = 24, y = 24, cornerRadius = 12, fill = darkslategray,
+    grow: Spring [ attribute = t, to = { open ? 1 : 0 }, stiffness = 150, damping = 20 ],
+    card: View [ x = 20, y = 20, cornerRadius = 10, fill = darkslategray,
         width  = { 230 + (1 - t) * 90 },
         height = { 44 + t * 110 },
-        title: Text [ x = 16, y = 14, textColor = white, fontWeight = bold, text = "Details" ],
-        body: Text [ x = 16, textColor = darkgray,
+        title: Text [ x = 20, y = 10, textColor = white, fontWeight = bold, text = "Details" ],
+        body: Text [ x = 20, textColor = darkgray,
             y = { 44 + t * 20 },
             opacity = { t },
             text = "the same card, seen closer" ],

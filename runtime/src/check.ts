@@ -91,10 +91,14 @@ export function check(input: Element | Program): DeclareError[] {
   // The `use` keep-list (composition.md §1c): every name must resolve to a known
   // component — a built-in, or a class the program declares or auto-includes —
   // else it is a typo that would silently keep nothing. `schemas` is the merged
-  // name→schema table (built-ins + user/auto-included classes); abstract bases
-  // (`Layout`, `RichText`) are absent, so `use`-ing one is correctly rejected.
+  // name→schema table (built-ins + user/auto-included classes). `Layout` IS in
+  // the table now (a class may extend it), but as a use-entry it names no
+  // buildable component — reject it with the pointed reason, like the other
+  // absent abstract bases (`RichText`).
   for (const name of program.uses) {
-    if (!Object.hasOwn(schemas, name)) {
+    if (name === "Layout") {
+      errors.push(new DeclareError(`use [ Layout ]: 'Layout' is the abstract base — it names no arrangement to keep. Name a concrete strategy (SimpleLayout, WrappingLayout, ResponsiveLayout, …)`, program.root.pos));
+    } else if (!Object.hasOwn(schemas, name)) {
       errors.push(new DeclareError(`use [ ${name} ]: unknown component '${name}' — a use entry names a built-in or a declared/included class`, program.root.pos));
     }
   }
@@ -1168,11 +1172,13 @@ function checkTargetSlot(
 }
 
 /** Validate a component-typed attribute's element value (R7: the `layout:`
- *  member). The element must name a component descending from `of`, and —
- *  this rung — carry literal attributes only: a strategy has no children or
- *  methods by nature, and `{ }`-driven layout attributes are a recorded open
- *  question. One message source: check() collects these, instantiate()
- *  throws the first. */
+ *  member). The element must name a component descending from `of`, and carry no
+ *  children or methods (a strategy has neither by nature). Attribute values may be
+ *  literals OR `{ }` constraints — a layout attribute is reactive like any other
+ *  (its setter re-flows: axis re-installs via rearm, spacing is read under
+ *  tracking), so a built-in strategy takes `{ }` exactly as a user layout subclass
+ *  already does (installLayoutClass). Only a `:path` cursor is refused. One message
+ *  source: check() collects these, instantiate() throws the first. */
 export function checkComponentValue(
   schemas: Readonly<Record<string, ComponentSchema>>,
   owner: string,
@@ -1184,6 +1190,12 @@ export function checkComponentValue(
   if (schema === null) return [Diag.unknownComponent(el.tag, el.pos, Object.keys(schemas))];
   if (!descendsFrom(schema, of)) {
     return [new DeclareError(`${owner}.${attrName} expects a ${of} — '${el.tag}' is not one`, el.pos)];
+  }
+  if (el.tag === "Layout") {
+    return [new DeclareError(
+      `${owner}.${attrName}: 'Layout' is the abstract base — it names no arrangement. Use a concrete strategy (SimpleLayout, WrappingLayout, …) or a class extending Layout that supplies place()`,
+      el.pos
+    )];
   }
   const errors: DeclareError[] = [];
   if (el.raw !== undefined) {
@@ -1199,16 +1211,9 @@ export function checkComponentValue(
     errors.push(new DeclareError(`a layout has no children — it arranges its view's`, c.pos));
   }
   for (const a of el.attrs) {
-    if (a.value.kind === "code") {
-      errors.push(new DeclareError(
-        `${el.tag}.${a.name} = { … }: a layout attribute takes a literal — constraining it is not yet surface (swap the whole layout by assignment instead)`,
-        a.value.pos
-      ));
-      continue;
-    }
     if (a.value.kind === "path") {
       errors.push(new DeclareError(
-        `${el.tag}.${a.name} = :${a.value.path}: a layout attribute takes a literal`,
+        `${el.tag}.${a.name} = :${a.value.path}: a layout attribute takes a literal or { } (a :path cursor cannot bind a layout slot)`,
         a.value.pos
       ));
       continue;

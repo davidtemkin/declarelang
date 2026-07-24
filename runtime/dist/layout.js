@@ -10,70 +10,115 @@
 // ../runtime/components/utils/layouts/ was read for intent; its
 // updateDelegate machinery is exactly what Cells/Constraints replaced).
 //
-// Granularity — deliberately ONE constraint PER LAID CHILD, chained, rather
-// than one layout-level pass:
+// THE SEAM — a strategy IS its `place()`: pure geometry, one Box per laid
+// child (laid() is the one definition of which children a layout manages).
+// The base's install() turns that into standing constraints; every concrete
+// arrangement — the runtime's own and any authored in Declare (a library
+// class extending Layout supplies place() as an ordinary method) — is a pure
+// function over the same seam. TweenLayout refines the WRITE path (it
+// interpolates between two snapshots of place()); nothing else overrides
+// install.
 //
-//   child[i].<axis> = nearest visible predecessor's <axis> + <size> + spacing
-//
-// Each constraint's dependencies are exactly what it read last run (the R4
-// precision rule), so the re-layout cost of a change is exactly the children
-// that actually move: the LAST child growing wakes nothing (no constraint
-// reads it); a middle child growing wakes its successor, whose position write
-// wakes the next, each running once and stopping the moment a position comes
-// out equal (the attribute layer's equality gate). A layout-level pass would
-// re-walk all N children for any change. Visibility is a tracked read too:
-// hiding child k re-runs exactly k+1's constraint (the only reader of
-// k.visible), and the rest follow only as positions actually change.
+// Granularity — ONE PASS per layout, gated fan-out (a kernel-only shape: the
+// language surface binds one slot per constraint; the kernel is free to put
+// one engine behind many slots). The pass-constraint computes place() — its
+// tracked reads (view size, the strategy's attributes, child sizes and
+// visibility) are the dependencies — and applies every box through the
+// ordinary equality-gated writes, so children that did not move produce no
+// downstream wake. Cost per relevant change: one O(N) pure-arithmetic pass +
+// writes on exactly the children that moved. (The R4 fine-grained
+// alternative — chained per-child constraints — re-ran fewer computes for
+// middle-child changes but was a bespoke wiring per strategy; the pass is
+// the uniform kernel under every place(), and the equality gate keeps the
+// expensive half — pushes and paints — exactly as precise as before.)
 //
 // Child ORDER is the semantic order (the R4 ruling's deliberate exception:
-// tree order is paint order) — a stacking layout consumes exactly it.
-// Invisible children are skipped and their space reclaimed (the LZX rule;
-// recorded as an open question with this as the recommendation). A skipped
-// child's own position still computes uniformly — the slot it would occupy —
-// so re-showing it needs no special case.
+// tree order is paint order) — a stacking layout consumes exactly it, and
+// place()'s boxes align with laid() BY INDEX. Invisible children are skipped
+// and their space reclaimed (the LZX rule); a skipped child's own position
+// still computes uniformly — the slot it would occupy — so re-showing it
+// needs no special case.
 //
-// Ownership: the layout OWNS each laid child's axis slot (the ruled
-// one-owner-per-slot model, attributes.ts). A direct author write to a laid
-// position is an error naming the layout — an author-installed arrangement is
-// declarative surface, not a runtime derive, so it does not yield (the R4
-// ruling: any write-then-resume idiom must be explicit surface). An author
-// literal on the laid axis is simply overridden at install (LZX-compatible;
-// the literal was applied in pass one, the arrangement owns the slot from
-// pass two on); an author *binding* on the laid axis is a hard conflict —
-// two standing owners — and errors naming both sides.
+// Slack and Spacer — a run that does not fill its container leaves slack,
+// and the laid children cannot absorb it themselves (their flow-axis slot is
+// owned). The structural answer is a flexing child (library Spacer, marked
+// `flexes = true`): a strategy's place() divides the slack among the flexing
+// children, and the kernel drives each one's flow-axis SIZE through a
+// percent-family constraint (markPercent) so a container deriving its own
+// extent from its children never counts a spacer — the same cycle guard
+// percent Lengths ride (a spacer's size IS parent-extent-derived).
+//
+// Ownership: a strategy owns exactly the slots its boxes carry, per child
+// (the ruled one-owner-per-slot model, attributes.ts). claim() captures each
+// slot's AUTHORED BASE at first touch; unclaim() restores it — so a vacated
+// slot (an axis flip, a plan regime change, a layout swap) reverts to the
+// authored literal or class default instead of stranding the arrangement's
+// last write. A direct author write to an owned slot is an error naming the
+// layout; an author *binding* on an owned slot is a hard conflict — two
+// standing owners — and errors naming both sides (the R4 ruling: any
+// write-then-resume idiom must be explicit surface).
 //
 // Pay-per-use: a view with no layout carries nothing (the slot's default is
 // null on the prototype); an idle laid tree is inert constraint data — zero
 // rAF, zero polling.
 import { Node } from "./node.js";
 import { Constraint } from "./reactive.js";
-import { defineAttributes, own, ownerOf, release, setBound } from "./attributes.js";
+import { defineAttributes, markPercent, own, ownerOf, release, setBound } from "./attributes.js";
 import { DeclareError } from "./errors.js";
 import { View } from "./view.js";
 import { Animator } from "./animator.js";
 import { motionToken } from "./animate.js";
-/** The abstract strategy: lifecycle only (which view it arranges, install /
- *  undo bookkeeping). What "arranging" means is the subclass's `install`.
+/** Box key → the child slot it drives, in a stable order. */
+const BOX_SLOTS = [
+    ["x", "x"],
+    ["y", "y"],
+    ["w", "width"],
+    ["h", "height"],
+    ["vis", "visible"],
+];
+/** The abstract strategy. A layout is its `place()` — pure geometry, one Box
+ *  per laid child — and the base turns that into STANDING constraints over the
+ *  children's own slots (install below). `laid()` is the one definition of
+ *  which children a layout manages. A subclass overrides `place()` to define an
+ *  arrangement; it MAY also override `install()` when it can wire the same
+ *  semantics more precisely (SimpleLayout's chained per-child constraints) or
+ *  differently in time (TweenLayout's interpolated write path).
  *
  *  A Node — like Animator and Dataset, the other non-visual declarables (the
  *  ruled model: a declarable object is a Node, so hierarchy navigation from a
  *  layout's own code behaves as a developer expects). It is NOT a tree child,
  *  though: it lives in the view's typed `layout` slot, not in `children`, so a
- *  paint/hit walk never sees it (and layouts already filter children to
- *  `instanceof View`). `parent`/`view` both point at the arranged view — the
- *  slot pusher wires them on attach — so `this.view.width`, `this.view.children`,
- *  `this.parent…` up to the root, and lexically-resolved ids all work; only the
- *  layout's own (always-empty) `children` is vestigial. `this.view` is the
- *  typed accessor (parent narrowed to View) the arrangement reads. */
+ *  paint/hit walk never sees it. `parent`/`view` both point at the arranged
+ *  view — the slot pusher wires them on attach — so `this.view.width`,
+ *  `this.view.children`, `this.parent…` up to the root, and lexically-resolved
+ *  ids all work; only the layout's own (always-empty) `children` is vestigial.
+ *  `this.view` is the typed accessor (parent narrowed to View) the arrangement
+ *  reads. */
 export class Layout extends Node {
     /** The view whose children this strategy arranges; null when unattached.
      *  Kept in step with `parent` (a Node link for upward navigation); this is
      *  the View-typed handle the arrangement uses. */
     view = null;
     undo = null;
+    /** Each claimed (child, slot)'s AUTHORED BASE value, captured at first claim
+     *  and kept across rearm. When a strategy vacates a slot (an axis flip, a
+     *  layout swap) the slot reverts to this base — the authored cross-axis
+     *  literal (`y = 15`) or the class default — instead of stranding whatever
+     *  the arrangement last wrote (release() leaves the stored value; the
+     *  restore is ours to make). */
+    bases = new Map();
     /** Begin arranging `view` (the View.layout pusher's entry). One strategy
      *  arranges one view: a strategy is written per element, and sharing one
-     *  across views would make its reactive attributes action-at-a-distance. */
+     *  across views would make its reactive attributes action-at-a-distance.
+     *
+     *  Alongside install, a SHAPE WATCHER stands guard: the set of slots a
+     *  strategy manages can itself depend on its inputs (a ResponsiveLayout
+     *  tier flip swaps row→stack and shares appear/disappear), and the
+     *  installed claims were probed from one shape. The watcher re-derives the
+     *  shape signature under tracking and REARMS on change — a rearm restores
+     *  vacated slots to their authored bases (see `rearming`) and re-probes.
+     *  It lives OUTSIDE the install/undo cycle (rearm must not dispose its own
+     *  trigger) and is disposed only on detach. */
     attachTo(view) {
         if (this.view !== null) {
             throw new DeclareError(`this ${this.constructor.name} already arranges a ${this.view.constructor.name} — one strategy per view`);
@@ -81,13 +126,32 @@ export class Layout extends Node {
         this.view = view;
         this.parent = view; // navigation back-ref (not a children entry: the layout lives in view.layout)
         this.undo = this.install(view);
+        let lastShape = null;
+        const watcher = new Constraint(`${this.constructor.name} shape`, () => this.place().map((b) => BOX_SLOTS.filter(([k]) => b[k] !== undefined).map(([k]) => k).join()).join("|"), (sig) => {
+            if (lastShape === null) {
+                lastShape = sig;
+            }
+            else if (sig !== lastShape) {
+                lastShape = sig;
+                this.rearm();
+            }
+        });
+        watcher.run();
         return () => {
+            watcher.dispose();
             this.undo?.();
             this.undo = null;
             this.view = null;
             this.parent = null;
         };
     }
+    /** True while rearm() swaps installs — unclaim restores authored bases only
+     *  then. A full detach (layout = null, a strategy swap) keeps the last
+     *  arranged values instead (the documented release semantics: the slot
+     *  reverts to a plain stored value); a rearm within ONE strategy (an axis
+     *  flip, a plan regime change) must not strand the old arrangement's
+     *  offsets on slots the new install no longer drives. */
+    rearming = false;
     /** Re-run install — the entry for a *structural* attribute change (axis),
      *  where the constraints' target slots themselves change. Value-level
      *  attributes (spacing) never need this: constraints read them under
@@ -97,133 +161,133 @@ export class Layout extends Node {
             return;
         const undo = this.undo;
         this.undo = null;
-        undo?.();
-        this.undo = this.install(this.view);
-    }
-}
-/** SimpleLayout — the stacking idiom (LZX's simplelayout, rewritten): siblings
- *  stacked along `axis` in child order, `spacing` apart (negative overlaps,
- *  per the weather app's `spacing = -10`), invisible children skipped. The
- *  cross axis is untouched, and so are the children's sizes — sizes are
- *  inputs here (a Text auto-sizing or an Image's bitmap arriving re-flows the
- *  stack through the ordinary dependency wake). */
-export class SimpleLayout extends Layout {
-    install(view) {
-        const axis = this.axis; // captured: an axis change re-targets slots, so it re-installs (see the pusher)
-        const size = axis === "x" ? "width" : "height";
-        const label = `${view.constructor.name}'s SimpleLayout[${axis}]`;
-        const kids = view.children.filter((c) => c instanceof View);
-        const installed = [];
-        const detach = () => {
-            installed.forEach((k, i) => {
-                k.dispose();
-                release(kids[i], axis, k);
-            });
-        };
+        this.rearming = true;
         try {
-            for (let i = 0; i < kids.length; i++) {
-                const child = kids[i];
-                const prior = ownerOf(child, axis);
-                if (prior !== null) {
-                    throw new DeclareError(`${child.constructor.name}.${axis} is already bound (by ${prior.label}), but ${label} arranges its children's ${axis} — drop one of the two`);
-                }
-                const k = new Constraint(label, () => {
-                    // Nearest VISIBLE predecessor, walked back in child order. The
-                    // reads (position, size, visible, spacing) are tracked, so the
-                    // dependency set is exactly this run's walk — precise under
-                    // visibility changes, per the R4 conditional-read rule.
-                    for (let j = i - 1; j >= 0; j--) {
-                        const p = kids[j];
-                        if (p.visible)
-                            return p[axis] + p[size] + this.spacing;
-                    }
-                    return 0;
-                }, (v) => setBound(child, axis, v));
-                own(child, axis, k);
-                installed.push(k);
-                k.run(); // predecessors are already placed, so one pass settles
-            }
+            undo?.();
+            this.undo = this.install(this.view);
         }
-        catch (e) {
-            detach(); // transactional: a conflict mid-install leaves nothing owned
-            throw e;
+        finally {
+            this.rearming = false;
         }
-        return detach;
     }
-}
-defineAttributes(SimpleLayout, {
-    // Structural: the constraints' target slot IS the axis, so changing it
-    // re-installs (releasing the old axis's ownership). Rare by nature.
-    axis: { def: "y", push: (l) => l.rearm() },
-    // Value-level: every laid constraint reads it under tracking, so a write
-    // wakes exactly them — no push needed.
-    spacing: { def: 0 },
-});
-/** WrappingLayout — a horizontal flow that WRAPS: children run left-to-right
- *  `spacing` apart, and when the next child would overflow the view's width it
- *  drops to a new row (`lineSpacing` down, default = `spacing`). With room for
- *  one row it is identical to `SimpleLayout[axis=x]`; as the view narrows it
- *  stacks — the whole point (cards that reflow on a phone with no media query).
- *  It owns BOTH axes of each child (a flow is 2-D), each child's position a pure
- *  function of the view's width and the predecessors' sizes, so a resize or a
- *  child growing re-flows through the ordinary reactive wake. */
-export class WrappingLayout extends Layout {
-    /** The placed position of every child, computed in one left-to-right pass —
-     *  the shared read the per-child x/y constraints call (reads the view width,
-     *  spacings, and each child's size/visibility, so all are tracked deps). */
-    positions(kids) {
-        const w = this.view.width;
-        const sp = this.spacing;
-        const ls = this.lineSpacing < 0 ? sp : this.lineSpacing;
-        const out = [];
-        let cx = 0, cy = 0, rowH = 0, firstInRow = true;
-        for (const c of kids) {
-            if (!c.visible) {
-                out.push({ x: cx, y: cy });
-                continue;
-            } // skipped: reclaim its slot
-            const cw = c.width, ch = c.height;
-            // wrap when this child (with its leading gap) would overflow — never on
-            // the first child of a row, so one over-wide child just overflows its row
-            if (!firstInRow && cx + sp + cw > w) {
-                cx = 0;
-                cy += rowH + ls;
-                rowH = 0;
-                firstInRow = true;
-            }
-            if (!firstInRow)
-                cx += sp;
-            out.push({ x: cx, y: cy });
-            cx += cw;
-            rowH = Math.max(rowH, ch);
-            firstInRow = false;
-        }
-        return out;
+    /** The children this strategy arranges: the view's View children, honoring
+     *  the `ignorelayout` opt-out (LZX's rule — a decoration/overlay child owns
+     *  its own position, both axes). Non-View members (a Dataset, an Animator, a
+     *  State) are never laid. In child order — order is the layout semantics —
+     *  and `place()`'s boxes align with this array BY INDEX. */
+    laid() {
+        const v = this.view;
+        if (v === null)
+            return [];
+        return v.children.filter((c) => c instanceof View && c.ignorelayout !== true);
     }
-    install(view) {
-        const kids = view.children.filter((c) => c instanceof View);
-        const label = `${view.constructor.name}'s WrappingLayout`;
+    /** Claim `slot` on `child` for constraint `k`: capture the authored base
+     *  (first claim only — rearm must not capture the arrangement's own writes),
+     *  then take ownership. Errors loudly on a standing author binding (two
+     *  owners), naming both sides. */
+    claim(child, slot, k, label) {
+        const prior = ownerOf(child, slot);
+        if (prior !== null) {
+            throw new DeclareError(`${child.constructor.name}.${slot} is already bound (by ${prior.label}), but ${label} arranges its children's ${slot} — drop one of the two`);
+        }
+        const base = this.bases.get(child) ?? {};
+        if (!(slot in base)) {
+            base[slot] = child[slot];
+            this.bases.set(child, base);
+        }
+        own(child, slot, k);
+    }
+    /** Release `k`'s claim of `slot` on `child`; during a rearm, restore the
+     *  authored base (see `rearming` — a full detach keeps the last values).
+     *  Does NOT dispose `k` — one constraint may back many slots (the pass), so
+     *  disposal is the detacher's, once per distinct constraint. */
+    unclaim(child, slot, k) {
+        release(child, slot, k);
+        if (!this.rearming)
+            return;
+        const base = this.bases.get(child);
+        if (base !== undefined && slot in base) {
+            setBound(child, slot, base[slot]);
+        }
+    }
+    /** The label claims and conflict errors carry. A strategy with an `axis`
+     *  attribute gets it tagged on ("App's SimpleLayout[y]") — sharp diagnostics
+     *  for any axis-bearing strategy, library or native. */
+    label() {
+        const ax = this.axis;
+        const tag = typeof ax === "string" ? `[${ax}]` : "";
+        return `${this.view === null ? "?" : this.view.constructor.name}'s ${this.constructor.name}${tag}`;
+    }
+    /** Stand up standing constraints over `view`'s children from `place()` —
+     *  the ONE kernel wiring every strategy shares. Each child's own probe box
+     *  declares its managed slots (shape may vary per child: a Spacer carries
+     *  its flexed size, a plan-shared child its width, a plain sibling only its
+     *  position). POSITIONS and VISIBILITY ride one shared pass-constraint —
+     *  compute place() once per wave, fan out equality-gated writes (the
+     *  kernel-only one-engine-many-slots shape the header describes). SIZES get
+     *  a percent-family constraint per (child, slot) — markPercent — because a
+     *  kernel-driven size is parent-extent-derived by nature and must sit out
+     *  of auto-extent's max (the cycle guard percent Lengths ride); positions
+     *  stay unmarked so containers keep auto-extending around laid children.
+     *  Transactional: on a mid-install error nothing stays owned. Children are
+     *  read at install (tree mutation is R8's rearm). TweenLayout overrides
+     *  this with its interpolating write path over the same place(). */
+    install(_view) {
+        const kids = this.laid();
+        if (kids.length === 0)
+            return () => { };
+        const label = this.label();
+        const probe = this.place();
+        if (probe.length !== kids.length) {
+            throw new DeclareError(`${label}.place() returned ${probe.length} boxes for ${kids.length} laid children — one box per child, by index`);
+        }
+        const passClaims = [];
+        const sizeClaims = [];
+        kids.forEach((child, i) => {
+            const box = probe[i] ?? {};
+            for (const [key, slot] of BOX_SLOTS) {
+                if (box[key] === undefined)
+                    continue;
+                if (key === "w" || key === "h")
+                    sizeClaims.push({ child, slot, key, i });
+                else
+                    passClaims.push({ child, slot, key, i });
+            }
+        });
         const installed = [];
         const detach = () => {
+            const seen = new Set();
             for (const o of installed) {
-                o.k.dispose();
-                release(o.child, o.slot, o.k);
+                if (!seen.has(o.k)) {
+                    seen.add(o.k);
+                    o.k.dispose();
+                }
+                this.unclaim(o.child, o.slot, o.k);
             }
         };
         try {
-            kids.forEach((child, i) => {
-                for (const slot of ["x", "y"]) {
-                    const prior = ownerOf(child, slot);
-                    if (prior !== null) {
-                        throw new DeclareError(`${child.constructor.name}.${slot} is already bound (by ${prior.label}), but ${label} arranges its children — drop one of the two`);
+            if (passClaims.length > 0) {
+                const pass = new Constraint(label, () => this.place(), (v) => {
+                    const boxes = v;
+                    for (const c of passClaims) {
+                        const b = boxes[c.i];
+                        if (b !== undefined && b[c.key] !== undefined)
+                            setBound(c.child, c.slot, b[c.key]);
                     }
-                    const k = new Constraint(label, () => this.positions(kids)[i][slot], (v) => setBound(child, slot, v));
-                    own(child, slot, k);
-                    installed.push({ child, slot, k });
+                });
+                for (const c of passClaims) {
+                    this.claim(c.child, c.slot, pass, label);
+                    installed.push({ child: c.child, slot: c.slot, k: pass });
                 }
-            });
-            for (const o of installed)
-                o.k.run();
+                pass.run();
+            }
+            for (const c of sizeClaims) {
+                const k = new Constraint(`${label} → ${c.child.constructor.name}.${c.slot}`, () => this.place()[c.i]?.[c.key], (v) => setBound(c.child, c.slot, v));
+                markPercent(k);
+                this.claim(c.child, c.slot, k, label);
+                installed.push({ child: c.child, slot: c.slot, k });
+                k.run();
+            }
         }
         catch (e) {
             detach();
@@ -232,10 +296,6 @@ export class WrappingLayout extends Layout {
         return detach;
     }
 }
-defineAttributes(WrappingLayout, {
-    spacing: { def: 0 },
-    lineSpacing: { def: -1 },
-});
 /** TweenLayout — the animated-reflow engine (the calendar's gridslider idiom,
  *  generalized and shed of its Flash-era scaffolding). The layout owns every
  *  laid child's x/y/width/height/visible and glides them between two WHOLE
@@ -261,16 +321,6 @@ export class TweenLayout extends Layout {
      *  targets the layout itself (Animator.resolveTarget walks parent); created
      *  lazily on first install and reused across re-arms. */
     tween = null;
-    /** The laid children: this.view's View children, honoring an `ignorelayout`
-     *  opt-out (LZX's rule — a decoration/overlay child sits outside layout).
-     *  Non-View members (a Dataset) and the tween animator (a child of the
-     *  LAYOUT, not the view) are never in this set. */
-    laid() {
-        const v = this.view;
-        if (v === null)
-            return [];
-        return v.children.filter((c) => c instanceof View && c.ignorelayout !== true);
-    }
     /** Stand up one lerp constraint per laid child per geometry slot (owning it,
      *  the one-owner model), snapshot the initial layout, and evaluate. Re-run
      *  wholesale by rearm when the child set changes (R8). */

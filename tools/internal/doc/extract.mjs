@@ -29,7 +29,7 @@ const DOC_SCHEMAS = { ...SCHEMAS, RichText: RichTextSchema };
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const TARGETS = [                                        // the documented component surface
   "View", "App", "Text", "Image", "RichText", "Markdown", "HTMLText", "DOMIsland", "TextInput",
-  "SimpleLayout", "WrappingLayout", "TweenLayout",
+  "TweenLayout",
   "Dataset", "DataSource",
   "Animator", "AnimatorGroup", "Spring", "State", "Node",
 ];

@@ -30,9 +30,9 @@ rectangle** — where it starts (`c0`, `r0`), how many columns and rows it spans
 c0To: number = { app.mode == "day" ? app.anchorCol : 0 },
 ncTo: number = { app.mode == "day" ? 1 : 7 },
 nrTo: number = { app.mode == "week" || app.mode == "day" ? 1 : app.monthRows },
-Spring [ attribute = c0, to = { app.c0To }, stiffness = 150, damping = 24 ],
-Spring [ attribute = nc, to = { app.ncTo }, stiffness = 150, damping = 24 ],
-Spring [ attribute = nr, to = { app.nrTo }, stiffness = 150, damping = 24 ],
+Spring [ attribute = c0, to = { app.c0To }, stiffness = 150, damping = 20 ],
+Spring [ attribute = nc, to = { app.ncTo }, stiffness = 150, damping = 20 ],
+Spring [ attribute = nr, to = { app.nrTo }, stiffness = 150, damping = 20 ],
 colW: number = { (app.bodyW - 2 * app.pad - app.gutter) / app.nc },
 rowH: number = { (app.bodyH - app.headH) / app.nr },
 ```

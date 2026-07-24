@@ -1,0 +1,24 @@
+/*
+# Spacer — a flexing child that absorbs a run's slack
+
+When a row (or stack)
+does not fill its container, the leftover space has to go SOMEWHERE — and
+the laid children cannot take it themselves (their flow-axis slot is owned
+by the layout). A Spacer says where, structurally: put one between two
+groups and they push apart ("logo left, actions right"); put one on each
+side of a run and it centers; put one first and the run right-aligns.
+Several spacers split the slack evenly. When there is no slack — a plan
+whose shares fill the width, an auto-sized container — a Spacer is simply
+zero and invisible in effect.
+
+The layout owns a Spacer's flow-axis size (a percent-family constraint, so
+a container deriving its extent from its children never counts one); the
+`flexes` marker is what a flow layout looks for. An empty view otherwise —
+it paints nothing and has no size of its own.
+*/
+
+class Spacer extends View [
+    flexes: boolean = true,
+    width = 0,
+    height = 0,
+    ]

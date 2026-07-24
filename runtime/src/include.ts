@@ -245,7 +245,9 @@ export function resolveAutoIncludes(
   // Post-order: a library's OWN referenced magic tags are pulled before it is
   // emitted, so a base is declared above its subclass (dependency-first, like
   // explicit includes). `origin` reserves the file's names before recursion so
-  // a self/mutual reference does not re-pull.
+  // a self/mutual reference does not re-pull. The ROOT's own tag is pulled too
+  // (referencedTags walks children only) — a root-position library tag then
+  // reports its precise misplacement, not "unknown component".
   const pull = (tag: string, pos: Element["pos"]): void => {
     if (origin.has(tag)) return;
     const path = manifest[tag];
@@ -273,6 +275,7 @@ export function resolveAutoIncludes(
   };
 
   for (const r of referencedTags(root, program.classes)) pull(r.tag, r.pos);
+  pull(root.tag, root.pos);
   // The keep-list is a reference too: `use [ Bar ]` pulls Bar's library even with
   // no static tag (the escape hatch for by-name construction). A built-in or
   // unknown name isn't in the manifest, so pull() no-ops — the checker validates

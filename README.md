@@ -12,13 +12,13 @@ documentation browser.
 ## The whole model in one program
 
 ```declare
-App [ width = 400, height = 140, fill = #1E3A49, textColor = whitesmoke,
+App [ width = 400, height = 140, fill = darkslategray, textColor = whitesmoke,
 
     count: number = 0,                               // reactive state
 
     onClick() { count = count + 1 },                 // click anywhere
 
-    Text [ y = 74, x = { (parent.width - this.width) / 2 },
+    Text [ y = 80, x = { (parent.width - this.width) / 2 },
         text = { `Clicked ${count} times` },         // re-runs whenever count changes
         ],
     ]

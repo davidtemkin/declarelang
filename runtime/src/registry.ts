@@ -17,7 +17,7 @@ import { Text } from "./text.js";
 import { Image } from "./image.js";
 import { TextInput } from "./text-input.js";
 import { Markdown, HTMLText } from "./markdown.js";
-import { Layout, SimpleLayout, WrappingLayout, TweenLayout } from "./layout.js";
+import { Layout, TweenLayout } from "./layout.js";
 import { Dataset, DataSource } from "./data.js";
 import { Animator, AnimatorGroup } from "./animator.js";
 import { Spring } from "./spring.js";
@@ -34,11 +34,15 @@ export const TAGS: Readonly<Record<string, ViewCtor>> = {
 
 /** Tag → buildable layout-strategy class (R7) — built only as a component-typed
  *  attribute value, never a tree tag. */
-export const LAYOUTS: Readonly<Record<string, new () => Layout>> = { SimpleLayout, WrappingLayout };
+// The built-in strategy table is EMPTY: SimpleLayout, WrappingLayout, and
+// ResponsiveLayout are library classes (library/*.declare) pulled by
+// auto-include — strategies are place() over the Layout kernel, authorable in
+// Declare like any component. Only the kernel bases below are native.
+export const LAYOUTS: Readonly<Record<string, new () => Layout>> = {};
 
 /** Layout classes by name for BASE resolution + user-layout synthesis: the
  *  buildable strategies plus the abstract bases a user layout extends. */
-export const LAYOUT_BASES: Readonly<Record<string, abstract new () => Layout>> = { SimpleLayout, TweenLayout };
+export const LAYOUT_BASES: Readonly<Record<string, abstract new () => Layout>> = { Layout, TweenLayout };
 
 /** Tag → data-node class (R8). A data node is tree structure but not a View. */
 export const DATA: Readonly<Record<string, new () => Dataset>> = { Dataset, DataSource };
@@ -82,9 +86,7 @@ export const REGISTRY_MANIFEST: readonly RegistryEntry[] = [
   { name: "Markdown", table: "TAGS", module: "markdown.js", export: "Markdown" },
   { name: "HTMLText", table: "TAGS", module: "markdown.js", export: "HTMLText" },
   { name: "Node", table: "TAGS", module: "node.js", export: "Node" },
-  { name: "SimpleLayout", table: "LAYOUTS", module: "layout.js", export: "SimpleLayout" },
-  { name: "WrappingLayout", table: "LAYOUTS", module: "layout.js", export: "WrappingLayout" },
-  { name: "SimpleLayout", table: "LAYOUT_BASES", module: "layout.js", export: "SimpleLayout" },
+  { name: "Layout", table: "LAYOUT_BASES", module: "layout.js", export: "Layout" },
   { name: "TweenLayout", table: "LAYOUT_BASES", module: "layout.js", export: "TweenLayout" },
   { name: "Dataset", table: "DATA", module: "data.js", export: "Dataset" },
   { name: "DataSource", table: "DATA", module: "data.js", export: "DataSource" },

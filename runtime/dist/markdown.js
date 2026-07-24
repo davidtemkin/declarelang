@@ -15,7 +15,7 @@
 // backend primitive — both backends render it identically, for free.
 import { View, onDiscard, fireEvent } from "./view.js";
 import { Text } from "./text.js";
-import { SimpleLayout } from "./layout.js";
+import { Layout } from "./layout.js";
 import { Constraint } from "./reactive.js";
 import { defineAttributes } from "./attributes.js";
 import { fontMetrics, fontString, textWidth } from "./measure.js";
@@ -467,9 +467,23 @@ class TextFlow extends View {
 /** The vertical stacking spine every prose container uses. Owns only its children's
  *  y (SimpleLayout leaves the cross axis and sizes alone), so a child growing after
  *  an async measure re-flows the stack through the ordinary reactive wake. */
+/** The prose block stack — a PRIVATE strategy over the Layout kernel (the
+ *  language-facing SimpleLayout is a library class now; the runtime keeps its
+ *  own tiny y-stack for rendered blocks — same place() shape, no surface). */
+class ProseStack extends Layout {
+    spacing = 0;
+    place() {
+        let pos = 0;
+        return this.laid().map((c) => {
+            const box = { y: pos };
+            if (c.visible)
+                pos += c.height + this.spacing;
+            return box;
+        });
+    }
+}
 function yStack(spacing) {
-    const s = new SimpleLayout();
-    s.axis = "y";
+    const s = new ProseStack();
     s.spacing = spacing;
     return s;
 }

@@ -1,7 +1,7 @@
 // View.declare — a View is a box: size + decoration + children + interaction
 
 App [
-    View [ x = 28, y = 26, width = 240, height = 150, cornerRadius = 16,
+    View [ x = 30, y = 30, width = 240, height = 150, cornerRadius = 16,
         hot: boolean = false,
         fill = { hot ? 0xE0533D : 0x2E6BE6 },
         onClick() { hot = !hot },

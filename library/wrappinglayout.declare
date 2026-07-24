@@ -1,0 +1,60 @@
+/*
+# WrappingLayout — a flow that wraps to new rows
+
+A horizontal flow that WRAPS: children run left to right
+`spacing` apart, and when the next one would overflow the view's width it
+drops to a new row (`lineSpacing` down; -1, the default, means "same as
+spacing"). With room for one row it is a plain row; as the view narrows it
+stacks — cards that reflow on a phone with no media query. It owns BOTH
+axes of each child (a flow is 2-D); sizes stay the children's own. `align`
+justifies each finished row: `start` (left, the default) or `center` (a row
+that does not fill the width sits centered).
+
+Division of labor: this is the tool for UNIFORM, replicated collections
+that reflow by fitting. Managing NAMED regions per width tier is
+ResponsiveLayout's.
+
+Written in Declare over the Layout kernel — the whole strategy is place().
+*/
+
+class WrappingLayout extends Layout [
+    spacing: number = 0,
+    lineSpacing: number = -1,
+    align: WrapAlign = start,
+
+    place() {
+        const w = this.view == null ? 0 : this.view.width
+        const sp = this.spacing
+        const ls = this.lineSpacing < 0 ? sp : this.lineSpacing
+        const centered = this.align == "center"
+        const kids = this.laid()
+        const out = [] as any
+        let cx = 0
+        let cy = 0
+        let rowH = 0
+        let firstInRow = true
+        let rowStart = 0
+        // shift a finished row [rowStart, end) right by half its slack
+        const justify = (end, rowW) => {
+            if (!centered) return
+            const off = Math.max(0, (w - rowW) / 2)
+            if (off > 0) for (let j = rowStart; j < end; j++) out[j].x = out[j].x + off
+        }
+        for (let i = 0; i < kids.length; i++) {
+            const c = kids[i]
+            if (!c.visible) { out.push({ x: cx, y: cy }); continue }   // skipped: reclaim its slot
+            const cw = c.width
+            const ch = c.height
+            // wrap when this child (with its leading gap) would overflow — never
+            // on a row's first child, so one over-wide child just overflows
+            if (!firstInRow && cx + sp + cw > w) { justify(i, cx); cx = 0; cy = cy + rowH + ls; rowH = 0; firstInRow = true; rowStart = i }
+            if (!firstInRow) cx = cx + sp
+            out.push({ x: cx, y: cy })
+            cx = cx + cw
+            rowH = Math.max(rowH, ch)
+            firstInRow = false
+        }
+        justify(kids.length, cx)   // the last (or only) row
+        return out
+        },
+    ]

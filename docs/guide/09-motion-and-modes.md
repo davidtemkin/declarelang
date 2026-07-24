@@ -35,11 +35,11 @@ A `Spring` is physics on one attribute, toward a **reactive target**. You declar
 where the thing belongs; the spring finds the path and settles:
 
 ```declare
-App [ width = 420, height = 120, fill = #0B141B,
+App [ width = 420, height = 120, fill = black,
     on: boolean = false,
     onClick() { on = !on },
     ball: View [ x = 20, y = 40, width = 40, height = 40, cornerRadius = 20, fill = turquoise,
-        slide: Spring [ attribute = x, to = { on ? 340 : 20 }, stiffness = 170, damping = 22 ],
+        slide: Spring [ attribute = x, to = { on ? 340 : 20 }, stiffness = 170, damping = 20 ],
         ],
     ]
 ```
@@ -66,13 +66,13 @@ overrides — and even conditional children — applied while a condition holds,
 reverted when it lifts:
 
 ```declare
-App [ width = 360, height = 240, fill = #0B141B, textColor = whitesmoke,
+App [ width = 360, height = 240, fill = black, textColor = whitesmoke,
     open: boolean = false,
     onMouseDown() { open = !open },
-    card: View [ x = 28, y = 26, width = 300, height = 72, cornerRadius = 10, fill = midnightblue,
-        Text [ x = 16, y = 16, fontWeight = bold, text = "Summary" ],
-        big: State [ applied = { open }, height = 184, fill = steelblue,
-            Text [ x = 16, y = 54, width = 268, textColor = gainsboro, wrap = true,
+    card: View [ x = 30, y = 30, width = 300, height = 70, cornerRadius = 10, fill = midnightblue,
+        Text [ x = 20, y = 20, fontWeight = bold, text = "Summary" ],
+        big: State [ applied = { open }, height = 180, fill = steelblue,
+            Text [ x = 20, y = 50, width = 260, textColor = gainsboro, wrap = true,
                 text = "height, color, and this whole line swap in together" ],
             ],
         ],

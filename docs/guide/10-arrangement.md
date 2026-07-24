@@ -27,16 +27,16 @@ its row into a "week"; click again to fall back to the "month" — and, as alway
 interrupt it mid-flight:
 
 ```declare
-class Cell extends View [ cornerRadius = 6, fill = #18242F, clip = true,
+class Cell extends View [ cornerRadius = 10, fill = darkslategray, clip = true,
     x = { :col * app.colW + 2 },
     y = { (:row - app.r0) * app.rowH + 2 },
     width = { app.colW - 4 },
     height = { app.rowH - 4 },
     onClick() { app.pick(:row) },
-    n: Text [ x = 8, y = 6, fontSize = 12, textColor = #C7D3DC, text = { "" + :n } ],
+    n: Text [ x = 10, y = 5, fontSize = 12, textColor = gainsboro, text = :n ],
     ]
 
-App [ width = 420, height = 240, fill = #0D151E,
+App [ width = 420, height = 240, fill = black,
     mode: string = "month",
     anchorRow: number = 0,
 
@@ -44,8 +44,8 @@ App [ width = 420, height = 240, fill = #0D151E,
     nrTo: number = { app.mode == "week" ? 1 : 3 },
     r0: number = 0,
     nr: number = 3,
-    Spring [ attribute = r0, to = { app.r0To }, stiffness = 150, damping = 24 ],
-    Spring [ attribute = nr, to = { app.nrTo }, stiffness = 150, damping = 24 ],
+    Spring [ attribute = r0, to = { app.r0To }, stiffness = 150, damping = 20 ],
+    Spring [ attribute = nr, to = { app.nrTo }, stiffness = 150, damping = 20 ],
 
     colW: number = { (app.width - 32) / 7 },
     rowH: number = { (app.height - 32) / app.nr },
@@ -58,7 +58,7 @@ App [ width = 420, height = 240, fill = #0D151E,
         },
     grid: Dataset [ contents = { app.cells() } ],
 
-    board: View [ x = 16, y = 16, width = { app.width - 32 }, height = { app.height - 32 }, clip = true,
+    board: View [ x = 20, y = 20, width = { app.width - 40 }, height = { app.height - 40 }, clip = true,
         datapath = { grid.value },
         Cell [ datapath = :cells[], key = :n ],
         ],

@@ -17,7 +17,7 @@ the assignments are reactive setters, so there is no further wiring:
 
 ```declare
 App [ width = 220, height = 100, fill = white,
-    btn: View [ x = 20, y = 20, width = 160, height = 44, cornerRadius = 8,
+    btn: View [ x = 20, y = 20, width = 160, height = 40, cornerRadius = 10,
         hovered: boolean = false,
         pressed: boolean = false,
         onMouseOver() { hovered = true },
@@ -25,7 +25,7 @@ App [ width = 220, height = 100, fill = white,
         onMouseDown() { pressed = true },
         onMouseUp()   { pressed = false },
         fill = { pressed ? 0x2E5BD0 : hovered ? 0x3B74FF : 0x4C8DFF },
-        Text [ x = 44, y = 14, textColor = white, text = "Press me" ],
+        Text [ x = 40, y = 10, textColor = white, text = "Press me" ],
         ],
     ]
 ```
@@ -97,7 +97,7 @@ App [ width = 240, height = 100, fill = white, textColor = black,
         if (e.key == "ArrowUp") { n = n + 1 }
         else if (e.key == "ArrowDown") { n = n - 1 }
         },
-    Text [ x = 20, y = 34, fontSize = 28, text = { `n = ${n}` } ],
+    Text [ x = 20, y = 30, fontSize = 30, text = { `n = ${n}` } ],
     ]
 ```
 
@@ -136,11 +136,11 @@ name (`mute: Checkbox [ label = "Mute" ]` … `visible = { mute.checked }`).
 
 ```declare
 App [ width = 360, height = 200, fill = { theme.bg },
-    volume: number = 25,
+    volume: number = 50,
     muted:  boolean = false,
 
     col: View [ x = 20, y = 20,
-        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
         Checkbox [ label = "Mute", checked = { app.muted },
             input(v) { app.muted = v },
             ],
@@ -150,7 +150,7 @@ App [ width = 360, height = 200, fill = { theme.bg },
             ],
         ProgressBar [ value = { app.muted ? 0 : app.volume } ],
         Button [ label = "Reset", primary = true,
-            onClick() { app.volume = 25; app.muted = false },
+            onClick() { app.volume = 50; app.muted = false },
             ],
         ],
     ]

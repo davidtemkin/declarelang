@@ -197,6 +197,12 @@ const AppSchema = {
         // the OS color-scheme, `prefers-color-scheme: dark` — the runtime feeds it and
         // keeps it live as the system theme flips, so an app themes off `app.dark`.
         dark: { kind: "boolean" },
+        // "am I running on a touch device?" — true when the device's PRIMARY pointer
+        // is coarse (`pointer: coarse`), a phone or tablet. A stable device fact (kept
+        // live if the input changes), distinct from the transient `hovering`:
+        // mouse-only affordances (a cursor-chasing dot, a hover reveal) switch off with
+        // `visible = { !app.touchDevice }`.
+        touchDevice: { kind: "boolean" },
         // The EMBEDDING ENVIRONMENT's parameters — a record the HOST provides and
         // keeps live (an island's slot marker carries `|k=v&k2=v2` after the
         // program path; host-client parses, coerces, and writes the whole record).
@@ -403,33 +409,16 @@ const HTMLTextSchema = {
         accents: { kind: "record", name: "Accents" },
     },
 };
-// Layout strategies (R7). The abstract base is deliberately NOT in the name
-// table — `layout: Layout [ ]` names no arrangement, so writing it reports
-// "unknown component" — but it anchors the chain descendsFrom() walks and the
-// strategies' shared surface. SimpleLayout is the stacking idiom: siblings
-// along `axis`, `spacing` apart (negative overlaps), invisible skipped.
+// Layout strategies (R7). The abstract base IS in the name table so a class
+// may extend it (`class X extends Layout [ place() { … } ]` — a strategy
+// authored in Declare, library or app); writing `layout: Layout [ ]` as a USE
+// names no arrangement and reports a pointed error (checkComponentValue).
+// SimpleLayout is the stacking idiom: siblings along `axis`, `spacing` apart
+// (negative overlaps), invisible skipped.
 const LayoutSchema = {
     name: "Layout",
     base: null,
     attrs: {},
-};
-const SimpleLayoutSchema = {
-    name: "SimpleLayout",
-    base: LayoutSchema,
-    attrs: {
-        axis: enumType("Axis", "x", "y"),
-        spacing: { kind: "number" },
-    },
-};
-// WrappingLayout — a horizontal flow that wraps to new rows as the view narrows
-// (SimpleLayout[x] when there's room). `lineSpacing` defaults to `spacing`.
-const WrappingLayoutSchema = {
-    name: "WrappingLayout",
-    base: LayoutSchema,
-    attrs: {
-        spacing: { kind: "number" },
-        lineSpacing: { kind: "number" },
-    },
 };
 // TweenLayout (R7) — the animated-reflow base a custom layout extends to glide
 // its children between two whole layouts through one scalar `t` (layout.ts). A
@@ -597,8 +586,7 @@ export const SCHEMAS = {
     TextInput: TextInputSchema,
     Markdown: MarkdownSchema,
     HTMLText: HTMLTextSchema,
-    SimpleLayout: SimpleLayoutSchema,
-    WrappingLayout: WrappingLayoutSchema,
+    Layout: LayoutSchema,
     TweenLayout: TweenLayoutSchema,
     Dataset: DatasetSchema,
     DataSource: DataSourceSchema,

@@ -1,9 +1,9 @@
 // Animator.declare — click the box; the Animator drives its x to the target
 
 App [
-    View [ x = 28, y = 88, width = 80, height = 80, cornerRadius = 12, fill = dodgerblue,
+    View [ x = 30, y = 90, width = 80, height = 80, cornerRadius = 10, fill = dodgerblue,
         onClick() { slide.start() },
-        Text [ x = 18, y = 30, fontSize = 15, fontWeight = semibold,
+        Text [ x = 20, y = 30, fontSize = 15, fontWeight = semibold,
             textColor = whitesmoke, text = "click" ],
         slide: Animator [ attribute = x, to = 460, duration = 500, motion = easeOut ],
         ],

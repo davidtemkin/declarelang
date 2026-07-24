@@ -136,7 +136,12 @@ await test("scaffold: enum-typed attributes emit named string-literal unions", (
   const s = scaffoldFor(PROGRAM);
   assert.ok(s.includes(`type Stretch = "none" | "width" | "height" | "both";`), "Stretch enum alias");
   assert.ok(s.includes(`type FontWeight = "thin" | "extralight" | "light" | "regular" | "normal" | "medium" | "semibold" | "bold" | "extrabold" | "black";`), "FontWeight enum alias");
-  assert.ok(s.includes(`type Axis = "x" | "y";`), "Axis enum alias");
+  // Axis reaches the scaffold through a DECLARED enum now (the built-in value
+  // enums are declarable — library SimpleLayout's `axis: Axis = y`):
+  const lib = scaffoldFor(`class S extends Layout [ axis: Axis = y, place() { return [] } ]
+App [ width=1, height=1, layout: S [ ] ]`);
+  assert.ok(lib.includes(`type Axis = "x" | "y";`), "Axis enum alias from a declared attr");
+  assert.ok(classBlock(lib, "S").includes("axis: Axis;"), "the declared slot is enum-typed");
 });
 
 await test("scaffold: View declares its attrs (AttrType→TS map) + the §11 nouns", () => {
@@ -180,16 +185,16 @@ await test("scaffold: Text extends View with its own leaf attrs", () => {
   assert.ok(text.includes("textShadow: Shadow | null;"), "Text.textShadow");
 });
 
-await test("scaffold: the abstract Layout base (not in the name table) is still declared", () => {
+await test("scaffold: the abstract Layout base is declared (strategies extend it from the library)", () => {
   const s = scaffoldFor(PROGRAM);
   const layout = classBlock(s, "Layout");
-  assert.ok(layout.startsWith("declare class Layout {"), "Layout declared so `Layout | null` + SimpleLayout resolve");
+  assert.ok(layout.startsWith("declare class Layout {"), "Layout declared so `Layout | null` + library strategies resolve");
   // A ROOT class (base-less) carries the tree nouns — Spring/Dataset/Layout
   // bodies say `app` too — and its LANGUAGE-API surface (runtime members a
   // body may read/call that the schema, the [ ]-settable surface, omits).
   assert.ok(layout.includes("root: App;"), "Layout carries the nouns (a root class)");
   assert.ok(layout.includes("view: View;"), "Layout carries its language-API member");
-  assert.ok(classBlock(s, "SimpleLayout").startsWith("declare class SimpleLayout extends Layout {"), "SimpleLayout extends Layout");
+  assert.ok(classBlock(s, "TweenLayout").startsWith("declare class TweenLayout extends Layout {"), "TweenLayout extends Layout");
 });
 
 await test("scaffold: the WeatherTab user class — attrs typed, base extends, method", () => {

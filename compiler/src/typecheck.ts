@@ -31,7 +31,9 @@
 //     body's root-level `parent` is `View` (an instance mounts under some
 //     view, statically unknowable); the main root's parent is truly `null`.
 //     A method (statement) body drops the `return (…)` and slot type and
-//     declares its own params (typed `any` — bodies carry no type syntax).
+//     declares its own params (typed `any` — a param LIST carries no
+//     annotations by language rule; body-interior type syntax is fine, the
+//     checker consumes it and strip-types.ts removes it before emission).
 //   • `.call(inst, …)` — RELIES on strictBindCallApply (tsconfig `strict`) to
 //     type the return against the slot and check the scope nouns.
 //
@@ -537,9 +539,11 @@ function runTsc(scaffold: string, caseSrc: string): TsDiag[] {
 }
 
 /** TS's implicit-`any` family: each of these demands a WRITTEN type annotation
- *  — and a `{ }` body has no type syntax (language rule: bodies are plain ES),
- *  so on correct code the demand is unsatisfiable and the diagnostic a
- *  guaranteed false positive (`const c = (x, y) => …` in a method body). They
+ *  on a BINDING — and while a `{ }` body may carry expression-level type syntax
+ *  (`as`/`satisfies`, checked then stripped), the language keeps parameter
+ *  lists and declarations annotation-free, so on correct code the demand is
+ *  unsatisfiable and the diagnostic a guaranteed false positive
+ *  (`const c = (x, y) => …` in a method body). They
  *  are SUPPRESSED at the report, not via `noImplicitAny: false` — the flag
  *  also changes INFERENCE (`const a = []` becomes `never[]` instead of an
  *  evolving array, spraying downstream ghosts on every later push), and the

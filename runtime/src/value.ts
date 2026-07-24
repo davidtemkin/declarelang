@@ -257,6 +257,12 @@ const DECLARED_TYPES: Readonly<Record<string, AttrType>> = {
   array: { kind: "array" },
   object: { kind: "object" },
   View: { kind: "view" },
+  // Built-in VALUE ENUMS, declarable by name so a library-authored class keeps
+  // the bare-token use-site surface (`axis = x`, `align = center`) — these are
+  // as built-in as Color. (User-authored unions remain their own future
+  // construct, per the note above.)
+  Axis: enumType("Axis", "x", "y"),
+  WrapAlign: enumType("WrapAlign", "start", "center"),
 };
 
 /** Resolve a written declaration type name (`count: number`), or null when

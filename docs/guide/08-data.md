@@ -17,7 +17,7 @@ to it, reactively. And the strongest move follows from one rule: a path that mat
 *many* records **replicates** its node — one instance per record:
 
 ```declare
-App [ width = 300, height = 160, fill = #0B141B, textColor = gainsboro,
+App [ width = 300, height = 160, fill = midnightblue, textColor = gainsboro,
     people: Dataset {
         { "rows": [ { "name": "Ada", "score": 92 },
                     { "name": "Grace", "score": 87 },
@@ -25,7 +25,7 @@ App [ width = 300, height = 160, fill = #0B141B, textColor = gainsboro,
         },
     list: View [ x = 20, y = 20, datapath = { people.value },
         layout: SimpleLayout [ axis = y, spacing = 8 ],
-        View [ height = 22, datapath = :rows[], key = :name,
+        View [ height = 20, datapath = :rows[], key = :name,
             n: Text [ width = 160, text = :name ],
             s: Text [ x = 170, text = :score ],
             ],
@@ -123,18 +123,18 @@ edit be a data write.** A task board — three columns, click a card to advance 
 add cards at the bottom:
 
 ```declare
-class BCard extends View [ width = { parent.width }, height = 32, cornerRadius = 7, fill = #1C3A4F,
+class BCard extends View [ width = { parent.width }, height = 30, cornerRadius = 10, fill = darkslategray,
     onClick() { app.advance(:id) },
-    t: Text [ x = 10, y = 8, fontSize = 12, wrap = false, text = :t ],
+    t: Text [ x = 10, y = 10, fontSize = 12, wrap = false, text = :t ],
     ]
 
-class Column extends View [ width = 132,
+class Column extends View [ width = 130,
     layout: SimpleLayout [ axis = y, spacing = 8 ],
-    name: Text [ fontSize = 11, fontWeight = bold, textColor = #8A9BA6, text = :name ],
+    name: Text [ fontSize = 12, fontWeight = bold, textColor = lightslategray, text = :name ],
     BCard [ datapath = :cards[], key = :id ],
     ]
 
-App [ width = 470, height = 250, fill = #0D151E, textColor = whitesmoke,
+App [ width = 470, height = 250, fill = black, textColor = whitesmoke,
     raw: Dataset {
         { "cards": [ { "id": 1, "col": 0, "t": "Outline the guide" },
                      { "id": 2, "col": 0, "t": "Fix the rail" },
@@ -163,14 +163,14 @@ App [ width = 470, height = 250, fill = #0D151E, textColor = whitesmoke,
         this.entryRow.entry.text = ""
         },
 
-    cols: View [ x = 16, y = 16, datapath = { board.value },
-        layout: SimpleLayout [ axis = x, spacing = 14 ],
+    cols: View [ x = 20, y = 20, datapath = { board.value },
+        layout: SimpleLayout [ axis = x, spacing = 10 ],
         Column [ datapath = :cols[] ],
         ],
-    entryRow: View [ x = 16, y = { app.height - 54 },
+    entryRow: View [ x = 20, y = { app.height - 50 },
         layout: SimpleLayout [ axis = x, spacing = 8 ],
-        entry: TextInput [ width = 250, height = 40, padding = 10, cornerRadius = 8,
-            fill = #16222E, placeholder = "Add a task" ],
+        entry: TextInput [ width = 250, height = 40, padding = 10, cornerRadius = 10,
+            fill = darkslategray, placeholder = "Add a task" ],
         Button [ label = "Add", primary = true, onClick() { app.add() } ],
         ],
     ]

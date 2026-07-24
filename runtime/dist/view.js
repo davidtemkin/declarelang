@@ -658,6 +658,7 @@ defineAttributes(App, {
     hovering: { def: false },
     pointerOverText: { def: false },
     dark: { def: false },
+    touchDevice: { def: false },
     // the embedding environment's parameters (schema.ts): the HOST replaces the
     // whole record on every change (never mutates), so the default may be one
     // shared frozen empty object — reads like `app.env.dark` never null-crash

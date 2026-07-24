@@ -1,0 +1,53 @@
+/*
+# SimpleLayout — stack children along an axis
+
+The stacking idiom: siblings placed one after another along
+`axis`, in child order, `spacing` apart (negative overlaps). The cross axis
+and all sizes stay the children's own — a child centers itself across a row
+with the ordinary `y = center`. Invisible children are skipped and their
+space reclaimed; a skipped child still gets the slot it would occupy, so
+re-showing it needs no special case. A `Spacer` child flexes to absorb the
+run's slack along the axis (between two groups it pushes them apart; one on
+each side centers the run).
+
+Written in Declare over the Layout kernel: the whole strategy is this one
+pure place() — one box per laid child, aligned by index.
+*/
+
+class SimpleLayout extends Layout [
+    axis: Axis = y,
+    spacing: number = 0,
+
+    place() {
+        const axis = this.axis
+        const size = axis == "x" ? "width" : "height"
+        const kids = this.laid()
+        const flexing = (c) => (c as any).flexes === true
+
+        // slack, only when someone flexes: the view's extent along the axis
+        // minus the rigid content and the gaps between visible children
+        let each = 0
+        let flexN = 0
+        for (const c of kids) if (c.visible && flexing(c)) flexN = flexN + 1
+        if (flexN > 0) {
+            let content = 0
+            let visN = 0
+            for (const c of kids) {
+                if (!c.visible) continue
+                visN = visN + 1
+                if (!flexing(c)) content = content + (c as any)[size]
+            }
+            const extent = this.view == null ? 0 : (this.view as any)[size]
+            each = Math.max(0, (extent - content - this.spacing * Math.max(0, visN - 1)) / flexN)
+        }
+
+        let pos = 0
+        return kids.map((c) => {
+            const flex = c.visible && flexing(c)
+            const box = (axis == "x" ? ({ x: pos }) : ({ y: pos })) as any
+            if (flex) box[axis == "x" ? "w" : "h"] = each
+            if (c.visible) pos = pos + (flex ? each : (c as any)[size]) + this.spacing
+            return box
+            })
+        },
+    ]

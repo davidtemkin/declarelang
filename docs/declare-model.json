@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "f96d956b76e8",
+  "buildId": "8a51967e5440",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -129,6 +129,7 @@
      "hovering": "boolean",
      "pointerOverText": "boolean",
      "dark": "boolean",
+     "touchDevice": "boolean",
      "env": "object",
      "location": "string",
      "minWidth": "number",
@@ -215,22 +216,9 @@
     "readOnly": [],
     "events": []
    },
-   "SimpleLayout": {
-    "base": "Layout",
-    "attrs": {
-     "axis": "enum(x|y)",
-     "spacing": "number"
-    },
-    "prevailing": [],
-    "readOnly": [],
-    "events": []
-   },
-   "WrappingLayout": {
-    "base": "Layout",
-    "attrs": {
-     "spacing": "number",
-     "lineSpacing": "number"
-    },
+   "Layout": {
+    "base": null,
+    "attrs": {},
     "prevailing": [],
     "readOnly": [],
     "events": []
@@ -406,7 +394,8 @@
     "  revert(): void;"
    ],
    "Layout": [
-    "  view: View;"
+    "  view: View;",
+    "  laid(): View[];"
    ],
    "TweenLayout": [
     "  laid(): View[];",
@@ -436,10 +425,6 @@
     "width",
     "height",
     "both"
-   ],
-   "Axis": [
-    "x",
-    "y"
    ],
    "Process": [
     "sequential",
@@ -558,7 +543,11 @@
    "Menu": "library/menu.declare",
    "MenuBar": "library/menubar.declare",
    "Dialog": "library/dialog.declare",
-   "AppIsland": "library/appisland.declare"
+   "AppIsland": "library/appisland.declare",
+   "Spacer": "library/spacer.declare",
+   "ResponsiveLayout": "library/responsive.declare",
+   "SimpleLayout": "library/simplelayout.declare",
+   "WrappingLayout": "library/wrappinglayout.declare"
   },
   "commands": {
    "setup": {
@@ -1016,6 +1005,11 @@
    "App.scrollY": {
     "path": "docs/declare-model.json",
     "title": "App.scrollY",
+    "kind": "reference"
+   },
+   "App.touchDevice": {
+    "path": "docs/declare-model.json",
+    "title": "App.touchDevice",
     "kind": "reference"
    },
    "AppIsland": {
@@ -1918,6 +1912,26 @@
     "title": "RadioGroup.value",
     "kind": "reference"
    },
+   "ResponsiveLayout": {
+    "path": "docs/declare-model.json",
+    "title": "ResponsiveLayout",
+    "kind": "reference"
+   },
+   "ResponsiveLayout.gap": {
+    "path": "docs/declare-model.json",
+    "title": "ResponsiveLayout.gap",
+    "kind": "reference"
+   },
+   "ResponsiveLayout.method.place": {
+    "path": "docs/declare-model.json",
+    "title": "ResponsiveLayout.method.place",
+    "kind": "reference"
+   },
+   "ResponsiveLayout.plan": {
+    "path": "docs/declare-model.json",
+    "title": "ResponsiveLayout.plan",
+    "kind": "reference"
+   },
    "RichText": {
     "path": "docs/declare-model.json",
     "title": "RichText",
@@ -1981,6 +1995,11 @@
    "SimpleLayout.axis": {
     "path": "docs/declare-model.json",
     "title": "SimpleLayout.axis",
+    "kind": "reference"
+   },
+   "SimpleLayout.method.place": {
+    "path": "docs/declare-model.json",
+    "title": "SimpleLayout.method.place",
     "kind": "reference"
    },
    "SimpleLayout.spacing": {
@@ -2066,6 +2085,16 @@
    "Slider.x0": {
     "path": "docs/declare-model.json",
     "title": "Slider.x0",
+    "kind": "reference"
+   },
+   "Spacer": {
+    "path": "docs/declare-model.json",
+    "title": "Spacer",
+    "kind": "reference"
+   },
+   "Spacer.flexes": {
+    "path": "docs/declare-model.json",
+    "title": "Spacer.flexes",
     "kind": "reference"
    },
    "Spring": {
@@ -2813,9 +2842,19 @@
     "title": "WrappingLayout",
     "kind": "reference"
    },
+   "WrappingLayout.align": {
+    "path": "docs/declare-model.json",
+    "title": "WrappingLayout.align",
+    "kind": "reference"
+   },
    "WrappingLayout.lineSpacing": {
     "path": "docs/declare-model.json",
     "title": "WrappingLayout.lineSpacing",
+    "kind": "reference"
+   },
+   "WrappingLayout.method.place": {
+    "path": "docs/declare-model.json",
+    "title": "WrappingLayout.method.place",
     "kind": "reference"
    },
    "WrappingLayout.spacing": {
@@ -4365,7 +4404,7 @@
    "id": "View.event.click",
    "name": "click",
    "kind": "event",
-   "doc": "Fires when the pointer presses **and** releases on the same view (a true click, not a\nstray press) — answered by an `onClick()` handler. The primary interaction event;\n`mouseDown`/`mouseUp`/`mouseMove` are there when you need the raw phases.\n\n```declare\nView [ width = 80, height = 44, cornerRadius = 6, fill = gainsboro, onClick() { fill = 0x4169E1 } ]\n```",
+   "doc": "Fires when the pointer presses **and** releases on the same view (a true click, not a\nstray press) — answered by an `onClick()` handler. The primary interaction event;\n`mouseDown`/`mouseUp`/`mouseMove` are there when you need the raw phases.\n\n```declare\nView [ width = 80, height = 40, cornerRadius = 10, fill = gainsboro, onClick() { fill = 0x4169E1 } ]\n```",
    "docSegs": [
     {
      "md": "Fires when the pointer presses **and** releases on the same view (a true click, not a\nstray press) — answered by an `onClick()` handler. The primary interaction event;\n`mouseDown`/`mouseUp`/`mouseMove` are there when you need the raw phases.",
@@ -4376,7 +4415,7 @@
      "code": [
       {
        "id": "seg_View_event_click_0",
-       "source": "App [\n    View [ width = 80, height = 44, cornerRadius = 6, fill = gainsboro, onClick() { fill = 0x4169E1 } ]\n]",
+       "source": "App [\n    View [ width = 80, height = 40, cornerRadius = 10, fill = gainsboro, onClick() { fill = 0x4169E1 } ]\n]",
        "lines": 3,
        "stageH": 224
       }
@@ -4674,7 +4713,8 @@
     "Tooltip",
     "Menu",
     "MenuBar",
-    "Dialog"
+    "Dialog",
+    "Spacer"
    ],
    "origin": "ts",
    "attributes": [
@@ -4758,7 +4798,7 @@
     {
      "name": "View",
      "lines": 11,
-     "source": "// View.declare — a View is a box: size + decoration + children + interaction\n\nApp [\n    View [ x = 28, y = 26, width = 240, height = 150, cornerRadius = 16,\n        hot: boolean = false,\n        fill = { hot ? 0xE0533D : 0x2E6BE6 },\n        onClick() { hot = !hot },\n        Text [ x = 20, y = 20, fontSize = 15, fontWeight = semibold,\n            textColor = whitesmoke, text = \"click to recolor\" ],\n        ],\n    ]",
+     "source": "// View.declare — a View is a box: size + decoration + children + interaction\n\nApp [\n    View [ x = 30, y = 30, width = 240, height = 150, cornerRadius = 16,\n        hot: boolean = false,\n        fill = { hot ? 0xE0533D : 0x2E6BE6 },\n        onClick() { hot = !hot },\n        Text [ x = 20, y = 20, fontSize = 15, fontWeight = semibold,\n            textColor = whitesmoke, text = \"click to recolor\" ],\n        ],\n    ]",
      "stageH": 274
     }
    ]
@@ -4777,7 +4817,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 878
+    "line": 883
    },
    "parent": "App",
    "seeAlso": [],
@@ -4801,7 +4841,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 879
+    "line": 884
    },
    "parent": "App",
    "seeAlso": [],
@@ -4825,7 +4865,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 880
+    "line": 885
    },
    "parent": "App",
    "seeAlso": [],
@@ -4849,7 +4889,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 881
+    "line": 886
    },
    "parent": "App",
    "seeAlso": [],
@@ -4873,7 +4913,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 882
+    "line": 887
    },
    "parent": "App",
    "seeAlso": [],
@@ -4897,7 +4937,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 883
+    "line": 888
    },
    "parent": "App",
    "seeAlso": [],
@@ -4921,7 +4961,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 884
+    "line": 889
    },
    "parent": "App",
    "seeAlso": [],
@@ -4945,7 +4985,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 885
+    "line": 890
    },
    "parent": "App",
    "seeAlso": [],
@@ -4953,6 +4993,25 @@
    "default": "false",
    "prevailing": false,
    "readOnly": true,
+   "inheritedFrom": null
+  },
+  "App.touchDevice": {
+   "id": "App.touchDevice",
+   "name": "touchDevice",
+   "kind": "attribute",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/view.ts",
+    "line": 891
+   },
+   "parent": "App",
+   "seeAlso": [],
+   "type": "boolean",
+   "default": "false",
+   "prevailing": false,
+   "readOnly": false,
    "inheritedFrom": null
   },
   "App.env": {
@@ -4964,7 +5023,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 889
+    "line": 895
    },
    "parent": "App",
    "seeAlso": [],
@@ -4999,7 +5058,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 897
+    "line": 903
    },
    "parent": "App",
    "seeAlso": [],
@@ -5023,7 +5082,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 901
+    "line": 907
    },
    "parent": "App",
    "seeAlso": [],
@@ -5047,7 +5106,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 902
+    "line": 908
    },
    "parent": "App",
    "seeAlso": [],
@@ -5066,7 +5125,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 904
+    "line": 910
    },
    "parent": "App",
    "seeAlso": [],
@@ -5085,7 +5144,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 772
+    "line": 777
    },
    "parent": "App",
    "seeAlso": [],
@@ -5106,7 +5165,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 777
+    "line": 782
    },
    "parent": "App",
    "seeAlso": [],
@@ -5122,7 +5181,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 795
+    "line": 800
    },
    "parent": "App",
    "seeAlso": [],
@@ -5138,7 +5197,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 800
+    "line": 805
    },
    "parent": "App",
    "seeAlso": [],
@@ -5154,7 +5213,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 816
+    "line": 821
    },
    "parent": "App",
    "seeAlso": [],
@@ -5202,6 +5261,7 @@
     "App.hovering",
     "App.pointerOverText",
     "App.dark",
+    "App.touchDevice",
     "App.env",
     "App.location",
     "App.minWidth",
@@ -5398,7 +5458,7 @@
    "id": "Text",
    "name": "Text",
    "kind": "class",
-   "doc": "A run of text, sized by native browser metrics when you don't give it a width or\nheight — so a bare `Text [ text = \"hi\" ]` is exactly as wide and tall as its glyphs.\nIts **style** is not on `Text`: `textColor`, `fontSize`, `fontFamily`, and\n`fontWeight` are `prevailing` slots on `View`, so any ancestor provides them and this\nrun renders with the effective values. That is why restyling a region's text means\nsetting those on the container, not on each `Text`.\n\n```declare\nView [ textColor = royalblue, fontSize = 14,\n  Text [ text = \"inherits the panel's style\" ]\n]\n```",
+   "doc": "A run of text, sized by native browser metrics when you don't give it a width or\nheight — so a bare `Text [ text = \"hi\" ]` is exactly as wide and tall as its glyphs.\nIts **style** is not on `Text`: `textColor`, `fontSize`, `fontFamily`, and\n`fontWeight` are `prevailing` slots on `View`, so any ancestor provides them and this\nrun renders with the effective values. That is why restyling a region's text means\nsetting those on the container, not on each `Text`.\n\n```declare\nView [ textColor = royalblue, fontSize = 15,\n  Text [ text = \"inherits the panel's style\" ]\n]\n```",
    "docSegs": [
     {
      "md": "A run of text, sized by native browser metrics when you don't give it a width or\nheight — so a bare `Text [ text = \"hi\" ]` is exactly as wide and tall as its glyphs.\nIts **style** is not on `Text`: `textColor`, `fontSize`, `fontFamily`, and\n`fontWeight` are `prevailing` slots on `View`, so any ancestor provides them and this\nrun renders with the effective values. That is why restyling a region's text means\nsetting those on the container, not on each `Text`.",
@@ -5409,7 +5469,7 @@
      "code": [
       {
        "id": "seg_Text_0",
-       "source": "App [\n    View [ textColor = royalblue, fontSize = 14,\n      Text [ text = \"inherits the panel's style\" ]\n    ]\n]",
+       "source": "App [\n    View [ textColor = royalblue, fontSize = 15,\n      Text [ text = \"inherits the panel's style\" ]\n    ]\n]",
        "lines": 5,
        "stageH": 224
       }
@@ -5648,7 +5708,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/markdown.ts",
-    "line": 689
+    "line": 704
    },
    "parent": "RichText",
    "seeAlso": [],
@@ -5778,7 +5838,7 @@
     {
      "name": "Markdown",
      "lines": 13,
-     "source": "// Markdown.declare — author prose in Markdown; it renders as real, wrapped views\n\nApp [\n    Markdown [ x = 28, y = 20, width = 400, text = \"\"\"\n# Declare\n\nA **declarative** UI language:\n\n- reactive `{ }` constraints\n- native layout, both backends\n- text authored in Markdown\n\"\"\" ],\n    ]",
+     "source": "// Markdown.declare — author prose in Markdown; it renders as real, wrapped views\n\nApp [\n    Markdown [ x = 30, y = 20, width = 400, text = \"\"\"\n# Declare\n\nA **declarative** UI language:\n\n- reactive `{ }` constraints\n- native layout, both backends\n- text authored in Markdown\n\"\"\" ],\n    ]",
      "stageH": 274
     }
    ]
@@ -5925,7 +5985,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 925
+    "line": 931
    },
    "parent": "DOMIsland",
    "seeAlso": [],
@@ -5944,7 +6004,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 926
+    "line": 932
    },
    "parent": "DOMIsland",
    "seeAlso": [],
@@ -6256,7 +6316,7 @@
    "id": "TextInput",
    "name": "TextInput",
    "kind": "class",
-   "doc": "An editable text field, realized as a **native** editable element (a DOM input in-box, a\npositioned overlay on canvas) so caret, selection, IME, and accessibility are the\nplatform's, not reimplemented. It fires `input` on every edit and `enter` on a single-line\nsubmit, and inherits View's focus and keyboard events.\n\nIt is also the first **Editor**: bind `text <-> :path` to edit a dataset record two-way — the\nfield reads the datapath, commits edits back into the dataset, and reseeds when the cursor\nmoves to a new record. The dataset owns the committed value; the field owns the *edit session*\n— its draft plus `valid` / `error` / `dirty`. Supply a `validate(v)` method for a domain rule\nbeyond the schema type (return an error message, or `null` when valid); an invalid draft is\nheld and never written.\n\n```declare\nApp [ fill = white, textColor = black,\n    contact: Dataset { { \"email\": \"ada@example.com\" } },\n    form: View [ x = 24, y = 24, datapath = { app.contact.value },\n        email: TextInput [ width = 240, height = 30, padding = 6, cornerRadius = 6,\n            fill = gainsboro,\n            text <-> :email,\n            validate(v) { return v.includes(\"@\") ? null : \"not an email\" } ] ],\n    ]\n```",
+   "doc": "An editable text field, realized as a **native** editable element (a DOM input in-box, a\npositioned overlay on canvas) so caret, selection, IME, and accessibility are the\nplatform's, not reimplemented. It fires `input` on every edit and `enter` on a single-line\nsubmit, and inherits View's focus and keyboard events.\n\nIt is also the first **Editor**: bind `text <-> :path` to edit a dataset record two-way — the\nfield reads the datapath, commits edits back into the dataset, and reseeds when the cursor\nmoves to a new record. The dataset owns the committed value; the field owns the *edit session*\n— its draft plus `valid` / `error` / `dirty`. Supply a `validate(v)` method for a domain rule\nbeyond the schema type (return an error message, or `null` when valid); an invalid draft is\nheld and never written.\n\n```declare\nApp [ fill = white, textColor = black,\n    contact: Dataset { { \"email\": \"ada@example.com\" } },\n    form: View [ x = 20, y = 20, datapath = { app.contact.value },\n        email: TextInput [ width = 240, height = 30, padding = 6, cornerRadius = 6,\n            fill = gainsboro,\n            text <-> :email,\n            validate(v) { return v.includes(\"@\") ? null : \"not an email\" } ] ],\n    ]\n```",
    "docSegs": [
     {
      "md": "An editable text field, realized as a **native** editable element (a DOM input in-box, a\npositioned overlay on canvas) so caret, selection, IME, and accessibility are the\nplatform's, not reimplemented. It fires `input` on every edit and `enter` on a single-line\nsubmit, and inherits View's focus and keyboard events.\n\nIt is also the first **Editor**: bind `text <-> :path` to edit a dataset record two-way — the\nfield reads the datapath, commits edits back into the dataset, and reseeds when the cursor\nmoves to a new record. The dataset owns the committed value; the field owns the *edit session*\n— its draft plus `valid` / `error` / `dirty`. Supply a `validate(v)` method for a domain rule\nbeyond the schema type (return an error message, or `null` when valid); an invalid draft is\nheld and never written.",
@@ -6267,7 +6327,7 @@
      "code": [
       {
        "id": "seg_TextInput_0",
-       "source": "App [ fill = white, textColor = black,\n    contact: Dataset { { \"email\": \"ada@example.com\" } },\n    form: View [ x = 24, y = 24, datapath = { app.contact.value },\n        email: TextInput [ width = 240, height = 30, padding = 6, cornerRadius = 6,\n            fill = gainsboro,\n            text <-> :email,\n            validate(v) { return v.includes(\"@\") ? null : \"not an email\" } ] ],\n    ]",
+       "source": "App [ fill = white, textColor = black,\n    contact: Dataset { { \"email\": \"ada@example.com\" } },\n    form: View [ x = 20, y = 20, datapath = { app.contact.value },\n        email: TextInput [ width = 240, height = 30, padding = 6, cornerRadius = 6,\n            fill = gainsboro,\n            text <-> :email,\n            validate(v) { return v.includes(\"@\") ? null : \"not an email\" } ] ],\n    ]",
        "lines": 8,
        "stageH": 224
       }
@@ -6306,197 +6366,7 @@
     {
      "name": "TextInput",
      "lines": 11,
-     "source": "// TextInput.declare — the field is the source of truth; the Text reads its text live\n\nApp [ fill = white, textColor = black,\n    View [ x = 28, y = 30,\n        layout: SimpleLayout [ axis = y, spacing = 16 ],\n        field: TextInput [ width = 300, height = 34, padding = 8, cornerRadius = 8,\n            fill = gainsboro, placeholder = \"type here\" ],\n        Text [ fontSize = 22, fontWeight = semibold,\n            text = { \"hello, \" + (parent.field.text || \"world\") } ],\n        ],\n    ]",
-     "stageH": 274
-    }
-   ]
-  },
-  "SimpleLayout.axis": {
-   "id": "SimpleLayout.axis",
-   "name": "axis",
-   "kind": "attribute",
-   "doc": "The stacking direction — `x` lays children left-to-right (a row), `y` top-to-bottom (a\ncolumn). You always name it; there is no \"obvious\" default for a stack.",
-   "docSegs": [
-    {
-     "md": "The stacking direction — `x` lays children left-to-right (a row), `y` top-to-bottom (a\ncolumn). You always name it; there is no \"obvious\" default for a stack.",
-     "code": []
-    }
-   ],
-   "api": true,
-   "source": {
-    "file": "runtime/src/schema.ts",
-    "line": 0
-   },
-   "parent": "SimpleLayout",
-   "seeAlso": [],
-   "type": "x | y",
-   "default": null,
-   "prevailing": false,
-   "readOnly": false,
-   "inheritedFrom": null
-  },
-  "SimpleLayout.spacing": {
-   "id": "SimpleLayout.spacing",
-   "name": "spacing",
-   "kind": "attribute",
-   "doc": "The gap between adjacent children, in px. **Negative values overlap them** — stacked\ncards, an avatar pile. Invisible children are skipped, so the gap closes automatically\nwhen one hides rather than leaving a hole.",
-   "docSegs": [
-    {
-     "md": "The gap between adjacent children, in px. **Negative values overlap them** — stacked\ncards, an avatar pile. Invisible children are skipped, so the gap closes automatically\nwhen one hides rather than leaving a hole.",
-     "code": []
-    }
-   ],
-   "api": true,
-   "source": {
-    "file": "runtime/src/schema.ts",
-    "line": 0
-   },
-   "parent": "SimpleLayout",
-   "seeAlso": [],
-   "type": "number",
-   "default": null,
-   "prevailing": false,
-   "readOnly": false,
-   "inheritedFrom": null
-  },
-  "SimpleLayout": {
-   "id": "SimpleLayout",
-   "name": "SimpleLayout",
-   "kind": "class",
-   "doc": "The stacking layout: arranges a view's children in a line along `axis`, `spacing` px\napart, skipping invisible ones. You set it as the view's `layout` **attribute** — not a\nchild (OpenLaszlo's form), not the container's type (SwiftUI/Flutter's) — which is what\nlets you **swap or animate it** so an arrangement *transitions* instead of jumping. While\nit's active it drives the children's positions, so any `x`/`y` you set on them is\noverwritten.\n\n```declare\nView [ layout: SimpleLayout [ axis = y, spacing = 10 ],\n    Text [ text = \"one\" ],\n    Text [ text = \"two\" ],\n]\n```",
-   "docSegs": [
-    {
-     "md": "The stacking layout: arranges a view's children in a line along `axis`, `spacing` px\napart, skipping invisible ones. You set it as the view's `layout` **attribute** — not a\nchild (OpenLaszlo's form), not the container's type (SwiftUI/Flutter's) — which is what\nlets you **swap or animate it** so an arrangement *transitions* instead of jumping. While\nit's active it drives the children's positions, so any `x`/`y` you set on them is\noverwritten.",
-     "code": []
-    },
-    {
-     "md": "",
-     "code": [
-      {
-       "id": "seg_SimpleLayout_0",
-       "source": "App [\n    View [ layout: SimpleLayout [ axis = y, spacing = 10 ],\n        Text [ text = \"one\" ],\n        Text [ text = \"two\" ],\n    ]\n]",
-       "lines": 6,
-       "stageH": 224
-      }
-     ]
-    }
-   ],
-   "api": true,
-   "source": {
-    "file": "runtime/src/schema.ts",
-    "line": 0
-   },
-   "parent": null,
-   "seeAlso": [],
-   "extends": "Layout",
-   "subclasses": [],
-   "origin": "ts",
-   "attributes": [
-    "SimpleLayout.axis",
-    "SimpleLayout.spacing"
-   ],
-   "methods": [],
-   "events": [],
-   "example": [
-    {
-     "name": "SimpleLayout",
-     "lines": 11,
-     "source": "// SimpleLayout.declare — children stacked down the y axis, evenly spaced\n\nApp [ fill = white, textColor = black,\n    View [ x = 28, y = 24,\n        layout: SimpleLayout [ axis = y, spacing = 12 ],\n        Bar [ width = 320, label = \"north\", value = 72, tint = royalblue ],\n        Bar [ width = 320, label = \"east\",  value = 54, tint = dodgerblue ],\n        Bar [ width = 320, label = \"south\", value = 88, tint = cornflowerblue ],\n        Bar [ width = 320, label = \"west\",  value = 41, tint = lightskyblue ],\n        ],\n    ]",
-     "stageH": 274
-    }
-   ]
-  },
-  "WrappingLayout.spacing": {
-   "id": "WrappingLayout.spacing",
-   "name": "spacing",
-   "kind": "attribute",
-   "doc": "The horizontal gap between items within a row, in px.",
-   "docSegs": [
-    {
-     "md": "The horizontal gap between items within a row, in px.",
-     "code": []
-    }
-   ],
-   "api": true,
-   "source": {
-    "file": "runtime/src/schema.ts",
-    "line": 0
-   },
-   "parent": "WrappingLayout",
-   "seeAlso": [],
-   "type": "number",
-   "default": null,
-   "prevailing": false,
-   "readOnly": false,
-   "inheritedFrom": null
-  },
-  "WrappingLayout.lineSpacing": {
-   "id": "WrappingLayout.lineSpacing",
-   "name": "lineSpacing",
-   "kind": "attribute",
-   "doc": "The vertical gap between wrapped rows, in px — **defaults to `spacing`** when unset, so a\nsingle value gives even gaps in both directions and you only set this to make the rows\ntighter or looser than the columns.",
-   "docSegs": [
-    {
-     "md": "The vertical gap between wrapped rows, in px — **defaults to `spacing`** when unset, so a\nsingle value gives even gaps in both directions and you only set this to make the rows\ntighter or looser than the columns.",
-     "code": []
-    }
-   ],
-   "api": true,
-   "source": {
-    "file": "runtime/src/schema.ts",
-    "line": 0
-   },
-   "parent": "WrappingLayout",
-   "seeAlso": [],
-   "type": "number",
-   "default": null,
-   "prevailing": false,
-   "readOnly": false,
-   "inheritedFrom": null
-  },
-  "WrappingLayout": {
-   "id": "WrappingLayout",
-   "name": "WrappingLayout",
-   "kind": "class",
-   "doc": "A horizontal flow that **wraps** to a new row when the view runs out of width — a row\nwhile there's room, rows when there isn't. For tag lists, chip clouds, a toolbar that\nreflows. It re-wraps reactively as the view resizes, so binding the view's `width` to its\nparent is all it takes to make the flow responsive.\n\n```declare\nView [ width = { parent.width }, layout: WrappingLayout [ spacing = 8, lineSpacing = 8 ] ]\n```",
-   "docSegs": [
-    {
-     "md": "A horizontal flow that **wraps** to a new row when the view runs out of width — a row\nwhile there's room, rows when there isn't. For tag lists, chip clouds, a toolbar that\nreflows. It re-wraps reactively as the view resizes, so binding the view's `width` to its\nparent is all it takes to make the flow responsive.",
-     "code": []
-    },
-    {
-     "md": "",
-     "code": [
-      {
-       "id": "seg_WrappingLayout_0",
-       "source": "App [\n    View [ width = { parent.width }, layout: WrappingLayout [ spacing = 8, lineSpacing = 8 ] ]\n]",
-       "lines": 3,
-       "stageH": 224
-      }
-     ]
-    }
-   ],
-   "api": true,
-   "source": {
-    "file": "runtime/src/schema.ts",
-    "line": 0
-   },
-   "parent": null,
-   "seeAlso": [],
-   "extends": "Layout",
-   "subclasses": [],
-   "origin": "ts",
-   "attributes": [
-    "WrappingLayout.spacing",
-    "WrappingLayout.lineSpacing"
-   ],
-   "methods": [],
-   "events": [],
-   "example": [
-    {
-     "name": "WrappingLayout",
-     "lines": 22,
-     "source": "// WrappingLayout.declare — a horizontal flow of chips that wraps to new rows\n\nclass Chip extends View [ height = 30, cornerRadius = 15, fill = steelblue,\n    label: string = \"\",\n    Text [ x = 12, y = 7, fontSize = 13, fontWeight = semibold,\n        textColor = whitesmoke, text = { classroot.label } ],\n    ]\n\n\nApp [\n    View [ x = 24, y = 24, width = 320,\n        layout: WrappingLayout [ spacing = 10, lineSpacing = 10 ],\n        Chip [ width = 74, label = \"views\" ],\n        Chip [ width = 92, label = \"reactive\" ],\n        Chip [ width = 78, label = \"layout\" ],\n        Chip [ width = 68, label = \"text\" ],\n        Chip [ width = 96, label = \"animator\" ],\n        Chip [ width = 66, label = \"state\" ],\n        Chip [ width = 86, label = \"dataset\" ],\n        Chip [ width = 90, label = \"markdown\" ],\n        ],\n    ]",
+     "source": "// TextInput.declare — the field is the source of truth; the Text reads its text live\n\nApp [ fill = white, textColor = black,\n    View [ x = 30, y = 30,\n        layout: SimpleLayout [ axis = y, spacing = 20 ],\n        field: TextInput [ width = 300, height = 40, padding = 10, cornerRadius = 10,\n            fill = gainsboro, placeholder = \"type here\" ],\n        Text [ fontSize = 20, fontWeight = semibold,\n            text = { \"hello, \" + (parent.field.text || \"world\") } ],\n        ],\n    ]",
      "stageH": 274
     }
    ]
@@ -6558,7 +6428,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/layout.ts",
-    "line": 403
+    "line": 472
    },
    "parent": "TweenLayout",
    "seeAlso": [],
@@ -6780,7 +6650,7 @@
     {
      "name": "Dataset",
      "lines": 10,
-     "source": "App [ fill = white, textColor = black,\n    facts: Dataset { { \"rows\": [\n        { \"label\": \"reactive\", \"n\": 92 },\n        { \"label\": \"compiled\", \"n\": 78 },\n        { \"label\": \"small\",    \"n\": 64 } ] } },\n    View [ x = 28, y = 26, datapath = { parent.facts.value },\n        layout: SimpleLayout [ axis = y, spacing = 16 ],\n        Bar [ width = 300, datapath = :rows[], label = :label, value = :n ],\n        ],\n    ]",
+     "source": "App [ fill = white, textColor = black,\n    facts: Dataset { { \"rows\": [\n        { \"label\": \"reactive\", \"n\": 92 },\n        { \"label\": \"compiled\", \"n\": 78 },\n        { \"label\": \"small\",    \"n\": 64 } ] } },\n    View [ x = 30, y = 30, datapath = { parent.facts.value },\n        layout: SimpleLayout [ axis = y, spacing = 16 ],\n        Bar [ width = 300, datapath = :rows[], label = :label, value = :n ],\n        ],\n    ]",
      "stageH": 274
     }
    ]
@@ -7482,7 +7352,7 @@
     {
      "name": "Animator",
      "lines": 10,
-     "source": "// Animator.declare — click the box; the Animator drives its x to the target\n\nApp [\n    View [ x = 28, y = 88, width = 80, height = 80, cornerRadius = 12, fill = dodgerblue,\n        onClick() { slide.start() },\n        Text [ x = 18, y = 30, fontSize = 15, fontWeight = semibold,\n            textColor = whitesmoke, text = \"click\" ],\n        slide: Animator [ attribute = x, to = 460, duration = 500, motion = easeOut ],\n        ],\n    ]",
+     "source": "// Animator.declare — click the box; the Animator drives its x to the target\n\nApp [\n    View [ x = 30, y = 90, width = 80, height = 80, cornerRadius = 10, fill = dodgerblue,\n        onClick() { slide.start() },\n        Text [ x = 20, y = 30, fontSize = 15, fontWeight = semibold,\n            textColor = whitesmoke, text = \"click\" ],\n        slide: Animator [ attribute = x, to = 460, duration = 500, motion = easeOut ],\n        ],\n    ]",
      "stageH": 274
     }
    ]
@@ -8212,7 +8082,7 @@
     {
      "name": "Spring",
      "lines": 11,
-     "source": "App [ on: boolean = false,\n    onMouseDown() { on = !on },\n    View [ x = 28, y = 26,\n        layout: SimpleLayout [ axis = y, spacing = 24 ],\n        Text [ textColor = slategray, text = \"click anywhere to toggle\" ],\n        View [ height = 64, width = 64, cornerRadius = 32, fill = dodgerblue,\n            Spring [ attribute = x, to = { on ? 240 : 0 },\n                stiffness = 190, damping = 17 ],\n            ],\n        ],\n    ]",
+     "source": "App [ on: boolean = false,\n    onMouseDown() { on = !on },\n    View [ x = 30, y = 30,\n        layout: SimpleLayout [ axis = y, spacing = 20 ],\n        Text [ textColor = slategray, text = \"click anywhere to toggle\" ],\n        View [ height = 60, width = 60, cornerRadius = 30, fill = dodgerblue,\n            Spring [ attribute = x, to = { on ? 240 : 0 },\n                stiffness = 190, damping = 20 ],\n            ],\n        ],\n    ]",
      "stageH": 274
     }
    ]
@@ -8449,7 +8319,7 @@
     {
      "name": "State",
      "lines": 12,
-     "source": "App [ fill = white, textColor = black,\n    open: boolean = false,\n    onMouseDown() { open = !open },\n    card: View [ x = 28, y = 26, width = 300, height = 72,\n        cornerRadius = 10, fill = whitesmoke,\n        Text [ x = 16, y = 16, fontWeight = bold, text = \"Summary\" ],\n        big: State [ applied = { open }, height = 184, fill = lightsteelblue,\n            Text [ x = 16, y = 54, width = 268, wrap = true,\n                text = \"height, color, and this whole line swap in together\" ],\n            ],\n        ],\n    ]",
+     "source": "App [ fill = white, textColor = black,\n    open: boolean = false,\n    onMouseDown() { open = !open },\n    card: View [ x = 30, y = 30, width = 300, height = 70,\n        cornerRadius = 10, fill = whitesmoke,\n        Text [ x = 20, y = 20, fontWeight = bold, text = \"Summary\" ],\n        big: State [ applied = { open }, height = 180, fill = lightsteelblue,\n            Text [ x = 20, y = 50, width = 260, wrap = true,\n                text = \"height, color, and this whole line swap in together\" ],\n            ],\n        ],\n    ]",
      "stageH": 274
     }
    ]
@@ -12170,6 +12040,325 @@
    "methods": [],
    "events": [],
    "example": []
+  },
+  "Spacer.flexes": {
+   "id": "Spacer.flexes",
+   "name": "flexes",
+   "kind": "attribute",
+   "doc": null,
+   "docSegs": [],
+   "api": true,
+   "source": {
+    "file": "library/spacer.declare",
+    "line": 0
+   },
+   "parent": "Spacer",
+   "seeAlso": [],
+   "type": "boolean",
+   "default": "true",
+   "prevailing": false,
+   "readOnly": false,
+   "inheritedFrom": null
+  },
+  "Spacer": {
+   "id": "Spacer",
+   "name": "Spacer",
+   "kind": "class",
+   "doc": "When a row (or stack)\ndoes not fill its container, the leftover space has to go SOMEWHERE — and\nthe laid children cannot take it themselves (their flow-axis slot is owned\nby the layout). A Spacer says where, structurally: put one between two\ngroups and they push apart (\"logo left, actions right\"); put one on each\nside of a run and it centers; put one first and the run right-aligns.\nSeveral spacers split the slack evenly. When there is no slack — a plan\nwhose shares fill the width, an auto-sized container — a Spacer is simply\nzero and invisible in effect.\n\nThe layout owns a Spacer's flow-axis size (a percent-family constraint, so\na container deriving its extent from its children never counts one); the\n`flexes` marker is what a flow layout looks for. An empty view otherwise —\nit paints nothing and has no size of its own.",
+   "docSegs": [
+    {
+     "md": "When a row (or stack)\ndoes not fill its container, the leftover space has to go SOMEWHERE — and\nthe laid children cannot take it themselves (their flow-axis slot is owned\nby the layout). A Spacer says where, structurally: put one between two\ngroups and they push apart (\"logo left, actions right\"); put one on each\nside of a run and it centers; put one first and the run right-aligns.\nSeveral spacers split the slack evenly. When there is no slack — a plan\nwhose shares fill the width, an auto-sized container — a Spacer is simply\nzero and invisible in effect.\n\nThe layout owns a Spacer's flow-axis size (a percent-family constraint, so\na container deriving its extent from its children never counts one); the\n`flexes` marker is what a flow layout looks for. An empty view otherwise —\nit paints nothing and has no size of its own.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "library/spacer.declare",
+    "line": 0
+   },
+   "parent": null,
+   "seeAlso": [],
+   "extends": "View",
+   "subclasses": [],
+   "origin": "library",
+   "attributes": [
+    "Spacer.flexes"
+   ],
+   "methods": [],
+   "events": [],
+   "example": []
+  },
+  "ResponsiveLayout.plan": {
+   "id": "ResponsiveLayout.plan",
+   "name": "plan",
+   "kind": "attribute",
+   "doc": null,
+   "docSegs": [],
+   "api": true,
+   "source": {
+    "file": "library/responsive.declare",
+    "line": 0
+   },
+   "parent": "ResponsiveLayout",
+   "seeAlso": [],
+   "type": "array",
+   "default": null,
+   "prevailing": false,
+   "readOnly": false,
+   "inheritedFrom": null
+  },
+  "ResponsiveLayout.gap": {
+   "id": "ResponsiveLayout.gap",
+   "name": "gap",
+   "kind": "attribute",
+   "doc": null,
+   "docSegs": [],
+   "api": true,
+   "source": {
+    "file": "library/responsive.declare",
+    "line": 0
+   },
+   "parent": "ResponsiveLayout",
+   "seeAlso": [],
+   "type": "number",
+   "default": "10",
+   "prevailing": false,
+   "readOnly": false,
+   "inheritedFrom": null
+  },
+  "ResponsiveLayout.method.place": {
+   "id": "ResponsiveLayout.method.place",
+   "name": "place",
+   "kind": "method",
+   "doc": null,
+   "docSegs": [],
+   "api": true,
+   "source": {
+    "file": "library/responsive.declare",
+    "line": 0
+   },
+   "parent": "ResponsiveLayout",
+   "seeAlso": [],
+   "signature": "place()"
+  },
+  "ResponsiveLayout": {
+   "id": "ResponsiveLayout",
+   "name": "ResponsiveLayout",
+   "kind": "class",
+   "doc": "A view's children often want one arrangement when there is room and another\nwhen there isn't: three panels side by side on a wide screen, the same panels\nstacked on a phone; an optional control that appears only when space allows.\nResponsiveLayout states those alternatives directly. You give it a list of\n**plans** — each one says *\"from this width up, arrange the children like\nthis\"* — and it keeps the right plan applied as the view's width changes.\nHiding, showing, and dividing the width are all part of a plan, not separate\nwiring.\n\n    bar: View [\n        layout: ResponsiveLayout [ plan = { [\n            { from: 900, flow: \"row\",  share: { logo: 15, nav: 55, actions: 30 } },\n            { from: 600, flow: \"row\",  share: { logo: 20, nav: 80, actions: 0 } },\n            { from: 0,   flow: \"stack\" },\n        ] } ],\n        logo:    Logo    [ ],\n        nav:     Nav     [ ],\n        actions: Actions [ ],\n    ]\n\nEach entry's `from` means *use this plan when the view is at least this wide*\n— the entry with the largest `from` that fits wins, wherever it sits in the\nlist, and an entry with `from: 0` is the fallback for anything narrower.\n`flow` is the arrangement: `\"row\"` places children left to right; `\"stack\"`\nplaces them top to bottom. `share` divides the width (what is left of it\nafter the gaps) among the children it NAMES — the names are the view's own\nchild names, checked when the layout first arranges (a name with no child is\na loud error). `logo: 15` gives logo 15% of it; **`0` hides that child while\nthe plan is active** — so \"the actions disappear on small screens\" is just a\nnumber in the narrow plan, and they reappear by themselves when the view\nwidens. A child a plan does NOT name is left alone: natural width, the flow\njust places it. `gap` sets the space between children (an entry may carry\nits own `gap` to override the layout's). Heights are never touched: children\nkeep their own heights, and the view's height falls out of its content, as\nalways.\n\nSo the example reads as a storyboard: at 900 and up, a three-across row split\n15/55/30; between 600 and 900, the actions drop and the nav takes their room;\nbelow 600, everything stacks.\n\n**Slack and alignment.** When a row's children keep natural widths, the run\nmay not fill the view — and where the run sits is said with structure, not a\nknob: a `Spacer [ ]` child absorbs the slack. Between two groups it pushes\nthem apart; one on each side centers the run; one first right-aligns it. On\nthe axis the flow does not manage, a child places itself with the ordinary\nliterals (`y = center` in a row). Shares that fill the width leave no slack\nat all — *shares fill; naturals align.*\n\n**Nesting — who decides what.** A ResponsiveLayout watches its own view's\nwidth — not the window's. The parent's plan decides how much room each child\ngets; each child decides what to do with the room it got — if the child has\nits own ResponsiveLayout, its plans answer to its own width, automatically.\nRoom flows down; each level responds locally. (A plan can only name direct\nchildren — managing a grandchild is the child's own plan's business.)\n\n**Division of labor.** ResponsiveLayout manages NAMED regions. A collection\nof uniform, replicated cards that should reflow to fit is the other tool:\n`WrappingLayout` (it wraps by fitting, no plan needed) with a width\nconstraint on the card.\n\n**When the rules aren't enough.** A plan speaks width, flow, share, and gap.\nWhole alternate configurations beyond geometry are a `State` applied on a\nwidth condition; fully custom geometry is a subclass overriding `place()` —\nthe same seam every layout in the library is built on.",
+   "docSegs": [
+    {
+     "md": "A view's children often want one arrangement when there is room and another\nwhen there isn't: three panels side by side on a wide screen, the same panels\nstacked on a phone; an optional control that appears only when space allows.\nResponsiveLayout states those alternatives directly. You give it a list of\n**plans** — each one says *\"from this width up, arrange the children like\nthis\"* — and it keeps the right plan applied as the view's width changes.\nHiding, showing, and dividing the width are all part of a plan, not separate\nwiring.\n\n    bar: View [\n        layout: ResponsiveLayout [ plan = { [\n            { from: 900, flow: \"row\",  share: { logo: 15, nav: 55, actions: 30 } },\n            { from: 600, flow: \"row\",  share: { logo: 20, nav: 80, actions: 0 } },\n            { from: 0,   flow: \"stack\" },\n        ] } ],\n        logo:    Logo    [ ],\n        nav:     Nav     [ ],\n        actions: Actions [ ],\n    ]\n\nEach entry's `from` means *use this plan when the view is at least this wide*\n— the entry with the largest `from` that fits wins, wherever it sits in the\nlist, and an entry with `from: 0` is the fallback for anything narrower.\n`flow` is the arrangement: `\"row\"` places children left to right; `\"stack\"`\nplaces them top to bottom. `share` divides the width (what is left of it\nafter the gaps) among the children it NAMES — the names are the view's own\nchild names, checked when the layout first arranges (a name with no child is\na loud error). `logo: 15` gives logo 15% of it; **`0` hides that child while\nthe plan is active** — so \"the actions disappear on small screens\" is just a\nnumber in the narrow plan, and they reappear by themselves when the view\nwidens. A child a plan does NOT name is left alone: natural width, the flow\njust places it. `gap` sets the space between children (an entry may carry\nits own `gap` to override the layout's). Heights are never touched: children\nkeep their own heights, and the view's height falls out of its content, as\nalways.\n\nSo the example reads as a storyboard: at 900 and up, a three-across row split\n15/55/30; between 600 and 900, the actions drop and the nav takes their room;\nbelow 600, everything stacks.\n\n**Slack and alignment.** When a row's children keep natural widths, the run\nmay not fill the view — and where the run sits is said with structure, not a\nknob: a `Spacer [ ]` child absorbs the slack. Between two groups it pushes\nthem apart; one on each side centers the run; one first right-aligns it. On\nthe axis the flow does not manage, a child places itself with the ordinary\nliterals (`y = center` in a row). Shares that fill the width leave no slack\nat all — *shares fill; naturals align.*\n\n**Nesting — who decides what.** A ResponsiveLayout watches its own view's\nwidth — not the window's. The parent's plan decides how much room each child\ngets; each child decides what to do with the room it got — if the child has\nits own ResponsiveLayout, its plans answer to its own width, automatically.\nRoom flows down; each level responds locally. (A plan can only name direct\nchildren — managing a grandchild is the child's own plan's business.)\n\n**Division of labor.** ResponsiveLayout manages NAMED regions. A collection\nof uniform, replicated cards that should reflow to fit is the other tool:\n`WrappingLayout` (it wraps by fitting, no plan needed) with a width\nconstraint on the card.\n\n**When the rules aren't enough.** A plan speaks width, flow, share, and gap.\nWhole alternate configurations beyond geometry are a `State` applied on a\nwidth condition; fully custom geometry is a subclass overriding `place()` —\nthe same seam every layout in the library is built on.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "library/responsive.declare",
+    "line": 0
+   },
+   "parent": null,
+   "seeAlso": [],
+   "extends": "Layout",
+   "subclasses": [],
+   "origin": "library",
+   "attributes": [
+    "ResponsiveLayout.plan",
+    "ResponsiveLayout.gap"
+   ],
+   "methods": [
+    "ResponsiveLayout.method.place"
+   ],
+   "events": [],
+   "example": []
+  },
+  "SimpleLayout.axis": {
+   "id": "SimpleLayout.axis",
+   "name": "axis",
+   "kind": "attribute",
+   "doc": null,
+   "docSegs": [],
+   "api": true,
+   "source": {
+    "file": "library/simplelayout.declare",
+    "line": 0
+   },
+   "parent": "SimpleLayout",
+   "seeAlso": [],
+   "type": "Axis",
+   "default": "y",
+   "prevailing": false,
+   "readOnly": false,
+   "inheritedFrom": null
+  },
+  "SimpleLayout.spacing": {
+   "id": "SimpleLayout.spacing",
+   "name": "spacing",
+   "kind": "attribute",
+   "doc": null,
+   "docSegs": [],
+   "api": true,
+   "source": {
+    "file": "library/simplelayout.declare",
+    "line": 0
+   },
+   "parent": "SimpleLayout",
+   "seeAlso": [],
+   "type": "number",
+   "default": "0",
+   "prevailing": false,
+   "readOnly": false,
+   "inheritedFrom": null
+  },
+  "SimpleLayout.method.place": {
+   "id": "SimpleLayout.method.place",
+   "name": "place",
+   "kind": "method",
+   "doc": null,
+   "docSegs": [],
+   "api": true,
+   "source": {
+    "file": "library/simplelayout.declare",
+    "line": 0
+   },
+   "parent": "SimpleLayout",
+   "seeAlso": [],
+   "signature": "place()"
+  },
+  "SimpleLayout": {
+   "id": "SimpleLayout",
+   "name": "SimpleLayout",
+   "kind": "class",
+   "doc": "The stacking idiom: siblings placed one after another along\n`axis`, in child order, `spacing` apart (negative overlaps). The cross axis\nand all sizes stay the children's own — a child centers itself across a row\nwith the ordinary `y = center`. Invisible children are skipped and their\nspace reclaimed; a skipped child still gets the slot it would occupy, so\nre-showing it needs no special case. A `Spacer` child flexes to absorb the\nrun's slack along the axis (between two groups it pushes them apart; one on\neach side centers the run).\n\nWritten in Declare over the Layout kernel: the whole strategy is this one\npure place() — one box per laid child, aligned by index.",
+   "docSegs": [
+    {
+     "md": "The stacking idiom: siblings placed one after another along\n`axis`, in child order, `spacing` apart (negative overlaps). The cross axis\nand all sizes stay the children's own — a child centers itself across a row\nwith the ordinary `y = center`. Invisible children are skipped and their\nspace reclaimed; a skipped child still gets the slot it would occupy, so\nre-showing it needs no special case. A `Spacer` child flexes to absorb the\nrun's slack along the axis (between two groups it pushes them apart; one on\neach side centers the run).\n\nWritten in Declare over the Layout kernel: the whole strategy is this one\npure place() — one box per laid child, aligned by index.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "library/simplelayout.declare",
+    "line": 0
+   },
+   "parent": null,
+   "seeAlso": [],
+   "extends": "Layout",
+   "subclasses": [],
+   "origin": "library",
+   "attributes": [
+    "SimpleLayout.axis",
+    "SimpleLayout.spacing"
+   ],
+   "methods": [
+    "SimpleLayout.method.place"
+   ],
+   "events": [],
+   "example": []
+  },
+  "WrappingLayout.spacing": {
+   "id": "WrappingLayout.spacing",
+   "name": "spacing",
+   "kind": "attribute",
+   "doc": null,
+   "docSegs": [],
+   "api": true,
+   "source": {
+    "file": "library/wrappinglayout.declare",
+    "line": 0
+   },
+   "parent": "WrappingLayout",
+   "seeAlso": [],
+   "type": "number",
+   "default": "0",
+   "prevailing": false,
+   "readOnly": false,
+   "inheritedFrom": null
+  },
+  "WrappingLayout.lineSpacing": {
+   "id": "WrappingLayout.lineSpacing",
+   "name": "lineSpacing",
+   "kind": "attribute",
+   "doc": null,
+   "docSegs": [],
+   "api": true,
+   "source": {
+    "file": "library/wrappinglayout.declare",
+    "line": 0
+   },
+   "parent": "WrappingLayout",
+   "seeAlso": [],
+   "type": "number",
+   "default": "-1",
+   "prevailing": false,
+   "readOnly": false,
+   "inheritedFrom": null
+  },
+  "WrappingLayout.align": {
+   "id": "WrappingLayout.align",
+   "name": "align",
+   "kind": "attribute",
+   "doc": null,
+   "docSegs": [],
+   "api": true,
+   "source": {
+    "file": "library/wrappinglayout.declare",
+    "line": 0
+   },
+   "parent": "WrappingLayout",
+   "seeAlso": [],
+   "type": "WrapAlign",
+   "default": "start",
+   "prevailing": false,
+   "readOnly": false,
+   "inheritedFrom": null
+  },
+  "WrappingLayout.method.place": {
+   "id": "WrappingLayout.method.place",
+   "name": "place",
+   "kind": "method",
+   "doc": null,
+   "docSegs": [],
+   "api": true,
+   "source": {
+    "file": "library/wrappinglayout.declare",
+    "line": 0
+   },
+   "parent": "WrappingLayout",
+   "seeAlso": [],
+   "signature": "place()"
+  },
+  "WrappingLayout": {
+   "id": "WrappingLayout",
+   "name": "WrappingLayout",
+   "kind": "class",
+   "doc": "A horizontal flow that WRAPS: children run left to right\n`spacing` apart, and when the next one would overflow the view's width it\ndrops to a new row (`lineSpacing` down; -1, the default, means \"same as\nspacing\"). With room for one row it is a plain row; as the view narrows it\nstacks — cards that reflow on a phone with no media query. It owns BOTH\naxes of each child (a flow is 2-D); sizes stay the children's own. `align`\njustifies each finished row: `start` (left, the default) or `center` (a row\nthat does not fill the width sits centered).\n\nDivision of labor: this is the tool for UNIFORM, replicated collections\nthat reflow by fitting. Managing NAMED regions per width tier is\nResponsiveLayout's.\n\nWritten in Declare over the Layout kernel — the whole strategy is place().",
+   "docSegs": [
+    {
+     "md": "A horizontal flow that WRAPS: children run left to right\n`spacing` apart, and when the next one would overflow the view's width it\ndrops to a new row (`lineSpacing` down; -1, the default, means \"same as\nspacing\"). With room for one row it is a plain row; as the view narrows it\nstacks — cards that reflow on a phone with no media query. It owns BOTH\naxes of each child (a flow is 2-D); sizes stay the children's own. `align`\njustifies each finished row: `start` (left, the default) or `center` (a row\nthat does not fill the width sits centered).\n\nDivision of labor: this is the tool for UNIFORM, replicated collections\nthat reflow by fitting. Managing NAMED regions per width tier is\nResponsiveLayout's.\n\nWritten in Declare over the Layout kernel — the whole strategy is place().",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "library/wrappinglayout.declare",
+    "line": 0
+   },
+   "parent": null,
+   "seeAlso": [],
+   "extends": "Layout",
+   "subclasses": [],
+   "origin": "library",
+   "attributes": [
+    "WrappingLayout.spacing",
+    "WrappingLayout.lineSpacing",
+    "WrappingLayout.align"
+   ],
+   "methods": [
+    "WrappingLayout.method.place"
+   ],
+   "events": [],
+   "example": []
   }
  },
  "roots": [
@@ -12182,8 +12371,6 @@
   "HTMLText",
   "DOMIsland",
   "TextInput",
-  "SimpleLayout",
-  "WrappingLayout",
   "TweenLayout",
   "Dataset",
   "DataSource",
@@ -12210,7 +12397,11 @@
   "Menu",
   "MenuBar",
   "Dialog",
-  "AppIsland"
+  "AppIsland",
+  "Spacer",
+  "ResponsiveLayout",
+  "SimpleLayout",
+  "WrappingLayout"
  ],
  "tree": [
   {
@@ -12253,7 +12444,8 @@
     "Tooltip",
     "Menu",
     "MenuBar",
-    "Dialog"
+    "Dialog",
+    "Spacer"
    ],
    "origin": "ts",
    "attributes": [
@@ -13306,7 +13498,7 @@
      "id": "View.event.click",
      "name": "click",
      "kind": "event",
-     "doc": "Fires when the pointer presses **and** releases on the same view (a true click, not a\nstray press) — answered by an `onClick()` handler. The primary interaction event;\n`mouseDown`/`mouseUp`/`mouseMove` are there when you need the raw phases.\n\n```declare\nView [ width = 80, height = 44, cornerRadius = 6, fill = gainsboro, onClick() { fill = 0x4169E1 } ]\n```",
+     "doc": "Fires when the pointer presses **and** releases on the same view (a true click, not a\nstray press) — answered by an `onClick()` handler. The primary interaction event;\n`mouseDown`/`mouseUp`/`mouseMove` are there when you need the raw phases.\n\n```declare\nView [ width = 80, height = 40, cornerRadius = 10, fill = gainsboro, onClick() { fill = 0x4169E1 } ]\n```",
      "docSegs": [
       {
        "md": "Fires when the pointer presses **and** releases on the same view (a true click, not a\nstray press) — answered by an `onClick()` handler. The primary interaction event;\n`mouseDown`/`mouseUp`/`mouseMove` are there when you need the raw phases.",
@@ -13317,7 +13509,7 @@
        "code": [
         {
          "id": "seg_View_event_click_0",
-         "source": "App [\n    View [ width = 80, height = 44, cornerRadius = 6, fill = gainsboro, onClick() { fill = 0x4169E1 } ]\n]",
+         "source": "App [\n    View [ width = 80, height = 40, cornerRadius = 10, fill = gainsboro, onClick() { fill = 0x4169E1 } ]\n]",
          "lines": 3,
          "stageH": 224
         }
@@ -13581,7 +13773,7 @@
     {
      "name": "View",
      "lines": 11,
-     "source": "// View.declare — a View is a box: size + decoration + children + interaction\n\nApp [\n    View [ x = 28, y = 26, width = 240, height = 150, cornerRadius = 16,\n        hot: boolean = false,\n        fill = { hot ? 0xE0533D : 0x2E6BE6 },\n        onClick() { hot = !hot },\n        Text [ x = 20, y = 20, fontSize = 15, fontWeight = semibold,\n            textColor = whitesmoke, text = \"click to recolor\" ],\n        ],\n    ]",
+     "source": "// View.declare — a View is a box: size + decoration + children + interaction\n\nApp [\n    View [ x = 30, y = 30, width = 240, height = 150, cornerRadius = 16,\n        hot: boolean = false,\n        fill = { hot ? 0xE0533D : 0x2E6BE6 },\n        onClick() { hot = !hot },\n        Text [ x = 20, y = 20, fontSize = 15, fontWeight = semibold,\n            textColor = whitesmoke, text = \"click to recolor\" ],\n        ],\n    ]",
      "stageH": 274
     }
    ]
@@ -13626,7 +13818,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 878
+      "line": 883
      },
      "parent": "App",
      "seeAlso": [],
@@ -13650,7 +13842,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 879
+      "line": 884
      },
      "parent": "App",
      "seeAlso": [],
@@ -13674,7 +13866,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 880
+      "line": 885
      },
      "parent": "App",
      "seeAlso": [],
@@ -13698,7 +13890,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 881
+      "line": 886
      },
      "parent": "App",
      "seeAlso": [],
@@ -13722,7 +13914,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 882
+      "line": 887
      },
      "parent": "App",
      "seeAlso": [],
@@ -13746,7 +13938,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 883
+      "line": 888
      },
      "parent": "App",
      "seeAlso": [],
@@ -13770,7 +13962,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 884
+      "line": 889
      },
      "parent": "App",
      "seeAlso": [],
@@ -13794,7 +13986,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 885
+      "line": 890
      },
      "parent": "App",
      "seeAlso": [],
@@ -13829,7 +14021,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 897
+      "line": 903
      },
      "parent": "App",
      "seeAlso": [],
@@ -13853,7 +14045,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 901
+      "line": 907
      },
      "parent": "App",
      "seeAlso": [],
@@ -13877,7 +14069,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 902
+      "line": 908
      },
      "parent": "App",
      "seeAlso": [],
@@ -13904,7 +14096,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 777
+      "line": 782
      },
      "parent": "App",
      "seeAlso": [],
@@ -13917,7 +14109,7 @@
   {
    "id": "Text",
    "name": "Text",
-   "doc": "A run of text, sized by native browser metrics when you don't give it a width or\nheight — so a bare `Text [ text = \"hi\" ]` is exactly as wide and tall as its glyphs.\nIts **style** is not on `Text`: `textColor`, `fontSize`, `fontFamily`, and\n`fontWeight` are `prevailing` slots on `View`, so any ancestor provides them and this\nrun renders with the effective values. That is why restyling a region's text means\nsetting those on the container, not on each `Text`.\n\n```declare\nView [ textColor = royalblue, fontSize = 14,\n  Text [ text = \"inherits the panel's style\" ]\n]\n```",
+   "doc": "A run of text, sized by native browser metrics when you don't give it a width or\nheight — so a bare `Text [ text = \"hi\" ]` is exactly as wide and tall as its glyphs.\nIts **style** is not on `Text`: `textColor`, `fontSize`, `fontFamily`, and\n`fontWeight` are `prevailing` slots on `View`, so any ancestor provides them and this\nrun renders with the effective values. That is why restyling a region's text means\nsetting those on the container, not on each `Text`.\n\n```declare\nView [ textColor = royalblue, fontSize = 15,\n  Text [ text = \"inherits the panel's style\" ]\n]\n```",
    "docSegs": [
     {
      "md": "A run of text, sized by native browser metrics when you don't give it a width or\nheight — so a bare `Text [ text = \"hi\" ]` is exactly as wide and tall as its glyphs.\nIts **style** is not on `Text`: `textColor`, `fontSize`, `fontFamily`, and\n`fontWeight` are `prevailing` slots on `View`, so any ancestor provides them and this\nrun renders with the effective values. That is why restyling a region's text means\nsetting those on the container, not on each `Text`.",
@@ -13928,7 +14120,7 @@
      "code": [
       {
        "id": "seg_Text_0",
-       "source": "App [\n    View [ textColor = royalblue, fontSize = 14,\n      Text [ text = \"inherits the panel's style\" ]\n    ]\n]",
+       "source": "App [\n    View [ textColor = royalblue, fontSize = 15,\n      Text [ text = \"inherits the panel's style\" ]\n    ]\n]",
        "lines": 5,
        "stageH": 224
       }
@@ -14306,7 +14498,7 @@
     {
      "name": "Markdown",
      "lines": 13,
-     "source": "// Markdown.declare — author prose in Markdown; it renders as real, wrapped views\n\nApp [\n    Markdown [ x = 28, y = 20, width = 400, text = \"\"\"\n# Declare\n\nA **declarative** UI language:\n\n- reactive `{ }` constraints\n- native layout, both backends\n- text authored in Markdown\n\"\"\" ],\n    ]",
+     "source": "// Markdown.declare — author prose in Markdown; it renders as real, wrapped views\n\nApp [\n    Markdown [ x = 30, y = 20, width = 400, text = \"\"\"\n# Declare\n\nA **declarative** UI language:\n\n- reactive `{ }` constraints\n- native layout, both backends\n- text authored in Markdown\n\"\"\" ],\n    ]",
      "stageH": 274
     }
    ]
@@ -14471,7 +14663,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 925
+      "line": 931
      },
      "parent": "DOMIsland",
      "seeAlso": [],
@@ -14489,7 +14681,7 @@
   {
    "id": "TextInput",
    "name": "TextInput",
-   "doc": "An editable text field, realized as a **native** editable element (a DOM input in-box, a\npositioned overlay on canvas) so caret, selection, IME, and accessibility are the\nplatform's, not reimplemented. It fires `input` on every edit and `enter` on a single-line\nsubmit, and inherits View's focus and keyboard events.\n\nIt is also the first **Editor**: bind `text <-> :path` to edit a dataset record two-way — the\nfield reads the datapath, commits edits back into the dataset, and reseeds when the cursor\nmoves to a new record. The dataset owns the committed value; the field owns the *edit session*\n— its draft plus `valid` / `error` / `dirty`. Supply a `validate(v)` method for a domain rule\nbeyond the schema type (return an error message, or `null` when valid); an invalid draft is\nheld and never written.\n\n```declare\nApp [ fill = white, textColor = black,\n    contact: Dataset { { \"email\": \"ada@example.com\" } },\n    form: View [ x = 24, y = 24, datapath = { app.contact.value },\n        email: TextInput [ width = 240, height = 30, padding = 6, cornerRadius = 6,\n            fill = gainsboro,\n            text <-> :email,\n            validate(v) { return v.includes(\"@\") ? null : \"not an email\" } ] ],\n    ]\n```",
+   "doc": "An editable text field, realized as a **native** editable element (a DOM input in-box, a\npositioned overlay on canvas) so caret, selection, IME, and accessibility are the\nplatform's, not reimplemented. It fires `input` on every edit and `enter` on a single-line\nsubmit, and inherits View's focus and keyboard events.\n\nIt is also the first **Editor**: bind `text <-> :path` to edit a dataset record two-way — the\nfield reads the datapath, commits edits back into the dataset, and reseeds when the cursor\nmoves to a new record. The dataset owns the committed value; the field owns the *edit session*\n— its draft plus `valid` / `error` / `dirty`. Supply a `validate(v)` method for a domain rule\nbeyond the schema type (return an error message, or `null` when valid); an invalid draft is\nheld and never written.\n\n```declare\nApp [ fill = white, textColor = black,\n    contact: Dataset { { \"email\": \"ada@example.com\" } },\n    form: View [ x = 20, y = 20, datapath = { app.contact.value },\n        email: TextInput [ width = 240, height = 30, padding = 6, cornerRadius = 6,\n            fill = gainsboro,\n            text <-> :email,\n            validate(v) { return v.includes(\"@\") ? null : \"not an email\" } ] ],\n    ]\n```",
    "docSegs": [
     {
      "md": "An editable text field, realized as a **native** editable element (a DOM input in-box, a\npositioned overlay on canvas) so caret, selection, IME, and accessibility are the\nplatform's, not reimplemented. It fires `input` on every edit and `enter` on a single-line\nsubmit, and inherits View's focus and keyboard events.\n\nIt is also the first **Editor**: bind `text <-> :path` to edit a dataset record two-way — the\nfield reads the datapath, commits edits back into the dataset, and reseeds when the cursor\nmoves to a new record. The dataset owns the committed value; the field owns the *edit session*\n— its draft plus `valid` / `error` / `dirty`. Supply a `validate(v)` method for a domain rule\nbeyond the schema type (return an error message, or `null` when valid); an invalid draft is\nheld and never written.",
@@ -14500,7 +14692,7 @@
      "code": [
       {
        "id": "seg_TextInput_0",
-       "source": "App [ fill = white, textColor = black,\n    contact: Dataset { { \"email\": \"ada@example.com\" } },\n    form: View [ x = 24, y = 24, datapath = { app.contact.value },\n        email: TextInput [ width = 240, height = 30, padding = 6, cornerRadius = 6,\n            fill = gainsboro,\n            text <-> :email,\n            validate(v) { return v.includes(\"@\") ? null : \"not an email\" } ] ],\n    ]",
+       "source": "App [ fill = white, textColor = black,\n    contact: Dataset { { \"email\": \"ada@example.com\" } },\n    form: View [ x = 20, y = 20, datapath = { app.contact.value },\n        email: TextInput [ width = 240, height = 30, padding = 6, cornerRadius = 6,\n            fill = gainsboro,\n            text <-> :email,\n            validate(v) { return v.includes(\"@\") ? null : \"not an email\" } ] ],\n    ]",
        "lines": 8,
        "stageH": 224
       }
@@ -14728,179 +14920,7 @@
     {
      "name": "TextInput",
      "lines": 11,
-     "source": "// TextInput.declare — the field is the source of truth; the Text reads its text live\n\nApp [ fill = white, textColor = black,\n    View [ x = 28, y = 30,\n        layout: SimpleLayout [ axis = y, spacing = 16 ],\n        field: TextInput [ width = 300, height = 34, padding = 8, cornerRadius = 8,\n            fill = gainsboro, placeholder = \"type here\" ],\n        Text [ fontSize = 22, fontWeight = semibold,\n            text = { \"hello, \" + (parent.field.text || \"world\") } ],\n        ],\n    ]",
-     "stageH": 274
-    }
-   ]
-  },
-  {
-   "id": "SimpleLayout",
-   "name": "SimpleLayout",
-   "doc": "The stacking layout: arranges a view's children in a line along `axis`, `spacing` px\napart, skipping invisible ones. You set it as the view's `layout` **attribute** — not a\nchild (OpenLaszlo's form), not the container's type (SwiftUI/Flutter's) — which is what\nlets you **swap or animate it** so an arrangement *transitions* instead of jumping. While\nit's active it drives the children's positions, so any `x`/`y` you set on them is\noverwritten.\n\n```declare\nView [ layout: SimpleLayout [ axis = y, spacing = 10 ],\n    Text [ text = \"one\" ],\n    Text [ text = \"two\" ],\n]\n```",
-   "docSegs": [
-    {
-     "md": "The stacking layout: arranges a view's children in a line along `axis`, `spacing` px\napart, skipping invisible ones. You set it as the view's `layout` **attribute** — not a\nchild (OpenLaszlo's form), not the container's type (SwiftUI/Flutter's) — which is what\nlets you **swap or animate it** so an arrangement *transitions* instead of jumping. While\nit's active it drives the children's positions, so any `x`/`y` you set on them is\noverwritten.",
-     "code": []
-    },
-    {
-     "md": "",
-     "code": [
-      {
-       "id": "seg_SimpleLayout_0",
-       "source": "App [\n    View [ layout: SimpleLayout [ axis = y, spacing = 10 ],\n        Text [ text = \"one\" ],\n        Text [ text = \"two\" ],\n    ]\n]",
-       "lines": 6,
-       "stageH": 224
-      }
-     ]
-    }
-   ],
-   "api": true,
-   "extends": "Layout",
-   "subclasses": [],
-   "origin": "ts",
-   "attributes": [
-    {
-     "id": "SimpleLayout.axis",
-     "name": "axis",
-     "kind": "attribute",
-     "doc": "The stacking direction — `x` lays children left-to-right (a row), `y` top-to-bottom (a\ncolumn). You always name it; there is no \"obvious\" default for a stack.",
-     "docSegs": [
-      {
-       "md": "The stacking direction — `x` lays children left-to-right (a row), `y` top-to-bottom (a\ncolumn). You always name it; there is no \"obvious\" default for a stack.",
-       "code": []
-      }
-     ],
-     "api": true,
-     "source": {
-      "file": "runtime/src/schema.ts",
-      "line": 0
-     },
-     "parent": "SimpleLayout",
-     "seeAlso": [],
-     "type": "x | y",
-     "default": null,
-     "prevailing": false,
-     "readOnly": false,
-     "inheritedFrom": null
-    },
-    {
-     "id": "SimpleLayout.spacing",
-     "name": "spacing",
-     "kind": "attribute",
-     "doc": "The gap between adjacent children, in px. **Negative values overlap them** — stacked\ncards, an avatar pile. Invisible children are skipped, so the gap closes automatically\nwhen one hides rather than leaving a hole.",
-     "docSegs": [
-      {
-       "md": "The gap between adjacent children, in px. **Negative values overlap them** — stacked\ncards, an avatar pile. Invisible children are skipped, so the gap closes automatically\nwhen one hides rather than leaving a hole.",
-       "code": []
-      }
-     ],
-     "api": true,
-     "source": {
-      "file": "runtime/src/schema.ts",
-      "line": 0
-     },
-     "parent": "SimpleLayout",
-     "seeAlso": [],
-     "type": "number",
-     "default": null,
-     "prevailing": false,
-     "readOnly": false,
-     "inheritedFrom": null
-    }
-   ],
-   "events": [],
-   "methods": [],
-   "example": [
-    {
-     "name": "SimpleLayout",
-     "lines": 11,
-     "source": "// SimpleLayout.declare — children stacked down the y axis, evenly spaced\n\nApp [ fill = white, textColor = black,\n    View [ x = 28, y = 24,\n        layout: SimpleLayout [ axis = y, spacing = 12 ],\n        Bar [ width = 320, label = \"north\", value = 72, tint = royalblue ],\n        Bar [ width = 320, label = \"east\",  value = 54, tint = dodgerblue ],\n        Bar [ width = 320, label = \"south\", value = 88, tint = cornflowerblue ],\n        Bar [ width = 320, label = \"west\",  value = 41, tint = lightskyblue ],\n        ],\n    ]",
-     "stageH": 274
-    }
-   ]
-  },
-  {
-   "id": "WrappingLayout",
-   "name": "WrappingLayout",
-   "doc": "A horizontal flow that **wraps** to a new row when the view runs out of width — a row\nwhile there's room, rows when there isn't. For tag lists, chip clouds, a toolbar that\nreflows. It re-wraps reactively as the view resizes, so binding the view's `width` to its\nparent is all it takes to make the flow responsive.\n\n```declare\nView [ width = { parent.width }, layout: WrappingLayout [ spacing = 8, lineSpacing = 8 ] ]\n```",
-   "docSegs": [
-    {
-     "md": "A horizontal flow that **wraps** to a new row when the view runs out of width — a row\nwhile there's room, rows when there isn't. For tag lists, chip clouds, a toolbar that\nreflows. It re-wraps reactively as the view resizes, so binding the view's `width` to its\nparent is all it takes to make the flow responsive.",
-     "code": []
-    },
-    {
-     "md": "",
-     "code": [
-      {
-       "id": "seg_WrappingLayout_0",
-       "source": "App [\n    View [ width = { parent.width }, layout: WrappingLayout [ spacing = 8, lineSpacing = 8 ] ]\n]",
-       "lines": 3,
-       "stageH": 224
-      }
-     ]
-    }
-   ],
-   "api": true,
-   "extends": "Layout",
-   "subclasses": [],
-   "origin": "ts",
-   "attributes": [
-    {
-     "id": "WrappingLayout.spacing",
-     "name": "spacing",
-     "kind": "attribute",
-     "doc": "The horizontal gap between items within a row, in px.",
-     "docSegs": [
-      {
-       "md": "The horizontal gap between items within a row, in px.",
-       "code": []
-      }
-     ],
-     "api": true,
-     "source": {
-      "file": "runtime/src/schema.ts",
-      "line": 0
-     },
-     "parent": "WrappingLayout",
-     "seeAlso": [],
-     "type": "number",
-     "default": null,
-     "prevailing": false,
-     "readOnly": false,
-     "inheritedFrom": null
-    },
-    {
-     "id": "WrappingLayout.lineSpacing",
-     "name": "lineSpacing",
-     "kind": "attribute",
-     "doc": "The vertical gap between wrapped rows, in px — **defaults to `spacing`** when unset, so a\nsingle value gives even gaps in both directions and you only set this to make the rows\ntighter or looser than the columns.",
-     "docSegs": [
-      {
-       "md": "The vertical gap between wrapped rows, in px — **defaults to `spacing`** when unset, so a\nsingle value gives even gaps in both directions and you only set this to make the rows\ntighter or looser than the columns.",
-       "code": []
-      }
-     ],
-     "api": true,
-     "source": {
-      "file": "runtime/src/schema.ts",
-      "line": 0
-     },
-     "parent": "WrappingLayout",
-     "seeAlso": [],
-     "type": "number",
-     "default": null,
-     "prevailing": false,
-     "readOnly": false,
-     "inheritedFrom": null
-    }
-   ],
-   "events": [],
-   "methods": [],
-   "example": [
-    {
-     "name": "WrappingLayout",
-     "lines": 22,
-     "source": "// WrappingLayout.declare — a horizontal flow of chips that wraps to new rows\n\nclass Chip extends View [ height = 30, cornerRadius = 15, fill = steelblue,\n    label: string = \"\",\n    Text [ x = 12, y = 7, fontSize = 13, fontWeight = semibold,\n        textColor = whitesmoke, text = { classroot.label } ],\n    ]\n\n\nApp [\n    View [ x = 24, y = 24, width = 320,\n        layout: WrappingLayout [ spacing = 10, lineSpacing = 10 ],\n        Chip [ width = 74, label = \"views\" ],\n        Chip [ width = 92, label = \"reactive\" ],\n        Chip [ width = 78, label = \"layout\" ],\n        Chip [ width = 68, label = \"text\" ],\n        Chip [ width = 96, label = \"animator\" ],\n        Chip [ width = 66, label = \"state\" ],\n        Chip [ width = 86, label = \"dataset\" ],\n        Chip [ width = 90, label = \"markdown\" ],\n        ],\n    ]",
+     "source": "// TextInput.declare — the field is the source of truth; the Text reads its text live\n\nApp [ fill = white, textColor = black,\n    View [ x = 30, y = 30,\n        layout: SimpleLayout [ axis = y, spacing = 20 ],\n        field: TextInput [ width = 300, height = 40, padding = 10, cornerRadius = 10,\n            fill = gainsboro, placeholder = \"type here\" ],\n        Text [ fontSize = 20, fontWeight = semibold,\n            text = { \"hello, \" + (parent.field.text || \"world\") } ],\n        ],\n    ]",
      "stageH": 274
     }
    ]
@@ -15127,7 +15147,7 @@
     {
      "name": "Dataset",
      "lines": 10,
-     "source": "App [ fill = white, textColor = black,\n    facts: Dataset { { \"rows\": [\n        { \"label\": \"reactive\", \"n\": 92 },\n        { \"label\": \"compiled\", \"n\": 78 },\n        { \"label\": \"small\",    \"n\": 64 } ] } },\n    View [ x = 28, y = 26, datapath = { parent.facts.value },\n        layout: SimpleLayout [ axis = y, spacing = 16 ],\n        Bar [ width = 300, datapath = :rows[], label = :label, value = :n ],\n        ],\n    ]",
+     "source": "App [ fill = white, textColor = black,\n    facts: Dataset { { \"rows\": [\n        { \"label\": \"reactive\", \"n\": 92 },\n        { \"label\": \"compiled\", \"n\": 78 },\n        { \"label\": \"small\",    \"n\": 64 } ] } },\n    View [ x = 30, y = 30, datapath = { parent.facts.value },\n        layout: SimpleLayout [ axis = y, spacing = 16 ],\n        Bar [ width = 300, datapath = :rows[], label = :label, value = :n ],\n        ],\n    ]",
      "stageH": 274
     }
    ]
@@ -15598,7 +15618,7 @@
     {
      "name": "Animator",
      "lines": 10,
-     "source": "// Animator.declare — click the box; the Animator drives its x to the target\n\nApp [\n    View [ x = 28, y = 88, width = 80, height = 80, cornerRadius = 12, fill = dodgerblue,\n        onClick() { slide.start() },\n        Text [ x = 18, y = 30, fontSize = 15, fontWeight = semibold,\n            textColor = whitesmoke, text = \"click\" ],\n        slide: Animator [ attribute = x, to = 460, duration = 500, motion = easeOut ],\n        ],\n    ]",
+     "source": "// Animator.declare — click the box; the Animator drives its x to the target\n\nApp [\n    View [ x = 30, y = 90, width = 80, height = 80, cornerRadius = 10, fill = dodgerblue,\n        onClick() { slide.start() },\n        Text [ x = 20, y = 30, fontSize = 15, fontWeight = semibold,\n            textColor = whitesmoke, text = \"click\" ],\n        slide: Animator [ attribute = x, to = 460, duration = 500, motion = easeOut ],\n        ],\n    ]",
      "stageH": 274
     }
    ]
@@ -16107,7 +16127,7 @@
     {
      "name": "Spring",
      "lines": 11,
-     "source": "App [ on: boolean = false,\n    onMouseDown() { on = !on },\n    View [ x = 28, y = 26,\n        layout: SimpleLayout [ axis = y, spacing = 24 ],\n        Text [ textColor = slategray, text = \"click anywhere to toggle\" ],\n        View [ height = 64, width = 64, cornerRadius = 32, fill = dodgerblue,\n            Spring [ attribute = x, to = { on ? 240 : 0 },\n                stiffness = 190, damping = 17 ],\n            ],\n        ],\n    ]",
+     "source": "App [ on: boolean = false,\n    onMouseDown() { on = !on },\n    View [ x = 30, y = 30,\n        layout: SimpleLayout [ axis = y, spacing = 20 ],\n        Text [ textColor = slategray, text = \"click anywhere to toggle\" ],\n        View [ height = 60, width = 60, cornerRadius = 30, fill = dodgerblue,\n            Spring [ attribute = x, to = { on ? 240 : 0 },\n                stiffness = 190, damping = 20 ],\n            ],\n        ],\n    ]",
      "stageH": 274
     }
    ]
@@ -16263,7 +16283,7 @@
     {
      "name": "State",
      "lines": 12,
-     "source": "App [ fill = white, textColor = black,\n    open: boolean = false,\n    onMouseDown() { open = !open },\n    card: View [ x = 28, y = 26, width = 300, height = 72,\n        cornerRadius = 10, fill = whitesmoke,\n        Text [ x = 16, y = 16, fontWeight = bold, text = \"Summary\" ],\n        big: State [ applied = { open }, height = 184, fill = lightsteelblue,\n            Text [ x = 16, y = 54, width = 268, wrap = true,\n                text = \"height, color, and this whole line swap in together\" ],\n            ],\n        ],\n    ]",
+     "source": "App [ fill = white, textColor = black,\n    open: boolean = false,\n    onMouseDown() { open = !open },\n    card: View [ x = 30, y = 30, width = 300, height = 70,\n        cornerRadius = 10, fill = whitesmoke,\n        Text [ x = 20, y = 20, fontWeight = bold, text = \"Summary\" ],\n        big: State [ applied = { open }, height = 180, fill = lightsteelblue,\n            Text [ x = 20, y = 50, width = 260, wrap = true,\n                text = \"height, color, and this whole line swap in together\" ],\n            ],\n        ],\n    ]",
      "stageH": 274
     }
    ]
@@ -19587,6 +19607,286 @@
    "events": [],
    "methods": [],
    "example": []
+  },
+  {
+   "id": "Spacer",
+   "name": "Spacer",
+   "doc": "When a row (or stack)\ndoes not fill its container, the leftover space has to go SOMEWHERE — and\nthe laid children cannot take it themselves (their flow-axis slot is owned\nby the layout). A Spacer says where, structurally: put one between two\ngroups and they push apart (\"logo left, actions right\"); put one on each\nside of a run and it centers; put one first and the run right-aligns.\nSeveral spacers split the slack evenly. When there is no slack — a plan\nwhose shares fill the width, an auto-sized container — a Spacer is simply\nzero and invisible in effect.\n\nThe layout owns a Spacer's flow-axis size (a percent-family constraint, so\na container deriving its extent from its children never counts one); the\n`flexes` marker is what a flow layout looks for. An empty view otherwise —\nit paints nothing and has no size of its own.",
+   "docSegs": [
+    {
+     "md": "When a row (or stack)\ndoes not fill its container, the leftover space has to go SOMEWHERE — and\nthe laid children cannot take it themselves (their flow-axis slot is owned\nby the layout). A Spacer says where, structurally: put one between two\ngroups and they push apart (\"logo left, actions right\"); put one on each\nside of a run and it centers; put one first and the run right-aligns.\nSeveral spacers split the slack evenly. When there is no slack — a plan\nwhose shares fill the width, an auto-sized container — a Spacer is simply\nzero and invisible in effect.\n\nThe layout owns a Spacer's flow-axis size (a percent-family constraint, so\na container deriving its extent from its children never counts one); the\n`flexes` marker is what a flow layout looks for. An empty view otherwise —\nit paints nothing and has no size of its own.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "extends": "View",
+   "subclasses": [],
+   "origin": "library",
+   "attributes": [
+    {
+     "id": "Spacer.flexes",
+     "name": "flexes",
+     "kind": "attribute",
+     "doc": null,
+     "docSegs": [],
+     "api": true,
+     "source": {
+      "file": "library/spacer.declare",
+      "line": 0
+     },
+     "parent": "Spacer",
+     "seeAlso": [],
+     "type": "boolean",
+     "default": "true",
+     "prevailing": false,
+     "readOnly": false,
+     "inheritedFrom": null
+    }
+   ],
+   "events": [],
+   "methods": [],
+   "example": []
+  },
+  {
+   "id": "ResponsiveLayout",
+   "name": "ResponsiveLayout",
+   "doc": "A view's children often want one arrangement when there is room and another\nwhen there isn't: three panels side by side on a wide screen, the same panels\nstacked on a phone; an optional control that appears only when space allows.\nResponsiveLayout states those alternatives directly. You give it a list of\n**plans** — each one says *\"from this width up, arrange the children like\nthis\"* — and it keeps the right plan applied as the view's width changes.\nHiding, showing, and dividing the width are all part of a plan, not separate\nwiring.\n\n    bar: View [\n        layout: ResponsiveLayout [ plan = { [\n            { from: 900, flow: \"row\",  share: { logo: 15, nav: 55, actions: 30 } },\n            { from: 600, flow: \"row\",  share: { logo: 20, nav: 80, actions: 0 } },\n            { from: 0,   flow: \"stack\" },\n        ] } ],\n        logo:    Logo    [ ],\n        nav:     Nav     [ ],\n        actions: Actions [ ],\n    ]\n\nEach entry's `from` means *use this plan when the view is at least this wide*\n— the entry with the largest `from` that fits wins, wherever it sits in the\nlist, and an entry with `from: 0` is the fallback for anything narrower.\n`flow` is the arrangement: `\"row\"` places children left to right; `\"stack\"`\nplaces them top to bottom. `share` divides the width (what is left of it\nafter the gaps) among the children it NAMES — the names are the view's own\nchild names, checked when the layout first arranges (a name with no child is\na loud error). `logo: 15` gives logo 15% of it; **`0` hides that child while\nthe plan is active** — so \"the actions disappear on small screens\" is just a\nnumber in the narrow plan, and they reappear by themselves when the view\nwidens. A child a plan does NOT name is left alone: natural width, the flow\njust places it. `gap` sets the space between children (an entry may carry\nits own `gap` to override the layout's). Heights are never touched: children\nkeep their own heights, and the view's height falls out of its content, as\nalways.\n\nSo the example reads as a storyboard: at 900 and up, a three-across row split\n15/55/30; between 600 and 900, the actions drop and the nav takes their room;\nbelow 600, everything stacks.\n\n**Slack and alignment.** When a row's children keep natural widths, the run\nmay not fill the view — and where the run sits is said with structure, not a\nknob: a `Spacer [ ]` child absorbs the slack. Between two groups it pushes\nthem apart; one on each side centers the run; one first right-aligns it. On\nthe axis the flow does not manage, a child places itself with the ordinary\nliterals (`y = center` in a row). Shares that fill the width leave no slack\nat all — *shares fill; naturals align.*\n\n**Nesting — who decides what.** A ResponsiveLayout watches its own view's\nwidth — not the window's. The parent's plan decides how much room each child\ngets; each child decides what to do with the room it got — if the child has\nits own ResponsiveLayout, its plans answer to its own width, automatically.\nRoom flows down; each level responds locally. (A plan can only name direct\nchildren — managing a grandchild is the child's own plan's business.)\n\n**Division of labor.** ResponsiveLayout manages NAMED regions. A collection\nof uniform, replicated cards that should reflow to fit is the other tool:\n`WrappingLayout` (it wraps by fitting, no plan needed) with a width\nconstraint on the card.\n\n**When the rules aren't enough.** A plan speaks width, flow, share, and gap.\nWhole alternate configurations beyond geometry are a `State` applied on a\nwidth condition; fully custom geometry is a subclass overriding `place()` —\nthe same seam every layout in the library is built on.",
+   "docSegs": [
+    {
+     "md": "A view's children often want one arrangement when there is room and another\nwhen there isn't: three panels side by side on a wide screen, the same panels\nstacked on a phone; an optional control that appears only when space allows.\nResponsiveLayout states those alternatives directly. You give it a list of\n**plans** — each one says *\"from this width up, arrange the children like\nthis\"* — and it keeps the right plan applied as the view's width changes.\nHiding, showing, and dividing the width are all part of a plan, not separate\nwiring.\n\n    bar: View [\n        layout: ResponsiveLayout [ plan = { [\n            { from: 900, flow: \"row\",  share: { logo: 15, nav: 55, actions: 30 } },\n            { from: 600, flow: \"row\",  share: { logo: 20, nav: 80, actions: 0 } },\n            { from: 0,   flow: \"stack\" },\n        ] } ],\n        logo:    Logo    [ ],\n        nav:     Nav     [ ],\n        actions: Actions [ ],\n    ]\n\nEach entry's `from` means *use this plan when the view is at least this wide*\n— the entry with the largest `from` that fits wins, wherever it sits in the\nlist, and an entry with `from: 0` is the fallback for anything narrower.\n`flow` is the arrangement: `\"row\"` places children left to right; `\"stack\"`\nplaces them top to bottom. `share` divides the width (what is left of it\nafter the gaps) among the children it NAMES — the names are the view's own\nchild names, checked when the layout first arranges (a name with no child is\na loud error). `logo: 15` gives logo 15% of it; **`0` hides that child while\nthe plan is active** — so \"the actions disappear on small screens\" is just a\nnumber in the narrow plan, and they reappear by themselves when the view\nwidens. A child a plan does NOT name is left alone: natural width, the flow\njust places it. `gap` sets the space between children (an entry may carry\nits own `gap` to override the layout's). Heights are never touched: children\nkeep their own heights, and the view's height falls out of its content, as\nalways.\n\nSo the example reads as a storyboard: at 900 and up, a three-across row split\n15/55/30; between 600 and 900, the actions drop and the nav takes their room;\nbelow 600, everything stacks.\n\n**Slack and alignment.** When a row's children keep natural widths, the run\nmay not fill the view — and where the run sits is said with structure, not a\nknob: a `Spacer [ ]` child absorbs the slack. Between two groups it pushes\nthem apart; one on each side centers the run; one first right-aligns it. On\nthe axis the flow does not manage, a child places itself with the ordinary\nliterals (`y = center` in a row). Shares that fill the width leave no slack\nat all — *shares fill; naturals align.*\n\n**Nesting — who decides what.** A ResponsiveLayout watches its own view's\nwidth — not the window's. The parent's plan decides how much room each child\ngets; each child decides what to do with the room it got — if the child has\nits own ResponsiveLayout, its plans answer to its own width, automatically.\nRoom flows down; each level responds locally. (A plan can only name direct\nchildren — managing a grandchild is the child's own plan's business.)\n\n**Division of labor.** ResponsiveLayout manages NAMED regions. A collection\nof uniform, replicated cards that should reflow to fit is the other tool:\n`WrappingLayout` (it wraps by fitting, no plan needed) with a width\nconstraint on the card.\n\n**When the rules aren't enough.** A plan speaks width, flow, share, and gap.\nWhole alternate configurations beyond geometry are a `State` applied on a\nwidth condition; fully custom geometry is a subclass overriding `place()` —\nthe same seam every layout in the library is built on.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "extends": "Layout",
+   "subclasses": [],
+   "origin": "library",
+   "attributes": [
+    {
+     "id": "ResponsiveLayout.plan",
+     "name": "plan",
+     "kind": "attribute",
+     "doc": null,
+     "docSegs": [],
+     "api": true,
+     "source": {
+      "file": "library/responsive.declare",
+      "line": 0
+     },
+     "parent": "ResponsiveLayout",
+     "seeAlso": [],
+     "type": "array",
+     "default": null,
+     "prevailing": false,
+     "readOnly": false,
+     "inheritedFrom": null
+    },
+    {
+     "id": "ResponsiveLayout.gap",
+     "name": "gap",
+     "kind": "attribute",
+     "doc": null,
+     "docSegs": [],
+     "api": true,
+     "source": {
+      "file": "library/responsive.declare",
+      "line": 0
+     },
+     "parent": "ResponsiveLayout",
+     "seeAlso": [],
+     "type": "number",
+     "default": "10",
+     "prevailing": false,
+     "readOnly": false,
+     "inheritedFrom": null
+    }
+   ],
+   "events": [],
+   "methods": [
+    {
+     "id": "ResponsiveLayout.method.place",
+     "name": "place",
+     "kind": "method",
+     "doc": null,
+     "docSegs": [],
+     "api": true,
+     "source": {
+      "file": "library/responsive.declare",
+      "line": 0
+     },
+     "parent": "ResponsiveLayout",
+     "seeAlso": [],
+     "signature": "place()"
+    }
+   ],
+   "example": []
+  },
+  {
+   "id": "SimpleLayout",
+   "name": "SimpleLayout",
+   "doc": "The stacking idiom: siblings placed one after another along\n`axis`, in child order, `spacing` apart (negative overlaps). The cross axis\nand all sizes stay the children's own — a child centers itself across a row\nwith the ordinary `y = center`. Invisible children are skipped and their\nspace reclaimed; a skipped child still gets the slot it would occupy, so\nre-showing it needs no special case. A `Spacer` child flexes to absorb the\nrun's slack along the axis (between two groups it pushes them apart; one on\neach side centers the run).\n\nWritten in Declare over the Layout kernel: the whole strategy is this one\npure place() — one box per laid child, aligned by index.",
+   "docSegs": [
+    {
+     "md": "The stacking idiom: siblings placed one after another along\n`axis`, in child order, `spacing` apart (negative overlaps). The cross axis\nand all sizes stay the children's own — a child centers itself across a row\nwith the ordinary `y = center`. Invisible children are skipped and their\nspace reclaimed; a skipped child still gets the slot it would occupy, so\nre-showing it needs no special case. A `Spacer` child flexes to absorb the\nrun's slack along the axis (between two groups it pushes them apart; one on\neach side centers the run).\n\nWritten in Declare over the Layout kernel: the whole strategy is this one\npure place() — one box per laid child, aligned by index.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "extends": "Layout",
+   "subclasses": [],
+   "origin": "library",
+   "attributes": [
+    {
+     "id": "SimpleLayout.axis",
+     "name": "axis",
+     "kind": "attribute",
+     "doc": null,
+     "docSegs": [],
+     "api": true,
+     "source": {
+      "file": "library/simplelayout.declare",
+      "line": 0
+     },
+     "parent": "SimpleLayout",
+     "seeAlso": [],
+     "type": "Axis",
+     "default": "y",
+     "prevailing": false,
+     "readOnly": false,
+     "inheritedFrom": null
+    },
+    {
+     "id": "SimpleLayout.spacing",
+     "name": "spacing",
+     "kind": "attribute",
+     "doc": null,
+     "docSegs": [],
+     "api": true,
+     "source": {
+      "file": "library/simplelayout.declare",
+      "line": 0
+     },
+     "parent": "SimpleLayout",
+     "seeAlso": [],
+     "type": "number",
+     "default": "0",
+     "prevailing": false,
+     "readOnly": false,
+     "inheritedFrom": null
+    }
+   ],
+   "events": [],
+   "methods": [
+    {
+     "id": "SimpleLayout.method.place",
+     "name": "place",
+     "kind": "method",
+     "doc": null,
+     "docSegs": [],
+     "api": true,
+     "source": {
+      "file": "library/simplelayout.declare",
+      "line": 0
+     },
+     "parent": "SimpleLayout",
+     "seeAlso": [],
+     "signature": "place()"
+    }
+   ],
+   "example": []
+  },
+  {
+   "id": "WrappingLayout",
+   "name": "WrappingLayout",
+   "doc": "A horizontal flow that WRAPS: children run left to right\n`spacing` apart, and when the next one would overflow the view's width it\ndrops to a new row (`lineSpacing` down; -1, the default, means \"same as\nspacing\"). With room for one row it is a plain row; as the view narrows it\nstacks — cards that reflow on a phone with no media query. It owns BOTH\naxes of each child (a flow is 2-D); sizes stay the children's own. `align`\njustifies each finished row: `start` (left, the default) or `center` (a row\nthat does not fill the width sits centered).\n\nDivision of labor: this is the tool for UNIFORM, replicated collections\nthat reflow by fitting. Managing NAMED regions per width tier is\nResponsiveLayout's.\n\nWritten in Declare over the Layout kernel — the whole strategy is place().",
+   "docSegs": [
+    {
+     "md": "A horizontal flow that WRAPS: children run left to right\n`spacing` apart, and when the next one would overflow the view's width it\ndrops to a new row (`lineSpacing` down; -1, the default, means \"same as\nspacing\"). With room for one row it is a plain row; as the view narrows it\nstacks — cards that reflow on a phone with no media query. It owns BOTH\naxes of each child (a flow is 2-D); sizes stay the children's own. `align`\njustifies each finished row: `start` (left, the default) or `center` (a row\nthat does not fill the width sits centered).\n\nDivision of labor: this is the tool for UNIFORM, replicated collections\nthat reflow by fitting. Managing NAMED regions per width tier is\nResponsiveLayout's.\n\nWritten in Declare over the Layout kernel — the whole strategy is place().",
+     "code": []
+    }
+   ],
+   "api": true,
+   "extends": "Layout",
+   "subclasses": [],
+   "origin": "library",
+   "attributes": [
+    {
+     "id": "WrappingLayout.spacing",
+     "name": "spacing",
+     "kind": "attribute",
+     "doc": null,
+     "docSegs": [],
+     "api": true,
+     "source": {
+      "file": "library/wrappinglayout.declare",
+      "line": 0
+     },
+     "parent": "WrappingLayout",
+     "seeAlso": [],
+     "type": "number",
+     "default": "0",
+     "prevailing": false,
+     "readOnly": false,
+     "inheritedFrom": null
+    },
+    {
+     "id": "WrappingLayout.lineSpacing",
+     "name": "lineSpacing",
+     "kind": "attribute",
+     "doc": null,
+     "docSegs": [],
+     "api": true,
+     "source": {
+      "file": "library/wrappinglayout.declare",
+      "line": 0
+     },
+     "parent": "WrappingLayout",
+     "seeAlso": [],
+     "type": "number",
+     "default": "-1",
+     "prevailing": false,
+     "readOnly": false,
+     "inheritedFrom": null
+    },
+    {
+     "id": "WrappingLayout.align",
+     "name": "align",
+     "kind": "attribute",
+     "doc": null,
+     "docSegs": [],
+     "api": true,
+     "source": {
+      "file": "library/wrappinglayout.declare",
+      "line": 0
+     },
+     "parent": "WrappingLayout",
+     "seeAlso": [],
+     "type": "WrapAlign",
+     "default": "start",
+     "prevailing": false,
+     "readOnly": false,
+     "inheritedFrom": null
+    }
+   ],
+   "events": [],
+   "methods": [
+    {
+     "id": "WrappingLayout.method.place",
+     "name": "place",
+     "kind": "method",
+     "doc": null,
+     "docSegs": [],
+     "api": true,
+     "source": {
+      "file": "library/wrappinglayout.declare",
+      "line": 0
+     },
+     "parent": "WrappingLayout",
+     "seeAlso": [],
+     "signature": "place()"
+    }
+   ],
+   "example": []
   }
  ],
  "guide": [
@@ -20077,7 +20377,7 @@
        "subtitle": "",
        "kind": "element",
        "label": "Built-in element",
-       "doc": "# View\n\n*Built-in element*\n\nThe base of every visual thing in Declare — a rectangular **box** with a position, a\nsize, and decoration (fill, corner radius, border, shadow). Everything you see\ndescends from `View`: `Text`, `Image`, your own `class … extends View`. A plain\n`View` is a colored box; give it children and it becomes a container.\n\nIts geometry is set two ways that read the same: literal (`width = 200`) or a reactive\n`{ }` constraint the runtime keeps true (`width = { parent.width }`). Children nest\ninside the brackets, so the source shape mirrors the visual shape; *how* they are\narranged is the `layout` attribute, not the container's type.\n\n```declare\nView [ width = 200, height = 120, fill = white, cornerRadius = 8,\n  Text [ text = \"hello\", x = 12, y = 12 ]\n]\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `x` | Length | `0` |  |\n| `y` | Length | `0` |  |\n| `width` | Length | `0` |  |\n| `height` | Length | `0` |  |\n| `fill` | Fill | `null` |  |\n| `cornerRadius` | number | `0` |  |\n| `stroke` | Stroke | `null` |  |\n| `shadow` | Shadow | `null` |  |\n| `visible` | boolean | `true` |  |\n| `opacity` | number | `1` |  |\n| `scale` | number | `1` |  |\n| `pivotX` | number | `0` |  |\n| `pivotY` | number | `0` |  |\n| `clip` | Shape | `null` |  |\n| `scrolls` | boolean | `false` |  |\n| `tip` | string | `\"\"` |  |\n| `scrollsX` | boolean | `false` |  |\n| `scrollY` | number | `0` |  |\n| `textColor` | Color | `0x000000` | prevailing |\n| `fontSize` | number | `16` | prevailing |\n| `fontFamily` | Font | `\"sans-serif\"` | prevailing |\n| `fontWeight` | thin | extralight | light | regular | normal | medium | semibold | bold | extrabold | black | `\"normal\"` | prevailing |\n| `letterSpacing` | number | `0` | prevailing |\n| `headingColor` | Color | `null` | prevailing |\n| `headingWeight` | thin | extralight | light | regular | normal | medium | semibold | bold | extrabold | black | `\"bold\"` | prevailing |\n| `linkColor` | Color | `null` | prevailing |\n| `codeColor` | Color | `null` | prevailing |\n| `codeSize` | number | `0` | prevailing |\n| `codeFamily` | Font | `\"\"` | prevailing |\n| `codeBackground` | Color | `null` | prevailing |\n| `codeRule` | Color | `null` | prevailing |\n| `richTextLayout` | RichTextLayout | `null` | prevailing |\n| `theme` | Theme | `DEFAULT_THEME` | prevailing |\n| `selectable` | boolean | `false` | prevailing |\n| `styles` | Style[] | `null` |  |\n| `stylesheet` | Stylesheet | `null` | prevailing |\n| `layout` | Layout | `null` |  |\n| `datapath` | datapath | `null` |  |\n| `focusable` | boolean | `false` |  |\n| `focustrap` | boolean | `false` |  |\n| `anchor` | string | `\"\"` |  |\n| `contentWidth` | Length |  | read-only |\n| `contentHeight` | Length |  | read-only |\n\n**`x`** — The horizontal offset within the parent, in pixels. Honoured only while the parent\nimposes no `layout` — **a layout overwrites `x` every pass**, so use it for absolute\nplacement (the layout-none default) and switch to `layout` for arrangement; don't fight\none with the other.\n\n**`y`** — The vertical offset within the parent — the twin of `x`, and likewise overwritten by a\nparent `layout`.\n\n**`width`** — The box's width, in **pixels** (`Length`). Defaults to `0`, so a container with no\nwidth set collapses — give it one, a `{ }` constraint, or `100%` (parent-relative).\nSet it live and children constrained to it reflow in the same frame; there is no\nre-layout call. To size *to* content instead, constrain it: `width = { Math.min(contentWidth, 480) }`.\n\n**`height`** — The box's height in pixels (`Length`), mirroring `width`. `0` by default. A `Text`\nleft unsized takes its natural measured height, so you usually set `height` only to\nclip or to drive a layout.\n\n**`fill`** — What paints the box: a solid `Color` or a `gradient(…)` — the one slot, subsuming a\nplain background color. `null` (the default) paints **nothing** — an unfilled box is\ninvisible but still lays out and still catches clicks. In a `[ ]` literal a color is\n`#RRGGBB`; inside a `{ }` body it is `0xRRGGBB` (the one place the spelling differs).\n\n```declare\nView [ fill = { gradient(\"90deg\", 0x1E2A36, 0x0B141B) } ]\n```\n\n**`cornerRadius`** — Rounds the **painted** box by this many pixels (default `0`, square). It shapes fill,\nborder, and shadow — but not hit-testing or clipping: the box stays a rectangle for\nlayout and clicks. To clip children to the rounded shape, set `clip = true` as well.\n\n**`stroke`** — A border drawn **inside** the box (`stroke(width, color)`), so it never enlarges the\nlayout rectangle — the box stays the one geometry fact. `null` by default. Chosen over\nCSS's `border` precisely so a bordered view and an unbordered one occupy the same space.\n\n**`shadow`** — A drop shadow on the box (`shadow(dx, dy, blur, color)`), the CSS box-shadow shape\nminus spread. `null` by default. The glyph equivalent on `Text` is `textShadow`.\n\n**`visible`** — Whether the view renders and participates in layout-that-skips-invisibles (default\n`true`). A `false` view is fully inert — no paint, no hit-testing — but still\nconstructed, so toggling it is cheap and keeps its state.\n\n**`opacity`** — Whole-view alpha, `0`…`1` (default `1`). Applies to the view **and its subtree** as a\ngroup, so a fading panel fades its contents with it. Not `prevailing`: its effect\nalready composes down the render tree, so a followed copy would apply it twice.\n\n**`scale`** — A uniform **paint** transform — the view's subtree renders scaled about its pivot, never\nre-laid-out (like `opacity`, it changes pixels, not geometry), and hit-testing follows the\nvisible result. Pair with `pivotX`/`pivotY` to choose the center; `1` is unscaled.\n\n**`pivotX`** — The horizontal center of `scale`, in the view's own coordinates. Defaults to the origin; set\nboth `pivotX`/`pivotY` to scale about the middle rather than the top-left.\n\n**`pivotY`** — The vertical pivot — the twin of `pivotX`.\n\n**`clip`** — Clips the subtree to a shape. `clip = true` clips to the view's **own box**\n(reactively on width/height) — the common case; a `Shape` value clips to an arbitrary\npath. `null`/unset (default) draws children unclipped, even outside the box. Kept\nexplicit (not implied by `cornerRadius`) so clipping is pay-per-use.\n\n**`scrolls`** — Makes the view scroll its overflowing content: it clips to its box and scrolls the\nvertical overflow, exposing `scrollY`. Fixed chrome comes free — make it a **sibling**\nof the scroller, not a child. Default `false`. Both backends realize it natively and\npresent the same model (`scrollY` updates the same way either way); only the overscroll\n*feel* differs, where the platform can do better. On DOM the OS owns the scroll — overlay\nscrollbar, momentum, and rubber-band overscroll *contained* to this pane, so it bounces on\nits own edges and never chains to the page, and sibling panes overscroll independently. On\ncanvas the runtime manages the offset (clip+translate+wheel), as a single element must.\n\n**`tip`** — The tooltip text — the layer system's floor (one attribute at the use site): a non-empty\n`tip` makes this view hover-interactive, and after the theme's delay the auto-provided\n`Tooltip` singleton shows the text beside it. Placement, delay, and size are theme data\n(`tooltipPlacement` below | above | pointer, `tooltipDelay`, `tooltipSize`) — so Cupertino\ntips appear near the cursor after ~1s at 11px (the macOS help tag), Redmond's above the\ncontrol (WinUI), Mountain View's below at ~500ms (M3) — always flipped and clamped inside\nthe app. Moving between tip-carrying controls while a tip is up retargets instantly; a\npress dismisses. Look comes from `tooltipBg` / `tooltipText` / `tooltipLine`. `\"\"` (the\ndefault) = no tip.\n\n**`scrollsX`** — Like `scrolls`, but for **horizontal** overflow: the view clips to its box and scrolls content\nwider than it, exposing the offset. Use it for a paging strip; `scrolls` is the vertical case.\n\n**`scrollY`** — The current vertical scroll offset in pixels of a `scrolls` view — **read it** for\nscroll-driven effects (a fading header, reveals, parallax): `opacity = { 1 - app.scrollY / 200 }`.\n\n**`textColor`** — The glyph color `Text` renders with — a `prevailing` styling slot declared on `View`\nso **any** container can provide it and the whole subtree inherits, live. Unset, it\nfollows the nearest ancestor that sets it (default `0x000000`). Set it on a panel to\nretint all text beneath without touching each `Text`.\n\n**`fontSize`** — Prevailing font size in pixels (default `16`), inherited by descendant `Text` exactly\nlike `textColor`. Set once on a container to size a whole region's text.\n\n**`fontFamily`** — The prevailing font **fallback list**, read at each descendant `Text` — `[Brand, \"system-ui\", \"sans-serif\"]`.\nA bare name resolves to a declared `font`; the first entry that resolves wins, so end\nwith a generic. Prevailing, so setting it on a container refaces the whole region.\n\n**`fontWeight`** — The prevailing weight — one of the `thin`…`black` tokens (`normal`/`bold` alias 400/700).\nThe token also **picks the matching face** when a `font` declares several, so weight and\nface never drift apart.\n\n**`letterSpacing`** — Prevailing tracking, in **px** (not em) — `0` is the font's natural advances. Prevailing,\nso a heading container can loosen all its text at once.\n\n**`headingColor`** — **Prevailing.** The color of `Markdown`/`RichText` headings, overriding `textColor` for heading\nruns only; absent, headings follow `textColor`.\n\n**`headingWeight`** — **Prevailing.** The font weight for rich-text headings — the heading-specific counterpart to\n`fontWeight`.\n\n**`linkColor`** — **Prevailing.** The color of links in rich text; absent, links use the theme's accent.\n\n**`codeColor`** — **Prevailing.** The text color of inline and fenced code in rich text.\n\n**`codeSize`** — **Prevailing.** The font size for code regions — one value driving inline code, fenced blocks,\nand `<pre>` alike, so a document's monospace stays uniform.\n\n**`codeFamily`** — **Prevailing.** The monospace family for code regions — a fallback list, like `fontFamily`.\n\n**`codeBackground`** — **Prevailing.** The fill behind fenced code blocks; absent, code carries no box.\n\n**`codeRule`** — **Prevailing.** The color of a fenced code block's left accent rule.\n\n**`richTextLayout`** — **Prevailing.** A per-block-type geometry map for `RichText`/`Markdown` — caller-controlled\nmeasure and spacing per block kind (prose narrower than code, say), so one base renders both\ntight code and wide prose.\n\n**`theme`** — A prevailing record of design tokens, read inside `{ }` as `theme.accent`, `theme.muted`,\netc. Provide it on a container and the subtree styles off it — the escape from hard-coded\ncolors when you don't want a full `stylesheet`.\n\n**`selectable`** — **Prevailing.** `selectable = true` on a container makes all its `Text` — including a\n`Markdown`'s rendered runs — selectable and copyable; **off by default**, so UI chrome never\nbecomes accidentally selectable. Set it once high over a region of prose.\n\n**`styles`** — An ordered list of `style` bundles applied at **construction** — **static in v1**: unlike\n`stylesheet`, reassigning `styles` after build does nothing. For a reskin that changes\nlive, use `stylesheet` instead.\n\n**`stylesheet`** — The prevailing stylesheet: provide one anywhere and that whole subtree reskins; swap it\nand the subtree re-styles in a single settle. The reactive counterpart to the static\n`styles` list.\n\n**`layout`** — How this view arranges its children — a reactive `Layout` attribute, not a child and\nnot the container's type. Defaults to none (absolute `x`/`y`). Swap or animate it and\nthe arrangement transitions continuously: `layout: SimpleLayout [ axis = y, spacing = 10 ]`.\nSet `layout = null` for explicit none.\n\n**`datapath`** — The data cursor (language §9): sets the place in a dataset that this view and its\ndescendants read relative to. Write it as a `:path` (relative to the inherited\ncursor), `:arr[]` to **replicate** this view once per array element, or a `{ }`\nexpression yielding a place. Descendants read with their own relative `:paths`.\n\n**`focusable`** — Makes the view a keyboard **tab stop**. Traversal order is the view tree — there is no\nnumeric tabindex; override `tabOrder()` to reorder within a container.\n\n**`focustrap`** — Marks a self-contained focus group: Tab cycles within it and escapes at the boundary\n(firing `escapeFocus`). For a modal or menu whose focus must not leak to the page behind.\n\n**`anchor`** — Names this view as a **reveal target** for a location's `@name` suffix\n(`#guide/04-tree@intro` scrolls to the view with `anchor = \"intro\"`). The `<a name>`\nlineage, reborn reactive: the anchor namespace is named views (this attribute) plus\nheading slugs inside rendered rich text — a heading needs nothing from you. Resolution\nprefers views over slugs, preorder-first.\n\n**`contentWidth`** — **Read-only** intrinsic: the width of this view's visible children's bounding box —\nthe auto-extent, surfaced. A constraint may read it (`width = { Math.min(contentWidth, 480) }`)\nto size to content with a cap; assigning it is a compile error.\n\n**`contentHeight`** — **Read-only** intrinsic mirroring `contentWidth` on the vertical axis — the measured\nextent of the subtree, for sizing a container to its content.\n\n## Events\n\n- `onClick()` — Fires when the pointer presses **and** releases on the same view (a true click, not a\nstray press) — answered by an `onClick()` handler. The primary interaction event;\n`mouseDown`/`mouseUp`/`mouseMove` are there when you need the raw phases.\n\n```declare\nView [ width = 80, height = 44, cornerRadius = 6, fill = gainsboro, onClick() { fill = 0x4169E1 } ]\n```\n- `onMouseDown()` — The pointer pressed on the view — the raw press phase. Prefer `click` (press **and**\nrelease on the same view) unless you need the phases apart, e.g. to begin a drag.\n- `onMouseUp()` — The pointer released. While a press is captured (it began on this view) `mouseUp` still\nfires **here even if the release lands off the box** — the drag-release guarantee, so a\nslider freezes its value wherever the finger lifts.\n- `onMouseMove()` — The pointer moved over the view — and, once pressed on it, every move **while captured**\n(even outside the box), so a drag handler keeps getting positions. The event carries the\npointer in this view's own coordinates.\n- `onMouseOver()` — The pointer entered the view (retained enter tracking) — the hover-in half. Set a\n`hovered` flag here and read it in a `fill`/`textColor` constraint.\n- `onMouseOut()` — The pointer left the view — the hover-out half; also fires when a press is abandoned off\nthe box, so clear both `hovered` and `pressed` here.\n- `onInit()` — Fires once when the view has finished constructing and its subtree exists — the place\nfor setup that needs the built tree. Answered by `onInit()`.\n- `onFocus()` — The view gained keyboard focus (it is `focusable` and was tabbed or clicked to). Drive a\nfocus ring off it.\n- `onBlur()` — The view lost keyboard focus — the partner of `focus`.\n- `onEscapeFocus()` — Fired on a `focustrap` when Tab reaches its boundary — your cue to move focus out (close\nthe modal, advance to the next group).\n- `onKeyDown()` — A key was pressed while the view holds focus; the event carries the key. For app-wide\nshortcuts use a `Keys` subscription instead — this is for the focused view only.\n- `onKeyUp()` — A key was released while the view holds focus — the partner of `keyDown`.\n\n## Methods\n\n- `scrollIntoView(align?: \"start\" | \"nearest\", smooth?: boolean): void` — Scrolls this view into the visible region of its nearest `scrolls` ancestor (or the page),\naligning its top to the viewport top — the imperative partner of the declarative jump-index\npattern. Both backends realize it natively (DOM `scrollIntoView`, canvas clamps the scroll\nancestor's `scrollOffset`). A no-op if nothing above it scrolls.\n",
+       "doc": "# View\n\n*Built-in element*\n\nThe base of every visual thing in Declare — a rectangular **box** with a position, a\nsize, and decoration (fill, corner radius, border, shadow). Everything you see\ndescends from `View`: `Text`, `Image`, your own `class … extends View`. A plain\n`View` is a colored box; give it children and it becomes a container.\n\nIts geometry is set two ways that read the same: literal (`width = 200`) or a reactive\n`{ }` constraint the runtime keeps true (`width = { parent.width }`). Children nest\ninside the brackets, so the source shape mirrors the visual shape; *how* they are\narranged is the `layout` attribute, not the container's type.\n\n```declare\nView [ width = 200, height = 120, fill = white, cornerRadius = 8,\n  Text [ text = \"hello\", x = 12, y = 12 ]\n]\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `x` | Length | `0` |  |\n| `y` | Length | `0` |  |\n| `width` | Length | `0` |  |\n| `height` | Length | `0` |  |\n| `fill` | Fill | `null` |  |\n| `cornerRadius` | number | `0` |  |\n| `stroke` | Stroke | `null` |  |\n| `shadow` | Shadow | `null` |  |\n| `visible` | boolean | `true` |  |\n| `opacity` | number | `1` |  |\n| `scale` | number | `1` |  |\n| `pivotX` | number | `0` |  |\n| `pivotY` | number | `0` |  |\n| `clip` | Shape | `null` |  |\n| `scrolls` | boolean | `false` |  |\n| `tip` | string | `\"\"` |  |\n| `scrollsX` | boolean | `false` |  |\n| `scrollY` | number | `0` |  |\n| `textColor` | Color | `0x000000` | prevailing |\n| `fontSize` | number | `16` | prevailing |\n| `fontFamily` | Font | `\"sans-serif\"` | prevailing |\n| `fontWeight` | thin | extralight | light | regular | normal | medium | semibold | bold | extrabold | black | `\"normal\"` | prevailing |\n| `letterSpacing` | number | `0` | prevailing |\n| `headingColor` | Color | `null` | prevailing |\n| `headingWeight` | thin | extralight | light | regular | normal | medium | semibold | bold | extrabold | black | `\"bold\"` | prevailing |\n| `linkColor` | Color | `null` | prevailing |\n| `codeColor` | Color | `null` | prevailing |\n| `codeSize` | number | `0` | prevailing |\n| `codeFamily` | Font | `\"\"` | prevailing |\n| `codeBackground` | Color | `null` | prevailing |\n| `codeRule` | Color | `null` | prevailing |\n| `richTextLayout` | RichTextLayout | `null` | prevailing |\n| `theme` | Theme | `DEFAULT_THEME` | prevailing |\n| `selectable` | boolean | `false` | prevailing |\n| `styles` | Style[] | `null` |  |\n| `stylesheet` | Stylesheet | `null` | prevailing |\n| `layout` | Layout | `null` |  |\n| `datapath` | datapath | `null` |  |\n| `focusable` | boolean | `false` |  |\n| `focustrap` | boolean | `false` |  |\n| `anchor` | string | `\"\"` |  |\n| `contentWidth` | Length |  | read-only |\n| `contentHeight` | Length |  | read-only |\n\n**`x`** — The horizontal offset within the parent, in pixels. Honoured only while the parent\nimposes no `layout` — **a layout overwrites `x` every pass**, so use it for absolute\nplacement (the layout-none default) and switch to `layout` for arrangement; don't fight\none with the other.\n\n**`y`** — The vertical offset within the parent — the twin of `x`, and likewise overwritten by a\nparent `layout`.\n\n**`width`** — The box's width, in **pixels** (`Length`). Defaults to `0`, so a container with no\nwidth set collapses — give it one, a `{ }` constraint, or `100%` (parent-relative).\nSet it live and children constrained to it reflow in the same frame; there is no\nre-layout call. To size *to* content instead, constrain it: `width = { Math.min(contentWidth, 480) }`.\n\n**`height`** — The box's height in pixels (`Length`), mirroring `width`. `0` by default. A `Text`\nleft unsized takes its natural measured height, so you usually set `height` only to\nclip or to drive a layout.\n\n**`fill`** — What paints the box: a solid `Color` or a `gradient(…)` — the one slot, subsuming a\nplain background color. `null` (the default) paints **nothing** — an unfilled box is\ninvisible but still lays out and still catches clicks. In a `[ ]` literal a color is\n`#RRGGBB`; inside a `{ }` body it is `0xRRGGBB` (the one place the spelling differs).\n\n```declare\nView [ fill = { gradient(\"90deg\", 0x1E2A36, 0x0B141B) } ]\n```\n\n**`cornerRadius`** — Rounds the **painted** box by this many pixels (default `0`, square). It shapes fill,\nborder, and shadow — but not hit-testing or clipping: the box stays a rectangle for\nlayout and clicks. To clip children to the rounded shape, set `clip = true` as well.\n\n**`stroke`** — A border drawn **inside** the box (`stroke(width, color)`), so it never enlarges the\nlayout rectangle — the box stays the one geometry fact. `null` by default. Chosen over\nCSS's `border` precisely so a bordered view and an unbordered one occupy the same space.\n\n**`shadow`** — A drop shadow on the box (`shadow(dx, dy, blur, color)`), the CSS box-shadow shape\nminus spread. `null` by default. The glyph equivalent on `Text` is `textShadow`.\n\n**`visible`** — Whether the view renders and participates in layout-that-skips-invisibles (default\n`true`). A `false` view is fully inert — no paint, no hit-testing — but still\nconstructed, so toggling it is cheap and keeps its state.\n\n**`opacity`** — Whole-view alpha, `0`…`1` (default `1`). Applies to the view **and its subtree** as a\ngroup, so a fading panel fades its contents with it. Not `prevailing`: its effect\nalready composes down the render tree, so a followed copy would apply it twice.\n\n**`scale`** — A uniform **paint** transform — the view's subtree renders scaled about its pivot, never\nre-laid-out (like `opacity`, it changes pixels, not geometry), and hit-testing follows the\nvisible result. Pair with `pivotX`/`pivotY` to choose the center; `1` is unscaled.\n\n**`pivotX`** — The horizontal center of `scale`, in the view's own coordinates. Defaults to the origin; set\nboth `pivotX`/`pivotY` to scale about the middle rather than the top-left.\n\n**`pivotY`** — The vertical pivot — the twin of `pivotX`.\n\n**`clip`** — Clips the subtree to a shape. `clip = true` clips to the view's **own box**\n(reactively on width/height) — the common case; a `Shape` value clips to an arbitrary\npath. `null`/unset (default) draws children unclipped, even outside the box. Kept\nexplicit (not implied by `cornerRadius`) so clipping is pay-per-use.\n\n**`scrolls`** — Makes the view scroll its overflowing content: it clips to its box and scrolls the\nvertical overflow, exposing `scrollY`. Fixed chrome comes free — make it a **sibling**\nof the scroller, not a child. Default `false`. Both backends realize it natively and\npresent the same model (`scrollY` updates the same way either way); only the overscroll\n*feel* differs, where the platform can do better. On DOM the OS owns the scroll — overlay\nscrollbar, momentum, and rubber-band overscroll *contained* to this pane, so it bounces on\nits own edges and never chains to the page, and sibling panes overscroll independently. On\ncanvas the runtime manages the offset (clip+translate+wheel), as a single element must.\n\n**`tip`** — The tooltip text — the layer system's floor (one attribute at the use site): a non-empty\n`tip` makes this view hover-interactive, and after the theme's delay the auto-provided\n`Tooltip` singleton shows the text beside it. Placement, delay, and size are theme data\n(`tooltipPlacement` below | above | pointer, `tooltipDelay`, `tooltipSize`) — so Cupertino\ntips appear near the cursor after ~1s at 11px (the macOS help tag), Redmond's above the\ncontrol (WinUI), Mountain View's below at ~500ms (M3) — always flipped and clamped inside\nthe app. Moving between tip-carrying controls while a tip is up retargets instantly; a\npress dismisses. Look comes from `tooltipBg` / `tooltipText` / `tooltipLine`. `\"\"` (the\ndefault) = no tip.\n\n**`scrollsX`** — Like `scrolls`, but for **horizontal** overflow: the view clips to its box and scrolls content\nwider than it, exposing the offset. Use it for a paging strip; `scrolls` is the vertical case.\n\n**`scrollY`** — The current vertical scroll offset in pixels of a `scrolls` view — **read it** for\nscroll-driven effects (a fading header, reveals, parallax): `opacity = { 1 - app.scrollY / 200 }`.\n\n**`textColor`** — The glyph color `Text` renders with — a `prevailing` styling slot declared on `View`\nso **any** container can provide it and the whole subtree inherits, live. Unset, it\nfollows the nearest ancestor that sets it (default `0x000000`). Set it on a panel to\nretint all text beneath without touching each `Text`.\n\n**`fontSize`** — Prevailing font size in pixels (default `16`), inherited by descendant `Text` exactly\nlike `textColor`. Set once on a container to size a whole region's text.\n\n**`fontFamily`** — The prevailing font **fallback list**, read at each descendant `Text` — `[Brand, \"system-ui\", \"sans-serif\"]`.\nA bare name resolves to a declared `font`; the first entry that resolves wins, so end\nwith a generic. Prevailing, so setting it on a container refaces the whole region.\n\n**`fontWeight`** — The prevailing weight — one of the `thin`…`black` tokens (`normal`/`bold` alias 400/700).\nThe token also **picks the matching face** when a `font` declares several, so weight and\nface never drift apart.\n\n**`letterSpacing`** — Prevailing tracking, in **px** (not em) — `0` is the font's natural advances. Prevailing,\nso a heading container can loosen all its text at once.\n\n**`headingColor`** — **Prevailing.** The color of `Markdown`/`RichText` headings, overriding `textColor` for heading\nruns only; absent, headings follow `textColor`.\n\n**`headingWeight`** — **Prevailing.** The font weight for rich-text headings — the heading-specific counterpart to\n`fontWeight`.\n\n**`linkColor`** — **Prevailing.** The color of links in rich text; absent, links use the theme's accent.\n\n**`codeColor`** — **Prevailing.** The text color of inline and fenced code in rich text.\n\n**`codeSize`** — **Prevailing.** The font size for code regions — one value driving inline code, fenced blocks,\nand `<pre>` alike, so a document's monospace stays uniform.\n\n**`codeFamily`** — **Prevailing.** The monospace family for code regions — a fallback list, like `fontFamily`.\n\n**`codeBackground`** — **Prevailing.** The fill behind fenced code blocks; absent, code carries no box.\n\n**`codeRule`** — **Prevailing.** The color of a fenced code block's left accent rule.\n\n**`richTextLayout`** — **Prevailing.** A per-block-type geometry map for `RichText`/`Markdown` — caller-controlled\nmeasure and spacing per block kind (prose narrower than code, say), so one base renders both\ntight code and wide prose.\n\n**`theme`** — A prevailing record of design tokens, read inside `{ }` as `theme.accent`, `theme.muted`,\netc. Provide it on a container and the subtree styles off it — the escape from hard-coded\ncolors when you don't want a full `stylesheet`.\n\n**`selectable`** — **Prevailing.** `selectable = true` on a container makes all its `Text` — including a\n`Markdown`'s rendered runs — selectable and copyable; **off by default**, so UI chrome never\nbecomes accidentally selectable. Set it once high over a region of prose.\n\n**`styles`** — An ordered list of `style` bundles applied at **construction** — **static in v1**: unlike\n`stylesheet`, reassigning `styles` after build does nothing. For a reskin that changes\nlive, use `stylesheet` instead.\n\n**`stylesheet`** — The prevailing stylesheet: provide one anywhere and that whole subtree reskins; swap it\nand the subtree re-styles in a single settle. The reactive counterpart to the static\n`styles` list.\n\n**`layout`** — How this view arranges its children — a reactive `Layout` attribute, not a child and\nnot the container's type. Defaults to none (absolute `x`/`y`). Swap or animate it and\nthe arrangement transitions continuously: `layout: SimpleLayout [ axis = y, spacing = 10 ]`.\nSet `layout = null` for explicit none.\n\n**`datapath`** — The data cursor (language §9): sets the place in a dataset that this view and its\ndescendants read relative to. Write it as a `:path` (relative to the inherited\ncursor), `:arr[]` to **replicate** this view once per array element, or a `{ }`\nexpression yielding a place. Descendants read with their own relative `:paths`.\n\n**`focusable`** — Makes the view a keyboard **tab stop**. Traversal order is the view tree — there is no\nnumeric tabindex; override `tabOrder()` to reorder within a container.\n\n**`focustrap`** — Marks a self-contained focus group: Tab cycles within it and escapes at the boundary\n(firing `escapeFocus`). For a modal or menu whose focus must not leak to the page behind.\n\n**`anchor`** — Names this view as a **reveal target** for a location's `@name` suffix\n(`#guide/04-tree@intro` scrolls to the view with `anchor = \"intro\"`). The `<a name>`\nlineage, reborn reactive: the anchor namespace is named views (this attribute) plus\nheading slugs inside rendered rich text — a heading needs nothing from you. Resolution\nprefers views over slugs, preorder-first.\n\n**`contentWidth`** — **Read-only** intrinsic: the width of this view's visible children's bounding box —\nthe auto-extent, surfaced. A constraint may read it (`width = { Math.min(contentWidth, 480) }`)\nto size to content with a cap; assigning it is a compile error.\n\n**`contentHeight`** — **Read-only** intrinsic mirroring `contentWidth` on the vertical axis — the measured\nextent of the subtree, for sizing a container to its content.\n\n## Events\n\n- `onClick()` — Fires when the pointer presses **and** releases on the same view (a true click, not a\nstray press) — answered by an `onClick()` handler. The primary interaction event;\n`mouseDown`/`mouseUp`/`mouseMove` are there when you need the raw phases.\n\n```declare\nView [ width = 80, height = 40, cornerRadius = 10, fill = gainsboro, onClick() { fill = 0x4169E1 } ]\n```\n- `onMouseDown()` — The pointer pressed on the view — the raw press phase. Prefer `click` (press **and**\nrelease on the same view) unless you need the phases apart, e.g. to begin a drag.\n- `onMouseUp()` — The pointer released. While a press is captured (it began on this view) `mouseUp` still\nfires **here even if the release lands off the box** — the drag-release guarantee, so a\nslider freezes its value wherever the finger lifts.\n- `onMouseMove()` — The pointer moved over the view — and, once pressed on it, every move **while captured**\n(even outside the box), so a drag handler keeps getting positions. The event carries the\npointer in this view's own coordinates.\n- `onMouseOver()` — The pointer entered the view (retained enter tracking) — the hover-in half. Set a\n`hovered` flag here and read it in a `fill`/`textColor` constraint.\n- `onMouseOut()` — The pointer left the view — the hover-out half; also fires when a press is abandoned off\nthe box, so clear both `hovered` and `pressed` here.\n- `onInit()` — Fires once when the view has finished constructing and its subtree exists — the place\nfor setup that needs the built tree. Answered by `onInit()`.\n- `onFocus()` — The view gained keyboard focus (it is `focusable` and was tabbed or clicked to). Drive a\nfocus ring off it.\n- `onBlur()` — The view lost keyboard focus — the partner of `focus`.\n- `onEscapeFocus()` — Fired on a `focustrap` when Tab reaches its boundary — your cue to move focus out (close\nthe modal, advance to the next group).\n- `onKeyDown()` — A key was pressed while the view holds focus; the event carries the key. For app-wide\nshortcuts use a `Keys` subscription instead — this is for the focused view only.\n- `onKeyUp()` — A key was released while the view holds focus — the partner of `keyDown`.\n\n## Methods\n\n- `scrollIntoView(align?: \"start\" | \"nearest\", smooth?: boolean): void` — Scrolls this view into the visible region of its nearest `scrolls` ancestor (or the page),\naligning its top to the viewport top — the imperative partner of the declarative jump-index\npattern. Both backends realize it natively (DOM `scrollIntoView`, canvas clamps the scroll\nancestor's `scrollOffset`). A no-op if nothing above it scrolls.\n",
        "preview": "The base of every visual thing in Declare — a rectangular box with a position, a size, and decoration (fill, corner radius, border, shadow). Everything you see descends from View: Text, Image, your own class … extends View. A plain View is…"
       },
       {
@@ -20093,7 +20393,7 @@
        "subtitle": "extends View",
        "kind": "element",
        "label": "Built-in element",
-       "doc": "# Text\n\n*Built-in element — extends `View`*\n\nA run of text, sized by native browser metrics when you don't give it a width or\nheight — so a bare `Text [ text = \"hi\" ]` is exactly as wide and tall as its glyphs.\nIts **style** is not on `Text`: `textColor`, `fontSize`, `fontFamily`, and\n`fontWeight` are `prevailing` slots on `View`, so any ancestor provides them and this\nrun renders with the effective values. That is why restyling a region's text means\nsetting those on the container, not on each `Text`.\n\n```declare\nView [ textColor = royalblue, fontSize = 14,\n  Text [ text = \"inherits the panel's style\" ]\n]\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `text` | string | `\"\"` |  |\n| `textShadow` | Shadow | `null` |  |\n| `wrap` | boolean | `true` |  |\n| `textAlign` | left | center | right | `\"left\"` |  |\n| `italic` | boolean | `false` |  |\n| `textFill` | Fill | `null` |  |\n\n**`text`** — The string to display. Literal, or a `{ }` constraint that recomputes as its\ndependencies change — `text = { classroot.label }` re-renders the moment `label` does,\nwith no subscription to wire.\n\n**`textShadow`** — A drop shadow on the glyphs — the same `shadow(dx, dy, blur, color)` value as the box\n`shadow` slot, applied to the text instead of the box.\n\n**`wrap`** — Whether a width-bounded run wraps to multiple lines (default `true`). Set `wrap = false`\nto force a single line that overflows instead. Wrapping is reactive: narrow the\nbounding width and the run re-flows in the same frame. Pairs with `textAlign`.\n\n**`textAlign`** — Horizontal alignment of wrapped lines within the run's width — `left` (default),\n`center`, or `right`. Only meaningful once the run has a width to align within.\n\n**`italic`** — Renders the glyphs italic (default `false`) — the one slanted-style toggle, separate\nfrom `fontWeight`.\n\n**`textFill`** — Fills the **glyphs** with a gradient (or solid `Fill`), like the box `fill` but for the\nletters; overrides `textColor` when set. `textFill = { gradient(\"90deg\", 0xFFFFFF, 0x88AAFF) }`.\n",
+       "doc": "# Text\n\n*Built-in element — extends `View`*\n\nA run of text, sized by native browser metrics when you don't give it a width or\nheight — so a bare `Text [ text = \"hi\" ]` is exactly as wide and tall as its glyphs.\nIts **style** is not on `Text`: `textColor`, `fontSize`, `fontFamily`, and\n`fontWeight` are `prevailing` slots on `View`, so any ancestor provides them and this\nrun renders with the effective values. That is why restyling a region's text means\nsetting those on the container, not on each `Text`.\n\n```declare\nView [ textColor = royalblue, fontSize = 15,\n  Text [ text = \"inherits the panel's style\" ]\n]\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `text` | string | `\"\"` |  |\n| `textShadow` | Shadow | `null` |  |\n| `wrap` | boolean | `true` |  |\n| `textAlign` | left | center | right | `\"left\"` |  |\n| `italic` | boolean | `false` |  |\n| `textFill` | Fill | `null` |  |\n\n**`text`** — The string to display. Literal, or a `{ }` constraint that recomputes as its\ndependencies change — `text = { classroot.label }` re-renders the moment `label` does,\nwith no subscription to wire.\n\n**`textShadow`** — A drop shadow on the glyphs — the same `shadow(dx, dy, blur, color)` value as the box\n`shadow` slot, applied to the text instead of the box.\n\n**`wrap`** — Whether a width-bounded run wraps to multiple lines (default `true`). Set `wrap = false`\nto force a single line that overflows instead. Wrapping is reactive: narrow the\nbounding width and the run re-flows in the same frame. Pairs with `textAlign`.\n\n**`textAlign`** — Horizontal alignment of wrapped lines within the run's width — `left` (default),\n`center`, or `right`. Only meaningful once the run has a width to align within.\n\n**`italic`** — Renders the glyphs italic (default `false`) — the one slanted-style toggle, separate\nfrom `fontWeight`.\n\n**`textFill`** — Fills the **glyphs** with a gradient (or solid `Fill`), like the box `fill` but for the\nletters; overrides `textColor` when set. `textFill = { gradient(\"90deg\", 0xFFFFFF, 0x88AAFF) }`.\n",
        "preview": "A run of text, sized by native browser metrics when you don't give it a width or height — so a bare Text text = \"hi\" is exactly as wide and tall as its glyphs. Its style is not on Text: textColor, fontSize, fontFamily, and fontWeight are pr…"
       },
       {
@@ -20141,24 +20441,8 @@
        "subtitle": "extends Editor",
        "kind": "element",
        "label": "Built-in element",
-       "doc": "# TextInput\n\n*Built-in element — extends `Editor`*\n\nAn editable text field, realized as a **native** editable element (a DOM input in-box, a\npositioned overlay on canvas) so caret, selection, IME, and accessibility are the\nplatform's, not reimplemented. It fires `input` on every edit and `enter` on a single-line\nsubmit, and inherits View's focus and keyboard events.\n\nIt is also the first **Editor**: bind `text <-> :path` to edit a dataset record two-way — the\nfield reads the datapath, commits edits back into the dataset, and reseeds when the cursor\nmoves to a new record. The dataset owns the committed value; the field owns the *edit session*\n— its draft plus `valid` / `error` / `dirty`. Supply a `validate(v)` method for a domain rule\nbeyond the schema type (return an error message, or `null` when valid); an invalid draft is\nheld and never written.\n\n```declare\nApp [ fill = white, textColor = black,\n    contact: Dataset { { \"email\": \"ada@example.com\" } },\n    form: View [ x = 24, y = 24, datapath = { app.contact.value },\n        email: TextInput [ width = 240, height = 30, padding = 6, cornerRadius = 6,\n            fill = gainsboro,\n            text <-> :email,\n            validate(v) { return v.includes(\"@\") ? null : \"not an email\" } ] ],\n    ]\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `text` | string |  |  |\n| `placeholder` | string |  |  |\n| `multiline` | boolean |  |  |\n| `spellcheck` | boolean |  |  |\n| `wrap` | boolean |  |  |\n| `padding` | number |  |  |\n| `initial` | string |  |  |\n\n**`text`** — The field's contents. With `text <-> :path` it is the **draft** of a two-way edit session over\na dataset record (see the intro). Otherwise: **bind** it (`text = { model }`) for a\n**controlled** field — an edit that diverges from the binding reverts — or leave it unbound\n(or seed it with `initial`) for a field the user edits freely.\n\n**`placeholder`** — The grey prompt shown while the field is empty.\n\n**`multiline`** — Makes it a multi-line area rather than a single line — and then **Return inserts a newline**\ninstead of firing `enter`.\n\n**`spellcheck`** — Toggles the native spell-check underline.\n\n**`wrap`** — For a `multiline` field, whether long lines wrap (`true`) or scroll horizontally (`false`) —\na code field wants `false`.\n\n**`padding`** — Inner padding around the text, in px.\n\n**`initial`** — An **uncontrolled seed** — React's `defaultValue` to `text`'s `value`: `text` starts at\n`initial`, then holds the user's edits. For a field pre-filled from a value that must stay\nfreely writable (an editor seeded with source). A **bound** `text` is the controlled form\ninstead; **don't set both** — pick controlled *or* seeded.\n\n## Events\n\n- `onInput()` — Fires on every edit, carrying the new text — for live validation or search-as-you-type. On a\n`<->` field the draft is already committed (per `commitOn`) by the time this runs.\n- `onEnter()` — Fires when the user submits a single-line field (Return). On a `multiline` field Return\nmakes a newline and this never fires.\n",
+       "doc": "# TextInput\n\n*Built-in element — extends `Editor`*\n\nAn editable text field, realized as a **native** editable element (a DOM input in-box, a\npositioned overlay on canvas) so caret, selection, IME, and accessibility are the\nplatform's, not reimplemented. It fires `input` on every edit and `enter` on a single-line\nsubmit, and inherits View's focus and keyboard events.\n\nIt is also the first **Editor**: bind `text <-> :path` to edit a dataset record two-way — the\nfield reads the datapath, commits edits back into the dataset, and reseeds when the cursor\nmoves to a new record. The dataset owns the committed value; the field owns the *edit session*\n— its draft plus `valid` / `error` / `dirty`. Supply a `validate(v)` method for a domain rule\nbeyond the schema type (return an error message, or `null` when valid); an invalid draft is\nheld and never written.\n\n```declare\nApp [ fill = white, textColor = black,\n    contact: Dataset { { \"email\": \"ada@example.com\" } },\n    form: View [ x = 20, y = 20, datapath = { app.contact.value },\n        email: TextInput [ width = 240, height = 30, padding = 6, cornerRadius = 6,\n            fill = gainsboro,\n            text <-> :email,\n            validate(v) { return v.includes(\"@\") ? null : \"not an email\" } ] ],\n    ]\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `text` | string |  |  |\n| `placeholder` | string |  |  |\n| `multiline` | boolean |  |  |\n| `spellcheck` | boolean |  |  |\n| `wrap` | boolean |  |  |\n| `padding` | number |  |  |\n| `initial` | string |  |  |\n\n**`text`** — The field's contents. With `text <-> :path` it is the **draft** of a two-way edit session over\na dataset record (see the intro). Otherwise: **bind** it (`text = { model }`) for a\n**controlled** field — an edit that diverges from the binding reverts — or leave it unbound\n(or seed it with `initial`) for a field the user edits freely.\n\n**`placeholder`** — The grey prompt shown while the field is empty.\n\n**`multiline`** — Makes it a multi-line area rather than a single line — and then **Return inserts a newline**\ninstead of firing `enter`.\n\n**`spellcheck`** — Toggles the native spell-check underline.\n\n**`wrap`** — For a `multiline` field, whether long lines wrap (`true`) or scroll horizontally (`false`) —\na code field wants `false`.\n\n**`padding`** — Inner padding around the text, in px.\n\n**`initial`** — An **uncontrolled seed** — React's `defaultValue` to `text`'s `value`: `text` starts at\n`initial`, then holds the user's edits. For a field pre-filled from a value that must stay\nfreely writable (an editor seeded with source). A **bound** `text` is the controlled form\ninstead; **don't set both** — pick controlled *or* seeded.\n\n## Events\n\n- `onInput()` — Fires on every edit, carrying the new text — for live validation or search-as-you-type. On a\n`<->` field the draft is already committed (per `commitOn`) by the time this runs.\n- `onEnter()` — Fires when the user submits a single-line field (Return). On a `multiline` field Return\nmakes a newline and this never fires.\n",
        "preview": "An editable text field, realized as a native editable element (a DOM input in-box, a positioned overlay on canvas) so caret, selection, IME, and accessibility are the platform's, not reimplemented. It fires input on every edit and enter on…"
-      },
-      {
-       "name": "SimpleLayout",
-       "subtitle": "extends Layout",
-       "kind": "element",
-       "label": "Built-in element",
-       "doc": "# SimpleLayout\n\n*Built-in element — extends `Layout`*\n\nThe stacking layout: arranges a view's children in a line along `axis`, `spacing` px\napart, skipping invisible ones. You set it as the view's `layout` **attribute** — not a\nchild (OpenLaszlo's form), not the container's type (SwiftUI/Flutter's) — which is what\nlets you **swap or animate it** so an arrangement *transitions* instead of jumping. While\nit's active it drives the children's positions, so any `x`/`y` you set on them is\noverwritten.\n\n```declare\nView [ layout: SimpleLayout [ axis = y, spacing = 10 ],\n    Text [ text = \"one\" ],\n    Text [ text = \"two\" ],\n]\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `axis` | x | y |  |  |\n| `spacing` | number |  |  |\n\n**`axis`** — The stacking direction — `x` lays children left-to-right (a row), `y` top-to-bottom (a\ncolumn). You always name it; there is no \"obvious\" default for a stack.\n\n**`spacing`** — The gap between adjacent children, in px. **Negative values overlap them** — stacked\ncards, an avatar pile. Invisible children are skipped, so the gap closes automatically\nwhen one hides rather than leaving a hole.\n",
-       "preview": "The stacking layout: arranges a view's children in a line along axis, spacing px apart, skipping invisible ones. You set it as the view's layout attribute — not a child (OpenLaszlo's form), not the container's type (SwiftUI/Flutter's) — whi…"
-      },
-      {
-       "name": "WrappingLayout",
-       "subtitle": "extends Layout",
-       "kind": "element",
-       "label": "Built-in element",
-       "doc": "# WrappingLayout\n\n*Built-in element — extends `Layout`*\n\nA horizontal flow that **wraps** to a new row when the view runs out of width — a row\nwhile there's room, rows when there isn't. For tag lists, chip clouds, a toolbar that\nreflows. It re-wraps reactively as the view resizes, so binding the view's `width` to its\nparent is all it takes to make the flow responsive.\n\n```declare\nView [ width = { parent.width }, layout: WrappingLayout [ spacing = 8, lineSpacing = 8 ] ]\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `spacing` | number |  |  |\n| `lineSpacing` | number |  |  |\n\n**`spacing`** — The horizontal gap between items within a row, in px.\n\n**`lineSpacing`** — The vertical gap between wrapped rows, in px — **defaults to `spacing`** when unset, so a\nsingle value gives even gaps in both directions and you only set this to make the rows\ntighter or looser than the columns.\n",
-       "preview": "A horizontal flow that wraps to a new row when the view runs out of width — a row while there's room, rows when there isn't. For tag lists, chip clouds, a toolbar that reflows. It re-wraps reactively as the view resizes, so binding the view…"
       },
       {
        "name": "TweenLayout",
@@ -20382,6 +20666,38 @@
        "label": "Component",
        "doc": "# AppIsland\n\n*Component — extends `DOMIsland`*\n\n`AppIsland` embeds a live Declare application: give it a `program` and it mounts\nthat program as its own child app — its own reactive graph, input router, and\nstage — sized to this view's box. There is no coordinate sync: the tenant fills\nthe box, so your width/height constraints size it like any view.\n\nIt composes `DOMIsland` (the sanctioned foreign-content leaf) and builds the\nhost's mount key from structured inputs, so callers never hand-splice the\n`run:…` wire. The page host (`browser/host-client.js`) sees the key on the box,\nresolves the program on its boot ladder — prewarm → cache → in-browser compile,\nidentical on the dev server and a static host — and renders the child.\n\n- `program` — what to run: a program name, or a relative path\n  (`\"../../calendar/calendar\"` reaches the real app, no copy), or the reserved\n  `\"__raw__\"` live-edit channel (the running program is the host app's\n  `liveSource`, recompiled on change). `\"\"` detaches the island — nothing mounts.\n- `env` — the embedding environment, in query form (`\"dark=1&base=../x/\"`),\n  delivered to the child's reactive `app.env` at mount and on every change.\n  Empty sends none, so the child keeps its own defaults (e.g. system appearance).\n- `childName` (inherited from `DOMIsland`) — the reverse channel: the running\n  child's `appName` reflected back up, so a host can title itself by what it shows.\n\nThe window frame, activation, and titling belong to the caller — a desktop window\nadds an `onMouseDown` that raises itself and reads `childName` for its title; the\nhomepage and the viewer just size the box. This primitive is only the embedding.\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `program` | string | `\"\"` |  |\n| `env` | string | `\"\"` |  |\n",
        "preview": "AppIsland embeds a live Declare application: give it a program and it mounts that program as its own child app — its own reactive graph, input router, and stage — sized to this view's box. There is no coordinate sync: the tenant fills the b…"
+      },
+      {
+       "name": "Spacer",
+       "subtitle": "extends View",
+       "kind": "element",
+       "label": "Component",
+       "doc": "# Spacer\n\n*Component — extends `View`*\n\nWhen a row (or stack)\ndoes not fill its container, the leftover space has to go SOMEWHERE — and\nthe laid children cannot take it themselves (their flow-axis slot is owned\nby the layout). A Spacer says where, structurally: put one between two\ngroups and they push apart (\"logo left, actions right\"); put one on each\nside of a run and it centers; put one first and the run right-aligns.\nSeveral spacers split the slack evenly. When there is no slack — a plan\nwhose shares fill the width, an auto-sized container — a Spacer is simply\nzero and invisible in effect.\n\nThe layout owns a Spacer's flow-axis size (a percent-family constraint, so\na container deriving its extent from its children never counts one); the\n`flexes` marker is what a flow layout looks for. An empty view otherwise —\nit paints nothing and has no size of its own.\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `flexes` | boolean | `true` |  |\n",
+       "preview": "When a row (or stack) does not fill its container, the leftover space has to go SOMEWHERE — and the laid children cannot take it themselves (their flow-axis slot is owned by the layout). A Spacer says where, structurally: put one between tw…"
+      },
+      {
+       "name": "ResponsiveLayout",
+       "subtitle": "extends Layout",
+       "kind": "element",
+       "label": "Component",
+       "doc": "# ResponsiveLayout\n\n*Component — extends `Layout`*\n\nA view's children often want one arrangement when there is room and another\nwhen there isn't: three panels side by side on a wide screen, the same panels\nstacked on a phone; an optional control that appears only when space allows.\nResponsiveLayout states those alternatives directly. You give it a list of\n**plans** — each one says *\"from this width up, arrange the children like\nthis\"* — and it keeps the right plan applied as the view's width changes.\nHiding, showing, and dividing the width are all part of a plan, not separate\nwiring.\n\n    bar: View [\n        layout: ResponsiveLayout [ plan = { [\n            { from: 900, flow: \"row\",  share: { logo: 15, nav: 55, actions: 30 } },\n            { from: 600, flow: \"row\",  share: { logo: 20, nav: 80, actions: 0 } },\n            { from: 0,   flow: \"stack\" },\n        ] } ],\n        logo:    Logo    [ ],\n        nav:     Nav     [ ],\n        actions: Actions [ ],\n    ]\n\nEach entry's `from` means *use this plan when the view is at least this wide*\n— the entry with the largest `from` that fits wins, wherever it sits in the\nlist, and an entry with `from: 0` is the fallback for anything narrower.\n`flow` is the arrangement: `\"row\"` places children left to right; `\"stack\"`\nplaces them top to bottom. `share` divides the width (what is left of it\nafter the gaps) among the children it NAMES — the names are the view's own\nchild names, checked when the layout first arranges (a name with no child is\na loud error). `logo: 15` gives logo 15% of it; **`0` hides that child while\nthe plan is active** — so \"the actions disappear on small screens\" is just a\nnumber in the narrow plan, and they reappear by themselves when the view\nwidens. A child a plan does NOT name is left alone: natural width, the flow\njust places it. `gap` sets the space between children (an entry may carry\nits own `gap` to override the layout's). Heights are never touched: children\nkeep their own heights, and the view's height falls out of its content, as\nalways.\n\nSo the example reads as a storyboard: at 900 and up, a three-across row split\n15/55/30; between 600 and 900, the actions drop and the nav takes their room;\nbelow 600, everything stacks.\n\n**Slack and alignment.** When a row's children keep natural widths, the run\nmay not fill the view — and where the run sits is said with structure, not a\nknob: a `Spacer [ ]` child absorbs the slack. Between two groups it pushes\nthem apart; one on each side centers the run; one first right-aligns it. On\nthe axis the flow does not manage, a child places itself with the ordinary\nliterals (`y = center` in a row). Shares that fill the width leave no slack\nat all — *shares fill; naturals align.*\n\n**Nesting — who decides what.** A ResponsiveLayout watches its own view's\nwidth — not the window's. The parent's plan decides how much room each child\ngets; each child decides what to do with the room it got — if the child has\nits own ResponsiveLayout, its plans answer to its own width, automatically.\nRoom flows down; each level responds locally. (A plan can only name direct\nchildren — managing a grandchild is the child's own plan's business.)\n\n**Division of labor.** ResponsiveLayout manages NAMED regions. A collection\nof uniform, replicated cards that should reflow to fit is the other tool:\n`WrappingLayout` (it wraps by fitting, no plan needed) with a width\nconstraint on the card.\n\n**When the rules aren't enough.** A plan speaks width, flow, share, and gap.\nWhole alternate configurations beyond geometry are a `State` applied on a\nwidth condition; fully custom geometry is a subclass overriding `place()` —\nthe same seam every layout in the library is built on.\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `plan` | array |  |  |\n| `gap` | number | `10` |  |\n\n## Methods\n\n- `place()`\n",
+       "preview": "A view's children often want one arrangement when there is room and another when there isn't: three panels side by side on a wide screen, the same panels stacked on a phone; an optional control that appears only when space allows. Responsiv…"
+      },
+      {
+       "name": "SimpleLayout",
+       "subtitle": "extends Layout",
+       "kind": "element",
+       "label": "Component",
+       "doc": "# SimpleLayout\n\n*Component — extends `Layout`*\n\nThe stacking idiom: siblings placed one after another along\n`axis`, in child order, `spacing` apart (negative overlaps). The cross axis\nand all sizes stay the children's own — a child centers itself across a row\nwith the ordinary `y = center`. Invisible children are skipped and their\nspace reclaimed; a skipped child still gets the slot it would occupy, so\nre-showing it needs no special case. A `Spacer` child flexes to absorb the\nrun's slack along the axis (between two groups it pushes them apart; one on\neach side centers the run).\n\nWritten in Declare over the Layout kernel: the whole strategy is this one\npure place() — one box per laid child, aligned by index.\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `axis` | Axis | `y` |  |\n| `spacing` | number | `0` |  |\n\n## Methods\n\n- `place()`\n",
+       "preview": "The stacking idiom: siblings placed one after another along axis, in child order, spacing apart (negative overlaps). The cross axis and all sizes stay the children's own — a child centers itself across a row with the ordinary y = center. In…"
+      },
+      {
+       "name": "WrappingLayout",
+       "subtitle": "extends Layout",
+       "kind": "element",
+       "label": "Component",
+       "doc": "# WrappingLayout\n\n*Component — extends `Layout`*\n\nA horizontal flow that WRAPS: children run left to right\n`spacing` apart, and when the next one would overflow the view's width it\ndrops to a new row (`lineSpacing` down; -1, the default, means \"same as\nspacing\"). With room for one row it is a plain row; as the view narrows it\nstacks — cards that reflow on a phone with no media query. It owns BOTH\naxes of each child (a flow is 2-D); sizes stay the children's own. `align`\njustifies each finished row: `start` (left, the default) or `center` (a row\nthat does not fill the width sits centered).\n\nDivision of labor: this is the tool for UNIFORM, replicated collections\nthat reflow by fitting. Managing NAMED regions per width tier is\nResponsiveLayout's.\n\nWritten in Declare over the Layout kernel — the whole strategy is place().\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `spacing` | number | `0` |  |\n| `lineSpacing` | number | `-1` |  |\n| `align` | WrapAlign | `start` |  |\n\n## Methods\n\n- `place()`\n",
+       "preview": "A horizontal flow that WRAPS: children run left to right spacing apart, and when the next one would overflow the view's width it drops to a new row (lineSpacing down; -1, the default, means \"same as spacing\"). With room for one row it is a…"
       }
      ]
     }
@@ -20397,7 +20713,7 @@
      "subtitle": "",
      "kind": "reference",
      "label": "Reference",
-     "doc": "# Enums\n\n*The language's fixed token sets — write the token itself, never a CSS-style value.*\n\n**FontWeight** — `thin` · `extralight` · `light` · `regular` · `normal` · `medium` · `semibold` · `bold` · `extrabold` · `black`\n\n**TextAlign** — `left` · `center` · `right`\n\n**Stretch** — `none` · `width` · `height` · `both`\n\n**Axis** — `x` · `y`\n\n**Process** — `sequential` · `simultaneous`\n\n**Motion** — `linear` · `ease` · `easeIn` · `easeOut` · `easeBoth` · `sineIn` · `sineOut` · `sineBoth` · `quadIn` · `quadOut` · `quadBoth` · `cubicIn` · `cubicOut` · `cubicBoth` · `quartIn` · `quartOut` · `quartBoth` · `quintIn` · `quintOut` · `quintBoth` · `expoIn` · `expoOut` · `expoBoth` · `circIn` · `circOut` · `circBoth` · `backIn` · `backOut` · `backBoth` · `laszloIn` · `laszloOut` · `laszloBoth`\n",
+     "doc": "# Enums\n\n*The language's fixed token sets — write the token itself, never a CSS-style value.*\n\n**FontWeight** — `thin` · `extralight` · `light` · `regular` · `normal` · `medium` · `semibold` · `bold` · `extrabold` · `black`\n\n**TextAlign** — `left` · `center` · `right`\n\n**Stretch** — `none` · `width` · `height` · `both`\n\n**Process** — `sequential` · `simultaneous`\n\n**Motion** — `linear` · `ease` · `easeIn` · `easeOut` · `easeBoth` · `sineIn` · `sineOut` · `sineBoth` · `quadIn` · `quadOut` · `quadBoth` · `cubicIn` · `cubicOut` · `cubicBoth` · `quartIn` · `quartOut` · `quartBoth` · `quintIn` · `quintOut` · `quintBoth` · `expoIn` · `expoOut` · `expoBoth` · `circIn` · `circOut` · `circBoth` · `backIn` · `backOut` · `backBoth` · `laszloIn` · `laszloOut` · `laszloBoth`\n",
      "preview": "The language's fixed token sets — write the token itself, never a CSS-style value. FontWeight — thin · extralight · light · regular · normal · medium · semibold · bold · extrabold · black TextAlign — left · center · right Stretch — none · w…"
     },
     {
@@ -20567,6 +20883,14 @@
      "preview": "A { } constraint is a statically-analyzable expression. The compiler reads it, extracts the exact set of reactive slots it depends on, and prewires those subscriptions — dependency discovery happens at compile time, not by running the body…"
     },
     {
+     "name": "Continuity by default",
+     "subtitle": "steering the writing model toward the experience ceiling",
+     "kind": "doc",
+     "label": "Markdown file",
+     "path": "docs/system-design/continuity-by-default.md",
+     "preview": "Status: direction proposal, 2026-07-24. Background, not truth. This records a direction we expect to add to over time; nothing here is ratified, and the declare.md edits in the appendix are deliberately deferred (see Sequencing). The thesis…"
+    },
+    {
      "name": "The Implementation",
      "subtitle": "Compiler, Renderer, and Components",
      "kind": "doc",
@@ -20597,14 +20921,6 @@
      "label": "Markdown file",
      "path": "docs/system-design/designing-a-language-for-llms.md",
      "preview": "Principles for maximizing LLM utility in a new UI language --- Preface: what this document is This document states what matters — and why — when designing a programming language and toolchain whose primary author is expected to be a large l…"
-    },
-    {
-     "name": "Desktop vs. macos-web",
-     "subtitle": "a measured comparison",
-     "kind": "doc",
-     "label": "Markdown file",
-     "path": "docs/system-design/desktop-vs-macos-web.md",
-     "preview": "Status: report, 2026-07-20. Method: both production builds served over localhost and driven in headless Chromium (1440×900, cache disabled), plus a full read of both source trees. macos-web = PuruVJ/macos-web(https://github.com/PuruVJ/macos…"
     },
     {
      "name": "Diagnostics & typecheck",
@@ -20813,6 +21129,14 @@
      "label": "Markdown file",
      "path": "docs/system-design/open-items.md",
      "preview": "Status: register opened 2026-07-20. Each item is something a program could not express, or expressed only by working around the platform. App-level bugs are not here; they belong with their app. Most were surfaced by building the Inspector…"
+    },
+    {
+     "name": "Slot ownership",
+     "subtitle": "one source of truth per slot",
+     "kind": "doc",
+     "label": "Markdown file",
+     "path": "docs/system-design/ownership.md",
+     "preview": "Status: documents the ruled model implemented in runtime/src/attributes.ts (the accessor layer) and consumed by bindings, layouts, states, and the runtime's own derives. Background for implementors; the language doc carries the author-facin…"
     },
     {
      "name": "Packaging",

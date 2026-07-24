@@ -59,12 +59,12 @@ along an axis; `WrappingLayout` flows onto new lines:
 
 ```declare
 App [ width = 260, height = 120, fill = white,
-    tags: View [ x = 16, y = 16, width = 228,
+    tags: View [ x = 20, y = 20, width = 220,
         layout: WrappingLayout [ spacing = 8, lineSpacing = 8 ],
-        View [ width = 70, height = 26, cornerRadius = 13, fill = 0xE6ECF2 ],
-        View [ width = 96, height = 26, cornerRadius = 13, fill = 0xE6ECF2 ],
-        View [ width = 60, height = 26, cornerRadius = 13, fill = 0xE6ECF2 ],
-        View [ width = 104, height = 26, cornerRadius = 13, fill = 0xE6ECF2 ],
+        View [ width = 70, height = 30, cornerRadius = 15, fill = gainsboro ],
+        View [ width = 90, height = 30, cornerRadius = 15, fill = gainsboro ],
+        View [ width = 60, height = 30, cornerRadius = 15, fill = gainsboro ],
+        View [ width = 100, height = 30, cornerRadius = 15, fill = gainsboro ],
         ],
     ]
 ```
@@ -89,25 +89,39 @@ holds the floor, and in a narrower host the stage pans natively.
 
 ## Responsiveness, honestly
 
-`axis` takes a literal — you do not write `axis = { app.width < 480 ? y : x }`. A
-wide-to-narrow reflow has two honest forms. The direct one: per-child constraints
-keying off `app.width` —
+The named tool is `ResponsiveLayout`: you give it **plans** — each one says *"from
+this width up, arrange the children like this"* — and it keeps the right plan
+applied as its view's width changes. A plan can flow the children as a row or a
+stack, divide the width among the children it names (`share`), and hide one
+outright (`share: 0`). It watches its **own view's** width, not the window's, so
+plans nest: the parent decides how much room a child gets, the child's own plan
+decides what to do with it.
 
 ```declare
-App [ fill = white, textColor = black, minWidth = 360,
-    col: View [ x = { app.width < 480 ? 16 : 40 }, y = 24,
-        width = { app.width - (app.width < 480 ? 32 : 80) },
-        layout: SimpleLayout [ axis = y, spacing = 10 ],
-        Text [ fontSize = { app.width < 480 ? 20 : 30 }, fontWeight = bold, text = "Responsive" ],
-        Text [ textColor = slategray, text = "gutters and sizes key off app.width" ],
+App [ fill = white, textColor = black, minWidth = 300,
+    bar: View [ x = 20, y = 20, width = { app.width - 40 },
+        layout: ResponsiveLayout [ plan = { [
+            ({ from: 480, flow: "row", share: ({ menu: 30, body: 70 }) }),
+            ({ from: 0, flow: "stack" }),
+        ] } ],
+        menu: View [ height = 60, fill = gainsboro ],
+        body: View [ height = 60, fill = whitesmoke ],
         ],
     ]
 ```
 
-The other form swaps a whole arrangement at once — a job for a `State` gated on
-`app.width`, which arrives in [chapter 9](declare-docs:guide:motion-and-modes). And
-often the cleanest answer is neither: set the `minWidth` floor and let the stage pan,
-rather than reflowing a design below the width where it works.
+Wide, it is a 30/70 row; narrow, a stack at natural widths — and the crossing is
+just the plan re-applying. When a row's children keep natural widths, the leftover
+space is placed with **structure**, not a knob: a `Spacer [ ]` child absorbs the
+slack (between two groups it pushes them apart; one on each side centers the run).
+
+Layout attributes are reactive like any others — `spacing = { app.width < 480 ? 6 : 12 }`
+is an ordinary constraint — and per-child constraints keying off `app.width` remain
+the direct form for gutters and type sizes. Swapping a whole *configuration* beyond
+geometry is a job for a `State` gated on width, which arrives in
+[chapter 9](declare-docs:guide:motion-and-modes). And often the cleanest answer is
+none of these: set the `minWidth` floor and let the stage pan, rather than reflowing
+a design below the width where it works.
 
 ---
 

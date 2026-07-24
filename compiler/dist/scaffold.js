@@ -260,7 +260,7 @@ export const LANGUAGE_API = {
     // The edit-session VERBS (editor.ts): `dirty`/`valid`/`error` are schema
     // attrs (readable state), but committing/reverting the draft are calls.
     Editor: [`  commit(): void;`, `  revert(): void;`],
-    Layout: [`  view: View;`], // runtime `View | null`, non-null by the time any body runs
+    Layout: [`  view: View;`, `  laid(): View[];`], // view: runtime `View | null`, non-null by the time any body runs
     TweenLayout: [`  laid(): View[];`, `  retarget(animate: boolean): void;`],
 };
 /** One attribute member. A length-typed slot is the read/write ASYMMETRY the

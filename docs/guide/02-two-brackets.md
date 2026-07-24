@@ -33,15 +33,15 @@ value comes from data, which is [chapter 8](declare-docs:guide:data)'s subject. 
 are all three in one running program:
 
 ```declare
-App [ width = 340, height = 120, fill = #10202B, textColor = whitesmoke,
+App [ width = 340, height = 120, fill = midnightblue, textColor = whitesmoke,
     person: Dataset { { "name": "Ada Lovelace", "role": "analyst" } },
     card: View [ x = 20, y = 20, width = 300, height = 80, cornerRadius = 10,
         fill = #1C3A4F,                                     // bare: a literal color
         datapath = { person.value },
-        name: Text [ x = 16, y = 16, fontWeight = bold, text = :name ],    // from data
-        role: Text [ x = 16, y = 44, textColor = #9DB0BC, text = :role ],
-        badge: View [ y = 16, width = 10, height = 10, cornerRadius = 5, fill = mediumseagreen,
-            x = { parent.width - 26 },                      // braces: stays true
+        name: Text [ x = 20, y = 20, fontWeight = bold, text = :name ],    // from data
+        role: Text [ x = 20, y = 40, textColor = lightsteelblue, text = :role ],
+        badge: View [ y = 20, width = 10, height = 10, cornerRadius = 5, fill = mediumseagreen,
+            x = { parent.width - 30 },                      // braces: stays true
             ],
         ],
     ]
@@ -76,8 +76,14 @@ compute from `parent.width` instead), and the two `{ }` positions are not the sa
 **attribute value** `{ … }` is a single *expression* (`width = { parent.width - 40 }`)
 — a `let` or a second statement there will not compile, so move that logic into a
 method and call it (`width = { classroot.measure() }`); a **method or handler body**
-`{ … }` is where *statements* live. Neither takes type syntax — no `as`, no generics;
-coerce structurally (`String(x)`, `x || ""`) when you must.
+`{ … }` is where *statements* live. Both positions take TypeScript at full expression
+strength — your methods, closures over array chains, ternaries, template literals,
+casts (`x as T`, checked then stripped) — and stay live while doing it: whatever the
+expression reads, however deep, is a tracked dependency
+([chapter 3](declare-docs:guide:relationships)). What doesn't belong in a body is type
+*annotations* and *declarations* — `(x: number) => …` or `type K = …` is a compile
+error that says so; declared types live where Declare puts them, on the attribute
+(`count: number = 0`).
 
 ## Everything in `[ ]` is a member, told apart by shape
 
@@ -88,7 +94,7 @@ width = 100%,                          // SET an attribute that exists
 label: string = "",                    // DECLARE a new reactive attribute (name: Type = default)
 select() { classroot.pick(this) },     // a METHOD — a named block
 onClick() { count = count + 1 },       // a HANDLER — a method named `on` + its event
-bg: View [ fill = #101E28 ],           // a CHILD, named `bg` so others can reach it
+bg: View [ fill = midnightblue ],      // a CHILD, named `bg` so others can reach it
 Text [ text = "OK" ],                  // an anonymous child
 ```
 

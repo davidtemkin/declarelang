@@ -115,6 +115,19 @@ function wireColorScheme(app: App): () => void {
   return () => mq.removeEventListener("change", update);
 }
 
+/** Feed `app.touchDevice` — "am I running on a touch device?" — from the device's
+ *  primary pointer: true on a phone or tablet (`(pointer: coarse)`), so mouse-only
+ *  affordances (a cursor-chasing dot, a hover reveal) switch off. A stable device
+ *  fact, kept live if the input changes; distinct from the transient `hovering`.
+ *  Returns an unsubscribe so an embedded app's re-render can drop the listener. */
+function wireTouchDevice(app: App): () => void {
+  const mq = window.matchMedia("(pointer: coarse)");
+  app.touchDevice = mq.matches;
+  const update = () => { app.touchDevice = mq.matches; };
+  mq.addEventListener("change", update);
+  return () => mq.removeEventListener("change", update);
+}
+
 /** Feed the App's reactive environment. A top-level app reads the WINDOW (host
  *  size on resize, page scroll, the free pointer); an embedded app reads its
  *  CONTAINER ELEMENT instead. Guarded so a Node host (unit tests) is a no-op.
@@ -124,6 +137,7 @@ function wireEnvironment(app: App, host: HTMLElement, embedded: boolean): void {
   if (embedded) return wireEnvironmentEmbedded(app, host);
   const w = window;
   wireColorScheme(app);                    // top-level app lives for the page — no teardown needed
+  wireTouchDevice(app);                    // device pointer kind — likewise page-lived
   const size = () => { app.hostWidth = w.innerWidth; app.hostHeight = w.innerHeight; };
   const scroll = () => { app.scrollY = w.scrollY; };
   const move = (e: PointerEvent) => {
@@ -169,6 +183,7 @@ function wireEnvironmentEmbedded(app: App, host: HTMLElement): void {
   };
   const leave = () => { app.hovering = false; app.pointerOverText = false; };
   const unTheme = wireColorScheme(app);    // re-rendered embedded apps must drop the mq listener
+  const unPointer = wireTouchDevice(app);
   sync();
   host.addEventListener("pointermove", move, { passive: true });
   host.addEventListener("pointerleave", leave);
@@ -179,6 +194,7 @@ function wireEnvironmentEmbedded(app: App, host: HTMLElement): void {
     host.removeEventListener("pointerleave", leave);
     ro?.disconnect();
     unTheme();
+    unPointer();
   });
 }
 
