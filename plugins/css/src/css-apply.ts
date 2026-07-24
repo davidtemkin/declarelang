@@ -33,8 +33,8 @@ export function installCss(ruleSet: RuleSet): () => void {
 
   const asMatchView = (v: View): MatchView => ({
     get tagChain() { return classNames(v.constructor); },
-    id: "",
-    styleclass: "",
+    get id() { return ((v as unknown as Record<string, unknown>).id as string) ?? ""; },
+    get styleclass() { return ((v as unknown as Record<string, unknown>).styleclass as string) ?? ""; },
     attr: (name) => (v as unknown as Record<string, unknown>)[name],
     pseudo: (name) => tracker.pseudo(v, name),
     get parent() { return v.parent != null ? asMatchView(v.parent as View) : null; },

@@ -67,4 +67,25 @@ await test("without the plugin, `css` stays an ordinary identifier (inert seam)"
   assert.throws(() => build(`css Sky { color: red }\nApp [ ]`));
 });
 
+await test("a .class rule styles a view with matching styleclass", () => {
+  Pointer.reset();
+  let app;
+  try {
+    app = build(`css C { .card { background-color: #1e3a49 } }\nApp [ width = 10, height = 10, a: View [ styleclass = "card" ], b: View [ ] ]`, { plugins: [cssPlugin] });
+    app.attach(mockBackend(), null);
+    assert.equal(app.a.fill, 0x1e3a49, ".card matched via styleclass");
+    assert.notEqual(app.b.fill, 0x1e3a49, "a view without the class is unaffected");
+  } finally { app?.discard(); }
+});
+
+await test("a #id rule styles a view with matching id", () => {
+  Pointer.reset();
+  let app;
+  try {
+    app = build(`css I { #main { background-color: #1e3a49 } }\nApp [ width = 10, height = 10, a: View [ id = "main" ] ]`, { plugins: [cssPlugin] });
+    app.attach(mockBackend(), null);
+    assert.equal(app.a.fill, 0x1e3a49, "#id matched via id");
+  } finally { app?.discard(); }
+});
+
 summarize("css-plugin");

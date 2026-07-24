@@ -29,8 +29,8 @@ export function installCss(ruleSet) {
     const offered = new WeakMap();
     const asMatchView = (v) => ({
         get tagChain() { return classNames(v.constructor); },
-        id: "",
-        styleclass: "",
+        get id() { return v.id ?? ""; },
+        get styleclass() { return v.styleclass ?? ""; },
         attr: (name) => v[name],
         pseudo: (name) => tracker.pseudo(v, name),
         get parent() { return v.parent != null ? asMatchView(v.parent) : null; },

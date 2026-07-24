@@ -9,6 +9,12 @@ import { PROP_MAP } from "./css-props.js";
 import { installCss } from "./css-apply.js";
 export const cssPlugin = {
     name: "css",
+    // Register the selector-identity attributes (seam 4) so `.class` / `#id`
+    // selectors have author-declarable per-view identifiers.
+    attrs: [
+        { on: "View", name: "styleclass", def: "" },
+        { on: "View", name: "id", def: "" },
+    ],
     blocks: [
         {
             keyword: "css",
