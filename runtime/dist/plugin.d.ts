@@ -46,6 +46,14 @@ export interface BlockPlugin {
 export interface Plugin {
     name: string;
     blocks?: BlockPlugin[];
+    /** String attributes this plugin registers on built-in components — threaded
+     *  into the checker (type-checks `Comp [ name = "…" ]`) and the runtime (a
+     *  reactive read/write slot). */
+    attrs?: readonly {
+        on: string;
+        name: string;
+        def: string;
+    }[];
 }
 /** Flatten a plugin list into a keyword → BlockPlugin map, rejecting a
  *  duplicate keyword or one that shadows a built-in. Thrown as a plain Error:

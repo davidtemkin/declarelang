@@ -32,6 +32,14 @@ export interface AttrSpec<S, V> {
 export declare function defineAttributes<S extends object>(ctor: abstract new () => S, specs: {
     [K in keyof S & string]?: AttrSpec<S, S[K]>;
 }): void;
+/** Additively install extra string attributes on an already-defined class
+ *  (plugin attribute registration — the "open registry" seam). Idempotent;
+ *  mirrors defineAttributes' plain-attr accessor (no prevailing/readonly). A
+ *  subclass instance inherits the accessor via the prototype and the default via
+ *  the DEFAULTS table chain. */
+export declare function extendAttributes(ctor: Function, specs: Record<string, {
+    def: unknown;
+}>): void;
 /** A runtime-side write: a constraint's apply, auto-size, a load result.
  *  Same store/push/wake as the setter, but it neither marks the slot as
  *  author-set nor consults ownership (the caller *is* the owner). */

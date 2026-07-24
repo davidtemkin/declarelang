@@ -53,6 +53,10 @@ export interface BlockPlugin {
 export interface Plugin {
   name: string;
   blocks?: BlockPlugin[];
+  /** String attributes this plugin registers on built-in components — threaded
+   *  into the checker (type-checks `Comp [ name = "…" ]`) and the runtime (a
+   *  reactive read/write slot). */
+  attrs?: readonly { on: string; name: string; def: string }[];
 }
 
 /** Keywords a block plugin may NOT claim — the built-in top-decl heads. */

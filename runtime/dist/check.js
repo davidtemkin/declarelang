@@ -56,7 +56,8 @@ const RESERVED = CONSTRUCTOR_NAMES;
  *  array means the tree is well-typed and safe to instantiate. */
 export function check(input, plugins = [], source = "") {
     const program = "root" in input ? input : { classes: [], stylesheets: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], blocks: [], root: input };
-    const { infos, schemas, errors } = programSchemas(program.classes);
+    const extraAttrs = plugins.flatMap((p) => (p.attrs ?? []).map((a) => ({ on: a.on, name: a.name })));
+    const { infos, schemas, errors } = programSchemas(program.classes, extraAttrs);
     const env = checkStyleDecls(program, schemas, errors);
     // A class body checks as an instance of its own (just-registered) class:
     // sets against declared + inherited attributes, handlers against inherited
@@ -115,9 +116,17 @@ export function check(input, plugins = [], source = "") {
  *  inside bodies may reference classes declared later — declaration order
  *  constrains inheritance, not composition. A class that (transitively)
  *  contains itself is an error here: it could never finish instantiating. */
-export function programSchemas(classes) {
+export function programSchemas(classes, extraAttrs = []) {
     const infos = [];
     const schemas = { ...SCHEMAS };
+    // Plugin-registered attributes: augment the target base schema (a per-build
+    // copy) BEFORE subclasses build, so attrType's base-walk finds them on the
+    // component and every subclass. String attrs only (seam 4).
+    for (const { on, name } of extraAttrs) {
+        const base = schemas[on];
+        if (base !== undefined)
+            schemas[on] = { ...base, attrs: { ...base.attrs, [name]: { kind: "string" } } };
+    }
     const errors = [];
     for (const decl of classes) {
         if (Object.hasOwn(schemas, decl.name)) {
