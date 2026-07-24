@@ -28,6 +28,7 @@ import { record, type Draw, type DisplayList } from "./draw.js";
 import { Constraint } from "./reactive.js";
 import { bindDerived, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned } from "./attributes.js";
 import { Pointer } from "./pointer.js";
+import { runExitHooks } from "./per-view.js";
 import { handlerName } from "./schema.js";
 import { splitPath } from "./datapath.js";
 import type { LinkTarget } from "./parser.js";
@@ -419,6 +420,7 @@ export class View extends Node {
       undoLayout();
     }
     disposeApplier(this);
+    runExitHooks(this); // generic per-view seam: run plugin cleanups
     disposeBindings(this);
     this.drawing?.dispose();
     this.drawing = null;
