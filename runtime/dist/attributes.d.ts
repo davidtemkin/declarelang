@@ -55,6 +55,16 @@ export declare function stylesheetClear(self: object, name: string): void;
 /** The applier's bookkeeping: which slots this view's stylesheet currently
  *  colors. */
 export declare function stylesheetMarks(self: object): ReadonlySet<string> | undefined;
+/** Install a plugin-provided value on a slot (the generic provision tier). */
+export declare function provide(self: object, name: string, v: unknown): void;
+/** Withdraw a plugin-provided value. When the slot is otherwise unprovided the
+ *  stored value is removed (reads fall back through follow → default),
+ *  dependents wake, and the slot's Surface state is re-pushed. */
+export declare function withdraw(self: object, name: string): void;
+/** Is this slot already spoken for — author set, a binding, the built-in
+ *  stylesheet, or the plugin tier? A plugin gates a NEW offer on this (AND on
+ *  its own offer record, so it may still update its own held slots). */
+export declare function isProvided(self: object, name: string): boolean;
 /** Was this slot ever author-set (a literal, or a direct assignment)?
  *  The R4 replacement for R3's 0-as-unset: auto-size asks this, so an
  *  explicit `width=0` now means zero, not "measure me". */

@@ -132,7 +132,8 @@ export function defineAttributes(ctor, specs) {
 function provided(self, name) {
     return ((self.$set?.has(name) ?? false) ||
         self.$owners?.[name] !== undefined ||
-        (self.$stylesheetMarks?.has(name) ?? false));
+        (self.$stylesheetMarks?.has(name) ?? false) ||
+        (self.$providedMarks?.has(name) ?? false));
 }
 /** followRead's "no provider anywhere" — distinct from a provided null. */
 const NOTHING = Symbol("no provider");
@@ -265,6 +266,44 @@ export function stylesheetClear(self, name) {
  *  colors. */
 export function stylesheetMarks(self) {
     return self.$stylesheetMarks;
+}
+// ── The generic plugin provision channel (a rung below the built-in stylesheet) ──
+//
+// A plugin's OFFER on an attribute: installed below author provision AND the
+// built-in class-dict stylesheet, above the declaration default. Any plugin may
+// use it (not CSS-specific). RAW, mirroring stylesheetWrite: the caller gates on
+// isProvided (plus its own offer record) so it yields per the ranking and may
+// update its own held slots — token-less cooperative first-provider-wins.
+/** Install a plugin-provided value on a slot (the generic provision tier). */
+export function provide(self, name, v) {
+    const carrier = self;
+    const becameProvider = tableFor(PREVAILING, self.constructor)?.[name] === true && !provided(carrier, name);
+    (carrier.$providedMarks ??= new Set()).add(name);
+    write(self, name, v);
+    if (becameProvider)
+        carrier.$cells?.[name]?.changed();
+}
+/** Withdraw a plugin-provided value. When the slot is otherwise unprovided the
+ *  stored value is removed (reads fall back through follow → default),
+ *  dependents wake, and the slot's Surface state is re-pushed. */
+export function withdraw(self, name) {
+    const carrier = self;
+    if (carrier.$providedMarks === undefined || !carrier.$providedMarks.delete(name))
+        return;
+    if (provided(carrier, name))
+        return; // author or the built-in stylesheet holds it now
+    if (carrier.$attrs !== undefined && Object.hasOwn(carrier.$attrs, name)) {
+        delete carrier.$attrs[name];
+    }
+    carrier.$cells?.[name]?.changed();
+    const v = self[name]; // the effective fallback
+    tableFor(PUSHERS, self.constructor)?.[name]?.(self, v);
+}
+/** Is this slot already spoken for — author set, a binding, the built-in
+ *  stylesheet, or the plugin tier? A plugin gates a NEW offer on this (AND on
+ *  its own offer record, so it may still update its own held slots). */
+export function isProvided(self, name) {
+    return provided(self, name);
 }
 /** Was this slot ever author-set (a literal, or a direct assignment)?
  *  The R4 replacement for R3's 0-as-unset: auto-size asks this, so an
