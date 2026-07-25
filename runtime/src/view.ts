@@ -452,11 +452,7 @@ export class View extends Node {
     this.applyClip(this.clip);
     if (this.scrolls) s.setScroll(true, (y) => { this.scrollY = y; });
     if (this.scrollsX) s.setScrollX(true);
-    const sink = this.inputSink();
-    if (sink !== null) {
-      s.setInput(sink);
-      Pointer.register(sink, this); // interaction seam: map this sink -> this view
-    }
+    this.refreshInputSink();
     if (this.draw) this.bindDraw();
   }
 
@@ -496,19 +492,20 @@ export class View extends Node {
   }
 
   /** This view's input route, or null when it answers no pointer event —
-   *  interactivity *derives* from declared handlers (Decisions §R5): a view
-   *  with none is never wired (pay-per-use) and stays transparent to input,
-   *  which is what lets a decorative child sit over an interactive parent
-   *  without stealing its clicks (LZX's `clickable` intent, made automatic).
-   *  A handler receives one plain event argument — the pointer position in
-   *  this view's own coordinates. */
-  private inputSink(): InputSink | null {
+   *  interactivity *derives* from declared handlers (Decisions §R5), a non-empty
+   *  `tip`, or a plugin FORCING a sink (forceInputSink). A view with none is
+   *  never wired (pay-per-use) and stays transparent to input, which is what
+   *  lets a decorative child sit over an interactive parent without stealing its
+   *  clicks (LZX's `clickable` intent, made automatic). A handler receives one
+   *  plain event argument — the pointer position in this view's own coordinates. */
+  private buildSink(): InputSink | null {
     const self = this as unknown as Record<string, unknown>;
     const handled = POINTER_TYPES.some((t) => typeof self[handlerName(t)] === "function");
+    const forced = (this.$sinkForcers?.size ?? 0) > 0;
     // A tip-carrying view is hover-interactive by that fact alone (pay-per-use
     // extends to the tip attribute): its sink reports over/out/press to the
     // Tip service; declared handlers, when present, fire exactly as before.
-    if (!handled && this.tip === "") return null;
+    if (!handled && this.tip === "" && !forced) return null;
     return (type, x, y) => {
       if (this.tip !== "") {
         if (type === "mouseOver") Tip.over(this);
@@ -517,6 +514,37 @@ export class View extends Node {
       }
       if (handled) fireEvent(this, type, { x, y });
     };
+  }
+
+  /** Plugin tokens forcing this view to be hit-testable; see forceInputSink. */
+  private $sinkForcers?: Set<object>;
+  private inputInstalled = false;
+
+  /** Force this view to be hit-testable even with no pointer handler or tip
+   *  (a plugin marks views it needs pointer events for — e.g. a CSS `:hover`
+   *  rule's targets). `token` identifies the forcer so independent plugins do
+   *  not clobber one another; the sink exists while any token is held. */
+  forceInputSink(token: object, on: boolean): void {
+    const s = (this.$sinkForcers ??= new Set());
+    if (on) s.add(token); else s.delete(token);
+    this.refreshInputSink();
+  }
+
+  /** (Re)install or remove this view's input sink to match its current reasons
+   *  to be hit-testable (author handler, tip, or a forced token), keeping its
+   *  Pointer registration in sync. The single path used at attach and whenever a
+   *  forcer toggles. No-op before attach — flush() installs then. */
+  refreshInputSink(): void {
+    if (this.surface === null) return;
+    const sink = this.buildSink();
+    if (sink !== null) {
+      this.surface.setInput(sink);
+      Pointer.register(sink, this); // interaction seam: map this sink -> this view
+      this.inputInstalled = true;
+    } else if (this.inputInstalled) {
+      this.surface.setInput(null);
+      this.inputInstalled = false;
+    }
   }
 
   /** Stand up the draw method as a tracked, re-recording computation. */
