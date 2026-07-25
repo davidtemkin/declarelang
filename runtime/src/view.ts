@@ -27,6 +27,7 @@ export function provideViewCreator(fn: ViewCreator): void {
 import { record, type Draw, type DisplayList } from "./draw.js";
 import { Constraint } from "./reactive.js";
 import { bindDerived, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned } from "./attributes.js";
+import { Pointer } from "./pointer.js";
 import { handlerName } from "./schema.js";
 import { splitPath } from "./datapath.js";
 import type { LinkTarget } from "./parser.js";
@@ -452,7 +453,10 @@ export class View extends Node {
     if (this.scrolls) s.setScroll(true, (y) => { this.scrollY = y; });
     if (this.scrollsX) s.setScrollX(true);
     const sink = this.inputSink();
-    if (sink !== null) s.setInput(sink);
+    if (sink !== null) {
+      s.setInput(sink);
+      Pointer.register(sink, this); // interaction seam: map this sink -> this view
+    }
     if (this.draw) this.bindDraw();
   }
 
