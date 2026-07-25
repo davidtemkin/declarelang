@@ -33,6 +33,11 @@ class Slider extends Control [
     x0: number = 0,
     v0: number = 0,
 
+    // The drag latch: the pointer is captured for the gesture, so the drag must
+    // survive leaving the thumb's hit chain — the intrinsic `pressed` (chain-based)
+    // deliberately would not. Cleared by the captured release.
+    dragging: boolean = false,
+
     quant(v) {
         const q = Math.round((v - this.min) / this.step) * this.step + this.min
         return Math.max(this.min, Math.min(this.max, q))
@@ -40,14 +45,15 @@ class Slider extends Control [
 
     onMouseDown(e) {
         if (disabled) return
-        pressed = true
+        dragging = true
         focusVisible = false                     // a press clears the :focus-visible channel (Control's rule)
         Focus.focus(this)                        // a click claims focus (Control's rule — this override must keep it)
         v0 = quant(min + (max - min) * ((e.x - 9) / (width - 18)))
         input(v0)
         x0 = app.pointerX
         },
-    onMouseMove() { if (pressed) input(quant(v0 + (app.pointerX - x0) / (width - 18) * (max - min))) },
+    onMouseUp()   { dragging = false },
+    onMouseMove() { if (dragging) input(quant(v0 + (app.pointerX - x0) / (width - 18) * (max - min))) },
     onKeyDown(e) {
         if (disabled) return
         if (e.key == "ArrowLeft") input(quant(value - step))
@@ -82,9 +88,9 @@ class Slider extends Control [
         cornerRadius = { this.width / 2 },
         x = { (classroot.width - 18) * frac + (classroot.barStyle() ? 6 : classroot.dotStyle() ? -1 : 0) },
         fill = { classroot.barStyle() ? theme.accent : theme.surface },
-        stroke = { classroot.barStyle() ? stroke(0, theme.accent) : stroke(1, classroot.hovered || classroot.pressed ? theme.accent : theme.line) },
+        stroke = { classroot.barStyle() ? stroke(0, theme.accent) : stroke(1, classroot.hot || classroot.down || classroot.dragging ? theme.accent : theme.line) },
         dot: View [ visible = { classroot.dotStyle() },
-            width  = { classroot.hovered || classroot.pressed ? 14 : 12 },
+            width  = { classroot.hot || classroot.down || classroot.dragging ? 14 : 12 },
             height = { this.width }, cornerRadius = { this.width / 2 },
             x = center, y = center, fill = { theme.accent } ],
         ],

@@ -12,7 +12,8 @@ body, a script. Those two are the entire mental model.
 ### OPERA-2 — All real logic is ordinary TypeScript
 Everything inside `{ }` is ordinary TypeScript — no new expression language to
 learn — type-checked with full knowledge of every component's attributes. What
-you (or a model) already know about TypeScript carries over unchanged.
+you (or a model) already know about TypeScript carries over — at full expression
+strength; type annotations and declarations live on attributes, not in bodies.
 *Held in:* declare.md §1 ("all real logic is ordinary TypeScript"); FAQ ("There is no new expression language to learn").
 
 ### OPERA-3 — No CSS, by design

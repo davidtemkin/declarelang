@@ -5,6 +5,7 @@
 //   pointer rclick x y           → move + right click
 //   pointer down  x y / up x y   → press / release (for drags)
 //   pointer drag  x y            → dragged-move while pressed
+//   pointer scroll x y dy        → move + wheel scroll (dy>0 scrolls content up)
 // Requires Accessibility trust for the invoking terminal (CGEventPost).
 import CoreGraphics
 import Foundation
@@ -20,7 +21,7 @@ if args.count == 2 && args[1] == "loc" {
 }
 
 guard args.count >= 4, let x = Double(args[2]), let y = Double(args[3]) else {
-  FileHandle.standardError.write("usage: pointer loc | pointer <move|click|rclick|down|up|drag> x y\n".data(using: .utf8)!)
+  FileHandle.standardError.write("usage: pointer loc | pointer <move|click|rclick|down|up|drag> x y | pointer scroll x y dy\n".data(using: .utf8)!)
   exit(1)
 }
 
@@ -32,6 +33,16 @@ func post(_ type: CGEventType, _ button: CGMouseButton = .left) {
 }
 
 switch args[1] {
+case "scroll":
+  guard args.count >= 5, let dy = Int32(args[4]) else {
+    FileHandle.standardError.write("usage: pointer scroll x y dy\n".data(using: .utf8)!)
+    exit(1)
+  }
+  post(.mouseMoved); usleep(50_000)
+  // pixel-unit wheel, like a trackpad tick; positive dy scrolls content up
+  let e = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: dy, wheel2: 0, wheel3: 0)!
+  e.location = p
+  e.post(tap: .cghidEventTap)
 case "move": post(.mouseMoved)
 case "down": post(.leftMouseDown)
 case "up": post(.leftMouseUp)

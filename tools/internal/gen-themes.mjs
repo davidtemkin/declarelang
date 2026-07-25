@@ -48,16 +48,26 @@ const emit = (t) => {
   if (t.color && typeof t.value === "number") return `0x${t.value.toString(16).toUpperCase().padStart(6, "0")}`;
   return JSON.stringify(t.value);
 };
-const body = records
-  .map((r) => `  ${r.name}: Object.freeze({\n${r.tokens.map((t) => `    ${t.name}: ${emit(t)},`).join("\n")}\n  }),`)
-  .join("\n");
+// Each record is its OWN named export so a consumer of one (value.ts's
+// DEFAULT_THEME = SanFrancisco) doesn't carry the others — the assembled
+// THEME_RECORDS table below is the Themes service's surface, and tree-shakes
+// away with it in a production build whose program never says `Themes`.
+// `/* @__PURE__ */` marks each freeze call side-effect-free so esbuild can
+// tree-shake the records a build never references (a production program that
+// doesn't say `Themes` keeps only the default's SanFrancisco).
+const decls = records
+  .map((r) => `export const ${r.name}: Readonly<Record<string, unknown>> = /* @__PURE__ */ Object.freeze({\n${r.tokens.map((t) => `  ${t.name}: ${emit(t)},`).join("\n")}\n});`)
+  .join("\n\n");
+const body = records.map((r) => `  ${r.name},`).join("\n");
 const next = `// GENERATED from library/themes/*.declare by tools/internal/gen-themes.mjs — DO NOT EDIT.
 // The presets are authored in the language (stylesheet Name [ theme: Theme [ … ] ]);
 // this module is their projection into the runtime, so the zero-declaration
 // default (value.ts DEFAULT_THEME = THEME_RECORDS.SanFrancisco) and the named
 // Themes.* surface serve the SAME objects the authored files declare.
 
-export const THEME_RECORDS: Readonly<Record<string, Readonly<Record<string, unknown>>>> = Object.freeze({
+${decls}
+
+export const THEME_RECORDS: Readonly<Record<string, Readonly<Record<string, unknown>>>> = /* @__PURE__ */ Object.freeze({
 ${body}
 });
 `;

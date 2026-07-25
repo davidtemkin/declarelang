@@ -1,8 +1,10 @@
-// dev.mjs — the dev supervisor. server/index.mjs imports compiler/dist once at
-// startup, and ESM has no cache purge, so after a rebuild (tsc, esbuild) the
-// running server would keep compiling with yesterday's compiler. The honest
-// reload is a respawn — but it happens ONLY when the BUILD explicitly asks for
-// it, never from watching the filesystem.
+// dev.mjs — the dev supervisor. Two reload layers share the work: the
+// TOOLCHAIN (compiler/runtime dist) lives in a worker realm the server
+// respawns by itself whenever the dist fingerprint changes (server/toolchain.mjs)
+// — so a bare `node server/index.mjs` never compiles with a stale schema. The
+// SERVER'S OWN code (routing, serve-core, this file's child) has no such realm;
+// its honest reload is a process respawn — and that happens ONLY when the BUILD
+// explicitly asks for it, never from watching the filesystem.
 //
 // The trigger is a signal, not a watcher: `npm run build:dev` runs the build
 // and then tools/reload-dev.mjs, which SIGUSR2s this supervisor; the supervisor

@@ -218,18 +218,17 @@ class Menu extends View [ visible = { shown }, width = 220,
                 enabled:  boolean = { :enabled != false },
                 sub:      boolean = { !!:submenu },
                 custom:   string  = { typeof :kind == "string" ? "" + :kind : "" },
-                hovered:  boolean = false,
+                // the row's highlight gate: the hover intrinsic under MENU policy
+                hot:      boolean = { this.hovered && this.enabled && !this.divider },
                 height = { divider ? 11 : custom != "" ? Math.max(26, this.host.height + 8) : (typeof theme.menuRow == "number" ? theme.menuRow : 26) },
                 opacity = { enabled ? 1 : (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) },
 
                 onMouseOver() {
                     if (!enabled || divider) return
-                    hovered = true
                     classroot.activeRow = null           // the mouse takes over from the rover
                     if (sub) classroot.openSub(this, :submenu)
                     else classroot.closeSub()
                     },
-                onMouseOut()  { hovered = false },
 
                 // the rover's verbs — written on the row so :id / :submenu
                 // resolve against THIS row's record
@@ -250,17 +249,17 @@ class Menu extends View [ visible = { shown }, width = 220,
                 // the hover highlight — inset, rounded, accent (the Mac read)
 
                 hl: View [ x = 5, y = 1, width = { parent.width - 10 }, height = { parent.height - 2 },
-                    cornerRadius = 5, visible = { (parent.hovered || classroot.activeRow == parent) && parent.custom == "" },
+                    cornerRadius = 5, visible = { (parent.hot || classroot.activeRow == parent) && parent.custom == "" },
                     fill = { theme.menuHl != null ? theme.menuHl : theme.accent } ],
 
                 rule: View [ x = 10, y = 5, width = { parent.width - 20 }, height = 1,
                     visible = { parent.divider }, fill = { theme.line } ],
 
                 check: Text [ x = 8, y = center, fontSize = 12, visible = { !parent.divider && !!:checked },
-                    textColor = { (parent.hovered || classroot.activeRow == parent) ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.text }, text = "✓" ],
+                    textColor = { (parent.hot || classroot.activeRow == parent) ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.text }, text = "✓" ],
 
                 ico: Text [ x = 14, y = center, fontSize = 13, visible = { !parent.divider && parent.custom == "" && :icon != null && :icon != "lightbulb" },
-                    textColor = { (parent.hovered || classroot.activeRow == parent) ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.text },
+                    textColor = { (parent.hot || classroot.activeRow == parent) ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.text },
                     text = { "" + (:icon || "") } ],
 
                 // `icon: "lightbulb"` renders a DRAWN bulb (the macOS Help
@@ -270,7 +269,7 @@ class Menu extends View [ visible = { shown }, width = 220,
                 bulb: View [ x = 11, y = center, width = 13, height = 16,
                     visible = { !parent.divider && parent.custom == "" && :icon == "lightbulb" },
                     draw(d) {
-                        const on = parent.hovered || classroot.activeRow == parent
+                        const on = parent.hot || classroot.activeRow == parent
                         const c = on ? (typeof theme.menuHlText == "number" ? theme.menuHlText : theme.accentText) : theme.text
                         d.strokeStyle = c
                         d.lineWidth = 1.25
@@ -300,13 +299,13 @@ class Menu extends View [ visible = { shown }, width = 220,
 
                 lbl: Text [ y = center, fontSize = 13, visible = { !parent.divider && parent.custom == "" },
                     x = { classroot.hasIcons ? 40 : 24 },
-                    textColor = { (parent.hovered || classroot.activeRow == parent) ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.text },
+                    textColor = { (parent.hot || classroot.activeRow == parent) ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.text },
                     text = { "" + (:label || "") } ],
 
                 key: Text [ y = center, fontSize = 12,
                     x = { parent.width - this.width - 12 },
                     visible = { !parent.divider && !parent.sub && :key != null },
-                    textColor = { (parent.hovered || classroot.activeRow == parent) ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.textMuted },
+                    textColor = { (parent.hot || classroot.activeRow == parent) ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.textMuted },
                     text = { "" + (:key || "") } ],
 
                 // the submenu chevron is DRAWN (the macOS rendition — larger and
@@ -315,7 +314,7 @@ class Menu extends View [ visible = { shown }, width = 220,
                 arrow: View [ width = 7, height = 11, visible = { parent.sub },
                     x = { parent.width - 17 }, y = { (parent.height - this.height) / 2 },
                     draw(d) {
-                        const hov = this.parent.hovered || classroot.activeRow == this.parent
+                        const hov = this.parent.hot || classroot.activeRow == this.parent
                         const c = hov ? (typeof theme.menuHlText == "number" ? theme.menuHlText : theme.accentText) : theme.textMuted
                         d.strokeStyle = c
                         d.lineWidth = 1.8

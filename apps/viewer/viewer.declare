@@ -62,12 +62,7 @@ class SizeBtn extends View [ width = 34, height = 30, cornerRadius = 6,
 
     glyph: number = 14,
     delta: number = 0,
-    hovered: boolean = false,
-
     fill = { hovered ? app.theme.hover : null },
-
-    onMouseOver() { hovered = true },
-    onMouseOut() { hovered = false },
     onClick() { app.fontScale = classroot.delta == 0 ? 0.9
         : Math.max(0.7, Math.min(1.6, Math.round((app.fontScale + classroot.delta) * 100) / 100)) },
 
@@ -82,8 +77,6 @@ class SizeBtn extends View [ width = 34, height = 30, cornerRadius = 6,
 
 class ModeSeg extends View [ m: string = "",
     lbl: string = "",
-    hovered: boolean = false,
-
     width = 80, height = { parent.height },
 
     bg: View [ x = 2, y = 2, width = { parent.width - 4 }, height = { parent.height - 4 }, cornerRadius = 6,
@@ -92,9 +85,6 @@ class ModeSeg extends View [ m: string = "",
         y = { (parent.height - this.height) / 2 },
         textColor = { app.mode == classroot.m ? app.theme.text : classroot.hovered ? app.theme.text : app.theme.muted },
         text = { classroot.lbl } ],
-
-    onMouseOver() { classroot.hovered = true },
-    onMouseOut() { classroot.hovered = false },
     onClick() { app.location = classroot.m },
     ]
 
@@ -104,8 +94,6 @@ class ModeSeg extends View [ m: string = "",
 
 class ThemeSeg extends View [ m: string = "",
     glyph: string = "",
-    hovered: boolean = false,
-
     width = 30, height = { parent.height },
 
     bg: View [ x = 2, y = 2, width = { parent.width - 4 }, height = { parent.height - 4 }, cornerRadius = 6,
@@ -114,9 +102,6 @@ class ThemeSeg extends View [ m: string = "",
         y = { (parent.height - this.height) / 2 },
         textColor = { app.themeMode == classroot.m ? app.theme.text : classroot.hovered ? app.theme.text : app.theme.muted },
         text = { classroot.glyph } ],
-
-    onMouseOver() { classroot.hovered = true },
-    onMouseOut() { classroot.hovered = false },
     onClick() { app.themeMode = classroot.m },
     ]
 
@@ -402,14 +387,11 @@ App [ fill = { app.theme.bg },
         // only once an edit exists, quiet (and inert) until then
 
         revert: View [ y = 10, height = 24, cornerRadius = 6,
-            hovered: boolean = false,
             x = { parent.width - this.width - 14 },
             width = { this.lbl.width + 18 },
             opacity = { parent.edited ? 1 : 0.35 },
             stroke = { stroke(1, app.theme.line) },
             fill = { hovered && parent.edited ? app.theme.hover : app.theme.surface },
-            onMouseOver() { hovered = true },
-            onMouseOut()  { hovered = false },
             onClick() {
                 if (!parent.edited) return
                 const raw = app.demoSources["__raw__"] || app.rawSrc.value || ""
@@ -430,11 +412,8 @@ App [ fill = { app.theme.bg },
 
         grip: View [ x = 0, y = { parent.editorH }, width = { parent.width }, height = 6,
             dragging: boolean = false,
-            hovered: boolean = false,
             fill = { dragging || hovered ? app.theme.accentTeal : app.theme.line },
             drag(y) { parent.split = Math.max(120, Math.min(parent.height - 160, y)) },
-            onMouseOver()  { hovered = true },
-            onMouseOut()   { hovered = false },
             onMouseDown()  { dragging = true },
             onMouseMove()  { if (dragging) drag(app.pointerY - app.barH) },
             onMouseUp()    { dragging = false },

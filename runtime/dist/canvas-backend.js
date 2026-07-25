@@ -251,6 +251,12 @@ class CanvasSurface {
     onScrollCb = null;
     parent = null;
     children = [];
+    /** True when this surface opts out of its parent's box/shape clip
+     *  (ignoreclip) — the parent's paint/hit brackets skip the clip for it. */
+    ignoresClip = false;
+    setIgnoreClip(on) {
+        this.ignoresClip = on;
+    }
     clipData = null;
     /** The BOX-clip (`clip = true`): clip to the surface's own (rounded) box.
      *  A first-class mode, not a baked rect path — the box is read at use time,
@@ -569,8 +575,19 @@ class CanvasSurface {
             ly = (ly - this.pivotY) / this.scaleK + this.pivotY;
         }
         const cpHit = this.clipPathObj();
-        if (cpHit !== null && !hitCtx().isPointInPath(cpHit, lx, ly))
+        if (cpHit !== null && !hitCtx().isPointInPath(cpHit, lx, ly)) {
+            // outside this surface's clip only its ignoreclip children remain live
+            const cyx = this.scrolls ? ly + this.scrollOffset : ly;
+            for (let i = this.children.length - 1; i >= 0; i--) {
+                const c = this.children[i];
+                if (!c.ignoresClip)
+                    continue;
+                const t = c.hit(lx, cyx);
+                if (t !== null)
+                    return t;
+            }
             return null;
+        }
         // A scroll container clips to its box and offsets its content — hit-test
         // children in the SAME frame the paint walk draws them.
         const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
@@ -730,6 +747,29 @@ class CanvasSurface {
             paintBoxShadow(ctx, this.box, this.shadow);
         }
         const cpPaint = this.clipPathObj();
+        // ignoreclip children paint OUTSIDE the clip bracket, in their declared
+        // stacking side (leading exempt run below the clipped set, the rest
+        // above) — mirroring the DOM's element partition. Only taken on the
+        // plain-opacity path: under a group-opacity layer the whole subtree
+        // composites as one (a clipped exempt child there is the documented edge).
+        const exempt = cpPaint !== null && this.opacity >= 1 && this.children.some((c) => c.ignoresClip);
+        if (exempt) {
+            let i = 0;
+            while (i < this.children.length && this.children[i].ignoresClip) {
+                this.children[i].paint(ctx);
+                i++;
+            }
+            ctx.save();
+            ctx.clip(cpPaint);
+            this.paintContent(ctx, true);
+            ctx.restore();
+            for (let j = i; j < this.children.length; j++) {
+                if (this.children[j].ignoresClip)
+                    this.children[j].paint(ctx);
+            }
+            ctx.restore();
+            return;
+        }
         if (cpPaint !== null)
             ctx.clip(cpPaint);
         if (this.opacity < 1)
@@ -763,7 +803,7 @@ class CanvasSurface {
     /** Paint order: box (shadow, fill, inside border), image, drawing, text,
      *  then children — the same content order the DOM backend's element order
      *  produces. */
-    paintContent(ctx) {
+    paintContent(ctx, skipExempt = false) {
         this.paintBox(ctx);
         if (this.image !== null) {
             const st = this.stretch;
@@ -848,13 +888,19 @@ class CanvasSurface {
             ctx.rect(0, 0, this.width, this.height);
             ctx.clip();
             ctx.translate(0, -this.scrollOffset);
-            for (const child of this.children)
+            for (const child of this.children) {
+                if (skipExempt && child.ignoresClip)
+                    continue;
                 child.paint(ctx);
+            }
             ctx.restore();
         }
         else {
-            for (const child of this.children)
+            for (const child of this.children) {
+                if (skipExempt && child.ignoresClip)
+                    continue;
                 child.paint(ctx);
+            }
         }
     }
     /** The box paint — the SHARED painter (boxpaint.ts; the DOM backend

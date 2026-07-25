@@ -115,11 +115,94 @@ export async function buildProduction(source, opts = {}) {
     },
   };
 
+  // Inspector slimming (same lever, dev-tooling edition): the object-browser
+  // service (inspect-service.js, the ⌥⌘D / ?inspector substrate) is DEV tooling —
+  // a production artifact ships a no-op stand-in unless --debug keeps the real
+  // one. `explain()` (inspect.ts) stays either way — that promise is the running
+  // app's, not the browser UI's. Roughly 9 KB gz back off every app's wire.
+  const inspectStub = `
+const ZERO = { x: 0, y: 0 };
+export function setInspectionTarget() {}
+export function inspectionOrigin() { return ZERO; }
+export function inspectionTarget() { return null; }
+export function evaluateIn() { return { ok: false, error: "the inspector is not aboard this production build (declarec --debug keeps it)" }; }
+export const Inspect = new Proxy({ ready: () => false }, {
+  get: (t, k) => (k in t ? t[k] : () => { throw new Error("Inspect." + String(k) + ": the inspector is not aboard this production build (declarec --debug keeps it)"); }),
+});
+`;
+  const inspectPlugin = {
+    name: "slim-inspector",
+    setup(build) {
+      build.onLoad({ filter: /[/\\]inspect-service\.js$/ }, () => ({
+        contents: inspectStub,
+        loader: "js",
+        resolveDir: RUNTIME,
+      }));
+    },
+  };
+
+  // Three more used-set substitutions, gated on PROGRAM FACTS the compile
+  // already knows (the same lever as slim-registry — never a heuristic):
+  //  - the `__declare` page bridge (inspect.ts, ~6.5 KB min) is dev tooling;
+  //    production ships a stub unless --debug.
+  //  - the Themes preset service + its city records tree-shake when no body in
+  //    the program ever says `Themes` (value.ts's DEFAULT_THEME imports the one
+  //    SanFrancisco record directly and is unaffected).
+  //  - the Canvas2D draw-recording vocabulary (draw.js, ~9 KB min) loads only
+  //    when some element actually declares a `draw` body.
+  const walkBodies = (el, fn) => {
+    for (const a of el.attrs ?? []) if (a.value?.kind === "code") fn(a.value.src);
+    for (const d of el.decls ?? []) if (d.def?.kind === "code") fn(d.def.src);
+    for (const m of el.methods ?? []) fn(m.body ?? "");
+    for (const c of el.children ?? []) walkBodies(c, fn);
+  };
+  const programFacts = (() => {
+    let themes = false, draw = false;
+    const roots = [built.program.root, ...built.program.classes.map((c) => c.body)];
+    for (const r of roots) {
+      walkBodies(r, (src) => { if (/\bThemes\b/.test(src)) themes = true; });
+      const walkDraw = (el) => {
+        if ((el.methods ?? []).some((m) => m.name === "draw")) draw = true;
+        for (const c of el.children ?? []) walkDraw(c);
+      };
+      walkDraw(r);
+    }
+    return { usesThemes: themes, usesDraw: draw };
+  })();
+  // index.js re-exports inspect's query surface by name; a stub must export
+  // every name (esbuild resolves named re-exports even when unused downstream).
+  const bridgeStub = `export function bridgeFor() { return {}; }
+export function viewAt() { return null; }
+export function dependentsOf() { return []; }
+export function expandValue() { return null; }
+export function slotsOf() { return []; }
+export function inspect() { return null; }
+export function find() { return null; }
+export function explain() { return null; }
+export function stats() { return null; }
+export function pathOf() { return ""; }
+export function kindName() { return ""; }
+export const clock = {};
+`;
+  const themesStub = `export const Themes = Object.freeze({});\n`;
+  const drawStub = `export function record() { return null; }\nexport function replay() {}\nexport class Draw {}\nexport class DrawGradient {}\n`;
+  const stubFor = (name, filterRe, contents) => ({
+    name,
+    setup(build) {
+      build.onLoad({ filter: filterRe }, () => ({ contents, loader: "js", resolveDir: RUNTIME }));
+    },
+  });
+  const factPlugins = opts.debug ? [] : [
+    stubFor("slim-bridge", /[/\\]inspect\.js$/, bridgeStub),
+    ...(programFacts.usesThemes ? [] : [stubFor("slim-themes", /[/\\]themes\.js$/, themesStub)]),
+    ...(programFacts.usesDraw ? [] : [stubFor("slim-draw", /[/\\]draw\.js$/, drawStub)]),
+  ];
+
   const result = await esbuild.build({
     stdin: { contents: entry, resolveDir: RUNTIME, loader: "js", sourcefile: name + ".entry.js" },
     bundle: true, minify: true, format: "esm", target: "es2020",
-    write: false, legalComments: "none",
-    plugins: slim ? [slimPlugin] : [],
+    write: false, legalComments: "none", metafile: true,
+    plugins: [...(slim ? [slimPlugin] : []), ...(opts.debug ? [] : [inspectPlugin]), ...factPlugins],
   });
   const appJs = result.outputFiles[0].text;
   const moduleName = `app.${shortHash(appJs)}.js`;
@@ -173,7 +256,7 @@ export async function buildProduction(source, opts = {}) {
   };
   return {
     ok: true, errors: [], warnings: built.warnings, diagnostics: built.diagnostics, report: built.report,
-    closure: built.closure, program: built.program, sizes,
+    closure: built.closure, program: built.program, sizes, metafile: result.metafile,
     usedComponents: built.usedComponents, slim,
     files: [{ name: "index.html", contents: html }, { name: moduleName, contents: appJs }],
   };

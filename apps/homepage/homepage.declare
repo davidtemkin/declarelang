@@ -68,18 +68,10 @@ class NavLink extends View [ height = 33, cornerRadius = 8,
     label:   string = "",
     url:     string = "",
     to:      string = "",
-    hovered: boolean = false,
-    pressed: boolean = false,
-
     // pressed deepens the pill + lights the label — the tap feedback a touch
     // device gets in place of hover (mouseDown/Up fire on a tap, hover does not).
 
     fill = { pressed ? theme.pillPress : hovered ? theme.pillHover : null },
-    onMouseOver() { hovered = true },
-    onMouseOut()  { hovered = false; pressed = false },
-    onMouseDown() { pressed = true },
-    onMouseUp()   { pressed = false },
-
     // A pill goes one of two ways: `to` is an in-app location (a fragment — write
     // `app.location`); `url` is an out-of-app target (the `navigate` service action,
     // capabilities.md §6). One or the other, never both.
@@ -104,14 +96,7 @@ class MobileNavRow extends View [ width = { parent.width }, height = 44, cornerR
     label:   string = "",
     url:     string = "",
     to:      string = "",
-    hovered: boolean = false,
-    pressed: boolean = false,
-
     fill = { pressed ? theme.pillPress : hovered ? theme.pillHover : null },
-    onMouseOver() { hovered = true },
-    onMouseOut()  { hovered = false; pressed = false },
-    onMouseDown() { pressed = true },
-    onMouseUp()   { pressed = false },
     onClick()     { app.menuOpen = false; if (classroot.to != "") app.location = classroot.to; else if (classroot.url != "") app.navigate(classroot.url) },
 
     lbl: Text [ x = 14, y = center, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 16, fontWeight = medium,
@@ -158,7 +143,9 @@ class Point extends View [ width = { Math.min(357, parent.width) },
 // width/fontSize key off parent.width (the real available width in the row) —
 // a component sizes off its parent, not the app; `app.width` is the whole page
 
-class Metric extends View [ width = { parent.width < 560 ? parent.width : (parent.width - 48) / 2 },
+class Metric extends View [
+    cols: number = 2,
+    width = { parent.width < 560 ? parent.width : (parent.width - 48 * (cols - 1)) / cols },
     value: string = "",
     note:  string = "",
     layout: SimpleLayout [ axis = y, spacing = 8 ],
@@ -181,17 +168,9 @@ sees in place of hover — both are driven by the view’s own handlers.
 class Button extends View [ height = 46, cornerRadius = 9,
     label:   string = "",
     primary: boolean = true,
-    hovered: boolean = false,
-    pressed: boolean = false,
-
     fill = { primary ? (pressed ? theme.accentPress : hovered ? theme.accentHover : theme.accent)
                      : (pressed ? theme.press       : hovered ? theme.hover       : theme.surface) },
     stroke = { primary ? stroke(0, theme.accent) : stroke(1, pressed ? theme.accent2 : theme.line) },
-    onMouseOver() { hovered = true },
-    onMouseOut()  { hovered = false; pressed = false },
-    onMouseDown() { pressed = true },
-    onMouseUp()   { pressed = false },
-
     // label centered in the button box (textAlign over the full width)
 
     caption: Text [ y = 14, width = { parent.width }, textAlign = center, fontSize = 15, fontWeight = semibold,
@@ -212,13 +191,7 @@ teal hover and the brighter pressed tap feedback, navigating on click.
 
 class FootLink extends FootLabel [
     to: string = "",
-    hovered: boolean = false,
-    pressed: boolean = false,
     textColor = { pressed ? theme.accent2Press : hovered ? theme.accent2 : theme.muted },
-    onMouseOver() { hovered = true },
-    onMouseOut()  { hovered = false; pressed = false },
-    onMouseDown() { pressed = true },
-    onMouseUp()   { pressed = false },
     onClick()     { app.navigate(to) },
     ]
 
@@ -288,7 +261,7 @@ class CodeField extends TextInput [ multiline = true, spellcheck = false,
 // `height` is set per demo (at the use site) to sit just above what the code /
 // preview needs; Revert restores the pristine `src` and asks the host to recompile
 
-class SourcePanel extends View [ width = { parent.width < 760 ? parent.width : Math.floor((parent.width - 20) * 0.58) },
+class SourcePanel extends View [
     editName: string = "",
     src: string = "",
     fill = { theme.panel }, cornerRadius = 12, stroke = { stroke(1, theme.panelLine) },
@@ -301,12 +274,9 @@ class SourcePanel extends View [ width = { parent.width < 760 ? parent.width : M
             letterSpacing = 0.8, wrap = false, textColor = { theme.ink }, text = "LIVE · EDITABLE" ],
         ],
     revert: View [ y = 5, height = 20, cornerRadius = 6, stroke = { stroke(1, theme.revertLine) },
-        hovered: boolean = false,
         x = { parent.width - this.width - 10 },
         width = { this.rlbl.width + 16 },
         fill = { hovered ? theme.hover : null },
-        onMouseOver() { hovered = true },
-        onMouseOut()  { hovered = false },
         onClick() { classroot.field.text = classroot.src
                     app.liveCard = classroot.editName
                     app.liveSource = classroot.src },
@@ -337,7 +307,7 @@ class SourcePanel extends View [ width = { parent.width < 760 ? parent.width : M
 // runs full width beneath instead. `app.inspect(slot)` rides the App’s inspect
 // channel; the host opens the real Inspector on that island’s child app.
 
-class InspectorPitch extends View [ width = { parent.width < 760 ? parent.width : Math.floor((parent.width - 20) * 0.42) },
+class InspectorPitch extends View [
     slot: string = "",
 
     // The block sits CENTRED in the height the example claims beside it: the
@@ -357,14 +327,8 @@ class InspectorPitch extends View [ width = { parent.width < 760 ? parent.width 
             text = "Try typing “level = 5” or any other Declare expression, and watch it take effect live." ],
 
         open: View [ x = center, height = 38, cornerRadius = 9,
-            hovered: boolean = false,
-            pressed: boolean = false,
             width = { this.cap.width + 34 },
             fill = { pressed ? theme.accentPress : hovered ? theme.accentHover : theme.accent },
-            onMouseOver() { hovered = true },
-            onMouseOut()  { hovered = false; pressed = false },
-            onMouseDown() { pressed = true },
-            onMouseUp()   { pressed = false },
             onClick()     { app.inspect(classroot.slot) },
             cap: Text [ x = 17, y = 10, fontSize = 14, fontWeight = semibold, wrap = false,
                 textColor = { theme.ink }, text = "Try the Inspector" ],
@@ -373,7 +337,7 @@ class InspectorPitch extends View [ width = { parent.width < 760 ? parent.width 
     ]
 
 
-class PreviewFrame extends View [ width = { parent.width < 760 ? parent.width : Math.floor((parent.width - 20) * 0.42) },
+class PreviewFrame extends View [
     runName: string = "",
     active: boolean = true,
     run: AppIsland [ width = { parent.width }, height = { parent.height },
@@ -415,12 +379,9 @@ class FullPageEditor extends View [ width = { app.width }, height = { app.height
         hint: Text [ x = 132, y = 15, fontSize = 12, italic = true, textColor = { theme.dim },
             text = "the whole page — edit and it re-renders live" ],
         close: View [ y = 8, height = 28, cornerRadius = 8, stroke = { stroke(1, theme.line) },
-            hovered: boolean = false,
             x = { parent.width - this.width - 16 },
             width = { this.lbl.width + 26 },
             fill = { hovered ? theme.hover : theme.surface },
-            onMouseOver() { hovered = true },
-            onMouseOut()  { hovered = false },
             onClick()     { app.editing = false },
             lbl: Text [ x = 13, y = 6, fontSize = 13, textColor = { theme.text }, text = "Close ✕" ],
             ],
@@ -428,12 +389,9 @@ class FullPageEditor extends View [ width = { app.width }, height = { app.height
         // Revert — the pristine page source back in the editor, recompiled
 
         revert: View [ y = 8, height = 28, cornerRadius = 8, stroke = { stroke(1, theme.line) },
-            hovered: boolean = false,
             x = { parent.close.x - this.width - 10 },
             width = { this.lbl.width + 26 },
             fill = { hovered ? theme.hover : theme.surface },
-            onMouseOver() { hovered = true },
-            onMouseOut()  { hovered = false },
             onClick()     { classroot.code.text = classroot.pageSource
                             app.liveCard = "__page__"
                             app.liveSource = classroot.pageSource },
@@ -451,10 +409,7 @@ class FullPageEditor extends View [ width = { app.width }, height = { app.height
 
     grip: View [ x = { classroot.splitX }, y = 44, width = 6, height = { parent.height - 44 },
         dragging: boolean = false,
-        hovered: boolean = false,
         fill = { dragging || hovered ? theme.accent2 : theme.line },
-        onMouseOver()  { hovered = true },
-        onMouseOut()   { hovered = false },
         onMouseDown()  { dragging = true },
         onMouseMove(e) { if (dragging) classroot.split = Math.max(240, Math.min(app.width - 320, e.x)) },
         onMouseUp()    { dragging = false },
@@ -515,7 +470,7 @@ content natively; the chrome further down (header, cursor) are its
 */
 
 App [ appName = "Declare",
-    theme = { ({
+    theme = { {
         // text, brightest to faintest
         text: 0xE7EEF2, lead: 0x9DB0BC, muted: 0x8A9BA6, dim: 0x6A7C89, faint: 0x556673,
         // the blue accent and its interaction shades; links brighten past accent
@@ -531,7 +486,7 @@ App [ appName = "Declare",
         grid: 0x172A38,
         // the error strip, the demo stage, and the overlay grounds
         errBg: 0x2A1518, errBar: 0xE0525E, errText: 0xF2A0A6,
-        stage: 0x151A22, scrim: 0x0B141BB3, shade: 0x00000066 }) },
+        stage: 0x151A22, scrim: 0x0B141BB3, shade: 0x00000066 } },
     fill = { theme.ink },
     fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 17, fontWeight = normal,
     textColor = { theme.text },
@@ -645,18 +600,12 @@ App [ appName = "Declare",
                 learn: View [ width = { parent.width },
                     layout: ResponsiveLayout [ plan = { [({ from: 600, flow: "row", gap: 16 }), ({ from: 0, flow: "stack", gap: 8 })] } ],
                     why: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
-                        hovered: boolean = false,
                         textColor = { this.hovered ? theme.linkHover : theme.accent }, text = "Why a new language, now? →",
-                        onMouseOver() { this.hovered = true },
-                        onMouseOut() { this.hovered = false },
                         onClick() { app.location = "why" },
                         ],
                     Dot [ y = 1, visible = { parent.width >= 600 } ],
                     onefile: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
-                        hovered: boolean = false,
                         textColor = { this.hovered ? theme.linkHover : theme.accent }, text = "Declare, in one file, for you and your LLM →",
-                        onMouseOver() { this.hovered = true },
-                        onMouseOut() { this.hovered = false },
                         onClick() { app.location = "language" },
                         ],
                     ],
@@ -684,16 +633,14 @@ App [ appName = "Declare",
                 // the row spans the column so the plan answers to the COLUMN's
                 // width — a self-measuring (auto-width) row would read its own
                 // content and lock into whichever regime it booted in
+
                 actions: View [ width = { parent.width },
                     layout: ResponsiveLayout [ plan = { [({ from: 480, flow: "row", gap: 18 }), ({ from: 0, flow: "stack", gap: 16 })] } ],
                     Button [ width = 240, label = "Run Declare Calendar →",
                         onClick() { app.navigate("apps/calendar/calendar.declare") },
                         ],
                     srclink: Text [ y = 15, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
-                        hovered: boolean = false,
                         textColor = { this.hovered ? theme.linkHover : theme.accent }, text = "View source →",
-                        onMouseOver() { this.hovered = true },
-                        onMouseOut() { this.hovered = false },
                         onClick() { app.navigate("apps/calendar/calendar.declare?viewer") },
                         ],
                     ],
@@ -711,13 +658,13 @@ App [ appName = "Declare",
 
                 stat: View [ width = { parent.width },
                     layout: WrappingLayout [ spacing = 48, lineSpacing = 40 ],
-                    Metric [ width = { parent.width < 560 ? parent.width : (parent.width - 96) / 3 },
+                    Metric [ cols = 3,
                         value = { "" + (app.stats.read(["calendar", "code"]) ?? "—") },
                         note = "lines of Declare — four views, continuous zoom, drag, and edit" ],
-                    Metric [ width = { parent.width < 560 ? parent.width : (parent.width - 96) / 3 },
+                    Metric [ cols = 3,
                         value = { app.stats.read(["calendar", "wireGzip"]) ? Math.round(app.stats.read(["calendar", "wireGzip"]) / 1024) + " KB" : "—" },
                         note = "over the wire, gzipped — the whole app and its runtime" ],
-                    Metric [ width = { parent.width < 560 ? parent.width : (parent.width - 96) / 3 },
+                    Metric [ cols = 3,
                         value = "0",
                         note = "lines written by hand — an LLM wrote it; the compiler kept it honest" ],
                     ],
@@ -754,10 +701,10 @@ App [ appName = "Declare",
                     caption: Body [ fontSize = 15, width = { parent.width },
                         text = "Three bindings track one value: the big number, the bar’s width, and its color. Click to bump v — all three update together, and the color crosses cool to warm at the halfway mark." ],
                     cards: View [ width = { parent.width },
-                        layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ],
-                        SourcePanel  [ editName = "reactivity", height = 226,
+                        layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 20, share: ({ src: 58, prev: 42 }) }), ({ from: 0, flow: "stack", gap: 20, share: ({ src: 100, prev: 100 }) })] } ],
+                        src: SourcePanel [ editName = "reactivity", height = 226,
                             src = { app.demoSources.reactivity || "" } ],
-                        PreviewFrame [ runName  = "reactivity", height = 226 ],
+                        prev: PreviewFrame [ runName = "reactivity", height = 226 ],
                         ],
                     ],
                 ],
@@ -773,10 +720,10 @@ App [ appName = "Declare",
                     caption: Body [ fontSize = 15, width = { parent.width },
                         text = "One Bar, instanced once per row of the data. Edit a number or add a row and the list rebuilds itself — no loop, no keys. And Bar is auto-included: no import, no definition, just use it." ],
                     cards: View [ width = { parent.width },
-                        layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ],
-                        SourcePanel  [ editName = "components", height = 184,
+                        layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 20, share: ({ src: 58, prev: 42 }) }), ({ from: 0, flow: "stack", gap: 20, share: ({ src: 100, prev: 100 }) })] } ],
+                        src: SourcePanel [ editName = "components", height = 184,
                             src = { app.demoSources.components || "" } ],
-                        PreviewFrame [ runName  = "components", height = 184 ],
+                        prev: PreviewFrame [ runName = "components", height = 184 ],
                         ],
                     ],
                 ],
@@ -792,10 +739,10 @@ App [ appName = "Declare",
                     caption: Body [ fontSize = 15, width = { parent.width },
                         text = "Click to toggle the ball’s target between two positions. The Spring follows and settles by physics — no timeline, no frames driven by hand." ],
                     cards: View [ width = { parent.width },
-                        layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ],
-                        SourcePanel  [ editName = "spring", height = 184,
+                        layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 20, share: ({ src: 58, prev: 42 }) }), ({ from: 0, flow: "stack", gap: 20, share: ({ src: 100, prev: 100 }) })] } ],
+                        src: SourcePanel [ editName = "spring", height = 184,
                             src = { app.demoSources.spring || "" } ],
-                        PreviewFrame [ runName  = "spring", height = 184 ],
+                        prev: PreviewFrame [ runName = "spring", height = 184 ],
                         ],
                     ],
                 ],
@@ -811,10 +758,10 @@ App [ appName = "Declare",
                     caption: Body [ fontSize = 15, width = { parent.width },
                         text = "Click to flip one boolean. The card’s height, its color, and an extra line of text swap in together — and revert the instant the mode turns off." ],
                     cards: View [ width = { parent.width },
-                        layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ],
-                        SourcePanel  [ editName = "states", height = 230,
+                        layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 20, share: ({ src: 58, prev: 42 }) }), ({ from: 0, flow: "stack", gap: 20, share: ({ src: 100, prev: 100 }) })] } ],
+                        src: SourcePanel [ editName = "states", height = 230,
                             src = { app.demoSources.states || "" } ],
-                        PreviewFrame [ runName  = "states", height = 230 ],
+                        prev: PreviewFrame [ runName = "states", height = 230 ],
                         ],
                     ],
                 ],
@@ -834,10 +781,10 @@ App [ appName = "Declare",
                     caption: Body [ fontSize = 15, width = { parent.width },
                         text = "One value moves; a width and two colors follow it through a Spring. Click the demo to raise the level, then open the Inspector and look at what any of them is made of." ],
                     cards: View [ width = { parent.width },
-                        layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ],
-                        SourcePanel    [ editName = "derived", height = 236,
+                        layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 20, share: ({ src: 58, prev: 42 }) }), ({ from: 0, flow: "stack", gap: 20, share: ({ src: 100, prev: 100 }) })] } ],
+                        src: SourcePanel [ editName = "derived", height = 236,
                             src = { app.demoSources.derived || "" } ],
-                        InspectorPitch [ slot = "run:derived", height = 236 ],
+                        prev: InspectorPitch [ slot = "run:derived", height = 236 ],
                         ],
 
                     // the stage’s fill matches the demo app’s own, so the island
@@ -878,7 +825,7 @@ App [ appName = "Declare",
                closer: ~88px above, ~90px below instead of 112/112 */
 
             cta: View [ width = { parent.width }, height = 0,
-                Button [ width = 260, x = { (parent.width - this.width) / 2 }, y = -24, label = "Get Started →",
+                Button [ width = 260, x = center, y = -24, label = "Get Started →",
                     onClick() { app.location = "getstarted" },
                     ],
                 ],
@@ -947,17 +894,11 @@ App [ appName = "Declare",
                     layout: ResponsiveLayout [ plan = { [({ from: 560, flow: "row", gap: 20 }), ({ from: 0, flow: "stack", gap: 8 })] } ],
                     lbl: Text [ fontSize = 14, wrap = false, textColor = { theme.faint }, text = "The studies:" ],
                     s1: Text [ fontSize = 14, wrap = false,
-                        hovered: boolean = false,
                         textColor = { this.hovered ? theme.linkHover : theme.accent }, text = "a zero-corpus DSL vs. Python →",
-                        onMouseOver() { this.hovered = true },
-                        onMouseOut()  { this.hovered = false },
                         onClick()     { app.navigate("https://arxiv.org/abs/2512.23214") },
                         ],
                     s2: Text [ fontSize = 14, wrap = false,
-                        hovered: boolean = false,
                         textColor = { this.hovered ? theme.linkHover : theme.accent }, text = "feedback quality vs. repair →",
-                        onMouseOver() { this.hovered = true },
-                        onMouseOut()  { this.hovered = false },
                         onClick()     { app.navigate("https://arxiv.org/abs/2504.06939") },
                         ],
                     ],
@@ -1147,13 +1088,7 @@ App [ appName = "Declare",
 
         kebab: View [ y = 11, width = 34, height = 33, cornerRadius = 8, visible = { app.width < 760 },
             x = { app.width - app.gutter - this.width },
-            hovered: boolean = false,
-            pressed: boolean = false,
             fill = { pressed ? theme.pillPress : hovered ? theme.pillHover : null },
-            onMouseOver() { hovered = true },
-            onMouseOut()  { hovered = false; pressed = false },
-            onMouseDown() { pressed = true },
-            onMouseUp()   { pressed = false },
             onClick()     { app.menuOpen = !app.menuOpen },
             d1: View [ x = center, y = 8,  width = 3, height = 3, cornerRadius = 1.5, fill = { parent.hovered || parent.pressed ? theme.text : theme.muted } ],
             d2: View [ x = center, y = 15, width = 3, height = 3, cornerRadius = 1.5, fill = { parent.hovered || parent.pressed ? theme.text : theme.muted } ],

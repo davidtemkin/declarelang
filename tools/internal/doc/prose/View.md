@@ -54,6 +54,18 @@ Whole-view alpha, `0`…`1` (default `1`). Applies to the view **and its subtree
 group, so a fading panel fades its contents with it. Not `prevailing`: its effect
 already composes down the render tree, so a followed copy would apply it twice.
 
+## ignorelayout
+Opt this child out of its parent's `layout` — the arrangement skips it and it owns
+its own position on both axes (the decoration/overlay case: a badge floating over
+a laid list). Its size still counts toward the parent's auto-extent.
+
+## ignoreclip
+Opt this child out of its parent's `clip`: outside the parent's frame it still
+paints *and* still hits — frame chrome that straddles the frame (a window's
+resize halo; a badge poking out of a clipped card). Parent-scoped — an ancestor's
+clip above still applies — and the child is exempt from the parent's auto-extent
+(frame geometry derives *from* the bounds, so it cannot also define them).
+
 ## visible
 Whether the view renders and participates in layout-that-skips-invisibles (default
 `true`). A `false` view is fully inert — no paint, no hit-testing — but still

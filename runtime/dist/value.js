@@ -8,7 +8,7 @@
 import { CSS_COLORS } from "./css-colors.js";
 import { validatePathData } from "./shape.js";
 import { motionToken, MOTION_TOKENS } from "./animate.js";
-import { THEME_RECORDS } from "./themes-data.js";
+import { SanFrancisco } from "./themes-data.js";
 /** The base of the translucent encoding — see the Color doc above. */
 const ALPHA = 0x100000000;
 /** Encode rgb (0xRRGGBB) + alpha (0…255) as one Color number. */
@@ -69,7 +69,7 @@ export function fillEqual(a, b) {
 // sanfrancisco.declare — and projected here through themes-data.ts
 // (gen-themes.mjs, freshness-gated), so the no-typing tier serves the very
 // object the authored preset declares.
-export const DEFAULT_THEME = THEME_RECORDS.SanFrancisco;
+export const DEFAULT_THEME = SanFrancisco;
 export function isAlign(v) {
     return typeof v === "object" && v !== null && "align" in v;
 }

@@ -20,12 +20,10 @@
 // Node server unchanged (the "back end in front" topology, packaging-options §4b).
 
 import path from "node:path";
-import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, statSync, mkdirSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { compile, isUpToDate, diskProbe, crawlExtract, diskDataResolver, crawlerDocument } from "../compiler/dist/compile-node.js";
-import { highlight, lineMetrics } from "../compiler/dist/highlight.js";
 import { requestType, REQ, runWrapper, programName, directoryProgram } from "../browser/serve-core.js";
-import { writeProduction } from "../tools/declarec.mjs";
+import { createToolchain } from "./toolchain.mjs";
 import { parseFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
 import { rebuildStale } from "../tools/internal/bundle-freshness.mjs";
 import { createMounts, describeMounts } from "./mounts.mjs";
@@ -56,6 +54,10 @@ export function createDeclareServer(config = {}) {
   const buildCache = path.resolve(config.buildCache ?? defaultBuildCache());
   const watch = !!config.watch;
   const canRebuildBundles = config.mode !== "workspace";   // node_modules platform has no sources to rebuild
+  // The RELOADABLE toolchain realm (toolchain.mjs): every compile-consuming
+  // operation goes through this handle, which respawns its worker whenever the
+  // dist fingerprint changes — the server never compiles with a stale schema.
+  const toolchain = createToolchain(PLATFORM_DIR);
 
   // A proxied prefix must not shadow a declared mount — a startup check, so the
   // routing is unambiguous rather than order-dependent at request time.
@@ -95,22 +97,22 @@ export function createDeclareServer(config = {}) {
   }
 
   // ── the VIEWER (reader / source / edit) ────────────────────────────────────
-  function serveSource(res, absPath, relPath, rt, backendClass) {
+  async function serveSource(res, absPath, relPath, rt, backendClass) {
     let source;
     try { source = readFileSync(absPath, "utf8"); }
     catch { return send(res, 404, "not found: " + relPath, "text/plain"); }
     let segments;
-    try { segments = highlight(source); }
+    try { segments = await toolchain.highlight(source); }
     catch (e) { return send(res, 500, String((e && e.message) || e), "text/plain"); }
     if (rt === REQ.SEGMENTS)
-      return send(res, 200, JSON.stringify({ path: relPath, segments, metrics: lineMetrics(source) }), "application/json");
+      return send(res, 200, JSON.stringify({ path: relPath, segments, metrics: await toolchain.metrics(source) }), "application/json");
     const mode = rt === REQ.SOURCE ? "source" : rt === REQ.EDIT ? "edit" : "reader";
-    return send(res, 200, withServerMarker(sourcePage(relPath, segments, source, backendClass, mode)));
+    return send(res, 200, withServerMarker(await sourcePage(relPath, segments, source, backendClass, mode)));
   }
 
-  function sourcePage(relPath, segments, rawSource, backendClass, mode = "") {
-    const r = compile(readFileSync(path.join(VIEWER_DIR, "viewer.declare"), "utf8"), { originDir: VIEWER_DIR });
-    if (r.errors.length) {
+  async function sourcePage(relPath, segments, rawSource, backendClass, mode = "") {
+    const r = await toolchain.compile(readFileSync(path.join(VIEWER_DIR, "viewer.declare"), "utf8"), { originDir: VIEWER_DIR });
+    if (r.source === null) {
       return `<!doctype html><meta charset="utf-8"><title>viewer — compile errors</title>
 <pre style="color:#c33;font:13px/1.5 ui-monospace,monospace;padding:20px;white-space:pre-wrap">${esc(r.report)}</pre>`;
     }
@@ -118,7 +120,7 @@ export function createDeclareServer(config = {}) {
     const cfg = {
       backend: backendClass, source: r.source, deps: r.deps, location: mode,
       seeds: { __source__: JSON.stringify(segments), __raw__: rawSource, __path__: relPath,
-        __metrics__: JSON.stringify(lineMetrics(rawSource)) },
+        __metrics__: JSON.stringify(await toolchain.metrics(rawSource)) },
     };
     // The editor's live recompile carries the file's own url as ?main= so the
     // Node compiler resolves includes and relative data against the file being
@@ -142,17 +144,11 @@ bootHost(cfg);
     let source;
     try { source = readFileSync(absPath, "utf8"); }
     catch { return send(res, 404, "not found: " + relPath, "text/plain"); }
-    const compiled = compile(source, { originDir: path.dirname(absPath) });
-    if (compiled.source === null) return send(res, 422, compiled.report, "text/plain; charset=utf-8");
-    let extracted;
-    try {
-      extracted = await crawlExtract(compiled.source, {
-        deps: compiled.deps, links: compiled.links, data: diskDataResolver(path.dirname(absPath)),
-      });
-    } catch (e) {
-      return send(res, 422, String((e && e.message) || e), "text/plain; charset=utf-8");
-    }
-    return send(res, 200, crawlerDocument(extracted.html, extracted.title || relPath.split("/").pop()));
+    let r;
+    try { r = await toolchain.extract(source, path.dirname(absPath), { document: true, fallbackTitle: relPath.split("/").pop() }); }
+    catch (e) { return send(res, 422, String((e && e.message) || e), "text/plain; charset=utf-8"); }
+    if (!r.ok) return send(res, 422, r.report, "text/plain; charset=utf-8");
+    return send(res, 200, r.doc);
   }
 
   // ── the RUN wrapper ────────────────────────────────────────────────────────
@@ -169,11 +165,8 @@ bootHost(cfg);
         const hit = mounts.resolve(urlPath);
         const abs = hit ? hit.abs : null;
         if (abs && existsSync(abs)) {
-          const compiled = compile(readFileSync(abs, "utf8"), { originDir: path.dirname(abs) });
-          const ex = compiled.source === null ? null : await crawlExtract(compiled.source, {
-            deps: compiled.deps, links: compiled.links, data: diskDataResolver(path.dirname(abs)),
-          });
-          if (ex !== null) { staticBlock = `<div id="declare-static">\n${ex.html}\n</div>`; title = ex.title; }
+          const ex = await toolchain.extract(readFileSync(abs, "utf8"), path.dirname(abs));
+          if (ex.ok) { staticBlock = `<div id="declare-static">\n${ex.html}\n</div>`; title = ex.title; }
         }
       } catch (e) { console.error("crawler embed failed:", e.message); }
     }
@@ -201,15 +194,6 @@ bootHost(cfg);
   // the build props plus the toolchain fingerprint — not the basename, and not
   // the url (so distro mode's two aliases of one file share a single entry).
   // (embeddable-server.md §1, §5)
-  function toolchainFingerprint() {
-    let acc = "";
-    for (const dist of [path.join(PLATFORM_DIR, "runtime", "dist"), path.join(PLATFORM_DIR, "compiler", "dist")]) {
-      if (!existsSync(dist)) continue;
-      for (const f of readdirSync(dist)) if (f.endsWith(".js")) acc += f + statSync(path.join(dist, f)).mtimeMs + ";";
-    }
-    return createHash("sha256").update(acc).digest("hex").slice(0, 8);
-  }
-
   const prodMem = new Map();
   function buildKey(srcPath, backend, toolchain) {
     return createHash("sha256")
@@ -222,21 +206,21 @@ bootHost(cfg);
     const source = readFileSync(srcPath, "utf8");
     const name = path.basename(srcPath).replace(/\.declare$/, "");
     const dir = path.dirname(srcPath);
-    const toolchain = toolchainFingerprint();
-    const key = buildKey(srcPath, backend, toolchain);
+    const tc = toolchain.fingerprint();
+    const key = buildKey(srcPath, backend, tc);
     const outDir = path.join(buildCache, key);
     const manPath = path.join(outDir, "manifest.json");
-    const propsNow = { render: backend, slim: "true", stripPos: "true", typecheck: "true", crawler: "false", toolchain };
-    const fresh = (m) => {
+    const propsNow = { render: backend, slim: "true", stripPos: "true", typecheck: "true", crawler: "false", toolchain: tc };
+    const fresh = async (m) => {
       if (!m || !m.closure || !m.moduleName || !existsSync(path.join(outDir, m.moduleName))) return false;
-      try { return isUpToDate(m.closure, propsNow, diskProbe); } catch { return false; }
+      try { return await toolchain.fresh(m.closure, propsNow); } catch { return false; }
     };
     let man = prodMem.get(key);
-    if (fresh(man)) return man;
+    if (await fresh(man)) return man;
     if (existsSync(manPath)) {
-      try { const d = JSON.parse(readFileSync(manPath, "utf8")); if (fresh(d)) { prodMem.set(key, d); return d; } } catch { /* rebuild */ }
+      try { const d = JSON.parse(readFileSync(manPath, "utf8")); if (await fresh(d)) { prodMem.set(key, d); return d; } } catch { /* rebuild */ }
     }
-    const built = await writeProduction({ source, name, srcDir: dir, outDir, render: backend, props: { toolchain } });
+    const built = await toolchain.production({ source, name, srcDir: dir, outDir, render: backend, props: { toolchain: tc } });
     if (!built.ok) return { error: built.errors, report: built.report };
     man = { closure: built.closure, dir: outDir, moduleName: built.moduleName, sizes: built.sizes,
       assets: built.assets, used: built.usedComponents, source: srcPath, builtAt: null };
@@ -289,7 +273,7 @@ bootHost(cfg);
     if (req.method === "POST" && p === "/compile") {
       let body = "";
       req.on("data", (c) => { body += c; if (body.length > 4e6) req.destroy(); });
-      req.on("end", () => {
+      req.on("end", async () => {
         let originDir;
         try {
           const main = new URL(req.url, "http://x").searchParams.get("main");
@@ -297,8 +281,7 @@ bootHost(cfg);
         } catch { /* no main → context-free */ }
         let out;
         try {
-          const r = compile(body, originDir ? { originDir } : {});
-          out = { source: r.source, deps: r.deps, diagnostics: r.diagnostics, report: r.report };
+          out = await toolchain.compile(body, originDir ? { originDir } : {});
         } catch (e) {
           out = { source: null, diagnostics: [], report: String((e && e.message) || e) };
         }
@@ -346,8 +329,11 @@ bootHost(cfg);
         const hit = mounts.resolve(p);
         const real = hit && existsSync(hit.abs) && statSync(hit.abs).isFile();
         if (real) {
-          if (rt === REQ.READER || rt === REQ.SOURCE || rt === REQ.EDIT || rt === REQ.SEGMENTS)
-            return serveSource(res, hit.abs, hit.rel, rt, "DomBackend");
+          if (rt === REQ.READER || rt === REQ.SOURCE || rt === REQ.EDIT || rt === REQ.SEGMENTS) {
+            serveSource(res, hit.abs, hit.rel, rt, "DomBackend")
+              .catch((e) => { if (!res.headersSent) send(res, 500, String((e && e.stack) || e), "text/plain"); });
+            return;
+          }
           if (rt === REQ.EXTRACT) {
             serveExtract(res, hit.abs, hit.rel).catch((e) => { if (!res.headersSent) send(res, 500, String((e && e.stack) || e), "text/plain"); });
             return;
@@ -397,5 +383,5 @@ bootHost(cfg);
     socket.destroy();
   }
 
-  return { handler, upgrade, mounts, proxy, buildCache, watch, describeMounts };
+  return { handler, upgrade, mounts, proxy, buildCache, watch, describeMounts, toolchain };
 }

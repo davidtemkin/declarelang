@@ -9,6 +9,11 @@
 # (0c) bake the cold-stub index.html into every program directory
 # (tools/internal/bake-app-stubs.mjs) so …/apps/<name>/ works on a COLD static host —
 # shadowed under the dev server, superseded by the SW once installed.
+# (0d) stamp the MEASURED flagship figures (apps/homepage/stats.json, fresh from
+# prewarm) into every prose citation — README, declare.md, the FAQ — via
+# <!--stat:key--> markers (tools/internal/stamp-stats.mjs), so a quoted number can
+# never rot against the artifact it describes. Runs BEFORE assemble/bake so the
+# doc pipeline consumes the stamped text.
 # (1) rebuild any STALE platform bundle — stamp-version calls
 # tools/internal/bundle-freshness.mjs first, so a commit cannot ship a bundles artifact older
 # than its inputs; (2) stamp the cache-busting BUILD_ID so every deploy carries a
@@ -23,9 +28,10 @@
 # Committed + shared (not the per-clone .git/hooks/ copy). `npm install` wires it up via the
 # package.json "prepare" script; to activate by hand: git config core.hooksPath tools/hooks
 node tools/internal/prewarm.mjs || exit 0
+node tools/internal/stamp-stats.mjs || exit 0
 node tools/internal/doc/assemble.mjs || exit 0
 node tools/internal/bake-homepage-crawler.mjs || exit 0
 node tools/internal/bake-app-stubs.mjs || exit 0
 node tools/internal/stamp-version.mjs || exit 0
-git add service-worker.js bundles index.html apps/*/index.html 2>/dev/null
+git add service-worker.js bundles index.html apps/*/index.html README.md docs/declare.md apps/homepage/declare-faq.md 2>/dev/null
 exit 0

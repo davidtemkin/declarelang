@@ -43,6 +43,13 @@ export declare class View extends Node {
     shadow: Shadow | null;
     visible: boolean;
     opacity: number;
+    /** Opt out of the parent's LAYOUT (this child owns its own position; the
+     *  arrangement skips it) — the decoration/overlay case. */
+    ignorelayout: boolean;
+    /** Opt out of the parent's CLIP (outside the parent's frame this child
+     *  still paints and still hits) and of its auto-extent — frame chrome that
+     *  straddles the frame. Parent-scoped: ancestors' clips still apply. */
+    ignoreclip: boolean;
     /** The pointer cursor while over this view (a CSS cursor keyword —
      *  "ew-resize", "col-resize", "pointer", …; "" = inherit). Meaningful on
      *  views that take input: the sink is the hit target on both backends. */
@@ -235,6 +242,16 @@ export declare class View extends Node {
      *  live, and independent of this view's own width/height. */
     get contentWidth(): number;
     get contentHeight(): number;
+    /** Pointer-interaction intrinsics (interaction.ts): `hovered` is true while
+     *  this view is on the live hit chain — the topmost visible view under the
+     *  pointer and its ancestors, occlusion-correct, false on touch; `pressed`
+     *  while it is on the chain captured at pointer-down (a mouse press releases
+     *  dragged off, re-arms dragged back; a touch press holds while down).
+     *  Read-only reactive intrinsics like `contentWidth` (schema readOnly — a
+     *  set is a compile error); reading one from a constraint subscribes it.
+     *  Pay-per-use: a program that never reads them allocates nothing. */
+    get hovered(): boolean;
+    get pressed(): boolean;
     /** The default focus-traversal members of this view: its visible View
      *  children in source order (docs/system-design/input.md, Layer 2). The focus
      *  service descends into each; a view whose `tabOrder()` is not overridden
@@ -338,6 +355,10 @@ export declare class App extends View {
     pointerX: number;
     pointerY: number;
     hovering: boolean;
+    /** True while a pointer (mouse button or touch) is down anywhere in the app —
+     *  the press half of the interaction intrinsics (interaction.ts); fed at mount
+     *  like the pointer coordinates. Read-only to user code. */
+    pointerDown: boolean;
     /** True while the free pointer is over a native text-editing surface (a text
      *  input / textarea / contenteditable — e.g. an editable HTML island). A
      *  custom app cursor reads it to YIELD to the I-beam over a text field:

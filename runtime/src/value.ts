@@ -10,7 +10,7 @@ import type { Literal } from "./parser.js";
 import { CSS_COLORS } from "./css-colors.js";
 import { validatePathData } from "./shape.js";
 import { motionToken, MOTION_TOKENS, type Motion } from "./animate.js";
-import { THEME_RECORDS } from "./themes-data.js";
+import { SanFrancisco } from "./themes-data.js";
 
 /** A color as one number, or `null` for "no color".
  *
@@ -137,7 +137,7 @@ export type Theme = Readonly<Record<string, unknown>>;
 // sanfrancisco.declare — and projected here through themes-data.ts
 // (gen-themes.mjs, freshness-gated), so the no-typing tier serves the very
 // object the authored preset declares.
-export const DEFAULT_THEME: Theme = THEME_RECORDS.SanFrancisco;
+export const DEFAULT_THEME: Theme = SanFrancisco as Theme;
 
 /** A parent-relative percentage, as written (`{ percent: 50 }` for `50%`).
  *  It stays symbolic: resolving it against a parent measurement is constraint

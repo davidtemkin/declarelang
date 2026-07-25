@@ -79,6 +79,8 @@ Text [ text = "OK" ],                  // an anonymous child
 
 The difference between `name = value` (sets an existing attribute) and `name: Type = value` (declares a new one) matters — declaring introduces reactive state.
 
+**Interaction state is built in, not wired.** Every view has read-only `hovered` and `pressed` intrinsics — chain-based (the topmost visible view under the pointer plus ancestors; occlusion-correct; `hovered` false on touch), updated for you. Style with a constraint (`fill = { hovered ? 0x336699 : 0x203040 }`) or gate a State; NEVER declare or assign them (compile error — computed for you, like `contentWidth`). Do not hand-wire `onMouseOver`/`onMouseOut` to track hover — the intrinsic already is that fact.
+
 ## 4. Classes and composition
 
 A component is a class. Instantiate by naming a type with a `[ ]` body; define with `class Name extends Base [ … ]`:

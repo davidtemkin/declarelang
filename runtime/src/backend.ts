@@ -139,6 +139,12 @@ export interface Surface {
    *  — or declare `clip = true` on the App itself to pin every interaction
    *  in-window — without the browser growing a scroll extent. */
   setBoxClip(on: boolean): void;
+  /** Mark this surface as exempt from its PARENT's box-clip (`ignoreclip`):
+   *  outside the parent's clip it still paints AND still hits — frame chrome
+   *  that straddles the frame (a window's resize halo, a badge poking out of a
+   *  clipped card). Parent-scoped: an ancestor's clip above still applies.
+   *  Optional — a host/mock backend without clipping may omit it. */
+  setIgnoreClip?(on: boolean): void;
 
   /** Make this surface a scroll container (`on`) or a plain one. When on, it
    *  clips to its box and scrolls the vertical overflow; `onScroll` is called

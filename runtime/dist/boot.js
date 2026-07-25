@@ -138,11 +138,23 @@ function wireEnvironment(app, host, embedded) {
         app.hovering = false;
         app.pointerOverText = false;
     } };
+    // The press half of the interaction intrinsics: coordinates land first (a
+    // touch press arrives with no prior move), then the down flag.
+    const down = (e) => {
+        app.pointerX = e.clientX;
+        app.pointerY = e.clientY;
+        app.hovering = e.pointerType !== "touch";
+        app.pointerDown = true;
+    };
+    const up = () => { app.pointerDown = false; };
     size();
     scroll();
     w.addEventListener("resize", size);
     w.addEventListener("scroll", scroll, { passive: true });
     w.addEventListener("pointermove", move, { passive: true });
+    w.addEventListener("pointerdown", down, { passive: true });
+    w.addEventListener("pointerup", up, { passive: true });
+    w.addEventListener("pointercancel", up, { passive: true });
     w.addEventListener("pointerout", out);
 }
 /** Environment wiring for an embedded app: host size follows the container
@@ -172,8 +184,19 @@ function wireEnvironmentEmbedded(app, host) {
     const leave = () => { app.hovering = false; app.pointerOverText = false; };
     const unTheme = wireColorScheme(app); // re-rendered embedded apps must drop the mq listener
     const unPointer = wireTouchDevice(app);
+    const down = (e) => {
+        const r = host.getBoundingClientRect();
+        app.pointerX = e.clientX - r.left;
+        app.pointerY = e.clientY - r.top;
+        app.hovering = e.pointerType !== "touch";
+        app.pointerDown = true;
+    };
+    const up = () => { app.pointerDown = false; };
     sync();
     host.addEventListener("pointermove", move, { passive: true });
+    host.addEventListener("pointerdown", down, { passive: true });
+    host.addEventListener("pointerup", up, { passive: true });
+    host.addEventListener("pointercancel", up, { passive: true });
     host.addEventListener("pointerleave", leave);
     let ro = null;
     if (typeof ResizeObserver !== "undefined") {
@@ -182,6 +205,9 @@ function wireEnvironmentEmbedded(app, host) {
     }
     TEARDOWN.set(app, () => {
         host.removeEventListener("pointermove", move);
+        host.removeEventListener("pointerdown", down);
+        host.removeEventListener("pointerup", up);
+        host.removeEventListener("pointercancel", up);
         host.removeEventListener("pointerleave", leave);
         ro?.disconnect();
         unTheme();

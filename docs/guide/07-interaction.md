@@ -10,25 +10,39 @@ tells it directly. That is the whole routing model, and it fits in a sentence:
 
 > **Handlers fire where they're declared; children deliver by calling methods.**
 
-## The pointer-state pattern
+## Interaction state you never wire
 
-The everyday shape: handlers flip plain booleans, and constraints paint from them —
-the assignments are reactive setters, so there is no further wiring:
+Hover and press are not events you route — they are **read-only attributes every view
+already has**. `hovered` is true while the view is on the live *hit chain*: the topmost
+visible view under the pointer, plus its ancestors — occlusion-correct, so anything
+covering a view suppresses it, and always false on touch. `pressed` is true from a
+pointer-down on the chain until release — drag off a button and it lets go, drag back
+and it re-arms, the way native buttons behave. You read them; the runtime keeps them
+true:
 
 ```declare
 App [ width = 220, height = 100, fill = white,
+    n: number = 0,
     btn: View [ x = 20, y = 20, width = 160, height = 40, cornerRadius = 10,
-        hovered: boolean = false,
-        pressed: boolean = false,
-        onMouseOver() { hovered = true },
-        onMouseOut()  { hovered = false; pressed = false },
-        onMouseDown() { pressed = true },
-        onMouseUp()   { pressed = false },
         fill = { pressed ? 0x2E5BD0 : hovered ? 0x3B74FF : 0x4C8DFF },
-        Text [ x = 40, y = 10, textColor = white, text = "Press me" ],
+        onClick() { app.n = app.n + 1 },
+        Text [ x = 40, y = 10, textColor = white, text = { `clicks: ${app.n}` } ],
         ],
     ]
 ```
+
+No declarations, no `onMouseOver` bookkeeping — the four handlers and two booleans this
+took before the intrinsics existed are simply gone, and what remains is the one line
+that was ever the point: the `fill` constraint. Everything composes as usual: gate a
+State on it (`applied = { hovered }`), read another view's (`visible =
+{ parent.parent.hovered }`), or spring from it. Because the chain derives from
+geometry too, a view that *moves* under a stationary cursor updates — and because the
+chain is occlusion-correct, one transparent view laid over a region silences every
+hover beneath it (the "activation glass" idiom: how a desktop declares
+click-to-activate windows). Declaring or assigning `hovered`/`pressed` is a compile
+error that says so — like `contentWidth`, they are computed for you. For controls, the
+library's `Control` derives a styling pair from them (`hot`/`down` — the intrinsics
+gated by `disabled`, plus the keyboard flash), which is what its buttons paint with.
 
 The handler set is small — `onClick`, the pointer five (`onMouseDown/Up/Over/Out/Move`),
 `onKeyDown`/`onKeyUp` on the focused view, `onFocus`/`onBlur`, `onInit` — and a method

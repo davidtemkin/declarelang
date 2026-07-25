@@ -110,7 +110,10 @@ export function routeInput(
         typeof HTMLElement !== "undefined" &&
         el instanceof HTMLElement &&
         (el.isContentEditable || el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT");
-      const selectable = el !== null && typeof getComputedStyle === "function" && getComputedStyle(el).userSelect === "text";
+      // Safari's computed style exposes only the -webkit- prefixed property
+      // (unprefixed `userSelect` reads as undefined there) — probe both.
+      const cs = el !== null && typeof getComputedStyle === "function" ? getComputedStyle(el) : null;
+      const selectable = cs !== null && (cs.userSelect ?? (cs as CSSStyleDeclaration & { webkitUserSelect?: string }).webkitUserSelect) === "text";
       if (el !== null && !editable && !selectable) e.preventDefault();
       // A press that BEGINS on selectable/editable content is (potentially) a
       // text-selection gesture: the captured-move suppression below must stand

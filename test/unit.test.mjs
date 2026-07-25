@@ -2393,6 +2393,20 @@ await test("replication + layout: the arrangement re-arms on tree mutation", () 
   assert.deepEqual(ys(), [0, 10, 42, 48], "a field write re-flows through the ordinary wave");
 });
 
+await test("ignorelayout: a marked child keeps its own position; the arrangement skips it", () => {
+  const app = buildL(`App [ width=200, height=200,
+    row: View [ width = 200, height = 40,
+      layout: SimpleLayout [ axis = x, spacing = 4 ],
+      View [ width = 30, height = 10 ],
+      badge: View [ ignorelayout = true, x = 150, y = 5, width = 12, height = 12 ],
+      View [ width = 30, height = 10 ],
+      ],
+  ]`);
+  settle();
+  assert.equal(app.row.children[1].x, 150, "the opted-out child holds its authored x");
+  assert.deepEqual([app.row.children[0].x, app.row.children[2].x], [0, 34], "the flow strings the others as if it were absent");
+});
+
 await test("replication: surfaces mirror the reconciled order (canvas, Node-safe)", () => {
   const app = build(`App [ width=100, height=100,
     d: Dataset { {"rows": [ {"w": 1}, {"w": 2}, {"w": 3} ]} },
@@ -2584,6 +2598,21 @@ await test("auto-extent: a laid stack drives its parent's height", () => {
   app.stack.s1.height = 30;
   settle();
   assert.equal(app.stack.height, 44, "a laid child growing re-flows AND re-sizes");
+});
+
+await test("ignoreclip: exempt from the parent's auto-extent (frame chrome never defines the bounds)", () => {
+  const app = attachedExtent(`App [ width=300, height=300,
+    card: View [ x = 10, y = 10, clip = true,
+      halo: View [ ignoreclip = true, x = -6, y = -6, width = 112, height = 112 ],
+      body: View [ width = 100, height = 80 ],
+    ],
+  ]`);
+  // auto-extent counts body (100x80) only — the straddling halo would otherwise
+  // run the divergent parent-grows-halo-grows feedback the rule exists to kill.
+  // (The paint/hit exemption itself is exercised in-browser — the desktop's
+  // resize halo rides it; a canvas Path2D walk is not Node-constructible here.)
+  assert.equal(app.card.width, 100, "width from the clipped content only");
+  assert.equal(app.card.height, 80, "height from the clipped content only");
 });
 
 await test("auto-extent: contentExtent folds intrinsic content into the max", () => {
@@ -4449,30 +4478,30 @@ await test("state: a gated override applies and reverts to the base value", () =
 
 await test("state: declaration order is precedence — later-declared wins, both insert orders", () => {
   const app = build(`class Btn extends View [ width = 50, height = 20, fill = #000000,
-      hovered: boolean = false, disabled: boolean = false,
-      hover: State [ applied = { parent.hovered }, fill = #00FF00 ],
+      hot: boolean = false, disabled: boolean = false,
+      hover: State [ applied = { parent.hot }, fill = #00FF00 ],
       off:   State [ applied = { parent.disabled }, fill = #FF0000 ],
     ]
     App [ width = 100, height = 100, b: Btn [] ]`);
   const b = app.b;
   assert.equal(b.fill, 0x000000, "base");
   // lower (hover) first, then higher (off) displaces it on top
-  b.hovered = true; settle();
+  b.hot = true; settle();
   assert.equal(b.fill, 0x00ff00, "hover applied");
   b.disabled = true; settle();
   assert.equal(b.fill, 0xff0000, "off declared last wins over hover");
   b.disabled = false; settle();
   assert.equal(b.fill, 0x00ff00, "off removed — hover resumes as top");
-  b.hovered = false; settle();
+  b.hot = false; settle();
   assert.equal(b.fill, 0x000000, "both removed — base restored");
   // higher (off) first, then lower (hover) inserts BELOW it and stays dormant
   b.disabled = true; settle();
   assert.equal(b.fill, 0xff0000, "off applied");
-  b.hovered = true; settle();
+  b.hot = true; settle();
   assert.equal(b.fill, 0xff0000, "hover is lower — dormant under off, no change");
   b.disabled = false; settle();
   assert.equal(b.fill, 0x00ff00, "off removed — the dormant hover becomes top");
-  b.hovered = false; settle();
+  b.hot = false; settle();
   assert.equal(b.fill, 0x000000, "base restored");
 });
 
@@ -5151,6 +5180,104 @@ await test("subscription: `<-` does not collide with `<->` lexing", () => {
 });
 
 // ── typed bodies: TS syntax is checked, then STRIPPED for emission ───────────
+
+// ── interaction intrinsics: hovered/pressed (interaction.ts) ─────────────────
+
+await test("hovered: the hit chain — leaf and ancestors, updated by pointer writes", () => {
+  const app = build(`App [ width = 200, height = 200,
+    hb: boolean = { this.b.hovered },
+    b: View [ x = 50, y = 50, width = 60, height = 40,
+        t: Text [ x = 10, y = 10, text = "hi" ] ],
+    ]`);
+  app.hovering = true; settle();
+  assert.equal(app.hb, false, "no pointer yet");
+  app.pointerX = 60; app.pointerY = 60; settle();
+  assert.equal(app.hb, true, "chain includes b (leaf is the Text inside)");
+  app.pointerX = 5; app.pointerY = 5; settle();
+  assert.equal(app.hb, false, "moved off");
+});
+
+await test("hovered: occlusion — a covering view suppresses the chain; pointerEvents none falls through", () => {
+  const app = build(`App [ width = 200, height = 200,
+    hb: boolean = { this.b.hovered },
+    glassOn: boolean = true,
+    b: View [ x = 50, y = 50, width = 60, height = 40 ],
+    glass: View [ width = 200, height = 200, visible = { parent.glassOn } ],
+    ]`);
+  app.hovering = true; app.pointerX = 60; app.pointerY = 60; settle();
+  assert.equal(app.hb, false, "glass over b: b is not on the chain");
+  app.glass.pointerEvents = "none"; settle();
+  assert.equal(app.hb, true, "pointer-transparent glass: the walk falls through");
+  app.glass.pointerEvents = ""; app.glassOn = false; settle();
+  assert.equal(app.hb, true, "invisible glass never hits");
+});
+
+await test("pressed: down arms the chain snapshot; drag-off releases; drag-back re-arms; up clears", () => {
+  const app = build(`App [ width = 200, height = 200,
+    pb: boolean = { this.b.pressed },
+    b: View [ x = 50, y = 50, width = 60, height = 40 ],
+    ]`);
+  app.hovering = true; app.pointerX = 60; app.pointerY = 60; settle();
+  app.pointerDown = true; settle();
+  assert.equal(app.pb, true, "pressed on down over b");
+  app.pointerX = 5; settle();
+  assert.equal(app.pb, false, "dragged off — releases (platform rule)");
+  app.pointerX = 60; settle();
+  assert.equal(app.pb, true, "dragged back — re-arms");
+  app.pointerDown = false; settle();
+  assert.equal(app.pb, false, "up clears");
+});
+
+await test("hovered: geometry moving under a STATIONARY pointer re-fires (the walk's reads are deps)", () => {
+  const app = build(`App [ width = 200, height = 200,
+    hb: boolean = { this.b.hovered },
+    b: View [ x = 50, y = 50, width = 60, height = 40 ],
+    ]`);
+  app.hovering = true; app.pointerX = 60; app.pointerY = 60; settle();
+  assert.equal(app.hb, true);
+  app.b.x = 150; settle();                       // the view leaves; the pointer never moved
+  assert.equal(app.hb, false, "the chain re-derived from the geometry change alone");
+  app.b.x = 50; settle();
+  assert.equal(app.hb, true, "and back");
+});
+
+await test("interaction on touch: no hover, but pressed works while down", () => {
+  const app = build(`App [ width = 200, height = 200,
+    hb: boolean = { this.b.hovered },
+    pb: boolean = { this.b.pressed },
+    b: View [ x = 50, y = 50, width = 60, height = 40 ],
+    ]`);
+  app.hovering = false;                           // a touch has no hover
+  app.pointerX = 60; app.pointerY = 60; settle();
+  assert.equal(app.hb, false, "no hover on touch");
+  app.pointerDown = true; settle();
+  assert.equal(app.pb, true, "touch press holds");
+  app.pointerDown = false; settle();
+  assert.equal(app.pb, false);
+});
+
+await test("hovered: an ignoreclip child hits OUTSIDE its clipping parent's box (the resize-halo shape)", () => {
+  const app = build(`App [ width = 200, height = 200,
+    hh: boolean = { this.win.halo.hovered },
+    hw: boolean = { this.win.hovered },
+    win: View [ x = 50, y = 50, width = 60, height = 40, clip = true,
+        halo: View [ ignoreclip = true, x = -10, y = -10, width = 80, height = 60 ] ],
+    ]`);
+  app.hovering = true;
+  app.pointerX = 45; app.pointerY = 45; settle();   // outside win's box, inside the halo's reach
+  assert.equal(app.hh, true, "the opted-out chrome still hits beyond the clip");
+  assert.equal(app.hw, true, "its parent is on the chain");
+  app.pointerX = 30; app.pointerY = 30; settle();   // outside both
+  assert.equal(app.hh, false);
+});
+
+await test("hovered/pressed are read-only intrinsics: declaring or setting one is refused", () => {
+  const decl = compile(`App [ width = 1, height = 1, v: View [ hovered: boolean = false ] ]`, {});
+  assert.equal(decl.source, null);
+  assert.match(decl.errors.map((e) => e.message).join("\n"), /built-in read-only intrinsic/);
+  const set = compile(`App [ width = 1, height = 1, v: View [ pressed = true ] ]`, {});
+  assert.equal(set.source, null, "a set is refused too");
+});
 
 await test("typed bodies: `as` casts typecheck, are stripped from the emitted source, and run", () => {
   const src = `class G extends View [ value: string = "", pick(v) { this.value = v } ]

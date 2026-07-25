@@ -19,8 +19,8 @@ class Button extends Control [
     press()   { flashPress(); onClick() },     // keyboard activation shows the press
 
     width   = { this.cap.width + 32 },
-    opacity = { disabled ? 0.45 : pressed ? 0.72 : 1 },
-    fill    = { primary ? theme.accent : pressed || hovered ? theme.controlActive : theme.control },
+    opacity = { disabled ? 0.45 : down ? 0.72 : 1 },
+    fill    = { primary ? theme.accent : down || hot ? theme.controlActive : theme.control },
 
     // platforms whose secondary buttons are BORDERED say so in the theme
     // (Cupertino's hairline, Fluent's 1px) — flat systems leave it null

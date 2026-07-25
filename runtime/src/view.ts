@@ -26,6 +26,7 @@ export function provideViewCreator(fn: ViewCreator): void {
 }
 import { record, type Draw, type DisplayList } from "./draw.js";
 import { Constraint } from "./reactive.js";
+import { initInteraction, readHovered, readPressed, type InteractionView } from "./interaction.js";
 import { bindDerived, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned } from "./attributes.js";
 import { handlerName } from "./schema.js";
 import { splitPath } from "./datapath.js";
@@ -103,6 +104,13 @@ export class View extends Node {
   declare shadow: Shadow | null;
   declare visible: boolean;
   declare opacity: number;
+  /** Opt out of the parent's LAYOUT (this child owns its own position; the
+   *  arrangement skips it) — the decoration/overlay case. */
+  declare ignorelayout: boolean;
+  /** Opt out of the parent's CLIP (outside the parent's frame this child
+   *  still paints and still hits) and of its auto-extent — frame chrome that
+   *  straddles the frame. Parent-scoped: ancestors' clips still apply. */
+  declare ignoreclip: boolean;
   /** The pointer cursor while over this view (a CSS cursor keyword —
    *  "ew-resize", "col-resize", "pointer", …; "" = inherit). Meaningful on
    *  views that take input: the sink is the hit target on both backends. */
@@ -353,6 +361,7 @@ export class View extends Node {
     let max = this.contentExtent(size);
     for (const c of this.children) {
       if (!(c instanceof View) || !c.visible) continue;
+      if (c.ignoreclip) continue; // frame chrome: derives from the bounds, never defines them
       if (percentOwned(c, axis) || percentOwned(c, size)) continue;
       const extent = c[axis] + c[size];
       if (extent > max) max = extent;
@@ -370,6 +379,17 @@ export class View extends Node {
    *  live, and independent of this view's own width/height. */
   get contentWidth(): number { return this.extentOf("width"); }
   get contentHeight(): number { return this.extentOf("height"); }
+
+  /** Pointer-interaction intrinsics (interaction.ts): `hovered` is true while
+   *  this view is on the live hit chain — the topmost visible view under the
+   *  pointer and its ancestors, occlusion-correct, false on touch; `pressed`
+   *  while it is on the chain captured at pointer-down (a mouse press releases
+   *  dragged off, re-arms dragged back; a touch press holds while down).
+   *  Read-only reactive intrinsics like `contentWidth` (schema readOnly — a
+   *  set is a compile error); reading one from a constraint subscribes it.
+   *  Pay-per-use: a program that never reads them allocates nothing. */
+  get hovered(): boolean { return readHovered(this); }
+  get pressed(): boolean { return readPressed(this); }
 
   /** The default focus-traversal members of this view: its visible View
    *  children in source order (docs/system-design/input.md, Layer 2). The focus
@@ -445,7 +465,9 @@ export class View extends Node {
     if (this.shadow !== null) s.setShadow(this.shadow);
     s.setVisible(this.visible);
     s.setOpacity(this.opacity);
+    if (this.ignoreclip) s.setIgnoreClip?.(true);
     if (this.cursor !== "") s.setCursor(this.cursor);
+    if (this.pointerEvents !== "") s.setPointerEvents(this.pointerEvents);
     if (this.scale !== 1 || this.pivotX !== 0 || this.pivotY !== 0)
       s.setScale(this.scale, this.pivotX, this.pivotY);
     this.applyClip(this.clip);
@@ -566,6 +588,8 @@ defineAttributes(View, {
   stroke: { def: null, push: (v, st) => v.surface?.setStroke(st), equal: strokeEqual },
   shadow: { def: null, push: (v, sh) => v.surface?.setShadow(sh), equal: shadowEqual },
   visible: { def: true, push: (v, b) => v.surface?.setVisible(b) },
+  ignorelayout: { def: false, push: (v) => { const p = v.parent; if (p instanceof View) p.childrenMutated(); } },
+  ignoreclip: { def: false, push: (v, b: boolean) => v.surface?.setIgnoreClip?.(b) },
   opacity: { def: 1, push: (v, o) => v.surface?.setOpacity(o) },
   cursor: { def: "", push: (v, c: string) => v.surface?.setCursor(c) },
   pointerEvents: { def: "", push: (v, c: string) => v.surface?.setPointerEvents(c) },
@@ -714,6 +738,10 @@ export class App extends View {
   declare pointerX: number;
   declare pointerY: number;
   declare hovering: boolean;
+  /** True while a pointer (mouse button or touch) is down anywhere in the app —
+   *  the press half of the interaction intrinsics (interaction.ts); fed at mount
+   *  like the pointer coordinates. Read-only to user code. */
+  declare pointerDown: boolean;
   /** True while the free pointer is over a native text-editing surface (a text
    *  input / textarea / contenteditable — e.g. an editable HTML island). A
    *  custom app cursor reads it to YIELD to the I-beam over a text field:
@@ -873,6 +901,10 @@ export class App extends View {
 
 // One shared, frozen empty record for every top-level app's `env` — safe to
 // share because hosts REPLACE the record wholesale, never mutate it.
+// The interaction module's injected instance test (cycle-free, stylesheet.ts's
+// discipline): interaction.ts types views structurally; this is the one brand check.
+initInteraction((n): n is InteractionView => n instanceof View);
+
 const EMPTY_ENV: Record<string, unknown> = Object.freeze({});
 
 defineAttributes(App, {
@@ -884,6 +916,7 @@ defineAttributes(App, {
   hostHeight: { def: 0 },
   scrollY: { def: 0 },
   pointerX: { def: 0 },
+  pointerDown: { def: false },
   pointerY: { def: 0 },
   hovering: { def: false },
   pointerOverText: { def: false },

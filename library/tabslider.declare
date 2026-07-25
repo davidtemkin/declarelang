@@ -63,7 +63,7 @@ class Tab extends Control [ width = { parent.width }, clip = true,
 
     header: View [ width = { parent.width }, height = 34,
         cornerRadius = { theme.controlRadius },
-        fill = { classroot.open || classroot.hovered || classroot.pressed ? theme.controlActive : theme.control },
+        fill = { classroot.open || classroot.hot || classroot.down ? theme.controlActive : theme.control },
         stroke = { classroot.focusVisible ? stroke(1, theme.textMuted) : null },
         t: Text [ x = 12, y = center, fontSize = 14, fontWeight = { classroot.open ? "semibold" : "medium" },
             textColor = { theme.text }, text = { classroot.label } ],

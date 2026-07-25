@@ -65,6 +65,33 @@ function applyEditScheme(el: HTMLElement, fill: Fill): void {
  *  stateless; a WeakMap adds no lifetime. */
 const SINKS = new WeakMap<HTMLElement, InputSink>();
 
+/** Surfaces that carry BOTH a Shape clip and a sink. The browser must never
+ *  see such an element as a pointer target: a clip-path'd hittable overlay
+ *  blocks native wheel scrolling and selection UNDERNEATH it — across the
+ *  whole element box, even where the clip cuts the overlay away (the engines'
+ *  scroll targeting consults a coarser notion of hittability than their
+ *  hit-testing). So a carved sink is realized CSS-inert (pointer-events:none)
+ *  and the router resolves its hits HERE, by the same isPointInPath
+ *  subtraction the canvas walk makes — the clip's promise ("the clipped-away
+ *  part of an interactive box falls through") kept by the runtime instead of
+ *  leaked to the app. Iterated per event, so a plain Map (destroy() removes). */
+const CARVED = new Map<HTMLElement, DomSurface>();
+
+/** Shared 2D context for Path2D point tests (the canvas backend's hitCtx twin). */
+let carveCtx: CanvasRenderingContext2D | null = null;
+function carveHitCtx(): CanvasRenderingContext2D {
+  return (carveCtx ??= document.createElement("canvas").getContext("2d")!);
+}
+
+/** Is `a` painted above `b`? Our surfaces are untransformed absolutes in one
+ *  stacking context, so paint order IS document order — and a descendant
+ *  paints above its ancestor, which PRECEDING also answers (an ancestor's
+ *  opening tag precedes its descendants). Mirrors the canvas walk's
+ *  reverse-child-order probing. */
+function paintedAbove(a: HTMLElement, b: HTMLElement): boolean {
+  return (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_PRECEDING) !== 0;
+}
+
 export class DomBackend implements RenderBackend {
   createSurface(): Surface {
     return new DomSurface();
@@ -162,6 +189,16 @@ export class DomBackend implements RenderBackend {
           if (SINKS.has(el)) break;
           el = el === rootEl ? null : el.parentElement;
         }
+        // Carved sinks are invisible to the browser's hit-test (CSS-inert, see
+        // CARVED) — probe them here and let the topmost carved region beat a
+        // native candidate it paints above. The same walk order as canvas.
+        for (const [cel, surf] of CARVED) {
+          if (cel === el || !rootEl.contains(cel)) continue;
+          const owner = cel.closest("[data-declare-app]");
+          if (owner !== rootEl && owner !== null) continue; // an embedded app's — its own router resolves it
+          if (!surf.carvedHit(e.clientX, e.clientY)) continue;
+          if (el === null || paintedAbove(cel, el)) el = cel;
+        }
         if (el === null) return null;
         const r = el.getBoundingClientRect();
         return { key: el, sink: SINKS.get(el)!, x: e.clientX - r.left, y: e.clientY - r.top };
@@ -234,6 +271,31 @@ function ensureEmbeddedNameMirror(): void {
   if (embedMirrorFrame !== 0 || typeof requestAnimationFrame === "undefined" || typeof document === "undefined") return;
   const tick = (): void => { embedMirrorFrame = reflectEmbeddedNames() ? requestAnimationFrame(tick) : 0; };
   embedMirrorFrame = requestAnimationFrame(tick);
+}
+
+/** Materialize the inner clip container for a box-clipped element: adopt the
+ *  ordinary children (in order), inherit the rounding, move the overflow. Used
+ *  from BOTH sides of the arrival race — the parent's setBoxClip/insertChild
+ *  and a child's late-flushed setIgnoreClip. Idempotent. */
+function ensureClipBoxFor(el: HTMLElement): HTMLElement {
+  const existing = el.querySelector(":scope > [data-declare-clipbox]") as HTMLElement | null;
+  if (existing !== null) return existing;
+  const box = el.ownerDocument.createElement("div");
+  box.style.position = "absolute";
+  box.style.inset = "0";
+  box.style.borderRadius = "inherit";
+  box.dataset.declareClipbox = "1";
+  box.style.overflow = el.style.overflow || "clip";
+  el.style.overflow = "";
+  const kids = Array.from(el.children) as HTMLElement[];
+  let anchor: HTMLElement | null = null;
+  for (const k of kids) {
+    if (k.dataset.declareIgnoreclip === "1") continue;
+    if (anchor === null) { el.insertBefore(box, k); anchor = k; }
+    box.appendChild(k);
+  }
+  if (anchor === null) el.appendChild(box);
+  return box;
 }
 
 class DomSurface implements Surface {
@@ -379,7 +441,14 @@ class DomSurface implements Surface {
   setVisible(v: boolean): void { this.element.style.display = v ? "" : "none"; }
 
   setCursor(c: string): void { this.element.style.cursor = c; }
-  setPointerEvents(m: string): void { this.element.style.pointerEvents = m; }
+
+  // The authored pointerEvents attr OVERRIDES the sink-driven default (setInput
+  // flips auto/none by sink presence; an explicit value must survive that).
+  private peOverride = "";
+  setPointerEvents(m: string): void {
+    this.peOverride = m;
+    this.updateCarved();
+  }
 
   setOpacity(o: number): void {
     this.element.style.opacity = String(o);
@@ -407,11 +476,76 @@ class DomSurface implements Surface {
   setClip(d: string | null): void {
     // clip-path clips native hit-testing along with the pixels, so the
     // clipped-away part of an interactive box falls through — the same
-    // subtraction the canvas walk's isPointInPath makes.
+    // subtraction the canvas walk's isPointInPath makes. (For a clipped SINK
+    // that promise needs help: see CARVED above and updateCarved below.)
     this.element.style.clipPath = d === null ? "" : `path("${d}")`;
+    this.clipData = d;
+    this.clipObj = null;
+    this.updateCarved();
+  }
+
+  /** The Shape clip's path data / lazily-built Path2D (carved-hit testing). */
+  private clipData: string | null = null;
+  private clipObj: Path2D | null = null;
+
+  /** Reconcile carved-sink state (see CARVED): membership, and the element's
+   *  effective pointer-events — authored override > carved-inert > sink default. */
+  private updateCarved(): void {
+    const el = this.element;
+    if (this.clipData !== null && SINKS.has(el)) CARVED.set(el, this);
+    else CARVED.delete(el);
+    el.style.pointerEvents =
+      this.peOverride !== "" ? this.peOverride : CARVED.has(el) ? "none" : SINKS.has(el) ? "auto" : "none";
+  }
+
+  /** Does the viewport point fall in this carved sink's clipped region?
+   *  Local coords unwind a uniform scale (rect vs layout box ratio), then the
+   *  Path2D answers with the canvas walk's default nonzero rule. */
+  carvedHit(cx: number, cy: number): boolean {
+    const el = this.element;
+    if (!el.isConnected) return false;
+    const r = el.getBoundingClientRect();
+    if (r.width <= 0 || cx < r.left || cx >= r.right || cy < r.top || cy >= r.bottom) return false;
+    if (getComputedStyle(el).visibility === "hidden") return false; // the opacity-0 input prune
+    const k = el.offsetWidth > 0 ? r.width / el.offsetWidth : 1;
+    this.clipObj ??= new Path2D(this.clipData!);
+    return carveHitCtx().isPointInPath(this.clipObj, (cx - r.left) / k, (cy - r.top) / k);
+  }
+
+  /** True when this surface opts out of its parent's box-clip (ignoreclip). */
+  ignoresClip = false;
+  /** The lazy inner clip container (see setBoxClip), discovered BY SELECTOR so
+   *  either side of the seam can find or materialize it — the parent (a clip
+   *  arriving over exempt children) or the child (ignoreclip flushed after the
+   *  insert). Every ordinary child lives inside it, the exempt ones stay on
+   *  the outer element, and the outer keeps ALL decoration exactly as before
+   *  (radius rounds paint; the box-shadow silhouette is the outer's).
+   *  Pay-per-use: an app that never writes ignoreclip keeps today's
+   *  single-element realization untouched. */
+  private get clipBox(): HTMLElement | null {
+    return this.element.querySelector(":scope > [data-declare-clipbox]");
+  }
+
+  setIgnoreClip(on: boolean): void {
+    this.ignoresClip = on;
+    const el = this.element;
+    if (on) {
+      el.dataset.declareIgnoreclip = "1";
+      const p = el.parentElement;
+      if (p !== null) {
+        // adopted into a clip box before the flag flushed? hoist to the outer
+        if (p.dataset.declareClipbox === "1" && p.parentElement !== null) p.parentElement.appendChild(el);
+        // parent still single-element box-clipped? materialize its partition now
+        else if (p.style.overflow === "clip") ensureClipBoxFor(p);
+      }
+    } else if (el.dataset.declareIgnoreclip) {
+      delete el.dataset.declareIgnoreclip;
+    }
   }
 
   setBoxClip(on: boolean): void {
+    // clip arriving AFTER an exempt child was inserted: materialize the box now
+    if (on && this.clipBox === null && this.element.querySelector(":scope > [data-declare-ignoreclip]") !== null) ensureClipBoxFor(this.element);
     // The box-clip is CONTAINMENT, not just paint (backend.ts): `overflow:
     // clip` clips pixels AND hit-testing to the box (rounded — it follows
     // border-radius), makes the element a non-scroll-container that no
@@ -421,7 +555,8 @@ class DomSurface implements Surface {
     // App frame) can never grow the document a scroll extent. `clip`, not
     // `hidden`: a hidden box is still a scroll container. The box tracks
     // automatically — no per-resize re-derive.
-    this.element.style.overflow = on ? "clip" : "";
+    if (this.clipBox !== null) this.clipBox.style.overflow = on ? "clip" : "";
+    else this.element.style.overflow = on ? "clip" : "";
   }
 
   scrollIntoView(align: "start" | "nearest" = "start", smooth = false): void {
@@ -657,13 +792,9 @@ class DomSurface implements Surface {
   }
 
   setInput(sink: InputSink | null): void {
-    if (sink !== null) {
-      SINKS.set(this.element, sink);
-      this.element.style.pointerEvents = "auto";
-    } else {
-      SINKS.delete(this.element);
-      this.element.style.pointerEvents = "none";
-    }
+    if (sink !== null) SINKS.set(this.element, sink);
+    else SINKS.delete(this.element);
+    this.updateCarved();
   }
 
   setEditable(spec: EditableSpec | null): void {
@@ -909,7 +1040,18 @@ class DomSurface implements Surface {
     const scrollers: HTMLElement[] = el.dataset.declareScroll ? [el] : [];
     el.querySelectorAll<HTMLElement>("[data-declare-scroll]").forEach((s) => scrollers.push(s));
     const saved = scrollers.map((s) => [s, s.scrollLeft, s.scrollTop] as const);
-    this.element.insertBefore(el, before === null ? null : (before as DomSurface).element);
+    // An ignoreclip child stays on the OUTER element (marked so ensureClipBox
+    // never adopts it); ordinary children live in the clip box once one exists.
+    // `before` may live in the other container — then fall back to append (the
+    // partition quantizes cross-container order: exempt children stack below or
+    // above the clipped set by which side of it they were declared on).
+    const exempt = (child as DomSurface).ignoresClip;
+    if (exempt) el.dataset.declareIgnoreclip = "1";
+    else if (el.dataset.declareIgnoreclip) delete el.dataset.declareIgnoreclip;
+    if (exempt && this.clipBox === null && this.element.style.overflow === "clip") ensureClipBoxFor(this.element);
+    const target = exempt ? this.element : (this.clipBox ?? this.element);
+    const beforeEl = before === null ? null : (before as DomSurface).element;
+    target.insertBefore(el, beforeEl !== null && beforeEl.parentElement === target ? beforeEl : null);
     for (const [s, l, t] of saved) { if (s.scrollLeft !== l) s.scrollLeft = l; if (s.scrollTop !== t) s.scrollTop = t; }
   }
 
@@ -917,6 +1059,7 @@ class DomSurface implements Surface {
     this.gone = true; // quiets any armed dpr listener
     this.richObserver?.disconnect();
     this.onRichResize = undefined;
+    CARVED.delete(this.element);
     this.element.remove();
   }
 }

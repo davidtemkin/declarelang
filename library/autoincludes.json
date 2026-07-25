@@ -35,8 +35,8 @@
   "MenuBar": "menubar.declare",
   "Dialog": "dialog.declare",
   "AppIsland": "appisland.declare",
-  "Spacer": "spacer.declare",
-  "ResponsiveLayout": "responsive.declare",
   "SimpleLayout": "simplelayout.declare",
-  "WrappingLayout": "wrappinglayout.declare"
+  "WrappingLayout": "wrappinglayout.declare",
+  "ResponsiveLayout": "responsive.declare",
+  "Spacer": "spacer.declare"
 }

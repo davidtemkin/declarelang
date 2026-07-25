@@ -48,7 +48,7 @@ Every window on the desktop is one of these. `Window` carries all of the
 chrome — the shadow, the resize edges and corners, and the shade / zoom /
 minimize behaviors — and each subclass (Files, Viewer, AppWindow, About,
 Jot) supplies only its contents. Geometry the class shares is named
-once (`barH`, `minW`, `grab`, `corner`…) so no derived position below
+once (`barH`, `minW`, `gutter`, `corner`…) so no derived position below
 carries a bare number.
 
 Two motions drive most of the class. **Open and close** run `baseScale`
@@ -80,7 +80,12 @@ class Window extends View [ width = 560, height = 400, clip = true,
     barH: number = 35,                           // title-bar height; content starts below it
     minW: number = 340,                          // resize floors
     minH: number = 120,
-    grab: number = 8,                            // edge strip thickness (grabbable band)
+    gutter: number = 6,                          // the resize halo's reach OUTSIDE the frame (ignoreclip)
+    inset: number = 3,                           // …and INSIDE it — the measured macOS band: ±3px on the
+
+    //   frame line, the window winning over content (scrollbars
+    //   included) in those inner px — observed live on Sequoia
+
     corner: number = 16,                         // corner strip size (wins over the edges)
 
     // a plain window (an About box) is close-to-dismiss only: no resize, no
@@ -234,11 +239,9 @@ class Window extends View [ width = 560, height = 400, clip = true,
     // override onInit call raiseChrome() themselves.
 
     raiseChrome() {
-        this.edgeL.raise()
-        this.edgeR.raise()
-        this.edgeB.raise()
-        this.cornerBL.raise()
-        this.grip.raise()
+        this.halo.raise()                        // above all content: the inner `inset` px of the band beat
+                                                 // panes and scrollbars (the measured macOS rule); the ring
+                                                 // clip keeps the interior transparent to the pointer
         this.veil.raise()                        // topmost of all — a background window's first-click catcher
         },
 
@@ -264,6 +267,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
         },
 
     wl0: number = 0,                             // window x at size start (left-edge modes)
+    wt0: number = 0,                             // window y at size start (top-edge modes)
 
     beginSize(mode) {
         if (plain) return
@@ -274,10 +278,13 @@ class Window extends View [ width = 560, height = 400, clip = true,
         wx0 = this.width
         wh0 = this.height
         wl0 = this.wx
+        wt0 = this.wy
         },
 
-    // The grabbable set composes into "l" | "r" | "b" | "lb" | "rb". A left-edge
-    // drag keeps the right edge fixed, so x follows the width.
+    // The grabbable set composes into "l" | "r" | "t" | "b" and the four
+    // corners ("lt" | "rt" | "lb" | "rb"). A left-edge drag keeps the right
+    // edge fixed, so x follows the width; a top-edge drag keeps the bottom
+    // fixed, so y follows the height.
 
     moveSize() {
         if (sizeMode == "") return
@@ -290,6 +297,11 @@ class Window extends View [ width = 560, height = 400, clip = true,
             this.width = w
             }
         if (sizeMode.indexOf("b") >= 0) this.height = Math.max(minH, wh0 + dy)
+        if (sizeMode.indexOf("t") >= 0) {
+            const h = Math.max(minH, wh0 - dy)
+            this.wy = Math.max(0, wt0 + (wh0 - h))
+            this.height = h
+            }
         },
 
     lightsHover: boolean = false,
@@ -360,44 +372,88 @@ class Window extends View [ width = 560, height = 400, clip = true,
         sep: View [ x = 0, y = { classroot.barH - 1 }, width = { parent.width }, height = 1, fill = { theme.line } ],
         ],
 
-    // Resize strips on every edge and corner except the top (the title bar owns
-    // that): the left and right edges, the bottom edge, and the two bottom
-    // corners, each with its own resize cursor. Three cursor shapes — ↔ for a
-    // vertical edge, ↕ for the bottom, and the diagonals for the corners. A
-    // corner overlaps the ends of its edges and wins the hit-test.
+    // THE RESIZE HALO — one ignoreclip child instead of eight strips: a ring
+    // OUTSIDE the frame (the window clips; the halo opts out), raised above
+    // all content by raiseChrome so the band wins everywhere it exists — and
+    // ONLY there: the ring clip makes the whole interior hit-transparent, so
+    // a scrollbar keeps its entire lane (the conflict the old inner strips
+    // could only thin, dissolved). Zones and cursors are arithmetic on the
+    // pointer; a corner is the last `corner` px of a band.
 
-    edgeL: View [ x = 0, y = { classroot.barH }, width = { classroot.grab }, visible = { !classroot.plain && !classroot.shaded },
-        height = { parent.height - classroot.barH - classroot.corner }, cursor = "ew-resize",
-        onMouseDown() { classroot.beginSize("l") },
-        onMouseMove() { classroot.moveSize() },
-        onMouseUp()   { classroot.sizeMode = "" },
-        ],
-    edgeR: View [ x = { parent.width - classroot.grab }, y = { classroot.barH }, width = { classroot.grab }, visible = { !classroot.plain && !classroot.shaded },
-        height = { parent.height - classroot.barH - classroot.corner }, cursor = "ew-resize",
-        onMouseDown() { classroot.beginSize("r") },
-        onMouseMove() { classroot.moveSize() },
-        onMouseUp()   { classroot.sizeMode = "" },
-        ],
-    edgeB: View [ x = { classroot.corner }, y = { parent.height - classroot.grab }, visible = { !classroot.plain && !classroot.shaded },
-        width = { parent.width - 2 * classroot.corner }, height = { classroot.grab }, cursor = "ns-resize",
-        onMouseDown() { classroot.beginSize("b") },
-        onMouseMove() { classroot.moveSize() },
-        onMouseUp()   { classroot.sizeMode = "" },
-        ],
-    cornerBL: View [ x = 0, y = { parent.height - classroot.corner }, visible = { !classroot.plain && !classroot.shaded },
-        width = { classroot.corner }, height = { classroot.corner }, cursor = "nesw-resize",
-        onMouseDown() { classroot.beginSize("lb") },
-        onMouseMove() { classroot.moveSize() },
-        onMouseUp()   { classroot.sizeMode = "" },
+    halo: View [ ignoreclip = true, visible = { !classroot.plain && !classroot.shaded },
+        x = { -classroot.gutter }, y = { -classroot.gutter },
+        width = { parent.width + 2 * classroot.gutter }, height = { parent.height + 2 * classroot.gutter },
+
+        // the halo's own clip is a RING (outer rect wound one way, inner the
+        // other — nonzero rule keeps the band): a Shape clip cuts hit-testing
+        // with the pixels on both backends, so everything deeper than the band
+        // is genuinely transparent to the pointer whatever the stacking. The
+        // inner cut sits `inset` px INSIDE the frame — the measured macOS ±band
+        // — and is ROUNDED to the window's radius, so the corner void answers
+        // the diagonal exactly like the real thing.
+
+        clip = { this.ring(classroot.gutter, classroot.inset, classroot.baseRadius, this.width, this.height) },
+        ring(g, n, r0, w, h) {
+            // outer rect clockwise, inner rounded rect COUNTER-clockwise — the
+            // opposed windings are what makes nonzero fill keep only the band
+            const i = g + n
+            const r = Math.max(2, r0 - 1)
+            const x1 = w - i
+            const y1 = h - i
+            return "M0 0 H" + w + " V" + h + " H0 Z"
+                 + " M" + i + " " + (i + r)
+                 + " V" + (y1 - r)
+                 + " A" + r + " " + r + " 0 0 0 " + (i + r) + " " + y1
+                 + " H" + (x1 - r)
+                 + " A" + r + " " + r + " 0 0 0 " + x1 + " " + (y1 - r)
+                 + " V" + (i + r)
+                 + " A" + r + " " + r + " 0 0 0 " + (x1 - r) + " " + i
+                 + " H" + (i + r)
+                 + " A" + r + " " + r + " 0 0 0 " + i + " " + (i + r)
+                 + " Z"
+            },
+        zone(px, py) {
+            const g = classroot.gutter + classroot.inset
+            const c = classroot.corner
+            const w = this.width
+            const h = this.height
+            const inL = px < g
+            const inR = px >= w - g
+            const inT = py < g
+            const inB = py >= h - g
+            if (!inL && !inR && !inT && !inB) return ""
+            let hz = inL ? "l" : inR ? "r" : (px < g + c ? "l" : px >= w - g - c ? "r" : "")
+            let vz = inT ? "t" : inB ? "b" : (py < g + c ? "t" : py >= h - g - c ? "b" : "")
+            if ((inL || inR) && !(py < g + c || py >= h - g - c)) vz = ""
+            if ((inT || inB) && !(px < g + c || px >= w - g - c)) hz = ""
+            return hz + vz
+            },
+        onMouseMove() { if (classroot.sizeMode != "") classroot.moveSize() },
+        onMouseDown(e) { const z = this.zone(e.x, e.y); if (z != "") classroot.beginSize(z) },
+        onMouseUp() { classroot.sizeMode = "" },
+
+        // STATIC per-zone cursors: sinkless children of the band (WebKit will
+        // not refresh a dynamically-set cursor mid-hover, so the shapes are
+        // fixed CSS on fixed regions — hits pass through to the halo's sink).
+        // Corners first (they overlap the edge ends and, later in tree order,
+        // would cover them — here order is irrelevant since all are sinkless
+        // and cursor comes from the deepest element under the pointer).
+
+        cl: View [ x = 0, y = { classroot.corner }, width = { classroot.gutter + classroot.inset }, height = { parent.height - 2 * classroot.corner }, pointerEvents = "auto", cursor = "ew-resize" ],
+        cr: View [ x = { parent.width - classroot.gutter - classroot.inset }, y = { classroot.corner }, width = { classroot.gutter + classroot.inset }, height = { parent.height - 2 * classroot.corner }, pointerEvents = "auto", cursor = "ew-resize" ],
+        ct: View [ x = { classroot.corner }, y = 0, width = { parent.width - 2 * classroot.corner }, height = { classroot.gutter + classroot.inset }, pointerEvents = "auto", cursor = "ns-resize" ],
+        cb: View [ x = { classroot.corner }, y = { parent.height - classroot.gutter - classroot.inset }, width = { parent.width - 2 * classroot.corner }, height = { classroot.gutter + classroot.inset }, pointerEvents = "auto", cursor = "ns-resize" ],
+        ktl: View [ x = 0, y = 0, width = { classroot.corner }, height = { classroot.corner }, pointerEvents = "auto", cursor = "nwse-resize" ],
+        kbr: View [ x = { parent.width - classroot.corner }, y = { parent.height - classroot.corner }, width = { classroot.corner }, height = { classroot.corner }, pointerEvents = "auto", cursor = "nwse-resize" ],
+        ktr: View [ x = { parent.width - classroot.corner }, y = 0, width = { classroot.corner }, height = { classroot.corner }, pointerEvents = "auto", cursor = "nesw-resize" ],
+        kbl: View [ x = 0, y = { parent.height - classroot.corner }, width = { classroot.corner }, height = { classroot.corner }, pointerEvents = "auto", cursor = "nesw-resize" ],
         ],
 
-    // The bottom-right corner also draws a small grip affordance.
+    // The bottom-right corner keeps its small grip AFFORDANCE (art only — the
+    // halo owns the interaction, from outside the frame).
 
     grip: View [ x = { parent.width - classroot.corner }, y = { parent.height - classroot.corner }, visible = { !classroot.plain && !classroot.shaded },
-        width = { classroot.corner }, height = { classroot.corner }, cursor = "nwse-resize",
-        onMouseDown() { classroot.beginSize("rb") },
-        onMouseMove() { classroot.moveSize() },
-        onMouseUp()   { classroot.sizeMode = "" },
+        width = { classroot.corner }, height = { classroot.corner },
         draw(d) {
             if (!classroot.chrome) return            // custom chrome resizes here too, but unmarked
             d.strokeStyle = theme.textFaint
@@ -1170,7 +1226,6 @@ class MiniTile extends View [
     visible = { this.on },
     lbl: string = { this.on ? "" + app.miniRecs[this.ix].label : "" },
     kind: string = { this.on ? "" + app.miniRecs[this.ix].kind : "" },
-    hovered: boolean = false,
 
     // geometry straight from the mini layout (the same entries the parked
     // window reads), translated into the minis section's local space
@@ -1183,9 +1238,6 @@ class MiniTile extends View [
     width = { this.slotW },
     height = { this.slotH },   // the thumbnail's aspect height (not icon-square), so the badge lands on the thumbnail's own corner
     y = { parent.height - 13.5 - 30.5 * this.waveMag - this.height / 2 },   // scales around the badge baseline (grows upward on rollover); at rest this is the plate center
-
-    onMouseOver() { hovered = true },
-    onMouseOut()  { hovered = false },
     onClick() { app.restoreMiniAt(this.ix) },
 
     // the app-icon badge — on the tile (the dock layer, above the plate's
@@ -1226,8 +1278,6 @@ class MiniTile extends View [
             : classroot.kind == "declareviewer" ? 0x12A594
             : classroot.kind == "calendar" ? 0xEFEFF2
             : classroot.kind == "jots" ? 0xF3E27E : 0x1D6FD1 },
-        onMouseOver() { classroot.hovered = true },
-        onMouseOut()  { classroot.hovered = false },
         onClick() { app.restoreMiniAt(classroot.ix) },
         ],
 
@@ -1237,7 +1287,7 @@ class MiniTile extends View [
 
     pill: View [ visible = { hovered },
         width = { this.t.width + 26 }, height = 33,
-        x = { (parent.width - this.width) / 2 },
+        x = center,
         y = { parent.height / 2 - 102 },   // pinned to the shared pill baseline (~62px above the plate top), same Y as the app-icon pills
         bodyH: number = 22,
         draw(d) { app.drawPill(d, this.width, this.bodyH, app.darkMode) },
@@ -1270,7 +1320,6 @@ class DockIcon extends View [
     gsize: number = 0.42,                        //   … at this fraction of the plate (wide marks set less)
     kind: string = "",                           // … or drawn art: calendar | notes | mail | terminal | pencil | jots
     running: boolean = false,
-    hovered: boolean = false,
 
     // shared geometry — one place for the numbers the constraints below share
 
@@ -1329,10 +1378,6 @@ class DockIcon extends View [
         ],
 
     poke() { this.bounce.start() },
-
-    onMouseOver() { hovered = true },
-    onMouseOut()  { hovered = false },
-
     plate: View [ x = 0, y = 0, width = { classroot.face }, height = { classroot.face },
         // Paint-only magnification: the face is drawn once at `face`px and the
         // GPU scales it (about the top-left, so it fills the bottom-anchored box)
@@ -1431,7 +1476,7 @@ class DockIcon extends View [
 
     pill: View [ visible = { hovered },
         width = { this.t.width + 26 }, height = 33,
-        x = { (parent.width - this.width) / 2 },
+        x = center,
         y = { parent.height - 130 },   // pinned to the shared pill baseline, so it lands right at any magnification
         bodyH: number = 22,
         draw(d) { app.drawPill(d, this.width, this.bodyH, app.darkMode) },
@@ -1582,7 +1627,7 @@ App [ clip = true, appName = "Declare Desktop",
             d.beginPath()
             d.moveTo(35.7, 27.3); d.lineTo(29.3, 33.7); d.lineTo(39.5, 37.5)
             d.closePath(); d.fill()
-            d.strokeStyle = hue1 != null ? hue1 : 0xFFFFFF   // hue is always supplied; the guard just narrows the nullable Color param
+            d.strokeStyle = hue1!   // hue is always supplied; the ! narrows the nullable Color param
             d.lineWidth = 1.6
             d.beginPath()
             d.moveTo(11.4, 15.7); d.lineTo(17.7, 9.4)
@@ -2610,7 +2655,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
             // The panel sits slightly above center — the top gap is about a
             // third of the empty vertical space, never dead-center.
 
-            x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 3 },
+            x = center, y = { (parent.height - this.height) / 3 },
             cornerRadius = 20,
             fill = { theme.menuMaterial != null ? theme.menuMaterial : theme.surface },
             stroke = stroke(1, #FFFFFF80),

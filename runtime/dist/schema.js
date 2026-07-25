@@ -38,9 +38,24 @@ const ViewSchema = {
         height: { kind: "length" },
         fill: { kind: "fill" },
         cornerRadius: { kind: "number" },
+        // pointer-interaction intrinsics (interaction.ts) — read-only (readOnly below):
+        // on the live hit chain (hovered) / on the chain captured at pointer-down (pressed)
+        hovered: { kind: "boolean" },
+        pressed: { kind: "boolean" },
         stroke: { kind: "stroke" },
         shadow: { kind: "shadow" },
         visible: { kind: "boolean" },
+        // The two parent-regime OPT-OUTS, declared on the child (one family):
+        // `ignorelayout` — this child is not arranged by the parent's layout (a
+        // decoration/overlay owns its own position, both axes); `ignoreclip` —
+        // this child is not cut by the parent's clip (paint AND hit — frame
+        // chrome that straddles the frame: a window's resize halo, a badge
+        // poking out of a clipped card), and it does not count toward the
+        // parent's auto-extent (frame geometry derives FROM the parent's bounds
+        // and cannot also define them — the percent-slot rule's sibling). An
+        // ancestor's clip above the parent still applies.
+        ignorelayout: { kind: "boolean" },
+        ignoreclip: { kind: "boolean" },
         opacity: { kind: "number" },
         // Uniform scale transform (painted only — never layout, like opacity): the
         // view's subtree renders scaled about the pivot point (pivotX/pivotY, in the
@@ -166,7 +181,7 @@ const ViewSchema = {
         contentHeight: { kind: "length" },
     },
     prevailing: ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing", "headingColor", "headingWeight", "linkColor", "codeColor", "codeSize", "codeFamily", "codeBackground", "codeRule", "richTextLayout", "theme", "stylesheet", "selectable"],
-    readOnly: ["contentWidth", "contentHeight"],
+    readOnly: ["contentWidth", "contentHeight", "hovered", "pressed"],
     // R5: the pointer trio (click = press and release on the same view — the
     // shared router's rule, input.ts) plus the construction-complete lifecycle
     // event `init` (Appendix A's onInit). Hover (mouseOver/Out) waits for its
@@ -192,6 +207,7 @@ const AppSchema = {
         scrollY: { kind: "number" },
         pointerX: { kind: "number" },
         pointerY: { kind: "number" },
+        pointerDown: { kind: "boolean" },
         hovering: { kind: "boolean" },
         pointerOverText: { kind: "boolean" },
         // the OS color-scheme, `prefers-color-scheme: dark` — the runtime feeds it and

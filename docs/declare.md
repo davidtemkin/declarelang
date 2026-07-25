@@ -62,7 +62,7 @@ language itself; reach for them:
 
 - **Arrangement animates.** Spring a few scalars and every constraint derived from them
   moves in lock-step — this is how a calendar's month morphs into its week and folds into
-  its year (`apps/calendar/calendar.declare`, ~700 lines, the idiom at full scale).
+  its year (`apps/calendar/calendar.declare`, ~<!--stat:calendar.lines-->730<!--/stat--> lines, the idiom at full scale).
 - **Layout is a reactive slot** — swap it, derive it, animate it (§5).
 - **A mode is a reversible bundle** (§8) — it cannot leak, so modes compose and interrupt.
 - **Motion is physics on an attribute** (§8) — declare where a thing belongs; the spring
@@ -314,6 +314,21 @@ the expression, its wired read-paths, and their live values.
 receive an event with `.x`/`.y`; key handlers a `KeyEvent` (`e.key`, `e.code`, modifier
 flags — never a numeric code).
 
+**Interaction state is readable, not wired.** Every view carries two **read-only
+intrinsics**: `hovered` — true while the view is on the live *hit chain* (the topmost
+visible view under the pointer plus its ancestors; occlusion-correct, so a covering
+view suppresses everything beneath it; always false on touch) — and `pressed` — true
+from a pointer-down on the chain until release (a mouse press lets go dragged off and
+re-arms dragged back; a touch press holds while down). Read them anywhere a value
+goes: `fill = { hovered ? 0x336699 : 0x203040 }`, a State's `applied = { hovered }`,
+another view's `{ parent.parent.hovered }`. The chain derives from geometry as well as
+the pointer — a view springing under a stationary cursor updates. Declaring or
+assigning either is a compile error naming the rule (they are computed for you, like
+`contentWidth`, §10). One idiom: a transparent view laid over content occludes the
+chain — the *activation glass* by which an app declares inactive-window policy in one
+view. The library's controls derive their styling pair from these (`Control`'s
+`hot`/`down` — the intrinsics gated by `disabled`, plus the keyboard flash).
+
 **An event is just a function-typed member that gets called** — the `on` prefix is a
 naming convention, not syntax. There is no `event` keyword, no `addEventListener`, and no
 bubbling: handlers fire on the node that declares them, and a child delivers to its owner
@@ -394,7 +409,10 @@ App [ width = 420, height = 260, fill = midnightblue, textColor = gainsboro,
 - **Two-way is opt-in with `<->`, for leaf editors only:** `TextInput [ text <-> :title ]`
   or `value <-> zip`. One-way `:path` everywhere else.
 - A derived dataset recomputes from its inputs: `cal: Dataset [ contents = { app.buildModel() } ]`
-  — build the model *as a derivation* and navigation reduces to setting state.
+  — build the model *as a derivation* and navigation reduces to setting state. This is
+  also the **window pattern** for large collections: derive the visible slice and
+  replicate the slice, never the whole source (the calendar's model is exactly this —
+  one month's grid windowed out of the full event set).
 
 ## 8. States and motion
 
@@ -463,7 +481,8 @@ These three names are reserved — nothing else may take them. The bare capital 
 
 Useful App-level reactive attributes: `app.width` / `app.height` (the app's own size —
 responsive layout reads these), `app.dark` (OS dark mode), `app.pointerX` / `app.pointerY`
-(the free pointer), `app.hovering` (false on touch devices). An app with a usable size
+(the free pointer), `app.pointerDown` (a pointer is held), `app.hovering` (false on touch
+devices). An app with a usable size
 floor declares it as policy — `App [ minWidth = 600 ]` — rather than writing `Math.max`
 clamps into size constraints (§10).
 
@@ -496,7 +515,11 @@ but do not re-declare them as your own attributes (`contentWidth: number = { …
 "already has an attribute"). If you need a derived measurement, give it a fresh name.
 
 `scrolls = true` makes a view scroll its taller content natively. `clip = true` clips
-children to the box (unset lets them overflow).
+children to the box (unset lets them overflow). A child can opt OUT of a parent regime,
+declared on the child: `ignorelayout = true` (the parent's layout skips it — it owns its
+own position) and `ignoreclip = true` (the parent's clip doesn't cut it — outside the
+frame it still paints and still hits, and it doesn't count toward the parent's
+auto-extent; the idiom for frame chrome like a window's resize halo).
 
 **Positions are literals**: `x = center` and `x = end` (and the same on `y`) place a view
 against its parent — centers coincident, or end edges flush — resolved reactively, exactly
@@ -649,6 +672,41 @@ With no theme declared, an app renders the default — San Francisco light, **al
 (deterministic by ruling: the zero-declaration look never varies by system dark mode;
 following the system is the one-line opt-in above).
 
+### 12b. Skins: style bundles and stylesheets
+
+Two named styling constructs sit above per-view attributes, both checked at compile
+time (an unknown name, or a field the target class doesn't have, is a positioned
+error — a stale skin fails loudly where CSS rots silently):
+
+```declare-fragment
+style card [ cornerRadius = 10, fill = { theme.bg } ]    // a NAMED BUNDLE of attribute values
+
+stylesheet Dark [                                        // an app-wide, swappable SKIN
+    theme: Theme [ accent = #336699 ],                   //   its theme record travels with it
+    View:   [ opacity = 0.9 ],                           //   entries are keyed by CLASS name
+    Button: [ primary = true ],                          //   (a class the program uses — §12's auto-include is by use)
+    ]
+
+App [ stylesheet = Dark,                                 // in force for the subtree; swappable:
+                                                         //   stylesheet = { lookupStylesheet(dark ? "Dark" : "Light") }
+    View [ styles = [card] ],                            // a bundle applied per view, by list
+    ]
+```
+
+A **`style` bundle** is shorthand: a reusable set of attribute values a view opts into
+with `styles = [ … ]` — repetition without a class. A **`stylesheet`** is the external
+channel — restyle without touching the tree. Its entries are a *dictionary lookup on
+the class name* — no selectors, no structural matching, no specificity: an entry
+matches a class and its subclasses, fields merging **field-wise** down the chain (a
+`Button:` entry's field wins over a `View:` entry's same field; unset fields fall
+through). An entry may key only a class the program *uses* — a sheet naming an unused
+component is an error, not a silent no-op. `stylesheet` is a prevailing slot like
+`theme` (§12a): set it high, swap it live, and exactly the governed subtree restyles.
+Precedence is fixed: an author's own write or binding **always outranks** a stylesheet
+field — a skin can never fight your code. A `{ }` field in an entry or bundle
+evaluates with `this` = the styled view (so skins are theme-aware); `classroot` does
+not exist there — bundles and sheets belong to no class.
+
 ## 13. What does NOT exist (do not invent it)
 
 Prior habit — human or model — will reach for these. None of them exist in Declare:
@@ -765,7 +823,7 @@ Silent traps — legal code, no error, wrong program:
    the source: `__declare.explain(path, attr)` answers *why* a slot holds its value —
    the expression, the read-paths it was wired to, and their live values.
 5. **Ship** — `node tools/declarec.mjs <file>` emits a self-contained production bundle
-   (app + runtime, ~50 KB gzipped); the same artifact is one request away at
+   (app + runtime, ~<!--stat:calendar.wireKB-->56<!--/stat--> KB gzipped); the same artifact is one request away at
    `<program-url>?build`. `--crawler` bakes the crawler document into the shipped page.
 
 ## 17. Going deeper

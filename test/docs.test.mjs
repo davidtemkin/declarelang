@@ -55,6 +55,12 @@ for (const rel of COVERED) {
   for (const [i, frag] of fragments.entries()) {
     const head = frag.trim().split("\n")[0].slice(0, 56);
     await test(`${rel} fragment ${i + 1} parses: ${head}`, () => {
+      // a fragment may be a TOP-LEVEL excerpt (style/stylesheet/font decls +
+      // a root) or a MEMBER excerpt — try it raw first, wrap as fallback
+      try {
+        parseProgram(frag);
+        return;
+      } catch { /* member excerpt — wrap in an App body below */ }
       const body = frag.trimEnd().endsWith(",") ? frag : frag.trimEnd() + ",";
       parseProgram(`App [\n${body}\n]`);
     });
@@ -76,6 +82,24 @@ await test("declare-docs: links — every symbolic link resolves (links.mjs --ch
 await test("spine: assembled projections are fresh (assemble.mjs --check)", () => {
   const r = spawnSync(process.execPath, [resolve(HERE, "..", "tools/internal/doc/assemble.mjs"), "--check"], { encoding: "utf8" });
   if (r.status !== 0) throw new Error((r.stdout + r.stderr).trim());
+});
+
+// The COMPLETENESS gate: every component the platform exposes — the runtime's
+// SCHEMAS registry and every class in the library's autoinclude manifest —
+// must have a reference entry AND appear in the browse rail. This is what
+// keeps a schema move or a new library class from silently vanishing from the
+// documentation (the layout migration did exactly that to the rail's old
+// readers: present in the model, but only where nobody was looking).
+await test("reference: every runtime schema and library class is documented and browsable", async () => {
+  const { SCHEMAS } = await import("../runtime/dist/schema.js");
+  const model = JSON.parse(readFileSync(resolve(HERE, "..", "docs/declare-model.json"), "utf8"));
+  const manifest = JSON.parse(readFileSync(resolve(HERE, "..", "library/autoincludes.json"), "utf8"));
+  const expected = [...Object.keys(SCHEMAS), ...Object.keys(manifest).filter((k) => !k.startsWith("$"))];
+  const railed = new Set();
+  const walk = (nodes) => { for (const n of nodes) n.kind === "category" ? walk(n.children ?? []) : n.kind === "element" && railed.add(n.name); };
+  walk(model.browse);
+  const missing = expected.filter((n) => !(n in model.reference) || !railed.has(n));
+  if (missing.length) throw new Error("undocumented components: " + missing.join(", "));
 });
 
 summarize("docs");

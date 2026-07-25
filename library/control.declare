@@ -2,24 +2,29 @@
 # Control
 
 The interaction-state base every stateful control extends (docs/system-design/components-baseline.md,
-Contract 3). It owns the INTERACTION states — how the pointer and focus relate to this
-view — and nothing semantic: `checked`, `value`, and their kin live on the concrete
-control. Wired once here, for everything that extends it:
+Contract 3). It owns how the pointer, keyboard, and focus relate to this view — and
+nothing semantic: `checked`, `value`, and their kin live on the concrete control.
 
-- `hovered` / `pressed` — the rollover pair; `pressed` is the touch feedback (a touch
-  pointer never hovers), and a `pointercancel` (the browser reclaimed the gesture for a
-  scroll) arrives as the release, so a press can never stick.
-- `disabled` — inert: not focusable, no state changes; concrete controls gate their
-  activation on it.
+The pointer half is the language's now: `hovered` and `pressed` are View's read-only
+interaction intrinsics (chain-based, touch-correct, cancel-safe). What Control adds is
+the CONTROL policy on top of them, as derivations every concrete control reads:
+
+- `hot` / `down` — the styling pair: the intrinsics gated by `disabled`, with the
+  keyboard-activation `flash` folded into `down`. Style against these, not the raw
+  intrinsics, and a disabled control never lights up.
+- `disabled` — inert: not focusable, no activation; concrete controls gate on it.
 - keyboard — Space or Enter on the focused control activates it, the same `press()`
-  path a pointer uses.
+  path a pointer uses, acknowledged by flashing the pressed look.
 */
 
 class Control extends View [
-    hovered:  boolean = false,
-    pressed:  boolean = false,
     disabled: boolean = false,
     focused:  boolean = false,
+
+    // the styling pair — the interaction intrinsics under CONTROL policy
+
+    hot:  boolean = { this.hovered && !this.disabled },
+    down: boolean = { (this.pressed && !this.disabled) || this.flash },
 
     // The :focus-visible channel for the control's OWN styling (a Tab header's
     // focus edge): focused AND the focus arrived by keyboard. Captured at the
@@ -48,24 +53,23 @@ class Control extends View [
     // keyboard activation's visual acknowledgment: flash the pressed look
     // (the platform convention for buttons — and menu items, later). Value
     // controls whose state change IS the feedback (Checkbox, Switch, Radio)
-    // don't call this. `flashMs` is per-control tunable.
+    // don't call this. `flashMs` is per-control tunable. `flash` is the
+    // control's OWN state — the `pressed` intrinsic is the pointer's truth and
+    // is read-only; a keyboard pulse is a different fact, folded into `down`.
 
-    flashMs: number = 220,
+    flash:   boolean = false,
+    flashMs: number  = 220,
 
     flashPress() {
-        pressed = true
-        setTimeout(() => { this.pressed = false }, flashMs)
+        flash = true
+        setTimeout(() => { this.flash = false }, flashMs)
         },
 
     onFocus() { focused = true; focusVisible = Focus.byKeyboard() },
     onBlur()  { focused = false; focusVisible = false },
 
-    onMouseOver() { if (!disabled) hovered = true },
-    onMouseOut()  { hovered = false; pressed = false },
-
     // a click is also a focus claim — the keyboard picks up where the pointer left
 
-    onMouseDown() { if (!disabled) { pressed = true; focusVisible = false; Focus.focus(this) } },
-    onMouseUp()   { pressed = false },
+    onMouseDown() { if (!disabled) { focusVisible = false; Focus.focus(this) } },
     onKeyDown(e) { if (!disabled && !e.repeat && (e.key == "Enter" || e.key == " ")) press() },
     ]

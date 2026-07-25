@@ -137,12 +137,9 @@ rest, text brightening on hover, a `pillBg` press.
 class ViewTab extends View [ width = { app.tabW }, height = { parent.height },
     mode: string = "",
     label: string = "",
-    hovered: boolean = false,
     lbl: Text [ width = { parent.width }, textAlign = center, y = 9, fontSize = 13, wrap = false, fontWeight = medium,
         textColor = { app.mode == classroot.mode || classroot.hovered ? theme.textPrimary : theme.textMuted },
         text = { app.tabsCompact ? classroot.label.slice(0, 1) : classroot.label } ],
-    onMouseOver() { classroot.hovered = true },
-    onMouseOut()  { classroot.hovered = false },
     onClick()     { app.goMode(classroot.mode) },
     ]
 
@@ -162,13 +159,7 @@ class TabPill extends View [ cornerRadius = 10, fill = { theme.pillBg },
 // and the fill; each concrete button adds its content and its action
 
 class BarButton extends View [ height = 34, cornerRadius = 10,
-    hovered: boolean = false,
-    pressed: boolean = false,
     fill = { classroot.pressed ? theme.pillBg : theme.trackBg },
-    onMouseOver() { classroot.hovered = true },
-    onMouseOut()  { classroot.hovered = false; classroot.pressed = false },
-    onMouseDown() { classroot.pressed = true },
-    onMouseUp()   { classroot.pressed = false },
     ]
 
 
@@ -194,14 +185,11 @@ class TextButton extends BarButton [ width = 64,
 class ThemeSeg extends View [ width = 30, height = { parent.height },
     m: string = "",
     glyph: string = "",
-    hovered: boolean = false,
     bg: View [ x = 2, y = 2, width = { parent.width - 4 }, height = { parent.height - 4 }, cornerRadius = 6,
         fill = { app.themeMode == classroot.m ? theme.pillBg : null } ],
     g: Text [ width = { parent.width }, textAlign = center, y = 6, fontSize = 14, wrap = false,
         textColor = { app.themeMode == classroot.m ? theme.textPrimary : classroot.hovered ? theme.textPrimary : theme.textMuted },
         text = { classroot.glyph } ],
-    onMouseOver() { classroot.hovered = true },
-    onMouseOut()  { classroot.hovered = false },
     onClick()     { app.themeMode = classroot.m },
     ]
 

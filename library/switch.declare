@@ -20,7 +20,7 @@ class Switch extends Control [
     onClick() { if (!disabled) press() },
 
     opacity = { disabled ? (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) : 1 },
-    fill    = { checked ? theme.accent : hovered || pressed ? theme.controlActive : theme.control },
+    fill    = { checked ? theme.accent : hot || down ? theme.controlActive : theme.control },
     stroke  = { stroke(1, checked ? theme.accent : theme.line) },
 
     // the thumb derives from the track: inset 2 normally; a theme may say the
