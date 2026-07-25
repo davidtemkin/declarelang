@@ -184,6 +184,43 @@ export function defineAttributes<S extends object>(
   EQUALS.set(ctor, equals);
 }
 
+/** Additively install extra string attributes on an already-defined class
+ *  (plugin attribute registration — the "open registry" seam). Idempotent;
+ *  mirrors defineAttributes' plain-attr accessor (no prevailing/readonly). A
+ *  subclass instance inherits the accessor via the prototype and the default via
+ *  the DEFAULTS table chain. */
+export function extendAttributes(ctor: Function, specs: Record<string, { def: unknown }>): void {
+  const defaults = tableFor(DEFAULTS, ctor);
+  if (defaults === null) return;
+  for (const name of Object.keys(specs)) {
+    if (Object.hasOwn(defaults, name)) continue; // already registered / a built-in slot
+    defaults[name] = specs[name].def;
+    Object.defineProperty(ctor.prototype, name, {
+      configurable: true,
+      get(this: object): unknown {
+        const self = this as Carrier;
+        if (isTracking()) cellFor(self, name).track();
+        return (self.$attrs ?? defaults)[name];
+      },
+      set(this: object, v: unknown): void {
+        const self = this as Carrier;
+        const owner = self.$owners?.[name];
+        if (owner !== undefined) {
+          if (!owner.yielding) {
+            throw new DeclareError(
+              `${this.constructor.name}.${name} is bound by a constraint (${owner.label}) — a direct write would be silently overwritten; change what the constraint reads instead`
+            );
+          }
+          owner.dispose();
+          delete self.$owners![name];
+        }
+        (self.$set ??= new Set()).add(name);
+        write(this, name, v);
+      },
+    });
+  }
+}
+
 /** Does this slot have a LOCAL provision — an author set (literal or direct
  *  write), an owning binding, or a stylesheet entry's installed offer?
  *  Anything less is "unset", which on a prevailing slot means *following*. */

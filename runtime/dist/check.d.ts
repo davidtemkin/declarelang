@@ -36,7 +36,10 @@ export interface ClassInfo {
  *  inside bodies may reference classes declared later — declaration order
  *  constrains inheritance, not composition. A class that (transitively)
  *  contains itself is an error here: it could never finish instantiating. */
-export declare function programSchemas(classes: readonly ClassDecl[]): {
+export declare function programSchemas(classes: readonly ClassDecl[], extraAttrs?: readonly {
+    on: string;
+    name: string;
+}[]): {
     infos: ClassInfo[];
     schemas: Record<string, ComponentSchema>;
     errors: DeclareError[];
