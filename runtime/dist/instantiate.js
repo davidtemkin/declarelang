@@ -54,11 +54,18 @@ import { Spring } from "./spring.js";
 import { State } from "./state.js";
 import { Constraint } from "./reactive.js";
 import { attrType, descendsFrom } from "./schema.js";
-import { checkAttr, checkMethod, checkDecl, checkComponentValue, withDecls, programSchemas, manyPathOf, checkEntry, checkThemeRecord, coerceToken } from "./check.js";
+// The validators (check.js) and the schema half (program-schema.js) import
+// separately ON PURPOSE: a precompiled program was fully checked at build
+// time, so a production bundle substitutes check.js with a stub
+// (tools/declarec.mjs) and runs entirely on the trusted paths below — the
+// schema half is all it needs. The dev path takes the same code with
+// `trusted` false and validates every step, exactly as before.
+import { checkAttr, checkMethod, checkComponentValue, checkEntry, checkThemeRecord } from "./check.js";
+import { checkDecl, withDecls, programSchemas, manyPathOf, coerceToken } from "./program-schema.js";
 import { buildStylesheet, ensureApplier, registerStylesheets } from "./stylesheet.js";
 import { buildFonts, collectFaces, registerFontFaces } from "./font.js";
 import { compileBody, compileExpr } from "./expr.js";
-import { isPercent, isAlign } from "./value.js";
+import { coerce, isPercent, isAlign } from "./value.js";
 import { defineAttributes, setBound } from "./attributes.js";
 import { bindConstraint, bindPercent, bindAlign, bindData, bindDatapath, bindCursor } from "./bind.js";
 import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
@@ -66,10 +73,36 @@ import { Replicator } from "./replicate.js";
 import { provideViewCreator } from "./view.js";
 import { toCursor } from "./data.js";
 import { TAGS, LAYOUTS, LAYOUT_BASES, DATA, ANIMATORS, ANIMATOR_GROUPS, STATES } from "./registry.js";
+/** Route one attribute: the trusted fast path reads the answer off the value's
+ *  kind (a `{ }` is a binding, a `:path` a datapath, anything else coerces
+ *  through the value vocabulary — validity was the compiler's job); the
+ *  untrusted path is checkAttr, validation and all. One result shape, so every
+ *  consumer downstream is unchanged. */
+function routeAttr(schema, attr, trusted) {
+    if (!trusted)
+        return checkAttr(schema, attr);
+    const v = attr.value;
+    if (v.kind === "code")
+        return { ok: true, binding: { src: v.src, pos: v.pos } };
+    if (v.kind === "path")
+        return { ok: true, datapath: { path: v.path, many: v.many, pos: v.pos } };
+    const type = attrType(schema, attr.name);
+    const c = type !== null ? coerce(type, v) : null;
+    if (c === null || !c.ok) {
+        // Unreachable off a genuinely checked program — reached only when an
+        // artifact and its runtime have drifted apart, so say exactly that.
+        throw new DeclareError(`${schema.name}.${attr.name}: this precompiled program does not match its runtime (rebuild the artifact)`, attr.pos);
+    }
+    return { ok: true, value: c.value };
+}
 /** Build a Node/View tree from a parsed Program or Element fragment (no
  *  rendering). */
 export function instantiate(input) {
     const program = "root" in input ? input : { classes: [], stylesheets: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], root: input };
+    // The compiler stamps `trusted` on a program it fully checked (declarec —
+    // and only then), so instantiation runs on the fast paths; anything else
+    // (a hand-built tree, a test fragment) validates step by step, as ever.
+    const trusted = program.trusted === true;
     const { infos, schemas, errors } = programSchemas(program.classes);
     if (errors.length > 0)
         throw errors[0];
@@ -99,11 +132,12 @@ export function instantiate(input) {
         layoutCtors,
         schemas,
         classes,
-        stylesheets: buildStylesheets(program, schemas),
+        stylesheets: buildStylesheets(program, schemas, trusted),
         fonts: buildFonts(program.fonts),
         bundles: collectBundles(program),
         pending: [],
         expanding: new Set(),
+        trusted,
     };
     const root = construct(program.root, null, ctx);
     if (!(root instanceof View)) {
@@ -149,9 +183,11 @@ function installPending(pending, ctx) {
         else if ("cursorCode" in p)
             bindCursor(p.view, p.cursorCode, p.attr.value.pos, p.classroot);
         else if ("layoutEl" in p) {
-            const errs = checkComponentValue(ctx.schemas, p.view.constructor.name, p.layoutEl.name, p.of, p.layoutEl);
-            if (errs.length > 0)
-                throw errs[0];
+            if (!ctx.trusted) {
+                const errs = checkComponentValue(ctx.schemas, p.view.constructor.name, p.layoutEl.name, p.of, p.layoutEl);
+                if (errs.length > 0)
+                    throw errs[0];
+            }
             // The assignment is the install: the slot's pusher (view.ts) attaches
             // the strategy over the now-linked children.
             p.view[p.layoutEl.name] = buildLayout(p.layoutEl, p.view, ctx);
@@ -210,7 +246,7 @@ function initTree(view) {
  *  instantiate of an unchecked tree dies with the same wording). A `{ }`
  *  entry field compiles once here; the per-view applier evaluates it with
  *  `this` = the styled view (the ruled bundle rule). */
-function buildStylesheets(program, schemas) {
+function buildStylesheets(program, schemas, trusted) {
     const stylesheets = new Map();
     for (const decl of program.stylesheets) {
         const where = `stylesheet ${decl.name}`;
@@ -218,9 +254,11 @@ function buildStylesheets(program, schemas) {
         const entries = new Map();
         for (const child of decl.body.children) {
             if (child.name === "theme" && child.tag === "Theme") {
-                const errs = checkThemeRecord(where, child);
-                if (errs.length > 0)
-                    throw errs[0];
+                if (!trusted) {
+                    const errs = checkThemeRecord(where, child);
+                    if (errs.length > 0)
+                        throw errs[0];
+                }
                 const rec = {};
                 for (const a of child.attrs)
                     rec[a.name] = coerceToken(a.value);
@@ -231,9 +269,11 @@ function buildStylesheets(program, schemas) {
             if (child.entry !== true || schema === null) {
                 throw new DeclareError(`${where}: a stylesheet's members are 'theme: Theme [ … ]' and class-keyed entries ('${child.tag}: [ … ]')`, child.pos);
             }
-            const errs = checkEntry(where, child, schema);
-            if (errs.length > 0)
-                throw errs[0];
+            if (!trusted) {
+                const errs = checkEntry(where, child, schema);
+                if (errs.length > 0)
+                    throw errs[0];
+            }
             entries.set(child.tag, child.attrs.map((a) => {
                 if (a.value.kind === "code") {
                     const c = compileExpr(a.value.src);
@@ -242,7 +282,7 @@ function buildStylesheets(program, schemas) {
                     }
                     return { name: a.name, fn: c.fn };
                 }
-                const r = checkAttr(schema, a);
+                const r = routeAttr(schema, a, trusted);
                 if (!r.ok)
                     throw r.error;
                 if (!("value" in r) || isPercent(r.value) || isAlign(r.value)) {
@@ -451,9 +491,11 @@ function construct(el, outer, ctx, parentSchema = null) {
     // literal lands, any binding runs, or init fires — a sibling's constraint
     // may call them during its first evaluation.
     for (const { m, croot: mcroot } of methods.values()) {
-        const r = checkMethod(eff, m);
-        if (!r.ok)
-            throw r.error;
+        if (!ctx.trusted) {
+            const r = checkMethod(eff, m);
+            if (!r.ok)
+                throw r.error;
+        }
         // Collision with the runtime's own members is an instantiation-context
         // fact (the checker is runtime-free by design, like percent-on-root):
         // installing over `attach`/`children`/`toString` would corrupt the view.
@@ -528,7 +570,7 @@ function construct(el, outer, ctx, parentSchema = null) {
             view[attr.name] = family;
             continue;
         }
-        const r = checkAttr(eff, attr);
+        const r = routeAttr(eff, attr, ctx.trusted);
         if (!r.ok)
             throw r.error;
         if ("binding" in r) {
@@ -632,7 +674,7 @@ function constructData(el, schema, outer, ctx) {
             (...args) => fn.call(node, node.parent, outer, ...args);
     }
     for (const a of el.attrs) {
-        const r = checkAttr(schema, a);
+        const r = routeAttr(schema, a, ctx.trusted);
         if (!r.ok)
             throw r.error;
         if ("binding" in r)
@@ -689,9 +731,11 @@ function constructAnimator(el, schema, outer, ctx) {
     // place before any binding runs or auto-start fires. The built-in guard
     // (`in node`) protects start()/stop()/tick, exactly as it does a View's own.
     for (const m of el.methods) {
-        const r = checkMethod(schema, m);
-        if (!r.ok)
-            throw r.error;
+        if (!ctx.trusted) {
+            const r = checkMethod(schema, m);
+            if (!r.ok)
+                throw r.error;
+        }
         if (m.name in node) {
             throw new DeclareError(`${schema.name}.${m.name}: '${m.name}' is a built-in member of the runtime ${schema.name} — choose another name`, m.pos);
         }
@@ -703,7 +747,7 @@ function constructAnimator(el, schema, outer, ctx) {
             (...args) => fn.call(node, node.parent, outer, ...args);
     }
     for (const a of el.attrs) {
-        const r = checkAttr(schema, a);
+        const r = routeAttr(schema, a, ctx.trusted);
         if (!r.ok)
             throw r.error;
         if ("binding" in r)
@@ -752,9 +796,11 @@ function constructAnimatorGroup(el, schema, outer, ctx, inherited = {}) {
     }
     const node = new ANIMATOR_GROUPS[el.tag]();
     for (const m of el.methods) {
-        const r = checkMethod(schema, m);
-        if (!r.ok)
-            throw r.error;
+        if (!ctx.trusted) {
+            const r = checkMethod(schema, m);
+            if (!r.ok)
+                throw r.error;
+        }
         if (m.name in node) {
             throw new DeclareError(`${schema.name}.${m.name}: '${m.name}' is a built-in member of the runtime ${schema.name} — choose another name`, m.pos);
         }
@@ -770,7 +816,7 @@ function constructAnimatorGroup(el, schema, outer, ctx, inherited = {}) {
     // group — v1 does not cascade bindings).
     const cascade = { ...inherited };
     for (const a of el.attrs) {
-        const r = checkAttr(schema, a);
+        const r = routeAttr(schema, a, ctx.trusted);
         if (!r.ok)
             throw r.error;
         if ("binding" in r)
@@ -831,9 +877,11 @@ function constructState(el, schema, outer, ctx, parentSchema) {
     const label = el.name ?? el.tag;
     // on* handlers (onApply / onRemove) install like a View's / animator's.
     for (const m of el.methods) {
-        const r = checkMethod(schema, m);
-        if (!r.ok)
-            throw r.error;
+        if (!ctx.trusted) {
+            const r = checkMethod(schema, m);
+            if (!r.ok)
+                throw r.error;
+        }
         if (m.name in node) {
             throw new DeclareError(`${schema.name}.${m.name}: '${m.name}' is a built-in member of the runtime ${schema.name} — choose another name`, m.pos);
         }
@@ -850,7 +898,7 @@ function constructState(el, schema, outer, ctx, parentSchema) {
     const overrides = [];
     for (const a of el.attrs) {
         if (a.name === "applied") {
-            const r = checkAttr(schema, a);
+            const r = routeAttr(schema, a, ctx.trusted);
             if (!r.ok)
                 throw r.error;
             if ("binding" in r)
@@ -862,7 +910,7 @@ function constructState(el, schema, outer, ctx, parentSchema) {
         if (parentSchema === null) {
             throw new DeclareError(`a ${el.tag} overrides its enclosing view's slots, but '${a.name}' has no view to target here`, a.value.pos);
         }
-        const r = checkAttr(parentSchema, a);
+        const r = routeAttr(parentSchema, a, ctx.trusted);
         if (!r.ok)
             throw r.error;
         const slot = a.name;
@@ -925,7 +973,7 @@ function buildLayout(el, owner, ctx) {
             bindConstraint(strategy, a.name, a.value.src, a.value.pos, croot);
             continue;
         }
-        const r = checkAttr(schema, a);
+        const r = routeAttr(schema, a, ctx.trusted);
         if (!r.ok)
             throw r.error;
         if (!("value" in r) || isPercent(r.value)) {
@@ -953,9 +1001,11 @@ function installLayoutClass(layout, el, uc, owner, ctx) {
     for (const m of el.methods)
         methods.set(m.name, m);
     for (const m of methods.values()) {
-        const r = checkMethod(eff, m);
-        if (!r.ok)
-            throw r.error;
+        if (!ctx.trusted) {
+            const r = checkMethod(eff, m);
+            if (!r.ok)
+                throw r.error;
+        }
         if (m.name in layout) {
             throw new DeclareError(`${el.tag}.${m.name}: '${m.name}' is a built-in member of the runtime layout — choose another name`, m.pos);
         }
@@ -978,7 +1028,7 @@ function installLayoutClass(layout, el, uc, owner, ctx) {
             bindConstraint(layout, a.name, a.value.src, a.value.pos, croot);
             continue;
         }
-        const r = checkAttr(eff, a);
+        const r = routeAttr(eff, a, ctx.trusted);
         if (!r.ok)
             throw r.error;
         if (!("value" in r) || isPercent(r.value)) {
@@ -1105,13 +1155,23 @@ export function createElementIn(root, el, parent) {
     if (ctx === undefined) {
         throw new DeclareError("evaluate: this tree was not built from a program (no registry to resolve against)");
     }
-    const made = materializer(ctx)(el, parent);
-    parent.insertChild(made.view, parent.children.length);
-    const ps = parent.surface;
-    if (ps !== null && parent.backend !== null)
-        made.view.attach(parent.backend, ps, null);
-    made.finish();
-    return made.view;
+    // The element arrived from a live parse (the Inspector\'s evaluation) — no
+    // compiler vouches for it, so validate even inside a trusted tree. The whole
+    // pipeline (construct → attach → finish) runs inside the window.
+    const wasTrusted = ctx.trusted;
+    ctx.trusted = false;
+    try {
+        const made = materializer(ctx)(el, parent);
+        parent.insertChild(made.view, parent.children.length);
+        const ps = parent.surface;
+        if (ps !== null && parent.backend !== null)
+            made.view.attach(parent.backend, ps, null);
+        made.finish();
+        return made.view;
+    }
+    finally {
+        ctx.trusted = wasTrusted;
+    }
 }
 provideViewCreator(createViewIn);
 //# sourceMappingURL=instantiate.js.map

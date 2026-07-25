@@ -102,7 +102,9 @@ export class DomBackend implements RenderBackend {
     // that lives in an outer app's marked tree)? An embedded app owns only its
     // box: it must NOT repaint the page's <body> background, and the outer app's
     // input router must ignore events inside it (see the boundary check below).
-    const embedded = typeof host.closest === "function" && host.closest("[data-declare-app]") !== null;
+    // Inside another app's tree, or a foreign page's marked host div
+    // (data-declare-embed, boot.ts isEmbedded) — either way, not the page's app.
+    const embedded = typeof host.closest === "function" && host.closest("[data-declare-app], [data-declare-embed]") !== null;
     // Every surface is absolutely positioned (see DomSurface), so the tree
     // needs a positioned ancestor to anchor to; otherwise the root would
     // position against the viewport instead of `host` on a plain (static)

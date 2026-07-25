@@ -50,6 +50,55 @@ function slimRegistrySource(usedNames) {
   return `${importLines}\n${TABLES.map(table).join("\n")}\n`;
 }
 
+/** Minify every `{ }` body in a compiled program in place — comments and
+ *  whitespace only (esbuild's minifyWhitespace; never minifySyntax, so the
+ *  code that runs is token-identical to what the author wrote and the
+ *  compiler validated). Expressions wrap as a var initializer and methods as
+ *  a function so esbuild parses them in context; the wrapper is then sliced
+ *  back off. A body that fails to transform is kept verbatim. */
+async function minifyBodies(program) {
+  const jobs = [];
+  const expr = (v) => jobs.push(
+    esbuild.transform(`var __d=(\n${v.src}\n);`, { minifyWhitespace: true }).then((t) => {
+      const a = t.code.indexOf("=(");
+      const b = t.code.lastIndexOf(");");
+      if (a > 0 && b > a + 2) v.src = t.code.slice(a + 2, b);
+    }, () => {})
+  );
+  const method = (m) => jobs.push(
+    esbuild.transform(`function __d(${m.params.join(",")}){\n${m.body}\n}`, { minifyWhitespace: true }).then((t) => {
+      const a = t.code.indexOf("{");
+      const b = t.code.lastIndexOf("}");
+      if (a > 0 && b > a) m.body = t.code.slice(a + 1, b);
+    }, () => {})
+  );
+  const walk = (el) => {
+    for (const a of el.attrs ?? []) if (a.value?.kind === "code") expr(a.value);
+    for (const d of el.decls ?? []) if (d.def?.kind === "code") expr(d.def);
+    for (const m of el.methods ?? []) method(m);
+    for (const c of el.children ?? []) walk(c);
+  };
+  walk(program.root);
+  for (const c of program.classes) walk(c.body);
+  for (const s of [...program.stylesheets, ...program.styles, ...program.fonts]) walk(s.body);
+  await Promise.all(jobs);
+}
+
+/** The JSON.stringify replacer behind program compaction: drop empty member
+ *  arrays (hydrateProgram restores them), `name: null` / `def: null`
+ *  (restored), and false flags (readers treat absence as false — `deps` is
+ *  NOT here: an empty deps list means "a constant constraint", while absence
+ *  means "track at runtime"). */
+const ELIDE_EMPTY = new Set(["attrs", "decls", "methods", "children", "params",
+  "includes", "includeSpans", "uses", "classes", "stylesheets", "styles", "fonts"]);
+const ELIDE_FALSE = new Set(["hex", "many", "prevailing", "readOnly", "entry"]);
+function compactValue(key, value) {
+  if (value === false && ELIDE_FALSE.has(key)) return undefined;
+  if (value === null && (key === "name" || key === "def")) return undefined;
+  if (Array.isArray(value) && value.length === 0 && ELIDE_EMPTY.has(key)) return undefined;
+  return value;
+}
+
 const shortHash = (buf) => createHash("sha256").update(buf).digest("hex").slice(0, 8);
 const kb = (n) => (n / 1024).toFixed(1) + " KB";
 const gz = (s) => gzipSync(Buffer.from(s)).length;
@@ -86,12 +135,20 @@ export async function buildProduction(source, opts = {}) {
   const backend = canvas
     ? { cls: "CanvasBackend", file: "canvas-backend.js" }
     : { cls: "DomBackend", file: "dom-backend.js" };
-  const programJson = JSON.stringify(built.program);
+  // Compact the embedded program (production only; --debug ships it verbatim):
+  // strip comments and whitespace from every { } body (they are byte-for-byte
+  // the author's text otherwise), and elide what a checked tree repeats
+  // thousands of times — empty member arrays, null names/defaults, false
+  // flags. The entry's hydrateProgram restores the structural fields at boot;
+  // the boolean flags need no restoring (absence already reads as false).
+  if (!opts.debug) await minifyBodies(built.program);
+  const programJson = JSON.stringify(built.program, opts.debug ? undefined : compactValue);
   const entry =
     `import ${JSON.stringify(join(RUNTIME, "index.js"))};\n` +
     `import { renderProgramAsync } from ${JSON.stringify(join(RUNTIME, "boot.js"))};\n` +
+    `import { hydrateProgram } from ${JSON.stringify(join(RUNTIME, "hydrate.js"))};\n` +
     `import { ${backend.cls} } from ${JSON.stringify(join(RUNTIME, backend.file))};\n` +
-    `const PROGRAM = JSON.parse(${JSON.stringify(programJson)});\n` +
+    `const PROGRAM = hydrateProgram(JSON.parse(${JSON.stringify(programJson)}));\n` +
     `const host = document.getElementById("host");\n` +
     // The host is the app's element: clear it before mount, so a `--crawler`
     // build's embedded static block (crawler content, capabilities.md §5)
@@ -184,6 +241,16 @@ export function pathOf() { return ""; }
 export function kindName() { return ""; }
 export const clock = {};
 `;
+  // The validator itself (check.js): a trusted program (compileProgram stamped
+  // it — the gate above this emit) never calls it, and program-schema.js now
+  // carries the schema half instantiate really needs — so production ships
+  // throwing stand-ins. Every name any bundled module imports must exist
+  // (esbuild resolves named imports and re-exports even when unused).
+  const checkStub = ["check", "checkAttr", "checkMethod", "checkDecl", "checkComponentValue",
+    "checkEntry", "checkThemeRecord", "checkStyleDecls", "programSchemas", "withDecls",
+    "manyPathOf", "coerceToken", "cssAttributeHint"]
+    .map((n) => `export function ${n}() { throw new Error("${n}: the checker is not aboard this production build — the program was checked at compile time (declarec --debug keeps the checker)"); }`)
+    .join("\n") + "\n";
   const themesStub = `export const Themes = Object.freeze({});\n`;
   const drawStub = `export function record() { return null; }\nexport function replay() {}\nexport class Draw {}\nexport class DrawGradient {}\n`;
   const stubFor = (name, filterRe, contents) => ({
@@ -193,6 +260,7 @@ export const clock = {};
     },
   });
   const factPlugins = opts.debug ? [] : [
+    stubFor("slim-check", /[/\\]check\.js$/, checkStub),
     stubFor("slim-bridge", /[/\\]inspect\.js$/, bridgeStub),
     ...(programFacts.usesThemes ? [] : [stubFor("slim-themes", /[/\\]themes\.js$/, themesStub)]),
     ...(programFacts.usesDraw ? [] : [stubFor("slim-draw", /[/\\]draw\.js$/, drawStub)]),

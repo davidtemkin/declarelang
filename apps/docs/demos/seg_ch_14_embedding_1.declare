@@ -1,0 +1,5 @@
+App [ fill = #F4F5F7,
+    embed: AppIsland [ x = 20, y = 20,
+        width = { parent.width - 40 }, height = { parent.height - 40 },
+        program = "../../homepage/demos/derived" ],
+    ]

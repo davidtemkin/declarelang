@@ -193,6 +193,12 @@ export interface Program {
      *  Additive to what the tree + body scan already discover. */
     uses: string[];
     root: Element;
+    /** Stamped `true` by the compiler ONLY on a program it fully checked
+     *  (declarec's build). instantiate.ts then routes attributes by value kind
+     *  and coerces literals directly, skipping the validators — which a
+     *  production bundle substitutes with a stub. Never set by the parser:
+     *  parsing proves syntax, not types. */
+    trusted?: boolean;
 }
 /** An included file (composition.md §1): a library of top-level declarations
  *  — classes, stylesheets, styles, and its own `include`s — with NO root. It

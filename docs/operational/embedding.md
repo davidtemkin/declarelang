@@ -161,6 +161,26 @@ change to the app or the API. The `?build` request serves the same artifact live
 addressed by the program's own URL (`shop.declare?build` → `/build/shop/`), cached per source
 so a rebuild only pays for what changed.
 
+## In a larger page
+
+Everything above serves an app as its own page. To put one **inside** a page —
+a live widget between paragraphs of ordinary HTML — give it a sized element
+marked `data-declare-embed` and boot into it:
+
+```html
+<div id="host" data-declare-embed style="width: 420px; height: 240px"></div>
+<script type="module">
+  import boot from "/declare/bundles/declare-boot.js";
+  boot({ main: "/widgets/configurator.declare" });
+</script>
+```
+
+The marker is the contract: the app fills the element instead of the window
+and leaves the page's background, scroll, and title alone. The guide's
+[Crossing boundaries](declare-docs:guide:embedding) chapter walks all three
+embedding directions — app-in-page, page-in-app (`DOMIsland`), and
+app-in-app (`AppIsland`).
+
 ## Where next
 
 - [The dev server](declare-docs:operational:dev-server) — the full request surface, the same

@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "8f65151f1d28",
+  "buildId": "b9286c4df779",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -2929,6 +2929,11 @@
     "title": "Data is a place, not an event",
     "kind": "guide"
    },
+   "guide:embedding": {
+    "path": "docs/guide/14-embedding.md",
+    "title": "Crossing boundaries — a page in an app, an app in a page",
+    "kind": "guide"
+   },
    "guide:interaction": {
     "path": "docs/guide/07-interaction.md",
     "title": "Interaction is delivery",
@@ -3116,6 +3121,9 @@
     "reference:index",
     "spec:core"
    ],
+   "docs/guide/14-embedding.md": [
+    "operational:embedding"
+   ],
    "docs/operational/building.md": [
     "guide:loop"
    ],
@@ -3125,6 +3133,7 @@
     "operational:flags"
    ],
    "docs/operational/embedding.md": [
+    "guide:embedding",
     "operational:building",
     "operational:dev-server",
     "operational:getting-started"
@@ -20336,6 +20345,13 @@
    "title": "Declare Calendar",
    "short": "Declare Calendar",
    "part": "In practice"
+  },
+  {
+   "id": "14-embedding",
+   "num": 14,
+   "title": "Crossing boundaries — a page in an app, an app in a page",
+   "short": "Embedding",
+   "part": "In practice"
   }
  ],
  "guideParts": [
@@ -20434,6 +20450,12 @@
      "num": 13,
      "title": "Declare Calendar",
      "short": "Declare Calendar"
+    },
+    {
+     "id": "14-embedding",
+     "num": 14,
+     "title": "Crossing boundaries — a page in an app, an app in a page",
+     "short": "Embedding"
     }
    ]
   }
@@ -20446,7 +20468,7 @@
    "name": "1 SATOR",
    "segs": [
     {
-     "md": "# How it ships\n\nDelivery, hosting, and the honest posture — the promises about running and\nshipping a Declare program.\n\n### SATOR-1 — Programs are data\nA compiled program is data the toolchain can read, so one compiler powers the\ndocumentation system, static extraction for crawlers, and live editing alike —\nnot three separate pipelines.\n*Held in:* FAQ (\"programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing\").\n\n### SATOR-2 — What a visitor sees and what a crawler sees can never drift\nStatic extraction is built into the compiler: it runs the program headlessly to\nits settled state and serializes the actual content as semantic HTML — real\nheadings, paragraphs, links — baked into the page at build time. A crawler (or an\nAI reading the web) reads that; a person gets the live app that replaces it at\nboot. No server-side rendering, no hydration — it works on a plain static host.\n*Held in:* FAQ (\"How do Declare-written sites handle crawlers and SEO\"); the \"why\" essay (\"what a visitor sees and what a crawler sees can never drift\").\n\n### SATOR-3 — In-browser compilation, and no build step to develop\nBecause the compiler runs in the page, a page can edit and re-run itself: every\nsample is live-editable, and view-source culture is restored. Development needs no\nbuild step — the dev server and the browser use the *same* compiler with\nbyte-identical output.\n*Held in:* FAQ (\"What benefits does in-browser compilation bring\"); getstarted (\"no build step\").\n\n### SATOR-4 — You don't ship the compiler\nFor production, `declarec` precompiles everything into a small, self-contained\nartifact — a set of static files you can host anywhere, with no trace of the\ntoolchain and no compiler aboard.\n*Held in:* FAQ (\"For production you don't ship the compiler\").\n\n### SATOR-5 — The program's URL is the app's address\nA program is addressed by its own URL: on the dev server, browse to a `.declare`\nfile's URL and get the running app. The address is the program, not a route\nregistered elsewhere.\n*Held in:* getstarted (\"the program URL is the app's address\"); FAQ.\n\n### SATOR-6 — Small, and fast where it counts\nA full application ships small — the flagship calendar, application *and* runtime,\nat roughly 62 KB gzipped (machine-stamped from\nthe measured artifact), smaller than the runtime alone of most frameworks.\nInput latency is several times lower than the equivalent framework build, with no\nvirtual-DOM pass between gesture and pixels, and animation runs at the display's\nfull rate. The homepage reports the live figures, measured from the deployed\nartifacts on every commit.\n*Held in:* FAQ (\"What should I expect in terms of performance\").\n\n### SATOR-7 — Honest about the trades and the gaps\nThe promises come with their limits stated plainly: a framework with no in-browser\ncompiler wins the very first cold load (the production path closes the gap by\nprecompiling); Declare is young and the repository *is* the distribution and the\nsource of truth; and accessibility depth, an npm package, and a dedicated editor\nextension are named, unhidden gaps.\n*Held in:* FAQ (\"Startup\" trade; \"How mature is Declare?\"; \"Is Declare accessible?\"; \"Is there editor support?\").\n\n### SATOR-8 — Open, MIT, entirely public\nThe complete source — compiler, runtime, standard library, documentation, and the\nsite itself — is public under the MIT license.\n*Held in:* FAQ (\"What license is Declare offered under?\").",
+     "md": "# How it ships\n\nDelivery, hosting, and the honest posture — the promises about running and\nshipping a Declare program.\n\n### SATOR-1 — Programs are data\nA compiled program is data the toolchain can read, so one compiler powers the\ndocumentation system, static extraction for crawlers, and live editing alike —\nnot three separate pipelines.\n*Held in:* FAQ (\"programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing\").\n\n### SATOR-2 — What a visitor sees and what a crawler sees can never drift\nStatic extraction is built into the compiler: it runs the program headlessly to\nits settled state and serializes the actual content as semantic HTML — real\nheadings, paragraphs, links — baked into the page at build time. A crawler (or an\nAI reading the web) reads that; a person gets the live app that replaces it at\nboot. No server-side rendering, no hydration — it works on a plain static host.\n*Held in:* FAQ (\"How do Declare-written sites handle crawlers and SEO\"); the \"why\" essay (\"what a visitor sees and what a crawler sees can never drift\").\n\n### SATOR-3 — In-browser compilation, and no build step to develop\nBecause the compiler runs in the page, a page can edit and re-run itself: every\nsample is live-editable, and view-source culture is restored. Development needs no\nbuild step — the dev server and the browser use the *same* compiler with\nbyte-identical output.\n*Held in:* FAQ (\"What benefits does in-browser compilation bring\"); getstarted (\"no build step\").\n\n### SATOR-4 — You don't ship the compiler\nFor production, `declarec` precompiles everything into a small, self-contained\nartifact — a set of static files you can host anywhere, with no trace of the\ntoolchain and no compiler aboard.\n*Held in:* FAQ (\"For production you don't ship the compiler\").\n\n### SATOR-5 — The program's URL is the app's address\nA program is addressed by its own URL: on the dev server, browse to a `.declare`\nfile's URL and get the running app. The address is the program, not a route\nregistered elsewhere.\n*Held in:* getstarted (\"the program URL is the app's address\"); FAQ.\n\n### SATOR-6 — Small, and fast where it counts\nA full application ships small — the flagship calendar, application *and* runtime,\nat roughly 56 KB gzipped (machine-stamped from\nthe measured artifact), smaller than the runtime alone of most frameworks.\nInput latency is several times lower than the equivalent framework build, with no\nvirtual-DOM pass between gesture and pixels, and animation runs at the display's\nfull rate. The homepage reports the live figures, measured from the deployed\nartifacts on every commit.\n*Held in:* FAQ (\"What should I expect in terms of performance\").\n\n### SATOR-7 — Honest about the trades and the gaps\nThe promises come with their limits stated plainly: a framework with no in-browser\ncompiler wins the very first cold load (the production path closes the gap by\nprecompiling); Declare is young and the repository *is* the distribution and the\nsource of truth; and accessibility depth, an npm package, and a dedicated editor\nextension are named, unhidden gaps.\n*Held in:* FAQ (\"Startup\" trade; \"How mature is Declare?\"; \"Is Declare accessible?\"; \"Is there editor support?\").\n\n### SATOR-8 — Open, MIT, entirely public\nThe complete source — compiler, runtime, standard library, documentation, and the\nsite itself — is public under the MIT license.\n*Held in:* FAQ (\"What license is Declare offered under?\").",
      "code": []
     }
    ]
@@ -20524,7 +20546,7 @@
        "subtitle": "",
        "kind": "tenet",
        "label": "Tenet",
-       "doc": "# How it ships\n\nDelivery, hosting, and the honest posture — the promises about running and\nshipping a Declare program.\n\n### SATOR-1 — Programs are data\nA compiled program is data the toolchain can read, so one compiler powers the\ndocumentation system, static extraction for crawlers, and live editing alike —\nnot three separate pipelines.\n*Held in:* FAQ (\"programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing\").\n\n### SATOR-2 — What a visitor sees and what a crawler sees can never drift\nStatic extraction is built into the compiler: it runs the program headlessly to\nits settled state and serializes the actual content as semantic HTML — real\nheadings, paragraphs, links — baked into the page at build time. A crawler (or an\nAI reading the web) reads that; a person gets the live app that replaces it at\nboot. No server-side rendering, no hydration — it works on a plain static host.\n*Held in:* FAQ (\"How do Declare-written sites handle crawlers and SEO\"); the \"why\" essay (\"what a visitor sees and what a crawler sees can never drift\").\n\n### SATOR-3 — In-browser compilation, and no build step to develop\nBecause the compiler runs in the page, a page can edit and re-run itself: every\nsample is live-editable, and view-source culture is restored. Development needs no\nbuild step — the dev server and the browser use the *same* compiler with\nbyte-identical output.\n*Held in:* FAQ (\"What benefits does in-browser compilation bring\"); getstarted (\"no build step\").\n\n### SATOR-4 — You don't ship the compiler\nFor production, `declarec` precompiles everything into a small, self-contained\nartifact — a set of static files you can host anywhere, with no trace of the\ntoolchain and no compiler aboard.\n*Held in:* FAQ (\"For production you don't ship the compiler\").\n\n### SATOR-5 — The program's URL is the app's address\nA program is addressed by its own URL: on the dev server, browse to a `.declare`\nfile's URL and get the running app. The address is the program, not a route\nregistered elsewhere.\n*Held in:* getstarted (\"the program URL is the app's address\"); FAQ.\n\n### SATOR-6 — Small, and fast where it counts\nA full application ships small — the flagship calendar, application *and* runtime,\nat roughly 62 KB gzipped (machine-stamped from\nthe measured artifact), smaller than the runtime alone of most frameworks.\nInput latency is several times lower than the equivalent framework build, with no\nvirtual-DOM pass between gesture and pixels, and animation runs at the display's\nfull rate. The homepage reports the live figures, measured from the deployed\nartifacts on every commit.\n*Held in:* FAQ (\"What should I expect in terms of performance\").\n\n### SATOR-7 — Honest about the trades and the gaps\nThe promises come with their limits stated plainly: a framework with no in-browser\ncompiler wins the very first cold load (the production path closes the gap by\nprecompiling); Declare is young and the repository *is* the distribution and the\nsource of truth; and accessibility depth, an npm package, and a dedicated editor\nextension are named, unhidden gaps.\n*Held in:* FAQ (\"Startup\" trade; \"How mature is Declare?\"; \"Is Declare accessible?\"; \"Is there editor support?\").\n\n### SATOR-8 — Open, MIT, entirely public\nThe complete source — compiler, runtime, standard library, documentation, and the\nsite itself — is public under the MIT license.\n*Held in:* FAQ (\"What license is Declare offered under?\").",
+       "doc": "# How it ships\n\nDelivery, hosting, and the honest posture — the promises about running and\nshipping a Declare program.\n\n### SATOR-1 — Programs are data\nA compiled program is data the toolchain can read, so one compiler powers the\ndocumentation system, static extraction for crawlers, and live editing alike —\nnot three separate pipelines.\n*Held in:* FAQ (\"programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing\").\n\n### SATOR-2 — What a visitor sees and what a crawler sees can never drift\nStatic extraction is built into the compiler: it runs the program headlessly to\nits settled state and serializes the actual content as semantic HTML — real\nheadings, paragraphs, links — baked into the page at build time. A crawler (or an\nAI reading the web) reads that; a person gets the live app that replaces it at\nboot. No server-side rendering, no hydration — it works on a plain static host.\n*Held in:* FAQ (\"How do Declare-written sites handle crawlers and SEO\"); the \"why\" essay (\"what a visitor sees and what a crawler sees can never drift\").\n\n### SATOR-3 — In-browser compilation, and no build step to develop\nBecause the compiler runs in the page, a page can edit and re-run itself: every\nsample is live-editable, and view-source culture is restored. Development needs no\nbuild step — the dev server and the browser use the *same* compiler with\nbyte-identical output.\n*Held in:* FAQ (\"What benefits does in-browser compilation bring\"); getstarted (\"no build step\").\n\n### SATOR-4 — You don't ship the compiler\nFor production, `declarec` precompiles everything into a small, self-contained\nartifact — a set of static files you can host anywhere, with no trace of the\ntoolchain and no compiler aboard.\n*Held in:* FAQ (\"For production you don't ship the compiler\").\n\n### SATOR-5 — The program's URL is the app's address\nA program is addressed by its own URL: on the dev server, browse to a `.declare`\nfile's URL and get the running app. The address is the program, not a route\nregistered elsewhere.\n*Held in:* getstarted (\"the program URL is the app's address\"); FAQ.\n\n### SATOR-6 — Small, and fast where it counts\nA full application ships small — the flagship calendar, application *and* runtime,\nat roughly 56 KB gzipped (machine-stamped from\nthe measured artifact), smaller than the runtime alone of most frameworks.\nInput latency is several times lower than the equivalent framework build, with no\nvirtual-DOM pass between gesture and pixels, and animation runs at the display's\nfull rate. The homepage reports the live figures, measured from the deployed\nartifacts on every commit.\n*Held in:* FAQ (\"What should I expect in terms of performance\").\n\n### SATOR-7 — Honest about the trades and the gaps\nThe promises come with their limits stated plainly: a framework with no in-browser\ncompiler wins the very first cold load (the production path closes the gap by\nprecompiling); Declare is young and the repository *is* the distribution and the\nsource of truth; and accessibility depth, an npm package, and a dedicated editor\nextension are named, unhidden gaps.\n*Held in:* FAQ (\"Startup\" trade; \"How mature is Declare?\"; \"Is Declare accessible?\"; \"Is there editor support?\").\n\n### SATOR-8 — Open, MIT, entirely public\nThe complete source — compiler, runtime, standard library, documentation, and the\nsite itself — is public under the MIT license.\n*Held in:* FAQ (\"What license is Declare offered under?\").",
        "preview": "Delivery, hosting, and the honest posture — the promises about running and shipping a Declare program. SATOR-1 — Programs are data A compiled program is data the toolchain can read, so one compiler powers the documentation system, static ex…"
       },
       {
@@ -20713,6 +20735,14 @@
        "label": "Guide chapter",
        "path": "docs/guide/13-calendar.md",
        "preview": "Chapter 1 made a promise: that you would end this guide by opening a real calendar application — four views, continuous zoom, drag-to-reschedule; 480 lines of code, about seven hundred with its detailed comments — and understanding all of i…"
+      },
+      {
+       "name": "14. Embedding",
+       "subtitle": "",
+       "kind": "doc",
+       "label": "Guide chapter",
+       "path": "docs/guide/14-embedding.md",
+       "preview": "Everything so far assumed the Declare program owns its world. Real work has borders: a product page that wants one live Declare widget in the middle of ordinary HTML; a Declare app that needs a box of foreign DOM — a video, a map, your exis…"
       }
      ]
     }

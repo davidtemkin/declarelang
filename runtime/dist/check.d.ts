@@ -1,7 +1,9 @@
-import type { Element, Attr, Method, AttrDecl, ClassDecl, Program, Literal } from "./parser.js";
+import type { Element, Attr, Method, Program } from "./parser.js";
 import { DeclareError, type Pos } from "./errors.js";
 import { type ComponentSchema } from "./schema.js";
-import { type AttrType, type AttrValue } from "./value.js";
+import { type AttrValue } from "./value.js";
+export { programSchemas, checkDecl, withDecls, manyPathOf, coerceToken } from "./program-schema.js";
+export type { ClassInfo, CheckedDecl } from "./program-schema.js";
 /** The styling declarations in scope while an element tree checks: the
  *  program's style bundles (fields validated per application site — a
  *  bundle types against the class it lands on) and its stylesheet names
@@ -17,29 +19,6 @@ export interface StyleEnv {
  *  Element fragment. Returns every error found, in source order — an empty
  *  array means the tree is well-typed and safe to instantiate. */
 export declare function check(input: Element | Program): DeclareError[];
-/** One registered user class: its declaration, its schema, and its declared
- *  attributes' coerced defaults (undefined = "no default; starts undefined
- *  until set"). instantiate.ts synthesizes the runtime twin from this. */
-export interface ClassInfo {
-    decl: ClassDecl;
-    schema: ComponentSchema;
-    defaults: Record<string, AttrValue | undefined>;
-}
-/** Register a program's classes: validate each declaration and produce the
- *  program's schema table — the built-ins plus one ComponentSchema per class,
- *  chained to its base exactly like the built-ins chain (the R2 "R6 plug-in
- *  shape", now plugged in). Per-PROGRAM on purpose: the global SCHEMAS stays
- *  built-ins only, so two programs' classes can never collide.
- *
- *  A base must be declared above its subclass (or be a built-in); children
- *  inside bodies may reference classes declared later — declaration order
- *  constrains inheritance, not composition. A class that (transitively)
- *  contains itself is an error here: it could never finish instantiating. */
-export declare function programSchemas(classes: readonly ClassDecl[]): {
-    infos: ClassInfo[];
-    schemas: Record<string, ComponentSchema>;
-    errors: DeclareError[];
-};
 /** Validate a program's `stylesheet`/`style` declarations and produce the
  *  StyleEnv the element walk resolves against. One message source with
  *  instantiate: both consume the same helpers (checkAttr, coerceToken via
@@ -54,37 +33,6 @@ export declare function checkEntry(where: string, entry: Element, schema: Compon
  *  — token names are free (a Theme is schema-less in v1), values are plain
  *  literals or decoration constructors. */
 export declare function checkThemeRecord(where: string, rec: Element): DeclareError[];
-/** A theme token's value, or undefined when the literal isn't token-shaped.
- *  Colors coerce through the Color grammar (alpha forms included); the
- *  decoration constructors coerce through their own slots' grammars. */
-export declare function coerceToken(lit: Literal): unknown;
-/** One checked attribute declaration: its resolved type and coerced default
- *  — or, since the styling rung, a default BINDING (`labelColor: Color =
- *  { theme.buttonText }`, the ruled R6 unlock: a live per-instance fallback
- *  below every provision) — or the (unthrown) error. Shared by class
- *  registration and by inline declarations on instances — one message
- *  source, like checkAttr. */
-export type CheckedDecl = {
-    ok: true;
-    type: AttrType;
-    value: AttrValue | undefined;
-    binding?: {
-        src: string;
-        pos: Pos;
-    };
-} | {
-    ok: false;
-    error: DeclareError;
-};
-export declare function checkDecl(schema: ComponentSchema, d: AttrDecl, owner?: string): CheckedDecl;
-/** An element's schema plus its inline declarations — the anonymous one-off
- *  subclass of language §5, in the checker's currency. Validation of the
- *  decls themselves is the caller's (checkDecl); this only shapes the chain. */
-export declare function withDecls(schema: ComponentSchema, decls: readonly AttrDecl[]): ComponentSchema;
-/** The many-path attribute (`datapath = :items[]`) that makes an element a
- *  replication template, or null. Type-directed: a many-path on a
- *  cursor-typed slot — today, View.datapath — is what replicates. */
-export declare function manyPathOf(el: Element, schemas: Readonly<Record<string, ComponentSchema>>): Attr | null;
 /** Validate a component-typed attribute's element value (R7: the `layout:`
  *  member). The element must name a component descending from `of`, and carry no
  *  children or methods (a strategy has neither by nature). Attribute values may be

@@ -90,7 +90,9 @@ export async function renderAsync(source: string, host: HTMLElement, backend: Re
 export { parse, parseProgram, parseLibrary } from "./parser.js";
 export { resolveIncludes, NO_INCLUDES } from "./include.js";
 export type { IncludeHost } from "./include.js";
-export { check, checkAttr, checkMethod, checkDecl, checkComponentValue, programSchemas } from "./check.js";
+export { check, checkAttr, checkMethod, checkComponentValue } from "./check.js";
+export { checkDecl, programSchemas } from "./program-schema.js";
+export { hydrateProgram } from "./hydrate.js";
 export { instantiate } from "./instantiate.js";
 export { forEachCodeValue, serializeDeps, applyDeps } from "./deps.js";
 export { forEachElement, serializeLinks, applyLinks, type SerializedLink } from "./links.js";

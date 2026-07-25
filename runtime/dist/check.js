@@ -26,11 +26,18 @@
 // element an anonymous schema, and named children join the one member
 // namespace.
 import { DeclareError } from "./errors.js";
-import { SCHEMAS, SUBSCRIPTION_SOURCES, attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName } from "./schema.js";
+import { SUBSCRIPTION_SOURCES, attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName } from "./schema.js";
 import { Diag } from "./diagnostics.js";
-import { coerce, declaredType, describeLiteral, DECLARED_TYPE_NAMES } from "./value.js";
-import { validateExpr, validateBody, CONSTRUCTOR_NAMES } from "./expr.js";
+import { coerce, describeLiteral } from "./value.js";
+import { validateExpr, validateBody } from "./expr.js";
 import { faceWeight, FONT_WEIGHTS } from "./font.js";
+import { NOUNS, RESERVED, programSchemas, checkDecl, withDecls, manyPathOf, coerceToken } from "./program-schema.js";
+// The schema half of the twin tables — class registration, effective schemas,
+// replication detection, token coercion — lives in program-schema.ts so a
+// production build ships it WITHOUT this validator (which declarec substitutes
+// with a stub, the registry-slimming lever). Re-exported here so every
+// existing importer keeps its one import site.
+export { programSchemas, checkDecl, withDecls, manyPathOf, coerceToken } from "./program-schema.js";
 const EMPTY_ENV = { bundles: new Map(), stylesheets: new Set(), fonts: new Set(), validated: new Set() };
 /** Attribute kinds a stylesheet entry or style bundle may never set —
  *  structural relationships, not values (recorded v1 refusals). */
@@ -40,16 +47,6 @@ const UNSTYLABLE = {
     styles: "a bundle list cannot arrive through the styling channels",
     stylesheet: "a stylesheet cannot set the stylesheet",
 };
-/** The scope nouns of language §11 — never legal as member or parameter names.
- *  `app` is the running-App noun (compiles to `this.root`); reserving it here
- *  keeps it un-shadowable, so `app.hostWidth` always means the App. */
-const NOUNS = ["this", "parent", "classroot", "app"];
-/** The value-constructor names (styling rung) are reserved as member names:
- *  in call position a body's `gradient(…)` is always the constructor, so a
- *  member wearing the name would be unreachable there. (`fill`/`stroke`/
- *  `shadow` are already View attributes — the ordinary collision rules cover
- *  them; this catches the two that are not.) */
-const RESERVED = CONSTRUCTOR_NAMES;
 /** Typecheck a parsed tree — a whole Program (classes + root) or a bare
  *  Element fragment. Returns every error found, in source order — an empty
  *  array means the tree is well-typed and safe to instantiate. */
@@ -93,93 +90,6 @@ export function check(input) {
     // positioned, so the fallback never actually fires.
     errors.sort((a, b) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0));
     return errors;
-}
-/** Register a program's classes: validate each declaration and produce the
- *  program's schema table — the built-ins plus one ComponentSchema per class,
- *  chained to its base exactly like the built-ins chain (the R2 "R6 plug-in
- *  shape", now plugged in). Per-PROGRAM on purpose: the global SCHEMAS stays
- *  built-ins only, so two programs' classes can never collide.
- *
- *  A base must be declared above its subclass (or be a built-in); children
- *  inside bodies may reference classes declared later — declaration order
- *  constrains inheritance, not composition. A class that (transitively)
- *  contains itself is an error here: it could never finish instantiating. */
-export function programSchemas(classes) {
-    const infos = [];
-    const schemas = { ...SCHEMAS };
-    const errors = [];
-    for (const decl of classes) {
-        if (Object.hasOwn(schemas, decl.name)) {
-            errors.push(new DeclareError(`there is already a component named '${decl.name}'`, decl.pos));
-            continue;
-        }
-        if (!Object.hasOwn(schemas, decl.base)) {
-            errors.push(new DeclareError(`unknown base '${decl.base}' — a class extends a built-in component or a class declared above it`, decl.basePos));
-            continue; // no schema to chain to; uses of this class report as unknown
-        }
-        const base = schemas[decl.base];
-        // The general rule is that a class may be subclassed like any class. Three
-        // roots are WIRED today: View (visual), Layout (a strategy — §5 "…and ones
-        // you write"), and Node (the plain atom — a non-visual controller / service
-        // / coordinator). The rest is a wiring gap, not a language rule: Dataset and
-        // Animator are subclassable IN PRINCIPLE (their construct paths simply don't
-        // yet install a subclass's own decls — the same plumbing D-7 did for Layout;
-        // note DataSource already IS a Dataset subclass), and State is declarative,
-        // with no computation to override. Hence "not wired yet", not "sealed".
-        if (!descendsFrom(base, "View") && !descendsFrom(base, "Layout") && !descendsFrom(base, "Node")) {
-            errors.push(new DeclareError(`subclassing '${decl.base}' is not wired yet — a class extends View, Layout, or Node today (Dataset/Animator want the same plumbing; State is declarative)`, decl.basePos));
-            continue;
-        }
-        const attrs = {};
-        const defaults = {};
-        const prevailing = [];
-        const readOnly = [];
-        for (const d of decl.body.decls) {
-            const r = checkDecl(base, d, decl.name);
-            if (!r.ok) {
-                errors.push(r.error);
-                continue;
-            }
-            if (Object.hasOwn(attrs, d.name))
-                continue; // the namespace pass reports the duplicate
-            attrs[d.name] = r.type;
-            defaults[d.name] = r.value;
-            if (d.prevailing)
-                prevailing.push(d.name);
-            if (d.readOnly)
-                readOnly.push(d.name);
-        }
-        const schema = { name: decl.name, base, attrs, prevailing, readOnly };
-        schemas[decl.name] = schema;
-        infos.push({ decl, schema, defaults });
-    }
-    // Containment cycles: DFS over "class → user classes used in its body".
-    const uses = new Map();
-    const collect = (el, into) => {
-        for (const child of el.children) {
-            if (uses.has(child.tag))
-                into.add(child.tag);
-            collect(child, into);
-        }
-    };
-    for (const info of infos)
-        uses.set(info.decl.name, new Set());
-    for (const info of infos)
-        collect(info.decl.body, uses.get(info.decl.name));
-    for (const info of infos) {
-        const seen = new Set();
-        const reaches = (name) => {
-            if (seen.has(name))
-                return false;
-            seen.add(name);
-            const used = uses.get(name);
-            return used !== undefined && (used.has(info.decl.name) || [...used].some(reaches));
-        };
-        if (uses.get(info.decl.name).has(info.decl.name) || [...uses.get(info.decl.name)].some(reaches)) {
-            errors.push(new DeclareError(`class ${info.decl.name} contains itself — a class may not appear inside its own body (directly or through another class)`, info.decl.pos));
-        }
-    }
-    return { infos, schemas, errors };
 }
 // ── Styling declarations: stylesheets + style bundles ───────────────────────
 /** Validate a program's `stylesheet`/`style` declarations and produce the
@@ -452,124 +362,7 @@ export function checkThemeRecord(where, rec) {
     }
     return errors;
 }
-/** A theme token's value, or undefined when the literal isn't token-shaped.
- *  Colors coerce through the Color grammar (alpha forms included); the
- *  decoration constructors coerce through their own slots' grammars. */
-export function coerceToken(lit) {
-    switch (lit.kind) {
-        case "number":
-            return lit.value;
-        case "string":
-            return lit.value;
-        case "hexColor": {
-            const c = coerce({ kind: "color" }, lit);
-            return c.ok ? c.value : undefined;
-        }
-        case "ident": {
-            if (lit.name === "true")
-                return true;
-            if (lit.name === "false")
-                return false;
-            if (lit.name === "null")
-                return null;
-            const c = coerce({ kind: "color" }, lit); // named colors
-            return c.ok ? c.value : undefined;
-        }
-        case "call": {
-            const asFill = coerce({ kind: "fill" }, lit);
-            if (asFill.ok)
-                return asFill.value;
-            const asStroke = coerce({ kind: "stroke" }, lit);
-            if (asStroke.ok)
-                return asStroke.value;
-            const asShadow = coerce({ kind: "shadow" }, lit);
-            return asShadow.ok ? asShadow.value : undefined;
-        }
-        default:
-            return undefined;
-    }
-}
-export function checkDecl(schema, d, owner = schema.name) {
-    const err = (message, pos) => ({ ok: false, error: new DeclareError(message, pos) });
-    if (NOUNS.includes(d.name)) {
-        return err(`'${d.name}' is a scope noun (language §11) — it cannot be declared`, d.pos);
-    }
-    if (RESERVED.includes(d.name)) {
-        return err(`'${d.name}' is a value constructor (gradient/stroke/shadow/stop) — it cannot be a member name`, d.pos);
-    }
-    if (attrType(schema, d.name) !== null) {
-        // A read-only intrinsic must not advise "write name = …" — setting it is
-        // ALSO an error (skill-arm finding: `contentWidth: number = …` got the
-        // wrong fix named twice). Choose-another-name is the only repair.
-        if (isReadOnly(schema, d.name)) {
-            return err(`'${d.name}' is a built-in read-only intrinsic of ${schema.name} — it is computed for you; choose another name for your derived value`, d.pos);
-        }
-        return err(`${schema.name} already has an attribute '${d.name}' — a declaration introduces a new one; write '${d.name} = …' to set the existing one`, d.pos);
-    }
-    const type = declaredType(d.type);
-    if (type === null) {
-        return err(`unknown type '${d.type}' — a declared attribute's type is one of ${DECLARED_TYPE_NAMES.join(", ")}`, d.typePos);
-    }
-    if (d.def === null)
-        return { ok: true, type, value: undefined };
-    if (d.def.kind === "code") {
-        // A default BINDING (styling rung, the ruled R6 unlock): a live
-        // per-instance fallback — in effect only while nothing provides the
-        // slot, so it never contends with any offer (`labelColor: Color =
-        // { theme.buttonText }` is what lets components defer to tokens).
-        const e = validateExpr(d.def.src);
-        if (e !== null) {
-            return err(`${owner}.${d.name}'s default = { … } ${e}`, d.def.pos);
-        }
-        return { ok: true, type, value: undefined, binding: { src: d.def.src, pos: d.def.pos } };
-    }
-    if (d.def.kind === "percent") {
-        return err(`${owner}.${d.name}: a percent default would resolve against each instance's parent — set it per instance until percent defaults are designed`, d.def.pos);
-    }
-    const c = coerce(type, d.def);
-    if (!c.ok) {
-        // A raw :path default has one plausible intent — the { } binding form the
-        // corpus itself uses (`rid: string = { :id }`): name it (Run-2 finding).
-        const hint = d.def.kind === "path"
-            ? ` — to seed from data, write a { } default: ${d.name}: ${d.type} = { :${d.def.path} }`
-            : "";
-        return err(`${owner}.${d.name}'s default expects ${c.expected}, got ${c.found ?? describeLiteral(d.def)}${hint}`, d.def.pos);
-    }
-    return { ok: true, type, value: c.value };
-}
-/** An element's schema plus its inline declarations — the anonymous one-off
- *  subclass of language §5, in the checker's currency. Validation of the
- *  decls themselves is the caller's (checkDecl); this only shapes the chain. */
-export function withDecls(schema, decls) {
-    if (decls.length === 0)
-        return schema;
-    const attrs = {};
-    const prevailing = [];
-    for (const d of decls) {
-        const r = checkDecl(schema, d);
-        if (r.ok && !Object.hasOwn(attrs, d.name)) {
-            attrs[d.name] = r.type;
-            if (d.prevailing)
-                prevailing.push(d.name);
-        }
-    }
-    return { name: schema.name, base: schema, attrs, prevailing };
-}
 // ── The element walk ────────────────────────────────────────────────────────
-/** The many-path attribute (`datapath = :items[]`) that makes an element a
- *  replication template, or null. Type-directed: a many-path on a
- *  cursor-typed slot — today, View.datapath — is what replicates. */
-export function manyPathOf(el, schemas) {
-    const schema = Object.hasOwn(schemas, el.tag) ? schemas[el.tag] : null;
-    if (schema === null)
-        return null;
-    for (const a of el.attrs) {
-        if (a.value.kind === "path" && a.value.many && attrType(schema, a.name)?.kind === "cursor") {
-            return a;
-        }
-    }
-    return null;
-}
 /** A body root cannot be a replication template: the program root is one
  *  view, and a class body replicating ITSELF would make every instantiation
  *  many (put the `:path[]` on the use site instead). */

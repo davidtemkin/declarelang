@@ -57,10 +57,17 @@ export async function loadFonts(fonts: readonly FontSpec[]): Promise<void> {
  *  (attachRoot stamps every app root `data-declare-app`). The child reads that ONE
  *  DOM signal to configure itself — no explicit "embedded" flag threads through.
  *  The mark is on the app ROOT element (a child of `host`), so `closest` from
- *  `host` sees only ANCESTOR apps, never this app's own just-attached root. */
+ *  `host` sees only ANCESTOR apps, never this app's own just-attached root.
+ *
+ *  A FOREIGN page embedding a Declare app in a sized div of its own has no
+ *  Declare ancestor to signal with — it marks the host itself:
+ *  `<div id="host" data-declare-embed>`. Same semantics as an island box (the
+ *  app fills the ELEMENT, the page keeps its background and scroll), declared
+ *  where the decision lives — on the page, not in a boot flag. `closest`
+ *  matches the host itself, so one selector answers both. */
 function isEmbedded(host: HTMLElement): boolean {
   return typeof document !== "undefined" && typeof host.closest === "function"
-    && host.closest("[data-declare-app]") !== null;
+    && host.closest("[data-declare-app], [data-declare-embed]") !== null;
 }
 
 /** Per-app teardown for an EMBEDDED app's environment listeners (a top-level app

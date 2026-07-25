@@ -59,14 +59,20 @@ export function usedComponentNames(program) {
         walk(cls.body);
     return [...used];
 }
-/** Recursively delete `pos` keys. Mutates in place and returns the value. */
+/** Every source-position key the parse tree carries — `pos` everywhere, plus
+ *  the named companions (`typePos` on a declaration, `bodyPos` on a method,
+ *  `basePos` on a class, `sourcePos` on a subscription). All exist only for
+ *  error messages, which a precompiled program never emits at runtime. */
+const POS_KEYS = ["pos", "typePos", "bodyPos", "basePos", "sourcePos"];
+/** Recursively delete position keys. Mutates in place and returns the value. */
 function stripPos(node) {
     if (Array.isArray(node)) {
         for (const el of node)
             stripPos(el);
     }
     else if (node !== null && typeof node === "object") {
-        delete node.pos;
+        for (const k of POS_KEYS)
+            delete node[k];
         for (const k of Object.keys(node))
             stripPos(node[k]);
     }
@@ -110,6 +116,10 @@ export function compileProgram(source, opts = {}) {
     // Compute the used-set BEFORE stripping positions (the scan walks bodies; it
     // needs nothing positional, but order it here so it reads the same program).
     const usedComponents = usedComponentNames(program);
+    // The program is now provably checked (the gate above), so stamp it trusted:
+    // instantiate routes by value kind and coerces directly, and the production
+    // bundle ships no validator at all (tools/declarec.mjs stubs check.js).
+    program.trusted = true;
     if (strip ?? true)
         stripPos(program);
     return { program, errors: [], warnings: c.warnings, diagnostics: c.diagnostics, report: c.report, closure: c.closure, usedComponents };

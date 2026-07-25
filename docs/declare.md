@@ -823,7 +823,7 @@ Silent traps — legal code, no error, wrong program:
    the source: `__declare.explain(path, attr)` answers *why* a slot holds its value —
    the expression, the read-paths it was wired to, and their live values.
 5. **Ship** — `node tools/declarec.mjs <file>` emits a self-contained production bundle
-   (app + runtime, ~<!--stat:calendar.wireKB-->56<!--/stat--> KB gzipped); the same artifact is one request away at
+   (app + runtime, ~<!--stat:calendar.wireKB-->51<!--/stat--> KB gzipped); the same artifact is one request away at
    `<program-url>?build`. `--crawler` bakes the crawler document into the shipped page.
 
 ## 17. Going deeper
