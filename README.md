@@ -39,6 +39,31 @@ host with no Node anywhere.
 
 ---
 
+## Agents start here
+
+Declare is a language, and it is **not in your training data** — the surest way to be wrong is
+to assume a rule from React, CSS, or HTML carries over.
+
+- **The skill** — [skill/SKILL.md](skill/SKILL.md), the resident kernel and routing table. Claude
+  Code auto-discovers it from the copy in `.claude/skills/` (or invoke it directly with
+  `/declare`); it follows the [Agent Skills](https://agentskills.io) standard, so other agents
+  read the same file.
+- **The language** — [docs/declare.md](docs/declare.md), 841 lines, terse and complete. The best
+  single thing to read before writing anything real.
+- **Starting from a brief, a mockup, or a port from another stack** —
+  [docs/operational/intake.md](docs/operational/intake.md), before you plan. What carries over
+  literally, what to re-derive, and what the brief could not think to ask for.
+- **A real program to read** — [apps/calendar/calendar.declare](apps/calendar/calendar.declare),
+  731 lines, written by a model.
+- **The loop** — write the whole program, check it with
+  [verify](docs/operational/verify.md), then *ask the running program* with
+  [introspection](docs/operational/introspection.md). A clean compile is not a working app:
+  layout, fonts, paint, and input routing do not exist until it runs.
+
+Write your own programs to `my-apps/` and browse to their URL.
+
+---
+
 ## Why a new language?
 
 If an LLM can write code from your English, why create a new programming language?

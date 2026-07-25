@@ -1,6 +1,6 @@
 ---
 name: declare
-description: Write Declare programs — a domain-specific language for user interfaces. It is new and not in your training data; do not extrapolate from React, CSS, or HTML. Use when writing, fixing, or reviewing .declare source.
+description: Write programs in Declare — a domain-specific language for user interfaces. It is new and not in your training data; do not extrapolate from React, CSS, or HTML. Use when writing, fixing, or reviewing .declare source; when building a UI from a brief, spec, mockup, or screenshot; or when porting one from another framework.
 ---
 
 # Writing Declare
@@ -10,7 +10,8 @@ components, set their attributes, bind them to data, and handle events. You will
 it where you'd reach for React, CSS, or HTML, but it is none of them: it is new, no model
 has been trained on it, and the surest way to be wrong is to assume a rule from one of them
 carries over. This file is not the language; it is the map. Take the small model below,
-then read the one artifact your task needs.
+then read the one artifact your task needs. If what you were handed is a brief, a mockup,
+or an implementation in another stack, start at **Starting from a brief** — before you plan.
 
 ## The model
 
@@ -28,6 +29,31 @@ then read the one artifact your task needs.
 
 `docs/declare.md` is the entire language in this same voice — terse and complete. It is
 the best single thing to read before writing anything real.
+
+## Starting from a brief
+
+A brief, a mockup, or a working implementation in another stack is **testimony, not
+source** — it records what someone wants, in the vocabulary they had. Sort it before you
+plan:
+
+- **Ends** (what a person should experience), **tokens** (colors, type, copy, exact
+  values), and **constraints** ("no payment flow") carry over whole and literally.
+- **Means** — "modal", "route", "toast", "hover state", "breakpoint" — name solutions in
+  another stack. Demote them to evidence: recover the end, then choose the form here.
+- **Absences** are the part that matters. A brief says nothing about how a detail arrives
+  or how a month changes, because where it was written that work is expensive. Silence is
+  not a request for absence: for each change, ask what the user sees *travel*.
+
+Be **literal** where the brief is authoritative — values, copy, constraints, logic — and
+**free** where it is merely idiomatic — structure, behavior, motion. Left alone a model
+does the reverse, and that inversion is the whole failure.
+
+Then write the restatement, and derive in this order: **data → states → views**. Never
+screens-first; a brief is organized by screen because that is how people picture software,
+and starting there inherits the other stack's decomposition intact.
+
+`docs/operational/intake.md` is this in full — the vocabulary table, the per-modality
+first moves, and the checks.
 
 ## Going deeper — read what the task needs
 
@@ -61,10 +87,14 @@ here restates them.
 **For the intentions behind the shape** — why the language is the way it is, when a choice
 is a judgment call rather than a fact — `docs/tenets/`.
 
-**To run, verify, or debug** — `docs/operational/`: `getting-started.md` to run,
-`verify.md` to check, `introspection.md` to question a running program.
+**To run, verify, or debug** — `docs/operational/`: `intake.md` to start from a brief,
+`getting-started.md` to run, `verify.md` to check, `introspection.md` to question a
+running program.
 
 ## The working loop
+
+**Start from the brief** (above) when there is one, and write down the restatement — it is
+what the last step checks against.
 
 Write the complete program — the whole thing, not fragment by fragment — and run it
 through the checker (`docs/operational/verify.md`). It reports every syntax and structure
@@ -79,3 +109,7 @@ it is, which view actually sits under a point, where each slot's value came from
 answers as data you can act on. That reaches the two failures source-reading can't: a value
 derived from something you didn't expect, and a press landing on a view you didn't expect.
 See `docs/operational/introspection.md`.
+
+Then close the loop: check the program back against the restatement. The checker proves it
+is correct and introspection proves it behaves; neither can tell you it is the program the
+brief asked for.

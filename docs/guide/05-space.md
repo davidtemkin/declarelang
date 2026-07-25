@@ -79,6 +79,14 @@ type, it can be swapped, nested, or driven — the seed of what
 > reading `app.width`. Your spatial *intuitions* transfer; the negotiation machinery
 > stays behind.
 
+A child can opt **out** of a parent regime, and the opt-out is declared on the child —
+the one who differs is the one who says so. `ignorelayout = true` makes the parent's
+layout skip it: it keeps its own `x`/`y` while its siblings are arranged around it (a
+badge pinned to a corner of a stacked card). `ignoreclip = true` makes the parent's
+`clip` not cut it: outside the frame it still paints *and* still hits, and it stops
+counting toward the parent's content size — the idiom for frame chrome that straddles
+the frame, like a window's resize border living just outside the box it resizes.
+
 ## The app fills its host
 
 An `App` with no size fills its host and resizes with it — which is why responsive

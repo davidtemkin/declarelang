@@ -57,7 +57,7 @@ Each of these words names a solution in another stack. None of them is a thing h
 | **modal** | focus on one thing, keep context | a state; the detail grows from what was clicked, interruptible, reversible |
 | **page** / **route** | this content, not that | a state bound to the URL ([the loop](declare-docs:guide:loop)) — not a swapped subtree |
 | **toast** | tell them it worked | a view whose presence and offset derive from a value; it travels in and out |
-| **hover state** / **active state** | respond to the pointer | a scalar sprung 0↔1, with colour, scale, and shadow derived from it |
+| **hover state** / **active state** | respond to the pointer | a scalar sprung 0↔1, with color, scale, and shadow derived from it |
 | **loading spinner** / **skeleton** | something is happening | reserve the space, hold the frame still, derive content from data state |
 | **component** | a reusable piece | a view class — and when the brief *enumerates* instances, find the data that generates them |
 | **responsive breakpoint** | it should work small | constraints that were already true at every width; writing a breakpoint usually means something upstream was hard-coded |
@@ -97,11 +97,11 @@ resolves *downward* by default, and the result is a flat interface that nobody c
 |---|---|
 | **prose brief** | sort it (above); the gaps will be data and states |
 | **screenshot / mockup** | read tokens and hierarchy off it, then say what it *does* — a static image specifies no behavior and no motion, and both are yours to derive |
-| **an implementation in another stack** | extract the data model, the derived values, the user-visible states, the copy and tokens; discard component boundaries, effect wiring, memoisation, and state synchronisation |
+| **an implementation in another stack** | extract the data model, the derived values, the user-visible states, the copy and tokens; discard component boundaries, effect wiring, memoization, and state synchronization |
 | **a design system / token set** | tokens are Ends, not Means — bind them once at the root and derive |
 
 **On porting.** In a React or Svelte source, most lines are plumbing for a problem this language
-does not have: subscribing, diffing, memoising, keeping two things in sync. A port that comes out
+does not have: subscribing, diffing, memoizing, keeping two things in sync. A port that comes out
 proportionally the same size has transliterated rather than translated. Expect it to be much
 smaller, and treat "about the same length" as a finding.
 
@@ -112,13 +112,13 @@ Before you call it done, scan your own source for the marks of a plan formed in 
 - conditional presence where a **state** belonged
 - anything shaped like an `isAnimating` guard
 - coordinates that do not derive from anything
-- a change where **nothing travelled**
+- a change where **nothing traveled**
 - recomputation the cascade would have done for you
 
 Each is countable, which makes this list a review instrument as well as a self-check.
 
 Then check the program against the experience spec you wrote. [`verify`](declare-docs:operational:verify)
-proves correctness and [introspection](declare-docs:operational:introspection) proves behaviour;
+proves correctness and [introspection](declare-docs:operational:introspection) proves behavior;
 neither can tell you the program is the one the brief asked for. That is what the restatement is
 for, and it is the reason intake produces a written artifact rather than a frame of mind.
 
