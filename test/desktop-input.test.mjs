@@ -112,7 +112,10 @@ try {
       const b = globalThis.__w.body.pad.doc.surface.element.getBoundingClientRect();
       return { x: b.x, y: b.y, w: b.width };
     });
-    await drag(d.x + 10, d.y + 14, d.x + Math.min(220, d.w - 10), d.y + 44);
+    // the pane may be scrolled (the wheel test above), so anchor in the doc's
+    // VISIBLE band — the doc is taller than the window, so this always exists
+    const y = Math.max(d.y, g.y + 80);
+    await drag(d.x + 10, y + 20, d.x + Math.min(220, d.w - 10), y + 60);
     const n = await page.evaluate(() => String(getSelection()).length);
     await page.evaluate(() => getSelection().removeAllRanges());
     assert.ok(n > 0, "dragging across the reader's text should select");
