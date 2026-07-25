@@ -1462,11 +1462,14 @@ class DockIcon extends View [
     // the running-app dot, centered in the strip below the icon
 
     // the dot marks is-running and never bounces: adding hopY back cancels the
-    // icon's launch-bounce offset, pinning the dot to the strip
+    // icon's launch-bounce offset, pinning the dot to the strip. MEASURED from
+    // the real dock (2×): dot center #1C1D20 on the light shelf, ~4pt across —
+    // near-black, not muted gray. theme.text IS that value (0x1D1D1F light) and
+    // flips to a light dot under a dark theme, exactly the macOS behavior.
 
     dot: View [ width = 4, height = 4, cornerRadius = 2,
         x = { (parent.width - 4) / 2 }, y = { parent.height + 6 + this.parent.hopY },
-        visible = { running }, fill = { theme.textMuted } ],
+        visible = { running }, fill = { theme.text } ],
 
     // The label pill — the dock's own tooltip: a frosted chip with a downward
     // pointer tick and no shadow. It floats just above the hovered icon's own
