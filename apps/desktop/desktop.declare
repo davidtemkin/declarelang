@@ -153,7 +153,12 @@ class Window extends View [ width = 560, height = 400, clip = true,
 
     parkY: number = { app.height - 19 - 30.5 * this.waveMag - this.height * this.parkScale / 2 - app.menuBarH },
 
-    baseRadius: number = 10,                     // the window's normal corner rounding
+    baseRadius: number = 10,                     // the window's normal corner rounding (the classic treatment;
+                                                 // current macOS uses ≈26 with taller, restyled title bars —
+                                                 // adopting that is its own design track, deferred)
+    bandR: number = { Math.max(2, this.baseRadius - 1) },  // the resize band's inner-cut arc radius — the ONE
+                                                 // source ring() and zone() both read, so the hit shape and
+                                                 // the grab behavior cannot disagree at the corners
     thumbRadius: number = 3.5,                   // …and its rounding at thumbnail scale, in dock pixels
     cornerRadius = { this.baseRadius + (this.thumbRadius * this.waveMag / Math.max(0.02, this.parkScale) - this.baseRadius) * this.miniT },
 
@@ -392,12 +397,11 @@ class Window extends View [ width = 560, height = 400, clip = true,
         // — and is ROUNDED to the window's radius, so the corner void answers
         // the diagonal exactly like the real thing.
 
-        clip = { this.ring(classroot.gutter, classroot.inset, classroot.baseRadius, this.width, this.height) },
-        ring(g, n, r0, w, h) {
+        clip = { this.ring(classroot.gutter, classroot.inset, classroot.bandR, this.width, this.height) },
+        ring(g, n, r, w, h) {
             // outer rect clockwise, inner rounded rect COUNTER-clockwise — the
             // opposed windings are what makes nonzero fill keep only the band
             const i = g + n
-            const r = Math.max(2, r0 - 1)
             const x1 = w - i
             const y1 = h - i
             return "M0 0 H" + w + " V" + h + " H0 Z"
@@ -421,7 +425,26 @@ class Window extends View [ width = 560, height = 400, clip = true,
             const inR = px >= w - g
             const inT = py < g
             const inB = py >= h - g
-            if (!inL && !inR && !inT && !inB) return ""
+            if (!inL && !inR && !inT && !inB) {
+                // THE CORNER CRESCENTS. The band's inner cut is ROUNDED
+                // (ring, same bandR), so at each corner the band reaches
+                // past the straight-line tests above: the sliver between
+                // the straight boundary and the inner arc is hittable —
+                // the cursor children already show a resize cursor there —
+                // and a grab must do what the cursor promises. In-ring =
+                // on the corner side of the arc's center and farther than
+                // bandR from it; the zone then follows the same strips the
+                // cursors use (corner square → diagonal, else the edge).
+                const r = classroot.bandR
+                const ox = (px < w / 2 ? g + r - px : px - (w - g - r))
+                const oy = (py < h / 2 ? g + r - py : py - (h - g - r))
+                if (ox > 0 && oy > 0 && ox * ox + oy * oy > r * r) {
+                    const chz = px < c ? "l" : px >= w - c ? "r" : ""
+                    const cvz = py < c ? "t" : py >= h - c ? "b" : ""
+                    return chz + cvz
+                }
+                return ""
+            }
             let hz = inL ? "l" : inR ? "r" : (px < g + c ? "l" : px >= w - g - c ? "r" : "")
             let vz = inT ? "t" : inB ? "b" : (py < g + c ? "t" : py >= h - g - c ? "b" : "")
             if ((inL || inR) && !(py < g + c || py >= h - g - c)) vz = ""
@@ -1093,12 +1116,18 @@ class ViewerWindow extends Window [ width = 640, height = 460,
     body: View [ x = 0, y = { classroot.barH }, width = { parent.width }, height = { parent.height - classroot.barH },
         scrolls = true, selectable = true,
 
-        // Reading margins: 24 at the sides, 18 above — and the pad's explicit
-        // height adds the same 18 below the document, so the scroll extent ends
-        // with breathing room instead of flush text.
+        // THE DOCS READING TREATMENT, carried over whole (docs.declare is the
+        // reference): 48px side margins and 40 above (the pad's explicit height
+        // adds the same 40 below, so the scroll extent ends with breathing room);
+        // prose wraps at the 560 reading measure while code fills the column;
+        // 1.6 leading; the docs body ink; and every code block gets the tinted
+        // box with the teal left bar. The chip tints are the docs values on the
+        // shared white surface, and a neutral step-up of the same relationship
+        // on Cupertino's dark surface (the docs dark chip is tuned to its own
+        // blue-black page, not to 0x2C2C2E).
 
-        pad: View [ x = 24, y = 18, width = { parent.width - 48 },
-            height = { this.doc.height + 18 },
+        pad: View [ x = 48, y = 40, width = { parent.width - 96 },
+            height = { this.doc.height + 40 },
             loading: Text [ fontSize = 13, textColor = { theme.textFaint },
                 visible = { classroot.inline == "" && classroot.src.loading }, text = "Loading…" ],
             failed: Text [ fontSize = 13, textColor = { theme.textFaint }, wrap = true, width = { parent.width },
@@ -1106,6 +1135,11 @@ class ViewerWindow extends Window [ width = 640, height = 460,
                 text = { "Could not load — " + (classroot.src.error || "") } ],
             doc: Markdown [ width = { parent.width },
                 visible = { classroot.inline != "" || classroot.src.loaded },
+                richTextLayout = { { default: { maxWidth: 560 }, code: { maxWidth: 0 } } },
+                lineHeight = 1.6,
+                bodyColor = { app.darkMode ? 0xC4CFD8 : 0x2E3B46 },
+                codeBackground = { app.darkMode ? 0x35393F : 0xE9EFF4 },
+                codeRule = { app.darkMode ? 0x37E0C8 : 0x12A08D },
                 dark = { app.darkMode },
                 text = { classroot.inline != "" ? classroot.inline : (classroot.src.value || "") } ],
             ],

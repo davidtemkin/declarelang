@@ -107,6 +107,21 @@ class Compositor {
         // canvas's origin. (A no-op if the host is already positioned.)
         if (getComputedStyle(host).position === "static")
             host.style.position = "relative";
+        // Paint the page BEHIND the app with the app's own background — the DOM
+        // backend's rule (its attachRoot), mirrored: outside a content-sized app
+        // the two renderers must show the SAME pixels, and overscroll must match
+        // the app rather than flash the stub page's ground. Solid fills only (the
+        // DOM read resolves the same way) and top-level only — an embedded canvas
+        // render must never touch the host page.
+        const embedded = typeof host.closest === "function" && host.closest("[data-declare-app], [data-declare-embed]") !== null;
+        if (!embedded && root.fill !== null) {
+            const doc = host.ownerDocument;
+            doc.documentElement.style.background = root.fill;
+            doc.body.style.background = root.fill;
+            doc.documentElement.style.height = "100%";
+            doc.body.style.height = "100%";
+            doc.body.style.margin = "0";
+        }
         host.appendChild(canvas);
         // Editables that registered during the attach walk (before this host
         // existed) can now mount their overlay elements.

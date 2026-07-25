@@ -105,7 +105,14 @@ try {
   });
 
   await test("DOM: native text selection works under the halo", async () => {
-    await drag(g.x + 30, g.y + 180, g.x + 220, g.y + 210);
+    // Drag across the RENDERED document, located live — not fixed window
+    // offsets, so the reader's margins and measure can change freely without
+    // this input-mechanics test caring.
+    const d = await page.evaluate(() => {
+      const b = globalThis.__w.body.pad.doc.surface.element.getBoundingClientRect();
+      return { x: b.x, y: b.y, w: b.width };
+    });
+    await drag(d.x + 10, d.y + 14, d.x + Math.min(220, d.w - 10), d.y + 44);
     const n = await page.evaluate(() => String(getSelection()).length);
     await page.evaluate(() => getSelection().removeAllRanges());
     assert.ok(n > 0, "dragging across the reader's text should select");
