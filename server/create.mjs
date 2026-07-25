@@ -234,16 +234,21 @@ bootHost(cfg);
   // <name>.declare, build and serve. The url after /build is a program-directory
   // url in the mount space, so it composes with every mount identically.
   async function serveBuild(res, buildPath, urlPath, backend = "dom") {
-    // buildPath = "/build/my-apps/weather/foo.js" → progDirUrl "/my-apps/weather/"
+    // buildPath = "/build/my-apps/weather/foo.js" → the PROGRAM directory is
+    // the longest prefix holding its own <dir>/<dir>.declare (the directory-
+    // program rule), and everything after it is the tail — which may be a
+    // nested asset path ("data/events.json"), so a split at the last slash
+    // would misread the program dir.
     const afterBuild = buildPath.replace(/^\/build/, "") || "/";
-    const m = afterBuild.match(/^(\/(?:[^/]+\/)*)([^/]*)$/);
-    const progDirUrl = m ? m[1] : "/";
-    const tail = m ? m[2] : "";
-    const dirName = progDirUrl.replace(/\/+$/, "").split("/").pop();
-    if (!dirName) return send(res, 404, "no program in build url", "text/plain");
-    const progUrl = progDirUrl + dirName + ".declare";
-    const hit = mounts.resolve(progUrl);
-    if (!hit || !existsSync(hit.abs)) return send(res, 404, "no such program: " + progUrl, "text/plain");
+    const parts = afterBuild.split("/").filter(Boolean);
+    let hit = null;
+    let tail = "";
+    for (let k = parts.length; k >= 1; k--) {
+      const dir = "/" + parts.slice(0, k).join("/") + "/";
+      const h = mounts.resolve(dir + parts[k - 1] + ".declare");
+      if (h && existsSync(h.abs) && statSync(h.abs).isFile()) { hit = h; tail = parts.slice(k).join("/"); break; }
+    }
+    if (hit === null) return send(res, 404, "no such program under: " + afterBuild, "text/plain");
 
     const man = await ensureProdBuild(hit.abs, backend);
     if (man === null) return send(res, 404, "no such program", "text/plain");
@@ -254,7 +259,14 @@ bootHost(cfg);
       return serveFrom(res, man.dir, "index.html");
     }
     if (t === "manifest.json") return send(res, 200, JSON.stringify(man.sizes, null, 2), "application/json");
-    return serveFrom(res, man.dir, t);
+    // A generated file from the artifact, else the app's OWN asset (data/…,
+    // resources/…) from its source directory — the split the build states:
+    // the CLI copies assets into a deploy; the server serves them from where
+    // they live, so `/build/<app>/data/x.json` resolves like the dev page's.
+    const gen = path.join(man.dir, t);
+    if (gen.startsWith(man.dir + path.sep) && existsSync(gen) && statSync(gen).isFile())
+      return serveFrom(res, man.dir, t);
+    return serveFrom(res, path.dirname(hit.abs), t);
   }
 
   // ── the request handler ────────────────────────────────────────────────────

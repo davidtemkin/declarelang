@@ -21203,7 +21203,7 @@
      "kind": "doc",
      "label": "Markdown file",
      "path": "docs/operational/intake.md",
-     "preview": "A brief, a mockup, or a working implementation in another stack is testimony, not source. It records what someone wants, in the only vocabulary they had. This page is the first rung of the working loop(declare-docs:guide:loop) — what to car…"
+     "preview": "A brief, a mockup, or a working implementation in another stack is testimony, not instructions. It records what someone wants, in the only vocabulary they had. This page is the first rung of the working loop(declare-docs:guide:loop) — what…"
     },
     {
      "name": "Introspection",

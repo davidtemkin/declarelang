@@ -92,6 +92,9 @@ async function minifyBodies(program) {
 const ELIDE_EMPTY = new Set(["attrs", "decls", "methods", "children", "params",
   "includes", "includeSpans", "uses", "classes", "stylesheets", "styles", "fonts"]);
 const ELIDE_FALSE = new Set(["hex", "many", "prevailing", "readOnly", "entry"]);
+// Exported for test/hydrate.test.mjs — the round-trip invariant must exercise
+// THIS replacer, never a copy that could drift from it.
+export { compactValue, ELIDE_FALSE };
 function compactValue(key, value) {
   if (value === false && ELIDE_FALSE.has(key)) return undefined;
   if (value === null && (key === "name" || key === "def")) return undefined;

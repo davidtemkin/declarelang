@@ -1,7 +1,7 @@
 # Intake — starting from a brief
 
-A brief, a mockup, or a working implementation in another stack is **testimony, not source**.
-It records what someone wants, in the only vocabulary they had. This page is the first rung of
+A brief, a mockup, or a working implementation in another stack is **testimony, not
+instructions**. It records what someone wants, in the only vocabulary they had. This page is the first rung of
 [the working loop](declare-docs:guide:loop) — what to carry over untouched, what to re-derive,
 and what to supply that the brief could not ask for.
 
