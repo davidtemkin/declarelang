@@ -33,8 +33,8 @@ the best single thing to read before writing anything real.
 ## Starting from a brief
 
 A brief, a mockup, or a working implementation in another stack is **testimony, not
-source** — it records what someone wants, in the vocabulary they had. Sort it before you
-plan:
+instructions** — it records what someone wants, in the vocabulary they had. Sort it before
+you plan:
 
 - **Ends** (what a person should experience), **tokens** (colors, type, copy, exact
   values), and **constraints** ("no payment flow") carry over whole and literally.
