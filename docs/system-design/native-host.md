@@ -84,7 +84,7 @@ renderer to the same output as the first two.
 - *AppKit/SwiftUI views as the realization* — too high. NSViews and SwiftUI
   bring their own layout systems, styling opinions, and update models;
   Declare owns geometry and would fight them at every setter. (They return
-  as **overlays** where their nativeness is the point — §5.)
+  as **overlays** where their nativeness is the point — §4.)
 - *Raw Metal / wgpu immediate mode* — too low. Own compositing, own damage
   tracking, own text shaping (the decade-deep part), own accessibility
   bridge. This is Flutter's road; Flutter proves it is feasible and proves
@@ -93,7 +93,31 @@ renderer to the same output as the first two.
 - *Compile bodies to native (no JS engine)* — not yet. Bodies are analyzable
   by design (static dep extraction, effect signatures), so an AOT subset is
   imaginable — but it is an optimization of a working JSC host, not the
-  first move. Recorded as an open item (§10).
+  first move. Recorded as an open item (§11).
+
+
+**Engine selection and the JIT boundary.** On the Mac there is no dilemma:
+an in-process JSC JITs with the `allow-jit` entitlement (routine under the
+hardened runtime, Mac App Store included) — browser-class speed, zero bytes
+shipped. The constraint is iOS, and it is a *platform rule*, not an engine
+property: no third-party in-process engine may JIT there. That also answers
+V8 — it ships a "JIT-less" mode for exactly this, so on iOS it buys nothing
+while costing ~40 MB of binary and a build/update treadmill against a
+zero-byte ABI-stable system framework. The interesting iOS candidate is
+**Hermes** (Meta; React Native's default engine): AOT-compiles JS to
+bytecode at build time, memory-maps it at launch (no parse, instant start),
+interprets by design — *and* still compiles source on device, so the AOT is
+a tier, not a cage. That maps one-to-one onto the prewarm ladder, natively:
+bundled bytecode (the validated tier) → on-device bytecode cache → on-the-fly
+compile of a freshly fetched program, same freshness contract. **Static
+Hermes** (typed AOT → native via LLVM) points the same direction as
+Declare's analyzability bet: the runtime kernel — typed TypeScript, the
+actual hot code — compiles native while dynamic program bodies interpret.
+Decision protocol: phase 1 measures. Settles run ~1 ms under a JIT; the
+workload is property-heavy graph evaluation (interpreter penalty historically
+3–5×, not the 10–20× of numeric kernels); if the iOS interpreter misses the
+frame budget, Hermes gets auditioned. The host-services shim (§4) already
+isolates the engine, so the choice stays swappable.
 
 ## 4. Architecture
 
@@ -130,7 +154,7 @@ Component by component:
   **backdrop sampling**, where CA's native facilities close the frost gap
   that the web canvas renderer still has open.
 - **Text** renders and measures through Core Text. This is the fidelity
-  frontier (§8): metrics parity with the browser decides whether the
+  frontier (§9): metrics parity with the browser decides whether the
   cross-renderer oracle stays byte-perceptual or becomes tolerance-based.
   The pending pretext evaluation (portable text measurement) is load-bearing
   here: one measurement library across all three renderers would make text
@@ -159,6 +183,89 @@ Component by component:
   mac` would emit an app bundle whose resources are the same artifacts the
   static host serves.
 
+
+### The host services inventory
+
+JSC is a bare ECMAScript engine; everything the browser supplied must arrive
+as injected host services. The runtime's measured environment surface (grep
+over runtime + web client) and its native realization:
+
+- `fetch` (25 uses) → **URLSession** — which single-handedly covers the
+  networking stack: HTTP/2+3, TLS, the cookie jar (`NSHTTPCookieStorage`),
+  the HTTP cache (`URLCache`), and WebSocket (`URLSessionWebSocketTask`;
+  not yet a runtime primitive — the shim lands when the language grows one).
+- `requestAnimationFrame` (24) + timers → one **CADisplayLink**, doubling as
+  the Animator clock.
+- `URL`/`URLSearchParams` (41) → a small shim (not in bare JSC).
+- `FontFace`/`document.fonts` (17) → `CTFontManager` registration + a
+  readiness promise.
+- `Image()` (9) → ImageIO/`CGImage` via URLSession — which also supplies the
+  decoded-bitmap **image-handle model** draw()'s deferred `drawImage` names
+  as its follow-on.
+- `caches.*` (the compiled-program tier) → a file cache under
+  `Library/Caches`, freshness probed by file mtimes — the Node `diskProbe`
+  pattern, reused rather than reinvented.
+- `matchMedia`/`navigator` → `effectiveAppearance` (dark), device signals.
+- `location`/`history` → an internal history stack + URL-scheme deep links
+  (`NSUserActivity`).
+- `performance.now`, `console` → mach time, `os_log`.
+
+Beyond the grep: filesystem loading of programs and data (bundle resources;
+security-scoped bookmarks under sandboxing) with **FSEvents watching** so
+the live-edit loop works against files as well as the dev server; clipboard
+(selection copy); OS-level drag-and-drop; multi-window (`openWindow` maps to
+a real `NSWindow` — an upgrade, not a shim); and one language-level gap the
+host makes concrete: Declare has **no write-side storage primitive** yet
+(DataSource reads) — a capability to design, not improvise. Threading rule:
+JS runs off the main thread and posts each settle's command buffer to the
+main thread for its `CATransaction`.
+
+### draw() on Quartz — ancestry, not translation
+
+Canvas2D is not a foreign API ported to Quartz; it is Quartz's grandchild.
+The `<canvas>` element was invented at Apple (Dashboard/Safari, 2004) and
+WebKit implements `CanvasRenderingContext2D` *on CoreGraphics* to this day —
+the imaging model (stateful context, save/restore stacks, winding rules,
+per-op shadows, Porter-Duff compositing) is the Quartz model with JS
+ergonomics. The recorded op set (draw.ts: the full path vocabulary, rects,
+`roundRect`, gradients including conic, text ops with kerning/spacing,
+shadows, `filter`, compositing, transforms, dashes) maps ~90% one-to-one;
+`globalCompositeOperation` ≈ `CGBlendMode` nearly completely. The enumerable
+deltas: **conic gradients** (no CG primitive; `CAGradientLayer .conic` or a
+shading callback), **`ctx.filter`** (no CG equivalent — a CoreImage detour;
+the wallpaper blur is the consumer), CSS font-string → CTFont parsing,
+gradient color-space interpolation discipline, and AA/pixel-snapping — which
+is precisely where the perceptual tolerance already lives. And the contract
+to satisfy is not "the browser's canvas API" but **our recorded subset**,
+defined operationally by the corpus and the oracle: semantic drift is diff
+pixels in a test run, not spec debate.
+
+### Web content islands — the system webview, never a bundled engine
+
+`DOMIsland`'s native realization for web content is **WKWebView**, managed
+exactly like the other overlays: the island's box drives its frame per
+transaction; transforms, opacity, and corner-radius masks applied on our
+side compose correctly because its layer is composited by the same render
+server. Input inside it is its own — which *is* the island contract. The
+slot protocol extends naturally (`url:` tenants), and
+`WKScriptMessageHandler` provides the `childName`-style reverse channel.
+
+Ruled: **no bundled Blink.** Chromium-in-app is Electron re-entering through
+the side door (~100 MB + a security-update treadmill, for minority content),
+and iOS forbids third-party engines regardless. A hypothetical Windows host
+uses WebView2 — the OS's own Chromium. The Tauri pattern: the system
+webview, everywhere, always.
+
+Caveats, ruled into the model: the webview renders **out of process** — the
+app cannot read its pixels per frame (`takeSnapshot` is an async one-shot:
+right for thumbnails and minimize-morph stills, never a texture stream).
+Platform backdrop **materials** (`NSVisualEffectView`) still frost over
+islands — the render server has the pixels even though the app does not.
+Custom draw()-side effects therefore treat islands as **effect-opaque**:
+compose over and around them, never read them. And `WKWebsiteDataStore`'s
+cookie jar is separate from URLSession's — bridge the two deliberately or an
+authenticated origin sees two sessions (register, §11).
+
 ## 5. Benefits that might be realized
 
 Ordered by confidence:
@@ -185,7 +292,7 @@ Ordered by confidence:
    overhead per window; heap comparable (same JS graph), platform layers
    cheaper than DOM nodes.
 7. **Accessibility that surpasses the web version** (medium — it is work,
-   §7, but the ceiling is higher): the assistive tree projected from the
+   §8, but the ceiling is higher): the assistive tree projected from the
    *model*, not recovered from divs.
 8. **Distribution as a real Mac app** (certain but not perf): dock, menu
    bar, file associations, offline by construction, no server dependency at
@@ -261,7 +368,72 @@ platform, or is captive to one. The narrow seam — final geometry down,
 events up, nothing else — is what lets Declare skip all three, and it
 exists because the language made layout the runtime's job from day one.
 
-## 7. Accessibility — projection from the model
+
+## 7. The platform-services surface — the Electron dialect
+
+Electron's API surface is the best empirical catalog in existence of what
+desktop apps actually need — a decade of demand-driven accretion, embodied
+in tens of thousands of shipped apps (VS Code, Slack, Discord, Figma
+desktop, Notion, Obsidian, 1Password, Signal, Postman…), hundreds of
+thousands of dependent repositories, and — the property this section
+borrows — massive representation in LLM training data.
+
+**The buckets:** app lifecycle & identity (single-instance, login items,
+deep links, dock badge); windows & chrome (frames, vibrancy, menus, tray,
+native dialogs); system UX signals (displays/DPI, dark mode, accent colors,
+power events, global shortcuts); exchange surfaces (clipboard, drag-and-drop,
+`shell` open/reveal/trash); security & persistence (`safeStorage`/Keychain,
+auto-update, crash reporting, push); media & devices (capture, permissions,
+printing); networking policy (session/cookies/proxy); process plumbing
+(ipc, utility processes).
+
+**Welded to Chromium?** Functionally mostly no; implementationally mostly
+yes — the first five buckets are thin platform wrappers in concept, but
+their code lives against Chromium's base libraries and V8/Node bindings
+(capture, printing, session, and ipc are welded in the strong sense).
+Nobody maintains "Electron's native layer without Chromium"; Tauri is the
+existence proof that the *catalog* reimplements cleanly without it. Ruling:
+**mirror the catalog, never link it.** On the Mac each non-welded bucket is
+a thin AppKit/Foundation wrapper (NSMenu, NSOpenPanel, NSStatusItem,
+NSPasteboard, NSWorkspace, NSScreen, Keychain, UNUserNotificationCenter,
+Sparkle, an event monitor for global shortcuts) — and part of the list
+evaporates because our windows are real NSWindows: vibrancy, traffic
+lights, and spaces behavior come free instead of being emulated.
+
+**The dialect.** Electron's surface splits into halves deserving opposite
+treatments:
+
+- **Adopt the shapes for actions.** `dialog.showOpenDialog({ properties:
+  […] })`, `clipboard`, `shell`, `Menu.buildFromTemplate` with roles and
+  accelerators, `Tray`, `Notification`, `globalShortcut`, `safeStorage` —
+  option-object designs holding a decade of edge cases, and the most
+  familiar desktop API shapes in any model's training distribution. An LLM
+  writing a Declare desktop app calls them correctly from memory, with no
+  Declare-specific docs in context. (Menu templates are practically a
+  Declare idiom already — the desktop demo's menus are record-driven.)
+- **Recast the state half reactively — do not adopt it.** `nativeTheme.on`,
+  `powerMonitor.on`, `screen.on(…)` are *facts* wearing event-emitter
+  costumes. Declare states facts as standing relationships: `app.dark`
+  already is `nativeTheme`; the continuations are `app.displays`,
+  `app.powerState` — reactive attributes to constrain against, strictly
+  stronger than subscriptions.
+- **Skip the browser-shaped third.** `BrowserWindow`/`webContents`/
+  `session`/`protocol` presume Chromium objects. No target there — and
+  shape-compatibility must never escalate to *environment* compatibility
+  (Node built-ins, npm Electron libraries running unmodified). That road
+  terminates in rebuilding Electron.
+
+**The security synthesis.** The dialect is the ergonomic surface *of
+capabilities*: `dialog`, `clipboard`, `shell` arrive in a program as granted
+capabilities whose use is statically visible in the compiled program —
+programs are data, effects are signed — so a host reads a manifest before
+running a line: *this program uses `dialog` and `clipboard`, nothing else.*
+Dynamically loaded Declare code then has a real security model, which
+Electron's free-form ipc bus never had. The "no DOM in bodies" ruling
+generalizes: **no raw platform in bodies — capabilities are the sanctioned
+surface.**
+
+## 8. Accessibility — projection from the model
 
 The web renderers recover semantics from realizations (DOM: real text and
 elements; canvas: nearly nothing). The native host inverts this: **the
@@ -291,9 +463,9 @@ extraction, applied to assistive technology.
   web renderer as a side effect.
 - **Reading order, announcements, live regions:** derived where possible
   (Dataset-driven lists announce via their reactive mutations), declared
-  where not — the open-questions register (§10) holds the details.
+  where not — the open-questions register (§11) holds the details.
 
-## 8. Risks and hard parts
+## 9. Risks and hard parts
 
 - **Text metrics parity.** Core Text and browser text will not agree to the
   pixel with different shapers even with identical fonts embedded. Options:
@@ -319,7 +491,7 @@ extraction, applied to assistive technology.
   measured ±3 px resize band, scroll-bar styles). The desktop demo's
   measure-then-match method becomes a standing practice, not a one-off.
 
-## 9. Phasing — the ladder, again
+## 10. Phasing — the ladder, again
 
 Each phase gates on the oracle before the next begins, mirroring
 runtime-first perf-proof:
@@ -337,14 +509,14 @@ runtime-first perf-proof:
 4. **Motion offload.** Animator/Spring → CA hand-off with the equality
    contract (a settle mid-animation reads back the platform's current
    value, or the offload is scoped to fire-and-forget motion — ruling
-   needed, §10).
+   needed, §11).
 5. **Accessibility.** The projection registry + the `label`/`role` language
    design; VoiceOver walkthrough of the corpus as the acceptance test; ARIA
    back-projection to the DOM backend.
 6. **Distribution.** `declare build --host mac`; the desktop demo as a real
    Mac app is the flagship proof (with the irony fully intended).
 
-## 10. Open questions (the register)
+## 11. Open questions (the register)
 
 1. Animator offload semantics: can JS read a mid-flight offloaded value, or
    is offload restricted to motion with no readers? (Constraint purity vs
@@ -361,7 +533,11 @@ runtime-first perf-proof:
    equivalents exist) — but touch input, the keyboard, and scroll gestures
    are their own fidelity project. Out of scope here; the architecture
    should simply not preclude it.
-7. Windows/Linux hosts: the same seam over different compositors
+7. Cookie-store bridging: WKWebsiteDataStore vs URLSession's jar — policy
+   for authenticated origins shared between a DataSource and a web island.
+8. The Electron-dialect scope: which modules ship in v1, and where the
+   shape-compat line is drawn (per §7, never environment-compat).
+9. Windows/Linux hosts: the same seam over different compositors
    (DirectComposition / Wayland). Noted so the Mac design avoids
    Apple-shaped assumptions in the protocol itself (none identified yet —
    the Surface protocol predates this design and is platform-blind).
