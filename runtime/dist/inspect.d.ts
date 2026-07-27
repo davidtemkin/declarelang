@@ -86,12 +86,14 @@ export declare const clock: {
  *  whole inspect API bound to that app's root. What verify's rung 5 drives,
  *  and what a human pokes in the console. */
 export declare function bridgeFor(root: Node): Record<string, unknown>;
-/** The VIEW under a root-space point — topmost visible wins, depth-first from
- *  the end of each child list (later siblings paint over earlier ones, the
- *  language's stacking rule). Deliberately geometric rather than routed
- *  through the input router's sink resolution: the picker must find a view
- *  whether or not it declares handlers, and must see the view that is actually
- *  on top even when a transparent sibling would swallow the press. */
+/** The VIEW under a root-space point — THE hit walk (interaction.ts leafAt),
+ *  the same one the pointer is routed by and `View.viewAt` exposes, so the
+ *  picker highlights exactly what a press would reach. `pierce` is the
+ *  picker's one deviation: a pointer-transparent view is still selectable,
+ *  because a developer asking "what is this?" means the thing they can see.
+ *  (This used to be a second, cruder implementation — plain rectangle
+ *  containment, blind to clip, scale, and pivot — which is precisely the
+ *  duplication that produced a mis-hit window corner elsewhere.) */
 export declare function viewAt(root: Node, x: number, y: number): View | null;
 /** Every (path, attr) whose constraint READS `target` — the reverse of
  *  `explain().deps`, answering "what moves if this changes?". Computed by

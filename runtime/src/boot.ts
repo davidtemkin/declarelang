@@ -128,11 +128,34 @@ function wireColorScheme(app: App): () => void {
  *  fact, kept live if the input changes; distinct from the transient `hovering`.
  *  Returns an unsubscribe so an embedded app's re-render can drop the listener. */
 function wireTouchDevice(app: App): () => void {
-  const mq = window.matchMedia("(pointer: coarse)");
-  app.touchDevice = mq.matches;
-  const update = () => { app.touchDevice = mq.matches; };
-  mq.addEventListener("change", update);
-  return () => mq.removeEventListener("change", update);
+  // THE DEVICE PROFILE — three independent facts, none of them a guess.
+  //   touchDevice: the PRIMARY pointer is coarse ("is this a phone/tablet?") —
+  //     the sizing decision, deliberately stable across a session.
+  //   hasTouch / hasPointer: what the device HAS at all (`any-pointer`). A
+  //     Windows touch laptop is `hasTouch && hasPointer` with touchDevice
+  //     false — its trackpad really is primary — which is the case a single
+  //     boolean cannot answer. Use these for a hit-target FLOOR, not a switch.
+  //   lastPointerType: what the user just used, live. The only correct answer
+  //     for a hybrid, because the truth changes per gesture rather than per
+  //     device; drive hover-only affordances from this, never layout (targets
+  //     that resize as you alternate trackpad and finger are worse than either).
+  const primary = window.matchMedia("(pointer: coarse)");
+  const anyCoarse = window.matchMedia("(any-pointer: coarse)");
+  const anyFine = window.matchMedia("(any-pointer: fine)");
+  const update = (): void => {
+    app.touchDevice = primary.matches;
+    app.hasTouch = anyCoarse.matches;
+    app.hasPointer = anyFine.matches;
+  };
+  update();
+  primary.addEventListener("change", update);
+  anyCoarse.addEventListener("change", update);
+  anyFine.addEventListener("change", update);
+  return () => {
+    primary.removeEventListener("change", update);
+    anyCoarse.removeEventListener("change", update);
+    anyFine.removeEventListener("change", update);
+  };
 }
 
 /** Feed the App's reactive environment. A top-level app reads the WINDOW (host
@@ -149,6 +172,9 @@ function wireEnvironment(app: App, host: HTMLElement, embedded: boolean): void {
   const scroll = () => { app.scrollY = w.scrollY; };
   const move = (e: PointerEvent) => {
     app.pointerX = e.clientX; app.pointerY = e.clientY;
+    // A mouse that merely MOVES (never presses) must flip hover affordances
+    // back on — so the live fact updates here too, not only at press.
+    app.lastPointerType = e.pointerType === "touch" || e.pointerType === "pen" ? e.pointerType : "mouse";
     // A touch has no hover — keep `hovering` false for it so a desktop custom
     // cursor (which reads it) stays off mobile; the coordinates still update so a
     // drag can track the finger.
@@ -165,6 +191,7 @@ function wireEnvironment(app: App, host: HTMLElement, embedded: boolean): void {
   const down = (e: PointerEvent) => {
     app.pointerX = e.clientX; app.pointerY = e.clientY;
     app.hovering = e.pointerType !== "touch";
+    app.lastPointerType = e.pointerType === "touch" || e.pointerType === "pen" ? e.pointerType : "mouse";
     app.pointerDown = true;
   };
   const up = () => { app.pointerDown = false; };

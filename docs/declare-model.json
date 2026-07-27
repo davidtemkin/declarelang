@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "7302a45f90a0",
+  "buildId": "b11f6c1c809a",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -111,11 +111,16 @@
     "events": [
      "click",
      "dblClick",
+     "hold",
      "mouseDown",
      "mouseUp",
      "mouseMove",
      "mouseOver",
      "mouseOut",
+     "touchStart",
+     "touchMove",
+     "touchEnd",
+     "touchCancel",
      "init",
      "focus",
      "blur",
@@ -137,6 +142,9 @@
      "pointerOverText": "boolean",
      "dark": "boolean",
      "touchDevice": "boolean",
+     "hasTouch": "boolean",
+     "hasPointer": "boolean",
+     "lastPointerType": "string",
      "env": "object",
      "location": "string",
      "minWidth": "number",
@@ -147,7 +155,11 @@
     "readOnly": [
      "hostWidth",
      "hostHeight",
-     "dark"
+     "dark",
+     "touchDevice",
+     "hasTouch",
+     "hasPointer",
+     "lastPointerType"
     ],
     "events": []
    },
@@ -319,6 +331,46 @@
     "prevailing": [],
     "readOnly": [],
     "events": []
+   },
+   "Frames": {
+    "base": null,
+    "attrs": {
+     "running": "boolean"
+    },
+    "prevailing": [],
+    "readOnly": [],
+    "events": [
+     "frame"
+    ]
+   },
+   "Keys": {
+    "base": null,
+    "attrs": {},
+    "prevailing": [],
+    "readOnly": [],
+    "events": [
+     "keyDown",
+     "keyUp"
+    ]
+   },
+   "Focus": {
+    "base": null,
+    "attrs": {},
+    "prevailing": [],
+    "readOnly": [],
+    "events": [
+     "focusChange",
+     "geometry"
+    ]
+   },
+   "Tip": {
+    "base": null,
+    "attrs": {},
+    "prevailing": [],
+    "readOnly": [],
+    "events": [
+     "tip"
+    ]
    },
    "State": {
     "base": null,
@@ -939,6 +991,16 @@
     "title": "App.env",
     "kind": "reference"
    },
+   "App.hasPointer": {
+    "path": "docs/declare-model.json",
+    "title": "App.hasPointer",
+    "kind": "reference"
+   },
+   "App.hasTouch": {
+    "path": "docs/declare-model.json",
+    "title": "App.hasTouch",
+    "kind": "reference"
+   },
    "App.hostHeight": {
     "path": "docs/declare-model.json",
     "title": "App.hostHeight",
@@ -952,6 +1014,11 @@
    "App.hovering": {
     "path": "docs/declare-model.json",
     "title": "App.hovering",
+    "kind": "reference"
+   },
+   "App.lastPointerType": {
+    "path": "docs/declare-model.json",
+    "title": "App.lastPointerType",
     "kind": "reference"
    },
    "App.location": {
@@ -1329,11 +1396,6 @@
     "title": "Dialog.centered",
     "kind": "reference"
    },
-   "Dialog.event.onKeyDown": {
-    "path": "docs/declare-model.json",
-    "title": "Dialog.event.onKeyDown",
-    "kind": "reference"
-   },
    "Dialog.message": {
     "path": "docs/declare-model.json",
     "title": "Dialog.message",
@@ -1439,19 +1501,24 @@
     "title": "Field.labelWidth",
     "kind": "reference"
    },
+   "Focus": {
+    "path": "docs/declare-model.json",
+    "title": "Focus",
+    "kind": "reference"
+   },
+   "Focus.event.focusChange": {
+    "path": "docs/declare-model.json",
+    "title": "Focus.event.focusChange",
+    "kind": "reference"
+   },
+   "Focus.event.geometry": {
+    "path": "docs/declare-model.json",
+    "title": "Focus.event.geometry",
+    "kind": "reference"
+   },
    "FocusRing": {
     "path": "docs/declare-model.json",
     "title": "FocusRing",
-    "kind": "reference"
-   },
-   "FocusRing.event.onFocusChange": {
-    "path": "docs/declare-model.json",
-    "title": "FocusRing.event.onFocusChange",
-    "kind": "reference"
-   },
-   "FocusRing.event.onGeometry": {
-    "path": "docs/declare-model.json",
-    "title": "FocusRing.event.onGeometry",
     "kind": "reference"
    },
    "FocusRing.gen": {
@@ -1462,11 +1529,6 @@
    "FocusRing.idle": {
     "path": "docs/declare-model.json",
     "title": "FocusRing.idle",
-    "kind": "reference"
-   },
-   "FocusRing.method.containsPoint": {
-    "path": "docs/declare-model.json",
-    "title": "FocusRing.method.containsPoint",
     "kind": "reference"
    },
    "FocusRing.method.draw": {
@@ -1534,6 +1596,21 @@
     "title": "FocusRing.ty",
     "kind": "reference"
    },
+   "Frames": {
+    "path": "docs/declare-model.json",
+    "title": "Frames",
+    "kind": "reference"
+   },
+   "Frames.event.frame": {
+    "path": "docs/declare-model.json",
+    "title": "Frames.event.frame",
+    "kind": "reference"
+   },
+   "Frames.running": {
+    "path": "docs/declare-model.json",
+    "title": "Frames.running",
+    "kind": "reference"
+   },
    "HTMLText": {
     "path": "docs/declare-model.json",
     "title": "HTMLText",
@@ -1579,6 +1656,21 @@
     "title": "Image.stretches",
     "kind": "reference"
    },
+   "Keys": {
+    "path": "docs/declare-model.json",
+    "title": "Keys",
+    "kind": "reference"
+   },
+   "Keys.event.keyDown": {
+    "path": "docs/declare-model.json",
+    "title": "Keys.event.keyDown",
+    "kind": "reference"
+   },
+   "Keys.event.keyUp": {
+    "path": "docs/declare-model.json",
+    "title": "Keys.event.keyUp",
+    "kind": "reference"
+   },
    "Layout": {
     "path": "docs/declare-model.json",
     "title": "Layout",
@@ -1617,16 +1709,6 @@
    "Menu.child": {
     "path": "docs/declare-model.json",
     "title": "Menu.child",
-    "kind": "reference"
-   },
-   "Menu.event.onKeyDown": {
-    "path": "docs/declare-model.json",
-    "title": "Menu.event.onKeyDown",
-    "kind": "reference"
-   },
-   "Menu.event.onKeyUp": {
-    "path": "docs/declare-model.json",
-    "title": "Menu.event.onKeyUp",
     "kind": "reference"
    },
    "Menu.hasIcons": {
@@ -1767,11 +1849,6 @@
    "MenuBar": {
     "path": "docs/declare-model.json",
     "title": "MenuBar",
-    "kind": "reference"
-   },
-   "MenuBar.event.onKeyDown": {
-    "path": "docs/declare-model.json",
-    "title": "MenuBar.event.onKeyDown",
     "kind": "reference"
    },
    "MenuBar.ink": {
@@ -2424,6 +2501,16 @@
     "title": "TextInput.wrap",
     "kind": "reference"
    },
+   "Tip": {
+    "path": "docs/declare-model.json",
+    "title": "Tip",
+    "kind": "reference"
+   },
+   "Tip.event.tip": {
+    "path": "docs/declare-model.json",
+    "title": "Tip.event.tip",
+    "kind": "reference"
+   },
    "Tooltip": {
     "path": "docs/declare-model.json",
     "title": "Tooltip",
@@ -2432,11 +2519,6 @@
    "Tooltip.eh": {
     "path": "docs/declare-model.json",
     "title": "Tooltip.eh",
-    "kind": "reference"
-   },
-   "Tooltip.event.onTip": {
-    "path": "docs/declare-model.json",
-    "title": "Tooltip.event.onTip",
     "kind": "reference"
    },
    "Tooltip.ew": {
@@ -2452,11 +2534,6 @@
    "Tooltip.ey": {
     "path": "docs/declare-model.json",
     "title": "Tooltip.ey",
-    "kind": "reference"
-   },
-   "Tooltip.method.containsPoint": {
-    "path": "docs/declare-model.json",
-    "title": "Tooltip.method.containsPoint",
     "kind": "reference"
    },
    "Tooltip.placement": {
@@ -2594,6 +2671,11 @@
     "title": "View.event.focus",
     "kind": "reference"
    },
+   "View.event.hold": {
+    "path": "docs/declare-model.json",
+    "title": "View.event.hold",
+    "kind": "reference"
+   },
    "View.event.init": {
     "path": "docs/declare-model.json",
     "title": "View.event.init",
@@ -2632,6 +2714,26 @@
    "View.event.mouseUp": {
     "path": "docs/declare-model.json",
     "title": "View.event.mouseUp",
+    "kind": "reference"
+   },
+   "View.event.touchCancel": {
+    "path": "docs/declare-model.json",
+    "title": "View.event.touchCancel",
+    "kind": "reference"
+   },
+   "View.event.touchEnd": {
+    "path": "docs/declare-model.json",
+    "title": "View.event.touchEnd",
+    "kind": "reference"
+   },
+   "View.event.touchMove": {
+    "path": "docs/declare-model.json",
+    "title": "View.event.touchMove",
+    "kind": "reference"
+   },
+   "View.event.touchStart": {
+    "path": "docs/declare-model.json",
+    "title": "View.event.touchStart",
     "kind": "reference"
    },
    "View.fill": {
@@ -2739,6 +2841,11 @@
     "title": "View.method.childrenMutated",
     "kind": "reference"
    },
+   "View.method.containsPoint": {
+    "path": "docs/declare-model.json",
+    "title": "View.method.containsPoint",
+    "kind": "reference"
+   },
    "View.method.discard": {
     "path": "docs/declare-model.json",
     "title": "View.method.discard",
@@ -2772,6 +2879,11 @@
    "View.method.tabDefault": {
     "path": "docs/declare-model.json",
     "title": "View.method.tabDefault",
+    "kind": "reference"
+   },
+   "View.method.viewAt": {
+    "path": "docs/declare-model.json",
+    "title": "View.method.viewAt",
     "kind": "reference"
    },
    "View.opacity": {
@@ -3046,7 +3158,7 @@
    },
    "spec:core": {
     "path": "docs/declare.md",
-    "title": "Declare — the whole language, in one file, for you and your model",
+    "title": "Declare — the language, in one file, for you and your LLM",
     "kind": "spec"
    }
   },
@@ -3195,7 +3307,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 582
+    "line": 626
    },
    "parent": "View",
    "seeAlso": [],
@@ -3219,7 +3331,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 583
+    "line": 627
    },
    "parent": "View",
    "seeAlso": [],
@@ -3243,7 +3355,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 584
+    "line": 628
    },
    "parent": "View",
    "seeAlso": [],
@@ -3267,7 +3379,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 585
+    "line": 629
    },
    "parent": "View",
    "seeAlso": [],
@@ -3302,7 +3414,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 586
+    "line": 630
    },
    "parent": "View",
    "seeAlso": [],
@@ -3326,7 +3438,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 587
+    "line": 631
    },
    "parent": "View",
    "seeAlso": [],
@@ -3388,7 +3500,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 588
+    "line": 632
    },
    "parent": "View",
    "seeAlso": [],
@@ -3412,7 +3524,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 589
+    "line": 633
    },
    "parent": "View",
    "seeAlso": [],
@@ -3436,7 +3548,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 590
+    "line": 634
    },
    "parent": "View",
    "seeAlso": [],
@@ -3460,7 +3572,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 591
+    "line": 635
    },
    "parent": "View",
    "seeAlso": [],
@@ -3484,7 +3596,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 592
+    "line": 636
    },
    "parent": "View",
    "seeAlso": [],
@@ -3508,7 +3620,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 593
+    "line": 637
    },
    "parent": "View",
    "seeAlso": [],
@@ -3532,7 +3644,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 598
+    "line": 642
    },
    "parent": "View",
    "seeAlso": [],
@@ -3556,7 +3668,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 599
+    "line": 643
    },
    "parent": "View",
    "seeAlso": [],
@@ -3580,7 +3692,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 600
+    "line": 644
    },
    "parent": "View",
    "seeAlso": [],
@@ -3604,7 +3716,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 607
+    "line": 651
    },
    "parent": "View",
    "seeAlso": [],
@@ -3628,7 +3740,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 611
+    "line": 655
    },
    "parent": "View",
    "seeAlso": [],
@@ -3652,7 +3764,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 612
+    "line": 656
    },
    "parent": "View",
    "seeAlso": [],
@@ -3676,7 +3788,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 613
+    "line": 657
    },
    "parent": "View",
    "seeAlso": [],
@@ -3700,7 +3812,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 614
+    "line": 658
    },
    "parent": "View",
    "seeAlso": [],
@@ -3724,7 +3836,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 618
+    "line": 662
    },
    "parent": "View",
    "seeAlso": [],
@@ -3748,7 +3860,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 620
+    "line": 664
    },
    "parent": "View",
    "seeAlso": [],
@@ -3772,7 +3884,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 621
+    "line": 665
    },
    "parent": "View",
    "seeAlso": [],
@@ -3796,7 +3908,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 622
+    "line": 666
    },
    "parent": "View",
    "seeAlso": [],
@@ -3820,7 +3932,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 623
+    "line": 667
    },
    "parent": "View",
    "seeAlso": [],
@@ -3844,7 +3956,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 626
+    "line": 670
    },
    "parent": "View",
    "seeAlso": [],
@@ -3868,7 +3980,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 627
+    "line": 671
    },
    "parent": "View",
    "seeAlso": [],
@@ -3892,7 +4004,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 628
+    "line": 672
    },
    "parent": "View",
    "seeAlso": [],
@@ -3916,7 +4028,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 629
+    "line": 673
    },
    "parent": "View",
    "seeAlso": [],
@@ -3940,7 +4052,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 630
+    "line": 674
    },
    "parent": "View",
    "seeAlso": [],
@@ -3964,7 +4076,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 631
+    "line": 675
    },
    "parent": "View",
    "seeAlso": [],
@@ -3988,7 +4100,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 632
+    "line": 676
    },
    "parent": "View",
    "seeAlso": [],
@@ -4012,7 +4124,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 633
+    "line": 677
    },
    "parent": "View",
    "seeAlso": [],
@@ -4036,7 +4148,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 634
+    "line": 678
    },
    "parent": "View",
    "seeAlso": [],
@@ -4060,7 +4172,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 635
+    "line": 679
    },
    "parent": "View",
    "seeAlso": [],
@@ -4084,7 +4196,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 619
+    "line": 663
    },
    "parent": "View",
    "seeAlso": [],
@@ -4103,7 +4215,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 594
+    "line": 638
    },
    "parent": "View",
    "seeAlso": [],
@@ -4122,7 +4234,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 595
+    "line": 639
    },
    "parent": "View",
    "seeAlso": [],
@@ -4146,7 +4258,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 636
+    "line": 680
    },
    "parent": "View",
    "seeAlso": [],
@@ -4170,7 +4282,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 639
+    "line": 683
    },
    "parent": "View",
    "seeAlso": [],
@@ -4194,7 +4306,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 640
+    "line": 684
    },
    "parent": "View",
    "seeAlso": [],
@@ -4218,7 +4330,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 653
+    "line": 697
    },
    "parent": "View",
    "seeAlso": [],
@@ -4242,7 +4354,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 601
+    "line": 645
    },
    "parent": "View",
    "seeAlso": [],
@@ -4266,7 +4378,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 602
+    "line": 646
    },
    "parent": "View",
    "seeAlso": [],
@@ -4290,7 +4402,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 606
+    "line": 650
    },
    "parent": "View",
    "seeAlso": [],
@@ -4492,6 +4604,38 @@
    "signature": "discard(): void",
    "returns": "void"
   },
+  "View.method.viewAt": {
+   "id": "View.method.viewAt",
+   "name": "viewAt",
+   "kind": "method",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/view.ts",
+    "line": 496
+   },
+   "parent": "View",
+   "seeAlso": [],
+   "signature": "viewAt(x: number, y: number): View | null",
+   "returns": "View | null"
+  },
+  "View.method.containsPoint": {
+   "id": "View.method.containsPoint",
+   "name": "containsPoint",
+   "kind": "method",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/view.ts",
+    "line": 503
+   },
+   "parent": "View",
+   "seeAlso": [],
+   "signature": "containsPoint(x: number, y: number): boolean",
+   "returns": "boolean"
+  },
   "View.method.scrollIntoView": {
    "id": "View.method.scrollIntoView",
    "name": "scrollIntoView",
@@ -4506,7 +4650,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 487
+    "line": 513
    },
    "parent": "View",
    "seeAlso": [],
@@ -4522,7 +4666,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 497
+    "line": 523
    },
    "parent": "View",
    "seeAlso": [],
@@ -4538,7 +4682,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 556
+    "line": 600
    },
    "parent": "View",
    "seeAlso": [],
@@ -4554,7 +4698,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 574
+    "line": 618
    },
    "parent": "View",
    "seeAlso": [],
@@ -4606,6 +4750,21 @@
    "parent": "View",
    "seeAlso": [],
    "signature": "onDblClick()"
+  },
+  "View.event.hold": {
+   "id": "View.event.hold",
+   "name": "hold",
+   "kind": "event",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "View",
+   "seeAlso": [],
+   "signature": "onHold()"
   },
   "View.event.mouseDown": {
    "id": "View.event.mouseDown",
@@ -4706,6 +4865,66 @@
    "parent": "View",
    "seeAlso": [],
    "signature": "onMouseOut()"
+  },
+  "View.event.touchStart": {
+   "id": "View.event.touchStart",
+   "name": "touchStart",
+   "kind": "event",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "View",
+   "seeAlso": [],
+   "signature": "onTouchStart()"
+  },
+  "View.event.touchMove": {
+   "id": "View.event.touchMove",
+   "name": "touchMove",
+   "kind": "event",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "View",
+   "seeAlso": [],
+   "signature": "onTouchMove()"
+  },
+  "View.event.touchEnd": {
+   "id": "View.event.touchEnd",
+   "name": "touchEnd",
+   "kind": "event",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "View",
+   "seeAlso": [],
+   "signature": "onTouchEnd()"
+  },
+  "View.event.touchCancel": {
+   "id": "View.event.touchCancel",
+   "name": "touchCancel",
+   "kind": "event",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "View",
+   "seeAlso": [],
+   "signature": "onTouchCancel()"
   },
   "View.event.init": {
    "id": "View.event.init",
@@ -4939,6 +5158,8 @@
     "View.method.focusChanged",
     "View.method.alignBand",
     "View.method.discard",
+    "View.method.viewAt",
+    "View.method.containsPoint",
     "View.method.scrollIntoView",
     "View.method.raise",
     "View.method.invalidateDraw",
@@ -4947,11 +5168,16 @@
    "events": [
     "View.event.click",
     "View.event.dblClick",
+    "View.event.hold",
     "View.event.mouseDown",
     "View.event.mouseUp",
     "View.event.mouseMove",
     "View.event.mouseOver",
     "View.event.mouseOut",
+    "View.event.touchStart",
+    "View.event.touchMove",
+    "View.event.touchEnd",
+    "View.event.touchCancel",
     "View.event.init",
     "View.event.focus",
     "View.event.blur",
@@ -4982,7 +5208,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 915
+    "line": 976
    },
    "parent": "App",
    "seeAlso": [],
@@ -5006,7 +5232,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 916
+    "line": 977
    },
    "parent": "App",
    "seeAlso": [],
@@ -5030,7 +5256,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 917
+    "line": 978
    },
    "parent": "App",
    "seeAlso": [],
@@ -5054,7 +5280,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 918
+    "line": 979
    },
    "parent": "App",
    "seeAlso": [],
@@ -5078,7 +5304,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 920
+    "line": 981
    },
    "parent": "App",
    "seeAlso": [],
@@ -5097,7 +5323,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 919
+    "line": 980
    },
    "parent": "App",
    "seeAlso": [],
@@ -5121,7 +5347,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 921
+    "line": 982
    },
    "parent": "App",
    "seeAlso": [],
@@ -5145,7 +5371,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 922
+    "line": 983
    },
    "parent": "App",
    "seeAlso": [],
@@ -5169,7 +5395,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 923
+    "line": 984
    },
    "parent": "App",
    "seeAlso": [],
@@ -5188,14 +5414,71 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 924
+    "line": 985
    },
    "parent": "App",
    "seeAlso": [],
    "type": "boolean",
    "default": "false",
    "prevailing": false,
-   "readOnly": false,
+   "readOnly": true,
+   "inheritedFrom": null
+  },
+  "App.hasTouch": {
+   "id": "App.hasTouch",
+   "name": "hasTouch",
+   "kind": "attribute",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/view.ts",
+    "line": 986
+   },
+   "parent": "App",
+   "seeAlso": [],
+   "type": "boolean",
+   "default": "false",
+   "prevailing": false,
+   "readOnly": true,
+   "inheritedFrom": null
+  },
+  "App.hasPointer": {
+   "id": "App.hasPointer",
+   "name": "hasPointer",
+   "kind": "attribute",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/view.ts",
+    "line": 987
+   },
+   "parent": "App",
+   "seeAlso": [],
+   "type": "boolean",
+   "default": "true",
+   "prevailing": false,
+   "readOnly": true,
+   "inheritedFrom": null
+  },
+  "App.lastPointerType": {
+   "id": "App.lastPointerType",
+   "name": "lastPointerType",
+   "kind": "attribute",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/view.ts",
+    "line": 988
+   },
+   "parent": "App",
+   "seeAlso": [],
+   "type": "string",
+   "default": "\"mouse\"",
+   "prevailing": false,
+   "readOnly": true,
    "inheritedFrom": null
   },
   "App.env": {
@@ -5207,7 +5490,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 928
+    "line": 992
    },
    "parent": "App",
    "seeAlso": [],
@@ -5242,7 +5525,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 936
+    "line": 1000
    },
    "parent": "App",
    "seeAlso": [],
@@ -5266,7 +5549,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 940
+    "line": 1004
    },
    "parent": "App",
    "seeAlso": [],
@@ -5290,7 +5573,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 941
+    "line": 1005
    },
    "parent": "App",
    "seeAlso": [],
@@ -5309,7 +5592,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 943
+    "line": 1007
    },
    "parent": "App",
    "seeAlso": [],
@@ -5328,7 +5611,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 805
+    "line": 866
    },
    "parent": "App",
    "seeAlso": [],
@@ -5349,7 +5632,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 810
+    "line": 871
    },
    "parent": "App",
    "seeAlso": [],
@@ -5365,7 +5648,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 828
+    "line": 889
    },
    "parent": "App",
    "seeAlso": [],
@@ -5381,7 +5664,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 833
+    "line": 894
    },
    "parent": "App",
    "seeAlso": [],
@@ -5397,7 +5680,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 849
+    "line": 910
    },
    "parent": "App",
    "seeAlso": [],
@@ -5447,6 +5730,9 @@
     "App.pointerOverText",
     "App.dark",
     "App.touchDevice",
+    "App.hasTouch",
+    "App.hasPointer",
+    "App.lastPointerType",
     "App.env",
     "App.location",
     "App.minWidth",
@@ -6170,7 +6456,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 964
+    "line": 1028
    },
    "parent": "DOMIsland",
    "seeAlso": [],
@@ -6189,7 +6475,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 965
+    "line": 1029
    },
    "parent": "DOMIsland",
    "seeAlso": [],
@@ -8353,6 +8639,258 @@
     }
    ]
   },
+  "Frames.running": {
+   "id": "Frames.running",
+   "name": "running",
+   "kind": "attribute",
+   "doc": "Is the heartbeat live? A plain reactive slot, so the usual idiom is a constraint —\n`running = { app.simulating }` — which starts and stops the loop as the app's own state\nchanges. The first frame after a start establishes the time baseline and reports no step.",
+   "docSegs": [
+    {
+     "md": "Is the heartbeat live? A plain reactive slot, so the usual idiom is a constraint —\n`running = { app.simulating }` — which starts and stops the loop as the app's own state\nchanges. The first frame after a start establishes the time baseline and reports no step.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "Frames",
+   "seeAlso": [],
+   "type": "boolean",
+   "default": null,
+   "prevailing": false,
+   "readOnly": false,
+   "inheritedFrom": null
+  },
+  "Frames.event.frame": {
+   "id": "Frames.event.frame",
+   "name": "frame",
+   "kind": "event",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "Frames",
+   "seeAlso": [],
+   "signature": "onFrame()"
+  },
+  "Frames": {
+   "id": "Frames",
+   "name": "Frames",
+   "kind": "class",
+   "doc": "The **frame heartbeat** as a member: calls your `onFrame(dt)` once per animation frame,\nwith `dt` the real elapsed time in seconds. `Spring` and `Animator` are the declarative\nhalf of motion — say where a thing belongs and the runtime finds the path; `Frames` is the\nraw tick an app that integrates something *itself* needs: custom gesture physics, a\nsimulation, a game loop. Reach for it only when you are doing the integration; for \"move\nthis there, smoothly,\" a `Spring` is less code and better behaved.\n\nIt rides the one shared clock every animator uses, so it costs nothing until it runs and\nnever starts a second frame loop, and its lifetime is the node's — a discarded subtree\ncannot leave a loop running behind it. `dt` is clamped (a backgrounded tab resumes with a\nplausible step, not one enormous jump that would launch any integrator into the weeds).\n\n```declare\nApp [ width = 240, height = 120, fill = midnightblue, textColor = whitesmoke,\n    x0: number = 20,\n    v: number = 60,\n    physics: Frames [ onFrame(dt) { app.x0 = (app.x0 + app.v * dt) % 200 } ],\n    dot: View [ x = { app.x0 }, y = 40, width = 40, height = 40, cornerRadius = 20,\n        fill = turquoise ],\n    ]\n```",
+   "docSegs": [
+    {
+     "md": "The **frame heartbeat** as a member: calls your `onFrame(dt)` once per animation frame,\nwith `dt` the real elapsed time in seconds. `Spring` and `Animator` are the declarative\nhalf of motion — say where a thing belongs and the runtime finds the path; `Frames` is the\nraw tick an app that integrates something *itself* needs: custom gesture physics, a\nsimulation, a game loop. Reach for it only when you are doing the integration; for \"move\nthis there, smoothly,\" a `Spring` is less code and better behaved.\n\nIt rides the one shared clock every animator uses, so it costs nothing until it runs and\nnever starts a second frame loop, and its lifetime is the node's — a discarded subtree\ncannot leave a loop running behind it. `dt` is clamped (a backgrounded tab resumes with a\nplausible step, not one enormous jump that would launch any integrator into the weeds).",
+     "code": []
+    },
+    {
+     "md": "",
+     "code": [
+      {
+       "id": "seg_Frames_0",
+       "source": "App [ width = 240, height = 120, fill = midnightblue, textColor = whitesmoke,\n    x0: number = 20,\n    v: number = 60,\n    physics: Frames [ onFrame(dt) { app.x0 = (app.x0 + app.v * dt) % 200 } ],\n    dot: View [ x = { app.x0 }, y = 40, width = 40, height = 40, cornerRadius = 20,\n        fill = turquoise ],\n    ]",
+       "lines": 7,
+       "stageH": 200
+      }
+     ]
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": null,
+   "seeAlso": [],
+   "extends": null,
+   "subclasses": [],
+   "origin": "ts",
+   "attributes": [
+    "Frames.running"
+   ],
+   "methods": [],
+   "events": [
+    "Frames.event.frame"
+   ],
+   "example": []
+  },
+  "Keys.event.keyDown": {
+   "id": "Keys.event.keyDown",
+   "name": "keyDown",
+   "kind": "event",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "Keys",
+   "seeAlso": [],
+   "signature": "onKeyDown()"
+  },
+  "Keys.event.keyUp": {
+   "id": "Keys.event.keyUp",
+   "name": "keyUp",
+   "kind": "event",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "Keys",
+   "seeAlso": [],
+   "signature": "onKeyUp()"
+  },
+  "Keys": {
+   "id": "Keys",
+   "name": "Keys",
+   "kind": "class",
+   "doc": "The keyboard, as a member. `Keys` names one concept that a program can either **ask** or\n**listen to**: `Keys.isDown(\"KeyA\")` is a call you make from any `{ }` body; a `Keys [ … ]`\nmember is how the keyboard calls you.\n\nIt is the RAW stream — it fires even while a text field has focus, so gate app-level\nshortcuts on app state where that matters. A *focused* view's own `onKeyDown`/`onKeyUp`\nhandlers are the other half of the story, and usually the right one for keys that belong to\na particular widget. Lifetime is the node's: subscribed at init, dropped when the node is\ndiscarded, nothing to clean up. Fan-out is by instance — a menu, a dialog, and a menubar\neach holding a `Keys` member all hear the keyboard at once.\n\n```declare\nApp [ width = 240, height = 100, fill = white, textColor = black,\n    n: number = 0,\n    keys: Keys [\n        onKeyUp(e) {\n            if (e.key == \"ArrowUp\") { app.n = app.n + 1 }\n            else if (e.key == \"ArrowDown\") { app.n = app.n - 1 }\n            },\n        ],\n    Text [ x = 20, y = 30, fontSize = 30, text = { `n = ${n}` } ],\n    ]\n```",
+   "docSegs": [
+    {
+     "md": "The keyboard, as a member. `Keys` names one concept that a program can either **ask** or\n**listen to**: `Keys.isDown(\"KeyA\")` is a call you make from any `{ }` body; a `Keys [ … ]`\nmember is how the keyboard calls you.\n\nIt is the RAW stream — it fires even while a text field has focus, so gate app-level\nshortcuts on app state where that matters. A *focused* view's own `onKeyDown`/`onKeyUp`\nhandlers are the other half of the story, and usually the right one for keys that belong to\na particular widget. Lifetime is the node's: subscribed at init, dropped when the node is\ndiscarded, nothing to clean up. Fan-out is by instance — a menu, a dialog, and a menubar\neach holding a `Keys` member all hear the keyboard at once.",
+     "code": []
+    },
+    {
+     "md": "",
+     "code": [
+      {
+       "id": "seg_Keys_0",
+       "source": "App [ width = 240, height = 100, fill = white, textColor = black,\n    n: number = 0,\n    keys: Keys [\n        onKeyUp(e) {\n            if (e.key == \"ArrowUp\") { app.n = app.n + 1 }\n            else if (e.key == \"ArrowDown\") { app.n = app.n - 1 }\n            },\n        ],\n    Text [ x = 20, y = 30, fontSize = 30, text = { `n = ${n}` } ],\n    ]",
+       "lines": 10,
+       "stageH": 200
+      }
+     ]
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": null,
+   "seeAlso": [],
+   "extends": null,
+   "subclasses": [],
+   "origin": "ts",
+   "attributes": [],
+   "methods": [],
+   "events": [
+    "Keys.event.keyDown",
+    "Keys.event.keyUp"
+   ],
+   "example": []
+  },
+  "Focus.event.focusChange": {
+   "id": "Focus.event.focusChange",
+   "name": "focusChange",
+   "kind": "event",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "Focus",
+   "seeAlso": [],
+   "signature": "onFocusChange()"
+  },
+  "Focus.event.geometry": {
+   "id": "Focus.event.geometry",
+   "name": "geometry",
+   "kind": "event",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "Focus",
+   "seeAlso": [],
+   "signature": "onGeometry()"
+  },
+  "Focus": {
+   "id": "Focus",
+   "name": "Focus",
+   "kind": "class",
+   "doc": "The focus service, as a member. Like `Keys`, `Focus` names one concept a program can\n**ask** (`Focus.focus(this)`, `Focus.byKeyboard()` — calls from any `{ }` body) or\n**listen to** (a `Focus [ … ]` member).\n\nListening is what a focus indicator does: the library's `FocusRing` follows focus with\nexactly these two handlers, tracking where focus went and the live silhouette of whatever\nholds it. Most apps never need it — focus rings, tab order, and activation are provided —\nbut replacing the indicator is a supported thing to do, and this is how.\n\n```declare-fragment\nwatch: Focus [\n    onFocusChange(v) { classroot.target = v },\n    onGeometry(g)    { classroot.tx = g.x; classroot.ty = g.y },\n    ],\n```",
+   "docSegs": [
+    {
+     "md": "The focus service, as a member. Like `Keys`, `Focus` names one concept a program can\n**ask** (`Focus.focus(this)`, `Focus.byKeyboard()` — calls from any `{ }` body) or\n**listen to** (a `Focus [ … ]` member).\n\nListening is what a focus indicator does: the library's `FocusRing` follows focus with\nexactly these two handlers, tracking where focus went and the live silhouette of whatever\nholds it. Most apps never need it — focus rings, tab order, and activation are provided —\nbut replacing the indicator is a supported thing to do, and this is how.\n\n```declare-fragment\nwatch: Focus [\n    onFocusChange(v) { classroot.target = v },\n    onGeometry(g)    { classroot.tx = g.x; classroot.ty = g.y },\n    ],\n```",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": null,
+   "seeAlso": [],
+   "extends": null,
+   "subclasses": [],
+   "origin": "ts",
+   "attributes": [],
+   "methods": [],
+   "events": [
+    "Focus.event.focusChange",
+    "Focus.event.geometry"
+   ],
+   "example": []
+  },
+  "Tip.event.tip": {
+   "id": "Tip.event.tip",
+   "name": "tip",
+   "kind": "event",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "Tip",
+   "seeAlso": [],
+   "signature": "onTip()"
+  },
+  "Tip": {
+   "id": "Tip",
+   "name": "Tip",
+   "kind": "class",
+   "doc": "The tooltip service, as a member: `onTip(e)` fires when a view carrying `tip = \"…\"` wants\nits tooltip shown, and with `null` when it should hide. The service owns the platform\nconventions — the show delay, instant retarget while showing, hide on press — so a\nlistener only renders.\n\nThe library's `Tooltip` is the one listener most programs ever need, and it arrives\nautomatically in any app whose views carry tips. Declare your own `Tip [ … ]` member only\nwhen you are replacing that rendition.\n\n```declare-fragment\ntips: Tip [\n    onTip(e) {\n        if (e == null) { classroot.shown = false; return }\n        classroot.label = e.text\n        classroot.shown = true\n        },\n    ],\n```",
+   "docSegs": [
+    {
+     "md": "The tooltip service, as a member: `onTip(e)` fires when a view carrying `tip = \"…\"` wants\nits tooltip shown, and with `null` when it should hide. The service owns the platform\nconventions — the show delay, instant retarget while showing, hide on press — so a\nlistener only renders.\n\nThe library's `Tooltip` is the one listener most programs ever need, and it arrives\nautomatically in any app whose views carry tips. Declare your own `Tip [ … ]` member only\nwhen you are replacing that rendition.\n\n```declare-fragment\ntips: Tip [\n    onTip(e) {\n        if (e == null) { classroot.shown = false; return }\n        classroot.label = e.text\n        classroot.shown = true\n        },\n    ],\n```",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": null,
+   "seeAlso": [],
+   "extends": null,
+   "subclasses": [],
+   "origin": "ts",
+   "attributes": [],
+   "methods": [],
+   "events": [
+    "Tip.event.tip"
+   ],
+   "example": []
+  },
   "State.applied": {
    "id": "State.applied",
    "name": "applied",
@@ -10461,51 +10999,6 @@
    "seeAlso": [],
    "signature": "snapTo()"
   },
-  "FocusRing.event.onGeometry": {
-   "id": "FocusRing.event.onGeometry",
-   "name": "onGeometry",
-   "kind": "event",
-   "doc": null,
-   "docSegs": [],
-   "api": true,
-   "source": {
-    "file": "library/focusring.declare",
-    "line": 0
-   },
-   "parent": "FocusRing",
-   "seeAlso": [],
-   "signature": "onGeometry(g)"
-  },
-  "FocusRing.event.onFocusChange": {
-   "id": "FocusRing.event.onFocusChange",
-   "name": "onFocusChange",
-   "kind": "event",
-   "doc": null,
-   "docSegs": [],
-   "api": true,
-   "source": {
-    "file": "library/focusring.declare",
-    "line": 0
-   },
-   "parent": "FocusRing",
-   "seeAlso": [],
-   "signature": "onFocusChange(v)"
-  },
-  "FocusRing.method.containsPoint": {
-   "id": "FocusRing.method.containsPoint",
-   "name": "containsPoint",
-   "kind": "method",
-   "doc": null,
-   "docSegs": [],
-   "api": true,
-   "source": {
-    "file": "library/focusring.declare",
-    "line": 0
-   },
-   "parent": "FocusRing",
-   "seeAlso": [],
-   "signature": "containsPoint(px, py)"
-  },
   "FocusRing.method.draw": {
    "id": "FocusRing.method.draw",
    "name": "draw",
@@ -10525,10 +11018,10 @@
    "id": "FocusRing",
    "name": "FocusRing",
    "kind": "class",
-   "doc": "The traveling focus indicator — the OpenLaszlo 3.4 `focusoverlay` line, on the\nreactive core, at its third form: a SHAPE-HUGGING rounded outline whose\nterminus reshapes to the focused control's own silhouette (library-charter §6\n— the ring springs position, size, AND cornerRadius; a Radio's row ring, a\npill Switch's ring, and a text field's ring differ because the targets do).\n\nThe layered model (charter, ratified):\n\n- **The fact** — the ring listens to Focus (`onFocusChange(v) <- Focus`) and\n  tracks the target's root-space geometry on EVERY change, pointer or\n  keyboard. A pointer focus PARKS the ring there silently (snap, no show) —\n  so the next Tab's flight departs from the control the user just clicked,\n  never from a stale perch.\n- **Roles, theme-elected** — `theme.focusRing`: `\"both\"` (or `true`, the\n  default) · `\"travel\"` (flight + the OL idle fade) · `\"rest\"` (no flight —\n  the ring appears in place and stays) · `false` (no ring; the theme's\n  components carry the at-rest indication — the invariant lives with the\n  THEME+components pair). While keyboard modality holds and the role includes\n  rest, the ring RESTS — no idle fade; a pointer press clears modality and\n  the ring hides (web :focus-visible semantics).\n- **The flight is the flourish** — `theme.focusAnimate = false` (the\n  sampler's \"Animate focus transitions\" toggle) snaps every move; the\n  underdamped travel is default-on.\n\nIt arrives automatically with any Control-descended component (the OL\n`canvas.focusclass` default); declare your own `FocusRing [ ]` (or subclass)\nto replace it. Pure chrome: never focusable, never a pointer target.\n(v1 limits, recorded: root-space bounds are summed through the parent chain —\na scrolled container is not compensated; the silhouette is the target's\n`cornerRadius` — a `focusShape()` override protocol arrives with the\nemulation passes.)",
+   "doc": "The traveling focus indicator — the OpenLaszlo 3.4 `focusoverlay` line, on the\nreactive core, at its third form: a SHAPE-HUGGING rounded outline whose\nterminus reshapes to the focused control's own silhouette (library-charter §6\n— the ring springs position, size, AND cornerRadius; a Radio's row ring, a\npill Switch's ring, and a text field's ring differ because the targets do).\n\nThe layered model (charter, ratified):\n\n- **The fact** — the ring listens to Focus (a `Focus [ onFocusChange(v) { … } ]` member) and\n  tracks the target's root-space geometry on EVERY change, pointer or\n  keyboard. A pointer focus PARKS the ring there silently (snap, no show) —\n  so the next Tab's flight departs from the control the user just clicked,\n  never from a stale perch.\n- **Roles, theme-elected** — `theme.focusRing`: `\"both\"` (or `true`, the\n  default) · `\"travel\"` (flight + the OL idle fade) · `\"rest\"` (no flight —\n  the ring appears in place and stays) · `false` (no ring; the theme's\n  components carry the at-rest indication — the invariant lives with the\n  THEME+components pair). While keyboard modality holds and the role includes\n  rest, the ring RESTS — no idle fade; a pointer press clears modality and\n  the ring hides (web :focus-visible semantics).\n- **The flight is the flourish** — `theme.focusAnimate = false` (the\n  sampler's \"Animate focus transitions\" toggle) snaps every move; the\n  underdamped travel is default-on.\n\nIt arrives automatically with any Control-descended component (the OL\n`canvas.focusclass` default); declare your own `FocusRing [ ]` (or subclass)\nto replace it. Pure chrome: never focusable, never a pointer target.\n(v1 limits, recorded: root-space bounds are summed through the parent chain —\na scrolled container is not compensated; the silhouette is the target's\n`cornerRadius` — a `focusShape()` override protocol arrives with the\nemulation passes.)",
    "docSegs": [
     {
-     "md": "The traveling focus indicator — the OpenLaszlo 3.4 `focusoverlay` line, on the\nreactive core, at its third form: a SHAPE-HUGGING rounded outline whose\nterminus reshapes to the focused control's own silhouette (library-charter §6\n— the ring springs position, size, AND cornerRadius; a Radio's row ring, a\npill Switch's ring, and a text field's ring differ because the targets do).\n\nThe layered model (charter, ratified):\n\n- **The fact** — the ring listens to Focus (`onFocusChange(v) <- Focus`) and\n  tracks the target's root-space geometry on EVERY change, pointer or\n  keyboard. A pointer focus PARKS the ring there silently (snap, no show) —\n  so the next Tab's flight departs from the control the user just clicked,\n  never from a stale perch.\n- **Roles, theme-elected** — `theme.focusRing`: `\"both\"` (or `true`, the\n  default) · `\"travel\"` (flight + the OL idle fade) · `\"rest\"` (no flight —\n  the ring appears in place and stays) · `false` (no ring; the theme's\n  components carry the at-rest indication — the invariant lives with the\n  THEME+components pair). While keyboard modality holds and the role includes\n  rest, the ring RESTS — no idle fade; a pointer press clears modality and\n  the ring hides (web :focus-visible semantics).\n- **The flight is the flourish** — `theme.focusAnimate = false` (the\n  sampler's \"Animate focus transitions\" toggle) snaps every move; the\n  underdamped travel is default-on.\n\nIt arrives automatically with any Control-descended component (the OL\n`canvas.focusclass` default); declare your own `FocusRing [ ]` (or subclass)\nto replace it. Pure chrome: never focusable, never a pointer target.\n(v1 limits, recorded: root-space bounds are summed through the parent chain —\na scrolled container is not compensated; the silhouette is the target's\n`cornerRadius` — a `focusShape()` override protocol arrives with the\nemulation passes.)",
+     "md": "The traveling focus indicator — the OpenLaszlo 3.4 `focusoverlay` line, on the\nreactive core, at its third form: a SHAPE-HUGGING rounded outline whose\nterminus reshapes to the focused control's own silhouette (library-charter §6\n— the ring springs position, size, AND cornerRadius; a Radio's row ring, a\npill Switch's ring, and a text field's ring differ because the targets do).\n\nThe layered model (charter, ratified):\n\n- **The fact** — the ring listens to Focus (a `Focus [ onFocusChange(v) { … } ]` member) and\n  tracks the target's root-space geometry on EVERY change, pointer or\n  keyboard. A pointer focus PARKS the ring there silently (snap, no show) —\n  so the next Tab's flight departs from the control the user just clicked,\n  never from a stale perch.\n- **Roles, theme-elected** — `theme.focusRing`: `\"both\"` (or `true`, the\n  default) · `\"travel\"` (flight + the OL idle fade) · `\"rest\"` (no flight —\n  the ring appears in place and stays) · `false` (no ring; the theme's\n  components carry the at-rest indication — the invariant lives with the\n  THEME+components pair). While keyboard modality holds and the role includes\n  rest, the ring RESTS — no idle fade; a pointer press clears modality and\n  the ring hides (web :focus-visible semantics).\n- **The flight is the flourish** — `theme.focusAnimate = false` (the\n  sampler's \"Animate focus transitions\" toggle) snaps every move; the\n  underdamped travel is default-on.\n\nIt arrives automatically with any Control-descended component (the OL\n`canvas.focusclass` default); declare your own `FocusRing [ ]` (or subclass)\nto replace it. Pure chrome: never focusable, never a pointer target.\n(v1 limits, recorded: root-space bounds are summed through the parent chain —\na scrolled container is not compensated; the silhouette is the target's\n`cornerRadius` — a `focusShape()` override protocol arrives with the\nemulation passes.)",
      "code": []
     }
    ],
@@ -10559,13 +11052,9 @@
     "FocusRing.method.restRole",
     "FocusRing.method.travelRole",
     "FocusRing.method.snapTo",
-    "FocusRing.method.containsPoint",
     "FocusRing.method.draw"
    ],
-   "events": [
-    "FocusRing.event.onGeometry",
-    "FocusRing.event.onFocusChange"
-   ],
+   "events": [],
    "example": []
   },
   "TabSlider.value": {
@@ -10959,44 +11448,14 @@
    "readOnly": false,
    "inheritedFrom": null
   },
-  "Tooltip.event.onTip": {
-   "id": "Tooltip.event.onTip",
-   "name": "onTip",
-   "kind": "event",
-   "doc": null,
-   "docSegs": [],
-   "api": true,
-   "source": {
-    "file": "library/tooltip.declare",
-    "line": 0
-   },
-   "parent": "Tooltip",
-   "seeAlso": [],
-   "signature": "onTip(e)"
-  },
-  "Tooltip.method.containsPoint": {
-   "id": "Tooltip.method.containsPoint",
-   "name": "containsPoint",
-   "kind": "method",
-   "doc": null,
-   "docSegs": [],
-   "api": true,
-   "source": {
-    "file": "library/tooltip.declare",
-    "line": 0
-   },
-   "parent": "Tooltip",
-   "seeAlso": [],
-   "signature": "containsPoint(cx, cy)"
-  },
   "Tooltip": {
    "id": "Tooltip",
    "name": "Tooltip",
    "kind": "class",
-   "doc": "The layer system's floor (planes.md §2, tier 1): any view sets `tip = \"…\"`\nand this singleton renders it — hover delay, placement, flip, and theming\nare nobody's problem at the use site. It arrives automatically when any\nview in the program carries a tip (the FocusRing auto-arrival mechanism);\ndeclare your own `Tooltip [ ]` (or subclass) to replace the rendition.\n\nIt listens to the Tip service (`onTip(e) <- Tip`), which owns the platform\nconventions (the show delay — `tooltipDelay`, ~1s on the Apple and Windows\nplatforms, ~500ms Material — instant retarget while showing, hide on\npress). PLACEMENT is theme data too (`tooltipPlacement`): \"below\" (the\ndefault — under the target, centered, flipping above at the edge), \"above\"\n(Fluent/WinUI's default, flipping below), or \"pointer\" (the macOS help tag —\noffset below-right of where the cursor rests). Always clamped inside the\napp. Pure chrome — never focusable, never a pointer target, always above\ncontent (the auto-splice puts it last in the App, and source order stacks).\n\nTheming (the four cities carry the tokens): `tooltipBg` / `tooltipText` /\n`tooltipLine` (null = no border) / `tooltipSize` (11 on macOS, 12\nelsewhere). Cupertino and Redmond wear bordered surface chips; San\nFrancisco and Mountain View the inverse chip.",
+   "doc": "The layer system's floor (planes.md §2, tier 1): any view sets `tip = \"…\"`\nand this singleton renders it — hover delay, placement, flip, and theming\nare nobody's problem at the use site. It arrives automatically when any\nview in the program carries a tip (the FocusRing auto-arrival mechanism);\ndeclare your own `Tooltip [ ]` (or subclass) to replace the rendition.\n\nIt listens to the Tip service (a `Tip [ onTip(e) { … } ]` member), which owns the platform\nconventions (the show delay — `tooltipDelay`, ~1s on the Apple and Windows\nplatforms, ~500ms Material — instant retarget while showing, hide on\npress). PLACEMENT is theme data too (`tooltipPlacement`): \"below\" (the\ndefault — under the target, centered, flipping above at the edge), \"above\"\n(Fluent/WinUI's default, flipping below), or \"pointer\" (the macOS help tag —\noffset below-right of where the cursor rests). Always clamped inside the\napp. Pure chrome — never focusable, never a pointer target, always above\ncontent (the auto-splice puts it last in the App, and source order stacks).\n\nTheming (the four cities carry the tokens): `tooltipBg` / `tooltipText` /\n`tooltipLine` (null = no border) / `tooltipSize` (11 on macOS, 12\nelsewhere). Cupertino and Redmond wear bordered surface chips; San\nFrancisco and Mountain View the inverse chip.",
    "docSegs": [
     {
-     "md": "The layer system's floor (planes.md §2, tier 1): any view sets `tip = \"…\"`\nand this singleton renders it — hover delay, placement, flip, and theming\nare nobody's problem at the use site. It arrives automatically when any\nview in the program carries a tip (the FocusRing auto-arrival mechanism);\ndeclare your own `Tooltip [ ]` (or subclass) to replace the rendition.\n\nIt listens to the Tip service (`onTip(e) <- Tip`), which owns the platform\nconventions (the show delay — `tooltipDelay`, ~1s on the Apple and Windows\nplatforms, ~500ms Material — instant retarget while showing, hide on\npress). PLACEMENT is theme data too (`tooltipPlacement`): \"below\" (the\ndefault — under the target, centered, flipping above at the edge), \"above\"\n(Fluent/WinUI's default, flipping below), or \"pointer\" (the macOS help tag —\noffset below-right of where the cursor rests). Always clamped inside the\napp. Pure chrome — never focusable, never a pointer target, always above\ncontent (the auto-splice puts it last in the App, and source order stacks).\n\nTheming (the four cities carry the tokens): `tooltipBg` / `tooltipText` /\n`tooltipLine` (null = no border) / `tooltipSize` (11 on macOS, 12\nelsewhere). Cupertino and Redmond wear bordered surface chips; San\nFrancisco and Mountain View the inverse chip.",
+     "md": "The layer system's floor (planes.md §2, tier 1): any view sets `tip = \"…\"`\nand this singleton renders it — hover delay, placement, flip, and theming\nare nobody's problem at the use site. It arrives automatically when any\nview in the program carries a tip (the FocusRing auto-arrival mechanism);\ndeclare your own `Tooltip [ ]` (or subclass) to replace the rendition.\n\nIt listens to the Tip service (a `Tip [ onTip(e) { … } ]` member), which owns the platform\nconventions (the show delay — `tooltipDelay`, ~1s on the Apple and Windows\nplatforms, ~500ms Material — instant retarget while showing, hide on\npress). PLACEMENT is theme data too (`tooltipPlacement`): \"below\" (the\ndefault — under the target, centered, flipping above at the edge), \"above\"\n(Fluent/WinUI's default, flipping below), or \"pointer\" (the macOS help tag —\noffset below-right of where the cursor rests). Always clamped inside the\napp. Pure chrome — never focusable, never a pointer target, always above\ncontent (the auto-splice puts it last in the App, and source order stacks).\n\nTheming (the four cities carry the tokens): `tooltipBg` / `tooltipText` /\n`tooltipLine` (null = no border) / `tooltipSize` (11 on macOS, 12\nelsewhere). Cupertino and Redmond wear bordered surface chips; San\nFrancisco and Mountain View the inverse chip.",
      "code": []
     }
    ],
@@ -11021,12 +11480,8 @@
     "Tooltip.py",
     "Tooltip.placement"
    ],
-   "methods": [
-    "Tooltip.method.containsPoint"
-   ],
-   "events": [
-    "Tooltip.event.onTip"
-   ],
+   "methods": [],
+   "events": [],
    "example": []
   },
   "Menu.items": {
@@ -11504,36 +11959,6 @@
    "seeAlso": [],
    "signature": "stepIn(c)"
   },
-  "Menu.event.onKeyDown": {
-   "id": "Menu.event.onKeyDown",
-   "name": "onKeyDown",
-   "kind": "event",
-   "doc": null,
-   "docSegs": [],
-   "api": true,
-   "source": {
-    "file": "library/menu.declare",
-    "line": 0
-   },
-   "parent": "Menu",
-   "seeAlso": [],
-   "signature": "onKeyDown(e)"
-  },
-  "Menu.event.onKeyUp": {
-   "id": "Menu.event.onKeyUp",
-   "name": "onKeyUp",
-   "kind": "event",
-   "doc": null,
-   "docSegs": [],
-   "api": true,
-   "source": {
-    "file": "library/menu.declare",
-    "line": 0
-   },
-   "parent": "Menu",
-   "seeAlso": [],
-   "signature": "onKeyUp(e)"
-  },
   "Menu": {
    "id": "Menu",
    "name": "Menu",
@@ -11588,10 +12013,7 @@
     "Menu.method.enterRow",
     "Menu.method.stepIn"
    ],
-   "events": [
-    "Menu.event.onKeyDown",
-    "Menu.event.onKeyUp"
-   ],
+   "events": [],
    "example": []
   },
   "MenuBar.menus": {
@@ -11760,21 +12182,6 @@
    "seeAlso": [],
    "signature": "stepMenu(d)"
   },
-  "MenuBar.event.onKeyDown": {
-   "id": "MenuBar.event.onKeyDown",
-   "name": "onKeyDown",
-   "kind": "event",
-   "doc": null,
-   "docSegs": [],
-   "api": true,
-   "source": {
-    "file": "library/menubar.declare",
-    "line": 0
-   },
-   "parent": "MenuBar",
-   "seeAlso": [],
-   "signature": "onKeyDown(e)"
-  },
   "MenuBar": {
    "id": "MenuBar",
    "name": "MenuBar",
@@ -11810,9 +12217,7 @@
     "MenuBar.method.hasSub",
     "MenuBar.method.stepMenu"
    ],
-   "events": [
-    "MenuBar.event.onKeyDown"
-   ],
+   "events": [],
    "example": []
   },
   "Dialog.shown": {
@@ -12181,21 +12586,6 @@
    "seeAlso": [],
    "signature": "pickCancel()"
   },
-  "Dialog.event.onKeyDown": {
-   "id": "Dialog.event.onKeyDown",
-   "name": "onKeyDown",
-   "kind": "event",
-   "doc": null,
-   "docSegs": [],
-   "api": true,
-   "source": {
-    "file": "library/dialog.declare",
-    "line": 0
-   },
-   "parent": "Dialog",
-   "seeAlso": [],
-   "signature": "onKeyDown(e)"
-  },
   "Dialog": {
    "id": "Dialog",
    "name": "Dialog",
@@ -12243,9 +12633,7 @@
     "Dialog.method.pickDefault",
     "Dialog.method.pickCancel"
    ],
-   "events": [
-    "Dialog.event.onKeyDown"
-   ],
+   "events": [],
    "example": []
   },
   "AppIsland.program": {
@@ -12652,6 +13040,10 @@
   "Animator",
   "AnimatorGroup",
   "Spring",
+  "Frames",
+  "Keys",
+  "Focus",
+  "Tip",
   "State",
   "Node",
   "Bar",
@@ -12738,7 +13130,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 582
+      "line": 626
      },
      "parent": "View",
      "seeAlso": [],
@@ -12762,7 +13154,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 583
+      "line": 627
      },
      "parent": "View",
      "seeAlso": [],
@@ -12786,7 +13178,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 584
+      "line": 628
      },
      "parent": "View",
      "seeAlso": [],
@@ -12810,7 +13202,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 585
+      "line": 629
      },
      "parent": "View",
      "seeAlso": [],
@@ -12845,7 +13237,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 586
+      "line": 630
      },
      "parent": "View",
      "seeAlso": [],
@@ -12869,7 +13261,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 587
+      "line": 631
      },
      "parent": "View",
      "seeAlso": [],
@@ -12893,7 +13285,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 588
+      "line": 632
      },
      "parent": "View",
      "seeAlso": [],
@@ -12917,7 +13309,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 589
+      "line": 633
      },
      "parent": "View",
      "seeAlso": [],
@@ -12941,7 +13333,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 590
+      "line": 634
      },
      "parent": "View",
      "seeAlso": [],
@@ -12965,7 +13357,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 591
+      "line": 635
      },
      "parent": "View",
      "seeAlso": [],
@@ -12989,7 +13381,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 592
+      "line": 636
      },
      "parent": "View",
      "seeAlso": [],
@@ -13013,7 +13405,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 593
+      "line": 637
      },
      "parent": "View",
      "seeAlso": [],
@@ -13037,7 +13429,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 598
+      "line": 642
      },
      "parent": "View",
      "seeAlso": [],
@@ -13061,7 +13453,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 599
+      "line": 643
      },
      "parent": "View",
      "seeAlso": [],
@@ -13085,7 +13477,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 600
+      "line": 644
      },
      "parent": "View",
      "seeAlso": [],
@@ -13109,7 +13501,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 607
+      "line": 651
      },
      "parent": "View",
      "seeAlso": [],
@@ -13133,7 +13525,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 611
+      "line": 655
      },
      "parent": "View",
      "seeAlso": [],
@@ -13157,7 +13549,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 612
+      "line": 656
      },
      "parent": "View",
      "seeAlso": [],
@@ -13181,7 +13573,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 613
+      "line": 657
      },
      "parent": "View",
      "seeAlso": [],
@@ -13205,7 +13597,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 614
+      "line": 658
      },
      "parent": "View",
      "seeAlso": [],
@@ -13229,7 +13621,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 618
+      "line": 662
      },
      "parent": "View",
      "seeAlso": [],
@@ -13253,7 +13645,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 620
+      "line": 664
      },
      "parent": "View",
      "seeAlso": [],
@@ -13277,7 +13669,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 621
+      "line": 665
      },
      "parent": "View",
      "seeAlso": [],
@@ -13301,7 +13693,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 622
+      "line": 666
      },
      "parent": "View",
      "seeAlso": [],
@@ -13325,7 +13717,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 623
+      "line": 667
      },
      "parent": "View",
      "seeAlso": [],
@@ -13349,7 +13741,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 626
+      "line": 670
      },
      "parent": "View",
      "seeAlso": [],
@@ -13373,7 +13765,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 627
+      "line": 671
      },
      "parent": "View",
      "seeAlso": [],
@@ -13397,7 +13789,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 628
+      "line": 672
      },
      "parent": "View",
      "seeAlso": [],
@@ -13421,7 +13813,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 629
+      "line": 673
      },
      "parent": "View",
      "seeAlso": [],
@@ -13445,7 +13837,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 630
+      "line": 674
      },
      "parent": "View",
      "seeAlso": [],
@@ -13469,7 +13861,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 631
+      "line": 675
      },
      "parent": "View",
      "seeAlso": [],
@@ -13493,7 +13885,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 632
+      "line": 676
      },
      "parent": "View",
      "seeAlso": [],
@@ -13517,7 +13909,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 633
+      "line": 677
      },
      "parent": "View",
      "seeAlso": [],
@@ -13541,7 +13933,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 634
+      "line": 678
      },
      "parent": "View",
      "seeAlso": [],
@@ -13565,7 +13957,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 635
+      "line": 679
      },
      "parent": "View",
      "seeAlso": [],
@@ -13589,7 +13981,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 619
+      "line": 663
      },
      "parent": "View",
      "seeAlso": [],
@@ -13613,7 +14005,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 636
+      "line": 680
      },
      "parent": "View",
      "seeAlso": [],
@@ -13637,7 +14029,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 639
+      "line": 683
      },
      "parent": "View",
      "seeAlso": [],
@@ -13661,7 +14053,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 640
+      "line": 684
      },
      "parent": "View",
      "seeAlso": [],
@@ -13685,7 +14077,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 653
+      "line": 697
      },
      "parent": "View",
      "seeAlso": [],
@@ -13709,7 +14101,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 601
+      "line": 645
      },
      "parent": "View",
      "seeAlso": [],
@@ -13733,7 +14125,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 602
+      "line": 646
      },
      "parent": "View",
      "seeAlso": [],
@@ -13757,7 +14149,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 606
+      "line": 650
      },
      "parent": "View",
      "seeAlso": [],
@@ -14084,7 +14476,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 487
+      "line": 513
      },
      "parent": "View",
      "seeAlso": [],
@@ -14141,7 +14533,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 915
+      "line": 976
      },
      "parent": "App",
      "seeAlso": [],
@@ -14165,7 +14557,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 916
+      "line": 977
      },
      "parent": "App",
      "seeAlso": [],
@@ -14189,7 +14581,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 917
+      "line": 978
      },
      "parent": "App",
      "seeAlso": [],
@@ -14213,7 +14605,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 918
+      "line": 979
      },
      "parent": "App",
      "seeAlso": [],
@@ -14237,7 +14629,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 920
+      "line": 981
      },
      "parent": "App",
      "seeAlso": [],
@@ -14261,7 +14653,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 921
+      "line": 982
      },
      "parent": "App",
      "seeAlso": [],
@@ -14285,7 +14677,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 922
+      "line": 983
      },
      "parent": "App",
      "seeAlso": [],
@@ -14309,7 +14701,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 923
+      "line": 984
      },
      "parent": "App",
      "seeAlso": [],
@@ -14344,7 +14736,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 936
+      "line": 1000
      },
      "parent": "App",
      "seeAlso": [],
@@ -14368,7 +14760,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 940
+      "line": 1004
      },
      "parent": "App",
      "seeAlso": [],
@@ -14392,7 +14784,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 941
+      "line": 1005
      },
      "parent": "App",
      "seeAlso": [],
@@ -14419,7 +14811,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 810
+      "line": 871
      },
      "parent": "App",
      "seeAlso": [],
@@ -14986,7 +15378,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 964
+      "line": 1028
      },
      "parent": "DOMIsland",
      "seeAlso": [],
@@ -16493,6 +16885,129 @@
      "stageH": 274
     }
    ]
+  },
+  {
+   "id": "Frames",
+   "name": "Frames",
+   "doc": "The **frame heartbeat** as a member: calls your `onFrame(dt)` once per animation frame,\nwith `dt` the real elapsed time in seconds. `Spring` and `Animator` are the declarative\nhalf of motion — say where a thing belongs and the runtime finds the path; `Frames` is the\nraw tick an app that integrates something *itself* needs: custom gesture physics, a\nsimulation, a game loop. Reach for it only when you are doing the integration; for \"move\nthis there, smoothly,\" a `Spring` is less code and better behaved.\n\nIt rides the one shared clock every animator uses, so it costs nothing until it runs and\nnever starts a second frame loop, and its lifetime is the node's — a discarded subtree\ncannot leave a loop running behind it. `dt` is clamped (a backgrounded tab resumes with a\nplausible step, not one enormous jump that would launch any integrator into the weeds).\n\n```declare\nApp [ width = 240, height = 120, fill = midnightblue, textColor = whitesmoke,\n    x0: number = 20,\n    v: number = 60,\n    physics: Frames [ onFrame(dt) { app.x0 = (app.x0 + app.v * dt) % 200 } ],\n    dot: View [ x = { app.x0 }, y = 40, width = 40, height = 40, cornerRadius = 20,\n        fill = turquoise ],\n    ]\n```",
+   "docSegs": [
+    {
+     "md": "The **frame heartbeat** as a member: calls your `onFrame(dt)` once per animation frame,\nwith `dt` the real elapsed time in seconds. `Spring` and `Animator` are the declarative\nhalf of motion — say where a thing belongs and the runtime finds the path; `Frames` is the\nraw tick an app that integrates something *itself* needs: custom gesture physics, a\nsimulation, a game loop. Reach for it only when you are doing the integration; for \"move\nthis there, smoothly,\" a `Spring` is less code and better behaved.\n\nIt rides the one shared clock every animator uses, so it costs nothing until it runs and\nnever starts a second frame loop, and its lifetime is the node's — a discarded subtree\ncannot leave a loop running behind it. `dt` is clamped (a backgrounded tab resumes with a\nplausible step, not one enormous jump that would launch any integrator into the weeds).",
+     "code": []
+    },
+    {
+     "md": "",
+     "code": [
+      {
+       "id": "seg_Frames_0",
+       "source": "App [ width = 240, height = 120, fill = midnightblue, textColor = whitesmoke,\n    x0: number = 20,\n    v: number = 60,\n    physics: Frames [ onFrame(dt) { app.x0 = (app.x0 + app.v * dt) % 200 } ],\n    dot: View [ x = { app.x0 }, y = 40, width = 40, height = 40, cornerRadius = 20,\n        fill = turquoise ],\n    ]",
+       "lines": 7,
+       "stageH": 200
+      }
+     ]
+    }
+   ],
+   "api": true,
+   "extends": null,
+   "subclasses": [],
+   "origin": "ts",
+   "attributes": [
+    {
+     "id": "Frames.running",
+     "name": "running",
+     "kind": "attribute",
+     "doc": "Is the heartbeat live? A plain reactive slot, so the usual idiom is a constraint —\n`running = { app.simulating }` — which starts and stops the loop as the app's own state\nchanges. The first frame after a start establishes the time baseline and reports no step.",
+     "docSegs": [
+      {
+       "md": "Is the heartbeat live? A plain reactive slot, so the usual idiom is a constraint —\n`running = { app.simulating }` — which starts and stops the loop as the app's own state\nchanges. The first frame after a start establishes the time baseline and reports no step.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/schema.ts",
+      "line": 0
+     },
+     "parent": "Frames",
+     "seeAlso": [],
+     "type": "boolean",
+     "default": null,
+     "prevailing": false,
+     "readOnly": false,
+     "inheritedFrom": null
+    }
+   ],
+   "events": [],
+   "methods": [],
+   "example": []
+  },
+  {
+   "id": "Keys",
+   "name": "Keys",
+   "doc": "The keyboard, as a member. `Keys` names one concept that a program can either **ask** or\n**listen to**: `Keys.isDown(\"KeyA\")` is a call you make from any `{ }` body; a `Keys [ … ]`\nmember is how the keyboard calls you.\n\nIt is the RAW stream — it fires even while a text field has focus, so gate app-level\nshortcuts on app state where that matters. A *focused* view's own `onKeyDown`/`onKeyUp`\nhandlers are the other half of the story, and usually the right one for keys that belong to\na particular widget. Lifetime is the node's: subscribed at init, dropped when the node is\ndiscarded, nothing to clean up. Fan-out is by instance — a menu, a dialog, and a menubar\neach holding a `Keys` member all hear the keyboard at once.\n\n```declare\nApp [ width = 240, height = 100, fill = white, textColor = black,\n    n: number = 0,\n    keys: Keys [\n        onKeyUp(e) {\n            if (e.key == \"ArrowUp\") { app.n = app.n + 1 }\n            else if (e.key == \"ArrowDown\") { app.n = app.n - 1 }\n            },\n        ],\n    Text [ x = 20, y = 30, fontSize = 30, text = { `n = ${n}` } ],\n    ]\n```",
+   "docSegs": [
+    {
+     "md": "The keyboard, as a member. `Keys` names one concept that a program can either **ask** or\n**listen to**: `Keys.isDown(\"KeyA\")` is a call you make from any `{ }` body; a `Keys [ … ]`\nmember is how the keyboard calls you.\n\nIt is the RAW stream — it fires even while a text field has focus, so gate app-level\nshortcuts on app state where that matters. A *focused* view's own `onKeyDown`/`onKeyUp`\nhandlers are the other half of the story, and usually the right one for keys that belong to\na particular widget. Lifetime is the node's: subscribed at init, dropped when the node is\ndiscarded, nothing to clean up. Fan-out is by instance — a menu, a dialog, and a menubar\neach holding a `Keys` member all hear the keyboard at once.",
+     "code": []
+    },
+    {
+     "md": "",
+     "code": [
+      {
+       "id": "seg_Keys_0",
+       "source": "App [ width = 240, height = 100, fill = white, textColor = black,\n    n: number = 0,\n    keys: Keys [\n        onKeyUp(e) {\n            if (e.key == \"ArrowUp\") { app.n = app.n + 1 }\n            else if (e.key == \"ArrowDown\") { app.n = app.n - 1 }\n            },\n        ],\n    Text [ x = 20, y = 30, fontSize = 30, text = { `n = ${n}` } ],\n    ]",
+       "lines": 10,
+       "stageH": 200
+      }
+     ]
+    }
+   ],
+   "api": true,
+   "extends": null,
+   "subclasses": [],
+   "origin": "ts",
+   "attributes": [],
+   "events": [],
+   "methods": [],
+   "example": []
+  },
+  {
+   "id": "Focus",
+   "name": "Focus",
+   "doc": "The focus service, as a member. Like `Keys`, `Focus` names one concept a program can\n**ask** (`Focus.focus(this)`, `Focus.byKeyboard()` — calls from any `{ }` body) or\n**listen to** (a `Focus [ … ]` member).\n\nListening is what a focus indicator does: the library's `FocusRing` follows focus with\nexactly these two handlers, tracking where focus went and the live silhouette of whatever\nholds it. Most apps never need it — focus rings, tab order, and activation are provided —\nbut replacing the indicator is a supported thing to do, and this is how.\n\n```declare-fragment\nwatch: Focus [\n    onFocusChange(v) { classroot.target = v },\n    onGeometry(g)    { classroot.tx = g.x; classroot.ty = g.y },\n    ],\n```",
+   "docSegs": [
+    {
+     "md": "The focus service, as a member. Like `Keys`, `Focus` names one concept a program can\n**ask** (`Focus.focus(this)`, `Focus.byKeyboard()` — calls from any `{ }` body) or\n**listen to** (a `Focus [ … ]` member).\n\nListening is what a focus indicator does: the library's `FocusRing` follows focus with\nexactly these two handlers, tracking where focus went and the live silhouette of whatever\nholds it. Most apps never need it — focus rings, tab order, and activation are provided —\nbut replacing the indicator is a supported thing to do, and this is how.\n\n```declare-fragment\nwatch: Focus [\n    onFocusChange(v) { classroot.target = v },\n    onGeometry(g)    { classroot.tx = g.x; classroot.ty = g.y },\n    ],\n```",
+     "code": []
+    }
+   ],
+   "api": true,
+   "extends": null,
+   "subclasses": [],
+   "origin": "ts",
+   "attributes": [],
+   "events": [],
+   "methods": [],
+   "example": []
+  },
+  {
+   "id": "Tip",
+   "name": "Tip",
+   "doc": "The tooltip service, as a member: `onTip(e)` fires when a view carrying `tip = \"…\"` wants\nits tooltip shown, and with `null` when it should hide. The service owns the platform\nconventions — the show delay, instant retarget while showing, hide on press — so a\nlistener only renders.\n\nThe library's `Tooltip` is the one listener most programs ever need, and it arrives\nautomatically in any app whose views carry tips. Declare your own `Tip [ … ]` member only\nwhen you are replacing that rendition.\n\n```declare-fragment\ntips: Tip [\n    onTip(e) {\n        if (e == null) { classroot.shown = false; return }\n        classroot.label = e.text\n        classroot.shown = true\n        },\n    ],\n```",
+   "docSegs": [
+    {
+     "md": "The tooltip service, as a member: `onTip(e)` fires when a view carrying `tip = \"…\"` wants\nits tooltip shown, and with `null` when it should hide. The service owns the platform\nconventions — the show delay, instant retarget while showing, hide on press — so a\nlistener only renders.\n\nThe library's `Tooltip` is the one listener most programs ever need, and it arrives\nautomatically in any app whose views carry tips. Declare your own `Tip [ … ]` member only\nwhen you are replacing that rendition.\n\n```declare-fragment\ntips: Tip [\n    onTip(e) {\n        if (e == null) { classroot.shown = false; return }\n        classroot.label = e.text\n        classroot.shown = true\n        },\n    ],\n```",
+     "code": []
+    }
+   ],
+   "api": true,
+   "extends": null,
+   "subclasses": [],
+   "origin": "ts",
+   "attributes": [],
+   "events": [],
+   "methods": [],
+   "example": []
   },
   {
    "id": "State",
@@ -18038,10 +18553,10 @@
   {
    "id": "FocusRing",
    "name": "FocusRing",
-   "doc": "The traveling focus indicator — the OpenLaszlo 3.4 `focusoverlay` line, on the\nreactive core, at its third form: a SHAPE-HUGGING rounded outline whose\nterminus reshapes to the focused control's own silhouette (library-charter §6\n— the ring springs position, size, AND cornerRadius; a Radio's row ring, a\npill Switch's ring, and a text field's ring differ because the targets do).\n\nThe layered model (charter, ratified):\n\n- **The fact** — the ring listens to Focus (`onFocusChange(v) <- Focus`) and\n  tracks the target's root-space geometry on EVERY change, pointer or\n  keyboard. A pointer focus PARKS the ring there silently (snap, no show) —\n  so the next Tab's flight departs from the control the user just clicked,\n  never from a stale perch.\n- **Roles, theme-elected** — `theme.focusRing`: `\"both\"` (or `true`, the\n  default) · `\"travel\"` (flight + the OL idle fade) · `\"rest\"` (no flight —\n  the ring appears in place and stays) · `false` (no ring; the theme's\n  components carry the at-rest indication — the invariant lives with the\n  THEME+components pair). While keyboard modality holds and the role includes\n  rest, the ring RESTS — no idle fade; a pointer press clears modality and\n  the ring hides (web :focus-visible semantics).\n- **The flight is the flourish** — `theme.focusAnimate = false` (the\n  sampler's \"Animate focus transitions\" toggle) snaps every move; the\n  underdamped travel is default-on.\n\nIt arrives automatically with any Control-descended component (the OL\n`canvas.focusclass` default); declare your own `FocusRing [ ]` (or subclass)\nto replace it. Pure chrome: never focusable, never a pointer target.\n(v1 limits, recorded: root-space bounds are summed through the parent chain —\na scrolled container is not compensated; the silhouette is the target's\n`cornerRadius` — a `focusShape()` override protocol arrives with the\nemulation passes.)",
+   "doc": "The traveling focus indicator — the OpenLaszlo 3.4 `focusoverlay` line, on the\nreactive core, at its third form: a SHAPE-HUGGING rounded outline whose\nterminus reshapes to the focused control's own silhouette (library-charter §6\n— the ring springs position, size, AND cornerRadius; a Radio's row ring, a\npill Switch's ring, and a text field's ring differ because the targets do).\n\nThe layered model (charter, ratified):\n\n- **The fact** — the ring listens to Focus (a `Focus [ onFocusChange(v) { … } ]` member) and\n  tracks the target's root-space geometry on EVERY change, pointer or\n  keyboard. A pointer focus PARKS the ring there silently (snap, no show) —\n  so the next Tab's flight departs from the control the user just clicked,\n  never from a stale perch.\n- **Roles, theme-elected** — `theme.focusRing`: `\"both\"` (or `true`, the\n  default) · `\"travel\"` (flight + the OL idle fade) · `\"rest\"` (no flight —\n  the ring appears in place and stays) · `false` (no ring; the theme's\n  components carry the at-rest indication — the invariant lives with the\n  THEME+components pair). While keyboard modality holds and the role includes\n  rest, the ring RESTS — no idle fade; a pointer press clears modality and\n  the ring hides (web :focus-visible semantics).\n- **The flight is the flourish** — `theme.focusAnimate = false` (the\n  sampler's \"Animate focus transitions\" toggle) snaps every move; the\n  underdamped travel is default-on.\n\nIt arrives automatically with any Control-descended component (the OL\n`canvas.focusclass` default); declare your own `FocusRing [ ]` (or subclass)\nto replace it. Pure chrome: never focusable, never a pointer target.\n(v1 limits, recorded: root-space bounds are summed through the parent chain —\na scrolled container is not compensated; the silhouette is the target's\n`cornerRadius` — a `focusShape()` override protocol arrives with the\nemulation passes.)",
    "docSegs": [
     {
-     "md": "The traveling focus indicator — the OpenLaszlo 3.4 `focusoverlay` line, on the\nreactive core, at its third form: a SHAPE-HUGGING rounded outline whose\nterminus reshapes to the focused control's own silhouette (library-charter §6\n— the ring springs position, size, AND cornerRadius; a Radio's row ring, a\npill Switch's ring, and a text field's ring differ because the targets do).\n\nThe layered model (charter, ratified):\n\n- **The fact** — the ring listens to Focus (`onFocusChange(v) <- Focus`) and\n  tracks the target's root-space geometry on EVERY change, pointer or\n  keyboard. A pointer focus PARKS the ring there silently (snap, no show) —\n  so the next Tab's flight departs from the control the user just clicked,\n  never from a stale perch.\n- **Roles, theme-elected** — `theme.focusRing`: `\"both\"` (or `true`, the\n  default) · `\"travel\"` (flight + the OL idle fade) · `\"rest\"` (no flight —\n  the ring appears in place and stays) · `false` (no ring; the theme's\n  components carry the at-rest indication — the invariant lives with the\n  THEME+components pair). While keyboard modality holds and the role includes\n  rest, the ring RESTS — no idle fade; a pointer press clears modality and\n  the ring hides (web :focus-visible semantics).\n- **The flight is the flourish** — `theme.focusAnimate = false` (the\n  sampler's \"Animate focus transitions\" toggle) snaps every move; the\n  underdamped travel is default-on.\n\nIt arrives automatically with any Control-descended component (the OL\n`canvas.focusclass` default); declare your own `FocusRing [ ]` (or subclass)\nto replace it. Pure chrome: never focusable, never a pointer target.\n(v1 limits, recorded: root-space bounds are summed through the parent chain —\na scrolled container is not compensated; the silhouette is the target's\n`cornerRadius` — a `focusShape()` override protocol arrives with the\nemulation passes.)",
+     "md": "The traveling focus indicator — the OpenLaszlo 3.4 `focusoverlay` line, on the\nreactive core, at its third form: a SHAPE-HUGGING rounded outline whose\nterminus reshapes to the focused control's own silhouette (library-charter §6\n— the ring springs position, size, AND cornerRadius; a Radio's row ring, a\npill Switch's ring, and a text field's ring differ because the targets do).\n\nThe layered model (charter, ratified):\n\n- **The fact** — the ring listens to Focus (a `Focus [ onFocusChange(v) { … } ]` member) and\n  tracks the target's root-space geometry on EVERY change, pointer or\n  keyboard. A pointer focus PARKS the ring there silently (snap, no show) —\n  so the next Tab's flight departs from the control the user just clicked,\n  never from a stale perch.\n- **Roles, theme-elected** — `theme.focusRing`: `\"both\"` (or `true`, the\n  default) · `\"travel\"` (flight + the OL idle fade) · `\"rest\"` (no flight —\n  the ring appears in place and stays) · `false` (no ring; the theme's\n  components carry the at-rest indication — the invariant lives with the\n  THEME+components pair). While keyboard modality holds and the role includes\n  rest, the ring RESTS — no idle fade; a pointer press clears modality and\n  the ring hides (web :focus-visible semantics).\n- **The flight is the flourish** — `theme.focusAnimate = false` (the\n  sampler's \"Animate focus transitions\" toggle) snaps every move; the\n  underdamped travel is default-on.\n\nIt arrives automatically with any Control-descended component (the OL\n`canvas.focusclass` default); declare your own `FocusRing [ ]` (or subclass)\nto replace it. Pure chrome: never focusable, never a pointer target.\n(v1 limits, recorded: root-space bounds are summed through the parent chain —\na scrolled container is not compensated; the silhouette is the target's\n`cornerRadius` — a `focusShape()` override protocol arrives with the\nemulation passes.)",
      "code": []
     }
    ],
@@ -18241,38 +18756,7 @@
      "inheritedFrom": null
     }
    ],
-   "events": [
-    {
-     "id": "FocusRing.event.onGeometry",
-     "name": "onGeometry",
-     "kind": "event",
-     "doc": null,
-     "docSegs": [],
-     "api": true,
-     "source": {
-      "file": "library/focusring.declare",
-      "line": 0
-     },
-     "parent": "FocusRing",
-     "seeAlso": [],
-     "signature": "onGeometry(g)"
-    },
-    {
-     "id": "FocusRing.event.onFocusChange",
-     "name": "onFocusChange",
-     "kind": "event",
-     "doc": null,
-     "docSegs": [],
-     "api": true,
-     "source": {
-      "file": "library/focusring.declare",
-      "line": 0
-     },
-     "parent": "FocusRing",
-     "seeAlso": [],
-     "signature": "onFocusChange(v)"
-    }
-   ],
+   "events": [],
    "methods": [
     {
      "id": "FocusRing.method.ringRole",
@@ -18333,21 +18817,6 @@
      "parent": "FocusRing",
      "seeAlso": [],
      "signature": "snapTo()"
-    },
-    {
-     "id": "FocusRing.method.containsPoint",
-     "name": "containsPoint",
-     "kind": "method",
-     "doc": null,
-     "docSegs": [],
-     "api": true,
-     "source": {
-      "file": "library/focusring.declare",
-      "line": 0
-     },
-     "parent": "FocusRing",
-     "seeAlso": [],
-     "signature": "containsPoint(px, py)"
     },
     {
      "id": "FocusRing.method.draw",
@@ -18567,10 +19036,10 @@
   {
    "id": "Tooltip",
    "name": "Tooltip",
-   "doc": "The layer system's floor (planes.md §2, tier 1): any view sets `tip = \"…\"`\nand this singleton renders it — hover delay, placement, flip, and theming\nare nobody's problem at the use site. It arrives automatically when any\nview in the program carries a tip (the FocusRing auto-arrival mechanism);\ndeclare your own `Tooltip [ ]` (or subclass) to replace the rendition.\n\nIt listens to the Tip service (`onTip(e) <- Tip`), which owns the platform\nconventions (the show delay — `tooltipDelay`, ~1s on the Apple and Windows\nplatforms, ~500ms Material — instant retarget while showing, hide on\npress). PLACEMENT is theme data too (`tooltipPlacement`): \"below\" (the\ndefault — under the target, centered, flipping above at the edge), \"above\"\n(Fluent/WinUI's default, flipping below), or \"pointer\" (the macOS help tag —\noffset below-right of where the cursor rests). Always clamped inside the\napp. Pure chrome — never focusable, never a pointer target, always above\ncontent (the auto-splice puts it last in the App, and source order stacks).\n\nTheming (the four cities carry the tokens): `tooltipBg` / `tooltipText` /\n`tooltipLine` (null = no border) / `tooltipSize` (11 on macOS, 12\nelsewhere). Cupertino and Redmond wear bordered surface chips; San\nFrancisco and Mountain View the inverse chip.",
+   "doc": "The layer system's floor (planes.md §2, tier 1): any view sets `tip = \"…\"`\nand this singleton renders it — hover delay, placement, flip, and theming\nare nobody's problem at the use site. It arrives automatically when any\nview in the program carries a tip (the FocusRing auto-arrival mechanism);\ndeclare your own `Tooltip [ ]` (or subclass) to replace the rendition.\n\nIt listens to the Tip service (a `Tip [ onTip(e) { … } ]` member), which owns the platform\nconventions (the show delay — `tooltipDelay`, ~1s on the Apple and Windows\nplatforms, ~500ms Material — instant retarget while showing, hide on\npress). PLACEMENT is theme data too (`tooltipPlacement`): \"below\" (the\ndefault — under the target, centered, flipping above at the edge), \"above\"\n(Fluent/WinUI's default, flipping below), or \"pointer\" (the macOS help tag —\noffset below-right of where the cursor rests). Always clamped inside the\napp. Pure chrome — never focusable, never a pointer target, always above\ncontent (the auto-splice puts it last in the App, and source order stacks).\n\nTheming (the four cities carry the tokens): `tooltipBg` / `tooltipText` /\n`tooltipLine` (null = no border) / `tooltipSize` (11 on macOS, 12\nelsewhere). Cupertino and Redmond wear bordered surface chips; San\nFrancisco and Mountain View the inverse chip.",
    "docSegs": [
     {
-     "md": "The layer system's floor (planes.md §2, tier 1): any view sets `tip = \"…\"`\nand this singleton renders it — hover delay, placement, flip, and theming\nare nobody's problem at the use site. It arrives automatically when any\nview in the program carries a tip (the FocusRing auto-arrival mechanism);\ndeclare your own `Tooltip [ ]` (or subclass) to replace the rendition.\n\nIt listens to the Tip service (`onTip(e) <- Tip`), which owns the platform\nconventions (the show delay — `tooltipDelay`, ~1s on the Apple and Windows\nplatforms, ~500ms Material — instant retarget while showing, hide on\npress). PLACEMENT is theme data too (`tooltipPlacement`): \"below\" (the\ndefault — under the target, centered, flipping above at the edge), \"above\"\n(Fluent/WinUI's default, flipping below), or \"pointer\" (the macOS help tag —\noffset below-right of where the cursor rests). Always clamped inside the\napp. Pure chrome — never focusable, never a pointer target, always above\ncontent (the auto-splice puts it last in the App, and source order stacks).\n\nTheming (the four cities carry the tokens): `tooltipBg` / `tooltipText` /\n`tooltipLine` (null = no border) / `tooltipSize` (11 on macOS, 12\nelsewhere). Cupertino and Redmond wear bordered surface chips; San\nFrancisco and Mountain View the inverse chip.",
+     "md": "The layer system's floor (planes.md §2, tier 1): any view sets `tip = \"…\"`\nand this singleton renders it — hover delay, placement, flip, and theming\nare nobody's problem at the use site. It arrives automatically when any\nview in the program carries a tip (the FocusRing auto-arrival mechanism);\ndeclare your own `Tooltip [ ]` (or subclass) to replace the rendition.\n\nIt listens to the Tip service (a `Tip [ onTip(e) { … } ]` member), which owns the platform\nconventions (the show delay — `tooltipDelay`, ~1s on the Apple and Windows\nplatforms, ~500ms Material — instant retarget while showing, hide on\npress). PLACEMENT is theme data too (`tooltipPlacement`): \"below\" (the\ndefault — under the target, centered, flipping above at the edge), \"above\"\n(Fluent/WinUI's default, flipping below), or \"pointer\" (the macOS help tag —\noffset below-right of where the cursor rests). Always clamped inside the\napp. Pure chrome — never focusable, never a pointer target, always above\ncontent (the auto-splice puts it last in the App, and source order stacks).\n\nTheming (the four cities carry the tokens): `tooltipBg` / `tooltipText` /\n`tooltipLine` (null = no border) / `tooltipSize` (11 on macOS, 12\nelsewhere). Cupertino and Redmond wear bordered surface chips; San\nFrancisco and Mountain View the inverse chip.",
      "code": []
     }
    ],
@@ -18751,40 +19220,8 @@
      "inheritedFrom": null
     }
    ],
-   "events": [
-    {
-     "id": "Tooltip.event.onTip",
-     "name": "onTip",
-     "kind": "event",
-     "doc": null,
-     "docSegs": [],
-     "api": true,
-     "source": {
-      "file": "library/tooltip.declare",
-      "line": 0
-     },
-     "parent": "Tooltip",
-     "seeAlso": [],
-     "signature": "onTip(e)"
-    }
-   ],
-   "methods": [
-    {
-     "id": "Tooltip.method.containsPoint",
-     "name": "containsPoint",
-     "kind": "method",
-     "doc": null,
-     "docSegs": [],
-     "api": true,
-     "source": {
-      "file": "library/tooltip.declare",
-      "line": 0
-     },
-     "parent": "Tooltip",
-     "seeAlso": [],
-     "signature": "containsPoint(cx, cy)"
-    }
-   ],
+   "events": [],
+   "methods": [],
    "example": []
   },
   {
@@ -18993,38 +19430,7 @@
      "inheritedFrom": null
     }
    ],
-   "events": [
-    {
-     "id": "Menu.event.onKeyDown",
-     "name": "onKeyDown",
-     "kind": "event",
-     "doc": null,
-     "docSegs": [],
-     "api": true,
-     "source": {
-      "file": "library/menu.declare",
-      "line": 0
-     },
-     "parent": "Menu",
-     "seeAlso": [],
-     "signature": "onKeyDown(e)"
-    },
-    {
-     "id": "Menu.event.onKeyUp",
-     "name": "onKeyUp",
-     "kind": "event",
-     "doc": null,
-     "docSegs": [],
-     "api": true,
-     "source": {
-      "file": "library/menu.declare",
-      "line": 0
-     },
-     "parent": "Menu",
-     "seeAlso": [],
-     "signature": "onKeyUp(e)"
-    }
-   ],
+   "events": [],
    "methods": [
     {
      "id": "Menu.method.picked",
@@ -19406,23 +19812,7 @@
      "inheritedFrom": null
     }
    ],
-   "events": [
-    {
-     "id": "MenuBar.event.onKeyDown",
-     "name": "onKeyDown",
-     "kind": "event",
-     "doc": null,
-     "docSegs": [],
-     "api": true,
-     "source": {
-      "file": "library/menubar.declare",
-      "line": 0
-     },
-     "parent": "MenuBar",
-     "seeAlso": [],
-     "signature": "onKeyDown(e)"
-    }
-   ],
+   "events": [],
    "methods": [
     {
      "id": "MenuBar.method.picked",
@@ -19704,23 +20094,7 @@
      "inheritedFrom": null
     }
    ],
-   "events": [
-    {
-     "id": "Dialog.event.onKeyDown",
-     "name": "onKeyDown",
-     "kind": "event",
-     "doc": null,
-     "docSegs": [],
-     "api": true,
-     "source": {
-      "file": "library/dialog.declare",
-      "line": 0
-     },
-     "parent": "Dialog",
-     "seeAlso": [],
-     "signature": "onKeyDown(e)"
-    }
-   ],
+   "events": [],
    "methods": [
     {
      "id": "Dialog.method.picked",
@@ -20486,7 +20860,7 @@
    "name": "1 SATOR",
    "segs": [
     {
-     "md": "# How it ships\n\nDelivery, hosting, and the honest posture — the promises about running and\nshipping a Declare program.\n\n### SATOR-1 — Programs are data\nA compiled program is data the toolchain can read, so one compiler powers the\ndocumentation system, static extraction for crawlers, and live editing alike —\nnot three separate pipelines.\n*Held in:* FAQ (\"programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing\").\n\n### SATOR-2 — What a visitor sees and what a crawler sees can never drift\nStatic extraction is built into the compiler: it runs the program headlessly to\nits settled state and serializes the actual content as semantic HTML — real\nheadings, paragraphs, links — baked into the page at build time. A crawler (or an\nAI reading the web) reads that; a person gets the live app that replaces it at\nboot. No server-side rendering, no hydration — it works on a plain static host.\n*Held in:* FAQ (\"How do Declare-written sites handle crawlers and SEO\"); the \"why\" essay (\"what a visitor sees and what a crawler sees can never drift\").\n\n### SATOR-3 — In-browser compilation, and no build step to develop\nBecause the compiler runs in the page, a page can edit and re-run itself: every\nsample is live-editable, and view-source culture is restored. Development needs no\nbuild step — the dev server and the browser use the *same* compiler with\nbyte-identical output.\n*Held in:* FAQ (\"What benefits does in-browser compilation bring\"); getstarted (\"no build step\").\n\n### SATOR-4 — You don't ship the compiler\nFor production, `declarec` precompiles everything into a small, self-contained\nartifact — a set of static files you can host anywhere, with no trace of the\ntoolchain and no compiler aboard.\n*Held in:* FAQ (\"For production you don't ship the compiler\").\n\n### SATOR-5 — The program's URL is the app's address\nA program is addressed by its own URL: on the dev server, browse to a `.declare`\nfile's URL and get the running app. The address is the program, not a route\nregistered elsewhere.\n*Held in:* getstarted (\"the program URL is the app's address\"); FAQ.\n\n### SATOR-6 — Small, and fast where it counts\nA full application ships small — the flagship calendar, application *and* runtime,\nat roughly 51 KB gzipped (machine-stamped from\nthe measured artifact), smaller than the runtime alone of most frameworks.\nInput latency is several times lower than the equivalent framework build, with no\nvirtual-DOM pass between gesture and pixels, and animation runs at the display's\nfull rate. The homepage reports the live figures, measured from the deployed\nartifacts on every commit.\n*Held in:* FAQ (\"What should I expect in terms of performance\").\n\n### SATOR-7 — Honest about the trades and the gaps\nThe promises come with their limits stated plainly: a framework with no in-browser\ncompiler wins the very first cold load (the production path closes the gap by\nprecompiling); Declare is young and the repository *is* the distribution and the\nsource of truth; and accessibility depth, an npm package, and a dedicated editor\nextension are named, unhidden gaps.\n*Held in:* FAQ (\"Startup\" trade; \"How mature is Declare?\"; \"Is Declare accessible?\"; \"Is there editor support?\").\n\n### SATOR-8 — Open, MIT, entirely public\nThe complete source — compiler, runtime, standard library, documentation, and the\nsite itself — is public under the MIT license.\n*Held in:* FAQ (\"What license is Declare offered under?\").",
+     "md": "# How it ships\n\nDelivery, hosting, and the honest posture — the promises about running and\nshipping a Declare program.\n\n### SATOR-1 — Programs are data\nA compiled program is data the toolchain can read, so one compiler powers the\ndocumentation system, static extraction for crawlers, and live editing alike —\nnot three separate pipelines.\n*Held in:* FAQ (\"programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing\").\n\n### SATOR-2 — What a visitor sees and what a crawler sees can never drift\nStatic extraction is built into the compiler: it runs the program headlessly to\nits settled state and serializes the actual content as semantic HTML — real\nheadings, paragraphs, links — baked into the page at build time. A crawler (or an\nAI reading the web) reads that; a person gets the live app that replaces it at\nboot. No server-side rendering, no hydration — it works on a plain static host.\n*Held in:* FAQ (\"How do Declare-written sites handle crawlers and SEO\"); the \"why\" essay (\"what a visitor sees and what a crawler sees can never drift\").\n\n### SATOR-3 — In-browser compilation, and no build step to develop\nBecause the compiler runs in the page, a page can edit and re-run itself: every\nsample is live-editable, and view-source culture is restored. Development needs no\nbuild step — the dev server and the browser use the *same* compiler with\nbyte-identical output.\n*Held in:* FAQ (\"What benefits does in-browser compilation bring\"); getstarted (\"no build step\").\n\n### SATOR-4 — You don't ship the compiler\nFor production, `declarec` precompiles everything into a small, self-contained\nartifact — a set of static files you can host anywhere, with no trace of the\ntoolchain and no compiler aboard.\n*Held in:* FAQ (\"For production you don't ship the compiler\").\n\n### SATOR-5 — The program's URL is the app's address\nA program is addressed by its own URL: on the dev server, browse to a `.declare`\nfile's URL and get the running app. The address is the program, not a route\nregistered elsewhere.\n*Held in:* getstarted (\"the program URL is the app's address\"); FAQ.\n\n### SATOR-6 — Small, and fast where it counts\nA full application ships small — the flagship calendar, application *and* runtime,\nat roughly 52 KB gzipped (machine-stamped from\nthe measured artifact), smaller than the runtime alone of most frameworks.\nInput latency is several times lower than the equivalent framework build, with no\nvirtual-DOM pass between gesture and pixels, and animation runs at the display's\nfull rate. The homepage reports the live figures, measured from the deployed\nartifacts on every commit.\n*Held in:* FAQ (\"What should I expect in terms of performance\").\n\n### SATOR-7 — Honest about the trades and the gaps\nThe promises come with their limits stated plainly: a framework with no in-browser\ncompiler wins the very first cold load (the production path closes the gap by\nprecompiling); Declare is young and the repository *is* the distribution and the\nsource of truth; and accessibility depth, an npm package, and a dedicated editor\nextension are named, unhidden gaps.\n*Held in:* FAQ (\"Startup\" trade; \"How mature is Declare?\"; \"Is Declare accessible?\"; \"Is there editor support?\").\n\n### SATOR-8 — Open, MIT, entirely public\nThe complete source — compiler, runtime, standard library, documentation, and the\nsite itself — is public under the MIT license.\n*Held in:* FAQ (\"What license is Declare offered under?\").",
      "code": []
     }
    ]
@@ -20552,7 +20926,7 @@
      "kind": "doc",
      "label": "Markdown file",
      "path": "docs/declare.md",
-     "preview": "This is the core document for Declare, a language for building application UIs — the whole language in one file, written for two readers at once: a person learning or checking the language, and an LLM writing it. The language is new, and no…"
+     "preview": "Declare is a language for building application interfaces. This file is the language: every form the grammar accepts and every rule the compiler enforces. It is not the reference. It lists no component's attributes and tours no API, because…"
     },
     {
      "name": "Tenets",
@@ -20564,7 +20938,7 @@
        "subtitle": "",
        "kind": "tenet",
        "label": "Tenet",
-       "doc": "# How it ships\n\nDelivery, hosting, and the honest posture — the promises about running and\nshipping a Declare program.\n\n### SATOR-1 — Programs are data\nA compiled program is data the toolchain can read, so one compiler powers the\ndocumentation system, static extraction for crawlers, and live editing alike —\nnot three separate pipelines.\n*Held in:* FAQ (\"programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing\").\n\n### SATOR-2 — What a visitor sees and what a crawler sees can never drift\nStatic extraction is built into the compiler: it runs the program headlessly to\nits settled state and serializes the actual content as semantic HTML — real\nheadings, paragraphs, links — baked into the page at build time. A crawler (or an\nAI reading the web) reads that; a person gets the live app that replaces it at\nboot. No server-side rendering, no hydration — it works on a plain static host.\n*Held in:* FAQ (\"How do Declare-written sites handle crawlers and SEO\"); the \"why\" essay (\"what a visitor sees and what a crawler sees can never drift\").\n\n### SATOR-3 — In-browser compilation, and no build step to develop\nBecause the compiler runs in the page, a page can edit and re-run itself: every\nsample is live-editable, and view-source culture is restored. Development needs no\nbuild step — the dev server and the browser use the *same* compiler with\nbyte-identical output.\n*Held in:* FAQ (\"What benefits does in-browser compilation bring\"); getstarted (\"no build step\").\n\n### SATOR-4 — You don't ship the compiler\nFor production, `declarec` precompiles everything into a small, self-contained\nartifact — a set of static files you can host anywhere, with no trace of the\ntoolchain and no compiler aboard.\n*Held in:* FAQ (\"For production you don't ship the compiler\").\n\n### SATOR-5 — The program's URL is the app's address\nA program is addressed by its own URL: on the dev server, browse to a `.declare`\nfile's URL and get the running app. The address is the program, not a route\nregistered elsewhere.\n*Held in:* getstarted (\"the program URL is the app's address\"); FAQ.\n\n### SATOR-6 — Small, and fast where it counts\nA full application ships small — the flagship calendar, application *and* runtime,\nat roughly 51 KB gzipped (machine-stamped from\nthe measured artifact), smaller than the runtime alone of most frameworks.\nInput latency is several times lower than the equivalent framework build, with no\nvirtual-DOM pass between gesture and pixels, and animation runs at the display's\nfull rate. The homepage reports the live figures, measured from the deployed\nartifacts on every commit.\n*Held in:* FAQ (\"What should I expect in terms of performance\").\n\n### SATOR-7 — Honest about the trades and the gaps\nThe promises come with their limits stated plainly: a framework with no in-browser\ncompiler wins the very first cold load (the production path closes the gap by\nprecompiling); Declare is young and the repository *is* the distribution and the\nsource of truth; and accessibility depth, an npm package, and a dedicated editor\nextension are named, unhidden gaps.\n*Held in:* FAQ (\"Startup\" trade; \"How mature is Declare?\"; \"Is Declare accessible?\"; \"Is there editor support?\").\n\n### SATOR-8 — Open, MIT, entirely public\nThe complete source — compiler, runtime, standard library, documentation, and the\nsite itself — is public under the MIT license.\n*Held in:* FAQ (\"What license is Declare offered under?\").",
+       "doc": "# How it ships\n\nDelivery, hosting, and the honest posture — the promises about running and\nshipping a Declare program.\n\n### SATOR-1 — Programs are data\nA compiled program is data the toolchain can read, so one compiler powers the\ndocumentation system, static extraction for crawlers, and live editing alike —\nnot three separate pipelines.\n*Held in:* FAQ (\"programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing\").\n\n### SATOR-2 — What a visitor sees and what a crawler sees can never drift\nStatic extraction is built into the compiler: it runs the program headlessly to\nits settled state and serializes the actual content as semantic HTML — real\nheadings, paragraphs, links — baked into the page at build time. A crawler (or an\nAI reading the web) reads that; a person gets the live app that replaces it at\nboot. No server-side rendering, no hydration — it works on a plain static host.\n*Held in:* FAQ (\"How do Declare-written sites handle crawlers and SEO\"); the \"why\" essay (\"what a visitor sees and what a crawler sees can never drift\").\n\n### SATOR-3 — In-browser compilation, and no build step to develop\nBecause the compiler runs in the page, a page can edit and re-run itself: every\nsample is live-editable, and view-source culture is restored. Development needs no\nbuild step — the dev server and the browser use the *same* compiler with\nbyte-identical output.\n*Held in:* FAQ (\"What benefits does in-browser compilation bring\"); getstarted (\"no build step\").\n\n### SATOR-4 — You don't ship the compiler\nFor production, `declarec` precompiles everything into a small, self-contained\nartifact — a set of static files you can host anywhere, with no trace of the\ntoolchain and no compiler aboard.\n*Held in:* FAQ (\"For production you don't ship the compiler\").\n\n### SATOR-5 — The program's URL is the app's address\nA program is addressed by its own URL: on the dev server, browse to a `.declare`\nfile's URL and get the running app. The address is the program, not a route\nregistered elsewhere.\n*Held in:* getstarted (\"the program URL is the app's address\"); FAQ.\n\n### SATOR-6 — Small, and fast where it counts\nA full application ships small — the flagship calendar, application *and* runtime,\nat roughly 52 KB gzipped (machine-stamped from\nthe measured artifact), smaller than the runtime alone of most frameworks.\nInput latency is several times lower than the equivalent framework build, with no\nvirtual-DOM pass between gesture and pixels, and animation runs at the display's\nfull rate. The homepage reports the live figures, measured from the deployed\nartifacts on every commit.\n*Held in:* FAQ (\"What should I expect in terms of performance\").\n\n### SATOR-7 — Honest about the trades and the gaps\nThe promises come with their limits stated plainly: a framework with no in-browser\ncompiler wins the very first cold load (the production path closes the gap by\nprecompiling); Declare is young and the repository *is* the distribution and the\nsource of truth; and accessibility depth, an npm package, and a dedicated editor\nextension are named, unhidden gaps.\n*Held in:* FAQ (\"Startup\" trade; \"How mature is Declare?\"; \"Is Declare accessible?\"; \"Is there editor support?\").\n\n### SATOR-8 — Open, MIT, entirely public\nThe complete source — compiler, runtime, standard library, documentation, and the\nsite itself — is public under the MIT license.\n*Held in:* FAQ (\"What license is Declare offered under?\").",
        "preview": "Delivery, hosting, and the honest posture — the promises about running and shipping a Declare program. SATOR-1 — Programs are data A compiled program is data the toolchain can read, so one compiler powers the documentation system, static ex…"
       },
       {
@@ -20913,6 +21287,38 @@
        "preview": "The follow half of the animation family: drives its attribute toward a live, reactive to with spring physics — re-settling whenever to changes, and sleeping at rest (zero cost while idle). Use it wherever the target keeps moving: a cursor t…"
       },
       {
+       "name": "Frames",
+       "subtitle": "",
+       "kind": "element",
+       "label": "Built-in element",
+       "doc": "# Frames\n\n*Built-in element*\n\nThe **frame heartbeat** as a member: calls your `onFrame(dt)` once per animation frame,\nwith `dt` the real elapsed time in seconds. `Spring` and `Animator` are the declarative\nhalf of motion — say where a thing belongs and the runtime finds the path; `Frames` is the\nraw tick an app that integrates something *itself* needs: custom gesture physics, a\nsimulation, a game loop. Reach for it only when you are doing the integration; for \"move\nthis there, smoothly,\" a `Spring` is less code and better behaved.\n\nIt rides the one shared clock every animator uses, so it costs nothing until it runs and\nnever starts a second frame loop, and its lifetime is the node's — a discarded subtree\ncannot leave a loop running behind it. `dt` is clamped (a backgrounded tab resumes with a\nplausible step, not one enormous jump that would launch any integrator into the weeds).\n\n```declare\nApp [ width = 240, height = 120, fill = midnightblue, textColor = whitesmoke,\n    x0: number = 20,\n    v: number = 60,\n    physics: Frames [ onFrame(dt) { app.x0 = (app.x0 + app.v * dt) % 200 } ],\n    dot: View [ x = { app.x0 }, y = 40, width = 40, height = 40, cornerRadius = 20,\n        fill = turquoise ],\n    ]\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `running` | boolean |  |  |\n\n**`running`** — Is the heartbeat live? A plain reactive slot, so the usual idiom is a constraint —\n`running = { app.simulating }` — which starts and stops the loop as the app's own state\nchanges. The first frame after a start establishes the time baseline and reports no step.\n",
+       "preview": "The frame heartbeat as a member: calls your onFrame(dt) once per animation frame, with dt the real elapsed time in seconds. Spring and Animator are the declarative half of motion — say where a thing belongs and the runtime finds the path; F…"
+      },
+      {
+       "name": "Keys",
+       "subtitle": "",
+       "kind": "element",
+       "label": "Built-in element",
+       "doc": "# Keys\n\n*Built-in element*\n\nThe keyboard, as a member. `Keys` names one concept that a program can either **ask** or\n**listen to**: `Keys.isDown(\"KeyA\")` is a call you make from any `{ }` body; a `Keys [ … ]`\nmember is how the keyboard calls you.\n\nIt is the RAW stream — it fires even while a text field has focus, so gate app-level\nshortcuts on app state where that matters. A *focused* view's own `onKeyDown`/`onKeyUp`\nhandlers are the other half of the story, and usually the right one for keys that belong to\na particular widget. Lifetime is the node's: subscribed at init, dropped when the node is\ndiscarded, nothing to clean up. Fan-out is by instance — a menu, a dialog, and a menubar\neach holding a `Keys` member all hear the keyboard at once.\n\n```declare\nApp [ width = 240, height = 100, fill = white, textColor = black,\n    n: number = 0,\n    keys: Keys [\n        onKeyUp(e) {\n            if (e.key == \"ArrowUp\") { app.n = app.n + 1 }\n            else if (e.key == \"ArrowDown\") { app.n = app.n - 1 }\n            },\n        ],\n    Text [ x = 20, y = 30, fontSize = 30, text = { `n = ${n}` } ],\n    ]\n```\n",
+       "preview": "The keyboard, as a member. Keys names one concept that a program can either ask or listen to: Keys.isDown(\"KeyA\") is a call you make from any { } body; a Keys … member is how the keyboard calls you. It is the RAW stream — it fires even whil…"
+      },
+      {
+       "name": "Focus",
+       "subtitle": "",
+       "kind": "element",
+       "label": "Built-in element",
+       "doc": "# Focus\n\n*Built-in element*\n\nThe focus service, as a member. Like `Keys`, `Focus` names one concept a program can\n**ask** (`Focus.focus(this)`, `Focus.byKeyboard()` — calls from any `{ }` body) or\n**listen to** (a `Focus [ … ]` member).\n\nListening is what a focus indicator does: the library's `FocusRing` follows focus with\nexactly these two handlers, tracking where focus went and the live silhouette of whatever\nholds it. Most apps never need it — focus rings, tab order, and activation are provided —\nbut replacing the indicator is a supported thing to do, and this is how.\n\n```declare-fragment\nwatch: Focus [\n    onFocusChange(v) { classroot.target = v },\n    onGeometry(g)    { classroot.tx = g.x; classroot.ty = g.y },\n    ],\n```\n",
+       "preview": "The focus service, as a member. Like Keys, Focus names one concept a program can ask (Focus.focus(this), Focus.byKeyboard() — calls from any { } body) or listen to (a Focus … member). Listening is what a focus indicator does: the library's…"
+      },
+      {
+       "name": "Tip",
+       "subtitle": "",
+       "kind": "element",
+       "label": "Built-in element",
+       "doc": "# Tip\n\n*Built-in element*\n\nThe tooltip service, as a member: `onTip(e)` fires when a view carrying `tip = \"…\"` wants\nits tooltip shown, and with `null` when it should hide. The service owns the platform\nconventions — the show delay, instant retarget while showing, hide on press — so a\nlistener only renders.\n\nThe library's `Tooltip` is the one listener most programs ever need, and it arrives\nautomatically in any app whose views carry tips. Declare your own `Tip [ … ]` member only\nwhen you are replacing that rendition.\n\n```declare-fragment\ntips: Tip [\n    onTip(e) {\n        if (e == null) { classroot.shown = false; return }\n        classroot.label = e.text\n        classroot.shown = true\n        },\n    ],\n```\n",
+       "preview": "The tooltip service, as a member: onTip(e) fires when a view carrying tip = \"…\" wants its tooltip shown, and with null when it should hide. The service owns the platform conventions — the show delay, instant retarget while showing, hide on…"
+      },
+      {
        "name": "State",
        "subtitle": "",
        "kind": "element",
@@ -21028,7 +21434,7 @@
        "subtitle": "extends View",
        "kind": "element",
        "label": "Component",
-       "doc": "# FocusRing\n\n*Component — extends `View`*\n\nThe traveling focus indicator — the OpenLaszlo 3.4 `focusoverlay` line, on the\nreactive core, at its third form: a SHAPE-HUGGING rounded outline whose\nterminus reshapes to the focused control's own silhouette (library-charter §6\n— the ring springs position, size, AND cornerRadius; a Radio's row ring, a\npill Switch's ring, and a text field's ring differ because the targets do).\n\nThe layered model (charter, ratified):\n\n- **The fact** — the ring listens to Focus (`onFocusChange(v) <- Focus`) and\n  tracks the target's root-space geometry on EVERY change, pointer or\n  keyboard. A pointer focus PARKS the ring there silently (snap, no show) —\n  so the next Tab's flight departs from the control the user just clicked,\n  never from a stale perch.\n- **Roles, theme-elected** — `theme.focusRing`: `\"both\"` (or `true`, the\n  default) · `\"travel\"` (flight + the OL idle fade) · `\"rest\"` (no flight —\n  the ring appears in place and stays) · `false` (no ring; the theme's\n  components carry the at-rest indication — the invariant lives with the\n  THEME+components pair). While keyboard modality holds and the role includes\n  rest, the ring RESTS — no idle fade; a pointer press clears modality and\n  the ring hides (web :focus-visible semantics).\n- **The flight is the flourish** — `theme.focusAnimate = false` (the\n  sampler's \"Animate focus transitions\" toggle) snaps every move; the\n  underdamped travel is default-on.\n\nIt arrives automatically with any Control-descended component (the OL\n`canvas.focusclass` default); declare your own `FocusRing [ ]` (or subclass)\nto replace it. Pure chrome: never focusable, never a pointer target.\n(v1 limits, recorded: root-space bounds are summed through the parent chain —\na scrolled container is not compensated; the silhouette is the target's\n`cornerRadius` — a `focusShape()` override protocol arrives with the\nemulation passes.)\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `tx` | number | `0` |  |\n| `ty` | number | `0` |  |\n| `tw` | number | `0` |  |\n| `th` | number | `0` |  |\n| `trad` | number | `8` |  |\n| `rad` | number | `8` |  |\n| `shown` | boolean | `false` |  |\n| `placed` | boolean | `false` |  |\n| `idle` | boolean | `false` |  |\n| `gen` | number | `0` |  |\n\n## Events\n\n- `onGeometry(g)`\n- `onFocusChange(v)`\n\n## Methods\n\n- `ringRole()`\n- `restRole()`\n- `travelRole()`\n- `snapTo()`\n- `containsPoint(px, py)`\n- `draw(d)`\n",
+       "doc": "# FocusRing\n\n*Component — extends `View`*\n\nThe traveling focus indicator — the OpenLaszlo 3.4 `focusoverlay` line, on the\nreactive core, at its third form: a SHAPE-HUGGING rounded outline whose\nterminus reshapes to the focused control's own silhouette (library-charter §6\n— the ring springs position, size, AND cornerRadius; a Radio's row ring, a\npill Switch's ring, and a text field's ring differ because the targets do).\n\nThe layered model (charter, ratified):\n\n- **The fact** — the ring listens to Focus (a `Focus [ onFocusChange(v) { … } ]` member) and\n  tracks the target's root-space geometry on EVERY change, pointer or\n  keyboard. A pointer focus PARKS the ring there silently (snap, no show) —\n  so the next Tab's flight departs from the control the user just clicked,\n  never from a stale perch.\n- **Roles, theme-elected** — `theme.focusRing`: `\"both\"` (or `true`, the\n  default) · `\"travel\"` (flight + the OL idle fade) · `\"rest\"` (no flight —\n  the ring appears in place and stays) · `false` (no ring; the theme's\n  components carry the at-rest indication — the invariant lives with the\n  THEME+components pair). While keyboard modality holds and the role includes\n  rest, the ring RESTS — no idle fade; a pointer press clears modality and\n  the ring hides (web :focus-visible semantics).\n- **The flight is the flourish** — `theme.focusAnimate = false` (the\n  sampler's \"Animate focus transitions\" toggle) snaps every move; the\n  underdamped travel is default-on.\n\nIt arrives automatically with any Control-descended component (the OL\n`canvas.focusclass` default); declare your own `FocusRing [ ]` (or subclass)\nto replace it. Pure chrome: never focusable, never a pointer target.\n(v1 limits, recorded: root-space bounds are summed through the parent chain —\na scrolled container is not compensated; the silhouette is the target's\n`cornerRadius` — a `focusShape()` override protocol arrives with the\nemulation passes.)\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `tx` | number | `0` |  |\n| `ty` | number | `0` |  |\n| `tw` | number | `0` |  |\n| `th` | number | `0` |  |\n| `trad` | number | `8` |  |\n| `rad` | number | `8` |  |\n| `shown` | boolean | `false` |  |\n| `placed` | boolean | `false` |  |\n| `idle` | boolean | `false` |  |\n| `gen` | number | `0` |  |\n\n## Methods\n\n- `ringRole()`\n- `restRole()`\n- `travelRole()`\n- `snapTo()`\n- `draw(d)`\n",
        "preview": "The traveling focus indicator — the OpenLaszlo 3.4 focusoverlay line, on the reactive core, at its third form: a SHAPE-HUGGING rounded outline whose terminus reshapes to the focused control's own silhouette (library-charter §6 — the ring sp…"
       },
       {
@@ -21052,7 +21458,7 @@
        "subtitle": "extends View",
        "kind": "element",
        "label": "Component",
-       "doc": "# Tooltip\n\n*Component — extends `View`*\n\nThe layer system's floor (planes.md §2, tier 1): any view sets `tip = \"…\"`\nand this singleton renders it — hover delay, placement, flip, and theming\nare nobody's problem at the use site. It arrives automatically when any\nview in the program carries a tip (the FocusRing auto-arrival mechanism);\ndeclare your own `Tooltip [ ]` (or subclass) to replace the rendition.\n\nIt listens to the Tip service (`onTip(e) <- Tip`), which owns the platform\nconventions (the show delay — `tooltipDelay`, ~1s on the Apple and Windows\nplatforms, ~500ms Material — instant retarget while showing, hide on\npress). PLACEMENT is theme data too (`tooltipPlacement`): \"below\" (the\ndefault — under the target, centered, flipping above at the edge), \"above\"\n(Fluent/WinUI's default, flipping below), or \"pointer\" (the macOS help tag —\noffset below-right of where the cursor rests). Always clamped inside the\napp. Pure chrome — never focusable, never a pointer target, always above\ncontent (the auto-splice puts it last in the App, and source order stacks).\n\nTheming (the four cities carry the tokens): `tooltipBg` / `tooltipText` /\n`tooltipLine` (null = no border) / `tooltipSize` (11 on macOS, 12\nelsewhere). Cupertino and Redmond wear bordered surface chips; San\nFrancisco and Mountain View the inverse chip.\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `tipText` | string | `\"\"` |  |\n| `shown` | boolean | `false` |  |\n| `ex` | number | `0` |  |\n| `ey` | number | `0` |  |\n| `ew` | number | `0` |  |\n| `eh` | number | `0` |  |\n| `px` | number | `0` |  |\n| `py` | number | `0` |  |\n| `placement` | string |  |  |\n\n## Events\n\n- `onTip(e)`\n\n## Methods\n\n- `containsPoint(cx, cy)`\n",
+       "doc": "# Tooltip\n\n*Component — extends `View`*\n\nThe layer system's floor (planes.md §2, tier 1): any view sets `tip = \"…\"`\nand this singleton renders it — hover delay, placement, flip, and theming\nare nobody's problem at the use site. It arrives automatically when any\nview in the program carries a tip (the FocusRing auto-arrival mechanism);\ndeclare your own `Tooltip [ ]` (or subclass) to replace the rendition.\n\nIt listens to the Tip service (a `Tip [ onTip(e) { … } ]` member), which owns the platform\nconventions (the show delay — `tooltipDelay`, ~1s on the Apple and Windows\nplatforms, ~500ms Material — instant retarget while showing, hide on\npress). PLACEMENT is theme data too (`tooltipPlacement`): \"below\" (the\ndefault — under the target, centered, flipping above at the edge), \"above\"\n(Fluent/WinUI's default, flipping below), or \"pointer\" (the macOS help tag —\noffset below-right of where the cursor rests). Always clamped inside the\napp. Pure chrome — never focusable, never a pointer target, always above\ncontent (the auto-splice puts it last in the App, and source order stacks).\n\nTheming (the four cities carry the tokens): `tooltipBg` / `tooltipText` /\n`tooltipLine` (null = no border) / `tooltipSize` (11 on macOS, 12\nelsewhere). Cupertino and Redmond wear bordered surface chips; San\nFrancisco and Mountain View the inverse chip.\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `tipText` | string | `\"\"` |  |\n| `shown` | boolean | `false` |  |\n| `ex` | number | `0` |  |\n| `ey` | number | `0` |  |\n| `ew` | number | `0` |  |\n| `eh` | number | `0` |  |\n| `px` | number | `0` |  |\n| `py` | number | `0` |  |\n| `placement` | string |  |  |\n",
        "preview": "The layer system's floor (planes.md §2, tier 1): any view sets tip = \"…\" and this singleton renders it — hover delay, placement, flip, and theming are nobody's problem at the use site. It arrives automatically when any view in the program c…"
       },
       {
@@ -21060,7 +21466,7 @@
        "subtitle": "extends View",
        "kind": "element",
        "label": "Component",
-       "doc": "# Menu\n\n*Component — extends `View`*\n\nThe record-driven menu (planes.md §4–§6): items are DATA — the component\narranges; the author never composes rows. The standard record covers real OS\nmenus:\n\n    { id, label, key?, icon?, enabled?, checked?, divider?, submenu?, kind?, props? }\n\n- `key` renders right-aligned (display only — registration is the Keys\n  service's, later).\n- `icon` is a leading text glyph (⚙, ⌂, …), the macOS menu convention —\n  the label shifts right to make its column.\n- `enabled: false` dims the row (theme.disabledOpacity) and refuses pick.\n- `{ divider: true }` is a separator line.\n- `submenu: [ …records… ]` marks a cascade (the ▸ arrow; the cascade itself\n  lands with the roving-keyboard stage).\n- `kind: \"ClassName\"` renders the row's CONTENT with a named author class\n  (app.createView — keep data-only classes with `use [ Name ]`), passed\n  `props` as its datapath context. Behavior stays the row's: highlight,\n  pick, keyboard are the menu's, always.\n\nDeclared ONCE, opened by many (the worked example): rows carry\n`onContextMenu(e) { app.rowMenu.openAt(this, e) }`; the menu's `items`\nconstraint derives from `opener` — per-row variation with zero per-row\ninstances, live while open. `openAt` point-positions (the context-menu\nrule); `openFor` drops below a control (the attached-menu rule); both\nRAISE the menu (promotion — order is a slot) and clamp inside the app.\n\nDismissal: the BACKDROP (a full-app child under the panel) — a press\noutside closes AND is swallowed, the Mac rule (planes.md §12.1, resolved\nfor v1); Escape closes; pick closes after delivery.\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `items` | array | `null` |  |\n| `opener` | View | `null` |  |\n| `shown` | boolean | `false` |  |\n| `hasIcons` | boolean |  |  |\n| `isRoot` | boolean | `true` |  |\n| `rootMenu` | View | `null` |  |\n| `child` | View | `null` |  |\n| `activeRow` | View | `null` |  |\n| `offX` | number | `0` |  |\n| `offY` | number | `0` |  |\n\n## Events\n\n- `onKeyDown(e)`\n- `onKeyUp(e)`\n\n## Methods\n\n- `picked(id)`\n- `openAt(v, e)`\n- `openFor(v)`\n- `place(x, y)`\n- `close()`\n- `pick(id)`\n- `openSub(row, subItems)`\n- `driveSub(c, subItems, x, y)`\n- `closeSub()`\n- `closeIt(c)`\n- `subShown(c)`\n- `rootClose()`\n- `rowsOf(b)`\n- `step(d)`\n- `pickActive()`\n- `pickRow(r)`\n- `enterSub()`\n- `enterRow(r)`\n- `stepIn(c)`\n",
+       "doc": "# Menu\n\n*Component — extends `View`*\n\nThe record-driven menu (planes.md §4–§6): items are DATA — the component\narranges; the author never composes rows. The standard record covers real OS\nmenus:\n\n    { id, label, key?, icon?, enabled?, checked?, divider?, submenu?, kind?, props? }\n\n- `key` renders right-aligned (display only — registration is the Keys\n  service's, later).\n- `icon` is a leading text glyph (⚙, ⌂, …), the macOS menu convention —\n  the label shifts right to make its column.\n- `enabled: false` dims the row (theme.disabledOpacity) and refuses pick.\n- `{ divider: true }` is a separator line.\n- `submenu: [ …records… ]` marks a cascade (the ▸ arrow; the cascade itself\n  lands with the roving-keyboard stage).\n- `kind: \"ClassName\"` renders the row's CONTENT with a named author class\n  (app.createView — keep data-only classes with `use [ Name ]`), passed\n  `props` as its datapath context. Behavior stays the row's: highlight,\n  pick, keyboard are the menu's, always.\n\nDeclared ONCE, opened by many (the worked example): rows carry\n`onContextMenu(e) { app.rowMenu.openAt(this, e) }`; the menu's `items`\nconstraint derives from `opener` — per-row variation with zero per-row\ninstances, live while open. `openAt` point-positions (the context-menu\nrule); `openFor` drops below a control (the attached-menu rule); both\nRAISE the menu (promotion — order is a slot) and clamp inside the app.\n\nDismissal: the BACKDROP (a full-app child under the panel) — a press\noutside closes AND is swallowed, the Mac rule (planes.md §12.1, resolved\nfor v1); Escape closes; pick closes after delivery.\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `items` | array | `null` |  |\n| `opener` | View | `null` |  |\n| `shown` | boolean | `false` |  |\n| `hasIcons` | boolean |  |  |\n| `isRoot` | boolean | `true` |  |\n| `rootMenu` | View | `null` |  |\n| `child` | View | `null` |  |\n| `activeRow` | View | `null` |  |\n| `offX` | number | `0` |  |\n| `offY` | number | `0` |  |\n\n## Methods\n\n- `picked(id)`\n- `openAt(v, e)`\n- `openFor(v)`\n- `place(x, y)`\n- `close()`\n- `pick(id)`\n- `openSub(row, subItems)`\n- `driveSub(c, subItems, x, y)`\n- `closeSub()`\n- `closeIt(c)`\n- `subShown(c)`\n- `rootClose()`\n- `rowsOf(b)`\n- `step(d)`\n- `pickActive()`\n- `pickRow(r)`\n- `enterSub()`\n- `enterRow(r)`\n- `stepIn(c)`\n",
        "preview": "The record-driven menu (planes.md §4–§6): items are DATA — the component arranges; the author never composes rows. The standard record covers real OS menus: { id, label, key?, icon?, enabled?, checked?, divider?, submenu?, kind?, props? } -…"
       },
       {
@@ -21068,7 +21474,7 @@
        "subtitle": "extends View",
        "kind": "element",
        "label": "Component",
-       "doc": "# MenuBar\n\n*Component — extends `View`*\n\nThe record-driven menu bar (planes.md §4–§6): whole menus are DATA —\n\n    menus = { [ ({ id, label, bold?, items: [ …menu records… ] }), … ] }\n\n— and the component arranges. ONE internal Menu serves every title; its\n`items` constraint derives from the open title's record, so item state\n(enabled, checked, labels) stays LIVE while the menu is up. Because the\nrecords are the single declaration, an app can derive its key registry\nfrom the same array the bar renders — nothing is declared twice (the\nNewton keys direction, proven in apps/desktop).\n\nTracking is the macOS behavior: titles do NOT highlight on mere hover;\na click opens (and highlights) a title; while any menu is open, moving\nacross another title switches to it; clicking the open title closes.\n\nDelivery is the one seam: `picked(id)` — override at the use site.\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `menus` | array | `null` |  |\n| `ink` | Color | `null` |  |\n| `openId` | string | `\"\"` |  |\n| `shown` | boolean |  |  |\n\n## Events\n\n- `onKeyDown(e)`\n\n## Methods\n\n- `picked(id)`\n- `openMenu(t)`\n- `trackMenu(t)`\n- `rowsOf()`\n- `hasSub(r)`\n- `stepMenu(d)`\n",
+       "doc": "# MenuBar\n\n*Component — extends `View`*\n\nThe record-driven menu bar (planes.md §4–§6): whole menus are DATA —\n\n    menus = { [ ({ id, label, bold?, items: [ …menu records… ] }), … ] }\n\n— and the component arranges. ONE internal Menu serves every title; its\n`items` constraint derives from the open title's record, so item state\n(enabled, checked, labels) stays LIVE while the menu is up. Because the\nrecords are the single declaration, an app can derive its key registry\nfrom the same array the bar renders — nothing is declared twice (the\nNewton keys direction, proven in apps/desktop).\n\nTracking is the macOS behavior: titles do NOT highlight on mere hover;\na click opens (and highlights) a title; while any menu is open, moving\nacross another title switches to it; clicking the open title closes.\n\nDelivery is the one seam: `picked(id)` — override at the use site.\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `menus` | array | `null` |  |\n| `ink` | Color | `null` |  |\n| `openId` | string | `\"\"` |  |\n| `shown` | boolean |  |  |\n\n## Methods\n\n- `picked(id)`\n- `openMenu(t)`\n- `trackMenu(t)`\n- `rowsOf()`\n- `hasSub(r)`\n- `stepMenu(d)`\n",
        "preview": "The record-driven menu bar (planes.md §4–§6): whole menus are DATA — menus = { ({ id, label, bold?, items: …menu records… }), … } — and the component arranges. ONE internal Menu serves every title; its items constraint derives from the open…"
       },
       {
@@ -21076,7 +21482,7 @@
        "subtitle": "extends View",
        "kind": "element",
        "label": "Component",
-       "doc": "# Dialog\n\n*Component — extends `View`*\n\nThe modal tier (planes.md): a full-app SCRIM that swallows every press —\nmodal input blocking, no light dismiss — under a centered panel with a\nfocustrap. Buttons are RECORDS (the records door): `{ id, label,\ndefault?, cancel? }`, rendered as themed library Buttons right-aligned in\nthe platform arrangement. Focus SAVES on open and RETURNS on close.\n\nKeyboard: Return picks the DEFAULT button (the macOS rule; a focused\nbutton also activates on Space/Enter — the pick guard makes the double\nharmless), Escape picks the cancel record when one exists, else just\ncloses.\n\nThe idioms — one verb each, an optional callback receiving the picked id\n(the `picked(id)` override remains the declarative seam):\n\n    dlg.notice(\"Saved\", \"Your changes were saved.\")\n    dlg.ask(\"Save changes?\", \"Unsaved changes will be lost.\", (id) => …)\n    dlg.error(\"Could not connect\", \"The server refused the connection.\")\n\n`ask` is Cancel / No / Yes-default; `error` renders the title in the\ntheme's errorColor.\n\nPlatform STRUCTURE is data (the scheme): `dialogWidth`,\n`dialogButtons` = \"end\" (a right-aligned row — SF, Material) | \"stack\"\n(the macOS alert — full-width buttons stacked, DEFAULT ON TOP) | \"fill\"\n(WinUI ContentDialog — equal-width buttons filling the row),\n`dialogAlign` = \"left\" | \"center\" (the macOS centered title),\n`dialogTitleSize` / `dialogBodySize`. Plus scrimColor + scrimOpacity\n(macOS barely dims — alerts separate by SHADOW; Material's spec scrim is\n32%; Fluent's smoke 30%), the menuShadow family, errorColor.\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `shown` | boolean | `false` |  |\n| `title` | string | `\"\"` |  |\n| `message` | string | `\"\"` |  |\n| `tone` | string | `\"\"` |  |\n| `buttons` | array | `null` |  |\n| `saved` | View | `null` |  |\n| `cb` | object | `null` |  |\n| `arrangement` | string |  |  |\n| `centered` | boolean |  |  |\n\n## Events\n\n- `onKeyDown(e)`\n\n## Methods\n\n- `picked(id)`\n- `open(t, m, btns, tone_, cb_)`\n- `notice(t, m, cb_)`\n- `error(t, m, cb_)`\n- `ask(t, m, cb_)`\n- `close()`\n- `pick(id)`\n- `callCb(f, id)`\n- `kidsOf(b)`\n- `innerOf(box)`\n- `focusDefault()`\n- `pickDefault()`\n- `pickCancel()`\n",
+       "doc": "# Dialog\n\n*Component — extends `View`*\n\nThe modal tier (planes.md): a full-app SCRIM that swallows every press —\nmodal input blocking, no light dismiss — under a centered panel with a\nfocustrap. Buttons are RECORDS (the records door): `{ id, label,\ndefault?, cancel? }`, rendered as themed library Buttons right-aligned in\nthe platform arrangement. Focus SAVES on open and RETURNS on close.\n\nKeyboard: Return picks the DEFAULT button (the macOS rule; a focused\nbutton also activates on Space/Enter — the pick guard makes the double\nharmless), Escape picks the cancel record when one exists, else just\ncloses.\n\nThe idioms — one verb each, an optional callback receiving the picked id\n(the `picked(id)` override remains the declarative seam):\n\n    dlg.notice(\"Saved\", \"Your changes were saved.\")\n    dlg.ask(\"Save changes?\", \"Unsaved changes will be lost.\", (id) => …)\n    dlg.error(\"Could not connect\", \"The server refused the connection.\")\n\n`ask` is Cancel / No / Yes-default; `error` renders the title in the\ntheme's errorColor.\n\nPlatform STRUCTURE is data (the scheme): `dialogWidth`,\n`dialogButtons` = \"end\" (a right-aligned row — SF, Material) | \"stack\"\n(the macOS alert — full-width buttons stacked, DEFAULT ON TOP) | \"fill\"\n(WinUI ContentDialog — equal-width buttons filling the row),\n`dialogAlign` = \"left\" | \"center\" (the macOS centered title),\n`dialogTitleSize` / `dialogBodySize`. Plus scrimColor + scrimOpacity\n(macOS barely dims — alerts separate by SHADOW; Material's spec scrim is\n32%; Fluent's smoke 30%), the menuShadow family, errorColor.\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `shown` | boolean | `false` |  |\n| `title` | string | `\"\"` |  |\n| `message` | string | `\"\"` |  |\n| `tone` | string | `\"\"` |  |\n| `buttons` | array | `null` |  |\n| `saved` | View | `null` |  |\n| `cb` | object | `null` |  |\n| `arrangement` | string |  |  |\n| `centered` | boolean |  |  |\n\n## Methods\n\n- `picked(id)`\n- `open(t, m, btns, tone_, cb_)`\n- `notice(t, m, cb_)`\n- `error(t, m, cb_)`\n- `ask(t, m, cb_)`\n- `close()`\n- `pick(id)`\n- `callCb(f, id)`\n- `kidsOf(b)`\n- `innerOf(box)`\n- `focusDefault()`\n- `pickDefault()`\n- `pickCancel()`\n",
        "preview": "The modal tier (planes.md): a full-app SCRIM that swallows every press — modal input blocking, no light dismiss — under a centered panel with a focustrap. Buttons are RECORDS (the records door): { id, label, default?, cancel? }, rendered as…"
       },
       {

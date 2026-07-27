@@ -7,7 +7,7 @@ are nobody's problem at the use site. It arrives automatically when any
 view in the program carries a tip (the FocusRing auto-arrival mechanism);
 declare your own `Tooltip [ ]` (or subclass) to replace the rendition.
 
-It listens to the Tip service (`onTip(e) <- Tip`), which owns the platform
+It listens to the Tip service (a `Tip [ onTip(e) { … } ]` member), which owns the platform
 conventions (the show delay — `tooltipDelay`, ~1s on the Apple and Windows
 platforms, ~500ms Material — instant retarget while showing, hide on
 press). PLACEMENT is theme data too (`tooltipPlacement`): "below" (the
@@ -34,14 +34,16 @@ class Tooltip extends View [ visible = { shown && tipText != "" },
     px: number = 0,                              // the pointer at show (the "pointer" placement)
     py: number = 0,
 
-    onTip(e) <- Tip {
-        if (e == null || e.root != app) { shown = false; return }
-        ex = e.x; ey = e.y; ew = e.w; eh = e.h
-        px = app.pointerX; py = app.pointerY      // the pointer as it RESTS at show
-        tipText = e.text
-        shown = true
-        this.raise()          // chrome stays chrome: above whatever raised last
-        },
+    tips: Tip [
+        onTip(e) {
+            if (e == null || e.root != app) { classroot.shown = false; return }
+            classroot.ex = e.x; classroot.ey = e.y; classroot.ew = e.w; classroot.eh = e.h
+            classroot.px = app.pointerX; classroot.py = app.pointerY   // the pointer as it RESTS at show
+            classroot.tipText = e.text
+            classroot.shown = true
+            classroot.raise()     // chrome stays chrome: above whatever raised last
+            },
+        ],
 
     // geometry derives from the label's measured size; placement is a theme
     // election (below | above | pointer), always flipped when it would leave
@@ -63,9 +65,10 @@ class Tooltip extends View [ visible = { shown && tipText != "" },
     fill   = { typeof theme.tooltipBg == "number" ? theme.tooltipBg : 0x1B2733 },
     stroke = { typeof theme.tooltipLine == "number" ? stroke(1, theme.tooltipLine) : null },
 
-    // pure chrome: never a pointer target
+    // pure chrome: never a pointer target — and never on the hover chain
+    // either, which is what pointerEvents (unlike a hit-test override) governs
 
-    containsPoint(cx, cy) { return false },
+    pointerEvents = "none",
 
     t: Text [ x = 8, y = 5, fontSize = { typeof theme.tooltipSize == "number" ? theme.tooltipSize : 12 },
         textColor = { typeof theme.tooltipText == "number" ? theme.tooltipText : 0xF4F6FA },

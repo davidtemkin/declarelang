@@ -1,44 +1,94 @@
-// sources — the `<-` subscription's registry of external event sources
-// (language §8, implemented 2026-07-13). A subscription member
-// (`onKeyUp(e) <- Keys { … }`) is an ordinary method PLUS a registration:
-// at construction the instance's installed member is subscribed to the named
-// source; at discard it is unsubscribed (node.ts onDiscard).
+// sources — the runtime's event SOURCES, as components. A source is a
+// non-visual member you put in a tree whose handlers are called by something
+// OUTSIDE the tree: the keyboard, the focus service, the tip service.
 //
-// Matching is by LITERAL member name — the `on` prefix is convention, not
-// mapping (ruled): `onKeyUp <- Keys` means Keys calls a subscriber named
-// onKeyUp, full stop. The checker validates both the source name and the
-// member name against SUBSCRIPTION_SOURCES (schema.ts — the checker-safe
-// table; this module is the runtime half, and the only place that touches
-// the live services).
+//     keys: Keys [ onKeyUp(e) { if (e.key == "Escape") classroot.close() } ],
 //
-// v1 sources are the runtime SERVICES — Keys first (the documented Appendix A
-// use). Subscribing to another VIEW's events (hearing a sibling's onClick)
-// waits until view-event dispatch routes through a fan-out point; nothing
-// needs it yet.
+// WHY COMPONENTS, not a `<-` operator. The language rules that an event is just
+// a function-typed member that gets called when the thing happens — the `on`
+// prefix is a naming convention, not syntax. A second, syntactically distinct
+// way to receive an event contradicted that ruling: one category, two
+// spellings. Non-visual members are a category the language already has
+// (Dataset, Animator, Spring, State, Frames), so a source needs no operator, no
+// grammar production, and no subscribable-source table. The classes below are
+// ordinary registry components, so the ones an app never mentions are dropped
+// from its bundle like any other component. (Measured caveat, so nobody repeats
+// an over-claim: that shakes out these thin WRAPPERS only. The SERVICES they
+// wrap ship regardless — boot.ts wires Keys, index.ts injects Keys/Focus into
+// body scope for `Keys.isDown(…)`, view.ts uses Tip, text-input.ts uses Focus.
+// Gating those on program facts, the way slim-draw gates the paint vocabulary,
+// is a separate and unclaimed win.)
+//
+// LIFETIME is the node's, exactly as the operator's was: handlers subscribe at
+// init and unsubscribe when the node is discarded, so there is nothing for an
+// author to clean up. FAN-OUT is by instance: a menu, a dialog, and a menubar
+// each holding their own `Keys` member all hear the keyboard at once — which an
+// App-level event could never express, and which is why these are members
+// rather than one global handler.
+import { Node, onDiscard } from "./node.js";
 import { Keys } from "./keys.js";
 import { Focus } from "./focus.js";
 import { Tip } from "./tip.js";
-/** Subscribe `fn` to `member` on the named source. Returns the unsubscribe
- *  thunk. Unknown source/member throws — unreachable through the compiler
- *  (check.ts refuses them with positioned errors); the throw guards direct
- *  runtime callers. */
-export function subscribeToSource(source, member, fn) {
-    if (source === "Keys") {
-        if (member === "onKeyDown")
-            return Keys.onKeyDown(fn);
-        if (member === "onKeyUp")
-            return Keys.onKeyUp(fn);
+/** The shared half of every source component: at init, wire each channel whose
+ *  handler this instance actually declares; at discard, drop them all. Nothing
+ *  subscribes for a handler nobody wrote — pay-per-use, like every other member
+ *  in the language. */
+class Source extends Node {
+    wired = false;
+    /** Construction-complete (instantiate.ts's initTree — the same lifecycle hook
+     *  an animator's autoStart uses): the compiled handler members are installed
+     *  by now, which is the first moment we can tell which channels to wire. */
+    autoStart() {
+        if (this.wired)
+            return;
+        this.wired = true;
+        const self = this;
+        const offs = [];
+        for (const [member, subscribe] of this.channels()) {
+            const fn = self[member];
+            if (typeof fn !== "function")
+                continue;
+            const handler = (arg) => { fn.call(this, arg); };
+            offs.push(subscribe(handler));
+        }
+        if (offs.length > 0)
+            onDiscard(this, () => { for (const off of offs)
+                off(); });
     }
-    if (source === "Focus") {
-        if (member === "onFocusChange")
-            return Focus.onFocusChange(fn);
-        if (member === "onGeometry")
-            return Focus.onGeometry(fn);
-    }
-    if (source === "Tip") {
-        if (member === "onTip")
-            return Tip.onTip(fn);
-    }
-    throw new Error(`no subscribable '${member}' on '${source}'`);
 }
+/** The keyboard, as a member: `Keys [ onKeyDown(e) { … }, onKeyUp(e) { … } ]`.
+ *  The RAW stream — it fires even while a text field has focus, so gate
+ *  app-level shortcuts on app state where that matters. (A focused view's own
+ *  `onKeyDown`/`onKeyUp` are the other half: keys belonging to one widget.) */
+export class KeysSource extends Source {
+    channels() {
+        return CHANNELS_KEYS;
+    }
+}
+const CHANNELS_KEYS = [
+    ["onKeyDown", (fn) => Keys.onKeyDown(fn)],
+    ["onKeyUp", (fn) => Keys.onKeyUp(fn)],
+];
+/** The focus service, as a member: `onFocusChange(v)` when focus moves, and
+ *  `onGeometry(g)` for the focused control's live silhouette — what a focus
+ *  ring follows. */
+export class FocusSource extends Source {
+    channels() {
+        return CHANNELS_FOCUS;
+    }
+}
+const CHANNELS_FOCUS = [
+    ["onFocusChange", (fn) => Focus.onFocusChange(fn)],
+    ["onGeometry", (fn) => Focus.onGeometry(fn)],
+];
+/** The tip service, as a member: `onTip(e)` when a tip-carrying view asks for
+ *  its tooltip to show (`null` to hide). */
+export class TipSource extends Source {
+    channels() {
+        return CHANNELS_TIP;
+    }
+}
+const CHANNELS_TIP = [
+    ["onTip", (fn) => Tip.onTip(fn)],
+];
 //# sourceMappingURL=sources.js.map

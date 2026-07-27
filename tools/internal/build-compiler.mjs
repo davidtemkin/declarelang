@@ -117,6 +117,11 @@ const result = await build({
     // true makes TS skip building its Node `sys` (fs/os/path/__filename) — the exact
     // browser behavior — so the bundle never runs that init in EITHER environment.
     "process.browser": "true",
+    // Our own Node-only debug hook (`typecheck.ts`'s scaffold dump). Nothing
+    // shims it, so left alone it reaches the browser as a bare `process` read
+    // and throws on the first compile. Defined to a constant, the branch is
+    // dead code here and keeps working under Node, where the env var is real.
+    "process.env.DECLARE_DUMP_TS": '""',
     __filename: '"/declare-compiler.js"',
     __dirname: '"/"',
   },

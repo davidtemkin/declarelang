@@ -10,6 +10,7 @@
 // allocates until asked). The `__declare` page bridge is installed by boot.ts
 // for top-level apps.
 import { Node } from "./node.js";
+import { hitAt } from "./interaction.js";
 import { View } from "./view.js";
 import { isSet, ownerOf, ownValues, ownedSlots } from "./attributes.js";
 import { sharedClock, browserScheduler } from "./animate.js";
@@ -327,32 +328,16 @@ function pathOf(root, n) {
 // Hit-testing, reverse dependency edges, and lazy value expansion — the three
 // queries an interactive object browser needs that verify's rung 5 never did.
 // All are pay-per-use: nothing here runs until asked.
-/** The VIEW under a root-space point — topmost visible wins, depth-first from
- *  the end of each child list (later siblings paint over earlier ones, the
- *  language's stacking rule). Deliberately geometric rather than routed
- *  through the input router's sink resolution: the picker must find a view
- *  whether or not it declares handlers, and must see the view that is actually
- *  on top even when a transparent sibling would swallow the press. */
+/** The VIEW under a root-space point — THE hit walk (interaction.ts leafAt),
+ *  the same one the pointer is routed by and `View.viewAt` exposes, so the
+ *  picker highlights exactly what a press would reach. `pierce` is the
+ *  picker's one deviation: a pointer-transparent view is still selectable,
+ *  because a developer asking "what is this?" means the thing they can see.
+ *  (This used to be a second, cruder implementation — plain rectangle
+ *  containment, blind to clip, scale, and pivot — which is precisely the
+ *  duplication that produced a mis-hit window corner elsewhere.) */
 export function viewAt(root, x, y) {
-    let best = null;
-    const walk = (n, ox, oy) => {
-        if (!isView(n))
-            return;
-        if (n.visible === false)
-            return;
-        const left = ox + (n.x || 0);
-        const top = oy + (n.y || 0);
-        const w = n.width || 0;
-        const h = n.height || 0;
-        const inside = x >= left && x <= left + w && y >= top && y <= top + h;
-        if (inside)
-            best = n;
-        // Descend regardless of `inside`: a child may overflow an unclipped parent.
-        for (const c of n.children)
-            walk(c, left, top);
-    };
-    walk(root, 0, 0);
-    return best;
+    return hitAt(root, x, y, true);
 }
 /** Every (path, attr) whose constraint READS `target` — the reverse of
  *  `explain().deps`, answering "what moves if this changes?". Computed by

@@ -1,8 +1,6 @@
-App [ width = 240, height = 100, fill = white, textColor = black,
-    n: number = 0,
-    onKeyUp(e) <- Keys {
-        if (e.key == "ArrowUp") { n = n + 1 }
-        else if (e.key == "ArrowDown") { n = n - 1 }
-        },
-    Text [ x = 20, y = 30, fontSize = 30, text = { `n = ${n}` } ],
+App [ width = 240, height = 120, fill = midnightblue, textColor = whitesmoke,
+    x0: number = 20,
+    v: number = 60,
+    physics: Frames [ onFrame(dt) { app.x0 = (app.x0 + app.v * dt) % 200 } ],
+    dot: View [ x = { app.x0 }, y = 40, width = 40, height = 40, cornerRadius = 20, fill = turquoise ],
     ]

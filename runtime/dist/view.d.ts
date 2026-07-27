@@ -285,6 +285,26 @@ export declare class View extends Node {
      *  attach, so a backend that keeps content in arrival order (the DOM) gets
      *  exactly the paint order the Canvas walk uses: content, then children. */
     protected flush(s: Surface): void;
+    /** THE HIT TEST: the view under a root-space point, or null. The same walk
+     *  the pointer is routed by (interaction.ts) — clip shapes, scale, pivot,
+     *  `pointerEvents`, and `ignoreclip` all count exactly as they do for a real
+     *  press — so what a handler computes and what the runtime routes can never
+     *  disagree. Answers the deepest (topmost) view; walk `.parent` to find an
+     *  eligible ancestor:
+     *
+     *      onMouseUp(e) {
+     *          let t = app.viewAt(e.x, e.y)
+     *          while (t != null && t.accept == null) t = t.parent
+     *          if (t != null) t.accept(dragged)
+     *          },
+     *
+     *  Root-space, like the coordinates `onMouseMove`/`onMouseUp` carry, so a
+     *  drag can pass its own event coordinates straight in. */
+    viewAt(x: number, y: number): View | null;
+    /** Does this view's box contain the root-space point? Geometry only — what
+     *  paints ON TOP is `viewAt`'s question — so a drop target can ask about
+     *  itself without walking the tree. */
+    containsPoint(x: number, y: number): boolean;
     /** Scroll this view to the top of its nearest scrolling ancestor — the
      *  imperative companion to the reactive `scrolls`/`scrollY` pair (a click
      *  handler calls it to jump to a target). Both backends do the work in their
@@ -307,6 +327,12 @@ export declare class View extends Node {
      *  A handler receives one plain event argument — the pointer position in
      *  this view's own coordinates. */
     private inputSink;
+    /** What the ROUTER needs to know about this view's declared handlers to
+     *  arbitrate gestures for it (input.ts HitTarget): whether it answers
+     *  double-clicks (so its single click waits out the double window), holds,
+     *  or the raw touch family (so the whole multi-finger stream is delivered and
+     *  nothing is interpreted). Declaration IS the opt-in — no configuration. */
+    private inputWants;
     /** Stand up the draw method as a tracked, re-recording computation. */
     private bindDraw;
     /** Re-record right now — the explicit half of draw-on-invalidation (the
@@ -373,6 +399,20 @@ export declare class App extends View {
      *  live by the runtime, distinct from the transient `hovering`: switch mouse-only
      *  affordances off with `visible = { !app.touchDevice }`. Read-only to user code. */
     touchDevice: boolean;
+    /** Does this device HAVE a touch digitizer at all (`any-pointer: coarse`)?
+     *  True on a phone, a tablet, AND a touch laptop whose primary pointer is a
+     *  trackpad — the case `touchDevice` deliberately answers false. Use it for a
+     *  hit-target floor (a finger may still arrive), not to switch layout.
+     *  Read-only to user code. */
+    hasTouch: boolean;
+    /** Does this device have a FINE pointer (`any-pointer: fine`) — a mouse,
+     *  trackpad, or stylus? Read-only to user code. */
+    hasPointer: boolean;
+    /** What the user JUST used: "mouse" | "touch" | "pen", updated live on every
+     *  move and press. The honest signal on a hybrid device, where the answer
+     *  changes per gesture: reveal hover-only affordances with
+     *  `visible = { app.lastPointerType == "mouse" }`. Read-only to user code. */
+    lastPointerType: string;
     /** The embedding environment's parameters (see schema.ts `env`): a record
      *  the host provides and keeps live; `{}` when top-level. Read reactively —
      *  `theme = { Themes.x(app.env.dark == true) }` follows the host's flips. */

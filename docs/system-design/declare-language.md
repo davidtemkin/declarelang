@@ -169,6 +169,12 @@ The instance is a *subtype* of its base — `View` plus the members you added �
 
 (So `Image [ source = { weatherIcon(:code) } ]` with a `weatherIcon(code)` helper, not a `class WeatherIcon extends Image`. The class would bundle a function in a class's clothing.)
 
+**"Stateless" is enforced at the constraint boundary, not by convention** (RULED 2026-07-26). A script block may hold module state — `let n = 0`, a `const` cache — and calling such a helper from a **handler** is perfectly legal, because a handler is statements and no dependency edge is being recorded. What is refused is reaching that state from a **constraint**: the helper's result would then depend on an input the compiler cannot name, and §5's contract ("a constraint reads specific, named things") makes that the residue condition — a `DECLARE7001`-class error at the *call site*, with the fix named ("that state belongs on an attribute"). The declaration itself is never an error; refusing it would forbid the legal handler-only cache. This keeps the no-stale-view invariant intact rather than trading it for convenience.
+
+Two consequences of the same analysis. A script function is the **fourth analyzable callee kind** (beside an in-program method, a pure builtin, and a library method) — the extractor reads its body exactly as it reads a method's. And because it is read, a parameter's reads **rebase onto the call-site argument**, so passing a node in works and stays anchored: `{ columnX(this.row) }` where `columnX(v)` reads `v.width` depends on `this.row.width`. An argument that is not a nameable path is residue, as everywhere else.
+
+A script block reaches **no scope nouns** — no `app`, `this`, `parent`, or `classroot`. It is plain module scope. A method may call a helper (and hand it a node); the reverse is deliberately not available, because a free function has no receiver to rebase onto, so its reads would attach to nothing visible at the call site — invisible dependencies being precisely what the "specific, named things" rule exists to prevent.
+
 ---
 
 ## 6. The value model
@@ -283,6 +289,29 @@ This replaces the `addEventListener`/`removeEventListener` (and React's `useEffe
 
 *(Don't confuse `<-` (event subscription) with `<->` (two-way data binding, [§9](#9-data-datapaths-replication-and-sources)).)*
 
+> **RULED AND DONE (2026-07-26): the `<-` operator is REMOVED.** The runtime services
+> are ordinary non-visual components now — `Keys [ onKeyDown(e) { … } ]`, `Focus`, `Tip`,
+> and the new `Frames` heartbeat — so this section's subscription form is history, kept
+> below only as the record of why it existed. The argument that settled it: the 2026-07-13
+> ruling *already* said an event is just a function-typed member that gets called, and a
+> second syntactically distinct way to receive one contradicted it — one category, two
+> spellings. The replacement needed no new concept, because non-visual members
+> (Dataset, Animator, Spring, State) were already a category. What it deleted: an
+> operator, a grammar production, `Method.source`, the `SUBSCRIPTION_SOURCES` table, the
+> checker's source branch, `subscribeToSource`, and formatter/highlighter cases. What it
+> kept: lifetime management (node discard) and multi-listener fan-out (per instance).
+> What it gained: `Keys`/`Focus` became one name each for a concept a program can either
+> ask (`Keys.isDown(…)` — a call) or listen to (a member), which the typecheck scaffold
+> models by folding the service's callable surface in as statics. (An expected size win
+> did NOT materialize and is recorded here so it is not re-claimed: the source COMPONENTS
+> tree-shake, but the SERVICES behind them still ship to every app — boot.ts wires Keys,
+> index.ts injects Keys/Focus into body scope, view.ts uses Tip, text-input.ts uses Focus.
+> Measured on two keyboard-free apps: `keys.js` 1,714 B and `focus.js` 3,316 B present in
+> both. Fact-gating them, the way slim-draw gates the paint vocabulary, is a separate
+> unclaimed win.) Migration cost was 10 corpus sites; the calendar got *shorter*,
+> since its `Node` wrapper existed only to host a subscription. A program written against
+> the old form gets a positioned error naming the exact rewrite.
+>
 > **Status + ruling (2026-07-13).** Ruled: **an event is just a function-typed member that gets called when the thing happens — the `on` prefix is a naming convention, not syntax.** No mapping, no dual identity between a "bare event name" and a handler name: `onClick` is a member named `onClick`, and the input router calls it. Consequences: there is **no `event` keyword** — declaring an event is declaring the member and documenting that the class calls it; typo protection is ordinary member checking. A child delivers upward by calling a method on its owner (the events guide's ruling; the component library's `input(v)` contract). The **`<-` subscription form is implemented** (same day) for the runtime *services* — `Keys` first, its subscribable members tabled in `schema.ts` (`SUBSCRIPTION_SOURCES`) and wired in `sources.ts`, torn down via the node teardown registry. Subscribing to another *view's* events (hearing a sibling's `onClick` — genuine multi-listener fan-out over view events) waits until view-event dispatch routes through a fan-out point; nothing needs it yet.
 
 ---

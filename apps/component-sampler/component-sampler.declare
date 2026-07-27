@@ -67,6 +67,7 @@ class Swatch extends Control [ width = 26, height = 26, cornerRadius = 13,
 class TintDot extends View [ width = 16, height = 16, cornerRadius = 8,
     c: Color = #2E6FE0,
     name: string = "",
+
     // the Finder rollover: the hovered dot ENLARGES in place — scale is
     // painted-only (no layout shift, neighbors stay put, hit-testing follows)
 

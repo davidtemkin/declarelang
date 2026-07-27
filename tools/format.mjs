@@ -315,7 +315,10 @@ function analyze(tokens) {
         p++;
         while (tok().kind === "ident") { p++; if (tok().kind === "comma") p++; else break; }
         expect("rp", "')'");
-        if (tok().kind === "subfrom") { p++; expect("ident", "the event source's name after '<-'"); }
+        // `<-` subscriptions were removed (2026-07-26 — services are components
+        // now). Still lexed, so the formatter fails with the same pointed
+        // message the parser gives rather than a bare shape error.
+        if (tok().kind === "subfrom") fail("'<-' subscriptions were removed — write the source as a component member, e.g. 'Keys [ onKeyDown(e) { … } ]'");
         if (tok().kind !== "code") fail("expected the method body '{ … }'");
         end = nc[p++];
         kind = "method";
@@ -383,9 +386,12 @@ function analyze(tokens) {
 }
 
 // ── Decisions ───────────────────────────────────────────────────────────────
-// Turns the structure into token-level edits: forced line breaks, forced joins
-// (inline closes), the trailing comma a hanging close requires, the comma an
-// inline close sheds. Everything else keeps the author's layout.
+// Turns the structure into token-level edits: forced line breaks and forced
+// joins (inline closes). Everything else keeps the author's layout — including
+// the commas between members, which are optional in the grammar and therefore
+// the author's business: the formatter neither adds one nor takes one away.
+// (`commaAfter` / `drop` are the seams that behavior would use; they stay
+// empty by ruling.)
 
 function decide(tokens, { bodies }) {
   const breakBefore = new Set();
@@ -415,13 +421,10 @@ function decide(tokens, { bodies }) {
     const before = prevSolid(b.close);
     if (hang) {
       breakBefore.add(b.close);
-      if (b.members.length > 0 && !b.directive && tokens[before].kind !== "comma") commaAfter.add(before);
     } else if (tokens[b.close - 1]?.kind === "lcomment") {
       breakBefore.add(b.close);
-      if (b.members.length > 0 && !b.directive && tokens[before].kind !== "comma") commaAfter.add(before);
     } else {
       joinBefore.add(b.close);
-      if (tokens[before].kind === "comma") drop.add(before);
     }
     // Declarations, methods, and children own their lines (§2.2): a non-attr
     // member starts a fresh line (the body's first member may ride the header)

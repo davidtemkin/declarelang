@@ -122,13 +122,18 @@ const R4_PERMUTED = `App [ height=160, fill=#20242C, width=240,
 // the LZX clickable intent, derived from handlers); an interactive rival
 // overlapping the button (topmost wins); an under/clip pair sharing one box
 // (a click inside the clip triangle hits the clipped view, one in the
-// clipped-away corner falls through to the view beneath); invisible and
-// opacity-0 interactive ghosts over the button (pruned — their handlers
-// would stamp "BUG…" into the ready text); a Text constrained to the button
-// width (the click's mutation cascade re-measures it); and onInit stamping
-// the ready text before first paint.
+// clipped-away corner falls through to the view beneath); and TWO overlays
+// over the button that pin the two halves of the visibility ruling —
+//   `visible = false` IS absence: pruned, and its handler firing would be a
+//   bug, so it stamps "BUG-invisible";
+//   `opacity = 0` IS NOT absence, it is paint: fully hittable, subtree
+//   included, so its handler DOES fire and stamps "fade-hit". A transparent
+//   view as a press-catcher is a standing idiom; an author who wants a fade
+//   to become absence writes `visible = { opacity > 0 }`.
+// Plus a Text constrained to the button width (the click's mutation cascade
+// re-measures it), and onInit stamping the ready text before first paint.
 // Children: 0 button (child deco) · 1 rival · 2 under · 3 clipTri ·
-// 4 ghost(visible=false) · 5 ghost(opacity=0) · 6 status · 7 ready.
+// 4 overlay(visible=false) · 5 overlay(opacity=0) · 6 status · 7 ready.
 const R5_SOURCE = `App [ width=240, height=160, fill=#20242C,
   onInit() { this.children[7].text = "ready" },
   View [ x=20, y=16, width=120, height=48, fill=#264653,
@@ -142,7 +147,7 @@ const R5_SOURCE = `App [ width=240, height=160, fill=#20242C,
   View [ x=20, y=96, width=90, height=52, fill=#3FA34D, clip="M0 0 L90 0 L0 52 Z",
     onClick() { this.fill = 0x4FC3F7 } ],
   View [ x=20, y=16, width=30, height=24, visible=false, onClick() { parent.children[7].text = "BUG-invisible" } ],
-  View [ x=50, y=16, width=30, height=24, opacity=0, onClick() { parent.children[7].text = "BUG-ghost" } ],
+  View [ x=50, y=16, width=30, height=24, opacity=0, onClick() { parent.children[7].text = "fade-hit" } ],
   Text [ x=20, y=70, textColor=#FFE28A, fontSize=14, fontFamily="Arial",
     text={ "w" + parent.children[0].width } ],
   Text [ x=150, y=70, textColor=#FFE28A, fontSize=14, fontFamily="Arial" ] ]`;
@@ -1451,21 +1456,22 @@ try {
     { at: [60, 48], color: DECO, label: "decoration child" },
     { at: [60, 61], color: STRIPE, label: "draw(d) stripe — language-surface draw" },
     { at: [120, 30], color: RIVAL, label: "rival paints over the button (tree order)" },
-    { at: [30, 28], color: BUTTON, label: "invisible ghost paints nothing" },
-    { at: [65, 28], color: BUTTON, label: "opacity-0 ghost paints nothing" },
+    { at: [30, 28], color: BUTTON, label: "invisible overlay paints nothing" },
+    { at: [65, 28], color: BUTTON, label: "opacity-0 overlay paints nothing (but still hits)" },
     { at: [35, 105], color: DECO, label: "clip triangle interior" },
     { at: [100, 140], color: UNDER, label: "under view through the clip cutout" },
     { at: [170, 61], color: R5_BG, label: "right of the 120-wide stripe" },
   ];
 
-  // After the click sequence: the button took three clicks (through the
-  // decoration and both ghosts) → width 168, stripe 20..188; the rival, the
+  // After the click sequence: the button took TWO clicks — through the
+  // decoration, and through the invisible overlay (which is absent). The
+  // opacity-0 overlay is NOT absent, so it swallowed its own click and the
+  // button never saw it. Width 120 → 152, stripe 20..172; the rival, the
   // triangle, and the under view each took exactly their own click.
   const R5_POST_PROBES = [
     { at: [150, 30], color: [0xe7, 0x6f, 0x51], label: "rival recolored by its own click" },
-    { at: [183, 30], color: BUTTON, label: "button grew past the rival (width 168)" },
-    { at: [183, 61], color: STRIPE, label: "stripe re-recorded at the grown width" },
-    { at: [191, 61], color: R5_BG, label: "right of the grown stripe" },
+    { at: [167, 61], color: STRIPE, label: "stripe re-recorded at the grown width (152)" },
+    { at: [175, 61], color: R5_BG, label: "right of the grown stripe" },
     { at: [35, 105], color: [0x4f, 0xc3, 0xf7], label: "clip interior took its own click" },
     { at: [100, 140], color: [0x91, 0xc4, 0x99], label: "the clipped-away corner fell through" },
     { at: [60, 34], color: BUTTON, label: "button body unchanged" },
@@ -1484,8 +1490,8 @@ try {
     [120, 30, "the overlap → topmost rival, never the button"],
     [35, 105, "inside the clip triangle → the clipped view"],
     [100, 140, "the clipped-away corner → falls through to under"],
-    [30, 28, "over the invisible ghost → button"],
-    [65, 28, "over the opacity-0 ghost → button"],
+    [30, 28, "over the invisible overlay → falls through to the button"],
+    [65, 28, "over the opacity-0 overlay → the OVERLAY (opacity is paint, not presence)"],
   ];
 
   const r5Model = (page) =>
@@ -1559,12 +1565,12 @@ try {
     const [domM, canvasM] = [await r5Model(domR5.page), await r5Model(canvasR5.page)];
     assert.deepEqual(domM, canvasM, "identical hit resolution → identical mutations");
     assert.deepEqual(domM, {
-      width: 168, // three clicks reached the button — deco + both ghost overlays
+      width: 152, // TWO clicks reached the button — the deco, and the absent overlay
       rival: 0xe76f51,
       under: 0x91c499,
       tri: 0x4fc3f7,
-      status: "w168",
-      ready: "ready", // the ghosts' BUG handlers never fired
+      status: "w152",
+      ready: "fade-hit", // the opacity-0 overlay took its own click; the invisible one never did
     });
   });
 

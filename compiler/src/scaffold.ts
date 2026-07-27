@@ -109,7 +109,6 @@ declare function cubicBezier(x1: number, y1: number, x2: number, y2: number): Mo
 declare function back(overshoot: number): MotionCurve;
 declare function steps(n: number, jump?: "jumpStart" | "jumpEnd"): MotionCurve;
 declare function laszlo(beginPole: number, endPole: number): MotionCurve;
-declare const Focus: { focus(v: unknown): void; blur(): void; next(): void; prev(): void; byKeyboard(): boolean; getFocus(): any };
 declare const Themes: { sanFrancisco(dark?: boolean): Record<string, unknown>; cupertino(dark?: boolean): Record<string, unknown>; mountainView(dark?: boolean): Record<string, unknown>; redmond(dark?: boolean): Record<string, unknown>; tint(c: number, dark?: boolean): number };
 declare const Inspect: {
   ready(): boolean;
@@ -132,7 +131,6 @@ declare const Inspect: {
   evaluate(path: string, src: string): { ok: boolean; input: string; text: string; verb: string; temporary?: boolean };
   clock: { manual(): void; auto(): void; step(ms?: number): void; settleMotion(maxMs?: number): boolean; now(): number };
 };
-declare const Keys: { isDown(code: string): boolean; held(): string[] };
 declare function setTimeout(fn: (...args: any[]) => void, ms?: number): number;
 declare function clearTimeout(id: number): void;
 declare function setInterval(fn: (...args: any[]) => void, ms?: number): number;
@@ -202,6 +200,28 @@ function methodSig(m: Method): string {
  *  as Theme). Members the runtime marks `protected` (TweenLayout.laid) are
  *  declared public here: a check-block is a free function, not a subclass
  *  body, so TS's protected rule would reject the legal subclass call. */
+/** The CALLABLE surface of a service that is also a component. `Keys` and
+ *  `Focus` name one concept each — the keyboard, the focus service — which a
+ *  body can either ASK (`Keys.isDown("KeyA")`, `Focus.focus(this)`) or LISTEN
+ *  to (`Keys [ onKeyDown(e) { … } ]`). Emitted as STATIC members of the
+ *  component's class so both readings typecheck under the one name; at runtime
+ *  they never meet, since a tag and a body identifier are different namespaces
+ *  (the body's `Keys` is the injected service object — expr.ts setBodyServices). */
+export const LANGUAGE_STATICS: Readonly<Record<string, readonly string[]>> = {
+  Keys: [
+    `  static isDown(code: string): boolean;`,
+    `  static held(): string[];`,
+  ],
+  Focus: [
+    `  static focus(v: unknown): void;`,
+    `  static blur(): void;`,
+    `  static next(): void;`,
+    `  static prev(): void;`,
+    `  static byKeyboard(): boolean;`,
+    `  static getFocus(): any;`,
+  ],
+};
+
 export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
   // The App's navigation SERVICE ACTION (view.ts App.navigate, capabilities.md
   // §6): a link/button calls `app.navigate(url)` in an activation handler. A
@@ -337,6 +357,8 @@ function emitClass(
   }
   const api = LANGUAGE_API[s.name];
   if (api !== undefined) lines.push(...api);
+  const statics = LANGUAGE_STATICS[s.name];
+  if (statics !== undefined) lines.push(...statics);
   if (decl !== undefined) for (const m of decl.body.methods) lines.push(methodSig(m));
   // Instance members the EMITTER computed from the class BODY (its named
   // children, typed by their instance types) — on the class itself, so a

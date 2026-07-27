@@ -449,7 +449,10 @@ extraction, applied to assistive technology.
   text, `Menu`/`Dialog` with the platform's expected subroles. The mapping
   is a registry over the component schemas, not per-app work.
 - **Structure is child order;** groups are named views; `visible = false`
-  and `opacity = 0` prune the projection exactly as they prune input.
+  prunes the projection exactly as it prunes input. `opacity = 0` does NOT
+  (ruled: opacity is paint, not presence — it does not affect hit testing in
+  either renderer, subtrees included), so a faded-out subtree stays in the AX
+  tree; an author who means absence writes `visible = { opacity > 0 }`.
   Focus integrates with the existing focus system (`focusable`, FocusRing,
   focustrap) — the AX focus and the app's focus are one fact.
 - **The language gains what it genuinely lacks:** an explicit semantic

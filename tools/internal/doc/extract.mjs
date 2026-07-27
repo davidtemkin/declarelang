@@ -31,7 +31,7 @@ const TARGETS = [                                        // the documented compo
   "View", "App", "Text", "Image", "RichText", "Markdown", "HTMLText", "DOMIsland", "TextInput",
   "Layout", "TweenLayout",
   "Dataset", "DataSource",
-  "Animator", "AnimatorGroup", "Spring", "State", "Node",
+  "Animator", "AnimatorGroup", "Spring", "Frames", "Keys", "Focus", "Tip", "State", "Node",
 ];
 // THE single documentation model. extract writes the walkable doc tree here;
 // assemble.mjs then augments the SAME file in place with the spine/links/meta.

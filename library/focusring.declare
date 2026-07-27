@@ -9,7 +9,7 @@ pill Switch's ring, and a text field's ring differ because the targets do).
 
 The layered model (charter, ratified):
 
-- **The fact** — the ring listens to Focus (`onFocusChange(v) <- Focus`) and
+- **The fact** — the ring listens to Focus (a `Focus [ onFocusChange(v) { … } ]` member) and
   tracks the target's root-space geometry on EVERY change, pointer or
   keyboard. A pointer focus PARKS the ring there silently (snap, no show) —
   so the next Tab's flight departs from the control the user just clicked,
@@ -66,48 +66,51 @@ class FocusRing extends View [ opacity = 0,
     // The band sits OUTSIDE the silhouette: inner edge touching the control's
     // boundary (the Mac halo's hug), displaced by gap + half the stroke.
 
-    onGeometry(g) <- Focus {
-        if (g.root != app) return
-        const gap = typeof theme.focusRingGap == "number" ? theme.focusRingGap : 0
-        const lw = typeof theme.focusRingWidth == "number" ? theme.focusRingWidth : 3
-        const iw = typeof theme.focusRingInnerWidth == "number" ? theme.focusRingInnerWidth : 0
-        const off = gap + iw + lw / 2
-        tx = g.x - off; ty = g.y - off; tw = g.w + 2 * off; th = g.h + 2 * off
-        trad = g.rad + off
-        // Only a FOCUS CHANGE flies. The same control moving under a resting
-        // ring — a dragged slider thumb, a reflow — takes the ring with it
-        // rigidly: the springs' targets just moved, so land them NOW. The
-        // discriminator is target IDENTITY (a handler-scratch expando — not
-        // reactive state, just the previous event's view for comparison).
-        const prev = (this as any)._lastTarget
-        ;(this as any)._lastTarget = g.view
-        if (prev == g.view) this.snapTo()
-        },
+    focus: Focus [
+        onGeometry(g) {
+            if (g.root != app) return
+            const gap = typeof theme.focusRingGap == "number" ? theme.focusRingGap : 0
+            const lw = typeof theme.focusRingWidth == "number" ? theme.focusRingWidth : 3
+            const iw = typeof theme.focusRingInnerWidth == "number" ? theme.focusRingInnerWidth : 0
+            const off = gap + iw + lw / 2
+            classroot.tx = g.x - off; classroot.ty = g.y - off
+            classroot.tw = g.w + 2 * off; classroot.th = g.h + 2 * off
+            classroot.trad = g.rad + off
+            // Only a FOCUS CHANGE flies. The same control moving under a resting
+            // ring — a dragged slider thumb, a reflow — takes the ring with it
+            // rigidly: the springs' targets just moved, so land them NOW. The
+            // discriminator is target IDENTITY (a handler-scratch expando — not
+            // reactive state, just the previous event's view for comparison).
+            const prev = (this as any)._lastTarget
+            ;(this as any)._lastTarget = g.view
+            if (prev == g.view) classroot.snapTo()
+            },
 
-    onFocusChange(v) <- Focus {
-        if (v == null) { shown = false; return }
-        let n = v
-        for (; n != null && n.parent != null; n = n.parent) { }
-        // Another app on the page (an embedded preview) owns this target — its own
-        // ring indicates it; this one stands down rather than chase foreign coordinates.
-        if (n != app) { shown = false; return }
-        // Pointer focus: PARK silently — geometry current, ring hidden. The next
-        // keyboard flight departs from here (the just-clicked control).
-        if (!Focus.byKeyboard()) { shown = false; this.snapTo(); placed = true; return }
-        if (this.ringRole() == "off") { shown = false; return }
-        // No flight when: the ring has never been placed, the theme suppressed
-        // the flourish, or the role is rest-only (appear in place, stay).
-        if (!placed || theme.focusAnimate == false || !this.travelRole()) this.snapTo()
-        placed = true
-        shown = true
-        this.raise()          // chrome stays chrome: above whatever raised last (a Dialog, a Menu)
-        // idle fade only for the travel-only role — a resting ring persists
-        if (this.restRole()) { idle = false; return }
-        gen = gen + 1
-        const g = gen
-        idle = false
-        setTimeout(() => { if (this.gen == g) this.idle = true }, 1000)
-        },
+        onFocusChange(v) {
+            if (v == null) { classroot.shown = false; return }
+            let n = v
+            for (; n != null && n.parent != null; n = n.parent) { }
+            // Another app on the page (an embedded preview) owns this target — its own
+            // ring indicates it; this one stands down rather than chase foreign coordinates.
+            if (n != app) { classroot.shown = false; return }
+            // Pointer focus: PARK silently — geometry current, ring hidden. The next
+            // keyboard flight departs from here (the just-clicked control).
+            if (!Focus.byKeyboard()) { classroot.shown = false; classroot.snapTo(); classroot.placed = true; return }
+            if (classroot.ringRole() == "off") { classroot.shown = false; return }
+            // No flight when: the ring has never been placed, the theme suppressed
+            // the flourish, or the role is rest-only (appear in place, stay).
+            if (!classroot.placed || theme.focusAnimate == false || !classroot.travelRole()) classroot.snapTo()
+            classroot.placed = true
+            classroot.shown = true
+            classroot.raise()     // chrome stays chrome: above whatever raised last (a Dialog, a Menu)
+            // idle fade only for the travel-only role — a resting ring persists
+            if (classroot.restRole()) { classroot.idle = false; return }
+            classroot.gen = classroot.gen + 1
+            const g2 = classroot.gen
+            classroot.idle = false
+            setTimeout(() => { if (classroot.gen == g2) classroot.idle = true }, 1000)
+            },
+        ],
 
     // the travel: underdamped springs = motion toward the target + a little
     // arrival overshoot — the 3.4 bounce, by physics. The radius travels too:
@@ -123,9 +126,10 @@ class FocusRing extends View [ opacity = 0,
 
     visible = { opacity > 0.02 },
 
-    // pure chrome: never a pointer target
+    // pure chrome: never a pointer target — and never on the hover chain
+    // either, which is what pointerEvents (unlike a hit-test override) governs
 
-    containsPoint(px, py) { return false },
+    pointerEvents = "none",
 
     // the shape-hugging outline — a rounded rect at the sprung radius, drawn,
     // so it re-derives as the radius travels between silhouettes

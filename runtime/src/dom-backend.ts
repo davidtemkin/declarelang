@@ -18,7 +18,7 @@
 // is target → nearest sinked surface; the pairing/click rule is shared
 // (input.ts), so both backends decide clicks identically.
 
-import type { EditableSpec, InputSink, RenderBackend, RichBlock, Stretch, Surface } from "./backend.js";
+import type { EditableSpec, InputSink, InputWants, RenderBackend, RichBlock, Stretch, Surface } from "./backend.js";
 import { colorToCss, isGradient, type Fill, type Shadow, type Stroke } from "./value.js";
 import { type BoxState } from "./boxpaint.js";
 import { fontMetrics, fontString, cssWeight, type TextStyle } from "./measure.js";
@@ -64,6 +64,10 @@ function applyEditScheme(el: HTMLElement, fill: Fill): void {
  *  are the same fact. Module-level (not per-backend) because DomBackend is
  *  stateless; a WeakMap adds no lifetime. */
 const SINKS = new WeakMap<HTMLElement, InputSink>();
+/** The declared-handler facts the router arbitrates with, per sinked element
+ *  (input.ts HitTarget) — a parallel map so SINKS keeps its "is this a hit
+ *  target" meaning exactly. */
+const WANTS = new WeakMap<HTMLElement, InputWants>();
 
 /** Surfaces that carry BOTH a Shape clip and a sink. The browser must never
  *  see such an element as a pointer target: a clip-path'd hittable overlay
@@ -203,7 +207,7 @@ export class DomBackend implements RenderBackend {
         }
         if (el === null) return null;
         const r = el.getBoundingClientRect();
-        return { key: el, sink: SINKS.get(el)!, x: e.clientX - r.left, y: e.clientY - r.top };
+        return { key: el, sink: SINKS.get(el)!, ...WANTS.get(el), x: e.clientX - r.left, y: e.clientY - r.top };
       },
       (e) => {
         const r = rootEl.getBoundingClientRect();
@@ -453,12 +457,14 @@ class DomSurface implements Surface {
   }
 
   setOpacity(o: number): void {
+    // OPACITY IS PAINT, NOT PRESENCE (ruled): a fully transparent view is still
+    // hittable, subtree included. This used to force `visibility: hidden` at
+    // opacity 0 to prune input — which is what CSS opacity does NOT do, so the
+    // DOM arm disagreed with its own hit-testing, with the canvas walk, and with
+    // the `hovered`/`pressed` intrinsics (which consider only `visible`). The
+    // gates that mean "not there" are `visible` and `pointerEvents`; an author who
+    // wants a fade to become absence writes `visible = { opacity > 0 }`.
     this.element.style.opacity = String(o);
-    // opacity 0 prunes the subtree for input, like the canvas walk (its
-    // paint/hit cull). CSS opacity alone still hit-tests, and pointer-events
-    // doesn't inherit past an explicitly-sinked descendant — visibility
-    // does, and paints identically (nothing, either way).
-    this.element.style.visibility = o <= 0 ? "hidden" : "";
   }
 
   setScale(scale: number, pivotX: number, pivotY: number): void {
@@ -508,7 +514,8 @@ class DomSurface implements Surface {
     if (!el.isConnected) return false;
     const r = el.getBoundingClientRect();
     if (r.width <= 0 || cx < r.left || cx >= r.right || cy < r.top || cy >= r.bottom) return false;
-    if (getComputedStyle(el).visibility === "hidden") return false; // the opacity-0 input prune
+    // (No visibility test: `visible = false` is `display: none`, which already
+    // fails the rect check above, and opacity no longer prunes input.)
     const k = el.offsetWidth > 0 ? r.width / el.offsetWidth : 1;
     this.clipObj ??= new Path2D(this.clipData!);
     return carveHitCtx().isPointInPath(this.clipObj, (cx - r.left) / k, (cy - r.top) / k);
@@ -793,9 +800,15 @@ class DomSurface implements Surface {
     }
   }
 
-  setInput(sink: InputSink | null): void {
+  setInput(sink: InputSink | null, wants?: InputWants): void {
     if (sink !== null) SINKS.set(this.element, sink);
     else SINKS.delete(this.element);
+    if (sink !== null && wants !== undefined) WANTS.set(this.element, wants);
+    else WANTS.delete(this.element);
+    // A view that owns raw touch owns the GESTURE: the browser must not claim
+    // it for a scroll or a zoom in that subtree. Everywhere else the root's own
+    // policy stands (see the root's touch-action).
+    if (wants?.wantsTouch === true) this.element.style.touchAction = "none";
     this.updateCarved();
   }
 

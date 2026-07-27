@@ -154,11 +154,15 @@ class Window extends View [ width = 560, height = 400, clip = true,
     parkY: number = { app.height - 19 - 30.5 * this.waveMag - this.height * this.parkScale / 2 - app.menuBarH },
 
     baseRadius: number = 10,                     // the window's normal corner rounding (the classic treatment;
-                                                 // current macOS uses ≈26 with taller, restyled title bars —
-                                                 // adopting that is its own design track, deferred)
+
+    // current macOS uses ≈26 with taller, restyled title bars —
+    // adopting that is its own design track, deferred)
+
     bandR: number = { Math.max(2, this.baseRadius - 1) },  // the resize band's inner-cut arc radius — the ONE
-                                                 // source ring() and zone() both read, so the hit shape and
-                                                 // the grab behavior cannot disagree at the corners
+
+    // source ring() and zone() both read, so the hit shape and
+    // the grab behavior cannot disagree at the corners
+
     thumbRadius: number = 3.5,                   // …and its rounding at thumbnail scale, in dock pixels
     cornerRadius = { this.baseRadius + (this.thumbRadius * this.waveMag / Math.max(0.02, this.parkScale) - this.baseRadius) * this.miniT },
 
@@ -1319,7 +1323,9 @@ class MiniTile extends View [
     // the tile's OWN top (local y), tail tip meeting it, so it rides the
     // magnified crest exactly as the app-icon pill does
 
-    pill: View [ visible = { hovered },
+    pill: View [ visible = { classroot.hovered },   // the TILE's hover, not the pill's:
+        //  a pill hidden until hovered could never show itself (an invisible view
+        //  is not on the hit chain), so the fact has to come from what it labels
         width = { this.t.width + 26 }, height = 33,
         x = center,
         y = { parent.height / 2 - 102 },   // pinned to the shared pill baseline (~62px above the plate top), same Y as the app-icon pills
@@ -1511,7 +1517,7 @@ class DockIcon extends View [
     // swell's peak — it clears every neighbor. As the icon magnifies and its top
     // rises, the pill rides up with it.
 
-    pill: View [ visible = { hovered },
+    pill: View [ visible = { classroot.hovered },   // the ICON's hover, not the pill's
         width = { this.t.width + 26 }, height = 33,
         x = center,
         y = { parent.height - 130 },   // pinned to the shared pill baseline, so it lands right at any magnification
@@ -2315,14 +2321,16 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
     keyRegistry: array = { (app.menus || [])
         .flatMap((m) => (m.items || []).filter((r) => r.key).map((r) => ({ menu: "" + m.label, ...r }))) },
 
-    onKeyDown(e) <- Keys {
-        if (e.key == "`" && !e.meta && !e.repeat) { app.wallSeed = app.wallSeed + 1; return }   // cycle the wallpaper (selection/debug)
-        if (!e.meta || e.repeat || e.key == "Meta") return
-        if (this.bar.mb.shown) return                // an open menu owns the keyboard
-        const combo = "⌘" + (e.key.length == 1 ? e.key.toUpperCase() : e.key)
-        const hit = (this.keyRegistry || []).find((r) => r.key == combo && r.enabled != false)
-        if (hit != null) this.command("" + hit.id)
-        },
+    keys: Keys [
+        onKeyDown(e) {
+            if (e.key == "`" && !e.meta && !e.repeat) { app.wallSeed = app.wallSeed + 1; return }   // cycle the wallpaper (selection/debug)
+            if (!e.meta || e.repeat || e.key == "Meta") return
+            if (app.bar.mb.shown) return             // an open menu owns the keyboard
+            const combo = "⌘" + (e.key.length == 1 ? e.key.toUpperCase() : e.key)
+            const hit = (app.keyRegistry || []).find((r) => r.key == combo && r.enabled != false)
+            if (hit != null) app.command("" + hit.id)
+            },
+        ],
 
     /*
     ### The wallpaper — a generative mesh field, drawn

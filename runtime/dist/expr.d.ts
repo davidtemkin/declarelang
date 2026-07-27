@@ -1,4 +1,10 @@
 export declare function setBodyServices(services: Record<string, unknown>): void;
+/** Run `build` with `scope` as the prevailing script scope. */
+export declare function withScriptScope<T>(scope: Record<string, unknown>, build: () => T): T;
+/** Evaluate one compiled `script { … }` body, returning the bindings it
+ *  declares. The compiler appended the `return { … }` that makes this possible
+ *  (there is no way to enumerate a function's scope from outside it). */
+export declare function evalScript(js: string): Record<string, unknown>;
 /** The value-constructor names — the compile layer (compile.ts) skips these
  *  in callee position, and the checker reserves the two that are not already
  *  attribute names. */

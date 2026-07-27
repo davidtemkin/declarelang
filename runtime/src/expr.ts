@@ -56,6 +56,42 @@ export function setBodyServices(services: Record<string, unknown>): void {
   PRELUDE = `const { ${Object.keys(SCOPE).join(", ")} } = $d;`;
 }
 
+// A program's `script { … }` helpers, in body scope as `$s`. Unlike SCOPE —
+// which is process-wide, because services are — script bindings belong to ONE
+// program: an AppIsland tenant has its own, and must not see its host's. Body
+// compilation is eager (bindConstraint compiles at link time, during
+// instantiate), so a stack set around the build is enough to bind each body to
+// the right program; the stack — rather than a single slot — is what makes the
+// nested case correct. The live-edit path recompiles later, so a program also
+// keeps its scope and re-enters it there.
+let SCRIPT_SCOPE: Record<string, unknown> = {};
+const SCRIPT_STACK: Record<string, unknown>[] = [];
+
+/** Run `build` with `scope` as the prevailing script scope. */
+export function withScriptScope<T>(scope: Record<string, unknown>, build: () => T): T {
+  SCRIPT_STACK.push(SCRIPT_SCOPE);
+  SCRIPT_SCOPE = scope;
+  try { return build(); }
+  finally { SCRIPT_SCOPE = SCRIPT_STACK.pop() ?? {}; }
+}
+
+/** Evaluate one compiled `script { … }` body, returning the bindings it
+ *  declares. The compiler appended the `return { … }` that makes this possible
+ *  (there is no way to enumerate a function's scope from outside it). */
+export function evalScript(js: string): Record<string, unknown> {
+  const fn = new Function(`"use strict"; ${js}`) as () => unknown;
+  const out = fn();
+  return out !== null && typeof out === "object" ? out as Record<string, unknown> : {};
+}
+
+/** The destructuring line that puts the current program's helpers in scope.
+ *  Built per body at COMPILE time from the keys present then — which is why
+ *  the scope must be set before the tree is built, not after. */
+function scriptPrelude(scope: Record<string, unknown>): string {
+  const names = Object.keys(scope).filter((n) => /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(n));
+  return names.length > 0 ? `const { ${names.join(", ")} } = $s;` : "";
+}
+
 /** The value-constructor names — the compile layer (compile.ts) skips these
  *  in callee position, and the checker reserves the two that are not already
  *  attribute names. */
@@ -79,10 +115,13 @@ export function compileExpr(src: string): { fn: ExprFn } | { error: string } {
   const r = rewriteDatapaths(src);
   if ("error" in r) return r;
   try {
-    const raw = new Function("$d", "parent", "classroot", `"use strict"; ${PRELUDE} return (${r.src});`);
+    // The script scope is captured HERE, at compile time — the body is bound to
+    // the program being built, not to whatever is current when it later runs.
+    const scripts = SCRIPT_SCOPE;
+    const raw = new Function("$d", "$s", "parent", "classroot", `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} return (${r.src});`);
     return {
       fn: function (this: unknown, parent: unknown, classroot: unknown): unknown {
-        return raw.call(this, SCOPE, parent, classroot);
+        return raw.call(this, SCOPE, scripts, parent, classroot);
       },
     };
   } catch (e) {
@@ -186,10 +225,11 @@ export function compileBody(params: readonly string[], src: string): { fn: BodyF
     // The body runs inside its own block so a statement may shadow a
     // constructor name (`const stop = …`) without a redeclaration error;
     // `var` still hoists to the function and `return` works unchanged.
-    const raw = new Function("$d", "parent", "classroot", ...params, `"use strict"; ${PRELUDE} { ${r.src} }`);
+    const scripts = SCRIPT_SCOPE;
+    const raw = new Function("$d", "$s", "parent", "classroot", ...params, `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} { ${r.src} }`);
     return {
       fn: function (this: unknown, parent: unknown, classroot: unknown, ...args: unknown[]): unknown {
-        return raw.call(this, SCOPE, parent, classroot, ...args);
+        return raw.call(this, SCOPE, scripts, parent, classroot, ...args);
       },
     };
   } catch (e) {

@@ -108,7 +108,13 @@ export function typecheckBodies(resolved: string, program: Program): DeclareErro
   for (const cls of rprog.classes) emitter.classHasChildren.set(cls.name, cls.body.children.length > 0);
   for (const cls of rprog.classes) emitter.assignTypes(cls.body, true);
   const rootType = emitter.assignTypes(rprog.root, false);
-  const scaffold = generateScaffold(schemas, program.classes, rootType, emitter.classExtras);
+  let scaffold = generateScaffold(schemas, program.classes, rootType, emitter.classExtras);
+  // A program's `script { … }` blocks are ambient TypeScript for every body:
+  // their declarations are real signatures, so appending the source to the
+  // scaffold is what makes `dbl(app.v)` typecheck against the actual function
+  // rather than resolving to `any` — and what makes a wrong argument an error
+  // at the call site, in the body, where the author can act on it.
+  for (const b of program.scripts) scaffold += "\n" + b.src + "\n";
   // Pass 2 — the check-blocks, typed by the instance types pass 1 assigned.
   for (const cls of rprog.classes) emitter.walkElement(cls.body, [], true);
   emitter.walkElement(rprog.root, [], false);

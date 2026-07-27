@@ -20,6 +20,8 @@ import { Layout, TweenLayout } from "./layout.js";
 import { Dataset, DataSource } from "./data.js";
 import { Animator, AnimatorGroup } from "./animator.js";
 import { Spring } from "./spring.js";
+import { Frames } from "./frames.js";
+import { KeysSource, FocusSource, TipSource } from "./sources.js";
 import { State } from "./state.js";
 /** Tag → runtime View class (the tree tags). `Node` is registered so a user can
  *  subclass it for a non-visual node (`class Store [ … ]`). */
@@ -41,6 +43,17 @@ export const LAYOUT_BASES = { Layout, TweenLayout };
 export const DATA = { Dataset, DataSource };
 /** Tag → animator class (animation.md §1) — tree structure, neither View nor data. */
 export const ANIMATORS = { Animator, Spring };
+/** SOURCES — non-visual members whose handlers are called by something OUTSIDE
+ *  the tree: the frame clock, the keyboard, the focus service, the tip service.
+ *  Their own table because none of the animator paths' `attribute`/`to`
+ *  checking applies, and because being ordinary components is what lets an app
+ *  that never listens drop the service code entirely (slim-registry). */
+export const SOURCES = {
+    Frames,
+    Keys: KeysSource,
+    Focus: FocusSource,
+    Tip: TipSource,
+};
 /** Tag → animator-group class (animation.md §1, §4). */
 export const ANIMATOR_GROUPS = { AnimatorGroup };
 /** Tag → state class (docs/system-design/states.md) — captures its body's overrides
@@ -52,7 +65,7 @@ export const STATES = { State };
  *  slimmed runtime, so it stays out of instantiate.ts's import surface. */
 export const REGISTRY_NAMES = [
     ...Object.keys(TAGS), ...Object.keys(LAYOUTS), ...Object.keys(LAYOUT_BASES),
-    ...Object.keys(DATA), ...Object.keys(ANIMATORS), ...Object.keys(ANIMATOR_GROUPS), ...Object.keys(STATES),
+    ...Object.keys(DATA), ...Object.keys(ANIMATORS), ...Object.keys(ANIMATOR_GROUPS), ...Object.keys(SOURCES), ...Object.keys(STATES),
 ];
 export const REGISTRY_MANIFEST = [
     { name: "App", table: "TAGS", module: "view.js", export: "App" },
@@ -70,6 +83,10 @@ export const REGISTRY_MANIFEST = [
     { name: "DataSource", table: "DATA", module: "data.js", export: "DataSource" },
     { name: "Animator", table: "ANIMATORS", module: "animator.js", export: "Animator" },
     { name: "Spring", table: "ANIMATORS", module: "spring.js", export: "Spring" },
+    { name: "Frames", table: "SOURCES", module: "frames.js", export: "Frames" },
+    { name: "Keys", table: "SOURCES", module: "sources.js", export: "KeysSource" },
+    { name: "Focus", table: "SOURCES", module: "sources.js", export: "FocusSource" },
+    { name: "Tip", table: "SOURCES", module: "sources.js", export: "TipSource" },
     { name: "AnimatorGroup", table: "ANIMATOR_GROUPS", module: "animator.js", export: "AnimatorGroup" },
     { name: "State", table: "STATES", module: "state.js", export: "State" },
 ];

@@ -624,8 +624,9 @@ either unlanded or since rejected — bare-string `Text [ "OK", … ]`
 editable-text era), `schema = [ … ]` (Schema is designed, not implemented
 — HANDOFF §13), `state … when { … } [ … ]` (states are a settled *language*
 construct per language-doc §10, but not yet in `parser.ts`'s accepted
-grammar as of this writing), and `<- Keys` event subscriptions (deferred
-per the R6/weather rulings on `event`/`<-`). None of that is a defect in
+grammar as of this writing), and `<- Keys` event subscriptions (REMOVED
+2026-07-26 — services are components now, `Keys [ onKeyDown(e) { … } ]`;
+the formatter still lexes the arrow only to fail with that rewrite named). None of that is a defect in
 this spec — every rule above is stated in terms general enough to already
 cover those constructs (a `state` block is "a member whose body contains
 multi-line members," same as any other; a `<->` binding is an attribute

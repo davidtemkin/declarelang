@@ -140,6 +140,57 @@ if (!CHROME) {
     const saved = (full.sizes.appGzip - lean.sizes.appGzip) / 1024;
     assert.ok(saved > 5, `only saved ${saved.toFixed(1)}KB`);
   });
+
+  // ── the SERVICE gates: focus/keys and tip are wired for every app by
+  // boot.ts and view.ts, so an app with nothing focusable and no tips has no
+  // use for them. Each case asserts BOTH halves — dropped when unused, and
+  // present when the program's own facts say otherwise — because a gate that
+  // only ever drops is indistinguishable from one that is simply broken.
+  const modsOf = (b) => {
+    const out = b.metafile.outputs[Object.keys(b.metafile.outputs)[0]].inputs;
+    return Object.fromEntries(Object.entries(out).map(([k, v]) => [k.split("/").pop(), v.bytesInOutput]));
+  };
+  const STUBBED = 400;   // a stub compiles to a few hundred bytes; the real modules are thousands
+
+  await test("focus + keys drop from an app with nothing focusable", async () => {
+    const b = await buildProduction(`App [ width = 200, Text [ text = "static" ] ]`, {});
+    const m = modsOf(b);
+    assert.ok((m["focus.js"] ?? 0) < STUBBED, `focus.js should be stubbed, was ${m["focus.js"]}`);
+    assert.ok((m["keys.js"] ?? 0) < STUBBED, `keys.js should be stubbed, was ${m["keys.js"]}`);
+  });
+
+  await test("…and STAY for a TextInput, whose runtime class makes itself a tab stop", async () => {
+    const b = await buildProduction(`App [ width = 200, TextInput [ width = 100, text = "x" ] ]`, {});
+    const m = modsOf(b);
+    assert.ok(m["focus.js"] > STUBBED, "a text field needs the real focus service");
+    assert.ok(m["keys.js"] > STUBBED, "…and the keyboard that drives Tab");
+  });
+
+  await test("…and STAY for a view that only DECLARES itself focusable", async () => {
+    const b = await buildProduction(`App [ width = 200, View [ width = 10, height = 10, focusable = true ] ]`, {});
+    assert.ok(modsOf(b)["focus.js"] > STUBBED, "focusable = true is the fact, wherever it is written");
+  });
+
+  await test("…and STAY for a body that CALLS the service", async () => {
+    const b = await buildProduction(`App [ width = 200, onClick() { Focus.blur() }, Text [ text = "x" ] ]`, {});
+    assert.ok(modsOf(b)["focus.js"] > STUBBED, "an imperative call is a use");
+  });
+
+  await test("…and STAY for a Keys member", async () => {
+    const b = await buildProduction(`App [ width = 200, k: Keys [ onKeyUp(e) { } ], Text [ text = "x" ] ]`, {});
+    assert.ok(modsOf(b)["keys.js"] > STUBBED, "the source component is a use");
+  });
+
+  await test("the tip service drops without tips, and stays with one", async () => {
+    const without = await buildProduction(`App [ width = 200, Text [ text = "x" ] ]`, {});
+    assert.ok((modsOf(without)["tip.js"] ?? 0) < STUBBED, "no tips → no tip service");
+    const with_ = await buildProduction(`App [ width = 200, Text [ text = "x", tip = "hello" ] ]`, {});
+    assert.ok(modsOf(with_)["tip.js"] > STUBBED, "one tip attribute keeps it");
+  });
+
+  await test("a service-free app still RENDERS (the stubs satisfy boot's wiring)", async () => {
+    await renders(`App [ width = 200, fill = white, Text [ x = 10, y = 10, text = "no services" ] ]`);
+  });
 }
 
 console.log(`\nslim: ${pass} passed, ${fail} failed`);

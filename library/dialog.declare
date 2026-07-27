@@ -122,11 +122,13 @@ class Dialog extends View [ visible = { shown },
         else this.close()
         },
 
-    onKeyDown(e) <- Keys {
-        if (!shown) return
-        if (e.key == "Enter") this.pickDefault()
-        else if (e.key == "Escape") this.pickCancel()
-        },
+    keys: Keys [
+        onKeyDown(e) {
+            if (!classroot.shown) return
+            if (e.key == "Enter") classroot.pickDefault()
+            else if (e.key == "Escape") classroot.pickCancel()
+            },
+        ],
 
     // buttons → Button instances through the internal derived dataset. The
     // "stack" arrangement REORDERS: the default on top, cancel at the bottom

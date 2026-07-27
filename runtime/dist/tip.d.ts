@@ -17,7 +17,7 @@ declare class TipService {
     private current;
     private shown;
     private warmUntil;
-    /** Subscribe (`onTip(e) <- Tip`). Returns the unsubscribe thunk. */
+    /** Subscribe (`Tip [ onTip(e) { … } ]`). Returns the unsubscribe thunk. */
     onTip(fn: (e: TipEvent | null) => void): () => void;
     /** The pointer entered a tip-carrying view. */
     over(view: View): void;

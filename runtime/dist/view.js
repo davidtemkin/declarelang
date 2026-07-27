@@ -12,7 +12,7 @@
 import { Node, runRetire } from "./node.js";
 import { DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual } from "./value.js";
 import { disposeApplier, stylesheetArrived, stylesheetByName } from "./stylesheet.js";
-import { POINTER_TYPES } from "./backend.js";
+import { POINTER_TYPES, TOUCH_TYPES } from "./backend.js";
 import { Tip } from "./tip.js";
 let viewCreator = null;
 export function provideViewCreator(fn) {
@@ -20,7 +20,7 @@ export function provideViewCreator(fn) {
 }
 import { record } from "./draw.js";
 import { Constraint } from "./reactive.js";
-import { initInteraction, readHovered, readPressed } from "./interaction.js";
+import { initInteraction, readHovered, readPressed, hitAt, boxContains } from "./interaction.js";
 import { bindDerived, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned } from "./attributes.js";
 import { handlerName } from "./schema.js";
 import { splitPath } from "./datapath.js";
@@ -314,9 +314,33 @@ export class View extends Node {
             s.setScrollX(true);
         const sink = this.inputSink();
         if (sink !== null)
-            s.setInput(sink);
+            s.setInput(sink, this.inputWants());
         if (this.draw)
             this.bindDraw();
+    }
+    /** THE HIT TEST: the view under a root-space point, or null. The same walk
+     *  the pointer is routed by (interaction.ts) — clip shapes, scale, pivot,
+     *  `pointerEvents`, and `ignoreclip` all count exactly as they do for a real
+     *  press — so what a handler computes and what the runtime routes can never
+     *  disagree. Answers the deepest (topmost) view; walk `.parent` to find an
+     *  eligible ancestor:
+     *
+     *      onMouseUp(e) {
+     *          let t = app.viewAt(e.x, e.y)
+     *          while (t != null && t.accept == null) t = t.parent
+     *          if (t != null) t.accept(dragged)
+     *          },
+     *
+     *  Root-space, like the coordinates `onMouseMove`/`onMouseUp` carry, so a
+     *  drag can pass its own event coordinates straight in. */
+    viewAt(x, y) {
+        return hitAt(this.root ?? this, x, y);
+    }
+    /** Does this view's box contain the root-space point? Geometry only — what
+     *  paints ON TOP is `viewAt`'s question — so a drop target can ask about
+     *  itself without walking the tree. */
+    containsPoint(x, y) {
+        return boxContains(this, x, y);
     }
     /** Scroll this view to the top of its nearest scrolling ancestor — the
      *  imperative companion to the reactive `scrolls`/`scrollY` pair (a click
@@ -370,7 +394,7 @@ export class View extends Node {
         // Tip service; declared handlers, when present, fire exactly as before.
         if (!handled && this.tip === "")
             return null;
-        return (type, x, y) => {
+        return (type, x, y, extra) => {
             if (this.tip !== "") {
                 if (type === "mouseOver")
                     Tip.over(this);
@@ -379,8 +403,25 @@ export class View extends Node {
                 else if (type === "mouseDown")
                     Tip.hide();
             }
+            // One plain event argument: the point in this view's coordinates, plus
+            // whatever fact this event kind carries (`canceled` on a release, the
+            // finger list on the raw touch family).
             if (handled)
-                fireEvent(this, type, { x, y });
+                fireEvent(this, type, extra === undefined ? { x, y } : { x, y, ...extra });
+        };
+    }
+    /** What the ROUTER needs to know about this view's declared handlers to
+     *  arbitrate gestures for it (input.ts HitTarget): whether it answers
+     *  double-clicks (so its single click waits out the double window), holds,
+     *  or the raw touch family (so the whole multi-finger stream is delivered and
+     *  nothing is interpreted). Declaration IS the opt-in — no configuration. */
+    inputWants() {
+        const self = this;
+        const has = (t) => typeof self[handlerName(t)] === "function";
+        return {
+            wantsDbl: has("dblClick"),
+            wantsHold: has("hold"),
+            wantsTouch: TOUCH_TYPES.some(has),
         };
     }
     /** Stand up the draw method as a tracked, re-recording computation. */
@@ -683,6 +724,9 @@ defineAttributes(App, {
     pointerOverText: { def: false },
     dark: { def: false },
     touchDevice: { def: false },
+    hasTouch: { def: false },
+    hasPointer: { def: true }, // a plain desktop until the profile says otherwise
+    lastPointerType: { def: "mouse" },
     // the embedding environment's parameters (schema.ts): the HOST replaces the
     // whole record on every change (never mutates), so the default may be one
     // shared frozen empty object — reads like `app.env.dark` never null-crash

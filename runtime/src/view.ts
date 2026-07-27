@@ -14,7 +14,7 @@ import { Node, runRetire } from "./node.js";
 import { DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual, type Color, type Fill, type Shadow, type Stroke, type Theme } from "./value.js";
 import type { FontWeight } from "./measure.js";
 import { disposeApplier, stylesheetArrived, stylesheetByName, type Stylesheet } from "./stylesheet.js";
-import { POINTER_TYPES, type InputSink, type RenderBackend, type Surface } from "./backend.js";
+import { POINTER_TYPES, TOUCH_TYPES, type InputSink, type RenderBackend, type Surface } from "./backend.js";
 import { Tip } from "./tip.js";
 
 // Imperative creation's injection seam (instantiate.ts provides; the cycle
@@ -26,7 +26,7 @@ export function provideViewCreator(fn: ViewCreator): void {
 }
 import { record, type Draw, type DisplayList } from "./draw.js";
 import { Constraint } from "./reactive.js";
-import { initInteraction, readHovered, readPressed, type InteractionView } from "./interaction.js";
+import { initInteraction, readHovered, readPressed, hitAt, boxContains, type InteractionView } from "./interaction.js";
 import { bindDerived, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned } from "./attributes.js";
 import { handlerName } from "./schema.js";
 import { splitPath } from "./datapath.js";
@@ -474,8 +474,34 @@ export class View extends Node {
     if (this.scrolls) s.setScroll(true, (y) => { this.scrollY = y; });
     if (this.scrollsX) s.setScrollX(true);
     const sink = this.inputSink();
-    if (sink !== null) s.setInput(sink);
+    if (sink !== null) s.setInput(sink, this.inputWants());
     if (this.draw) this.bindDraw();
+  }
+
+  /** THE HIT TEST: the view under a root-space point, or null. The same walk
+   *  the pointer is routed by (interaction.ts) — clip shapes, scale, pivot,
+   *  `pointerEvents`, and `ignoreclip` all count exactly as they do for a real
+   *  press — so what a handler computes and what the runtime routes can never
+   *  disagree. Answers the deepest (topmost) view; walk `.parent` to find an
+   *  eligible ancestor:
+   *
+   *      onMouseUp(e) {
+   *          let t = app.viewAt(e.x, e.y)
+   *          while (t != null && t.accept == null) t = t.parent
+   *          if (t != null) t.accept(dragged)
+   *          },
+   *
+   *  Root-space, like the coordinates `onMouseMove`/`onMouseUp` carry, so a
+   *  drag can pass its own event coordinates straight in. */
+  viewAt(x: number, y: number): View | null {
+    return hitAt(this.root ?? this, x, y) as View | null;
+  }
+
+  /** Does this view's box contain the root-space point? Geometry only — what
+   *  paints ON TOP is `viewAt`'s question — so a drop target can ask about
+   *  itself without walking the tree. */
+  containsPoint(x: number, y: number): boolean {
+    return boxContains(this, x, y);
   }
 
   /** Scroll this view to the top of its nearest scrolling ancestor — the
@@ -527,13 +553,31 @@ export class View extends Node {
     // extends to the tip attribute): its sink reports over/out/press to the
     // Tip service; declared handlers, when present, fire exactly as before.
     if (!handled && this.tip === "") return null;
-    return (type, x, y) => {
+    return (type, x, y, extra) => {
       if (this.tip !== "") {
         if (type === "mouseOver") Tip.over(this);
         else if (type === "mouseOut") Tip.out(this);
         else if (type === "mouseDown") Tip.hide();
       }
-      if (handled) fireEvent(this, type, { x, y });
+      // One plain event argument: the point in this view's coordinates, plus
+      // whatever fact this event kind carries (`canceled` on a release, the
+      // finger list on the raw touch family).
+      if (handled) fireEvent(this, type, extra === undefined ? { x, y } : { x, y, ...extra });
+    };
+  }
+
+  /** What the ROUTER needs to know about this view's declared handlers to
+   *  arbitrate gestures for it (input.ts HitTarget): whether it answers
+   *  double-clicks (so its single click waits out the double window), holds,
+   *  or the raw touch family (so the whole multi-finger stream is delivered and
+   *  nothing is interpreted). Declaration IS the opt-in — no configuration. */
+  private inputWants(): { wantsDbl: boolean; wantsHold: boolean; wantsTouch: boolean } {
+    const self = this as unknown as Record<string, unknown>;
+    const has = (t: string): boolean => typeof self[handlerName(t)] === "function";
+    return {
+      wantsDbl: has("dblClick"),
+      wantsHold: has("hold"),
+      wantsTouch: TOUCH_TYPES.some(has),
     };
   }
 
@@ -756,6 +800,23 @@ export class App extends View {
    *  live by the runtime, distinct from the transient `hovering`: switch mouse-only
    *  affordances off with `visible = { !app.touchDevice }`. Read-only to user code. */
   declare touchDevice: boolean;
+
+  /** Does this device HAVE a touch digitizer at all (`any-pointer: coarse`)?
+   *  True on a phone, a tablet, AND a touch laptop whose primary pointer is a
+   *  trackpad — the case `touchDevice` deliberately answers false. Use it for a
+   *  hit-target floor (a finger may still arrive), not to switch layout.
+   *  Read-only to user code. */
+  declare hasTouch: boolean;
+
+  /** Does this device have a FINE pointer (`any-pointer: fine`) — a mouse,
+   *  trackpad, or stylus? Read-only to user code. */
+  declare hasPointer: boolean;
+
+  /** What the user JUST used: "mouse" | "touch" | "pen", updated live on every
+   *  move and press. The honest signal on a hybrid device, where the answer
+   *  changes per gesture: reveal hover-only affordances with
+   *  `visible = { app.lastPointerType == "mouse" }`. Read-only to user code. */
+  declare lastPointerType: string;
   /** The embedding environment's parameters (see schema.ts `env`): a record
    *  the host provides and keeps live; `{}` when top-level. Read reactively —
    *  `theme = { Themes.x(app.env.dark == true) }` follows the host's flips. */
@@ -922,6 +983,9 @@ defineAttributes(App, {
   pointerOverText: { def: false },
   dark: { def: false },
   touchDevice: { def: false },
+  hasTouch: { def: false },
+  hasPointer: { def: true },      // a plain desktop until the profile says otherwise
+  lastPointerType: { def: "mouse" },
   // the embedding environment's parameters (schema.ts): the HOST replaces the
   // whole record on every change (never mutates), so the default may be one
   // shared frozen empty object — reads like `app.env.dark` never null-crash

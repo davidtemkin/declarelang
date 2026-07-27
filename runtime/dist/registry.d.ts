@@ -1,4 +1,5 @@
 import { View } from "./view.js";
+import { Node } from "./node.js";
 import { Layout } from "./layout.js";
 import { Dataset } from "./data.js";
 import { Animator, AnimatorGroup } from "./animator.js";
@@ -17,6 +18,12 @@ export declare const LAYOUT_BASES: Readonly<Record<string, abstract new () => La
 export declare const DATA: Readonly<Record<string, new () => Dataset>>;
 /** Tag → animator class (animation.md §1) — tree structure, neither View nor data. */
 export declare const ANIMATORS: Readonly<Record<string, new () => Animator>>;
+/** SOURCES — non-visual members whose handlers are called by something OUTSIDE
+ *  the tree: the frame clock, the keyboard, the focus service, the tip service.
+ *  Their own table because none of the animator paths' `attribute`/`to`
+ *  checking applies, and because being ordinary components is what lets an app
+ *  that never listens drop the service code entirely (slim-registry). */
+export declare const SOURCES: Readonly<Record<string, new () => Node>>;
 /** Tag → animator-group class (animation.md §1, §4). */
 export declare const ANIMATOR_GROUPS: Readonly<Record<string, new () => AnimatorGroup>>;
 /** Tag → state class (docs/system-design/states.md) — captures its body's overrides
@@ -33,7 +40,7 @@ export declare const REGISTRY_NAMES: readonly string[];
  *  manifest's names match the tables above, so the two can never drift. */
 export interface RegistryEntry {
     name: string;
-    table: "TAGS" | "LAYOUTS" | "LAYOUT_BASES" | "DATA" | "ANIMATORS" | "ANIMATOR_GROUPS" | "STATES";
+    table: "TAGS" | "LAYOUTS" | "LAYOUT_BASES" | "DATA" | "ANIMATORS" | "ANIMATOR_GROUPS" | "SOURCES" | "STATES";
     module: string;
     export: string;
 }

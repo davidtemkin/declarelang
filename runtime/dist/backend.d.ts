@@ -42,13 +42,25 @@ export type Stretch = "none" | "width" | "height" | "both";
  *  `onClick`). A click is not a platform event here — the shared router
  *  (input.ts) synthesizes it as "press and release resolved to the same
  *  view", so both backends decide it identically by construction. */
-export type PointerType = "mouseDown" | "mouseUp" | "click" | "dblClick" | "mouseMove" | "mouseOver" | "mouseOut";
+export type PointerType = "mouseDown" | "mouseUp" | "click" | "dblClick" | "mouseMove" | "mouseOver" | "mouseOut" | "hold" | "touchStart" | "touchMove" | "touchEnd" | "touchCancel";
 export declare const POINTER_TYPES: readonly PointerType[];
+/** The raw-touch member of the family: declaring one of these is a view's
+ *  statement that it owns multi-finger gestures in its subtree (the backend
+ *  then stops the browser from claiming them — dom-backend setGestureOwner). */
+export declare const TOUCH_TYPES: readonly PointerType[];
 /** A view's input route across the seam — one call per delivered event,
  *  with the point in the receiving view's own coordinates. Having a sink is
  *  also the surface's *hit-test presence* (see Surface.setInput): route and
  *  flag are deliberately one thing, so they cannot disagree. */
-export type InputSink = (type: PointerType, x: number, y: number) => void;
+export type InputSink = (type: PointerType, x: number, y: number, extra?: Record<string, unknown>) => void;
+/** What a view's DECLARED handlers tell the router about arbitrating its
+ *  gestures (view.ts inputWants → input.ts HitTarget). Travels with the sink
+ *  because it is the same fact: a sink exists because handlers do. */
+export interface InputWants {
+    wantsDbl: boolean;
+    wantsHold: boolean;
+    wantsTouch: boolean;
+}
 /** A native editable text field over a surface's box (input.md, Layer 3). The
  *  backend owns the native element (`<input>`/`<textarea>`) — its creation,
  *  geometry sync, and DOM focus — and reports the user's edits and focus
@@ -223,7 +235,7 @@ export interface Surface {
      *  clicks. Pay-per-use: the runtime only calls this for views that
      *  declare pointer handlers, so a handler-free tree never pays for input
      *  beyond the walk that skips it. */
-    setInput(sink: InputSink | null): void;
+    setInput(sink: InputSink | null, wants?: InputWants): void;
     /** Make this surface a native editable text field (spec), or clear it (null).
      *  The backend creates/positions/styles the native element and wires its
      *  edit/focus callbacks; geometry follows the surface box. Layer 3. */

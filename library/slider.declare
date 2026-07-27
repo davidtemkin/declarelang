@@ -36,6 +36,7 @@ class Slider extends Control [
     // The drag latch: the pointer is captured for the gesture, so the drag must
     // survive leaving the thumb's hit chain — the intrinsic `pressed` (chain-based)
     // deliberately would not. Cleared by the captured release.
+
     dragging: boolean = false,
 
     quant(v) {

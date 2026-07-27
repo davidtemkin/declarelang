@@ -51,7 +51,46 @@ import { serializeDeps } from "../../runtime/dist/deps.js";
 import { serializeLinks } from "../../runtime/dist/links.js";
 import { annotateProgram } from "./dep-extract.js";
 import { extractLinks } from "./links.js";
+import ts from "typescript";
 import { stripEditsFor, tsBodySyntax } from "./strip-types.js";
+/** Marks a script body the compiler has already given its bindings tail, so a
+ *  recompile of emitted output (serve/prod parity paths) doesn't append twice. */
+const BINDINGS_MARK = "/*$b*/";
+/** The top-level names a `script { … }` block declares — functions, classes,
+ *  enums, and variables, including the names inside destructuring patterns.
+ *  These become the block's bindings object; nothing nested is reachable, which
+ *  is the point (a script block is module scope, not a scope noun). */
+function topLevelBindings(src) {
+    const names = [];
+    const addFromName = (n) => {
+        if (ts.isIdentifier(n)) {
+            names.push(n.text);
+            return;
+        }
+        for (const el of n.elements) {
+            if (ts.isBindingElement(el))
+                addFromName(el.name);
+        }
+    };
+    let sf;
+    try {
+        sf = ts.createSourceFile("script.ts", src, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS);
+    }
+    catch {
+        return names;
+    }
+    for (const st of sf.statements) {
+        if (ts.isFunctionDeclaration(st) || ts.isClassDeclaration(st) || ts.isEnumDeclaration(st)) {
+            if (st.name !== undefined)
+                names.push(st.name.text);
+        }
+        else if (ts.isVariableStatement(st)) {
+            for (const d of st.declarationList.declarations)
+                addFromName(d.name);
+        }
+    }
+    return [...new Set(names)];
+}
 import { setBodySyntaxValidator } from "../../runtime/dist/expr.js";
 // Bodies are authored as TypeScript: when the compiler is present, the
 // check-phase body-syntax gate parses TS (the type-level syntax is stripped
@@ -341,9 +380,44 @@ export function compile(source, opts = {}) {
             collectStrips(sp.root);
             for (const cls of sp.classes)
                 collectStrips(cls.body);
+            // NOTE: `script { … }` bodies are NOT handled here. stripEditsFor removes
+            // casts only — type annotations and declarations are a compile error in an
+            // ordinary body, so there is nothing else for it to delete. A script block
+            // is real TypeScript (`function f(n: number): number`), so it needs a true
+            // transpile, which runs as its own pass below once these offsets settle.
             strips.sort((a, b) => b.start - a.start);
             for (const e of strips)
                 out = out.slice(0, e.start) + out.slice(e.end);
+        }
+    }
+    // `script { … }` → JavaScript. Unlike a `{ }` body — where a type annotation
+    // is an error and only casts need removing — a script block is ordinary
+    // TypeScript, so it is genuinely transpiled. A fresh parse gives spans in the
+    // just-stripped text; splicing back-to-front keeps the earlier ones valid.
+    {
+        let sp = null;
+        try {
+            sp = parseProgram(out);
+        }
+        catch { /* reported by the dep-extract parse */ }
+        if (sp !== null && sp.scripts.length > 0) {
+            for (const s of [...sp.scripts].sort((a, b) => b.span.start - a.span.start)) {
+                if (s.src.includes(BINDINGS_MARK))
+                    continue; // already compiled once
+                const bodyOpen = s.span.end - s.src.length - 1; // just past the `{`
+                const js = ts.transpileModule(s.src, {
+                    compilerOptions: { target: ts.ScriptTarget.ESNext, module: ts.ModuleKind.ESNext, isolatedModules: true },
+                    reportDiagnostics: false,
+                }).outputText;
+                // The block's own top-level names, harvested from the TS AST while we
+                // have it. Emitting them as a trailing `return { … }` is what lets the
+                // runtime evaluate the block with `new Function` and receive its
+                // bindings — there is no other way to enumerate a function's scope, and
+                // doing it here keeps the artifact self-contained (programs are data).
+                const names = topLevelBindings(s.src);
+                const tail = names.length > 0 ? ` ${BINDINGS_MARK} return { ${names.join(", ")} };` : "";
+                out = out.slice(0, bodyOpen) + " " + js.trim() + tail + " " + out.slice(bodyOpen + s.src.length);
+            }
         }
     }
     // Final phase (NOT opt-in): static dependency extraction (docs/system-design/constraints.md
@@ -406,8 +480,13 @@ class Resolver {
     classExtras = new Map();
     surfaces = new Map();
     lineStarts = [0];
+    /** Names the program's `script { … }` blocks declare. A body may call them
+     *  like any global — they ARE globals, of the program's own module scope —
+     *  so they resolve here rather than being reported unresolved. */
+    scriptNames;
     constructor(source, program) {
         this.schemas = programSchemas(program.classes).schemas; // check-clean: no errors
+        this.scriptNames = new Set(program.scripts.flatMap((b) => topLevelBindings(b.src)));
         for (let i = 0; i < source.length; i++) {
             if (source[i] === "\n")
                 this.lineStarts.push(i + 1);
@@ -530,7 +609,7 @@ class Resolver {
                 selfName = true;
             }
             if (k === -1) {
-                if (!isKnownGlobal(id.name)) {
+                if (!isKnownGlobal(id.name) && !this.scriptNames.has(id.name)) {
                     if (Object.hasOwn(CSS_COLORS, id.name)) {
                         // A bare CSS color name inside { } — a bare-slot literal, not an
                         // identifier here; name the 0x form rather than a flat "unresolved".

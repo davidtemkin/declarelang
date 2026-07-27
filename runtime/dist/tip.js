@@ -8,8 +8,8 @@
 // retarget while a tip is already up (the OS behavior: once tips are showing,
 // moving between controls swaps instantly), hide on press — and publishes ONE
 // fact to subscribers: the active tip (text + the target's root-space box),
-// or null. The library Tooltip singleton renders it (`onTip(e) <- Tip`), the
-// same wiring contract as Focus/Keys (sources.ts).
+// or null. The library Tooltip singleton renders it (`Tip [ onTip(e) { … } ]`),
+// the same wiring contract as Focus/Keys (sources.ts).
 // The default show delay; a theme overrides per platform (`tooltipDelay` —
 // macOS help tags and Windows tooltips both wait ~1s, Material ~500ms).
 const SHOW_DELAY_MS = 500;
@@ -24,7 +24,7 @@ class TipService {
     current = null;
     shown = false;
     warmUntil = 0;
-    /** Subscribe (`onTip(e) <- Tip`). Returns the unsubscribe thunk. */
+    /** Subscribe (`Tip [ onTip(e) { … } ]`). Returns the unsubscribe thunk. */
     onTip(fn) {
         this.handlers.add(fn);
         return () => this.handlers.delete(fn);

@@ -18,7 +18,7 @@
 // (the merged program stays instantiable). Within-file duplicates stay the
 // checker's job, so the main program seeds the origin table with no self-check.
 
-import { parseLibrary, type Program, type Library, type ClassDecl, type TopDecl, type Span, type Element } from "./parser.js";
+import { parseLibrary, type Program, type Library, type ClassDecl, type TopDecl, type Span, type Element, type ScriptBlock } from "./parser.js";
 import { DeclareError } from "./errors.js";
 import { Diag } from "./diagnostics.js";
 
@@ -78,6 +78,10 @@ export function resolveIncludes(
   // The keep-list folds across libraries too: a library declaring its own
   // `use [ … ]` contributes its dynamic deps to the merged program's list.
   const uses: string[] = [...program.uses];
+  // A library's `script { … }` helpers travel with it, in include order — the
+  // program's own blocks lead, then each library's, so a helper is defined
+  // before anything that could reference it downstream.
+  const scripts: ScriptBlock[] = [...program.scripts];
   const sources: string[] = [];
 
   // name → the file that declared it. The main program seeds it as "the app"
@@ -133,6 +137,7 @@ export function resolveIncludes(
       for (const s of lib.styles) if (fold(s.name, s.pos, from)) styles.push(s);
       for (const f of lib.fonts) if (fold(f.name, f.pos, from)) fonts.push(f);
       uses.push(...lib.uses);
+      scripts.push(...lib.scripts);
       // Its splice-ready source — own include directives cut out — after its
       // dependencies' sources (the post-order recursion just ran).
       sources.push(exciseSpans(resolved.source, lib.includeSpans));
@@ -141,7 +146,7 @@ export function resolveIncludes(
   walk(program.includes, originDir);
 
   return {
-    program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], root: program.root },
+    program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], scripts, root: program.root },
     sources,
     errors,
     visited,
@@ -221,6 +226,7 @@ export function resolveAutoIncludes(
   const stylesheets: TopDecl[] = [...program.stylesheets];
   const styles: TopDecl[] = [...program.styles];
   const fonts: TopDecl[] = [...program.fonts];
+  const scripts: ScriptBlock[] = [...program.scripts];
   const sources: string[] = [];
 
   // name → the file that declared it (main + explicit includes seed it). A
@@ -271,6 +277,7 @@ export function resolveAutoIncludes(
     for (const s of lib.stylesheets) if (foldOne(s.name, s.pos, path)) stylesheets.push(s);
     for (const s of lib.styles) if (foldOne(s.name, s.pos, path)) styles.push(s);
     for (const f of lib.fonts) if (foldOne(f.name, f.pos, path)) fonts.push(f);
+    scripts.push(...lib.scripts);
     sources.push(exciseSpans(resolved.source, lib.includeSpans));
   };
 
@@ -283,7 +290,7 @@ export function resolveAutoIncludes(
   for (const name of program.uses) pull(name, program.root.pos);
 
   return {
-    program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: program.uses, root: program.root },
+    program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: program.uses, scripts, root: program.root },
     sources,
     errors,
   };

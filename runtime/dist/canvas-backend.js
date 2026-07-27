@@ -328,6 +328,8 @@ class CanvasSurface {
     stretch = "none";
     /** The view's input route; null = transparent to the pointer (hit walk). */
     sink = null;
+    /** The declared-handler facts the router arbitrates with (input.ts). */
+    wants = undefined;
     /** The native editable overlay (Layer 3), a DOM element over the canvas; null
      *  = this surface is not an editable text field. */
     editEl = null;
@@ -422,8 +424,9 @@ class CanvasSurface {
         this.stretch = stretch;
         this.compositor.invalidate();
     }
-    setInput(sink) {
+    setInput(sink, wants) {
         this.sink = sink; // input state changes no pixels — no invalidate
+        this.wants = wants;
     }
     setEditable(spec) {
         if (spec === null) {
@@ -579,7 +582,15 @@ class CanvasSurface {
      *  surface is transparent, so both backends resolve identically (the DOM
      *  keeps content elements pointer-inert for the same reason). */
     hit(px, py) {
-        if (!this.visible || this.opacity <= 0)
+        // OPACITY IS PAINT, NOT PRESENCE: a fully transparent view is still hittable
+        // — the DOM backend inherits that from CSS, and the corpus relies on it (a
+        // transparent view as a press-catcher is a standing idiom, and an author who
+        // wants a fade to become absence writes it: `visible = { opacity > 0 }`,
+        // three places in the corpus). Skipping opacity-0 here made this walk
+        // disagree with both the DOM router AND the `hovered` intrinsic, which
+        // considers only `visible`. The gates that mean "not there" are `visible`
+        // and `pointerEvents`; this is not one of them.
+        if (!this.visible)
             return null;
         let lx = px - this.x;
         let ly = py - this.y;
@@ -615,7 +626,7 @@ class CanvasSurface {
                 return t;
         }
         if (this.sink !== null && inBox) {
-            return { key: this, sink: this.sink, x: lx, y: ly, cursor: this.cursorStyle !== "" ? this.cursorStyle : undefined };
+            return { key: this, sink: this.sink, ...this.wants, x: lx, y: ly, cursor: this.cursorStyle !== "" ? this.cursorStyle : undefined };
         }
         return null;
     }
@@ -687,7 +698,10 @@ class CanvasSurface {
      *  PARENT-local space; true when consumed. Mirrors hit's transform so it
      *  targets exactly what the user sees; the compositor requests the repaint. */
     scrollBy(px, py, dy) {
-        if (!this.visible || this.opacity <= 0)
+        // Opacity is paint, not presence — a wheel is input, routed by position, and
+        // it reaches a transparent scroller exactly as a click reaches a transparent
+        // sink (see hit()). Only `visible` means "not there".
+        if (!this.visible)
             return false;
         const lx = px - this.x;
         const ly = py - this.y;

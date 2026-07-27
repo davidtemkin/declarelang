@@ -32,12 +32,12 @@ App [ width = 400, height = 140, fill = darkslategray, textColor = whitesmoke,
     count: number = 0,                               // reactive state
 
     add: View [ x = 20, y = 20, width = 120, height = 40, cornerRadius = 10, fill = royalblue,
-        onClick() { count = count + 1 },             // a bare name resolves like the read below
+        onClick() { count = count + 1 },
         Text [ x = 20, y = 10, text = "Add one" ],
         ],
 
     Text [ y = 80, x = { (parent.width - this.width) / 2 },
-        text = { `Clicked ${count} times` },         // re-runs whenever count changes
+        text = { `Clicked ${count} times` },
         ],
     ]
 ```
@@ -47,6 +47,6 @@ Two delimiters carry the whole model: **`[ … ]`** is the view tree — compone
 
 ## Where everything is
 
-- [**docs/declare.md**](https://github.com/davidtemkin/declarelang/blob/main/docs/declare.md) — the whole language, in one file, for you and your model.
+- [**docs/declare.md**](https://github.com/davidtemkin/declarelang/blob/main/docs/declare.md) — the language, in one file, for you and your LLM.
 - [**The guide**](https://github.com/davidtemkin/declarelang/blob/main/docs/guide/01-thinking-in-declare.md) — how to think in Declare, starting from an app just like the one above.
 - [**GitHub**](https://github.com/davidtemkin/declarelang) — the full source. The homepage you are reading is itself a Declare app, and every app is editable in the browser.

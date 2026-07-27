@@ -202,8 +202,10 @@ function tokenize(src) {
             tokens.push({ kind: "bindtwo", text: "<->", pos: start });
             continue;
         }
-        // subscription arrow (language §8): `member(params) <- Source { body }`.
-        // Lexed after `<->` — longest match first.
+        // `<-` is NO LONGER LANGUAGE (subscriptions became components, 2026-07-26).
+        // It is still LEXED so the parser can answer a program written against the
+        // old form with the rewrite instead of a bare syntax error — the diagnostics
+        // rule (name the fix) applied to a removed feature.
         if (c === "<" && src[i + 1] === "-") {
             advance();
             advance();
@@ -575,30 +577,21 @@ class Parser {
                     if (this.peek().kind === "ident")
                         this.next();
                 }
-                // a subscription — `member(params) <- Source { body }` (language §8):
-                // same member shape, plus the source it registers with.
-                let source;
-                let sourcePos;
+                // The removed subscription form: `member(params) <- Source { body }`.
+                // A service is an ordinary component member now, so name that rewrite
+                // with the author's own source and member filled in.
                 if (this.peek().kind === "subfrom") {
+                    const arrow = this.peek();
                     this.next();
-                    const st = this.peek();
-                    if (st.kind !== "ident")
-                        throw new DeclareError(`expected the event source's name after '<-', got '${st.text || st.kind}'`, st.pos);
-                    this.next();
-                    source = st.text;
-                    sourcePos = st.pos;
+                    const src = this.peek().kind === "ident" ? this.peek().text : "Source";
+                    throw new DeclareError(`'<-' subscriptions were removed — a runtime service is a component member now: write '${src} [ ${name.text}(${params.join(", ")}) { … } ]' as a child, in place of '${name.text}(${params.join(", ")}) <- ${src} { … }'`, arrow.pos);
                 }
                 const body = this.peek();
                 if (body.kind !== "code") {
-                    throw new DeclareError(`expected the ${source !== undefined ? "subscription" : "method"} body '{ … }', got '${body.text || body.kind}'`, body.pos);
+                    throw new DeclareError(`expected the method body '{ … }', got '${body.text || body.kind}'`, body.pos);
                 }
                 this.next();
-                const m = { name: name.text, params, body: body.str, pos: name.pos, bodyPos: body.pos };
-                if (source !== undefined) {
-                    m.source = source;
-                    m.sourcePos = sourcePos;
-                }
-                el.methods.push(m);
+                el.methods.push({ name: name.text, params, body: body.str, pos: name.pos, bodyPos: body.pos });
             }
             else {
                 // an anonymous child instance — bare `Name` or `Name [ … ]` (or the
@@ -615,10 +608,14 @@ class Parser {
                 }
                 el.children.push(child);
             }
+            // The comma between members is OPTIONAL — members are delimited by the
+            // grammar itself (every one begins with an ident), so a comma is
+            // punctuation the author may use or omit, and a trailing one is fine.
+            // Consume one if it is there and let the loop's own guard decide whether
+            // another member follows; a body that ends without `]` fails at the next
+            // `expect("ident")` with a positioned error, as it did before.
             if (this.peek().kind === "comma")
                 this.next();
-            else
-                break; // no comma ⇒ this must be the last member
         }
     }
     parseLiteral() {
@@ -697,6 +694,24 @@ class Parser {
         const t = this.tokens[this.i];
         const u = this.tokens[this.i + 1];
         return t.kind === "ident" && t.text === keyword && u.kind === "ident";
+    }
+    /** At a `script { … }` block — contextual, like every other top-level
+     *  keyword: the ident `script` followed by a `{ … }` body. (`script`
+     *  followed by anything else is an ordinary component name.) */
+    atScript() {
+        const t = this.tokens[this.i];
+        const u = this.tokens[this.i + 1];
+        return t.kind === "ident" && t.text === "script" && u.kind === "code";
+    }
+    /** `'script' '{' … '}'` — the body is captured raw; TypeScript judges it. */
+    parseScript() {
+        const kw = this.next(); // 'script'
+        const body = this.expect("code", "the script body '{ … }'");
+        // A `code` token's `text` is the placeholder "{…}", not the source — the
+        // real extent is the captured body plus its two braces, measured from the
+        // opening one (the token's own position).
+        const end = body.pos.offset + body.str.length + 2;
+        return { src: body.str, pos: kw.pos, span: { start: kw.pos.offset, end } };
     }
     /** At an `include [ … ]` directive (composition.md §1) — contextual: the
      *  ident `include` followed by `[`. (`include` followed by anything else is
@@ -799,6 +814,7 @@ function parseTopDecls(p) {
     const includes = [];
     const includeSpans = [];
     const uses = [];
+    const scripts = [];
     for (;;) {
         if (p.atInclude()) {
             const { refs, span } = p.parseIncludeDirective();
@@ -807,6 +823,8 @@ function parseTopDecls(p) {
         }
         else if (p.atUse())
             uses.push(...p.parseUseDirective());
+        else if (p.atScript())
+            scripts.push(p.parseScript());
         else if (p.atClass())
             classes.push(p.parseClass());
         else if (p.atTop("stylesheet"))
@@ -818,19 +836,19 @@ function parseTopDecls(p) {
         else
             break;
     }
-    return { classes, stylesheets, styles, fonts, includes, includeSpans, uses };
+    return { classes, stylesheets, styles, fonts, includes, includeSpans, uses, scripts };
 }
 /** Parse a whole Declare source: `include`s and top-level declarations
  *  (classes, stylesheets, style bundles — in any order), then the root
  *  instance. */
 export function parseProgram(source) {
     const p = new Parser(tokenize(source));
-    const { classes, stylesheets, styles, fonts, includes, includeSpans, uses } = parseTopDecls(p);
+    const { classes, stylesheets, styles, fonts, includes, includeSpans, uses, scripts } = parseTopDecls(p);
     const root = p.parseElement();
     p.expect("eof", "end of input");
     if (p.errors.length > 0)
         throw new DeclareErrors(p.errors);
-    return { classes, stylesheets, styles, fonts, includes, includeSpans, uses, root };
+    return { classes, stylesheets, styles, fonts, includes, includeSpans, uses, scripts, root };
 }
 /** Parse an INCLUDED file (composition.md §1): the same top-level
  *  declarations as a program, then eof — a library declares classes,

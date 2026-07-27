@@ -25,7 +25,7 @@ import { compile as compileFull, crawlExtract, diskDataResolver, crawlerDocument
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const RUNTIME = resolve(HERE, "../runtime/dist"); // the run-path lives here
-const TABLES = ["TAGS", "LAYOUTS", "LAYOUT_BASES", "DATA", "ANIMATORS", "ANIMATOR_GROUPS", "STATES"];
+const TABLES = ["TAGS", "LAYOUTS", "LAYOUT_BASES", "DATA", "ANIMATORS", "ANIMATOR_GROUPS", "SOURCES", "STATES"];
 
 /** Generate a SLIM registry.js — the name→class tables carrying ONLY the
  *  component classes `usedNames` covers. Substituted for the full registry.js at
@@ -217,17 +217,41 @@ export const Inspect = new Proxy({ ready: () => false }, {
     for (const c of el.children ?? []) walkBodies(c, fn);
   };
   const programFacts = (() => {
-    let themes = false, draw = false;
+    let themes = false, draw = false, focusKeys = false, tips = false;
     const roots = [built.program.root, ...built.program.classes.map((c) => c.body)];
+    // Any component the program can construct whose RUNTIME class makes itself
+    // a tab stop without the source saying so (text-input.ts sets `focusable`
+    // at attach). Everything else declares focusability in source, which the
+    // walk below sees — including the library's Control (`focusable = { … }`).
+    const SELF_FOCUSING = new Set(["TextInput"]);
+    for (const name of built.usedComponents) if (SELF_FOCUSING.has(name)) focusKeys = true;
+    const walkEl = (el) => {
+      if ((el.methods ?? []).some((m) => m.name === "draw")) draw = true;
+      for (const m of el.methods ?? []) {
+        // A focused view's OWN key handlers arrive through deliverKeys (focus.ts),
+        // so they need both services; focus handlers obviously need focus.
+        if (/^on(KeyDown|KeyUp|Focus|Blur|EscapeFocus)$/.test(m.name)) focusKeys = true;
+      }
+      for (const a of el.attrs ?? []) {
+        // `focusable = …` in any form except the literal `false` makes a tab stop.
+        if (a.name === "focusable" && !(a.value?.kind === "ident" && a.value.name === "false")) focusKeys = true;
+        if (a.name === "tip") tips = true;
+      }
+      // The source components themselves (`Keys [ … ]`, `Focus [ … ]`, `Tip [ … ]`).
+      if (el.tag === "Keys" || el.tag === "Focus") focusKeys = true;
+      if (el.tag === "Tip") tips = true;
+      for (const c of el.children ?? []) walkEl(c);
+    };
     for (const r of roots) {
-      walkBodies(r, (src) => { if (/\bThemes\b/.test(src)) themes = true; });
-      const walkDraw = (el) => {
-        if ((el.methods ?? []).some((m) => m.name === "draw")) draw = true;
-        for (const c of el.children ?? []) walkDraw(c);
-      };
-      walkDraw(r);
+      walkBodies(r, (src) => {
+        if (/\bThemes\b/.test(src)) themes = true;
+        // A body may CALL the services (`Keys.isDown(…)`, `Focus.focus(this)`).
+        if (/\bKeys\b|\bFocus\b/.test(src)) focusKeys = true;
+        if (/\bTip\b/.test(src)) tips = true;
+      });
+      walkEl(r);
     }
-    return { usesThemes: themes, usesDraw: draw };
+    return { usesThemes: themes, usesDraw: draw, usesFocusKeys: focusKeys, usesTips: tips };
   })();
   // index.js re-exports inspect's query surface by name; a stub must export
   // every name (esbuild resolves named re-exports even when unused downstream).
@@ -254,6 +278,43 @@ export const clock = {};
     "manyPathOf", "coerceToken", "cssAttributeHint"]
     .map((n) => `export function ${n}() { throw new Error("${n}: the checker is not aboard this production build — the program was checked at compile time (declarec --debug keeps the checker)"); }`)
     .join("\n") + "\n";
+  // The focus + keyboard services (focus.js, keys.js — ~5 KB minified together).
+  // boot.ts wires them for EVERY app (Focus.setRoot, Keys.listen, deliverKeys),
+  // which is why they shipped everywhere; an app with nothing focusable, no key
+  // or focus handler, and no body calling either has no use for the wiring at
+  // all. Gated together because they are one mechanism: Tab navigation is the
+  // keyboard driving focus, and a focused view's own key handlers arrive
+  // through deliverKeys. The stubs keep every name the run-path imports.
+  const focusStub = `
+const NOOP = () => {};
+const OFF = () => NOOP;
+export const Focus = {
+  setRoot: NOOP, focus: NOOP, blur: NOOP, next: NOOP, prev: NOOP,
+  byKeyboard: () => false, getFocus: () => null,
+  onFocusChange: OFF, onGeometry: OFF, noteDiscarded: NOOP,
+};
+export function deliverKeys() { return NOOP; }
+export class FocusService {}
+`;
+  // (`follower` is private to the real service — a Constraint it builds
+  // internally — so it is deliberately absent here; nothing outside calls it.)
+  const keysStub = `
+const NOOP = () => {};
+const OFF = () => NOOP;
+export const Keys = {
+  listen: NOOP, isDown: () => false, held: () => [],
+  onKeyDown: OFF, onKeyUp: OFF, keyDown: NOOP, keyUp: NOOP, chord: OFF,
+};
+export function setKeysFocusProbe() {}
+export class KeysService {}
+export function normalize() { return null; }
+`;
+  // The tip service (tip.js): view.ts reports hover/press to it for any view
+  // carrying `tip = "…"`, so an app with no tips never needs it.
+  const tipStub = `
+const NOOP = () => {};
+export const Tip = { over: NOOP, out: NOOP, hide: NOOP, onTip: () => NOOP, show: NOOP };
+`;
   const themesStub = `export const Themes = Object.freeze({});\n`;
   const drawStub = `export function record() { return null; }\nexport function replay() {}\nexport class Draw {}\nexport class DrawGradient {}\n`;
   const stubFor = (name, filterRe, contents) => ({
@@ -267,6 +328,11 @@ export const clock = {};
     stubFor("slim-bridge", /[/\\]inspect\.js$/, bridgeStub),
     ...(programFacts.usesThemes ? [] : [stubFor("slim-themes", /[/\\]themes\.js$/, themesStub)]),
     ...(programFacts.usesDraw ? [] : [stubFor("slim-draw", /[/\\]draw\.js$/, drawStub)]),
+    ...(programFacts.usesFocusKeys ? [] : [
+      stubFor("slim-focus", /[/\\]focus\.js$/, focusStub),
+      stubFor("slim-keys", /[/\\]keys\.js$/, keysStub),
+    ]),
+    ...(programFacts.usesTips ? [] : [stubFor("slim-tip", /[/\\]tip\.js$/, tipStub)]),
   ];
 
   const result = await esbuild.build({

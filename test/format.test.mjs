@@ -17,7 +17,8 @@
 //      be deep-equal. Library files (library — no root, not compilable
 //      alone) are parsed with the runtime's parseLibrary and compared as
 //      position-stripped ASTs. Trailing commas immediately before `]`/`)` are
-//      normalized on both sides — the one token the close style adds or sheds.
+//      normalized on both sides: the comma is optional in the grammar and the
+//      formatter no longer touches it, so it can never be a semantic difference.
 //   4. COMMENT FIDELITY — every `//` and `/* … */` raw survives byte-exact,
 //      in order, on every corpus file (the source viewer renders them; code
 //      appearance is product surface).
@@ -217,27 +218,33 @@ await test("top-level separator: a doc comment belongs to the next item — gap 
   if (out !== want) throw new Error(`doc-comment attachment wrong:\n${out}`);
 });
 
-await test("trailing comma appears before a hanging close; an inline close sheds it", () => {
+await test("commas are the author's: the formatter neither adds one nor sheds one", () => {
+  // RULED: the comma between members is optional in the grammar, so it is
+  // punctuation the author owns. The formatter still decides LINE BREAKS and
+  // close style — it just leaves every comma exactly as written.
   const src = "App [\n    child: View [ x = 1 ],\n    m() { go() }\n    ]\n";
   const out = fmt(src);
-  if (!out.includes("m() { go() },\n    ]")) throw new Error("trailing comma not added before hanging close:\n" + out);
+  if (!out.includes("m() { go() }\n    ]")) throw new Error("a comma was added before the hanging close:\n" + out);
   const src2 = "App [\n    child: View [ x = 1, ],\n    ]\n";
-  if (!fmt(src2).includes("x = 1 ],")) throw new Error("inline close kept the interior comma");
+  if (!fmt(src2).includes("x = 1, ],")) throw new Error("the interior comma was shed at an inline close:\n" + fmt(src2));
+  for (const s of [src, src2]) if (fmt(fmt(s)) !== fmt(s)) throw new Error("comma neutrality is not idempotent");
 });
 
 await test("close style follows member kind: leaf inline, method/child hanging", () => {
-  // a leaf written hanging joins up …
+  // a leaf written hanging joins up (carrying whatever comma the author left) …
   const out1 = fmt("App [\n    a: View [ x = 1,\n        ],\n    ]\n");
-  if (!out1.includes("a: View [ x = 1 ],")) throw new Error("leaf close not inlined:\n" + out1);
-  // … and a method-bearing body written inline hangs (with the trailing comma)
+  if (!out1.includes("a: View [ x = 1, ],")) throw new Error("leaf close not inlined:\n" + out1);
+  // … and a method-bearing body written inline hangs
   const out2 = fmt("App [\n    b: View [ x = 1, m() { go() } ],\n    ]\n");
-  if (!out2.includes("m() { go() },\n        ],")) throw new Error("non-leaf close not hung:\n" + out2);
+  if (!out2.includes("m() { go() }\n        ],")) throw new Error("non-leaf close not hung:\n" + out2);
 });
 
 await test("declarations, methods, and children take their own lines; attrs pack", () => {
   const src = "App [ w = 1, h = 2, n: number = 3, m() { go() }, c: View [ x = 1 ], k = 4 ]\n";
   const out = fmt(src);
-  const want = "App [ w = 1, h = 2,\n    n: number = 3,\n    m() { go() },\n    c: View [ x = 1 ],\n    k = 4,\n    ]\n";
+  // note `k = 4` keeps the author's absent comma — line ownership is the
+  // formatter's business, the punctuation is not
+  const want = "App [ w = 1, h = 2,\n    n: number = 3,\n    m() { go() },\n    c: View [ x = 1 ],\n    k = 4\n    ]\n";
   if (out !== want) throw new Error(`member line ownership wrong:\n${out}`);
 });
 
@@ -260,10 +267,12 @@ await test("the aligned ledger (ruled 2026-07-13): an author's 2+-space interior
   if (fmt(out) !== out) throw new Error("ledger preservation not idempotent");
 });
 
-await test("the ledger discretion never applies where the grammar glues, or across a dropped comma", () => {
+await test("the ledger discretion never applies where the grammar glues, or before a close", () => {
   const src = "App [\n    a: View [ x = 1,   ],\n    t: Text [ text = :person  .  name ],\n    ]\n";
   const out = fmt(src);
-  if (!out.includes("a: View [ x = 1 ],")) throw new Error("dropped comma bequeathed its gap to the close:\n" + out);
+  // the author's 3-space run before the close normalizes to one — the ledger's
+  // 2+-space discretion is for interior COLUMNS, never the gap at a close
+  if (!out.includes("a: View [ x = 1, ],")) throw new Error("gap before the close not normalized:\n" + out);
   if (!out.includes("text = :person.name ],")) throw new Error("glue positions must stay glued, author spaces or not:\n" + out);
 });
 
@@ -291,12 +300,20 @@ await test('""" text blocks survive byte-exact', () => {
   if (!out.includes(block)) throw new Error("text block changed:\n" + out);
 });
 
-await test("datapaths, two-way binds, subscriptions, lists keep canon spacing", () => {
-  const src = "App [\n    t: TextInput [ text <-> :person.name, fontFamily = [Sans, \"ui\"] ],\n    row: View [ datapath = :items[] ],\n    onKeyUp(e) <- Keys { go(e) },\n    ]\n";
+await test("datapaths, two-way binds, source members, lists keep canon spacing", () => {
+  const src = "App [\n    t: TextInput [ text <-> :person.name, fontFamily = [Sans, \"ui\"] ],\n    row: View [ datapath = :items[] ],\n    keys: Keys [ onKeyUp(e) { go(e) } ],\n    ]\n";
   const out = fmt(src);
-  for (const piece of ["text <-> :person.name", "[Sans, \"ui\"]", "datapath = :items[]", "onKeyUp(e) <- Keys { go(e) },"]) {
+  // a member carrying a method body breaks across lines (canon); what must
+  // survive is the SPACING of each construct, not the line it lands on
+  for (const piece of ["text <-> :person.name", "[Sans, \"ui\"]", "datapath = :items[]", "keys: Keys [ onKeyUp(e) { go(e) }"]) {
     if (!out.includes(piece)) throw new Error(`spacing broke: ${piece}\n${out}`);
   }
+});
+
+await test("the removed `<-` operator fails the formatter with the rewrite named", () => {
+  let msg = "";
+  try { fmt("App [\n    onKeyUp(e) <- Keys { go(e) },\n    ]\n"); } catch (e) { msg = e.message; }
+  if (!/subscriptions were removed/.test(msg)) throw new Error("expected the migration message, got: " + msg);
 });
 
 await test("a one-line top-level declaration stays one line", () => {

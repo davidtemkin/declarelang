@@ -66,13 +66,6 @@ export interface Method {
     body: string;
     pos: Pos;
     bodyPos: Pos;
-    /** `member(params) <- Source { body }` — a SUBSCRIPTION (language §8): the
-     *  member is installed like any method, and additionally registered with the
-     *  named external source at construction (unsubscribed at discard). Absent =
-     *  an ordinary method. The member's name matches the source's member
-     *  literally — the `on` prefix is convention, not mapping (ruled 2026-07-13). */
-    source?: string;
-    sourcePos?: Pos;
 }
 /** `name: Type = default` — declare a NEW typed, reactive attribute on this
  *  component (language §4: "`name = value` *sets*; `name: Type = value`
@@ -171,6 +164,20 @@ export interface Span {
     start: number;
     end: number;
 }
+/** A top-level `script { … }` block: free TypeScript that is not a component —
+ *  models, helpers, the stateless logic shared across unrelated parts of the
+ *  tree (declare-language.md §5's fourth home for code). The body is captured
+ *  RAW, exactly like a `Dataset`'s literal body: the parser proves only that
+ *  the braces balance; TypeScript's own checker judges the contents, and the
+ *  emitter places it in the program's module scope so a constraint or handler
+ *  can call what it declares. */
+export interface ScriptBlock {
+    src: string;
+    pos: Pos;
+    /** The block's source span, so the source-merge can splice or excise it the
+     *  way it does an `include` directive. */
+    span: Span;
+}
 /** A whole source: `include` directives, top-level declarations (classes,
  *  stylesheets, style bundles — any order), then the root instance. (The
  *  module/file model is an open language question — one file, declarations
@@ -192,6 +199,8 @@ export interface Program {
      *  library, or a developer class alike (one declaration, all three backends).
      *  Additive to what the tree + body scan already discover. */
     uses: string[];
+    /** Top-level `script { … }` blocks, in source order. */
+    scripts: ScriptBlock[];
     root: Element;
     /** Stamped `true` by the compiler ONLY on a program it fully checked
      *  (declarec's build). instantiate.ts then routes attributes by value kind
@@ -215,6 +224,9 @@ export interface Library {
     /** A library may carry its OWN `use [ … ]` keep-list (its dynamic deps); the
      *  source-merge folds these into the program's `uses`. */
     uses: string[];
+    /** A library may declare its own `script { … }` helpers; the source-merge
+     *  folds these into the program's blocks, in include order. */
+    scripts: ScriptBlock[];
 }
 /** Parse a component fragment — one element, no class declarations. The
  *  entry tools and tests use for pieces; a whole source goes through

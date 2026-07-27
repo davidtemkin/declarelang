@@ -21,6 +21,8 @@ import { Layout, TweenLayout } from "./layout.js";
 import { Dataset, DataSource } from "./data.js";
 import { Animator, AnimatorGroup } from "./animator.js";
 import { Spring } from "./spring.js";
+import { Frames } from "./frames.js";
+import { KeysSource, FocusSource, TipSource } from "./sources.js";
 import { State } from "./state.js";
 
 type ViewCtor = new () => View;
@@ -49,6 +51,17 @@ export const DATA: Readonly<Record<string, new () => Dataset>> = { Dataset, Data
 
 /** Tag → animator class (animation.md §1) — tree structure, neither View nor data. */
 export const ANIMATORS: Readonly<Record<string, new () => Animator>> = { Animator, Spring };
+/** SOURCES — non-visual members whose handlers are called by something OUTSIDE
+ *  the tree: the frame clock, the keyboard, the focus service, the tip service.
+ *  Their own table because none of the animator paths' `attribute`/`to`
+ *  checking applies, and because being ordinary components is what lets an app
+ *  that never listens drop the service code entirely (slim-registry). */
+export const SOURCES: Readonly<Record<string, new () => Node>> = {
+  Frames,
+  Keys: KeysSource,
+  Focus: FocusSource,
+  Tip: TipSource,
+};
 
 /** Tag → animator-group class (animation.md §1, §4). */
 export const ANIMATOR_GROUPS: Readonly<Record<string, new () => AnimatorGroup>> = { AnimatorGroup };
@@ -63,7 +76,7 @@ export const STATES: Readonly<Record<string, new () => State>> = { State };
  *  slimmed runtime, so it stays out of instantiate.ts's import surface. */
 export const REGISTRY_NAMES: readonly string[] = [
   ...Object.keys(TAGS), ...Object.keys(LAYOUTS), ...Object.keys(LAYOUT_BASES),
-  ...Object.keys(DATA), ...Object.keys(ANIMATORS), ...Object.keys(ANIMATOR_GROUPS), ...Object.keys(STATES),
+  ...Object.keys(DATA), ...Object.keys(ANIMATORS), ...Object.keys(ANIMATOR_GROUPS), ...Object.keys(SOURCES), ...Object.keys(STATES),
 ];
 
 /** One table entry as DATA — its markup name, its table, and the module + export
@@ -72,7 +85,7 @@ export const REGISTRY_NAMES: readonly string[] = [
  *  manifest's names match the tables above, so the two can never drift. */
 export interface RegistryEntry {
   name: string;                    // the component name as written in markup
-  table: "TAGS" | "LAYOUTS" | "LAYOUT_BASES" | "DATA" | "ANIMATORS" | "ANIMATOR_GROUPS" | "STATES";
+  table: "TAGS" | "LAYOUTS" | "LAYOUT_BASES" | "DATA" | "ANIMATORS" | "ANIMATOR_GROUPS" | "SOURCES" | "STATES";
   module: string;                  // the runtime dist module the class lives in ("markdown.js")
   export: string;                  // the exported binding name there
 }
@@ -92,6 +105,10 @@ export const REGISTRY_MANIFEST: readonly RegistryEntry[] = [
   { name: "DataSource", table: "DATA", module: "data.js", export: "DataSource" },
   { name: "Animator", table: "ANIMATORS", module: "animator.js", export: "Animator" },
   { name: "Spring", table: "ANIMATORS", module: "spring.js", export: "Spring" },
+  { name: "Frames", table: "SOURCES", module: "frames.js", export: "Frames" },
+  { name: "Keys", table: "SOURCES", module: "sources.js", export: "KeysSource" },
+  { name: "Focus", table: "SOURCES", module: "sources.js", export: "FocusSource" },
+  { name: "Tip", table: "SOURCES", module: "sources.js", export: "TipSource" },
   { name: "AnimatorGroup", table: "ANIMATOR_GROUPS", module: "animator.js", export: "AnimatorGroup" },
   { name: "State", table: "STATES", module: "state.js", export: "State" },
 ];

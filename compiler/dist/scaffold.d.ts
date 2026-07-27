@@ -22,6 +22,14 @@ export declare function tsType(t: AttrType): string;
  *  as Theme). Members the runtime marks `protected` (TweenLayout.laid) are
  *  declared public here: a check-block is a free function, not a subclass
  *  body, so TS's protected rule would reject the legal subclass call. */
+/** The CALLABLE surface of a service that is also a component. `Keys` and
+ *  `Focus` name one concept each — the keyboard, the focus service — which a
+ *  body can either ASK (`Keys.isDown("KeyA")`, `Focus.focus(this)`) or LISTEN
+ *  to (`Keys [ onKeyDown(e) { … } ]`). Emitted as STATIC members of the
+ *  component's class so both readings typecheck under the one name; at runtime
+ *  they never meet, since a tag and a body identifier are different namespaces
+ *  (the body's `Keys` is the injected service object — expr.ts setBodyServices). */
+export declare const LANGUAGE_STATICS: Readonly<Record<string, readonly string[]>>;
 export declare const LANGUAGE_API: Readonly<Record<string, readonly string[]>>;
 /** One attribute member. A length-typed slot is the read/write ASYMMETRY the
  *  runtime actually has: a body may WRITE `number | Percent` (the slot accepts

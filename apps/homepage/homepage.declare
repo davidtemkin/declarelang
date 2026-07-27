@@ -68,10 +68,12 @@ class NavLink extends View [ height = 33, cornerRadius = 8,
     label:   string = "",
     url:     string = "",
     to:      string = "",
+
     // pressed deepens the pill + lights the label — the tap feedback a touch
     // device gets in place of hover (mouseDown/Up fire on a tap, hover does not).
 
     fill = { pressed ? theme.pillPress : hovered ? theme.pillHover : null },
+
     // A pill goes one of two ways: `to` is an in-app location (a fragment — write
     // `app.location`); `url` is an out-of-app target (the `navigate` service action,
     // capabilities.md §6). One or the other, never both.
@@ -171,6 +173,7 @@ class Button extends View [ height = 46, cornerRadius = 9,
     fill = { primary ? (pressed ? theme.accentPress : hovered ? theme.accentHover : theme.accent)
                      : (pressed ? theme.press       : hovered ? theme.hover       : theme.surface) },
     stroke = { primary ? stroke(0, theme.accent) : stroke(1, pressed ? theme.accent2 : theme.line) },
+
     // label centered in the button box (textAlign over the full width)
 
     caption: Text [ y = 14, width = { parent.width }, textAlign = center, fontSize = 15, fontWeight = semibold,
@@ -361,10 +364,11 @@ class FullPageEditor extends View [ width = { app.width }, height = { app.height
     open: boolean = false,
     pageSource: string = "",
 
-    // Escape closes the editor — a lifetime-managed Keys subscription (the
-    // body gates on `open`, since the raw keyboard fires regardless)
+    // Escape closes the editor — a lifetime-managed Keys member (the body
+    // gates on `open`, since the raw keyboard fires regardless)
 
-    onKeyUp(e) <- Keys { if (open && e.key == "Escape") app.editing = false },
+    keys: Keys [ onKeyUp(e) { if (classroot.open && e.key == "Escape") app.editing = false },
+        ],
 
     // the divider x: 0 = not dragged yet (use the 46% default); the grip writes it.
 

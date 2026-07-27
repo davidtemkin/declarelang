@@ -60,6 +60,10 @@ export function resolveIncludes(program, host, originDir) {
     // The keep-list folds across libraries too: a library declaring its own
     // `use [ … ]` contributes its dynamic deps to the merged program's list.
     const uses = [...program.uses];
+    // A library's `script { … }` helpers travel with it, in include order — the
+    // program's own blocks lead, then each library's, so a helper is defined
+    // before anything that could reference it downstream.
+    const scripts = [...program.scripts];
     const sources = [];
     // name → the file that declared it. The main program seeds it as "the app"
     // (composition.md §1's wording) with NO self-collision check: two decls of
@@ -128,6 +132,7 @@ export function resolveIncludes(program, host, originDir) {
                 if (fold(f.name, f.pos, from))
                     fonts.push(f);
             uses.push(...lib.uses);
+            scripts.push(...lib.scripts);
             // Its splice-ready source — own include directives cut out — after its
             // dependencies' sources (the post-order recursion just ran).
             sources.push(exciseSpans(resolved.source, lib.includeSpans));
@@ -135,7 +140,7 @@ export function resolveIncludes(program, host, originDir) {
     };
     walk(program.includes, originDir);
     return {
-        program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], root: program.root },
+        program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], scripts, root: program.root },
         sources,
         errors,
         visited,
@@ -201,6 +206,7 @@ export function resolveAutoIncludes(program, root, host, visited) {
     const stylesheets = [...program.stylesheets];
     const styles = [...program.styles];
     const fonts = [...program.fonts];
+    const scripts = [...program.scripts];
     const sources = [];
     // name → the file that declared it (main + explicit includes seed it). A
     // referenced tag not present here and present in the manifest gets pulled;
@@ -275,6 +281,7 @@ export function resolveAutoIncludes(program, root, host, visited) {
         for (const f of lib.fonts)
             if (foldOne(f.name, f.pos, path))
                 fonts.push(f);
+        scripts.push(...lib.scripts);
         sources.push(exciseSpans(resolved.source, lib.includeSpans));
     };
     for (const r of referencedTags(root, program.classes))
@@ -287,7 +294,7 @@ export function resolveAutoIncludes(program, root, host, visited) {
     for (const name of program.uses)
         pull(name, program.root.pos);
     return {
-        program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: program.uses, root: program.root },
+        program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: program.uses, scripts, root: program.root },
         sources,
         errors,
     };

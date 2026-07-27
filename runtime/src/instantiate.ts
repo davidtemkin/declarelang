@@ -48,8 +48,7 @@
 import type { Element, Attr, Method, Program } from "./parser.js";
 import { DeclareError } from "./errors.js";
 import { View, fireEvent } from "./view.js";
-import { Node, onDiscard } from "./node.js";
-import { subscribeToSource } from "./sources.js";
+import { Node } from "./node.js";
 import { Layout } from "./layout.js";
 import { Animator, AnimatorGroup } from "./animator.js";
 import { Spring } from "./spring.js";
@@ -66,7 +65,7 @@ import { checkAttr, checkMethod, checkComponentValue, checkEntry, checkThemeReco
 import { checkDecl, withDecls, programSchemas, manyPathOf, coerceToken, type ClassInfo } from "./program-schema.js";
 import { buildStylesheet, ensureApplier, registerStylesheets, type Stylesheet, type StylesheetField } from "./stylesheet.js";
 import { buildFonts, collectFaces, registerFontFaces, type Font } from "./font.js";
-import { compileBody, compileExpr } from "./expr.js";
+import { compileBody, compileExpr, withScriptScope, evalScript } from "./expr.js";
 import { coerce, isPercent, isAlign, type AttrType, type Theme } from "./value.js";
 import { defineAttributes, setBound, type AttrSpec } from "./attributes.js";
 import { bindConstraint, bindPercent, bindAlign, bindData, bindDatapath, bindCursor } from "./bind.js";
@@ -74,9 +73,16 @@ import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
 import { Replicator } from "./replicate.js";
 import { provideViewCreator } from "./view.js";
 import { toCursor } from "./data.js";
-import { TAGS, LAYOUTS, LAYOUT_BASES, DATA, ANIMATORS, ANIMATOR_GROUPS, STATES } from "./registry.js";
+import { TAGS, LAYOUTS, LAYOUT_BASES, DATA, ANIMATORS, ANIMATOR_GROUPS, SOURCES, STATES } from "./registry.js";
 
 type ViewCtor = new () => View;
+
+/** A SOURCE node — duck-typed on the lifecycle hook rather than imported by
+ *  class, so instantiate keeps no static edge to the individual services (which
+ *  is what lets an app that never listens drop them entirely). */
+function isSourceNode(n: unknown): n is { autoStart(): void } {
+  return typeof (n as { autoStart?: unknown } | null)?.autoStart === "function";
+}
 
 // The name → built-in-class tables now live in registry.ts (split out so a
 // production build can substitute a slim subset — see that module). instantiate
@@ -162,11 +168,21 @@ type Pending =
  *  rendering). */
 export function instantiate(input: Element | Program): View {
   const program: Program =
-    "root" in input ? input : { classes: [], stylesheets: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], root: input };
+    "root" in input ? input : { classes: [], stylesheets: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], scripts: [], root: input };
   // The compiler stamps `trusted` on a program it fully checked (declarec —
   // and only then), so instantiation runs on the fast paths; anything else
   // (a hand-built tree, a test fragment) validates step by step, as ever.
   const trusted = program.trusted === true;
+  // A program's `script { … }` helpers are evaluated ONCE, here, before any
+  // body is compiled — bodies bind their scope at compile time (bindConstraint
+  // compiles eagerly), so the scope has to exist before the tree is built. The
+  // blocks share one namespace, in source order, exactly as a module would.
+  const scriptScope: Record<string, unknown> = {};
+  for (const s of program.scripts) Object.assign(scriptScope, evalScript(s.src));
+  return withScriptScope(scriptScope, () => buildTree(program, trusted));
+}
+
+function buildTree(program: Program, trusted: boolean): View {
   const { infos, schemas, errors } = programSchemas(program.classes);
   if (errors.length > 0) throw errors[0];
   const tags: Record<string, ViewCtor> = { ...TAGS };
@@ -284,7 +300,11 @@ function initTree(view: View): void {
     // target renders outright; physics governs every change after (the
     // boot-equal-to-default case never wakes, so priming cannot be lazy).
     if (child instanceof Spring) child.prime();
+    // Sources (Keys/Focus/Tip/Frames) wire their subscriptions here, with the
+    // animators' auto-start: construction-complete, so every declared handler
+    // is installed and the source can tell which channels to subscribe.
     if (child instanceof Animator || child instanceof AnimatorGroup) child.autoStart();
+    else if (isSourceNode(child)) child.autoStart();
     // Apply a state's initial value once linked. A gated state has usually
     // already synced from its gate's first run in pass two (idempotent here); a
     // literal `applied = true` (no gate) applies now. Non-View, like animators.
@@ -475,6 +495,9 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
   if (schema !== null && descendsFrom(schema, "AnimatorGroup")) {
     return constructAnimatorGroup(el, schema, outer, ctx);
   }
+  if (schema !== null && Object.hasOwn(SOURCES, el.tag)) {
+    return constructSource(el, schema, outer, ctx);
+  }
   if (schema !== null && descendsFrom(schema, "State")) {
     return constructState(el, schema, outer, ctx, parentSchema);
   }
@@ -570,11 +593,6 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
     // parent, and the scope the member was written in.
     const installed = (...args: unknown[]) => fn.call(view, view.parent, mcroot, ...args);
     (view as unknown as Record<string, unknown>)[m.name] = installed;
-    // A SUBSCRIPTION (`member(params) <- Source { body }`, language §8): the
-    // installed member additionally registers with its source now, and
-    // unsubscribes when this node is discarded — lifetime-managed, nothing
-    // for the author to clean up.
-    if (m.source !== undefined) onDiscard(view, subscribeToSource(m.source, m.name, installed));
   }
   for (const { attr, croot: acroot } of attrs.values()) {
     // The two styling-channel slots resolve against PROGRAM declarations
@@ -816,6 +834,52 @@ function constructAnimator(el: Element, schema: ComponentSchema, outer: View | n
     if ("binding" in r) ctx.pending.push({ view: node, attr: a, code: r.binding.src, classroot: outer });
     else if ("datapath" in r) {
       throw new DeclareError(`${el.tag}.${a.name}: an animator attribute is a value or a { }, not a data read`, a.value.pos);
+    } else if (isPercent(r.value)) {
+      throw new DeclareError(`${el.tag}.${a.name}: no axis to resolve a percent against`, a.value.pos);
+    } else {
+      (node as unknown as Record<string, unknown>)[a.name] = r.value;
+    }
+  }
+  return node;
+}
+
+/** Construct a SOURCE node — a non-visual member whose handlers are called from
+ *  outside the tree (sources.ts: `Keys`, `Focus`, `Tip`; frames.ts: `Frames`).
+ *  Like an animator it carries attributes plus handlers; unlike one it drives no
+ *  slot, so none of the animator's target checking applies. Its subscriptions
+ *  are wired by initTree's autoStart — the same lifecycle hook an animator uses,
+ *  which is also why a source costs nothing for a handler nobody declared. */
+function constructSource(el: Element, schema: ComponentSchema, outer: View | null, ctx: Ctx): Node {
+  if (el.decls.length > 0 || el.children.length > 0) {
+    throw new DeclareError(`a ${el.tag} takes attributes and its own handlers only`, el.pos);
+  }
+  if (el.raw !== undefined) {
+    throw new DeclareError(`only a Dataset carries a { } body — a ${el.tag}'s members go in [ ]`, el.raw.pos);
+  }
+  const node = new SOURCES[el.tag]();
+  for (const m of el.methods) {
+    if (!ctx.trusted) {
+      const r = checkMethod(schema, m);
+      if (!r.ok) throw r.error;
+    }
+    if (m.name in node) {
+      throw new DeclareError(
+        `${schema.name}.${m.name}: '${m.name}' is a built-in member of the runtime ${schema.name} — choose another name`,
+        m.pos
+      );
+    }
+    const c = compileBody(m.params, m.body);
+    if ("error" in c) throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
+    const fn = c.fn;
+    (node as unknown as Record<string, unknown>)[m.name] =
+      (...args: unknown[]) => fn.call(node, node.parent, outer, ...args);
+  }
+  for (const a of el.attrs) {
+    const r = routeAttr(schema, a, ctx.trusted);
+    if (!r.ok) throw r.error;
+    if ("binding" in r) ctx.pending.push({ view: node, attr: a, code: r.binding.src, classroot: outer });
+    else if ("datapath" in r) {
+      throw new DeclareError(`${el.tag}.${a.name}: a ${el.tag} attribute is a value or a { }, not a data read`, a.value.pos);
     } else if (isPercent(r.value)) {
       throw new DeclareError(`${el.tag}.${a.name}: no axis to resolve a percent against`, a.value.pos);
     } else {

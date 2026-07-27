@@ -26,7 +26,7 @@
 // element an anonymous schema, and named children join the one member
 // namespace.
 import { DeclareError } from "./errors.js";
-import { SUBSCRIPTION_SOURCES, attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName } from "./schema.js";
+import { attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName } from "./schema.js";
 import { Diag } from "./diagnostics.js";
 import { coerce, describeLiteral } from "./value.js";
 import { validateExpr, validateBody } from "./expr.js";
@@ -51,7 +51,7 @@ const UNSTYLABLE = {
  *  Element fragment. Returns every error found, in source order — an empty
  *  array means the tree is well-typed and safe to instantiate. */
 export function check(input) {
-    const program = "root" in input ? input : { classes: [], stylesheets: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], root: input };
+    const program = "root" in input ? input : { classes: [], stylesheets: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], scripts: [], root: input };
     const { infos, schemas, errors } = programSchemas(program.classes);
     const env = checkStyleDecls(program, schemas, errors);
     // A class body checks as an instance of its own (just-registered) class:
@@ -416,6 +416,10 @@ classRoot = false) {
         checkAnimatorGroupNode(el, schema, schemas, parentSchema, errors, false);
         return; // a group judges its whole subtree (its members are animators)
     }
+    else if (isSourceSchema(schema)) {
+        checkSourceNode(el, schema, errors);
+        return; // a source's whole surface is judged here — no subtree
+    }
     else if (descendsFrom(schema, "State")) {
         checkStateNode(el, schema, schemas, parentSchema, env, errors);
         return; // a state judges its whole subtree (overrides + child views)
@@ -627,6 +631,38 @@ function checkDataNode(el, schema, errors) {
  *  (guarded at instantiate, the runtime-member fact). The one animation
  *  compile check lives here, where the PARENT (the animator's target) is in
  *  context. */
+/** Is this one of the SOURCE components (sources.ts / frames.ts) — a non-visual
+ *  member whose handlers are called from outside the tree? Named rather than
+ *  chained because they share no base: what unites them is the shape checked
+ *  below, not an inheritance relationship. */
+function isSourceSchema(schema) {
+    return schema.name === "Frames" || schema.name === "Keys" || schema.name === "Focus" || schema.name === "Tip";
+}
+/** A source node (`Keys [ onKeyUp(e) { … } ]`, `Frames [ onFrame(dt) { … } ]`):
+ *  its own attributes and its handlers, nothing else. Deliberately NOT the
+ *  animator path — a source drives no slot, so it has no `attribute`/`to` to
+ *  validate. */
+function checkSourceNode(el, schema, errors) {
+    if (el.raw !== undefined) {
+        errors.push(new DeclareError(`only a Dataset carries a { } body — a ${el.tag}'s members go in [ ]`, el.raw.pos));
+    }
+    for (const d of el.decls) {
+        errors.push(new DeclareError(`a ${el.tag} declares no attributes of its own — it carries its handlers${el.tag === "Frames" ? " and 'running'" : ""}`, d.pos));
+    }
+    for (const c of el.children) {
+        errors.push(new DeclareError(`a ${el.tag} takes no children — it delivers events to its handlers, it is not a container`, c.pos));
+    }
+    for (const a of el.attrs) {
+        const r = checkAttr(schema, a);
+        if (!r.ok)
+            errors.push(r.error);
+    }
+    for (const m of el.methods) {
+        const r = checkMethod(schema, m);
+        if (!r.ok)
+            errors.push(r.error);
+    }
+}
 function checkAnimatorNode(el, schema, parentSchema, errors, 
 /** An enclosing AnimatorGroup already provides `attribute` (the LZX
  *  default-cascade) — so a member that omits its own `attribute` is legal. */
@@ -1011,28 +1047,12 @@ export function checkMethod(schema, m) {
     if (RESERVED.includes(m.name)) {
         return err(`'${m.name}' is a value constructor (gradient/stroke/shadow/stop) — it cannot be a member name`, m.pos);
     }
-    // A SUBSCRIPTION (`member(params) <- Source { body }`, language §8): the
-    // member answers the SOURCE, not this component's own events — so it skips
-    // the own-event handler check and is validated against the source table
-    // instead. Both errors name the fix (diagnostics.md §4).
-    if (m.source !== undefined) {
-        const members = SUBSCRIPTION_SOURCES[m.source];
-        if (members === undefined) {
-            const known = Object.keys(SUBSCRIPTION_SOURCES).join(", ");
-            return err(`'${m.source}' is not a subscribable source — subscribe to one of: ${known}`, m.sourcePos ?? m.pos);
-        }
-        if (!members.includes(m.name)) {
-            return err(`${m.source} does not call '${m.name}' — its members: ${members.join(", ")} (the name matches the source's member literally)`, m.pos);
-        }
-    }
-    else {
-        const event = eventOfHandler(m.name);
-        if (event !== null && !eventsOf(schema).includes(event)) {
-            const known = eventsOf(schema).map(handlerName);
-            return err(known.length > 0
-                ? `${schema.name} has no '${m.name}' event — its handlers: ${known.join(", ")}`
-                : `${schema.name} declares no events, so '${m.name}' can answer nothing`, m.pos);
-        }
+    const event = eventOfHandler(m.name);
+    if (event !== null && !eventsOf(schema).includes(event)) {
+        const known = eventsOf(schema).map(handlerName);
+        return err(known.length > 0
+            ? `${schema.name} has no '${m.name}' event — its handlers: ${known.join(", ")}`
+            : `${schema.name} declares no events, so '${m.name}' can answer nothing`, m.pos);
     }
     const noun = m.params.find((p) => p === "parent" || p === "classroot" || p === "app");
     if (noun !== undefined) {

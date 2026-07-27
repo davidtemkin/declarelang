@@ -214,7 +214,14 @@ const ViewSchema: ComponentSchema = {
   // event `init` (Appendix A's onInit). Hover (mouseOver/Out) waits for its
   // consuming rung — it needs retained enter/leave tracking, not just a
   // per-event hit test.
-  events: ["click", "dblClick", "mouseDown", "mouseUp", "mouseMove", "mouseOver", "mouseOut", "init", "focus", "blur", "escapeFocus", "keyDown", "keyUp"],
+  // The pointer events come in two layers (input.ts): the RAW facts —
+  // mouseDown/Move/Up and the multi-finger `touch*` family — report what the
+  // pointer physically did, immediately; the RESOLVED ones — click, dblClick,
+  // hold — report what the user MEANT, after the router has watched the whole
+  // gesture. Activate on the resolved layer, manipulate on the raw one.
+  events: ["click", "dblClick", "hold", "mouseDown", "mouseUp", "mouseMove", "mouseOver", "mouseOut",
+    "touchStart", "touchMove", "touchEnd", "touchCancel",
+    "init", "focus", "blur", "escapeFocus", "keyDown", "keyUp"],
 };
 
 // App is the root View plus the app's reactive environment. `hostWidth`/
@@ -247,6 +254,16 @@ const AppSchema: ComponentSchema = {
     // mouse-only affordances (a cursor-chasing dot, a hover reveal) switch off with
     // `visible = { !app.touchDevice }`.
     touchDevice: { kind: "boolean" },
+    // The rest of the device profile (boot.ts wireTouchDevice). `hasTouch` /
+    // `hasPointer` are what the device HAS (`any-pointer`), not what is
+    // primary: a touch laptop is both, with touchDevice false. Size from
+    // `touchDevice`; use `hasTouch` for a hit-target FLOOR on hybrids.
+    hasTouch: { kind: "boolean" },
+    hasPointer: { kind: "boolean" },
+    // What the user JUST used — "mouse" | "touch" | "pen", live. The honest
+    // answer on a hybrid, where the truth changes per gesture: drive hover-only
+    // affordances from it, never layout.
+    lastPointerType: { kind: "string" },
     // The EMBEDDING ENVIRONMENT's parameters — a record the HOST provides and
     // keeps live (an island's slot marker carries `|k=v&k2=v2` after the
     // program path; host-client parses, coerces, and writes the whole record).
@@ -294,7 +311,7 @@ const AppSchema: ComponentSchema = {
   },
   // hostWidth/hostHeight are read-only to user code (the runtime feeds them; a
   // set is a compile error) — like View's contentWidth/contentHeight.
-  readOnly: ["hostWidth", "hostHeight", "dark"],
+  readOnly: ["hostWidth", "hostHeight", "dark", "touchDevice", "hasTouch", "hasPointer", "lastPointerType"],
 };
 
 // Text (R3): a text run sized by native browser metrics when width/height
@@ -618,6 +635,48 @@ const SpringSchema: ComponentSchema = {
   },
 };
 
+// Frames (frames.ts) — the frame heartbeat as a component: a non-visual member
+// that calls `onFrame(dt)` once per animation frame while `running`. Springs and
+// Animators are the DECLARATIVE half of motion (say where a thing belongs); this
+// is the raw heartbeat an app running its own integrator needs — custom gesture
+// physics, a simulation, a game loop. A component rather than a new subscription
+// operator: an event is just a member that gets called, and non-visual members
+// are a category the language already has.
+const FramesSchema: ComponentSchema = {
+  name: "Frames",
+  base: null,
+  attrs: {
+    running: { kind: "boolean" },
+  },
+  events: ["frame"],
+};
+
+// The runtime SERVICES as components (sources.ts): non-visual members whose
+// handlers are called from outside the tree. Each declares the events it calls;
+// a handler for one it doesn't is the ordinary typo'd-handler error. Fan-out is
+// by instance — a menu, a dialog, and a menubar each holding a `Keys` member
+// all hear the keyboard at once.
+const KeysSchema: ComponentSchema = {
+  name: "Keys",
+  base: null,
+  attrs: {},
+  events: ["keyDown", "keyUp"],
+};
+
+const FocusSchema: ComponentSchema = {
+  name: "Focus",
+  base: null,
+  attrs: {},
+  events: ["focusChange", "geometry"],
+};
+
+const TipSchema: ComponentSchema = {
+  name: "Tip",
+  base: null,
+  attrs: {},
+  events: ["tip"],
+};
+
 // State (docs/system-design/states.md) — a twin-table component like Animator:
 // non-visual (base null; family test descendsFrom(schema, "State")), carrying
 // the one control attribute `applied` and the built-in verbs apply()/remove()/
@@ -655,6 +714,10 @@ export const SCHEMAS: Readonly<Record<string, ComponentSchema>> = {
   Animator: AnimatorSchema,
   AnimatorGroup: AnimatorGroupSchema,
   Spring: SpringSchema,
+  Frames: FramesSchema,
+  Keys: KeysSchema,
+  Focus: FocusSchema,
+  Tip: TipSchema,
   State: StateSchema,
   Node: NodeSchema,
 };
@@ -690,17 +753,6 @@ export function isReadOnly(schema: ComponentSchema, name: string): boolean {
   return false;
 }
 
-/** The subscribable external sources and the members each calls (language §8,
- *  the `<-` form) — the checker-safe half of the subscription surface (the
- *  runtime half, which touches the live services, is sources.ts). Member
- *  names are LITERAL (`onKeyUp <- Keys` ⇒ Keys calls `onKeyUp`); the `on`
- *  prefix is convention, not mapping. v1: the Keys service; more services
- *  (and eventually view sources) extend this table. */
-export const SUBSCRIPTION_SOURCES: Readonly<Record<string, readonly string[]>> = {
-  Keys: ["onKeyDown", "onKeyUp"],
-  Focus: ["onFocusChange", "onGeometry"],
-  Tip: ["onTip"],
-};
 
 /** Is `name` a prevailing attribute on `schema` (or its chain)? Asked of the
  *  schema that DECLARES the name — being prevailing is part of the slot's

@@ -107,12 +107,23 @@ function toChildLocal(c: InteractionView, lx: number, ly: number): [number, numb
 /** The topmost visible view whose box contains the point — reverse paint
  *  order, descending through containers; overflow children are reachable
  *  outside their parent's box unless the parent clips. All attribute reads
- *  here run inside the driver's tracked compute — they ARE the dependencies. */
-function leafAt(v: InteractionView, lx: number, ly: number): InteractionView | null {
+ *  here run inside the driver's tracked compute — they ARE the dependencies.
+ *
+ *  THE ONE WALK. Exported because it is also the language's own hit test
+ *  (View.viewAt / View.containsPoint, view.ts): what an app computes about
+ *  "what is under this point" and what the runtime computes for `hovered` must
+ *  be the same answer, from the same code. (Three hand-rolled versions of this
+ *  question — the inspector's picker, a calendar's cell math, a window's resize
+ *  zones — is how the desktop's corner bug happened.) */
+export function leafAt(v: InteractionView, lx: number, ly: number, pierce = false): InteractionView | null {
   if (!v.visible) return null;
   // "none" makes the subtree pointer-transparent (the overlay rule) — the walk
-  // falls through it exactly as input resolution does.
-  if (v.pointerEvents === "none") return null;
+  // falls through it exactly as input resolution does. `pierce` is the ONE
+  // caller-visible difference in the whole walk: the Inspector's picker must be
+  // able to select a view the pointer would pass through, because a developer
+  // asking "what is this?" means the thing they can see, not the thing that
+  // would receive a press.
+  if (!pierce && v.pointerEvents === "none") return null;
   const inside = lx >= 0 && ly >= 0 && lx <= v.width && ly <= v.height;
   // A clipping view (box or shape — a shape clip approximates as its box here)
   // bounds its subtree's hits — EXCEPT children that opt out with `ignoreclip`
@@ -126,7 +137,7 @@ function leafAt(v: InteractionView, lx: number, ly: number): InteractionView | n
     if (!isView(c)) continue;
     if (clipping && !inside && !c.ignoreclip) continue;
     const [cx, cy] = toChildLocal(c, lx, ly);
-    const hit = leafAt(c, cx, cy);
+    const hit = leafAt(c, cx, cy, pierce);
     if (hit !== null) return hit;
   }
   return inside ? v : null;
@@ -201,6 +212,34 @@ function recOf(view: InteractionView): Rec {
     ORPHANS.set(view, r);
   }
   return r;
+}
+
+/** The view under a ROOT-SPACE point — the public hit test (view.ts wraps it
+ *  as `app.viewAt(x, y)`), answering with the same walk the pointer itself is
+ *  routed by: clip shapes, scale and pivot, `pointerEvents: "none"`, and
+ *  `ignoreclip` all count exactly as they do for a real press. Returns the
+ *  deepest (topmost) view; walk `.parent` for an eligible ancestor. */
+export function hitAt(root: unknown, x: number, y: number, pierce = false): InteractionView | null {
+  if (!isView(root)) return null;
+  return leafAt(root, x, y, pierce);
+}
+
+/** Does `view`'s own box contain this point, given in ROOT space? Geometry
+ *  only — occlusion is `hitAt`'s question — so a view can ask "is the pointer
+ *  within me" without a tree walk. */
+export function boxContains(view: InteractionView, x: number, y: number): boolean {
+  // Walk down from the root accumulating the transform, so the answer honours
+  // the same scale/pivot inversion the routed hit does.
+  const chain: InteractionView[] = [];
+  for (let n: unknown = view; isView(n); n = n.parent) chain.push(n);
+  let lx = x;
+  let ly = y;
+  for (let i = chain.length - 1; i >= 0; i--) {
+    const c = chain[i];
+    if (i === chain.length - 1) continue; // the root is already in root space
+    [lx, ly] = toChildLocal(c, lx, ly);
+  }
+  return lx >= 0 && ly >= 0 && lx <= view.width && ly <= view.height;
 }
 
 /** The tracked read behind `View.hovered`. */

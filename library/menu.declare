@@ -166,21 +166,22 @@ class Menu extends View [ visible = { shown }, width = 220,
 
     stepIn(c) { c.step(1) },
 
-    onKeyDown(e) <- Keys {
-        if (!shown) return
-        if (this.subShown(child)) return          // the deeper menu handles
-        if (e.key == "ArrowDown") this.step(1)
-        else if (e.key == "ArrowUp") this.step(-1)
-        else if (e.key == "Enter") this.pickActive()
-        else if (e.key == "ArrowRight") this.enterSub()
-        else if (e.key == "ArrowLeft") { if (!isRoot) this.close() }
-        },
-
-    onKeyUp(e) <- Keys {
-        if (!shown || e.key != "Escape") return
-        if (this.subShown(child)) return          // the deeper menu handles
-        this.rootClose()                          // Escape closes the WHOLE chain (macOS)
-        },
+    keys: Keys [
+        onKeyDown(e) {
+            if (!classroot.shown) return
+            if (classroot.subShown(classroot.child)) return   // the deeper menu handles
+            if (e.key == "ArrowDown") classroot.step(1)
+            else if (e.key == "ArrowUp") classroot.step(-1)
+            else if (e.key == "Enter") classroot.pickActive()
+            else if (e.key == "ArrowRight") classroot.enterSub()
+            else if (e.key == "ArrowLeft") { if (!classroot.isRoot) classroot.close() }
+            },
+        onKeyUp(e) {
+            if (!classroot.shown || e.key != "Escape") return
+            if (classroot.subShown(classroot.child)) return   // the deeper menu handles
+            classroot.rootClose()                             // Escape closes the WHOLE chain (macOS)
+            },
+        ],
 
     // items → rows through an INTERNAL derived dataset (the author passes a
     // plain array — the no-dataset-requirement ruling; the wrap is ours)
@@ -218,7 +219,9 @@ class Menu extends View [ visible = { shown }, width = 220,
                 enabled:  boolean = { :enabled != false },
                 sub:      boolean = { !!:submenu },
                 custom:   string  = { typeof :kind == "string" ? "" + :kind : "" },
+
                 // the row's highlight gate: the hover intrinsic under MENU policy
+
                 hot:      boolean = { this.hovered && this.enabled && !this.divider },
                 height = { divider ? 11 : custom != "" ? Math.max(26, this.host.height + 8) : (typeof theme.menuRow == "number" ? theme.menuRow : 26) },
                 opacity = { enabled ? 1 : (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) },

@@ -101,8 +101,19 @@ await test("parse() accepts an optional trailing comma", () => {
   assert.equal(el.attrs.length, 2);
 });
 
-await test("parse() requires a comma between members (language spec §12)", () => {
-  assert.throws(() => parse("App [ View [] View [] ]"), DeclareError);
+await test("parse(): the comma between members is OPTIONAL", () => {
+  // Members are delimited by the grammar (each begins with an ident), so the
+  // comma is punctuation the author may use, omit, or trail. All four spellings
+  // of the same two-child body parse to the same tree.
+  const shapes = [
+    "App [ View [] View [] ]",           // none
+    "App [ View [], View [] ]",          // separating
+    "App [ View [], View [], ]",         // separating + trailing
+    "App [ View []\n  View []\n  ]",     // newline-delimited
+  ];
+  for (const src of shapes) {
+    assert.equal(parse(src).children.length, 2, src);
+  }
 });
 
 await test("parse() reports a source position on syntax errors", () => {
@@ -851,13 +862,15 @@ await test("parse() reads parameter lists (incl. a trailing comma)", () => {
   ]);
 });
 
-await test("methods mix with attributes and children under the comma rules", () => {
+await test("methods mix with attributes and children, comma or not", () => {
   const el = parse("App [ width=1, onInit() { }, View [ x=2, m() { } ] ]");
   assert.equal(el.attrs.length, 1);
   assert.equal(el.methods.length, 1);
   assert.equal(el.children[0].methods.length, 1);
-  // no comma between a method and the next member is still a syntax error
-  assert.throws(() => parse("App [ onInit() { } View [] ]"), DeclareError);
+  // the comma after a method body is optional like every other one
+  const bare = parse("App [ onInit() { } View [] ]");
+  assert.equal(bare.methods.length, 1);
+  assert.equal(bare.children.length, 1);
 });
 
 await test("a method body is the same lexical-island scan as a { } value", () => {
@@ -884,7 +897,7 @@ await test("check() rejects a typo'd handler, naming the handlers it knows", () 
   const [err] = check(parse("View [ onClik() { } ]"));
   // names the typo and lists the handlers it knows (the set grows with the
   // schema — pin the stable leading pointer handlers, not the whole tail)
-  assert.match(err.message, /View has no 'onClik' event — its handlers: onClick, onDblClick, onMouseDown, onMouseUp, onMouseMove/);
+  assert.match(err.message, /View has no 'onClik' event — its handlers: onClick, onDblClick, onHold, onMouseDown, onMouseUp, onMouseMove/);
   assert.equal(err.pos.col, 8);
 });
 
@@ -1041,6 +1054,177 @@ await test("routeInput: POINTER events drive the sink protocol (down/up/click; c
   }
 });
 
+// ── the click RULE: slop, cancellation, and double-click arbitration ─────────
+// The router decides what a gesture MEANT; these lock the decision, backend-free.
+
+/** Drive routeInput with synthetic pointer events over a mock window. */
+function inputHarness(targets) {
+  const handlers = {};
+  const realWindow = globalThis.window;
+  globalThis.window = {
+    addEventListener: (type, fn) => { (handlers[type] ??= []).push(fn); },
+    removeEventListener: (type, fn) => { handlers[type] = (handlers[type] ?? []).filter((h) => h !== fn); },
+  };
+  const log = [];
+  const mk = (name, wants = {}) => ({
+    key: { name }, x: 1, y: 2, ...wants,
+    sink: (type, x, y, extra) => log.push([name, type, extra]),
+  });
+  const T = {};
+  for (const [name, wants] of Object.entries(targets)) T[name] = mk(name, wants);
+  routeInput(() => true, (e) => T[e.k] ?? null, (e) => ({ x: e.clientX, y: e.clientY }));
+  return {
+    log,
+    types: () => log.map((e) => e[1]),
+    fire: (type, k, { x = 10, y = 20, pointerType = "touch" } = {}) =>
+      (handlers[type] ?? []).forEach((h) => h({ k, clientX: x, clientY: y, pointerType, pointerId: 1 })),
+    done: () => { globalThis.window = realWindow; },
+  };
+}
+
+await test("click slop: a moved FINGER does not click (it was swiping), a still one does", () => {
+  const h = inputHarness({ A: {} });
+  try {
+    h.fire("pointerdown", "A", { x: 100, y: 100 });
+    h.fire("pointermove", "A", { x: 100, y: 130 });   // 30px — past the 10px touch slop
+    h.fire("pointerup", "A", { x: 100, y: 130 });
+    assert.ok(!h.types().includes("click"), "a swipe that began on a view clicks nothing");
+
+    h.log.length = 0;
+    h.fire("pointerdown", "A", { x: 100, y: 100 });
+    h.fire("pointermove", "A", { x: 103, y: 100 });   // 3px — finger jitter
+    h.fire("pointerup", "A", { x: 103, y: 100 });
+    assert.ok(h.types().includes("click"), "jitter inside slop still taps");
+  } finally { h.done(); }
+});
+
+await test("click slop: a MOUSE tracks inside its target (4px), unlike a finger", () => {
+  const h = inputHarness({ A: {} });
+  try {
+    h.fire("pointerdown", "A", { x: 100, y: 100, pointerType: "mouse" });
+    h.fire("pointermove", "A", { x: 106, y: 100, pointerType: "mouse" });  // 6px — past mouse slop
+    h.fire("pointerup", "A", { x: 106, y: 100, pointerType: "mouse" });
+    assert.ok(!h.types().includes("click"), "a 6px mouse drag is a drag, not a click");
+
+    h.log.length = 0;
+    h.fire("pointerdown", "A", { x: 100, y: 100, pointerType: "mouse" });
+    h.fire("pointermove", "A", { x: 102, y: 100, pointerType: "mouse" });  // 2px — hand tremor
+    h.fire("pointerup", "A", { x: 102, y: 100, pointerType: "mouse" });
+    assert.ok(h.types().includes("click"), "2px of tremor still clicks");
+  } finally { h.done(); }
+});
+
+await test("a canceled gesture says so: the release carries canceled: true", () => {
+  const h = inputHarness({ A: {} });
+  try {
+    h.fire("pointerdown", "A");
+    h.fire("pointercancel", "A");
+    const up = h.log.find((e) => e[1] === "mouseUp");
+    assert.equal(up[2].canceled, true, "an interrupted gesture is distinguishable from a drop");
+
+    h.log.length = 0;
+    h.fire("pointerdown", "A");
+    h.fire("pointerup", "A");
+    assert.equal(h.log.find((e) => e[1] === "mouseUp")[2].canceled, false, "a real release is not canceled");
+  } finally { h.done(); }
+});
+
+await test("dblClick: two taps pair; a view declaring onDblClick HOLDS its single click", async () => {
+  const h = inputHarness({ A: {}, D: { wantsDbl: true } });
+  try {
+    // a plain view: click fires immediately, the pair adds dblClick
+    h.fire("pointerdown", "A"); h.fire("pointerup", "A");
+    h.fire("pointerdown", "A"); h.fire("pointerup", "A");
+    assert.deepEqual(h.types().filter((t) => t === "click" || t === "dblClick"),
+      ["click", "click", "dblClick"], "no arbitration where none was asked for");
+
+    // a view that answers double-clicks: the FIRST click waits out the window
+    h.log.length = 0;
+    h.fire("pointerdown", "D"); h.fire("pointerup", "D");
+    assert.deepEqual(h.types().filter((t) => t === "click"), [], "single click withheld pending the double window");
+    h.fire("pointerdown", "D"); h.fire("pointerup", "D");
+    assert.deepEqual(h.types().filter((t) => t === "click" || t === "dblClick"),
+      ["dblClick"], "the pair fires dblClick ONLY — the single action never ran");
+
+    // and a lone tap on that view still clicks, once the window passes
+    h.log.length = 0;
+    h.fire("pointerdown", "D"); h.fire("pointerup", "D");
+    await new Promise((r) => setTimeout(r, 450));
+    assert.deepEqual(h.types().filter((t) => t === "click"), ["click"], "the withheld click arrives when no pair comes");
+  } finally { h.done(); }
+});
+
+await test("dblClick proximity: two taps far apart on one big view are not a pair", () => {
+  const h = inputHarness({ A: {} });
+  try {
+    h.fire("pointerdown", "A", { x: 10, y: 10 }); h.fire("pointerup", "A", { x: 10, y: 10 });
+    h.fire("pointerdown", "A", { x: 200, y: 200 }); h.fire("pointerup", "A", { x: 200, y: 200 });
+    assert.ok(!h.types().includes("dblClick"), "opposite corners of a large view are two singles");
+  } finally { h.done(); }
+});
+
+await test("onHold: a press held in place fires hold, and does not consume the gesture", async () => {
+  const h = inputHarness({ H: { wantsHold: true } });
+  try {
+    h.fire("pointerdown", "H");
+    await new Promise((r) => setTimeout(r, 560));
+    assert.ok(h.types().includes("hold"), "held in place → hold");
+    h.fire("pointerup", "H");
+    assert.ok(h.types().includes("click"), "the gesture continues: a still release still clicks");
+
+    // a press that WANDERS is a drag, never a hold
+    h.log.length = 0;
+    h.fire("pointerdown", "H", { x: 100, y: 100 });
+    h.fire("pointermove", "H", { x: 100, y: 140 });
+    await new Promise((r) => setTimeout(r, 560));
+    h.fire("pointerup", "H", { x: 100, y: 140 });
+    assert.ok(!h.types().includes("hold"), "a moved press is a drag, not a hold");
+  } finally { h.done(); }
+});
+
+await test("the hit test: app.viewAt answers with the SAME walk the pointer is routed by", () => {
+  const app = build(`App [ width = 200, height = 200,
+    a: View [ x = 10, y = 10, width = 80, height = 80,
+        inner: View [ x = 10, y = 10, width = 20, height = 20 ] ],
+    glass: View [ x = 100, y = 10, width = 60, height = 60, pointerEvents = "none" ],
+    ]`);
+  settle();
+  assert.equal(app.viewAt(25, 25), app.a.inner, "topmost (deepest) view wins");
+  assert.equal(app.viewAt(80, 80), app.a, "a point in the parent only");
+  assert.equal(app.viewAt(5, 5), app, "the root itself");
+  assert.equal(app.viewAt(120, 30), app, "pointer-transparent views are skipped, exactly as a press would");
+  assert.equal(app.viewAt(500, 500), null, "outside everything");
+  // and the view-local companion
+  assert.ok(app.a.containsPoint(50, 50), "containsPoint: root-space point inside a's box");
+  assert.ok(!app.a.containsPoint(150, 50), "…and outside it");
+});
+
+await test("the hit test honours CLIP, which the old inspector walk did not", () => {
+  const app = build(`App [ width = 200, height = 200,
+    box: View [ x = 10, y = 10, width = 50, height = 50, clip = true,
+        over: View [ x = 40, y = 40, width = 60, height = 60 ] ],
+    ]`);
+  settle();
+  assert.equal(app.viewAt(55, 55), app.box.over, "inside the clip, the child is hit");
+  assert.equal(app.viewAt(90, 90), app, "the overflowing part is clipped away — not hit");
+});
+
+await test("raw touch: a view declaring the family gets the finger list, ids stable", () => {
+  const h = inputHarness({ T: { wantsTouch: true } });
+  try {
+    h.fire("pointerdown", "T", { x: 30, y: 40 });
+    const start = h.log.find((e) => e[1] === "touchStart");
+    assert.deepEqual(start[2].touches, [{ id: 1, x: 30, y: 40 }], "the live finger list rides the event");
+    h.fire("pointermove", "T", { x: 35, y: 44 });
+    const move = h.log.find((e) => e[1] === "touchMove");
+    assert.equal(move[2].touches[0].id, 1, "the same finger keeps its id across the gesture");
+    assert.equal(move[2].touches[0].y, 44);
+    h.fire("pointerup", "T", { x: 35, y: 44 });
+    assert.ok(h.types().includes("touchEnd"), "and the lift is reported");
+    assert.deepEqual(h.log.find((e) => e[1] === "touchEnd")[2].touches, [], "with the finger gone from the list");
+  } finally { h.done(); }
+});
+
 await test("draw(d) { … } — the language surface — rides the recorded-draw machinery", () => {
   const app = build("App [ width=100, height=60, View [ width=8, height=10, draw(d) { d.fillRect(0, 0, this.width, 5) } ] ]");
   const log = [];
@@ -1083,10 +1267,30 @@ await test("canvas hit walk: topmost wins, transparency falls through, pruning",
   b.setVisible(false);
   assert.equal(root.hit(60, 20).key, a, "invisible prunes the subtree");
   b.setVisible(true);
+  // OPACITY IS PAINT, NOT PRESENCE (canvas-backend.ts `hit`): a fully
+  // transparent view is still hittable. The DOM inherits this from CSS, where
+  // only visibility/display/pointer-events remove an element from hit testing —
+  // so pruning here would make the two renderers disagree on input routing, and
+  // would put `viewAt()` at odds with the `hovered` intrinsic, which consults
+  // `visible` alone. The transparent press-catcher (the activation-glass idiom)
+  // depends on it. An author who wants a fade to become absence writes
+  // `visible = { opacity > 0 }`.
   b.setOpacity(0);
-  assert.equal(root.hit(60, 20).key, a, "opacity 0 prunes the subtree");
+  assert.equal(root.hit(60, 20).key, b, "opacity 0 still hits — opacity is paint, not presence");
   b.setOpacity(0.5);
   assert.equal(root.hit(60, 20).key, b, "translucent still hits");
+  // The WHEEL arm obeys the same rule: a wheel is input, routed by position, so
+  // it reaches a transparent scroller exactly as a click reaches a transparent
+  // sink. (scrollBy used to prune on opacity, which left the two input paths
+  // disagreeing with each other inside the SAME renderer.)
+  b.scrolls = true;
+  b.setOpacity(0);
+  assert.equal(root.scrollBy(60, 20, 10), true, "a transparent scroller still takes the wheel");
+  b.setVisible(false);
+  assert.equal(root.scrollBy(60, 20, 10), false, "but `visible = false` does prune the wheel");
+  b.setVisible(true);
+  b.scrolls = false;
+  b.setOpacity(0.5);
 
   // a child outside its parent's box is still hittable (no implicit clip)
   const out = surf(150, 80, 30, 30, sink("out"));
@@ -1864,9 +2068,11 @@ await test("parse(): the :path literal — single, dotted, and the many form", (
 });
 
 await test("parse(): `[]` binds to the path only when glued (like `%`)", () => {
-  // Spaced, `[ ]` is not part of the value — and nothing else can follow a
-  // literal, so the parser points at the stray bracket.
-  assert.throws(() => parse(`View [ datapath = :rows [ ] ]`), /expected ']'/);
+  // Spaced, `[ ]` is not part of the value. The member ends at the literal, and
+  // the next member must begin with a name — so the parser points at the stray
+  // bracket. (Glued, `:rows[]` is one many-path literal; see below.)
+  assert.throws(() => parse(`View [ datapath = :rows [ ] ]`), /expected a member name, got '\['/);
+  assert.equal(parse(`View [ datapath = :rows[] ]`).attrs[0].value.many, true);
 });
 
 await test("parse(): the embedded Dataset body is captured raw", () => {
@@ -5137,46 +5343,66 @@ function compileAndBoot(src) {
   return app;
 }
 
-await test("subscription: wires to Keys, delivers, and unsubscribes at discard (Node host)", async () => {
+await test("sources: a Keys member wires at init and unsubscribes at discard", async () => {
   const { Keys } = await import("../runtime/dist/index.js");
   const app = compileAndBoot(`App [ width = 100, height = 100, n: number = 0,
-    nav: Node [ onKeyUp(e) <- Keys { if (e.key == "ArrowDown") app.n = app.n + 1 } ],
+    nav: Keys [ onKeyUp(e) { if (e.key == "ArrowDown") app.n = app.n + 1 } ],
     ]`);
   Keys.keyUp(KEY_DOWN_ARROW);
-  assert.equal(app.n, 1, "the subscription body ran with the KeyEvent payload");
+  assert.equal(app.n, 1, "the handler ran with the KeyEvent payload");
   app.discard();
   Keys.keyUp(KEY_DOWN_ARROW);
   assert.equal(app.n, 1, "discard unsubscribed — a torn-down subtree hears nothing");
 });
 
-await test("subscription: a View host retires through the same registry", async () => {
+await test("sources: fan-out is by INSTANCE — two Keys members both hear the keyboard", async () => {
   const { Keys } = await import("../runtime/dist/index.js");
-  const app = compileAndBoot(`App [ width = 100, height = 100, n: number = 0,
-    panel: View [ width = 10, height = 10, onKeyDown(e) <- Keys { app.n = app.n + 1 } ],
+  const app = compileAndBoot(`App [ width = 100, height = 100, a: number = 0, b: number = 0,
+    k1: Keys [ onKeyDown(e) { app.a = app.a + 1 } ],
+    k2: Keys [ onKeyDown(e) { app.b = app.b + 1 } ],
     ]`);
   Keys.keyDown(KEY_DOWN_ARROW);
-  assert.equal(app.n, 1);
-  app.discard();
-  Keys.keyDown(KEY_DOWN_ARROW);
-  assert.equal(app.n, 1, "View.discard runs the moved teardown registry");
+  assert.equal(app.a, 1, "first listener");
+  assert.equal(app.b, 1, "second — which is why a menu, a dialog, and a menubar can all listen");
 });
 
-await test("subscription: unknown source and unknown member are positioned, fix-naming errors", () => {
-  const bad1 = compile(`App [ v: Node [ onKeyUp(e) <- Mouse { } ] ]`, {});
-  assert.equal(bad1.source, null);
-  assert.match(bad1.errors[0].message, /'Mouse' is not a subscribable source — subscribe to one of: Keys/);
-  const bad2 = compile(`App [ v: Node [ onWheel(e) <- Keys { } ] ]`, {});
-  assert.equal(bad2.source, null);
-  assert.match(bad2.errors[0].message, /Keys does not call 'onWheel' — its members: onKeyDown, onKeyUp/);
+await test("sources: nothing subscribes for a handler nobody declared", async () => {
+  const { Keys } = await import("../runtime/dist/index.js");
+  const app = compileAndBoot(`App [ width = 100, height = 100, n: number = 0,
+    quiet: Keys [ ],
+    ]`);
+  Keys.keyDown(KEY_DOWN_ARROW);   // must not throw: an empty source is inert
+  assert.equal(app.n, 0, "pay-per-use, like every other member");
 });
 
-await test("subscription: `<-` does not collide with `<->` lexing", () => {
+await test("sources: the `<-` operator is GONE, and the error names the rewrite", () => {
+  const bad = compile(`App [ v: Node [ onKeyUp(e) <- Keys { } ] ]`, {});
+  assert.equal(bad.source, null);
+  assert.match(bad.errors[0].message, /'<-' subscriptions were removed/);
+  assert.match(bad.errors[0].message, /Keys \[ onKeyUp\(e\) \{ … \} \]/, "names the exact replacement");
+});
+
+await test("sources: a handler the source does not call is the ordinary typo error", () => {
+  const bad = compile(`App [ width = 100, height = 100, k: Keys [ onWheel(e) { } ] ]`, {});
+  assert.equal(bad.source, null);
+  assert.match(bad.errors[0].message, /Keys has no 'onWheel' event — its handlers: onKeyDown, onKeyUp/);
+});
+
+await test("sources: `Keys` is both a component and a callable service, under one name", () => {
+  const r = compile(`App [ width = 100, height = 100,
+    down: boolean = false,
+    k: Keys [ onKeyDown(e) { app.down = Keys.isDown("Space") } ],
+    ]`, {});
+  assert.notEqual(r.source, null, "ask AND listen in one program: " + r.errors.map((e) => e.message).join("; "));
+});
+
+await test("sources: a source member does not collide with `<->` lexing", () => {
   const r = compile(`App [ width = 100, height = 100,
     d: Dataset { { "title": "x" } },
     card: View [ datapath = { app.d.value }, f: TextInput [ text <-> :title ] ],
-    nav: Node [ onKeyUp(e) <- Keys { app.d.set("title", e.key) } ],
+    nav: Keys [ onKeyUp(e) { app.d.set("title", e.key) } ],
     ]`, {});
-  assert.notEqual(r.source, null, "both arrows in one program: " + r.errors.map((e) => e.message).join("; "));
+  assert.notEqual(r.source, null, "the two-way arrow still lexes: " + r.errors.map((e) => e.message).join("; "));
 });
 
 // ── typed bodies: TS syntax is checked, then STRIPPED for emission ───────────
@@ -5704,3 +5930,83 @@ await test("center/end: a size slot refuses the position literal, naming the rul
 
 
 summarize("unit");
+
+// ── the device profile: three independent facts, none of them a guess ───────
+
+await test("device profile: the facts are read-only, and a hybrid is expressible", () => {
+  const app = build(`App [ width = 100, height = 100,
+    touchy: boolean = { this.touchDevice },
+    floor:  boolean = { this.hasTouch },
+    fine:   boolean = { this.hasPointer },
+    live:   string  = { this.lastPointerType },
+    ]`);
+  settle();
+  // the runtime feeds them (boot.ts); the defaults describe a plain desktop
+  assert.equal(app.touchy, false);
+  assert.equal(app.fine, true, "a fine pointer until the profile says otherwise");
+  assert.equal(app.live, "mouse");
+
+  // A WINDOWS TOUCH LAPTOP: has both, primary is the trackpad — the case a
+  // single boolean cannot answer, and the reason hasTouch exists.
+  app.touchDevice = false; app.hasTouch = true; app.hasPointer = true;
+  settle();
+  assert.equal(app.touchy, false, "sizing stays desktop — the trackpad IS primary");
+  assert.equal(app.floor, true, "but a finger may still arrive: the hit-target floor applies");
+
+  // the live fact follows the gesture, which is what a hybrid actually needs
+  app.lastPointerType = "touch"; settle();
+  assert.equal(app.live, "touch");
+});
+
+await test("device profile: an app may not WRITE the profile (the runtime owns it)", () => {
+  const errs = check(parse(`App [ width = 100, height = 100, touchDevice = true ]`));
+  assert.equal(errs.length, 1);
+  assert.match(errs[0].message, /read-only/);
+  for (const name of ["hasTouch", "hasPointer", "lastPointerType"]) {
+    const e = check(parse(`App [ width = 100, height = 100, ${name} = ${name === "lastPointerType" ? '"touch"' : "true"} ]`));
+    assert.equal(e.length, 1, `${name} must be read-only`);
+  }
+});
+
+// ── Frames: the frame heartbeat as a component (frames.ts) ──────────────────
+
+await test("Frames: onFrame(dt) is called per frame, with dt in SECONDS", () => {
+  // the clock must be the fake one BEFORE the tree builds: a Frames member
+  // joins the clock at init (autoStart), like an animator
+  const sched = fakeScheduler();
+  setClock(new Clock(sched));
+  const app = build(`App [ width = 100, height = 100,
+    ticks: number = 0,
+    elapsed: number = 0,
+    f: Frames [ onFrame(dt) { this.parent.ticks = this.parent.ticks + 1; this.parent.elapsed = this.parent.elapsed + dt } ],
+    ]`);
+  settle();
+  sched.frame(0);      // the first frame only establishes the baseline
+  assert.equal(app.ticks, 0, "no step until there are two timestamps");
+  sched.frame(16);
+  assert.equal(app.ticks, 1);
+  assert.ok(Math.abs(app.elapsed - 0.016) < 1e-9, "dt is seconds, not ms");
+  sched.frame(32);
+  assert.equal(app.ticks, 2);
+});
+
+await test("Frames: `running` gates the heartbeat — a live slot, and dt never jumps on resume", () => {
+  const app = build(`App [ width = 100, height = 100,
+    go: boolean = false,
+    ticks: number = 0,
+    biggest: number = 0,
+    f: Frames [ running = { this.parent.go },
+        onFrame(dt) { this.parent.ticks = this.parent.ticks + 1; if (dt > this.parent.biggest) this.parent.biggest = dt } ],
+    ]`);
+  const sched = fakeScheduler();
+  setClock(new Clock(sched));
+  settle();
+  sched.frame(0); sched.frame(16);
+  assert.equal(app.ticks, 0, "running = false: nothing ticks");
+  app.go = true; settle();
+  sched.frame(100); sched.frame(116);
+  assert.equal(app.ticks, 1, "started by the constraint, first frame is the baseline");
+  // a long gap (a backgrounded tab) is CLAMPED, so an integrator cannot explode
+  sched.frame(60116);
+  assert.ok(app.biggest <= 1 / 15 + 1e-9, `dt clamped to the max step, got ${app.biggest}`);
+});

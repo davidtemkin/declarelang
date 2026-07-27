@@ -26,7 +26,7 @@
 // seam's sink, derived from declared handlers).
 
 import { DeclareError } from "./errors.js";
-import type { EditableSpec, InputSink, RenderBackend, Stretch, Surface } from "./backend.js";
+import type { EditableSpec, InputSink, RenderBackend, Stretch, Surface, InputWants } from "./backend.js";
 import { colorToCss, isGradient, type Fill, type Gradient, type Shadow, type Stroke } from "./value.js";
 import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.js";
 import { cssWeight, fontMetrics, fontString, textWidth, wrapLines, type TextStyle } from "./measure.js";
@@ -342,6 +342,8 @@ class CanvasSurface implements Surface {
   private stretch: Stretch = "none";
   /** The view's input route; null = transparent to the pointer (hit walk). */
   private sink: InputSink | null = null;
+  /** The declared-handler facts the router arbitrates with (input.ts). */
+  private wants: InputWants | undefined = undefined;
   /** The native editable overlay (Layer 3), a DOM element over the canvas; null
    *  = this surface is not an editable text field. */
   private editEl: HTMLInputElement | HTMLTextAreaElement | null = null;
@@ -442,8 +444,9 @@ class CanvasSurface implements Surface {
     this.compositor.invalidate();
   }
 
-  setInput(sink: InputSink | null): void {
+  setInput(sink: InputSink | null, wants?: InputWants): void {
     this.sink = sink; // input state changes no pixels — no invalidate
+    this.wants = wants;
   }
 
   setEditable(spec: EditableSpec | null): void {
@@ -590,7 +593,15 @@ class CanvasSurface implements Surface {
    *  surface is transparent, so both backends resolve identically (the DOM
    *  keeps content elements pointer-inert for the same reason). */
   hit(px: number, py: number): HitTarget | null {
-    if (!this.visible || this.opacity <= 0) return null;
+    // OPACITY IS PAINT, NOT PRESENCE: a fully transparent view is still hittable
+    // — the DOM backend inherits that from CSS, and the corpus relies on it (a
+    // transparent view as a press-catcher is a standing idiom, and an author who
+    // wants a fade to become absence writes it: `visible = { opacity > 0 }`,
+    // three places in the corpus). Skipping opacity-0 here made this walk
+    // disagree with both the DOM router AND the `hovered` intrinsic, which
+    // considers only `visible`. The gates that mean "not there" are `visible`
+    // and `pointerEvents`; this is not one of them.
+    if (!this.visible) return null;
     let lx = px - this.x;
     let ly = py - this.y;
     if (this.scaleK !== 1) {
@@ -621,7 +632,7 @@ class CanvasSurface implements Surface {
       if (t !== null) return t;
     }
     if (this.sink !== null && inBox) {
-      return { key: this, sink: this.sink, x: lx, y: ly, cursor: this.cursorStyle !== "" ? this.cursorStyle : undefined };
+      return { key: this, sink: this.sink, ...this.wants, x: lx, y: ly, cursor: this.cursorStyle !== "" ? this.cursorStyle : undefined };
     }
     return null;
   }
@@ -691,7 +702,10 @@ class CanvasSurface implements Surface {
    *  PARENT-local space; true when consumed. Mirrors hit's transform so it
    *  targets exactly what the user sees; the compositor requests the repaint. */
   scrollBy(px: number, py: number, dy: number): boolean {
-    if (!this.visible || this.opacity <= 0) return false;
+    // Opacity is paint, not presence — a wheel is input, routed by position, and
+    // it reaches a transparent scroller exactly as a click reaches a transparent
+    // sink (see hit()). Only `visible` means "not there".
+    if (!this.visible) return false;
     const lx = px - this.x;
     const ly = py - this.y;
     const cpScroll = this.clipPathObj();

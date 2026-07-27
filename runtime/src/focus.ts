@@ -41,12 +41,13 @@ export class FocusService {
     this.keyboard = v;
     this.keyboardCell.changed();
   }
-  /** Subscribers to focus CHANGES (`onFocusChange(v) <- Focus`, language §8) —
+  /** Subscribers to focus CHANGES (`Focus [ onFocusChange(v) { … } ]`) —
    *  called with the newly focused view (or null on blur) after the change
    *  settles. What the traveling focus indicator rides. */
   private readonly changeHandlers = new Set<(v: View | null) => void>();
-  /** Subscribers to the focused control's LIVE GEOMETRY (`onGeometry(g) <-
-   *  Focus`). A standing runtime constraint follows the target: tracked reads
+  /** Subscribers to the focused control's LIVE GEOMETRY
+   *  (`Focus [ onGeometry(g) { … } ]`). A standing runtime constraint follows
+   *  the target: tracked reads
    *  of the parent chain's x/y and the control's focusShape() mean an
    *  arrow-keyed slider thumb, a reflowing layout, or a resized ancestor
    *  moves the resting ring WITH its control — no re-focus needed. */

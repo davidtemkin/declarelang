@@ -8,8 +8,8 @@
 // retarget while a tip is already up (the OS behavior: once tips are showing,
 // moving between controls swaps instantly), hide on press — and publishes ONE
 // fact to subscribers: the active tip (text + the target's root-space box),
-// or null. The library Tooltip singleton renders it (`onTip(e) <- Tip`), the
-// same wiring contract as Focus/Keys (sources.ts).
+// or null. The library Tooltip singleton renders it (`Tip [ onTip(e) { … } ]`),
+// the same wiring contract as Focus/Keys (sources.ts).
 
 import type { View } from "./view.js";
 
@@ -42,7 +42,7 @@ class TipService {
   private shown = false;
   private warmUntil = 0;
 
-  /** Subscribe (`onTip(e) <- Tip`). Returns the unsubscribe thunk. */
+  /** Subscribe (`Tip [ onTip(e) { … } ]`). Returns the unsubscribe thunk. */
   onTip(fn: (e: TipEvent | null) => void): () => void {
     this.handlers.add(fn);
     return () => this.handlers.delete(fn);

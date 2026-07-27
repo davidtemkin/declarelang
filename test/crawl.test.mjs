@@ -29,7 +29,8 @@ await test("crawl: homepage emits the #why and #language documents, linked from 
   const why = docs.find((d) => d.key === "why");
   assert.ok(why.html.includes("studies"), "the why document carries the essay content that is hidden at t=0 on /");
   const lang = docs.find((d) => d.key === "language");
-  assert.ok(lang.html.includes("the whole language, in one file"), "the language document carries the rendered core doc");
+  // matched on a phrase stable across retitlings of the core doc, not the full title
+  assert.ok(lang.html.includes("language, in one file"), "the language document carries the rendered core doc");
 });
 
 await test("crawl: docs emits a document per chapter AND per reference class (data-driven, over its material)", async () => {

@@ -43,7 +43,7 @@ class Ev extends View [ clip = true,
     onMouseDown(e) { app.startDrag(:id, :title, :category, :timeLabel, this.width, this.height, e.x, e.y) },
     onMouseMove()  { app.dragMove() },
     onMouseUp(e)   { app.dropDrag(e.x, e.y) },
-    onClick()      { if (app.blockClick) { app.blockClick = false } else app.selectEvent(:id, :y + "-" + :m + "-" + :d) },
+    onClick()      { app.selectEvent(:id, :y + "-" + :m + "-" + :d) },
     ]
 
 
@@ -290,7 +290,6 @@ App [ clip = true, minWidth = 480, minHeight = 420, appName = "Declare Calendar"
 
     dragId: number = -1,
     dragging: boolean = false,
-    blockClick: boolean = false,
     dropKey: string = "",
     dragTitle: string = "",
     dragCat: string = "",
@@ -525,9 +524,12 @@ App [ clip = true, minWidth = 480, minHeight = 420, appName = "Declare Calendar"
     closeDetail() { this.selectedId = -1 },
 
     /* ## Drag to reschedule
-       Pointer capture gives click-vs-drag for free. A drop writes through the
-       dataset's mutation API, so it wakes the derived model exactly like a title
-       edit — no copy to rebuild. */
+       Pointer capture, plus the runtime's click rule, give click-vs-drag for
+       free: a gesture that moved is a drag and clicks nothing, so the block's
+       `onClick` fires only on a real tap. The threshold below is the app's own
+       (when the GHOST appears), not a click suppressor. A drop writes through
+       the dataset's mutation API, so it wakes the derived model exactly like a
+       title edit — no copy to rebuild. */
 
     startDrag(id, title, cat, timeLabel, w, h, gx, gy) {
         this.dragId = id; this.dragTitle = title; this.dragCat = cat; this.dragTimeLabel = timeLabel
@@ -544,7 +546,9 @@ App [ clip = true, minWidth = 480, minHeight = 420, appName = "Declare Calendar"
         },
     dropDrag(px, py) {
         if (this.dragId < 0) return
-        if (this.dragging) { this.commitDrop(px, py); this.blockClick = true }
+        // A drag never clicks — the runtime's own rule (a gesture whose pointer
+        // wandered past slop resolves to no click), so the drop just commits.
+        if (this.dragging) this.commitDrop(px, py)
         this.dragId = -1; this.dragging = false; this.dropKey = ""
         },
     cellAt(px, py) {                         // invert the span mapping: screen point → grid cell
@@ -575,12 +579,12 @@ App [ clip = true, minWidth = 480, minHeight = 420, appName = "Declare Calendar"
 
     /* ## Keyboard
        Arrows page the current view; Escape closes the detail panel. A Keys
-       subscription — lifetime-managed, no listener to clean up. The arrows
+       member — lifetime-managed, no listener to clean up. The arrows
        gate on the panel being CLOSED: its text fields own the keyboard while
        an event is being edited (Keys is the raw stream). */
 
-    keys: Node [
-        onKeyUp(e) <- Keys {
+    keys: Keys [
+        onKeyUp(e) {
             if (e.key == "Escape") app.closeDetail()
             else if (app.selectedId < 0 && e.key == "ArrowLeft") app.step(-1)
             else if (app.selectedId < 0 && e.key == "ArrowRight") app.step(1)

@@ -44,39 +44,207 @@ error that says so — like `contentWidth`, they are computed for you. For contr
 library's `Control` derives a styling pair from them (`hot`/`down` — the intrinsics
 gated by `disabled`, plus the keyboard flash), which is what its buttons paint with.
 
-The handler set is small — `onClick`, the pointer five (`onMouseDown/Up/Over/Out/Move`),
-`onKeyDown`/`onKeyUp` on the focused view, `onFocus`/`onBlur`, `onInit` — and a method
-*without* `on` is just a method. Two field notes: touch devices never hover
-(`app.hovering` is `false` there — let the pressed state carry the feedback), and
-`onInit` fires when a node is *attached* to the live tree, the right moment for work
-that reads parent context.
+## Two layers: what happened, and what it meant
+
+Every pointer handler belongs to one of two layers, and choosing between them is the
+whole skill.
+
+The **raw layer** — `onMouseDown`, `onMouseMove`, `onMouseUp` — reports what the
+pointer physically did, the instant it did it. No waiting, no interpretation; a press
+is a press whether it came from a mouse button or a fingertip. This is the layer for
+*manipulation*: dragging a card, tracking a slider, drawing on a canvas.
+
+The **resolved layer** — `onClick`, `onDblClick`, `onHold` — reports that the user
+*activated* this view. That is a judgment, not an event: the runtime watches the whole
+gesture and decides. This is the layer for *commands*: buttons, links, menu items,
+anything where "the user chose this" is the meaning.
+
+> **`onClick` activates, `onMouseDown` manipulates.**
+
+Reach for `onMouseDown` to run a command and it will misfire on a phone, because a
+finger landing on your button may be starting a scroll — and only the resolved layer
+knows the difference. What the runtime decides, precisely:
+
+- A **click** needs press and release on the same view *and* a pointer that never
+  wandered — about 4px for a mouse, 10px for a finger. Past that the gesture was a
+  drag or a swipe, whatever it started on, and it activates nothing. (With a mouse,
+  movement inside a target is meaningless; you are still pointing at it. With a
+  finger, movement is the entire vocabulary of scrolling.)
+- A **double-click** is two clicks on the same view, in about the same place, inside
+  400ms. A third tap starts a fresh pair rather than making a second double.
+- A **hold** is a press that stays in place for half a second. It does not consume the
+  gesture: the raw stream keeps flowing and the eventual click still fires, so a hold
+  can start a drag, open a menu, or be ignored.
+
+One nicety you get for declaring things rather than configuring them: if a view
+declares `onDblClick`, the runtime **holds its single click** for the double window,
+so a double-click never performs the single action first. A view with only `onClick`
+— nearly all of them — fires immediately, with no added latency. You pay for the
+ambiguity exactly where you asked for it.
 
 ## The drag pattern
 
-A pointer handler takes the event when it needs coordinates. Down/move/up on one node,
-with a small threshold telling a click from a drag, is the entire shape — the same
-idea the calendar's drag-to-reschedule uses at scale:
+Down, move, up on one node is the entire shape. The pressed view **captures** the
+pointer: until release, moves and the release itself come to it even when the pointer
+travels far away, so there is no tracking code to write.
 
 ```declare
 App [ width = 300, height = 160, fill = white,
     card: View [ x = 20, y = 40, width = 120, height = 80, cornerRadius = 10, fill = 0x4C8DFF,
         downX: number = 0,
         startX: number = 0,
-        dragging: boolean = false,
-        onMouseDown(e) { downX = e.x; startX = this.x; dragging = false },
-        onMouseMove(e) {
-            if (Math.abs(e.x - downX) > 4) { dragging = true }
-            if (dragging) { x = Math.max(0, Math.min(180, startX + (e.x - downX))) }
-            },
-        onMouseUp() { dragging = false },
+        onMouseDown(e) { downX = e.x; startX = this.x },
+        onMouseMove(e) { x = Math.max(0, Math.min(180, startX + (e.x - downX))) },
         ],
     ]
 ```
 
-Drag the card. Under four pixels of travel it stays a click; past it, the move is a
-plain `x` assignment — kept inside the box by ordinary clamp arithmetic, no special
-"bounds" feature — and reactive, so anything bound to the card's position follows
-live.
+Drag the card. There is no click-versus-drag bookkeeping here, because the runtime's
+click rule already covers it: a gesture that moved is a drag and activates nothing, so
+an `onClick` on this same card would fire only on a real tap.
+
+Two things worth knowing about the coordinates and the ending:
+
+**`onMouseMove` and `onMouseUp` carry *root-space* coordinates** — measured against the
+whole app — while `onMouseDown`, `onClick`, and `onDblClick` carry view-local ones. A
+drag needs a frame that does not move with the thing being dragged, which is why the
+two differ.
+
+**A gesture can be interrupted.** On a touch screen the browser may reclaim a gesture
+mid-flight to scroll the page, which ends your drag without a release. That still
+arrives as `onMouseUp`, so state resets — but the event says which it was:
+
+```declare-fragment
+onMouseUp(e) {
+    dragging = false                       // always reset
+    if (e.canceled) return                 // …but never commit an interrupted drag
+    classroot.commitMove(this.x, this.y)
+    },
+```
+
+## Tap and hold
+
+A press held in place fires `onHold` — the touch analog of a right-click, and equally
+available to a mouse. What happens next is yours to decide; the runtime only reports
+the fact.
+
+```declare-fragment
+row: View [ width = 200, height = 40,
+    onHold()  { classroot.showActions(this) },     // a menu, a pick-up, a peek…
+    onClick() { classroot.open(this) },
+    ],
+```
+
+Because a hold does not consume the gesture, a view can offer both, as above: hold for
+options, tap to open.
+
+## Finding what is under the pointer
+
+A drag that must *land* somewhere needs to know what it is over. Ask the tree:
+
+```declare-fragment
+onMouseUp(e) {
+    if (e.canceled) return
+    let t = app.viewAt(e.x, e.y)                  // root-space, like the event
+    while (t != null && t.accept == null) t = t.parent
+    if (t != null) t.accept(this.payload)
+    },
+```
+
+`app.viewAt(x, y)` answers with the deepest view under a root-space point, and
+`view.containsPoint(x, y)` asks the same question of one view. Both run the *same* walk
+the pointer itself is routed by — clip shapes, scale, `pointerEvents`, and overflow all
+count exactly as they do for a real press — so what your handler computes and what the
+runtime delivers can never disagree.
+
+The idiomatic drop target combines the two layers: the dragger decides with `viewAt`
+and writes **one** reactive slot; every target derives its appearance from that slot by
+constraint.
+
+```declare-fragment
+// on the dragger
+onMouseMove(e) { app.dropTarget = app.viewAt(e.x, e.y) },
+
+// on each target — no handlers, just a standing relationship
+hot = { app.dropTarget == this },
+```
+
+One writer, many readers, and the highlight is a constraint like everything else.
+
+## Touch is not mouse
+
+The same handlers fire for both, and the runtime absorbs most of the difference: a
+finger that moves does not click, a tap never leaves a view stuck in a hover state, and
+an interrupted gesture reports itself. Three differences remain yours to design for.
+
+**There is no hover.** `hovered` is always false on a touch device, and
+`onMouseOver`/`onMouseOut` are mouse facts. Anything that only appears on hover is
+invisible on a phone unless you give it another way in — let `pressed` carry the
+feedback instead.
+
+**Targets want to be bigger.** Ask the device, and design accordingly:
+
+| you ask | it answers | use it for |
+|---|---|---|
+| `app.touchDevice` | is the *primary* pointer a finger? | sizing and layout density |
+| `app.hasTouch` | is there a touch digitizer *at all*? | a hit-target floor |
+| `app.hasPointer` | is there a mouse, trackpad, or stylus? | offering precise affordances |
+| `app.lastPointerType` | what did the user *just* use — `"mouse"`, `"touch"`, `"pen"`? | revealing hover-only chrome |
+
+The last two exist for the awkward middle: a Windows touch laptop reports
+`touchDevice = false`, because its trackpad really is primary, yet a finger may arrive
+at any moment. The rule that follows is worth stating plainly — **size from
+`touchDevice`, floor from `hasTouch`, and reveal from `lastPointerType`.** Never drive
+layout from the live pointer type: targets that resize as the user alternates trackpad
+and finger are worse than either size. And a hit region need not match a visual one, so
+a hybrid can keep compact chrome and generous touch targets at the same time.
+
+**The browser is a gesture competitor.** Scrolling, pinch-zoom, and the long-press
+callout all belong to the browser until an app says otherwise — which is the next
+section.
+
+## When the app owns the gesture
+
+Most apps should let the browser scroll and zoom; it does both better than you will,
+and its physics are the ones the platform's users already know. But some apps *cannot*
+delegate — a canvas with nested coordinate spaces and continuous zoom has no browser
+primitive to hand the job to — and those need the raw multi-finger stream plus a frame
+heartbeat to integrate their own physics.
+
+Declaring the raw touch family is that statement. A view with `onTouchStart` and its
+siblings receives every finger, with a stable `id` per finger for the life of its
+contact, and the browser stops claiming gestures in that subtree:
+
+```declare-fragment
+surface: View [ width = 100%, height = 100%,
+    onTouchStart(e) { classroot.engine.begin(e.touches) },
+    onTouchMove(e)  { classroot.engine.track(e.touches) },
+    onTouchEnd(e)   { classroot.engine.release(e.touches) },
+    onTouchCancel(e) { classroot.engine.abort() },
+    ],
+```
+
+`e.touches` is every finger currently down; `e.changed` is the one this event is about.
+Coordinates are root-space throughout — a gesture engine wants one stable frame.
+
+The other half is the heartbeat. `Frames` is a member, like a `Spring` or a `Dataset`,
+that calls `onFrame(dt)` once per animation frame with the real elapsed time in
+seconds:
+
+```declare
+App [ width = 240, height = 120, fill = midnightblue, textColor = whitesmoke,
+    x0: number = 20,
+    v: number = 60,
+    physics: Frames [ onFrame(dt) { app.x0 = (app.x0 + app.v * dt) % 200 } ],
+    dot: View [ x = { app.x0 }, y = 40, width = 40, height = 40, cornerRadius = 20, fill = turquoise ],
+    ]
+```
+
+`running` gates it (`running = { app.simulating }`), `dt` is clamped so a backgrounded
+tab does not resume with one enormous step, and it rides the same clock every `Spring`
+and `Animator` uses — so it costs nothing until it runs, and there is no second frame
+loop. Reach for it when you are integrating something yourself; for "move this there,
+smoothly," a `Spring` is less code and better behaved.
 
 ## Reaching another node: call a method
 
@@ -100,28 +268,38 @@ class of bug this model simply doesn't have. ("The whole panel is clickable" is 
 
 A **focused** view receives `onKeyDown`/`onKeyUp` like any other handler — right for
 keys that belong to a particular widget. For app-level shortcuts that should work
-regardless of focus, subscribe to the `Keys` service with the `<-` arrow — a
-handler-shaped member plus the source it registers with, lifetime-managed, nothing to
-clean up:
+regardless of focus, put a `Keys` member in the tree. It is a **source**: a non-visual
+member, like a `Dataset` or a `Spring`, whose handlers are called by something outside
+the tree. Its lifetime is the node's, so there is nothing to unsubscribe:
 
 ```declare
 App [ width = 240, height = 100, fill = white, textColor = black,
     n: number = 0,
-    onKeyUp(e) <- Keys {
-        if (e.key == "ArrowUp") { n = n + 1 }
-        else if (e.key == "ArrowDown") { n = n - 1 }
-        },
+    keys: Keys [
+        onKeyUp(e) {
+            if (e.key == "ArrowUp") { app.n = app.n + 1 }
+            else if (e.key == "ArrowDown") { app.n = app.n - 1 }
+            },
+        ],
     Text [ x = 20, y = 30, fontSize = 30, text = { `n = ${n}` } ],
     ]
 ```
 
 Click the preview once, then use the arrow keys. The payload is a normalized key
 event — `e.key` (`"ArrowUp"`, `"Escape"`, `"a"`), `e.code`, modifier flags — never a
-numeric code. `Keys` is the *raw* stream (it fires even while a field has focus —
-gate shortcuts on app state where that matters), and the subscribable services are
-exactly `Keys` and `Focus`; you cannot subscribe to another view's events — that is
-what calling a method is for. Don't confuse `<-` with `<->`, the two-way *data*
-arrow from [chapter 8](declare-docs:guide:data).
+numeric code. `Keys` is the *raw* stream: it fires even while a text field has focus,
+so gate shortcuts on app state where that matters.
+
+The other sources work the same way: `Focus` (`onFocusChange`, `onGeometry` — how the
+library's focus ring follows focus), `Tip` (`onTip` — what the tooltip renders), and
+`Frames` (`onFrame(dt)` — the frame heartbeat, above). Fan-out is by instance, which is
+the point of their being members: a menu, a dialog, and a menubar each holding a `Keys`
+member all hear the keyboard at once.
+
+`Keys` and `Focus` each name one concept that you can either **ask** or **listen to** —
+`Keys.isDown("KeyA")` and `Focus.focus(this)` are calls you make; `Keys [ onKeyDown … ]`
+and `Focus [ onFocusChange … ]` are members that call you. You cannot listen to another
+*view's* events — that is what calling a method is for.
 
 ## The standard library
 

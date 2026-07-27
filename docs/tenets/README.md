@@ -15,7 +15,7 @@ its most load-bearing written commitments:
 - the homepage's on-page copy,
 - the "Why a new language, now?" essay,
 - the FAQ,
-- `docs/declare.md` — the whole language, in one file.
+- `docs/declare.md` — the language, in one file.
 
 Distilled, not extracted: a human reads those and decides what is actually
 *promised*. (The sample apps making little use of image assets, for instance, is

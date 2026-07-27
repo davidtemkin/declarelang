@@ -5,9 +5,18 @@
 // Everything above resolution — the press/release pairing, the click rule,
 // delivery order (mouseDown · mouseUp · click) — lives here, once, so the two
 // backends cannot drift: a *click* IS "press and release resolved to the same
-// view", decided by identical code on both. (The platform's own `click` event
-// is deliberately unused: its target is the common ancestor of press and
-// release, a DOM-ism the canvas backend could only imitate approximately.)
+// view, without the pointer wandering", decided by identical code on both. (The
+// platform's own `click` event is deliberately unused: its target is the common
+// ancestor of press and release, a DOM-ism the canvas backend could only
+// imitate approximately.)
+//
+// TWO LAYERS, one wire. The RAW layer (mouseDown/mouseMove/mouseUp, and the
+// touch family) reports what the pointer physically did, immediately — the
+// layer a drag, a slider, or an app running its own gesture physics needs. The
+// RESOLVED layer (click, dblClick, hold) reports what the user MEANT, which the
+// router decides by watching the whole gesture. Apps activate on the resolved
+// layer and manipulate on the raw one; the guide's input chapter is the long
+// version.
 //
 // The source events are POINTER events (`pointerdown`/`move`/`up`/`cancel`), not
 // mouse events: pointer events fire uniformly for touch, pen, and mouse, so one
@@ -16,7 +25,19 @@
 // touch). The sink protocol keeps its mouse-era names (`"mouseDown"`, `"click"`,
 // …) so the language's `onMouseDown`/`onClick` handlers are unchanged; only the
 // wire is pointer. `pointercancel` (the browser reclaimed the gesture for a
-// scroll) ends a capture without a click.
+// scroll) ends a capture without a click, and says so: the release carries
+// `canceled: true`, so a drag handler can distinguish "dropped here" from
+// "interrupted" instead of committing a drop the user never made.
+//
+// SLOP is why a click means activation rather than "some press and some release
+// landed on you". A gesture whose pointer wandered past the threshold is a drag
+// or a swipe, whatever it started on, and clicks nothing. The thresholds differ
+// by pointer kind for a reason that is not arbitrary: with a mouse, movement
+// inside a target is meaningless (the user is still pointing at it — AppKit's
+// track-inside rule), while a finger's movement is the entire vocabulary of
+// scrolling and swiping (UIKit cancels a tap the same way). Relying on the
+// browser to tell us instead — `pointercancel` — cannot work, because it only
+// arrives when the movement matches a direction something can scroll.
 //
 // Listeners live on `window`, not on the backend's own element, so a press or
 // release *outside* the tree still updates the pairing state — a down on the
@@ -31,6 +52,17 @@
 
 import type { InputSink } from "./backend.js";
 
+/** Movement past which a gesture is no longer an activation, by pointer kind.
+ *  Touch is looser: a fingertip is wide, jitters on contact, and its motion is
+ *  how a user scrolls. (The calendar hand-rolled exactly the mouse figure for
+ *  its drag threshold before the runtime owned this rule.) */
+const SLOP_MOUSE = 4;
+const SLOP_TOUCH = 10;
+/** A second click within this window on the same view is a double-click. */
+const DBL_MS = 400;
+/** A press held this long, in place, is a hold (the tap-hold / click-hold). */
+const HOLD_MS = 500;
+
 /** A resolved input point: the sink of the view under it, that view's
  *  identity (`key`, for the click pairing — any stable per-view object),
  *  and the point in the view's local space. */
@@ -43,6 +75,27 @@ export interface HitTarget {
    *  on the hover walk (its host is one element; the DOM brushes per-element
    *  style.cursor instead and leaves this unset). */
   cursor?: string;
+  /** True when this view declares `onDblClick` — the router then HOLDS its
+   *  click for the double-click window instead of firing immediately, so a
+   *  double-tap does not also perform the single action first. Pay-per-use
+   *  gesture arbitration: the latency exists only where the app asked for the
+   *  ambiguity. (Resolution knows this because a sink's existence and its
+   *  declared handlers are the same fact — view.ts inputSink.) */
+  wantsDbl?: boolean;
+  /** True when this view declares `onHold`. */
+  wantsHold?: boolean;
+  /** True when this view (or an ancestor) declares the raw touch family — the
+   *  gesture belongs to the app, so the router delivers the whole multi-finger
+   *  stream and never interprets it. */
+  wantsTouch?: boolean;
+}
+
+/** One finger, as the raw touch family reports it. `id` is stable for the
+ *  life of that finger's contact, so an engine can track it across events. */
+export interface TouchPoint {
+  id: number;
+  x: number;
+  y: number;
 }
 
 /** Start routing window pointer input through `resolve`. `alive` gates the
@@ -61,12 +114,37 @@ export function routeInput(
   // coordinates are in ROOT space (app-relative), so a handler can hit-test the
   // whole tree; down/up stay view-local.
   let held: HitTarget | null = null;
+  // Where and how the current press began — the origin the slop test measures
+  // from, and the pointer kind that picks the threshold.
+  let pressX = 0;
+  let pressY = 0;
+  let pressSlop = SLOP_MOUSE;
+  let wandered = false;
   // Double-click pairing (platform-level, both backends): a second click on
-  // the SAME view within the interval also fires dblClick; the third starts a
-  // fresh cycle (macOS's rule — triple is double + single, not two doubles).
+  // the SAME view within the interval — and, on touch, within slop of the first
+  // tap — also fires dblClick; the third starts a fresh cycle (macOS's rule —
+  // triple is double + single, not two doubles).
   let lastClickKey: object | null = null;
   let lastClickAt = 0;
-  const DBL_MS = 400;
+  let lastClickX = 0;
+  let lastClickY = 0;
+  // A click withheld pending the double-click window (see HitTarget.wantsDbl):
+  // fired by the timer if no second tap arrives, dropped if one does.
+  let pendingClick: { timer: ReturnType<typeof setTimeout>; fire: () => void } | null = null;
+  const flushPendingClick = (): void => {
+    const p = pendingClick;
+    pendingClick = null;
+    if (p !== null) { clearTimeout(p.timer); p.fire(); }
+  };
+  const dropPendingClick = (): void => {
+    if (pendingClick !== null) { clearTimeout(pendingClick.timer); pendingClick = null; }
+  };
+  // The hold timer for the current press — armed at down on a view that wants
+  // holds, disarmed by movement past slop, by release, or by cancellation.
+  let holdTimer: ReturnType<typeof setTimeout> | null = null;
+  const disarmHold = (): void => {
+    if (holdTimer !== null) { clearTimeout(holdTimer); holdTimer = null; }
+  };
   // The current press began over selectable/editable content (set at
   // pointerdown): selection suppression stands down for this gesture.
   let pressOnSelectable = false;
@@ -75,6 +153,10 @@ export function routeInput(
   // the new — the rollover pair, resolved by the same seam as click.
   let hoveredKey: object | null = null;
   let hoveredSink: InputSink | null = null;
+  // Live fingers, by pointerId — the raw touch family's payload. Only
+  // maintained while some view under the gesture wants raw touch.
+  const fingers = new Map<number, TouchPoint>();
+  const touchList = (): TouchPoint[] => [...fingers.values()];
   const clearHover = (): void => {
     if (hoveredSink !== null) hoveredSink("mouseOut", 0, 0);
     hoveredKey = null;
@@ -96,6 +178,11 @@ export function routeInput(
   listen("pointerdown", (e) => {
     const t = resolve(e);
     held = t;
+    wandered = false;
+    pressSlop = e.pointerType === "touch" ? SLOP_TOUCH : SLOP_MOUSE;
+    const p0 = rootPoint !== undefined ? rootPoint(e) : { x: e.clientX, y: e.clientY };
+    pressX = p0.x;
+    pressY = p0.y;
     if (t !== null) {
       // The browser ANCHORS its native text selection at mousedown; flipping
       // user-select off on the first captured move (below) is too late in
@@ -121,7 +208,26 @@ export function routeInput(
       // selection the browser is painting (an enclosing sink — a window's
       // activate-on-press — still captures, so events flow as ever).
       pressOnSelectable = editable || selectable;
+      // A press elsewhere ends any click still waiting on the double window:
+      // the user moved on, so the withheld single click fires now rather than
+      // arriving after whatever this press does.
+      if (pendingClick !== null && t.key !== lastClickKey) flushPendingClick();
+      if (t.wantsTouch === true) {
+        fingers.set(e.pointerId, { id: e.pointerId, x: p0.x, y: p0.y });
+        t.sink("touchStart", p0.x, p0.y, { touches: touchList(), changed: [{ id: e.pointerId, x: p0.x, y: p0.y }] });
+      }
       t.sink("mouseDown", t.x, t.y);
+      if (t.wantsHold === true) {
+        const target = t;
+        holdTimer = setTimeout(() => {
+          holdTimer = null;
+          // Still the same press, still in place — the hold is real. It does
+          // NOT consume the gesture: the raw stream continues and the eventual
+          // click still fires unless the pointer wanders, so an app can start a
+          // pick-up-drag from the hold, open a menu, or ignore it.
+          if (held === target && !wandered) target.sink("hold", target.x, target.y);
+        }, HOLD_MS);
+      }
     }
   });
   // While a press is CAPTURED and moving (a drag), suppress the browser's
@@ -149,12 +255,27 @@ export function routeInput(
       if (t !== null) t.sink("mouseOver", t.x, t.y);
     }
     if (held === null || rootPoint === undefined) return;
-    if (!pressOnSelectable) suppressSelection(true);
     const p = rootPoint(e);
+    // The slop test: once the pointer has wandered past the threshold this
+    // gesture can no longer activate anything, and any pending hold is off.
+    if (!wandered) {
+      const dx = p.x - pressX;
+      const dy = p.y - pressY;
+      if (dx * dx + dy * dy > pressSlop * pressSlop) {
+        wandered = true;
+        disarmHold();
+      }
+    }
+    if (!pressOnSelectable) suppressSelection(true);
+    if (held.wantsTouch === true && fingers.has(e.pointerId)) {
+      fingers.set(e.pointerId, { id: e.pointerId, x: p.x, y: p.y });
+      held.sink("touchMove", p.x, p.y, { touches: touchList(), changed: [{ id: e.pointerId, x: p.x, y: p.y }] });
+    }
     held.sink("mouseMove", p.x, p.y);
   });
   listen("pointerup", (e) => {
     suppressSelection(false);
+    disarmHold();
     const t = resolve(e);
     const captor = held;
     held = null;
@@ -162,22 +283,51 @@ export function routeInput(
       // The presser captured the pointer, so the release goes to IT (root-space
       // coords) — a drag drops on its owner even released over another view.
       const p = rootPoint !== undefined ? rootPoint(e) : { x: captor.x, y: captor.y };
-      captor.sink("mouseUp", p.x, p.y);
-      // Click rule: press and release resolved to the same view (an excursion
-      // in between is fine; releasing elsewhere clicks nothing).
-      if (t !== null && t.key === captor.key) {
-        captor.sink("click", t.x, t.y);
+      if (captor.wantsTouch === true && fingers.has(e.pointerId)) {
+        const gone = fingers.get(e.pointerId)!;
+        fingers.delete(e.pointerId);
+        captor.sink("touchEnd", p.x, p.y, { touches: touchList(), changed: [gone] });
+      }
+      captor.sink("mouseUp", p.x, p.y, { canceled: false });
+      // Click rule: press and release resolved to the same view, and the
+      // pointer never wandered past slop (a moved finger was swiping, whatever
+      // it started on). An excursion that returns still counts as wandering —
+      // the gesture declared itself a drag when it left.
+      if (t !== null && t.key === captor.key && !wandered) {
         const now = Date.now();
-        if (lastClickKey === captor.key && now - lastClickAt < DBL_MS) {
+        // The pair must also land in about the same PLACE — a view can be
+        // large, and two taps at opposite corners are not a double-tap.
+        const dx = p.x - lastClickX;
+        const dy = p.y - lastClickY;
+        const near = dx * dx + dy * dy <= (pressSlop * 3) * (pressSlop * 3);
+        const isSecond = lastClickKey === captor.key && now - lastClickAt < DBL_MS && near;
+        if (isSecond) {
+          // The second tap of a pair: drop the withheld first click if this
+          // view arbitrates, then fire the pair's own event.
+          const held1 = pendingClick !== null;
+          dropPendingClick();
+          if (!held1) captor.sink("click", t.x, t.y);
           captor.sink("dblClick", t.x, t.y);
           lastClickKey = null;
         } else {
           lastClickKey = captor.key;
           lastClickAt = now;
+          lastClickX = p.x;
+          lastClickY = p.y;
+          const fire = (): void => captor.sink("click", t.x, t.y);
+          if (captor.wantsDbl === true) {
+            // This view answers double-clicks, so its single click waits out
+            // the window — otherwise a double-click would perform the single
+            // action first. Nothing else pays this latency.
+            dropPendingClick();
+            pendingClick = { timer: setTimeout(() => { pendingClick = null; fire(); }, DBL_MS), fire };
+          } else {
+            fire();
+          }
         }
       }
     } else if (t !== null) {
-      t.sink("mouseUp", t.x, t.y);
+      t.sink("mouseUp", t.x, t.y, { canceled: false });
     }
     // A touch pointer ceases to exist on release; drop the hover it carried so a
     // just-tapped view doesn't stay stuck in its rollover (hover) state.
@@ -185,14 +335,21 @@ export function routeInput(
   });
   listen("pointercancel", (e) => {
     suppressSelection(false);
+    disarmHold();
     // The browser reclaimed the gesture (a touch turned into a scroll). End the
     // capture WITHOUT a click — the interaction was interrupted, not completed —
-    // so a drag handler still gets its release (e.g. a slider freezes its value).
+    // so a drag handler still gets its release, and can tell that it WAS an
+    // interruption (`e.canceled`) rather than a drop.
     const captor = held;
     held = null;
     if (captor !== null) {
       const p = rootPoint !== undefined ? rootPoint(e) : { x: captor.x, y: captor.y };
-      captor.sink("mouseUp", p.x, p.y);
+      if (captor.wantsTouch === true && fingers.has(e.pointerId)) {
+        const gone = fingers.get(e.pointerId)!;
+        fingers.delete(e.pointerId);
+        captor.sink("touchCancel", p.x, p.y, { touches: touchList(), changed: [gone] });
+      }
+      captor.sink("mouseUp", p.x, p.y, { canceled: true });
     }
     if (e.pointerType === "touch") clearHover();
   });
