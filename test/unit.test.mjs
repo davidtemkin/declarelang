@@ -862,6 +862,40 @@ await test("parse() reads parameter lists (incl. a trailing comma)", () => {
   ]);
 });
 
+await test("a customized instance is a SINGLETON SUBCLASS — add freely, override compatibly", () => {
+  // The OpenLaszlo property this preserves: an instance declaration may define
+  // its own attributes, methods and children with no new class — "no need for
+  // thousands of tiny subclasses, just tweak the instance". The compiler models
+  // that as `declare class _E7 extends B`, so it IS a subclass, and the
+  // ordinary subclass rule follows: adding is free, REPLACING must stay
+  // compatible or a caller holding the class type is wrong.
+  //
+  // That check existed in tsc all along (TS2416) and was being DISCARDED: it
+  // lands on a synthesized line, outside any body unit, and the mapper dropped
+  // anything it could not place. Synthesized members now carry the author's
+  // position.
+  const ok = (src) => { const r = compile(src, {}); assert.ok(r.source, (r.errors?.[0]?.rawMessage) ?? "expected it to compile"); };
+  const errs = (src) => {
+    try { const r = compile(src); return (r.errors ?? []).map((e) => e.message ?? String(e)).join("\n"); }
+    catch (e) { return String(e?.message ?? e); }
+  };
+
+  // ADDING stays completely free — this is the property, not a concession
+  ok(`App [ width=1, height=1, a: View [ alpha: number = 1, ping() { } ], b: View [ beta: string = "s" ] ]`);
+  ok(`class B extends View [ say(a: number) { } ]\nApp [ width=1, height=1, btn: B [ zap(k: string) { }, extra: number = 1 ] ]`);
+  ok(`App [ width=1, height=1, v: View [ bump(by: number) -> number { return by } ] ]`);
+  // one instance's members do not leak to another of the same tag
+  assert.match(errs(`App [ width=1, height=1, a: View [ alpha: number = 1 ], b: View [ ], t: Text [ text = { "" + app.b.alpha } ] ]`),
+    /'alpha' is not a member of/);
+
+  // OVERRIDING is bound by the base's signature…
+  assert.match(errs(`class B extends View [ say(a: number) { } ]\nApp [ width=1, height=1, btn: B [ say(a: string) { } ] ]`),
+    /'say' overrides B's 'say' with an incompatible signature/);
+  // …unless the base has no contract to break, and a matching one is fine
+  ok(`class B extends View [ say(a: number) { } ]\nApp [ width=1, height=1, btn: B [ say(a: number) { } ] ]`);
+  ok(`class B extends View [ say(a) { } ]\nApp [ width=1, height=1, btn: B [ say(a: string) { } ] ]`);
+});
+
 await test("function types — `(id: string) -> void`, the type a method IS", () => {
   // language §4: "A method is a named field of function type — `name: (params)
   // -> Ret { body }`". Only the SUGAR (`f(v) { }`) had been implemented, so a

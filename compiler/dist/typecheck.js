@@ -103,8 +103,15 @@ export function typecheckBodies(resolved, program) {
     const out = [];
     for (const d of diags) {
         const u = emitter.unitAt(d.line);
-        if (u === null)
-            continue; // a diagnostic outside any body (scaffold-level — shouldn't occur)
+        if (u === null) {
+            // Not inside a body — but it may be on a synthesized instance MEMBER, and
+            // an instance is a singleton subclass, so its overrides are checked like
+            // any subclass's. Report those at the member the author wrote.
+            const mp = emitter.memberPos.get(d.line);
+            if (mp !== undefined)
+                out.push(Diag.typeError(explainMember(d, mp), mp.pos, d.code));
+            continue;
+        }
         // Clamp into the body's line range: an assignment error on the wrapper line
         // maps to the body's first line; a body-internal error maps line-for-line.
         const rel = Math.min(Math.max(d.line - u.bodyStart, 0), u.lineCount - 1);
@@ -125,6 +132,18 @@ export function typecheckBodies(resolved, program) {
 // correct member set. Unmatched codes keep tsc's text (translated of synth
 // names) — honest fallback, upgraded family by family as evals surface what
 // models actually trip on. ──
+/** A diagnostic on a synthesized instance MEMBER. An instance that adds members
+ *  is a singleton subclass of the tag it instantiates — free to ADD anything,
+ *  but bound by the ordinary rule when it OVERRIDES: the signature must stay
+ *  compatible with the one it is replacing, or every caller holding the class
+ *  type is wrong. (This is what TypeScript reports as TS2416; the language says
+ *  it in its own terms.) */
+function explainMember(d, mp) {
+    if (d.code === 2416) {
+        return `'${mp.name}' overrides ${mp.tag}'s '${mp.name}' with an incompatible signature — an instance may ADD members freely, but one it replaces must keep the original's parameters and return, or a caller holding a ${mp.tag} would be wrong`;
+    }
+    return d.message;
+}
 function explainTs(d, u, synthTags) {
     // Internal synthesized type names (`_E7`) → the language's vocabulary: the
     // element's tag, spoken as an instance ("this View").
@@ -256,6 +275,12 @@ class CaseEmitter {
      *  record named ONLY by a signature still needs its alias emitted into the
      *  scaffold, or the ambient text references an undeclared type. */
     signatureTypeNames = [];
+    /** Case-file line → the author position of the synthesized class MEMBER on
+     *  it. A customized instance is emitted as `declare class _E7 extends B`: a
+     *  singleton subclass, so ordinary subclass rules apply and an incompatible
+     *  override is a real error (TS2416). Those land OUTSIDE any body unit, and
+     *  were being dropped — this is what gives them a position to be reported at. */
+    memberPos = new Map();
     /** Pass 1 — bottom-up: assign every element its instance type, emitting a
      *  `declare class _E<n> extends <tag> { … }` for each element that adds
      *  members beyond its tag class. Members:
@@ -373,7 +398,15 @@ class CaseEmitter {
             return el.tag;
         }
         const name = `_E${this.typeCounter++}`;
-        this.lines.push(`declare class ${name} extends ${el.tag} {`, ...members, `}`);
+        this.lines.push(`declare class ${name} extends ${el.tag} {`);
+        for (const line of members) {
+            this.lines.push(line);
+            const m = /^ {2}([a-zA-Z_$][\w$]*)[(<]/.exec(line);
+            const src = m === null ? undefined : el.methods.find((x) => x.name === m[1]);
+            if (src !== undefined)
+                this.memberPos.set(this.lines.length, { pos: src.pos, name: src.name, tag: el.tag });
+        }
+        this.lines.push(`}`);
         this.instType.set(el, name);
         return name;
     }
