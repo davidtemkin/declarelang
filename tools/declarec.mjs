@@ -217,7 +217,7 @@ export const Inspect = new Proxy({ ready: () => false }, {
     for (const c of el.children ?? []) walkBodies(c, fn);
   };
   const programFacts = (() => {
-    let themes = false, draw = false, focusKeys = false, tips = false;
+    let themes = false, draw = false, focusKeys = false, tips = false, touch = false;
     const roots = [built.program.root, ...built.program.classes.map((c) => c.body)];
     // Any component the program can construct whose RUNTIME class makes itself
     // a tab stop without the source saying so (text-input.ts sets `focusable`
@@ -227,6 +227,14 @@ export const Inspect = new Proxy({ ready: () => false }, {
     for (const name of built.usedComponents) if (SELF_FOCUSING.has(name)) focusKeys = true;
     const walkEl = (el) => {
       if ((el.methods ?? []).some((m) => m.name === "draw")) draw = true;
+      // The focus-zoom lock (viewport-lock.js, ~1.7 KB gz) runs only for an app
+      // that claimed the raw touch family — the runtime keys it on the ROOT's
+      // wantsTouch. This walk is deliberately WIDER than that: any element
+      // anywhere declaring a touch handler keeps the module. Over-approximating
+      // costs a non-touch app nothing (it has no such handler) while making it
+      // impossible to stub the lock out of an app that turns out to need it,
+      // which would hand iOS a mid-gesture zoom and shear every coordinate.
+      if ((el.methods ?? []).some((m) => /^onTouch(Start|Move|End|Cancel)$/.test(m.name))) touch = true;
       for (const m of el.methods ?? []) {
         // A focused view's OWN key handlers arrive through deliverKeys (focus.ts),
         // so they need both services; focus handlers obviously need focus.
@@ -251,7 +259,7 @@ export const Inspect = new Proxy({ ready: () => false }, {
       });
       walkEl(r);
     }
-    return { usesThemes: themes, usesDraw: draw, usesFocusKeys: focusKeys, usesTips: tips };
+    return { usesThemes: themes, usesDraw: draw, usesFocusKeys: focusKeys, usesTips: tips, claimsTouch: touch };
   })();
   // index.js re-exports inspect's query surface by name; a stub must export
   // every name (esbuild resolves named re-exports even when unused downstream).
@@ -316,6 +324,7 @@ const NOOP = () => {};
 export const Tip = { over: NOOP, out: NOOP, hide: NOOP, onTip: () => NOOP, show: NOOP };
 `;
   const themesStub = `export const Themes = Object.freeze({});\n`;
+  const viewportStub = `export function lockFocusZoom() {}\n`;
   const drawStub = `export function record() { return null; }\nexport function replay() {}\nexport class Draw {}\nexport class DrawGradient {}\n`;
   const stubFor = (name, filterRe, contents) => ({
     name,
@@ -333,6 +342,7 @@ export const Tip = { over: NOOP, out: NOOP, hide: NOOP, onTip: () => NOOP, show:
       stubFor("slim-keys", /[/\\]keys\.js$/, keysStub),
     ]),
     ...(programFacts.usesTips ? [] : [stubFor("slim-tip", /[/\\]tip\.js$/, tipStub)]),
+    ...(programFacts.claimsTouch ? [] : [stubFor("slim-viewport", /[/\\]viewport-lock\.js$/, viewportStub)]),
   ];
 
   const result = await esbuild.build({

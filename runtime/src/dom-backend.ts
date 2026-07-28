@@ -70,6 +70,30 @@ const SINKS = new WeakMap<HTMLElement, InputSink>();
  *  target" meaning exactly. */
 const WANTS = new WeakMap<HTMLElement, InputWants>();
 
+/** While the page is pinch-zoomed, a scroller's containment must yield to the
+ *  user's viewport panning — measured on iPad (2026-07-28): iOS implements
+ *  zoomed panning as scroll chaining, so a full-height pane with
+ *  `overscroll-behavior: contain` cuts the chain at its edge and the app's
+ *  bottom band becomes unreachable at any zoom > 1 (visible only during the
+ *  elastic overscroll stretch). One document-level class, toggled from the
+ *  visualViewport scale, relaxes every scroller's containment and touch-action
+ *  exactly while zoomed — and only then, so the contain semantics (a pane
+ *  bounces on its own edges, never flashes the page behind) hold at scale 1.
+ *  The rule targets only `[data-declare-scroll]` (delegation is definitional
+ *  there); claim-carrying elements keep their claims. Singleton per document. */
+const ZOOM_WATCHED = new WeakSet<Document>();
+function watchPinchZoom(doc: Document): void {
+  if (ZOOM_WATCHED.has(doc) || typeof visualViewport === "undefined" || visualViewport === null) return;
+  ZOOM_WATCHED.add(doc);
+  const style = doc.createElement("style");
+  style.textContent = "html.declare-zoomed [data-declare-scroll]{overscroll-behavior:auto !important;touch-action:auto !important}";
+  doc.head.appendChild(style);
+  const vv = visualViewport;
+  const apply = (): void => { doc.documentElement.classList.toggle("declare-zoomed", vv.scale > 1.02); };
+  vv.addEventListener("resize", apply);
+  apply();
+}
+
 /** Surfaces that carry BOTH a Shape clip and a sink. The browser must never
  *  see such an element as a pointer target: a clip-path'd hittable overlay
  *  blocks native wheel scrolling and selection UNDERNEATH it — across the
@@ -135,6 +159,9 @@ export class DomBackend implements RenderBackend {
     // control must not lurch the page). Runs after the declareApp mark above
     // so the root default applies.
     (root as DomSurface).refreshTouchAction();
+    // …and while the user IS pinch-zoomed, scroller containment yields to
+    // viewport panning (see watchPinchZoom — the measured iOS chain trap).
+    watchPinchZoom(host.ownerDocument);
     // NOTE the frame does NOT clip here: an app larger than its host scrolls
     // natively — "exterior" scrolling, the browser over the app object — and
     // that stays expressible. An app designed as a fixed window (everything

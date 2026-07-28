@@ -26,7 +26,7 @@ const GLOBALS = new Set(["Inspect", "Math", "Object", "JSON", "Array", "Number",
 const CONSTRUCTORS = new Set(["gradient", "stroke", "shadow", "stop"]);
 const ITER = new Set(["map", "filter", "find", "findIndex", "some", "every", "reduce", "reduceRight", "forEach", "sort", "flatMap", "slice", "concat", "indexOf", "includes", "join", "keys", "values", "entries", "flat", "at", "reverse", "fill", "findLast"]);
 const PURE_METHODS = new Set(["toFixed", "toString", "toPrecision", "valueOf", "toExponential", "toUpperCase", "toLowerCase", "trim", "trimStart", "trimEnd", "padStart", "padEnd", "charAt", "charCodeAt", "codePointAt", "substring", "substr", "repeat", "startsWith", "endsWith", "split", "replace", "replaceAll", "match", "matchAll", "search", "normalize", "localeCompare", "slice", "at", "indexOf", "lastIndexOf", "includes", "getFullYear", "getMonth", "getDate", "getDay", "getHours", "getMinutes", "getSeconds", "getTime", "getMilliseconds", "getTimezoneOffset", "toISOString", "toLocaleDateString", "toLocaleTimeString", "toLocaleString", "toDateString", "getUTCFullYear", "getUTCMonth", "getUTCDate"]);
-const NODE_COLLECTIONS = new Set(["children", "subviews", "views", "members", "instances"]);
+const NODE_COLLECTIONS = new Set(["children", "childViews", "subviews", "views", "members", "instances"]);
 const asCode = (v) => v !== null && typeof v === "object" && v.kind === "code" ? v : null;
 class DepError {
     message;
@@ -403,6 +403,17 @@ function extractBody(sf, locals, inlinable, extraRoots) {
                 break;
             }
             if (ts.isPropertyAccessExpression(s)) {
+                // NOTE — reading the child ARRAY itself (`this.wins.children`) wires
+                // nothing: `children` is a plain array with no cell behind it, so the
+                // read is frozen at link time. `.map` over it IS refused above as
+                // unbounded aggregation, but a plain walk is NOT refused here, and
+                // deliberately so: the desktop's `windowItems(seq, front)` walks
+                // `wins.children` imperatively while taking its re-derive hooks as
+                // ARGUMENTS (desktop.declare §"the menus constraint … visibly reads
+                // them"), which is the author bounding the reactivity by hand rather
+                // than asking the compiler to guess. Refusing every `children` read
+                // would reject that idiom. `childViews` is the reactive alternative
+                // when the author wants the wake-up instead of supplying it.
                 pathEnd = s;
             }
             else if (ts.isElementAccessExpression(s)) {

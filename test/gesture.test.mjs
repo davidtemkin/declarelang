@@ -189,6 +189,33 @@ await test("dom: an intervening scroller keeps its wheel — delegation beats th
   assert.equal(await page.evaluate(() => window.__app.wdy), before, "the claimant never heard it");
 });
 
+await test("dom: while pinch-zoomed, scroller containment yields to viewport panning", async () => {
+  // The measured iOS trap (2026-07-28): zoomed panning is scroll chaining, so
+  // a full-height pane's `overscroll-behavior: contain` makes the app's bottom
+  // band unreachable at any zoom > 1. The runtime relaxes scrollers exactly
+  // while zoomed, via a document class driven by the visualViewport scale.
+  const cdp = await page.createCDPSession();
+  await cdp.send("Emulation.setPageScaleFactor", { pageScaleFactor: 2 });
+  await page.waitForFunction(() => document.documentElement.classList.contains("declare-zoomed"), { timeout: 5000 });
+  const zoomed = await page.evaluate(() => {
+    const sc = document.querySelector("[data-declare-scroll]");
+    const cs = getComputedStyle(sc);
+    return { ob: cs.overscrollBehaviorY ?? cs.overscrollBehavior, ta: cs.touchAction };
+  });
+  assert.equal(zoomed.ob, "auto", "containment relaxed while zoomed");
+  assert.equal(zoomed.ta, "auto", "panning unrestricted while zoomed");
+  await cdp.send("Emulation.setPageScaleFactor", { pageScaleFactor: 1 });
+  await page.waitForFunction(() => !document.documentElement.classList.contains("declare-zoomed"), { timeout: 5000 });
+  const back = await page.evaluate(() => {
+    const sc = document.querySelector("[data-declare-scroll]");
+    const cs = getComputedStyle(sc);
+    return { ob: cs.overscrollBehaviorY ?? cs.overscrollBehavior, ta: cs.touchAction };
+  });
+  assert.equal(back.ob, "contain", "containment restored at scale 1");
+  assert.ok(back.ta.includes("pan-y"), "delegation value restored at scale 1");
+  await cdp.detach();
+});
+
 // ── Canvas: the same contract at one shared element ─────────────────────────
 
 await open("/canvas-claims");

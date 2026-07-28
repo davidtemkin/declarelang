@@ -334,10 +334,10 @@ of an expression no static reading can name — rather than a silent fallback. D
 read it could not follow and the rewrite that resolves it. Three instincts account for most of
 them:
 
-- **Aggregating the rendered tree** — `children.map(…)`. The number you want lives in the data,
-  not the views: count the Dataset (§7). (A bare `children.length` is *not* refused, and that is
-  worse: it compiles and wires to nothing, so it never updates. The tree is not a reactive
-  collection. Count the data.)
+- **Aggregating the rendered tree** — `this.children.map(…)`. The number you want lives in the
+  data, not the views: count the Dataset (§7). (`.map` is refused; **`this.children.length` is
+  not**, and that is worse — it compiles and wires to nothing, so it never updates. The tree is
+  not a reactive collection.)
 - **Indexing a slot by a runtime value** — `this[k]`. Name the slot, or move the lookup into a
   method the compiler reads through.
 - **A slot deriving from itself** — `theme = { { ...theme, accent: red } }` reads like a harmless
@@ -453,8 +453,10 @@ than `undefined` three bindings deep — and lets every `:path` be checked again
 compile time. Without one, paths are dynamic: an unresolved `:path` yields null and the bound
 attribute falls back to its default. (Landing; `docs/system-design/data-paths.md` tracks it.)
 
-**Two-way binding is opt-in, with `<->`, for leaf editors only** — `TextInput [ text <-> :title ]`.
-One-way `:path` everywhere else. It is the only arrow in the language.
+**Two-way binding is opt-in, with `<->`, and for leaf editors only** — `TextInput [ text <-> :title ]`
+against data, or `text <-> { app.note }` against a slot: the right-hand side names a *place* to
+write, either a datapath or a `{ }` yielding one. One-way `:path` everywhere else. It is the only
+arrow in the language.
 
 **A derived dataset recomputes from its inputs** — `cal: Dataset [ contents = { app.buildModel() } ]`.
 This is also the window pattern for large collections: derive the visible slice and replicate the
@@ -531,7 +533,8 @@ chain until release. Read them anywhere a value goes, including as a state's con
 fill = { hovered ? 0x4169E1 : 0x191970 },   // royalblue when hovered, else midnightblue
 ```
 
-Declaring or assigning either is a compile error; like `contentWidth`, they are computed for you.
+Declaring either is a compile error; assigning one is refused at runtime, the same guard §5
+describes. Like `contentWidth`, they are computed for you.
 
 ## 9. Style
 
@@ -628,9 +631,9 @@ bg: View [ opacity = { app.open ? 0.5 : 1 } ],                 // the child deri
 bg: View [ dim: State [ applied = { app.open }, opacity = 0.5 ] ],   // or owns a state
 ```
 
-A state is driven **either** declaratively **or** imperatively, never both. `applied = { … }` is
-the declarative gate; `apply()`, `remove()`, and `toggle()` are the imperative verbs. Calling a
-verb on a gated state is an error that says so.
+A state is driven by its condition: `applied = { … }`. (The runtime also carries imperative
+`apply()`/`remove()`/`toggle()`, but they are not reachable from Declare source today — calling
+one is a member-resolution error. Gate on a boolean and change the boolean.)
 
 A **`Spring`** drives one attribute toward a reactive target. Declare where the thing belongs and
 the spring finds the path, so a change of target mid-flight is simply a new destination and

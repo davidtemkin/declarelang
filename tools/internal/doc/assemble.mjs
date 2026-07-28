@@ -84,7 +84,12 @@ function diagnosticSpine() {
 
 function librarySpine() {
   const manifest = JSON.parse(readFileSync(join(ROOT, "library/autoincludes.json"), "utf8"));
-  return Object.fromEntries(Object.entries(manifest).map(([tag, file]) => [tag, "library/" + file]));
+  // Tag -> file only. `$`-prefixed keys are manifest DIRECTIVES, not components
+  // ($provide is an array of provision rules), and concatenating one onto a path
+  // shipped `"library/[object Object],[object Object]"` in the published model.
+  return Object.fromEntries(Object.entries(manifest)
+    .filter(([tag, file]) => !tag.startsWith("$") && typeof file === "string")
+    .map(([tag, file]) => [tag, "library/" + file]));
 }
 
 function buildSpine() {

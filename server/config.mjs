@@ -82,6 +82,7 @@ export function loadConfig({ argv = [], cwd = process.cwd() } = {}) {
     else if (a === "--root") flags.root = argv[++i];
     else if (a === "--proxy") parseProxyFlag(argv[++i] ?? "", flags.proxy);
     else if (a === "--port") flags.port = Number(argv[++i]);
+    else if (a === "--host") flags.host = argv[++i];
     else if (a === "--platform-prefix") flags.platformPrefix = argv[++i];
     else if (a === "--build-cache") flags.buildCache = argv[++i];
     else if (a === "--no-config") flags.noConfig = true;
@@ -123,6 +124,10 @@ export function loadConfig({ argv = [], cwd = process.cwd() } = {}) {
     mountSpecs,
     proxy: { ...(file.proxy ?? {}), ...flags.proxy },           // flags win per-prefix
     port: flags.port ?? (Number(process.env.PORT) || file.port || 8200),
+    // The bind address. Loopback by default — a dev server serves one machine
+    // unless told otherwise; `--host 0.0.0.0` (or $HOST, or config `host`)
+    // opens it to the LAN, e.g. to point a phone at a touch build.
+    host: flags.host ?? process.env.HOST ?? file.host ?? "127.0.0.1",
     buildCache: path.resolve(flags.buildCache ?? file.buildCache ?? defaultBuildCache()),
     configPath,
     mode: path.resolve(root) === PLATFORM_DIR ? "distro" : "workspace",

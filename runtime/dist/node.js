@@ -17,8 +17,11 @@ export class Node {
      *  ARRIVE — per-child attr reads track the children that exist, and this
      *  cell tracks that the SET of children changed. */
     structure = null;
-    /** Tracked read of the child-list structure (no-op untracked). */
-    trackStructure() {
+    /** Register the caller's interest in "my child list changed" (no-op when
+     *  nothing is tracking). Every reactive read works this way — a cell the
+     *  reader subscribes to — and the child list's cell is created on first
+     *  interest rather than up front, so a tree nobody asks about pays nothing. */
+    watchChildList() {
         if (!isTracking())
             return;
         if (this.structure === null) {
@@ -27,7 +30,7 @@ export class Node {
         }
         this.structure.track();
     }
-    structureChanged() {
+    childListChanged() {
         this.structure?.changed();
     }
     /** The scope noun (R6) for members declared in THIS node's body — the
@@ -50,14 +53,14 @@ export class Node {
     appendChild(child) {
         child.parent = this;
         this.children.push(child);
-        this.structureChanged();
+        this.childListChanged();
     }
     /** Link `child` at `index` — child order is semantic (tree order is paint
      *  order, and replicated children take their data's order, R8). */
     insertChild(child, index) {
         child.parent = this;
         this.children.splice(index, 0, child);
-        this.structureChanged();
+        this.childListChanged();
     }
     /** Unlink `child`. Model structure only — a live view's surface and
      *  standing computations are the caller's to retire (View.discard). */
@@ -65,7 +68,7 @@ export class Node {
         const i = this.children.indexOf(child);
         if (i >= 0) {
             this.children.splice(i, 1);
-            this.structureChanged();
+            this.childListChanged();
         }
         child.parent = null;
     }

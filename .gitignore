@@ -33,3 +33,7 @@ my-apps/
 
 # the dev supervisor's per-port reload handle (server/dev.mjs; `npm run build:dev` signals it)
 server/.dev-reload.*.pid
+
+# Gesture-diagnostics capture (tools/internal/measure/probe.js) — raw event
+# batches, megabytes per session. The curated results.jsonl IS tracked.
+tools/internal/measure/probe.jsonl

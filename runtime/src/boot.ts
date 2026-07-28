@@ -168,7 +168,20 @@ function wireEnvironment(app: App, host: HTMLElement, embedded: boolean): void {
   const w = window;
   wireColorScheme(app);                    // top-level app lives for the page — no teardown needed
   wireTouchDevice(app);                    // device pointer kind — likewise page-lived
-  const size = () => { app.hostWidth = w.innerWidth; app.hostHeight = w.innerHeight; };
+  // The LAYOUT viewport, never the visual one: on iOS/iPadOS `window.inner*`
+  // track the VISUAL viewport and a pinch-zoom fires `resize`, so sizing from
+  // them re-laid the whole app out under the user's fingers, at the zoomed
+  // size (measured on iPad, 2026-07-28 — the zoom also kept self-canceling
+  // against the mid-gesture re-layout). `documentElement.client*` are the
+  // layout viewport: stable under pinch, still live for rotation and real
+  // window resizes — and on desktop they exclude a classic scrollbar, which
+  // is the width the app can actually use. A pinch must never change what a
+  // Declare app considers its host's size.
+  const size = () => {
+    const de = w.document.documentElement;
+    app.hostWidth = de.clientWidth;
+    app.hostHeight = de.clientHeight;
+  };
   const scroll = () => { app.scrollY = w.scrollY; };
   const move = (e: PointerEvent) => {
     app.pointerX = e.clientX; app.pointerY = e.clientY;

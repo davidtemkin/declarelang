@@ -606,6 +606,25 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
         Object.freeze(attr.value.items.flatMap((n) => (n.kind === "ident" ? [n.name] : [])));
       continue;
     }
+    // A bare `[ … ]` on an array slot — the literal form check.ts validated.
+    // Frozen like the styling lists: a bare literal is set once, so the value
+    // the slot holds is not something a later push should appear to change.
+    if (t0?.kind === "array" && attr.value.kind === "list") {
+      (view as unknown as Record<string, unknown>)[attr.name] =
+        Object.freeze(attr.value.items.map((it) => {
+          if (it.kind === "number" || it.kind === "string") return it.value;
+          if (it.kind === "hexColor") { const c = coerce({ kind: "color" }, it); return c.ok ? c.value : null; }
+          if (it.kind === "ident") {
+            if (it.name === "null") return null;
+            if (it.name === "true") return true;
+            if (it.name === "false") return false;
+            const c = coerce({ kind: "color" }, it);
+            return c.ok ? c.value : null;
+          }
+          return null;
+        }));
+      continue;
+    }
     if (t0?.kind === "styles" && attr.value.kind === "code") {
       throw new DeclareError(
         `${eff.name}.styles = { … }: the bundle list is static (ruled v1) — conditional looks are constraints on the slots themselves`,

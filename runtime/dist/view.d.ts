@@ -242,6 +242,17 @@ export declare class View extends Node {
      *  live, and independent of this view's own width/height. */
     get contentWidth(): number;
     get contentHeight(): number;
+    /** This view's View children — the reactive read of the child list, and the
+     *  only one there is: `children` is a plain array (machinery included, and
+     *  unlike the DOM's `children` it is NOT pre-filtered), so reading it in a
+     *  `{ }` tracks nothing and freezes. This wakes on arrival and removal, which
+     *  is what a container populated by replication or `createView` needs.
+     *
+     *  Set membership only — the cell does not carry a child's own attributes, so
+     *  `.length` is live while `.map(c => c.width)` would wire half of what it
+     *  reads. Aggregation over a node collection is refused for exactly that
+     *  reason (dep-extract); the number you want is usually in the data. */
+    get childViews(): readonly View[];
     /** Pointer-interaction intrinsics (interaction.ts): `hovered` is true while
      *  this view is on the live hit chain — the topmost visible view under the
      *  pointer and its ancestors, occlusion-correct, false on touch; `pressed`

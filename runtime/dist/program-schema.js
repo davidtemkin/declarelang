@@ -188,6 +188,37 @@ export function checkDecl(schema, d, owner = schema.name) {
     if (d.def.kind === "percent") {
         return err(`${owner}.${d.name}: a percent default would resolve against each instance's parent — set it per instance until percent defaults are designed`, d.def.pos);
     }
+    // A bare `[ … ]` default on an array slot is the ORDINARY literal form. The
+    // parser produces a list node and leaves item kinds to the slot ("Which item
+    // kinds a slot admits is the checker's", parser.ts); a generic array admits the
+    // unambiguous scalars. Handled here rather than in coerce() because AttrValue
+    // has no array arm — an array reaches its slot as a whole value. Without this,
+    // `rows: array = [1, 2]` — the first thing anyone writes when seeding a list —
+    // was refused, and the message sent the author to `{ [1, 2] }`, which spells a
+    // static seed as a standing relationship.
+    if (type.kind === "array" && d.def.kind === "list") {
+        const items = [];
+        for (const it of d.def.items) {
+            if (it.kind === "number" || it.kind === "string") {
+                items.push(it.value);
+                continue;
+            }
+            if (it.kind === "hexColor" || (it.kind === "ident" && it.name !== "null" && it.name !== "true" && it.name !== "false")) {
+                const cc = coerce({ kind: "color" }, it);
+                if (!cc.ok) {
+                    return err(`${owner}.${d.name}: a bare list holds plain values — numbers, strings, booleans, null, colors. For anything computed, write the whole list as a { } binding`, it.pos);
+                }
+                items.push(cc.value);
+                continue;
+            }
+            if (it.kind === "ident") {
+                items.push(it.name === "null" ? null : it.name === "true");
+                continue;
+            }
+            return err(`${owner}.${d.name}: a bare list holds plain values — numbers, strings, booleans, null, colors. For anything computed, write the whole list as a { } binding`, it.pos);
+        }
+        return { ok: true, type, value: Object.freeze(items) };
+    }
     const c = coerce(type, d.def);
     if (!c.ok) {
         // A raw :path default has one plausible intent — the { } binding form the

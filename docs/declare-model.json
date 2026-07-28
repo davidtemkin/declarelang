@@ -81,6 +81,7 @@
      "focustrap": "boolean",
      "anchor": "string",
      "contentWidth": "length",
+     "childViews": "array",
      "contentHeight": "length"
     },
     "prevailing": [
@@ -105,6 +106,7 @@
     "readOnly": [
      "contentWidth",
      "contentHeight",
+     "childViews",
      "hovered",
      "pressed"
     ],
@@ -585,7 +587,6 @@
    ]
   },
   "library": {
-   "$provide": "library/[object Object],[object Object]",
    "Bar": "library/bar.declare",
    "Control": "library/control.declare",
    "Checkbox": "library/checkbox.declare",
@@ -21885,6 +21886,14 @@
      "preview": "Status: RATIFIED, awaiting implementation (2026-07-15). §11 is the implementation charter: one agent, one pass, Phases A→B→C with hard test gates between them, in an untracked working copy. Companion rulings: capabilities.md §2 (the three s…"
     },
     {
+     "name": "Materialization",
+     "subtitle": "logical instances, invisible virtualization",
+     "kind": "doc",
+     "label": "Markdown file",
+     "path": "docs/system-design/materialization.md",
+     "preview": "Status: proposed 2026-07-28, not yet ruled. Grew out of the OL gap audit (openlaszlo-gaps.md(openlaszlo-gaps.md) §7) under David's challenge: \"how can this be solved so giant datasets just look like a regular dataset and the developer doesn…"
+    },
+    {
      "name": "Worker rasterization",
      "subtitle": "lessons from Mesa client",
      "kind": "doc",
@@ -21907,6 +21916,14 @@
      "label": "Markdown file",
      "path": "docs/system-design/open-items.md",
      "preview": "Status: register opened 2026-07-20. Each item is something a program could not express, or expressed only by working around the platform. App-level bugs are not here; they belong with their app. Most were surfaced by building the Inspector…"
+    },
+    {
+     "name": "OpenLaszlo → Declare",
+     "subtitle": "the structural gap audit",
+     "kind": "doc",
+     "label": "Markdown file",
+     "path": "docs/system-design/openlaszlo-gaps.md",
+     "preview": "Provenance (2026-07-28). Measured against the OpenLaszlo 4.9.0 source (lps-4.9.0: the LFC under WEB-INF/lps/lfc, the component tiers under lps/components, the tag compiler under WEB-INF/lps/server) and the current Declare runtime/compiler/l…"
     },
     {
      "name": "Slot ownership",

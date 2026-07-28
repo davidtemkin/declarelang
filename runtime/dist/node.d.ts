@@ -8,9 +8,12 @@ export declare class Node {
      *  ARRIVE — per-child attr reads track the children that exist, and this
      *  cell tracks that the SET of children changed. */
     private structure;
-    /** Tracked read of the child-list structure (no-op untracked). */
-    trackStructure(): void;
-    private structureChanged;
+    /** Register the caller's interest in "my child list changed" (no-op when
+     *  nothing is tracking). Every reactive read works this way — a cell the
+     *  reader subscribes to — and the child list's cell is created on first
+     *  interest rather than up front, so a tree nobody asks about pays nothing. */
+    watchChildList(): void;
+    private childListChanged;
     /** The scope noun (R6) for members declared in THIS node's body — the
      *  enclosing class instance, set at construction. It lives here, on Node, not
      *  on View: a node's members have a scope whether or not the node is visual

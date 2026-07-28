@@ -556,10 +556,14 @@ App [ appName = "Declare",
 
     scroller: View [ width = { app.width }, height = { app.height }, scrolls = true, visible = { app.location == "home" },
 
-        // full-bleed blueprint behind the column, sized to the page (a percent
-        // height stays out of the page’s own auto-extent, so no cycle)
+        // full-bleed blueprint behind the column, sized to the page's full
+        // extent — its offset AND its height, so the paper runs to the very
+        // bottom of the scroll range (the extent is page.y + page.height;
+        // sizing to height alone left a 96px paperless band at the bottom).
+        // Reading the page keeps this out of the page's own auto-extent, so
+        // no cycle.
 
-        grid: GridBg [ x = 0, y = 0, width = { app.width }, height = { parent.page.height } ],
+        grid: GridBg [ x = 0, y = 0, width = { app.width }, height = { parent.page.y + parent.page.height } ],
 
         // the centered content column: a fixed measure, and a VERTICAL FLOW of
         // sections — each auto-sizes, the page stacks them

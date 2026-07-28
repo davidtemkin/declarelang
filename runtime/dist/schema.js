@@ -178,10 +178,11 @@ const ViewSchema = {
         // contentHeight, 480) }`); they are never set (see readOnly below — the
         // runtime backs them with getters, not stored slots).
         contentWidth: { kind: "length" },
+        childViews: { kind: "array" },
         contentHeight: { kind: "length" },
     },
     prevailing: ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing", "headingColor", "headingWeight", "linkColor", "codeColor", "codeSize", "codeFamily", "codeBackground", "codeRule", "richTextLayout", "theme", "stylesheet", "selectable"],
-    readOnly: ["contentWidth", "contentHeight", "hovered", "pressed"],
+    readOnly: ["contentWidth", "contentHeight", "childViews", "hovered", "pressed"],
     // R5: the pointer trio (click = press and release on the same view — the
     // shared router's rule, input.ts) plus the construction-complete lifecycle
     // event `init` (Appendix A's onInit). Hover (mouseOver/Out) waits for its

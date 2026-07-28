@@ -27,6 +27,7 @@
 // namespace.
 
 import type { Element, Attr, Method, Program, TopDecl, Literal } from "./parser.js";
+import { CSS_COLORS } from "./css-colors.js";
 import { DeclareError, type Pos } from "./errors.js";
 import { attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName, type ComponentSchema } from "./schema.js";
 import { Diag } from "./diagnostics.js";
@@ -560,6 +561,26 @@ function checkElement(
                 : `no font named '${i.name}' — this program declares no fonts (use a raw family string, or add a 'font ${i.name} [ … ]')`,
               i.pos
             ));
+          }
+        }
+        continue;
+      }
+      // A bare `[ … ]` on an array slot is the ORDINARY literal form: the parser
+      // already produces a list node and leaves item kinds to the slot ("Which
+      // item kinds a slot admits is the checker's", parser.ts). Routed here like
+      // the styling lists above, because AttrValue has no array arm — an array
+      // reaches its slot as a whole value, not through coerce(). Without this,
+      // `rows: array = [1, 2]` was refused and the message sent the author to
+      // `{ [1, 2] }`, which spells a static seed as a standing relationship.
+      if (attrType(eff, attr.name)?.kind === "array" && attr.value.kind === "list") {
+        for (const it of attr.value.items) {
+          const plain = it.kind === "number" || it.kind === "string" || it.kind === "hexColor" ||
+            (it.kind === "ident" && (it.name === "null" || it.name === "true" || it.name === "false" ||
+              Object.hasOwn(CSS_COLORS, it.name.toLowerCase())));
+          if (!plain) {
+            errors.push(new DeclareError(
+              `${eff.name}.${attr.name}: a bare list holds plain values — numbers, strings, booleans, null, colors. For anything computed, write the whole list as a { } binding`,
+              it.pos));
           }
         }
         continue;
