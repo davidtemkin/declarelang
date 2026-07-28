@@ -42,7 +42,7 @@ export type Stretch = "none" | "width" | "height" | "both";
  *  `onClick`). A click is not a platform event here — the shared router
  *  (input.ts) synthesizes it as "press and release resolved to the same
  *  view", so both backends decide it identically by construction. */
-export type PointerType = "mouseDown" | "mouseUp" | "click" | "dblClick" | "mouseMove" | "mouseOver" | "mouseOut" | "hold" | "touchStart" | "touchMove" | "touchEnd" | "touchCancel";
+export type PointerType = "mouseDown" | "mouseUp" | "click" | "dblClick" | "mouseMove" | "mouseOver" | "mouseOut" | "hold" | "touchStart" | "touchMove" | "touchEnd" | "touchCancel" | "wheel";
 export declare const POINTER_TYPES: readonly PointerType[];
 /** The raw-touch member of the family: declaring one of these is a view's
  *  statement that it owns multi-finger gestures in its subtree (the backend
@@ -53,13 +53,29 @@ export declare const TOUCH_TYPES: readonly PointerType[];
  *  also the surface's *hit-test presence* (see Surface.setInput): route and
  *  flag are deliberately one thing, so they cannot disagree. */
 export type InputSink = (type: PointerType, x: number, y: number, extra?: Record<string, unknown>) => void;
-/** What a view's DECLARED handlers tell the router about arbitrating its
- *  gestures (view.ts inputWants → input.ts HitTarget). Travels with the sink
- *  because it is the same fact: a sink exists because handlers do. */
+/** What a view's DECLARED handlers tell the router — and the backend — about
+ *  arbitrating its gestures (view.ts inputWants → input.ts HitTarget). Travels
+ *  with the sink because it is the same fact: a sink exists because handlers do.
+ *
+ *  `wantsDrag`/`wantsTouch`/`wantsWheel` are also the backend's GESTURE CLAIMS
+ *  (the language rule: declaring a handler claims from the browser exactly what
+ *  that handler needs to fire, nothing more). The DOM backend realizes a claim
+ *  as the element's `touch-action` (setInput); the canvas backend arbitrates
+ *  per gesture at its shared element. A claim covers the declaring view's
+ *  subtree and runs one way — measured on Chrome and iOS Safari (2026-07-27),
+ *  a descendant cannot hand a claimed pinch back to the browser. */
 export interface InputWants {
     wantsDbl: boolean;
     wantsHold: boolean;
     wantsTouch: boolean;
+    /** Declares `onMouseMove` — claims the single-finger drag over this view
+     *  (a finger that lands here drags instead of panning); pinch stays the
+     *  user's. A mouse drag was never the browser's, so desktop is unchanged. */
+    wantsDrag: boolean;
+    /** Declares `onWheel` — claims the wheel stream over this view, trackpad
+     *  pinch included (it arrives as wheel deltas). ⌘+/− dispatches no event
+     *  and stays out of everyone's reach. */
+    wantsWheel: boolean;
 }
 /** A native editable text field over a surface's box (input.md, Layer 3). The
  *  backend owns the native element (`<input>`/`<textarea>`) — its creation,

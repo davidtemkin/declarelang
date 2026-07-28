@@ -103,7 +103,7 @@ workable for a machine is a property you benefit from first.** Small enough to h
 in your head. Regular enough to read with confidence. Checked strictly enough that
 what compiles is, far more often than you are used to, what you meant. The machine
 story and the human story are the same story — the workflow, and what was built to
-make it trustworthy, is [chapter 12](declare-docs:guide:with-an-llm).
+make it trustworthy, is [chapter 14](declare-docs:guide:with-an-llm).
 
 One more consequence of "one thing," and it lands a tier out. A re-render exists to
 reconcile a UI that drifted from its state; **hydration** is the same reconciliation

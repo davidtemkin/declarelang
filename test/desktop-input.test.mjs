@@ -105,17 +105,29 @@ try {
   });
 
   await test("DOM: native text selection works under the halo", async () => {
-    // Drag across the RENDERED document, located live — not fixed window
-    // offsets, so the reader's margins and measure can change freely without
-    // this input-mechanics test caring.
-    const d = await page.evaluate(() => {
-      const b = globalThis.__w.body.pad.doc.surface.element.getBoundingClientRect();
-      return { x: b.x, y: b.y, w: b.width };
-    });
-    // the pane may be scrolled (the wheel test above), so anchor in the doc's
-    // VISIBLE band — the doc is taller than the window, so this always exists
-    const y = Math.max(d.y, g.y + 80);
-    await drag(d.x + 10, y + 20, d.x + Math.min(220, d.w - 10), y + 60);
+    // Drag across an actual RENDERED TEXT RUN, located live. This test is about
+    // input mechanics — that the carved halo above the pane does not eat the
+    // selection gesture — so it must not depend on what the document happens to
+    // say. Locating a real run (rather than dragging at a fixed offset into the
+    // doc box, which lands wherever the current prose puts it) is what makes it
+    // independent of `docs/declare.md`'s content: the file it renders is edited
+    // often, and a geometric guess silently became a drag across blank space.
+    const d = await page.evaluate((top, bottom) => {
+      const root = globalThis.__w.body.pad.doc.surface.element;
+      const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      const runs = [];
+      for (let n = walk.nextNode(); n && runs.length < 2; n = walk.nextNode()) {
+        if (!n.nodeValue || n.nodeValue.trim().length < 20) continue;
+        const r = n.parentElement.getBoundingClientRect();
+        if (r.width < 80 || r.height < 6) continue;      // a real line, not an artifact
+        if (r.top < top || r.bottom > bottom) continue;  // fully inside the visible band
+        runs.push({ x: r.left, y: r.top + r.height / 2, w: r.width });
+      }
+      return runs.length === 2 ? runs : null;
+    }, g.y + 8, g.y + g.h - 8);
+    assert.ok(d, "the reader should render two visible text runs to drag across");
+    // across and DOWN, so the selection spans runs rather than part of one line
+    await drag(d[0].x + 2, d[0].y, d[1].x + Math.min(d[1].w - 4, 240), d[1].y);
     const n = await page.evaluate(() => String(getSelection()).length);
     await page.evaluate(() => getSelection().removeAllRanges());
     assert.ok(n > 0, "dragging across the reader's text should select");

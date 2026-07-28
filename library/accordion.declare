@@ -1,23 +1,23 @@
 /*
-# TabSlider
+# Accordion
 
-OpenLaszlo's `basetabslider`, reborn — the accordion: stacked tab headers, one
+OpenLaszlo's `basetabslider`, reborn — stacked pane headers, one
 pane open at a time, panes SLIDING open and closed by a spring on height. The
 load-bearing mechanic (docs/system-design/tabslider-gaps.md, verified
-frame-by-frame against the original): a tab's content is PRESENT through the
-whole open **and** close, revealed and concealed by the tab's own clip as its
+frame-by-frame against the original): a pane's content is PRESENT through the
+whole open **and** close, revealed and concealed by the pane's own clip as its
 height animates — never an instant pop, never a blank gap.
 
-Value contract (components-baseline.md): the open tab is ONE attribute on the
-group — `value`, the open tab's name — exactly RadioGroup's shape. Tabs are
+Value contract (components-baseline.md): the open pane is ONE attribute on the
+group — `value`, the open pane's name — exactly RadioGroup's shape. Panes are
 the group's direct children; each names itself (`name`, defaulting to its
-`label`) and derives `open` from the group. Content is authored as the Tab's
-ordinary children — the Tab stacks its header then the content, and clips.
+`label`) and derives `open` from the group. Content is authored as the Pane's
+ordinary children — the Pane stacks its header then the content, and clips.
 */
 
 include [ "control.declare" ]
 
-class TabSlider extends View [
+class Accordion extends View [
     value: string = "",
 
     // one open pane at a time, stacked flush — the sliding heights ARE the
@@ -27,14 +27,14 @@ class TabSlider extends View [
     ]
 
 
-class Tab extends Control [ width = { parent.width }, clip = true,
+class Pane extends Control [ width = { parent.width }, clip = true,
     label: string = "",
     name:  string = { label },
-    initial: boolean = false,                     // seed the open pane: first Tab sets initial = true
+    initial: boolean = false,                     // seed the open pane: first Pane sets initial = true
 
-    open: boolean = { (parent as TabSlider).value == name && name != "" },
+    open: boolean = { (parent as Accordion).value == name && name != "" },
 
-    onInit() { if (initial && (parent as TabSlider).value == "") (parent as TabSlider).value = name },
+    onInit() { if (initial && (parent as Accordion).value == "") (parent as Accordion).value = name },
 
     // the slide: height springs between the bare header and the content's own
     // wanted extent; `clip = true` is what carries the content through the
@@ -45,19 +45,19 @@ class Tab extends Control [ width = { parent.width }, clip = true,
     // a CLOSED pane is clip-occluded, not hidden — its content stays visible
     // so the slide can carry it (the OL mechanic), but focus must never
     // descend into it (the web's inert lesson; ARIA's inactive-panel rule).
-    // The traversal protocol handles it: while closed, this Tab contributes
-    // no members — the header stop (the Tab itself) remains.
+    // The traversal protocol handles it: while closed, this Pane contributes
+    // no members — the header stop (the Pane itself) remains.
 
     tabOrder() { return open ? this.tabDefault() : [] },
 
-    press()   { (parent as TabSlider).value = name },
+    press()   { (parent as Accordion).value = name },
     onClick() { if (!disabled) press() },
 
     layout: SimpleLayout [ axis = y, spacing = 0 ],
 
     // headers are FILLED, edgeless — an edge reads as an input field (David).
     // The one exception is the component channel of the focus model: while
-    // THIS tab holds KEYBOARD focus (Control's focusVisible — the web's
+    // THIS pane holds KEYBOARD focus (Control's focusVisible — the web's
     // :focus-visible rule), a darker-than-fill edge appears. A pointer click
     // focuses silently — the click is its own feedback, no edge.
 

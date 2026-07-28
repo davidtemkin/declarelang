@@ -97,7 +97,7 @@ wins that land in the first hour. Check them off as they're addressed.
   prevailing text attributes. `fontStyle` was the author's wrong guess, not a missing feature.
 - [x] **A6 — Scalar and indexed data (finding #5).** Confirmed by probe: `:owner.name`
   (nested) and `:images[0]` (indexed) both compile; a *scalar* datum has no `:` accessor.
-  Documented all three in 08-data (the `:path` section), with the reshape workaround and the
+  Documented all three in 09-data (then 08-data) (the `:path` section), with the reshape workaround and the
   bare-scalar cursor recorded as a known gap.
 - [x] **A7 — Attribute-value forms note (finding #7).** Corrected the imprecise two-brackets
   line (it said a `{ }` body "takes expressions and statements"): an **attribute value** `{ }`

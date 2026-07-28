@@ -1,0 +1,16 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Q2a — pinch with ancestor touch-action:none (full screen)</title>
+<style>
+  body { margin: 0; font: 17px -apple-system, sans-serif; }
+  #zone { position: fixed; inset: 0; background: #fdd; touch-action: none;
+          display: flex; align-items: center; justify-content: center; text-align: center; }
+</style>
+<body>
+<div id="zone">
+  The ENTIRE screen is inside<br><code>touch-action: none</code>.<br><br>
+  Pinch anywhere (⌥-drag).<br>Does the scale in the green bar move?
+</div>
+<script src="lab.js"></script>
+<script>lab("ta-none");</script>

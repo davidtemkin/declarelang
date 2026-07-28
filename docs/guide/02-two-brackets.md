@@ -29,7 +29,7 @@ This is the one table to internalize — everything else in the language builds 
 
 Bare means it never changes. Braces mean it stays true — the standing relationship
 from chapter 1, which the next chapter is entirely about. A leading `:` means the
-value comes from data, which is [chapter 8](declare-docs:guide:data)'s subject. Here
+value comes from data, which is [chapter 9](declare-docs:guide:data)'s subject. Here
 are all three in one running program:
 
 ```declare

@@ -217,7 +217,8 @@ one signature addition is the animated focus rects (elected for BOTH roles —
 transitions and at-rest focused rendition). The default must also fix the
 TextInput rendition: today a bare field has NO edge; the house look gives text
 fields real visual articulation, unfocused and focused. And the styling arc
-adds one planes-free component to the mix as it goes: **`TabSlider`** — OL's
+adds one planes-free component to the mix as it goes: **`Accordion`** (named
+`TabSlider` when this was written) — OL's
 basetabslider, the accordion: stacked headers, sprung heights, and
 CLIP-CARRIED content (present through the whole open and close, revealed by
 the clip as height animates — never a blank gap; the mechanics are already

@@ -215,12 +215,16 @@ const ViewSchema: ComponentSchema = {
   // consuming rung — it needs retained enter/leave tracking, not just a
   // per-event hit test.
   // The pointer events come in two layers (input.ts): the RAW facts —
-  // mouseDown/Move/Up and the multi-finger `touch*` family — report what the
-  // pointer physically did, immediately; the RESOLVED ones — click, dblClick,
+  // mouseDown/Move/Up, the multi-finger `touch*` family, and `wheel` (the
+  // wheel stream, trackpad pinch included) — report what the pointer
+  // physically did, immediately; the RESOLVED ones — click, dblClick,
   // hold — report what the user MEANT, after the router has watched the whole
   // gesture. Activate on the resolved layer, manipulate on the raw one.
+  // Declaring a raw-family handler is also a gesture CLAIM (backend.ts
+  // InputWants): it takes from the browser exactly what that handler needs
+  // to fire, nothing more.
   events: ["click", "dblClick", "hold", "mouseDown", "mouseUp", "mouseMove", "mouseOver", "mouseOut",
-    "touchStart", "touchMove", "touchEnd", "touchCancel",
+    "touchStart", "touchMove", "touchEnd", "touchCancel", "wheel",
     "init", "focus", "blur", "escapeFocus", "keyDown", "keyUp"],
 };
 

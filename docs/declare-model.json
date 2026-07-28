@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "b11f6c1c809a",
+  "buildId": "a8033b5dcddc",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -121,6 +121,7 @@
      "touchMove",
      "touchEnd",
      "touchCancel",
+     "wheel",
      "init",
      "focus",
      "blur",
@@ -567,6 +568,7 @@
     "DECLARE3002",
     "DECLARE3003",
     "DECLARE3004",
+    "DECLARE3005",
     "DECLARE4000",
     "DECLARE4001",
     "DECLARE4002",
@@ -593,11 +595,10 @@
    "RadioGroup": "library/radiogroup.declare",
    "Radio": "library/radiogroup.declare",
    "Field": "library/field.declare",
-   "SearchField": "library/searchfield.declare",
    "ProgressBar": "library/progressbar.declare",
    "FocusRing": "library/focusring.declare",
-   "TabSlider": "library/tabslider.declare",
-   "Tab": "library/tabslider.declare",
+   "Accordion": "library/accordion.declare",
+   "Pane": "library/accordion.declare",
    "Tooltip": "library/tooltip.declare",
    "Menu": "library/menu.declare",
    "MenuBar": "library/menubar.declare",
@@ -761,6 +762,16 @@
  },
  "links": {
   "ids": {
+   "Accordion": {
+    "path": "docs/declare-model.json",
+    "title": "Accordion",
+    "kind": "reference"
+   },
+   "Accordion.value": {
+    "path": "docs/declare-model.json",
+    "title": "Accordion.value",
+    "kind": "reference"
+   },
    "Animator": {
     "path": "docs/declare-model.json",
     "title": "Animator",
@@ -1931,6 +1942,51 @@
     "title": "Node.method.trackStructure",
     "kind": "reference"
    },
+   "Pane": {
+    "path": "docs/declare-model.json",
+    "title": "Pane",
+    "kind": "reference"
+   },
+   "Pane.event.onClick": {
+    "path": "docs/declare-model.json",
+    "title": "Pane.event.onClick",
+    "kind": "reference"
+   },
+   "Pane.event.onInit": {
+    "path": "docs/declare-model.json",
+    "title": "Pane.event.onInit",
+    "kind": "reference"
+   },
+   "Pane.initial": {
+    "path": "docs/declare-model.json",
+    "title": "Pane.initial",
+    "kind": "reference"
+   },
+   "Pane.label": {
+    "path": "docs/declare-model.json",
+    "title": "Pane.label",
+    "kind": "reference"
+   },
+   "Pane.method.press": {
+    "path": "docs/declare-model.json",
+    "title": "Pane.method.press",
+    "kind": "reference"
+   },
+   "Pane.method.tabOrder": {
+    "path": "docs/declare-model.json",
+    "title": "Pane.method.tabOrder",
+    "kind": "reference"
+   },
+   "Pane.name": {
+    "path": "docs/declare-model.json",
+    "title": "Pane.name",
+    "kind": "reference"
+   },
+   "Pane.open": {
+    "path": "docs/declare-model.json",
+    "title": "Pane.open",
+    "kind": "reference"
+   },
    "ProgressBar": {
     "path": "docs/declare-model.json",
     "title": "ProgressBar",
@@ -2059,26 +2115,6 @@
    "RichText.scale": {
     "path": "docs/declare-model.json",
     "title": "RichText.scale",
-    "kind": "reference"
-   },
-   "SearchField": {
-    "path": "docs/declare-model.json",
-    "title": "SearchField",
-    "kind": "reference"
-   },
-   "SearchField.method.input": {
-    "path": "docs/declare-model.json",
-    "title": "SearchField.method.input",
-    "kind": "reference"
-   },
-   "SearchField.placeholder": {
-    "path": "docs/declare-model.json",
-    "title": "SearchField.placeholder",
-    "kind": "reference"
-   },
-   "SearchField.text": {
-    "path": "docs/declare-model.json",
-    "title": "SearchField.text",
     "kind": "reference"
    },
    "SimpleLayout": {
@@ -2334,61 +2370,6 @@
    "Switch.method.press": {
     "path": "docs/declare-model.json",
     "title": "Switch.method.press",
-    "kind": "reference"
-   },
-   "Tab": {
-    "path": "docs/declare-model.json",
-    "title": "Tab",
-    "kind": "reference"
-   },
-   "Tab.event.onClick": {
-    "path": "docs/declare-model.json",
-    "title": "Tab.event.onClick",
-    "kind": "reference"
-   },
-   "Tab.event.onInit": {
-    "path": "docs/declare-model.json",
-    "title": "Tab.event.onInit",
-    "kind": "reference"
-   },
-   "Tab.initial": {
-    "path": "docs/declare-model.json",
-    "title": "Tab.initial",
-    "kind": "reference"
-   },
-   "Tab.label": {
-    "path": "docs/declare-model.json",
-    "title": "Tab.label",
-    "kind": "reference"
-   },
-   "Tab.method.press": {
-    "path": "docs/declare-model.json",
-    "title": "Tab.method.press",
-    "kind": "reference"
-   },
-   "Tab.method.tabOrder": {
-    "path": "docs/declare-model.json",
-    "title": "Tab.method.tabOrder",
-    "kind": "reference"
-   },
-   "Tab.name": {
-    "path": "docs/declare-model.json",
-    "title": "Tab.name",
-    "kind": "reference"
-   },
-   "Tab.open": {
-    "path": "docs/declare-model.json",
-    "title": "Tab.open",
-    "kind": "reference"
-   },
-   "TabSlider": {
-    "path": "docs/declare-model.json",
-    "title": "TabSlider",
-    "kind": "reference"
-   },
-   "TabSlider.value": {
-    "path": "docs/declare-model.json",
-    "title": "TabSlider.value",
     "kind": "reference"
    },
    "Text": {
@@ -2736,6 +2717,11 @@
     "title": "View.event.touchStart",
     "kind": "reference"
    },
+   "View.event.wheel": {
+    "path": "docs/declare-model.json",
+    "title": "View.event.wheel",
+    "kind": "reference"
+   },
    "View.fill": {
     "path": "docs/declare-model.json",
     "title": "View.fill",
@@ -3027,37 +3013,47 @@
     "kind": "essay"
    },
    "guide:arrangement": {
-    "path": "docs/guide/10-arrangement.md",
+    "path": "docs/guide/11-arrangement.md",
     "title": "Arrangement animates",
     "kind": "guide"
    },
    "guide:calendar": {
-    "path": "docs/guide/13-calendar.md",
+    "path": "docs/guide/15-calendar.md",
     "title": "Declare Calendar",
     "kind": "guide"
    },
+   "guide:controls": {
+    "path": "docs/guide/08-controls.md",
+    "title": "Derive down, deliver up",
+    "kind": "guide"
+   },
    "guide:data": {
-    "path": "docs/guide/08-data.md",
+    "path": "docs/guide/09-data.md",
     "title": "Data is a place, not an event",
     "kind": "guide"
    },
    "guide:embedding": {
-    "path": "docs/guide/14-embedding.md",
+    "path": "docs/guide/16-embedding.md",
     "title": "Crossing boundaries — a page in an app, an app in a page",
+    "kind": "guide"
+   },
+   "guide:gestures": {
+    "path": "docs/guide/12-gestures.md",
+    "title": "The browser owns a gesture until you claim it",
     "kind": "guide"
    },
    "guide:interaction": {
     "path": "docs/guide/07-interaction.md",
-    "title": "Interaction is delivery",
+    "title": "Nothing bubbles",
     "kind": "guide"
    },
    "guide:loop": {
-    "path": "docs/guide/11-loop.md",
+    "path": "docs/guide/13-loop.md",
     "title": "Run it, check it, ship it",
     "kind": "guide"
    },
    "guide:motion-and-modes": {
-    "path": "docs/guide/09-motion-and-modes.md",
+    "path": "docs/guide/10-motion-and-modes.md",
     "title": "Motion is a target; a mode is a bundle",
     "kind": "guide"
    },
@@ -3067,7 +3063,7 @@
     "kind": "guide"
    },
    "guide:renderers": {
-    "path": "docs/guide/15-renderers.md",
+    "path": "docs/guide/17-renderers.md",
     "title": "Two renderers — the same program in DOM or on a canvas",
     "kind": "guide"
    },
@@ -3097,7 +3093,7 @@
     "kind": "guide"
    },
    "guide:with-an-llm": {
-    "path": "docs/guide/12-with-an-llm.md",
+    "path": "docs/guide/14-with-an-llm.md",
     "title": "Writing with an LLM",
     "kind": "guide"
    },
@@ -3199,37 +3195,47 @@
     "guide:two-brackets"
    ],
    "docs/guide/07-interaction.md": [
-    "guide:data",
+    "guide:controls",
+    "guide:gestures",
     "guide:tree"
    ],
-   "docs/guide/08-data.md": [
+   "docs/guide/08-controls.md": [
+    "guide:data",
+    "guide:space",
+    "guide:tree"
+   ],
+   "docs/guide/09-data.md": [
     "guide:interaction",
     "guide:motion-and-modes",
     "guide:relationships"
    ],
-   "docs/guide/09-motion-and-modes.md": [
+   "docs/guide/10-motion-and-modes.md": [
     "guide:arrangement",
     "guide:space"
    ],
-   "docs/guide/10-arrangement.md": [
-    "guide:loop",
+   "docs/guide/11-arrangement.md": [
+    "guide:gestures",
     "guide:motion-and-modes",
     "guide:relationships"
    ],
-   "docs/guide/11-loop.md": [
+   "docs/guide/12-gestures.md": [
+    "guide:interaction",
+    "guide:loop"
+   ],
+   "docs/guide/13-loop.md": [
     "guide:relationships",
     "guide:style",
     "guide:with-an-llm",
     "operational:inspector",
     "operational:introspection"
    ],
-   "docs/guide/12-with-an-llm.md": [
+   "docs/guide/14-with-an-llm.md": [
     "essay:why-declare",
     "guide:calendar",
     "guide:loop",
     "spec:core"
    ],
-   "docs/guide/13-calendar.md": [
+   "docs/guide/15-calendar.md": [
     "guide:arrangement",
     "guide:data",
     "guide:interaction",
@@ -3238,7 +3244,7 @@
     "reference:index",
     "spec:core"
    ],
-   "docs/guide/14-embedding.md": [
+   "docs/guide/16-embedding.md": [
     "operational:embedding"
    ],
    "docs/operational/building.md": [
@@ -3307,7 +3313,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 626
+    "line": 628
    },
    "parent": "View",
    "seeAlso": [],
@@ -3331,7 +3337,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 627
+    "line": 629
    },
    "parent": "View",
    "seeAlso": [],
@@ -3355,7 +3361,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 628
+    "line": 630
    },
    "parent": "View",
    "seeAlso": [],
@@ -3379,7 +3385,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 629
+    "line": 631
    },
    "parent": "View",
    "seeAlso": [],
@@ -3414,7 +3420,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 630
+    "line": 632
    },
    "parent": "View",
    "seeAlso": [],
@@ -3438,7 +3444,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 631
+    "line": 633
    },
    "parent": "View",
    "seeAlso": [],
@@ -3500,7 +3506,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 632
+    "line": 634
    },
    "parent": "View",
    "seeAlso": [],
@@ -3524,7 +3530,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 633
+    "line": 635
    },
    "parent": "View",
    "seeAlso": [],
@@ -3548,7 +3554,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 634
+    "line": 636
    },
    "parent": "View",
    "seeAlso": [],
@@ -3572,7 +3578,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 635
+    "line": 637
    },
    "parent": "View",
    "seeAlso": [],
@@ -3596,7 +3602,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 636
+    "line": 638
    },
    "parent": "View",
    "seeAlso": [],
@@ -3620,7 +3626,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 637
+    "line": 639
    },
    "parent": "View",
    "seeAlso": [],
@@ -3644,7 +3650,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 642
+    "line": 644
    },
    "parent": "View",
    "seeAlso": [],
@@ -3668,7 +3674,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 643
+    "line": 645
    },
    "parent": "View",
    "seeAlso": [],
@@ -3692,7 +3698,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 644
+    "line": 646
    },
    "parent": "View",
    "seeAlso": [],
@@ -3716,7 +3722,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 651
+    "line": 653
    },
    "parent": "View",
    "seeAlso": [],
@@ -3740,7 +3746,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 655
+    "line": 657
    },
    "parent": "View",
    "seeAlso": [],
@@ -3764,7 +3770,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 656
+    "line": 658
    },
    "parent": "View",
    "seeAlso": [],
@@ -3788,7 +3794,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 657
+    "line": 659
    },
    "parent": "View",
    "seeAlso": [],
@@ -3812,7 +3818,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 658
+    "line": 660
    },
    "parent": "View",
    "seeAlso": [],
@@ -3836,7 +3842,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 662
+    "line": 664
    },
    "parent": "View",
    "seeAlso": [],
@@ -3860,7 +3866,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 664
+    "line": 666
    },
    "parent": "View",
    "seeAlso": [],
@@ -3884,7 +3890,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 665
+    "line": 667
    },
    "parent": "View",
    "seeAlso": [],
@@ -3908,7 +3914,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 666
+    "line": 668
    },
    "parent": "View",
    "seeAlso": [],
@@ -3932,7 +3938,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 667
+    "line": 669
    },
    "parent": "View",
    "seeAlso": [],
@@ -3956,7 +3962,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 670
+    "line": 672
    },
    "parent": "View",
    "seeAlso": [],
@@ -3980,7 +3986,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 671
+    "line": 673
    },
    "parent": "View",
    "seeAlso": [],
@@ -4004,7 +4010,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 672
+    "line": 674
    },
    "parent": "View",
    "seeAlso": [],
@@ -4028,7 +4034,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 673
+    "line": 675
    },
    "parent": "View",
    "seeAlso": [],
@@ -4052,7 +4058,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 674
+    "line": 676
    },
    "parent": "View",
    "seeAlso": [],
@@ -4076,7 +4082,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 675
+    "line": 677
    },
    "parent": "View",
    "seeAlso": [],
@@ -4100,7 +4106,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 676
+    "line": 678
    },
    "parent": "View",
    "seeAlso": [],
@@ -4124,7 +4130,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 677
+    "line": 679
    },
    "parent": "View",
    "seeAlso": [],
@@ -4148,7 +4154,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 678
+    "line": 680
    },
    "parent": "View",
    "seeAlso": [],
@@ -4172,7 +4178,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 679
+    "line": 681
    },
    "parent": "View",
    "seeAlso": [],
@@ -4196,7 +4202,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 663
+    "line": 665
    },
    "parent": "View",
    "seeAlso": [],
@@ -4215,7 +4221,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 638
+    "line": 640
    },
    "parent": "View",
    "seeAlso": [],
@@ -4234,7 +4240,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 639
+    "line": 641
    },
    "parent": "View",
    "seeAlso": [],
@@ -4258,7 +4264,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 680
+    "line": 682
    },
    "parent": "View",
    "seeAlso": [],
@@ -4282,7 +4288,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 683
+    "line": 685
    },
    "parent": "View",
    "seeAlso": [],
@@ -4306,7 +4312,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 684
+    "line": 686
    },
    "parent": "View",
    "seeAlso": [],
@@ -4330,7 +4336,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 697
+    "line": 699
    },
    "parent": "View",
    "seeAlso": [],
@@ -4354,7 +4360,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 645
+    "line": 647
    },
    "parent": "View",
    "seeAlso": [],
@@ -4378,7 +4384,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 646
+    "line": 648
    },
    "parent": "View",
    "seeAlso": [],
@@ -4402,7 +4408,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 650
+    "line": 652
    },
    "parent": "View",
    "seeAlso": [],
@@ -4682,7 +4688,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 600
+    "line": 602
    },
    "parent": "View",
    "seeAlso": [],
@@ -4698,7 +4704,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 618
+    "line": 620
    },
    "parent": "View",
    "seeAlso": [],
@@ -4926,6 +4932,26 @@
    "seeAlso": [],
    "signature": "onTouchCancel()"
   },
+  "View.event.wheel": {
+   "id": "View.event.wheel",
+   "name": "wheel",
+   "kind": "event",
+   "doc": "The wheel turned over the view — mouse wheel, trackpad scroll, or trackpad pinch, which\narrives on the same stream with `e.pinch` true (a ctrl+wheel zoom reports identically).\nThe event carries the point in this view's coordinates plus `deltaX`/`deltaY`. Declaring\nit **claims the wheel** over this view and its subtree — the browser stops scrolling or\nzooming the page with it — except over a nested `scrolls` pane, which keeps its own\nwheel. ⌘ +/− dispatches no event and stays out of reach.",
+   "docSegs": [
+    {
+     "md": "The wheel turned over the view — mouse wheel, trackpad scroll, or trackpad pinch, which\narrives on the same stream with `e.pinch` true (a ctrl+wheel zoom reports identically).\nThe event carries the point in this view's coordinates plus `deltaX`/`deltaY`. Declaring\nit **claims the wheel** over this view and its subtree — the browser stops scrolling or\nzooming the page with it — except over a nested `scrolls` pane, which keeps its own\nwheel. ⌘ +/− dispatches no event and stays out of reach.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "View",
+   "seeAlso": [],
+   "signature": "onWheel()"
+  },
   "View.event.init": {
    "id": "View.event.init",
    "name": "init",
@@ -5086,10 +5112,9 @@
     "Control",
     "RadioGroup",
     "Field",
-    "SearchField",
     "ProgressBar",
     "FocusRing",
-    "TabSlider",
+    "Accordion",
     "Tooltip",
     "Menu",
     "MenuBar",
@@ -5178,6 +5203,7 @@
     "View.event.touchMove",
     "View.event.touchEnd",
     "View.event.touchCancel",
+    "View.event.wheel",
     "View.event.init",
     "View.event.focus",
     "View.event.blur",
@@ -5208,7 +5234,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 976
+    "line": 978
    },
    "parent": "App",
    "seeAlso": [],
@@ -5232,7 +5258,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 977
+    "line": 979
    },
    "parent": "App",
    "seeAlso": [],
@@ -5256,7 +5282,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 978
+    "line": 980
    },
    "parent": "App",
    "seeAlso": [],
@@ -5280,7 +5306,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 979
+    "line": 981
    },
    "parent": "App",
    "seeAlso": [],
@@ -5304,7 +5330,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 981
+    "line": 983
    },
    "parent": "App",
    "seeAlso": [],
@@ -5323,7 +5349,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 980
+    "line": 982
    },
    "parent": "App",
    "seeAlso": [],
@@ -5347,7 +5373,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 982
+    "line": 984
    },
    "parent": "App",
    "seeAlso": [],
@@ -5371,7 +5397,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 983
+    "line": 985
    },
    "parent": "App",
    "seeAlso": [],
@@ -5395,7 +5421,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 984
+    "line": 986
    },
    "parent": "App",
    "seeAlso": [],
@@ -5414,7 +5440,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 985
+    "line": 987
    },
    "parent": "App",
    "seeAlso": [],
@@ -5433,7 +5459,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 986
+    "line": 988
    },
    "parent": "App",
    "seeAlso": [],
@@ -5452,7 +5478,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 987
+    "line": 989
    },
    "parent": "App",
    "seeAlso": [],
@@ -5471,7 +5497,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 988
+    "line": 990
    },
    "parent": "App",
    "seeAlso": [],
@@ -5490,7 +5516,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 992
+    "line": 994
    },
    "parent": "App",
    "seeAlso": [],
@@ -5525,7 +5551,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1000
+    "line": 1002
    },
    "parent": "App",
    "seeAlso": [],
@@ -5549,7 +5575,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1004
+    "line": 1006
    },
    "parent": "App",
    "seeAlso": [],
@@ -5573,7 +5599,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1005
+    "line": 1007
    },
    "parent": "App",
    "seeAlso": [],
@@ -5592,7 +5618,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1007
+    "line": 1009
    },
    "parent": "App",
    "seeAlso": [],
@@ -5611,7 +5637,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 866
+    "line": 868
    },
    "parent": "App",
    "seeAlso": [],
@@ -5632,7 +5658,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 871
+    "line": 873
    },
    "parent": "App",
    "seeAlso": [],
@@ -5648,7 +5674,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 889
+    "line": 891
    },
    "parent": "App",
    "seeAlso": [],
@@ -5664,7 +5690,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 894
+    "line": 896
    },
    "parent": "App",
    "seeAlso": [],
@@ -5680,7 +5706,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 910
+    "line": 912
    },
    "parent": "App",
    "seeAlso": [],
@@ -6456,7 +6482,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1028
+    "line": 1030
    },
    "parent": "DOMIsland",
    "seeAlso": [],
@@ -6475,7 +6501,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1029
+    "line": 1031
    },
    "parent": "DOMIsland",
    "seeAlso": [],
@@ -9605,7 +9631,7 @@
     "Switch",
     "Slider",
     "Radio",
-    "Tab"
+    "Pane"
    ],
    "origin": "library",
    "attributes": [
@@ -10578,90 +10604,6 @@
    "events": [],
    "example": []
   },
-  "SearchField.placeholder": {
-   "id": "SearchField.placeholder",
-   "name": "placeholder",
-   "kind": "attribute",
-   "doc": null,
-   "docSegs": [],
-   "api": true,
-   "source": {
-    "file": "library/searchfield.declare",
-    "line": 0
-   },
-   "parent": "SearchField",
-   "seeAlso": [],
-   "type": "string",
-   "default": "\"Search\"",
-   "prevailing": false,
-   "readOnly": false,
-   "inheritedFrom": null
-  },
-  "SearchField.text": {
-   "id": "SearchField.text",
-   "name": "text",
-   "kind": "attribute",
-   "doc": null,
-   "docSegs": [],
-   "api": true,
-   "source": {
-    "file": "library/searchfield.declare",
-    "line": 0
-   },
-   "parent": "SearchField",
-   "seeAlso": [],
-   "type": "string",
-   "default": "\"\"",
-   "prevailing": false,
-   "readOnly": false,
-   "inheritedFrom": null
-  },
-  "SearchField.method.input": {
-   "id": "SearchField.method.input",
-   "name": "input",
-   "kind": "method",
-   "doc": null,
-   "docSegs": [],
-   "api": true,
-   "source": {
-    "file": "library/searchfield.declare",
-    "line": 0
-   },
-   "parent": "SearchField",
-   "seeAlso": [],
-   "signature": "input(v)"
-  },
-  "SearchField": {
-   "id": "SearchField",
-   "name": "SearchField",
-   "kind": "class",
-   "doc": "The macOS-style search pill (the kind that lives in Help menus, toolbars,\nand settings panes): a CAPSULE — corner radius is half the height — with a\ndrawn magnifier at the left and a chromeless native input inside. The\nTextInput's themed self-chrome (fill/stroke/radius derives) is displaced\nby author nulls, so the pill is the only box; focus shows as the caret.\n\n`text` mirrors the live value; `input(v)` is the delivery seam\n(components-baseline.md, Contract 1) — override it to hand the query to its\nowner.",
-   "docSegs": [
-    {
-     "md": "The macOS-style search pill (the kind that lives in Help menus, toolbars,\nand settings panes): a CAPSULE — corner radius is half the height — with a\ndrawn magnifier at the left and a chromeless native input inside. The\nTextInput's themed self-chrome (fill/stroke/radius derives) is displaced\nby author nulls, so the pill is the only box; focus shows as the caret.\n\n`text` mirrors the live value; `input(v)` is the delivery seam\n(components-baseline.md, Contract 1) — override it to hand the query to its\nowner.",
-     "code": []
-    }
-   ],
-   "api": true,
-   "source": {
-    "file": "library/searchfield.declare",
-    "line": 0
-   },
-   "parent": null,
-   "seeAlso": [],
-   "extends": "View",
-   "subclasses": [],
-   "origin": "library",
-   "attributes": [
-    "SearchField.placeholder",
-    "SearchField.text"
-   ],
-   "methods": [
-    "SearchField.method.input"
-   ],
-   "events": [],
-   "example": []
-  },
   "ProgressBar.value": {
    "id": "ProgressBar.value",
    "name": "value",
@@ -11057,18 +10999,18 @@
    "events": [],
    "example": []
   },
-  "TabSlider.value": {
-   "id": "TabSlider.value",
+  "Accordion.value": {
+   "id": "Accordion.value",
    "name": "value",
    "kind": "attribute",
    "doc": null,
    "docSegs": [],
    "api": true,
    "source": {
-    "file": "library/tabslider.declare",
+    "file": "library/accordion.declare",
     "line": 0
    },
-   "parent": "TabSlider",
+   "parent": "Accordion",
    "seeAlso": [],
    "type": "string",
    "default": "\"\"",
@@ -11076,20 +11018,20 @@
    "readOnly": false,
    "inheritedFrom": null
   },
-  "TabSlider": {
-   "id": "TabSlider",
-   "name": "TabSlider",
+  "Accordion": {
+   "id": "Accordion",
+   "name": "Accordion",
    "kind": "class",
-   "doc": "OpenLaszlo's `basetabslider`, reborn — the accordion: stacked tab headers, one\npane open at a time, panes SLIDING open and closed by a spring on height. The\nload-bearing mechanic (docs/system-design/tabslider-gaps.md, verified\nframe-by-frame against the original): a tab's content is PRESENT through the\nwhole open **and** close, revealed and concealed by the tab's own clip as its\nheight animates — never an instant pop, never a blank gap.\n\nValue contract (components-baseline.md): the open tab is ONE attribute on the\ngroup — `value`, the open tab's name — exactly RadioGroup's shape. Tabs are\nthe group's direct children; each names itself (`name`, defaulting to its\n`label`) and derives `open` from the group. Content is authored as the Tab's\nordinary children — the Tab stacks its header then the content, and clips.",
+   "doc": "OpenLaszlo's `basetabslider`, reborn — stacked pane headers, one\npane open at a time, panes SLIDING open and closed by a spring on height. The\nload-bearing mechanic (docs/system-design/tabslider-gaps.md, verified\nframe-by-frame against the original): a pane's content is PRESENT through the\nwhole open **and** close, revealed and concealed by the pane's own clip as its\nheight animates — never an instant pop, never a blank gap.\n\nValue contract (components-baseline.md): the open pane is ONE attribute on the\ngroup — `value`, the open pane's name — exactly RadioGroup's shape. Panes are\nthe group's direct children; each names itself (`name`, defaulting to its\n`label`) and derives `open` from the group. Content is authored as the Pane's\nordinary children — the Pane stacks its header then the content, and clips.",
    "docSegs": [
     {
-     "md": "OpenLaszlo's `basetabslider`, reborn — the accordion: stacked tab headers, one\npane open at a time, panes SLIDING open and closed by a spring on height. The\nload-bearing mechanic (docs/system-design/tabslider-gaps.md, verified\nframe-by-frame against the original): a tab's content is PRESENT through the\nwhole open **and** close, revealed and concealed by the tab's own clip as its\nheight animates — never an instant pop, never a blank gap.\n\nValue contract (components-baseline.md): the open tab is ONE attribute on the\ngroup — `value`, the open tab's name — exactly RadioGroup's shape. Tabs are\nthe group's direct children; each names itself (`name`, defaulting to its\n`label`) and derives `open` from the group. Content is authored as the Tab's\nordinary children — the Tab stacks its header then the content, and clips.",
+     "md": "OpenLaszlo's `basetabslider`, reborn — stacked pane headers, one\npane open at a time, panes SLIDING open and closed by a spring on height. The\nload-bearing mechanic (docs/system-design/tabslider-gaps.md, verified\nframe-by-frame against the original): a pane's content is PRESENT through the\nwhole open **and** close, revealed and concealed by the pane's own clip as its\nheight animates — never an instant pop, never a blank gap.\n\nValue contract (components-baseline.md): the open pane is ONE attribute on the\ngroup — `value`, the open pane's name — exactly RadioGroup's shape. Panes are\nthe group's direct children; each names itself (`name`, defaulting to its\n`label`) and derives `open` from the group. Content is authored as the Pane's\nordinary children — the Pane stacks its header then the content, and clips.",
      "code": []
     }
    ],
    "api": true,
    "source": {
-    "file": "library/tabslider.declare",
+    "file": "library/accordion.declare",
     "line": 0
    },
    "parent": null,
@@ -11098,24 +11040,24 @@
    "subclasses": [],
    "origin": "library",
    "attributes": [
-    "TabSlider.value"
+    "Accordion.value"
    ],
    "methods": [],
    "events": [],
    "example": []
   },
-  "Tab.label": {
-   "id": "Tab.label",
+  "Pane.label": {
+   "id": "Pane.label",
    "name": "label",
    "kind": "attribute",
    "doc": null,
    "docSegs": [],
    "api": true,
    "source": {
-    "file": "library/tabslider.declare",
+    "file": "library/accordion.declare",
     "line": 0
    },
-   "parent": "Tab",
+   "parent": "Pane",
    "seeAlso": [],
    "type": "string",
    "default": "\"\"",
@@ -11123,18 +11065,18 @@
    "readOnly": false,
    "inheritedFrom": null
   },
-  "Tab.name": {
-   "id": "Tab.name",
+  "Pane.name": {
+   "id": "Pane.name",
    "name": "name",
    "kind": "attribute",
    "doc": null,
    "docSegs": [],
    "api": true,
    "source": {
-    "file": "library/tabslider.declare",
+    "file": "library/accordion.declare",
     "line": 0
    },
-   "parent": "Tab",
+   "parent": "Pane",
    "seeAlso": [],
    "type": "string",
    "default": null,
@@ -11142,18 +11084,18 @@
    "readOnly": false,
    "inheritedFrom": null
   },
-  "Tab.initial": {
-   "id": "Tab.initial",
+  "Pane.initial": {
+   "id": "Pane.initial",
    "name": "initial",
    "kind": "attribute",
    "doc": null,
    "docSegs": [],
    "api": true,
    "source": {
-    "file": "library/tabslider.declare",
+    "file": "library/accordion.declare",
     "line": 0
    },
-   "parent": "Tab",
+   "parent": "Pane",
    "seeAlso": [],
    "type": "boolean",
    "default": "false",
@@ -11161,18 +11103,18 @@
    "readOnly": false,
    "inheritedFrom": null
   },
-  "Tab.open": {
-   "id": "Tab.open",
+  "Pane.open": {
+   "id": "Pane.open",
    "name": "open",
    "kind": "attribute",
    "doc": null,
    "docSegs": [],
    "api": true,
    "source": {
-    "file": "library/tabslider.declare",
+    "file": "library/accordion.declare",
     "line": 0
    },
-   "parent": "Tab",
+   "parent": "Pane",
    "seeAlso": [],
    "type": "boolean",
    "default": null,
@@ -11180,80 +11122,80 @@
    "readOnly": false,
    "inheritedFrom": null
   },
-  "Tab.event.onInit": {
-   "id": "Tab.event.onInit",
+  "Pane.event.onInit": {
+   "id": "Pane.event.onInit",
    "name": "onInit",
    "kind": "event",
    "doc": null,
    "docSegs": [],
    "api": true,
    "source": {
-    "file": "library/tabslider.declare",
+    "file": "library/accordion.declare",
     "line": 0
    },
-   "parent": "Tab",
+   "parent": "Pane",
    "seeAlso": [],
    "signature": "onInit()"
   },
-  "Tab.method.tabOrder": {
-   "id": "Tab.method.tabOrder",
+  "Pane.method.tabOrder": {
+   "id": "Pane.method.tabOrder",
    "name": "tabOrder",
    "kind": "method",
    "doc": null,
    "docSegs": [],
    "api": true,
    "source": {
-    "file": "library/tabslider.declare",
+    "file": "library/accordion.declare",
     "line": 0
    },
-   "parent": "Tab",
+   "parent": "Pane",
    "seeAlso": [],
    "signature": "tabOrder()"
   },
-  "Tab.method.press": {
-   "id": "Tab.method.press",
+  "Pane.method.press": {
+   "id": "Pane.method.press",
    "name": "press",
    "kind": "method",
    "doc": null,
    "docSegs": [],
    "api": true,
    "source": {
-    "file": "library/tabslider.declare",
+    "file": "library/accordion.declare",
     "line": 0
    },
-   "parent": "Tab",
+   "parent": "Pane",
    "seeAlso": [],
    "signature": "press()"
   },
-  "Tab.event.onClick": {
-   "id": "Tab.event.onClick",
+  "Pane.event.onClick": {
+   "id": "Pane.event.onClick",
    "name": "onClick",
    "kind": "event",
    "doc": null,
    "docSegs": [],
    "api": true,
    "source": {
-    "file": "library/tabslider.declare",
+    "file": "library/accordion.declare",
     "line": 0
    },
-   "parent": "Tab",
+   "parent": "Pane",
    "seeAlso": [],
    "signature": "onClick()"
   },
-  "Tab": {
-   "id": "Tab",
-   "name": "Tab",
+  "Pane": {
+   "id": "Pane",
+   "name": "Pane",
    "kind": "class",
-   "doc": "OpenLaszlo's `basetabslider`, reborn — the accordion: stacked tab headers, one\npane open at a time, panes SLIDING open and closed by a spring on height. The\nload-bearing mechanic (docs/system-design/tabslider-gaps.md, verified\nframe-by-frame against the original): a tab's content is PRESENT through the\nwhole open **and** close, revealed and concealed by the tab's own clip as its\nheight animates — never an instant pop, never a blank gap.\n\nValue contract (components-baseline.md): the open tab is ONE attribute on the\ngroup — `value`, the open tab's name — exactly RadioGroup's shape. Tabs are\nthe group's direct children; each names itself (`name`, defaulting to its\n`label`) and derives `open` from the group. Content is authored as the Tab's\nordinary children — the Tab stacks its header then the content, and clips.",
+   "doc": "OpenLaszlo's `basetabslider`, reborn — stacked pane headers, one\npane open at a time, panes SLIDING open and closed by a spring on height. The\nload-bearing mechanic (docs/system-design/tabslider-gaps.md, verified\nframe-by-frame against the original): a pane's content is PRESENT through the\nwhole open **and** close, revealed and concealed by the pane's own clip as its\nheight animates — never an instant pop, never a blank gap.\n\nValue contract (components-baseline.md): the open pane is ONE attribute on the\ngroup — `value`, the open pane's name — exactly RadioGroup's shape. Panes are\nthe group's direct children; each names itself (`name`, defaulting to its\n`label`) and derives `open` from the group. Content is authored as the Pane's\nordinary children — the Pane stacks its header then the content, and clips.",
    "docSegs": [
     {
-     "md": "OpenLaszlo's `basetabslider`, reborn — the accordion: stacked tab headers, one\npane open at a time, panes SLIDING open and closed by a spring on height. The\nload-bearing mechanic (docs/system-design/tabslider-gaps.md, verified\nframe-by-frame against the original): a tab's content is PRESENT through the\nwhole open **and** close, revealed and concealed by the tab's own clip as its\nheight animates — never an instant pop, never a blank gap.\n\nValue contract (components-baseline.md): the open tab is ONE attribute on the\ngroup — `value`, the open tab's name — exactly RadioGroup's shape. Tabs are\nthe group's direct children; each names itself (`name`, defaulting to its\n`label`) and derives `open` from the group. Content is authored as the Tab's\nordinary children — the Tab stacks its header then the content, and clips.",
+     "md": "OpenLaszlo's `basetabslider`, reborn — stacked pane headers, one\npane open at a time, panes SLIDING open and closed by a spring on height. The\nload-bearing mechanic (docs/system-design/tabslider-gaps.md, verified\nframe-by-frame against the original): a pane's content is PRESENT through the\nwhole open **and** close, revealed and concealed by the pane's own clip as its\nheight animates — never an instant pop, never a blank gap.\n\nValue contract (components-baseline.md): the open pane is ONE attribute on the\ngroup — `value`, the open pane's name — exactly RadioGroup's shape. Panes are\nthe group's direct children; each names itself (`name`, defaulting to its\n`label`) and derives `open` from the group. Content is authored as the Pane's\nordinary children — the Pane stacks its header then the content, and clips.",
      "code": []
     }
    ],
    "api": true,
    "source": {
-    "file": "library/tabslider.declare",
+    "file": "library/accordion.declare",
     "line": 0
    },
    "parent": null,
@@ -11262,18 +11204,18 @@
    "subclasses": [],
    "origin": "library",
    "attributes": [
-    "Tab.label",
-    "Tab.name",
-    "Tab.initial",
-    "Tab.open"
+    "Pane.label",
+    "Pane.name",
+    "Pane.initial",
+    "Pane.open"
    ],
    "methods": [
-    "Tab.method.tabOrder",
-    "Tab.method.press"
+    "Pane.method.tabOrder",
+    "Pane.method.press"
    ],
    "events": [
-    "Tab.event.onInit",
-    "Tab.event.onClick"
+    "Pane.event.onInit",
+    "Pane.event.onClick"
    ],
    "example": []
   },
@@ -13055,11 +12997,10 @@
   "RadioGroup",
   "Radio",
   "Field",
-  "SearchField",
   "ProgressBar",
   "FocusRing",
-  "TabSlider",
-  "Tab",
+  "Accordion",
+  "Pane",
   "Tooltip",
   "Menu",
   "MenuBar",
@@ -13104,10 +13045,9 @@
     "Control",
     "RadioGroup",
     "Field",
-    "SearchField",
     "ProgressBar",
     "FocusRing",
-    "TabSlider",
+    "Accordion",
     "Tooltip",
     "Menu",
     "MenuBar",
@@ -13130,7 +13070,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 626
+      "line": 628
      },
      "parent": "View",
      "seeAlso": [],
@@ -13154,7 +13094,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 627
+      "line": 629
      },
      "parent": "View",
      "seeAlso": [],
@@ -13178,7 +13118,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 628
+      "line": 630
      },
      "parent": "View",
      "seeAlso": [],
@@ -13202,7 +13142,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 629
+      "line": 631
      },
      "parent": "View",
      "seeAlso": [],
@@ -13237,7 +13177,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 630
+      "line": 632
      },
      "parent": "View",
      "seeAlso": [],
@@ -13261,7 +13201,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 631
+      "line": 633
      },
      "parent": "View",
      "seeAlso": [],
@@ -13285,7 +13225,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 632
+      "line": 634
      },
      "parent": "View",
      "seeAlso": [],
@@ -13309,7 +13249,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 633
+      "line": 635
      },
      "parent": "View",
      "seeAlso": [],
@@ -13333,7 +13273,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 634
+      "line": 636
      },
      "parent": "View",
      "seeAlso": [],
@@ -13357,7 +13297,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 635
+      "line": 637
      },
      "parent": "View",
      "seeAlso": [],
@@ -13381,7 +13321,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 636
+      "line": 638
      },
      "parent": "View",
      "seeAlso": [],
@@ -13405,7 +13345,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 637
+      "line": 639
      },
      "parent": "View",
      "seeAlso": [],
@@ -13429,7 +13369,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 642
+      "line": 644
      },
      "parent": "View",
      "seeAlso": [],
@@ -13453,7 +13393,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 643
+      "line": 645
      },
      "parent": "View",
      "seeAlso": [],
@@ -13477,7 +13417,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 644
+      "line": 646
      },
      "parent": "View",
      "seeAlso": [],
@@ -13501,7 +13441,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 651
+      "line": 653
      },
      "parent": "View",
      "seeAlso": [],
@@ -13525,7 +13465,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 655
+      "line": 657
      },
      "parent": "View",
      "seeAlso": [],
@@ -13549,7 +13489,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 656
+      "line": 658
      },
      "parent": "View",
      "seeAlso": [],
@@ -13573,7 +13513,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 657
+      "line": 659
      },
      "parent": "View",
      "seeAlso": [],
@@ -13597,7 +13537,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 658
+      "line": 660
      },
      "parent": "View",
      "seeAlso": [],
@@ -13621,7 +13561,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 662
+      "line": 664
      },
      "parent": "View",
      "seeAlso": [],
@@ -13645,7 +13585,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 664
+      "line": 666
      },
      "parent": "View",
      "seeAlso": [],
@@ -13669,7 +13609,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 665
+      "line": 667
      },
      "parent": "View",
      "seeAlso": [],
@@ -13693,7 +13633,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 666
+      "line": 668
      },
      "parent": "View",
      "seeAlso": [],
@@ -13717,7 +13657,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 667
+      "line": 669
      },
      "parent": "View",
      "seeAlso": [],
@@ -13741,7 +13681,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 670
+      "line": 672
      },
      "parent": "View",
      "seeAlso": [],
@@ -13765,7 +13705,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 671
+      "line": 673
      },
      "parent": "View",
      "seeAlso": [],
@@ -13789,7 +13729,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 672
+      "line": 674
      },
      "parent": "View",
      "seeAlso": [],
@@ -13813,7 +13753,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 673
+      "line": 675
      },
      "parent": "View",
      "seeAlso": [],
@@ -13837,7 +13777,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 674
+      "line": 676
      },
      "parent": "View",
      "seeAlso": [],
@@ -13861,7 +13801,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 675
+      "line": 677
      },
      "parent": "View",
      "seeAlso": [],
@@ -13885,7 +13825,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 676
+      "line": 678
      },
      "parent": "View",
      "seeAlso": [],
@@ -13909,7 +13849,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 677
+      "line": 679
      },
      "parent": "View",
      "seeAlso": [],
@@ -13933,7 +13873,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 678
+      "line": 680
      },
      "parent": "View",
      "seeAlso": [],
@@ -13957,7 +13897,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 679
+      "line": 681
      },
      "parent": "View",
      "seeAlso": [],
@@ -13981,7 +13921,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 663
+      "line": 665
      },
      "parent": "View",
      "seeAlso": [],
@@ -14005,7 +13945,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 680
+      "line": 682
      },
      "parent": "View",
      "seeAlso": [],
@@ -14029,7 +13969,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 683
+      "line": 685
      },
      "parent": "View",
      "seeAlso": [],
@@ -14053,7 +13993,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 684
+      "line": 686
      },
      "parent": "View",
      "seeAlso": [],
@@ -14077,7 +14017,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 697
+      "line": 699
      },
      "parent": "View",
      "seeAlso": [],
@@ -14101,7 +14041,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 645
+      "line": 647
      },
      "parent": "View",
      "seeAlso": [],
@@ -14125,7 +14065,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 646
+      "line": 648
      },
      "parent": "View",
      "seeAlso": [],
@@ -14149,7 +14089,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 650
+      "line": 652
      },
      "parent": "View",
      "seeAlso": [],
@@ -14339,6 +14279,26 @@
      "parent": "View",
      "seeAlso": [],
      "signature": "onMouseOut()"
+    },
+    {
+     "id": "View.event.wheel",
+     "name": "wheel",
+     "kind": "event",
+     "doc": "The wheel turned over the view — mouse wheel, trackpad scroll, or trackpad pinch, which\narrives on the same stream with `e.pinch` true (a ctrl+wheel zoom reports identically).\nThe event carries the point in this view's coordinates plus `deltaX`/`deltaY`. Declaring\nit **claims the wheel** over this view and its subtree — the browser stops scrolling or\nzooming the page with it — except over a nested `scrolls` pane, which keeps its own\nwheel. ⌘ +/− dispatches no event and stays out of reach.",
+     "docSegs": [
+      {
+       "md": "The wheel turned over the view — mouse wheel, trackpad scroll, or trackpad pinch, which\narrives on the same stream with `e.pinch` true (a ctrl+wheel zoom reports identically).\nThe event carries the point in this view's coordinates plus `deltaX`/`deltaY`. Declaring\nit **claims the wheel** over this view and its subtree — the browser stops scrolling or\nzooming the page with it — except over a nested `scrolls` pane, which keeps its own\nwheel. ⌘ +/− dispatches no event and stays out of reach.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/schema.ts",
+      "line": 0
+     },
+     "parent": "View",
+     "seeAlso": [],
+     "signature": "onWheel()"
     },
     {
      "id": "View.event.init",
@@ -14533,7 +14493,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 976
+      "line": 978
      },
      "parent": "App",
      "seeAlso": [],
@@ -14557,7 +14517,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 977
+      "line": 979
      },
      "parent": "App",
      "seeAlso": [],
@@ -14581,7 +14541,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 978
+      "line": 980
      },
      "parent": "App",
      "seeAlso": [],
@@ -14605,7 +14565,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 979
+      "line": 981
      },
      "parent": "App",
      "seeAlso": [],
@@ -14629,7 +14589,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 981
+      "line": 983
      },
      "parent": "App",
      "seeAlso": [],
@@ -14653,7 +14613,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 982
+      "line": 984
      },
      "parent": "App",
      "seeAlso": [],
@@ -14677,7 +14637,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 983
+      "line": 985
      },
      "parent": "App",
      "seeAlso": [],
@@ -14701,7 +14661,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 984
+      "line": 986
      },
      "parent": "App",
      "seeAlso": [],
@@ -14736,7 +14696,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1000
+      "line": 1002
      },
      "parent": "App",
      "seeAlso": [],
@@ -14760,7 +14720,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1004
+      "line": 1006
      },
      "parent": "App",
      "seeAlso": [],
@@ -14784,7 +14744,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1005
+      "line": 1007
      },
      "parent": "App",
      "seeAlso": [],
@@ -14811,7 +14771,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 871
+      "line": 873
      },
      "parent": "App",
      "seeAlso": [],
@@ -15378,7 +15338,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1028
+      "line": 1030
      },
      "parent": "DOMIsland",
      "seeAlso": [],
@@ -17293,7 +17253,7 @@
     "Switch",
     "Slider",
     "Radio",
-    "Tab"
+    "Pane"
    ],
    "origin": "library",
    "attributes": [
@@ -18400,80 +18360,6 @@
    "example": []
   },
   {
-   "id": "SearchField",
-   "name": "SearchField",
-   "doc": "The macOS-style search pill (the kind that lives in Help menus, toolbars,\nand settings panes): a CAPSULE — corner radius is half the height — with a\ndrawn magnifier at the left and a chromeless native input inside. The\nTextInput's themed self-chrome (fill/stroke/radius derives) is displaced\nby author nulls, so the pill is the only box; focus shows as the caret.\n\n`text` mirrors the live value; `input(v)` is the delivery seam\n(components-baseline.md, Contract 1) — override it to hand the query to its\nowner.",
-   "docSegs": [
-    {
-     "md": "The macOS-style search pill (the kind that lives in Help menus, toolbars,\nand settings panes): a CAPSULE — corner radius is half the height — with a\ndrawn magnifier at the left and a chromeless native input inside. The\nTextInput's themed self-chrome (fill/stroke/radius derives) is displaced\nby author nulls, so the pill is the only box; focus shows as the caret.\n\n`text` mirrors the live value; `input(v)` is the delivery seam\n(components-baseline.md, Contract 1) — override it to hand the query to its\nowner.",
-     "code": []
-    }
-   ],
-   "api": true,
-   "extends": "View",
-   "subclasses": [],
-   "origin": "library",
-   "attributes": [
-    {
-     "id": "SearchField.placeholder",
-     "name": "placeholder",
-     "kind": "attribute",
-     "doc": null,
-     "docSegs": [],
-     "api": true,
-     "source": {
-      "file": "library/searchfield.declare",
-      "line": 0
-     },
-     "parent": "SearchField",
-     "seeAlso": [],
-     "type": "string",
-     "default": "\"Search\"",
-     "prevailing": false,
-     "readOnly": false,
-     "inheritedFrom": null
-    },
-    {
-     "id": "SearchField.text",
-     "name": "text",
-     "kind": "attribute",
-     "doc": null,
-     "docSegs": [],
-     "api": true,
-     "source": {
-      "file": "library/searchfield.declare",
-      "line": 0
-     },
-     "parent": "SearchField",
-     "seeAlso": [],
-     "type": "string",
-     "default": "\"\"",
-     "prevailing": false,
-     "readOnly": false,
-     "inheritedFrom": null
-    }
-   ],
-   "events": [],
-   "methods": [
-    {
-     "id": "SearchField.method.input",
-     "name": "input",
-     "kind": "method",
-     "doc": null,
-     "docSegs": [],
-     "api": true,
-     "source": {
-      "file": "library/searchfield.declare",
-      "line": 0
-     },
-     "parent": "SearchField",
-     "seeAlso": [],
-     "signature": "input(v)"
-    }
-   ],
-   "example": []
-  },
-  {
    "id": "ProgressBar",
    "name": "ProgressBar",
    "doc": "Display-only bounded number — the read-only sibling of Slider (same `value`/\n`min`/`max` vocabulary, no interaction, no `input`). Restyle by theme; impose a\nwidth per the interior contract.",
@@ -18837,12 +18723,12 @@
    "example": []
   },
   {
-   "id": "TabSlider",
-   "name": "TabSlider",
-   "doc": "OpenLaszlo's `basetabslider`, reborn — the accordion: stacked tab headers, one\npane open at a time, panes SLIDING open and closed by a spring on height. The\nload-bearing mechanic (docs/system-design/tabslider-gaps.md, verified\nframe-by-frame against the original): a tab's content is PRESENT through the\nwhole open **and** close, revealed and concealed by the tab's own clip as its\nheight animates — never an instant pop, never a blank gap.\n\nValue contract (components-baseline.md): the open tab is ONE attribute on the\ngroup — `value`, the open tab's name — exactly RadioGroup's shape. Tabs are\nthe group's direct children; each names itself (`name`, defaulting to its\n`label`) and derives `open` from the group. Content is authored as the Tab's\nordinary children — the Tab stacks its header then the content, and clips.",
+   "id": "Accordion",
+   "name": "Accordion",
+   "doc": "OpenLaszlo's `basetabslider`, reborn — stacked pane headers, one\npane open at a time, panes SLIDING open and closed by a spring on height. The\nload-bearing mechanic (docs/system-design/tabslider-gaps.md, verified\nframe-by-frame against the original): a pane's content is PRESENT through the\nwhole open **and** close, revealed and concealed by the pane's own clip as its\nheight animates — never an instant pop, never a blank gap.\n\nValue contract (components-baseline.md): the open pane is ONE attribute on the\ngroup — `value`, the open pane's name — exactly RadioGroup's shape. Panes are\nthe group's direct children; each names itself (`name`, defaulting to its\n`label`) and derives `open` from the group. Content is authored as the Pane's\nordinary children — the Pane stacks its header then the content, and clips.",
    "docSegs": [
     {
-     "md": "OpenLaszlo's `basetabslider`, reborn — the accordion: stacked tab headers, one\npane open at a time, panes SLIDING open and closed by a spring on height. The\nload-bearing mechanic (docs/system-design/tabslider-gaps.md, verified\nframe-by-frame against the original): a tab's content is PRESENT through the\nwhole open **and** close, revealed and concealed by the tab's own clip as its\nheight animates — never an instant pop, never a blank gap.\n\nValue contract (components-baseline.md): the open tab is ONE attribute on the\ngroup — `value`, the open tab's name — exactly RadioGroup's shape. Tabs are\nthe group's direct children; each names itself (`name`, defaulting to its\n`label`) and derives `open` from the group. Content is authored as the Tab's\nordinary children — the Tab stacks its header then the content, and clips.",
+     "md": "OpenLaszlo's `basetabslider`, reborn — stacked pane headers, one\npane open at a time, panes SLIDING open and closed by a spring on height. The\nload-bearing mechanic (docs/system-design/tabslider-gaps.md, verified\nframe-by-frame against the original): a pane's content is PRESENT through the\nwhole open **and** close, revealed and concealed by the pane's own clip as its\nheight animates — never an instant pop, never a blank gap.\n\nValue contract (components-baseline.md): the open pane is ONE attribute on the\ngroup — `value`, the open pane's name — exactly RadioGroup's shape. Panes are\nthe group's direct children; each names itself (`name`, defaulting to its\n`label`) and derives `open` from the group. Content is authored as the Pane's\nordinary children — the Pane stacks its header then the content, and clips.",
      "code": []
     }
    ],
@@ -18852,17 +18738,17 @@
    "origin": "library",
    "attributes": [
     {
-     "id": "TabSlider.value",
+     "id": "Accordion.value",
      "name": "value",
      "kind": "attribute",
      "doc": null,
      "docSegs": [],
      "api": true,
      "source": {
-      "file": "library/tabslider.declare",
+      "file": "library/accordion.declare",
       "line": 0
      },
-     "parent": "TabSlider",
+     "parent": "Accordion",
      "seeAlso": [],
      "type": "string",
      "default": "\"\"",
@@ -18876,12 +18762,12 @@
    "example": []
   },
   {
-   "id": "Tab",
-   "name": "Tab",
-   "doc": "OpenLaszlo's `basetabslider`, reborn — the accordion: stacked tab headers, one\npane open at a time, panes SLIDING open and closed by a spring on height. The\nload-bearing mechanic (docs/system-design/tabslider-gaps.md, verified\nframe-by-frame against the original): a tab's content is PRESENT through the\nwhole open **and** close, revealed and concealed by the tab's own clip as its\nheight animates — never an instant pop, never a blank gap.\n\nValue contract (components-baseline.md): the open tab is ONE attribute on the\ngroup — `value`, the open tab's name — exactly RadioGroup's shape. Tabs are\nthe group's direct children; each names itself (`name`, defaulting to its\n`label`) and derives `open` from the group. Content is authored as the Tab's\nordinary children — the Tab stacks its header then the content, and clips.",
+   "id": "Pane",
+   "name": "Pane",
+   "doc": "OpenLaszlo's `basetabslider`, reborn — stacked pane headers, one\npane open at a time, panes SLIDING open and closed by a spring on height. The\nload-bearing mechanic (docs/system-design/tabslider-gaps.md, verified\nframe-by-frame against the original): a pane's content is PRESENT through the\nwhole open **and** close, revealed and concealed by the pane's own clip as its\nheight animates — never an instant pop, never a blank gap.\n\nValue contract (components-baseline.md): the open pane is ONE attribute on the\ngroup — `value`, the open pane's name — exactly RadioGroup's shape. Panes are\nthe group's direct children; each names itself (`name`, defaulting to its\n`label`) and derives `open` from the group. Content is authored as the Pane's\nordinary children — the Pane stacks its header then the content, and clips.",
    "docSegs": [
     {
-     "md": "OpenLaszlo's `basetabslider`, reborn — the accordion: stacked tab headers, one\npane open at a time, panes SLIDING open and closed by a spring on height. The\nload-bearing mechanic (docs/system-design/tabslider-gaps.md, verified\nframe-by-frame against the original): a tab's content is PRESENT through the\nwhole open **and** close, revealed and concealed by the tab's own clip as its\nheight animates — never an instant pop, never a blank gap.\n\nValue contract (components-baseline.md): the open tab is ONE attribute on the\ngroup — `value`, the open tab's name — exactly RadioGroup's shape. Tabs are\nthe group's direct children; each names itself (`name`, defaulting to its\n`label`) and derives `open` from the group. Content is authored as the Tab's\nordinary children — the Tab stacks its header then the content, and clips.",
+     "md": "OpenLaszlo's `basetabslider`, reborn — stacked pane headers, one\npane open at a time, panes SLIDING open and closed by a spring on height. The\nload-bearing mechanic (docs/system-design/tabslider-gaps.md, verified\nframe-by-frame against the original): a pane's content is PRESENT through the\nwhole open **and** close, revealed and concealed by the pane's own clip as its\nheight animates — never an instant pop, never a blank gap.\n\nValue contract (components-baseline.md): the open pane is ONE attribute on the\ngroup — `value`, the open pane's name — exactly RadioGroup's shape. Panes are\nthe group's direct children; each names itself (`name`, defaulting to its\n`label`) and derives `open` from the group. Content is authored as the Pane's\nordinary children — the Pane stacks its header then the content, and clips.",
      "code": []
     }
    ],
@@ -18891,17 +18777,17 @@
    "origin": "library",
    "attributes": [
     {
-     "id": "Tab.label",
+     "id": "Pane.label",
      "name": "label",
      "kind": "attribute",
      "doc": null,
      "docSegs": [],
      "api": true,
      "source": {
-      "file": "library/tabslider.declare",
+      "file": "library/accordion.declare",
       "line": 0
      },
-     "parent": "Tab",
+     "parent": "Pane",
      "seeAlso": [],
      "type": "string",
      "default": "\"\"",
@@ -18910,17 +18796,17 @@
      "inheritedFrom": null
     },
     {
-     "id": "Tab.name",
+     "id": "Pane.name",
      "name": "name",
      "kind": "attribute",
      "doc": null,
      "docSegs": [],
      "api": true,
      "source": {
-      "file": "library/tabslider.declare",
+      "file": "library/accordion.declare",
       "line": 0
      },
-     "parent": "Tab",
+     "parent": "Pane",
      "seeAlso": [],
      "type": "string",
      "default": null,
@@ -18929,17 +18815,17 @@
      "inheritedFrom": null
     },
     {
-     "id": "Tab.initial",
+     "id": "Pane.initial",
      "name": "initial",
      "kind": "attribute",
      "doc": null,
      "docSegs": [],
      "api": true,
      "source": {
-      "file": "library/tabslider.declare",
+      "file": "library/accordion.declare",
       "line": 0
      },
-     "parent": "Tab",
+     "parent": "Pane",
      "seeAlso": [],
      "type": "boolean",
      "default": "false",
@@ -18948,17 +18834,17 @@
      "inheritedFrom": null
     },
     {
-     "id": "Tab.open",
+     "id": "Pane.open",
      "name": "open",
      "kind": "attribute",
      "doc": null,
      "docSegs": [],
      "api": true,
      "source": {
-      "file": "library/tabslider.declare",
+      "file": "library/accordion.declare",
       "line": 0
      },
-     "parent": "Tab",
+     "parent": "Pane",
      "seeAlso": [],
      "type": "boolean",
      "default": null,
@@ -18969,64 +18855,64 @@
    ],
    "events": [
     {
-     "id": "Tab.event.onInit",
+     "id": "Pane.event.onInit",
      "name": "onInit",
      "kind": "event",
      "doc": null,
      "docSegs": [],
      "api": true,
      "source": {
-      "file": "library/tabslider.declare",
+      "file": "library/accordion.declare",
       "line": 0
      },
-     "parent": "Tab",
+     "parent": "Pane",
      "seeAlso": [],
      "signature": "onInit()"
     },
     {
-     "id": "Tab.event.onClick",
+     "id": "Pane.event.onClick",
      "name": "onClick",
      "kind": "event",
      "doc": null,
      "docSegs": [],
      "api": true,
      "source": {
-      "file": "library/tabslider.declare",
+      "file": "library/accordion.declare",
       "line": 0
      },
-     "parent": "Tab",
+     "parent": "Pane",
      "seeAlso": [],
      "signature": "onClick()"
     }
    ],
    "methods": [
     {
-     "id": "Tab.method.tabOrder",
+     "id": "Pane.method.tabOrder",
      "name": "tabOrder",
      "kind": "method",
      "doc": null,
      "docSegs": [],
      "api": true,
      "source": {
-      "file": "library/tabslider.declare",
+      "file": "library/accordion.declare",
       "line": 0
      },
-     "parent": "Tab",
+     "parent": "Pane",
      "seeAlso": [],
      "signature": "tabOrder()"
     },
     {
-     "id": "Tab.method.press",
+     "id": "Pane.method.press",
      "name": "press",
      "kind": "method",
      "doc": null,
      "docSegs": [],
      "api": true,
      "source": {
-      "file": "library/tabslider.declare",
+      "file": "library/accordion.declare",
       "line": 0
      },
-     "parent": "Tab",
+     "parent": "Pane",
      "seeAlso": [],
      "signature": "press()"
     }
@@ -20679,62 +20565,76 @@
   {
    "id": "07-interaction",
    "num": 7,
-   "title": "Interaction is delivery",
+   "title": "Nothing bubbles",
    "short": "Interaction",
    "part": "Building"
   },
   {
-   "id": "08-data",
+   "id": "08-controls",
    "num": 8,
+   "title": "Derive down, deliver up",
+   "short": "Controls",
+   "part": "Building"
+  },
+  {
+   "id": "09-data",
+   "num": 9,
    "title": "Data is a place, not an event",
    "short": "Data",
    "part": "Building"
   },
   {
-   "id": "09-motion-and-modes",
-   "num": 9,
+   "id": "10-motion-and-modes",
+   "num": 10,
    "title": "Motion is a target; a mode is a bundle",
    "short": "Motion & modes",
    "part": "Continuity"
   },
   {
-   "id": "10-arrangement",
-   "num": 10,
+   "id": "11-arrangement",
+   "num": 11,
    "title": "Arrangement animates",
    "short": "Arrangement",
    "part": "Continuity"
   },
   {
-   "id": "11-loop",
-   "num": 11,
+   "id": "12-gestures",
+   "num": 12,
+   "title": "The browser owns a gesture until you claim it",
+   "short": "Gestures",
+   "part": "Continuity"
+  },
+  {
+   "id": "13-loop",
+   "num": 13,
    "title": "Run it, check it, ship it",
    "short": "The loop",
    "part": "In practice"
   },
   {
-   "id": "12-with-an-llm",
-   "num": 12,
+   "id": "14-with-an-llm",
+   "num": 14,
    "title": "Writing with an LLM",
    "short": "With an LLM",
    "part": "In practice"
   },
   {
-   "id": "13-calendar",
-   "num": 13,
+   "id": "15-calendar",
+   "num": 15,
    "title": "Declare Calendar",
    "short": "Declare Calendar",
    "part": "In practice"
   },
   {
-   "id": "14-embedding",
-   "num": 14,
+   "id": "16-embedding",
+   "num": 16,
    "title": "Crossing boundaries — a page in an app, an app in a page",
    "short": "Embedding",
    "part": "In practice"
   },
   {
-   "id": "15-renderers",
-   "num": 15,
+   "id": "17-renderers",
+   "num": 17,
    "title": "Two renderers — the same program in DOM or on a canvas",
    "short": "Two renderers",
    "part": "In practice"
@@ -20788,12 +20688,18 @@
     {
      "id": "07-interaction",
      "num": 7,
-     "title": "Interaction is delivery",
+     "title": "Nothing bubbles",
      "short": "Interaction"
     },
     {
-     "id": "08-data",
+     "id": "08-controls",
      "num": 8,
+     "title": "Derive down, deliver up",
+     "short": "Controls"
+    },
+    {
+     "id": "09-data",
+     "num": 9,
      "title": "Data is a place, not an event",
      "short": "Data"
     }
@@ -20803,16 +20709,22 @@
    "part": "Continuity",
    "chapters": [
     {
-     "id": "09-motion-and-modes",
-     "num": 9,
+     "id": "10-motion-and-modes",
+     "num": 10,
      "title": "Motion is a target; a mode is a bundle",
      "short": "Motion & modes"
     },
     {
-     "id": "10-arrangement",
-     "num": 10,
+     "id": "11-arrangement",
+     "num": 11,
      "title": "Arrangement animates",
      "short": "Arrangement"
+    },
+    {
+     "id": "12-gestures",
+     "num": 12,
+     "title": "The browser owns a gesture until you claim it",
+     "short": "Gestures"
     }
    ]
   },
@@ -20820,32 +20732,32 @@
    "part": "In practice",
    "chapters": [
     {
-     "id": "11-loop",
-     "num": 11,
+     "id": "13-loop",
+     "num": 13,
      "title": "Run it, check it, ship it",
      "short": "The loop"
     },
     {
-     "id": "12-with-an-llm",
-     "num": 12,
+     "id": "14-with-an-llm",
+     "num": 14,
      "title": "Writing with an LLM",
      "short": "With an LLM"
     },
     {
-     "id": "13-calendar",
-     "num": 13,
+     "id": "15-calendar",
+     "num": 15,
      "title": "Declare Calendar",
      "short": "Declare Calendar"
     },
     {
-     "id": "14-embedding",
-     "num": 14,
+     "id": "16-embedding",
+     "num": 16,
      "title": "Crossing boundaries — a page in an app, an app in a page",
      "short": "Embedding"
     },
     {
-     "id": "15-renderers",
-     "num": 15,
+     "id": "17-renderers",
+     "num": 17,
      "title": "Two renderers — the same program in DOM or on a canvas",
      "short": "Two renderers"
     }
@@ -20926,7 +20838,7 @@
      "kind": "doc",
      "label": "Markdown file",
      "path": "docs/declare.md",
-     "preview": "Declare is a language for building application interfaces. This file is the language: every form the grammar accepts and every rule the compiler enforces. It is not the reference. It lists no component's attributes and tours no API, because…"
+     "preview": "Declare is a language for building application interfaces. Writing it takes three things, and this file is the first: 1. this file — the language: every form the grammar accepts and every rule the compiler enforces; 2. the map — where the r…"
     },
     {
      "name": "Tenets",
@@ -21067,11 +20979,19 @@
        "preview": "A program hears the user through handlers — methods whose names begin with on. There is no addEventListener, no listener cleanup, and no bubbling: an event fires on the one node it happened to, and when something else needs to know, the han…"
       },
       {
-       "name": "8. Data",
+       "name": "8. Controls",
        "subtitle": "",
        "kind": "doc",
        "label": "Guide chapter",
-       "path": "docs/guide/08-data.md",
+       "path": "docs/guide/08-controls.md",
+       "preview": "You do not hand-build buttons outside of tutorials. The library ships a small set of controls — themed, keyboard-ready, auto-included by bare tag — and this chapter is deliberately short, because what is worth learning is not the catalog. I…"
+      },
+      {
+       "name": "9. Data",
+       "subtitle": "",
+       "kind": "doc",
+       "label": "Guide chapter",
+       "path": "docs/guide/09-data.md",
        "preview": "In the stacks you know, data arrives as events — a fetch resolves, a callback fires, you copy values into state and schedule the update. Declare inverts this. Data is a place: you point part of the tree at it, and the tree derives — and whe…"
       }
      ]
@@ -21082,20 +21002,28 @@
      "kind": "category",
      "children": [
       {
-       "name": "9. Motion & modes",
+       "name": "10. Motion & modes",
        "subtitle": "",
        "kind": "doc",
        "label": "Guide chapter",
-       "path": "docs/guide/09-motion-and-modes.md",
+       "path": "docs/guide/10-motion-and-modes.md",
        "preview": "Before the tools, the argument — because this part of the guide is not about animation in the sense you're used to. In most stacks, animation is an effects layer: something added after the interface works, to make it feel finished. Declare…"
       },
       {
-       "name": "10. Arrangement",
+       "name": "11. Arrangement",
        "subtitle": "",
        "kind": "doc",
        "label": "Guide chapter",
-       "path": "docs/guide/10-arrangement.md",
+       "path": "docs/guide/11-arrangement.md",
        "preview": "Chapter 1 showed a card that becomes a panel: one sprung scalar, three constraints reading it. This chapter is that idea grown up — the signature idiom of the language, and the one that separates it from every stack where animation is a lay…"
+      },
+      {
+       "name": "12. Gestures",
+       "subtitle": "",
+       "kind": "doc",
+       "label": "Guide chapter",
+       "path": "docs/guide/12-gestures.md",
+       "preview": "On the desktop, this guide could treat the pointer as yours, and it nearly was. A touch screen is different terrain: the browser arrives holding the deed to most of what a finger can do — pan, pinch, double tap — and an app that wants any o…"
       }
      ]
     },
@@ -21105,43 +21033,43 @@
      "kind": "category",
      "children": [
       {
-       "name": "11. The loop",
+       "name": "13. The loop",
        "subtitle": "",
        "kind": "doc",
        "label": "Guide chapter",
-       "path": "docs/guide/11-loop.md",
+       "path": "docs/guide/13-loop.md",
        "preview": "A program is not finished when it runs — it has an address, gets found, gets checked, gets shipped. In the stacks you know, each of those is its own subsystem with its own configuration. Here they hang off one fact: The program URL is the a…"
       },
       {
-       "name": "12. With an LLM",
+       "name": "14. With an LLM",
        "subtitle": "",
        "kind": "doc",
        "label": "Guide chapter",
-       "path": "docs/guide/12-with-an-llm.md",
+       "path": "docs/guide/14-with-an-llm.md",
        "preview": "The calendar you are one chapter from reading reports a number on the homepage: zero lines written by hand. A person decided what the calendar should be, reviewed its behavior, and pushed back; an LLM wrote the Declare — every line — with t…"
       },
       {
-       "name": "13. Declare Calendar",
+       "name": "15. Declare Calendar",
        "subtitle": "",
        "kind": "doc",
        "label": "Guide chapter",
-       "path": "docs/guide/13-calendar.md",
+       "path": "docs/guide/15-calendar.md",
        "preview": "Chapter 1 made a promise: that you would end this guide by opening a real calendar application — four views, continuous zoom, drag-to-reschedule; 480 lines of code, about seven hundred with its detailed comments — and understanding all of i…"
       },
       {
-       "name": "14. Embedding",
+       "name": "16. Embedding",
        "subtitle": "",
        "kind": "doc",
        "label": "Guide chapter",
-       "path": "docs/guide/14-embedding.md",
+       "path": "docs/guide/16-embedding.md",
        "preview": "Everything so far assumed the Declare program owns its world. Real work has borders: a product page that wants one live Declare widget in the middle of ordinary HTML; a Declare app that needs a box of foreign DOM — a video, a map, your exis…"
       },
       {
-       "name": "15. Two renderers",
+       "name": "17. Two renderers",
        "subtitle": "",
        "kind": "doc",
        "label": "Guide chapter",
-       "path": "docs/guide/15-renderers.md",
+       "path": "docs/guide/17-renderers.md",
        "preview": "Everything you have written so far runs unchanged under two renderers. The DOM renderer — the default — realizes each view as an element and leans on the browser: CSS paints boxes, native machinery scrolls and selects, real text sits in rea…"
       }
      ]
@@ -21163,7 +21091,7 @@
        "subtitle": "",
        "kind": "element",
        "label": "Built-in element",
-       "doc": "# View\n\n*Built-in element*\n\nThe base of every visual thing in Declare — a rectangular **box** with a position, a\nsize, and decoration (fill, corner radius, border, shadow). Everything you see\ndescends from `View`: `Text`, `Image`, your own `class … extends View`. A plain\n`View` is a colored box; give it children and it becomes a container.\n\nIts geometry is set two ways that read the same: literal (`width = 200`) or a reactive\n`{ }` constraint the runtime keeps true (`width = { parent.width }`). Children nest\ninside the brackets, so the source shape mirrors the visual shape; *how* they are\narranged is the `layout` attribute, not the container's type.\n\n```declare\nView [ width = 200, height = 120, fill = white, cornerRadius = 8,\n  Text [ text = \"hello\", x = 12, y = 12 ]\n]\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `x` | Length | `0` |  |\n| `y` | Length | `0` |  |\n| `width` | Length | `0` |  |\n| `height` | Length | `0` |  |\n| `fill` | Fill | `null` |  |\n| `cornerRadius` | number | `0` |  |\n| `stroke` | Stroke | `null` |  |\n| `shadow` | Shadow | `null` |  |\n| `visible` | boolean | `true` |  |\n| `ignorelayout` | boolean | `false` |  |\n| `ignoreclip` | boolean | `false` |  |\n| `opacity` | number | `1` |  |\n| `scale` | number | `1` |  |\n| `pivotX` | number | `0` |  |\n| `pivotY` | number | `0` |  |\n| `clip` | Shape | `null` |  |\n| `scrolls` | boolean | `false` |  |\n| `tip` | string | `\"\"` |  |\n| `scrollsX` | boolean | `false` |  |\n| `scrollY` | number | `0` |  |\n| `textColor` | Color | `0x000000` | prevailing |\n| `fontSize` | number | `16` | prevailing |\n| `fontFamily` | Font | `\"sans-serif\"` | prevailing |\n| `fontWeight` | thin | extralight | light | regular | normal | medium | semibold | bold | extrabold | black | `\"normal\"` | prevailing |\n| `letterSpacing` | number | `0` | prevailing |\n| `headingColor` | Color | `null` | prevailing |\n| `headingWeight` | thin | extralight | light | regular | normal | medium | semibold | bold | extrabold | black | `\"bold\"` | prevailing |\n| `linkColor` | Color | `null` | prevailing |\n| `codeColor` | Color | `null` | prevailing |\n| `codeSize` | number | `0` | prevailing |\n| `codeFamily` | Font | `\"\"` | prevailing |\n| `codeBackground` | Color | `null` | prevailing |\n| `codeRule` | Color | `null` | prevailing |\n| `richTextLayout` | RichTextLayout | `null` | prevailing |\n| `theme` | Theme | `DEFAULT_THEME` | prevailing |\n| `selectable` | boolean | `false` | prevailing |\n| `styles` | Style[] | `null` |  |\n| `stylesheet` | Stylesheet | `null` | prevailing |\n| `layout` | Layout | `null` |  |\n| `datapath` | datapath | `null` |  |\n| `focusable` | boolean | `false` |  |\n| `focustrap` | boolean | `false` |  |\n| `anchor` | string | `\"\"` |  |\n| `contentWidth` | Length |  | read-only |\n| `contentHeight` | Length |  | read-only |\n\n**`x`** — The horizontal offset within the parent, in pixels. Honoured only while the parent\nimposes no `layout` — **a layout overwrites `x` every pass**, so use it for absolute\nplacement (the layout-none default) and switch to `layout` for arrangement; don't fight\none with the other.\n\n**`y`** — The vertical offset within the parent — the twin of `x`, and likewise overwritten by a\nparent `layout`.\n\n**`width`** — The box's width, in **pixels** (`Length`). Defaults to `0`, so a container with no\nwidth set collapses — give it one, a `{ }` constraint, or `100%` (parent-relative).\nSet it live and children constrained to it reflow in the same frame; there is no\nre-layout call. To size *to* content instead, constrain it: `width = { Math.min(contentWidth, 480) }`.\n\n**`height`** — The box's height in pixels (`Length`), mirroring `width`. `0` by default. A `Text`\nleft unsized takes its natural measured height, so you usually set `height` only to\nclip or to drive a layout.\n\n**`fill`** — What paints the box: a solid `Color` or a `gradient(…)` — the one slot, subsuming a\nplain background color. `null` (the default) paints **nothing** — an unfilled box is\ninvisible but still lays out and still catches clicks. In a `[ ]` literal a color is\n`#RRGGBB`; inside a `{ }` body it is `0xRRGGBB` (the one place the spelling differs).\n\n```declare\nView [ fill = { gradient(\"90deg\", 0x1E2A36, 0x0B141B) } ]\n```\n\n**`cornerRadius`** — Rounds the **painted** box by this many pixels (default `0`, square). It shapes fill,\nborder, and shadow — but not hit-testing or clipping: the box stays a rectangle for\nlayout and clicks. To clip children to the rounded shape, set `clip = true` as well.\n\n**`stroke`** — A border drawn **inside** the box (`stroke(width, color)`), so it never enlarges the\nlayout rectangle — the box stays the one geometry fact. `null` by default. Chosen over\nCSS's `border` precisely so a bordered view and an unbordered one occupy the same space.\n\n**`shadow`** — A drop shadow on the box (`shadow(dx, dy, blur, color)`), the CSS box-shadow shape\nminus spread. `null` by default. The glyph equivalent on `Text` is `textShadow`.\n\n**`visible`** — Whether the view renders and participates in layout-that-skips-invisibles (default\n`true`). A `false` view is fully inert — no paint, no hit-testing — but still\nconstructed, so toggling it is cheap and keeps its state.\n\n**`ignorelayout`** — Opt this child out of its parent's `layout` — the arrangement skips it and it owns\nits own position on both axes (the decoration/overlay case: a badge floating over\na laid list). Its size still counts toward the parent's auto-extent.\n\n**`ignoreclip`** — Opt this child out of its parent's `clip`: outside the parent's frame it still\npaints *and* still hits — frame chrome that straddles the frame (a window's\nresize halo; a badge poking out of a clipped card). Parent-scoped — an ancestor's\nclip above still applies — and the child is exempt from the parent's auto-extent\n(frame geometry derives *from* the bounds, so it cannot also define them).\n\n**`opacity`** — Whole-view alpha, `0`…`1` (default `1`). Applies to the view **and its subtree** as a\ngroup, so a fading panel fades its contents with it. Not `prevailing`: its effect\nalready composes down the render tree, so a followed copy would apply it twice.\n\n**`scale`** — A uniform **paint** transform — the view's subtree renders scaled about its pivot, never\nre-laid-out (like `opacity`, it changes pixels, not geometry), and hit-testing follows the\nvisible result. Pair with `pivotX`/`pivotY` to choose the center; `1` is unscaled.\n\n**`pivotX`** — The horizontal center of `scale`, in the view's own coordinates. Defaults to the origin; set\nboth `pivotX`/`pivotY` to scale about the middle rather than the top-left.\n\n**`pivotY`** — The vertical pivot — the twin of `pivotX`.\n\n**`clip`** — Clips the subtree to a shape. `clip = true` clips to the view's **own box**\n(reactively on width/height) — the common case; a `Shape` value clips to an arbitrary\npath. `null`/unset (default) draws children unclipped, even outside the box. Kept\nexplicit (not implied by `cornerRadius`) so clipping is pay-per-use.\n\n**`scrolls`** — Makes the view scroll its overflowing content: it clips to its box and scrolls the\nvertical overflow, exposing `scrollY`. Fixed chrome comes free — make it a **sibling**\nof the scroller, not a child. Default `false`. Both backends realize it natively and\npresent the same model (`scrollY` updates the same way either way); only the overscroll\n*feel* differs, where the platform can do better. On DOM the OS owns the scroll — overlay\nscrollbar, momentum, and rubber-band overscroll *contained* to this pane, so it bounces on\nits own edges and never chains to the page, and sibling panes overscroll independently. On\ncanvas the runtime manages the offset (clip+translate+wheel), as a single element must.\n\n**`tip`** — The tooltip text — the layer system's floor (one attribute at the use site): a non-empty\n`tip` makes this view hover-interactive, and after the theme's delay the auto-provided\n`Tooltip` singleton shows the text beside it. Placement, delay, and size are theme data\n(`tooltipPlacement` below | above | pointer, `tooltipDelay`, `tooltipSize`) — so Cupertino\ntips appear near the cursor after ~1s at 11px (the macOS help tag), Redmond's above the\ncontrol (WinUI), Mountain View's below at ~500ms (M3) — always flipped and clamped inside\nthe app. Moving between tip-carrying controls while a tip is up retargets instantly; a\npress dismisses. Look comes from `tooltipBg` / `tooltipText` / `tooltipLine`. `\"\"` (the\ndefault) = no tip.\n\n**`scrollsX`** — Like `scrolls`, but for **horizontal** overflow: the view clips to its box and scrolls content\nwider than it, exposing the offset. Use it for a paging strip; `scrolls` is the vertical case.\n\n**`scrollY`** — The current vertical scroll offset in pixels of a `scrolls` view — **read it** for\nscroll-driven effects (a fading header, reveals, parallax): `opacity = { 1 - app.scrollY / 200 }`.\n\n**`textColor`** — The glyph color `Text` renders with — a `prevailing` styling slot declared on `View`\nso **any** container can provide it and the whole subtree inherits, live. Unset, it\nfollows the nearest ancestor that sets it (default `0x000000`). Set it on a panel to\nretint all text beneath without touching each `Text`.\n\n**`fontSize`** — Prevailing font size in pixels (default `16`), inherited by descendant `Text` exactly\nlike `textColor`. Set once on a container to size a whole region's text.\n\n**`fontFamily`** — The prevailing font **fallback list**, read at each descendant `Text` — `[Brand, \"system-ui\", \"sans-serif\"]`.\nA bare name resolves to a declared `font`; the first entry that resolves wins, so end\nwith a generic. Prevailing, so setting it on a container refaces the whole region.\n\n**`fontWeight`** — The prevailing weight — one of the `thin`…`black` tokens (`normal`/`bold` alias 400/700).\nThe token also **picks the matching face** when a `font` declares several, so weight and\nface never drift apart.\n\n**`letterSpacing`** — Prevailing tracking, in **px** (not em) — `0` is the font's natural advances. Prevailing,\nso a heading container can loosen all its text at once.\n\n**`headingColor`** — **Prevailing.** The color of `Markdown`/`RichText` headings, overriding `textColor` for heading\nruns only; absent, headings follow `textColor`.\n\n**`headingWeight`** — **Prevailing.** The font weight for rich-text headings — the heading-specific counterpart to\n`fontWeight`.\n\n**`linkColor`** — **Prevailing.** The color of links in rich text; absent, links use the theme's accent.\n\n**`codeColor`** — **Prevailing.** The text color of inline and fenced code in rich text.\n\n**`codeSize`** — **Prevailing.** The font size for code regions — one value driving inline code, fenced blocks,\nand `<pre>` alike, so a document's monospace stays uniform.\n\n**`codeFamily`** — **Prevailing.** The monospace family for code regions — a fallback list, like `fontFamily`.\n\n**`codeBackground`** — **Prevailing.** The fill behind fenced code blocks; absent, code carries no box.\n\n**`codeRule`** — **Prevailing.** The color of a fenced code block's left accent rule.\n\n**`richTextLayout`** — **Prevailing.** A per-block-type geometry map for `RichText`/`Markdown` — caller-controlled\nmeasure and spacing per block kind (prose narrower than code, say), so one base renders both\ntight code and wide prose.\n\n**`theme`** — A prevailing record of design tokens, read inside `{ }` as `theme.accent`, `theme.muted`,\netc. Provide it on a container and the subtree styles off it — the escape from hard-coded\ncolors when you don't want a full `stylesheet`.\n\n**`selectable`** — **Prevailing.** `selectable = true` on a container makes all its `Text` — including a\n`Markdown`'s rendered runs — selectable and copyable; **off by default**, so UI chrome never\nbecomes accidentally selectable. Set it once high over a region of prose.\n\n**`styles`** — An ordered list of `style` bundles applied at **construction** — **static in v1**: unlike\n`stylesheet`, reassigning `styles` after build does nothing. For a reskin that changes\nlive, use `stylesheet` instead.\n\n**`stylesheet`** — The prevailing stylesheet: provide one anywhere and that whole subtree reskins; swap it\nand the subtree re-styles in a single settle. The reactive counterpart to the static\n`styles` list.\n\n**`layout`** — How this view arranges its children — a reactive `Layout` attribute, not a child and\nnot the container's type. Defaults to none (absolute `x`/`y`). Swap or animate it and\nthe arrangement transitions continuously: `layout: SimpleLayout [ axis = y, spacing = 10 ]`.\nSet `layout = null` for explicit none.\n\n**`datapath`** — The data cursor (language §9): sets the place in a dataset that this view and its\ndescendants read relative to. Write it as a `:path` (relative to the inherited\ncursor), `:arr[]` to **replicate** this view once per array element, or a `{ }`\nexpression yielding a place. Descendants read with their own relative `:paths`.\n\n**`focusable`** — Makes the view a keyboard **tab stop**. Traversal order is the view tree — there is no\nnumeric tabindex; override `tabOrder()` to reorder within a container.\n\n**`focustrap`** — Marks a self-contained focus group: Tab cycles within it and escapes at the boundary\n(firing `escapeFocus`). For a modal or menu whose focus must not leak to the page behind.\n\n**`anchor`** — Names this view as a **reveal target** for a location's `@name` suffix\n(`#guide/04-tree@intro` scrolls to the view with `anchor = \"intro\"`). The `<a name>`\nlineage, reborn reactive: the anchor namespace is named views (this attribute) plus\nheading slugs inside rendered rich text — a heading needs nothing from you. Resolution\nprefers views over slugs, preorder-first.\n\n**`contentWidth`** — **Read-only** intrinsic: the width of this view's visible children's bounding box —\nthe auto-extent, surfaced. A constraint may read it (`width = { Math.min(contentWidth, 480) }`)\nto size to content with a cap; assigning it is a compile error.\n\n**`contentHeight`** — **Read-only** intrinsic mirroring `contentWidth` on the vertical axis — the measured\nextent of the subtree, for sizing a container to its content.\n\n## Events\n\n- `onClick()` — Fires when the pointer presses **and** releases on the same view (a true click, not a\nstray press) — answered by an `onClick()` handler. The primary interaction event;\n`mouseDown`/`mouseUp`/`mouseMove` are there when you need the raw phases.\n\n```declare\nView [ width = 80, height = 40, cornerRadius = 10, fill = gainsboro, onClick() { fill = 0x4169E1 } ]\n```\n- `onMouseDown()` — The pointer pressed on the view — the raw press phase. Prefer `click` (press **and**\nrelease on the same view) unless you need the phases apart, e.g. to begin a drag.\n- `onMouseUp()` — The pointer released. While a press is captured (it began on this view) `mouseUp` still\nfires **here even if the release lands off the box** — the drag-release guarantee, so a\nslider freezes its value wherever the finger lifts.\n- `onMouseMove()` — The pointer moved over the view — and, once pressed on it, every move **while captured**\n(even outside the box), so a drag handler keeps getting positions. The event carries the\npointer in this view's own coordinates.\n- `onMouseOver()` — The pointer entered the view (retained enter tracking) — the hover-in half. Set a\n`hovered` flag here and read it in a `fill`/`textColor` constraint.\n- `onMouseOut()` — The pointer left the view — the hover-out half; also fires when a press is abandoned off\nthe box, so clear both `hovered` and `pressed` here.\n- `onInit()` — Fires once when the view has finished constructing and its subtree exists — the place\nfor setup that needs the built tree. Answered by `onInit()`.\n- `onFocus()` — The view gained keyboard focus (it is `focusable` and was tabbed or clicked to). Drive a\nfocus ring off it.\n- `onBlur()` — The view lost keyboard focus — the partner of `focus`.\n- `onEscapeFocus()` — Fired on a `focustrap` when Tab reaches its boundary — your cue to move focus out (close\nthe modal, advance to the next group).\n- `onKeyDown()` — A key was pressed while the view holds focus; the event carries the key. For app-wide\nshortcuts use a `Keys` subscription instead — this is for the focused view only.\n- `onKeyUp()` — A key was released while the view holds focus — the partner of `keyDown`.\n\n## Methods\n\n- `scrollIntoView(align?: \"start\" | \"nearest\", smooth?: boolean): void` — Scrolls this view into the visible region of its nearest `scrolls` ancestor (or the page),\naligning its top to the viewport top — the imperative partner of the declarative jump-index\npattern. Both backends realize it natively (DOM `scrollIntoView`, canvas clamps the scroll\nancestor's `scrollOffset`). A no-op if nothing above it scrolls.\n",
+       "doc": "# View\n\n*Built-in element*\n\nThe base of every visual thing in Declare — a rectangular **box** with a position, a\nsize, and decoration (fill, corner radius, border, shadow). Everything you see\ndescends from `View`: `Text`, `Image`, your own `class … extends View`. A plain\n`View` is a colored box; give it children and it becomes a container.\n\nIts geometry is set two ways that read the same: literal (`width = 200`) or a reactive\n`{ }` constraint the runtime keeps true (`width = { parent.width }`). Children nest\ninside the brackets, so the source shape mirrors the visual shape; *how* they are\narranged is the `layout` attribute, not the container's type.\n\n```declare\nView [ width = 200, height = 120, fill = white, cornerRadius = 8,\n  Text [ text = \"hello\", x = 12, y = 12 ]\n]\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `x` | Length | `0` |  |\n| `y` | Length | `0` |  |\n| `width` | Length | `0` |  |\n| `height` | Length | `0` |  |\n| `fill` | Fill | `null` |  |\n| `cornerRadius` | number | `0` |  |\n| `stroke` | Stroke | `null` |  |\n| `shadow` | Shadow | `null` |  |\n| `visible` | boolean | `true` |  |\n| `ignorelayout` | boolean | `false` |  |\n| `ignoreclip` | boolean | `false` |  |\n| `opacity` | number | `1` |  |\n| `scale` | number | `1` |  |\n| `pivotX` | number | `0` |  |\n| `pivotY` | number | `0` |  |\n| `clip` | Shape | `null` |  |\n| `scrolls` | boolean | `false` |  |\n| `tip` | string | `\"\"` |  |\n| `scrollsX` | boolean | `false` |  |\n| `scrollY` | number | `0` |  |\n| `textColor` | Color | `0x000000` | prevailing |\n| `fontSize` | number | `16` | prevailing |\n| `fontFamily` | Font | `\"sans-serif\"` | prevailing |\n| `fontWeight` | thin | extralight | light | regular | normal | medium | semibold | bold | extrabold | black | `\"normal\"` | prevailing |\n| `letterSpacing` | number | `0` | prevailing |\n| `headingColor` | Color | `null` | prevailing |\n| `headingWeight` | thin | extralight | light | regular | normal | medium | semibold | bold | extrabold | black | `\"bold\"` | prevailing |\n| `linkColor` | Color | `null` | prevailing |\n| `codeColor` | Color | `null` | prevailing |\n| `codeSize` | number | `0` | prevailing |\n| `codeFamily` | Font | `\"\"` | prevailing |\n| `codeBackground` | Color | `null` | prevailing |\n| `codeRule` | Color | `null` | prevailing |\n| `richTextLayout` | RichTextLayout | `null` | prevailing |\n| `theme` | Theme | `DEFAULT_THEME` | prevailing |\n| `selectable` | boolean | `false` | prevailing |\n| `styles` | Style[] | `null` |  |\n| `stylesheet` | Stylesheet | `null` | prevailing |\n| `layout` | Layout | `null` |  |\n| `datapath` | datapath | `null` |  |\n| `focusable` | boolean | `false` |  |\n| `focustrap` | boolean | `false` |  |\n| `anchor` | string | `\"\"` |  |\n| `contentWidth` | Length |  | read-only |\n| `contentHeight` | Length |  | read-only |\n\n**`x`** — The horizontal offset within the parent, in pixels. Honoured only while the parent\nimposes no `layout` — **a layout overwrites `x` every pass**, so use it for absolute\nplacement (the layout-none default) and switch to `layout` for arrangement; don't fight\none with the other.\n\n**`y`** — The vertical offset within the parent — the twin of `x`, and likewise overwritten by a\nparent `layout`.\n\n**`width`** — The box's width, in **pixels** (`Length`). Defaults to `0`, so a container with no\nwidth set collapses — give it one, a `{ }` constraint, or `100%` (parent-relative).\nSet it live and children constrained to it reflow in the same frame; there is no\nre-layout call. To size *to* content instead, constrain it: `width = { Math.min(contentWidth, 480) }`.\n\n**`height`** — The box's height in pixels (`Length`), mirroring `width`. `0` by default. A `Text`\nleft unsized takes its natural measured height, so you usually set `height` only to\nclip or to drive a layout.\n\n**`fill`** — What paints the box: a solid `Color` or a `gradient(…)` — the one slot, subsuming a\nplain background color. `null` (the default) paints **nothing** — an unfilled box is\ninvisible but still lays out and still catches clicks. In a `[ ]` literal a color is\n`#RRGGBB`; inside a `{ }` body it is `0xRRGGBB` (the one place the spelling differs).\n\n```declare\nView [ fill = { gradient(\"90deg\", 0x1E2A36, 0x0B141B) } ]\n```\n\n**`cornerRadius`** — Rounds the **painted** box by this many pixels (default `0`, square). It shapes fill,\nborder, and shadow — but not hit-testing or clipping: the box stays a rectangle for\nlayout and clicks. To clip children to the rounded shape, set `clip = true` as well.\n\n**`stroke`** — A border drawn **inside** the box (`stroke(width, color)`), so it never enlarges the\nlayout rectangle — the box stays the one geometry fact. `null` by default. Chosen over\nCSS's `border` precisely so a bordered view and an unbordered one occupy the same space.\n\n**`shadow`** — A drop shadow on the box (`shadow(dx, dy, blur, color)`), the CSS box-shadow shape\nminus spread. `null` by default. The glyph equivalent on `Text` is `textShadow`.\n\n**`visible`** — Whether the view renders and participates in layout-that-skips-invisibles (default\n`true`). A `false` view is fully inert — no paint, no hit-testing — but still\nconstructed, so toggling it is cheap and keeps its state.\n\n**`ignorelayout`** — Opt this child out of its parent's `layout` — the arrangement skips it and it owns\nits own position on both axes (the decoration/overlay case: a badge floating over\na laid list). Its size still counts toward the parent's auto-extent.\n\n**`ignoreclip`** — Opt this child out of its parent's `clip`: outside the parent's frame it still\npaints *and* still hits — frame chrome that straddles the frame (a window's\nresize halo; a badge poking out of a clipped card). Parent-scoped — an ancestor's\nclip above still applies — and the child is exempt from the parent's auto-extent\n(frame geometry derives *from* the bounds, so it cannot also define them).\n\n**`opacity`** — Whole-view alpha, `0`…`1` (default `1`). Applies to the view **and its subtree** as a\ngroup, so a fading panel fades its contents with it. Not `prevailing`: its effect\nalready composes down the render tree, so a followed copy would apply it twice.\n\n**`scale`** — A uniform **paint** transform — the view's subtree renders scaled about its pivot, never\nre-laid-out (like `opacity`, it changes pixels, not geometry), and hit-testing follows the\nvisible result. Pair with `pivotX`/`pivotY` to choose the center; `1` is unscaled.\n\n**`pivotX`** — The horizontal center of `scale`, in the view's own coordinates. Defaults to the origin; set\nboth `pivotX`/`pivotY` to scale about the middle rather than the top-left.\n\n**`pivotY`** — The vertical pivot — the twin of `pivotX`.\n\n**`clip`** — Clips the subtree to a shape. `clip = true` clips to the view's **own box**\n(reactively on width/height) — the common case; a `Shape` value clips to an arbitrary\npath. `null`/unset (default) draws children unclipped, even outside the box. Kept\nexplicit (not implied by `cornerRadius`) so clipping is pay-per-use.\n\n**`scrolls`** — Makes the view scroll its overflowing content: it clips to its box and scrolls the\nvertical overflow, exposing `scrollY`. Fixed chrome comes free — make it a **sibling**\nof the scroller, not a child. Default `false`. Both backends realize it natively and\npresent the same model (`scrollY` updates the same way either way); only the overscroll\n*feel* differs, where the platform can do better. On DOM the OS owns the scroll — overlay\nscrollbar, momentum, and rubber-band overscroll *contained* to this pane, so it bounces on\nits own edges and never chains to the page, and sibling panes overscroll independently. On\ncanvas the runtime manages the offset (clip+translate+wheel), as a single element must.\n\n**`tip`** — The tooltip text — the layer system's floor (one attribute at the use site): a non-empty\n`tip` makes this view hover-interactive, and after the theme's delay the auto-provided\n`Tooltip` singleton shows the text beside it. Placement, delay, and size are theme data\n(`tooltipPlacement` below | above | pointer, `tooltipDelay`, `tooltipSize`) — so Cupertino\ntips appear near the cursor after ~1s at 11px (the macOS help tag), Redmond's above the\ncontrol (WinUI), Mountain View's below at ~500ms (M3) — always flipped and clamped inside\nthe app. Moving between tip-carrying controls while a tip is up retargets instantly; a\npress dismisses. Look comes from `tooltipBg` / `tooltipText` / `tooltipLine`. `\"\"` (the\ndefault) = no tip.\n\n**`scrollsX`** — Like `scrolls`, but for **horizontal** overflow: the view clips to its box and scrolls content\nwider than it, exposing the offset. Use it for a paging strip; `scrolls` is the vertical case.\n\n**`scrollY`** — The current vertical scroll offset in pixels of a `scrolls` view — **read it** for\nscroll-driven effects (a fading header, reveals, parallax): `opacity = { 1 - app.scrollY / 200 }`.\n\n**`textColor`** — The glyph color `Text` renders with — a `prevailing` styling slot declared on `View`\nso **any** container can provide it and the whole subtree inherits, live. Unset, it\nfollows the nearest ancestor that sets it (default `0x000000`). Set it on a panel to\nretint all text beneath without touching each `Text`.\n\n**`fontSize`** — Prevailing font size in pixels (default `16`), inherited by descendant `Text` exactly\nlike `textColor`. Set once on a container to size a whole region's text.\n\n**`fontFamily`** — The prevailing font **fallback list**, read at each descendant `Text` — `[Brand, \"system-ui\", \"sans-serif\"]`.\nA bare name resolves to a declared `font`; the first entry that resolves wins, so end\nwith a generic. Prevailing, so setting it on a container refaces the whole region.\n\n**`fontWeight`** — The prevailing weight — one of the `thin`…`black` tokens (`normal`/`bold` alias 400/700).\nThe token also **picks the matching face** when a `font` declares several, so weight and\nface never drift apart.\n\n**`letterSpacing`** — Prevailing tracking, in **px** (not em) — `0` is the font's natural advances. Prevailing,\nso a heading container can loosen all its text at once.\n\n**`headingColor`** — **Prevailing.** The color of `Markdown`/`RichText` headings, overriding `textColor` for heading\nruns only; absent, headings follow `textColor`.\n\n**`headingWeight`** — **Prevailing.** The font weight for rich-text headings — the heading-specific counterpart to\n`fontWeight`.\n\n**`linkColor`** — **Prevailing.** The color of links in rich text; absent, links use the theme's accent.\n\n**`codeColor`** — **Prevailing.** The text color of inline and fenced code in rich text.\n\n**`codeSize`** — **Prevailing.** The font size for code regions — one value driving inline code, fenced blocks,\nand `<pre>` alike, so a document's monospace stays uniform.\n\n**`codeFamily`** — **Prevailing.** The monospace family for code regions — a fallback list, like `fontFamily`.\n\n**`codeBackground`** — **Prevailing.** The fill behind fenced code blocks; absent, code carries no box.\n\n**`codeRule`** — **Prevailing.** The color of a fenced code block's left accent rule.\n\n**`richTextLayout`** — **Prevailing.** A per-block-type geometry map for `RichText`/`Markdown` — caller-controlled\nmeasure and spacing per block kind (prose narrower than code, say), so one base renders both\ntight code and wide prose.\n\n**`theme`** — A prevailing record of design tokens, read inside `{ }` as `theme.accent`, `theme.muted`,\netc. Provide it on a container and the subtree styles off it — the escape from hard-coded\ncolors when you don't want a full `stylesheet`.\n\n**`selectable`** — **Prevailing.** `selectable = true` on a container makes all its `Text` — including a\n`Markdown`'s rendered runs — selectable and copyable; **off by default**, so UI chrome never\nbecomes accidentally selectable. Set it once high over a region of prose.\n\n**`styles`** — An ordered list of `style` bundles applied at **construction** — **static in v1**: unlike\n`stylesheet`, reassigning `styles` after build does nothing. For a reskin that changes\nlive, use `stylesheet` instead.\n\n**`stylesheet`** — The prevailing stylesheet: provide one anywhere and that whole subtree reskins; swap it\nand the subtree re-styles in a single settle. The reactive counterpart to the static\n`styles` list.\n\n**`layout`** — How this view arranges its children — a reactive `Layout` attribute, not a child and\nnot the container's type. Defaults to none (absolute `x`/`y`). Swap or animate it and\nthe arrangement transitions continuously: `layout: SimpleLayout [ axis = y, spacing = 10 ]`.\nSet `layout = null` for explicit none.\n\n**`datapath`** — The data cursor (language §9): sets the place in a dataset that this view and its\ndescendants read relative to. Write it as a `:path` (relative to the inherited\ncursor), `:arr[]` to **replicate** this view once per array element, or a `{ }`\nexpression yielding a place. Descendants read with their own relative `:paths`.\n\n**`focusable`** — Makes the view a keyboard **tab stop**. Traversal order is the view tree — there is no\nnumeric tabindex; override `tabOrder()` to reorder within a container.\n\n**`focustrap`** — Marks a self-contained focus group: Tab cycles within it and escapes at the boundary\n(firing `escapeFocus`). For a modal or menu whose focus must not leak to the page behind.\n\n**`anchor`** — Names this view as a **reveal target** for a location's `@name` suffix\n(`#guide/04-tree@intro` scrolls to the view with `anchor = \"intro\"`). The `<a name>`\nlineage, reborn reactive: the anchor namespace is named views (this attribute) plus\nheading slugs inside rendered rich text — a heading needs nothing from you. Resolution\nprefers views over slugs, preorder-first.\n\n**`contentWidth`** — **Read-only** intrinsic: the width of this view's visible children's bounding box —\nthe auto-extent, surfaced. A constraint may read it (`width = { Math.min(contentWidth, 480) }`)\nto size to content with a cap; assigning it is a compile error.\n\n**`contentHeight`** — **Read-only** intrinsic mirroring `contentWidth` on the vertical axis — the measured\nextent of the subtree, for sizing a container to its content.\n\n## Events\n\n- `onClick()` — Fires when the pointer presses **and** releases on the same view (a true click, not a\nstray press) — answered by an `onClick()` handler. The primary interaction event;\n`mouseDown`/`mouseUp`/`mouseMove` are there when you need the raw phases.\n\n```declare\nView [ width = 80, height = 40, cornerRadius = 10, fill = gainsboro, onClick() { fill = 0x4169E1 } ]\n```\n- `onMouseDown()` — The pointer pressed on the view — the raw press phase. Prefer `click` (press **and**\nrelease on the same view) unless you need the phases apart, e.g. to begin a drag.\n- `onMouseUp()` — The pointer released. While a press is captured (it began on this view) `mouseUp` still\nfires **here even if the release lands off the box** — the drag-release guarantee, so a\nslider freezes its value wherever the finger lifts.\n- `onMouseMove()` — The pointer moved over the view — and, once pressed on it, every move **while captured**\n(even outside the box), so a drag handler keeps getting positions. The event carries the\npointer in this view's own coordinates.\n- `onMouseOver()` — The pointer entered the view (retained enter tracking) — the hover-in half. Set a\n`hovered` flag here and read it in a `fill`/`textColor` constraint.\n- `onMouseOut()` — The pointer left the view — the hover-out half; also fires when a press is abandoned off\nthe box, so clear both `hovered` and `pressed` here.\n- `onWheel()` — The wheel turned over the view — mouse wheel, trackpad scroll, or trackpad pinch, which\narrives on the same stream with `e.pinch` true (a ctrl+wheel zoom reports identically).\nThe event carries the point in this view's coordinates plus `deltaX`/`deltaY`. Declaring\nit **claims the wheel** over this view and its subtree — the browser stops scrolling or\nzooming the page with it — except over a nested `scrolls` pane, which keeps its own\nwheel. ⌘ +/− dispatches no event and stays out of reach.\n- `onInit()` — Fires once when the view has finished constructing and its subtree exists — the place\nfor setup that needs the built tree. Answered by `onInit()`.\n- `onFocus()` — The view gained keyboard focus (it is `focusable` and was tabbed or clicked to). Drive a\nfocus ring off it.\n- `onBlur()` — The view lost keyboard focus — the partner of `focus`.\n- `onEscapeFocus()` — Fired on a `focustrap` when Tab reaches its boundary — your cue to move focus out (close\nthe modal, advance to the next group).\n- `onKeyDown()` — A key was pressed while the view holds focus; the event carries the key. For app-wide\nshortcuts use a `Keys` subscription instead — this is for the focused view only.\n- `onKeyUp()` — A key was released while the view holds focus — the partner of `keyDown`.\n\n## Methods\n\n- `scrollIntoView(align?: \"start\" | \"nearest\", smooth?: boolean): void` — Scrolls this view into the visible region of its nearest `scrolls` ancestor (or the page),\naligning its top to the viewport top — the imperative partner of the declarative jump-index\npattern. Both backends realize it natively (DOM `scrollIntoView`, canvas clamps the scroll\nancestor's `scrollOffset`). A no-op if nothing above it scrolls.\n",
        "preview": "The base of every visual thing in Declare — a rectangular box with a position, a size, and decoration (fill, corner radius, border, shadow). Everything you see descends from View: Text, Image, your own class … extends View. A plain View is…"
       },
       {
@@ -21414,14 +21342,6 @@
        "preview": "A labeled form row: the label column, then whatever control the use site nests (its DIRECT child, arranged by the row's layout): Field label = \"Name\", TextInput width = 220, height = 30 labelWidth is the shared-column knob (Contract 4, rule…"
       },
       {
-       "name": "SearchField",
-       "subtitle": "extends View",
-       "kind": "element",
-       "label": "Component",
-       "doc": "# SearchField\n\n*Component — extends `View`*\n\nThe macOS-style search pill (the kind that lives in Help menus, toolbars,\nand settings panes): a CAPSULE — corner radius is half the height — with a\ndrawn magnifier at the left and a chromeless native input inside. The\nTextInput's themed self-chrome (fill/stroke/radius derives) is displaced\nby author nulls, so the pill is the only box; focus shows as the caret.\n\n`text` mirrors the live value; `input(v)` is the delivery seam\n(components-baseline.md, Contract 1) — override it to hand the query to its\nowner.\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `placeholder` | string | `\"Search\"` |  |\n| `text` | string | `\"\"` |  |\n\n## Methods\n\n- `input(v)`\n",
-       "preview": "The macOS-style search pill (the kind that lives in Help menus, toolbars, and settings panes): a CAPSULE — corner radius is half the height — with a drawn magnifier at the left and a chromeless native input inside. The TextInput's themed se…"
-      },
-      {
        "name": "ProgressBar",
        "subtitle": "extends View",
        "kind": "element",
@@ -21438,20 +21358,20 @@
        "preview": "The traveling focus indicator — the OpenLaszlo 3.4 focusoverlay line, on the reactive core, at its third form: a SHAPE-HUGGING rounded outline whose terminus reshapes to the focused control's own silhouette (library-charter §6 — the ring sp…"
       },
       {
-       "name": "TabSlider",
+       "name": "Accordion",
        "subtitle": "extends View",
        "kind": "element",
        "label": "Component",
-       "doc": "# TabSlider\n\n*Component — extends `View`*\n\nOpenLaszlo's `basetabslider`, reborn — the accordion: stacked tab headers, one\npane open at a time, panes SLIDING open and closed by a spring on height. The\nload-bearing mechanic (docs/system-design/tabslider-gaps.md, verified\nframe-by-frame against the original): a tab's content is PRESENT through the\nwhole open **and** close, revealed and concealed by the tab's own clip as its\nheight animates — never an instant pop, never a blank gap.\n\nValue contract (components-baseline.md): the open tab is ONE attribute on the\ngroup — `value`, the open tab's name — exactly RadioGroup's shape. Tabs are\nthe group's direct children; each names itself (`name`, defaulting to its\n`label`) and derives `open` from the group. Content is authored as the Tab's\nordinary children — the Tab stacks its header then the content, and clips.\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `value` | string | `\"\"` |  |\n",
-       "preview": "OpenLaszlo's basetabslider, reborn — the accordion: stacked tab headers, one pane open at a time, panes SLIDING open and closed by a spring on height. The load-bearing mechanic (docs/system-design/tabslider-gaps.md, verified frame-by-frame…"
+       "doc": "# Accordion\n\n*Component — extends `View`*\n\nOpenLaszlo's `basetabslider`, reborn — stacked pane headers, one\npane open at a time, panes SLIDING open and closed by a spring on height. The\nload-bearing mechanic (docs/system-design/tabslider-gaps.md, verified\nframe-by-frame against the original): a pane's content is PRESENT through the\nwhole open **and** close, revealed and concealed by the pane's own clip as its\nheight animates — never an instant pop, never a blank gap.\n\nValue contract (components-baseline.md): the open pane is ONE attribute on the\ngroup — `value`, the open pane's name — exactly RadioGroup's shape. Panes are\nthe group's direct children; each names itself (`name`, defaulting to its\n`label`) and derives `open` from the group. Content is authored as the Pane's\nordinary children — the Pane stacks its header then the content, and clips.\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `value` | string | `\"\"` |  |\n",
+       "preview": "OpenLaszlo's basetabslider, reborn — stacked pane headers, one pane open at a time, panes SLIDING open and closed by a spring on height. The load-bearing mechanic (docs/system-design/tabslider-gaps.md, verified frame-by-frame against the or…"
       },
       {
-       "name": "Tab",
+       "name": "Pane",
        "subtitle": "extends Control",
        "kind": "element",
        "label": "Component",
-       "doc": "# Tab\n\n*Component — extends `Control`*\n\nOpenLaszlo's `basetabslider`, reborn — the accordion: stacked tab headers, one\npane open at a time, panes SLIDING open and closed by a spring on height. The\nload-bearing mechanic (docs/system-design/tabslider-gaps.md, verified\nframe-by-frame against the original): a tab's content is PRESENT through the\nwhole open **and** close, revealed and concealed by the tab's own clip as its\nheight animates — never an instant pop, never a blank gap.\n\nValue contract (components-baseline.md): the open tab is ONE attribute on the\ngroup — `value`, the open tab's name — exactly RadioGroup's shape. Tabs are\nthe group's direct children; each names itself (`name`, defaulting to its\n`label`) and derives `open` from the group. Content is authored as the Tab's\nordinary children — the Tab stacks its header then the content, and clips.\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `label` | string | `\"\"` |  |\n| `name` | string |  |  |\n| `initial` | boolean | `false` |  |\n| `open` | boolean |  |  |\n\n## Events\n\n- `onInit()`\n- `onClick()`\n\n## Methods\n\n- `tabOrder()`\n- `press()`\n",
-       "preview": "OpenLaszlo's basetabslider, reborn — the accordion: stacked tab headers, one pane open at a time, panes SLIDING open and closed by a spring on height. The load-bearing mechanic (docs/system-design/tabslider-gaps.md, verified frame-by-frame…"
+       "doc": "# Pane\n\n*Component — extends `Control`*\n\nOpenLaszlo's `basetabslider`, reborn — stacked pane headers, one\npane open at a time, panes SLIDING open and closed by a spring on height. The\nload-bearing mechanic (docs/system-design/tabslider-gaps.md, verified\nframe-by-frame against the original): a pane's content is PRESENT through the\nwhole open **and** close, revealed and concealed by the pane's own clip as its\nheight animates — never an instant pop, never a blank gap.\n\nValue contract (components-baseline.md): the open pane is ONE attribute on the\ngroup — `value`, the open pane's name — exactly RadioGroup's shape. Panes are\nthe group's direct children; each names itself (`name`, defaulting to its\n`label`) and derives `open` from the group. Content is authored as the Pane's\nordinary children — the Pane stacks its header then the content, and clips.\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `label` | string | `\"\"` |  |\n| `name` | string |  |  |\n| `initial` | boolean | `false` |  |\n| `open` | boolean |  |  |\n\n## Events\n\n- `onInit()`\n- `onClick()`\n\n## Methods\n\n- `tabOrder()`\n- `press()`\n",
+       "preview": "OpenLaszlo's basetabslider, reborn — stacked pane headers, one pane open at a time, panes SLIDING open and closed by a spring on height. The load-bearing mechanic (docs/system-design/tabslider-gaps.md, verified frame-by-frame against the or…"
       },
       {
        "name": "Tooltip",
@@ -21555,7 +21475,7 @@
      "subtitle": "",
      "kind": "reference",
      "label": "Reference",
-     "doc": "# Diagnostic codes\n\n*Every compiler diagnostic carries a `DECLARE####` code, and its message names the fix.*\n\n`DECLARE1000` · `DECLARE1001` · `DECLARE2000` · `DECLARE2001` · `DECLARE2002` · `DECLARE2003` · `DECLARE2004` · `DECLARE3000` · `DECLARE3001` · `DECLARE3002` · `DECLARE3003` · `DECLARE3004` · `DECLARE4000` · `DECLARE4001` · `DECLARE4002` · `DECLARE4003` · `DECLARE4004` · `DECLARE5000` · `DECLARE5001` · `DECLARE5002` · `DECLARE5003` · `DECLARE6000` · `DECLARE6001` · `DECLARE7000` · `DECLARE7001`",
+     "doc": "# Diagnostic codes\n\n*Every compiler diagnostic carries a `DECLARE####` code, and its message names the fix.*\n\n`DECLARE1000` · `DECLARE1001` · `DECLARE2000` · `DECLARE2001` · `DECLARE2002` · `DECLARE2003` · `DECLARE2004` · `DECLARE3000` · `DECLARE3001` · `DECLARE3002` · `DECLARE3003` · `DECLARE3004` · `DECLARE3005` · `DECLARE4000` · `DECLARE4001` · `DECLARE4002` · `DECLARE4003` · `DECLARE4004` · `DECLARE5000` · `DECLARE5001` · `DECLARE5002` · `DECLARE5003` · `DECLARE6000` · `DECLARE6001` · `DECLARE7000` · `DECLARE7001`",
      "preview": "Every compiler diagnostic carries a DECLARE code, and its message names the fix. DECLARE1000 · DECLARE1001 · DECLARE2000 · DECLARE2001 · DECLARE2002 · DECLARE2003 · DECLARE2004 · DECLARE3000 · DECLARE3001 · DECLARE3002 · DECLARE3003 · DECLA…"
     },
     {
@@ -21725,6 +21645,14 @@
      "preview": "Status: direction proposal, 2026-07-24. Background, not truth. This records a direction we expect to add to over time; nothing here is ratified, and the declare.md edits in the appendix are deliberately deferred (see Sequencing). The thesis…"
     },
     {
+     "name": "Data paths",
+     "subtitle": "measured state, the standards gap, and a build plan",
+     "kind": "doc",
+     "label": "Markdown file",
+     "path": "docs/system-design/data-paths.md",
+     "preview": "Outcome (2026-07-27): David ruled that the trio — JSONPath reads, JSON Pointer writes, optional schemas — should be built. This doc is the measurement behind that call: what the data layer actually implements today, how far it sits from the…"
+    },
+    {
      "name": "The Implementation",
      "subtitle": "Compiler, Renderer, and Components",
      "kind": "doc",
@@ -21859,6 +21787,14 @@
      "label": "Markdown file",
      "path": "docs/system-design/formatting.md",
      "preview": "This is the canon: the human style the language is written in, and the implementation contract for the tool that enforces it. It supersedes the earlier indent.txt sketch (since removed). §12 of declare-language.md(declare-language.md12-form…"
+    },
+    {
+     "name": "Gestures",
+     "subtitle": "who owns them, and how the claim is realized",
+     "kind": "doc",
+     "label": "Markdown file",
+     "path": "docs/system-design/gestures.md",
+     "preview": "The language rule is one sentence (declare.md §8, guide ch. 12): the browser owns every gesture until a view claims one, and declaring the handler is the claim — a claim takes exactly what that handler needs in order to fire, nothing more.…"
     },
     {
      "name": "The Declare Guide",
@@ -22082,7 +22018,7 @@
      "kind": "doc",
      "label": "Markdown file",
      "path": "docs/system-design/tabslider-gaps.md",
-     "preview": "Frame-by-frame comparison (puppeteer filmstrips) of apps/weather (the LZX original, via basetabslider/basetabelement) vs weather surfaced three motion gaps. This note records what the original does, why Declare differs, and the fix. Investi…"
+     "preview": "Renamed 2026-07-27: the library component this note investigates is now Accordion (its panes are Pane), not TabSlider/Tab — it keeps one pane open at a time and was never a tab bar, and the old name was talking readers out of using it. libr…"
     },
     {
      "name": "Text & Markdown",

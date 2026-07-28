@@ -1,35 +1,49 @@
-# Declare — the whole language, in one file, for you and your model
+# Declare — the language, in one file, for you and your LLM
 
-*This is the core document for **Declare**, a language for building application UIs — the
-whole language in one file, written for two readers at once: a person learning or checking
-the language, and an LLM writing it. The language is new, and **no model has been trained
-on it**. So where Declare resembles React, CSS, or HTML, the resemblance ends where this
-document says it does — the most reliable way to be wrong about Declare, for a person or a
-model, is to carry a rule over from a language it resembles. When unsure, consult this
-document rather than extrapolating. This document, the examples, and the compiler are kept
-in agreement by the checks that gate every commit: every complete program below compiles
-under the current toolchain.*
+*Declare is a language for building application interfaces. Writing it takes three things, and
+this file is the first:*
 
-*Language status: pre-1.0, under active design (2026-07). The narrative learning path:
-[the guide](guide/01-thinking-in-declare.md). Per-element detail: [the reference](reference/). Design
-history and unsettled questions: [`system-design/`](system-design/) — background, not truth.*
+1. ***this file*** *— the **language**: every form the grammar accepts and every rule the compiler
+   enforces;*
+2. ***the map*** *— where the rest lives: components and their attributes, real programs, the guide;*
+3. ***the compiler*** *— every error carries a code, a position, and the rewrite that resolves it
+   (§12), so nothing here needs to enumerate edge cases.*
+
+*Declare is new, and no LLM has been trained on it. It resembles React, CSS, and HTML in places,
+and this file is where those resemblances stop. Every complete program below is compiled by the
+test suite on every commit, so the examples are current by construction; where this file and the
+compiler disagree, the compiler is right. Status: pre-1.0, under active design (2026-07).*
+
+## The map
+
+| where | what is there | go when |
+|---|---|---|
+| [`declare-model.json`](declare-model.json) | every component, attribute, type, method, event and diagnostic — generated from source, keyed `Class.attr` under `reference` | you need a name, a type, or a signature |
+| `library/` | the standard components — controls, structure, layouts, embedding, and the `Control` base your own controls extend — written in Declare | you want to know what ships, or to read how one is built |
+| `apps/` | complete programs; `apps/calendar/calendar.declare` (~<!--stat:calendar.lines-->740<!--/stat--> lines) is the reference | you want the idiom at full scale |
+| [`docs/guide/`](guide/01-thinking-in-declare.md) | a narrative course, chapter by chapter | you want the reasoning, or you are learning rather than looking up |
+| [`docs/operational/`](operational/) | install, dev server, build, deploy | you are running or shipping rather than writing |
+
+**Those five carry everything you need to write Declare.** The language is closed and small, so
+when you need a name you do not have, look it up rather than invent it: a guessed attribute is a
+compile error, and a hand-built widget is usually one the library already ships. (`docs/system-design/`
+also exists — it is the design record, including superseded decisions. Background, not truth.)
+
+One boundary makes the rest of this file readable. **Every capitalized tag is a component** —
+`View`, `Text`, and `Image`, but equally `Dataset`, `State`, `Spring`, and `Keys`. Components
+are surface, and the reference lists them all. The language is the grammar that declares,
+instantiates, configures, and relates them, and that grammar is what follows.
 
 ---
 
-## 1. What Declare is
+## 1. The model
 
-Declare is to web applications what HTML is to web documents: you compose a tree of
-components, set their attributes, bind them to data, and handle events. The declarative
-layer is small; **all real logic is ordinary TypeScript**. One source tree renders to the
-DOM or to its own pixels on a canvas — you never touch either. The compiler runs in the
-browser as well as in Node.
+A Declare program is a tree of components whose attributes are related to each other by
+standing expressions the runtime keeps true.
 
-The defining idea: **a binding is a standing relationship the runtime keeps true**, not a
-function you remember to re-run. Read a reactive value inside a binding and you are
-subscribed; assign to one and everything bound to it updates. There is no re-render, no
-diffing, no dependency array, no hook.
-
-A complete, runnable program:
+**A binding is a relationship, not a callback.** Read a reactive value inside one and you are
+subscribed to it; assign to that value and everything bound to it updates. There is no
+re-render, no diffing, no dependency array, and no hook, because nothing was ever a render.
 
 ```declare
 App [ width = 400, height = 140, fill = darkslategray, textColor = whitesmoke,
@@ -37,345 +51,379 @@ App [ width = 400, height = 140, fill = darkslategray, textColor = whitesmoke,
     count: number = 0,                               // reactive state
 
     add: View [ x = 20, y = 20, width = 120, height = 40, cornerRadius = 10, fill = royalblue,
-        onClick() { count = count + 1 },             // a bare name resolves like the read below
+        onClick() { count = count + 1 },
         Text [ x = 20, y = 10, text = "Add one" ],
         ],
 
     Text [ y = 80, x = { (parent.width - this.width) / 2 },
-        text = { `Clicked ${count} times` },         // re-runs whenever count changes
+        text = { `Clicked ${count} times` },
         ],
     ]
 ```
 
-Click the view and the text updates; resize and it re-centers. No update logic was written.
-(The hand-built button above shows the composition model; a themed `Button` also ships in
-the small standard library — §12.)
+Click the view and the label updates; resize the window and it re-centers. You wrote no update
+logic for either, and there is nowhere to put any. Every section below is this same idea
+applied to structure, space, data, style, and time.
 
-**What the language is for.** Everyday applications, first: form-based apps, settings,
-dashboards, calendars, editors. And then a lot farther: the polished, continuous UX that
-today ships only as handcrafted custom implementation is easy to say here — layout,
-states, springs, and data all derive from the same constraints, so **continuity is the
-grain, not the garnish**: a view doesn't switch so much as *become* the next one, and the
-continuous version of an interface is often less code than the discrete one. Either way,
-Declare programs are analyzable, concise, and verifiable. These are capabilities of the
-language itself; reach for them:
+### Six differences
 
-- **Arrangement animates.** Spring a few scalars and every constraint derived from them
-  moves in lock-step — this is how a calendar's month morphs into its week and folds into
-  its year (`apps/calendar/calendar.declare`, ~<!--stat:calendar.lines-->730<!--/stat--> lines, the idiom at full scale).
-- **Layout is a reactive slot** — swap it, derive it, animate it (§5).
-- **A mode is a reversible bundle** (§8) — it cannot leak, so modes compose and interrupt.
-- **Motion is physics on an attribute** (§8) — declare where a thing belongs; the spring
-  finds the path and settles; interruption is just the target changing.
-- **Screens derive from data state** (§7) — `shown = { data.loaded }`, not navigation code.
+Stated against what you already know, because that is the shortest true form. Each is developed
+where it belongs.
 
-## 2. The two delimiters
+1. **`{ }` is TypeScript, and only TypeScript.** Bare slots have their own literal vocabulary,
+   and it stops at the brace: `width = { 100% }` is a syntax error, and a color inside braces is
+   `0x4169E1`, not `royalblue` or `#4169E1`. (§2)
+2. **Assignment is the whole update model.** `count = count + 1` sets *and* notifies. There is
+   no `setState`, no `setAttribute`, and no way to change a value without the cascade. (§5)
+3. **Dependencies are extracted statically, and what cannot be read is refused.** Nothing is
+   tracked at runtime, and an unanalyzable constraint is a blocking compile error rather than a
+   silent fallback. This is the sharpest break from every reactive system you know. (§5)
+4. **Children come from data, not from code.** The `[ ]` tree never generates children from an
+   expression, so React's `{items.map(…)}` and `{cond && …}` have no equivalent there: a
+   collection comes from *replication* over a datapath, and conditional presence is `visible`.
+   (Those operators are ordinary TypeScript in any `{ }` value, and a handler *can* build views
+   imperatively with `app.createView` — the declarative tree is simply not where either
+   happens.) (§7)
+5. **There is no CSS and no DOM.** No selectors, cascade, specificity, media queries, z-index,
+   flexbox, or grid. Style is attributes, stacking is declaration order, and responsiveness is
+   constraints on `app.width`. (§6, §9)
+6. **Events do not bubble.** A handler fires on the node that declares it, and a child reports
+   to its owner by calling a method. (§8)
 
-The entire mental model:
+## 2. Two delimiters
 
-- **`[ … ]` holds a component's members** — attributes, children, declarations. The bracket
-  nesting **is** the view tree.
-- **`{ … }` is TypeScript** — a value expression, a method body, a `script` block. From `{`
-  to the matching `}` you are writing ordinary TypeScript. One exception in the whole
-  language: a `Dataset`'s literal body is **strict JSON**, not TS (§7).
+Two brackets carry the entire syntax. **`[ … ]` holds a component's members** — attributes,
+declarations, methods, children — and the bracket nesting *is* the tree. **`{ … }` is
+TypeScript**, type-checked against every component's real API.
 
-One rule for values:
+A value slot accepts three things, and the spelling tells you which:
 
 | you write | it is | example |
 |---|---|---|
-| a **bare** value | a literal, set once | `width = 100%`, `fill = navy`, `count = 10` |
-| a **`{ … }`** value | a live TypeScript expression (a **constraint**) | `width = { parent.width - 10 }` |
-| a **`:`-prefixed** path | a read from bound data (a **datapath**) | `text = :title` |
+| a **bare** value | a literal, set once | `width = 100%`, `fill = navy` |
+| a **`{ … }`** value | a live expression — a **constraint** | `width = { parent.width - 10 }` |
+| a **`:`-prefixed** path | a read from bound data — a **datapath** | `text = :title` |
 
-Bare slots have their own literal vocabulary the compiler owns: `100%` is a Length,
-`#336699` is a Color, `navy` is a named color, `x` in `axis = x` is an axis keyword, and
-`center` / `end` are positions (`x = center`, `y = end` — §10).
-**Inside `{ }` that vocabulary stops** — you are in plain TypeScript, so colors are written
-`0x336699`, percents don't exist (compute from `parent.width`), and an identifier means
-exactly what TypeScript says it means. The compiler never silently reinterprets an
-identifier inside braces.
+### The vocabulary stops at the brace
 
-Two edges of the seam, stated plainly:
-
-- **A `{ }` body is TypeScript at full expression strength — anything TypeScript can
-  say in an expression, a body can say** — and a value body stays *live* through all
-  of it: every reactive value the expression reads — directly, through a call chain,
-  or inside a closure — is a wired dependency (§5). Casts included: `x as T`,
-  `satisfies`, `x!` are checked by the typechecker, then stripped before the body runs
-  as plain JavaScript (`(:tags as string[]).join(" · ")`). Exactly three things are
-  excluded, each a compile error that names the rewrite: a value body is a single
-  *expression* (statements live in methods and handlers); type *annotations* and type
-  *declarations* don't live in bodies (a cast narrows; declared types live on the
-  attribute, `name: type = …`); and what a *constraint* may read is §5's contract.
-- Multi-line string literals are `"""` blocks (used for prose and Markdown bodies); a
-  `"…"` string may not contain a newline.
-
-## 3. Members, by shape
-
-Everything inside `[ ]` is a member. **The comma is a terminator, not a separator** (Go's
-rule): every own-line member ends with one — including the last before a hanging `]` — so
-you never special-case the final line. The one exception: no comma before an *inline* `]`
-(`Text [ x = 40, text = :day ]`). The shapes:
+Bare slots have a small literal vocabulary the compiler owns: Lengths (`100%`), colors (`navy`,
+`#336699`), and keywords (`center`, `x`). Inside `{ }` none of it exists. You are in plain
+TypeScript, an identifier means what TypeScript says it means, and the compiler never
+reinterprets it.
 
 ```declare-fragment
-width = 100%,                          // SET an attribute that exists (bare literal)
-x     = { parent.width - 40 },         // SET, live (a constraint)
-text  = :title,                        // SET from data
-
-label:    string  = "",                // DECLARE a new typed reactive attribute
-selected: boolean = false,
-count:    number,                      // no default — undefined until set
-
-select() { classroot.pick(this) },     // a METHOD — `classroot` is the enclosing
-                                       //   component instance (§9)
-
-onClick()      { count = count + 1 }, // a HANDLER: `on` + this node's own event
-onMouseMove(e) { x = e.x },            // pointer handlers get an event with .x/.y
-
-onKeyUp(e) <- Keys {                   // a SUBSCRIPTION to an external source (`<-`)
-    if (e.key == "ArrowDown") next()   //   e is the KeyEvent; auto-unsubscribed at teardown
-    },
-
-bg: View [ fill = midnightblue ],      // a CHILD instance, named `bg` (reachable as bg / this.bg)
-Text [ text = "OK" ],                  // an anonymous child
+fill  = cornflowerblue,                           // ✓ bare slot, a named color
+fill  = { hovered ? 0x6495ED : 0x4169E1 },        // ✓ in braces, TypeScript number
+fill  = { hovered ? #6495ED : 0x4169E1 },         // ✗ no such syntax in TypeScript
+width = 100%,                                     // ✓ bare slot, Length literal
+width = { 100% },                                 // ✗ compute it instead:
+width = { parent.width - 40 },                    // ✓
 ```
 
-The difference between `name = value` (sets an existing attribute) and `name: Type = value`
-(declares a new one) matters — declaring introduces reactive state. A method has one form:
-`select() { … }` / `input(v) { … }` — untyped parameters, no return annotation.
-`segIndex(): number { … }` and `segIndex() -> number { … }` are syntax errors. A *typed
-computed value* is not a method at all — it is a typed attribute with a `{ }` default:
-`segIndex: number = { … }`.
+A body is TypeScript at full expression strength: ternaries, template literals, array chains,
+closures, and casts (`x as T`, `x!`), which are type-checked and then stripped. Two limits, each
+a compile error naming the rewrite. **A value body is a single expression** — statements live in
+methods. **Type annotations do not live in bodies** — a declared type belongs on the attribute,
+as `name: type = …`.
 
-## 4. Classes and composition
+**A `:path` may also appear inside a `{ }` body**, and this is central rather than exotic: it is
+how anything conditional over replicated data gets written. `text = { :on ? :title : "—" }` reads
+the datapath exactly as the bare form does, then computes with it in TypeScript. Read `{ }` as
+"TypeScript, plus datapath reads."
 
-A component is a class. Instantiate by naming a type with a `[ ]` body; define with
-`class Name extends Base [ … ]`:
+Two lexical notes. Inside `{ }` you are bound by TypeScript's rules, so a `"…"` string may not
+span lines there; in a bare slot it may, and a `"""` block is the form for long text either way.
+And a `Dataset`'s literal body is strict JSON (§7) — the one place `{ }` is not TypeScript at all.
+
+## 3. Members and scope
+
+Everything inside `[ ]` is a member, in one of six shapes. Two of them look nearly identical
+and mean different things.
+
+```declare-fragment
+width = 100%,                          // SET an attribute that already exists
+x     = { parent.width - 40 },         // SET it live — a constraint
+text  = :title,                        // SET it from bound data
+
+label:    string  = "",                // DECLARE a new reactive attribute
+selected: boolean = false,
+tint:     Color   = navy,              //   any value type, bare-literal default
+count:    number,                      //   no default — undefined until written
+
+select() { selected = !selected },     // a METHOD
+
+onClick()      { count = count + 1 },  // a HANDLER — `on` + an event this node fires
+onMouseMove(e) { x = e.x },            // pointer handlers get an event with .x / .y
+
+draw(d) { d.fillStyle = "#4169E1"   // a DRAWING — see below
+          d.fillRect(0, 0, 12, 12) },
+
+bg: View [ fill = midnightblue ],      // a CHILD, named — reachable as `bg`
+Text [ text = "OK" ],                  // a CHILD, anonymous
+```
+
+**`draw(d)` is a first-class member, not an escape hatch.** It records a display list of plain
+ops that both renderers replay, and it is a *tracked computation* like any constraint: it re-runs
+when what it read changes, never per frame. The library draws with it — a `Checkbox`'s tick is a
+recorded path, not a glyph. `d` takes the Canvas2D drawing calls (`fillStyle`, `beginPath`,
+`moveTo`, `stroke`, …).
+
+**`name = value` sets an attribute that exists; `name: Type = value` declares a new one.**
+Declaring is how reactive state enters a program; setting is how it is wired.
+
+**A method has exactly one form**: `select() { … }`, `input(v) { … }` — bare parameter names, no
+return annotation. `segIndex(): number { … }` is a syntax error, and the reason is §2 rather
+than a rule of its own: a signature lives in the `[ ]` layer, where TypeScript's type syntax has
+no meaning. A typed computed value is therefore not a method but an attribute with a `{ }`
+default, `segIndex: number = { … }`.
+
+**Events from outside the tree arrive as children.** `Keys [ onKeyUp(e) { … } ]` gives a node
+app-wide keyboard handling regardless of focus. There is no subscription syntax and nothing to
+unregister: a source is a child, so it lives and dies with the node that declares it.
+
+**Members are separated by commas.** The *trailing* one, before a closing `]`, is optional —
+write it or leave it off, and the formatter keeps whichever you chose.
+
+### What a name reaches
+
+**A bare name resolves outward through the enclosing brackets, innermost first** — the brackets
+are the scope exactly as they are the tree. Each `[ ]` you are nested inside is a level whose
+surface is that component's whole member set, and the nearest level owning the name wins. The
+compiler rewrites the read to an explicit path, so this is lexical and settled at compile time,
+not a lookup that walks anything at runtime. Two consequences: every view carries the built-in
+attributes, so a bare `width` always means *this* node's `width` and built-ins never resolve
+outward; and a user-declared name shadowed by a nearer one is a warning that names the qualified
+spelling.
+
+Three reserved words say it explicitly, and nothing else may take their names: **`this`** (the
+node the code is written on), **`parent`**, and **`app`** (the running application, from any depth
+— which is why application-wide state belongs there). Bare `App` is the class; `app` is the
+instance. A fourth, `classroot`, belongs to authoring a component and arrives in §4.
+
+## 4. Composition
+
+A component is a class. Instantiate one by naming a type with a `[ ]` body; define one with
+`class Name extends Base [ … ]`.
 
 ```declare
 class Chip extends View [ height = 30, cornerRadius = 10, fill = darkslategray,
     label: string = "",
     width = { this.t.width + 20 },
-    t: Text [ x = 10, y = 5, fontSize = 12, text = { label } ],  // bare `label` reads the class's attribute
+    t: Text [ x = 10, y = 5, fontSize = 12, text = { label } ],
     ]
 
 App [ width = 400, height = 100, fill = black,
     layout: SimpleLayout [ axis = x, spacing = 10 ],
     Chip [ label = "one" ],
     Chip [ label = "two" ],
-    Chip [ label = "three" ],
     ]
 ```
 
-- **The one root is `App`** — one per program; its body is the whole visible tree. If
-  `width`/`height` are unset, the App fills its host (§10).
-- **Any instance can declare its own members inline** (state, methods, handlers) without
-  defining a class — the compiler synthesizes an anonymous subclass. The instance is a
-  *subtype* of its base, so it fits anywhere the base is expected. Promote a one-off to a
-  named `class` only when you instantiate it more than once — or when you need to *name*
-  its type (to extend it, or take it as a parameter). The moment the type needs a name,
-  you've outgrown the one-off.
-- Free TypeScript (models, helpers) lives in top-level `script { … }` blocks.
+**`App` is the one root**, one per program; with `width` and `height` unset it fills its host.
+**Any instance may declare its own members** — state, methods, handlers — with no class at all,
+because the compiler synthesizes an anonymous subclass, and the instance remains a subtype of
+its base. Promote a one-off to a named `class` when you instantiate it twice, or when you need
+to name its type.
 
-Inside a class, a bare name reaches the class's own attributes — `label` in `Chip` above
-is how `t` reads the Chip's `label`. When the reach is less direct — a handler, or a
-subview nested a few levels down, that must act on **the component itself** — name it with
-**`classroot`**: the root of the class you're defining, reachable from any depth inside it.
+Besides `class`, the top level holds `script`, `include`, `use`, `font`, `style`, and
+`stylesheet` — that is the complete set. **`script { … }`** holds free TypeScript, models and
+helpers; a constraint may call one and the compiler reads through it (§5). **`include
+[ "path.declare" ]`** merges another file's top-level declarations, once. **`use [ Name ]`** keeps
+a component the build would otherwise drop, for when your code constructs it by name at runtime
+(`app.createView`, §7). **`font Name [ … ]`** declares a font family (`Face` children carry web-font files; a use
+site picks with `fontFamily = [Name, "system-ui"]`), and `style` and `stylesheet`
+are style constructs (§9).
 
-```declare
-class WeatherTab extends View [ height = 30,
-    selected: boolean = false,
-    label: string = "",
+### `classroot`
+
+**`classroot` is legal only inside the body of a `class` you are defining, and nowhere else.**
+It is a tool for *authoring a component*, not for navigating a tree; if you are not writing
+`class Name extends Base [ … ]`, you do not want it.
+
+Inside a class definition, a bare name already reaches the class's own attributes. Reach for
+`classroot` when the reach is less direct — a handler, or a subview several levels down, acting
+on **the component itself**.
+
+```declare-fragment
+class WeatherTab extends View [ selected: boolean = false, label: string = "",
     select() { selected = !selected },
-    header: View [ width = { parent.width },
-        onClick() { classroot.select() },              // this = header; classroot = the WeatherTab
-        caption: Text [ text = { classroot.label } ],  // reaches the component from a leaf
+    header: View [
+        onClick() { classroot.select() },              // `this` here is the header, not the tab
+        caption: Text [ text = { classroot.label } ],  // reaches the tab from a leaf
         ],
     ]
-
-App [ width = 300, height = 60,
-    WeatherTab [ width = 120, label = "Today" ],
-    ]
 ```
 
-`classroot` (a reserved name) belongs to component authoring — it is your handle on the
-component from anywhere inside its class. Note `this` inside `header` is the header, not the
-tab: it's `classroot`, not `this`, that reaches the component's own state from a nested
-child. (`classroot.label` is also the explicit spelling when a nearer child shadows a bare
-`label`.)
+It reaches that instance from any depth inside the class, and it is also the explicit spelling
+when a nearer child shadows a bare name.
 
-**Where does a piece of code live?** The rest of the language keeps reinforcing this decision rule:
+### Layout is an attribute
 
-- structure that **repeats** → a **class**;
-- a single **computed attribute** → a small **function** bound inline, *not* a wrapper
-  class: `Image [ source = { iconUrl(:code) } ]`, never `class WeatherIcon extends Image`;
-- behavior that operates on a component's own state → a **method**;
-- **stateless** logic shared across the tree → a free function in `script { }`.
-
-**Layout is an attribute, not a container type.** Every view defaults to absolute
-positioning by `x`/`y`; set a `layout:` member to arrange children — and because it's a
-reactive slot, it can be swapped or animated:
+There is no `<Stack>`, no `<Row>`, no flexbox, and no grid. A view positions its children
+absolutely by `x`/`y` until you set a `layout:` member — and because that member is an ordinary
+reactive slot, it can be swapped, derived, or animated.
 
 ```declare-fragment
-layout: SimpleLayout   [ axis = y, spacing = 10 ],       // stack (x or y)
+layout: SimpleLayout   [ axis = y, spacing = 10 ],
 layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ],
-layout: ResponsiveLayout [ plan = { [ ({ from: 600, flow: "row", share: ({ nav: 30, body: 70 }) }), ({ from: 0, flow: "stack" }) ] } ],
 ```
 
-Layout attributes take `{ }` constraints like any others. `ResponsiveLayout` applies
-whichever *plan* fits its view's current width — flow the children as a row or a
-stack, divide the width among the children a plan names (`share`; `0` hides one) —
-and plans nest, each answering to its own container. A `Spacer [ ]` child absorbs a
-run's slack (between two groups it pushes them apart; one each side centers the run).
+**Stacking order is declaration order**; later siblings paint on top. There is no `z-index`, so
+chrome that must float above everything is declared last.
 
-**Stacking order is declaration order** — later siblings render on top. There is no
-z-index. (The chrome that must float above everything is simply declared last.)
+→ the layouts that ship: `library/` · their attributes: the model reference
 
-## 5. Reactivity: constraints and the `=` setter
+## 5. Constraints
 
-A `{ }` in a value slot is a **constraint** — re-evaluated when, and only when, its inputs
-change. Dependencies are extracted **statically by the compiler** (it reads your
-expression, and reads *through* the methods it calls, transitively) — never tracked at
-runtime, never declared by hand.
+A `{ }` in a value slot is a **constraint**: re-evaluated when, and only when, its inputs change.
 
 ```declare-fragment
-x     = { (parent.width - width) / 2 },              // re-centers on resize
-fill  = { selected ? 0x336699 : 0x203040 },          // recolors on select
-text  = { data.failed ? data.error : "Loading…" },   // reacts to a data resource
+x    = { (parent.width - width) / 2 },              // re-centers on resize
+fill = { selected ? 0x4169E1 : 0x191970 },           // royalblue / midnightblue
+text = { data.failed ? data.error : "Loading…" },
 ```
 
-**How extraction works.** The analysis runs on the resolved source, where every reactive
-read is an explicit path (`this.…` / `parent.…` / `classroot.…` / `:path`; `app` is the
-root). It records the union of *potential* reads across **every branch**: `{ a ? b : c }`
-depends on all three, so the constraint also re-fires when the not-taken branch's input
-moves — a no-op recompute that lands the same value. That over-approximation is the
-design: an extra edge costs a harmless recompute, while a missed edge would be a stale
-view, which is made unrepresentable. A call is followed **into the callee's body** and on
-through everything *it* calls (recursion is cycle-guarded), and the callee's reads are
-**rebased onto the receiver**: `{ card.year() }` depends on what `year()` reads *of
-`card`*, not of the caller. Reads inside callbacks and closures count
-(`{ app.list().filter(x => x.k > app.n) }` depends on `app.n`; the callback's own
-parameter does not). Three kinds of callee are analyzable: an **in-program method** (its
-body is read); a **pure builtin** (`Math.*`, `String`/`Number`/`Date` projections like
-`.toFixed()`/`.split()`, the drawing constructors `gradient`/`stroke`/`shadow`); and a
-**language-supplied component method**, whose reactive effect is *declared* in the
-compiler's effect table exactly as if it had a body — user methods and library methods
-sit on the same footing, with no builtin privilege tier. One asymmetry to know: a
-declaration's computed `{ }` default (§3's `segIndex: number = { … }`) is a **formula,
-not a slot** — it has no cell; reading it inlines its expression, so *its* dependencies
-become the reader's, transitively. A set attribute (`width = { … }`) is the opposite: a
-standing constraint that owns its slot, and reading the slot subscribes to the slot.
+**Dependencies are extracted statically, by the compiler.** Nothing is tracked at runtime: the
+compiler reads your expression, reads *through* what it calls, and wires the result once.
 
-**Assignment is the setter.** Inside any `{ }` body, `count = count + 1` updates `count`
-*and* notifies everything bound to it. There is no `setState`, no `setAttribute`, and no
-bypass that skips the cascade. Reads are symmetric: a bare read of `x` *is* the tracked
-read. And assignment wins: writing to an attribute that has a constraint **displaces the
-constraint** — the slot holds the written value from then on. Derived state should
-therefore never be assigned; change its *inputs* instead (§10's `location` is the worked
-example).
+**A constraint stays live through everything it reaches**, which is what decides how freely you
+can write. Call your own methods, chain array operations, read through a closure, call a free
+function in `script { }` — every read inside all of it is a wired dependency, rebased onto what
+you passed, so `{ price(app.cart) }` depends on whatever `price` reads of the cart. The analysis
+collects *potential* reads, not observed ones: `{ a ? b : c }` depends on all three.
 
-**The one rule constraints must obey:** a constraint reads *specific, named* things, and
-the compiler must be able to name every one. A constraint it cannot fully analyze is a
-**blocking compile error** (`DECLARE7001` — the *residue*), never a silent fallback, and
-each message names the rewrite. The complete refusal list:
+**Assignment is the setter.** `count = count + 1` updates the value and notifies everything
+bound to it; there is no bypass. Reads are symmetric — a bare read **is** the tracked read.
 
-- **`this[k]`** — a runtime value selecting a slot → name the slot, or bound the key's type;
-- **`read([expr])`** — a datapath computed at runtime → use a literal path;
-- **aggregating a live node collection** (`children.map(…)`) — a data-dependent number of
-  slots → derive from the data instead (that count lives in a Dataset);
-- **an unresolved call target** — a function the compiler can't see into → call an
-  in-program method, a pure builtin, or a library method (all analyzable, above);
-- **reading a many-path** (`:arr[]`) in a `{ }` — a many-path replicates (§7), it isn't a value;
-- **a slot reading itself** — `theme = { { ...theme, … } }` is a cycle by construction →
-  derive from a *base* (the parent's or app's slot, or a helper).
+### What owns a cell
 
-Genuinely dynamic reactivity belongs to the framework's own primitives (layout,
-replication) or to imperative handler code — which is unrestricted TypeScript and always
-available.
+A `{ }` can appear on either kind of member from §3 — one that **sets** an attribute, or one that
+**declares** a new one — and the two behave differently in one mechanical way: whether the slot
+gets a cell of its own. Everything else follows from that, so it is the distinction to learn first.
 
-**What reactivity costs, in brief.** Only *declared* reactive attributes participate —
-locals, loop counters, and plain objects in `script { }` carry zero reactive overhead.
-Reads inside constraints are prewired: the extracted read-paths are bound to their cells
-**once, at link time**, so a running constraint's reads are plain field reads with no
-tracking branch on the hot path. (The one deliberate exception: a constraint reading a
-data *region* — `:path`, `.read([…])` — stays on live tracking, because the region's
-cells are recreated when data arrives; that subscription is data-binding's to manage.)
-Writes batch: a tight loop writing an attribute is N cheap sets and **one** cascade
-at the flush. The discipline that falls out: reactive attributes for UI state you want to
-propagate; plain values for hot inner computation. The extracted graph is a runtime
-artifact, not just a compiler pass: `__declare.explain(path, attr)` (§16) answers with
-the expression, its wired read-paths, and their live values.
+**A set attribute owns a cell.** `width = { … }`, on an attribute that already exists, installs a
+standing constraint: reading the slot subscribes to the slot, and the runtime keeps it current. It
+also guards it — a direct write is refused, with a message naming the fix — so a standing
+relationship cannot be overwritten by accident.
 
-## 6. Events and subscriptions
+**A computed default is a formula.** `segIndex: number = { … }` — a *declaration* whose default is
+an expression — has no cell. Reading it inlines the expression, so its dependencies become the
+reader's; and with no cell to guard, an assignment simply replaces it. That is what makes it the
+right tool for a value you intend to take over later, and it is why `TextInput` offers
+`initial = { … }`, the editable twin of a read-only `text = { … }`. A library control's `input(v)`
+(§11) is the same idea.
 
-**Handlers** are methods named with an `on` prefix, answering *this node's own* events:
-`onClick`, `onMouseDown/Move/Up/Over/Out`, `onKeyDown`/`onKeyUp` (on the focused view),
-`onInit` (after construction — the place to kick off a first `.fetch()`). Pointer handlers
-receive an event with `.x`/`.y`; key handlers a `KeyEvent` (`e.key`, `e.code`, modifier
-flags — never a numeric code).
+| you wrote | owns a cell? | reading it | assigning to it | reach for it when |
+|---|---|---|---|---|
+| `width = { … }` — **set** an existing attribute | yes | subscribes to the slot | **refused** at runtime | the value is simply derived and should stay that way |
+| `segIndex: number = { … }` — **declare** with a default | no | inlines the expression, so its deps become yours | lands, and the formula is gone | you may want to take the value over later |
 
-**Interaction state is readable, not wired.** Every view carries two **read-only
-intrinsics**: `hovered` — true while the view is on the live *hit chain* (the topmost
-visible view under the pointer plus its ancestors; occlusion-correct, so a covering
-view suppresses everything beneath it; always false on touch) — and `pressed` — true
-from a pointer-down on the chain until release (a mouse press lets go dragged off and
-re-arms dragged back; a touch press holds while down). Read them anywhere a value
-goes: `fill = { hovered ? 0x336699 : 0x203040 }`, a State's `applied = { hovered }`,
-another view's `{ parent.parent.hovered }`. The chain derives from geometry as well as
-the pointer — a view springing under a stationary cursor updates. Declaring or
-assigning either is a compile error naming the rule (they are computed for you, like
-`contentWidth`, §10). One idiom: a transparent view laid over content occludes the
-chain — the *activation glass* by which an app declares inactive-window policy in one
-view. The library's controls derive their styling pair from these (`Control`'s
-`hot`/`down` — the intrinsics gated by `disabled`, plus the keyboard flash).
+Use both; know which you wrote. The formula is the one an assignment replaces, which is the whole
+reason for a single rule that covers every case: **derived state is never assigned — change its
+inputs instead.**
 
-**An event is just a function-typed member that gets called** — the `on` prefix is a
-naming convention, not syntax. There is no `event` keyword, no `addEventListener`, and no
-bubbling: handlers fire on the node that declares them, and a child delivers to its owner
-by *calling a method* (`classroot.select()` — or the standard library's `input(v)`
-contract, §12).
+One mechanism takes over a cell-owning slot without assigning to it. An `Animator`, a `Spring`, or
+a `State` override **suspends** the driver and **resumes it, re-evaluated,** on completion — the
+sanctioned path, and why a state may override a `{ }`-owned slot at all.
 
-**Subscriptions** reach an *external* source with `<-`: the form is
-`member(e) <- Source { body }`, and the binding is lifetime-managed — automatically
-unsubscribed at teardown, no cleanup to forget:
+### The one rule constraints must obey
+
+A constraint reads specific, named things, and the compiler must be able to name every one.
+When it cannot, that is a blocking compile error — `DECLARE7001`, the *residue*, meaning the part
+of an expression no static reading can name — rather than a silent fallback. Do not try to hold the refusals in your head; the diagnostic names the exact
+read it could not follow and the rewrite that resolves it. Three instincts account for most of
+them:
+
+- **Aggregating the rendered tree** — `children.map(…)`. The number you want lives in the data,
+  not the views: count the Dataset (§7). (A bare `children.length` is *not* refused, and that is
+  worse: it compiles and wires to nothing, so it never updates. The tree is not a reactive
+  collection. Count the data.)
+- **Indexing a slot by a runtime value** — `this[k]`. Name the slot, or move the lookup into a
+  method the compiler reads through.
+- **A slot deriving from itself** — `theme = { { ...theme, accent: red } }` reads like a harmless
+  override and is a cycle by construction. Derive from a base: the app's `theme`, or the
+  parent's.
+
+A `script { }` helper called from a constraint may not read **mutable module state**: a
+top-level `let` has no cell, so nothing could notice it change. Keep that state in a reactive
+attribute. Handler code is under none of these rules — it is unrestricted TypeScript, and
+genuinely dynamic work belongs there or in the framework's own primitives.
+
+Only declared reactive attributes participate at all, so locals and plain objects in
+`script { }` cost nothing. Reads are prewired at link time, and writes batch into one cascade.
+
+You never have to guess what a constraint is wired to: `__declare.explain(path, attr)` answers it
+on the running program — the expression, the read-paths it was bound to, and their live values
+(§12). It is dev tooling, present when you run from the dev server and in a `declarec --debug`
+build; a production build ships a stub.
+
+## 6. Space
+
+A view's size on each axis is one of three things: **unset** auto-sizes to the bounding box of
+its visible children, **a constant** is fixed, and **a constraint** is whatever it computes.
+
+A view has no `minHeight`, `maxHeight`, or `overflow` attributes. Two read-only intrinsics,
+`contentWidth` and `contentHeight`, expose what the content wants, so any clamp is arithmetic.
 
 ```declare-fragment
-keys: Node [
-    onKeyUp(e) <- Keys {
-        if (e.key == "Escape") app.closeDetail()
-        },
-    ],
+height = { Math.min(contentHeight, 480) },    // grow to a cap, then stop
+clip   = true,                                // hide whatever passes the cap
 ```
 
-Subscriptions exist for the runtime *services*: `Keys` (`onKeyDown`/`onKeyUp` — the raw
-stream; the focused view's own handlers are usually what you want) and `Focus`
-(`onFocusChange(v) <- Focus` — how the standard library's `FocusRing` follows focus).
-Subscribing to a source that doesn't exist, or to a member it doesn't call, is a
-positioned compile error naming the alternatives. You cannot subscribe to another *view's*
-events — a child delivers to its owner by calling a method. Don't confuse `<-` (event
-subscription) with `<->` (two-way data binding, §7).
+`clip = true` clips children to the box, `scrolls = true` scrolls taller content natively, and a
+child opts out of its parent's regime with `ignorelayout` or `ignoreclip`.
+
+**Positions are literals.** `x = center` and `x = end`, and the same on `y`, place a view against
+its parent — resolved reactively, exactly like `100%`. The closed set is `center` and `end`; the
+start is `0`. One optical exception: on a `Text`, `y = center` centers the *ink*, the
+cap-height-to-baseline band, so labels read centered regardless of font metrics. Every other view
+centers its box.
+
+**The App fills its host by default**, so `App [ … ]` with no size line fills the window and
+resizes with it, while an explicit size makes a fixed widget. For an embedded app the host is its
+container element, which is what lets apps nest. Responsive code reads `app.width`; the App also
+carries the live host facts — viewport, colour scheme, pointer — as reactive attributes.
+
+`App [ minWidth = 480, minHeight = 420 ]` sets a **size floor**: below it the app stops adapting,
+holds the floor, and the host pans instead. It is a policy the host cooperates with rather than
+clamp arithmetic you write into constraints — and it is the App's alone, not a view attribute.
+
+### The URL is an attribute
+
+There is no router. **`location`** is the app's slice of the URL, as one two-way reactive string.
+The host seeds it before the first settle, mirrors app writes outward, and writes it back on
+back and forward.
+
+```declare-fragment
+mode = { app.location.split("/")[0] },     // derive state FROM location
+onClick() { app.location = "why" },        // write location TO navigate
+```
+
+Never assign the derived state — that displaces its constraint (§5) and disconnects the back
+button. Because state derives from `location`, the build's crawler — which boots the app headless
+and captures what each URL renders — can walk it cold at every location
+it links to, which is what makes a deep link indexable.
+
+→ the App's own attributes: the model reference
 
 ## 7. Data
 
-A `datapath` selects a place in the data; descendants read fields relative to it with
-`:path`; a path that matches many records **replicates** its node, one instance per
-record. One grammar note before the example: a `Dataset`'s literal body is **strict
-JSON** — quoted keys, no trailing commas — the one place in the language where a `{ }`
-is not TypeScript (§2).
+A `datapath` selects a place in the data. Descendants read fields relative to it with `:path`,
+and a path matching many records **replicates** its node — one instance per record. This is the
+replacement for React's `{items.map(…)}`: a collection of children comes from data, never from
+code in the tree.
 
 ```declare
 App [ width = 420, height = 260, fill = midnightblue, textColor = gainsboro,
 
-    // an embedded dataset — its body is strict JSON (quoted keys), the one place JSON is legal
     people: Dataset {
         { "rows": [ { "name": "Ada",   "score": 90 },
-                    { "name": "Grace", "score": 80 },
-                    { "name": "Alan",  "score": 70 } ] }
+                    { "name": "Grace", "score": 80 } ] }
     },
 
     list: View [ x = 20, y = 20, datapath = { people.value },
         layout: SimpleLayout [ axis = y, spacing = 10 ],
-        View [ height = 20, datapath = :rows[], key = :name,        // one instance per record (replicated children are unnamed)
+        View [ height = 20, datapath = :rows[], key = :name,   // one instance per record
             n: Text [ width = 150, text = :name ],
             s: Text [ x = 150, text = :score ],
             ],
@@ -383,459 +431,277 @@ App [ width = 420, height = 260, fill = midnightblue, textColor = gainsboro,
     ]
 ```
 
-- `key = :field` makes replication **keyed**: when data changes, instances are reconciled
-  by that field — only the changed rows rebuild. The replicated node itself is anonymous,
-  but names *inside* it (`n:`, `s:` above) are fine — they resolve per instance.
-- A **`DataSource`** is a remote resource whose lifecycle is reactive state: `url`,
-  explicit **`.fetch()`** (nothing loads automatically), then `.idle / .loading / .loaded /
-  .failed`, `.value`, `.error`, `.clear()`. Screens *derive* from it —
-  `shown = { data.loaded }` — instead of being toggled imperatively. Even "navigation" can
-  be a function of data: `.clear()` returns to the entry screen because both screens
-  re-derive.
-- `format = "text"` fetches the bytes as one **string** in `.value` (the default is
-  `"json"`, parsed and `:path`-navigable). Text is for textual material rendered whole —
-  `doc: Markdown [ text = { article.value || "" } ]` over an authored `.md` file, no
-  JSON wrapping. (Markdown drops HTML comments — annotation in a loaded file never
-  renders.)
-- An optional `schema = [ field: type, arr[]: [ … ] ]` (brackets, never braces — a shape
-  *declares*, it doesn't run) does two things: the response is **validated at the
-  boundary** on receipt (malformed data yields `.failed`/`.error`, never `undefined` three
-  layers into a binding), and every `:path` is **checked statically** against the shape.
-  With no schema, paths are dynamic: an unresolved path yields null and the bound
-  attribute falls back to its default.
-- Reads inside constraints: `data.read(["events"])` is a tracked read of a region (literal
-  path). Mutation: `data.set("events.3.d", 10)` — writes wake exactly what derives from
-  them, keyed replication rebuilds only the changed rows.
-- **Two-way is opt-in with `<->`, for leaf editors only:** `TextInput [ text <-> :title ]`
-  or `value <-> zip`. One-way `:path` everywhere else.
-- A derived dataset recomputes from its inputs: `cal: Dataset [ contents = { app.buildModel() } ]`
-  — build the model *as a derivation* and navigation reduces to setting state. This is
-  also the **window pattern** for large collections: derive the visible slice and
-  replicate the slice, never the whole source (the calendar's model is exactly this —
-  one month's grid windowed out of the full event set).
+**The `[]` suffix is what replicates.** `datapath = :rows[]` says *this path matches many
+records, so make one instance of this node per record*; without the brackets, `:rows` is an
+ordinary read of whatever is there. That is the entire distinction, and `[]` may appear only at
+the end of a path.
 
-## 8. States and motion
+A `Dataset`'s literal body is **strict JSON** — quoted keys, no trailing commas. `key = :field`
+makes replication keyed, so only changed rows rebuild; the replicated node is anonymous, but
+names inside it resolve per instance.
 
-A **state** is a named, reversible bundle of attribute overrides, applied while a condition
-holds — the declarative replacement for mode-toggling:
+**Count the data, not the tree.** A Dataset's `.value` is the parsed data, so a count is ordinary
+TypeScript on it. Reach for this whenever you would have counted rendered rows.
+
+**A `DataSource` is a remote resource whose lifecycle is reactive state** —
+`data: DataSource [ url = "data/events.json" ]`. **Nothing loads on its own** unless you set
+`auto = true`; forgetting `.fetch()` is legal, silent, and the common first bug, and `onInit()`
+is the usual place for it. Screens then derive from the resource (`shown = { data.loaded }`)
+rather than being toggled. An optional `schema = [ field: type, rows[]: [ … ] ]` declares the
+response's shape: it validates the payload on receipt — so malformed data yields `.failed` rather
+than `undefined` three bindings deep — and lets every `:path` be checked against the shape at
+compile time. Without one, paths are dynamic: an unresolved `:path` yields null and the bound
+attribute falls back to its default. (Landing; `docs/system-design/data-paths.md` tracks it.)
+
+**Two-way binding is opt-in, with `<->`, for leaf editors only** — `TextInput [ text <-> :title ]`.
+One-way `:path` everywhere else. It is the only arrow in the language.
+
+**A derived dataset recomputes from its inputs** — `cal: Dataset [ contents = { app.buildModel() } ]`.
+This is also the window pattern for large collections: derive the visible slice and replicate the
+slice, never the whole source.
+
+**When structure is genuinely imperative**, build it from a handler:
+`app.createView(tag, parent, props)` instantiates a component by name and inserts it as a live
+child, and `insertChild` places one you already hold. Reach for replication first — it reconciles,
+keys, and tears down for you — but the imperative door is open, and `use [ Name ]` (§4) is how you
+keep a component the build would otherwise drop when you name it only as a string.
+
+→ `Dataset` and `DataSource` attributes, `App.createView`, `Node.insertChild`: the model reference
+
+## 8. Input
+
+**Handlers are methods named with an `on` prefix**, answering this node's own events: `onClick`,
+the mouse and touch families, `onKeyDown` and `onKeyUp` on the focused view, and `onInit` after
+construction.
+
+**Nothing bubbles.** A handler fires on the node that declares it, full stop. A child that needs
+to tell its owner something calls a method. There is no `addEventListener`, no `event` keyword,
+and no capture or propagation phase; the `on` prefix is a naming convention, not syntax.
+
+**Pointer input has two layers.** The **raw** layer — `onMouseDown`/`Move`/`Up`, the multi-finger
+touch family, and `onWheel` — reports what the pointer physically did, immediately: the layer for
+*manipulation*. The **resolved** layer — `onClick`, `onDblClick`, `onHold` — reports what the user
+*meant*, decided after watching the whole gesture: the layer for *commands*.
+
+> **`onClick` activates, `onMouseDown` manipulates.**
+
+Reach for the raw layer to run a command and it misfires on touch, where a finger landing on a
+button may be starting a scroll. Because the runtime resolves the gesture, a wandering pointer is
+a drag and activates nothing, and declaring `onDblClick` makes that view's single click wait out
+the double window. `onMouseMove` and `onMouseUp` carry **root-space** points, because a drag needs
+a frame that does not move with the dragged thing; `onMouseDown` and `onClick` carry view-local
+ones.
+
+One fact a drag handler must not miss: a gesture the browser reclaims — a touch that became a
+scroll — still delivers `onMouseUp`, but with **`e.canceled` true**. Commit on release only when
+it is false, or an interruption reads as a drop.
+
+**The browser owns every gesture until a view claims one — and declaring the handler *is* the
+claim**, taking exactly what that handler needs to fire and nothing more: `onMouseMove` claims the
+single-finger drag over its view and subtree while pinch stays the user's, the raw touch family
+claims every finger (the app then owes its own zoom), `onWheel` claims the wheel stream — trackpad
+pinch included, arriving with `e.pinch` true — and a scrolling view is the opposite move,
+delegating its panning to the browser. Claim the least you need, on the smallest view that needs
+it; claiming at the App is legitimate exactly when the app *is* the surface — a map, a canvas, a
+game taking **full gesture control** — and while such an app holds focus in a text field, the
+runtime also suspends the mobile browser's focus auto-zoom, whose mid-gesture viewport shift would
+shear the coordinates a gesture engine integrates.
+
+### Opacity is paint; `visible` is presence
+
+A view at `opacity = 0` is invisible but entirely present — it holds its layout space and still
+takes clicks, subtree included, exactly as CSS opacity does. That is a tool, not a trap: a fully
+transparent view is the natural press-catcher — a scrim that swallows clicks behind a modal, a
+drag surface over a chart, a hit target larger than the mark it serves.
+
+`visible = false` is the other tool, and it is the stronger one: it removes the view from input
+*and* from its parent's layout and auto-extent. So a fade that should end in absence is
+`visible = { opacity > 0 }`, while flow content that merely fades in should stay visible and let
+opacity do the work. `pointerEvents = "none"` is the third, for a view that should be seen and
+not touched.
+
+### Hover and press are values
+
+Every view carries two read-only intrinsics. `hovered` is true while the view sits on the live
+hit chain — the topmost visible view under the pointer, plus its ancestors — so it is
+occlusion-correct, and it is always false on touch. `pressed` is true from a pointer-down on the
+chain until release. Read them anywhere a value goes, including as a state's condition (§10):
+
+```declare-fragment
+fill = { hovered ? 0x4169E1 : 0x191970 },   // royalblue when hovered, else midnightblue
+```
+
+Declaring or assigning either is a compile error; like `contentWidth`, they are computed for you.
+
+## 9. Style
+
+There is no CSS, no stylesheet file, no selector, no cascade, and no specificity — which is also
+what makes a non-DOM renderer possible. Your CSS *knowledge* transfers: colors, font stacks, and
+shadows read the same. The names do not. A border is a **stroke**, rounding is **`cornerRadius`**,
+and `borderWidth`, `boxShadow`, and `outline` do not exist.
+
+What replaces the cascade is **prevailing slots**: set one high in the tree and every descendant
+follows it until one overrides. The text quartet — `fontFamily`, `fontSize`, `fontWeight`,
+`textColor` — works this way, and so does **`theme`**, a token record every color in an app should
+name once.
+
+```declare-fragment
+theme = { Themes.sanFrancisco(app.dark) },                   // on the App: a preset, light or dark
+fill  = { theme.surface },                                   // read it anywhere below
+
+panel: View [                                                // on a DESCENDANT, override one token
+    theme = { { ...app.theme, accent: 0xCC3333 } },          //   (on the App this reads itself — §5)
+    ]
+```
+
+Start from a library preset — `Themes.sanFrancisco` / `.cupertino` / `.mountainView` /
+`.redmond`, each taking a dark flag, available without an include — and spread to change a token.
+The standard library reads specific token names, so build from a preset rather than an empty
+record; `library/themes/sanfrancisco.declare` names them all.
+
+The `{ { … } }` is not special syntax: the outer braces open the constraint, the inner ones are a
+TypeScript object literal. With no theme declared an app renders the default, and that
+zero-declaration look never varies by system dark mode — following the system is the one-line
+opt-in above.
+
+Two top-level forms sit above per-view attributes, both checked at compile time, so a stale skin
+fails loudly where CSS rots silently. A **`style` bundle** is a reusable set of attribute values a
+view opts into with `styles = [ … ]`. A **`stylesheet`** is an app-wide swappable skin whose
+entries are a dictionary lookup on the class name — no selectors, no structural matching, no
+specificity — matching a class and its subclasses, with fields merging down the chain.
+
+```declare-fragment
+style card [ cornerRadius = 10, fill = { theme.bg } ]
+
+stylesheet Dark [
+    theme: Theme [ accent = #336699 ],       // the sheet's own theme
+    View:   [ opacity = 0.9 ],               // entries keyed by CLASS name
+    ]
+
+App [ stylesheet = Dark,                     // apply it — a prevailing slot, so swap it live
+    View [ styles = [card] ],                //   a bundle is opted into per view, by list
+    ]
+```
+
+`stylesheet` is a prevailing slot like `theme`: set it high, assign a different sheet at runtime,
+and exactly the governed subtree restyles.
+
+A theme appears in two places, and they are not the same thing. On a *view*, `theme` is a prevailing
+attribute holding a plain TypeScript record. Inside a *stylesheet*, `theme: Theme [ … ]` declares
+the sheet's own record in the `[ ]` layer, which is why its colors are bare literals rather than
+the `0x` form braces require.
+
+Precedence is fixed: **an author's own write or binding always outranks a stylesheet field.** A
+skin can never fight your code.
+
+## 10. States and motion
+
+Both halves of this section do the same thing: **declare the destination, not the transition.**
+
+A **state** is a named, reversible bundle of attribute overrides applied while a condition holds.
 
 ```declare
-App [ width = 360, height = 240, fill = black, textColor = whitesmoke,
-
-    open: boolean = false,
-    onMouseDown() { open = !open },
+App [ width = 360, height = 200, fill = black, textColor = whitesmoke,
 
     card: View [ x = 30, y = 30, width = 300, height = 70, cornerRadius = 10, fill = midnightblue,
         Text [ x = 20, y = 20, fontWeight = bold, text = "Summary" ],
-        big: State [ applied = { open }, height = 180, fill = steelblue,
+        open: State [ applied = { hovered }, height = 140, fill = steelblue,
             Text [ x = 20, y = 50, width = 260, textColor = gainsboro, wrap = true,
-                text = "height, color, and this whole line swap in together" ] ],
+                text = "height, color, and this whole line arrive together" ] ],
         ],
     ]
 ```
 
-While `open` holds, the overrides (and any children declared inside the state) apply; when
-it lifts, everything reverts. The "set it on enter, forget to unset it on exit" bug is
-unrepresentable — an attribute's value is a pure function of its base plus the active
-states, so modes cannot leak. Overrides may target named descendants by dotted path
-(`top.bg.opacity = 0.5`); when two active states override the same slot, the later
-declaration wins.
+While the condition holds, the overrides — and any children declared inside the state — apply;
+when it lifts, everything reverts. The "set it on enter, forget to unset it on exit" bug is
+unrepresentable, because an attribute's value is a pure function of its base plus the active
+states. That is what lets states compose and interrupt. When two active states override the same
+slot, the later declaration wins.
 
-**Motion is declarative.** A `Spring` drives one attribute toward a reactive target by
-physics — declare where the thing belongs; the spring finds the path and settles. A change
-of target mid-flight is just a new destination — interruption needs no code:
-
-```declare
-App [ width = 420, height = 120, fill = black,
-    on: boolean = false,
-    onClick() { on = !on },
-    ball: View [ x = 20, y = 40, width = 40, height = 40, cornerRadius = 20, fill = turquoise,
-        slide: Spring [ attribute = x, to = { on ? 340 : 20 }, stiffness = 170, damping = 20 ],
-        ],
-    ]
-```
-
-(`Animator [ attribute = x, to = 0, duration = 300 ]` is the time-based sibling for the
-few cases that want a clock instead of physics; springs are the house idiom.)
-
-Because layout, states, and springs sit on one reactive core, *arrangement* changes animate
-too: spring a handful of geometry attributes and every constraint derived from them moves
-in lock-step. This is the §1 claim in mechanism form — the calendar's month-to-week zoom is
-four sprung scalars (`c0, r0, nc, nr`) that all cell geometry derives from.
-
-## 9. Scope: three nouns
-
-Three reserved names let a `{ }` body reach a node without declaring it:
-
-- **`this`** — the node the code is written on.
-- **`parent`** — its parent in the tree.
-- **`app`** — the running app, reachable from any depth: `app.width`, `app.dark`,
-  `app.pointerX`, `app.navigate(…)`.
-
-`this` and `parent` are the tree at hand — the node you're on and what contains it. `app`
-is the one reference that reaches the app from *any* depth, without walking `parent` up the
-tree; use it for app-wide state and actions wherever the code sits.
-
-These three names are reserved — nothing else may take them. The bare capital `App` is the
-*class*; the instance is always `app`.
-
-Useful App-level reactive attributes: `app.width` / `app.height` (the app's own size —
-responsive layout reads these), `app.dark` (OS dark mode), `app.pointerX` / `app.pointerY`
-(the free pointer), `app.pointerDown` (a pointer is held), `app.hovering` (false on touch
-devices). An app with a usable size
-floor declares it as policy — `App [ minWidth = 600 ]` — rather than writing `Math.max`
-clamps into size constraints (§10).
-
-`appName` is the app's human name — the host surfaces it where names go, today the
-browser page title (and the crawled document's `<title>`; the extractor reads the
-*settled* value, so a derived name is as extractable as a literal). A literal names
-the app once — `App [ appName = "Declare Calendar" ]` — and a constraint names it
-live: the viewer titles itself with whichever file it is showing. Unset, the host's
-own title stands.
-
-## 10. Sizing and the host
-
-A view's size on each axis is one of three things, chosen by what the source says:
-
-- **unset** → auto-sizes to the bounding box of its visible children;
-- **a constant** (`width = 300`) → fixed;
-- **a constraint** → whatever the expression computes.
-
-Two read-only intrinsics — `contentWidth` and `contentHeight` — expose what the content
-*wants* to be, so any clamp is plain arithmetic. A **view** has no
-`minHeight`/`maxHeight`/`overflow` attributes:
+**A state overrides its own element's attributes only.** It cannot reach into a child —
+`top.bg.opacity = 0.5` is a compile error, because a member always sets its own element's
+attributes. To coordinate several views from one condition, declare a state on each of them reading
+the same flag, or give the child a constraint that reads it:
 
 ```declare-fragment
-height = { Math.min(contentHeight, 480) },    // grow to a cap, then stop
-clip = true,                                  // hide whatever passes the cap
+bg: View [ opacity = { app.open ? 0.5 : 1 } ],                 // the child derives
+bg: View [ dim: State [ applied = { app.open }, opacity = 0.5 ] ],   // or owns a state
 ```
 
-`contentWidth`/`contentHeight` (and `width`/`height`) are built-in; *read* them freely,
-but do not re-declare them as your own attributes (`contentWidth: number = { … }` fails —
-"already has an attribute"). If you need a derived measurement, give it a fresh name.
+A state is driven **either** declaratively **or** imperatively, never both. `applied = { … }` is
+the declarative gate; `apply()`, `remove()`, and `toggle()` are the imperative verbs. Calling a
+verb on a gated state is an error that says so.
 
-`scrolls = true` makes a view scroll its taller content natively. `clip = true` clips
-children to the box (unset lets them overflow). A child can opt OUT of a parent regime,
-declared on the child: `ignorelayout = true` (the parent's layout skips it — it owns its
-own position) and `ignoreclip = true` (the parent's clip doesn't cut it — outside the
-frame it still paints and still hits, and it doesn't count toward the parent's
-auto-extent; the idiom for frame chrome like a window's resize halo).
-
-**Positions are literals**: `x = center` and `x = end` (and the same on `y`) place a view
-against its parent — centers coincident, or end edges flush — resolved reactively, exactly
-like `100%`. The closed set is `center` and `end`; the start is `0`, the default. On a
-`Text`, `y = center` centers the INK (the cap-height-to-baseline band, so labels read
-centered regardless of font metrics — descenders overhang below); every other view centers
-its box, and `end` is always the geometric box. The written-out arithmetic
-`y = { (parent.height - this.height) / 2 }` remains the no-smarts spelling — only the
-named literal invokes the optics. Under a layout that owns the axis, a position literal
-conflicts exactly as any other value would.
-
-The one deliberate exception is the **App's size floor**: `App [ minWidth = 480,
-minHeight = 420 ]` declares the size below which the app does not adapt — in a narrower
-host the app holds the floor and the stage pans natively (the browser scrolls it). It is
-an attribute rather than clamp math because it isn't a clamp: it's a *policy* the host
-cooperates with, and one the toolchain can read statically. Use it when a design degrades
-below some size instead of reflowing.
-
-**The App fills its host by default** — the root is sized by its host, not its content, so
-`App [ … ]` with no size line fills the window and resizes with it; an explicit size makes
-a fixed widget. The host is the window for a top-level app and the **container element**
-for an embedded one — an app rendered inside another app's tree (a `DOMIsland`, a live
-preview) detects that automatically and wires to its container instead of seizing the
-window, so apps nest. `hostWidth`/`hostHeight` are read-only intrinsics for the rare app
-whose box is a nontrivial function of the host (aspect-locked); ordinary responsive code
-reads `app.width`.
-
-`readonly` is the general modifier behind those intrinsics, available to any class:
-`readonly percent: number = { value / max }` — consumers bind it; nobody may set it.
-
-### 10a. The URL: `app.location`
-
-**`location`** is the app's slice of the URL — the fragment, one two-way reactive string.
-The host seeds it before the first *settle* (the moment the reactive graph reaches
-quiescence after a change), mirrors app writes outward — one history entry per settle
-that changed it — and writes it back on back/forward. The app owns the grammar: derive
-state from it (`mode = { app.location.split("/")[0] }`) and write it to navigate
-(`app.location = "why"`). Never assign the *derived* state — that would displace its
-constraint (§5) and disconnect the back button. Setting `location = "home"` in the App
-body declares the initial, which is the default: the URL stays clean at it.
-
-A trailing `@name` in the fragment reveals a named view (`View [ anchor = "intro" ]`) or
-a rendered heading (by its slug) once the tree settles; the reveal is held until the
-target exists, so a cold deep link that races a `DataSource` still lands.
-
-**Crawlers.** Extraction boots the app cold at each location the app links to — literal
-fragments and handler writes alike — and emits one document at the program URL: the
-default's content plus a section per reachable location (discoverable = linked).
-Crawlable data is build-time data: a relative `DataSource` url reads from beside the
-program; an absolute url makes the crawl refuse loudly with the fix named. `?extract` on
-any program URL returns the document a crawler gets.
-
-## 11. Text, fonts, images, islands
-
-- **`Text`** renders a run of text. Give wrapping text a `width` and `wrap = true`; pin
-  labels with `wrap = false`. Styling rides the text quartet (`fontSize`, `fontWeight`,
-  `fontFamily`, `textColor`), which inherits down the tree (§12a).
-- **`Markdown`** is a native content type — `Markdown [ width = …, text = """ … """ ]` —
-  compiled static when the text is literal, live when it's bound (a streaming
-  `text = { … }` binding renders as it grows).
-- **`TextInput`** is the editable field; its `text` is the source of truth. Editors bind
-  two-way (`text <-> :title`); a *dynamic seed that stays editable* is `initial = { … }`
-  (a one-time uncontrolled seed — a one-way `text = { … }` binding keeps re-asserting
-  the source, so the field is effectively read-only; §14 #7). `placeholder`, `multiline = true`,
-  `wrap`, and `spellcheck = false` (for code) cover the field variants.
-- **`Image [ source = "…" ]`** — a bitmap; constrain `source` to compute it.
-- **Fonts:** a top-level `font Sans [ family = "system-ui" ]` declares a family (web fonts
-  declare `Face` children); `fontFamily = [Sans, "system-ui", "sans-serif"]` is a fallback
-  list; `fontWeight`/`italic` pick the face at the use site.
-- **`DOMIsland [ … ]`** is the deliberate escape: an island of foreign browser content inside
-  the tree, interactive by nature — and the host for **embedded child apps** (a live
-  preview is a Declare app running inside a Declare app, no iframe; see §10).
-- Drawing attributes on any view: `fill`, `stroke = { stroke(1, theme.line) }`,
-  `shadow = { shadow(…) }`, `cornerRadius`, `opacity`, `scale` (with `pivotX`/`pivotY`),
-  `visible`. A gradient fill for text is `textFill = { gradient("90deg", a, b) }`.
-
-## 12. The standard library
-
-Seven controls (eight tags — `RadioGroup` rides with `Radio`), auto-included by bare tag
-(no import), themed by the prevailing `theme`
-(they look right with zero configuration — the house theme — and follow any theme you
-provide):
-
-| component | value | one line |
-|---|---|---|
-| `Button [ label, primary?, onClick() ]` | — | the action control; keyboard (Space/Enter) flashes and fires `onClick` |
-| `Checkbox [ label, checked ]` | `checked: boolean` | box + mark + label |
-| `Switch [ checked ]` | `checked: boolean` | sliding-thumb boolean (the thumb springs) |
-| `RadioGroup [ value ]` + `Radio [ choice, label ]` | `value: string` on the GROUP | radios are the group's direct children |
-| `Slider [ value, min, max, step ]` | `value: number` | drag or arrow keys; delivers continuously |
-| `Field [ label, labelWidth ]` | — | a labeled row; nest your control as its child |
-| `ProgressBar [ value, min, max ]` | — | display-only |
-
-Every control also takes **`disabled`** (inert and unfocusable while true — constrain
-it: `disabled = { app.muted }`).
-
-**The value pattern (one rule for all of them):** a control's value is a plain reactive
-attribute. Three use forms, smallest first —
-
-1. **Standalone** — the control owns its state; read it by name:
-   `mute: Checkbox [ label = "Mute" ]` … `visible = { mute.checked }`.
-2. **App-owned** — derive down, deliver up:
-   `Checkbox [ checked = { app.muted }, input(v) { app.muted = v } ]`. The `input` method
-   is the edit-delivery channel; its default writes the control itself, your override
-   redirects it. (Do NOT bind a control's value one-way without supplying `input` — the
-   control's edits would fight your constraint.)
-3. **Data-owned** — `text <-> :path`, editors only (§7).
-
-A complete bound form:
-
-```declare
-App [ width = 360, height = 200, fill = { theme.bg },
-    volume: number = 50,
-    muted:  boolean = false,
-
-    col: View [ x = 20, y = 20,
-        layout: SimpleLayout [ axis = y, spacing = 10 ],
-        Checkbox [ label = "Mute", checked = { app.muted }, input(v) { app.muted = v } ],
-        Slider [ value = { app.volume }, input(v) { app.volume = v }, disabled = { app.muted } ],
-        ProgressBar [ value = { app.muted ? 0 : app.volume } ],
-        Button [ label = "Reset", primary = true, onClick() { app.volume = 50; app.muted = false } ],
-        ],
-    ]
-```
-
-Also provided, undeclared: keyboard focus travels the controls (Tab / Shift-Tab;
-Space/Enter activates; a click claims focus), and a **traveling focus indicator** is
-injected automatically into any app that uses these controls — disable it with
-`theme = { { ...app.theme, focusRing: false } }`, or declare your own `FocusRing [ ]` to
-customize.
-
-### 12a. Theming: prevailing slots
-
-Styling inherits through **prevailing** slots: set one high in the tree and every
-descendant follows it until one overrides. The text quartet (`fontFamily`, `fontSize`,
-`fontWeight`, `textColor`) works this way, and so does **`theme`** — a token record every
-color in an app should name once. (The `{ { … } }` below is not special syntax: the outer
-braces open the constraint, the inner braces are the TS object literal — no `({ … })`
-wrapper is needed; a constraint body is already an expression.)
+A **`Spring`** drives one attribute toward a reactive target. Declare where the thing belongs and
+the spring finds the path, so a change of target mid-flight is simply a new destination and
+interruption needs no code.
 
 ```declare-fragment
-theme = { { bg: 0x102030, text: 0xEEEEEE, accent: 0x3366FF, line: 0x334455 } },
-fill  = { theme.bg },                                  // anywhere below
-theme = { { ...app.theme, accent: 0xCC3333 } },        // partial override: plain TS spread
-theme = { app.dark ? app.darkTheme() : app.lightTheme() },   // light/dark: swap the record
-theme = { Themes.sanFrancisco(app.dark) },   // or a named preset following the system
+slide: Spring [ attribute = x, to = { on ? 340 : 20 }, stiffness = 170, damping = 20 ],
 ```
 
-With no theme declared, an app renders the default — San Francisco light, **always**
-(deterministic by ruling: the zero-declaration look never varies by system dark mode;
-following the system is the one-line opt-in above).
+`Animator` is the time-based sibling for the cases that want a clock, and `Frames` is the raw
+per-frame heartbeat for when the app integrates motion itself. Springs are the house idiom.
+Deferred work is plain TypeScript — `setTimeout` behaves in a handler as it always does — but
+unlike a source member, a timer does not die with its node, so cancel it yourself.
 
-### 12b. Skins: style bundles and stylesheets
+Because states, springs, and layout all sit on one reactive core, *arrangement* animates: spring
+a few geometry scalars and every constraint derived from them moves in lock-step.
 
-Two named styling constructs sit above per-view attributes, both checked at compile
-time (an unknown name, or a field the target class doesn't have, is a positioned
-error — a stale skin fails loudly where CSS rots silently):
+→ `State`, `Spring`, `Animator`, `Frames` attributes: the model reference · the idiom at scale:
+`apps/calendar/calendar.declare`
+
+## 11. The standard library
+
+Declare ships a standard component library in `library/`, written in Declare itself with no
+privileged API underneath. It **auto-includes by bare tag** — no import, no module ceremony —
+components follow the prevailing `theme`, and focus behavior (Tab traversal, activation, a
+traveling focus indicator) is provided undeclared. Check there before building a control by hand.
+
+Two contracts are worth learning because your own components should obey them too.
+
+**The value pattern.** A control's value is a plain reactive attribute, in one of three forms:
+standalone, where the control owns its state and you read it by name; **app-owned, deriving down
+and delivering up**; or data-owned, `<->`, editors only. The second is a *pair*, and splitting it
+is the §5 rule biting. A control's default `input` writes its **own** attribute, so a one-way
+`checked = { app.muted }` with no `input` override makes the control's own edit an assignment to a
+cell-owning slot — refused at runtime, with the same message §5 describes. Override `input` and the
+edit goes where the value actually lives.
 
 ```declare-fragment
-style card [ cornerRadius = 10, fill = { theme.bg } ]    // a NAMED BUNDLE of attribute values
-
-stylesheet Dark [                                        // an app-wide, swappable SKIN
-    theme: Theme [ accent = #336699 ],                   //   its theme record travels with it
-    View:   [ opacity = 0.9 ],                           //   entries are keyed by CLASS name
-    Button: [ primary = true ],                          //   (a class the program uses — §12's auto-include is by use)
-    ]
-
-App [ stylesheet = Dark,                                 // in force for the subtree; swappable:
-                                                         //   stylesheet = { lookupStylesheet(dark ? "Dark" : "Light") }
-    View [ styles = [card] ],                            // a bundle applied per view, by list
-    ]
+Checkbox [ label = "Mute", checked = { app.muted }, input(v) { app.muted = v } ],
+Slider   [ value = { app.volume }, input(v) { app.volume = v }, disabled = { app.muted } ],
 ```
 
-A **`style` bundle** is shorthand: a reusable set of attribute values a view opts into
-with `styles = [ … ]` — repetition without a class. A **`stylesheet`** is the external
-channel — restyle without touching the tree. Its entries are a *dictionary lookup on
-the class name* — no selectors, no structural matching, no specificity: an entry
-matches a class and its subclasses, fields merging **field-wise** down the chain (a
-`Button:` entry's field wins over a `View:` entry's same field; unset fields fall
-through). An entry may key only a class the program *uses* — a sheet naming an unused
-component is an error, not a silent no-op. `stylesheet` is a prevailing slot like
-`theme` (§12a): set it high, swap it live, and exactly the governed subtree restyles.
-Precedence is fixed: an author's own write or binding **always outranks** a stylesheet
-field — a skin can never fight your code. A `{ }` field in an entry or bundle
-evaluates with `this` = the styled view (so skins are theme-aware); `classroot` does
-not exist there — bundles and sheets belong to no class.
+**What a component arranges, it takes as records.** If the component arranges it — menu items, a
+dialog's buttons — it takes plain record arrays and hands the choice back through a method. If
+*you* arrange it, it is not a component feature at all: it is views, a layout, and replication. A
+component that owns its arrangement owns its rendition too, and can change either without any use
+site noticing; hand it children and you have frozen its internals into your source.
 
-## 13. What does NOT exist (do not invent it)
+→ what ships and how it is built: `library/` · each component's attributes: the model reference
 
-Prior habit — human or model — will reach for these. None of them exist in Declare:
+## 12. Working
 
-- **No HTML, no CSS, no DOM.** No `div`, `className`, `style`, stylesheet files, selectors,
-  cascade, or media queries. Styling is attributes; responsiveness is constraints on
-  `app.width`; theming is a reactive record (§12a) that everything derives from. The
-  attribute names differ too: a border is a **stroke** (`stroke = { stroke(1, theme.line) }`),
-  a shadow is `shadow = { shadow(…) }`, rounding is `cornerRadius` — `borderWidth`,
-  `boxShadow`, and `outline` do not exist.
-- **No z-index** — stacking is declaration order, later on top. **No flexbox/grid** —
-  `layout:` attributes. **No CSS units** — bare numbers are pixels, `%` exists only as a
-  bare literal.
-- **No hooks.** No `useState`/`useEffect`/`useMemo`, no dependency arrays, no keys on
-  lists (replication `key = :field` is data identity, not a render hint), no
-  reconciliation, no "re-render".
-- **No `setState` / `setAttribute` / `getAttribute`** — `=` is the setter, a bare read is
-  the getter, always.
-- **No JSX expressions in the tree.** No `.map()` to produce children, no conditional `&&`
-  rendering. A collection of children comes from **replication** over data; conditional
-  presence is `visible = { cond }` or a **state**.
-- **No imports for components.** Library components and your own classes are available by
-  name (bare-tag auto-include). No module ceremony. (`import` for TS libraries inside
-  `script { }` is a separate, still-open design area — don't use it.)
-- **No `addEventListener`**, no event bubbling. Handlers fire on the node that declares
-  them; keyboard arrives on the focused view as `onKeyDown(e)`/`onKeyUp(e)` — `e` is a
-  KeyEvent (`e.key`, `e.code`, modifier flags), never a numeric code.
-- **No `event` keyword.** An event is just a function-typed member that gets called; the
-  `on` prefix is a naming convention. Subscriptions (`member(e) <- Source { … }`) exist for
-  the runtime *services* (`Keys`, `Focus`) — you cannot subscribe to another view's
-  events; a child delivers to its owner by *calling a method*.
-- **No `async` UI wiring for data.** `DataSource` + derived visibility replaces
-  fetch-then-setState. `.fetch()` is explicit.
-- **No widget zoo — but there IS a small standard library** (§12): `Button`, `Checkbox`,
-  `Switch`, `RadioGroup`/`Radio`, `Slider`, `Field`, `ProgressBar` — auto-included by bare
-  tag, no import. Use them for the ordinary cases; there is no `Card`, `Modal`, `Select`,
-  or `Tabs` yet — compose those from `View` + `Text` + `TextInput` + `Image`, or define a
-  class.
-- **`$`-prefixed names are compiler-internal.** Never write one.
+1. **Write `.declare` source** and run the dev server — `npm start`, then open your program at
+   its path. Apps are typically one file, grown with `include` (§4).
+2. **Run it at its URL.** The program URL *is* the app's address: with the dev server up,
+   navigating to `…/<name>.declare` compiles on request and renders. The same address takes
+   modifiers for the alternate renderer, the in-browser editor, and the crawler's document.
+   Typechecking of every `{ }` body is part of every compile; there is no flag.
+3. **Read the error.** Every diagnostic carries a code, a line and column, and the fix. Apply
+   exactly the named fix, change nothing else, recompile. All independent errors in a phase are
+   reported together.
+4. **Ask the running program.** A clean compile means the checker found nothing, not that nothing
+   is wrong: layout, fonts, paint, and input routing do not exist until the program runs. When
+   something compiles yet misbehaves, stop re-reading the source. `__declare.explain(path, attr)`
+   answers *why* a slot holds its value, giving the expression, the read-paths it was wired to,
+   and their live values. (Dev tooling: a production build ships a stub unless you pass
+   `declarec --debug`.) `node tools/verify.mjs <file>` climbs the same ladder the test suite
+   does, from parse to real input in a headless browser.
 
-## 14. The mistakes that outlive the rules
+The formatter (`tools/format.mjs`) owns the house style; run it rather than hand-aligning. What it
+cannot decide for you is naming — camelCase — and that **a leaf goes on one line**, which most of a
+UI is.
 
-Knowing the language prevents most mistakes; these are the ones it doesn't. The first
-kind is **imported habit** — a reflex from CSS, React, or TypeScript that fires even
-after you know Declare's rule. The compiler catches each of these and names the fix,
-but not making the trip beats the round trip. The second kind is a **silent trap** —
-code that is legal and wrong, so no message will ever arrive. (A mistake that comes
-from a missing concept is fixed where the concept is taught, not listed here.)
-
-Habits and conventions:
-
-1. **The bare-slot vocabulary stops at the brace** — inside `{ }` you are in TypeScript.
-   `fill = #4C8DFF` ✓ · `fill = { hovered ? 0x63A0FF : 0x4C8DFF }` ✓ ·
-   `fill = { hovered ? #63A0FF : … }` ✗ · `width = 100%` ✓ · `width = { 100% }` ✗ —
-   compute it: `width = { parent.width }`.
-2. **`this` where `classroot` is meant.** In a handler on a nested child, `this` is that
-   child. The component's state lives on `classroot` (§4).
-3. **The comma is a terminator, not a separator** (§3). It follows the *last* member
-   too, and a child's closing `],` — the one exception is before an inline `]`.
-4. **A `Dataset` body is strict JSON** — quoted keys, no trailing commas — the one
-   `{ }` in the language that is not TypeScript (§7).
-
-Silent traps — legal code, no error, wrong program:
-
-5. **A `DataSource` does nothing until `.fetch()`.** Nothing loads on its own — call it
-   in `onInit()` or a handler (§7).
-6. **Text that won't wrap / wraps unexpectedly.** Give wrapping text a `width` and
-   `wrap = true`; pin labels with `wrap = false` (§11).
-7. **A one-way binding on an editable slot.** `TextInput [ text = { source } ]` makes the
-   field effectively read-only: typing never assigns `text`, so the constraint keeps
-   re-asserting the source and the edit does not stick. A dynamic seed that stays
-   editable is `initial = { source }`; app-owned control state is `checked = { … }`
-   **plus** `input(v) { … }` (§12).
-
-## 15. Style canon (the formatter's rules, in brief)
-
-- Attributes first on a component's header line; declarations, methods, handlers, states,
-  and children on their own lines below.
-- **A leaf goes on one line**: `day: Text [ x = 40, fontSize = 12, text = :day ],` — most
-  of a UI is leaves.
-- Closing brackets hang at the content indent, carrying the comma: `],`.
-- Four-space indent. Interior column alignment (extra spaces after a name) is optional —
-  the formatter preserves it either way; this file's fragments use it for readability.
-- camelCase names (`fontSize`, `onClick`). Comments are `// ` at the code's indent;
-  `/* … */` blocks are literate Markdown — section prose, rendered by the reader view.
-- One way to write each thing — when this file and your instinct disagree, this file wins.
-  The formatter (`tools/format.mjs`) enforces the canon; let it.
-
-## 16. The loop: how to work
-
-1. **Write** `.declare` source — the tree is the app. Apps are typically one file; a file
-   can pull in others with `include [ "path.declare" ]` (top-level declarations merge,
-   include-once), and library components need no include at all — a bare tag auto-includes
-   them.
-2. **Run it at its URL.** The program URL is the app's address: with the dev server up
-   (`npm start` → `http://127.0.0.1:8200/`), navigating to `…/<path>/<name>.declare`
-   compiles on request and renders — edit on disk, reload, see it. A directory whose
-   name matches its program is the same address in short form: `…/apps/calendar/` ≡
-   `…/apps/calendar/calendar.declare`. The same address takes
-   modifiers and views: `?render=canvas` (own-pixels renderer — same source, same pixels),
-   `?viewer=edit` (source editor + live result + errors, in the browser), `?viewer=reader`
-   (annotated, highlighted source), `?extract` (the static-extraction document crawlers
-   see). Typechecking of every `{ }` body is part of every compile — there is no flag.
-3. **Read the errors.** Every compile error carries a code (`DECLARE####`), a line/column, and
-   — deliberately — *the fix*: diagnostics are written for a model in a loop, so the
-   message states the rule you broke and the one rewrite that resolves it. Trust the
-   message; apply the named fix; recompile. All independent errors in a phase are reported
-   together.
-4. **Verify** — `node tools/verify.mjs <file>` climbs the ladder: parse, resolution,
-   typecheck and settle run with no browser (fast, and the reason to run them
-   constantly); the behavior and visual rungs drive the app in headless Chromium with
-   real input and a deterministic clock. Use it as the oracle before you trust a change.
-   When a program passes yet still misbehaves, ask the running app instead of re-reading
-   the source: `__declare.explain(path, attr)` answers *why* a slot holds its value —
-   the expression, the read-paths it was wired to, and their live values.
-5. **Ship** — `node tools/declarec.mjs <file>` emits a self-contained production bundle
-   (app + runtime, ~<!--stat:calendar.wireKB-->51<!--/stat--> KB gzipped); the same artifact is one request away at
-   `<program-url>?build`. `--crawler` bakes the crawler document into the shipped page.
-
-## 17. Going deeper
-
-| you want | read |
-|---|---|
-| the guided tour, concept by concept | [`docs/guide/`](guide/01-thinking-in-declare.md) |
-| every attribute, method, event, diagnostic | [`docs/reference/`](reference/) — generated from the source |
-| install / dev server / build, step by step | [`docs/operational/`](operational/) |
-| the idiom at real scale, annotated | `apps/calendar/calendar.declare` · `apps/homepage/homepage.declare` · `apps/controls/` |
-| why the language is shaped this way; what's deliberately unsettled | [`docs/system-design/`](system-design/) — the design record (background, not truth) |
-
-*This file is compiled documentation in spirit: its examples are verified against the
-toolchain on every revision. If something here contradicts the compiler, the compiler is
-right and this file has a bug — report it.*
+→ install, dev server, build, deploy: [`docs/operational/`](operational/)

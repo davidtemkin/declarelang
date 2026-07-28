@@ -1,7 +1,7 @@
 <!-- nav: Interaction -->
 <!-- part: Building -->
 
-# Interaction is delivery
+# Nothing bubbles
 
 A program hears the user through **handlers** — methods whose names begin with `on`.
 There is no `addEventListener`, no listener cleanup, and no bubbling: an event fires on
@@ -91,10 +91,9 @@ travels far away, so there is no tracking code to write.
 ```declare
 App [ width = 300, height = 160, fill = white,
     card: View [ x = 20, y = 40, width = 120, height = 80, cornerRadius = 10, fill = 0x4C8DFF,
-        downX: number = 0,
-        startX: number = 0,
-        onMouseDown(e) { downX = e.x; startX = this.x },
-        onMouseMove(e) { x = Math.max(0, Math.min(180, startX + (e.x - downX))) },
+        grabX: number = 0,
+        onMouseDown(e) { grabX = e.x },                    // view-local: where in the card you grabbed
+        onMouseMove(e) { x = Math.max(0, Math.min(180, e.x - grabX)) },   // root-space: minus the grab
         ],
     ]
 ```
@@ -121,6 +120,41 @@ onMouseUp(e) {
     classroot.commitMove(this.x, this.y)
     },
 ```
+
+## Drag and click on one view
+
+The card above only drags. The calendar's event block does more: tap it and a
+detail panel opens; drag it and the event moves to another day. Both live on one
+view, and declaring the raw handlers does not steal the tap:
+
+```declare-fragment
+block: View [
+    onMouseDown(e) { app.startDrag(:id, e.x, e.y) },
+    onMouseMove()  { app.dragMove() },
+    onMouseUp(e)   { app.dropDrag(e.x, e.y) },
+    onClick()      { app.selectEvent(:id) },        // still fires — on a real tap
+    ]
+```
+
+The two layers are not either/or. They ride the *same* gesture, and the slop rule
+from earlier is the one arbiter between them. A press that never wanders is a
+tap: the raw stream saw a down and an up, your drag saw nothing worth moving, and
+`onClick` fires — the panel opens. A press that wanders is a drag: `onMouseMove`
+drives it, and the resolved layer stays silent, so the panel never flashes open
+at the end of a drop. There is no `if (moved)` to write on the click side — a
+gesture that moved activates nothing, and that was never your rule to enforce.
+
+One habit completes the pattern. Raw moves are raw: they start arriving *before*
+the slop is crossed, so a drag that moves its view from the very first move will
+wiggle it a few pixels under a slightly sloppy tap. The idiom — the calendar's —
+is to keep a small threshold of your own for when the drag becomes *visible* (its
+drag ghost appears after ~4px) and to commit on release only if the drag ever
+became real. That threshold is presentation, not click suppression; the click
+already died of wandering.
+
+On a touch screen there is one more party to the arbitration: declaring the drag
+handler claims that finger from the browser over that view. The full ownership
+story is [the Gestures chapter](declare-docs:guide:gestures).
 
 ## Tap and hold
 
@@ -171,81 +205,6 @@ hot = { app.dropTarget == this },
 
 One writer, many readers, and the highlight is a constraint like everything else.
 
-## Touch is not mouse
-
-The same handlers fire for both, and the runtime absorbs most of the difference: a
-finger that moves does not click, a tap never leaves a view stuck in a hover state, and
-an interrupted gesture reports itself. Three differences remain yours to design for.
-
-**There is no hover.** `hovered` is always false on a touch device, and
-`onMouseOver`/`onMouseOut` are mouse facts. Anything that only appears on hover is
-invisible on a phone unless you give it another way in — let `pressed` carry the
-feedback instead.
-
-**Targets want to be bigger.** Ask the device, and design accordingly:
-
-| you ask | it answers | use it for |
-|---|---|---|
-| `app.touchDevice` | is the *primary* pointer a finger? | sizing and layout density |
-| `app.hasTouch` | is there a touch digitizer *at all*? | a hit-target floor |
-| `app.hasPointer` | is there a mouse, trackpad, or stylus? | offering precise affordances |
-| `app.lastPointerType` | what did the user *just* use — `"mouse"`, `"touch"`, `"pen"`? | revealing hover-only chrome |
-
-The last two exist for the awkward middle: a Windows touch laptop reports
-`touchDevice = false`, because its trackpad really is primary, yet a finger may arrive
-at any moment. The rule that follows is worth stating plainly — **size from
-`touchDevice`, floor from `hasTouch`, and reveal from `lastPointerType`.** Never drive
-layout from the live pointer type: targets that resize as the user alternates trackpad
-and finger are worse than either size. And a hit region need not match a visual one, so
-a hybrid can keep compact chrome and generous touch targets at the same time.
-
-**The browser is a gesture competitor.** Scrolling, pinch-zoom, and the long-press
-callout all belong to the browser until an app says otherwise — which is the next
-section.
-
-## When the app owns the gesture
-
-Most apps should let the browser scroll and zoom; it does both better than you will,
-and its physics are the ones the platform's users already know. But some apps *cannot*
-delegate — a canvas with nested coordinate spaces and continuous zoom has no browser
-primitive to hand the job to — and those need the raw multi-finger stream plus a frame
-heartbeat to integrate their own physics.
-
-Declaring the raw touch family is that statement. A view with `onTouchStart` and its
-siblings receives every finger, with a stable `id` per finger for the life of its
-contact, and the browser stops claiming gestures in that subtree:
-
-```declare-fragment
-surface: View [ width = 100%, height = 100%,
-    onTouchStart(e) { classroot.engine.begin(e.touches) },
-    onTouchMove(e)  { classroot.engine.track(e.touches) },
-    onTouchEnd(e)   { classroot.engine.release(e.touches) },
-    onTouchCancel(e) { classroot.engine.abort() },
-    ],
-```
-
-`e.touches` is every finger currently down; `e.changed` is the one this event is about.
-Coordinates are root-space throughout — a gesture engine wants one stable frame.
-
-The other half is the heartbeat. `Frames` is a member, like a `Spring` or a `Dataset`,
-that calls `onFrame(dt)` once per animation frame with the real elapsed time in
-seconds:
-
-```declare
-App [ width = 240, height = 120, fill = midnightblue, textColor = whitesmoke,
-    x0: number = 20,
-    v: number = 60,
-    physics: Frames [ onFrame(dt) { app.x0 = (app.x0 + app.v * dt) % 200 } ],
-    dot: View [ x = { app.x0 }, y = 40, width = 40, height = 40, cornerRadius = 20, fill = turquoise ],
-    ]
-```
-
-`running` gates it (`running = { app.simulating }`), `dt` is clamped so a backgrounded
-tab does not resume with one enormous step, and it rides the same clock every `Spring`
-and `Animator` uses — so it costs nothing until it runs, and there is no second frame
-loop. Reach for it when you are integrating something yourself; for "move this there,
-smoothly," a `Spring` is less code and better behaved.
-
 ## Reaching another node: call a method
 
 When a handler must affect something beyond its own node, it does not dispatch an
@@ -292,7 +251,8 @@ so gate shortcuts on app state where that matters.
 
 The other sources work the same way: `Focus` (`onFocusChange`, `onGeometry` — how the
 library's focus ring follows focus), `Tip` (`onTip` — what the tooltip renders), and
-`Frames` (`onFrame(dt)` — the frame heartbeat, above). Fan-out is by instance, which is
+`Frames` (`onFrame(dt)` — the frame heartbeat, in
+[the Gestures chapter](declare-docs:guide:gestures)). Fan-out is by instance, which is
 the point of their being members: a menu, a dialog, and a menubar each holding a `Keys`
 member all hear the keyboard at once.
 
@@ -301,80 +261,10 @@ member all hear the keyboard at once.
 and `Focus [ onFocusChange … ]` are members that call you. You cannot listen to another
 *view's* events — that is what calling a method is for.
 
-## The standard library
-
-You do not hand-build buttons outside of tutorials. The library ships a small set of
-controls — themed, keyboard-ready, auto-included by bare tag:
-
-| component | value | one line |
-|---|---|---|
-| `Button [ label, primary?, onClick() ]` | — | the action control; Space/Enter fires it |
-| `Checkbox [ label, checked ]` | `checked: boolean` | box + mark + label |
-| `Switch [ checked ]` | `checked: boolean` | sliding-thumb boolean |
-| `RadioGroup [ value ]` + `Radio [ choice, label ]` | `value: string` on the group | one-of-N |
-| `Slider [ value, min, max, step ]` | `value: number` | drag or arrow keys |
-| `Field [ label, labelWidth ]` | — | a labeled row; nest your control inside |
-| `ProgressBar [ value, min, max ]` | — | display-only |
-
-Every control also takes `disabled` (inert and unfocusable — constrain it). The
-library is small and actively growing — more controls are arriving — but what's worth
-learning is not the catalog; it's the two contracts every control obeys, because they
-are what your *own* components should obey too.
-
-**Contract one: the value pattern.** A control's value is a plain reactive attribute,
-used in one of three forms. *Standalone* — the control owns its state; read it by
-name (`mute: Checkbox [ label = "Mute" ]` … `visible = { mute.checked }`).
-*App-owned* — the truth lives elsewhere: **derive down, deliver up**:
-
-```declare
-App [ width = 360, height = 200, fill = { theme.bg },
-    volume: number = 50,
-    muted:  boolean = false,
-
-    col: View [ x = 20, y = 20,
-        layout: SimpleLayout [ axis = y, spacing = 10 ],
-        Checkbox [ label = "Mute", checked = { app.muted },
-            input(v) { app.muted = v },
-            ],
-        Slider [ value = { app.volume },
-            input(v) { app.volume = v },
-            disabled = { app.muted },
-            ],
-        ProgressBar [ value = { app.muted ? 0 : app.volume } ],
-        Button [ label = "Reset", primary = true,
-            onClick() { app.volume = 50; app.muted = false },
-            ],
-        ],
-    ]
-```
-
-`checked = { app.muted }` derives the display; `input(v)` is the edit-delivery
-channel, redirecting the control's edits into your state. The pair goes together — a
-one-way binding *without* `input` leaves the control's edits fighting your
-constraint. *Data-owned* — an editor bound straight to a datum with `<->` — is
-[chapter 8](declare-docs:guide:data)'s form, for editors only, and the compiler
-holds that line: point `<->` at a `Checkbox` and the error tells you a Checkbox is
-not an editor, use `checked = { … }` + `input(v)`.
-
-**Contract two: focus is provided.** Tab and Shift-Tab walk the controls, Space and
-Enter activate, a click claims focus, and a traveling focus ring is injected into any
-app that uses the library — disable or replace it via the theme. You declared none of
-it.
-
-## When there is no widget for it
-
-There is no `Modal`, `Tabs`, or `Select` yet — and that is the normal case, not a
-gap: **compose it, or define a class.** A tab bar is a row of views with `onClick`
-and a selected state; a modal is a full-bleed view over a dimmed backdrop, shown by a
-`State`. The library earns its place only where native behavior (caret, focus,
-keyboard) is worth sharing; everything else is the composition you already know from
-[chapter 4](declare-docs:guide:tree) — and the library's own source, written in
-Declare, is readable proof there's no privileged component layer underneath.
-
 ---
 
 **What you can now say:** you can make anything respond — pointer, drag, keyboard —
-route behavior without invisible event plumbing, and wire real controls to real state
-with the one value pattern that all of them share.
+route behavior without invisible event plumbing, and let one view carry a drag and a
+click without writing the arbitration yourself.
 
-[Next: **Data is a place, not an event** →](declare-docs:guide:data)
+[Next: **Derive down, deliver up** →](declare-docs:guide:controls)

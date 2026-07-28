@@ -71,7 +71,23 @@ App [ width = 260, height = 120, fill = white,
 
 Narrow the `tags` width and the pills re-wrap. Because layout is a *slot* and not a
 type, it can be swapped, nested, or driven — the seed of what
-[chapter 10](declare-docs:guide:arrangement) grows into whole moving arrangements.
+[chapter 11](declare-docs:guide:arrangement) grows into whole moving arrangements.
+
+These are the arrangements the library ships, and they are ordinary Declare components
+you can read in `library/`:
+
+| layout | attributes | what it does |
+|---|---|---|
+| `SimpleLayout` | `axis`, `spacing` | stacks children along `x` or `y` |
+| `WrappingLayout` | `spacing`, `lineSpacing`, `align` | flows onto new lines when the row runs out |
+| `ResponsiveLayout` | `plan`, `gap` | switches arrangement by available width |
+| `Spacer` | `flexes` | not a layout — a child that absorbs a run's slack |
+
+Two more are built in rather than shipped in `library/`, and you meet them only when
+writing your own: **`Layout`** is the base every arrangement extends, and
+**`TweenLayout`** is the animated-reflow base — extend it and your layout *glides*
+children to their new places instead of snapping, which is how a re-arrangement becomes
+motion for free.
 
 > **From CSS:** there is no flexbox, no grid, no document flow, and no z-index —
 > children sit at their `x`/`y` unless a `layout` arranges them, stacking is
@@ -127,7 +143,7 @@ Layout attributes are reactive like any others — `spacing = { app.width < 480 
 is an ordinary constraint — and per-child constraints keying off `app.width` remain
 the direct form for gutters and type sizes. Swapping a whole *configuration* beyond
 geometry is a job for a `State` gated on width, which arrives in
-[chapter 9](declare-docs:guide:motion-and-modes). And often the cleanest answer is
+[chapter 10](declare-docs:guide:motion-and-modes). And often the cleanest answer is
 none of these: set the `minWidth` floor and let the stage pan, rather than reflowing
 a design below the width where it works.
 

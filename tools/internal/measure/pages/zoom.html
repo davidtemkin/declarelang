@@ -1,0 +1,42 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Q1 — pinch under maximum-scale=1</title>
+<style>
+  body { margin: 0; padding: 60px 16px 30vh; font: 17px -apple-system, sans-serif;
+         background: #e8ffe8; }
+  body.locked { background: #ffe0e0; }
+  #state { font-size: 34px; font-weight: 800; margin: 10px 0; }
+  button { display: block; width: 92%; font-size: 22px; padding: 18px; margin: 18px 0; }
+  input { display: block; width: 88%; margin: 14px 0; padding: 10px; border: 2px solid #888; }
+  #small { font-size: 11px; }
+</style>
+<body>
+<div id="state">UNLOCKED (green)</div>
+<p>1. Tap LOCK — the page must turn <b>pink</b>.<br>
+   2. Pinch (⌥-drag). Does the scale in the green bar move? <b>← the question</b><br>
+   3. Tap UNLOCK — page turns green — pinch again: does it move now?</p>
+<button id="lock">LOCK (maximum-scale=1)</button>
+<button id="unlock">UNLOCK</button>
+<input id="small" placeholder="11px field (optional focus re-test)">
+<script src="lab.js"></script>
+<script>
+  const L = lab("zoom");
+  const meta = document.querySelector("meta[name=viewport]");
+  const state = document.getElementById("state");
+  function show(locked) {
+    document.body.classList.toggle("locked", locked);
+    state.textContent = locked ? "LOCKED (pink)" : "UNLOCKED (green)";
+  }
+  document.getElementById("lock").onclick = () => {
+    meta.content = "width=device-width, initial-scale=1, maximum-scale=1";
+    show(true); L.send("locked", { content: meta.content });
+  };
+  document.getElementById("unlock").onclick = () => {
+    meta.content = "width=device-width, initial-scale=1";
+    show(false); L.send("unlocked", { content: meta.content });
+  };
+  const small = document.getElementById("small");
+  small.addEventListener("focus", () => L.send("focus", { field: "small" }));
+  small.addEventListener("blur", () => L.send("blur", { field: "small" }));
+</script>

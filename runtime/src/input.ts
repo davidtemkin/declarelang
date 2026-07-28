@@ -88,6 +88,12 @@ export interface HitTarget {
    *  gesture belongs to the app, so the router delivers the whole multi-finger
    *  stream and never interprets it. */
   wantsTouch?: boolean;
+  /** True when this view declares `onMouseMove` — its claim on the
+   *  single-finger drag (realized by the backend, not the router). */
+  wantsDrag?: boolean;
+  /** True when this view declares `onWheel` — its claim on the wheel stream
+   *  (delivered by the backend directly; wheels never enter this router). */
+  wantsWheel?: boolean;
 }
 
 /** One finger, as the raw touch family reports it. `id` is stable for the

@@ -422,6 +422,8 @@ export class View extends Node {
             wantsDbl: has("dblClick"),
             wantsHold: has("hold"),
             wantsTouch: TOUCH_TYPES.some(has),
+            wantsDrag: has("mouseMove"),
+            wantsWheel: has("wheel"),
         };
     }
     /** Stand up the draw method as a tracked, re-recording computation. */

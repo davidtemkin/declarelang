@@ -69,12 +69,14 @@ to learn it, or jump to the chapter your task needs:
 | scope — `this` / `parent` / `classroot` / `app`, classes, composition | `docs/guide/04-tree.md` |
 | layout, sizing, position, responsiveness | `docs/guide/05-space.md` |
 | color, type, borders, shadows, themes | `docs/guide/06-style.md` |
-| the standard library (buttons, inputs), hover / press / drag, keyboard | `docs/guide/07-interaction.md` |
-| lists, datasets, editing data, loading documents | `docs/guide/08-data.md` |
-| states, springs, animation | `docs/guide/09-motion-and-modes.md` |
-| deep links, the URL, run / verify / ship | `docs/guide/11-loop.md` |
+| hover / press / drag, clicks, keyboard | `docs/guide/07-interaction.md` |
+| the standard library (buttons, inputs), the value pattern | `docs/guide/08-controls.md` |
+| lists, datasets, editing data, loading documents | `docs/guide/09-data.md` |
+| states, springs, animation | `docs/guide/10-motion-and-modes.md` |
+| touch, gesture ownership, pinch/wheel zoom, `Frames` | `docs/guide/12-gestures.md` |
+| deep links, the URL, run / verify / ship | `docs/guide/13-loop.md` |
 
-(`docs/guide/` holds the full set; `12-with-an-llm.md` and `evals/declare-for-llms.md` are
+(`docs/guide/` holds the full set; `14-with-an-llm.md` and `evals/declare-for-llms.md` are
 written for an agent in particular.)
 
 **For an exact fact** — an attribute's name, an enum's tokens, a flag, a diagnostic code,

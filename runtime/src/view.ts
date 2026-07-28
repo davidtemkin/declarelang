@@ -14,7 +14,7 @@ import { Node, runRetire } from "./node.js";
 import { DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual, type Color, type Fill, type Shadow, type Stroke, type Theme } from "./value.js";
 import type { FontWeight } from "./measure.js";
 import { disposeApplier, stylesheetArrived, stylesheetByName, type Stylesheet } from "./stylesheet.js";
-import { POINTER_TYPES, TOUCH_TYPES, type InputSink, type RenderBackend, type Surface } from "./backend.js";
+import { POINTER_TYPES, TOUCH_TYPES, type InputSink, type InputWants, type RenderBackend, type Surface } from "./backend.js";
 import { Tip } from "./tip.js";
 
 // Imperative creation's injection seam (instantiate.ts provides; the cycle
@@ -571,13 +571,15 @@ export class View extends Node {
    *  double-clicks (so its single click waits out the double window), holds,
    *  or the raw touch family (so the whole multi-finger stream is delivered and
    *  nothing is interpreted). Declaration IS the opt-in — no configuration. */
-  private inputWants(): { wantsDbl: boolean; wantsHold: boolean; wantsTouch: boolean } {
+  private inputWants(): InputWants {
     const self = this as unknown as Record<string, unknown>;
     const has = (t: string): boolean => typeof self[handlerName(t)] === "function";
     return {
       wantsDbl: has("dblClick"),
       wantsHold: has("hold"),
       wantsTouch: TOUCH_TYPES.some(has),
+      wantsDrag: has("mouseMove"),
+      wantsWheel: has("wheel"),
     };
   }
 

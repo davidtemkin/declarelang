@@ -122,4 +122,4 @@ property costs you nothing today and is the door to renderers that don't exist y
 constraints you use for everything else; reskin a subtree or the whole app in one
 edit; and opt into the system's dark mode with a line — no stylesheet anywhere.
 
-[Next: **Interaction is delivery** →](declare-docs:guide:interaction)
+[Next: **Nothing bubbles** →](declare-docs:guide:interaction)

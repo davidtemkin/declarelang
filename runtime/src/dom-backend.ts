@@ -25,6 +25,7 @@ import { fontMetrics, fontString, cssWeight, type TextStyle } from "./measure.js
 import { replay, type DisplayList } from "./draw.js";
 import { onDprChange } from "./dpr.js";
 import { routeInput } from "./input.js";
+import { lockFocusZoom } from "./viewport-lock.js";
 
 /** Style a native editable element to match the view's painted text metrics, so
  *  the caret and glyphs sit exactly where the static measure would place them. */
@@ -123,11 +124,17 @@ export class DomBackend implements RenderBackend {
     // Views are a painted UI, not a document: a press-drag (event drag, and any
     // future gesture) must not start a native text/element selection. Suppress
     // it once at the root — `user-select` inherits, so every view div is covered
-    // (editable fields opt back IN, see setEditable). `touch-action: none` is
-    // the same intent for touch: the app owns the gesture, not the browser.
+    // (editable fields opt back IN, see setEditable).
     rootEl.style.userSelect = "none";
     (rootEl.style as CSSStyleDeclaration & { webkitUserSelect: string }).webkitUserSelect = "none";
-    rootEl.style.touchAction = "none";
+    // Touch gestures are NOT suppressed here: the browser owns every gesture
+    // until a view claims one by declaring the handler that answers it
+    // (refreshTouchAction — the app root's default keeps pan for an app the
+    // browser scrolls and keeps pinch-zoom for everyone; double-tap zoom is
+    // the one gesture a painted UI always takes, since two quick taps on a
+    // control must not lurch the page). Runs after the declareApp mark above
+    // so the root default applies.
+    (root as DomSurface).refreshTouchAction();
     // NOTE the frame does NOT clip here: an app larger than its host scrolls
     // natively — "exterior" scrolling, the browser over the app object — and
     // that stays expressible. An app designed as a fixed window (everything
@@ -235,6 +242,18 @@ export class DomBackend implements RenderBackend {
       },
       true
     );
+    // The full-gesture-control clause (Rule 3): an app that claimed every
+    // finger (its App declares the raw touch family) runs its own gesture
+    // arithmetic, and an iOS focus auto-zoom arriving mid-gesture would shear
+    // every coordinate that engine integrates. While such an app holds focus
+    // in a field, suspend the auto-zoom; let go on blur (viewport-lock.ts —
+    // the user's own pinch survives the lock, measured 2026-07-27). Every
+    // other app keeps the browser's behavior untouched; the compiler flags a
+    // sub-16px field instead. Top-level only — an embedded island must not
+    // rewrite the host page's viewport.
+    if (!embedded && WANTS.get(rootEl)?.wantsTouch === true) {
+      lockFocusZoom(rootEl, () => rootEl.isConnected);
+    }
   }
 }
 
@@ -566,7 +585,18 @@ class DomSurface implements Surface {
     // automatically — no per-resize re-derive.
     if (this.clipBox !== null) this.clipBox.style.overflow = on ? "clip" : "";
     else this.element.style.overflow = on ? "clip" : "";
+    // An APP ROOT's clip decides its gesture default (a fixed window has no
+    // browser scroll to keep, so pan retires with it) — keep touch-action in
+    // step if the clip changes after attach.
+    if (this.boxClip !== on) {
+      this.boxClip = on;
+      if (this.element.dataset.declareApp !== undefined) this.refreshTouchAction();
+    }
   }
+
+  /** Mirror of the `clip = true` box-clip state, for the app root's
+   *  touch-action default (refreshTouchAction). */
+  private boxClip = false;
 
   scrollIntoView(align: "start" | "nearest" = "start", smooth = false): void {
     // Native walks the scrollable ancestors (document included) and does the
@@ -605,10 +635,12 @@ class DomSurface implements Surface {
       // it, and two sibling panes overscroll independently. (An earlier build
       // used `none`, which killed the chain but ALSO the wanted local bounce.)
       (el.style as CSSStyleDeclaration & { overscrollBehavior: string }).overscrollBehavior = "contain";
-      // The app root sets `touch-action: none` (the app owns gestures); a scroll
-      // pane opts BACK IN to native vertical panning so touch drag + momentum
-      // work on mobile.
-      el.style.touchAction = "pan-y";
+      // A scroll pane DELEGATES its panning to the browser — native vertical
+      // touch drag + momentum — and keeps pinch-zoom delegated too (plain
+      // `pan-y` would silently forbid the user's pinch over the pane, a claim
+      // nobody made). Set after the declareScroll mark so refreshTouchAction
+      // knows to leave this element alone.
+      el.style.touchAction = "pan-y pinch-zoom";
       // A scroll container accepts pointer/wheel events (its children stay inert,
       // so clicks still resolve to the sink under the pointer). Native wheel then
       // drives the box directly: every Declare view is position:absolute, but abs
@@ -632,9 +664,9 @@ class DomSurface implements Surface {
       }
       el.style.overflowY = "";
       el.style.overflowX = "";
-      el.style.touchAction = "";
       el.style.pointerEvents = "none";
       delete el.dataset.declareScroll;
+      this.refreshTouchAction(); // back to whatever this view's own claim says
     }
   }
 
@@ -805,11 +837,73 @@ class DomSurface implements Surface {
     else SINKS.delete(this.element);
     if (sink !== null && wants !== undefined) WANTS.set(this.element, wants);
     else WANTS.delete(this.element);
-    // A view that owns raw touch owns the GESTURE: the browser must not claim
-    // it for a scroll or a zoom in that subtree. Everywhere else the root's own
-    // policy stands (see the root's touch-action).
-    if (wants?.wantsTouch === true) this.element.style.touchAction = "none";
+    // Declaring a handler CLAIMS from the browser exactly what that handler
+    // needs to fire (refreshTouchAction realizes it as this element's
+    // touch-action, covering the subtree by CSS's own chain rule).
+    this.refreshTouchAction();
+    // The wheel claim is not a touch-action: it is a non-passive listener that
+    // takes the wheel stream — trackpad pinch included, which arrives as
+    // ctrlKey wheels — before the browser scrolls the page or zooms it.
+    const wantsWheel = sink !== null && wants?.wantsWheel === true;
+    if (wantsWheel && this.wheelListener === undefined) {
+      const el = this.element;
+      this.wheelListener = (e: WheelEvent) => {
+        // Nearest claim wins, and delegation beats a claim: walk from the real
+        // target up to this element — an intervening native scroller keeps its
+        // wheel (a `scrolls` pane inside a claiming subtree still scrolls), a
+        // nearer onWheel view has already taken it, an editable or an island
+        // keeps its native interior.
+        for (let t = e.target instanceof HTMLElement ? e.target : null; t !== null && t !== el; t = t.parentElement) {
+          if (t.dataset.declareScroll !== undefined) return;
+          if (t.dataset.declareSlot !== undefined) return;
+          if (t.tagName === "INPUT" || t.tagName === "TEXTAREA") return;
+          if (WANTS.get(t)?.wantsWheel === true) return;
+        }
+        const s = SINKS.get(el);
+        if (s === undefined) return;
+        const r = el.getBoundingClientRect();
+        // View-local point (the positional rule of mouseDown/click), the raw
+        // deltas, and `pinch`: a trackpad pinch arrives on the wheel stream
+        // with the zoom-intent flag set (a mouse user's ctrl+wheel zoom
+        // reports the same way) — one handler hears wheels, trackpad scrolls,
+        // and trackpad pinches.
+        s("wheel", e.clientX - r.left, e.clientY - r.top, { deltaX: e.deltaX, deltaY: e.deltaY, pinch: e.ctrlKey });
+        e.preventDefault();
+      };
+      el.addEventListener("wheel", this.wheelListener, { passive: false });
+    } else if (!wantsWheel && this.wheelListener !== undefined) {
+      this.element.removeEventListener("wheel", this.wheelListener);
+      this.wheelListener = undefined;
+    }
     this.updateCarved();
+  }
+
+  private wheelListener: ((e: WheelEvent) => void) | undefined;
+
+  /** Realize this element's gesture CLAIM as its `touch-action` — the language
+   *  rule "the browser owns a gesture until a view claims it, and declaring
+   *  the handler is the claim", compressed to one CSS property per element:
+   *    - the raw touch family → `none` (every finger is the app's; the app
+   *      owes its own zoom);
+   *    - `onMouseMove` → `pinch-zoom` (the single-finger drag is the app's;
+   *      pinch stays the user's — and by the measured one-way ratchet this is
+   *      the MINIMUM suppression for the handler to fire at all);
+   *    - no claim → inherit, except the APP ROOT's default: `pinch-zoom` for
+   *      a clipped (fixed-window) app, `manipulation` (pan + pinch) for one
+   *      the browser scrolls — both retire double-tap zoom, which a painted
+   *      UI can never concede (two quick taps on a control must not lurch
+   *      the page).
+   *  A scroll pane owns its own value (setScroll's `pan-y pinch-zoom`) and is
+   *  left alone. */
+  refreshTouchAction(): void {
+    const el = this.element;
+    if (el.dataset.declareScroll !== undefined) return;
+    const w = WANTS.get(el);
+    let ta = "";
+    if (w?.wantsTouch === true) ta = "none";
+    else if (w?.wantsDrag === true) ta = "pinch-zoom";
+    else if (el.dataset.declareApp !== undefined) ta = this.boxClip ? "pinch-zoom" : "manipulation";
+    el.style.touchAction = ta;
   }
 
   setEditable(spec: EditableSpec | null): void {

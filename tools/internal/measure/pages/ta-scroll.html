@@ -1,0 +1,40 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Q2b — nested scroller under an ancestor's touch-action:none</title>
+<style>
+  body { margin: 0; padding: 60px 12px 30vh; font: 15px -apple-system, sans-serif; }
+  .wrap { margin: 14px 0; }
+  .scroller { height: 180px; overflow-y: auto; border: 3px solid #06c; background: #eef; }
+  .filler div { padding: 14px; border-bottom: 1px solid #ccd; }
+  #underNone { touch-action: none; background: #fdd; padding: 14px; }
+</style>
+<body>
+<h3>Q2b: does the island keep its own scrolling?</h3>
+<p>One-finger drag inside each blue box. CONTROL must scroll. The question is the
+second box — its ancestor has <code>touch-action:none</code>. On Chrome it still
+scrolls (the walk stops at the scroll container); does iOS agree?</p>
+
+<div class="wrap">
+  <b>CONTROL — plain scroller</b>
+  <div class="scroller" id="s1"><div class="filler"></div></div>
+</div>
+<div class="wrap" id="underNone">
+  <b>ancestor touch-action:none → scroller inside</b>
+  <div class="scroller" id="s2"><div class="filler"></div></div>
+</div>
+
+<script src="lab.js"></script>
+<script>
+  const L = lab("ta-scroll");
+  for (const f of document.querySelectorAll(".filler"))
+    f.innerHTML = Array.from({ length: 40 }, (_, i) => `<div>row ${i + 1}</div>`).join("");
+  for (const id of ["s1", "s2"]) {
+    const el = document.getElementById(id);
+    let last = 0;
+    el.addEventListener("scroll", () => {
+      const now = Date.now();
+      if (now - last > 400) { last = now; L.send("scroll", { box: id, top: Math.round(el.scrollTop) }); }
+    }, { passive: true });
+  }
+</script>

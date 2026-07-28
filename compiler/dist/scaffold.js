@@ -244,7 +244,7 @@ export const LANGUAGE_API = {
         `  insertChild(child: View, index: number): void;`,
         // The keyboard-traversal protocol (focus.ts): a view's tabOrder() decides
         // the members Tab descends into — override it to gate traversal (a closed
-        // TabSlider pane contributes none); tabDefault() is the default the
+        // Accordion Pane contributes none); tabDefault() is the default the
         // override composes with (visible children, source order).
         `  tabOrder(): View[];`,
         `  tabDefault(): View[];`,

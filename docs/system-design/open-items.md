@@ -349,7 +349,14 @@ desktop            TextInput×1   surface=0  line=1
 
 **Not the fix applied.** The chrome is a *yielding* derive — `if (!isSet(this, "fill") &&
 ownerOf(this, "fill") === null)` — so assigning `fill`/`stroke` displaces it entirely,
-which is what `SearchField` already does ("displaced by author nulls"). The calendar now
+which is what `SearchField` did ("displaced by author nulls"). **Retired 2026-07-27:**
+`SearchField` is gone from `library/` — it had exactly one instantiation (desktop's Help
+menu, a focus fixture), and its whole delta over a bare `TextInput` was a capsule radius
+plus a magnifier glyph. Worse, nulling the field's chrome to redraw it on a wrapper
+*displaced the focus-reactive edge* along with it, so the wrapper's own header admitted
+"focus shows as the caret." The lesson generalizes and belongs to the library charter: a
+wrapper that displaces a component's derives to restyle it loses the behavior riding
+those derives. The calendar now
 styles its two fields in its own vocabulary (`fieldBg`/`fieldEdge`) and will move onto
 the house rendition wholesale when it adopts the component library. There is no rawer
 editable to reach for and none is needed: `TextInput` IS the base (`Editor` above it is

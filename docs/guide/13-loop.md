@@ -51,9 +51,10 @@ documentation's entire navigation is three lines of exactly that.
 
 One discipline makes all of it free, and you already know it from
 [chapter 3](declare-docs:guide:relationships): **derived state is never assigned.**
-Every click writes `location`; `mode` and `chapter` only derive. Assign `chapter`
-directly in a handler and the write displaces its constraint — works once, and the
-back button silently dies. One writer; everything else derives. (A trailing `@name`
+Every click writes `location`; `mode` and `chapter` only derive. Both are computed
+defaults, so nothing protects them (chapter 3): assign `chapter` directly in a handler
+and the write simply lands, the formula is gone — works once, and the back button
+silently dies. One writer; everything else derives. (A trailing `@name`
 in the fragment scrolls a named view or a rendered heading into view once it exists —
 deep links into *content*, with the loading race handled for you.)
 

@@ -27,6 +27,7 @@
 
 import { DeclareError } from "./errors.js";
 import type { EditableSpec, InputSink, RenderBackend, Stretch, Surface, InputWants } from "./backend.js";
+import { lockFocusZoom } from "./viewport-lock.js";
 import { colorToCss, isGradient, type Fill, type Gradient, type Shadow, type Stroke } from "./value.js";
 import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.js";
 import { cssWeight, fontMetrics, fontString, textWidth, wrapLines, type TextStyle } from "./measure.js";
@@ -105,7 +106,11 @@ class Compositor {
     // selection of the canvas/page (editable overlays opt back in themselves).
     canvas.style.userSelect = "none";
     (canvas.style as CSSStyleDeclaration & { webkitUserSelect: string }).webkitUserSelect = "none";
-    canvas.style.touchAction = "none";
+    // The browser owns every gesture until a view claims one — the DOM root's
+    // same defaults (dom-backend refreshTouchAction), realized once on the
+    // shared canvas element; per-VIEW claims are arbitrated per gesture below,
+    // since one element cannot carry per-subtree CSS.
+    canvas.style.touchAction = root.rootTouchAction();
     const ctx = canvas.getContext("2d");
     if (ctx === null) throw new DeclareError("Canvas 2D is unavailable in this browser");
     this.canvas = canvas;
@@ -178,16 +183,58 @@ class Compositor {
         active.blur();
       }
     });
-    // Wheel → the scrolling surface under the pointer (own pixels means own
-    // scroll); the clamp uses the content extent, and the compositor repaints.
+    // Per-gesture CLAIM arbitration — the canvas twin of the DOM backend's
+    // per-element touch-action (its refreshTouchAction): hit-test where the
+    // first finger lands, union the declared claims up the hit chain (a claim
+    // covers its subtree), and suppress exactly what the claim names while
+    // the gesture lives. The raw touch family claims every finger (suppress
+    // at touchstart, as root `none` used to); `onMouseMove` claims only the
+    // single-finger drag — a second finger's pinch is left to the browser.
+    let claim: { touch: boolean; drag: boolean } | null = null;
+    canvas.addEventListener("touchstart", (e) => {
+      if (this.canvas === null || this.root === null) return;
+      if (claim === null) {
+        const r = this.canvas.getBoundingClientRect();
+        const t0 = e.touches[0];
+        claim = this.root.claimAt(t0.clientX - r.left, t0.clientY - r.top);
+      }
+      if (claim.touch) e.preventDefault();
+    }, { passive: false });
+    canvas.addEventListener("touchmove", (e) => {
+      if (claim === null) return;
+      if (claim.touch || (claim.drag && e.touches.length === 1)) e.preventDefault();
+    }, { passive: false });
+    const gestureEnd = (e: TouchEvent): void => {
+      if (e.touches.length === 0) claim = null;
+    };
+    canvas.addEventListener("touchend", gestureEnd);
+    canvas.addEventListener("touchcancel", gestureEnd);
+    // Wheel → the nearest enclosing claim or scroller under the pointer, the
+    // DOM backend's exact arbitration walked on the hit chain: an onWheel
+    // view claims the stream over its subtree (trackpad pinch included), a
+    // scrolling pane nearer the pointer keeps its wheel (own pixels means own
+    // scroll — the clamp uses the content extent, and the compositor repaints).
     canvas.addEventListener("wheel", (e) => {
       if (this.canvas === null || this.root === null) return;
       const r = this.canvas.getBoundingClientRect();
-      if (this.root.scrollBy(e.clientX - r.left, e.clientY - r.top, e.deltaY)) {
+      const x = e.clientX - r.left;
+      const y = e.clientY - r.top;
+      if (this.root.wheelTo(x, y, e.deltaX, e.deltaY, e.ctrlKey) === "claimed") {
+        e.preventDefault();
+        return;
+      }
+      if (this.root.scrollBy(x, y, e.deltaY)) {
         e.preventDefault();
         this.invalidate();
       }
     }, { passive: false });
+    // The full-gesture-control clause (Rule 3, viewport-lock.ts): an app that
+    // claimed every finger holds the viewport still while a field has focus —
+    // the editable overlays live in `host`, so the lock scopes there. Top-level
+    // only; an embedded island must not rewrite the host page's viewport.
+    if (!embedded && root.claimsAllFingers()) {
+      lockFocusZoom(host, () => this.canvas !== null);
+    }
     this.invalidate();
   }
 
@@ -447,6 +494,70 @@ class CanvasSurface implements Surface {
   setInput(sink: InputSink | null, wants?: InputWants): void {
     this.sink = sink; // input state changes no pixels — no invalidate
     this.wants = wants;
+  }
+
+  /** The ROOT surface's touch-action for the shared canvas element — the DOM
+   *  root's same defaults (dom-backend refreshTouchAction): an App that
+   *  claimed the raw touch family owns every finger; one that claimed the
+   *  drag keeps only pinch for the user; otherwise a clipped (fixed-window)
+   *  app retires pan with its scroll and an unclipped one keeps pan + pinch.
+   *  Double-tap zoom retires everywhere — a painted UI can never concede it. */
+  rootTouchAction(): string {
+    if (this.wants?.wantsTouch === true) return "none";
+    if (this.wants?.wantsDrag === true) return "pinch-zoom";
+    return this.boxClip ? "pinch-zoom" : "manipulation";
+  }
+
+  /** Did this (root) view declare the raw touch family — the full-gesture-
+   *  control fact the compositor's focus-zoom lock keys on. */
+  claimsAllFingers(): boolean {
+    return this.wants?.wantsTouch === true;
+  }
+
+  /** The gesture CLAIM over a point: the union of declared claims of the view
+   *  under it and its ancestors — a claim covers its subtree, mirroring the
+   *  DOM, where an element's effective touch-action intersects along its
+   *  ancestor chain. Read once at gesture start (the compositor's touchstart). */
+  claimAt(px: number, py: number): { touch: boolean; drag: boolean } {
+    const c = { touch: false, drag: false };
+    const t = this.hit(px, py);
+    for (let s = t !== null ? (t.key as CanvasSurface) : null; s !== null; s = s.parent) {
+      if (s.wants?.wantsTouch === true) c.touch = true;
+      if (s.wants?.wantsDrag === true) c.drag = true;
+    }
+    return c;
+  }
+
+  /** Deliver a wheel at (px,py) — PARENT-local, mirroring hit's transform —
+   *  to the nearest enclosing view claiming the wheel stream (wantsWheel),
+   *  unless a scrolling pane sits nearer the pointer, which keeps its wheel
+   *  (delegation beats a claim — the DOM backend's exact arbitration). A
+   *  positional descent like scrollBy, NOT the hit chain: a scroller has no
+   *  sink, so hit() would walk straight past it. Returns "claimed" when
+   *  delivered, "scroller" when a nearer pane owns it (scrollBy's business),
+   *  null when the point met neither. */
+  wheelTo(px: number, py: number, deltaX: number, deltaY: number, pinch: boolean): "claimed" | "scroller" | null {
+    if (!this.visible) return null;
+    let lx = px - this.x;
+    let ly = py - this.y;
+    if (this.scaleK !== 1) {
+      lx = (lx - this.pivotX) / this.scaleK + this.pivotX;
+      ly = (ly - this.pivotY) / this.scaleK + this.pivotY;
+    }
+    const cp = this.clipPathObj();
+    if (cp !== null && !hitCtx().isPointInPath(cp, lx, ly)) return null;
+    const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
+    if (this.scrolls && !inBox) return null;
+    const cy = this.scrolls ? ly + this.scrollOffset : ly;
+    for (let i = this.children.length - 1; i >= 0; i--) {
+      const r = this.children[i].wheelTo(lx, cy, deltaX, deltaY, pinch);
+      if (r !== null) return r;
+    }
+    if (this.wants?.wantsWheel === true && this.sink !== null && inBox) {
+      this.sink("wheel", lx, ly, { deltaX, deltaY, pinch });
+      return "claimed";
+    }
+    return this.scrolls && inBox ? "scroller" : null;
   }
 
   setEditable(spec: EditableSpec | null): void {

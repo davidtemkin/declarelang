@@ -55,10 +55,19 @@ mode:    string = { (app.location || "guide/01-thinking-in-declare").split("@")[
 chapter: string = { (app.location || "guide/01-thinking-in-declare").split("@")[0].split("/")[1] || "00-shape" },
 ```
 
-**Single-writer discipline** (the displacement rule enforces it): derived state
-like `mode`/`chapter` is never assigned — navigation writes `location`, and
-everything else follows. Assigning derived state directly would displace its
-constraint and silently disconnect back/forward.
+**Single-writer discipline**: derived state like `mode`/`chapter` is never
+assigned — navigation writes `location`, and everything else follows.
+
+Nothing enforces this, and that is the point of stating it. Note the spelling
+above: `mode`/`chapter` are **computed defaults**, formulas with no cell of their
+own, so no owner protects them — a direct assignment simply lands, the formula is
+gone, and back/forward silently stop working. (A *set* constraint, `x = { … }`, is
+the opposite: it owns its slot and the runtime refuses a direct write outright.
+Only the sanctioned displace/resume path — an animator or a state override,
+`animation.md` §2 rules 2–4 — may take such a slot over, and it resumes the
+constraint afterward. "Displacement" names that mechanism and nothing else; do not
+use the word for an author assignment, which is either refused or a silent
+overwrite depending on the spelling.)
 
 **A location is a request, not a guarantee.** Arbitrary strings are navigable;
 unrecognized state degrades wherever the app's own parsing sends it (per §3,

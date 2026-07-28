@@ -1672,6 +1672,31 @@ App [ width=1, height=1, W [ ] ]`);
   assert.match(r.source, /"" \+ parent\.tone/, "a warning never blocks — the nearer resolution stands");
 });
 
+await test("compile(): a sub-16px text field warns with the 16px rule and the fix named (DECLARE3005)", () => {
+  const r = compile(`App [ width=400, height=300,\n  TextInput [ width=200, height=30, fontSize = 12 ] ]`);
+  assert.deepEqual(r.errors, []);
+  assert.equal(r.warnings.length, 1);
+  assert.match(r.warnings[0].message, /a text field at 12px: iOS zooms the whole page toward any focused field smaller than 16px/);
+  assert.match(r.warnings[0].message, /set fontSize = 16/, "the fix is named (AREPO-5)");
+  const d = r.diagnostics.find((d) => d.code === "DECLARE3005");
+  assert.equal(d?.severity, "warning", "a small field never blocks");
+  assert.ok(r.source !== null, "the program still compiles");
+});
+
+await test("compile(): the 16px warning follows the nearest written size — inherited literals count, { } sizes stay silent", () => {
+  const inherited = compile(`App [ width=400, height=300, fontSize = 12,\n  TextInput [ width=200, height=30 ] ]`);
+  assert.equal(inherited.warnings.length, 1, "a field inheriting a written 12px warns");
+  const computed = compile(`App [ width=400, height=300,\n  TextInput [ width=200, height=30, fontSize = { app.width > 500 ? 12 : 16 } ] ]`);
+  assert.deepEqual(computed.warnings, [], "a computed size is unknowable — no guess, no warning");
+  const fine = compile(`App [ width=400, height=300, fontSize = 12,\n  TextInput [ width=200, height=30, fontSize = 16 ] ]`);
+  assert.deepEqual(fine.warnings, [], "the field's own 16 overrides the inherited 12");
+});
+
+await test("compile(): full gesture control (raw touch on the App) exempts the 16px warning — the runtime locks the zoom instead", () => {
+  const r = compile(`App [ width=400, height=300, onTouchStart(e) { },\n  TextInput [ width=200, height=30, fontSize = 12 ] ]`);
+  assert.deepEqual([r.errors, r.warnings], [[], []]);
+});
+
 await test("compile(): bare built-ins resolve to this (never a silent outer hop); no shadow noise", () => {
   const r = compile(`class Screen extends View [ shown: boolean = false,
     opacity = { shown ? 1 : 0 },

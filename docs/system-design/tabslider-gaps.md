@@ -1,5 +1,11 @@
 # Declare weather — tabslider & reveal-animation gaps
 
+> **Renamed 2026-07-27:** the library component this note investigates is now
+> **`Accordion`** (its panes are `Pane`), not `TabSlider`/`Tab` — it keeps one pane
+> open at a time and was never a tab bar, and the old name was talking readers out of
+> using it. `library/accordion.declare`. The LZX originals it is compared against keep
+> their own names (`basetabslider`/`basetabelement`), as does this note below.
+
 Frame-by-frame comparison (puppeteer filmstrips) of `apps/weather` (the LZX
 original, via `basetabslider`/`basetabelement`) vs `weather` surfaced three
 motion gaps. This note records what the original does, why Declare differs, and the

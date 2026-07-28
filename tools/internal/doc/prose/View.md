@@ -215,6 +215,14 @@ The pointer entered the view (retained enter tracking) — the hover-in half. Se
 The pointer left the view — the hover-out half; also fires when a press is abandoned off
 the box, so clear both `hovered` and `pressed` here.
 
+## onWheel
+The wheel turned over the view — mouse wheel, trackpad scroll, or trackpad pinch, which
+arrives on the same stream with `e.pinch` true (a ctrl+wheel zoom reports identically).
+The event carries the point in this view's coordinates plus `deltaX`/`deltaY`. Declaring
+it **claims the wheel** over this view and its subtree — the browser stops scrolling or
+zooming the page with it — except over a nested `scrolls` pane, which keeps its own
+wheel. ⌘ +/− dispatches no event and stays out of reach.
+
 ## onFocus
 The view gained keyboard focus (it is `focusable` and was tabbed or clicked to). Drive a
 focus ring off it.

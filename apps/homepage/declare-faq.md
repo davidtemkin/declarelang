@@ -56,7 +56,7 @@ Side by side, yes; interleaved, no. A Declare app embeds in any page — includi
 
 ### How do I deep-link into an app? Is there a router?
 
-There's no router object — location is an attribute, like everything else. An app declares `location` on its root and the host wires it to the URL fragment: writing it navigates (one history entry per change), the back button writes it back, and a deep link is just an initial value — state *derives* from location the same way everything else derives. The documentation app on this site works this way: `#guide/08-data` opens that chapter directly, and a trailing anchor can scroll a specific heading into view. Apps opt in — a demo that declares no location simply has none — and static extraction follows an app's locations, so deep-linkable content is also crawlable content.
+There's no router object — location is an attribute, like everything else. An app declares `location` on its root and the host wires it to the URL fragment: writing it navigates (one history entry per change), the back button writes it back, and a deep link is just an initial value — state *derives* from location the same way everything else derives. The documentation app on this site works this way: `#guide/09-data` opens that chapter directly, and a trailing anchor can scroll a specific heading into view. Apps opt in — a demo that declares no location simply has none — and static extraction follows an app's locations, so deep-linkable content is also crawlable content.
 
 ### How do Declare-written sites handle crawlers and SEO without server-side rendering?
 
@@ -76,7 +76,7 @@ One program renders through managed DOM elements or directly to a single canvas 
 
 Concretely, from the flagship comparison (a full-featured calendar built twice, once in Declare and once in React, measured side by side):
 
-- **Size**: the entire Declare calendar — application *and* runtime — ships at about <!--stat:calendar.wireKB-->52<!--/stat--> KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte). The React equivalent is roughly twice the wire weight, with more than twice the source code.
+- **Size**: the entire Declare calendar — application *and* runtime — ships at about <!--stat:calendar.wireKB-->53<!--/stat--> KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte). The React equivalent is roughly twice the wire weight, with more than twice the source code.
 - **Responsiveness**: measured input latency was several times lower in the Declare version. When you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.
 - **Startup**: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.
 

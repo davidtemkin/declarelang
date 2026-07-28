@@ -37,11 +37,11 @@ colW: number = { (app.bodyW - 2 * app.pad - app.gutter) / app.nc },
 rowH: number = { (app.bodyH - app.headH) / app.nr },
 ```
 
-You built exactly this in [chapter 10](declare-docs:guide:arrangement), with two
+You built exactly this in [chapter 11](declare-docs:guide:arrangement), with two
 scalars and twenty-one cells. Here it is with four and forty-two. Switching views is
 one assignment to `mode`; the targets re-derive, the springs chase, and every cell's
 geometry — a constraint reading `colW`/`rowH` — follows in lock-step. Now connect it
-to [chapter 9](declare-docs:guide:motion-and-modes)'s argument, in the running app:
+to [chapter 10](declare-docs:guide:motion-and-modes)'s argument, in the running app:
 when you click **Week**, watch what your eyes do. Nothing. You never lose the day
 you were looking at, because it never ceases to exist — *that* is continuity keeping
 the user oriented, delivered by a mechanism you can now write from memory.
@@ -77,7 +77,7 @@ cal: Dataset [ contents = { app.buildModel() } ],
 ```
 
 Paging to the next month sets one number; `buildModel` re-derives; keyed replication
-reconciles. This is [chapter 8](declare-docs:guide:data)'s board — raw truth,
+reconciles. This is [chapter 9](declare-docs:guide:data)'s board — raw truth,
 derived model, edits as writes — at full scale. "Navigation," which in your current
 stack is a subsystem, is here three assignments and a derivation.
 
@@ -122,7 +122,7 @@ with less machinery. This was the ceiling.
 
 Write something. `my-apps/` is yours, the [getting-started
 page](declare-docs:operational:getting-started) is the five-minute setup, and the
-board from [chapter 8](declare-docs:guide:data) is a good skeleton to grow. Keep
+board from [chapter 9](declare-docs:guide:data) is a good skeleton to grow. Keep
 [`declare.md`](declare-docs:spec:core) at hand — the whole language, one file, for
 you and your LLM both. The [reference](declare-docs:reference:index) has every
 attribute of every component. And when you hit something rough or wrong — the

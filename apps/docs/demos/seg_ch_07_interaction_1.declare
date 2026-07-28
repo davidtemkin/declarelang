@@ -1,8 +1,7 @@
 App [ width = 300, height = 160, fill = white,
     card: View [ x = 20, y = 40, width = 120, height = 80, cornerRadius = 10, fill = 0x4C8DFF,
-        downX: number = 0,
-        startX: number = 0,
-        onMouseDown(e) { downX = e.x; startX = this.x },
-        onMouseMove(e) { x = Math.max(0, Math.min(180, startX + (e.x - downX))) },
+        grabX: number = 0,
+        onMouseDown(e) { grabX = e.x },                    // view-local: where in the card you grabbed
+        onMouseMove(e) { x = Math.max(0, Math.min(180, e.x - grabX)) },   // root-space: minus the grab
         ],
     ]

@@ -183,6 +183,10 @@ export const Diag = {
   badPercent: (message: string, pos: Pos): DeclareError => err(code4(3002), message, pos),
   badDatapath: (message: string, pos: Pos): DeclareError => err(code4(3003), message, pos),
   setTwice: (message: string, pos: Pos): DeclareError => err(code4(3004), message, pos),
+  // A text field whose written size sits under iOS's 16px focus-zoom line
+  // (a WARNING — compile.ts smallFieldWarnings; the composed message names
+  // the behavior and the fix, diagnostics.md §4).
+  smallField: (message: string, pos: Pos, hint?: string): DeclareError => err(code4(3005), message, pos, hint),
   type: (message: string, pos?: Pos): DeclareError => err(code4(3000), message, pos),
 
   // 4xxx name resolution
@@ -282,6 +286,7 @@ export const DIAGNOSTIC_CATALOG: ReadonlyArray<{ code: string; phase: DiagPhase;
   { code: code4(3002), phase: "type", summary: "a percent with no axis to resolve against" },
   { code: code4(3003), phase: "type", summary: "a malformed datapath" },
   { code: code4(3004), phase: "type", summary: "an attribute is set twice" },
+  { code: code4(3005), phase: "type", summary: "a text field's size sits under the iOS focus-zoom line (warning)" },
   { code: code4(4000), phase: "name", summary: "name-resolution error (unclassified)" },
   { code: code4(4001), phase: "name", summary: "a bare name resolves to nothing in scope" },
   { code: code4(4002), phase: "name", summary: "a bare name shadows an outer member (warning)" },

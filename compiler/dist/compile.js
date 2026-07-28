@@ -121,6 +121,52 @@ function diagnose(errors, warnings, errPhase, warnPhase = "name") {
     ];
     return { diagnostics, report: renderReport(diagnostics) };
 }
+/** The gesture model's ordinary-apps clause (Rule 3, docs/guide Gestures
+ *  chapter): iOS zooms the whole page toward a focused text field whose text
+ *  is smaller than 16px — factor = 16 ÷ fontSize, measured — and back on
+ *  blur. The runtime leaves that behavior alone, so the fix belongs in the
+ *  source, and the compiler names it here: a WARNING, never blocking. Only
+ *  written knowledge speaks — a field whose effective size comes from a
+ *  literal number below 16 (its own `fontSize`, or the nearest enclosing
+ *  literal; prevailing inheritance follows containment). A `{ }`-computed
+ *  size is unknowable at compile time and stays silent. Two exemptions: an
+ *  app with full gesture control (its App declares the raw touch family) —
+ *  the runtime suspends the auto-zoom for it (viewport-lock.ts) — and
+ *  merged-in library source (below `mainStart`), which the author cannot
+ *  edit; their own fields are the ones they can fix. */
+function smallFieldWarnings(program, mainStart) {
+    const out = [];
+    if (program.root.methods.some((m) => m.name.startsWith("onTouch")))
+        return out;
+    const bases = new Map(program.classes.map((c) => [c.name, c.base]));
+    const isField = (tag) => {
+        for (let t = tag; t !== undefined; t = bases.get(t))
+            if (t === "TextInput")
+                return true;
+        return false;
+    };
+    const walk = (el, inherited) => {
+        let size = inherited;
+        let ownPos = null;
+        const own = el.attrs.find((a) => a.name === "fontSize");
+        if (own !== undefined) {
+            // A written number is knowledge; anything else (a `{ }` body, a theme
+            // derive) means "unknowable below here" — silence, not a guess.
+            size = own.value.kind === "number" ? own.value.value : null;
+            ownPos = own.pos;
+        }
+        if (isField(el.tag) && size !== null && size < 16 && el.pos.offset >= mainStart) {
+            const at = ownPos !== null && size !== inherited ? ownPos : el.pos;
+            out.push(Diag.smallField(`a text field at ${size}px: iOS zooms the whole page toward any focused field smaller than 16px, and back on blur — set fontSize = 16 on the field (or the ancestor it inherits from) to keep the viewport still`, at, `measured: the zoom factor is 16 ÷ fontSize — at ${size}px the page jumps to ×${(16 / size).toFixed(2)}; at 16px it stays put`));
+        }
+        for (const c of el.children)
+            walk(c, size);
+    };
+    for (const cls of program.classes)
+        walk(cls.body, null);
+    walk(program.root, null);
+    return out;
+}
 /** Names bound in every body without being members: the scope-noun arguments of
  *  the compiled Function (expr.ts) and its own `arguments`. `this` is not an
  *  identifier and needs no entry. `classroot` is deliberately NOT here — it is
@@ -295,6 +341,14 @@ export function compile(source, opts = {}) {
     const merged = libSources.length > 0
         ? libSources.join("\n") + "\n" + mainSource
         : mainSource;
+    // Every phase below indexes into `merged`; the author indexes into their own
+    // file. `rb` closes that gap on the way out (see makeRebaser).
+    let preludeLines = 0;
+    for (let i = merged.length - mainSource.length - 1; i >= 0; i--)
+        if (merged[i] === "\n")
+            preludeLines++;
+    const rb = makeRebaser(mainSource, preludeLines);
+    const rbAll = (es) => es.map(rb);
     // Re-parse the merged source so every later phase indexes into ONE text.
     // (Each piece parsed cleanly on its own as a library / program, and a run of
     // top-level declarations followed by the main root is itself a valid program.)
@@ -303,11 +357,13 @@ export function compile(source, opts = {}) {
         program = parseProgram(merged);
     }
     catch (e) {
-        if (e instanceof DeclareError)
-            return { source: null, errors: [e], warnings: [], ...diagnose([e], [], "syntax") };
+        if (e instanceof DeclareError) {
+            const es = rbAll([e]);
+            return { source: null, errors: es, warnings: [], ...diagnose(es, [], "syntax") };
+        }
         throw e;
     }
-    const errors = check(program);
+    const errors = rbAll(check(program));
     if (errors.length > 0)
         return { source: null, errors, warnings: [], ...diagnose(errors, [], "structure") };
     // Resolve EVERY body — the main tree's and every included class/stylesheet/
@@ -320,11 +376,13 @@ export function compile(source, opts = {}) {
     for (const s of program.styles)
         r.resolveBundle(s.body);
     r.resolveElement(program.root, [], program.root);
+    r.warnings.push(...smallFieldWarnings(program, merged.length - mainSource.length));
     const byPos = (a, b) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0);
     r.errors.sort(byPos);
     r.warnings.sort(byPos);
     if (r.errors.length > 0) {
-        return { source: null, errors: r.errors, warnings: r.warnings, ...diagnose(r.errors, r.warnings, "name") };
+        const es = rbAll(r.errors), ws = rbAll(r.warnings);
+        return { source: null, errors: es, warnings: ws, ...diagnose(es, ws, "name") };
     }
     // Splice highest-offset first so earlier offsets stay valid. Identifier
     // spans never overlap, so order within a body is immaterial beyond that.
@@ -339,9 +397,10 @@ export function compile(source, opts = {}) {
     // an unregistered provider throws, never silently skips). A type error
     // blocks emission like any other, mapped to its `.declare` line (DECLARE6001).
     if (opts.typecheck !== false) {
-        const typeErrors = typecheckBodies(out, program);
+        const typeErrors = rbAll(typecheckBodies(out, program));
         if (typeErrors.length > 0) {
-            return { source: null, errors: typeErrors, warnings: r.warnings, ...diagnose(typeErrors, r.warnings, "typecheck") };
+            const ws = rbAll(r.warnings);
+            return { source: null, errors: typeErrors, warnings: ws, ...diagnose(typeErrors, ws, "typecheck") };
         }
     }
     // TS-only syntax is checked (above), then STRIPPED for emission
@@ -439,22 +498,66 @@ export function compile(source, opts = {}) {
         depProgram = parseProgram(out);
     }
     catch (e) {
-        if (e instanceof DeclareError)
-            return { source: null, errors: [e], warnings: r.warnings, ...diagnose([e], r.warnings, "syntax") };
+        if (e instanceof DeclareError) {
+            const es = rbAll([e]), ws = rbAll(r.warnings);
+            return { source: null, errors: es, warnings: ws, ...diagnose(es, ws, "syntax") };
+        }
         throw e;
     }
     const residue = annotateProgram(depProgram).errors;
     if (residue.length > 0) {
-        const errs = residue
+        const errs = rbAll(residue
             .sort((a, b) => a.offset - b.offset)
-            .map((e) => Diag.residue(e.message, posOf(out, e.offset)));
-        return { source: null, errors: errs, warnings: r.warnings, ...diagnose(errs, r.warnings, "constraint") };
+            .map((e) => Diag.residue(e.message, posOf(out, e.offset))));
+        const ws = rbAll(r.warnings);
+        return { source: null, errors: errs, warnings: ws, ...diagnose(errs, ws, "constraint") };
     }
     // The navigation relation (capabilities.md §6): attach each activation
     // handler's navigate(to) target onto its element, then serialize alongside
     // deps. Analysis-only — no diagnostics, an unresolvable target is just no link.
     extractLinks(depProgram);
-    return { source: out, deps: serializeDeps(depProgram), links: serializeLinks(depProgram), errors: [], warnings: r.warnings, ...diagnose([], r.warnings, "name") };
+    const okWarnings = rbAll(r.warnings);
+    return { source: out, deps: serializeDeps(depProgram), links: serializeLinks(depProgram), errors: [], warnings: okWarnings, ...diagnose([], okWarnings, "name") };
+}
+/** Rebase positions from the MERGED source onto the author's own file.
+ *
+ *  Every phase after the source merge — check, resolution, typecheck, the dep
+ *  residue — indexes into one merged text whose prelude is the included library
+ *  source. A position straight out of those phases therefore names a line in a
+ *  file the author never wrote: a four-line program that instantiates a library
+ *  component reported its typo at *line 332*. Parse-phase errors precede the
+ *  merge and were always right, which is why this went unnoticed; the fix has to
+ *  reach every later phase.
+ *
+ *  Rebasing is done in LINES, not bytes: the merge splices whole sources, and the
+ *  later edits (identifier rewrites, type strips) are intra-line splices, so the
+ *  prelude's line count is invariant across `merged`, the resolved text, and the
+ *  stripped text — while its byte length is not. The offset is then recomputed
+ *  against the author's source, so it is exact in the coordinates the caller
+ *  actually holds.
+ *
+ *  A position landing INSIDE the prelude is a library-source problem. It keeps
+ *  its own coordinates and says so, rather than being mapped to a nonsense line
+ *  in the app — the author cannot act on it either way, but a labelled position
+ *  is debuggable and a silently wrong one is not. */
+function makeRebaser(mainSource, preludeLines) {
+    if (preludeLines <= 0)
+        return (e) => e;
+    const lineStarts = [0];
+    for (let i = 0; i < mainSource.length; i++)
+        if (mainSource[i] === "\n")
+            lineStarts.push(i + 1);
+    return (e) => {
+        const p = e.pos;
+        if (p === undefined)
+            return e;
+        const line = p.line - preludeLines;
+        if (line < 1) {
+            return new DeclareError(`${e.rawMessage} [in included library source, line ${p.line}]`, p, { code: e.code, hint: e.hint });
+        }
+        const base = lineStarts[line - 1] ?? 0;
+        return new DeclareError(e.rawMessage, { line, col: p.col, offset: base + Math.max(0, p.col - 1) }, { code: e.code, hint: e.hint });
+    };
 }
 /** Line/col/offset for a byte offset into `source` — positions a dep-residue
  *  error (a rare path, so a linear scan is fine). */

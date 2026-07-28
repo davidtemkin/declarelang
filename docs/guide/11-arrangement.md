@@ -12,7 +12,7 @@ and the one that separates it from every stack where animation is a layer:
 
 The reasoning is direct. Constraints stay true
 ([chapter 3](declare-docs:guide:relationships)). A spring moves a value continuously
-([chapter 9](declare-docs:guide:motion-and-modes)). So if every position and size in
+([chapter 10](declare-docs:guide:motion-and-modes)). So if every position and size in
 an arrangement is a constraint reading a handful of sprung values, then moving those
 values *is* rearranging the interface — and every in-between frame is a real layout,
 because the same constraints hold at every instant. Nothing "transitions." The truth
@@ -118,4 +118,4 @@ attributes — move as one continuous, interruptible whole, and you know the
 discipline that makes such motion mean something. That is the capability this
 language was built to make ordinary.
 
-[Next: **Run it, check it, ship it** →](declare-docs:guide:loop)
+[Next: **The browser owns a gesture until you claim it** →](declare-docs:guide:gestures)

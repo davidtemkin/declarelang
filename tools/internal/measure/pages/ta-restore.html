@@ -1,0 +1,21 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Q2a — child pinch-zoom inside ancestor none (full screen)</title>
+<style>
+  body { margin: 0; font: 17px -apple-system, sans-serif; }
+  #zone { position: fixed; inset: 0; background: #fdd; touch-action: none; }
+  #restore { position: absolute; inset: 8%; background: #fbb; border: 4px dashed #a00;
+             touch-action: pinch-zoom; display: flex; align-items: center;
+             justify-content: center; text-align: center; }
+</style>
+<body>
+<div id="zone">
+  <div id="restore">
+    Ancestor is <code>touch-action:none</code>;<br>this dashed box (84% of the screen)
+    is a child<br>with <code>touch-action: pinch-zoom</code>.<br><br>
+    Pinch anywhere inside the dashes.<br>Does the scale move?
+  </div>
+</div>
+<script src="lab.js"></script>
+<script>lab("ta-restore");</script>

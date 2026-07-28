@@ -108,14 +108,23 @@ is no `setState`, no separate notify call, and — just as important — **no ra
 that skips the cascade**. One way to write, always correct. Reads are symmetric: a
 bare `count` is the tracked read; there is no `getAttribute` either.
 
-One subtlety carries a real design rule. Assigning to a slot that *has* a constraint
-**displaces the constraint** — the slot holds your written value from then on, and the
-relationship is gone. That is occasionally what you want (seed a value, then take over
-by hand). But it means **derived state should never be assigned** — change its
-*inputs* instead. If `mode` derives from `app.location`, a handler that assigns `mode`
-directly works once and quietly disconnects everything that made `mode` trustworthy —
-the derivation is dead from that write on. This rule returns with force in
-[chapter 11](declare-docs:guide:loop), where the state deriving from the URL is what
+One subtlety carries a real design rule, and the language draws a sharp line through it.
+
+Assign to a slot that a **set constraint** owns — `width = { … }` — and the runtime
+refuses the write outright: *"bound by a constraint … change what the constraint reads
+instead."* You cannot clobber a standing relationship by accident. (Animators and states
+*do* take a slot over, but by a sanctioned path that suspends the constraint and resumes
+it, re-evaluated, when they are done.)
+
+A **computed default** is the case to watch: `mode: string = { … }`, a declaration whose
+default is an expression. It owns no slot, so there is nothing to protect — the write
+simply lands, the formula is gone, and nothing warns you. If `mode` derives from
+`app.location`, a handler that assigns `mode` directly works once and quietly
+disconnects everything that made `mode` trustworthy.
+
+So the rule, whichever kind of member it is: **derived state is never assigned** — change
+its *inputs* instead. It returns with force in
+[chapter 13](declare-docs:guide:loop), where the state deriving from the URL is what
 makes the back button work.
 
 ## What reactivity costs
@@ -139,7 +148,7 @@ rather than a silent surprise. Five instincts trigger it:
 - indexing by a runtime key (`this[someString]`) → name the slot, or move the lookup
   into a method the compiler can read through;
 - building a datapath at runtime → that is data-binding's job
-  ([chapter 8](declare-docs:guide:data));
+  ([chapter 9](declare-docs:guide:data));
 - aggregating over the live view tree (`children.map(v => v.x)`) → that is what a
   `layout` is for ([chapter 5](declare-docs:guide:space));
 - calling something the compiler can't see into (host interop, a function-valued
@@ -162,7 +171,8 @@ plain `{ }` unless you specifically want a value frozen.
 ---
 
 **What you can now say:** you can look at any binding and name what it reacts to, you
-know why assignment is safe and when it displaces, and you know what reactivity costs
+know why assignment is safe and which members the runtime will not protect, and you
+know what reactivity costs
 — which is to say, you now hold the whole runtime model. What remains is craft.
 
 [Next: **The tree is the app** →](declare-docs:guide:tree)

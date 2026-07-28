@@ -647,10 +647,14 @@ class CautionBadge extends View [ width = { this.edge }, height = { this.edge },
 /*
 ## HelpSearch — a real input inside a menu overlay
 
-The Help menu's search field, rendered as a menu `kind:` row: the row's
-chrome (no highlight, no pick) is the menu's, and inside sits the library
-`SearchField` with a live `TextInput` — a genuine test of keyboard focus
-inside a raised layer.
+The Help menu's search field, rendered as a menu `kind:` row: the row's chrome (no
+highlight, no pick) is the menu's, and inside sits a live `TextInput` — a genuine test
+of keyboard focus inside a raised layer.
+
+The search *look* is two attributes, not a component: a capsule is
+`cornerRadius = height / 2`, and `padding` opens the room the magnifier sits in. The
+field keeps its own derived chrome (surface fill, and the 1px edge that turns accent
+while focused), which a wrapper drawing the box itself would have displaced.
 */
 
 class HelpSearch extends View [ height = 40,
@@ -659,7 +663,26 @@ class HelpSearch extends View [ height = 40,
     // the field reaches to 12px from the menu's edges,
     // past the kind-row host's standard 24px inset — hence the negative x
 
-    sf: SearchField [ x = -12, y = 5, width = { parent.width + 10 }, height = 30 ],
+    sf: TextInput [ x = -12, y = 5, width = { parent.width + 10 }, height = 30,
+        cornerRadius = { this.height / 2 },
+        padding = 28,                                  // room for the glyph below
+        placeholder = "Search",
+        ],
+
+    // declared after the field, so it paints over it
+    mag: View [ x = { classroot.sf.x + 10 }, y = { classroot.sf.y + (classroot.sf.height - 14) / 2 },
+        width = 14, height = 14, pointerEvents = "none",
+        draw(d) {
+            d.strokeStyle = theme.textFaint
+            d.lineWidth = 1.5
+            d.lineCap = "round"
+            d.beginPath()
+            d.arc(6, 6, 4.2, 0, Math.PI * 2, false)
+            d.moveTo(9.4, 9.4)
+            d.lineTo(12.5, 12.5)
+            d.stroke()
+            },
+        ],
     ]
 
 

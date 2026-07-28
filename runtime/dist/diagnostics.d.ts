@@ -43,6 +43,7 @@ export declare const Diag: {
     badPercent: (message: string, pos: Pos) => DeclareError;
     badDatapath: (message: string, pos: Pos) => DeclareError;
     setTwice: (message: string, pos: Pos) => DeclareError;
+    smallField: (message: string, pos: Pos, hint?: string) => DeclareError;
     type: (message: string, pos?: Pos) => DeclareError;
     unresolved: (name: string, scope: string, pos: Pos) => DeclareError;
     shadowing: (message: string, pos: Pos) => DeclareError;
