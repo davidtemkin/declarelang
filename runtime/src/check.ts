@@ -29,9 +29,9 @@
 import type { Element, Attr, Method, Program, TopDecl, Literal } from "./parser.js";
 import { CSS_COLORS } from "./css-colors.js";
 import { DeclareError, type Pos } from "./errors.js";
-import { attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName, type ComponentSchema } from "./schema.js";
+import { attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName, type ComponentSchema, PAYLOAD_TYPE_NAMES, EVENT_PAYLOAD } from "./schema.js";
 import { Diag } from "./diagnostics.js";
-import { coerce, describeLiteral, type AttrType, type AttrValue } from "./value.js";
+import { coerce, describeLiteral, type AttrType, type AttrValue, declaredType, DECLARED_TYPE_NAMES } from "./value.js";
 import { validateExpr, validateBody } from "./expr.js";
 import { faceWeight, FONT_WEIGHTS } from "./font.js";
 import { NOUNS, RESERVED, programSchemas, checkDecl, withDecls, manyPathOf, coerceToken } from "./program-schema.js";
@@ -86,6 +86,13 @@ export function check(input: Element | Program): DeclareError[] {
   }
   checkBodyRootReplication(program.root, errors, "the program root");
   checkElement(program.root, errors, schemas, false, env);
+  // Signature TYPE NAMES (`f(w: Window) -> number`). Checked program-wide,
+  // here, because a written type may name any component in the program — the
+  // per-method checkMethod sees only its own schema. Unresolvable names must
+  // error rather than fall back to `any`: a silent `any` is exactly the
+  // under-report that blinds both typecheck and dep-extraction.
+  for (const info of infos) checkSignatureTypes(info.decl.body, errors, schemas);
+  checkSignatureTypes(program.root, errors, schemas);
   // The `use` keep-list (composition.md §1c): every name must resolve to a known
   // component — a built-in, or a class the program declares or auto-includes —
   // else it is a typo that would silently keep nothing. `schemas` is the merged
@@ -119,6 +126,57 @@ export function check(input: Element | Program): DeclareError[] {
  *  instantiate: both consume the same helpers (checkAttr, coerceToken via
  *  checkThemeRecord/checkEntry), so a direct instantiate of an unchecked
  *  tree dies with the same wording. */
+/** Every method signature's written type names, recursively. A name resolves
+ *  if it is in the declarable value vocabulary (`number`, `string`, `View`, an
+ *  enum) or names a component in this program. */
+function checkSignatureTypes(
+  el: Element,
+  errors: DeclareError[],
+  schemas: Readonly<Record<string, ComponentSchema>>
+): void {
+  const known = (n: string): boolean =>
+    declaredType(n) !== null || schemas[n] !== undefined || PAYLOAD_TYPE_NAMES.has(n);
+  const schema = schemas[el.tag];
+  for (const m of el.methods) {
+    // A HANDLER's payload is not the author's to choose. `onMouseUp` receives a
+    // PointerUpEvent; writing anything else is the override mismatch TypeScript
+    // reports as TS2416 — but tsc sees it on a SYNTHESIZED class line with no
+    // author position, so it is caught here instead, where the position and the
+    // language's own vocabulary are both in hand.
+    const ev = schema === undefined ? null : eventOfHandler(m.name);
+    if (ev !== null && eventsOf(schema).includes(ev)) {
+      const payload = EVENT_PAYLOAD[ev];
+      const first = m.params[0];
+      if (payload === undefined && first?.type !== undefined) {
+        errors.push(new DeclareError(
+          `'${m.name}' receives nothing — the '${ev}' event carries no payload, so write '${m.name}()'`,
+          first.typePos ?? m.pos
+        ));
+      } else if (payload !== undefined && first?.type !== undefined && first.type !== payload) {
+        errors.push(new DeclareError(
+          `'${m.name}' receives a ${payload} — write '${m.name}(${first.name}: ${payload})', not '${first.type}'`,
+          first.typePos ?? m.pos
+        ));
+      }
+    }
+    for (const prm of m.params) {
+      if (prm.type !== undefined && !known(prm.type)) {
+        errors.push(new DeclareError(
+          `unknown type '${prm.type}' for parameter '${prm.name}' — a signature type is one of ${DECLARED_TYPE_NAMES.join(", ")}, or a component class in this program`,
+          prm.typePos ?? m.pos
+        ));
+      }
+    }
+    if (m.returns !== undefined && !known(m.returns)) {
+      errors.push(new DeclareError(
+        `unknown return type '${m.returns}' for '${m.name}' — a signature type is one of ${DECLARED_TYPE_NAMES.join(", ")}, or a component class in this program`,
+        m.returnsPos ?? m.pos
+      ));
+    }
+  }
+  for (const c of el.children) checkSignatureTypes(c, errors, schemas);
+}
+
 export function checkStyleDecls(
   program: Program,
   schemas: Readonly<Record<string, ComponentSchema>>,
@@ -1245,11 +1303,11 @@ export function checkMethod(schema: ComponentSchema, m: Method): CheckedMethod {
       m.pos
     );
   }
-  const noun = m.params.find((p) => p === "parent" || p === "classroot" || p === "app");
+  const noun = m.params.map((p) => p.name).find((p) => p === "parent" || p === "classroot" || p === "app");
   if (noun !== undefined) {
     return err(`${schema.name}.${m.name}: a parameter may not be named '${noun}' — it is a scope noun (language §11)`, m.pos);
   }
-  const e = validateBody(m.params, m.body);
+  const e = validateBody(m.params.map((p) => p.name), m.body);
   if (e !== null) {
     return err(`${schema.name}.${m.name}(…) ${e}`, m.bodyPos);
   }

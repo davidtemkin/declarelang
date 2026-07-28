@@ -415,7 +415,7 @@ class FullPageEditor extends View [ width = { app.width }, height = { app.height
         dragging: boolean = false,
         fill = { dragging || hovered ? theme.accent2 : theme.line },
         onMouseDown()  { dragging = true },
-        onMouseMove(e) { if (dragging) classroot.split = Math.max(240, Math.min(app.width - 320, e.x)) },
+        onMouseMove(e: PointerEvent) { if (dragging) classroot.split = Math.max(240, Math.min(app.width - 320, e.x)) },
         onMouseUp()    { dragging = false },
         ],
     preview: PreviewFrame [ x = { classroot.splitX + 6 }, y = 44,
@@ -444,7 +444,7 @@ number · heading · lead rhythm every numbered section opens with.
 */
 
 class GridBg extends View [
-    draw(d) {
+    draw(d: Draw) {
         d.fillStyle = theme.grid
         for (let gx = 0; gx <= width;  gx += 32) d.fillRect(gx, 0, 1, height)
         for (let gy = 0; gy <= height; gy += 32) d.fillRect(0, gy, width, 1)

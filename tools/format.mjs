@@ -174,6 +174,7 @@ export function lex(src) {
       push("bcomment", start);
       continue;
     }
+    if (c === "-" && src[i + 1] === ">") { i += 2; push("arrow", start); continue; }
     if (c === "<" && src[i + 1] === "-" && src[i + 2] === ">") { i += 3; push("bindtwo", start); continue; }
     if (c === "<" && src[i + 1] === "-") { i += 2; push("subfrom", start); continue; }
     if (PUNCT[c]) { i++; push(PUNCT[c], start); continue; }
@@ -313,8 +314,19 @@ function analyze(tokens) {
         }
       } else if (tok().kind === "lp") {
         p++;
-        while (tok().kind === "ident") { p++; if (tok().kind === "comma") p++; else break; }
+        // A signature carries TYPES (language §4: `f(w: Window) -> number`).
+        // `-> Ret` is house style; `: Ret` also parses, as in the parser.
+        while (tok().kind === "ident") {
+          p++;
+          if (tok().kind === "colon") { tok().colonKind = "param"; p++; expect("ident", "a parameter type name"); }
+          if (tok().kind === "comma") p++; else break;
+        }
         expect("rp", "')'");
+        if (tok().kind === "arrow" || tok().kind === "colon") {
+          if (tok().kind === "colon") tok().colonKind = "ret";
+          p++;
+          expect("ident", "a return type name");
+        }
         // `<-` subscriptions were removed (2026-07-26 — services are components
         // now). Still lexed, so the formatter fails with the same pointed
         // message the parser gives rather than a bare shape error.

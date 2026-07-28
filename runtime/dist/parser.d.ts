@@ -55,14 +55,33 @@ export interface Attr {
      *  edits back to it. Absent = an ordinary one-way `name = value`. */
     bind?: "two";
 }
-/** `name(params) { body }` — a method member (language §4's shorthand; the
- *  canonical typed form waits for the type surface). The body is raw TS
+/** One parameter of a method signature. `type` is the WRITTEN type name —
+ *  resolving it against the value vocabulary (a primitive, or a component
+ *  class) is the checker's job, exactly as for an attribute declaration's
+ *  `type`. Absent means the author wrote a bare name; scaffold emits `any` for
+ *  it, which under-reports both typechecking AND dep-extraction (they are one
+ *  analysis viewed twice — constraints.md §2), so bare params are on their way
+ *  out of the corpus. */
+export interface Param {
+    name: string;
+    type?: string;
+    /** Position of the written type name, for a positioned "unknown type" —
+     *  the same role `AttrDecl.typePos` plays for a declaration. */
+    typePos?: Pos;
+}
+/** `name(params) -> Ret { body }` — a method member. This is language §4's
+ *  canonical typed form: "A method is a named field of function type …
+ *  Parameters are name-first (`h: int`) … Omit `-> Ret` for a void method."
+ *  Both `-> Ret` and `: Ret` parse; `->` is house style. The body is raw TS
  *  *statement* source, captured by the same balanced-brace scan as a `{ }`
  *  value; `bodyPos` points at its opening brace so syntax errors land on the
  *  code, not the name. */
 export interface Method {
     name: string;
-    params: string[];
+    params: Param[];
+    returns?: string;
+    /** Position of the written return type name (see `Param.typePos`). */
+    returnsPos?: Pos;
     body: string;
     pos: Pos;
     bodyPos: Pos;

@@ -35,7 +35,7 @@ class Tooltip extends View [ visible = { shown && tipText != "" },
     py: number = 0,
 
     tips: Tip [
-        onTip(e) {
+        onTip(e: TipEvent) {
             if (e == null || e.root != app) { classroot.shown = false; return }
             classroot.ex = e.x; classroot.ey = e.y; classroot.ew = e.w; classroot.eh = e.h
             classroot.px = app.pointerX; classroot.py = app.pointerY   // the pointer as it RESTS at show

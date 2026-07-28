@@ -14,7 +14,7 @@ class Switch extends Control [
     cornerRadius = { height / 2 },
     checked: boolean = false,
 
-    input(v) { checked = v },
+    input(v: boolean) { checked = v },
 
     press()   { input(!checked) },
     onClick() { if (!disabled) press() },

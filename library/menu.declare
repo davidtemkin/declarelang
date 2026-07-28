@@ -63,7 +63,7 @@ class Menu extends View [ visible = { shown }, width = 220,
 
     picked(id) { },
 
-    openAt(v, e) {
+    openAt(v: View, e: PointerEvent) {
         let x = e.x
         let y = e.y
         let n = v
@@ -74,7 +74,7 @@ class Menu extends View [ visible = { shown }, width = 220,
         this.raise()
         },
 
-    openFor(v) {
+    openFor(v: View) {
         let x = 0
         let y = 0
         let n = v
@@ -93,7 +93,7 @@ class Menu extends View [ visible = { shown }, width = 220,
     offX: number = 0,
     offY: number = 0,
 
-    place(x, y) {
+    place(x: number, y: number) {
         let px = 0
         let py = 0
         let n = this.parent
@@ -124,7 +124,7 @@ class Menu extends View [ visible = { shown }, width = 220,
         this.driveSub(child, subItems, x + this.width - 6, y - 5)
         },
 
-    driveSub(c, subItems, x, y) {
+    driveSub(c, subItems: array, x: number, y: number) {
         c.items = subItems
         c.picked = (id) => this.pick(id)         // delivery + close route through the CHAIN to the root
         c.shown = true
@@ -134,14 +134,14 @@ class Menu extends View [ visible = { shown }, width = 220,
 
     closeSub() { if (child != null) this.closeIt(child) },
     closeIt(c) { c.close() },
-    subShown(c) { return c != null && c.shown },
+    subShown(c) -> boolean { return c != null && c.shown },
     rootClose() { this.closeIt(this.rootMenu != null ? this.rootMenu : this) },
 
     // ── keyboard roving (the deepest shown menu handles the keys) ──────────
 
-    rowsOf(b) { return b.children },
+    rowsOf(b: View) -> array { return b.children },
 
-    step(d) {
+    step(d: number) {
         const rows = this.rowsOf(this.panel.body).filter((r) => !r.divider && r.enabled && r.custom == "")
         if (rows.length == 0) return
         const i = rows.indexOf(this.activeRow)
@@ -167,7 +167,7 @@ class Menu extends View [ visible = { shown }, width = 220,
     stepIn(c) { c.step(1) },
 
     keys: Keys [
-        onKeyDown(e) {
+        onKeyDown(e: KeyEvent) {
             if (!classroot.shown) return
             if (classroot.subShown(classroot.child)) return   // the deeper menu handles
             if (e.key == "ArrowDown") classroot.step(1)
@@ -176,7 +176,7 @@ class Menu extends View [ visible = { shown }, width = 220,
             else if (e.key == "ArrowRight") classroot.enterSub()
             else if (e.key == "ArrowLeft") { if (!classroot.isRoot) classroot.close() }
             },
-        onKeyUp(e) {
+        onKeyUp(e: KeyEvent) {
             if (!classroot.shown || e.key != "Escape") return
             if (classroot.subShown(classroot.child)) return   // the deeper menu handles
             classroot.rootClose()                             // Escape closes the WHOLE chain (macOS)
@@ -271,7 +271,7 @@ class Menu extends View [ visible = { shown }, width = 220,
 
                 bulb: View [ x = 11, y = center, width = 13, height = 16,
                     visible = { !parent.divider && parent.custom == "" && :icon == "lightbulb" },
-                    draw(d) {
+                    draw(d: Draw) {
                         const on = parent.hot || classroot.activeRow == parent
                         const c = on ? (typeof theme.menuHlText == "number" ? theme.menuHlText : theme.accentText) : theme.text
                         d.strokeStyle = c
@@ -316,7 +316,7 @@ class Menu extends View [ visible = { shown }, width = 220,
 
                 arrow: View [ width = 7, height = 11, visible = { parent.sub },
                     x = { parent.width - 17 }, y = { (parent.height - this.height) / 2 },
-                    draw(d) {
+                    draw(d: Draw) {
                         const hov = this.parent.hot || classroot.activeRow == this.parent
                         const c = hov ? (typeof theme.menuHlText == "number" ? theme.menuHlText : theme.accentText) : theme.textMuted
                         d.strokeStyle = c

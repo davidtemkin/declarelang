@@ -51,6 +51,24 @@ export declare const handlerName: (event: string) => string;
  *  the name is not handler-shaped. Handler-shaped is exactly `on` + a
  *  capital (the doc's rule — what keeps handlers out of the plain-method
  *  namespace), so `once` or `onward` are plain method names. */
+/** EVENT NAME → the payload type its handler receives, as a TYPE NAME the
+ *  scaffold can emit. Absent = the handler takes nothing.
+ *
+ *  Flat and global rather than per-schema because event names mean one thing
+ *  across the language: `keyDown` is a KeyEvent whether it fires on a focused
+ *  View or on a `Keys` member; `start`/`stop`/`repeat` mean the same on an
+ *  Animator and an AnimatorGroup. The payload shapes themselves live in
+ *  events.ts (the pointer family), keys.ts (KeyEvent), tip.ts (TipEvent) and
+ *  focus.ts (FocusGeometry) — this table is only the mapping.
+ *
+ *  This is what makes a handler's parameter checkable: the scaffold emits each
+ *  event's handler on the declaring class with this signature, so a user
+ *  handler that writes a WRONG type is an override mismatch (TS2416), exactly
+ *  as TypeScript treats any other override. */
+export declare const EVENT_PAYLOAD: Readonly<Record<string, string>>;
+/** The payload TYPE NAMES, for "is this a legal written signature type?".
+ *  Derived from the table so the two cannot drift. */
+export declare const PAYLOAD_TYPE_NAMES: ReadonlySet<string>;
 export declare function eventOfHandler(name: string): string | null;
 /** Every event `schema` answers, base-first — the inheritance walk of
  *  attrType, over the events half of the declaration. */

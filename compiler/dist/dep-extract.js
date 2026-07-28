@@ -778,7 +778,7 @@ export function extractProgram(program) {
     const constraints = [];
     const collect = (el, classRoot) => {
         for (const m of el.methods)
-            USER_METHODS.set(m.name, { params: m.params, body: m.body ?? "" });
+            USER_METHODS.set(m.name, { params: m.params.map((p) => p.name), body: m.body ?? "" });
         for (const a of el.attrs) {
             const v = asCode(a.value);
             if (v)

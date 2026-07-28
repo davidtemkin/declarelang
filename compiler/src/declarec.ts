@@ -83,7 +83,7 @@ export function usedComponentNames(program: Program): string[] {
   const walk = (el: Element): void => {
     for (const a of el.attrs) if (a.value.kind === "code") scan(a.value.src, true, []);
     for (const d of el.decls) if (d.def?.kind === "code") scan(d.def.src, true, []);
-    for (const m of el.methods) scan(m.body, false, m.params);
+    for (const m of el.methods) scan(m.body, false, m.params.map((p) => p.name));
     for (const c of el.children) walk(c);
   };
   walk(program.root);

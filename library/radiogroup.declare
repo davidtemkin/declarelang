@@ -18,8 +18,8 @@ include [ "control.declare" ]
 class RadioGroup extends View [
     value: string = "",
 
-    input(v) { value = v },
-    pick(v)  { input(v) },
+    input(v: string) { value = v },
+    pick(v: string)  { input(v) },
 
     layout: SimpleLayout [ axis = y, spacing = 10 ],
     ]

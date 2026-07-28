@@ -778,6 +778,50 @@ export const handlerName = (event: string): string =>
  *  the name is not handler-shaped. Handler-shaped is exactly `on` + a
  *  capital (the doc's rule — what keeps handlers out of the plain-method
  *  namespace), so `once` or `onward` are plain method names. */
+/** EVENT NAME → the payload type its handler receives, as a TYPE NAME the
+ *  scaffold can emit. Absent = the handler takes nothing.
+ *
+ *  Flat and global rather than per-schema because event names mean one thing
+ *  across the language: `keyDown` is a KeyEvent whether it fires on a focused
+ *  View or on a `Keys` member; `start`/`stop`/`repeat` mean the same on an
+ *  Animator and an AnimatorGroup. The payload shapes themselves live in
+ *  events.ts (the pointer family), keys.ts (KeyEvent), tip.ts (TipEvent) and
+ *  focus.ts (FocusGeometry) — this table is only the mapping.
+ *
+ *  This is what makes a handler's parameter checkable: the scaffold emits each
+ *  event's handler on the declaring class with this signature, so a user
+ *  handler that writes a WRONG type is an override mismatch (TS2416), exactly
+ *  as TypeScript treats any other override. */
+export const EVENT_PAYLOAD: Readonly<Record<string, string>> = {
+  // the single-point pointer family — view-local or root-space per handler
+  click: "PointerEvent", dblClick: "PointerEvent", hold: "PointerEvent",
+  mouseDown: "PointerEvent", mouseMove: "PointerEvent",
+  mouseOver: "PointerEvent", mouseOut: "PointerEvent",
+  mouseUp: "PointerUpEvent",                       // …plus `canceled`
+  touchStart: "TouchEvent", touchMove: "TouchEvent",
+  touchEnd: "TouchEvent", touchCancel: "TouchEvent",
+  wheel: "WheelEvent",
+  // the keyboard — the same normalized payload on a View and on `Keys`
+  keyDown: "KeyEvent", keyUp: "KeyEvent",
+  // value-carrying events
+  input: "string",                                 // TextInput: the new text
+  link: "string",                                  // RichText: the href
+  frame: "number",                                 // Frames: dt, in SECONDS
+  focusChange: "View",                             // Focus: the newly focused view
+  geometry: "FocusGeometry",
+  tip: "TipEvent",
+  // payload-free: focus, blur, escapeFocus, init, enter, load,
+  // start, stop, repeat, apply, remove
+};
+
+/** The payload TYPE NAMES, for "is this a legal written signature type?".
+ *  Derived from the table so the two cannot drift. */
+export const PAYLOAD_TYPE_NAMES: ReadonlySet<string> = new Set([
+  ...Object.values(EVENT_PAYLOAD),
+  "Touch",                      // reachable through TouchEvent.touches
+  "Draw", "DrawGradient",       // the `draw(d: Draw)` context (draw.ts)
+]);
+
 export function eventOfHandler(name: string): string | null {
   if (name.length < 3 || !name.startsWith("on") || name[2] < "A" || name[2] > "Z") return null;
   return name[2].toLowerCase() + name.slice(3);

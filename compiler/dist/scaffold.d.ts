@@ -7,6 +7,18 @@ import type { ClassDecl } from "../../runtime/dist/parser.js";
  *  `declare class`. The nullable decoration slots (stroke/shadow) and the two
  *  styling channels carry their `| null` here, matching what coercion admits. */
 export declare function tsType(t: AttrType): string;
+/** A WRITTEN signature type name (`f(w: Window) -> number`) → its TypeScript
+ *  type. Two sources, the same two an attribute declaration draws on: the
+ *  declarable value vocabulary (`number`, `string`, `array`, `Axis`, …) and the
+ *  component classes, every one of which is emitted here as a peer
+ *  `declare class`. Returns null when the name is neither, so the caller can
+ *  report it positioned against the author's text.
+ *
+ *  Nullability deliberately differs from a SLOT's: `tsType` gives a view- or
+ *  component-typed slot `| null` because an unset slot really is null, but a
+ *  parameter is not a slot — `f(w: Window)` says a Window arrives. Inventing
+ *  `| null` here would force a null check the author never asked for. */
+export declare function signatureTsType(written: string, isComponent: (n: string) => boolean): string | null;
 /** LANGUAGE-API members — the runtime surface a `{ }` body may READ or CALL
  *  that is deliberately NOT in the schemas: a schema models what an author can
  *  SET in `[ ]` ("lifecycle state (value, status, error) is runtime surface
@@ -44,4 +56,8 @@ export declare function memberSig(name: string, t: AttrType, nonNullColor?: bool
  *  + user), base-before-derived. Pure — the returned STRING is the whole
  *  product. `schemas` is `programSchemas(program.classes).schemas`; `classDecls`
  *  is `program.classes` (their methods). */
-export declare function generateScaffold(schemas: Readonly<Record<string, ComponentSchema>>, classDecls: readonly ClassDecl[], rootType?: string, classExtras?: ReadonlyMap<string, readonly string[]>): string;
+export declare function generateScaffold(schemas: Readonly<Record<string, ComponentSchema>>, classDecls: readonly ClassDecl[], rootType?: string, classExtras?: ReadonlyMap<string, readonly string[]>, 
+/** Written signature type names from INLINE elements too (the caller walks
+ *  the whole tree; `classDecls` covers only `class` bodies). Enum/record
+ *  aliases are collected from these as well as from attributes. */
+extraSignatureTypes?: readonly string[]): string;

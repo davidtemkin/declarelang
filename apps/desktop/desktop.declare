@@ -456,7 +456,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
             return hz + vz
             },
         onMouseMove() { if (classroot.sizeMode != "") classroot.moveSize() },
-        onMouseDown(e) { const z = this.zone(e.x, e.y); if (z != "") classroot.beginSize(z) },
+        onMouseDown(e: PointerEvent) { const z = this.zone(e.x, e.y); if (z != "") classroot.beginSize(z) },
         onMouseUp() { classroot.sizeMode = "" },
 
         // STATIC per-zone cursors: sinkless children of the band (WebKit will
@@ -481,7 +481,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
 
     grip: View [ x = { parent.width - classroot.corner }, y = { parent.height - classroot.corner }, visible = { !classroot.plain && !classroot.shaded },
         width = { classroot.corner }, height = { classroot.corner },
-        draw(d) {
+        draw(d: Draw) {
             if (!classroot.chrome) return            // custom chrome resizes here too, but unmarked
             d.strokeStyle = theme.textFaint
             d.lineWidth = 1
@@ -537,7 +537,7 @@ class TrafficLight extends View [ y = 0, width = 14, height = 14, cornerRadius =
 
     g: View [ x = 0, y = 0, width = 14, height = 14,
         visible = { classroot.showGlyph && classroot.on },
-        draw(d) {
+        draw(d: Draw) {
             d.strokeStyle = classroot.ink
             d.fillStyle = classroot.ink
             d.lineCap = "round"
@@ -606,7 +606,7 @@ class AppGlyph extends View [ width = { this.edge }, height = { this.edge },
         text = { classroot.glyph } ],
     art: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height },
         visible = { classroot.kind != "" },
-        draw(d) { d.scale(this.width / 48, this.width / 48); app.drawKindArt(d, classroot.kind, classroot.hue1) },
+        draw(d: Draw) { d.scale(this.width / 48, this.width / 48); app.drawKindArt(d, classroot.kind, classroot.hue1) },
         ],
     ]
 
@@ -620,7 +620,7 @@ any app icon behind it. Drawn in a 48-unit box.
 
 class CautionBadge extends View [ width = { this.edge }, height = { this.edge },
     edge: number = 30,
-    draw(d) {
+    draw(d: Draw) {
         d.scale(this.edge / 48, this.edge / 48)
         const tri = (e, r) => {
             const P = [[24, 5 - e], [44 + e, 41 + e * 0.5], [4 - e, 41 + e * 0.5]]
@@ -672,7 +672,7 @@ class HelpSearch extends View [ height = 40,
     // declared after the field, so it paints over it
     mag: View [ x = { classroot.sf.x + 10 }, y = { classroot.sf.y + (classroot.sf.height - 14) / 2 },
         width = 14, height = 14, pointerEvents = "none",
-        draw(d) {
+        draw(d: Draw) {
             d.strokeStyle = theme.textFaint
             d.lineWidth = 1.5
             d.lineCap = "round"
@@ -725,7 +725,7 @@ class AboutWindow extends Window [ width = 280, height = 380, plain = true,
                 // per-app art, authored in a 48-box and doubled (the dock's rule)
 
                 a: View [ x = 0, y = 0, width = 48, height = 48, scale = 2,
-                    draw(d) {
+                    draw(d: Draw) {
                         const k = classroot.forApp
                         const rr = (x, y, w, h, r) => {
                             d.moveTo(x + r, y)
@@ -799,7 +799,7 @@ hairlines.)
 */
 
 class FolderIcon extends View [ width = 17, height = 13,
-    draw(d) {
+    draw(d: Draw) {
         const rr = (x, y, w, h, r) => {
             d.beginPath()
             d.moveTo(x + r, y)
@@ -820,7 +820,7 @@ class FolderIcon extends View [ width = 17, height = 13,
 
 
 class FileIcon extends View [ width = 13, height = 16,
-    draw(d) {
+    draw(d: Draw) {
         d.fillStyle = 0xFFFFFF
         d.strokeStyle = 0xB4B4BA
         d.lineWidth = 1
@@ -1227,7 +1227,7 @@ class JotWindow extends Window [ width = 300, height = 250, chrome = false,
             ],
         zoomW: View [ visible = { classroot.active }, x = { parent.width - 33 }, y = 2.25, width = 8, height = 8,
             onClick() { classroot.zoomToggle() },
-            draw(d) {
+            draw(d: Draw) {
                 d.fillStyle = 0xFFF49C
                 d.strokeStyle = 0xDBC501
                 d.lineWidth = 1.4
@@ -1238,7 +1238,7 @@ class JotWindow extends Window [ width = 300, height = 250, chrome = false,
             ],
         collapseW: View [ visible = { classroot.active }, x = { parent.width - 21 }, y = 2.25, width = 8, height = 8,
             onClick() { classroot.shadeToggle() },   // collapse down to just the strip
-            draw(d) {
+            draw(d: Draw) {
                 d.fillStyle = 0xFFF49C
                 d.fillRect(0.7, 0.7, 6.6, 6.6)
                 d.strokeStyle = 0xDBC501
@@ -1353,7 +1353,7 @@ class MiniTile extends View [
         x = center,
         y = { parent.height / 2 - 102 },   // pinned to the shared pill baseline (~62px above the plate top), same Y as the app-icon pills
         bodyH: number = 22,
-        draw(d) { app.drawPill(d, this.width, this.bodyH, app.darkMode) },
+        draw(d: Draw) { app.drawPill(d, this.width, this.bodyH, app.darkMode) },
         t: Text [ x = center, y = { (this.parent.bodyH - this.height) / 2 }, fontSize = 13,
             textColor = { app.darkMode ? 0xF2F2F5 : 0x1D1D1F },
             text = { classroot ? "" + classroot.lbl : "" } ],
@@ -1471,7 +1471,7 @@ class DockIcon extends View [
             // and jitters a pixel as the magnification glides. The body keeps
             // its 48-unit authoring coordinates; only the scale moved inward.
 
-            draw(d) {
+            draw(d: Draw) {
                 d.scale(this.width / 48, this.width / 48)
                 const k = classroot.kind
                 if (k == "calendar") {
@@ -1505,7 +1505,7 @@ class DockIcon extends View [
         // down, like the sheen a glossy rounded tile catches from above.
 
         rim: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height },
-            draw(d) {
+            draw(d: Draw) {
                 const w = this.width
                 const h = this.height
                 const r = w * 0.23
@@ -1545,7 +1545,7 @@ class DockIcon extends View [
         x = center,
         y = { parent.height - 130 },   // pinned to the shared pill baseline, so it lands right at any magnification
         bodyH: number = 22,
-        draw(d) { app.drawPill(d, this.width, this.bodyH, app.darkMode) },
+        draw(d: Draw) { app.drawPill(d, this.width, this.bodyH, app.darkMode) },
         t: Text [ x = center, y = { (this.parent.bodyH - this.height) / 2 }, fontSize = 13,
             textColor = { app.darkMode ? 0xF2F2F5 : 0x1D1D1F },
             text = { classroot ? "" + this.parent.parent.name : "" } ],
@@ -2345,7 +2345,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         .flatMap((m) => (m.items || []).filter((r) => r.key).map((r) => ({ menu: "" + m.label, ...r }))) },
 
     keys: Keys [
-        onKeyDown(e) {
+        onKeyDown(e: KeyEvent) {
             if (e.key == "`" && !e.meta && !e.repeat) { app.wallSeed = app.wallSeed + 1; return }   // cycle the wallpaper (selection/debug)
             if (!e.meta || e.repeat || e.key == "Meta") return
             if (app.bar.mb.shown) return             // an open menu owns the keyboard
@@ -2390,7 +2390,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         x = { (app.width - this.refW) / 2 }, y = { (app.height - this.refH) / 2 },
         pivotX = { this.refW / 2 }, pivotY = { this.refH / 2 },
         scale = { Math.max(app.width / this.refW, app.height / this.refH) },
-        draw(d) {
+        draw(d: Draw) {
             const W = this.width
             const H = this.height
             const hsl = (h, s, l) => "hsl(" + (((h % 360) + 360) % 360) + "," + s + "%," + l + "%)"
@@ -2606,7 +2606,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         // wallpaper.
 
         plateRim: View [ x = 0, y = { parent.height - 88 }, height = 88, width = { parent.plate.width },
-            draw(d) {
+            draw(d: Draw) {
                 const w = this.width
                 const h = this.height
                 const r = 27

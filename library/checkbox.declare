@@ -26,7 +26,7 @@ class Checkbox extends Control [
     checked: boolean = false,
     label:   string = "",
 
-    input(v) { checked = v },
+    input(v: boolean) { checked = v },
 
     press()   { input(!checked) },
     onClick() { if (!disabled) press() },
@@ -49,7 +49,7 @@ class Checkbox extends Control [
             width = { parent.width * 0.7 }, height = { this.width },
             scale = { this.width / 14 },                 // the path below is authored at 14
 
-            draw(d) {
+            draw(d: Draw) {
                 d.strokeStyle = theme.accentText
                 d.lineWidth = 2.5
                 d.beginPath()

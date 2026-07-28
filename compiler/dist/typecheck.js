@@ -50,10 +50,13 @@
 import ts from "typescript";
 import { parseProgram } from "../../runtime/dist/parser.js";
 import { programSchemas } from "../../runtime/dist/check.js";
-import { generateScaffold, memberSig, tsType } from "./scaffold.js";
+import { generateScaffold, memberSig, tsType, signatureTsType } from "./scaffold.js";
 import { attrType, descendsFrom } from "../../runtime/dist/schema.js";
 import { declaredType } from "../../runtime/dist/value.js";
 import { fillDatapaths } from "../../runtime/dist/datapath.js";
+/** TS primitives a Declare type name can resolve to — where "declare it" is
+ *  not a fix (there is no slot to add to a `number`). */
+const PRIMITIVE_TYPES = new Set(["number", "string", "boolean", "any[]", "Length", "Color"]);
 import { Diag } from "../../runtime/dist/diagnostics.js";
 import { DeclareError } from "../../runtime/dist/errors.js";
 /** Typecheck every resolved `{ }` body in `resolved` (compile()'s output — a
@@ -80,7 +83,7 @@ export function typecheckBodies(resolved, program) {
     for (const cls of rprog.classes)
         emitter.assignTypes(cls.body, true);
     const rootType = emitter.assignTypes(rprog.root, false);
-    let scaffold = generateScaffold(schemas, program.classes, rootType, emitter.classExtras);
+    let scaffold = generateScaffold(schemas, program.classes, rootType, emitter.classExtras, emitter.signatureTypeNames);
     // A program's `script { … }` blocks are ambient TypeScript for every body:
     // their declarations are real signatures, so appending the source to the
     // scaffold is what makes `dbl(app.v)` typecheck against the actual function
@@ -153,7 +156,13 @@ function explainTs(d, u, synthTags) {
         case 2339:
             m = msg.match(/Property '(.+?)' does not exist on type '(.+?)'/s);
             if (m !== null) {
-                return `'${m[1]}' is not a member of ${quoteType(m[2])} — declare it (${m[1]}: <type> = …) or fix the name`;
+                // "declare it" is only advice on a COMPONENT, where a declaration is
+                // the fix. On a primitive (a typed parameter's `number`, a `string`)
+                // there is nothing to declare — the name is simply wrong, or the
+                // parameter's written type is.
+                return PRIMITIVE_TYPES.has(m[2])
+                    ? `'${m[1]}' is not a member of ${m[2]} — fix the name, or widen the type it was read through`
+                    : `'${m[1]}' is not a member of ${quoteType(m[2])} — declare it (${m[1]}: <type> = …) or fix the name`;
             }
             return msg;
         // A bare name that resolved to nothing (scope resolution already rewrote
@@ -174,15 +183,22 @@ function explainTs(d, u, synthTags) {
             if (m !== null)
                 return `'${m[1]}' cannot compare ${article(m[2])} with ${article(m[3])} — make both sides the same type`;
             return msg;
-        // Excess arguments (missing ones never fire — parameters are optional
-        // because the grammar has no required-marker, so tsc reports the range
-        // form: "Expected 0-2 arguments, but got 3").
+        // Argument-count mismatch, in BOTH directions. Excess always fired; a
+        // MISSING argument fires only for a parameter with a written type, which
+        // is what makes the signature a contract (an untyped parameter stays
+        // optional — the grammar has no required-marker, so tsc reports the range
+        // form "Expected 0-2 arguments, but got 3" and only the upper bound binds).
         case 2554:
-            m = msg.match(/Expected (?:\d+-)?(\d+) arguments?, but got (\d+)/s);
+            m = msg.match(/Expected (?:(\d+)-)?(\d+) arguments?, but got (\d+)/s);
             if (m !== null) {
-                const declared = m[1];
-                const got = Number(m[2]);
-                return `this call passes ${got} arguments but the method declares ${declared} parameter${declared === "1" ? "" : "s"} — drop the extra${got - Number(declared) === 1 ? "" : "s"}`;
+                const low = m[1] === undefined ? Number(m[2]) : Number(m[1]);
+                const high = Number(m[2]);
+                const got = Number(m[3]);
+                const plural = (n) => (n === 1 ? "" : "s");
+                if (got > high) {
+                    return `this call passes ${got} arguments but the method declares ${high} parameter${plural(high)} — drop the extra${plural(got - high)}`;
+                }
+                return `this call passes ${got} argument${plural(got)} but ${low} ${low === 1 ? "is" : "are"} required — a parameter with a written type must be given a value`;
             }
             return msg;
         default:
@@ -226,6 +242,10 @@ class CaseEmitter {
      *  class's own `declare class`, where a cross-reference through the class
      *  NAME (`section.area`) sees them too. */
     classExtras = new Map();
+    /** Every written signature type name seen anywhere in the tree. An enum or
+     *  record named ONLY by a signature still needs its alias emitted into the
+     *  scaffold, or the ambient text references an undeclared type. */
+    signatureTypeNames = [];
     /** Pass 1 — bottom-up: assign every element its instance type, emitting a
      *  `declare class _E<n> extends <tag> { … }` for each element that adds
      *  members beyond its tag class. Members:
@@ -315,7 +335,21 @@ class CaseEmitter {
                 members.push(...memberSig(d.name, t, nonNullColor));
         }
         for (const m of el.methods) {
-            members.push(`  ${m.name}(${m.params.map((p) => `${p}?: any`).join(", ")}): any;`);
+            // Same rule as scaffold's methodSig, for an INLINE element's synthesized
+            // type: a written type is emitted and REQUIRED, a bare parameter stays
+            // optional `any`. Both sites must agree or a method checks differently
+            // depending on whether it sits in a `class` or in the tree.
+            const ps = m.params.map((prm) => {
+                const t = prm.type === undefined ? null : signatureTsType(prm.type, (n) => this.schemas[n] !== undefined);
+                return t === null ? `${prm.name}?: any` : `${prm.name}: ${t}`;
+            }).join(", ");
+            const ret = m.returns === undefined ? "any" : (signatureTsType(m.returns, (n) => this.schemas[n] !== undefined) ?? "any");
+            members.push(`  ${m.name}(${ps}): ${ret};`);
+            for (const prm of m.params)
+                if (prm.type !== undefined)
+                    this.signatureTypeNames.push(prm.type);
+            if (m.returns !== undefined)
+                this.signatureTypeNames.push(m.returns);
         }
         if (members.length === 0) {
             this.instType.set(el, el.tag);
@@ -379,7 +413,12 @@ class CaseEmitter {
         }
         const root = ty(levels[levels.length - 1]);
         const inst = (t) => `(undefined as unknown as ${t})`;
-        const paramSig = params.map((p) => `, ${p}: any`).join("");
+        // A parameter's WRITTEN type is what makes the body check: `f(v: number)`
+        // gives `v.toUpperCase()` a TS2339 here. A bare parameter stays `any` —
+        // the under-report constraints.md §2 names, and the reason a bare
+        // parameter also blinds dep-extraction to every read through it.
+        const paramTs = (p) => (p.type === undefined ? null : signatureTsType(p.type, (n) => this.schemas[n] !== undefined)) ?? "any";
+        const paramSig = params.map((p) => `, ${p.name}: ${paramTs(p)}`).join("");
         const paramArgs = params.map(() => `, undefined as any`).join("");
         const header = `(function (this: ${self}, parent: ${parent}, classroot: ${root}${paramSig}) {`;
         const footer = `}).call(${inst(self)}, ${inst(parent)}, ${inst(root)}${paramArgs});`;

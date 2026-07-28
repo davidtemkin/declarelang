@@ -50,7 +50,7 @@ export function usedComponentNames(program) {
             if (d.def?.kind === "code")
                 scan(d.def.src, true, []);
         for (const m of el.methods)
-            scan(m.body, false, m.params);
+            scan(m.body, false, m.params.map((p) => p.name));
         for (const c of el.children)
             walk(c);
     };

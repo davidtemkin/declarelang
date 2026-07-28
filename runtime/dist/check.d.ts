@@ -19,11 +19,6 @@ export interface StyleEnv {
  *  Element fragment. Returns every error found, in source order — an empty
  *  array means the tree is well-typed and safe to instantiate. */
 export declare function check(input: Element | Program): DeclareError[];
-/** Validate a program's `stylesheet`/`style` declarations and produce the
- *  StyleEnv the element walk resolves against. One message source with
- *  instantiate: both consume the same helpers (checkAttr, coerceToken via
- *  checkThemeRecord/checkEntry), so a direct instantiate of an unchecked
- *  tree dies with the same wording. */
 export declare function checkStyleDecls(program: Program, schemas: Readonly<Record<string, ComponentSchema>>, errors: DeclareError[]): StyleEnv;
 /** One class-keyed entry: attribute sets only, each an attribute the class
  *  declares (any public attribute — ruled uniformity), of a stylable kind,

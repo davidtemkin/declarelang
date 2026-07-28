@@ -67,7 +67,7 @@ class FocusRing extends View [ opacity = 0,
     // boundary (the Mac halo's hug), displaced by gap + half the stroke.
 
     focus: Focus [
-        onGeometry(g) {
+        onGeometry(g: FocusGeometry) {
             if (g.root != app) return
             const gap = typeof theme.focusRingGap == "number" ? theme.focusRingGap : 0
             const lw = typeof theme.focusRingWidth == "number" ? theme.focusRingWidth : 3
@@ -86,7 +86,7 @@ class FocusRing extends View [ opacity = 0,
             if (prev == g.view) classroot.snapTo()
             },
 
-        onFocusChange(v) {
+        onFocusChange(v: View) {
             if (v == null) { classroot.shown = false; return }
             let n = v
             for (; n != null && n.parent != null; n = n.parent) { }
@@ -143,7 +143,7 @@ class FocusRing extends View [ opacity = 0,
     // settle closes the sights around the new silhouette. Small targets skip
     // the bracket phase (a ring around a radio dot has no arms to open).
 
-    draw(d) {
+    draw(d: Draw) {
         const w = this.width, h = this.height
         const Q = Math.PI / 2
         const dist = Math.abs(this.x - tx) + Math.abs(this.y - ty) + Math.abs(this.width - tw) + Math.abs(this.height - th)

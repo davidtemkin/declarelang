@@ -41,7 +41,7 @@ class EventBar extends View [
            : category == "milestone" ? 0xBBC6D1
            :                           0xC6CEDC },
 
-    draw(d) {
+    draw(d: Draw) {
         d.fillStyle = 0xFFFFFF
         d.fillRect(0, 0, width, 1)
         d.fillStyle = 0x555555
@@ -62,7 +62,7 @@ class EventBar extends View [
         textColor = #4B5D6C, text = :title ],
 
     onMouseDown() { app.startDrag(:id) },
-    onMouseMove(e) { app.dragMove(e.x, e.y) },
+    onMouseMove(e: PointerEvent) { app.dragMove(e.x, e.y) },
     onMouseUp()   { app.endDrag() },
     onClick() { if (!app.dragOccurred) app.selectEvent(:id, this.dayKey) },
     ]
@@ -94,7 +94,7 @@ class PlusMinus extends View [
     fill = gradient(stop(0, 0xE8ECEC), stop(0.5, 0xC2CBCE), stop(1, 0x8A9BA3)),
     stroke = stroke(1, #46606C),
 
-    draw(d) {
+    draw(d: Draw) {
         d.fillStyle = 0x2E4550
         d.fillRect(2, 5, 7, 1)               // the bar — both `+` and `−`
         if (!isOpen) d.fillRect(5, 2, 1, 7)  // the stem — `+` only
@@ -130,13 +130,13 @@ class Stepper extends View [
 
     left: View [ x = { parent.width - 28 }, y = 1, width = 13, height = 14, cornerRadius = 2,
         fill = gradient(stop(0, 0xE6EAEA), stop(1, 0x99A5AD)),
-        draw(d) { d.fillStyle = 0x33454F
+        draw(d: Draw) { d.fillStyle = 0x33454F
                   d.beginPath(); d.moveTo(8, 3); d.lineTo(4, 7); d.lineTo(8, 11); d.fill() },
         onClick() { app.stepField(classroot.field, -1) },
         ],
     right: View [ x = { parent.width - 14 }, y = 1, width = 13, height = 14, cornerRadius = 2,
         fill = gradient(stop(0, 0xE6EAEA), stop(1, 0x99A5AD)),
-        draw(d) { d.fillStyle = 0x33454F
+        draw(d: Draw) { d.fillStyle = 0x33454F
                   d.beginPath(); d.moveTo(5, 3); d.lineTo(9, 7); d.lineTo(5, 11); d.fill() },
         onClick() { app.stepField(classroot.field, 1) },
         ],
@@ -151,7 +151,7 @@ class AccordionSection extends View [
 
     hdr: View [ width = { parent.width }, height = 20,
         fill = { app.openTab == classroot.idx ? 0xE2E4DF : 0xEEF0EB },
-        draw(d) {
+        draw(d: Draw) {
             d.fillStyle = 0xFDFFFF; d.fillRect(0, 0, width, 1)
             d.fillStyle = 0xC6C7C4; d.fillRect(0, height - 1, width, 1)
             d.fillStyle = 0x5A6A72
@@ -213,7 +213,7 @@ class TimeEvent extends View [
     x = { :lane * (parent.width / :lanes) },
     width = { parent.width / :lanes },
 
-    draw(d) {
+    draw(d: Draw) {
         if (!selected) {
             d.fillStyle = category == "holiday"   ? "rgba(88,116,87,0.30)"
                         : category == "astro"     ? "rgba(76,94,126,0.30)"
@@ -240,7 +240,7 @@ class TimeEvent extends View [
         textColor = #4B5D6C, width = { parent.width - this.x - 2 }, text = :title ],
 
     onMouseDown() { app.startDrag(:id) },
-    onMouseMove(e) { app.dragMove(e.x, e.y) },
+    onMouseMove(e: PointerEvent) { app.dragMove(e.x, e.y) },
     onMouseUp()   { app.endDrag() },
     onClick() { if (!app.dragOccurred) app.selectEvent(:id, this.dayKey) },
     ]
@@ -268,7 +268,7 @@ class DayCell extends View [
     // original's rounded TOP-LEFT corner (r≈5.5 — the `ctl` art; the other
     // three corners are square, so cornerRadius can't express it).
 
-    draw(d) {
+    draw(d: Draw) {
         // Selected: the ring lightens to a bevel — the floating selected-day
         // chrome (SPEC §5); its corner +/- button rides at the top-right.
         d.fillStyle = selected ? 0xCAD5DA : 0x7A949E
@@ -320,7 +320,7 @@ class DayCell extends View [
             tl: View [ width = { parent.width }, height = 611,
                 y = { 0 - Math.max(0, Math.min(:firstStart * 22 / 60 - 11,
                           Math.max(0, 611 - parent.height))) },
-                draw(d) {
+                draw(d: Draw) {
                     d.fillStyle = 0xAEB8BF
                     for (let h = 0; h < 24; h++) d.fillRect(28, h * 22 + 11, width - 38, 1)
                     d.fillStyle = 0x8C9AA3
@@ -341,7 +341,7 @@ class DayCell extends View [
 
             bar: View [ x = { parent.width - 10 }, width = 10, height = { parent.height },
                 visible = { 611 > parent.height },
-                draw(d) {
+                draw(d: Draw) {
                     d.fillStyle = 0x46606F
                     d.fillRect(0, 0, width, height)
                     const th = Math.max(20, height * height / 611)
@@ -989,7 +989,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
 
                 // segment separators + the three tiny icons, drawn
 
-                draw(d) {
+                draw(d: Draw) {
                     d.fillStyle = 0x143B45
                     d.fillRect(47, 0, 1, height)
                     d.fillRect(104, 0, 1, height)
@@ -1031,7 +1031,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
                 // + a highlight one px to its right), dividing the arrow caps
                 // from the title — oracle-measured at x16 / x142.
 
-                draw(d) {
+                draw(d: Draw) {
                     d.fillStyle = 0x143B45
                     d.fillRect(16, 0, 1, 17)
                     d.fillRect(142, 0, 1, 17)
@@ -1110,7 +1110,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
             cap: Text [ x = 8, y = 3, fontSize = 10, fontWeight = bold, textColor = #FFFFFF,
                 text = "Event Info" ],
             xbtn: View [ x = { parent.width - 15 }, y = 4, width = 11, height = 11,
-                draw(d) {
+                draw(d: Draw) {
                     d.fillStyle = 0xFFFFFF
                     d.lineWidth = 1.5
                     d.beginPath(); d.moveTo(2, 2); d.lineTo(9, 9)

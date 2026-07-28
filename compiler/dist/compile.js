@@ -634,7 +634,7 @@ class Resolver {
                 this.resolveBody(d.def.src, d.def.pos, true, [], levels, mainRoot, scope);
         }
         for (const m of el.methods)
-            this.resolveBody(m.body, m.bodyPos, false, m.params, levels, mainRoot, scope);
+            this.resolveBody(m.body, m.bodyPos, false, m.params.map((p) => p.name), levels, mainRoot, scope);
         for (const child of el.children)
             this.resolveElement(child, levels, mainRoot);
     }

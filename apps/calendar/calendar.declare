@@ -40,9 +40,9 @@ class Ev extends View [ clip = true,
         ti: Text [ fontSize = 10, fontWeight = regular, wrap = false, textColor = { app.catText(:category) }, text = { :title } ],
         ],
 
-    onMouseDown(e) { app.startDrag(:id, :title, :category, :timeLabel, this.width, this.height, e.x, e.y) },
+    onMouseDown(e: PointerEvent) { app.startDrag(:id, :title, :category, :timeLabel, this.width, this.height, e.x, e.y) },
     onMouseMove()  { app.dragMove() },
-    onMouseUp(e)   { app.dropDrag(e.x, e.y) },
+    onMouseUp(e: PointerUpEvent)   { app.dropDrag(e.x, e.y) },
     onClick()      { app.selectEvent(:id, :y + "-" + :m + "-" + :d) },
     ]
 
@@ -584,7 +584,7 @@ App [ clip = true, minWidth = 480, minHeight = 420, appName = "Declare Calendar"
        an event is being edited (Keys is the raw stream). */
 
     keys: Keys [
-        onKeyUp(e) {
+        onKeyUp(e: KeyEvent) {
             if (e.key == "Escape") app.closeDetail()
             else if (app.selectedId < 0 && e.key == "ArrowLeft") app.step(-1)
             else if (app.selectedId < 0 && e.key == "ArrowRight") app.step(1)

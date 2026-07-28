@@ -757,7 +757,7 @@ export function extractProgram(program: Program): ExtractedConstraint[] {
   type Owned = { tag: string; name: string | null; attr: string; src: string; offset: number; node: CodeValue; owner: unknown; classRoot: unknown };
   const constraints: Owned[] = [];
   const collect = (el: Element, classRoot: unknown): void => {
-    for (const m of el.methods as Method[]) USER_METHODS.set(m.name, { params: m.params, body: m.body ?? "" });
+    for (const m of el.methods as Method[]) USER_METHODS.set(m.name, { params: m.params.map((p) => p.name), body: m.body ?? "" });
     for (const a of el.attrs as Attr[]) { const v = asCode(a.value); if (v) constraints.push({ tag: el.tag, name: el.name ?? null, attr: a.name, src: v.src, offset: v.pos?.offset ?? 0, node: v, owner: el, classRoot }); }
     for (const d of el.decls as AttrDecl[]) {
       const v = asCode(d.def);

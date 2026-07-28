@@ -584,7 +584,7 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
         m.pos
       );
     }
-    const c = compileBody(m.params, m.body);
+    const c = compileBody(m.params.map((p) => p.name), m.body);
     if ("error" in c) throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
     const fn = c.fn;
     // Close over the instance (rather than relying on call-site `this`), so
@@ -763,7 +763,7 @@ function constructData(el: Element, schema: ComponentSchema, outer: View | null,
   // the declared event handler (schema events: DataSource fires `load`),
   // installed like an animator's — in place before any binding runs
   for (const m of handlers) {
-    const c = compileBody(m.params, m.body);
+    const c = compileBody(m.params.map((p) => p.name), m.body);
     if ("error" in c) throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
     const fn = c.fn;
     (node as unknown as Record<string, unknown>)[m.name] =
@@ -841,7 +841,7 @@ function constructAnimator(el: Element, schema: ComponentSchema, outer: View | n
         m.pos
       );
     }
-    const c = compileBody(m.params, m.body);
+    const c = compileBody(m.params.map((p) => p.name), m.body);
     if ("error" in c) throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
     const fn = c.fn;
     (node as unknown as Record<string, unknown>)[m.name] =
@@ -887,7 +887,7 @@ function constructSource(el: Element, schema: ComponentSchema, outer: View | nul
         m.pos
       );
     }
-    const c = compileBody(m.params, m.body);
+    const c = compileBody(m.params.map((p) => p.name), m.body);
     if ("error" in c) throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
     const fn = c.fn;
     (node as unknown as Record<string, unknown>)[m.name] =
@@ -957,7 +957,7 @@ function constructAnimatorGroup(
         m.pos
       );
     }
-    const c = compileBody(m.params, m.body);
+    const c = compileBody(m.params.map((p) => p.name), m.body);
     if ("error" in c) throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
     const fn = c.fn;
     (node as unknown as Record<string, unknown>)[m.name] =
@@ -1042,7 +1042,7 @@ function constructState(
         m.pos
       );
     }
-    const c = compileBody(m.params, m.body);
+    const c = compileBody(m.params.map((p) => p.name), m.body);
     if ("error" in c) throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
     const fn = c.fn;
     (node as unknown as Record<string, unknown>)[m.name] = (...args: unknown[]) => fn.call(node, node.parent, outer, ...args);
@@ -1156,7 +1156,7 @@ function installLayoutClass(layout: Layout, el: Element, uc: UserClass, owner: V
     if (m.name in layout) {
       throw new DeclareError(`${el.tag}.${m.name}: '${m.name}' is a built-in member of the runtime layout — choose another name`, m.pos);
     }
-    const c = compileBody(m.params, m.body);
+    const c = compileBody(m.params.map((p) => p.name), m.body);
     if ("error" in c) throw new DeclareError(`${el.tag}.${m.name}(…) ${c.error}`, m.bodyPos);
     const fn = c.fn;
     self[m.name] = (...args: unknown[]) => fn.call(layout, layout.parent, croot, ...args);

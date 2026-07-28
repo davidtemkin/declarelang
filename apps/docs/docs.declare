@@ -343,7 +343,7 @@ class Segment extends View [ width = { parent.width },
     layout: SimpleLayout [ axis = y, spacing = 14 ],
     md: Markdown [ width = { parent.width }, lineHeight = { classroot.lead }, bodyColor = { classroot.tone }, scale = { app.fontScale }, dark = { app.darkUI },
         visible = { :md != "" }, text = { :md },
-        onLink(href) { app.openDocLink(href) },
+        onLink(href: string) { app.openDocLink(href) },
         ],
     RunBlock [ datapath = :code[], width = { parent.width }, live = { classroot.live } ],
     ]

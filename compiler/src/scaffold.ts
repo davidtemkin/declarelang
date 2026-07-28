@@ -69,14 +69,17 @@
 //       resulting tsc diagnostics back to Declare `Pos` — the NEXT slice.
 //   (c) wiring this into compile.ts / the build pipeline.
 //
-// Runtime-free by construction: every import here is `import type` (erased), so
-// the emitted dist/scaffold.js has no imports and never enters the
-// zero-dependency runtime graph — the same posture as compile.ts / free-idents.
+// Compile-layer only: nothing in the zero-dependency runtime graph imports this
+// (the same posture as compile.ts / free-idents). Its two VALUE imports —
+// MOTION_TOKENS and declaredType — read the runtime's own vocabulary tables so
+// the scaffold cannot drift from them; everything else is `import type`.
 
 import type { ComponentSchema } from "../../runtime/dist/schema.js";
 import type { AttrType } from "../../runtime/dist/value.js";
 import type { ClassDecl, Method } from "../../runtime/dist/parser.js";
 import { MOTION_TOKENS } from "../../runtime/dist/animate.js";
+import { declaredType } from "../../runtime/dist/value.js";
+import { EVENT_PAYLOAD, handlerName } from "../../runtime/dist/schema.js";
 
 /** The fixed value-type prelude — the closed vocabulary of value.ts as TS
  *  types, plus the value constructors in scope for every body. Mirrors
@@ -104,6 +107,76 @@ declare function stroke(width: number, color: Color): Stroke;
 declare function stop(offset: number, color: Color): { offset: number; color: Color };
 declare function shadow(dx: number, dy: number, blur: number, color: Color): Shadow;
 declare function colorWithAlpha(rgb: number, a: number): number;
+interface DrawGradient { addColorStop(offset: number, color: string | Color): void }
+/** The canvas drawing context a \`draw(d: Draw)\` body receives — a Canvas2D-
+ *  shaped recorder. Mirrors runtime/src/draw.ts; every \`draw(d)\` in the corpus
+ *  was \`any\` until this was declared. */
+interface Draw {
+  x: number; y: number; w: number; h: number;
+  fillStyle: string | Color | DrawGradient;
+  strokeStyle: string | Color | DrawGradient;
+  lineWidth: number;
+  lineCap: string;
+  lineJoin: string;
+  miterLimit: number;
+  lineDashOffset: number;
+  globalAlpha: number;
+  globalCompositeOperation: string;
+  shadowBlur: number;
+  shadowColor: string | Color;
+  shadowOffsetX: number;
+  shadowOffsetY: number;
+  filter: string;
+  imageSmoothingEnabled: boolean;
+  imageSmoothingQuality: string;
+  font: string;
+  textAlign: string;
+  textBaseline: string;
+  direction: string;
+  letterSpacing: string;
+  wordSpacing: string;
+  fontKerning: string;
+  arc(x: number, y: number, r: number, a0: number, a1: number, ccw?: boolean): void;
+  arcTo(x1: number, y1: number, x2: number, y2: number, r: number): void;
+  beginPath(): void;
+  bezierCurveTo(cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number): void;
+  clearRect(x: number, y: number, w: number, h: number): void;
+  clip(rule?: string): void;
+  closePath(): void;
+  createConicGradient(startAngle: number, x: number, y: number): DrawGradient;
+  createLinearGradient(x0: number, y0: number, x1: number, y1: number): DrawGradient;
+  createRadialGradient(x0: number, y0: number, r0: number, x1: number, y1: number, r1: number): DrawGradient;
+  ellipse(x: number, y: number, rx: number, ry: number, rot: number, a0: number, a1: number, ccw?: boolean): void;
+  fill(rule?: string): void;
+  fillRect(x: number, y: number, w: number, h: number): void;
+  fillText(text: string, x: number, y: number, maxWidth?: number): void;
+  lineTo(x: number, y: number): void;
+  list(): any;
+  moveTo(x: number, y: number): void;
+  quadraticCurveTo(cpx: number, cpy: number, x: number, y: number): void;
+  rect(x: number, y: number, w: number, h: number): void;
+  resetTransform(): void;
+  restore(): void;
+  rotate(angle: number): void;
+  roundRect(x: number, y: number, w: number, h: number, radii: number | number[]): void;
+  save(): void;
+  scale(x: number, y: number): void;
+  setLineDash(segments: number[]): void;
+  setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void;
+  stroke(): void;
+  strokeRect(x: number, y: number, w: number, h: number): void;
+  strokeText(text: string, x: number, y: number, maxWidth?: number): void;
+  transform(a: number, b: number, c: number, d: number, e: number, f: number): void;
+  translate(x: number, y: number): void;
+}
+interface Touch { id: number; x: number; y: number }
+interface PointerEvent { x: number; y: number }
+interface PointerUpEvent extends PointerEvent { canceled: boolean }
+interface TouchEvent extends PointerEvent { touches: readonly Touch[]; changed: readonly Touch[] }
+interface WheelEvent extends PointerEvent { deltaX: number; deltaY: number; pinch: boolean }
+interface KeyEvent { code: string; key: string; shift: boolean; ctrl: boolean; alt: boolean; meta: boolean; repeat: boolean }
+interface FocusGeometry { x: number; y: number; w: number; h: number; rad: number; view: View; root: View }
+interface TipEvent { readonly text: string; readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly root: View }
 type MotionCurve = { readonly __motion: true };
 declare function cubicBezier(x1: number, y1: number, x2: number, y2: number): MotionCurve;
 declare function back(overshoot: number): MotionCurve;
@@ -168,21 +241,50 @@ export function tsType(t: AttrType): string {
   }
 }
 
-/** A method member's ambient signature. The grammar carries no parameter types
- *  and no return type yet (the shorthand `name(params) { … }`; the typed form
- *  `name: (p: T) -> R { … }` waits for the type surface, HANDOFF §R5), so each
- *  bare parameter is typed `any` (a caller passing any argument checks) and the
- *  return is `any` — NOT `void`: methods do yield constraint values (`width =
- *  { app.lerp(4, 9, t) }` is the calendar's idiom throughout), and `void` would
- *  flag every such use of a correct program. Parameters are OPTIONAL: the
- *  grammar has no required-marker, and JS callers legally omit trailing args
- *  (`setMonth(y, m)` against `setMonth(y, m, d)`), so arity enforcement is
- *  unfounded — but an EXCESS argument still errors, which is a real catch.
- *  `any` under-reports the return until the typed form carries a written
- *  `-> R`; this is the one line to revisit when it lands. */
-function methodSig(m: Method): string {
-  const params = m.params.map((p) => `${p}?: any`).join(", ");
-  return `  ${m.name}(${params}): any;`;
+/** The event-payload type names, writable in a handler's signature. Declared
+ *  in the prelude above; the shapes live in the runtime (events.ts, keys.ts,
+ *  tip.ts, focus.ts) and this list is what makes them nameable by an author. */
+const PAYLOAD_TYPES = new Set(["PointerEvent", "PointerUpEvent", "TouchEvent", "WheelEvent", "Touch", "KeyEvent", "FocusGeometry", "TipEvent", "Draw", "DrawGradient"]);
+
+/** A WRITTEN signature type name (`f(w: Window) -> number`) → its TypeScript
+ *  type. Two sources, the same two an attribute declaration draws on: the
+ *  declarable value vocabulary (`number`, `string`, `array`, `Axis`, …) and the
+ *  component classes, every one of which is emitted here as a peer
+ *  `declare class`. Returns null when the name is neither, so the caller can
+ *  report it positioned against the author's text.
+ *
+ *  Nullability deliberately differs from a SLOT's: `tsType` gives a view- or
+ *  component-typed slot `| null` because an unset slot really is null, but a
+ *  parameter is not a slot — `f(w: Window)` says a Window arrives. Inventing
+ *  `| null` here would force a null check the author never asked for. */
+export function signatureTsType(written: string, isComponent: (n: string) => boolean): string | null {
+  if (PAYLOAD_TYPES.has(written)) return written;   // `onMouseUp(e: PointerUpEvent)`
+  const t = declaredType(written);
+  if (t !== null) return t.kind === "view" ? "View" : t.kind === "component" ? t.of : tsType(t);
+  return isComponent(written) ? written : null;
+}
+
+/** A method member's ambient signature — what a CALLER checks against (the
+ *  body is checked separately, in typecheck.ts's `emit`).
+ *
+ *  A parameter with a written type is emitted as that type and is REQUIRED:
+ *  the author stated the contract, so omitting the argument is a real error.
+ *  A bare parameter stays `?: any` — optional because the grammar has no
+ *  required-marker and JS callers legally omit trailing args, so arity
+ *  enforcement would be unfounded (an EXCESS argument still errors either way).
+ *  That asymmetry is the migration pressure: annotating a signature is what
+ *  buys the checking.
+ *
+ *  An omitted return stays `any` — NOT `void`: methods do yield constraint
+ *  values (`width = { app.lerp(4, 9, t) }` is the calendar's idiom throughout),
+ *  and `void` would flag every such use of a correct program. */
+function methodSig(m: Method, isComponent: (n: string) => boolean): string {
+  const params = m.params.map((p) => {
+    const ts = p.type === undefined ? null : signatureTsType(p.type, isComponent);
+    return ts === null ? `${p.name}?: any` : `${p.name}: ${ts}`;
+  }).join(", ");
+  const ret = m.returns === undefined ? "any" : (signatureTsType(m.returns, isComponent) ?? "any");
+  return `  ${m.name}(${params}): ${ret};`;
 }
 
 /** LANGUAGE-API members — the runtime surface a `{ }` body may READ or CALL
@@ -317,7 +419,8 @@ function emitClass(
   s: ComponentSchema,
   decl: ClassDecl | undefined,
   rootType: string,
-  extras: readonly string[] | undefined
+  extras: readonly string[] | undefined,
+  isComponent: (n: string) => boolean
 ): string {
   const ext = s.base !== null ? ` extends ${s.base.name}` : "";
   const lines: string[] = [];
@@ -355,11 +458,20 @@ function emitClass(
     lines.push(`  root: ${rootType};`);
     if (s.name === "View") lines.push(`  readonly children: View[];`);
   }
+  // One optional handler member per event this schema DECLARES. Emitting them
+  // is what makes a user's handler an OVERRIDE: writing `onMouseUp(e: string)`
+  // is then a TS2416 against this signature, and writing `onMouseUp(e)` with no
+  // type is a TS7006 — the same treatment TypeScript gives any override, which
+  // is the behaviour the language section that is 1:1 with TS should have.
+  for (const ev of s.events ?? []) {
+    const payload = EVENT_PAYLOAD[ev];
+    lines.push(`  ${handlerName(ev)}?(${payload === undefined ? "" : `e: ${payload}`}): void;`);
+  }
   const api = LANGUAGE_API[s.name];
   if (api !== undefined) lines.push(...api);
   const statics = LANGUAGE_STATICS[s.name];
   if (statics !== undefined) lines.push(...statics);
-  if (decl !== undefined) for (const m of decl.body.methods) lines.push(methodSig(m));
+  if (decl !== undefined) for (const m of decl.body.methods) lines.push(methodSig(m, isComponent));
   // Instance members the EMITTER computed from the class BODY (its named
   // children, typed by their instance types) — on the class itself, so a
   // cross-reference through the class NAME (`section.area`) sees them too.
@@ -378,7 +490,11 @@ export function generateScaffold(
   schemas: Readonly<Record<string, ComponentSchema>>,
   classDecls: readonly ClassDecl[],
   rootType: string = "App",
-  classExtras?: ReadonlyMap<string, readonly string[]>
+  classExtras?: ReadonlyMap<string, readonly string[]>,
+  /** Written signature type names from INLINE elements too (the caller walks
+   *  the whole tree; `classDecls` covers only `class` bodies). Enum/record
+   *  aliases are collected from these as well as from attributes. */
+  extraSignatureTypes: readonly string[] = []
 ): string {
   // Every schema reachable — the registry entries PLUS abstract bases the
   // registry omits (the `Layout` base is deliberately not a name-table key,
@@ -397,6 +513,22 @@ export function generateScaffold(
   for (const s of all.values()) {
     for (const t of Object.values(s.attrs)) if (t.kind === "enum" && !enums.has(t.name)) enums.set(t.name, t.tokens);
   }
+  // …and from METHOD SIGNATURE types. An enum (or record) named ONLY by a
+  // signature — `f(a: Axis)` in a program whose attributes never mention Axis —
+  // still needs its alias emitted, or the scaffold references an undeclared
+  // type and every body reports a bogus "nothing in scope is named 'Axis'".
+  const sigTypes: string[] = [];
+  for (const d of classDecls) {
+    for (const m of d.body.methods) {
+      for (const prm of m.params) if (prm.type !== undefined) sigTypes.push(prm.type);
+      if (m.returns !== undefined) sigTypes.push(m.returns);
+    }
+  }
+  sigTypes.push(...extraSignatureTypes);
+  for (const name of sigTypes) {
+    const t = declaredType(name);
+    if (t !== null && t.kind === "enum" && !enums.has(t.name)) enums.set(t.name, t.tokens);
+  }
   const enumLines = [...enums].map(
     ([name, toks]) => `type ${name} = ${toks.map((t) => JSON.stringify(t)).join(" | ")};`
   );
@@ -409,6 +541,10 @@ export function generateScaffold(
   for (const s of all.values()) {
     for (const t of Object.values(s.attrs)) if (t.kind === "record" && t.name !== "Theme") records.add(t.name);
   }
+  for (const name of sigTypes) {
+    const t = declaredType(name);
+    if (t !== null && t.kind === "record" && t.name !== "Theme") records.add(t.name);
+  }
   const recordLines = [...records].map((name) => `type ${name} = Readonly<Record<string, any>>;`);
 
   // Methods ride the user class declaration, keyed by class name.
@@ -418,7 +554,7 @@ export function generateScaffold(
   // Base-before-derived: a stable sort by chain depth (roots at 0). Ambient
   // declarations hoist, so this is for readability, not resolution.
   const depth = (s: ComponentSchema): number => (s.base === null ? 0 : 1 + depth(s.base));
-  const classes = [...all.values()].sort((a, b) => depth(a) - depth(b)).map((s) => emitClass(s, declOf.get(s.name), rootType, classExtras?.get(s.name)));
+  const classes = [...all.values()].sort((a, b) => depth(a) - depth(b)).map((s) => emitClass(s, declOf.get(s.name), rootType, classExtras?.get(s.name), (n) => all.has(n)));
 
   // The Motion union — named tokens (generated from animate.ts, single source
   // of truth) plus the MotionCurve brand the constructors in the prelude return.

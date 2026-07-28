@@ -5,8 +5,8 @@
 //
 // R0–R6 grammar (literal + `{ }` attributes, method members, child instances,
 // and — since R6 — class declarations, attribute declarations, and named
-// children; the canonical typed method form `name: (p: T) -> R { }` waits
-// for the type surface, see HANDOFF §R5):
+// children; since 2026-07-28 a method signature carries its parameter and
+// return TYPES, language §4's canonical form):
 //
 //   program  := class* element
 //   class    := 'class' IDENT 'extends' IDENT '[' members ']'
@@ -21,9 +21,11 @@
 //                                               the nearest providing ancestor
 //                                               when unset)
 //             | IDENT ':' IDENT '[' … ']'    -- a named child instance
-//             | IDENT '(' params ')' CODE    -- a method (language §4 shorthand)
+//             | IDENT '(' params ')' ret? CODE  -- a method (language §4)
 //             | element                      -- an anonymous child instance
-//   params   := ( IDENT ( ',' IDENT )* ','? )?
+//   params   := ( param ( ',' param )* ','? )?
+//   param    := IDENT ( ':' IDENT )?             -- name-first, type optional
+//   ret      := ( '->' | ':' ) IDENT             -- '->' is house style
 //   value    := literal | '{' ts-expression '}'
 //   literal  := NUMBER '%'? | STRING | HASHCOLOR | IDENT | PATH
 //   PATH     := ':' IDENT ( '.' IDENT )* '[]'?    -- a datapath (language §9)
@@ -88,14 +90,34 @@ export interface Attr {
   bind?: "two";
 }
 
-/** `name(params) { body }` — a method member (language §4's shorthand; the
- *  canonical typed form waits for the type surface). The body is raw TS
+/** One parameter of a method signature. `type` is the WRITTEN type name —
+ *  resolving it against the value vocabulary (a primitive, or a component
+ *  class) is the checker's job, exactly as for an attribute declaration's
+ *  `type`. Absent means the author wrote a bare name; scaffold emits `any` for
+ *  it, which under-reports both typechecking AND dep-extraction (they are one
+ *  analysis viewed twice — constraints.md §2), so bare params are on their way
+ *  out of the corpus. */
+export interface Param {
+  name: string;
+  type?: string;
+  /** Position of the written type name, for a positioned "unknown type" —
+   *  the same role `AttrDecl.typePos` plays for a declaration. */
+  typePos?: Pos;
+}
+
+/** `name(params) -> Ret { body }` — a method member. This is language §4's
+ *  canonical typed form: "A method is a named field of function type …
+ *  Parameters are name-first (`h: int`) … Omit `-> Ret` for a void method."
+ *  Both `-> Ret` and `: Ret` parse; `->` is house style. The body is raw TS
  *  *statement* source, captured by the same balanced-brace scan as a `{ }`
  *  value; `bodyPos` points at its opening brace so syntax errors land on the
  *  code, not the name. */
 export interface Method {
   name: string;
-  params: string[];
+  params: Param[];
+  returns?: string;
+  /** Position of the written return type name (see `Param.typePos`). */
+  returnsPos?: Pos;
   body: string;
   pos: Pos;
   bodyPos: Pos;
@@ -270,7 +292,7 @@ export interface Library {
 type TokKind =
   | "lbracket" | "rbracket" | "lparen" | "rparen" | "eq" | "comma" | "colon" | "dot"
   | "bindtwo" | "subfrom" | "ident" | "number" | "percent" | "string" | "hexColor" | "code" | "eof"
-  | "arrow"; // `->` — NEVER legal Declare; tokenized (not lexer-fatal) so the parser can recover through the TS-ism (E-9)
+  | "arrow"; // `->` — the return-type marker in a method signature (language §4)
 
 interface Token {
   kind: TokKind;
@@ -681,42 +703,43 @@ class Parser {
           el.decls.push({ name: name.text, type: type.text, typePos: type.pos, def, prevailing, readOnly, pos: declPos });
         }
       } else if (this.peek().kind === "lparen") {
-        // a method — `name(params) { statements }`; params are bare names
-        // (their names are in scope in the body, language §4). A trailing
-        // comma is legal, as everywhere in the language.
+        // a method — `name(p: Type, …) -> Ret { statements }` (language §4:
+        // "Parameters are name-first (`h: int`) … Omit `-> Ret` for a void
+        // method"). Parameter names are in scope in the body. A trailing comma
+        // is legal, as everywhere in the language.
+        //
+        // Both these annotations were PARSED and discarded until 2026-07-28,
+        // with an error (E-9) telling the author they were illegal — a
+        // diagnostics pass that mistook a not-yet-built feature for a rule and
+        // then defended it. They are the spec; the type is now kept.
         this.next();
-        const params: string[] = [];
-        let typedParams = false;
+        const params: Param[] = [];
         while (this.peek().kind === "ident") {
-          params.push(this.next().text);
-          // E-9: `f(label: string)` — a typed parameter, the TS instinct that
-          // oscillated whole eval iteration budgets against the bare
-          // "expected ')', got ':'". Name the rule once, consume the
-          // annotation, keep the method (recognition layer).
+          const pname = this.next().text;
+          let ptype: string | undefined, ptypePos: Pos | undefined;
           if (this.peek().kind === "colon") {
-            if (!typedParams) this.errors.push(new DeclareError(
-              `a method's parameters are bare names — '${name.text}(${params.join(", ")})' — type annotations belong in { } bodies, not [ ] signatures`,
+            this.next();
+            if (this.peek().kind === "ident") { ptypePos = this.peek().pos; ptype = this.next().text; }
+            else this.errors.push(new DeclareError(
+              `'${pname}:' needs a type name — write '${pname}: number' (a primitive or a component class), or drop the ':' for an untyped parameter`,
               this.peek().pos
             ));
-            typedParams = true;
-            this.next();
-            if (this.peek().kind === "ident") this.next();
           }
+          params.push(ptype === undefined ? { name: pname } : { name: pname, type: ptype, typePos: ptypePos });
           if (this.peek().kind === "comma") this.next();
           else break;
         }
         this.expect("rparen", "')'");
-        // E-9's other half: `f(): T {` / `f() -> T {` — a return annotation.
-        // After ')' the only legal tokens are '{' and the subscription arrow,
-        // so a colon or `->` here is always the TS-ism: name it once, consume
-        // it, keep the method (recognition layer).
-        if (this.peek().kind === "colon" || this.peek().kind === "arrow") {
-          this.errors.push(new DeclareError(
-            `a method has no return annotation — write '${name.text}(${params.join(", ")}) { … }'; for a typed computed value use a typed attribute with a { } default instead`,
+        // The return annotation. `-> Ret` is house style (what §4 writes);
+        // `: Ret` parses too — the formatter normalizes it.
+        let returns: string | undefined, returnsPos: Pos | undefined;
+        if (this.peek().kind === "arrow" || this.peek().kind === "colon") {
+          const marker = this.next();
+          if (this.peek().kind === "ident") { returnsPos = this.peek().pos; returns = this.next().text; }
+          else this.errors.push(new DeclareError(
+            `'${marker.text}' needs a return type name — write '${name.text}(…) -> number { … }', or drop the '${marker.text}' for a method that returns nothing`,
             this.peek().pos
           ));
-          this.next();
-          if (this.peek().kind === "ident") this.next();
         }
         // The removed subscription form: `member(params) <- Source { body }`.
         // A service is an ordinary component member now, so name that rewrite
@@ -725,8 +748,11 @@ class Parser {
           const arrow = this.peek();
           this.next();
           const src = this.peek().kind === "ident" ? this.peek().text : "Source";
+          // Echo the signature back AS WRITTEN — `params` carries types now, so
+          // a bare join would print "[object Object]" into the author's face.
+          const sig = params.map((prm) => (prm.type === undefined ? prm.name : `${prm.name}: ${prm.type}`)).join(", ");
           throw new DeclareError(
-            `'<-' subscriptions were removed — a runtime service is a component member now: write '${src} [ ${name.text}(${params.join(", ")}) { … } ]' as a child, in place of '${name.text}(${params.join(", ")}) <- ${src} { … }'`,
+            `'<-' subscriptions were removed — a runtime service is a component member now: write '${src} [ ${name.text}(${sig}) { … } ]' as a child, in place of '${name.text}(${sig}) <- ${src} { … }'`,
             arrow.pos
           );
         }
@@ -735,7 +761,9 @@ class Parser {
           throw new DeclareError(`expected the method body '{ … }', got '${body.text || body.kind}'`, body.pos);
         }
         this.next();
-        el.methods.push({ name: name.text, params, body: body.str!, pos: name.pos, bodyPos: body.pos });
+        el.methods.push(returns === undefined
+          ? { name: name.text, params, body: body.str!, pos: name.pos, bodyPos: body.pos }
+          : { name: name.text, params, returns, returnsPos, body: body.str!, pos: name.pos, bodyPos: body.pos });
       } else {
         // an anonymous child instance — bare `Name` or `Name [ … ]` (or the
         // raw-bodied form, for the checker to judge: data nodes need names).

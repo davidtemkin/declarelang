@@ -856,10 +856,54 @@ await test("parse() reads a method member: name, params, raw body, positions", (
 await test("parse() reads parameter lists (incl. a trailing comma)", () => {
   const el = parse("View [ f(a, b,) { a + b }, draw(d) { d.fill() }, g() { } ]");
   assert.deepEqual(el.methods.map((m) => [m.name, m.params]), [
-    ["f", ["a", "b"]],
-    ["draw", ["d"]],
+    ["f", [{ name: "a" }, { name: "b" }]],
+    ["draw", [{ name: "d" }]],
     ["g", []],
   ]);
+});
+
+await test("scaffold: the Draw surface mirrors draw.ts — every member, no drift", async () => {
+  // `draw(d: Draw)` is only as good as this mirror. The prelude is a hand-written
+  // string (the scaffold runs in the browser and cannot read the filesystem), so
+  // the ONE failure mode is a member added to draw.ts and forgotten here — which
+  // silently makes a correct program a type error. Assert the surfaces agree.
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../runtime/src/draw.ts", import.meta.url), "utf8");
+  const body = src.slice(src.indexOf("export class Draw {"));
+  const real = new Set();
+  for (const m of body.matchAll(/^  (?:get|set) ([a-zA-Z]\w*)\(/gm)) real.add(m[1]);
+  for (const m of body.matchAll(/^  ([a-z]\w*)\(/gm)) real.add(m[1]);
+  for (const skip of ["constructor", "readOnly", "extend", "fn", "list"]) real.delete(skip);
+
+  const { generateScaffold } = await import("../compiler/dist/scaffold.js");
+  const { parseProgram } = await import("../runtime/dist/parser.js");
+  const { programSchemas } = await import("../runtime/dist/check.js");
+  const prog = parseProgram("App [ ]");
+  const scaffold = generateScaffold(programSchemas(prog.classes).schemas, prog.classes, "App");
+  const iface = scaffold.slice(scaffold.indexOf("interface Draw {"));
+  const declared = new Set([...iface.slice(0, iface.indexOf("\n}")).matchAll(/^  ([a-zA-Z]\w*)[(:]/gm)].map((m) => m[1]));
+
+  const missing = [...real].filter((n) => !declared.has(n));
+  assert.deepEqual(missing, [], `draw.ts members absent from the scaffold prelude: ${missing.join(", ")}`);
+});
+
+await test("parse() reads a TYPED signature — language §4's canonical form", () => {
+  // Both annotations were parsed and thrown away until 2026-07-28 (with an
+  // error insisting they were illegal); they are the spec, and the type is
+  // now carried on the AST. `-> Ret` is house style; `: Ret` also parses.
+  const el = parse("View [ f(w: Window, n: number) -> string { return \"\" }, g(v): number { return v }, h(x) { } ]");
+  const shape = (m) => [m.name, m.params.map((p) => [p.name, p.type]), m.returns];
+  assert.deepEqual(el.methods.map(shape), [
+    ["f", [["w", "Window"], ["n", "number"]], "string"],
+    ["g", [["v", undefined]], "number"],
+    ["h", [["x", undefined]], undefined],
+  ]);
+});
+
+await test("parse() positions a signature type, for a positioned unknown-type error", () => {
+  const el = parse("View [ f(w: Window) { } ]");
+  assert.equal(el.methods[0].params[0].typePos.offset > 0, true);
+  assert.equal(el.methods[0].params[0].type, "Window");
 });
 
 await test("methods mix with attributes and children, comma or not", () => {
@@ -5780,21 +5824,28 @@ await test("E-series diagnostics name the fix: bare ident, layout-in-State, dott
   // E-7: two-way arrow to an attribute chain → datapath rule + onInput idiom
   assert.match(msg(`App [ width=1, height=1, f: TextInput [ text <-> classroot.name ] ]`),
     /binds a DATAPATH .* deliver up in an onInput\(\) handler/);
-  // E-9: the iteration-oscillation killers — typed params and both return-annotation shapes
-  assert.match(msg(`App [ width=1, height=1, f(label: string) { return label } ]`),
-    /a method's parameters are bare names/);
-  assert.match(msg(`App [ width=1, height=1, f(): number { return 1 } ]`),
-    /a method has no return annotation/);
-  assert.match(msg(`App [ width=1, height=1, f(x) -> number { return x } ]`),
-    /a method has no return annotation/);
-  // The recognition layer: one compile reports ALL recovered TS-isms as
-  // separate positioned diagnostics (parse no longer stops at the first).
+  // E-9 is RETIRED (2026-07-28). Typed parameters and return annotations are
+  // language §4's canonical form; the diagnostics pass that refused them had
+  // mistaken an unbuilt feature for a rule. They must now COMPILE — and an
+  // unresolvable type name is the error instead.
+  assert.equal(msg(`App [ width=1, height=1, f(label: string) { return label } ]`), "");
+  assert.equal(msg(`App [ width=1, height=1, f(): number { return 1 } ]`), "");
+  assert.equal(msg(`App [ width=1, height=1, f(x) -> number { return x } ]`), "");
+  assert.match(msg(`App [ width=1, height=1, f(v: Nonsense) { return 1 } ]`),
+    /unknown type 'Nonsense' for parameter 'v'/);
+  assert.match(msg(`App [ width=1, height=1, f(v: number) -> Nonsense { return v } ]`),
+    /unknown return type 'Nonsense'/);
+  // The recognition layer still reports ALL recovered TS-isms in one pass —
+  // but a typed signature is no longer one of them, so this program's only
+  // remaining diagnostic is the dotted member.
   const multi = (() => { const r = compile(`App [ width=1, height=1,
     f(a: string): number { return 1 },
     t: Text [ text = "x" ],
     s: State [ applied = true, t.opacity = 0.4 ],
   ]`); return r.errors ?? []; })();
-  assert.equal(multi.length, 3, "typed params + return annotation + dotted member, one pass");
+  assert.equal(multi.length, 1, "the typed signature is legal; only the dotted member errors");
+  assert.match(multi[0].rawMessage ?? multi[0].message,
+    /a member sets this element's OWN attributes, never a child's/);
   // E-1 escalation 2: the CSS-interference table names the Declare slot
   assert.match(msg(`App [ width=1, height=1, v: View [ borderWidth = 1 ] ]`),
     /has no attribute 'borderWidth' — the CSS instinct: a border is 'stroke = \{ stroke\(1,/);

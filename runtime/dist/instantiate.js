@@ -525,7 +525,7 @@ function construct(el, outer, ctx, parentSchema = null) {
         if (m.name in view) {
             throw new DeclareError(`${schema.name}.${m.name}: '${m.name}' is a built-in member of the runtime ${schema.name} — choose another name`, m.pos);
         }
-        const c = compileBody(m.params, m.body);
+        const c = compileBody(m.params.map((p) => p.name), m.body);
         if ("error" in c)
             throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
         const fn = c.fn;
@@ -709,7 +709,7 @@ function constructData(el, schema, outer, ctx) {
     // the declared event handler (schema events: DataSource fires `load`),
     // installed like an animator's — in place before any binding runs
     for (const m of handlers) {
-        const c = compileBody(m.params, m.body);
+        const c = compileBody(m.params.map((p) => p.name), m.body);
         if ("error" in c)
             throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
         const fn = c.fn;
@@ -782,7 +782,7 @@ function constructAnimator(el, schema, outer, ctx) {
         if (m.name in node) {
             throw new DeclareError(`${schema.name}.${m.name}: '${m.name}' is a built-in member of the runtime ${schema.name} — choose another name`, m.pos);
         }
-        const c = compileBody(m.params, m.body);
+        const c = compileBody(m.params.map((p) => p.name), m.body);
         if ("error" in c)
             throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
         const fn = c.fn;
@@ -830,7 +830,7 @@ function constructSource(el, schema, outer, ctx) {
         if (m.name in node) {
             throw new DeclareError(`${schema.name}.${m.name}: '${m.name}' is a built-in member of the runtime ${schema.name} — choose another name`, m.pos);
         }
-        const c = compileBody(m.params, m.body);
+        const c = compileBody(m.params.map((p) => p.name), m.body);
         if ("error" in c)
             throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
         const fn = c.fn;
@@ -895,7 +895,7 @@ function constructAnimatorGroup(el, schema, outer, ctx, inherited = {}) {
         if (m.name in node) {
             throw new DeclareError(`${schema.name}.${m.name}: '${m.name}' is a built-in member of the runtime ${schema.name} — choose another name`, m.pos);
         }
-        const c = compileBody(m.params, m.body);
+        const c = compileBody(m.params.map((p) => p.name), m.body);
         if ("error" in c)
             throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
         const fn = c.fn;
@@ -976,7 +976,7 @@ function constructState(el, schema, outer, ctx, parentSchema) {
         if (m.name in node) {
             throw new DeclareError(`${schema.name}.${m.name}: '${m.name}' is a built-in member of the runtime ${schema.name} — choose another name`, m.pos);
         }
-        const c = compileBody(m.params, m.body);
+        const c = compileBody(m.params.map((p) => p.name), m.body);
         if ("error" in c)
             throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
         const fn = c.fn;
@@ -1100,7 +1100,7 @@ function installLayoutClass(layout, el, uc, owner, ctx) {
         if (m.name in layout) {
             throw new DeclareError(`${el.tag}.${m.name}: '${m.name}' is a built-in member of the runtime layout — choose another name`, m.pos);
         }
-        const c = compileBody(m.params, m.body);
+        const c = compileBody(m.params.map((p) => p.name), m.body);
         if ("error" in c)
             throw new DeclareError(`${el.tag}.${m.name}(…) ${c.error}`, m.bodyPos);
         const fn = c.fn;
