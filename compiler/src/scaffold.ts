@@ -253,10 +253,15 @@ const PAYLOAD_TYPES = new Set(["PointerEvent", "PointerUpEvent", "TouchEvent", "
  *  `declare class`. Returns null when the name is neither, so the caller can
  *  report it positioned against the author's text.
  *
- *  Nullability deliberately differs from a SLOT's: `tsType` gives a view- or
- *  component-typed slot `| null` because an unset slot really is null, but a
- *  parameter is not a slot — `f(w: Window)` says a Window arrives. Inventing
- *  `| null` here would force a null check the author never asked for. */
+ *  Nullability is the OPEN QUESTION here, and the reason some corpus signatures
+ *  stay bare. A component-typed SLOT is `| null` (declared `= null` — how the
+ *  corpus holds instances), so passing one to a non-null parameter is an error;
+ *  make the parameter nullable instead and every use inside the body becomes
+ *  "possibly null". Measured on library/menu.declare: non-null costs 3 call
+ *  sites, nullable costs 9 body reads. Neither is right, because the language
+ *  has no nullable/optional parameter spelling (`c: Menu?`) — when it gets one,
+ *  this is the line that changes. Non-null is kept meanwhile: it keeps bodies
+ *  clean and pushes the check to the caller, where the knowledge is. */
 export function signatureTsType(written: string, isComponent: (n: string) => boolean): string | null {
   if (PAYLOAD_TYPES.has(written)) return written;   // `onMouseUp(e: PointerUpEvent)`
   const t = declaredType(written);

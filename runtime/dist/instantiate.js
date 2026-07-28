@@ -388,7 +388,7 @@ outer = false) {
  *  element instantiates once per class *instance*, and they all share the
  *  same prototype accessors, exactly as if the compiler had named the class. */
 const ANON = new WeakMap();
-function ctorWithDecls(el, base, schema) {
+function ctorWithDecls(el, base, schema, isComponent) {
     if (el.decls.length === 0)
         return base;
     let ctor = ANON.get(el);
@@ -396,7 +396,7 @@ function ctorWithDecls(el, base, schema) {
         const defaults = () => {
             const defs = {};
             for (const d of el.decls) {
-                const r = checkDecl(schema, d);
+                const r = checkDecl(schema, d, schema.name, isComponent);
                 if (!r.ok)
                     throw r.error;
                 defs[d.name] = r.value;
@@ -440,13 +440,13 @@ function construct(el, outer, ctx, parentSchema = null) {
     if (baseCtor === null || schema === null)
         throw new DeclareError(`unknown component '${el.tag}'`, el.pos);
     const user = ctx.classes.get(el.tag);
-    const view = new (ctorWithDecls(el, baseCtor, schema))();
+    const view = new (ctorWithDecls(el, baseCtor, schema, (n) => ctx.schemas[n] !== undefined))();
     view.classroot = outer;
     // The `classroot` for members written at THIS element's site: the enclosing
     // scope — or, at the tree root, the root itself (its members are written
     // in its own body: the anonymous App class's).
     const croot = outer ?? view;
-    const eff = withDecls(schema, el.decls);
+    const eff = withDecls(schema, el.decls, (n) => ctx.schemas[n] !== undefined);
     // Merge the member sources: class-body chain base→leaf (classroot = this
     // instance), then the use site (classroot = the outer scope). Same-named
     // members: the nearest provider wins — a derived body overrides its base's,
@@ -1081,7 +1081,7 @@ function buildLayout(el, owner, ctx) {
  *  enclosing scope. Attributes land as literals or `{ }` bindings over the
  *  layout's own slots (place()/retarget read them). */
 function installLayoutClass(layout, el, uc, owner, ctx) {
-    const eff = withDecls(ctx.schemas[el.tag], el.decls);
+    const eff = withDecls(ctx.schemas[el.tag], el.decls, (n) => ctx.schemas[n] !== undefined);
     const croot = owner.classroot ?? owner;
     const self = layout;
     // Methods: class chain base→leaf, then the use site; nearest provider wins.

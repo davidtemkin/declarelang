@@ -55,8 +55,8 @@ class Menu extends View [ visible = { shown }, width = 220,
     // the untyped seam, used deliberately.
 
     isRoot: boolean = true,
-    rootMenu: View = null,
-    child: View = null,
+    rootMenu: Menu = null,
+    child: Menu = null,
     activeRow: View = null,
 
     // the delivery seam — the app overrides; the id is the whole message
@@ -120,11 +120,11 @@ class Menu extends View [ visible = { shown }, width = 220,
         let y = 0
         let n = row
         while (n != null) { x += n.x || 0; y += n.y || 0; n = n.parent }
-        if (child == null) child = app.createView("Menu", app, ({ isRoot: false, rootMenu: this.rootMenu != null ? this.rootMenu : this }))
+        if (child == null) child = app.createView("Menu", app, ({ isRoot: false, rootMenu: this.rootMenu != null ? this.rootMenu : this })) as Menu
         this.driveSub(child, subItems, x + this.width - 6, y - 5)
         },
 
-    driveSub(c, subItems: array, x: number, y: number) {
+    driveSub(c: Menu, subItems: array, x: number, y: number) {
         c.items = subItems
         c.picked = (id) => this.pick(id)         // delivery + close route through the CHAIN to the root
         c.shown = true

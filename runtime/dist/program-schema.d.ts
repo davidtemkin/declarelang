@@ -58,11 +58,19 @@ export type CheckedDecl = {
     ok: false;
     error: DeclareError;
 };
-export declare function checkDecl(schema: ComponentSchema, d: AttrDecl, owner?: string): CheckedDecl;
+export declare function checkDecl(schema: ComponentSchema, d: AttrDecl, owner?: string, 
+/** Is this name a component in the program? A declared attribute may be typed
+ *  by a component class (`child: Menu = null`), not only by the value
+ *  vocabulary — without it a slot holding an instance can say no more than
+ *  `View`, and then NO parameter can be typed more precisely than the slot it
+ *  is fed from. The asymmetry was accidental: the `component` AttrType and its
+ *  coercion already existed for schema slots (`layout: Layout`); only the
+ *  DECLARATION path could not name one. */
+isComponent?: (n: string) => boolean): CheckedDecl;
 /** An element's schema plus its inline declarations — the anonymous one-off
  *  subclass of language §5, in the checker's currency. Validation of the
  *  decls themselves is the caller's (checkDecl); this only shapes the chain. */
-export declare function withDecls(schema: ComponentSchema, decls: readonly AttrDecl[]): ComponentSchema;
+export declare function withDecls(schema: ComponentSchema, decls: readonly AttrDecl[], isComponent?: (n: string) => boolean): ComponentSchema;
 /** The many-path attribute (`datapath = :items[]`) that makes an element a
  *  replication template, or null. Type-directed: a many-path on a
  *  cursor-typed slot — today, View.datapath — is what replicates. */

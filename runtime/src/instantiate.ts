@@ -450,14 +450,14 @@ function synthesize(
  *  same prototype accessors, exactly as if the compiler had named the class. */
 const ANON = new WeakMap<Element, ViewCtor>();
 
-function ctorWithDecls(el: Element, base: ViewCtor, schema: ComponentSchema): ViewCtor {
+function ctorWithDecls(el: Element, base: ViewCtor, schema: ComponentSchema, isComponent: (n: string) => boolean): ViewCtor {
   if (el.decls.length === 0) return base;
   let ctor = ANON.get(el);
   if (ctor === undefined) {
     const defaults = (): Record<string, unknown> => {
       const defs: Record<string, unknown> = {};
       for (const d of el.decls) {
-        const r = checkDecl(schema, d);
+        const r = checkDecl(schema, d, schema.name, isComponent);
         if (!r.ok) throw r.error;
         defs[d.name] = r.value;
       }
@@ -503,13 +503,13 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
   }
   if (baseCtor === null || schema === null) throw new DeclareError(`unknown component '${el.tag}'`, el.pos);
   const user = ctx.classes.get(el.tag);
-  const view = new (ctorWithDecls(el, baseCtor, schema))();
+  const view = new (ctorWithDecls(el, baseCtor, schema, (n) => ctx.schemas[n] !== undefined))();
   view.classroot = outer;
   // The `classroot` for members written at THIS element's site: the enclosing
   // scope — or, at the tree root, the root itself (its members are written
   // in its own body: the anonymous App class's).
   const croot = outer ?? view;
-  const eff = withDecls(schema, el.decls);
+  const eff = withDecls(schema, el.decls, (n) => ctx.schemas[n] !== undefined);
 
   // Merge the member sources: class-body chain base→leaf (classroot = this
   // instance), then the use site (classroot = the outer scope). Same-named
@@ -1140,7 +1140,7 @@ function buildLayout(el: Element, owner: View, ctx: Ctx): Layout {
  *  enclosing scope. Attributes land as literals or `{ }` bindings over the
  *  layout's own slots (place()/retarget read them). */
 function installLayoutClass(layout: Layout, el: Element, uc: UserClass, owner: View, ctx: Ctx): void {
-  const eff = withDecls(ctx.schemas[el.tag], el.decls);
+  const eff = withDecls(ctx.schemas[el.tag], el.decls, (n) => ctx.schemas[n] !== undefined);
   const croot = owner.classroot ?? owner;
   const self = layout as unknown as Record<string, unknown>;
 

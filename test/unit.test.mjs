@@ -862,6 +862,34 @@ await test("parse() reads parameter lists (incl. a trailing comma)", () => {
   ]);
 });
 
+await test("a declared attribute may be typed by a COMPONENT CLASS", () => {
+  // The irregularity this closes: the `component` AttrType and its coercion
+  // already existed for built-in slots (`layout: Layout`), but a DECLARATION
+  // could name only `View`. A slot could therefore never say what it held, and
+  // no parameter could be typed more precisely than the slot feeding it.
+  const ok = (src) => { const r = compile(src, {}); assert.ok(r.source, (r.errors?.[0]?.rawMessage) ?? "expected it to compile"); };
+  const errs = (src) => {
+    try { const r = compile(src); return (r.errors ?? []).map((e) => e.message ?? String(e)).join("\n"); }
+    catch (e) { return String(e?.message ?? e); }
+  };
+  const no = (src, re) => assert.match(errs(src), re);
+
+  ok(`class W extends View [ tag: string = "" ]\nApp [ width=1, height=1, w: W = null ]`);
+  ok(`App [ width=1, height=1, m: Text = null ]`);                       // built-in class too
+  // self- and forward references: a component AttrType stores only the NAME,
+  // so no schema need exist yet (the submenu-chain shape).
+  ok(`class Menu extends View [ child: Menu = null, n: number = 0 ]\nApp [ width=1, height=1, m: Menu [ ] ]`);
+  ok(`class A extends View [ b: B = null ]\nclass B extends View [ n: number = 0 ]\nApp [ width=1, height=1, a: A [ ] ]`);
+  // it maps to the SAME TS class every other reference does — members resolve,
+  // typos are caught, and a foreign class is rejected.
+  ok(`class W extends View [ tag: string = "" ]\nApp [ width=1, height=1, w: W = null, t: Text [ text = { app.w != null ? app.w.tag : "" } ] ]`);
+  no(`class W extends View [ tag: string = "" ]\nApp [ width=1, height=1, w: W = null, t: Text [ text = { app.w != null ? app.w.tagg : "" } ] ]`,
+     /'tagg' is not a member of W/);
+  no(`class W extends View [ tag: string = "" ]\nclass Z extends View [ zed: number = 0 ]\nApp [ width=1, height=1, w: W = null, z: Z = null, go() { this.w = this.z } ]`,
+     /not assignable/);
+  no(`App [ width=1, height=1, w: Nonsense = null ]`, /unknown type 'Nonsense'/);
+});
+
 await test("scaffold: the Draw surface mirrors draw.ts — every member, no drift", async () => {
   // `draw(d: Draw)` is only as good as this mirror. The prelude is a hand-written
   // string (the scaffold runs in the browser and cannot read the filesystem), so

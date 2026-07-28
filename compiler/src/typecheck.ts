@@ -53,7 +53,7 @@ import { parseProgram, type Element, type Param, type Program } from "../../runt
 import { programSchemas } from "../../runtime/dist/check.js";
 import { generateScaffold, memberSig, tsType, signatureTsType } from "./scaffold.js";
 import { attrType, descendsFrom, type ComponentSchema } from "../../runtime/dist/schema.js";
-import { declaredType } from "../../runtime/dist/value.js";
+import { declaredType, type AttrType } from "../../runtime/dist/value.js";
 import { fillDatapaths } from "../../runtime/dist/datapath.js";
 
 /** TS primitives a Declare type name can resolve to — where "declare it" is
@@ -351,7 +351,13 @@ class CaseEmitter {
       members.push(`  readonly children: ${exact ? `${[...childTypes][0]}[]` : "any[]"};`);
     }
     for (const d of el.decls) {
-      const t = declaredType(d.type);
+      // A declared attribute may be typed by a COMPONENT CLASS (`w: Menu = null`),
+      // not only by the value vocabulary — same fallback program-schema's
+      // checkDecl makes, or this path would silently under-report the slot as
+      // `any` and a typo through it would compile.
+      const t = declaredType(d.type)
+        ?? (this.schemas[d.type] !== undefined || this.classHasChildren.has(d.type)
+          ? { kind: "component", of: d.type } as AttrType : null);
       // A color with a concrete (non-null) default is non-null (see memberSig):
       // nullable only where it means inherit/absent (`= null` or no default).
       const nonNullColor = t !== null && t.kind === "color" && d.def !== null && !(d.def.kind === "ident" && d.def.name === "null");

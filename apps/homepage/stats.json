@@ -4,7 +4,7 @@
     "code": 711,
     "comment": 253,
     "blank": 188,
-    "wireGzip": 68962,
+    "wireGzip": 69077,
     "programGzip": 14166
   },
   "calendar": {
@@ -12,7 +12,7 @@
     "code": 483,
     "comment": 135,
     "blank": 117,
-    "wireGzip": 54725,
+    "wireGzip": 54848,
     "programGzip": 10803
   }
 }

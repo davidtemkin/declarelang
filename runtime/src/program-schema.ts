@@ -58,6 +58,14 @@ export function programSchemas(classes: readonly ClassDecl[]): {
   const infos: ClassInfo[] = [];
   const schemas: Record<string, ComponentSchema> = { ...SCHEMAS };
   const errors: DeclareError[] = [];
+  // Every class NAME up front, so an attribute may be typed by a class declared
+  // later — or by its own (`class Menu [ child: Menu = null ]`, the shape a
+  // submenu chain needs). A component AttrType stores only the name, so no
+  // schema has to exist yet; the scaffold emits the classes base-before-derived
+  // regardless of source order. The stricter "declared above it" rule stays on
+  // `extends`, where the base's ATTRIBUTES really are needed to build the chain.
+  const classNames = new Set(classes.map((c) => c.name));
+  const isComponentName = (n: string): boolean => Object.hasOwn(schemas, n) || classNames.has(n);
   for (const decl of classes) {
     if (Object.hasOwn(schemas, decl.name)) {
       errors.push(new DeclareError(`there is already a component named '${decl.name}'`, decl.pos));
@@ -91,7 +99,7 @@ export function programSchemas(classes: readonly ClassDecl[]): {
     const prevailing: string[] = [];
     const readOnly: string[] = [];
     for (const d of decl.body.decls) {
-      const r = checkDecl(base, d, decl.name);
+      const r = checkDecl(base, d, decl.name, isComponentName);
       if (!r.ok) { errors.push(r.error); continue; }
       if (Object.hasOwn(attrs, d.name)) continue; // the namespace pass reports the duplicate
       attrs[d.name] = r.type;
@@ -175,7 +183,19 @@ export type CheckedDecl =
   | { ok: true; type: AttrType; value: AttrValue | undefined; binding?: { src: string; pos: Pos } }
   | { ok: false; error: DeclareError };
 
-export function checkDecl(schema: ComponentSchema, d: AttrDecl, owner: string = schema.name): CheckedDecl {
+export function checkDecl(
+  schema: ComponentSchema,
+  d: AttrDecl,
+  owner: string = schema.name,
+  /** Is this name a component in the program? A declared attribute may be typed
+   *  by a component class (`child: Menu = null`), not only by the value
+   *  vocabulary — without it a slot holding an instance can say no more than
+   *  `View`, and then NO parameter can be typed more precisely than the slot it
+   *  is fed from. The asymmetry was accidental: the `component` AttrType and its
+   *  coercion already existed for schema slots (`layout: Layout`); only the
+   *  DECLARATION path could not name one. */
+  isComponent: (n: string) => boolean = () => false
+): CheckedDecl {
   const err = (message: string, pos: Pos): CheckedDecl => ({ ok: false, error: new DeclareError(message, pos) });
   if (NOUNS.includes(d.name)) {
     return err(`'${d.name}' is a scope noun (language §11) — it cannot be declared`, d.pos);
@@ -198,10 +218,10 @@ export function checkDecl(schema: ComponentSchema, d: AttrDecl, owner: string = 
       d.pos
     );
   }
-  const type = declaredType(d.type);
+  const type = declaredType(d.type) ?? (isComponent(d.type) ? { kind: "component", of: d.type } as AttrType : null);
   if (type === null) {
     return err(
-      `unknown type '${d.type}' — a declared attribute's type is one of ${DECLARED_TYPE_NAMES.join(", ")}`,
+      `unknown type '${d.type}' — a declared attribute's type is one of ${DECLARED_TYPE_NAMES.join(", ")}, or a component class`,
       d.typePos
     );
   }
@@ -265,12 +285,16 @@ export function checkDecl(schema: ComponentSchema, d: AttrDecl, owner: string = 
 /** An element's schema plus its inline declarations — the anonymous one-off
  *  subclass of language §5, in the checker's currency. Validation of the
  *  decls themselves is the caller's (checkDecl); this only shapes the chain. */
-export function withDecls(schema: ComponentSchema, decls: readonly AttrDecl[]): ComponentSchema {
+export function withDecls(
+  schema: ComponentSchema,
+  decls: readonly AttrDecl[],
+  isComponent: (n: string) => boolean = () => false
+): ComponentSchema {
   if (decls.length === 0) return schema;
   const attrs: Record<string, AttrType> = {};
   const prevailing: string[] = [];
   for (const d of decls) {
-    const r = checkDecl(schema, d);
+    const r = checkDecl(schema, d, schema.name, isComponent);
     if (r.ok && !Object.hasOwn(attrs, d.name)) {
       attrs[d.name] = r.type;
       if (d.prevailing) prevailing.push(d.name);

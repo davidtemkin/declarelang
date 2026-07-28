@@ -479,11 +479,11 @@ classRoot = false) {
         let eff = schema;
         if (!declsOwned) {
             for (const d of el.decls) {
-                const r = checkDecl(schema, d);
+                const r = checkDecl(schema, d, schema.name, (n) => schemas[n] !== undefined);
                 if (!r.ok)
                     errors.push(r.error);
             }
-            eff = withDecls(schema, el.decls);
+            eff = withDecls(schema, el.decls, (n) => schemas[n] !== undefined);
         }
         checkNamespace(el, eff, errors);
         // `key = :field` is replication metadata (language §9): on a child whose
@@ -618,7 +618,7 @@ classRoot = false) {
     // base + its inline attribute declarations — so a Spring/animator can target
     // a user-declared numeric attribute, not only a built-in slot. (A class body
     // already absorbed its decls into `schema`; an unknown parent stays null.)
-    const childCtx = schema !== null && !declsOwned ? withDecls(schema, el.decls) : schema;
+    const childCtx = schema !== null && !declsOwned ? withDecls(schema, el.decls, (n) => schemas[n] !== undefined) : schema;
     for (const child of el.children) {
         if (!consumed.has(child))
             checkElement(child, errors, schemas, false, env, childCtx);

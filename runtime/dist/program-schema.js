@@ -40,6 +40,14 @@ export function programSchemas(classes) {
     const infos = [];
     const schemas = { ...SCHEMAS };
     const errors = [];
+    // Every class NAME up front, so an attribute may be typed by a class declared
+    // later — or by its own (`class Menu [ child: Menu = null ]`, the shape a
+    // submenu chain needs). A component AttrType stores only the name, so no
+    // schema has to exist yet; the scaffold emits the classes base-before-derived
+    // regardless of source order. The stricter "declared above it" rule stays on
+    // `extends`, where the base's ATTRIBUTES really are needed to build the chain.
+    const classNames = new Set(classes.map((c) => c.name));
+    const isComponentName = (n) => Object.hasOwn(schemas, n) || classNames.has(n);
     for (const decl of classes) {
         if (Object.hasOwn(schemas, decl.name)) {
             errors.push(new DeclareError(`there is already a component named '${decl.name}'`, decl.pos));
@@ -67,7 +75,7 @@ export function programSchemas(classes) {
         const prevailing = [];
         const readOnly = [];
         for (const d of decl.body.decls) {
-            const r = checkDecl(base, d, decl.name);
+            const r = checkDecl(base, d, decl.name, isComponentName);
             if (!r.ok) {
                 errors.push(r.error);
                 continue;
@@ -151,7 +159,15 @@ export function coerceToken(lit) {
             return undefined;
     }
 }
-export function checkDecl(schema, d, owner = schema.name) {
+export function checkDecl(schema, d, owner = schema.name, 
+/** Is this name a component in the program? A declared attribute may be typed
+ *  by a component class (`child: Menu = null`), not only by the value
+ *  vocabulary — without it a slot holding an instance can say no more than
+ *  `View`, and then NO parameter can be typed more precisely than the slot it
+ *  is fed from. The asymmetry was accidental: the `component` AttrType and its
+ *  coercion already existed for schema slots (`layout: Layout`); only the
+ *  DECLARATION path could not name one. */
+isComponent = () => false) {
     const err = (message, pos) => ({ ok: false, error: new DeclareError(message, pos) });
     if (NOUNS.includes(d.name)) {
         return err(`'${d.name}' is a scope noun (language §11) — it cannot be declared`, d.pos);
@@ -168,9 +184,9 @@ export function checkDecl(schema, d, owner = schema.name) {
         }
         return err(`${schema.name} already has an attribute '${d.name}' — a declaration introduces a new one; write '${d.name} = …' to set the existing one`, d.pos);
     }
-    const type = declaredType(d.type);
+    const type = declaredType(d.type) ?? (isComponent(d.type) ? { kind: "component", of: d.type } : null);
     if (type === null) {
-        return err(`unknown type '${d.type}' — a declared attribute's type is one of ${DECLARED_TYPE_NAMES.join(", ")}`, d.typePos);
+        return err(`unknown type '${d.type}' — a declared attribute's type is one of ${DECLARED_TYPE_NAMES.join(", ")}, or a component class`, d.typePos);
     }
     if (d.def === null)
         return { ok: true, type, value: undefined };
@@ -233,13 +249,13 @@ export function checkDecl(schema, d, owner = schema.name) {
 /** An element's schema plus its inline declarations — the anonymous one-off
  *  subclass of language §5, in the checker's currency. Validation of the
  *  decls themselves is the caller's (checkDecl); this only shapes the chain. */
-export function withDecls(schema, decls) {
+export function withDecls(schema, decls, isComponent = () => false) {
     if (decls.length === 0)
         return schema;
     const attrs = {};
     const prevailing = [];
     for (const d of decls) {
-        const r = checkDecl(schema, d);
+        const r = checkDecl(schema, d, schema.name, isComponent);
         if (r.ok && !Object.hasOwn(attrs, d.name)) {
             attrs[d.name] = r.type;
             if (d.prevailing)
