@@ -262,11 +262,12 @@ const PAYLOAD_TYPES = new Set(["PointerEvent", "PointerUpEvent", "TouchEvent", "
  *  has no nullable/optional parameter spelling (`c: Menu?`) — when it gets one,
  *  this is the line that changes. Non-null is kept meanwhile: it keeps bodies
  *  clean and pushes the check to the caller, where the knowledge is. */
-export function signatureTsType(written: string, isComponent: (n: string) => boolean): string | null {
-  if (PAYLOAD_TYPES.has(written)) return written;   // `onMouseUp(e: PointerUpEvent)`
+export function signatureTsType(written: string, isComponent: (n: string) => boolean, nullable = false): string | null {
+  const nul = (t: string): string => (nullable ? `${t} | null` : t);
+  if (PAYLOAD_TYPES.has(written)) return nul(written);   // `onMouseUp(e: PointerUpEvent)`
   const t = declaredType(written);
-  if (t !== null) return t.kind === "view" ? "View" : t.kind === "component" ? t.of : tsType(t);
-  return isComponent(written) ? written : null;
+  if (t !== null) return nul(t.kind === "view" ? "View" : t.kind === "component" ? t.of : tsType(t));
+  return isComponent(written) ? nul(written) : null;
 }
 
 /** A method member's ambient signature — what a CALLER checks against (the
@@ -285,10 +286,10 @@ export function signatureTsType(written: string, isComponent: (n: string) => boo
  *  and `void` would flag every such use of a correct program. */
 function methodSig(m: Method, isComponent: (n: string) => boolean): string {
   const params = m.params.map((p) => {
-    const ts = p.type === undefined ? null : signatureTsType(p.type, isComponent);
+    const ts = p.type === undefined ? null : signatureTsType(p.type, isComponent, p.nullable === true);
     return ts === null ? `${p.name}?: any` : `${p.name}: ${ts}`;
   }).join(", ");
-  const ret = m.returns === undefined ? "any" : (signatureTsType(m.returns, isComponent) ?? "any");
+  const ret = m.returns === undefined ? "any" : (signatureTsType(m.returns, isComponent, m.returnsNullable === true) ?? "any");
   return `  ${m.name}(${params}): ${ret};`;
 }
 

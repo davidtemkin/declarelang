@@ -38,7 +38,7 @@ registered elsewhere.
 
 ### SATOR-6 — Small, and fast where it counts
 A full application ships small — the flagship calendar, application *and* runtime,
-at roughly <!--stat:calendar.wireKB-->53<!--/stat--> KB gzipped (machine-stamped from
+at roughly <!--stat:calendar.wireKB-->54<!--/stat--> KB gzipped (machine-stamped from
 the measured artifact), smaller than the runtime alone of most frameworks.
 Input latency is several times lower than the equivalent framework build, with no
 virtual-DOM pass between gesture and pixels, and animation runs at the display's

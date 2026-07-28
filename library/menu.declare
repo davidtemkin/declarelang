@@ -133,8 +133,8 @@ class Menu extends View [ visible = { shown }, width = 220,
         },
 
     closeSub() { if (child != null) this.closeIt(child) },
-    closeIt(c) { c.close() },
-    subShown(c) -> boolean { return c != null && c.shown },
+    closeIt(c: Menu?) { if (c != null) c.close() },
+    subShown(c: Menu?) -> boolean { return c != null && c.shown },
     rootClose() { this.closeIt(this.rootMenu != null ? this.rootMenu : this) },
 
     // ── keyboard roving (the deepest shown menu handles the keys) ──────────
@@ -164,7 +164,7 @@ class Menu extends View [ visible = { shown }, width = 220,
         if (child != null) this.stepIn(child)
         },
 
-    stepIn(c) { c.step(1) },
+    stepIn(c: Menu?) { if (c != null) c.step(1) },
 
     keys: Keys [
         onKeyDown(e: KeyEvent) {

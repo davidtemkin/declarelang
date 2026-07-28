@@ -24,8 +24,8 @@
 //             | IDENT '(' params ')' ret? CODE  -- a method (language §4)
 //             | element                      -- an anonymous child instance
 //   params   := ( param ( ',' param )* ','? )?
-//   param    := IDENT ( ':' IDENT )?             -- name-first, type optional
-//   ret      := ( '->' | ':' ) IDENT             -- '->' is house style
+//   param    := IDENT ( ':' IDENT '?'? )?        -- name-first; '?' = nullable
+//   ret      := ( '->' | ':' ) IDENT '?'?        -- '->' is house style
 //   value    := literal | '{' ts-expression '}'
 //   literal  := NUMBER '%'? | STRING | HASHCOLOR | IDENT | PATH
 //   PATH     := ':' IDENT ( '.' IDENT )* '[]'?    -- a datapath (language §9)
@@ -340,9 +340,15 @@ function tokenize(src) {
             tokens.push({ kind: "ident", text: name, pos: start });
             continue;
         }
-        // `->` reaches the lexer only as a TS-ism (inside { } bodies it rides the
-        // opaque code token). Tokenize it so the parser can name the rule AND
-        // recover through it (E-9 — the recognition layer).
+        // `?` — the NULLABLE marker on a signature type (`c: Menu?`). Only legal
+        // there; anywhere else the parser reports it as the unexpected token it is.
+        if (c === "?") {
+            advance();
+            tokens.push({ kind: "query", text: "?", pos: start });
+            continue;
+        }
+        // `->` — the return-type marker (language §4). Inside a { } body it rides
+        // the opaque code token, so it reaches the lexer only in a signature.
         if (c === "-" && src[i + 1] === ">") {
             advance();
             advance();
@@ -556,17 +562,23 @@ class Parser {
                 const params = [];
                 while (this.peek().kind === "ident") {
                     const pname = this.next().text;
-                    let ptype, ptypePos;
+                    let ptype, ptypePos, pnullable = false;
                     if (this.peek().kind === "colon") {
                         this.next();
                         if (this.peek().kind === "ident") {
                             ptypePos = this.peek().pos;
                             ptype = this.next().text;
+                            if (this.peek().kind === "query") {
+                                this.next();
+                                pnullable = true;
+                            }
                         }
                         else
                             this.errors.push(new DeclareError(`'${pname}:' needs a type name — write '${pname}: number' (a primitive or a component class), or drop the ':' for an untyped parameter`, this.peek().pos));
                     }
-                    params.push(ptype === undefined ? { name: pname } : { name: pname, type: ptype, typePos: ptypePos });
+                    params.push(ptype === undefined ? { name: pname }
+                        : pnullable ? { name: pname, type: ptype, typePos: ptypePos, nullable: true }
+                            : { name: pname, type: ptype, typePos: ptypePos });
                     if (this.peek().kind === "comma")
                         this.next();
                     else
@@ -575,12 +587,16 @@ class Parser {
                 this.expect("rparen", "')'");
                 // The return annotation. `-> Ret` is house style (what §4 writes);
                 // `: Ret` parses too — the formatter normalizes it.
-                let returns, returnsPos;
+                let returns, returnsPos, returnsNullable = false;
                 if (this.peek().kind === "arrow" || this.peek().kind === "colon") {
                     const marker = this.next();
                     if (this.peek().kind === "ident") {
                         returnsPos = this.peek().pos;
                         returns = this.next().text;
+                        if (this.peek().kind === "query") {
+                            this.next();
+                            returnsNullable = true;
+                        }
                     }
                     else
                         this.errors.push(new DeclareError(`'${marker.text}' needs a return type name — write '${name.text}(…) -> number { … }', or drop the '${marker.text}' for a method that returns nothing`, this.peek().pos));
@@ -604,7 +620,7 @@ class Parser {
                 this.next();
                 el.methods.push(returns === undefined
                     ? { name: name.text, params, body: body.str, pos: name.pos, bodyPos: body.pos }
-                    : { name: name.text, params, returns, returnsPos, body: body.str, pos: name.pos, bodyPos: body.pos });
+                    : { name: name.text, params, returns, returnsPos, returnsNullable, body: body.str, pos: name.pos, bodyPos: body.pos });
             }
             else {
                 // an anonymous child instance — bare `Name` or `Name [ … ]` (or the

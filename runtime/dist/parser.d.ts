@@ -65,6 +65,12 @@ export interface Attr {
 export interface Param {
     name: string;
     type?: string;
+    /** Written `c: Menu?` — the value may be absent. A component-typed SLOT is
+     *  null-defaulted, so passing one to a non-null parameter is an error; this
+     *  is how a method says it accepts that. TypeScript's narrowing then does the
+     *  rest: a body that checks (`c != null && c.shown`) reads cleanly, and one
+     *  that does not is told so. */
+    nullable?: boolean;
     /** Position of the written type name, for a positioned "unknown type" —
      *  the same role `AttrDecl.typePos` plays for a declaration. */
     typePos?: Pos;
@@ -80,6 +86,8 @@ export interface Method {
     name: string;
     params: Param[];
     returns?: string;
+    /** Written `-> Menu?` (see `Param.nullable`). */
+    returnsNullable?: boolean;
     /** Position of the written return type name (see `Param.typePos`). */
     returnsPos?: Pos;
     body: string;

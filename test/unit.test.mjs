@@ -862,6 +862,32 @@ await test("parse() reads parameter lists (incl. a trailing comma)", () => {
   ]);
 });
 
+await test("a signature type may be NULLABLE — `c: Menu?` — and TS narrowing does the rest", () => {
+  // The measured problem this solves: a component SLOT is null-defaulted, so a
+  // non-null parameter rejects it, and making every parameter nullable makes
+  // every unchecked body read an error. Neither is right for all methods —
+  // which method wants which depends on who holds the knowledge. The `?` lets
+  // each say so, and TypeScript's narrowing then makes a checking body clean.
+  const ok = (src) => { const r = compile(src, {}); assert.ok(r.source, (r.errors?.[0]?.rawMessage) ?? "expected it to compile"); };
+  const errs = (src) => {
+    try { const r = compile(src); return (r.errors ?? []).map((e) => e.message ?? String(e)).join("\n"); }
+    catch (e) { return String(e?.message ?? e); }
+  };
+  const M = `class Menu extends View [ shown: boolean = false, child: Menu = null, closeSelf() { } ]\n`;
+
+  ok(M + `App [ width=1, height=1, m: Menu [ ], f(c: Menu?) -> boolean { return c != null && c.shown } ]`);
+  ok(M + `App [ width=1, height=1, m: Menu [ ], f(c: Menu?) { if (c != null) c.closeSelf() } ]`);
+  ok(M + `App [ width=1, height=1, m: Menu [ ], f() -> Menu? { return null } ]`);
+  // a nullable slot reaches a nullable parameter…
+  ok(M + `App [ width=1, height=1, m: Menu [ ], f(c: Menu?) { if (c != null) c.closeSelf() }, go() { this.f(this.m.child) } ]`);
+  // …but not a non-null one: the caller must guarantee it
+  assert.match(errs(M + `App [ width=1, height=1, m: Menu [ ], f(c: Menu) { c.closeSelf() }, go() { this.f(this.m.child) } ]`),
+    /not assignable/);
+  // an unchecked read of a nullable value names BOTH repairs
+  assert.match(errs(M + `App [ width=1, height=1, m: Menu [ ], f(c: Menu?) { c.closeSelf() } ]`),
+    /'c' may be absent here — check it .*or drop the '\?' from its type/);
+});
+
 await test("a declared attribute may be typed by a COMPONENT CLASS", () => {
   // The irregularity this closes: the `component` AttrType and its coercion
   // already existed for built-in slots (`layout: Layout`), but a DECLARATION

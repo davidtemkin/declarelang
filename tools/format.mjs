@@ -174,6 +174,7 @@ export function lex(src) {
       push("bcomment", start);
       continue;
     }
+    if (c === "?") { i += 1; push("query", start); continue; }
     if (c === "-" && src[i + 1] === ">") { i += 2; push("arrow", start); continue; }
     if (c === "<" && src[i + 1] === "-" && src[i + 2] === ">") { i += 3; push("bindtwo", start); continue; }
     if (c === "<" && src[i + 1] === "-") { i += 2; push("subfrom", start); continue; }
@@ -318,7 +319,7 @@ function analyze(tokens) {
         // `-> Ret` is house style; `: Ret` also parses, as in the parser.
         while (tok().kind === "ident") {
           p++;
-          if (tok().kind === "colon") { tok().colonKind = "param"; p++; expect("ident", "a parameter type name"); }
+          if (tok().kind === "colon") { tok().colonKind = "param"; p++; expect("ident", "a parameter type name"); if (tok().kind === "query") p++; }
           if (tok().kind === "comma") p++; else break;
         }
         expect("rp", "')'");
@@ -326,6 +327,7 @@ function analyze(tokens) {
           if (tok().kind === "colon") tok().colonKind = "ret";
           p++;
           expect("ident", "a return type name");
+          if (tok().kind === "query") p++;
         }
         // `<-` subscriptions were removed (2026-07-26 — services are components
         // now). Still lexed, so the formatter fails with the same pointed
@@ -505,7 +507,8 @@ function decide(tokens, { bodies }) {
 // wherever a space belongs. The formatter never builds a column, never keeps
 // one where the grammar glues, and leaves the author's columns alone.
 function gap(prev, t) {
-  if (t.kind === "comma" || t.kind === "dot" || t.kind === "rp" || t.kind === "lp") return 0;
+  // `?` glues to the type it qualifies (`c: Menu?`), like `,` and `)`.
+  if (t.kind === "comma" || t.kind === "dot" || t.kind === "rp" || t.kind === "lp" || t.kind === "query") return 0;
   // The trailing-comment gap (§2.7, re-ruled 2026-07-13): minimum two
   // spaces, no upper bound — the author's spacing is preserved verbatim
   // above the floor (the same school as the interior rule below).

@@ -201,6 +201,16 @@ function explainTs(d, u, synthTags) {
                 return `this call passes ${got} argument${plural(got)} but ${low} ${low === 1 ? "is" : "are"} required — a parameter with a written type must be given a value`;
             }
             return msg;
+        // A possibly-absent value read without a check. Names BOTH repairs, since
+        // which is right depends on who knows: the body can check, or the signature
+        // can drop the `?` and make the CALLER guarantee it.
+        case 18047:
+        case 18048:
+            m = msg.match(/'(.+?)' is possibly '(null|undefined)'/s);
+            if (m !== null) {
+                return `'${m[1]}' may be absent here — check it ('if (${m[1]} != null) …'), or drop the '?' from its type so the caller must supply one`;
+            }
+            return msg;
         default:
             return msg;
     }
@@ -346,10 +356,10 @@ class CaseEmitter {
             // optional `any`. Both sites must agree or a method checks differently
             // depending on whether it sits in a `class` or in the tree.
             const ps = m.params.map((prm) => {
-                const t = prm.type === undefined ? null : signatureTsType(prm.type, (n) => this.schemas[n] !== undefined);
+                const t = prm.type === undefined ? null : signatureTsType(prm.type, (n) => this.schemas[n] !== undefined, prm.nullable === true);
                 return t === null ? `${prm.name}?: any` : `${prm.name}: ${t}`;
             }).join(", ");
-            const ret = m.returns === undefined ? "any" : (signatureTsType(m.returns, (n) => this.schemas[n] !== undefined) ?? "any");
+            const ret = m.returns === undefined ? "any" : (signatureTsType(m.returns, (n) => this.schemas[n] !== undefined, m.returnsNullable === true) ?? "any");
             members.push(`  ${m.name}(${ps}): ${ret};`);
             for (const prm of m.params)
                 if (prm.type !== undefined)
@@ -423,7 +433,7 @@ class CaseEmitter {
         // gives `v.toUpperCase()` a TS2339 here. A bare parameter stays `any` —
         // the under-report constraints.md §2 names, and the reason a bare
         // parameter also blinds dep-extraction to every read through it.
-        const paramTs = (p) => (p.type === undefined ? null : signatureTsType(p.type, (n) => this.schemas[n] !== undefined)) ?? "any";
+        const paramTs = (p) => (p.type === undefined ? null : signatureTsType(p.type, (n) => this.schemas[n] !== undefined, p.nullable === true)) ?? "any";
         const paramSig = params.map((p) => `, ${p.name}: ${paramTs(p)}`).join("");
         const paramArgs = params.map(() => `, undefined as any`).join("");
         const header = `(function (this: ${self}, parent: ${parent}, classroot: ${root}${paramSig}) {`;

@@ -23,7 +23,7 @@ export declare function tsType(t: AttrType): string;
  *  has no nullable/optional parameter spelling (`c: Menu?`) — when it gets one,
  *  this is the line that changes. Non-null is kept meanwhile: it keeps bodies
  *  clean and pushes the check to the caller, where the knowledge is. */
-export declare function signatureTsType(written: string, isComponent: (n: string) => boolean): string | null;
+export declare function signatureTsType(written: string, isComponent: (n: string) => boolean, nullable?: boolean): string | null;
 /** LANGUAGE-API members — the runtime surface a `{ }` body may READ or CALL
  *  that is deliberately NOT in the schemas: a schema models what an author can
  *  SET in `[ ]` ("lifecycle state (value, status, error) is runtime surface
