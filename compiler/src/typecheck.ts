@@ -366,6 +366,7 @@ class CaseEmitter {
       // checkDecl makes, or this path would silently under-report the slot as
       // `any` and a typo through it would compile.
       const t = declaredType(d.type)
+        ?? (d.type.startsWith("(") ? { kind: "fn", written: d.type } as AttrType : null)
         ?? (this.schemas[d.type] !== undefined || this.classHasChildren.has(d.type)
           ? { kind: "component", of: d.type } as AttrType : null);
       // A color with a concrete (non-null) default is non-null (see memberSig):

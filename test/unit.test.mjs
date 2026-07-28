@@ -862,6 +862,41 @@ await test("parse() reads parameter lists (incl. a trailing comma)", () => {
   ]);
 });
 
+await test("function types — `(id: string) -> void`, the type a method IS", () => {
+  // language §4: "A method is a named field of function type — `name: (params)
+  // -> Ret { body }`". Only the SUGAR (`f(v) { }`) had been implemented, so a
+  // callback could not be typed at all: library/dialog.declare wrote
+  // `cb: object = null` because `object` was the closest thing sayable.
+  const ok = (src) => { const r = compile(src, {}); assert.ok(r.source, (r.errors?.[0]?.rawMessage) ?? "expected it to compile"); };
+  const errs = (src) => {
+    try { const r = compile(src); return (r.errors ?? []).map((e) => e.message ?? String(e)).join("\n"); }
+    catch (e) { return String(e?.message ?? e); }
+  };
+  // as a parameter, a return, an attribute — the three type positions
+  ok(`App [ width=1, height=1, callCb(f: (id: string) -> void, id: string) { f(id) } ]`);
+  ok(`App [ width=1, height=1, mk() -> (id: string) -> void { return (s) => { } } ]`);
+  ok(`App [ width=1, height=1, cb: (id: string) -> void = null ]`);
+  ok(`App [ width=1, height=1, g(h: (k: (x: number) -> void) -> void) { } ]`);   // nested
+  ok(`App [ width=1, height=1, callCb(f: (id: string), id: string) { f(id) } ]`); // `-> void` implied
+
+  // it CHECKS, through the callback and into the slot
+  assert.match(errs(`App [ width=1, height=1, callCb(f: (id: string) -> void, id: string) { f(7) } ]`),
+    /Argument of type 'number' is not assignable to parameter of type 'string'/);
+  assert.match(errs(`App [ width=1, height=1, cb: (id: string) -> void = null, arm(f: (n: number) -> void) { this.cb = f } ]`),
+    /not assignable/);
+  // a nullable function type parenthesises, or `=> void | null` would read as
+  // a function RETURNING `void | null`
+  ok(`App [ width=1, height=1, cb: (id: string) -> void? = null,
+    fire(id: string) { if (this.cb != null) this.cb(id) },
+    arm(f: (id: string) -> void?) { this.cb = f } ]`);
+  // an unknown name INSIDE the type is named, not the whole type
+  assert.match(errs(`App [ width=1, height=1, callCb(f: (id: Nonsense) -> void) { } ]`),
+    /unknown type 'Nonsense' for parameter 'f'/);
+  // only `null` is a literal for a function slot
+  assert.match(errs(`App [ width=1, height=1, cb: (id: string) -> void = 5 ]`),
+    /expects a function \(id: string\) -> void, or null for none/);
+});
+
 await test("a signature type may be NULLABLE — `c: Menu?` — and TS narrowing does the rest", () => {
   // The measured problem this solves: a component SLOT is null-defaulted, so a
   // non-null parameter rejects it, and making every parameter nullable makes

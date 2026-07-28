@@ -110,8 +110,26 @@ export function check(input) {
  *  if it is in the declarable value vocabulary (`number`, `string`, `View`, an
  *  enum) or names a component in this program. */
 function checkSignatureTypes(el, errors, schemas) {
-    const known = (n) => declaredType(n) !== null || schemas[n] !== undefined || PAYLOAD_TYPE_NAMES.has(n);
+    const known = (n) => {
+        // A function type validates by its PARTS: every TYPE inside it must itself
+        // be known. Parameter NAMES are not types, so strip `name:` first —
+        // `(id: string) -> void` checks `string` and `void`, not `id`.
+        if (n.startsWith("(")) {
+            const types = n.replace(/[A-Za-z_$][\w$]*\s*:/g, " ").match(/[A-Za-z_$][\w$]*/g) ?? [];
+            return types.every((w) => w === "void" || known(w));
+        }
+        return declaredType(n) !== null || schemas[n] !== undefined || PAYLOAD_TYPE_NAMES.has(n);
+    };
     const schema = schemas[el.tag];
+    /** The first name inside a written type that is not a known type — so a
+     *  function type's error can point at `Nonsense`, not at the whole
+     *  `(id: Nonsense) -> void`. */
+    const firstUnknown = (n) => {
+        if (!n.startsWith("("))
+            return known(n) ? null : n;
+        const types = n.replace(/[A-Za-z_$][\w$]*\s*:/g, " ").match(/[A-Za-z_$][\w$]*/g) ?? [];
+        return types.find((w) => w !== "void" && !known(w)) ?? null;
+    };
     for (const m of el.methods) {
         // A HANDLER's payload is not the author's to choose. `onMouseUp` receives a
         // PointerUpEvent; writing anything else is the override mismatch TypeScript
@@ -130,12 +148,14 @@ function checkSignatureTypes(el, errors, schemas) {
             }
         }
         for (const prm of m.params) {
-            if (prm.type !== undefined && !known(prm.type)) {
-                errors.push(new DeclareError(`unknown type '${prm.type}' for parameter '${prm.name}' — a signature type is one of ${DECLARED_TYPE_NAMES.join(", ")}, or a component class in this program`, prm.typePos ?? m.pos));
+            const badP = prm.type === undefined ? null : firstUnknown(prm.type);
+            if (badP !== null) {
+                errors.push(new DeclareError(`unknown type '${badP}' for parameter '${prm.name}' — a signature type is one of ${DECLARED_TYPE_NAMES.join(", ")}, a component class in this program, or a function type '(a: T) -> R'`, prm.typePos ?? m.pos));
             }
         }
-        if (m.returns !== undefined && !known(m.returns)) {
-            errors.push(new DeclareError(`unknown return type '${m.returns}' for '${m.name}' — a signature type is one of ${DECLARED_TYPE_NAMES.join(", ")}, or a component class in this program`, m.returnsPos ?? m.pos));
+        const badR = m.returns === undefined ? null : firstUnknown(m.returns);
+        if (badR !== null) {
+            errors.push(new DeclareError(`unknown return type '${badR}' for '${m.name}' — a signature type is one of ${DECLARED_TYPE_NAMES.join(", ")}, a component class in this program, or a function type '(a: T) -> R'`, m.returnsPos ?? m.pos));
         }
     }
     for (const c of el.children)

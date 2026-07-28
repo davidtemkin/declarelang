@@ -419,6 +419,7 @@ export function coerceData(type, v, def) {
             return def; // a View reference never arrives from data
         case "cursor":
         case "component":
+        case "fn":
         case "record":
         case "stroke":
         case "shadow":

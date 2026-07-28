@@ -188,6 +188,9 @@ export type AttrType =
   | { readonly kind: "array" | "object" | "view" }
   | { readonly kind: "enum"; readonly name: string; readonly tokens: readonly string[] }
   | { readonly kind: "component"; readonly of: string }
+  // A FUNCTION type — `(id: string) -> void`, the type a method IS
+  // (language §4). `written` is the source form; scaffold translates it.
+  | { readonly kind: "fn"; readonly written: string }
   // R8: a slot whose value is a *place in a dataset* (View.datapath — the
   // cursor `:path` reads resolve against, language §9). Its written forms are
   // a `:path` literal (relative to the inherited cursor), a `{ }` expression
@@ -319,6 +322,12 @@ export function coerce(type: AttrType, lit: Literal): Coerced {
       if (lit.kind === "ident" && type.tokens.includes(lit.name)) return ok(lit.name);
       // Vowel-aware article: R7's Axis is the first enum that needs "an".
       return fail(`${/^[AEIOU]/.test(type.name) ? "an" : "a"} ${type.name} (one of ${type.tokens.join(" | ")})`);
+    case "fn":
+      // Like a component slot: `null` is the one literal form ("no callback").
+      // A real function arrives by assignment from a { } body, never as a
+      // literal in the declarative layer.
+      if (lit.kind === "ident" && lit.name === "null") return ok(null);
+      return fail(`a function ${type.written}, or null for none`);
     case "component":
       // `null` is the one literal form ("no layout"); the instance form is
       // the member shape `layout: SimpleLayout [ … ]`, which never reaches

@@ -582,6 +582,45 @@ class Parser {
    *  coordinator (reactive state + methods). So the ordinary case a newcomer
    *  reaches for reads as a plain class, with no ceremony that presupposes the
    *  graph; the graph is learned later, when reaching one from a view. */
+  /** Read a type reference and return it AS WRITTEN. Two shapes (language §4):
+   *  a name (`number`, `Menu`, either optionally `?`-marked), or a FUNCTION type
+   *  `(params) -> Ret` — the type a method IS ("a method is a named field of
+   *  function type … the `{ body }` is its value"), and therefore the type a
+   *  callback parameter or a callback-holding slot needs. Before this,
+   *  library/dialog.declare had to write `cb: object = null` for a slot holding
+   *  a function, because `object` was the closest thing sayable.
+   *
+   *  The result is the written source TEXT, because that is what a written type
+   *  has always been in this AST — a compound one is no different. Translating
+   *  it to TypeScript is a single `->` → `=>` rewrite (scaffold.ts); validating
+   *  the names inside it is the checker's job, as for every written type. */
+  parseTypeRef(what: string): { text: string; pos: Pos } {
+    if (this.peek().kind === "lparen") {
+      const open = this.peek();
+      let text = "(";
+      this.next();
+      while (this.peek().kind !== "rparen" && this.peek().kind !== "eof") {
+        text += this.expect("ident", "a parameter name").text;
+        if (this.peek().kind === "colon") { this.next(); text += ": " + this.parseTypeRef("a parameter type name").text; }
+        if (this.peek().kind === "comma") { this.next(); text += ", "; } else break;
+      }
+      this.expect("rparen", "')'");
+      text += ")";
+      // `-> Ret` is optional: a function type without one is void, the same
+      // rule a method signature follows. It is MADE explicit here so every
+      // function type carries a return, and the TypeScript translation stays a
+      // single token rewrite at every nesting depth.
+      text += this.peek().kind === "arrow"
+        ? (this.next(), " -> " + this.parseTypeRef("a return type name").text)
+        : " -> void";
+      if (this.peek().kind === "query") { this.next(); text += "?"; }
+      return { text, pos: open.pos };
+    }
+    const name = this.expect("ident", what);
+    if (this.peek().kind === "query") { this.next(); return { text: name.text + "?", pos: name.pos }; }
+    return { text: name.text, pos: name.pos };
+  }
+
   parseClass(): ClassDecl {
     const kw = this.expect("ident", "'class'");
     const name = this.expect("ident", "the class's name");
@@ -681,7 +720,7 @@ class Parser {
           if (this.peek().kind === "comma") { this.next(); continue; }
           break;
         }
-        const type = this.expect("ident", "a type or component name");
+        const type = this.parseTypeRef("a type or component name");
         if (this.peek().kind === "lbracket") {
           if (prevailing || readOnly) {
             throw new DeclareError(
@@ -731,9 +770,10 @@ class Parser {
           let ptype: string | undefined, ptypePos: Pos | undefined, pnullable = false;
           if (this.peek().kind === "colon") {
             this.next();
-            if (this.peek().kind === "ident") {
-              ptypePos = this.peek().pos; ptype = this.next().text;
-              if (this.peek().kind === "query") { this.next(); pnullable = true; }
+            if (this.peek().kind === "ident" || this.peek().kind === "lparen") {
+              const tr = this.parseTypeRef("a parameter type name");
+              ptypePos = tr.pos;
+              if (tr.text.endsWith("?")) { ptype = tr.text.slice(0, -1); pnullable = true; } else ptype = tr.text;
             }
             else this.errors.push(new DeclareError(
               `'${pname}:' needs a type name — write '${pname}: number' (a primitive or a component class), or drop the ':' for an untyped parameter`,
@@ -752,9 +792,10 @@ class Parser {
         let returns: string | undefined, returnsPos: Pos | undefined, returnsNullable = false;
         if (this.peek().kind === "arrow" || this.peek().kind === "colon") {
           const marker = this.next();
-          if (this.peek().kind === "ident") {
-            returnsPos = this.peek().pos; returns = this.next().text;
-            if (this.peek().kind === "query") { this.next(); returnsNullable = true; }
+          if (this.peek().kind === "ident" || this.peek().kind === "lparen") {
+            const tr = this.parseTypeRef("a return type name");
+            returnsPos = tr.pos;
+            if (tr.text.endsWith("?")) { returns = tr.text.slice(0, -1); returnsNullable = true; } else returns = tr.text;
           }
           else this.errors.push(new DeclareError(
             `'${marker.text}' needs a return type name — write '${name.text}(…) -> number { … }', or drop the '${marker.text}' for a method that returns nothing`,

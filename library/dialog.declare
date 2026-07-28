@@ -48,13 +48,13 @@ class Dialog extends View [ visible = { shown },
     tone: string = "",
     buttons: array = null,
     saved: View = null,
-    cb: object = null,
+    cb: (id: string) -> void? = null,
 
     // the delivery seam — override declaratively, or pass a callback to a verb
 
-    picked(id) { },
+    picked(id: string) { },
 
-    open(t, m, btns, tone_, cb_) {
+    open(t: string, m: string, btns: array, tone_: string, cb_: (id: string) -> void?) {
         title = "" + (t || "")
         message = "" + (m || "")
         tone = "" + (tone_ || "")
@@ -68,11 +68,11 @@ class Dialog extends View [ visible = { shown },
 
     // ── the idioms ─────────────────────────────────────────────────────────
 
-    notice(t, m, cb_) { this.open(t, m, [({ id: "ok", label: "OK", default: true })], "", cb_) },
+    notice(t: string, m: string, cb_: (id: string) -> void?) { this.open(t, m, [({ id: "ok", label: "OK", default: true })], "", cb_) },
 
-    error(t, m, cb_) { this.open(t, m, [({ id: "ok", label: "OK", default: true })], "error", cb_) },
+    error(t: string, m: string, cb_: (id: string) -> void?) { this.open(t, m, [({ id: "ok", label: "OK", default: true })], "error", cb_) },
 
-    ask(t, m, cb_) {
+    ask(t: string, m: string, cb_: (id: string) -> void?) {
         this.open(t, m, [
             ({ id: "cancel", label: "Cancel", cancel: true }),
             ({ id: "no", label: "No" }),
@@ -90,7 +90,7 @@ class Dialog extends View [ visible = { shown },
         if (s != null) setTimeout(() => Focus.focus(s), 0)
         },
 
-    pick(id) {
+    pick(id: string) {
         if (!shown) return                       // the double-activation guard
         const f = this.cb
         this.close()
@@ -98,9 +98,9 @@ class Dialog extends View [ visible = { shown },
         if (f != null) this.callCb(f, id)
         },
 
-    callCb(f, id) { f(id) },
+    callCb(f: (id: string) -> void, id: string) { f(id) },
 
-    kidsOf(b) { return b.children },
+    kidsOf(b: View) -> array { return b.children },
 
     innerOf(box) { return this.arrangement == "stack" ? box.stackInner : box.rowInner },
 

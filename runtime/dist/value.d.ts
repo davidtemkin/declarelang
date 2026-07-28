@@ -108,6 +108,9 @@ export type AttrType = {
     readonly kind: "component";
     readonly of: string;
 } | {
+    readonly kind: "fn";
+    readonly written: string;
+} | {
     readonly kind: "cursor";
 } | {
     readonly kind: "slotref";

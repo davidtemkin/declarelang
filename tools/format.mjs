@@ -238,6 +238,27 @@ function analyze(tokens) {
     return nc[p++];
   };
 
+  // A type reference, as the parser reads it (language §4): a NAME with an
+  // optional `?`, or a FUNCTION type `(params) -> Ret`. Consumes tokens only —
+  // the formatter re-emits from the token stream, so nothing is rebuilt here.
+  function readTypeRef(what) {
+    if (tok().kind === "lp") {
+      p++;
+      while (tok().kind === "ident") {
+        p++;
+        if (tok().kind === "colon") { tok().colonKind = "param"; p++; readTypeRef("a parameter type name"); }
+        if (tok().kind === "comma") p++; else break;
+      }
+      expect("rp", "')'");
+      if (tok().kind === "arrow") { p++; readTypeRef("a return type name"); }
+      if (tok().kind === "query") p++;
+      return null;
+    }
+    const t = expect("ident", what);
+    if (tok().kind === "query") p++;
+    return t;
+  }
+
   function parseLiteral() {
     const t = tok();
     switch (t.kind) {
@@ -307,7 +328,7 @@ function analyze(tokens) {
           end = parseBody(false).close;
           kind = "child";
         } else {
-          const type = expect("ident", "a type or component name");
+          const type = readTypeRef("a type or component name");
           if (tok().kind === "lb") { end = parseBody(false).close; kind = "child"; }
           else if (tok().kind === "code") { end = nc[p++]; kind = "child"; } // `name: Dataset { … }`
           else if (tok().kind === "eq") { p++; end = parseLiteral(); kind = "decl"; }
@@ -319,15 +340,14 @@ function analyze(tokens) {
         // `-> Ret` is house style; `: Ret` also parses, as in the parser.
         while (tok().kind === "ident") {
           p++;
-          if (tok().kind === "colon") { tok().colonKind = "param"; p++; expect("ident", "a parameter type name"); if (tok().kind === "query") p++; }
+          if (tok().kind === "colon") { tok().colonKind = "param"; p++; readTypeRef("a parameter type name"); }
           if (tok().kind === "comma") p++; else break;
         }
         expect("rp", "')'");
         if (tok().kind === "arrow" || tok().kind === "colon") {
           if (tok().kind === "colon") tok().colonKind = "ret";
           p++;
-          expect("ident", "a return type name");
-          if (tok().kind === "query") p++;
+          readTypeRef("a return type name");
         }
         // `<-` subscriptions were removed (2026-07-26 — services are components
         // now). Still lexed, so the formatter fails with the same pointed
@@ -508,6 +528,10 @@ function decide(tokens, { bodies }) {
 // one where the grammar glues, and leaves the author's columns alone.
 function gap(prev, t) {
   // `?` glues to the type it qualifies (`c: Menu?`), like `,` and `)`.
+  // `(` glues too — `f(a)`, not `f (a)` — EXCEPT when it opens a FUNCTION TYPE
+  // just after a type colon (`cb: (id: string) -> void`), where it is the type
+  // and wants the same space any other type name gets.
+  if (t.kind === "lp" && prev.kind === "colon" && prev.colonKind !== "path") return 1;
   if (t.kind === "comma" || t.kind === "dot" || t.kind === "rp" || t.kind === "lp" || t.kind === "query") return 0;
   // The trailing-comment gap (§2.7, re-ruled 2026-07-13): minimum two
   // spaces, no upper bound — the author's spacing is preserved verbatim

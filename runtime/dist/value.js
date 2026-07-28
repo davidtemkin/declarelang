@@ -160,6 +160,13 @@ export function coerce(type, lit) {
                 return ok(lit.name);
             // Vowel-aware article: R7's Axis is the first enum that needs "an".
             return fail(`${/^[AEIOU]/.test(type.name) ? "an" : "a"} ${type.name} (one of ${type.tokens.join(" | ")})`);
+        case "fn":
+            // Like a component slot: `null` is the one literal form ("no callback").
+            // A real function arrives by assignment from a { } body, never as a
+            // literal in the declarative layer.
+            if (lit.kind === "ident" && lit.name === "null")
+                return ok(null);
+            return fail(`a function ${type.written}, or null for none`);
         case "component":
             // `null` is the one literal form ("no layout"); the instance form is
             // the member shape `layout: SimpleLayout [ … ]`, which never reaches

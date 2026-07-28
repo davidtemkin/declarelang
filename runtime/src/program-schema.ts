@@ -218,10 +218,12 @@ export function checkDecl(
       d.pos
     );
   }
-  const type = declaredType(d.type) ?? (isComponent(d.type) ? { kind: "component", of: d.type } as AttrType : null);
+  const type = declaredType(d.type)
+    ?? (d.type.startsWith("(") ? { kind: "fn", written: d.type } as AttrType : null)
+    ?? (isComponent(d.type) ? { kind: "component", of: d.type } as AttrType : null);
   if (type === null) {
     return err(
-      `unknown type '${d.type}' — a declared attribute's type is one of ${DECLARED_TYPE_NAMES.join(", ")}, or a component class`,
+      `unknown type '${d.type}' — a declared attribute's type is one of ${DECLARED_TYPE_NAMES.join(", ")}, a component class, or a function type '(a: T) -> R'`,
       d.typePos
     );
   }

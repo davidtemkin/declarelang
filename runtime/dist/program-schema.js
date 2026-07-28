@@ -184,9 +184,11 @@ isComponent = () => false) {
         }
         return err(`${schema.name} already has an attribute '${d.name}' — a declaration introduces a new one; write '${d.name} = …' to set the existing one`, d.pos);
     }
-    const type = declaredType(d.type) ?? (isComponent(d.type) ? { kind: "component", of: d.type } : null);
+    const type = declaredType(d.type)
+        ?? (d.type.startsWith("(") ? { kind: "fn", written: d.type } : null)
+        ?? (isComponent(d.type) ? { kind: "component", of: d.type } : null);
     if (type === null) {
-        return err(`unknown type '${d.type}' — a declared attribute's type is one of ${DECLARED_TYPE_NAMES.join(", ")}, or a component class`, d.typePos);
+        return err(`unknown type '${d.type}' — a declared attribute's type is one of ${DECLARED_TYPE_NAMES.join(", ")}, a component class, or a function type '(a: T) -> R'`, d.typePos);
     }
     if (d.def === null)
         return { ok: true, type, value: undefined };

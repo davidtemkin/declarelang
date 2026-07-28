@@ -225,6 +225,7 @@ export function tsType(t: AttrType): string {
     case "shape": return "Shape";
     case "enum": return t.name; // references the emitted `type <Name> = …` alias
     case "component": return `${t.of} | null`; // the only literal is `null` for "none"
+    case "fn": return `(${t.written.replace(/->/g, "=>")}) | null`; // a callback slot; `null` = none
     case "cursor": return "Cursor"; // deferred: schema-typed :path (header (a))
     case "slotref": return "string"; // a bare slot name, a string at runtime
     case "record": return t.name; // e.g. Theme (in the prelude)
@@ -264,6 +265,15 @@ const PAYLOAD_TYPES = new Set(["PointerEvent", "PointerUpEvent", "TouchEvent", "
  *  clean and pushes the check to the caller, where the knowledge is. */
 export function signatureTsType(written: string, isComponent: (n: string) => boolean, nullable = false): string | null {
   const nul = (t: string): string => (nullable ? `${t} | null` : t);
+  // A FUNCTION type — `(id: string) -> void`, what a method IS (language §4).
+  // The written form differs from TypeScript's by exactly one token, so the
+  // translation is that token; the names inside were validated by the checker.
+  // PARENTHESISED when nullable: `(id: string) => void | null` would read as a
+  // function RETURNING `void | null`, not a nullable function.
+  if (written.startsWith("(")) {
+    const fn = written.replace(/->/g, "=>");
+    return nullable ? `(${fn}) | null` : fn;
+  }
   if (PAYLOAD_TYPES.has(written)) return nul(written);   // `onMouseUp(e: PointerUpEvent)`
   const t = declaredType(written);
   if (t !== null) return nul(t.kind === "view" ? "View" : t.kind === "component" ? t.of : tsType(t));
