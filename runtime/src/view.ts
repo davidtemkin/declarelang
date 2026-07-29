@@ -111,6 +111,11 @@ export class View extends Node {
    *  still paints and still hits) and of its auto-extent — frame chrome that
    *  straddles the frame. Parent-scoped: ancestors' clips still apply. */
   declare ignoreClip: boolean;
+  /** Opt out of the nearest enclosing SCROLL regime: this child rides the
+   *  scroll frame (the window at the page altitude, the pane's frame inside a
+   *  `scrolls` view) and contributes nothing to the scroll range. The fixed
+   *  header, the pinned toolbar, the overlay layer. */
+  declare ignoreScroll: boolean;
   /** The pointer cursor while over this view (a CSS cursor keyword —
    *  "ew-resize", "col-resize", "pointer", …; "" = inherit). Meaningful on
    *  views that take input: the sink is the hit target on both backends. */
@@ -484,13 +489,14 @@ export class View extends Node {
     s.setVisible(this.visible);
     s.setOpacity(this.opacity);
     if (this.ignoreClip) s.setIgnoreClip?.(true);
+    if (this.ignoreScroll) s.setIgnoreScroll?.(true);
     if (this.cursor !== "") s.setCursor(this.cursor);
     if (this.pointerEvents !== "") s.setPointerEvents(this.pointerEvents);
     if (this.scale !== 1 || this.pivotX !== 0 || this.pivotY !== 0)
       s.setScale(this.scale, this.pivotX, this.pivotY);
     this.applyClip(this.clip);
-    if (this.scrolls === "y" || this.scrolls === "both") s.setScroll(true, (y) => { this.scrollY = y; });
-    if (this.scrolls === "x" || this.scrolls === "both") s.setScrollX(true, (x) => { this.scrollX = x; });
+    if (this.scrolls === "y" || this.scrolls === "both") s.setScroll?.(true, (y) => { this.scrollY = y; });
+    if (this.scrolls === "x" || this.scrolls === "both") s.setScrollX?.(true, (x) => { this.scrollX = x; });
     const sink = this.inputSink();
     if (sink !== null) s.setInput(sink, this.inputWants());
     if (this.draw) this.bindDraw();
@@ -642,6 +648,15 @@ export class View extends Node {
   }
 }
 
+/** The `scrolls` axis-enum pusher, shared by View and the App's own default
+ *  (`"y"` — the App's scroller is the page; the backend realizes the root's
+ *  regime as the browser's own scroll). */
+const pushScrolls = (v: View, ax: string): void => {
+  // optional-called: a minimal host/mock surface may omit the scroll seam
+  v.surface?.setScroll?.(ax === "y" || ax === "both", (y) => { v.scrollY = y; });
+  v.surface?.setScrollX?.(ax === "x" || ax === "both", (x) => { v.scrollX = x; });
+};
+
 defineAttributes(View, {
   x: { def: 0, push: (v, n) => v.surface?.setX(n) },
   y: { def: 0, push: (v, n) => v.surface?.setY(n) },
@@ -654,6 +669,7 @@ defineAttributes(View, {
   visible: { def: true, push: (v, b) => v.surface?.setVisible(b) },
   ignoreLayout: { def: false, push: (v) => { const p = v.parent; if (p instanceof View) p.childrenMutated(); } },
   ignoreClip: { def: false, push: (v, b: boolean) => v.surface?.setIgnoreClip?.(b) },
+  ignoreScroll: { def: false, push: (v, b: boolean) => v.surface?.setIgnoreScroll?.(b) },
   opacity: { def: 1, push: (v, o) => v.surface?.setOpacity(o) },
   cursor: { def: "", push: (v, c: string) => v.surface?.setCursor(c) },
   pointerEvents: { def: "", push: (v, c: string) => v.surface?.setPointerEvents(c) },
@@ -673,10 +689,7 @@ defineAttributes(View, {
   // declared axis and feeds the user's offsets back into `scrollY`/`scrollX`
   // (plain reactive writes — no push, so they never echo to the surface;
   // reads drive fades/reveals).
-  scrolls: { def: "none", push: (v, ax: string) => {
-    v.surface?.setScroll(ax === "y" || ax === "both", (y) => { v.scrollY = y; });
-    v.surface?.setScrollX(ax === "x" || ax === "both", (x) => { v.scrollX = x; });
-  } },
+  scrolls: { def: "none", push: pushScrolls },
   tip: { def: "" },
   scrollY: { def: 0 },
   scrollX: { def: 0 },
@@ -981,6 +994,48 @@ export class App extends View {
       derives[size] = bindDerived(this, size, () =>
         size === "width" ? Math.max(this.hostWidth, this.minWidth) : Math.max(this.hostHeight, this.minHeight));
     }
+    this.bindPageScroll();
+  }
+
+  /** An App is CLIPPED BY DEFINITION (ruled 2026-07-29): a program owns its
+   *  rectangle. The boolean form of `clip` is absorbed here — the per-axis
+   *  realization (overflow along a declared scroll axis is the page's range;
+   *  overflow along any other axis is out of frame) lives in the backend's
+   *  root scroll styling, composed with `scrolls`. A Shape clip keeps its
+   *  paint+hit meaning; `clip = false` is refused at compile time (check.ts). */
+  override applyClip(clip: string | boolean | null): void {
+    if (this.surface === null) return;
+    this.surface.setClip(typeof clip === "string" ? clip : null);
+  }
+
+  /** Derive "can the page scroll right now?" from the model — a declared
+   *  scroll axis with overflowing content, or a frame the floors hold larger
+   *  than the host — and hand it to the root surface (backend.ts
+   *  setPageScrollable), which keys the app's gesture default on it: pan
+   *  stays with the user exactly when the page has somewhere to go, and
+   *  retires (stilling the rubber-band) when it doesn't. Reactive — content
+   *  growth, floor changes, and host resizes all re-derive; child mutations
+   *  re-run it through childrenMutated like the auto-extent derives. */
+  private pageScroll: Constraint | null = null;
+  private bindPageScroll(): void {
+    if (this.pageScroll !== null) return;
+    this.pageScroll = new Constraint(
+      "App.pageScrollable",
+      () => {
+        const ax = this.scrolls;
+        const yOver = (ax === "y" || ax === "both") && this.contentHeight > this.height;
+        const xOver = (ax === "x" || ax === "both") && this.contentWidth > this.width;
+        return yOver || xOver || this.height > this.hostHeight || this.width > this.hostWidth;
+      },
+      (on) => this.surface?.setPageScrollable?.(on as boolean),
+      1
+    );
+    this.pageScroll.run();
+  }
+
+  override childrenMutated(): void {
+    super.childrenMutated();
+    this.pageScroll?.run();
   }
 }
 
@@ -993,6 +1048,14 @@ initInteraction((n): n is InteractionView => n instanceof View);
 const EMPTY_ENV: Record<string, unknown> = Object.freeze({});
 
 defineAttributes(App, {
+  // An App SCROLLS BY DEFAULT, and its scroller is the page (ruled
+  // 2026-07-29): the App is the outermost view, so its scroll regime is the
+  // browser's own — content taller than the frame makes the page itself
+  // scroll. Same pusher as View's; the backend realizes the ROOT regime as
+  // the document scroll instead of a pane (dom-backend applyScrollStyle).
+  // An app whose content fits has nothing to scroll — the fixed window is
+  // this default, idle. A calendar-shaped app may state `scrolls = none`.
+  scrolls: { def: "y", push: pushScrolls },
   // Stored reactive slots the runtime feeds (index.ts). Read-only to USER code
   // via schema.readOnly (a compile error) — not `readOnly: true` here, which
   // would throw the setter the runtime feed needs. `width`/`height` default to

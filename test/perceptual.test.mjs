@@ -993,21 +993,26 @@ try {
     await assertProbes(dom.page, dom.png);
   });
 
-  await test("Canvas: one shared <canvas> sized to the root", async () => {
+  await test("Canvas: one shared <canvas> sized to the root (plus the inert page-scroll strut)", async () => {
     const shape = await canvas.page.evaluate(() => {
       const host = document.getElementById("host");
       const el = host.firstElementChild;
+      const strut = [...host.children].find((c) => c.tagName === "DIV");
       return {
         childCount: host.children.length,
         tag: el.tagName,
         backing: [el.width, el.height],
         css: [el.style.width, el.style.height],
+        strut: strut ? { w: strut.style.width, pe: strut.style.pointerEvents, vis: strut.style.visibility } : null,
       };
     });
-    assert.equal(shape.childCount, 1, "host should contain exactly the shared canvas");
+    // The page realization (App scrolls by default): the shared canvas rides
+    // fixed, and an inert strut carries the document's scroll extent.
+    assert.equal(shape.childCount, 2, "the shared canvas plus the page-scroll strut");
     assert.equal(shape.tag, "CANVAS");
     assert.deepEqual(shape.backing, [WIDTH, HEIGHT], "backing store is logical size × dpr(=1)");
     assert.deepEqual(shape.css, [WIDTH + "px", HEIGHT + "px"], "CSS box stays logical");
+    assert.deepEqual(shape.strut, { w: "1px", pe: "none", vis: "hidden" }, "the strut is invisible and inert");
   });
 
   await test("Canvas: the rendered pixels match the expected simple render", async () => {

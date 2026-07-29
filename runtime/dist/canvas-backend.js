@@ -76,6 +76,10 @@ class Compositor {
     editables = new Set();
     /** Pending requestAnimationFrame handle; 0 = no paint scheduled. */
     frame = 0;
+    /** The page-scroll STRUT (pageRoot realization): an inert 1px-wide element
+     *  in the host whose height is the root's content extent — the document's
+     *  scroll range, without the canvas itself ever growing. */
+    strut = null;
     hostElement() {
         return this.host;
     }
@@ -128,6 +132,33 @@ class Compositor {
             doc.body.style.margin = "0";
         }
         host.appendChild(canvas);
+        // THE PAGE REALIZATION (ruled 2026-07-29): the root's scroll regime is
+        // the browser's own page scroll, never a pane — the same contract as the
+        // DOM backend, realized canvas-fashion. The canvas rides FIXED at the
+        // viewport (it never scrolls away and never grows with content); an
+        // inert STRUT gives the document its scroll extent (updated per paint);
+        // and the root becomes a `pageRoot` pane whose offset mirrors the
+        // window's own scroll — the existing pane walks then paint and hit the
+        // right slice with no new machinery. scrollBy/wheelTo never consume for
+        // a pageRoot: the browser scrolls the page natively. Top-level only —
+        // an embedded island keeps its box realization.
+        if (!embedded && root.scrolls) {
+            root.pageRoot = true;
+            canvas.style.position = "fixed";
+            canvas.style.left = "0";
+            canvas.style.top = "0";
+            const strut = host.ownerDocument.createElement("div");
+            strut.style.cssText = "position:absolute;left:0;top:0;width:1px;height:0;visibility:hidden;pointer-events:none";
+            host.appendChild(strut);
+            this.strut = strut;
+            const w = host.ownerDocument.defaultView;
+            w?.addEventListener("scroll", () => {
+                if (this.root !== null && this.root.pageRoot && this.root.scrollOffset !== w.scrollY) {
+                    this.root.scrollOffset = w.scrollY;
+                    this.invalidate();
+                }
+            }, { passive: true });
+        }
         // Editables that registered during the attach walk (before this host
         // existed) can now mount their overlay elements.
         for (const s of [...this.editables])
@@ -229,6 +260,12 @@ class Compositor {
         }
         this.invalidate();
     }
+    /** Re-brush the shared element's gesture default when the root's
+     *  page-scrollability fact changes (CanvasSurface.setPageScrollable). */
+    refreshRootTouchAction(s) {
+        if (this.canvas !== null && s === this.root)
+            this.canvas.style.touchAction = s.rootTouchAction();
+    }
     /** Request a repaint. Every change since the last frame coalesces into one
      *  scheduled requestAnimationFrame; with a paint already pending — or before
      *  attach, whose first paint covers everything — this is a no-op, so an
@@ -249,6 +286,8 @@ class Compositor {
             cancelAnimationFrame(this.frame);
         this.frame = 0;
         this.canvas?.remove();
+        this.strut?.remove();
+        this.strut = null;
         this.canvas = null; // also quiets the dpr watch
         this.ctx = null;
         this.root = null;
@@ -278,6 +317,18 @@ class Compositor {
         ctx.clearRect(0, 0, w, h);
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         root.paint(ctx);
+        // The page realization's STRUT tracks the content extent — the document's
+        // scroll range is exactly the scrolling content's reach (visible children
+        // that didn't opt out), never more.
+        if (this.strut !== null && root.pageRoot) {
+            let extent = 0;
+            for (const c of root.children)
+                if (c.visible && !c.ignoresScroll)
+                    extent = Math.max(extent, c.y + c.height);
+            const target = Math.max(root.height, Math.round(extent));
+            if (this.strut.style.height !== `${target}px`)
+                this.strut.style.height = `${target}px`;
+        }
         // Glue each native editable overlay to its surface's on-screen box (Layer
         // 3) — after paint, so an animating ancestor's new position is reflected.
         for (const e of this.editables)
@@ -480,18 +531,44 @@ class CanvasSurface {
         this.sink = sink; // input state changes no pixels — no invalidate
         this.wants = wants;
     }
+    /** `ignoreScroll` (backend.ts): this surface rides its nearest enclosing
+     *  scroll frame. The walks realize it — paint/hit/extent treat a flagged
+     *  child of a scroller as UNSHIFTED by that scroller's offset (it stands
+     *  against the frame) and exclude it from the scroll range. */
+    ignoresScroll = false;
+    setIgnoreScroll(on) {
+        this.ignoresScroll = on;
+        this.compositor.invalidate();
+    }
+    /** ROOT only (backend.ts): the App's reactive page-scrollability fact —
+     *  keys the shared element's gesture default (rootTouchAction). */
+    pageScrollable = false;
+    setPageScrollable(on) {
+        if (this.pageScrollable === on)
+            return;
+        this.pageScrollable = on;
+        this.compositor.refreshRootTouchAction(this);
+    }
+    /** This surface is THE PAGE: the root whose scroll regime the browser owns
+     *  (Compositor.attach converts the root's pane scroll into this — the
+     *  canvas rides fixed, an inert strut gives the document its extent, and
+     *  `scrollOffset` mirrors the window's own scroll). Paint and hit treat it
+     *  as a scroller; scrollBy/wheelTo do NOT consume for it — the browser
+     *  scrolls the page natively. */
+    pageRoot = false;
     /** The ROOT surface's touch-action for the shared canvas element — the DOM
      *  root's same defaults (dom-backend refreshTouchAction): an App that
      *  claimed the raw touch family owns every finger; one that claimed the
-     *  drag keeps only pinch for the user; otherwise a clipped (fixed-window)
-     *  app retires pan with its scroll and an unclipped one keeps pan + pinch.
-     *  Double-tap zoom retires everywhere — a painted UI can never concede it. */
+     *  drag keeps only pinch for the user; otherwise pan stays with the user
+     *  exactly when the page can scroll (the App's reactive fact, above) and
+     *  retires when it can't. Double-tap zoom retires everywhere — a painted
+     *  UI can never concede it. */
     rootTouchAction() {
         if (this.wants?.wantsTouch === true)
             return "none";
         if (this.wants?.wantsDrag === true)
             return "pinch-zoom";
-        return this.boxClip ? "pinch-zoom" : "manipulation";
+        return this.pageScrollable ? "manipulation" : "pinch-zoom";
     }
     /** Did this (root) view declare the raw touch family — the full-gesture-
      *  control fact the compositor's focus-zoom lock keys on. */
@@ -538,7 +615,8 @@ class CanvasSurface {
             return null;
         const cy = this.scrolls ? ly + this.scrollOffset : ly;
         for (let i = this.children.length - 1; i >= 0; i--) {
-            const r = this.children[i].wheelTo(lx, cy, deltaX, deltaY, pinch);
+            const c = this.children[i];
+            const r = c.wheelTo(lx, c.ignoresScroll ? ly : cy, deltaX, deltaY, pinch);
             if (r !== null)
                 return r;
         }
@@ -546,7 +624,8 @@ class CanvasSurface {
             this.sink("wheel", lx, ly, { deltaX, deltaY, pinch });
             return "claimed";
         }
-        return this.scrolls && inBox ? "scroller" : null;
+        // the page root's wheel is the browser's own — never consumed here
+        return this.scrolls && !this.pageRoot && inBox ? "scroller" : null;
     }
     setEditable(spec) {
         if (spec === null) {
@@ -740,8 +819,23 @@ class CanvasSurface {
         if (this.scrolls && !inBox)
             return null;
         const cy = this.scrolls ? ly + this.scrollOffset : ly;
+        if (this.scrolls) {
+            // frame chrome (ignoreScroll) rides the frame and paints ABOVE the
+            // scrolled content — hit it first, at UNSHIFTED coordinates
+            for (let i = this.children.length - 1; i >= 0; i--) {
+                const c = this.children[i];
+                if (!c.ignoresScroll)
+                    continue;
+                const t = c.hit(lx, ly);
+                if (t !== null)
+                    return t;
+            }
+        }
         for (let i = this.children.length - 1; i >= 0; i--) {
-            const t = this.children[i].hit(lx, cy);
+            const c = this.children[i];
+            if (this.scrolls && c.ignoresScroll)
+                continue;
+            const t = c.hit(lx, cy);
             if (t !== null)
                 return t;
         }
@@ -795,7 +889,7 @@ class CanvasSurface {
         off += cur.y + within; // cur is the scroll container's direct child
         let extent = 0;
         for (const c of sc.children)
-            if (c.visible)
+            if (c.visible && !c.ignoresScroll)
                 extent = Math.max(extent, c.y + c.height);
         const max = Math.max(0, extent - sc.height);
         let next = Math.min(max, Math.max(0, off));
@@ -806,6 +900,12 @@ class CanvasSurface {
             next = off < top ? Math.max(0, off) : Math.min(max, off + this.height - sc.height);
         }
         if (next !== sc.scrollOffset) {
+            if (sc.pageRoot) {
+                // the page root's offset is the window's — ask the browser, and let
+                // the compositor's scroll listener mirror it back
+                window.scrollTo({ top: next });
+                return;
+            }
             sc.scrollOffset = next;
             sc.onScrollCb?.(next);
             this.compositor.invalidate();
@@ -833,13 +933,15 @@ class CanvasSurface {
             return false;
         const cy = this.scrolls ? ly + this.scrollOffset : ly;
         for (let i = this.children.length - 1; i >= 0; i--) {
-            if (this.children[i].scrollBy(lx, cy, dy))
+            const c = this.children[i];
+            if (c.scrollBy(lx, this.scrolls && c.ignoresScroll ? ly : cy, dy))
                 return true;
         }
-        if (this.scrolls && inBox) {
+        // the page root's own scroll is the browser's — never consumed here
+        if (this.scrolls && !this.pageRoot && inBox) {
             let extent = 0;
             for (const c of this.children)
-                if (c.visible)
+                if (c.visible && !c.ignoresScroll)
                     extent = Math.max(extent, c.y + c.height);
             const max = Math.max(0, extent - this.height);
             const next = Math.min(max, Math.max(0, this.scrollOffset + dy));
@@ -1038,7 +1140,20 @@ class CanvasSurface {
             ctx.clip();
             ctx.translate(0, -this.scrollOffset);
             for (const child of this.children) {
-                if (skipExempt && child.ignoresClip)
+                if ((skipExempt && child.ignoresClip) || child.ignoresScroll)
+                    continue;
+                child.paint(ctx);
+            }
+            ctx.restore();
+            // frame chrome (ignoreScroll): rides the frame — painted unshifted,
+            // above the scrolled content (the sticky-frame order), still clipped
+            // to the pane's box
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(0, 0, this.width, this.height);
+            ctx.clip();
+            for (const child of this.children) {
+                if (!child.ignoresScroll || (skipExempt && child.ignoresClip))
                     continue;
                 child.paint(ctx);
             }

@@ -90,6 +90,64 @@ function watchPinchZoom(doc) {
     vv.addEventListener("resize", apply);
     apply();
 }
+/** Realize an `ignoreScroll` element against its nearest enclosing scroll
+ *  regime, read off its DOM ancestry (setIgnoreScroll marks; this resolves):
+ *  a pane ancestor (`data-declare-scroll`) → the element moves into the
+ *  pane's sticky frame; the app root ancestor → `position: fixed` against
+ *  the viewport (the page regime — a fixed box adds no document extent, the
+ *  extent-exclusion half of the rule, by the platform's own definition). No
+ *  context found (not yet parented, or the root not yet stamped) → nothing;
+ *  callers re-run at insert and at attachRoot. Top-level apps only for the
+ *  fixed arm: an embedded island's root is stamped too, but sits offset in a
+ *  host page where viewport-fixed coordinates would be wrong — its children
+ *  stay put (the pane arm still applies inside island panes). */
+function realizeIgnoreScroll(el) {
+    if (el.dataset.declareIgnorescroll === undefined) {
+        if (el.style.position === "fixed")
+            el.style.position = "absolute";
+        return;
+    }
+    for (let p = el.parentElement; p !== null; p = p.parentElement) {
+        if (p.dataset !== undefined && p.dataset.declareScroll !== undefined) {
+            const frame = ensureScrollFrame(p);
+            if (el.parentElement !== frame)
+                frame.appendChild(el);
+            return;
+        }
+        if (p.dataset !== undefined && p.dataset.declareApp !== undefined) {
+            // the page regime — but only where the root's frame IS the viewport
+            const embedded = p.parentElement?.closest("[data-declare-app], [data-declare-embed]") ?? null;
+            if (embedded === null)
+                el.style.position = "fixed";
+            return;
+        }
+    }
+}
+/** The pane's STICKY FRAME: a zero-size, in-flow `position: sticky` first
+ *  child of a scroller element. The compositor holds it at the pane's frame
+ *  origin while content scrolls beneath — so `ignoreScroll` children parented
+ *  into it ride the frame with no per-frame JS and no lag. Zero-size +
+ *  visible overflow: it occupies no layout space among the (absolute)
+ *  content and contributes nothing to the scroll range itself. zIndex lifts
+ *  the frame's subtree above the unindexed content — frame chrome paints
+ *  over what it is pinned above. */
+function ensureScrollFrame(scrollerEl) {
+    const existing = scrollerEl.querySelector(":scope > [data-declare-scrollframe]");
+    if (existing !== null)
+        return existing;
+    const frame = scrollerEl.ownerDocument.createElement("div");
+    frame.dataset.declareScrollframe = "1";
+    const s = frame.style;
+    s.position = "sticky";
+    s.top = "0";
+    s.left = "0";
+    s.width = "0";
+    s.height = "0";
+    s.overflow = "visible";
+    s.zIndex = "1";
+    scrollerEl.insertBefore(frame, scrollerEl.firstChild);
+    return frame;
+}
 /** Surfaces that carry BOTH a Shape clip and a sink. The browser must never
  *  see such an element as a pointer target: a clip-path'd hittable overlay
  *  blocks native wheel scrolling and selection UNDERNEATH it — across the
@@ -155,6 +213,13 @@ export class DomBackend {
         // …and while the user IS pinch-zoomed, scroller containment yields to
         // viewport panning (see watchPinchZoom — the measured iOS chain trap).
         watchPinchZoom(host.ownerDocument);
+        // The ROOT's scroll regime is the page (applyScrollStyle's root branch) —
+        // but attach ran before the declareApp stamp, so the element still wears
+        // the PANE realization. Re-apply now that root-ness is knowable, and
+        // resolve any ignoreScroll children that found no context during attach
+        // (their nearest regime is this root — the page).
+        root.applyScrollStyle();
+        rootEl.querySelectorAll("[data-declare-ignorescroll]").forEach((el) => realizeIgnoreScroll(el));
         // NOTE the frame does NOT clip here: an app larger than its host scrolls
         // natively — "exterior" scrolling, the browser over the app object — and
         // that stays expressible. An app designed as a fixed window (everything
@@ -582,18 +647,18 @@ class DomSurface {
             this.clipBox.style.overflow = on ? "clip" : "";
         else
             this.element.style.overflow = on ? "clip" : "";
-        // An APP ROOT's clip decides its gesture default (a fixed window has no
-        // browser scroll to keep, so pan retires with it) — keep touch-action in
-        // step if the clip changes after attach.
-        if (this.boxClip !== on) {
-            this.boxClip = on;
-            if (this.element.dataset.declareApp !== undefined)
-                this.refreshTouchAction();
-        }
     }
-    /** Mirror of the `clip = true` box-clip state, for the app root's
-     *  touch-action default (refreshTouchAction). */
-    boxClip = false;
+    /** ROOT only (backend.ts): the App's reactive "can the page scroll?" fact.
+     *  Keys the root's gesture default — pan stays with the user exactly when
+     *  the page has somewhere to go (refreshTouchAction). */
+    setPageScrollable(on) {
+        if (this.pageScrollable === on)
+            return;
+        this.pageScrollable = on;
+        if (this.element.dataset.declareApp !== undefined)
+            this.refreshTouchAction();
+    }
+    pageScrollable = false;
     scrollIntoView(align = "start", smooth = false) {
         // Native walks the scrollable ancestors (document included) and does the
         // offset math; block:start aligns the view to the top (the click-to-jump
@@ -628,6 +693,25 @@ class DomSurface {
      *  user's pinch — a claim nobody made). */
     applyScrollStyle() {
         const el = this.element;
+        if (el.dataset.declareApp !== undefined) {
+            // THE PAGE REALIZATION (ruled 2026-07-29): the App is the outermost
+            // view, so its scroll regime IS the browser's own page scroll — never a
+            // pane. A declared axis is left VISIBLE: its overflow is the document's
+            // scroll range, with the browser's physics, memory, and full gesture
+            // tier (the measured mid-scroll pinch upgrade lives only here). An
+            // undeclared axis is CLIPPED — out of frame, contributing nothing —
+            // which is also the App's definitional box-clip, realized per axis.
+            // (`clip` + `visible` is the one overflow pair CSS allows to mix.)
+            // Pane trappings are actively removed: attach ran before the root was
+            // stamped, so the element may carry them from the pane branch below.
+            el.style.overflowY = this.scrollYOn ? "visible" : "clip";
+            el.style.overflowX = this.scrollXOn ? "visible" : "clip";
+            el.style.overscrollBehavior = "";
+            delete el.dataset.declareScroll;
+            this.updateCarved(); // pointer-events back to the sink-derived state
+            this.refreshTouchAction(); // the root default owns the gesture surface
+            return;
+        }
         const any = this.scrollYOn || this.scrollXOn;
         el.style.overflowY = this.scrollYOn ? "auto" : any ? "hidden" : "";
         el.style.overflowX = this.scrollXOn ? "auto" : any ? "hidden" : "";
@@ -942,9 +1026,31 @@ class DomSurface {
             ta = "none";
         else if (w?.wantsDrag === true)
             ta = "pinch-zoom";
-        else if (el.dataset.declareApp !== undefined)
-            ta = this.boxClip ? "pinch-zoom" : "manipulation";
+        else if (el.dataset.declareApp !== undefined) {
+            // The ROOT default keys on the App's reactive page-scrollability fact
+            // (setPageScrollable — geometry, never any attribute): pan stays with
+            // the user exactly when the page has somewhere to go; when it doesn't,
+            // pan retires — stilling the rubber-band — and pinch stays. Double-tap
+            // zoom retires either way: a painted UI never concedes it.
+            ta = this.pageScrollable ? "manipulation" : "pinch-zoom";
+        }
         el.style.touchAction = ta;
+    }
+    /** `ignoreScroll` (backend.ts): this surface rides its nearest enclosing
+     *  scroll FRAME. Realization by altitude, read off the element's ancestry:
+     *  under the page regime (the app root), `position: fixed` — pinned to the
+     *  viewport, contributing no document extent, exactly the platform's own
+     *  meaning; under a pane, the element moves into the pane's STICKY FRAME
+     *  (a zero-size in-flow `position: sticky` child of the scroller), which
+     *  the compositor holds at the pane's frame origin — no per-frame JS, no
+     *  lag. Idempotent; re-run when the root is stamped (attachRoot sweeps). */
+    setIgnoreScroll(on) {
+        const el = this.element;
+        if (on)
+            el.dataset.declareIgnorescroll = "1";
+        else
+            delete el.dataset.declareIgnorescroll;
+        realizeIgnoreScroll(el);
     }
     setEditable(spec) {
         if (spec === null) {
@@ -1207,6 +1313,10 @@ class DomSurface {
             if (s.scrollTop !== t)
                 s.scrollTop = t;
         }
+        // an ignoreScroll child's realization depends on the ancestry it just
+        // gained — resolve it now that the context exists
+        if (el.dataset.declareIgnorescroll !== undefined)
+            realizeIgnoreScroll(el);
     }
     destroy() {
         this.gone = true; // quiets any armed dpr listener

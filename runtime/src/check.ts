@@ -1220,6 +1220,16 @@ export function checkAttr(schema: ComponentSchema, attr: Attr): CheckedAttr {
   if (isReadOnly(schema, attr.name)) {
     return { ok: false, error: new DeclareError(`${schema.name}.${attr.name} is read-only — it is computed, so a constraint may read it but nothing may set it`, attr.pos) };
   }
+  // An App is clipped by definition (ruled 2026-07-29): a program owns its
+  // rectangle. `clip = false` would promise an un-clipping no realization
+  // provides — refused with the rule named. (`clip = true` is legal and
+  // redundant; a Shape clip keeps its meaning.)
+  if (attr.name === "clip" && descendsFrom(schema, "App") &&
+      attr.value.kind === "ident" && attr.value.name === "false") {
+    return { ok: false, error: new DeclareError(
+      `${schema.name}.clip = false: an App is clipped by definition — overflow along a declared scroll axis is the page's scroll range, and everything else is out of frame. Remove the attribute (a Shape clip is still legal).`,
+      attr.pos) };
+  }
   if (attr.bind === "two") {
     // `name <-> :path` — a two-way binding (language §9, the leaf-input
     // exception): only on an EDITOR's value slot, and only to a single writable

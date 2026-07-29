@@ -1958,6 +1958,14 @@ await test("compile(): retired spellings die naming their exact rewrite (the cam
   assert.deepEqual(ok.errors, [], "the axis tokens themselves are legal");
 });
 
+await test("compile(): an App is clipped by definition — clip = false is refused with the rule named", () => {
+  const r = compile(`App [ width=100, height=100, clip = false ]`);
+  assert.equal(r.errors.length, 1);
+  assert.match(r.errors[0].message, /clipped by definition/);
+  const ok = compile(`App [ width=100, height=100, clip = true ]`); // legal, redundant
+  assert.deepEqual(ok.errors, []);
+});
+
 await test("compile(): bare built-ins resolve to this (never a silent outer hop); no shadow noise", () => {
   const r = compile(`class Screen extends View [ shown: boolean = false,
     opacity = { shown ? 1 : 0 },

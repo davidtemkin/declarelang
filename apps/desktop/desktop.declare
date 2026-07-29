@@ -1538,7 +1538,7 @@ width, the clock's right edge, the dock's seat at the bottom — re-derives from
 app.width / app.height on every host resize.
 */
 
-App [ clip = true, appName = "Declare Desktop",
+App [ appName = "Declare Desktop",
     theme = { Themes.cupertino(app.darkMode) },
     fontFamily = "system-ui, sans-serif",
 

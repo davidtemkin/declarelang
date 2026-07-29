@@ -315,6 +315,8 @@ export class View extends Node {
         s.setOpacity(this.opacity);
         if (this.ignoreClip)
             s.setIgnoreClip?.(true);
+        if (this.ignoreScroll)
+            s.setIgnoreScroll?.(true);
         if (this.cursor !== "")
             s.setCursor(this.cursor);
         if (this.pointerEvents !== "")
@@ -323,9 +325,9 @@ export class View extends Node {
             s.setScale(this.scale, this.pivotX, this.pivotY);
         this.applyClip(this.clip);
         if (this.scrolls === "y" || this.scrolls === "both")
-            s.setScroll(true, (y) => { this.scrollY = y; });
+            s.setScroll?.(true, (y) => { this.scrollY = y; });
         if (this.scrolls === "x" || this.scrolls === "both")
-            s.setScrollX(true, (x) => { this.scrollX = x; });
+            s.setScrollX?.(true, (x) => { this.scrollX = x; });
         const sink = this.inputSink();
         if (sink !== null)
             s.setInput(sink, this.inputWants());
@@ -477,6 +479,14 @@ export class View extends Node {
         this.surface.setClip(typeof clip === "string" ? clip : null);
     }
 }
+/** The `scrolls` axis-enum pusher, shared by View and the App's own default
+ *  (`"y"` — the App's scroller is the page; the backend realizes the root's
+ *  regime as the browser's own scroll). */
+const pushScrolls = (v, ax) => {
+    // optional-called: a minimal host/mock surface may omit the scroll seam
+    v.surface?.setScroll?.(ax === "y" || ax === "both", (y) => { v.scrollY = y; });
+    v.surface?.setScrollX?.(ax === "x" || ax === "both", (x) => { v.scrollX = x; });
+};
 defineAttributes(View, {
     x: { def: 0, push: (v, n) => v.surface?.setX(n) },
     y: { def: 0, push: (v, n) => v.surface?.setY(n) },
@@ -490,6 +500,7 @@ defineAttributes(View, {
     ignoreLayout: { def: false, push: (v) => { const p = v.parent; if (p instanceof View)
             p.childrenMutated(); } },
     ignoreClip: { def: false, push: (v, b) => v.surface?.setIgnoreClip?.(b) },
+    ignoreScroll: { def: false, push: (v, b) => v.surface?.setIgnoreScroll?.(b) },
     opacity: { def: 1, push: (v, o) => v.surface?.setOpacity(o) },
     cursor: { def: "", push: (v, c) => v.surface?.setCursor(c) },
     pointerEvents: { def: "", push: (v, c) => v.surface?.setPointerEvents(c) },
@@ -509,10 +520,7 @@ defineAttributes(View, {
     // declared axis and feeds the user's offsets back into `scrollY`/`scrollX`
     // (plain reactive writes — no push, so they never echo to the surface;
     // reads drive fades/reveals).
-    scrolls: { def: "none", push: (v, ax) => {
-            v.surface?.setScroll(ax === "y" || ax === "both", (y) => { v.scrollY = y; });
-            v.surface?.setScrollX(ax === "x" || ax === "both", (x) => { v.scrollX = x; });
-        } },
+    scrolls: { def: "none", push: pushScrolls },
     tip: { def: "" },
     scrollY: { def: 0 },
     scrollX: { def: 0 },
@@ -721,6 +729,42 @@ export class App extends View {
                 EXTENT.set(this, (derives = {}));
             derives[size] = bindDerived(this, size, () => size === "width" ? Math.max(this.hostWidth, this.minWidth) : Math.max(this.hostHeight, this.minHeight));
         }
+        this.bindPageScroll();
+    }
+    /** An App is CLIPPED BY DEFINITION (ruled 2026-07-29): a program owns its
+     *  rectangle. The boolean form of `clip` is absorbed here — the per-axis
+     *  realization (overflow along a declared scroll axis is the page's range;
+     *  overflow along any other axis is out of frame) lives in the backend's
+     *  root scroll styling, composed with `scrolls`. A Shape clip keeps its
+     *  paint+hit meaning; `clip = false` is refused at compile time (check.ts). */
+    applyClip(clip) {
+        if (this.surface === null)
+            return;
+        this.surface.setClip(typeof clip === "string" ? clip : null);
+    }
+    /** Derive "can the page scroll right now?" from the model — a declared
+     *  scroll axis with overflowing content, or a frame the floors hold larger
+     *  than the host — and hand it to the root surface (backend.ts
+     *  setPageScrollable), which keys the app's gesture default on it: pan
+     *  stays with the user exactly when the page has somewhere to go, and
+     *  retires (stilling the rubber-band) when it doesn't. Reactive — content
+     *  growth, floor changes, and host resizes all re-derive; child mutations
+     *  re-run it through childrenMutated like the auto-extent derives. */
+    pageScroll = null;
+    bindPageScroll() {
+        if (this.pageScroll !== null)
+            return;
+        this.pageScroll = new Constraint("App.pageScrollable", () => {
+            const ax = this.scrolls;
+            const yOver = (ax === "y" || ax === "both") && this.contentHeight > this.height;
+            const xOver = (ax === "x" || ax === "both") && this.contentWidth > this.width;
+            return yOver || xOver || this.height > this.hostHeight || this.width > this.hostWidth;
+        }, (on) => this.surface?.setPageScrollable?.(on), 1);
+        this.pageScroll.run();
+    }
+    childrenMutated() {
+        super.childrenMutated();
+        this.pageScroll?.run();
     }
 }
 // One shared, frozen empty record for every top-level app's `env` — safe to
@@ -730,6 +774,14 @@ export class App extends View {
 initInteraction((n) => n instanceof View);
 const EMPTY_ENV = Object.freeze({});
 defineAttributes(App, {
+    // An App SCROLLS BY DEFAULT, and its scroller is the page (ruled
+    // 2026-07-29): the App is the outermost view, so its scroll regime is the
+    // browser's own — content taller than the frame makes the page itself
+    // scroll. Same pusher as View's; the backend realizes the ROOT regime as
+    // the document scroll instead of a pane (dom-backend applyScrollStyle).
+    // An app whose content fits has nothing to scroll — the fixed window is
+    // this default, idle. A calendar-shaped app may state `scrolls = none`.
+    scrolls: { def: "y", push: pushScrolls },
     // Stored reactive slots the runtime feeds (index.ts). Read-only to USER code
     // via schema.readOnly (a compile error) — not `readOnly: true` here, which
     // would throw the setter the runtime feed needs. `width`/`height` default to

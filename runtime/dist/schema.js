@@ -68,6 +68,14 @@ const ViewSchema = {
         // ancestor's clip above the parent still applies.
         ignoreLayout: { kind: "boolean" },
         ignoreClip: { kind: "boolean" },
+        // …and `ignoreScroll` — the third member (ruled 2026-07-29): the scroll
+        // carries everyone but me. The child rides its nearest enclosing scroll
+        // FRAME — the window when the page is the regime, the pane's frame inside
+        // a `scrolls` view — and contributes nothing to the scroll range. Fixed
+        // headers, pinned toolbars, and the overlay LAYER that stages parked
+        // furniture (a sheet waiting beyond the frame's edge) are all this one
+        // attribute.
+        ignoreScroll: { kind: "boolean" },
         opacity: { kind: "number" },
         // Uniform scale transform (painted only — never layout, like opacity): the
         // view's subtree renders scaled about the pivot point (pivotX/pivotY, in the

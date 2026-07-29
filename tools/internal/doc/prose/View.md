@@ -88,6 +88,14 @@ the app. Moving between tip-carrying controls while a tip is up retargets instan
 press dismisses. Look comes from `tooltipBg` / `tooltipText` / `tooltipLine`. `""` (the
 default) = no tip.
 
+## ignoreScroll
+The third member of the opt-out family (`ignoreLayout` — the parent arranges everyone
+but me; `ignoreClip` — the parent clips everyone but me): **the scroll carries everyone
+but me — I ride the frame.** The child stands still against its nearest enclosing scroll
+frame — the window when the page is the regime, the pane's frame inside a `scrolls`
+view — and contributes nothing to the scroll range. The fixed header, the pinned
+toolbar, and the overlay layer that stages parked furniture are all this one attribute.
+
 ## scrolls
 Which **axes** of interior overflow this view scrolls — `none` (the default), `y`, `x`,
 or `both`. A scrolling view clips to its box; overflow along a declared axis becomes its

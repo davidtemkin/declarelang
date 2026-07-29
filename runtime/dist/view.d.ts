@@ -50,6 +50,11 @@ export declare class View extends Node {
      *  still paints and still hits) and of its auto-extent — frame chrome that
      *  straddles the frame. Parent-scoped: ancestors' clips still apply. */
     ignoreClip: boolean;
+    /** Opt out of the nearest enclosing SCROLL regime: this child rides the
+     *  scroll frame (the window at the page altitude, the pane's frame inside a
+     *  `scrolls` view) and contributes nothing to the scroll range. The fixed
+     *  header, the pinned toolbar, the overlay layer. */
+    ignoreScroll: boolean;
     /** The pointer cursor while over this view (a CSS cursor keyword —
      *  "ew-resize", "col-resize", "pointer", …; "" = inherit). Meaningful on
      *  views that take input: the sink is the hit target on both backends. */
@@ -532,6 +537,24 @@ export declare class App extends View {
      *  host — so a resize repaints like any dependency. `minWidth`/`minHeight`
      *  floor the derive (tracked reads, so a reactive floor re-applies live). */
     protected bindExtent(): void;
+    /** An App is CLIPPED BY DEFINITION (ruled 2026-07-29): a program owns its
+     *  rectangle. The boolean form of `clip` is absorbed here — the per-axis
+     *  realization (overflow along a declared scroll axis is the page's range;
+     *  overflow along any other axis is out of frame) lives in the backend's
+     *  root scroll styling, composed with `scrolls`. A Shape clip keeps its
+     *  paint+hit meaning; `clip = false` is refused at compile time (check.ts). */
+    applyClip(clip: string | boolean | null): void;
+    /** Derive "can the page scroll right now?" from the model — a declared
+     *  scroll axis with overflowing content, or a frame the floors hold larger
+     *  than the host — and hand it to the root surface (backend.ts
+     *  setPageScrollable), which keys the app's gesture default on it: pan
+     *  stays with the user exactly when the page has somewhere to go, and
+     *  retires (stilling the rubber-band) when it doesn't. Reactive — content
+     *  growth, floor changes, and host resizes all re-derive; child mutations
+     *  re-run it through childrenMutated like the auto-extent derives. */
+    private pageScroll;
+    private bindPageScroll;
+    childrenMutated(): void;
 }
 /** DOMIsland — a foreign-content island (design: the `DOMIsland [ … ]` view). A leaf View
  *  whose box Declare lays out and constrains normally, but whose interior is

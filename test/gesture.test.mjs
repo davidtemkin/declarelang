@@ -68,6 +68,21 @@ const LOCK_RAW = `App [ width = 640, height = 400, fill = #202830,
     field: TextInput [ x = 20, y = 20, width = 200, height = 30, fill = #3A4855 ],
     ]`;
 
+// THE PAGE SHAPE (ruled 2026-07-29): an App scrolls by default and its
+// scroller is the page — chrome opts out with ignoreScroll; a pane inside
+// carries its own regime with its own sticky frame; a child parked beyond the
+// cross axis is out of frame and adds nothing.
+const PAGE_RAW = `App [ fill = #202830,
+    bar: View [ ignoreScroll = true, width = { app.width }, height = 56, fill = #10202C ],
+    column: View [ y = 56, width = { app.width }, height = 3000, fill = #223344,
+        pane: View [ x = 40, y = 300, width = 300, height = 200, fill = #3A4855, scrolls = y,
+            tall: View [ x = 0, y = 0, width = 300, height = 900, fill = #46586A ],
+            tool: View [ ignoreScroll = true, x = 8, y = 8, width = 80, height = 24, fill = #FFAA00 ],
+            ],
+        ],
+    parked: View [ x = { app.width + 40 }, y = 100, width = 200, height = 200, fill = #FF0000 ],
+    ]`;
+
 const claimsCompiled = compile(CLAIMS_RAW);
 assert.deepEqual(claimsCompiled.errors, [], "claims fixture compiles clean");
 const lockCompiled = compile(LOCK_RAW);
@@ -83,10 +98,15 @@ const pageHtml = (backendClass, source) => `<!doctype html>
   requestAnimationFrame(() => requestAnimationFrame(() => { window.__rendered = true; }));
 </script>`;
 
+const pageCompiled = compile(PAGE_RAW);
+assert.deepEqual(pageCompiled.errors, [], "page fixture compiles clean");
+
 const pages = {
   "/dom-claims": pageHtml("DomBackend", claimsCompiled.source),
   "/canvas-claims": pageHtml("CanvasBackend", claimsCompiled.source),
   "/dom-lock": pageHtml("DomBackend", lockCompiled.source),
+  "/dom-page": pageHtml("DomBackend", pageCompiled.source),
+  "/canvas-page": pageHtml("CanvasBackend", pageCompiled.source),
 };
 
 const server = http.createServer(async (req, res) => {
@@ -129,19 +149,22 @@ const styleAt = (x, y) => page.evaluate(([px, py]) => {
 
 await open("/dom-claims");
 
-await test("dom: the root default is `manipulation` — the root `none` policy is repealed", async () => {
+await test("dom: the root default keys on page-scrollability — a fits-the-host app retires pan, keeps pinch", async () => {
+  // 640×400 in an 800×600 viewport: the page has nowhere to go, so pan
+  // retires (stilling the rubber-band) and pinch stays the user's. The old
+  // unconditional root `none` stays repealed either way.
   const ta = await page.evaluate(() => getComputedStyle(document.querySelector("[data-declare-app]")).touchAction);
-  assert.equal(ta, "manipulation");
+  assert.equal(ta, "pinch-zoom");
 });
 
-await test("dom: `clip = true` retires pan with the scroll — root goes `pinch-zoom`", async () => {
-  await page.evaluate(() => { window.__app.clip = true; });
-  await page.waitForFunction(
-    () => getComputedStyle(document.querySelector("[data-declare-app]")).touchAction === "pinch-zoom",
-    { timeout: 5000 });
-  await page.evaluate(() => { window.__app.clip = false; });
+await test("dom: geometry, never an attribute, drives the root default — grow the app and pan returns", async () => {
+  await page.evaluate(() => { window.__app.height = 2000; });
   await page.waitForFunction(
     () => getComputedStyle(document.querySelector("[data-declare-app]")).touchAction === "manipulation",
+    { timeout: 5000 });
+  await page.evaluate(() => { window.__app.height = 400; });
+  await page.waitForFunction(
+    () => getComputedStyle(document.querySelector("[data-declare-app]")).touchAction === "pinch-zoom",
     { timeout: 5000 });
 });
 
@@ -220,9 +243,9 @@ await test("dom: while pinch-zoomed, scroller containment yields to viewport pan
 
 await open("/canvas-claims");
 
-await test("canvas: the shared element carries the root default `manipulation`", async () => {
+await test("canvas: the shared element carries the same size-keyed root default", async () => {
   const ta = await page.evaluate(() => getComputedStyle(document.querySelector("canvas")).touchAction);
-  assert.equal(ta, "manipulation");
+  assert.equal(ta, "pinch-zoom");
 });
 
 await test("canvas: a touch landing on the raw-touch view is claimed at touchstart", async () => {
@@ -279,6 +302,87 @@ await test("canvas: onWheel hears the wheel; an intervening scroller keeps its o
 });
 
 // ── The focus-zoom lock ─────────────────────────────────────────────────────
+
+// ── The page shape: App scrolls as the document; ignoreScroll rides frames ──
+
+await open("/dom-page");
+
+await test("dom: the App's content scrolls as the PAGE — the document owns the extent", async () => {
+  const r = await page.evaluate(() => ({
+    docH: document.documentElement.scrollHeight,
+    docW: document.documentElement.scrollWidth,
+    rootTA: getComputedStyle(document.querySelector("[data-declare-app]")).touchAction,
+  }));
+  assert.ok(r.docH >= 3000, `content extends the document (got ${r.docH})`);
+  assert.equal(r.docW, 800, "the cross axis is out of frame — the parked child adds no width");
+  assert.equal(r.rootTA, "manipulation", "a scrollable page keeps pan with the user");
+});
+
+await test("dom: ignoreScroll chrome rides the window — fixed through a real page scroll, no extent added", async () => {
+  const r = await page.evaluate(async () => {
+    const bar = [...document.querySelectorAll("[data-declare-ignorescroll]")]
+      .find((el) => el.getBoundingClientRect().height === 56);
+    const before = bar.getBoundingClientRect().top;
+    window.scrollTo({ top: 500 });
+    await new Promise((res) => setTimeout(res, 300));
+    return { pos: bar.style.position, before, after: bar.getBoundingClientRect().top, scrollY: window.__app.scrollY };
+  });
+  assert.equal(r.pos, "fixed");
+  assert.equal(r.before, 0);
+  assert.equal(r.after, 0, "the bar held still while the page moved");
+  assert.equal(r.scrollY, 500, "app.scrollY mirrors the page scroll");
+  await page.evaluate(() => window.scrollTo({ top: 0 }));
+});
+
+await test("dom: a pane's ignoreScroll toolbar rides the pane's frame (the sticky frame)", async () => {
+  const r = await page.evaluate(async () => {
+    const pane = [...document.querySelectorAll("[data-declare-scroll]")][0];
+    const frame = pane.querySelector("[data-declare-scrollframe]");
+    const tool = frame === null ? null : frame.querySelector("[data-declare-ignorescroll]");
+    const before = tool.getBoundingClientRect().top - pane.getBoundingClientRect().top;
+    pane.scrollTop = 400;
+    await new Promise((res) => setTimeout(res, 250));
+    const after = tool.getBoundingClientRect().top - pane.getBoundingClientRect().top;
+    return { hasFrame: frame !== null, inFrame: tool !== null, before, after,
+      sticky: frame !== null ? getComputedStyle(frame).position : null,
+      sh: pane.scrollHeight };
+  });
+  assert.equal(r.hasFrame, true, "the pane grew its sticky frame");
+  assert.equal(r.inFrame, true, "the toolbar moved into it");
+  assert.equal(r.sticky, "sticky");
+  assert.equal(r.before, 8, "at the frame origin before scrolling");
+  assert.equal(r.after, 8, "…and still there after — it rides the frame");
+  assert.ok(r.sh >= 900, "the pane still scrolls its tall content");
+});
+
+await open("/canvas-page");
+
+await test("canvas: the same page shape — fixed canvas, strut-carried extent, same root default", async () => {
+  const r = await page.evaluate(() => {
+    const canvas = document.querySelector("canvas");
+    const strut = [...document.getElementById("host").children].find((c) => c.tagName === "DIV");
+    return { pos: canvas.style.position, ta: getComputedStyle(canvas).touchAction,
+      strutH: strut !== undefined ? parseInt(strut.style.height, 10) : -1,
+      docH: document.documentElement.scrollHeight };
+  });
+  assert.equal(r.pos, "fixed", "the canvas rides the viewport");
+  assert.equal(r.ta, "manipulation");
+  assert.ok(r.strutH >= 3000, `the strut carries the content extent (got ${r.strutH})`);
+  assert.ok(r.docH >= 3000, "so the document scrolls");
+});
+
+await test("canvas: scrolling the page moves the content but not the ignoreScroll chrome", async () => {
+  const r = await page.evaluate(async () => {
+    window.scrollTo({ top: 500 });
+    await new Promise((res) => setTimeout(res, 350));
+    const app = window.__app;
+    // the root surface mirrors the window scroll as its pane offset
+    return { offset: app.surface.scrollOffset, scrollY: app.scrollY };
+  });
+  assert.equal(r.offset, 500, "the root pane offset mirrors the window");
+  assert.equal(r.scrollY, 500);
+  await page.evaluate(() => window.scrollTo({ top: 0 }));
+});
 
 await open("/dom-lock");
 

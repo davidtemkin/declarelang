@@ -176,12 +176,26 @@ export interface Surface {
      *  with the current offset whenever the user scrolls it (DOM: the native
      *  scroll event; canvas: the wheel/touch the compositor routes here), so the
      *  runtime can mirror it into the view's reactive `scrollY`. */
-    setScroll(on: boolean, onScroll: (y: number) => void): void;
+    setScroll?(on: boolean, onScroll: (y: number) => void): void;
     /** Make this surface a HORIZONTAL scroll container (`on`): it clips its box and
      *  scrolls overflowing width, keeping over-wide content (a code block, a wide
      *  table) inside its box instead of spilling. Vertical overflow stays clipped.
      *  No reactive offset is mirrored (unlike `setScroll`) — it is presentation-only. */
-    setScrollX(on: boolean, onScroll?: (x: number) => void): void;
+    setScrollX?(on: boolean, onScroll?: (x: number) => void): void;
+    /** Mark this surface as opted OUT of its nearest enclosing scroll regime
+     *  (`ignoreScroll` — the third member of the opt-out family): it rides the
+     *  scroll frame instead of the content, and contributes nothing to the
+     *  scroll range. Realized per altitude: against the viewport when the page
+     *  is the regime (top level), against the pane's frame inside a scrolling
+     *  view. Optional — a host/mock backend may omit it. */
+    setIgnoreScroll?(on: boolean): void;
+    /** ROOT surface only: whether the app can produce page scrolling right now
+     *  (a declared axis with overflowing content, or a frame larger than the
+     *  host — floors). The App derives it reactively (view.ts bindPageScroll);
+     *  the backend keys the root's gesture default on it: pan stays with the
+     *  user exactly when the page has somewhere to go, and retires — stilling
+     *  the rubber-band — when it doesn't. Optional. */
+    setPageScrollable?(on: boolean): void;
     /** Render a rich-text FLOW into this surface as native content (RichText, the
      *  read-only sibling of setEditable): the DOM backend builds real flowing HTML
      *  — one element per block, inline runs in normal flow — so selection, copy,

@@ -242,7 +242,7 @@ class DetailSection extends View [ clip = true, cornerRadius = 10, fill = { them
 // Below the floor the calendar degrades instead of adapting (the grid needs its
 // rows; the bar needs its controls), so it declares one and the stage pans.
 
-App [ clip = true, minWidth = 480, minHeight = 420, appName = "Declare Calendar",
+App [ minWidth = 480, minHeight = 420, appName = "Declare Calendar",
     fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
 
     /* Colors are two role-named palettes; `theme` swaps between them. `themeMode`
