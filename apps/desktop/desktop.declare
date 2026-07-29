@@ -701,11 +701,7 @@ close control is the whole interface.
 class AboutWindow extends Window [ width = 280, height = 380, plain = true,
     forApp = "desktop",                          // desktop | files | markdown | calendar | declareviewer | jots
 
-    aname: string = { this.forApp == "files" ? "Files"
-        : this.forApp == "markdown" ? "Markdown"
-        : this.forApp == "calendar" ? "Declare Calendar"
-        : this.forApp == "declareviewer" ? "Declare Viewer"
-        : this.forApp == "jots" ? "Jots" : "Declare Desktop" },
+    aname: string = { app.nameOf(this.forApp) },
 
     blurb: string = { this.forApp == "files" ? "Browses the live documentation model — every chapter, every element."
         : this.forApp == "markdown" ? "Renders the real files, and reference pages synthesized from the model."
@@ -850,7 +846,7 @@ and clip independently, the dividers between them drag, and a double-click
 opens a document in the Viewer.
 */
 
-class FilesWindow extends Window [
+class FilesWindow extends Window [ forApp = "files",
 
     // the SELECTION CHAIN: the open nodes' names, newline-joined, one per column
     // ("" = nothing open). Every level of the hierarchy — even the top — is DATA
@@ -1114,7 +1110,7 @@ reference page from the documentation model; anything else fetches the real
 file as text. Its title is the file's basename.
 */
 
-class ViewerWindow extends Window [ width = 640, height = 460,
+class ViewerWindow extends Window [ width = 640, height = 460, forApp = "markdown",
     path: string = "",
 
     // the window's name is the FILE being viewed — its basename, not the path
@@ -1186,7 +1182,7 @@ base `Window`'s behavior — drag, the activation shadow, shade, resize edges �
 through `chrome = false`, so here chrome is a skin, not the skeleton.
 */
 
-class JotWindow extends Window [ width = 300, height = 250, chrome = false,
+class JotWindow extends Window [ width = 300, height = 250, chrome = false, forApp = "jots",
     baseRadius = 0, barH = 12, minW = 160, minH = 90,
     title = "",                                  // untitled — labels fall back to the app's name
     note: string = "",                           // the note's seed text
@@ -1752,15 +1748,7 @@ App [ clip = true, appName = "Declare Desktop",
 
     pathOf(w: Window?) -> string { return w != null ? w.appPath : "" },
 
-    appOf(w: Window?) -> string {
-        if (w == null) return "files"
-        const c = w.constructor.name
-        if (c == "ViewerWindow") return "markdown"
-        if (c == "JotWindow") return "jots"
-        if (c == "AppWindow") return this.pathOf(w).indexOf("viewer") >= 0 ? "declareviewer" : "calendar"
-        if (c == "AboutWindow") return "" + w.forApp
-        return "files"
-        },
+    appOf(w: Window?) -> string { return w != null && w.forApp != "" ? w.forApp : "files" },
 
     activeApp: string = { this.appOf(app.frontWin) },
 
@@ -2203,7 +2191,7 @@ App [ clip = true, appName = "Declare Desktop",
                 wx = Math.round((this.width - ww) / 2)
                 }
             const o = this.originOf(v)
-            const w = this.createView("AppWindow", this.wins, ({ appPath: "" + p, appTitle: "" + nm, wx: wx, wy: wy,
+            const w = this.createView("AppWindow", this.wins, ({ appPath: "" + p, appTitle: "" + nm, forApp: isCal ? "calendar" : "declareviewer", wx: wx, wy: wy,
                 width: ww, height: wh,
                 extraEnv: envExtra != null ? envExtra : "",
                 bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - this.menuBarH : -1,
@@ -2258,12 +2246,15 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
 
     reallyClose(w: Window) {
         winSeq = winSeq + 1
-        if (w.constructor.name == "AppWindow") {
-            if (this.appOf(w) == "calendar") calCount = calCount - 1
-            else dvCount = dvCount - 1
+        // an About box carries its SUBJECT's forApp but is not a window OF that
+        // app — `plain` is the discriminator, so closing "About Markdown" never
+        // decrements the viewer count
+        if (!w.plain) {
+            if (w.forApp == "calendar") calCount = calCount - 1
+            else if (w.forApp == "declareviewer") dvCount = dvCount - 1
+            else if (w.forApp == "markdown") viewerCount = viewerCount - 1
             }
         if (frontWin == w) frontWin = null
-        if (w.constructor.name == "ViewerWindow") viewerCount = viewerCount - 1
         this.wins.removeChild(w)
         w.discard()
         this.rebuildMinis()                      // a Quit can take a minimized window's tile with it
