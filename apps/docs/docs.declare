@@ -370,7 +370,7 @@ class ClassDetail extends View [ width = { parent.width },
     // scroll it into view. Imperative, so it lives in the click handler (View.reveal,
     // the runtime scroll-into-view primitive); every row carries an `aname` to match.
 
-    revealAttr(name) {
+    revealAttr(name: string) {
         for (const box of [this.attrs, this.meths, this.evts]) {
             for (const row of box.children) {
                 if (row.aname === name) { row.scrollIntoView(); return }
@@ -715,7 +715,7 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
     // also keeps the remembered cursor in step (like the tabs). External schemes still
     // leave through `navigate`.
 
-    openDocLink(href) {
+    openDocLink(href: string) {
         if (!href.startsWith("declare-docs:")) { app.navigate(href); return }
         const id = href.slice("declare-docs:".length)
         if (id.startsWith("guide:")) {                       // guide:tree → the chapter whose id ends with the slug

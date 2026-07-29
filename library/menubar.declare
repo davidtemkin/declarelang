@@ -39,7 +39,7 @@ class MenuBar extends View [ height = 25,
 
     // the delivery seam — the id is the whole message
 
-    picked(id) { },
+    picked(id: string) { },
 
     openId: string = "",
     shown: boolean = { this.menu.shown },
@@ -89,7 +89,7 @@ class MenuBar extends View [ height = 25,
 
     menu: Menu [
         items = { ((classroot.menus || []).find((m) => "" + m.id == classroot.openId) || ({ })).items || [] },
-        picked(id) { classroot.picked(id) },
+        picked(id: string) { classroot.picked(id) },
         ],
 
     data: Dataset [ contents = { ({ m: classroot.menus || [] }) } ],

@@ -61,7 +61,7 @@ class Menu extends View [ visible = { shown }, width = 220,
 
     // the delivery seam — the app overrides; the id is the whole message
 
-    picked(id) { },
+    picked(id: string) { },
 
     openAt(v: View, e: PointerEvent) {
         let x = e.x
@@ -111,7 +111,7 @@ class Menu extends View [ visible = { shown }, width = 220,
         activeRow = null
         },
 
-    pick(id) { this.picked(id); this.close() },
+    pick(id: string) { this.picked(id); this.close() },
 
     // ── the cascade ────────────────────────────────────────────────────────
 
@@ -120,7 +120,7 @@ class Menu extends View [ visible = { shown }, width = 220,
         let y = 0
         let n = row
         while (n != null) { x += n.x || 0; y += n.y || 0; n = n.parent }
-        if (child == null) child = app.createView("Menu", app, ({ isRoot: false, rootMenu: this.rootMenu != null ? this.rootMenu : this })) as Menu
+        if (child == null) child = app.createView("Menu", app, ({ isRoot: false, rootMenu: this.rootMenu != null ? this.rootMenu : this }))
         this.driveSub(child, subItems, x + this.width - 6, y - 5)
         },
 

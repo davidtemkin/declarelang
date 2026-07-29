@@ -184,7 +184,17 @@ isComponent = () => false) {
         }
         return err(`${schema.name} already has an attribute '${d.name}' — a declaration introduces a new one; write '${d.name} = …' to set the existing one`, d.pos);
     }
+    const arrayOf = (n) => {
+        if (!n.endsWith("[]"))
+            return null;
+        const base = n.slice(0, -2);
+        // the element must itself be a sayable type — a primitive, a component, or
+        // a deeper array; fn-element arrays wait for a need
+        const okBase = declaredType(base) !== null || isComponent(base) || (base.endsWith("[]") && arrayOf(base) !== null);
+        return okBase ? { kind: "array", of: base } : null;
+    };
     const type = declaredType(d.type)
+        ?? arrayOf(d.type)
         ?? (d.type.startsWith("(") ? { kind: "fn", written: d.type } : null)
         ?? (isComponent(d.type) ? { kind: "component", of: d.type } : null);
     if (type === null) {

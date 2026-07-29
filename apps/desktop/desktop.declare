@@ -278,7 +278,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
     wl0: number = 0,                             // window x at size start (left-edge modes)
     wt0: number = 0,                             // window y at size start (top-edge modes)
 
-    beginSize(mode) {
+    beginSize(mode: string) {
         if (plain) return
         this.activate()
         sizeMode = "" + mode
@@ -402,7 +402,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
         // the diagonal exactly like the real thing.
 
         clip = { this.ring(classroot.gutter, classroot.inset, classroot.bandR, this.width, this.height) },
-        ring(g, n, r, w, h) {
+        ring(g: number, n: number, r: number, w: number, h: number) -> Shape {
             // outer rect clockwise, inner rounded rect COUNTER-clockwise — the
             // opposed windings are what makes nonzero fill keep only the band
             const i = g + n
@@ -420,7 +420,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
                  + " A" + r + " " + r + " 0 0 0 " + i + " " + (i + r)
                  + " Z"
             },
-        zone(px, py) {
+        zone(px: number, py: number) -> string {
             const g = classroot.gutter + classroot.inset
             const c = classroot.corner
             const w = this.width
@@ -880,7 +880,7 @@ class FilesWindow extends Window [
     // it — so a row's click is one assignment and truncation is automatic (the
     // list re-derives). Miller columns fall straight out of a recursive walk.
 
-    columnData(selPath, model, rootPath) {
+    columnData(selPath: string, model: object, rootPath: string) -> array {
         const rootParts = rootPath == "" ? [] : rootPath.split("\n")
         const parts = selPath == "" ? [] : selPath.split("\n")
         const item = (n, p) => ({ name: "" + n.name, kind: "" + (n.kind || ""), label: "" + (n.label || ""),
@@ -918,7 +918,7 @@ class FilesWindow extends Window [
     // source; a hydrated page (`doc`, assembled by the model) opens whole. Same
     // Markdown window either way; the browser special-cases nothing.
 
-    openLeaf(leaf) {
+    openLeaf(leaf: object) {
         const d = "" + (leaf.doc || ""), p = "" + (leaf.path || "")
         if (d != "") { app.openDoc(d, "" + leaf.name, this); return }
         if (p != "") app.openViewer("../../" + p, "" + leaf.name, this)
@@ -1620,7 +1620,7 @@ App [ clip = true, appName = "Declare Desktop",
 
     dockXSpring: Spring [ attribute = dockX, to = { app.pointerX }, stiffness = 1300, damping = 62, epsilon = 0.5 ],
 
-    dockMag(dist) {
+    dockMag(dist: number) -> number {
         const pitch = this.iconEdge + 16
         const a = Math.abs(dist)
         const xs = [0, pitch, 2 * pitch, 3 * pitch, 4 * pitch]
@@ -1641,7 +1641,7 @@ App [ clip = true, appName = "Declare Desktop",
     // data. ONE renderer, shared by the dock icons and the "Not implemented"
     // alert, so an app's icon is identical wherever it appears.
 
-    drawKindArt(d, kind, hue1) {
+    drawKindArt(d: Draw, kind: string, hue1: number) {
         const rr = (x, y, w, h, r) => {
             d.moveTo(x + r, y)
             d.lineTo(x + w - r, y); d.arc(x + w - r, y + r, r, -Math.PI / 2, 0, false)
@@ -1723,7 +1723,7 @@ App [ clip = true, appName = "Declare Desktop",
     // ~7px on a ~16px base, and the fill is ~0.88 so the wallpaper shows through.
     // The tail is fixed — it doesn't grow with the name.
 
-    drawPill(d, w, bh, dark) {
+    drawPill(d: Draw, w: number, bh: number, dark: boolean) {
         const r = bh / 2                     // stadium: fully-rounded ends (semicircle caps)
         const th = 7                         // FIXED triangle height — does NOT scale with the name
         const hb = 8                         // FIXED triangle half-base (narrow)
@@ -1763,7 +1763,7 @@ App [ clip = true, appName = "Declare Desktop",
 
     pathOf(w) { return w != null && w.appPath ? "" + w.appPath : "" },   // any-seam: an AppWindow's program
 
-    appOf(w) {
+    appOf(w) -> string {
         if (w == null) return "files"
         const c = w.constructor.name
         if (c == "ViewerWindow") return "markdown"
@@ -1775,7 +1775,7 @@ App [ clip = true, appName = "Declare Desktop",
 
     activeApp: string = { this.appOf(app.frontWin) },
 
-    nameOf(a) {
+    nameOf(a: string) -> string {
         return a == "markdown" ? "Markdown" : a == "calendar" ? "Declare Calendar"
             : a == "declareviewer" ? "Declare Viewer"
             : a == "jots" ? "Jots"
@@ -1788,19 +1788,19 @@ App [ clip = true, appName = "Declare Desktop",
     // path valid in this app's transport base). The viewer self-loads that
     // program's ?segments and ?file artifacts — reader mode by default.
 
-    sourceRel(a) {
+    sourceRel(a: string) -> string {
         return a == "calendar" ? "../calendar/calendar.declare"
             : a == "declareviewer" ? "../viewer/viewer.declare"
             : "desktop.declare"
         },
 
-    openSource(a) {
+    openSource(a: string) {
         this.openApp("../../viewer/viewer", "Declare Viewer", null, "program=" + this.sourceRel(a))
         },
 
     // ── the command seam: the menu bar, the dock, and keys all route here ──
 
-    command(id) {
+    command(id: string) {
         if (id == "new") {
             if (activeApp == "markdown") this.openViewer("../../docs/declare.md", "declare.md")
             else if (activeApp == "calendar") this.openApp("../../calendar/calendar", "Calendar", null, "base=../calendar/")
@@ -1832,7 +1832,7 @@ App [ clip = true, appName = "Declare Desktop",
     // running). Running is an application state, not a window count: closing the
     // last window leaves the app running, its dock dot lit — only Quit ends it.
 
-    quitApp(a) {
+    quitApp(a: string) {
         const doomed = this.wins.children.filter((w) => this.appOf(w) == a)
         for (const w of doomed) this.closeWin(w)
         if (a == "markdown") mdRunning = false
@@ -1845,7 +1845,7 @@ App [ clip = true, appName = "Declare Desktop",
     // their stacking order, so the front one ends front); with none open —
     // running or not — the app's default open runs instead.
 
-    dockOpen(a, open) {
+    dockOpen(a: string, open: () -> void) {
         const live = this.wins.children.filter((w) => this.appOf(w) == a && !this.isPlain(w) && !this.isMin(w))
         if (live.length > 0) { for (const w of live) this.focusWin(w); return }
         // nothing up but something in the dock: restore the most recent tile
@@ -1863,11 +1863,11 @@ App [ clip = true, appName = "Declare Desktop",
     records here drive the invisible hit tiles and their label pills.
     */
 
-    isMin(w) { return w != null && w.dockSlot != null && w.dockSlot >= 0 },
-    ixOf(w) { return w != null && w.dockSlot != null ? +w.dockSlot : -1 },
-    setIx(w, i) { w.dockSlot = i },
-    parkOf(w) { return w != null && w.miniT != null ? +w.miniT : 0 },
-    labelFor(w) { const t = this.titleOf(w); return t != "" ? t : this.nameOf(this.appOf(w)) },
+    isMin(w) -> boolean { return w != null && w.dockSlot != null && w.dockSlot >= 0 },
+    ixOf(w) -> number { return w != null && w.dockSlot != null ? +w.dockSlot : -1 },
+    setIx(w, i: number) { w.dockSlot = i },
+    parkOf(w) -> number { return w != null && w.miniT != null ? +w.miniT : 0 },
+    labelFor(w) -> string { const t = this.titleOf(w); return t != "" ? t : this.nameOf(this.appOf(w)) },
     miniList() { return this.wins.children.filter((w) => this.isMin(w)).sort((a, b) => this.ixOf(a) - this.ixOf(b)) },
 
     miniCount: number = 0,
@@ -1878,7 +1878,7 @@ App [ clip = true, appName = "Declare Desktop",
     // thumbnail keeps its window's aspect, its longer edge matching an app
     // icon's edge, so it is never wider or taller than an icon.
 
-    sizeOf(w) { return ({ w: w.width, h: w.height }) },
+    sizeOf(w) -> object { return ({ w: w.width, h: w.height }) },
 
     // miniWins mirrors the records by index with the window references — a
     // parallel app attr, kept out of the records: records are data, and a
@@ -1932,7 +1932,7 @@ App [ clip = true, appName = "Declare Desktop",
     // zone (8 + line + 8). The wave itself is app.dockMag — one curve, read
     // here for the tiles and by each DockIcon for the icons.
 
-    computeMiniLayout(recs, px, hot, dockLeftX, rowW, span, appW) {
+    computeMiniLayout(recs: array, px: number, hot: number, dockLeftX: number, rowW: number, span: number, appW: number) -> array {
         const rs = recs || []
         const iconRow = 9 * app.iconEdge + 8 * 16   // the nine icons + eight gaps, at rest
         // 32 = the plate's two 16px side skirts; 16 = the row's inset in the
@@ -1958,7 +1958,7 @@ App [ clip = true, appName = "Declare Desktop",
     // magnified thumbnail never hangs past the dock's right edge
 
     miniMagX: number = { this.magOf(app.miniLayout, app.miniRecs) },
-    magOf(lay, recs) {
+    magOf(lay: array, recs: array) -> number {
         if (lay == null || recs == null || lay.length == 0) return 0
         let d = 0
         for (let i = 0; i < lay.length; i++) d += lay[i].w - recs[i].w
@@ -2013,7 +2013,7 @@ App [ clip = true, appName = "Declare Desktop",
     // windowItems pattern); winSeq re-derives it at every journey boundary
     // (miniGo's completion nudges it), pointer/hot cover the wave frames.
 
-    seatCheck(wins, i, slotW, seq, px, hot) {
+    seatCheck(wins: array, i: number, slotW: number, seq: number, px: number, hot: number) -> boolean {
         const w = wins != null && i >= 0 && i < wins.length ? wins[i] : null
         if (w == null || w.homing == true) return false   // homing = leaving now: the badge goes first
         return w.scale < 0.9 && Math.abs(w.scale * w.width - slotW) < 0.5
@@ -2039,12 +2039,12 @@ App [ clip = true, appName = "Declare Desktop",
         winSeq = winSeq + 1
         },
 
-    restoreMiniAt(i) {
+    restoreMiniAt(i: number) {
         const ws = this.miniList()
         if (i >= 0 && i < ws.length) this.restoreMini(ws[i])
         },
 
-    openAbout(a) {
+    openAbout(a: string) {
         winCount = winCount + 1
         winSeq = winSeq + 1
         const w = this.createView("AboutWindow", this.wins, ({ forApp: "" + a,
@@ -2081,7 +2081,7 @@ App [ clip = true, appName = "Declare Desktop",
     alertGsize: number = 0.42,
     alertHue1: Color = #4A90D9,
     alertHue2: Color = #2E5FA3,
-    notImpl(head, name, kind, glyph, gsize, h1, h2) {
+    notImpl(head: string, name: string, kind: string, glyph: string, gsize: number, h1: number, h2: number) {
         alertHead = head
         alertName = name
         alertKind = kind
@@ -2106,7 +2106,7 @@ App [ clip = true, appName = "Declare Desktop",
     // edge (its contents lead) — but the whole tree is present, so you can scroll
     // left all the way back to the root categories.
 
-    openFolderWindow(folderPath, v) {
+    openFolderWindow(folderPath: string, v: View?) {
         this.dismissAbouts()
         winCount = winCount + 1
         winSeq = winSeq + 1
@@ -2120,7 +2120,7 @@ App [ clip = true, appName = "Declare Desktop",
     // With no origin (a menu, the dock, ⌘O) a window zooms gently from its own
     // center. originOf resolves that center in app coords by walking the parents.
 
-    originOf(v) {
+    originOf(v: View?) -> object {
         if (v == null) return null
         let ox = v.width / 2
         let oy = v.height / 2
@@ -2133,7 +2133,7 @@ App [ clip = true, appName = "Declare Desktop",
     // icon bounces and the window appears mid-second-bounce, the way a
     // fast-launching app feels. Later opens are instant.
 
-    openViewer(p, nm, v) {
+    openViewer(p: string, nm: string, v: View?) {
         if (p == "") return
         const first = !mdRunning && !mdLaunching
         if (first) mdLaunching = true
@@ -2160,7 +2160,7 @@ App [ clip = true, appName = "Declare Desktop",
     // element's reference, the enums page). The same window as openViewer, but
     // the page is handed over whole instead of a path to fetch.
 
-    openDoc(md, nm, v) {
+    openDoc(md: string, nm: string, v: View?) {
         if (md == "") return
         const first = !mdRunning && !mdLaunching
         if (first) mdLaunching = true
@@ -2206,7 +2206,7 @@ App [ clip = true, appName = "Declare Desktop",
     mdLaunching: boolean = false,                // markdown mid-launch-bounce
     jotLaunching: boolean = false,                // Jots mid-launch-bounce
 
-    openApp(p, nm, v, envExtra) {
+    openApp(p: string, nm: string, v: View?, envExtra: object?) {
         const isCal = ("" + p).indexOf("calendar") >= 0
         // the launch gate: flags move inside go(), so the running dot appears
         // when the app has launched (mid-second-bounce), not at the click —
@@ -2260,7 +2260,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
 **Curious how it's made?** Press the `[ ]` icon in the dock to read this desktop's own source.
 """,
 
-    newJot(txt, v) {
+    newJot(txt: string, v: View?) {
         const first = !jotRunning && !jotLaunching
         if (first) jotLaunching = true
         const go = () => {
@@ -2507,7 +2507,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
     // The application menu: About, View & Edit Source, and — except for Files,
     // which is always running — Quit.
 
-    appMenuItems(a) {
+    appMenuItems(a: string) -> array {
         const nm = this.nameOf(a)
         const out = []
         out.push(({ id: "about-app", label: "About " + nm }))
@@ -2524,10 +2524,10 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
     // windows, front one checked. `seq` and `front` arrive as arguments so
     // the menus constraint above visibly reads them — its re-derive hooks.
 
-    isPlain(w) { return w != null && w.plain == true },      // any-typed seams for a View-typed list
-    titleOf(w) { return w != null && w.title ? "" + w.title : "" },
+    isPlain(w) -> boolean { return w != null && w.plain == true },      // any-typed seams for a View-typed list
+    titleOf(w) -> string { return w != null && w.title ? "" + w.title : "" },
 
-    windowItems(seq, front) {
+    windowItems(seq: number, front) -> array {
         const a = this.activeApp
         const ws = this.wins.children
         const out = []
@@ -2546,7 +2546,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
     bar: View [ x = 0, y = 0, width = { app.width }, height = { app.menuBarH },
         menuInk: Color = 0xF2F2F5,
         mb: MenuBar [ x = 10, height = { parent.height }, menus = { app.menus }, ink = { parent.menuInk },
-            picked(id) { app.command(id) },
+            picked(id: string) { app.command(id) },
             ],
         clock: Text [ x = { parent.width - this.width - 14 }, y = center, fontSize = 13,
             fontWeight = medium,                 // 400 reads thin under browser antialiasing; medium holds up

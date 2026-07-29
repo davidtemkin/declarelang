@@ -111,6 +111,8 @@ export function check(input) {
  *  enum) or names a component in this program. */
 function checkSignatureTypes(el, errors, schemas) {
     const known = (n) => {
+        if (n.endsWith("[]"))
+            return known(n.slice(0, -2)); // Window[] checks by its element
         // A function type validates by its PARTS: every TYPE inside it must itself
         // be known. Parameter NAMES are not types, so strip `name:` first —
         // `(id: string) -> void` checks `string` and `void`, not `id`.
@@ -125,6 +127,8 @@ function checkSignatureTypes(el, errors, schemas) {
      *  function type's error can point at `Nonsense`, not at the whole
      *  `(id: Nonsense) -> void`. */
     const firstUnknown = (n) => {
+        if (n.endsWith("[]"))
+            return firstUnknown(n.slice(0, -2));
         if (!n.startsWith("("))
             return known(n) ? null : n;
         const types = n.replace(/[A-Za-z_$][\w$]*\s*:/g, " ").match(/[A-Za-z_$][\w$]*/g) ?? [];

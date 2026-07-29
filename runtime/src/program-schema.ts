@@ -218,7 +218,16 @@ export function checkDecl(
       d.pos
     );
   }
+  const arrayOf = (n: string): AttrType | null => {
+    if (!n.endsWith("[]")) return null;
+    const base = n.slice(0, -2);
+    // the element must itself be a sayable type — a primitive, a component, or
+    // a deeper array; fn-element arrays wait for a need
+    const okBase = declaredType(base) !== null || isComponent(base) || (base.endsWith("[]") && arrayOf(base) !== null);
+    return okBase ? ({ kind: "array", of: base } as AttrType) : null;
+  };
   const type = declaredType(d.type)
+    ?? arrayOf(d.type)
     ?? (d.type.startsWith("(") ? { kind: "fn", written: d.type } as AttrType : null)
     ?? (isComponent(d.type) ? { kind: "component", of: d.type } as AttrType : null);
   if (type === null) {

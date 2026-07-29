@@ -255,6 +255,13 @@ function analyze(tokens) {
       return null;
     }
     const t = expect("ident", what);
+    // `Window[]` — array suffix, only when GLUED to the name (spaced `[ ]` is a
+    // child body; adjacency separates the readings, as in the parser).
+    while (tok().kind === "lb" && tok(1).kind === "rb" && tok().start === tokens[t].end) {
+      tok().role = "arr"; tok(1).role = "arr";
+      const rb = idx(1); p += 2;
+      tokens[t].end = tokens[rb].end;   // extend for a further `[]`/`?` adjacency
+    }
     if (tok().kind === "query") p++;
     return t;
   }
@@ -532,6 +539,7 @@ function gap(prev, t) {
   // just after a type colon (`cb: (id: string) -> void`), where it is the type
   // and wants the same space any other type name gets.
   if (t.kind === "lp" && prev.kind === "colon" && prev.colonKind !== "path") return 1;
+  if (t.role === "arr") return 0;                       // `Window[]` — the suffix glues
   if (t.kind === "comma" || t.kind === "dot" || t.kind === "rp" || t.kind === "lp" || t.kind === "query") return 0;
   // The trailing-comment gap (§2.7, re-ruled 2026-07-13): minimum two
   // spaces, no upper bound — the author's spacing is preserved verbatim

@@ -414,6 +414,7 @@
     "  navigate(to: string): void;",
     "  openWindow(to: string): void;",
     "  inspect(slot?: string): void;",
+    "  createView<K extends keyof DeclareTags>(tag: K, parent: View, props?: Record<string, unknown>): DeclareTags[K];",
     "  createView(tag: string, parent: View, props?: Record<string, unknown>): View;",
     "  readonly demoSources: Readonly<Record<string, any>>;",
     "  readonly liveReport: string;"

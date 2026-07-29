@@ -502,21 +502,21 @@ App [ width = 835, height = 600, fill = #1E3A49,
     mode: string = "month",
     openKey: string = "",
 
-    monthName(m) {
+    monthName(m: number) -> string {
         return ["January","February","March","April","May","June","July",
                 "August","September","October","November","December"][m - 1]
         },
 
-    shortTime(min) {
+    shortTime(min: number) -> string {
         const h = Math.floor(min / 60)
         return (h == 0 ? 12 : h > 12 ? h - 12 : h) + (h > 11 ? "p" : "a")
         },
 
-    keyOf(dt) {
+    keyOf(dt: object) -> string {
         return dt.getFullYear() + "-" + (dt.getMonth() + 1) + "-" + dt.getDate()
         },
 
-    parseKey(key) {
+    parseKey(key: string) -> object {
         const p = key.split("-").map(Number)
         return new Date(p[0], p[1] - 1, p[2])
         },
@@ -526,7 +526,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
     // sorted by start. Selection: an explicit key (mode-aware nav), else
     // today when visible, else the 1st (§12-A).
 
-    setMonth(y, m, selKey) {
+    setMonth(y: number, m: number, selKey: string?) {
         this.year = y
         this.month = m
         const first = new Date(y, m - 1, 1)
@@ -571,7 +571,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
        Original semantics kept: opening in month SNAPS (gridslider disables
        animation in grid mode); widening in week and every mode switch SLIDE. */
 
-    openDay(key) {
+    openDay(key: string) {
         this.selectedKey = key
         if (this.mode == "day") return
         // Month: open in place (timeline). Week: a plain click only selects and
@@ -612,7 +612,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
     // mode and snapped back to month view — fixed): month steps a month, week
     // a week, day a day; the mode is preserved. Navigation snaps (§11).
 
-    step(dir) {
+    step(dir: number) {
         if (this.mode == "month") {
             const wrap = this.month == (dir > 0 ? 12 : 1)
             this.setMonth(wrap ? this.year + dir : this.year,
@@ -640,7 +640,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
        geometry. Cell arrival is handled by the layout itself
        (childrenMutated → re-arm). */
 
-    relayout(animate) {
+    relayout(animate: boolean) {
         const L = this.grid.layout
         if (L == null) return
         L.rows = this.rows
@@ -661,7 +661,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
 
     // a day key's grid position (col/row) in the displayed month, or -1/-1
 
-    cellPos(key) {
+    cellPos(key: string) -> object {
         for (const rec of this.cal.value.days) {
             if (rec.key == key) return { col: rec.col, row: rec.row }
             }
@@ -672,14 +672,14 @@ App [ width = 835, height = 600, fill = #1E3A49,
     // set when a month cell opens in place, when `+` opens a week column, or on
     // entering day view. Other week/month cells stay closed lists (SPEC §3).
 
-    isOpen(key) {
+    isOpen(key: string) -> boolean {
         return key != "" && key == this.openKey
         },
 
     // Click an event → select its day AND the event; does NOT open the day
     // (SPEC §6). The DayCell/event `selected` bindings react to the two keys.
 
-    selectEvent(id, key) {
+    selectEvent(id: number, key: string) {
         this.selectedKey = key
         this.selectedEvent = id
         if (this.panelOpen) this.syncPanelFields()   // retarget the open panel (§5)
@@ -691,11 +691,11 @@ App [ width = 835, height = 600, fill = #1E3A49,
        on a day moves the event there (same time), selecting that day. A drag
        swallows the click that the router pairs with the release. */
 
-    catFill(cat) {
+    catFill(cat: string) -> Color {
         return cat == "holiday" ? 0xCBD1C5 : cat == "astro" ? 0xC5C3D5
              : cat == "milestone" ? 0xBBC6D1 : 0xC6CEDC
         },
-    startDrag(id) {
+    startDrag(id: number) {
         this.dragId = id
         this.dragArmed = false
         this.dragOccurred = false
@@ -705,7 +705,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
             this.dragGhost.fill = this.catFill(e.category)
             }
         },
-    dragMove(rx, ry) {
+    dragMove(rx: number, ry: number) {
         if (this.dragId < 0) return
         this.dragArmed = true
         this.dragX = rx
@@ -723,7 +723,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
         this.dragArmed = false
         this.dragOverKey = ""
         },
-    dropEvent(id, key) {
+    dropEvent(id: number, key: string) {
         const e = this.srcEvent(id)
         if (e == null) return
         const d = this.parseKey(key)
@@ -742,7 +742,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
     // The 15-min-snapped minute-of-day at an app-relative y inside an open day's
     // timeline (accounts for the cell box and its scroll), or -1.
 
-    timeAtPoint(key, ry) {
+    timeAtPoint(key: string, ry: number) -> number {
         for (const c of this.grid.children) {
             if (c.dayKey == key && c.body != null && c.body.tl != null) {
                 const contentY = (ry - 57 - c.y - 19) - c.body.tl.y
@@ -754,7 +754,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
 
     // The day key whose (live) cell box contains an app-relative point, or "".
 
-    dayAtPoint(rx, ry) {
+    dayAtPoint(rx: number, ry: number) -> string {
         const gx = rx - 20, gy = ry - 57              // grid sits at (20, 57)
         for (const c of this.grid.children) {
             if (c.dayKey != null && c.visible
@@ -766,7 +766,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
 
     // The ⓘ button / double-click opens the info panel on an event (SPEC §7).
 
-    showInfo(id) {
+    showInfo(id: number) {
         this.selectedEvent = id
         this.newEvent = false
         this.openPanel()
@@ -807,21 +807,21 @@ App [ width = 835, height = 600, fill = #1E3A49,
     // The selected event's SOURCE record (what edits mutate; the display copies
     // are re-derived by setMonth). Edits are in-memory only (SPEC §9).
 
-    srcEvent(id) {
+    srcEvent(id: number) -> object {
         return this.data.value.events.find(e => e.id == id)
         },
 
-    longDate(rec) {
+    longDate(rec: object) -> string {
         return rec != null ? this.monthName(rec.m) + " " + rec.d + ", " + rec.y : ""
         },
 
-    longTime(min) {
+    longTime(min: number) -> string {
         const h = Math.floor(min / 60), m = min % 60
         return (h == 0 ? 12 : h > 12 ? h - 12 : h) + ":"
              + (m < 10 ? "0" + m : "" + m) + (h > 11 ? "p" : "a")
         },
 
-    setTab(i) { this.openTab = i },
+    setTab(i: number) { this.openTab = i },
 
     // Add Event (SPEC §8): a 9–10a "New Event" on the selected day, selected and
     // opened in the panel. Closing without Apply deletes it (cancel semantics).
@@ -861,7 +861,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
 
     // Commit the text fields (title/notes/location/attendees) — Apply (SPEC §7).
 
-    applyText(title, notes, location, attendees) {
+    applyText(title: string, notes: string, location: string, attendees: string) {
         const e = this.srcEvent(this.selectedEvent)
         if (e == null) return
         e.title = title; e.notes = notes; e.location = location; e.attendees = attendees
@@ -871,7 +871,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
 
     // Date ‹›: move the event ±1 day (crosses months by navigating — SPEC §7).
 
-    moveDay(delta) {
+    moveDay(delta: number) {
         const e = this.srcEvent(this.selectedEvent)
         if (e == null) return
         const d = new Date(e.y, e.m - 1, e.d + delta)
@@ -881,7 +881,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
 
     // Start ‹›: ±15m MOVES the event (duration preserved), end clamped ≤ 23:45.
 
-    moveStart(delta) {
+    moveStart(delta: number) {
         const e = this.srcEvent(this.selectedEvent)
         if (e == null) return
         const dur = e.end - e.start
@@ -892,7 +892,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
 
     // Dispatch a Stepper's nudge to the right edit (SPEC §7).
 
-    stepField(field, dir) {
+    stepField(field: string, dir: number) {
         if (field == "date") this.moveDay(dir)
         else if (field == "start") this.moveStart(dir * 15)
         else this.moveEnd(dir * 15)
@@ -900,7 +900,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
 
     // End ‹›: ±15m CHANGES duration (min 15m, max < 24h — SPEC §7).
 
-    moveEnd(delta) {
+    moveEnd(delta: number) {
         const e = this.srcEvent(this.selectedEvent)
         if (e == null) return
         e.end = Math.max(e.start + 15, Math.min(e.end + delta, 1439))
@@ -930,7 +930,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
     // `events` is start-sorted; each disjoint cluster shares its own lane count
     // so non-overlapping events stay full width (lane 0 of 1).
 
-    assignLanes(events) {
+    assignLanes(events: array) -> array {
         const flush = (cluster) => {
             const laneEnd = []
             for (const e of cluster) {

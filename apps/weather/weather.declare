@@ -45,7 +45,7 @@ class TabSlider extends View [ width = 100%,
 
     layout: SimpleLayout [ axis = y ],
 
-    select(tab) {
+    select(tab: WeatherTab) {
         for (const child of this.children) child.setSelected(child === tab)
         },
     ]
@@ -88,7 +88,7 @@ class WeatherTab extends View [ width = 100%,
     // it during the slide, then the constraint takes back over — so it settles
     // exactly on 255 or 25.
 
-    setSelected(on) {
+    setSelected(on: boolean) {
         slide.to = on ? openHeight : 25
         slide.start()
         selected = on

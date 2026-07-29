@@ -896,6 +896,36 @@ await test("a customized instance is a SINGLETON SUBCLASS — add freely, overri
   ok(`class B extends View [ say(a) { } ]\nApp [ width=1, height=1, btn: B [ say(a: string) { } ] ]`);
 });
 
+await test("element-typed arrays (`Window[]`) and the literal-tag createView", () => {
+  // Both were mislabeled "gaps needing a ruling". TS has element-typed arrays;
+  // only the WRITTEN-type grammar had to admit the spelling (same story as
+  // function types). And createView's tag is a string literal at nearly every
+  // call site, with the class table in the scaffold's hands — so the return is
+  // the class the tag names, and `child = createView("Menu", …)` needs no cast.
+  const ok = (src) => { const r = compile(src, {}); assert.ok(r.source, (r.errors?.[0]?.rawMessage) ?? "expected it to compile"); };
+  const errs = (src) => {
+    try { const r = compile(src); return (r.errors ?? []).map((e) => e.message ?? String(e)).join("\n"); }
+    catch (e) { return String(e?.message ?? e); }
+  };
+  const W = `class Window extends View [ dockSlot: number = -1 ]\n`;
+
+  ok(W + `App [ width=1, height=1, n: number = 0, f(ws: Window[]) { for (const w of ws) this.n = w.dockSlot } ]`);
+  ok(W + `App [ width=1, height=1, mk() -> Window[] { return [] } ]`);
+  ok(`App [ width=1, height=1, xs: number[] = null, grid: number[][] = null ]`);
+  assert.match(errs(W + `App [ width=1, height=1, n: number = 0, f(ws: Window[]) { for (const w of ws) this.n = w.dockSlott } ]`),
+    /did you mean 'dockSlot'/);
+  assert.match(errs(`App [ width=1, height=1, f(xs: Nonsense[]) { } ]`), /unknown type 'Nonsense'/);
+  // adjacency is the grammar: `Menu[]` glued is a type; `Menu [ ]` spaced is a
+  // named CHILD with an empty body — both must keep working
+  ok(`class Menu extends View [ n: number = 0 ]\nApp [ width=1, height=1, m: Menu [ ] ]`);
+
+  // createView: a literal tag returns that class; a dynamic tag honestly View
+  ok(`class Menu extends View [ shown: boolean = false ]\nApp [ width=1, height=1, n: number = 0, go() { const m = app.createView("Menu", app, ({ })); this.n = m.shown ? 1 : 0 } ]`);
+  assert.match(errs(`class Menu extends View [ shown: boolean = false ]\nApp [ width=1, height=1, n: number = 0, go() { const m = app.createView("Menu", app, ({ })); this.n = m.showwn ? 1 : 0 } ]`),
+    /did you mean 'shown'/);
+  ok(`App [ width=1, height=1, k: string = "Text", go() { const v = app.createView(this.k, app, ({ })); v.x = 1 } ]`);
+});
+
 await test("function types — `(id: string) -> void`, the type a method IS", () => {
   // language §4: "A method is a named field of function type — `name: (params)
   // -> Ret { body }`". Only the SUGAR (`f(v) { }`) had been implemented, so a

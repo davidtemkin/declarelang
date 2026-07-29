@@ -443,11 +443,25 @@ class Parser {
             return { text, pos: open.pos };
         }
         const name = this.expect("ident", what);
+        let text = name.text;
+        // `Window[]` — an element-typed array (the type is TS's own; only the
+        // written-type grammar had to admit it). The `[]` must be GLUED to the
+        // name: `w: Window [ ]` with a space is a named CHILD with an empty body,
+        // and adjacency is what separates the two readings — the same convention
+        // TS itself writes, and the formatter keeps.
+        let end = name.pos.offset + name.text.length;
+        while (this.peek().kind === "lbracket" && this.peekAt(1).kind === "rbracket"
+            && this.peek().pos.offset === end) {
+            end = this.peekAt(1).pos.offset + 1;
+            this.next();
+            this.next();
+            text += "[]";
+        }
         if (this.peek().kind === "query") {
             this.next();
-            return { text: name.text + "?", pos: name.pos };
+            return { text: text + "?", pos: name.pos };
         }
-        return { text: name.text, pos: name.pos };
+        return { text, pos: name.pos };
     }
     parseClass() {
         const kw = this.expect("ident", "'class'");

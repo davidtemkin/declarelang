@@ -152,7 +152,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
     consoleH: number = 116,
     seam: string = "",
     seam0: number = 0,
-    beginSeam(which) { seam = "" + which; px0 = app.pointerX; py0 = app.pointerY
+    beginSeam(which: string) { seam = "" + which; px0 = app.pointerX; py0 = app.pointerY
         seam0 = which == "a" ? colA : which == "b" ? colB : consoleH },
     moveSeam() {
         if (seam == "") return
@@ -170,7 +170,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
         },
     endDrag() { dragging = false },
 
-    beginSize(m) { sizing = "" + m; px0 = app.pointerX; py0 = app.pointerY; ww0 = winW; wh0 = winH },
+    beginSize(m: string) { sizing = "" + m; px0 = app.pointerX; py0 = app.pointerY; ww0 = winW; wh0 = winH },
     moveSize() {
         if (sizing == "") return
         if (sizing.indexOf("r") >= 0) winW = Math.max(620, ww0 + app.pointerX - px0)
@@ -187,20 +187,20 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
 
     open: object = null,
     openSeq: number = 0,
-    toggle(p) {
+    toggle(p: string) {
         const o = ({ ...(app.open || ({ })) })
         if (o[p]) delete o[p]
         else o[p] = true
         app.open = o
         app.openSeq = app.openSeq + 1
         },
-    isOpen(p) { return (app.open || ({ }))[p] == true },
+    isOpen(p: string) -> boolean { return (app.open || ({ }))[p] == true },
 
     // value-tree expansion, keyed "attr/trail.join('.')"
 
     vopen: object = null,
     vseq: number = 0,
-    vtoggle(k) {
+    vtoggle(k: string) {
         const o = ({ ...(app.vopen || ({ })) })
         if (o[k]) delete o[k]
         else o[k] = true
@@ -231,12 +231,12 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
     // ── selection helpers ────────────────────────────────────────────────────
 
     selKind: string = { Inspect.ready() ? Inspect.kindOf(app.sel) : "" },
-    selName(t, p) { const r = (Inspect.rows(app.open || ({ })) || []).find((x) => x.path == p); return r != null ? "" + r.name : "" },
+    selName(t: number, p: string) -> string { const r = (Inspect.rows(app.open || ({ })) || []).find((x) => x.path == p); return r != null ? "" + r.name : "" },
     crumbs: array = { app.sel.split(".") },
 
     hasData: boolean = { app.tick >= 0 && Inspect.ready() ? Inspect.hasData(app.sel) : false },
 
-    select(p) {
+    select(p: string) {
         if (p == "" ) return
         app.sel = p
         app.selAttr = ""
@@ -251,7 +251,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
 
     // ── the tree ─────────────────────────────────────────────────────────────
 
-    treeRows(t, s) { return Inspect.ready() ? Inspect.rows(app.open || ({ })) : [] },
+    treeRows(t: number, s: number) -> array { return Inspect.ready() ? Inspect.rows(app.open || ({ })) : [] },
     tree: Dataset [ contents = { ({ rows: app.treeRows(app.tick, app.openSeq) }) } ],
 
     // ── slots of the selected object ─────────────────────────────────────────
@@ -259,7 +259,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
     // a View-valued slot is a LINK, never an inline expansion — the view graph
     // is cyclic, and one subject at a time is what a developer wants anyway.
 
-    slotRows(t, p, v) {
+    slotRows(t: number, p: string, v: object) -> array {
         if (!Inspect.ready()) return []
         const out = []
         // A view under a `datapath` reads its `:fields` from a record. That
@@ -288,7 +288,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
         return out
         },
 
-    walkValue(out, p, attr, trail, depth) {
+    walkValue(out: array, p: string, attr: string, trail: array, depth: number) {
         if (depth > 6) return
         const slice = Inspect.expand(p, attr, trail)
         const entries = slice.entries || []
@@ -307,7 +307,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
 
     lastSlotSig: string = "",
     lastSlotRows: array = null,
-    slotRowsMemo(t, p, v) {
+    slotRowsMemo(t: number, p: string, v: object) -> array {
         const rows = app.slotRows(t, p, v)
         const sig = JSON.stringify(rows)
         if (sig == app.lastSlotSig && app.lastSlotRows != null) return app.lastSlotRows
@@ -320,14 +320,14 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
     // ── the why pane ─────────────────────────────────────────────────────────
 
     why: object = { app.tick >= 0 && Inspect.ready() && app.selAttr != "" ? Inspect.explain(app.sel, app.selAttr) : null },
-    whyDeps(t, p, a) {
+    whyDeps(t: number, p: string, a: string) -> array {
         const w = app.why
         if (w == null || w.constraint == null || w.constraint.deps == null) return []
         return w.constraint.deps.map((d) => ({ path: "" + d, value: Inspect.depValue(p, "" + d) }))
         },
     lastDepSig: string = "",
     lastDepRows: array = null,
-    depRowsMemo(t, p, a) {
+    depRowsMemo(t: number, p: string, a: string) -> array {
         const rows = app.whyDeps(t, p, a)
         const sig = JSON.stringify(rows)
         if (sig == app.lastDepSig && app.lastDepRows != null) return app.lastDepRows
@@ -366,13 +366,13 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
     lines: array = null,
     lineSeq: number = 0,
 
-    say(rec) {
+    say(rec: object) {
         const prev = app.lines || []
         app.lines = [...prev.slice(-40), rec]
         app.lineSeq = app.lineSeq + 1
         },
 
-    submit(src) {
+    submit(src: string) {
         const s = ("" + src).trim()
         if (s == "") return
         const r = Inspect.evaluate(app.sel, s)

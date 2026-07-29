@@ -36,7 +36,7 @@ class Swatch extends Control [ width = 26, height = 26, cornerRadius = 13,
     // containment — same hue at ~78% tone); selection adds the outer ring
     // with the background gap
 
-    deep(v) {
+    deep(v: number) -> number {
         const m = (ch) => Math.round(ch * 0.78)
         return (m((v >> 16) & 255) << 16) | (m((v >> 8) & 255) << 8) | m(v & 255)
         },
@@ -88,7 +88,7 @@ class TintRow extends View [
     hoverName: string = "",
     height = 42,                                 // the caption line is ALWAYS there — no height bounce
 
-    nameOf(c) {
+    nameOf(c: number) -> string {
         return c == 0x2E6FE0 ? "Blue" : c == 0x6750A4 ? "Purple" : c == 0xE0447E ? "Pink"
              : c == 0xD03A2F ? "Red" : c == 0x3A9E4C ? "Green" : ""
         },
@@ -176,7 +176,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 720,
             ({ divider: true }),
             ({ id: "delete", label: "Delete", key: "⌫", enabled: !app.menuLocked }),
         ] },
-        picked(id) {
+        picked(id: string) {
             if (id == "lock") app.menuLocked = !app.menuLocked
             app.lastPick = id
             },
@@ -202,20 +202,20 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 720,
         controls: View [ width = { parent.width },
             layout: SimpleLayout [ axis = x, spacing = 24 ],
             RadioGroup [ value = { app.style },
-                input(v) { app.style = v },
+                input(v: string) { app.style = v },
                 Radio [ choice = "sanFrancisco", label = "San Francisco" ],
                 Radio [ choice = "mountainView", label = "Mountain View" ],
                 Radio [ choice = "cupertino", label = "Cupertino" ],
                 Radio [ choice = "redmond", label = "Redmond" ],
                 ],
             RadioGroup [ value = { app.colorMode },
-                input(v) { app.colorMode = v },
+                input(v: string) { app.colorMode = v },
                 Radio [ choice = "light", label = "Light" ],
                 Radio [ choice = "system", label = "System" ],
                 Radio [ choice = "dark", label = "Dark" ],
                 ],
             Checkbox [ label = "Animate focus transitions", tip = "The focus ring flies between controls", checked = { app.animateFocus },
-                input(v) { app.animateFocus = v },
+                input(v: boolean) { app.animateFocus = v },
                 ],
             ],
 

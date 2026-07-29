@@ -362,10 +362,13 @@ class CaseEmitter {
             // not only by the value vocabulary — same fallback program-schema's
             // checkDecl makes, or this path would silently under-report the slot as
             // `any` and a typo through it would compile.
+            const isC = (n) => this.schemas[n] !== undefined || this.classHasChildren.has(n);
+            const arrayOf = (n) => n.endsWith("[]") && (declaredType(n.slice(0, -2)) !== null || isC(n.slice(0, -2)) || arrayOf(n.slice(0, -2)) !== null)
+                ? { kind: "array", of: n.slice(0, -2) } : null;
             const t = declaredType(d.type)
+                ?? arrayOf(d.type)
                 ?? (d.type.startsWith("(") ? { kind: "fn", written: d.type } : null)
-                ?? (this.schemas[d.type] !== undefined || this.classHasChildren.has(d.type)
-                    ? { kind: "component", of: d.type } : null);
+                ?? (isC(d.type) ? { kind: "component", of: d.type } : null);
             // A color with a concrete (non-null) default is non-null (see memberSig):
             // nullable only where it means inherit/absent (`= null` or no default).
             const nonNullColor = t !== null && t.kind === "color" && d.def !== null && !(d.def.kind === "ident" && d.def.name === "null");
@@ -381,9 +384,15 @@ class CaseEmitter {
             // type: a written type is emitted and REQUIRED, a bare parameter stays
             // optional `any`. Both sites must agree or a method checks differently
             // depending on whether it sits in a `class` or in the tree.
-            const ps = m.params.map((prm) => {
+            const ps = m.params.map((prm, i) => {
                 const t = prm.type === undefined ? null : signatureTsType(prm.type, (n) => this.schemas[n] !== undefined, prm.nullable === true);
-                return t === null ? `${prm.name}?: any` : `${prm.name}: ${t}`;
+                // See scaffold's methodSig: a parameter is optional only while nothing
+                // REQUIRED follows it (TypeScript's TS1016).
+                const req = (q) => q.type !== undefined && q.nullable !== true;
+                const omittable = !req(prm) && !m.params.slice(i + 1).some(req);
+                if (t === null)
+                    return `${prm.name}${omittable ? "?" : ""}: any`;
+                return `${prm.name}${omittable ? "?" : ""}: ${t}`;
             }).join(", ");
             const ret = m.returns === undefined ? "any" : (signatureTsType(m.returns, (n) => this.schemas[n] !== undefined, m.returnsNullable === true) ?? "any");
             members.push(`  ${m.name}(${ps}): ${ret};`);

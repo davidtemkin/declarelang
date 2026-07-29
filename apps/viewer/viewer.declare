@@ -210,7 +210,7 @@ App [ fill = { app.theme.bg },
     // body is body, not comment — the compiler's rule), and a line counts
     // as code when anything masked-in and non-blank survives on it
 
-    localMetrics(src) {
+    localMetrics(src: string) -> object {
         const s = "" + src
         const n = s.length
         let total = 0
@@ -413,7 +413,7 @@ App [ fill = { app.theme.bg },
         grip: View [ x = 0, y = { parent.editorH }, width = { parent.width }, height = 6,
             dragging: boolean = false,
             fill = { dragging || hovered ? app.theme.accentTeal : app.theme.line },
-            drag(y) { parent.split = Math.max(120, Math.min(parent.height - 160, y)) },
+            drag(y: number) { parent.split = Math.max(120, Math.min(parent.height - 160, y)) },
             onMouseDown()  { dragging = true },
             onMouseMove()  { if (dragging) drag(app.pointerY - app.barH) },
             onMouseUp()    { dragging = false },

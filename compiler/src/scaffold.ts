@@ -76,7 +76,7 @@
 
 import type { ComponentSchema } from "../../runtime/dist/schema.js";
 import type { AttrType } from "../../runtime/dist/value.js";
-import type { ClassDecl, Method } from "../../runtime/dist/parser.js";
+import type { ClassDecl, Method, Param } from "../../runtime/dist/parser.js";
 import { MOTION_TOKENS } from "../../runtime/dist/animate.js";
 import { declaredType } from "../../runtime/dist/value.js";
 import { EVENT_PAYLOAD, handlerName } from "../../runtime/dist/schema.js";
@@ -236,7 +236,7 @@ export function tsType(t: AttrType): string {
     case "styles": return "string[]"; // a static bundle-name list
     case "stylesheet": return "string | null"; // a declared stylesheet by name
     case "font": return "string"; // fontFamily reads as a family string in a { } body
-    case "array": return "any[]";
+    case "array": return t.of !== undefined ? `${t.of}[]` : "any[]";
     case "object": return "any";
     case "view": return "View | null";
   }
@@ -265,6 +265,12 @@ const PAYLOAD_TYPES = new Set(["PointerEvent", "PointerUpEvent", "TouchEvent", "
  *  clean and pushes the check to the caller, where the knowledge is. */
 export function signatureTsType(written: string, isComponent: (n: string) => boolean, nullable = false): string | null {
   const nul = (t: string): string => (nullable ? `${t} | null` : t);
+  // `Window[]` — an element-typed array. Resolve the ELEMENT and append; the
+  // spelling is already TypeScript's.
+  if (written.endsWith("[]")) {
+    const base = signatureTsType(written.slice(0, -2), isComponent, false);
+    return base === null ? null : nul(`${base}[]`);
+  }
   // A FUNCTION type — `(id: string) -> void`, what a method IS (language §4).
   // The written form differs from TypeScript's by exactly one token, so the
   // translation is that token; the names inside were validated by the checker.
@@ -295,9 +301,17 @@ export function signatureTsType(written: string, isComponent: (n: string) => boo
  *  values (`width = { app.lerp(4, 9, t) }` is the calendar's idiom throughout),
  *  and `void` would flag every such use of a correct program. */
 function methodSig(m: Method, isComponent: (n: string) => boolean): string {
-  const params = m.params.map((p) => {
+  const params = m.params.map((p, i) => {
     const ts = p.type === undefined ? null : signatureTsType(p.type, isComponent, p.nullable === true);
-    return ts === null ? `${p.name}?: any` : `${p.name}: ${ts}`;
+    // `?` means MAY BE ABSENT — omittable as well as null, matching TypeScript's
+    // own `?:` and how the corpus already guards (`if (selKey != null) …`). An
+    // UNTYPED parameter is likewise omittable (no declared contract to keep).
+    // Either can only actually BE optional when nothing REQUIRED follows, which
+    // is TypeScript's own rule (TS1016) — otherwise it stays required.
+    const required = (q: Param): boolean => q.type !== undefined && q.nullable !== true;
+    const omittable = !required(p) && !m.params.slice(i + 1).some(required);
+    if (ts === null) return `${p.name}${omittable ? "?" : ""}: any`;
+    return `${p.name}${omittable ? "?" : ""}: ${ts}`;
   }).join(", ");
   const ret = m.returns === undefined ? "any" : (signatureTsType(m.returns, isComponent, m.returnsNullable === true) ?? "any");
   return `  ${m.name}(${params}): ${ret};`;
@@ -353,6 +367,11 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
     // `app.inspect()` for this one. Rides the same host-polled channel shape as
     // navigate/openWindow — a `{ }` body never touches the document.
     `  inspect(slot?: string): void;`,
+    // The tag is a string LITERAL at nearly every call site, and the scaffold owns
+    // the class table — so the return is the class the tag names (DeclareTags,
+    // emitted per program). A DYNAMIC tag string falls to the second overload
+    // and honestly returns View: unknowable statically, by construction.
+    `  createView<K extends keyof DeclareTags>(tag: K, parent: View, props?: Record<string, unknown>): DeclareTags[K];`,
     `  createView(tag: string, parent: View, props?: Record<string, unknown>): View;`,
     // INTERIM (capabilities.md §7): the two host-fed live-demo channels the
     // demo-hosting site apps still read — `demoSources` (host-seeded name→source
@@ -571,10 +590,13 @@ export function generateScaffold(
   // declarations hoist, so this is for readability, not resolution.
   const depth = (s: ComponentSchema): number => (s.base === null ? 0 : 1 + depth(s.base));
   const classes = [...all.values()].sort((a, b) => depth(a) - depth(b)).map((s) => emitClass(s, declOf.get(s.name), rootType, classExtras?.get(s.name), (n) => all.has(n)));
+  // tag name → instance class, for createView's literal-tag overload (View's
+  // LANGUAGE_API). Every schema, built-in and user, under its instantiable name.
+  const tagLines = ["interface DeclareTags {", ...[...all.keys()].map((n) => `  ${JSON.stringify(n)}: ${n};`), "}"];
 
   // The Motion union — named tokens (generated from animate.ts, single source
   // of truth) plus the MotionCurve brand the constructors in the prelude return.
   const motionLine = `type Motion = ${MOTION_TOKENS.map((t) => JSON.stringify(t)).join(" | ")} | MotionCurve;`;
 
-  return [PRELUDE, enumLines.join("\n"), recordLines.join("\n"), motionLine, classes.join("\n\n")].filter((x) => x.length > 0).join("\n\n") + "\n";
+  return [PRELUDE, enumLines.join("\n"), recordLines.join("\n"), motionLine, tagLines.join("\n"), classes.join("\n\n")].filter((x) => x.length > 0).join("\n\n") + "\n";
 }

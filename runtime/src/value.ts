@@ -185,7 +185,11 @@ export type AttrType =
   // The records door (planes.md §4): structured slots — an array of records,
   // a plain record, a View reference. Literal form: null only; the values
   // arrive from `{ }` bindings (plain TS) and runtime writes.
-  | { readonly kind: "array" | "object" | "view" }
+  | { readonly kind: "object" | "view" }
+  // `of` = the written ELEMENT type name when declared `Window[]` — carried for
+  // the typechecker (a `{ }` body sees Window[], not any[]); runtime coercion
+  // is per-kind and unchanged (`null` or a whole-value binding, as ever).
+  | { readonly kind: "array"; readonly of?: string }
   | { readonly kind: "enum"; readonly name: string; readonly tokens: readonly string[] }
   | { readonly kind: "component"; readonly of: string }
   // A FUNCTION type — `(id: string) -> void`, the type a method IS
