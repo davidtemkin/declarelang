@@ -32,7 +32,10 @@ import { fileURLToPath } from "node:url";
 import { FLAG_SPECS, DEFAULT_FLAGS } from "../../../compiler/dist/flags.js";
 import { REQ } from "../../../compiler/dist/reqtypes.js";
 import { LANGUAGE_API } from "../../../compiler/dist/scaffold.js";
-import { SCHEMAS, RichTextSchema } from "../../../runtime/dist/schema.js";
+import { SCHEMAS, RichTextSchema, EVENT_PAYLOAD, PAYLOAD_TYPE_NAMES } from "../../../runtime/dist/schema.js";
+import { DECLARED_TYPE_NAMES } from "../../../runtime/dist/value.js";
+import { RESERVED, programSchemas } from "../../../runtime/dist/program-schema.js";
+import { parseLibrary } from "../../../runtime/dist/parser.js";
 import { CODE_PREFIX } from "../../../runtime/dist/diagnostics.js";
 import { MOTION_TOKENS } from "../../../runtime/dist/animate.js";
 import { OPS } from "../ops.mjs";
@@ -43,19 +46,100 @@ const CHECK = process.argv.includes("--check");
 
 // ── spine sections, each from its live source ───────────────────────────────
 
+/** One attribute type as a published tag. Shared by both schema tiers so the
+ *  kernel and the library can never encode the same type two ways. */
+const attrTypeTag = (t) =>
+  t.kind === "enum" ? `enum(${t.tokens.join("|")})`
+  : t.kind === "component" ? `component(${t.of})`
+  : t.kind === "record" ? `record(${t.name})`
+  : t.kind;
+
 function schemaSpine() {
   const all = { ...SCHEMAS, RichText: RichTextSchema };
   const out = {};
   for (const [name, s] of Object.entries(all)) {
     out[name] = {
       base: s.base?.name ?? null,
-      attrs: Object.fromEntries(Object.entries(s.attrs).map(([k, t]) => [k, t.kind === "enum" ? `enum(${t.tokens.join("|")})` : t.kind === "component" ? `component(${t.of})` : t.kind === "record" ? `record(${t.name})` : t.kind])),
+      attrs: Object.fromEntries(Object.entries(s.attrs).map(([k, t]) => [k, attrTypeTag(t)])),
       prevailing: s.prevailing ?? [],
       readOnly: s.readOnly ?? [],
       events: s.events ?? [],
     };
   }
   return out;
+}
+
+/** The LIBRARY tier's schemas, in the same shape as `schemas` — synthesized by
+ *  the checker's own `programSchemas()` over the parsed `library/*.declare`
+ *  sources, so a component's published attribute surface is the one the checker
+ *  enforces, not a hand-listed copy. `library` (tag → file) stays as it is; this
+ *  is the surface a tool needs to KNOW that `Button` takes a `label`.
+ *
+ *  Kept SEPARATE from `schemas` (ruled 2026-07-29) because the tiers differ in
+ *  kind: `schemas` is the kernel, read from live code and load-bearing;
+ *  library components are Declare source and explicitly scaffolding
+ *  (composition.md §1a). A consumer that wants either can merge the two; one
+ *  that must not confuse them is not forced to.
+ *
+ *  Bases must precede subclasses for the chain walk, so classes are emitted in
+ *  dependency order — `Pane extends Control` needs Control's schema built. A
+ *  class whose base is neither a built-in nor a library class (impossible today)
+ *  is skipped rather than failing the assembly. */
+function librarySchemaSpine() {
+  const dir = join(ROOT, "library");
+  const decls = new Map(); // name → ClassDecl, across every library file
+  for (const f of readdirSync(dir).filter((n) => n.endsWith(".declare")).sort()) {
+    for (const c of parseLibrary(readFileSync(join(dir, f), "utf8")).classes) decls.set(c.name, c);
+  }
+  // Dependency order: emit a class only once its base is available.
+  const ordered = [];
+  const placed = new Set();
+  let progress = true;
+  while (progress) {
+    progress = false;
+    for (const [name, c] of decls) {
+      if (placed.has(name)) continue;
+      if (Object.hasOwn(SCHEMAS, c.base) || placed.has(c.base)) {
+        ordered.push(c); placed.add(name); progress = true;
+      }
+    }
+  }
+  const { schemas } = programSchemas(ordered);
+  const out = {};
+  for (const c of ordered) {
+    const s = schemas[c.name];
+    if (s === undefined) continue;             // a declaration the checker rejected
+    out[c.name] = {
+      base: s.base?.name ?? null,
+      attrs: Object.fromEntries(Object.entries(s.attrs).map(([k, t]) => [k, attrTypeTag(t)])),
+      prevailing: s.prevailing ?? [],
+      readOnly: s.readOnly ?? [],
+      events: s.events ?? [],
+    };
+  }
+  return out;
+}
+
+/** The EVENT half of a signature's truth: which payload each event carries, and
+ *  the legal payload type names. A handler's first parameter must be written
+ *  with EXACTLY this type (check.ts refuses both the omission and a wrong one,
+ *  ruled 2026-07-28), so a program — or an agent, an editor, a source-to-source
+ *  tool — cannot write a legal handler without this table. It was private to
+ *  runtime/src; the spine is the machine contract, so it belongs here. */
+function eventSpine() {
+  return {
+    payload: { ...EVENT_PAYLOAD },
+    payloadTypes: [...PAYLOAD_TYPE_NAMES].sort(),
+    handlerPrefix: "on",
+  };
+}
+
+/** The TYPE vocabulary a written signature or declaration may name: the
+ *  built-in declarable types, plus the reserved value-constructor names a
+ *  generated attribute or class name must avoid. (A component class in the
+ *  program is also legal — that part is per-program, not projectable.) */
+function typeSpine() {
+  return { declarable: [...DECLARED_TYPE_NAMES].sort(), reserved: [...RESERVED].sort() };
 }
 
 function enumVocabularies() {
@@ -95,7 +179,10 @@ function librarySpine() {
 function buildSpine() {
   return {
     schemas: schemaSpine(),
+    librarySchemas: librarySchemaSpine(),
     api: LANGUAGE_API,
+    events: eventSpine(),
+    types: typeSpine(),
     enums: enumVocabularies(),
     flags: FLAG_SPECS.map((f) => ({ ...f, default: DEFAULT_FLAGS[f.name] })),
     requests: REQ,

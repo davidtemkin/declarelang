@@ -30,7 +30,7 @@
      first paint, so a human never flashes the bare extraction and a JS crawler settles on
      the same running app. Nothing is CSS-hidden — a progressive-enhancement swap (SSR-style
      hydration), not a cloaking trick. See browser/serve-core.js for the full rationale. -->
-<div id="host"><!--declare-static:begin--><div id="declare-static">
+<div id="host"><!--declare-static:begin--><noscript><style>#declare-static{display:block !important}</style></noscript><div id="declare-static" style="display:none">
 <h1>Declare</h1>
 <h1>is the UI language for the AI era.</h1>
 <p>Just as SQL is a domain-specific language for database queries, <span>Declare</span> is a DSL for user interfaces. Its whole surface fits in your head — and inside an LLM’s context window.</p>
@@ -593,7 +593,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=0fef5e6a6b11";
+  import boot from "./bundles/declare-boot.js?v=d318c269bc37";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().
