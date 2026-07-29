@@ -389,7 +389,7 @@ App [ clip = true, minWidth = 480, minHeight = 420, appName = "Declare Calendar"
     dowName(i: number) -> string { return ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][i] },
     dowLong(i: number) -> string { return ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][i] },
     keyOf(dt: object) -> string { return dt.getFullYear() + "-" + (dt.getMonth() + 1) + "-" + dt.getDate() },
-    parseKey(k: string) -> object { const p = ("" + k).split("-").map(Number); return new Date(p[0], p[1] - 1, p[2]) },
+    parseKey(k: string) -> object { const p = k.split("-").map(Number); return new Date(p[0], p[1] - 1, p[2]) },
     gridIndexOf(key: string) -> number {                       // a day's 0..41 slot in the month grid
         const first = new Date(this.year, this.month - 1, 1)
         const start = new Date(this.year, this.month - 1, 1 - first.getDay())
@@ -404,7 +404,8 @@ App [ clip = true, minWidth = 480, minHeight = 420, appName = "Declare Calendar"
         },
     hourLabel(h: number) -> string { const ap = h < 12 ? "AM" : "PM"; let hh = h % 12; if (hh == 0) hh = 12; return hh + " " + ap },
     weekLabel(k: string) -> string {
-        const s = new Date(app.parseKey(k).getFullYear(), app.parseKey(k).getMonth(), app.parseKey(k).getDate() - app.parseKey(k).getDay())
+        const d = app.parseKey(k)
+        const s = new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay())
         const e = new Date(s.getFullYear(), s.getMonth(), s.getDate() + 6)
         return app.monthName(s.getMonth() + 1) + " " + s.getDate() + " – "
              + (s.getMonth() == e.getMonth() ? "" : app.monthName(e.getMonth() + 1) + " ") + e.getDate()

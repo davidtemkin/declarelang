@@ -9,8 +9,8 @@ but replacing the indicator is a supported thing to do, and this is how.
 
 ```declare-fragment
 watch: Focus [
-    onFocusChange(v) { classroot.target = v },
-    onGeometry(g)    { classroot.tx = g.x; classroot.ty = g.y },
+    onFocusChange(v: View) { classroot.target = v },
+    onGeometry(g: FocusGeometry)    { classroot.tx = g.x; classroot.ty = g.y },
     ],
 ```
 

@@ -153,16 +153,16 @@ count:    number,                      //   no default — undefined until writt
 select() { selected = !selected },     // a METHOD
 
 onClick()      { count = count + 1 },  // a HANDLER — `on` + an event this node fires
-onMouseMove(e) { x = e.x },            // pointer handlers get an event with .x / .y
+onMouseMove(e: PointerEvent) { x = e.x },   // pointer handlers get a typed payload
 
-draw(d) { d.fillStyle = "#4169E1"   // a DRAWING — see below
-          d.fillRect(0, 0, 12, 12) },
+draw(d: Draw) { d.fillStyle = "#4169E1"    // a DRAWING — see below
+                d.fillRect(0, 0, 12, 12) },
 
 bg: View [ fill = midnightblue ],      // a CHILD, named — reachable as `bg`
 Text [ text = "OK" ],                  // a CHILD, anonymous
 ```
 
-**`draw(d)` is a first-class member, not an escape hatch.** It records a display list of plain
+**`draw(d: Draw)` is a first-class member, not an escape hatch.** It records a display list of plain
 ops that both renderers replay, and it is a *tracked computation* like any constraint: it re-runs
 when what it read changes, never per frame. The library draws with it — a `Checkbox`'s tick is a
 recorded path, not a glyph. `d` takes the Canvas2D drawing calls (`fillStyle`, `beginPath`,
@@ -171,13 +171,16 @@ recorded path, not a glyph. `d` takes the Canvas2D drawing calls (`fillStyle`, `
 **`name = value` sets an attribute that exists; `name: Type = value` declares a new one.**
 Declaring is how reactive state enters a program; setting is how it is wired.
 
-**A method has exactly one form**: `select() { … }`, `input(v) { … }` — bare parameter names, no
-return annotation. `segIndex(): number { … }` is a syntax error, and the reason is §2 rather
-than a rule of its own: a signature lives in the `[ ]` layer, where TypeScript's type syntax has
-no meaning. A typed computed value is therefore not a method but an attribute with a `{ }`
-default, `segIndex: number = { … }`.
+**A method's signature is typed, name-first**: `select() { … }`, `input(v: boolean) { … }`,
+`quant(v: number) -> number { … }`. Every parameter carries a written type — a primitive, a
+component class, an event payload (`onMouseUp(e: PointerUpEvent)`), a function
+(`f: (id: string) -> void`), or an array of one (`Window[]`); a `?` after the type
+(`c: Menu?`) says the value may be absent, and the body must check. Omit `-> Ret` for a
+method that returns nothing. A computed *value* is still not a method but an attribute with
+a `{ }` default, `segIndex: number = { … }` — an attribute stays reactively true; a method
+runs when called.
 
-**Events from outside the tree arrive as children.** `Keys [ onKeyUp(e) { … } ]` gives a node
+**Events from outside the tree arrive as children.** `Keys [ onKeyUp(e: KeyEvent) { … } ]` gives a node
 app-wide keyboard handling regardless of focus. There is no subscription syntax and nothing to
 unregister: a source is a child, so it lives and dies with the node that declares it.
 
@@ -672,8 +675,8 @@ cell-owning slot — refused at runtime, with the same message §5 describes. Ov
 edit goes where the value actually lives.
 
 ```declare-fragment
-Checkbox [ label = "Mute", checked = { app.muted }, input(v) { app.muted = v } ],
-Slider   [ value = { app.volume }, input(v) { app.volume = v }, disabled = { app.muted } ],
+Checkbox [ label = "Mute", checked = { app.muted }, input(v: boolean) { app.muted = v } ],
+Slider   [ value = { app.volume }, input(v: number) { app.volume = v }, disabled = { app.muted } ],
 ```
 
 **What a component arranges, it takes as records.** If the component arranges it — menu items, a

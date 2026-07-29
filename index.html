@@ -44,7 +44,7 @@
 <a href="apps/calendar/calendar.declare?viewer"><p>View source →</p></a>
 <p>It’s the kind of experience you’ll see in the best native apps — a view doesn’t switch so much as become the next one, where motion carries meaning, and everything is fast and interruptible.</p>
 <p>That’s always been specialist craft: bespoke motion code, one interaction at a time, locked to a platform. In Declare, it’s simply what the declarations do, and it works everywhere.</p>
-<h2>483</h2>
+<h2>484</h2>
 <p>lines of Declare — four views, continuous zoom, drag, and edit</p>
 <h2>54 KB</h2>
 <p>over the wire, gzipped — the whole app and its runtime</p>
@@ -215,17 +215,17 @@ count:    number,                      //   no default — undefined until writt
 select() { selected = !selected },     // a METHOD
 
 onClick()      { count = count + 1 },  // a HANDLER — `on` + an event this node fires
-onMouseMove(e) { x = e.x },            // pointer handlers get an event with .x / .y
+onMouseMove(e: PointerEvent) { x = e.x },   // pointer handlers get a typed payload
 
-draw(d) { d.fillStyle = "#4169E1"   // a DRAWING — see below
-          d.fillRect(0, 0, 12, 12) },
+draw(d: Draw) { d.fillStyle = "#4169E1"    // a DRAWING — see below
+                d.fillRect(0, 0, 12, 12) },
 
 bg: View [ fill = midnightblue ],      // a CHILD, named — reachable as `bg`
 Text [ text = "OK" ],                  // a CHILD, anonymous</code></pre>
-<p><strong><code>draw(d)</code> is a first-class member, not an escape hatch.</strong> It records a display list of plain ops that both renderers replay, and it is a <em>tracked computation</em> like any constraint: it re-runs when what it read changes, never per frame. The library draws with it — a <code>Checkbox</code>'s tick is a recorded path, not a glyph. <code>d</code> takes the Canvas2D drawing calls (<code>fillStyle</code>, <code>beginPath</code>, <code>moveTo</code>, <code>stroke</code>, …).</p>
+<p><strong><code>draw(d: Draw)</code> is a first-class member, not an escape hatch.</strong> It records a display list of plain ops that both renderers replay, and it is a <em>tracked computation</em> like any constraint: it re-runs when what it read changes, never per frame. The library draws with it — a <code>Checkbox</code>'s tick is a recorded path, not a glyph. <code>d</code> takes the Canvas2D drawing calls (<code>fillStyle</code>, <code>beginPath</code>, <code>moveTo</code>, <code>stroke</code>, …).</p>
 <p><strong><code>name = value</code> sets an attribute that exists; <code>name: Type = value</code> declares a new one.</strong> Declaring is how reactive state enters a program; setting is how it is wired.</p>
-<p><strong>A method has exactly one form</strong>: <code>select() { … }</code>, <code>input(v) { … }</code> — bare parameter names, no return annotation. <code>segIndex(): number { … }</code> is a syntax error, and the reason is §2 rather than a rule of its own: a signature lives in the <code>[ ]</code> layer, where TypeScript's type syntax has no meaning. A typed computed value is therefore not a method but an attribute with a <code>{ }</code> default, <code>segIndex: number = { … }</code>.</p>
-<p><strong>Events from outside the tree arrive as children.</strong> <code>Keys [ onKeyUp(e) { … } ]</code> gives a node app-wide keyboard handling regardless of focus. There is no subscription syntax and nothing to unregister: a source is a child, so it lives and dies with the node that declares it.</p>
+<p><strong>A method's signature is typed, name-first</strong>: <code>select() { … }</code>, <code>input(v: boolean) { … }</code>, <code>quant(v: number) -&gt; number { … }</code>. Every parameter carries a written type — a primitive, a component class, an event payload (<code>onMouseUp(e: PointerUpEvent)</code>), a function (<code>f: (id: string) -&gt; void</code>), or an array of one (<code>Window[]</code>); a <code>?</code> after the type (<code>c: Menu?</code>) says the value may be absent, and the body must check. Omit <code>-&gt; Ret</code> for a method that returns nothing. A computed <em>value</em> is still not a method but an attribute with a <code>{ }</code> default, <code>segIndex: number = { … }</code> — an attribute stays reactively true; a method runs when called.</p>
+<p><strong>Events from outside the tree arrive as children.</strong> <code>Keys [ onKeyUp(e: KeyEvent) { … } ]</code> gives a node app-wide keyboard handling regardless of focus. There is no subscription syntax and nothing to unregister: a source is a child, so it lives and dies with the node that declares it.</p>
 <p><strong>Members are separated by commas.</strong> The <em>trailing</em> one, before a closing <code>]</code>, is optional — write it or leave it off, and the formatter keeps whichever you chose.</p>
 <h3>What a name reaches</h3>
 <p><strong>A bare name resolves outward through the enclosing brackets, innermost first</strong> — the brackets are the scope exactly as they are the tree. Each <code>[ ]</code> you are nested inside is a level whose surface is that component's whole member set, and the nearest level owning the name wins. The compiler rewrites the read to an explicit path, so this is lexical and settled at compile time, not a lookup that walks anything at runtime. Two consequences: every view carries the built-in attributes, so a bare <code>width</code> always means <em>this</em> node's <code>width</code> and built-ins never resolve outward; and a user-declared name shadowed by a nearer one is a warning that names the qualified spelling.</p>
@@ -390,8 +390,8 @@ bg: View [ dim: State [ applied = { app.open }, opacity = 0.5 ] ],   // or owns 
 <p>Declare ships a standard component library in <code>library/</code>, written in Declare itself with no privileged API underneath. It <strong>auto-includes by bare tag</strong> — no import, no module ceremony — components follow the prevailing <code>theme</code>, and focus behavior (Tab traversal, activation, a traveling focus indicator) is provided undeclared. Check there before building a control by hand.</p>
 <p>Two contracts are worth learning because your own components should obey them too.</p>
 <p><strong>The value pattern.</strong> A control's value is a plain reactive attribute, in one of three forms: standalone, where the control owns its state and you read it by name; <strong>app-owned, deriving down and delivering up</strong>; or data-owned, <code>&lt;-&gt;</code>, editors only. The second is a <em>pair</em>, and splitting it is the §5 rule biting. A control's default <code>input</code> writes its <strong>own</strong> attribute, so a one-way <code>checked = { app.muted }</code> with no <code>input</code> override makes the control's own edit an assignment to a cell-owning slot — refused at runtime, with the same message §5 describes. Override <code>input</code> and the edit goes where the value actually lives.</p>
-<pre><code class="language-declare-fragment">Checkbox [ label = "Mute", checked = { app.muted }, input(v) { app.muted = v } ],
-Slider   [ value = { app.volume }, input(v) { app.volume = v }, disabled = { app.muted } ],</code></pre>
+<pre><code class="language-declare-fragment">Checkbox [ label = "Mute", checked = { app.muted }, input(v: boolean) { app.muted = v } ],
+Slider   [ value = { app.volume }, input(v: number) { app.volume = v }, disabled = { app.muted } ],</code></pre>
 <p><strong>What a component arranges, it takes as records.</strong> If the component arranges it — menu items, a dialog's buttons — it takes plain record arrays and hands the choice back through a method. If <em>you</em> arrange it, it is not a component feature at all: it is views, a layout, and replication. A component that owns its arrangement owns its rendition too, and can change either without any use site noticing; hand it children and you have frozen its internals into your source.</p>
 <p>→ what ships and how it is built: <code>library/</code> · each component's attributes: the model reference</p>
 <h2>12. Working</h2>
@@ -582,7 +582,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=5470094307a1";
+  import boot from "./bundles/declare-boot.js?v=5a90bc0fcd28";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().

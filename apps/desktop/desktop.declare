@@ -92,9 +92,9 @@ class Window extends View [ width = 560, height = 400, clip = true,
     // shade, no zoom — the strips vanish and the yellow/green lights go inert
 
     plain: boolean = false,
-    forApp: string = "",                         // which app this window belongs to; subclasses SET it (was: a per-subclass decl + constructor.name dispatch)
-    appPath: string = "",                        // an AppWindow's program path; "" elsewhere (was: an any-seam read)
-    homing: boolean = false,                     // mid minimize/restore flight (was: an UNDECLARED expando via setHoming)
+    forApp: string = "",                         // which application this window belongs to; subclasses set it
+    appPath: string = "",                        // an AppWindow's program path; "" elsewhere
+    homing: boolean = false,                     // mid restore flight: leaving the dock, slot still held
 
     // custom-chrome windows (Jots) keep the base's behavior — drag
     // bookkeeping, activation, shade/zoom, resize strips — but drop the
@@ -281,6 +281,24 @@ class Window extends View [ width = 560, height = 400, clip = true,
     wl0: number = 0,                             // window x at size start (left-edge modes)
     wt0: number = 0,                             // window y at size start (top-edge modes)
 
+    // Title-bar dragging, shared by both chromes (the standard bar and the
+    // Jot's strip): anchor on press, clamp on move — a window can never be
+    // dragged beyond reach; some of it stays on the desktop on every side.
+
+    beginDrag() {
+        this.activate()
+        dragging = true
+        px0 = app.pointerX
+        py0 = app.pointerY
+        wx0 = this.wx
+        wy0 = this.wy
+        },
+    dragTo() {
+        if (!dragging) return
+        this.wx = Math.max(-200, Math.min(app.width - 60, wx0 + app.pointerX - px0))
+        this.wy = Math.max(0, Math.min(app.height - 90, wy0 + app.pointerY - py0))
+        },
+
     beginSize(mode: string) {
         if (plain) return
         this.activate()
@@ -316,8 +334,6 @@ class Window extends View [ width = 560, height = 400, clip = true,
             }
         },
 
-    lightsHover: boolean = false,
-
     bar: View [ width = { parent.width }, height = { classroot.barH }, visible = { classroot.chrome },
 
         // The active window's bar carries a subtle vertical gradient; an
@@ -326,22 +342,9 @@ class Window extends View [ width = 560, height = 400, clip = true,
         fill = { classroot.active
                 ? (app.darkMode ? gradient(0x3B3B40, 0x2E2E32) : gradient(0xFAFAFC, 0xE6E6EA))
                 : theme.bg },
-        onMouseDown() {
-            classroot.activate()
-            classroot.dragging = true
-            classroot.px0 = app.pointerX
-            classroot.py0 = app.pointerY
-            classroot.wx0 = classroot.wx
-            classroot.wy0 = classroot.wy
-            },
-        onMouseMove() {
-            if (!classroot.dragging) return
-            // clamped so a window can never be dragged beyond reach: some of
-            // it stays on the desktop on every side
-            classroot.wx = Math.max(-200, Math.min(app.width - 60, classroot.wx0 + app.pointerX - classroot.px0))
-            classroot.wy = Math.max(0, Math.min(app.height - 90, classroot.wy0 + app.pointerY - classroot.py0))
-            },
-        onMouseUp() { classroot.dragging = false },
+        onMouseDown() { classroot.beginDrag() },
+        onMouseMove() { classroot.dragTo() },
+        onMouseUp()   { classroot.dragging = false },
 
         // The three window controls — close, minimize, zoom. Gray when the
         // window is inactive. Rollover is scoped to the controls block alone
@@ -352,25 +355,23 @@ class Window extends View [ width = 560, height = 400, clip = true,
         // 14px circles on a 20px pitch, so the block is 2·20 + 14 = 54 wide,
         // centered in the 35px bar.
 
+        // the block's rollover is the container's own `hovered` — the hit chain
+        // includes ancestors and is occlusion-correct, so hovering a circle (or
+        // the gaps between) IS hovering the block. No wiring: the eight
+        // onMouseOver/Out handlers and the lightsHover flag this once took are
+        // exactly the bookkeeping the intrinsics deleted (guide §interaction).
+
         lights: View [ x = 13, y = 10.5, width = 54, height = 14,
-            onMouseOver() { classroot.lightsHover = true },
-            onMouseOut()  { classroot.lightsHover = false },
             close: TrafficLight [ x = 0, c = #EC6A5E, rim = #D25349, ink = #7B1006, sym = "close",
-                on = { classroot.active || classroot.lightsHover }, showGlyph = { classroot.lightsHover },
-                onMouseOver() { classroot.lightsHover = true },
-                onMouseOut()  { classroot.lightsHover = false },
+                on = { classroot.active || parent.hovered }, showGlyph = { parent.hovered },
                 onClick() { app.closeWin(classroot) },
                 ],
             mini: TrafficLight [ x = 20, c = #F5BF4F, rim = #D9A340, ink = #8F5B00, sym = "min",
-                on = { classroot.active || classroot.lightsHover }, showGlyph = { classroot.lightsHover },
-                onMouseOver() { classroot.lightsHover = true },
-                onMouseOut()  { classroot.lightsHover = false },
+                on = { classroot.active || parent.hovered }, showGlyph = { parent.hovered },
                 onClick() { if (!classroot.plain) app.minimizeWin(classroot) },
                 ],
             zoom: TrafficLight [ x = 40, c = #61C554, rim = #4CAF45, ink = #145E14, sym = "zoom",
-                on = { classroot.active || classroot.lightsHover }, showGlyph = { classroot.lightsHover },
-                onMouseOver() { classroot.lightsHover = true },
-                onMouseOut()  { classroot.lightsHover = false },
+                on = { classroot.active || parent.hovered }, showGlyph = { parent.hovered },
                 onClick() { if (!classroot.plain) classroot.zoomToggle() },
                 ],
             ],
@@ -859,7 +860,7 @@ class FilesWindow extends Window [
     selPath: string = "",
     rootPath: string = "",                       // the folder this window is ROOTED at ("" = the whole tree); a double-clicked folder opens a new window rooted at itself
     colW: number = 250,                          // default column width (fixed; drag a seam to resize)
-    widths: array = { [ ] },                     // per-column width overrides by depth — Finder resizes ONE column
+    widths: number[] = [],                       // per-column width overrides by depth — Finder resizes ONE column
     rowH: number = 24,                           // one Finder row — icon + name, single line
     cw0: number = 0,                             // divider-drag anchors
     cpx0: number = 0,
@@ -986,7 +987,7 @@ class FilesWindow extends Window [
 
                         onClick() {
                             const near = Math.abs(app.pointerX - classroot.pendingPX) < 6 && Math.abs(app.pointerY - classroot.pendingPY) < 6
-                            const it = classroot.pendingItem as any
+                            const it = classroot.pendingItem
                             if (classroot.pendingAt != "" && it != null && near) {
                                 classroot.pendingAt = ""
                                 if (it.hasKids) app.openFolderWindow("" + it.at, this)
@@ -1008,7 +1009,7 @@ class FilesWindow extends Window [
                                     // ancestor and truncate the columns back toward the root, and would
                                     // pair two distant clicks through a row that slid between them.
                                     const near = Math.abs(app.pointerX - classroot.pendingPX) < 6 && Math.abs(app.pointerY - classroot.pendingPY) < 6
-                                    const it = classroot.pendingItem as any
+                                    const it = classroot.pendingItem
                                     if (classroot.pendingAt != "" && it != null && near) {
                                         classroot.pendingAt = ""
                                         if (it.hasKids) app.openFolderWindow("" + it.at, this)
@@ -1129,8 +1130,6 @@ class ViewerWindow extends Window [ width = 640, height = 460,
     docName: string = "",
     title = { this.inlineDoc != "" ? this.docName : (this.path.split("/").pop() || "") },
 
-    inline: string = { classroot.inlineDoc },
-
     src: DataSource [ format = "text", url = { classroot.path } ],
 
     // the scrolling body is a real pointer target covering the whole window,
@@ -1138,7 +1137,7 @@ class ViewerWindow extends Window [ width = 640, height = 460,
     // strips re-promote above it (order is a slot) or edge drags never land
 
     onInit() {
-        if (this.inline == "") this.src.fetch()
+        if (this.inlineDoc == "") this.src.fetch()
         this.raiseChrome()
         },
 
@@ -1158,19 +1157,19 @@ class ViewerWindow extends Window [ width = 640, height = 460,
         pad: View [ x = 48, y = 40, width = { parent.width - 96 },
             height = { this.doc.height + 40 },
             loading: Text [ fontSize = 13, textColor = { theme.textFaint },
-                visible = { classroot.inline == "" && classroot.src.loading }, text = "Loading…" ],
+                visible = { classroot.inlineDoc == "" && classroot.src.loading }, text = "Loading…" ],
             failed: Text [ fontSize = 13, textColor = { theme.textFaint }, wrap = true, width = { parent.width },
-                visible = { classroot.inline == "" && classroot.src.failed },
+                visible = { classroot.inlineDoc == "" && classroot.src.failed },
                 text = { "Could not load — " + (classroot.src.error || "") } ],
             doc: Markdown [ width = { parent.width },
-                visible = { classroot.inline != "" || classroot.src.loaded },
+                visible = { classroot.inlineDoc != "" || classroot.src.loaded },
                 richTextLayout = { { default: { maxWidth: 560 }, code: { maxWidth: 0 } } },
                 lineHeight = 1.6,
                 bodyColor = { app.darkMode ? 0xC4CFD8 : 0x2E3B46 },
                 codeBackground = { app.darkMode ? 0x35393F : 0xE9EFF4 },
                 codeRule = { app.darkMode ? 0x37E0C8 : 0x12A08D },
                 dark = { app.darkMode },
-                text = { classroot.inline != "" ? classroot.inline : (classroot.src.value || "") } ],
+                text = { classroot.inlineDoc != "" ? classroot.inlineDoc : (classroot.src.value || "") } ],
             ],
         ],
     ]
@@ -1204,20 +1203,9 @@ class JotWindow extends Window [ width = 300, height = 250, chrome = false,
 
     strip: View [ x = 0, y = 0, width = { parent.width }, height = { classroot.barH },
         fill = { classroot.active ? 0xFEEA3D : 0xFEF49C },
-        onMouseDown() {
-            classroot.activate()
-            classroot.dragging = true
-            classroot.px0 = app.pointerX
-            classroot.py0 = app.pointerY
-            classroot.wx0 = classroot.wx
-            classroot.wy0 = classroot.wy
-            },
-        onMouseMove() {
-            if (!classroot.dragging) return
-            classroot.wx = Math.max(-200, Math.min(app.width - 60, classroot.wx0 + app.pointerX - classroot.px0))
-            classroot.wy = Math.max(0, Math.min(app.height - 90, classroot.wy0 + app.pointerY - classroot.py0))
-            },
-        onMouseUp() { classroot.dragging = false },
+        onMouseDown() { classroot.beginDrag() },
+        onMouseMove() { classroot.dragTo() },
+        onMouseUp()   { classroot.dragging = false },
 
         // the strip's widgets: dark olive outlines around pale interiors —
         // the close box 11px in from the left, the zoom triangle (right
@@ -1332,7 +1320,6 @@ class MiniTile extends View [
         y = { parent.height / 2 + (30.5 - app.badgeEdge) * classroot.waveMag },
         kind = { classroot.kind == "calendar" ? "calendar" : classroot.kind == "jots" ? "jots" : classroot.kind == "files" ? "files" : "" },
         glyph = { classroot.kind == "markdown" ? "M↓" : classroot.kind == "declareviewer" ? "[  ]" : "" },
-        gsize = { classroot.kind == "declareviewer" ? 0.42 : 0.42 },
         hue1 = { classroot.kind == "markdown" ? 0x8E7CE8
             : classroot.kind == "declareviewer" ? 0x2E6FE0
             : classroot.kind == "calendar" ? 0xFFFFFF
@@ -1358,7 +1345,7 @@ class MiniTile extends View [
         draw(d: Draw) { app.drawPill(d, this.width, this.bodyH, app.darkMode) },
         t: Text [ x = center, y = { (this.parent.bodyH - this.height) / 2 }, fontSize = 13,
             textColor = { app.darkMode ? 0xF2F2F5 : 0x1D1D1F },
-            text = { classroot ? "" + classroot.lbl : "" } ],
+            text = { classroot.lbl } ],
         ],
     ]
 
@@ -1460,7 +1447,7 @@ class DockIcon extends View [
         g: Text [ x = center, y = center, fontWeight = semibold, textColor = 0xFFFFFF,
             fontSize = { this.parent.width * classroot.gsize },
             visible = { classroot.glyph != "" },
-            text = { classroot ? "" + this.parent.parent.glyph : "" } ],
+            text = { classroot.glyph } ],
 
         // Drawn app art, authored in a 48-unit box and scaled to fill the plate.
 
@@ -1550,7 +1537,7 @@ class DockIcon extends View [
         draw(d: Draw) { app.drawPill(d, this.width, this.bodyH, app.darkMode) },
         t: Text [ x = center, y = { (this.parent.bodyH - this.height) / 2 }, fontSize = 13,
             textColor = { app.darkMode ? 0xF2F2F5 : 0x1D1D1F },
-            text = { classroot ? "" + this.parent.parent.name : "" } ],
+            text = { classroot.name } ],
         ],
     ]
 
@@ -1695,7 +1682,7 @@ App [ clip = true, appName = "Declare Desktop",
             d.beginPath()
             d.moveTo(35.7, 27.3); d.lineTo(29.3, 33.7); d.lineTo(39.5, 37.5)
             d.closePath(); d.fill()
-            d.strokeStyle = hue1!   // hue is always supplied; the ! narrows the nullable Color param
+            d.strokeStyle = hue1
             d.lineWidth = 1.6
             d.beginPath()
             d.moveTo(11.4, 15.7); d.lineTo(17.7, 9.4)
@@ -1747,7 +1734,7 @@ App [ clip = true, appName = "Declare Desktop",
         d.stroke()
         },
 
-    // Activation is one View-typed slot: every window derives its look (shadow
+    // Activation is one Window-typed slot: every window derives its look (shadow
     // depth, bar tone, controls) from whether it is this value.
 
     frontWin: Window = null,
@@ -1763,7 +1750,7 @@ App [ clip = true, appName = "Declare Desktop",
     window's app is read from its class; About windows carry theirs explicitly.
     */
 
-    pathOf(w: Window?) -> string { return w != null && w.appPath ? "" + w.appPath : "" },   // any-seam: an AppWindow's program
+    pathOf(w: Window?) -> string { return w != null ? w.appPath : "" },
 
     appOf(w: Window?) -> string {
         if (w == null) return "files"
@@ -1865,10 +1852,8 @@ App [ clip = true, appName = "Declare Desktop",
     records here drive the invisible hit tiles and their label pills.
     */
 
-    isMin(w: Window?) -> boolean { return w != null && w.dockSlot != null && w.dockSlot >= 0 },
-    ixOf(w: Window?) -> number { return w != null && w.dockSlot != null ? +w.dockSlot : -1 },
-    setIx(w: Window, i: number) { w.dockSlot = i },
-    parkOf(w: Window?) -> number { return w != null && w.miniT != null ? +w.miniT : 0 },
+    isMin(w: Window?) -> boolean { return w != null && w.dockSlot >= 0 },
+    ixOf(w: Window?) -> number { return w != null ? w.dockSlot : -1 },
     labelFor(w: Window) -> string { const t = this.titleOf(w); return t != "" ? t : this.nameOf(this.appOf(w)) },
     // THE collection seam, and the one cast in the file: `wins` is populated at
     // runtime (createView), so its `children` is View[] — but every occupant is
@@ -1885,26 +1870,23 @@ App [ clip = true, appName = "Declare Desktop",
     // thumbnail keeps its window's aspect, its longer edge matching an app
     // icon's edge, so it is never wider or taller than an icon.
 
-    sizeOf(w: Window) -> object { return ({ w: w.width, h: w.height }) },
-
     // miniWins mirrors the records by index with the window references — a
     // parallel app attr, kept out of the records: records are data, and a
     // View's circular graph must never enter data-shaped state
 
-    miniWins: array = null,
+    miniWins: Window[] = null,
 
     rebuildMinis() {
         const ws = this.miniList()
         const out = []
         let total = 0
         for (let i = 0; i < ws.length; i++) {
-            this.setIx(ws[i], i)
-            const z = this.sizeOf(ws[i])
+            ws[i].dockSlot = i
             // the longer edge matches an app icon's edge: a minimized
             // window is never wider or taller than an icon
-            const fit = this.thumbEdge / Math.max(z.w, z.h)
-            const slotW = Math.round(z.w * fit)
-            const slotH = Math.round(z.h * fit)
+            const fit = this.thumbEdge / Math.max(ws[i].width, ws[i].height)
+            const slotW = Math.round(ws[i].width * fit)
+            const slotH = Math.round(ws[i].height * fit)
             out.push(({ ix: i, label: this.labelFor(ws[i]), kind: this.appOf(ws[i]), w: slotW, h: slotH }))
             total += slotW + 8
             }
@@ -1980,13 +1962,10 @@ App [ clip = true, appName = "Declare Desktop",
     // full only after the arriving journey completes, and cleared the
     // instant the journey home begins
 
-    homingOf(w: Window?) -> boolean { return w != null && w.homing == true },
-    setHoming(w: Window, v: boolean) { w.homing = v },
-
     minimizeWin(w: Window) {
         if (w == null || this.isPlain(w) || this.isMin(w)) return
         if (this.miniCount >= 6) return          // the static tile pool's size
-        this.setIx(w, this.miniCount)
+        w.dockSlot = this.miniCount
         this.rebuildMinis()
         if (frontWin == w) frontWin = null
         w.raise()                                // the thumbnail pins to the top of the minimized band
@@ -1994,7 +1973,7 @@ App [ clip = true, appName = "Declare Desktop",
         winSeq = winSeq + 1
         },
 
-    bringFront(w: Window) { w.activate() },              // any-seam (focusWin would recurse via isMin)
+    bringFront(w: Window) { w.activate() },              // not focusWin — that would recurse via isMin
 
     // ── The minimized band: minimized windows' live thumbnails stay in `wins`
     // (below the plate) but pin to the TOP of the layer, so a full-size window
@@ -2005,9 +1984,9 @@ App [ clip = true, appName = "Declare Desktop",
     // band, so it's excluded, and the restoring window comes up to the front of
     // the non-minimized band).
 
-    lowestMini() {
+    lowestMini() -> Window? {
         const ws = this.windows()
-        for (let i = 0; i < ws.length; i++) { const w = ws[i]; if (this.isMin(w) && !this.homingOf(w)) return w }
+        for (let i = 0; i < ws.length; i++) { const w = ws[i]; if (this.isMin(w) && !w.homing) return w }
         return null
         },
 
@@ -2020,7 +1999,7 @@ App [ clip = true, appName = "Declare Desktop",
     // windowItems pattern); winSeq re-derives it at every journey boundary
     // (miniGo's completion nudges it), pointer/hot cover the wave frames.
 
-    seatCheck(wins: array, i: number, slotW: number, seq: number, px: number, hot: number) -> boolean {
+    seatCheck(wins: Window[], i: number, slotW: number, seq: number, px: number, hot: number) -> boolean {
         const w = wins != null && i >= 0 && i < wins.length ? wins[i] : null
         if (w == null || w.homing == true) return false   // homing = leaving now: the badge goes first
         return w.scale < 0.9 && Math.abs(w.scale * w.width - slotW) < 0.5
@@ -2029,8 +2008,8 @@ App [ clip = true, appName = "Declare Desktop",
     nudge() { winSeq = winSeq + 1 },
 
     restoreMini(w: Window) {
-        if (w == null || !this.isMin(w) || this.homingOf(w)) return   // already on the way home
-        this.setHoming(w, true)
+        if (w == null || !this.isMin(w) || w.homing) return   // already on the way home
+        w.homing = true
         this.startUnpark(w)                      // the slot stays mine until the journey home ends
         this.bringFront(w)                       // frontmost from the first frame of the journey
         winSeq = winSeq + 1
@@ -2039,8 +2018,8 @@ App [ clip = true, appName = "Declare Desktop",
     // miniBack's onStop: the window is home — release the slot and focus it
 
     unparked(w: Window) {
-        this.setIx(w, -1)
-        this.setHoming(w, false)
+        w.dockSlot = -1
+        w.homing = false
         this.rebuildMinis()
         this.focusWin(w)
         winSeq = winSeq + 1
@@ -2140,8 +2119,11 @@ App [ clip = true, appName = "Declare Desktop",
     // icon bounces and the window appears mid-second-bounce, the way a
     // fast-launching app feels. Later opens are instant.
 
-    openViewer(p: string, nm: string, v: View?) {
-        if (p == "") return
+    // ONE Markdown-window opener behind both verbs: `props` is what differs —
+    // a `path` to fetch, or a hydrated `inlineDoc` + `docName` handed over
+    // whole. Launch gating, spawn cascade, and the origin zoom are identical.
+
+    openMarkdown(props: object, v: View?) {
         const first = !mdRunning && !mdLaunching
         if (first) mdLaunching = true
         const go = () => {
@@ -2154,7 +2136,7 @@ App [ clip = true, appName = "Declare Desktop",
             const wx = 160 + (winCount % 7) * 28
             const wy = 36 + (winCount % 7) * 26
             const o = this.originOf(v)
-            const w = this.createView("ViewerWindow", this.wins, ({ path: p, wx: wx, wy: wy,
+            const w = this.createView("ViewerWindow", this.wins, ({ ...props, wx: wx, wy: wy,
                 bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - this.menuBarH : -1,
                 bornFrom: v != null ? v : null }))
             this.frontOpen(w)
@@ -2163,32 +2145,12 @@ App [ clip = true, appName = "Declare Desktop",
         else go()
         },
 
-    // open a HYDRATED document — Markdown the model already assembled (an
-    // element's reference, the enums page). The same window as openViewer, but
-    // the page is handed over whole instead of a path to fetch.
+    openViewer(p: string, nm: string, v: View?) { if (p != "") this.openMarkdown(({ path: p }), v) },
 
-    openDoc(md: string, nm: string, v: View?) {
-        if (md == "") return
-        const first = !mdRunning && !mdLaunching
-        if (first) mdLaunching = true
-        const go = () => {
-            mdLaunching = false
-            mdRunning = true
-            viewerCount = viewerCount + 1
-            this.dismissAbouts()
-            winCount = winCount + 1
-            winSeq = winSeq + 1
-            const wx = 160 + (winCount % 7) * 28
-            const wy = 36 + (winCount % 7) * 26
-            const o = this.originOf(v)
-            const w = this.createView("ViewerWindow", this.wins, ({ inlineDoc: "" + md, docName: "" + nm, wx: wx, wy: wy,
-                bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - this.menuBarH : -1,
-                bornFrom: v != null ? v : null }))
-            this.frontOpen(w)
-            }
-        if (first) { this.dock.row.viewerIcon.poke(); setTimeout(go, 900) }
-        else go()
-        },
+    // …and a HYDRATED document — Markdown the model already assembled (an
+    // element's reference, the enums page), handed over whole instead of fetched.
+
+    openDoc(md: string, nm: string, v: View?) { if (md != "") this.openMarkdown(({ inlineDoc: md, docName: nm }), v) },
 
     // a full Declare app in a window — the path is demos/-relative (the slot
     // convention): "../../calendar/calendar" runs the real calendar,
@@ -2208,20 +2170,20 @@ App [ clip = true, appName = "Declare Desktop",
     dvRunning: boolean = false,
     jotRunning: boolean = false,
 
-    launching: boolean = false,                  // calendar mid-launch-bounce
+    calLaunching: boolean = false,               // calendar mid-launch-bounce
     dvLaunching: boolean = false,                // Declare Viewer mid-launch-bounce
     mdLaunching: boolean = false,                // markdown mid-launch-bounce
     jotLaunching: boolean = false,                // Jots mid-launch-bounce
 
-    openApp(p: string, nm: string, v: View?, envExtra: object?) {
+    openApp(p: string, nm: string, v: View?, envExtra: string?) {
         const isCal = ("" + p).indexOf("calendar") >= 0
         // the launch gate: flags move inside go(), so the running dot appears
         // when the app has launched (mid-second-bounce), not at the click —
         // the mid-launch flag guards a double-click during the bounce
-        const first = !(isCal ? calRunning : dvRunning) && !(isCal ? launching : dvLaunching)
-        if (first) { if (isCal) launching = true; else dvLaunching = true }
+        const first = !(isCal ? calRunning : dvRunning) && !(isCal ? calLaunching : dvLaunching)
+        if (first) { if (isCal) calLaunching = true; else dvLaunching = true }
         const go = () => {
-            if (isCal) { launching = false; calRunning = true; calCount = calCount + 1 }
+            if (isCal) { calLaunching = false; calRunning = true; calCount = calCount + 1 }
             else { dvLaunching = false; dvRunning = true; dvCount = dvCount + 1 }
             this.dismissAbouts()
             winCount = winCount + 1
@@ -2243,7 +2205,7 @@ App [ clip = true, appName = "Declare Desktop",
             const o = this.originOf(v)
             const w = this.createView("AppWindow", this.wins, ({ appPath: "" + p, appTitle: "" + nm, wx: wx, wy: wy,
                 width: ww, height: wh,
-                extraEnv: envExtra != null ? "" + envExtra : "",
+                extraEnv: envExtra != null ? envExtra : "",
                 bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - this.menuBarH : -1,
                 bornFrom: v != null ? v : null }))
             this.frontOpen(w)
@@ -2531,8 +2493,8 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
     // windows, front one checked. `seq` and `front` arrive as arguments so
     // the menus constraint above visibly reads them — its re-derive hooks.
 
-    isPlain(w: Window?) -> boolean { return w != null && w.plain == true },      // any-typed seams for a View-typed list
-    titleOf(w: Window?) -> string { return w != null && w.title ? "" + w.title : "" },
+    isPlain(w: Window?) -> boolean { return w != null && w.plain },
+    titleOf(w: Window?) -> string { return w != null ? w.title : "" },
 
     windowItems(seq: number, front: Window?) -> array {
         const a = this.activeApp

@@ -6,7 +6,7 @@ submit, and inherits View's focus and keyboard events.
 It is also the first **Editor**: bind `text <-> :path` to edit a dataset record two-way — the
 field reads the datapath, commits edits back into the dataset, and reseeds when the cursor
 moves to a new record. The dataset owns the committed value; the field owns the *edit session*
-— its draft plus `valid` / `error` / `dirty`. Supply a `validate(v)` method for a domain rule
+— its draft plus `valid` / `error` / `dirty`. Supply a `validate(v: string)` method for a domain rule
 beyond the schema type (return an error message, or `null` when valid); an invalid draft is
 held and never written.
 
@@ -17,7 +17,7 @@ App [ fill = white, textColor = black,
         email: TextInput [ width = 240, height = 30, padding = 6, cornerRadius = 6,
             fill = gainsboro,
             text <-> :email,
-            validate(v) { return v.includes("@") ? null : "not an email" } ] ],
+            validate(v: string) { return v.includes("@") ? null : "not an email" } ] ],
     ]
 ```
 

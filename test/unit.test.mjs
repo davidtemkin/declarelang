@@ -893,7 +893,7 @@ await test("a customized instance is a SINGLETON SUBCLASS — add freely, overri
     /'say' overrides B's 'say' with an incompatible signature/);
   // …unless the base has no contract to break, and a matching one is fine
   ok(`class B extends View [ say(a: number) { } ]\nApp [ width=1, height=1, btn: B [ say(a: number) { } ] ]`);
-  ok(`class B extends View [ say(a) { } ]\nApp [ width=1, height=1, btn: B [ say(a: string) { } ] ]`);
+  ok(`class B extends View [ say(a: object) { } ]\nApp [ width=1, height=1, btn: B [ say(a: string) { } ] ]`);
 });
 
 await test("element-typed arrays (`Window[]`) and the literal-tag createView", () => {
@@ -928,7 +928,7 @@ await test("element-typed arrays (`Window[]`) and the literal-tag createView", (
 
 await test("function types — `(id: string) -> void`, the type a method IS", () => {
   // language §4: "A method is a named field of function type — `name: (params)
-  // -> Ret { body }`". Only the SUGAR (`f(v) { }`) had been implemented, so a
+  // -> Ret { body }`". Only the SUGAR (`f(v: object) { }`) had been implemented, so a
   // callback could not be typed at all: library/dialog.declare wrote
   // `cb: object = null` because `object` was the closest thing sayable.
   const ok = (src) => { const r = compile(src, {}); assert.ok(r.source, (r.errors?.[0]?.rawMessage) ?? "expected it to compile"); };
@@ -1099,7 +1099,7 @@ await test("check() rejects a typo'd handler, naming the handlers it knows", () 
 });
 
 await test("check(): plain methods take any free name; attribute names are taken", () => {
-  assert.deepEqual(check(parse("View [ nudge(dx) { this.x = this.x + dx } ]")), []);
+  assert.deepEqual(check(parse("View [ nudge(dx: number) { this.x = this.x + dx } ]")), []);
   assert.deepEqual(check(parse("View [ once() { } ]")), [], "'once' is not handler-shaped");
   const [err] = check(parse("View [ width() { } ]"));
   assert.match(err.message, /View\.width is an attribute — a method may not take an attribute's name/);
@@ -1139,7 +1139,7 @@ await test("check() errors come out in source order across member kinds", () => 
 // ── R5: instantiate — methods, scope, init ──────────────────────────────────
 
 await test("build() installs methods: callable, this/parent scope, extraction-safe", () => {
-  const app = build("App [ width=100, height=60, View [ nudge(dx) { this.x = this.x + dx }, center() { this.x = (parent.width - this.width) / 2 } ] ]");
+  const app = build("App [ width=100, height=60, View [ nudge(dx: number) { this.x = this.x + dx }, center() { this.x = (parent.width - this.width) / 2 } ] ]");
   const v = app.children[0];
   v.nudge(5);
   assert.equal(v.x, 5, "writes are immediate (the R4 write path)");
@@ -1152,7 +1152,7 @@ await test("build() installs methods: callable, this/parent scope, extraction-sa
 });
 
 await test("a method may return a value (statement body, not an expression wrap)", () => {
-  const app = build("App [ width=100, height=60, View [ twice(n) { return n * 2 } ] ]");
+  const app = build("App [ width=100, height=60, View [ twice(n: number) -> number { return n * 2 } ] ]");
   assert.equal(app.children[0].twice(21), 42);
 });
 
@@ -1204,8 +1204,8 @@ await test("a view with a pointer handler gets an input sink; one without gets n
 await test("dispatch: the sink calls the right handler with view-local {x,y}", () => {
   globalThis.__ev = [];
   const app = build(`App [ width=100, height=60,
-    View [ onClick(e) { globalThis.__ev.push(["click", e.x, e.y]); this.x = e.x },
-           onMouseDown(e) { globalThis.__ev.push(["down", e.x, e.y]) } ] ]`);
+    View [ onClick(e: PointerEvent) { globalThis.__ev.push(["click", e.x, e.y]); this.x = e.x },
+           onMouseDown(e: PointerEvent) { globalThis.__ev.push(["down", e.x, e.y]) } ] ]`);
   const log = [];
   app.attach(mockBackend(log), null);
   const childSink = log.filter(([m]) => m === "setInput")[0][1];
@@ -1423,7 +1423,7 @@ await test("raw touch: a view declaring the family gets the finger list, ids sta
 });
 
 await test("draw(d) { … } — the language surface — rides the recorded-draw machinery", () => {
-  const app = build("App [ width=100, height=60, View [ width=8, height=10, draw(d) { d.fillRect(0, 0, this.width, 5) } ] ]");
+  const app = build("App [ width=100, height=60, View [ width=8, height=10, draw(d: Draw) { d.fillRect(0, 0, this.width, 5) } ] ]");
   const log = [];
   app.attach(mockBackend(log), null);
   settle();
@@ -1501,7 +1501,7 @@ await test("parseProgram() reads class declarations and the root", () => {
   const p = parseProgram(`class Tally extends View [
     count: number = 0,
     label: string,
-    bump(n) { },
+    bump(n: object) { },
     hit: View [ x = 1 ],
     View [ ],
     ]
@@ -1843,10 +1843,10 @@ await test("compile(): the anonymous-App top level — bare names in app-level b
 
 await test("compile(): locals, parameters, and TS globals are never rewritten; shorthand stays an object literal", () => {
   const out = resolved(`App [ width=1, height=1, n: number = 3,
-    m(n) { return n + Math.min(1, 2) },
+    m(n: number) { return n + Math.min(1, 2) },
     agg() { const k = [1].map(n => n * 2); return k[0] + n },
     obj() { return { n } } ]`);
-  assert.match(out, /m\(n\) \{ return n \+ Math\.min\(1, 2\) \}/, "a parameter shadows the member; Math is a global");
+  assert.match(out, /m\(n: number\) \{ return n \+ Math\.min\(1, 2\) \}/, "a parameter shadows the member; Math is a global");
   assert.match(out, /return k\[0\] \+ this\.n/, "an arrow's parameter shadows only inside it");
   assert.match(out, /return \{ n: this\.n \}/, "shorthand rewrites to a full property");
 });
@@ -1890,7 +1890,7 @@ await test("compile(): the 16px warning follows the nearest written size — inh
 });
 
 await test("compile(): full gesture control (raw touch on the App) exempts the 16px warning — the runtime locks the zoom instead", () => {
-  const r = compile(`App [ width=400, height=300, onTouchStart(e) { },\n  TextInput [ width=200, height=30, fontSize = 12 ] ]`);
+  const r = compile(`App [ width=400, height=300, onTouchStart(e: TouchEvent) { },\n  TextInput [ width=200, height=30, fontSize = 12 ] ]`);
   assert.deepEqual([r.errors, r.warnings], [[], []]);
 });
 
@@ -4820,7 +4820,7 @@ await test("compile() emits a self-contained source: no include directive, inclu
   const host = memHost({
     // an included class whose method body uses a bare name — it must be
     // resolved in the emitted source, not left for a host that won't exist.
-    "/lib.declare": "class Card extends View [ w: Length = 5, tint(other) { w = other } ]",
+    "/lib.declare": "class Card extends View [ w: Length = 5, tint(other: number) { w = other } ]",
   });
   const r = compile('include [ "lib.declare" ]\nApp [ width=10, height=10, Card [ ] ]', { host, originDir: "/" });
   assert.equal(r.errors.length, 0, "compiles clean");
@@ -5382,8 +5382,8 @@ await test("focus: keyboard delivery — Tab traverses, other keys reach the foc
   Focus.reset();
   globalThis.__k = [];
   const app = build(`App [ width = 100, height = 100,
-    a: View [ focusable = true, onKeyDown(e) { globalThis.__k.push("a:" + e.code) } ],
-    b: View [ focusable = true, onKeyDown(e) { globalThis.__k.push("b:" + e.code) } ],
+    a: View [ focusable = true, onKeyDown(e: KeyEvent) { globalThis.__k.push("a:" + e.code) } ],
+    b: View [ focusable = true, onKeyDown(e: KeyEvent) { globalThis.__k.push("b:" + e.code) } ],
   ]`);
   Focus.setRoot(app);
   Focus.focus(app.a);
@@ -5443,7 +5443,7 @@ await test("textinput: a native edit updates the model text and fires input", ()
   const log = [];
   globalThis.__inp = [];
   const app = build(`App [ width = 100, height = 100,
-    inp: TextInput [ text = "hi", onInput(v) { globalThis.__inp.push(v) } ],
+    inp: TextInput [ text = "hi", onInput(v: string) { globalThis.__inp.push(v) } ],
   ]`);
   app.attach(mockBackend(log), null);
   lastSpec(log).onInput("hello");
@@ -5568,7 +5568,7 @@ function compileAndBoot(src) {
 await test("sources: a Keys member wires at init and unsubscribes at discard", async () => {
   const { Keys } = await import("../runtime/dist/index.js");
   const app = compileAndBoot(`App [ width = 100, height = 100, n: number = 0,
-    nav: Keys [ onKeyUp(e) { if (e.key == "ArrowDown") app.n = app.n + 1 } ],
+    nav: Keys [ onKeyUp(e: KeyEvent) { if (e.key == "ArrowDown") app.n = app.n + 1 } ],
     ]`);
   Keys.keyUp(KEY_DOWN_ARROW);
   assert.equal(app.n, 1, "the handler ran with the KeyEvent payload");
@@ -5580,8 +5580,8 @@ await test("sources: a Keys member wires at init and unsubscribes at discard", a
 await test("sources: fan-out is by INSTANCE — two Keys members both hear the keyboard", async () => {
   const { Keys } = await import("../runtime/dist/index.js");
   const app = compileAndBoot(`App [ width = 100, height = 100, a: number = 0, b: number = 0,
-    k1: Keys [ onKeyDown(e) { app.a = app.a + 1 } ],
-    k2: Keys [ onKeyDown(e) { app.b = app.b + 1 } ],
+    k1: Keys [ onKeyDown(e: KeyEvent) { app.a = app.a + 1 } ],
+    k2: Keys [ onKeyDown(e: KeyEvent) { app.b = app.b + 1 } ],
     ]`);
   Keys.keyDown(KEY_DOWN_ARROW);
   assert.equal(app.a, 1, "first listener");
@@ -5605,7 +5605,7 @@ await test("sources: the `<-` operator is GONE, and the error names the rewrite"
 });
 
 await test("sources: a handler the source does not call is the ordinary typo error", () => {
-  const bad = compile(`App [ width = 100, height = 100, k: Keys [ onWheel(e) { } ] ]`, {});
+  const bad = compile(`App [ width = 100, height = 100, k: Keys [ onWheel(e: WheelEvent) { } ] ]`, {});
   assert.equal(bad.source, null);
   assert.match(bad.errors[0].message, /Keys has no 'onWheel' event — its handlers: onKeyDown, onKeyUp/);
 });
@@ -5613,7 +5613,7 @@ await test("sources: a handler the source does not call is the ordinary typo err
 await test("sources: `Keys` is both a component and a callable service, under one name", () => {
   const r = compile(`App [ width = 100, height = 100,
     down: boolean = false,
-    k: Keys [ onKeyDown(e) { app.down = Keys.isDown("Space") } ],
+    k: Keys [ onKeyDown(e: KeyEvent) { app.down = Keys.isDown("Space") } ],
     ]`, {});
   assert.notEqual(r.source, null, "ask AND listen in one program: " + r.errors.map((e) => e.message).join("; "));
 });
@@ -5622,7 +5622,7 @@ await test("sources: a source member does not collide with `<->` lexing", () => 
   const r = compile(`App [ width = 100, height = 100,
     d: Dataset { { "title": "x" } },
     card: View [ datapath = { app.d.value }, f: TextInput [ text <-> :title ] ],
-    nav: Keys [ onKeyUp(e) { app.d.set("title", e.key) } ],
+    nav: Keys [ onKeyUp(e: KeyEvent) { app.d.set("title", e.key) } ],
     ]`, {});
   assert.notEqual(r.source, null, "the two-way arrow still lexes: " + r.errors.map((e) => e.message).join("; "));
 });
@@ -5728,7 +5728,7 @@ await test("hovered/pressed are read-only intrinsics: declaring or setting one i
 });
 
 await test("typed bodies: `as` casts typecheck, are stripped from the emitted source, and run", () => {
-  const src = `class G extends View [ value: string = "", pick(v) { this.value = v } ]
+  const src = `class G extends View [ value: string = "", pick(v: object) { this.value = v } ]
 class R extends View [ choice: string = "",
     on: boolean = { (parent as G).value == choice },
     onClick() { (parent as G).pick(choice) },
@@ -5804,7 +5804,7 @@ await test("typed bodies: TS-only forms that CANNOT run are rejected at check wi
 await test("typed bodies: casts beside islands in a STATEMENT body (handler) strip and run", () => {
   const src = `App [ width = 200, height = 200,
     picked: string = "",
-    pick(v) { this.picked = v },
+    pick(v: object) { this.picked = v },
     d: Dataset { { "title": "hello", "n": 3 } },
     card: View [ datapath = { app.d.value },
         onClick() { const t = (:title satisfies string)!; app.pick(t + "/" + (:n as number).toFixed(0)) },
@@ -5983,7 +5983,7 @@ await test("E-series diagnostics name the fix: bare ident, layout-in-State, dott
   // unresolvable type name is the error instead.
   assert.equal(msg(`App [ width=1, height=1, f(label: string) { return label } ]`), "");
   assert.equal(msg(`App [ width=1, height=1, f(): number { return 1 } ]`), "");
-  assert.equal(msg(`App [ width=1, height=1, f(x) -> number { return x } ]`), "");
+  assert.equal(msg(`App [ width=1, height=1, f(x: number) -> number { return x } ]`), "");
   assert.match(msg(`App [ width=1, height=1, f(v: Nonsense) { return 1 } ]`),
     /unknown type 'Nonsense' for parameter 'v'/);
   assert.match(msg(`App [ width=1, height=1, f(v: number) -> Nonsense { return v } ]`),
@@ -6207,7 +6207,7 @@ await test("Frames: onFrame(dt) is called per frame, with dt in SECONDS", () => 
   const app = build(`App [ width = 100, height = 100,
     ticks: number = 0,
     elapsed: number = 0,
-    f: Frames [ onFrame(dt) { this.parent.ticks = this.parent.ticks + 1; this.parent.elapsed = this.parent.elapsed + dt } ],
+    f: Frames [ onFrame(dt: number) { this.parent.ticks = this.parent.ticks + 1; this.parent.elapsed = this.parent.elapsed + dt } ],
     ]`);
   settle();
   sched.frame(0);      // the first frame only establishes the baseline
@@ -6225,7 +6225,7 @@ await test("Frames: `running` gates the heartbeat — a live slot, and dt never 
     ticks: number = 0,
     biggest: number = 0,
     f: Frames [ running = { this.parent.go },
-        onFrame(dt) { this.parent.ticks = this.parent.ticks + 1; if (dt > this.parent.biggest) this.parent.biggest = dt } ],
+        onFrame(dt: number) { this.parent.ticks = this.parent.ticks + 1; if (dt > this.parent.biggest) this.parent.biggest = dt } ],
     ]`);
   const sched = fakeScheduler();
   setClock(new Clock(sched));

@@ -157,7 +157,7 @@ test("computed default whose BOOT branch reads no cell still wires the other bra
 test("computed-default inlining is transitive (default → default → method → cell)", () => {
   const app = run(`App [
       k: string = "z",
-      idx(s) { return s == "z" ? this.base : 0 },
+      idx(s: object) { return s == "z" ? this.base : 0 },
       base: number = 3,
       aRow: number = { app.idx(app.k) },
       r0To: number = { app.aRow + 1 },

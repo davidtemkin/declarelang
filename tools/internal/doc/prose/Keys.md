@@ -13,7 +13,7 @@ each holding a `Keys` member all hear the keyboard at once.
 App [ width = 240, height = 100, fill = white, textColor = black,
     n: number = 0,
     keys: Keys [
-        onKeyUp(e) {
+        onKeyUp(e: KeyEvent) {
             if (e.key == "ArrowUp") { app.n = app.n + 1 }
             else if (e.key == "ArrowDown") { app.n = app.n - 1 }
             },

@@ -102,11 +102,10 @@ class Dialog extends View [ visible = { shown },
 
     kidsOf(b: View) -> array { return b.children },
 
-    innerOf(box) { return this.arrangement == "stack" ? box.stackInner : box.rowInner },
-
     focusDefault() {
         if (!shown) return
-        const kids = this.kidsOf(this.innerOf(this.panel.col.btns))
+        const b = this.panel.col.btns
+        const kids = this.kidsOf(this.arrangement == "stack" ? b.stackInner : b.rowInner)
         const d = kids.find((k) => k.primary)
         Focus.focus(d != null ? d : kids.length > 0 ? kids[kids.length - 1] : null)
         },

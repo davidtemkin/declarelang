@@ -92,8 +92,8 @@ travels far away, so there is no tracking code to write.
 App [ width = 300, height = 160, fill = white,
     card: View [ x = 20, y = 40, width = 120, height = 80, cornerRadius = 10, fill = 0x4C8DFF,
         grabX: number = 0,
-        onMouseDown(e) { grabX = e.x },                    // view-local: where in the card you grabbed
-        onMouseMove(e) { x = Math.max(0, Math.min(180, e.x - grabX)) },   // root-space: minus the grab
+        onMouseDown(e: PointerEvent) { grabX = e.x },                    // view-local: where in the card you grabbed
+        onMouseMove(e: PointerEvent) { x = Math.max(0, Math.min(180, e.x - grabX)) },   // root-space: minus the grab
         ],
     ]
 ```
@@ -114,7 +114,7 @@ mid-flight to scroll the page, which ends your drag without a release. That stil
 arrives as `onMouseUp`, so state resets — but the event says which it was:
 
 ```declare-fragment
-onMouseUp(e) {
+onMouseUp(e: PointerUpEvent) {
     dragging = false                       // always reset
     if (e.canceled) return                 // …but never commit an interrupted drag
     classroot.commitMove(this.x, this.y)
@@ -129,9 +129,9 @@ view, and declaring the raw handlers does not steal the tap:
 
 ```declare-fragment
 block: View [
-    onMouseDown(e) { app.startDrag(:id, e.x, e.y) },
+    onMouseDown(e: PointerEvent) { app.startDrag(:id, e.x, e.y) },
     onMouseMove()  { app.dragMove() },
-    onMouseUp(e)   { app.dropDrag(e.x, e.y) },
+    onMouseUp(e: PointerUpEvent)   { app.dropDrag(e.x, e.y) },
     onClick()      { app.selectEvent(:id) },        // still fires — on a real tap
     ]
 ```
@@ -177,7 +177,7 @@ options, tap to open.
 A drag that must *land* somewhere needs to know what it is over. Ask the tree:
 
 ```declare-fragment
-onMouseUp(e) {
+onMouseUp(e: PointerUpEvent) {
     if (e.canceled) return
     let t = app.viewAt(e.x, e.y)                  // root-space, like the event
     while (t != null && t.accept == null) t = t.parent
@@ -197,7 +197,7 @@ constraint.
 
 ```declare-fragment
 // on the dragger
-onMouseMove(e) { app.dropTarget = app.viewAt(e.x, e.y) },
+onMouseMove(e: PointerEvent) { app.dropTarget = app.viewAt(e.x, e.y) },
 
 // on each target — no handlers, just a standing relationship
 hot = { app.dropTarget == this },
@@ -235,7 +235,7 @@ the tree. Its lifetime is the node's, so there is nothing to unsubscribe:
 App [ width = 240, height = 100, fill = white, textColor = black,
     n: number = 0,
     keys: Keys [
-        onKeyUp(e) {
+        onKeyUp(e: KeyEvent) {
             if (e.key == "ArrowUp") { app.n = app.n + 1 }
             else if (e.key == "ArrowDown") { app.n = app.n - 1 }
             },

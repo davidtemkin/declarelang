@@ -7,7 +7,7 @@ are nobody's problem at the use site. It arrives automatically when any
 view in the program carries a tip (the FocusRing auto-arrival mechanism);
 declare your own `Tooltip [ ]` (or subclass) to replace the rendition.
 
-It listens to the Tip service (a `Tip [ onTip(e) { … } ]` member), which owns the platform
+It listens to the Tip service (a `Tip [ onTip(e: TipEvent) { … } ]` member), which owns the platform
 conventions (the show delay — `tooltipDelay`, ~1s on the Apple and Windows
 platforms, ~500ms Material — instant retarget while showing, hide on
 press). PLACEMENT is theme data too (`tooltipPlacement`): "below" (the

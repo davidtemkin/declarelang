@@ -171,7 +171,7 @@ function rerendersOn(src, mutate, read) {
 }
 
 test("a script call's reads are followed and rebased onto the call-site argument", () => {
-  const r = extract(`script { function vOf(node) { return node.v } }
+  const r = extract(`script { function vOf(node: any) { return node.v } }
 App [ v: number = 10, w: number = 2, b: View [ width = { vOf(app) + app.w } ] ]`);
   assert.deepEqual(readsOf(r, "width"), ["this.root.v", "this.root.w"]);
 });
@@ -182,7 +182,7 @@ test("REGRESSION: a script helper's dependency re-renders — no partial deps", 
   // `app.v = 50` moved nothing. Both the extracted set and the LIVE program are
   // asserted, because a dep list that is right on paper and dead at runtime is
   // the failure being fixed.
-  const src = `script { function vOf(node) { return node.v } }
+  const src = `script { function vOf(node: any) { return node.v } }
 App [ v: number = 10, w: number = 2, b: View [ width = { vOf(app) + app.w } ] ]`;
   const { before, after } = rerendersOn(src, (app) => { app.v = 50; }, (app) => app.b.width);
   assert.equal(before, 12, "10 + 2");
@@ -190,7 +190,7 @@ App [ v: number = 10, w: number = 2, b: View [ width = { vOf(app) + app.w } ] ]`
 });
 
 test("a script helper reached through `this` rebases onto the owning node", () => {
-  const src = `script { function twice(node) { return node.n * 2 } }
+  const src = `script { function twice(node: any) { return node.n * 2 } }
 App [ w: number = 3, b: View [ n: number = 10, width = { twice(this) + app.w } ] ]`;
   assert.deepEqual(readsOf(extract(src), "width"), ["this.n", "this.root.w"]);
   const { before, after } = rerendersOn(src, (app) => { app.b.n = 50; }, (app) => app.b.width);
@@ -201,15 +201,15 @@ App [ w: number = 3, b: View [ n: number = 10, width = { twice(this) + app.w } ]
 test("a script helper over plain VALUES stays analyzable (nothing to rebase)", () => {
   // The common case must not be refused: the arguments' own reads are recorded at
   // the call site, and arithmetic on a parameter can't hide an attribute read.
-  const r = extract(`script { function pick(a, b) { return a > b ? a : b } }
+  const r = extract(`script { function pick(a: number, b: number) { return a > b ? a : b } }
 App [ v: number = 10, w: number = 3, b: View [ width = { pick(app.v, app.w) } ] ]`);
   assert.deepEqual(readsOf(r, "width"), ["this.root.v", "this.root.w"]);
 });
 
 test("script calls compose — through a method, and script-to-script", () => {
   const r = extract(`script {
-  function inner(node) { return node.v }
-  function outer(node) { return inner(node) + 1 }
+  function inner(node: any) { return node.v }
+  function outer(node: any) { return inner(node) + 1 }
 }
 App [ v: number = 10, b: View [ width = { app.calc() } ], calc() { return outer(app) } ]`);
   assert.deepEqual(readsOf(r, "width"), ["this.root.v"]);
@@ -219,21 +219,21 @@ test("refused — a script body reading MUTABLE module state", () => {
   // A module `let` has no cell, so neither prewiring nor runtime tracking could
   // ever notice it move: unrepresentable, and refused rather than wired to nothing.
   const e = residueErrors(`script { let bias = 5
-function biased(n) { return n + bias } }
+function biased(n: number) { return n + bias } }
 App [ v: number = 10, b: View [ width = { biased(app.v) } ] ]`);
   assert.ok(e.some((x) => /mutable state in a script/.test(x.message)), JSON.stringify(e.map((x) => x.message)));
 });
 
 test("a script body reading a module CONST is fine (a frozen constant)", () => {
   const r = extract(`script { const SCALE = 3
-function scaled(n) { return n * SCALE } }
+function scaled(n: number) { return n * SCALE } }
 App [ v: number = 10, b: View [ width = { scaled(app.v) } ] ]`);
   assert.deepEqual(readsOf(r, "width"), ["this.root.v"]);
   assert.equal(errsOf(r, "width").length, 0);
 });
 
 test("refused — an argument that is not a nameable path, where it is read through", () => {
-  const e = residueErrors(`script { function vOf(node) { return node.v } }
+  const e = residueErrors(`script { function vOf(node: any) { return node.v } }
 App [ v: number = 10, b: View [ width = { vOf(app.pick()) } ], pick() { return app } ]`);
   assert.ok(e.some((x) => /not a nameable path/.test(x.message)), JSON.stringify(e.map((x) => x.message)));
 });
@@ -241,14 +241,14 @@ App [ v: number = 10, b: View [ width = { vOf(app.pick()) } ], pick() { return a
 test("refused — a parameter that ESCAPES into a local (the aliasing trap)", () => {
   // `const m = node; return m.v` extracts clean and goes stale — the read roots at
   // a name the call site never wrote.
-  const e = residueErrors(`script { function vOf(node) { const m = node
+  const e = residueErrors(`script { function vOf(node: any) { const m = node
   return m.v } }
 App [ v: number = 10, w: number = 2, b: View [ width = { vOf(app) + app.w } ] ]`);
   assert.ok(e.some((x) => /parameter escape/.test(x.message)), JSON.stringify(e.map((x) => x.message)));
 });
 
 test("refused — a script function PASSED as a value, when it reads through a parameter", () => {
-  const e = residueErrors(`script { function vOf(node) { return node.v } }
+  const e = residueErrors(`script { function vOf(node: any) { return node.v } }
 App [ v: number = 10, b: View [ width = { [app].map(vOf).length } ] ]`);
   assert.ok(e.some((x) => /passed as a value/.test(x.message)), JSON.stringify(e.map((x) => x.message)));
 });
@@ -256,14 +256,14 @@ App [ v: number = 10, b: View [ width = { [app].map(vOf).length } ] ]`);
 test("refused — reading THROUGH a result that may be a parameter handed back", () => {
   // `pick` can return either argument; `pick(a, b).title` reads an attribute of
   // whichever node came back, and which one is not knowable here.
-  const e = residueErrors(`script { function pick(a, b) { return a.n > b.n ? a : b } }
+  const e = residueErrors(`script { function pick(a: any, b: any) { return a.n > b.n ? a : b } }
 App [ cardA: View [ n: number = 1, label: string = "a" ], cardB: View [ n: number = 2, label: string = "b" ],
   b: Text [ text = { pick(app.cardA, app.cardB).label } ] ]`);
   assert.ok(e.some((x) => /reads through the result/.test(x.message)), JSON.stringify(e.map((x) => x.message)));
 });
 
 test("a script function that returns a parameter is fine when the result is NOT projected", () => {
-  const r = extract(`script { function pick(a, b) { return a > b ? a : b } }
+  const r = extract(`script { function pick(a: number, b: number) { return a > b ? a : b } }
 App [ v: number = 4, w: number = 9, b: View [ width = { pick(app.v, app.w) } ] ]`);
   assert.equal(errsOf(r, "width").length, 0, JSON.stringify(errsOf(r, "width")));
 });
@@ -272,7 +272,7 @@ test("refused — `new` of a script CLASS (its constructor's reads are invisible
   // Checked on the typecheck opt-out, as the opaque-call residue above is: with
   // the type phase on, an untyped script class dies earlier as a member miss —
   // same defect, earlier and better-worded message.
-  const src = `script { class Box { constructor(node) { this.v = node.v } } }
+  const src = `script { class Box { constructor(node: any) { this.v = node.v } } }
 App [ v: number = 10, w: number = 2, b: View [ width = { new Box(app).v + app.w } ] ]`;
   const r = compile(src, { typecheck: false });
   assert.ok(!r.source, "expected the unanalyzable constructor to block compilation");
@@ -283,7 +283,7 @@ test("handlers stay UNRESTRICTED — a method never reached from a constraint is
   // The refusals above are a property of the CONSTRAINT graph, not of script code.
   // A helper that a constraint could never wire is fine in a handler.
   const src = `script { let hits = 0
-function bump(node) { hits = hits + 1
+function bump(node: any) { hits = hits + 1
   return node.v + hits } }
 App [ v: number = 10, onClick() { v = bump(this) }, b: View [ width = { app.v } ] ]`;
   const r = compile(src, {});

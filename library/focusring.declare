@@ -9,7 +9,7 @@ pill Switch's ring, and a text field's ring differ because the targets do).
 
 The layered model (charter, ratified):
 
-- **The fact** — the ring listens to Focus (a `Focus [ onFocusChange(v) { … } ]` member) and
+- **The fact** — the ring listens to Focus (a `Focus [ onFocusChange(v: View) { … } ]` member) and
   tracks the target's root-space geometry on EVERY change, pointer or
   keyboard. A pointer focus PARKS the ring there silently (snap, no show) —
   so the next Tab's flight departs from the control the user just clicked,

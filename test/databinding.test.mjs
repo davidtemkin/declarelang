@@ -100,7 +100,7 @@ test("validate: an invalid draft is not committed and surfaces an error", () => 
       store: Dataset { { "rec": { "zip": "94110" } } },
       form: View [ datapath = { app.store.value.rec },
         field: TextInput [ text <-> :zip, commitOn = "manual",
-                           validate(v) { return /^[0-9]{5}$/.test(v) ? null : "5 digits" } ],
+                           validate(v: object) { return /^[0-9]{5}$/.test(v) ? null : "5 digits" } ],
       ],
     ]`);
   const f = app.form.field;

@@ -88,7 +88,7 @@ pattern from [chapter 7](declare-docs:guide:interaction) — down, move past a
 threshold, up — and then a drop is *one edit to the data*:
 
 ```declare-fragment
-commitDrop(px, py) {
+commitDrop(px: number, py: number) {
     const idx = app.data.value.events.findIndex(e => e.id == this.dragId)
     const p = "events." + idx + "."
     const d = app.parseKey(this.cellAt(px, py).key)        // invert the mapping: point → cell

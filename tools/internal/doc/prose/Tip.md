@@ -9,7 +9,7 @@ when you are replacing that rendition.
 
 ```declare-fragment
 tips: Tip [
-    onTip(e) {
+    onTip(e: TipEvent) {
         if (e == null) { classroot.shown = false; return }
         classroot.label = e.text
         classroot.shown = true

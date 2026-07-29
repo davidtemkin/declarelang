@@ -152,6 +152,17 @@ function checkSignatureTypes(el, errors, schemas) {
             }
         }
         for (const prm of m.params) {
+            // A parameter with NO written type is an error (ruled 2026-07-28: the
+            // language leans into typing and static analysis — an untyped parameter
+            // silently disables both, exactly the under-report an agent audit
+            // flagged). The message names the payload when the runtime knows it.
+            if (prm.type === undefined) {
+                const payload = ev !== null && schema !== undefined && eventsOf(schema).includes(ev) ? EVENT_PAYLOAD[ev] : undefined;
+                errors.push(new DeclareError(payload !== undefined
+                    ? `'${prm.name}' needs its payload type — write '${m.name}(${prm.name}: ${payload})'`
+                    : `parameter '${prm.name}' has no type — a signature is typed name-first: '${m.name}(${prm.name}: number)' (a primitive, a component class, a function type, or 'object' for a genuinely shapeless value)`, m.pos));
+                continue;
+            }
             const badP = prm.type === undefined ? null : firstUnknown(prm.type);
             if (badP !== null) {
                 errors.push(new DeclareError(`unknown type '${badP}' for parameter '${prm.name}' — a signature type is one of ${DECLARED_TYPE_NAMES.join(", ")}, a component class in this program, or a function type '(a: T) -> R'`, prm.typePos ?? m.pos));

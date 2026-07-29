@@ -115,7 +115,11 @@ class Menu extends View [ visible = { shown }, width = 220,
 
     // ── the cascade ────────────────────────────────────────────────────────
 
-    openSub(row, subItems) {
+    // `row`/`r` below are typed `object` — a row is an ANONYMOUS replicated
+    // template (the `datapath = :rows[]` view), whose type has no name to
+    // write. The declared any-seam, until a template's type is nameable.
+
+    openSub(row: object, subItems: array) {
         let x = 0
         let y = 0
         let n = row
@@ -150,7 +154,7 @@ class Menu extends View [ visible = { shown }, width = 220,
 
     pickActive() { this.pickRow(this.activeRow) },
 
-    pickRow(r) {
+    pickRow(r: object) {
         if (r == null) return
         if (r.sub) { this.enterSub(); return }
         r.pickSelf()
@@ -158,7 +162,7 @@ class Menu extends View [ visible = { shown }, width = 220,
 
     enterSub() { this.enterRow(this.activeRow) },
 
-    enterRow(r) {
+    enterRow(r: object) {
         if (r == null || !r.sub) return
         r.openSelf()
         if (child != null) this.stepIn(child)

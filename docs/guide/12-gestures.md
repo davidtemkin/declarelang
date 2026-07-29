@@ -99,11 +99,11 @@ really is the smallest view that needs it.
 
 ```declare-fragment
 App [ clip = true,                                   // a fixed window: the frame never scrolls
-    onTouchStart(e)  { engine.begin(e.touches) },
-    onTouchMove(e)   { engine.track(e.touches) },
-    onTouchEnd(e)    { engine.release(e.touches) },
-    onTouchCancel(e) { engine.abort() },
-    onWheel(e)       { engine.wheel(e) },            // the desktop half: trackpad pan and pinch
+    onTouchStart(e: TouchEvent)  { engine.begin(e.touches) },
+    onTouchMove(e: TouchEvent)   { engine.track(e.touches) },
+    onTouchEnd(e: TouchEvent)    { engine.release(e.touches) },
+    onTouchCancel(e: TouchEvent) { engine.abort() },
+    onWheel(e: WheelEvent)       { engine.wheel(e) },            // the desktop half: trackpad pan and pinch
     ]
 ```
 
@@ -144,7 +144,7 @@ once per animation frame with the real elapsed time in seconds:
 App [ width = 240, height = 120, fill = midnightblue, textColor = whitesmoke,
     x0: number = 20,
     v: number = 60,
-    physics: Frames [ onFrame(dt) { app.x0 = (app.x0 + app.v * dt) % 200 } ],
+    physics: Frames [ onFrame(dt: number) { app.x0 = (app.x0 + app.v * dt) % 200 } ],
     dot: View [ x = { app.x0 }, y = 40, width = 40, height = 40, cornerRadius = 20, fill = turquoise ],
     ]
 ```

@@ -385,7 +385,7 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
   ],
   View: [
     `  scrollIntoView(align?: "start" | "nearest", smooth?: boolean): void;`,
-    `  raise(below?: View): void;`,
+    `  raise(below?: View | null): void;`,
     `  removeChild(child: View): void;`,
     // Tear a runtime-created view down for good (unwire constraints, drop the
     // surface) — the pair of createView, and like it a real view.ts method that

@@ -67,10 +67,10 @@ count:    number,                      // no default — undefined until set
 select() { classroot.pick(this) },     // a METHOD — untyped params, no return annotation
 
 onClick()      { count = count + 1 }, // a HANDLER: `on` + this node's own event
-onMouseMove(e) { x = e.x },            // pointer handlers get an event with .x/.y
+onMouseMove(e: PointerEvent) { x = e.x },            // pointer handlers get an event with .x/.y
 
 keys: Keys [                           // a SOURCE member: events from OUTSIDE the tree
-    onKeyUp(e) {                       //   e is the KeyEvent; unsubscribed at teardown
+    onKeyUp(e: KeyEvent) {                       //   e is the KeyEvent; unsubscribed at teardown
         if (e.key == "ArrowDown") classroot.next()
         },
     ],
@@ -295,8 +295,8 @@ App [ width = 360, height = 200, fill = { theme.bg },
 
     col: View [ x = 20, y = 20,
         layout: SimpleLayout [ axis = y, spacing = 10 ],
-        Checkbox [ label = "Mute", checked = { app.muted }, input(v) { app.muted = v } ],
-        Slider [ value = { app.volume }, input(v) { app.volume = v }, disabled = { app.muted } ],
+        Checkbox [ label = "Mute", checked = { app.muted }, input(v: boolean) { app.muted = v } ],
+        Slider [ value = { app.volume }, input(v: number) { app.volume = v }, disabled = { app.muted } ],
         ProgressBar [ value = { app.muted ? 0 : app.volume } ],
         Button [ label = "Reset", primary = true, onClick() { app.volume = 50; app.muted = false } ],
         ],

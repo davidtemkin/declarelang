@@ -17,7 +17,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync, mkdir
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
-import { SCHEMAS, RichTextSchema } from "../../../runtime/dist/schema.js";
+import { SCHEMAS, RichTextSchema, EVENT_PAYLOAD } from "../../../runtime/dist/schema.js";
 import { compile } from "../../../compiler/dist/compile-node.js";
 import { settleHeadless } from "../../../compiler/dist/headless.js";
 import { parseProgram } from "../../../runtime/dist/parser.js";
@@ -328,7 +328,13 @@ for (const name of TARGETS) {
       doc, docSegs: segmentize(doc, id), api: doc !== null,
       source: { file: "runtime/src/schema.ts", line: 0 },
       parent: clsId, seeAlso: [],
-      signature: `${handler}()`,
+      // the payload rides the signature — the model must advertise what a
+      // handler RECEIVES (`onKeyUp(e: KeyEvent)`), not empty parens; EVENT_PAYLOAD
+      // is the runtime's own table, so the two cannot drift. The parameter NAME
+      // is the corpus convention per event (`onFrame(dt: …)`, `onInput(v: …)`).
+      signature: EVENT_PAYLOAD[ev] !== undefined
+        ? `${handler}(${({ frame: "dt", input: "v", link: "href", focusChange: "v", geometry: "g" })[ev] ?? "e"}: ${EVENT_PAYLOAD[ev]})`
+        : `${handler}()`,
     };
     events.push(id);
   }

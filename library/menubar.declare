@@ -46,7 +46,10 @@ class MenuBar extends View [ height = 25,
 
     width = { this.row.contentWidth },
 
-    openMenu(t) {
+    // `t`/`r` below are typed `object` — a title is an ANONYMOUS replicated
+    // template (the `datapath = :m[]` view); see menu.declare's same seam.
+
+    openMenu(t: object) {
         openId = "" + t.mid
         this.menu.openFor(t)
         // the menu self-raises, which lifts its full-app backdrop over the
@@ -58,7 +61,7 @@ class MenuBar extends View [ height = 25,
 
     // while open, crossing another title switches to it (menu tracking)
 
-    trackMenu(t) { if (this.menu.shown && "" + t.mid != openId) this.openMenu(t) },
+    trackMenu(t: object) { if (this.menu.shown && "" + t.mid != openId) this.openMenu(t) },
 
     // ── arrows walk the bar while a menu is open (macOS): Left/Right move to
     // the adjacent title's menu. The open Menu keeps the keys when a submenu
@@ -67,7 +70,7 @@ class MenuBar extends View [ height = 25,
 
     rowsOf() { return this.row.children },
 
-    hasSub(r) { return r != null && r.sub == true },
+    hasSub(r: object) -> boolean { return r != null && r.sub == true },
 
     stepMenu(d: number) {
         const ms = menus || []
