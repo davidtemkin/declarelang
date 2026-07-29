@@ -2,6 +2,7 @@
 // declarec — Declare's production build (the emit half + CLI).
 //
 //   node tools/declarec.mjs <app.declare> [-o dist] [--canvas] [--crawler] [--extract] [--debug] [--quiet]
+//   node tools/declarec.mjs check <file.declare…> [--json]   # compile + report, emit nothing
 //
 // Precompiles an app (compiler/dist/declarec.js: parse + resolve + typecheck at
 // BUILD time → serializable program), bundles the runtime's RUN-PATH ONLY with
@@ -22,6 +23,7 @@ import { REGISTRY_MANIFEST } from "../runtime/dist/registry.js";
 import { parseArgvFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
 import { highlight } from "../compiler/dist/highlight.js";
 import { compile as compileFull, crawlExtract, diskDataResolver, crawlerDocument } from "../compiler/dist/compile-node.js";
+import { parseLibrary } from "../runtime/dist/parser.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const RUNTIME = resolve(HERE, "../runtime/dist"); // the run-path lives here
@@ -447,6 +449,66 @@ export async function writeProduction({ source, name = "app", srcDir = null, out
   return { ...out, outDir, moduleName, assets };
 }
 
+/** `declarec check <files…> [--json]` — the COMPILE without the build: parse,
+ *  resolve, check, typecheck; report; emit nothing. The one door for anything
+ *  that needs to know whether a source is legal without wanting a dist/ —
+ *  editors, CI, a source-to-source tool verifying its own output.
+ *
+ *  Two output forms, the dual-form rule every diagnostic already follows: the
+ *  default prints each compile's own rendered `report` verbatim (the ONE
+ *  renderer, never a hand-rolled projection); `--json` emits the machine form,
+ *  one flat record per diagnostic with its file. Exit 1 if any file has an
+ *  error, 0 otherwise — warnings never fail the run. */
+async function checkFiles(files, { json, quiet }) {
+  const records = [];
+  let failed = 0, errs = 0, warns = 0;
+  for (const f of files) {
+    const srcPath = resolve(f);
+    let source;
+    try {
+      source = await readFile(srcPath, "utf8");
+    } catch {
+      records.push({ file: f, code: "DECLARE5000", severity: "error", phase: "module", message: `cannot read '${f}'` });
+      failed++; errs++;
+      if (!json) console.error(`declarec check: cannot read '${f}'`);
+      continue;
+    }
+    // A LIBRARY (class/style/font declarations, no root element) is a legitimate
+    // check target — until now it could only be checked transitively, by
+    // compiling an app that includes it. It goes through the SAME pipeline: a
+    // bare `App [ ]` is appended, which forces the real compile without shifting
+    // a single position, since the library text stays a prefix of what is
+    // parsed. `parseLibrary` is the discriminator (it requires eof after the top
+    // declarations, so a program's root element makes it throw) — a decision the
+    // grammar makes, not a guess from an error message.
+    let isLibrary = false;
+    try { parseLibrary(source); isLibrary = true; } catch { /* a program, or broken as both */ }
+    const out = compileFull(isLibrary ? `${source}\nApp [ ]\n` : source, { originDir: dirname(srcPath) });
+    for (const d of out.diagnostics) {
+      records.push({
+        file: f, code: d.code, severity: d.severity, phase: d.phase, message: d.message,
+        ...(d.pos ? { line: d.pos.line, col: d.pos.col } : {}),
+        ...(d.hint !== undefined ? { hint: d.hint } : {}),
+      });
+    }
+    errs += out.errors.length;
+    warns += out.warnings.length;
+    if (out.errors.length > 0) failed++;
+    if (!json && out.report !== "") {
+      console.error(`declarec check: ${f}`);
+      console.error(out.report);
+    }
+  }
+  if (json) console.log(JSON.stringify(records, null, 2));
+  else if (!quiet) {
+    const n = files.length;
+    console.log(errs === 0
+      ? `declarec check ✓ ${n} file(s) clean${warns > 0 ? ` (${warns} warning(s))` : ""}`
+      : `declarec check ✗ ${failed} of ${n} file(s) failed — ${errs} error(s), ${warns} warning(s)`);
+  }
+  return errs === 0 ? 0 : 1;
+}
+
 async function cli(argv) {
   // CLI-only switches (output dir, quiet, and the artifacts --highlight / --extract);
   // the two MODIFIERS --render/--canvas and --crawler share the canonical model (flags.ts),
@@ -455,21 +517,34 @@ async function cli(argv) {
   // knobs"); --debug is the one escape hatch, for debugging the emitter — it keeps
   // source positions AND the full registry.
   const passthrough = [];
-  let outDir = null, quiet = false, doHighlight = false, doExtract = false, debug = false;
+  let outDir = null, quiet = false, doHighlight = false, doExtract = false, debug = false, json = false;
   const raw = argv.slice(2);
-  for (let i = 0; i < raw.length; i++) {
+  // `check` is a SUBCOMMAND (first positional), not a flag: it does a different
+  // job — report, emit nothing — and takes many files where a build takes one.
+  const isCheck = raw[0] === "check";
+  for (let i = isCheck ? 1 : 0; i < raw.length; i++) {
     const a = raw[i];
     if (a === "-o" || a === "--out") outDir = raw[++i];
     else if (a === "--quiet") quiet = true;
     else if (a === "--highlight") doHighlight = true;
     else if (a === "--extract") doExtract = true;
     else if (a === "--debug") debug = true;
+    else if (a === "--json") json = true;
     else passthrough.push(a);
+  }
+  if (isCheck) {
+    const files = passthrough.filter((a) => !a.startsWith("-"));
+    if (files.length === 0) {
+      console.error("usage: declarec check <file.declare…> [--json] [--quiet]");
+      process.exit(2);
+    }
+    process.exit(await checkFiles(files, { json, quiet }));
   }
   const { flags, rest } = parseArgvFlags(passthrough, DEFAULT_FLAGS); // declarec is always a build
   const input = rest.find((a) => !a.startsWith("-")) ?? null;
   if (input === null) {
     console.error("usage: declarec <app.declare> [-o dist] [--canvas] [--crawler] [--extract] [--debug] [--quiet]");
+    console.error("       declarec check <file.declare…> [--json]            # compile + report, emit nothing");
     console.error("       declarec --highlight <app.declare> [-o out.json]   # the reader's segments (JSON)");
     process.exit(2);
   }

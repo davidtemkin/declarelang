@@ -8,7 +8,8 @@ import assert from "node:assert";
 import { compileProgram } from "../compiler/dist/declarec.js";
 import { instantiate, App } from "../runtime/dist/index.js";
 import { buildProduction } from "../tools/declarec.mjs";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, rmSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
@@ -146,6 +147,66 @@ await test("--crawler embeds the extracted document in the host; the entry clear
   // And WITHOUT the flag, no block (the default page is unchanged).
   const plain = await buildProduction(src, { name: "seoapp" });
   assert.ok(!plain.files.find((f) => f.name === "index.html").contents.includes("declare-static"));
+});
+
+// ── `declarec check` — the compile without the build ────────────────────────
+// The one door for "is this source legal" without a dist/: editors, CI, and any
+// source-to-source tool verifying its own output (the LZX transpiler's oracle).
+// Exercised through the CLI, because the CLI contract — exit code and the two
+// output forms — is what those consumers depend on.
+
+const CLI = resolve(HERE, "../tools/declarec.mjs");
+const runCheck = (args) => spawnSync(process.execPath, [CLI, "check", ...args], { encoding: "utf8" });
+
+await test("check: a clean program exits 0", () => {
+  const r = runCheck([resolve(HERE, "../apps/viewer/viewer.declare")]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /1 file\(s\) clean/);
+});
+
+await test("check: a LIBRARY file is checkable standalone (no root element needed)", () => {
+  // Until this existed a library could only be checked transitively, by
+  // compiling an app that included it.
+  const r = runCheck([resolve(HERE, "../library/button.declare"), resolve(HERE, "../library/menu.declare")]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /2 file\(s\) clean/);
+});
+
+await test("check: errors exit 1 and name the fix", () => {
+  const bad = resolve(HERE, "../bundles/.check-fixture.declare");
+  writeFileSync(bad, "App [ width = 300,\n    onPointerDown(e) { this.width = 10 },\n    ]\n");
+  try {
+    const r = runCheck([bad]);
+    assert.equal(r.status, 1);
+    // The 2026-07-28 required-parameter-type ruling, reported with the payload
+    // type from the schema's EVENT_PAYLOAD — the exact contract a transpiler
+    // must satisfy to emit a legal handler.
+    assert.match(r.stderr, /'e' needs its payload type — write 'onPointerDown\(e: PointerEvent\)'/);
+  } finally { rmSync(bad, { force: true }); }
+});
+
+await test("check --json: one flat record per diagnostic, with file and position", () => {
+  const bad = resolve(HERE, "../bundles/.check-fixture2.declare");
+  writeFileSync(bad, "App [ b: View [ nosuchattr = 5 ] ]\n");
+  try {
+    const r = runCheck([bad, "--json"]);
+    assert.equal(r.status, 1);
+    const recs = JSON.parse(r.stdout);
+    assert.equal(recs.length, 1);
+    const d = recs[0];
+    assert.equal(d.severity, "error");
+    assert.ok(d.file.endsWith(".check-fixture2.declare"));
+    assert.match(d.message, /no attribute 'nosuchattr'/);
+    assert.equal(typeof d.line, "number");
+    assert.equal(typeof d.col, "number");
+    assert.match(d.code, /^DECLARE\d{4}$/);
+  } finally { rmSync(bad, { force: true }); }
+});
+
+await test("check: an unreadable file is a reported diagnostic, not a crash", () => {
+  const r = runCheck(["no/such/file.declare"]);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /cannot read/);
 });
 
 console.log(`\ndeclarec: ${pass} passed, ${fail} failed`);
