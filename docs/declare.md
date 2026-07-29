@@ -130,9 +130,9 @@ how anything conditional over replicated data gets written. `text = { :on ? :tit
 the datapath exactly as the bare form does, then computes with it in TypeScript. Read `{ }` as
 "TypeScript, plus datapath reads."
 
-Two lexical notes. Inside `{ }` you are bound by TypeScript's rules, so a `"…"` string may not
-span lines there; in a bare slot it may, and a `"""` block is the form for long text either way.
-And a `Dataset`'s literal body is strict JSON (§7) — the one place `{ }` is not TypeScript at all.
+Two lexical notes. A `"…"` string ends at its line, in a bare slot as in a `{ }` body; a
+`"""` block is the form for long text. And a `Dataset`'s literal body is strict JSON (§7) —
+the one place `{ }` is not TypeScript at all.
 
 ## 3. Members and scope
 
@@ -344,9 +344,7 @@ read it could not follow and the rewrite that resolves it. Three instincts accou
 them:
 
 - **Aggregating the rendered tree** — `this.children.map(…)`. The number you want lives in the
-  data, not the views: count the Dataset (§7). (`.map` is refused; **`this.children.length` is
-  not**, and that is worse — it compiles and wires to nothing, so it never updates. The tree is
-  not a reactive collection.)
+  data, not the views: count the Dataset (§7).
 - **Indexing a slot by a runtime value** — `this[k]`. Name the slot, or move the lookup into a
   method the compiler reads through.
 - **A slot deriving from itself** — `theme = { { ...theme, accent: red } }` reads like a harmless
@@ -482,7 +480,7 @@ keep a component the build would otherwise drop when you name it only as a strin
 ## 8. Input
 
 **Handlers are methods named with an `on` prefix**, answering this node's own events: `onClick`,
-the mouse and touch families, `onKeyDown` and `onKeyUp` on the focused view, and `onInit` after
+the pointer and touch families, `onKeyDown` and `onKeyUp` on the focused view, and `onInit` after
 construction.
 
 **Nothing bubbles.** A handler fires on the node that declares it, full stop. A child that needs

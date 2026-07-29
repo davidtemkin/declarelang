@@ -170,7 +170,7 @@ Write a program to my-apps/hello.declare and browse to http://127.0.0.1:8200/my-
 npm install
 npm run build       # tsc -b: runtime, then compiler → each area's dist/
 npm start           # dev server → http://127.0.0.1:8200/
-npm test            # the per-commit suite — 21 files, no browser, seconds
+npm test            # the per-commit suite — 29 files, seconds for the first two dozen
 npm run test:ladder # the slow rungs — real input and pixels, in headless Chromium
 ```
 
