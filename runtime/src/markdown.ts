@@ -230,7 +230,8 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
     const lineH = Math.ceil(bm.ascent + bm.descent);              // glyph box (for half-leading)
     const adv = Math.round(b.fontSize * b.lineHeight);            // line box = round(fontSize × lineHeight), CSS-unitless — matches the DOM path
     const halfLead = Math.round((adv - lineH) / 2);              // centre the glyph box in the line box (half-leading)
-    const spaceW = textWidth(" ", fontString({ fontFamily: lead?.family ?? FALLBACK_FAMILY, fontSize: lead?.size ?? sz(PROSE.body), fontWeight: "normal" }));
+    const spaceFont = fontString({ fontFamily: lead?.family ?? FALLBACK_FAMILY, fontSize: lead?.size ?? sz(PROSE.body), fontWeight: "normal" });
+    const spaceW = textWidth(" ", spaceFont);
 
     // Preformatted (a `<pre>` code flow): keep whitespace verbatim, break on the
     // runs' own newlines, no soft-wrap — the manual twin of CSS `white-space: pre`.
@@ -281,28 +282,68 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
     const blockViews: { v: View; line: number }[] = [];
     const lineRight = new Map<number, number>();
     let x = 0, line = 0, pending = false;
+    type Group = { run: Extract<RichRun, { text: string }>; x0: number; y: number; line: number; parts: string[]; end: number };
+    let group: Group | null = null;
+    const flushGroup = () => {
+      if (group === null) return;
+      const g = group; group = null;
+      const r = g.run;
+      const t = new Text();
+      t.x = g.x0; t.y = g.y; t.width = Math.ceil(g.end - g.x0) + 2; t.wrap = false;
+      t.fontSize = r.size; t.fontWeight = r.weight; t.italic = r.italic; t.fontFamily = r.family;
+      t.textColor = r.color; t.text = g.parts.join("");
+      if (r.tracking !== 0) t.letterSpacing = r.tracking;
+      if (r.fill !== undefined) t.textFill = r.fill;
+      if (r.href !== undefined && onLink) { const href = r.href; setClick(t, () => onLink(href)); }
+      blockViews.push({ v: t, line: g.line });
+    };
     for (const tok of toks) {
-      if ("br" in tok) { line++; x = 0; pending = false; continue; }
+      if ("br" in tok) { flushGroup(); line++; x = 0; pending = false; continue; }
       if ("sp" in tok) { pending = true; continue; }
       const ww = tok.word.reduce((s, p) => s + p.w, 0);
       const gap = pending && x > 0 ? spaceW : 0;
-      if (x + gap + ww > width && x > 0) { line++; x = 0; } else x += gap;
+      if (x + gap + ww > width && x > 0) { flushGroup(); line++; x = 0; } else x += gap;
       pending = false;
+      let first = true;
       for (const p of tok.word) {
         const py = y + line * adv + halfLead, r = p.run;
-        if (r.chipBg !== undefined) { const c = rectView(Math.ceil(p.w) + 6, lineH, r.chipBg, 3); c.x = x - 3; c.y = py; blockViews.push({ v: c, line }); }
-        const t = new Text();
-        t.x = x; t.y = py; t.width = Math.ceil(p.w) + 2; t.wrap = false;
-        t.fontSize = r.size; t.fontWeight = r.weight; t.italic = r.italic; t.fontFamily = r.family; t.textColor = r.color; t.text = p.text;
-        if (r.tracking !== 0) t.letterSpacing = r.tracking;
-        if (r.fill !== undefined) t.textFill = r.fill;   // themed accent (gradient/solid) — same ramp as the DOM path
-        if (r.href !== undefined && onLink) { const href = r.href; setClick(t, () => onLink(href)); }
-        blockViews.push({ v: t, line });
-        if (r.strike) blockViews.push({ v: rectAt(x, py + Math.round(r.size * 0.55), Math.ceil(p.w), 1, r.color), line });
-        x += p.w;
+        // COALESCE consecutive same-run words on a line into ONE Text view.
+        // A view per WORD is what this used to emit — a 100-word paragraph was
+        // ~100 views — because whitespace flushes the token. Runs of body prose
+        // are the overwhelming majority of a document and can be one view a line.
+        //
+        // ⚠ ONLY when the run's font is the one `spaceW` was measured with. The
+        // gaps between words were laid out at that width; inside a single Text
+        // the engine uses the RUN's own space advance instead, so coalescing a
+        // run in a different face would move every word after the first space.
+        // Restricting it to the lead face keeps every position bit-identical —
+        // which is what lets the DOM↔canvas perceptual gate stay green.
+        const plain = r.chipBg === undefined && !r.strike
+          && fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic }) === spaceFont;
+        if (group !== null && (!plain || group.run !== r || group.line !== line)) flushGroup();
+        if (plain) {
+          if (group === null) group = { run: r, x0: x, y: py, line, parts: [], end: x };
+          else if (first && gap > 0) group.parts.push(" ");
+          group.parts.push(p.text);
+          x += p.w;
+          group.end = x;
+        } else {
+          const t = new Text();
+          if (r.chipBg !== undefined) { const c = rectView(Math.ceil(p.w) + 6, lineH, r.chipBg, 3); c.x = x - 3; c.y = py; blockViews.push({ v: c, line }); }
+          t.x = x; t.y = py; t.width = Math.ceil(p.w) + 2; t.wrap = false;
+          t.fontSize = r.size; t.fontWeight = r.weight; t.italic = r.italic; t.fontFamily = r.family; t.textColor = r.color; t.text = p.text;
+          if (r.tracking !== 0) t.letterSpacing = r.tracking;
+          if (r.fill !== undefined) t.textFill = r.fill;   // themed accent (gradient/solid) — same ramp as the DOM path
+          if (r.href !== undefined && onLink) { const href = r.href; setClick(t, () => onLink(href)); }
+          blockViews.push({ v: t, line });
+          if (r.strike) blockViews.push({ v: rectAt(x, py + Math.round(r.size * 0.55), Math.ceil(p.w), 1, r.color), line });
+          x += p.w;
+        }
         lineRight.set(line, x);
+        first = false;
       }
     }
+    flushGroup();
     if (b.align === "center" || b.align === "right") {
       for (const { v, line: ln } of blockViews) {
         const free = width - (lineRight.get(ln) ?? 0);
@@ -322,6 +363,29 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
 class TextFlow extends View {
   content: RichBlock[] = [];
   flowWidth = 0;
+
+  /** Re-flow at a new width, keeping the view and its content.
+   *
+   *  ⚠ THE EARLY-OUT IS THE WHOLE POINT. Prose is capped at a reading measure,
+   *  so most flows in a document do NOT change width when the window does —
+   *  and re-laying them out is the expensive part (on the native host
+   *  `setRichContent` runs a synchronous AppKit text layout). Rebuilding used
+   *  to re-lay every flow unconditionally: ~40 of them per drag step, 699ms of
+   *  a 712ms resize frame, nearly all of it for flows whose width was
+   *  identical before and after. */
+  reflow(w: number): void {
+    if (this.flowWidth === w) return;
+    this.width = w;
+    this.flowWidth = w;
+    // A flow with nothing that wraps (a `pre` — fixed lines, scrolled
+    // horizontally) cannot change its layout or its height when the container
+    // width changes, so it needs no re-flow at all. Skipping it here also skips
+    // serializing its blocks across the seam, which for a document of code
+    // fences was megabytes per drag.
+    if (this.content.every((b) => b.pre === true)) return;
+    this.render();
+  }
+
   onLink: ((href: string) => void) | null = null;
   private manual: View[] = [];
   /** Canvas only: each heading anchor's y offset inside this flow, captured on
@@ -425,8 +489,17 @@ function yStack(spacing: number): ProseStack {
 function flowView(content: RichBlock[], width: number, ctx: Ctx): TextFlow {
   const rt = new TextFlow();
   rt.width = width; rt.flowWidth = width; rt.content = content; rt.onLink = ctx.onLink;
+  setRewidth(rt, (w) => rt.reflow(w));
   return rt;
 }
+
+/** Re-widthing a view without rebuilding it. Registered by whatever built the
+ *  view, because only the builder knows its internals; `RichText.relayout`
+ *  looks one up per top-level block. A view with no entry forces the old full
+ *  rebuild, so an unconverted block type is safe, just not fast. */
+type Rewidth = (contentWidth: number) => void;
+const REWIDTH = new WeakMap<View, Rewidth>();
+function setRewidth<T extends View>(v: T, f: Rewidth): T { REWIDTH.set(v, f); return v; }
 
 /** The plain text of an inline sequence — for a heading's anchor slug. Drops
  *  emphasis/link wrappers and keeps the readable characters (matches what a
@@ -456,8 +529,12 @@ function proseBlock(b: Extract<Block, { t: "paragraph" }> | Extract<Block, { t: 
  *  paragraphs/headings coalesce into ONE native TextFlow (contiguous selection and
  *  baselines), and each list/table/quote/code/rule becomes its own reactive
  *  sub-view. The caller stacks the result with a `yStack`. */
-function layoutBlocks(blocks: Block[], width: number, bodyColor: number, ctx: Ctx): View[] {
-  const out: View[] = [];
+/** A laid-out top-level block: the view, and the geometry its width/x derive
+ *  from — kept so a width change can redo that arithmetic without rebuilding. */
+interface Laid { view: View; geo: ReturnType<typeof geoFor> }
+
+function layoutBlocks(blocks: Block[], width: number, bodyColor: number, ctx: Ctx): Laid[] {
+  const out: Laid[] = [];
   let group: RichBlock[] = [];
   let prevProse: "paragraph" | "heading" | null = null;      // previous prose block in this group
   let groupGeo: ReturnType<typeof geoFor> | null = null;     // the coalesced group's geometry
@@ -469,7 +546,7 @@ function layoutBlocks(blocks: Block[], width: number, bodyColor: number, ctx: Ct
       const cw = contentWidth(width, groupGeo);
       const v = flowView(group, cw, ctx);
       v.x = placeX(width, cw, groupGeo);
-      out.push(v);
+      out.push({ view: v, geo: groupGeo });
     }
     group = []; prevProse = null; groupGeo = null;
   };
@@ -500,9 +577,9 @@ function layoutBlocks(blocks: Block[], width: number, bodyColor: number, ctx: Ct
       case "blockquote": v = buildQuote(b, cw, ctx); break;
       case "code": v = buildCode(b, cw); break;
       case "pre": v = buildPre(b, cw, bodyColor, ctx); break;
-      case "rule": v = rectView(cw, 1, C.rule); break;
+      case "rule": v = setRewidth(rectView(cw, 1, C.rule), (w) => { v!.width = w; }); break;
     }
-    if (v !== null) { v.x = placeX(width, cw, g); out.push(v); }
+    if (v !== null) { v.x = placeX(width, cw, g); out.push({ view: v, geo: g }); }
   }
   flush();
   return out;
@@ -513,9 +590,31 @@ function layoutBlocks(blocks: Block[], width: number, bodyColor: number, ctx: Ct
 function buildBlocks(blocks: Block[], width: number, bodyColor: number, ctx: Ctx): View {
   const c = new View();
   c.width = width;
-  for (const v of layoutBlocks(blocks, width, bodyColor, ctx)) c.appendChild(v);
+  const laid = layoutBlocks(blocks, width, bodyColor, ctx);
+  for (const e of laid) c.appendChild(e.view);
   c.layout = yStack(PROSE.blockGap);
+  // Nested blocks (a list item's body, a quote's body) re-width by recursing.
+  setRewidth(c, (w) => { c.width = w; relayoutEntries(laid, w); });
   return c;
+}
+
+/** Apply a new container width to a laid-out set of blocks, in place.
+ *  Returns false if any block has no re-width — the caller then rebuilds. */
+function relayoutEntries(entries: Laid[], width: number): boolean {
+  // ⚠ CHECK ALL, THEN APPLY. Bailing part-way through leaves the blocks before
+  // the un-re-widthable one already re-laid — and re-widthing a flow costs a
+  // full text layout — only for the caller's fallback rebuild to throw that
+  // work away. A document with a `pre`, `code` or `table` in it (any Viewer
+  // reader page) would then do strictly MORE work per resize than the plain
+  // rebuild it replaced. This way it is either all-rewidth or straight to
+  // rebuild, never both.
+  for (const e of entries) if (REWIDTH.get(e.view) === undefined) return false;
+  for (const e of entries) {
+    const cw = contentWidth(width, e.geo);
+    REWIDTH.get(e.view)!(cw);
+    e.view.x = placeX(width, cw, e.geo);
+  }
+  return true;
 }
 
 /** A preformatted, monospace flow that KEEPS its accent-colored runs — the
@@ -565,6 +664,14 @@ function buildPre(b: Extract<Block, { t: "pre" }>, width: number, bodyColor: num
   }, 0);
   c.run();
   onDiscard(box, () => c.dispose());
+  // The box's height already follows `flow.height` through the constraint above,
+  // and a `pre` never re-wraps, so a width change is purely these three widths.
+  setRewidth(box, (w) => {
+    box.width = w;
+    const fw = w - padL - padR;
+    scroller.width = fw;
+    flow.reflow(fw);
+  });
   return box;
 }
 
@@ -588,6 +695,14 @@ function buildCode(b: Extract<Block, { t: "code" }>, width: number): View {
   t.x = 0; t.y = 0; t.wrap = false; t.fontFamily = CODEFAM;
   scroller.appendChild(t);
   box.appendChild(scroller);
+  // Width sets three widths and nothing else: `h` comes from the LINE COUNT and
+  // the text does not wrap, so neither the runs nor the height depend on it.
+  setRewidth(box, (w) => {
+    box.width = w;
+    const iw = w - padL - PROSE.codePad;
+    scroller.width = iw;
+    t.width = iw;
+  });
   return box;
 }
 
@@ -597,6 +712,7 @@ function buildCode(b: Extract<Block, { t: "code" }>, width: number): View {
 function buildList(b: Extract<Block, { t: "list" }>, width: number, bodyColor: number, ctx: Ctx): View {
   const list = new View();
   list.width = width;
+  const rows: { row: View; body: View }[] = [];
   const bodyW = width - PROSE.indent;
   for (let i = 0; i < b.items.length; i++) {
     const it = b.items[i];
@@ -615,8 +731,13 @@ function buildList(b: Extract<Block, { t: "list" }>, width: number, bodyColor: n
     row.appendChild(mk);
     row.appendChild(body);
     list.appendChild(row);
+    rows.push({ row, body });
   }
   list.layout = yStack(PROSE.itemGap);
+  setRewidth(list, (w) => {
+    list.width = w;
+    for (const r of rows) { r.row.width = w; REWIDTH.get(r.body)?.(w - PROSE.indent); }
+  });
   return list;
 }
 
@@ -628,7 +749,9 @@ function buildTable(b: Extract<Block, { t: "table" }>, width: number, bodyColor:
   const colX = (c: number) => c * (colW + PROSE.cellGap);
   const table = new View();
   table.width = width;
+  const laidRows: { row: View; cells: TextFlow[] }[] = [];
   const makeRow = (cells: Inline[][], weight: FontWeight, color: number): View => {
+    const rowCells: TextFlow[] = [];
     const row = new View();
     row.width = width;
     for (let c = 0; c < cols; c++) {
@@ -638,14 +761,28 @@ function buildTable(b: Extract<Block, { t: "table" }>, width: number, bodyColor:
         gapBefore: 0, lineHeight: ctx.lead, fontSize: sz(BODY.size), align: al === "center" || al === "right" ? al : undefined,
       }], colW, ctx);
       cell.x = colX(c); cell.y = 0;
+      rowCells.push(cell);
       row.appendChild(cell);
     }
+    laidRows.push({ row, cells: rowCells });
     return row;
   };
   table.appendChild(makeRow(b.header, HEADINGW, HEADINGC));
-  table.appendChild(rectView(width, 1, C.rule));
+  const headRule = rectView(width, 1, C.rule);
+  table.appendChild(headRule);
   for (const r of b.rows) table.appendChild(makeRow(r, "normal", bodyColor));
   table.layout = yStack(PROSE.itemGap);
+  // Column widths are arithmetic — no content measurement — so a width change is
+  // a re-x and a reflow per cell. The runs are untouched.
+  setRewidth(table, (w) => {
+    const cw2 = (w - (cols - 1) * PROSE.cellGap) / cols;
+    table.width = w;
+    headRule.width = w;
+    for (const lr of laidRows) {
+      lr.row.width = w;
+      lr.cells.forEach((cell, c) => { cell.x = c * (cw2 + PROSE.cellGap); cell.reflow(cw2); });
+    }
+  });
   return table;
 }
 
@@ -663,6 +800,7 @@ function buildQuote(b: Extract<Block, { t: "blockquote" }>, width: number, ctx: 
   const c = new Constraint("RichText.quoteRule", () => `${body.height}`, () => { rule.height = Math.max(1, body.height); }, 0);
   c.run();
   onDiscard(outer, () => c.dispose());
+  setRewidth(outer, (w) => { outer.width = w; REWIDTH.get(body)?.(w - PROSE.quoteIndent); });
   return outer;
 }
 
@@ -706,9 +844,17 @@ export abstract class RichText extends View {
     // Reactive render: re-parse and rebuild whenever the source OR `width` changes
     // (a resize re-flows, not only an edit); `dark`/`scale` in the key so a theme
     // flip or font-size change re-renders.
-    const c = new Constraint(`${this.constructor.name}.render`, () => `${this.width} ${this.sourceKey()} ${this.lineHeight} ${this.bodyColor} ${this.isDark()} ${this.scale} ${this.codeBackground} ${this.codeRule}`, () => this.rebuild(), 0);
+    // STRUCTURE — the source and everything baked into the runs (palette, scale,
+    // sizes). These genuinely need a re-parse and a rebuild.
+    const c = new Constraint(`${this.constructor.name}.render`, () => `${this.sourceKey()} ${this.lineHeight} ${this.bodyColor} ${this.isDark()} ${this.scale} ${this.codeBackground} ${this.codeRule}`, () => this.rebuild(), 0);
     c.run();
     onDiscard(this, () => c.dispose());
+    // WIDTH — nothing structural depends on it, so re-width in place. Separate
+    // constraint, and it must run AFTER the first build (c.run() above) so there
+    // is something to re-width.
+    const cw = new Constraint(`${this.constructor.name}.rewidth`, () => `${this.width}`, () => this.relayout(this.width || 640), 0);
+    cw.run();
+    onDiscard(this, () => cw.dispose());
   }
 
   /** The color scheme for the house rich-element palette: the explicit `dark`
@@ -733,6 +879,27 @@ export abstract class RichText extends View {
     // a link/button makes in a handler; the host opens it. (A non-App root has no
     // navigate; the link is then inert, as before.)
     (r as unknown as { navigate?: (to: string) => void }).navigate?.(href);
+  }
+
+  /** The last layout's blocks, with the geometry each derived from. */
+  private laid: Laid[] = [];
+
+  /** A WIDTH-ONLY change: re-width what is already built instead of rebuilding.
+   *
+   *  Nothing structural depends on width — `parseSource()` never sees it, and a
+   *  RichBlock carries no wrapping (the backend is handed the width and does
+   *  the wrapping itself). All width does is set each block's content width and
+   *  x. Rebuilding for it re-parsed the source, discarded every view and
+   *  re-attached fresh ones, which on the native host meant a synchronous text
+   *  layout per flow — ~40 per drag step, 699ms of a 712ms frame, most of it for
+   *  flows whose width had not actually changed.
+   *
+   *  Falls back to a full rebuild if any block has no re-width registered, so an
+   *  unconverted block type stays correct. */
+  private relayout(width: number): void {
+    if (this.laid.length === 0) { this.rebuild(); return; }
+    if (!relayoutEntries(this.laid, width)) { this.rebuild(); return; }
+    this.childrenMutated();
   }
 
   private rebuild(): void {
@@ -769,11 +936,12 @@ export abstract class RichText extends View {
     // become their own reactive sub-view (their text regions are TextFlows too).
     const children = layoutBlocks(this.parseSource(), width, bodyColor, ctx);
     let at = 0;
-    for (const v of children) {
-      this.insertChild(v, at++);
-      this.built.push(v);
-      if (this.backend !== null) v.attach(this.backend, this.surface);
+    for (const e of children) {
+      this.insertChild(e.view, at++);
+      this.built.push(e.view);
+      if (this.backend !== null) e.view.attach(this.backend, this.surface);
     }
+    this.laid = children;                 // kept so a width change can re-width
     // Stack the block-views, PROSE.blockGap apart; their heights (a TextFlow's
     // measured at attach, a container's derived by auto-extent) drive the stack,
     // and auto-extent gives this box its height — so leave `height` unset.
