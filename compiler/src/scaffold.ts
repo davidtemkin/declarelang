@@ -387,6 +387,10 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
     `  scrollIntoView(align?: "start" | "nearest", smooth?: boolean): void;`,
     `  raise(below?: View): void;`,
     `  removeChild(child: View): void;`,
+    // Tear a runtime-created view down for good (unwire constraints, drop the
+    // surface) — the pair of createView, and like it a real view.ts method that
+    // was missing here (found the day window params became typeable).
+    `  discard(): void;`,
     `  insertChild(child: View, index: number): void;`,
     // The keyboard-traversal protocol (focus.ts): a view's tabOrder() decides
     // the members Tab descends into — override it to gate traversal (a closed
@@ -420,8 +424,8 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
     `  fetch(): Promise<void>;`,
     `  clear(): void;`,
   ],
-  Animator: [`  start(): void;`],
-  AnimatorGroup: [`  start(): void;`],
+  Animator: [`  start(): void;`, `  stop(): void;`],
+  AnimatorGroup: [`  start(): void;`, `  stop(): void;`],
   // The edit-session VERBS (editor.ts): `dirty`/`valid`/`error` are schema
   // attrs (readable state), but committing/reverting the draft are calls.
   Editor: [`  commit(): void;`, `  revert(): void;`],

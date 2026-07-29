@@ -92,6 +92,9 @@ class Window extends View [ width = 560, height = 400, clip = true,
     // shade, no zoom — the strips vanish and the yellow/green lights go inert
 
     plain: boolean = false,
+    forApp: string = "",                         // which app this window belongs to; subclasses SET it (was: a per-subclass decl + constructor.name dispatch)
+    appPath: string = "",                        // an AppWindow's program path; "" elsewhere (was: an any-seam read)
+    homing: boolean = false,                     // mid minimize/restore flight (was: an UNDECLARED expando via setHoming)
 
     // custom-chrome windows (Jots) keep the base's behavior — drag
     // bookkeeping, activation, shade/zoom, resize strips — but drop the
@@ -695,7 +698,7 @@ close control is the whole interface.
 */
 
 class AboutWindow extends Window [ width = 280, height = 380, plain = true,
-    forApp: string = "desktop",                  // desktop | files | markdown | calendar | declareviewer | jots
+    forApp = "desktop",                          // desktop | files | markdown | calendar | declareviewer | jots
 
     aname: string = { this.forApp == "files" ? "Files"
         : this.forApp == "markdown" ? "Markdown"
@@ -1075,7 +1078,6 @@ environment it hands the island.
 */
 
 class AppWindow extends Window [ width = 880, height = 560,
-    appPath: string = "",
     extraEnv: string = "",                       // appended env parameters ("program=…")
 
     // the window's name is the HOSTED app's name, reflected up from the embedded
@@ -1748,7 +1750,7 @@ App [ clip = true, appName = "Declare Desktop",
     // Activation is one View-typed slot: every window derives its look (shadow
     // depth, bar tone, controls) from whether it is this value.
 
-    frontWin: View = null,
+    frontWin: Window = null,
     winCount: number = 0,                        // ever-opened count — staggers spawn positions
     viewerCount: number = 0,                     // open viewers, for the dock's running dot
 
@@ -1761,9 +1763,9 @@ App [ clip = true, appName = "Declare Desktop",
     window's app is read from its class; About windows carry theirs explicitly.
     */
 
-    pathOf(w) { return w != null && w.appPath ? "" + w.appPath : "" },   // any-seam: an AppWindow's program
+    pathOf(w: Window?) -> string { return w != null && w.appPath ? "" + w.appPath : "" },   // any-seam: an AppWindow's program
 
-    appOf(w) -> string {
+    appOf(w: Window?) -> string {
         if (w == null) return "files"
         const c = w.constructor.name
         if (c == "ViewerWindow") return "markdown"
@@ -1822,10 +1824,10 @@ App [ clip = true, appName = "Declare Desktop",
         else if (id == "home") app.navigate("apps/homepage/homepage.declare")   // distro-root-relative → works on dev server AND static host
         else if (id == "source") this.openSource(this.activeApp)
         else if (id == "quit") this.quitApp(this.activeApp)
-        else if (id.indexOf("win:") == 0) this.focusWin(this.wins.children[+id.slice(4)])
+        else if (id.indexOf("win:") == 0) this.focusWin(this.windows()[+id.slice(4)])
         },
 
-    focusWin(w) { if (w == null) return; if (this.isMin(w)) this.restoreMini(w); else w.activate() },
+    focusWin(w: Window?) { if (w == null) return; if (this.isMin(w)) this.restoreMini(w); else w.activate() },
 
     // Quit closes every window of that application — each by its own reverse
     // zoom — and clears its running flag (Files has no Quit; it's always
@@ -1833,7 +1835,7 @@ App [ clip = true, appName = "Declare Desktop",
     // last window leaves the app running, its dock dot lit — only Quit ends it.
 
     quitApp(a: string) {
-        const doomed = this.wins.children.filter((w) => this.appOf(w) == a)
+        const doomed = this.windows().filter((w) => this.appOf(w) == a)
         for (const w of doomed) this.closeWin(w)
         if (a == "markdown") mdRunning = false
         else if (a == "calendar") calRunning = false
@@ -1846,7 +1848,7 @@ App [ clip = true, appName = "Declare Desktop",
     // running or not — the app's default open runs instead.
 
     dockOpen(a: string, open: () -> void) {
-        const live = this.wins.children.filter((w) => this.appOf(w) == a && !this.isPlain(w) && !this.isMin(w))
+        const live = this.windows().filter((w) => this.appOf(w) == a && !this.isPlain(w) && !this.isMin(w))
         if (live.length > 0) { for (const w of live) this.focusWin(w); return }
         // nothing up but something in the dock: restore the most recent tile
         const mins = this.miniList().filter((w) => this.appOf(w) == a)
@@ -1863,12 +1865,17 @@ App [ clip = true, appName = "Declare Desktop",
     records here drive the invisible hit tiles and their label pills.
     */
 
-    isMin(w) -> boolean { return w != null && w.dockSlot != null && w.dockSlot >= 0 },
-    ixOf(w) -> number { return w != null && w.dockSlot != null ? +w.dockSlot : -1 },
-    setIx(w, i: number) { w.dockSlot = i },
-    parkOf(w) -> number { return w != null && w.miniT != null ? +w.miniT : 0 },
-    labelFor(w) -> string { const t = this.titleOf(w); return t != "" ? t : this.nameOf(this.appOf(w)) },
-    miniList() { return this.wins.children.filter((w) => this.isMin(w)).sort((a, b) => this.ixOf(a) - this.ixOf(b)) },
+    isMin(w: Window?) -> boolean { return w != null && w.dockSlot != null && w.dockSlot >= 0 },
+    ixOf(w: Window?) -> number { return w != null && w.dockSlot != null ? +w.dockSlot : -1 },
+    setIx(w: Window, i: number) { w.dockSlot = i },
+    parkOf(w: Window?) -> number { return w != null && w.miniT != null ? +w.miniT : 0 },
+    labelFor(w: Window) -> string { const t = this.titleOf(w); return t != "" ? t : this.nameOf(this.appOf(w)) },
+    // THE collection seam, and the one cast in the file: `wins` is populated at
+    // runtime (createView), so its `children` is View[] — but every occupant is
+    // a Window by construction (every open* path creates a Window subclass).
+    // Typed HERE once, every window-taking method below can say `w: Window`.
+    windows() -> Window[] { return this.wins.children as Window[] },
+    miniList() -> Window[] { return this.windows().filter((w) => this.isMin(w)).sort((a, b) => this.ixOf(a) - this.ixOf(b)) },
 
     miniCount: number = 0,
     miniRecs: array = null,
@@ -1878,7 +1885,7 @@ App [ clip = true, appName = "Declare Desktop",
     // thumbnail keeps its window's aspect, its longer edge matching an app
     // icon's edge, so it is never wider or taller than an icon.
 
-    sizeOf(w) -> object { return ({ w: w.width, h: w.height }) },
+    sizeOf(w: Window) -> object { return ({ w: w.width, h: w.height }) },
 
     // miniWins mirrors the records by index with the window references — a
     // parallel app attr, kept out of the records: records are data, and a
@@ -1965,18 +1972,18 @@ App [ clip = true, appName = "Declare Desktop",
         return Math.max(0, d)
         },
 
-    startPark(w) { w.miniBack.stop(); w.bornX = 0; w.bornY = 0; w.miniGo.start() },
-    startUnpark(w) { w.miniGo.stop(); w.miniBack.start() },
+    startPark(w: Window) { w.miniBack.stop(); w.bornX = 0; w.bornY = 0; w.miniGo.start() },
+    startUnpark(w: Window) { w.miniGo.stop(); w.miniBack.start() },
 
     // settled-park state rides the records (the badge derives from its
     // record's `full`, plain data — no reactive aggregation in constraints):
     // full only after the arriving journey completes, and cleared the
     // instant the journey home begins
 
-    homingOf(w) { return w != null && w.homing == true },
-    setHoming(w, v) { w.homing = v },
+    homingOf(w: Window?) -> boolean { return w != null && w.homing == true },
+    setHoming(w: Window, v: boolean) { w.homing = v },
 
-    minimizeWin(w) {
+    minimizeWin(w: Window) {
         if (w == null || this.isPlain(w) || this.isMin(w)) return
         if (this.miniCount >= 6) return          // the static tile pool's size
         this.setIx(w, this.miniCount)
@@ -1987,7 +1994,7 @@ App [ clip = true, appName = "Declare Desktop",
         winSeq = winSeq + 1
         },
 
-    bringFront(w) { w.activate() },              // any-seam (focusWin would recurse via isMin)
+    bringFront(w: Window) { w.activate() },              // any-seam (focusWin would recurse via isMin)
 
     // ── The minimized band: minimized windows' live thumbnails stay in `wins`
     // (below the plate) but pin to the TOP of the layer, so a full-size window
@@ -1999,14 +2006,14 @@ App [ clip = true, appName = "Declare Desktop",
     // the non-minimized band).
 
     lowestMini() {
-        const ws = this.wins.children
+        const ws = this.windows()
         for (let i = 0; i < ws.length; i++) { const w = ws[i]; if (this.isMin(w) && !this.homingOf(w)) return w }
         return null
         },
 
     // bring a freshly-opened window to the front of the NON-minimized band
 
-    frontOpen(w) { frontWin = w; w.raise(this.lowestMini()) },
+    frontOpen(w: Window) { frontWin = w; w.raise(this.lowestMini()) },
 
     // seatedness for a tile's badge: the window's visual width equals the
     // slot's — geometry, not bookkeeping. Deps arrive as arguments (the
@@ -2021,7 +2028,7 @@ App [ clip = true, appName = "Declare Desktop",
 
     nudge() { winSeq = winSeq + 1 },
 
-    restoreMini(w) {
+    restoreMini(w: Window) {
         if (w == null || !this.isMin(w) || this.homingOf(w)) return   // already on the way home
         this.setHoming(w, true)
         this.startUnpark(w)                      // the slot stays mine until the journey home ends
@@ -2031,7 +2038,7 @@ App [ clip = true, appName = "Declare Desktop",
 
     // miniBack's onStop: the window is home — release the slot and focus it
 
-    unparked(w) {
+    unparked(w: Window) {
         this.setIx(w, -1)
         this.setHoming(w, false)
         this.rebuildMinis()
@@ -2056,7 +2063,7 @@ App [ clip = true, appName = "Declare Desktop",
     // the App root is the sink of last resort
 
     dismissAbouts() {
-        const doomed = this.wins.children.filter((w) => this.isPlain(w))
+        const doomed = this.windows().filter((w) => this.isPlain(w))
         for (const w of doomed) this.closeWin(w)
         },
 
@@ -2285,9 +2292,9 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         this.frontOpen(w)
         },
 
-    closeWin(w) { w.beginClose() },              // the reverse zoom; removal on its onStop
+    closeWin(w: Window) { w.beginClose() },              // the reverse zoom; removal on its onStop
 
-    reallyClose(w) {
+    reallyClose(w: Window) {
         winSeq = winSeq + 1
         if (w.constructor.name == "AppWindow") {
             if (this.appOf(w) == "calendar") calCount = calCount - 1
@@ -2524,12 +2531,12 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
     // windows, front one checked. `seq` and `front` arrive as arguments so
     // the menus constraint above visibly reads them — its re-derive hooks.
 
-    isPlain(w) -> boolean { return w != null && w.plain == true },      // any-typed seams for a View-typed list
-    titleOf(w) -> string { return w != null && w.title ? "" + w.title : "" },
+    isPlain(w: Window?) -> boolean { return w != null && w.plain == true },      // any-typed seams for a View-typed list
+    titleOf(w: Window?) -> string { return w != null && w.title ? "" + w.title : "" },
 
-    windowItems(seq: number, front) -> array {
+    windowItems(seq: number, front: Window?) -> array {
         const a = this.activeApp
-        const ws = this.wins.children
+        const ws = this.windows()
         const out = []
         for (let i = 0; i < ws.length; i++) {
             if (this.isPlain(ws[i]) || this.appOf(ws[i]) != a) continue
