@@ -459,6 +459,15 @@ function tokenize(src: string): Token[] {
       const quote = c; advance();
       let str = "";
       while (i < src.length && src[i] !== quote) {
+        // a NEWLINE inside a quoted string is refused: multi-line text is a
+        // `\"\"\"` block's job (dedented, content-agnostic), and the loose form
+        // was usually an unterminated string swallowing the rest of the member
+        if (src[i] === "\n") {
+          throw new DeclareError(
+            'a quoted string ends at its line — for multi-line text use a \"\"\"…\"\"\" block, or \\n for a literal newline',
+            start
+          );
+        }
         if (src[i] === "\\") {
           advance();
           const e = src[i];
@@ -846,13 +855,21 @@ class Parser {
         else if (this.peek().kind === "code") { const body = this.next(); child.raw = { src: body.str!, pos: body.pos }; }
         el.children.push(child);
       }
-      // The comma between members is OPTIONAL — members are delimited by the
-      // grammar itself (every one begins with an ident), so a comma is
-      // punctuation the author may use or omit, and a trailing one is fine.
-      // Consume one if it is there and let the loop's own guard decide whether
-      // another member follows; a body that ends without `]` fails at the next
-      // `expect("ident")` with a positioned error, as it did before.
-      if (this.peek().kind === "comma") this.next();
+      // Members are SEPARATED by commas (ruled 2026-07-28, reversing the
+      // optional-comma stance above this line once took): the grammar could
+      // delimit by idents alone, but a missing comma is nearly always an
+      // editing accident — a deleted line's survivor gluing onto the next
+      // member — and the formatter has always refused the comma-free form.
+      // The parser now agrees. A TRAILING comma before `]` stays legal;
+      // house style omits it. Recovery: report and keep parsing, so every
+      // missing comma in a body is one positioned error, not a cascade.
+      if (this.peek().kind === "comma") { this.next(); continue; }
+      if (this.peek().kind !== "rbracket" && this.peek().kind !== "eof") {
+        this.errors.push(new DeclareError(
+          `members are separated by commas — add ',' before '${this.peek().text || this.peek().kind}'`,
+          this.peek().pos
+        ));
+      }
     }
   }
 

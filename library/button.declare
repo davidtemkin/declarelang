@@ -28,5 +28,5 @@ class Button extends Control [
     stroke  = { !primary && theme.buttonBorder != null ? stroke(1, theme.buttonBorder) : null },
 
     cap: Text [ x = center, y = center, wrap = false, fontWeight = semibold,
-        textColor = { primary ? theme.accentText : theme.text }, text = { label } ],
+        textColor = { primary ? theme.accentText : theme.text }, text = { label } ]
     ]

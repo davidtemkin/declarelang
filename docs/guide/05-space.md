@@ -30,9 +30,9 @@ App [ fill = white, textColor = black,
             Text [ text = "auto-height, capped at 90" ],
             Text [ text = "line two" ],
             Text [ text = "line three" ],
-            Text [ text = "line four (clipped)" ],
-            ],
-        ],
+            Text [ text = "line four (clipped)" ]
+            ]
+        ]
     ]
 ```
 
@@ -64,8 +64,8 @@ App [ width = 260, height = 120, fill = white,
         View [ width = 70, height = 30, cornerRadius = 15, fill = gainsboro ],
         View [ width = 90, height = 30, cornerRadius = 15, fill = gainsboro ],
         View [ width = 60, height = 30, cornerRadius = 15, fill = gainsboro ],
-        View [ width = 100, height = 30, cornerRadius = 15, fill = gainsboro ],
-        ],
+        View [ width = 100, height = 30, cornerRadius = 15, fill = gainsboro ]
+        ]
     ]
 ```
 
@@ -129,8 +129,8 @@ App [ fill = white, textColor = black, minWidth = 300,
             ({ from: 0, flow: "stack" }),
         ] } ],
         menu: View [ height = 60, fill = gainsboro ],
-        body: View [ height = 60, fill = whitesmoke ],
-        ],
+        body: View [ height = 60, fill = whitesmoke ]
+        ]
     ]
 ```
 

@@ -12,7 +12,8 @@ re-parses and re-renders reactively.
 
 ```declare
 HTMLText [ width = { parent.width },
-  html = "<h3>Notice</h3><p>Loaded content with <b>bold</b>, <i>italic</i>, and a <a href='#'>link</a>.</p>" ]
+    html = "<h3>Notice</h3><p>Loaded content with <b>bold</b>, <i>italic</i>, and a <a href='#'>link</a>.</p>"
+    ]
 ```
 
 ## html
@@ -29,8 +30,9 @@ class just renders as plain text). This is how one flowing string carries a grad
 
 ```declare
 HTMLText [ width = { parent.width }, scale = 1.6,
-  accents = { { accent: gradient("90deg", 0x4C8DFF, 0x37E0C8) } },
-  html = "<h2><span class='accent'>Declare</span> is the UI language for the AI era.</h2>" ]
+    accents = { { accent: gradient("90deg", 0x4C8DFF, 0x37E0C8) } },
+    html = "<h2><span class='accent'>Declare</span> is the UI language for the AI era.</h2>"
+    ]
 ```
 
 Size follows the prose stylesheet (heading level × `scale`), not a `fontSize` — the accent

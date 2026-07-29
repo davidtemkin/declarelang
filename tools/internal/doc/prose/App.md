@@ -8,8 +8,8 @@ the embedding element): you **read** them, you never set them.
 
 ```declare
 App [ fill = white,
-    header: View [ width = { app.hostWidth }, opacity = { 1 - app.scrollY / 200 } ],
-]
+    header: View [ width = { app.hostWidth }, opacity = { 1 - app.scrollY / 200 } ]
+    ]
 ```
 
 ## hostWidth
@@ -78,6 +78,6 @@ or heading after the settle it causes.
 
 ```declare
 App [ location = "home",
-    why: View [ visible = { app.location == "why" } ],
-]
+    why: View [ visible = { app.location == "why" } ]
+    ]
 ```

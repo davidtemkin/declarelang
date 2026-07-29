@@ -64,7 +64,7 @@ that booted the app mounts whatever it wants into that element.
 App [ fill = #F4F5F7,
     player: DOMIsland [ x = 20, y = 20, slot = "player",
         width = { parent.width - 40 }, height = { parent.height - 40 },
-        fill = #10131A, cornerRadius = 10 ],
+        fill = #10131A, cornerRadius = 10 ]
     ]
 ```
 
@@ -94,7 +94,7 @@ reactive graph, input router, and stage — sized to the box like any view.
 App [ fill = #F4F5F7,
     embed: AppIsland [ x = 20, y = 20,
         width = { parent.width - 40 }, height = { parent.height - 40 },
-        program = "../../homepage/demos/derived" ],
+        program = "../../homepage/demos/derived" ]
     ]
 ```
 

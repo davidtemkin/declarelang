@@ -5,6 +5,6 @@ App [
         onClick() { slide.start() },
         Text [ x = 20, y = 30, fontSize = 15, fontWeight = semibold,
             textColor = whitesmoke, text = "click" ],
-        slide: Animator [ attribute = x, to = 460, duration = 500, motion = easeOut ],
-        ],
+        slide: Animator [ attribute = x, to = 460, duration = 500, motion = easeOut ]
+        ]
     ]

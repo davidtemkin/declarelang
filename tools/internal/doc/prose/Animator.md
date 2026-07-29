@@ -6,7 +6,8 @@ target (one that keeps moving), reach for `Spring` instead — an Animator runs 
 
 ```declare
 box: View [ opacity = 0,
-    fadeIn: Animator [ attribute = opacity, to = 1, duration = 300, started = true ] ]
+    fadeIn: Animator [ attribute = opacity, to = 1, duration = 300, started = true ]
+    ]
 ```
 
 ## attribute

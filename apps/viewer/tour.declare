@@ -29,8 +29,8 @@ class Counter extends View [ width = 200, height = 40,
 
     plus: View [ x = 150, width = 40, height = 40, cornerRadius = 8, fill = 0x2E6FE0,
         onClick() { classroot.n = classroot.n + 1 },
-        Text [ text = "+", textAlign = center, width = 40, y = 6, fontSize = 22, textColor = 0xFFFFFF ],
-        ],
+        Text [ text = "+", textAlign = center, width = 40, y = 6, fontSize = 22, textColor = 0xFFFFFF ]
+        ]
     ]
 
 
@@ -47,7 +47,7 @@ class Row extends View [ width = 300, height = 24,
     value: number = 0,
 
     name: Text [ fontSize = 15, textColor = 0xC9D1D9, text = { classroot.label } ],
-    num: Text [ x = 240, fontSize = 15, textColor = 0x8B949E, text = { "" + classroot.value } ],
+    num: Text [ x = 240, fontSize = 15, textColor = 0x8B949E, text = { "" + classroot.value } ]
     ]
 
 
@@ -62,6 +62,6 @@ App [ width = 360, height = 220, fill = #0d1117,
 
     list: View [ x = 20, y = 90, datapath = { parent.facts.value },
         layout: SimpleLayout [ axis = y, spacing = 8 ],
-        Row [ datapath = :rows[], label = :label, value = :n ],
-        ],
+        Row [ datapath = :rows[], label = :label, value = :n ]
+        ]
     ]

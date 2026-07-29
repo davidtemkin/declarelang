@@ -21,12 +21,12 @@ App [ width = 400, height = 140, fill = darkslategray, textColor = whitesmoke,
 
     add: View [ x = 20, y = 20, width = 120, height = 40, cornerRadius = 10, fill = royalblue,
         onClick() { count = count + 1 },
-        Text [ x = 20, y = 10, text = "Add one" ],
+        Text [ x = 20, y = 10, text = "Add one" ]
         ],
 
     Text [ y = 80, x = { (parent.width - this.width) / 2 },
-        text = { `Clicked ${count} times` },         // re-runs whenever count changes
-        ],
+        text = { `Clicked ${count} times` }         // re-runs whenever count changes
+        ]
     ]
 ```
 
@@ -66,17 +66,17 @@ count:    number,                      // no default — undefined until set
 
 select() { classroot.pick(this) },     // a METHOD — untyped params, no return annotation
 
-onClick()      { count = count + 1 }, // a HANDLER: `on` + this node's own event
+onClick()      { count = count + 1 },  // a HANDLER: `on` + this node's own event
 onMouseMove(e: PointerEvent) { x = e.x },            // pointer handlers get an event with .x/.y
 
 keys: Keys [                           // a SOURCE member: events from OUTSIDE the tree
     onKeyUp(e: KeyEvent) {                       //   e is the KeyEvent; unsubscribed at teardown
         if (e.key == "ArrowDown") classroot.next()
-        },
+        }
     ],
 
 bg: View [ fill = midnightblue ],           // a CHILD instance, named `bg` (reachable as bg / this.bg)
-Text [ text = "OK" ],                  // an anonymous child
+Text [ text = "OK" ]                  // an anonymous child
 ```
 
 The difference between `name = value` (sets an existing attribute) and `name: Type = value` (declares a new one) matters — declaring introduces reactive state.
@@ -91,14 +91,15 @@ A component is a class. Instantiate by naming a type with a `[ ]` body; define w
 class Chip extends View [ height = 30, cornerRadius = 10, fill = darkslategray,
     label: string = "",
     width = { this.t.width + 20 },
-    t: Text [ x = 10, y = 5, fontSize = 12, text = { label } ],   // bare `label` reads the class's attribute
+    t: Text [ x = 10, y = 5, fontSize = 12, text = { label } ]   // bare `label` reads the class's attribute
     ]
+
 
 App [ width = 400, height = 100, fill = black,
     layout: SimpleLayout [ axis = x, spacing = 10 ],
     Chip [ label = "one" ],
     Chip [ label = "two" ],
-    Chip [ label = "three" ],
+    Chip [ label = "three" ]
     ]
 ```
 
@@ -113,7 +114,7 @@ App [ width = 400, height = 100, fill = black,
 
 ```declare-fragment
 layout: SimpleLayout   [ axis = y, spacing = 10 ],       // stack (x or y)
-layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ],
+layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ]
 ```
 
 **Stacking order is declaration order** — later siblings render on top. There is no z-index.
@@ -127,7 +128,7 @@ A `{ }` in a value slot is a **constraint** — re-evaluated when, and only when
 ```declare-fragment
 x     = { (parent.width - width) / 2 },              // re-centers on resize
 fill  = { selected ? 0x336699 : 0x203040 },          // recolors on select
-text  = { data.failed ? data.error : "Loading…" },   // reacts to a data resource
+text  = { data.failed ? data.error : "Loading…" }   // reacts to a data resource
 ```
 
 Extraction is **branch-union** — `{ a ? b : c }` depends on all three names, the not-taken branch included; an extra edge costs a no-op recompute, a missed edge would be a stale view, which is made unrepresentable. It follows calls **transitively, rebasing onto the receiver**: if `total()` reads `this.price`, then `{ card.total() }` depends on `card.price`. Reads inside callbacks count (`{ items.filter(x => x.k > app.limit) }` depends on `app.limit`; `x` does not). Library methods analyze exactly like user methods, via declared effect signatures; pure builtins (`Math.*`, string/number/date projections) read nothing reactive. One asymmetry: a computed decl default (`segIndex: number = { … }`) is a **formula, not a slot** — reading it inlines its expression, so *its* dependencies become yours.
@@ -144,19 +145,20 @@ A **cursor** (`datapath`) selects a place in the data; descendants read fields r
 App [ width = 420, height = 260, fill = midnightblue, textColor = gainsboro,
 
     // an embedded dataset — its body is strict JSON (quoted keys), the one place JSON is legal
+
     people: Dataset {
         { "rows": [ { "name": "Ada",   "score": 90 },
                     { "name": "Grace", "score": 80 },
                     { "name": "Alan",  "score": 70 } ] }
-    },
+        },
 
     list: View [ x = 20, y = 20, datapath = { people.value },
         layout: SimpleLayout [ axis = y, spacing = 8 ],
         View [ height = 20, datapath = :rows[], key = :name,        // one instance per record (replicated children are unnamed)
             n: Text [ width = 160, text = :name ],
-            s: Text [ x = 170, text = :score ],
-            ],
-        ],
+            s: Text [ x = 170, text = :score ]
+            ]
+        ]
     ]
 ```
 
@@ -182,8 +184,9 @@ App [ width = 360, height = 240, fill = black, textColor = whitesmoke,
         Text [ x = 20, y = 20, fontWeight = bold, text = "Summary" ],
         big: State [ applied = { open }, height = 180, fill = steelblue,
             Text [ x = 20, y = 50, width = 260, textColor = gainsboro, wrap = true,
-                text = "height, color, and this whole line swap in together" ] ],
-        ],
+                text = "height, color, and this whole line swap in together" ]
+            ]
+        ]
     ]
 ```
 
@@ -196,8 +199,8 @@ App [ width = 420, height = 120, fill = black,
     on: boolean = false,
     onClick() { on = !on },
     ball: View [ x = 20, y = 40, width = 40, height = 40, cornerRadius = 20, fill = turquoise,
-        slide: Spring [ attribute = x, to = { on ? 340 : 20 }, stiffness = 170, damping = 20 ],
-        ],
+        slide: Spring [ attribute = x, to = { on ? 340 : 20 }, stiffness = 170, damping = 20 ]
+        ]
     ]
 ```
 
@@ -295,11 +298,18 @@ App [ width = 360, height = 200, fill = { theme.bg },
 
     col: View [ x = 20, y = 20,
         layout: SimpleLayout [ axis = y, spacing = 10 ],
-        Checkbox [ label = "Mute", checked = { app.muted }, input(v: boolean) { app.muted = v } ],
-        Slider [ value = { app.volume }, input(v: number) { app.volume = v }, disabled = { app.muted } ],
+        Checkbox [ label = "Mute", checked = { app.muted },
+            input(v: boolean) { app.muted = v }
+            ],
+        Slider [ value = { app.volume },
+            input(v: number) { app.volume = v },
+            disabled = { app.muted }
+            ],
         ProgressBar [ value = { app.muted ? 0 : app.volume } ],
-        Button [ label = "Reset", primary = true, onClick() { app.volume = 50; app.muted = false } ],
-        ],
+        Button [ label = "Reset", primary = true,
+            onClick() { app.volume = 50; app.muted = false }
+            ]
+        ]
     ]
 ```
 

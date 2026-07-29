@@ -154,7 +154,7 @@ const fmt = (s) => formatSource(s);
 
 await test("literate /* */ block: byte-exact, interior never re-indented", () => {
   const literate = "/*\n# Title\n\nProse with a fence:\n\n    indented code line\n\n- a *list*\n*/";
-  const src = `${literate}\nclass A extends View [\nx = 1,\n]\nApp [ A [ y = 2 ] ]\n`;
+  const src = `${literate}\nclass A extends View [\nx = 1\n]\nApp [ A [ y = 2 ] ]\n`;
   const out = fmt(src);
   if (!out.includes(literate)) throw new Error("literate block was rewritten");
   const again = fmt(out);
@@ -162,81 +162,82 @@ await test("literate /* */ block: byte-exact, interior never re-indented", () =>
 });
 
 await test("trailing // gap (re-ruled 2026-07-13): min 2, no maximum — alignment is the author's", () => {
-  const src = "App [\n    x = 1,// glued\n    yy = 2, // one space\n    z = 3,        // author's column, preserved\n    w = 4,                        // very wide — still the author's\n    ]\n";
+  const src = "App [\n    x = 1,// glued\n    yy = 2, // one space\n    z = 3,        // author's column, preserved\n    w = 4                        // very wide — still the author's\n    ]\n";
   const out = fmt(src);
   if (!out.includes("x = 1,  // glued")) throw new Error("0-gap not widened to 2:\n" + out);
   if (!out.includes("yy = 2,  // one space")) throw new Error("1-gap not widened to 2:\n" + out);
   if (!out.includes("z = 3,        // author's column, preserved")) throw new Error("author gap not preserved:\n" + out);
-  if (!out.includes("w = 4,                        // very wide — still the author's")) throw new Error("wide gap was clamped:\n" + out);
+  if (!out.includes("w = 4                        // very wide — still the author's")) throw new Error("wide gap was clamped:\n" + out);
 });
 
 await test("comment padding (ruled 2026-07-13): blanks inserted above AND below a standalone block", () => {
-  const src = "App [\n    w = 0,\n    // glued both sides — one block\n    // with a second line\n    x = 1,\n    ]\n";
+  const src = "App [\n    w = 0,\n    // glued both sides — one block\n    // with a second line\n    x = 1\n    ]\n";
   const out = fmt(src);
-  const want = "App [\n    w = 0,\n\n    // glued both sides — one block\n    // with a second line\n\n    x = 1,\n    ]\n";
+  const want = "App [\n    w = 0,\n\n    // glued both sides — one block\n    // with a second line\n\n    x = 1\n    ]\n";
   if (out !== want) throw new Error(`comment padding wrong:\n${out}`);
 });
 
 await test("comment padding: first-in-block needs no blank above; none forced against a close", () => {
   const src = "App [\n    // first thing in the body\n    x = 1,\n    // sits against the close\n    ]\n";
   const out = fmt(src);
-  const want = "App [\n    // first thing in the body\n\n    x = 1,\n\n    // sits against the close\n    ]\n";
+  const want = "App [\n    // first thing in the body\n\n    x = 1\n\n    // sits against the close\n    ]\n";
   if (out !== want) throw new Error(`exception handling wrong:\n${out}`);
 });
 
 await test("comment above a member keeps its line and level", () => {
-  const src = "App [\n\n        // sits above x, over-indented\n\n    x = 1,\n    ]\n";
+  const src = "App [\n\n        // sits above x, over-indented\n\n    x = 1\n    ]\n";
   const out = fmt(src);
-  if (!out.includes("\n    // sits above x, over-indented\n\n    x = 1,")) throw new Error("comment line mishandled:\n" + out);
+  if (!out.includes("\n    // sits above x, over-indented\n\n    x = 1")) throw new Error("comment line mishandled:\n" + out);
 });
 
 await test("a leaf close never joins up over a trailing comment", () => {
-  const src = "App [\n    b: View [ x = 1,    // note on the last attr\n        ],\n    ]\n";
+  const src = "App [\n    b: View [ x = 1    // note on the last attr\n        ]\n    ]\n";
   const out = fmt(src);
-  if (!out.includes("x = 1,    // note on the last attr\n        ],")) throw new Error("close joined over a // comment:\n" + out);
+  if (!out.includes("x = 1    // note on the last attr\n        ]")) throw new Error("close joined over a // comment:\n" + out);
 });
 
 await test("blank-line CLAMP: max 1 blank inside a body, author's choice below the cap", () => {
-  const src = "App [\n    x = 1,\n\n\n    y = 2,\n\n    z = 3,\n    w = 4,\n    ]\n";
+  const src = "App [\n    x = 1,\n\n\n    y = 2,\n\n    z = 3,\n    w = 4\n    ]\n";
   const out = fmt(src);
-  const want = "App [\n    x = 1,\n\n    y = 2,\n\n    z = 3,\n    w = 4,\n    ]\n";
+  const want = "App [\n    x = 1,\n\n    y = 2,\n\n    z = 3,\n    w = 4\n    ]\n";
   if (out !== want) throw new Error(`in-body blank handling wrong:\n${out}`);
 });
 
 await test("top-level separator (ruled 2026-07-13): exactly 2 after multiline, exactly 1 after one-line", () => {
   // widen 1 → 2 after a multiline class; narrow 4 → 2; exactly 1 after a one-liner (narrow 3 → 1)
-  const src = "class A extends View [ x = 1,\n    ]\nclass B extends View [ y = 2,\n    ]\n\n\n\n\nfont Sans [ family = \"ui\" ]\n\n\n\nApp [ w = 3 ]\n";
+  const src = "class A extends View [ x = 1\n    ]\nclass B extends View [ y = 2\n    ]\n\n\n\n\nfont Sans [ family = \"ui\" ]\n\n\n\nApp [ w = 3 ]\n";
   const out = fmt(src);
-  const want = "class A extends View [ x = 1,\n    ]\n\n\nclass B extends View [ y = 2,\n    ]\n\n\nfont Sans [ family = \"ui\" ]\n\nApp [ w = 3 ]\n";
+  const want = "class A extends View [ x = 1\n    ]\n\n\nclass B extends View [ y = 2\n    ]\n\n\nfont Sans [ family = \"ui\" ]\n\nApp [ w = 3 ]\n";
   if (out !== want) throw new Error(`top-level separator wrong:\n${out}`);
 });
 
 await test("top-level separator: a doc comment belongs to the next item — gap above it, §2.7 blank below", () => {
-  const src = "class A extends View [ x = 1,\n    ]\n// documents B\nclass B extends View [ y = 2,\n    ]\n\nApp [ w = 3 ]\n";
+  const src = "class A extends View [ x = 1\n    ]\n// documents B\nclass B extends View [ y = 2\n    ]\n\nApp [ w = 3 ]\n";
   const out = fmt(src);
-  const want = "class A extends View [ x = 1,\n    ]\n\n\n// documents B\n\nclass B extends View [ y = 2,\n    ]\n\n\nApp [ w = 3 ]\n";
+  const want = "class A extends View [ x = 1\n    ]\n\n\n// documents B\n\nclass B extends View [ y = 2\n    ]\n\n\nApp [ w = 3 ]\n";
   if (out !== want) throw new Error(`doc-comment attachment wrong:\n${out}`);
 });
 
-await test("commas are the author's: the formatter neither adds one nor sheds one", () => {
-  // RULED: the comma between members is optional in the grammar, so it is
-  // punctuation the author owns. The formatter still decides LINE BREAKS and
-  // close style — it just leaves every comma exactly as written.
+await test("the trailing comma is not house style: the formatter SHEDS it, never adds one (ruled 2026-07-28)", () => {
+  // SEPARATOR commas are the parser's requirement; the TRAILING comma before a
+  // close is legal to write but not house style — the formatter removes it, at
+  // both close styles.
   const src = "App [\n    child: View [ x = 1 ],\n    m() { go() }\n    ]\n";
   const out = fmt(src);
-  if (!out.includes("m() { go() }\n    ]")) throw new Error("a comma was added before the hanging close:\n" + out);
+  if (!out.includes("m() { go() }\n    ]")) throw new Error("a comma appeared before the hanging close:\n" + out);
   const src2 = "App [\n    child: View [ x = 1, ],\n    ]\n";
-  if (!fmt(src2).includes("x = 1, ],")) throw new Error("the interior comma was shed at an inline close:\n" + fmt(src2));
-  for (const s of [src, src2]) if (fmt(fmt(s)) !== fmt(s)) throw new Error("comma neutrality is not idempotent");
+  const out2 = fmt(src2);
+  if (!out2.includes("child: View [ x = 1 ]\n    ]")) throw new Error("the trailing commas were not shed:\n" + out2);
+  for (const s of [src, src2]) if (fmt(fmt(s)) !== fmt(s)) throw new Error("shedding is not idempotent");
 });
 
 await test("close style follows member kind: leaf inline, method/child hanging", () => {
   // a leaf written hanging joins up (carrying whatever comma the author left) …
-  const out1 = fmt("App [\n    a: View [ x = 1,\n        ],\n    ]\n");
-  if (!out1.includes("a: View [ x = 1, ],")) throw new Error("leaf close not inlined:\n" + out1);
+  const out1 = fmt("App [\n    a: View [ x = 1\n        ]\n    ]\n");
+  if (!out1.includes("a: View [ x = 1 ]")) throw new Error("leaf close not inlined:\n" + out1);
   // … and a method-bearing body written inline hangs
-  const out2 = fmt("App [\n    b: View [ x = 1, m() { go() } ],\n    ]\n");
-  if (!out2.includes("m() { go() }\n        ],")) throw new Error("non-leaf close not hung:\n" + out2);
+  const out2 = fmt("App [\n    b: View [ x = 1, m() { go() } ]\n    ]\n");
+  if (!out2.includes("m() { go() }\n        ]")) throw new Error("non-leaf close not hung:\n" + out2);
 });
 
 await test("declarations, methods, and children take their own lines; attrs pack", () => {
@@ -249,9 +250,9 @@ await test("declarations, methods, and children take their own lines; attrs pack
 });
 
 await test("spacing: single-space machine default — 0-gaps normalize, glue stays glued, indent is 4-per-level", () => {
-  const src = "App [\n  name=\"x\",\n  wide : View[ x =1,\n                   y = 2 ],\n  ]\n";
+  const src = "App [\n  name=\"x\",\n  wide : View[ x =1,\n                   y = 2 ]\n  ]\n";
   const out = fmt(src);
-  const want = "App [\n    name = \"x\",\n    wide: View [ x = 1,\n        y = 2 ],\n    ]\n";
+  const want = "App [\n    name = \"x\",\n    wide: View [ x = 1,\n        y = 2 ]\n    ]\n";
   if (out !== want) throw new Error(`spacing/indent wrong:\n${out}`);
 });
 
@@ -259,7 +260,7 @@ await test("the aligned ledger (ruled 2026-07-13): an author's 2+-space interior
   // slider.declare's declaration ledger and focusring.declare's Spring block
   const ledger = "    value: number = 0,\n    min:   number = 0,\n    max:   number = 100,\n    step:  number = 1,";
   const springs = "    Spring [ attribute = x,      to = { tx }, stiffness = 220, damping = 16 ],\n" +
-                  "    Spring [ attribute = width,  to = { tw }, stiffness = 220, damping = 18 ],";
+                  "    Spring [ attribute = width,  to = { tw }, stiffness = 220, damping = 18 ]";
   const src = `App [\n${ledger}\n${springs}\n    ]\n`;
   const out = fmt(src);
   if (!out.includes(ledger)) throw new Error(`declaration ledger flattened:\n${out}`);
@@ -268,17 +269,17 @@ await test("the aligned ledger (ruled 2026-07-13): an author's 2+-space interior
 });
 
 await test("the ledger discretion never applies where the grammar glues, or before a close", () => {
-  const src = "App [\n    a: View [ x = 1,   ],\n    t: Text [ text = :person  .  name ],\n    ]\n";
+  const src = "App [\n    a: View [ x = 1,   ],\n    t: Text [ text = :person  .  name ]\n    ]\n";
   const out = fmt(src);
   // the author's 3-space run before the close normalizes to one — the ledger's
   // 2+-space discretion is for interior COLUMNS, never the gap at a close
-  if (!out.includes("a: View [ x = 1, ],")) throw new Error("gap before the close not normalized:\n" + out);
-  if (!out.includes("text = :person.name ],")) throw new Error("glue positions must stay glued, author spaces or not:\n" + out);
+  if (!out.includes("a: View [ x = 1 ],")) throw new Error("gap before the close not normalized:\n" + out);
+  if (!out.includes("text = :person.name ]")) throw new Error("glue positions must stay glued, author spaces or not:\n" + out);
 });
 
 await test("{ } bodies are opaque: interior spacing, quotes, and spellings verbatim", () => {
   const body = "{ const a =  1;   return {x:'}'}, 0xCAD0EC }";
-  const src = `App [\n    m() ${body},\n    fill = #CAD0EC, n = 0xFF, pct = 50%,\n    ]\n`;
+  const src = `App [\n    m() ${body},\n    fill = #CAD0EC, n = 0xFF, pct = 50%\n    ]\n`;
   const out = fmt(src);
   for (const piece of [body, "#CAD0EC", "0xFF", "50%"]) {
     if (!out.includes(piece)) throw new Error(`retokenized: ${piece}\n${out}`);
@@ -286,22 +287,22 @@ await test("{ } bodies are opaque: interior spacing, quotes, and spellings verba
 });
 
 await test("a multi-line { } body shifts as a block; template-literal lines never shift", () => {
-  const src = "App [\n  m() {\n    const s = `line one\n  raw template line`\n    return s\n    },\n  ]\n";
+  const src = "App [\n  m() {\n    const s = `line one\n  raw template line`\n    return s\n    }\n  ]\n";
   const out = fmt(src);
   if (!out.includes("\n  raw template line`")) throw new Error("template interior line was shifted:\n" + out);
   if (!out.includes("\n      const s = `line one")) throw new Error("code line not shifted with the block:\n" + out);
-  if (!out.includes("\n        },")) throw new Error("closing } not at body indent:\n" + out);
+  if (!out.includes("\n        }")) throw new Error("closing } not at body indent:\n" + out);
 });
 
 await test('""" text blocks survive byte-exact', () => {
   const block = '"""\n# Head\n\n  indented md\nlast\n"""';
-  const src = `App [\n    Markdown [ x = 1, text = ${block} ],\n    ]\n`;
+  const src = `App [\n    Markdown [ x = 1, text = ${block} ]\n    ]\n`;
   const out = fmt(src);
   if (!out.includes(block)) throw new Error("text block changed:\n" + out);
 });
 
 await test("datapaths, two-way binds, source members, lists keep canon spacing", () => {
-  const src = "App [\n    t: TextInput [ text <-> :person.name, fontFamily = [Sans, \"ui\"] ],\n    row: View [ datapath = :items[] ],\n    keys: Keys [ onKeyUp(e) { go(e) } ],\n    ]\n";
+  const src = "App [\n    t: TextInput [ text <-> :person.name, fontFamily = [Sans, \"ui\"] ],\n    row: View [ datapath = :items[] ],\n    keys: Keys [ onKeyUp(e) { go(e) } ]\n    ]\n";
   const out = fmt(src);
   // a member carrying a method body breaks across lines (canon); what must
   // survive is the SPACING of each construct, not the line it lands on
@@ -312,7 +313,7 @@ await test("datapaths, two-way binds, source members, lists keep canon spacing",
 
 await test("the removed `<-` operator fails the formatter with the rewrite named", () => {
   let msg = "";
-  try { fmt("App [\n    onKeyUp(e) <- Keys { go(e) },\n    ]\n"); } catch (e) { msg = e.message; }
+  try { fmt("App [\n    onKeyUp(e) <- Keys { go(e) }\n    ]\n"); } catch (e) { msg = e.message; }
   if (!/subscriptions were removed/.test(msg)) throw new Error("expected the migration message, got: " + msg);
 });
 

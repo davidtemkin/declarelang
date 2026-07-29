@@ -109,7 +109,7 @@ class FocusRing extends View [ opacity = 0,
             const g2 = classroot.gen
             classroot.idle = false
             setTimeout(() => { if (classroot.gen == g2) classroot.idle = true }, 1000)
-            },
+            }
         ],
 
     // the travel: underdamped springs = motion toward the target + a little
@@ -177,5 +177,5 @@ class FocusRing extends View [ opacity = 0,
             }
         pass(0, lw, typeof theme.focusColor == "number" ? theme.focusColor : theme.accent)
         if (iw > 0) pass((lw + iw) / 2, iw, typeof theme.focusRingInnerColor == "number" ? theme.focusRingInnerColor : theme.surface)
-        },
+        }
     ]

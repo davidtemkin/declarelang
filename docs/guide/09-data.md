@@ -27,9 +27,9 @@ App [ width = 300, height = 160, fill = midnightblue, textColor = gainsboro,
         layout: SimpleLayout [ axis = y, spacing = 8 ],
         View [ height = 20, datapath = :rows[], key = :name,
             n: Text [ width = 160, text = :name ],
-            s: Text [ x = 170, text = :score ],
-            ],
-        ],
+            s: Text [ x = 170, text = :score ]
+            ]
+        ]
     ]
 ```
 
@@ -82,7 +82,7 @@ wrapping, no generated copy:
 
 ```declare-fragment
 article: DataSource [ url = "notes.md", format = "text" ],
-doc: Markdown [ visible = { article.loaded }, text = { article.value || "" } ],
+doc: Markdown [ visible = { article.loaded }, text = { article.value || "" } ]
 ```
 
 (That is how this site serves its FAQ and the language document — `.md` files,
@@ -102,9 +102,9 @@ App [ width = 300, height = 120, fill = white, textColor = black,
     list: View [ x = 20, y = 20, datapath = { people.value },
         View [ datapath = :rows[],
             TextInput [ width = 200, height = 30, padding = 6, cornerRadius = 6, fill = gainsboro,
-                text <-> :name ],
-            ],
-        ],
+                text <-> :name ]
+            ]
+        ]
     ]
 ```
 
@@ -125,14 +125,16 @@ add cards at the bottom:
 ```declare
 class BCard extends View [ width = { parent.width }, height = 30, cornerRadius = 10, fill = darkslategray,
     onClick() { app.advance(:id) },
-    t: Text [ x = 10, y = 10, fontSize = 12, wrap = false, text = :t ],
+    t: Text [ x = 10, y = 10, fontSize = 12, wrap = false, text = :t ]
     ]
+
 
 class Column extends View [ width = 130,
     layout: SimpleLayout [ axis = y, spacing = 8 ],
     name: Text [ fontSize = 12, fontWeight = bold, textColor = lightslategray, text = :name ],
-    BCard [ datapath = :cards[], key = :id ],
+    BCard [ datapath = :cards[], key = :id ]
     ]
+
 
 App [ width = 470, height = 250, fill = black, textColor = whitesmoke,
     raw: Dataset {
@@ -165,14 +167,16 @@ App [ width = 470, height = 250, fill = black, textColor = whitesmoke,
 
     cols: View [ x = 20, y = 20, datapath = { board.value },
         layout: SimpleLayout [ axis = x, spacing = 10 ],
-        Column [ datapath = :cols[] ],
+        Column [ datapath = :cols[] ]
         ],
     entryRow: View [ x = 20, y = { app.height - 50 },
         layout: SimpleLayout [ axis = x, spacing = 8 ],
         entry: TextInput [ width = 250, height = 40, padding = 10, cornerRadius = 10,
             fill = darkslategray, placeholder = "Add a task" ],
-        Button [ label = "Add", primary = true, onClick() { app.add() } ],
-        ],
+        Button [ label = "Add", primary = true,
+            onClick() { app.add() }
+            ]
+        ]
     ]
 ```
 

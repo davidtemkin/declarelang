@@ -26,7 +26,7 @@ comments in the file are annotation, and annotation never renders.
 
 ```declare-fragment
 article: DataSource [ url = "guide.md", format = "text" ],
-doc: Markdown [ visible = { article.loaded }, text = { article.value || "" } ],
+doc: Markdown [ visible = { article.loaded }, text = { article.value || "" } ]
 ```
 
 ## url

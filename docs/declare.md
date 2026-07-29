@@ -52,12 +52,11 @@ App [ width = 400, height = 140, fill = darkslategray, textColor = whitesmoke,
 
     add: View [ x = 20, y = 20, width = 120, height = 40, cornerRadius = 10, fill = royalblue,
         onClick() { count = count + 1 },
-        Text [ x = 20, y = 10, text = "Add one" ],
+        Text [ x = 20, y = 10, text = "Add one" ]
         ],
 
     Text [ y = 80, x = { (parent.width - this.width) / 2 },
-        text = { `Clicked ${count} times` },
-        ],
+        text = { `Clicked ${count} times` } ]
     ]
 ```
 
@@ -117,7 +116,7 @@ fill  = { hovered ? 0x6495ED : 0x4169E1 },        // ✓ in braces, TypeScript n
 fill  = { hovered ? #6495ED : 0x4169E1 },         // ✗ no such syntax in TypeScript
 width = 100%,                                     // ✓ bare slot, Length literal
 width = { 100% },                                 // ✗ compute it instead:
-width = { parent.width - 40 },                    // ✓
+width = { parent.width - 40 }                    // ✓
 ```
 
 A body is TypeScript at full expression strength: ternaries, template literals, array chains,
@@ -156,10 +155,10 @@ onClick()      { count = count + 1 },  // a HANDLER — `on` + an event this nod
 onMouseMove(e: PointerEvent) { x = e.x },   // pointer handlers get a typed payload
 
 draw(d: Draw) { d.fillStyle = "#4169E1"    // a DRAWING — see below
-                d.fillRect(0, 0, 12, 12) },
+            d.fillRect(0, 0, 12, 12) },
 
 bg: View [ fill = midnightblue ],      // a CHILD, named — reachable as `bg`
-Text [ text = "OK" ],                  // a CHILD, anonymous
+Text [ text = "OK" ]                  // a CHILD, anonymous
 ```
 
 **`draw(d: Draw)` is a first-class member, not an escape hatch.** It records a display list of plain
@@ -184,8 +183,9 @@ runs when called.
 app-wide keyboard handling regardless of focus. There is no subscription syntax and nothing to
 unregister: a source is a child, so it lives and dies with the node that declares it.
 
-**Members are separated by commas.** The *trailing* one, before a closing `]`, is optional —
-write it or leave it off, and the formatter keeps whichever you chose.
+**Members are separated by commas** — the separator is required, and the compiler names the
+spot when one is missing. A *trailing* comma before a closing `]` is legal to write; house
+style omits it, and the formatter removes it.
 
 ### What a name reaches
 
@@ -212,13 +212,14 @@ A component is a class. Instantiate one by naming a type with a `[ ]` body; defi
 class Chip extends View [ height = 30, cornerRadius = 10, fill = darkslategray,
     label: string = "",
     width = { this.t.width + 20 },
-    t: Text [ x = 10, y = 5, fontSize = 12, text = { label } ],
+    t: Text [ x = 10, y = 5, fontSize = 12, text = { label } ]
     ]
+
 
 App [ width = 400, height = 100, fill = black,
     layout: SimpleLayout [ axis = x, spacing = 10 ],
     Chip [ label = "one" ],
-    Chip [ label = "two" ],
+    Chip [ label = "two" ]
     ]
 ```
 
@@ -248,12 +249,13 @@ Inside a class definition, a bare name already reaches the class's own attribute
 on **the component itself**.
 
 ```declare-fragment
-class WeatherTab extends View [ selected: boolean = false, label: string = "",
+class WeatherTab extends View [ selected: boolean = false,
+    label: string = "",
     select() { selected = !selected },
     header: View [
         onClick() { classroot.select() },              // `this` here is the header, not the tab
-        caption: Text [ text = { classroot.label } ],  // reaches the tab from a leaf
-        ],
+        caption: Text [ text = { classroot.label } ]  // reaches the tab from a leaf
+        ]
     ]
 ```
 
@@ -268,7 +270,7 @@ reactive slot, it can be swapped, derived, or animated.
 
 ```declare-fragment
 layout: SimpleLayout   [ axis = y, spacing = 10 ],
-layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ],
+layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ]
 ```
 
 **Stacking order is declaration order**; later siblings paint on top. There is no `z-index`, so
@@ -283,7 +285,7 @@ A `{ }` in a value slot is a **constraint**: re-evaluated when, and only when, i
 ```declare-fragment
 x    = { (parent.width - width) / 2 },              // re-centers on resize
 fill = { selected ? 0x4169E1 : 0x191970 },           // royalblue / midnightblue
-text = { data.failed ? data.error : "Loading…" },
+text = { data.failed ? data.error : "Loading…" }
 ```
 
 **Dependencies are extracted statically, by the compiler.** Nothing is tracked at runtime: the
@@ -370,7 +372,7 @@ A view has no `minHeight`, `maxHeight`, or `overflow` attributes. Two read-only 
 
 ```declare-fragment
 height = { Math.min(contentHeight, 480) },    // grow to a cap, then stop
-clip   = true,                                // hide whatever passes the cap
+clip   = true                                // hide whatever passes the cap
 ```
 
 `clip = true` clips children to the box, `scrolls = true` scrolls taller content natively, and a
@@ -399,7 +401,7 @@ back and forward.
 
 ```declare-fragment
 mode = { app.location.split("/")[0] },     // derive state FROM location
-onClick() { app.location = "why" },        // write location TO navigate
+onClick() { app.location = "why" }        // write location TO navigate
 ```
 
 Never assign the derived state — that displaces its constraint (§5) and disconnects the back
@@ -422,15 +424,15 @@ App [ width = 420, height = 260, fill = midnightblue, textColor = gainsboro,
     people: Dataset {
         { "rows": [ { "name": "Ada",   "score": 90 },
                     { "name": "Grace", "score": 80 } ] }
-    },
+        },
 
     list: View [ x = 20, y = 20, datapath = { people.value },
         layout: SimpleLayout [ axis = y, spacing = 10 ],
         View [ height = 20, datapath = :rows[], key = :name,   // one instance per record
             n: Text [ width = 150, text = :name ],
-            s: Text [ x = 150, text = :score ],
-            ],
-        ],
+            s: Text [ x = 150, text = :score ]
+            ]
+        ]
     ]
 ```
 
@@ -533,7 +535,7 @@ occlusion-correct, and it is always false on touch. `pressed` is true from a poi
 chain until release. Read them anywhere a value goes, including as a state's condition (§10):
 
 ```declare-fragment
-fill = { hovered ? 0x4169E1 : 0x191970 },   // royalblue when hovered, else midnightblue
+fill = { hovered ? 0x4169E1 : 0x191970 }   // royalblue when hovered, else midnightblue
 ```
 
 Declaring either is a compile error; assigning one is refused at runtime, the same guard §5
@@ -556,7 +558,7 @@ theme = { Themes.sanFrancisco(app.dark) },                   // on the App: a pr
 fill  = { theme.surface },                                   // read it anywhere below
 
 panel: View [                                                // on a DESCENDANT, override one token
-    theme = { { ...app.theme, accent: 0xCC3333 } },          //   (on the App this reads itself — §5)
+    theme = { { ...app.theme, accent: 0xCC3333 } }          //   (on the App this reads itself — §5)
     ]
 ```
 
@@ -581,11 +583,12 @@ style card [ cornerRadius = 10, fill = { theme.bg } ]
 
 stylesheet Dark [
     theme: Theme [ accent = #336699 ],       // the sheet's own theme
-    View:   [ opacity = 0.9 ],               // entries keyed by CLASS name
+    View:   [ opacity = 0.9 ]               // entries keyed by CLASS name
     ]
 
+
 App [ stylesheet = Dark,                     // apply it — a prevailing slot, so swap it live
-    View [ styles = [card] ],                //   a bundle is opted into per view, by list
+    View [ styles = [card] ]                //   a bundle is opted into per view, by list
     ]
 ```
 
@@ -613,8 +616,9 @@ App [ width = 360, height = 200, fill = black, textColor = whitesmoke,
         Text [ x = 20, y = 20, fontWeight = bold, text = "Summary" ],
         open: State [ applied = { hovered }, height = 140, fill = steelblue,
             Text [ x = 20, y = 50, width = 260, textColor = gainsboro, wrap = true,
-                text = "height, color, and this whole line arrive together" ] ],
-        ],
+                text = "height, color, and this whole line arrive together" ]
+            ]
+        ]
     ]
 ```
 
@@ -631,19 +635,20 @@ the same flag, or give the child a constraint that reads it:
 
 ```declare-fragment
 bg: View [ opacity = { app.open ? 0.5 : 1 } ],                 // the child derives
-bg: View [ dim: State [ applied = { app.open }, opacity = 0.5 ] ],   // or owns a state
+bg: View [ dim: State [ applied = { app.open }, opacity = 0.5 ]
+    ]   // or owns a state
 ```
 
-A state is driven by its condition: `applied = { … }`. (The runtime also carries imperative
-`apply()`/`remove()`/`toggle()`, but they are not reachable from Declare source today — calling
-one is a member-resolution error. Gate on a boolean and change the boolean.)
+A state is driven by its condition (`applied = { … }`) or imperatively by the verbs —
+`apply()`/`remove()`/`toggle()` from a handler. One or the other: the gate owns `applied`,
+so a gated state changes when what the gate reads changes.
 
 A **`Spring`** drives one attribute toward a reactive target. Declare where the thing belongs and
 the spring finds the path, so a change of target mid-flight is simply a new destination and
 interruption needs no code.
 
 ```declare-fragment
-slide: Spring [ attribute = x, to = { on ? 340 : 20 }, stiffness = 170, damping = 20 ],
+slide: Spring [ attribute = x, to = { on ? 340 : 20 }, stiffness = 170, damping = 20 ]
 ```
 
 `Animator` is the time-based sibling for the cases that want a clock, and `Frames` is the raw
@@ -675,8 +680,13 @@ cell-owning slot — refused at runtime, with the same message §5 describes. Ov
 edit goes where the value actually lives.
 
 ```declare-fragment
-Checkbox [ label = "Mute", checked = { app.muted }, input(v: boolean) { app.muted = v } ],
-Slider   [ value = { app.volume }, input(v: number) { app.volume = v }, disabled = { app.muted } ],
+Checkbox [ label = "Mute", checked = { app.muted },
+    input(v: boolean) { app.muted = v }
+    ],
+Slider   [ value = { app.volume },
+    input(v: number) { app.volume = v },
+    disabled = { app.muted }
+    ]
 ```
 
 **What a component arranges, it takes as records.** If the component arranges it — menu items, a

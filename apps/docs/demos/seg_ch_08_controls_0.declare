@@ -5,15 +5,15 @@ App [ width = 360, height = 200, fill = { theme.bg },
     col: View [ x = 20, y = 20,
         layout: SimpleLayout [ axis = y, spacing = 10 ],
         Checkbox [ label = "Mute", checked = { app.muted },
-            input(v: boolean) { app.muted = v },
+            input(v: boolean) { app.muted = v }
             ],
         Slider [ value = { app.volume },
             input(v: number) { app.volume = v },
-            disabled = { app.muted },
+            disabled = { app.muted }
             ],
         ProgressBar [ value = { app.muted ? 0 : app.volume } ],
         Button [ label = "Reset", primary = true,
-            onClick() { app.volume = 50; app.muted = false },
-            ],
-        ],
+            onClick() { app.volume = 50; app.muted = false }
+            ]
+        ]
     ]

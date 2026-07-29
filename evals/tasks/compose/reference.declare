@@ -15,31 +15,31 @@ App [ fill = { theme.bg },
     header: View [ x = 0, y = 0, width = { app.width }, height = 56, fill = { theme.surface },
         stroke = { stroke(1, theme.line) },
         Text [ x = 24, y = 17, fontSize = 18, fontWeight = semibold, textColor = { theme.text },
-            text = { app.title } ],
+            text = { app.title } ]
         ],
 
     c0: View [ height = 120, cornerRadius = 10, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
         x = 24,
         y = { app.narrow ? 80 : 80 },
         width = { app.narrow ? app.width - 48 : app.cardW },
-        Text [ x = 16, y = 14, fontWeight = semibold, textColor = { theme.text }, text = "Visitors" ],
+        Text [ x = 16, y = 14, fontWeight = semibold, textColor = { theme.text }, text = "Visitors" ]
         ],
 
     c1: View [ height = 120, cornerRadius = 10, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
         x = { app.narrow ? 24 : 24 + app.cardW + 16 },
         y = { app.narrow ? 216 : 80 },
         width = { app.narrow ? app.width - 48 : app.cardW },
-        Text [ x = 16, y = 14, fontWeight = semibold, textColor = { theme.text }, text = "Revenue" ],
+        Text [ x = 16, y = 14, fontWeight = semibold, textColor = { theme.text }, text = "Revenue" ]
         ],
 
     c2: View [ height = 120, cornerRadius = 10, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
         x = { app.narrow ? 24 : 24 + 2 * (app.cardW + 16) },
         y = { app.narrow ? 352 : 80 },
         width = { app.narrow ? app.width - 48 : app.cardW },
-        Text [ x = 16, y = 14, fontWeight = semibold, textColor = { theme.text }, text = "Signups" ],
+        Text [ x = 16, y = 14, fontWeight = semibold, textColor = { theme.text }, text = "Signups" ]
         ],
 
     footer: View [ x = 0, width = { app.width }, height = 40, fill = { theme.surface },
         y = { app.height - 40 },
-        stroke = { stroke(1, theme.line) } ],
+        stroke = { stroke(1, theme.line) } ]
     ]

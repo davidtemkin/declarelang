@@ -30,12 +30,12 @@ unselectable chrome.
 */
 
 class Title extends Text [ fontFamily = [Sans, "system-ui", "sans-serif"],
-    fontWeight = semibold, textColor = { theme.text },
+    fontWeight = semibold, textColor = { theme.text }
     ]
 
 
 class Muted extends Text [ fontFamily = [Sans, "system-ui", "sans-serif"],
-    textColor = { theme.muted },
+    textColor = { theme.muted }
     ]
 
 
@@ -51,7 +51,7 @@ class ClassTab extends View [ width = { parent.width }, height = 32, cornerRadiu
     onClick()     { app.refAt = classroot.cname; app.location = "reference/" + classroot.cname; app.showPage() },
     lbl: Mono [ x = 12, y = 8, fontSize = 14, wrap = false,
         text = { classroot.cname },
-        textColor = { app.selected == classroot.cname ? theme.text : theme.tabIdle } ],
+        textColor = { app.selected == classroot.cname ? theme.text : theme.tabIdle } ]
     ]
 
 
@@ -77,7 +77,7 @@ class AttrRow extends View [ width = { parent.width },
         Mono [ fontSize = { 15 * app.fontScale }, fontWeight = semibold, textColor = { theme.text }, text = { :name } ],
         Mono [ fontSize = { 15 * app.fontScale }, textColor = { theme.accent2 }, text = { ": " + :type } ],
         Mono [ fontSize = { 14 * app.fontScale }, textColor = { theme.sigDim },
-            text = { :default != null ? "= " + :default : "" } ],
+            text = { :default != null ? "= " + :default : "" } ]
         ],
 
     // prevailing / read-only badges, only when either holds
@@ -89,7 +89,7 @@ class AttrRow extends View [ width = { parent.width },
     // the captured doc — prose + any inline runnable islands; dimmed for the reference
 
     Segment [ datapath = :docSegs[], width = { parent.width },
-        live = { classroot.live }, tone = { theme.refDim }, lead = 1.6 ],
+        live = { classroot.live }, tone = { theme.refDim }, lead = 1.6 ]
     ]
 
 
@@ -108,11 +108,11 @@ class MethodRow extends View [ width = { parent.width },
     sig: View [ width = { parent.width },
         layout: SimpleLayout [ axis = x, spacing = 0 ],
         Mono [ fontSize = { 15 * app.fontScale }, fontWeight = semibold, textColor = { theme.text }, text = { classroot.aname } ],
-        Mono [ fontSize = { 15 * app.fontScale }, textColor = { theme.mtail }, text = { classroot.tailtext } ],
+        Mono [ fontSize = { 15 * app.fontScale }, textColor = { theme.mtail }, text = { classroot.tailtext } ]
         ],
 
     Segment [ datapath = :docSegs[], width = { parent.width },
-        live = { classroot.live }, tone = { theme.refDim }, lead = 1.6 ],
+        live = { classroot.live }, tone = { theme.refDim }, lead = 1.6 ]
     ]
 
 
@@ -124,7 +124,7 @@ class EventRow extends View [ width = { parent.width },
     sig: Mono [ fontSize = { 15 * app.fontScale }, fontWeight = semibold, textColor = { theme.text }, text = { :signature } ],
 
     Segment [ datapath = :docSegs[], width = { parent.width },
-        live = { classroot.live }, tone = { theme.refDim }, lead = 1.6 ],
+        live = { classroot.live }, tone = { theme.refDim }, lead = 1.6 ]
     ]
 
 
@@ -152,7 +152,7 @@ class DocField extends TextInput [ multiline = true, spellcheck = false, wrap = 
     // being an author write, not a constraint — leaves the field freely editable.)
 
     onInit() { text = src },
-    onInput() { app.liveCard = editName; app.liveSource = text },
+    onInput() { app.liveCard = editName; app.liveSource = text }
     ]
 
 
@@ -175,7 +175,7 @@ class Example extends View [ width = { parent.width },
         layout: SimpleLayout [ axis = y, spacing = 2 ],
         rule: View [ width = { parent.width }, height = 2, fill = { theme.rule } ],
         gap:  View [ height = 8 ],
-        Title [ fontSize = { 20 * app.fontScale }, text = "Example" ],
+        Title [ fontSize = { 20 * app.fontScale }, text = "Example" ]
         ],
 
     gap12: View [ height = 12 ],         // the title's breathing room (the layout spacing is now 0)
@@ -196,7 +196,7 @@ class Example extends View [ width = { parent.width },
         tag:   View [ y = 7, height = 17, cornerRadius = 3, fill = 0xE6B450, x = { parent.width - this.width - 14 },
             lbl: Mono [ x = 7, y = 3, fontSize = 10, letterSpacing = 1, fontWeight = semibold, textColor = 0x1A1A1A,
                 text = "LIVE · EDITABLE", wrap = false ],
-            width = { this.lbl.width + 14 },
+            width = { this.lbl.width + 14 }
             ],
 
         // Revert — restore the pristine source and republish (see RunBlock)
@@ -209,14 +209,14 @@ class Example extends View [ width = { parent.width },
                         app.liveCard = classroot.cname
                         app.liveSource = classroot.esrc },
             rlbl: Text [ x = 8, y = 3, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 11, fontWeight = semibold,
-                textColor = { parent.hovered ? theme.text : theme.muted }, text = "Revert" ],
+                textColor = { parent.hovered ? theme.text : theme.muted }, text = "Revert" ]
             ],
 
         // a line of breathing room below the label before the code starts
 
         hair:  View [ x = 18, y = 51, width = { parent.width - 30 }, height = 1, fill = { theme.line } ],
         field: DocField [ x = 18, y = 60, width = { parent.width - 30 }, height = { parent.height - 68 },
-            editName = { classroot.cname }, src = { classroot.esrc } ],
+            editName = { classroot.cname }, src = { classroot.esrc } ]
         ],
 
     // the compile report at the island (see RunBlock — same teaching surface)
@@ -227,7 +227,7 @@ class Example extends View [ width = { parent.width },
         bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { theme.errBar } ],
         msg: Text [ x = 18, y = 10, width = { parent.width - 36 }, wrap = true,
             fontFamily = [Code, "ui-monospace", "monospace"], fontSize = { 12 * app.fontScale },
-            textColor = { theme.errText }, text = { app.liveReport } ],
+            textColor = { theme.errText }, text = { app.liveReport } ]
         ],
 
     // the live preview island — the host mounts the compiled child app here. The slot
@@ -243,8 +243,8 @@ class Example extends View [ width = { parent.width },
         // down the preview, same x/width
 
         divider: View [ x = 0, y = 0, width = { parent.width }, height = 2, fill = { theme.rule } ],
-        spine:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = 0xE6B450 ],
-        ],
+        spine:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = 0xE6B450 ]
+        ]
     ]
 
 
@@ -286,7 +286,7 @@ class RunBlock extends View [ width = { parent.width },
         tag:  View [ x = 18, y = 7, height = 17, cornerRadius = 3, fill = 0xE6B450,
             lbl: Mono [ x = 7, y = 3, fontSize = 10, letterSpacing = 1, fontWeight = semibold, textColor = 0x1A1A1A,
                 text = "LIVE · EDITABLE", wrap = false ],
-            width = { this.lbl.width + 14 },
+            width = { this.lbl.width + 14 }
             ],
 
         // Revert restores the pristine source and republishes it — the way back the
@@ -300,7 +300,7 @@ class RunBlock extends View [ width = { parent.width },
                         app.liveCard = classroot.rid
                         app.liveSource = classroot.rsrc },
             rlbl: Text [ x = 8, y = 3, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 11, fontWeight = semibold,
-                textColor = { parent.hovered ? theme.text : theme.muted }, text = "Revert" ],
+                textColor = { parent.hovered ? theme.text : theme.muted }, text = "Revert" ]
             ],
         hint: Muted [ y = 9, fontSize = { 11 * app.fontScale }, italic = true, text = "runs live below ↓",
             x = { parent.rev.x - this.width - 12 } ],
@@ -308,7 +308,7 @@ class RunBlock extends View [ width = { parent.width },
         // a line of breathing room below the label before the code starts
 
         field: DocField [ x = 18, y = 46, width = { parent.width - 30 }, height = { parent.height - 54 },
-            editName = { classroot.rid }, src = { classroot.rsrc } ],
+            editName = { classroot.rid }, src = { classroot.rsrc } ]
         ],
 
     // the compile report, at the island — the diagnostic is a teaching surface, so a
@@ -320,15 +320,15 @@ class RunBlock extends View [ width = { parent.width },
         bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { theme.errBar } ],
         msg: Text [ x = 18, y = 10, width = { parent.width - 36 }, wrap = true,
             fontFamily = [Code, "ui-monospace", "monospace"], fontSize = { 12 * app.fontScale },
-            textColor = { theme.errText }, text = { app.liveReport } ],
+            textColor = { theme.errText }, text = { app.liveReport } ]
         ],
 
     stage: View [ width = { parent.width }, height = { classroot.rstage }, fill = { theme.chipBg },
         run:     AppIsland [ width = { parent.width }, height = { parent.height },
             program = { classroot.live ? classroot.rid : "" } ],
         divider: View [ x = 0, y = 0, width = { parent.width }, height = 2, fill = { theme.rule } ],
-        spine:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = 0xE6B450 ],
-        ],
+        spine:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = 0xE6B450 ]
+        ]
     ]
 
 
@@ -343,9 +343,9 @@ class Segment extends View [ width = { parent.width },
     layout: SimpleLayout [ axis = y, spacing = 14 ],
     md: Markdown [ width = { parent.width }, lineHeight = { classroot.lead }, bodyColor = { classroot.tone }, scale = { app.fontScale }, dark = { app.darkUI },
         visible = { :md != "" }, text = { :md },
-        onLink(href: string) { app.openDocLink(href) },
+        onLink(href: string) { app.openDocLink(href) }
         ],
-    RunBlock [ datapath = :code[], width = { parent.width }, live = { classroot.live } ],
+    RunBlock [ datapath = :code[], width = { parent.width }, live = { classroot.live } ]
     ]
 
 
@@ -385,7 +385,7 @@ class ClassDetail extends View [ width = { parent.width },
         Title [ fontSize = { 32 * app.fontScale }, text = { classroot.cname } ],
         Mono  [ fontSize = { 14 * app.fontScale }, textColor = { theme.sigDim },
             text = { :extends != null ? "class " + classroot.cname + " extends " + :extends
-                                      : "class " + classroot.cname + "  (base)" } ],
+                                      : "class " + classroot.cname + "  (base)" } ]
         ],
 
     // the member jump index — one wrap of chips (attributes teal, methods blue, events
@@ -402,7 +402,7 @@ class ClassDetail extends View [ width = { parent.width },
             height = 26, cornerRadius = 6, fill = { hovered ? theme.chipHov : theme.chipBg },
             onClick() { classroot.revealAttr(this.aname) },
             lbl: Mono [ x = 10, y = 5, fontSize = { 13 * app.fontScale }, textColor = { theme.chipTeal }, text = { parent.aname } ],
-            width = { this.lbl.width + 20 },
+            width = { this.lbl.width + 20 }
             ],
 
         // method chips — name()
@@ -412,7 +412,7 @@ class ClassDetail extends View [ width = { parent.width },
             height = 26, cornerRadius = 6, fill = { hovered ? theme.mchipHov : theme.mchipBg },
             onClick() { classroot.revealAttr(this.aname) },
             lbl: Mono [ x = 10, y = 5, fontSize = { 13 * app.fontScale }, textColor = { theme.chipBlue }, text = { parent.aname + "()" } ],
-            width = { this.lbl.width + 20 },
+            width = { this.lbl.width + 20 }
             ],
 
         // event chips — the handler signature
@@ -422,8 +422,8 @@ class ClassDetail extends View [ width = { parent.width },
             height = 26, cornerRadius = 6, fill = { hovered ? theme.echipHov : theme.echipBg },
             onClick() { classroot.revealAttr(this.aname) },
             lbl: Mono [ x = 10, y = 5, fontSize = { 13 * app.fontScale }, textColor = { theme.chipAmber }, text = { :signature } ],
-            width = { this.lbl.width + 20 },
-            ],
+            width = { this.lbl.width + 20 }
+            ]
         ],
 
     // the class prose — dimmed, with any inline runnable examples woven in
@@ -437,11 +437,11 @@ class ClassDetail extends View [ width = { parent.width },
         layout: SimpleLayout [ axis = y, spacing = 2 ],
         rule: View [ width = { parent.width }, height = 2, fill = { theme.rule } ],
         gap:  View [ height = 8 ],
-        Title [ fontSize = { 20 * app.fontScale }, text = "Attributes" ],
+        Title [ fontSize = { 20 * app.fontScale }, text = "Attributes" ]
         ],
     attrs: View [ width = { parent.width }, visible = { :attributes.length > 0 },
         layout: SimpleLayout [ axis = y, spacing = 22 ],
-        AttrRow [ datapath = :attributes[], width = { parent.width }, live = { classroot.pageLive } ],
+        AttrRow [ datapath = :attributes[], width = { parent.width }, live = { classroot.pageLive } ]
         ],
 
     // methods (hidden for a class that documents none)
@@ -450,11 +450,11 @@ class ClassDetail extends View [ width = { parent.width },
         layout: SimpleLayout [ axis = y, spacing = 2 ],
         rule: View [ width = { parent.width }, height = 2, fill = { theme.rule } ],
         gap:  View [ height = 8 ],
-        Title [ fontSize = { 20 * app.fontScale }, text = "Methods" ],
+        Title [ fontSize = { 20 * app.fontScale }, text = "Methods" ]
         ],
     meths: View [ width = { parent.width }, visible = { :methods.length > 0 },
         layout: SimpleLayout [ axis = y, spacing = 22 ],
-        MethodRow [ datapath = :methods[], width = { parent.width }, live = { classroot.pageLive } ],
+        MethodRow [ datapath = :methods[], width = { parent.width }, live = { classroot.pageLive } ]
         ],
 
     // events (hidden for a class that documents none)
@@ -463,11 +463,11 @@ class ClassDetail extends View [ width = { parent.width },
         layout: SimpleLayout [ axis = y, spacing = 2 ],
         rule: View [ width = { parent.width }, height = 2, fill = { theme.rule } ],
         gap:  View [ height = 8 ],
-        Title [ fontSize = { 20 * app.fontScale }, text = "Events" ],
+        Title [ fontSize = { 20 * app.fontScale }, text = "Events" ]
         ],
     evts: View [ width = { parent.width }, visible = { :events.length > 0 },
         layout: SimpleLayout [ axis = y, spacing = 22 ],
-        EventRow [ datapath = :events[], width = { parent.width }, live = { classroot.pageLive } ],
+        EventRow [ datapath = :events[], width = { parent.width }, live = { classroot.pageLive } ]
         ],
 
     // the live, editable example — replicated 0-or-1 times, so it's built only when
@@ -477,10 +477,10 @@ class ClassDetail extends View [ width = { parent.width },
     exampleBox: View [ width = { parent.width }, visible = { :example.length > 0 },
         layout: SimpleLayout [ axis = y, spacing = 18 ],
         Example [ datapath = :example[], width = { parent.width },
-            live = { app.mode == "reference" && app.selected == classroot.cname } ],
+            live = { app.mode == "reference" && app.selected == classroot.cname } ]
         ],
 
-    tail: View [ width = { parent.width }, height = 48 ],
+    tail: View [ width = { parent.width }, height = 48 ]
     ]
 
 
@@ -506,7 +506,7 @@ class ModeTab extends View [ height = 30, cornerRadius = 8,
     lbl: Text [ y = 7, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 13, fontWeight = semibold, wrap = false,
         x = { (parent.width - this.width) / 2 },
         text = { classroot.label },
-        textColor = { app.mode == classroot.m ? theme.text : theme.modeOff } ],
+        textColor = { app.mode == classroot.m ? theme.text : theme.modeOff } ]
     ]
 
 
@@ -523,7 +523,7 @@ class ChapterTab extends View [ width = { parent.width }, height = 32, cornerRad
 
     lbl: Text [ x = 12, y = 8, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14, wrap = false,
         text = { classroot.cnum + ". " + classroot.ctitle },
-        textColor = { app.chapter == classroot.cid ? theme.text : theme.tabIdle } ],
+        textColor = { app.chapter == classroot.cid ? theme.text : theme.tabIdle } ]
     ]
 
 
@@ -535,7 +535,7 @@ class PartGroup extends View [ width = { parent.width },
     g:       View [ height = 14 ],
     eyebrow: Mono [ fontSize = 12, letterSpacing = 1.4, fontWeight = semibold, textColor = { theme.muted }, text = { classroot.p.toUpperCase() } ],
     g2:      View [ height = 4 ],
-    ChapterTab [ datapath = :chapters[] ],
+    ChapterTab [ datapath = :chapters[] ]
     ]
 
 
@@ -573,10 +573,10 @@ class ChapterDetail extends View [ width = { parent.width },
         // a flagship runnable example the chapter opts into with `<!-- demo: <Class> -->`
 
         demoBox: View [ width = { parent.width }, visible = { :demo.length > 0 },
-            Example [ datapath = :demo[], width = { parent.width }, live = { classroot.pageLive } ],
-            ],
+            Example [ datapath = :demo[], width = { parent.width }, live = { classroot.pageLive } ]
+            ]
         ],
-    tail: View [ width = { parent.width }, height = 60 ],
+    tail: View [ width = { parent.width }, height = 60 ]
     ]
 
 
@@ -599,7 +599,7 @@ class SizeBtn extends View [ width = 32, height = 30, cornerRadius = 6,
                     : Math.max(0.7, Math.min(1.6, Math.round((app.fontScale + classroot.delta) * 100) / 100)) },
     lbl: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontWeight = semibold,
         fontSize = { classroot.glyph }, textColor = { theme.muted }, text = "A",
-        x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 } ],
+        x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 } ]
     ]
 
 
@@ -615,7 +615,7 @@ class ThemeBtn extends View [ width = 32, height = 30, cornerRadius = 6,
     lbl: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14,
         text = { classroot.glyph },
         textColor = { app.themeMode == classroot.m ? theme.text : theme.muted },
-        x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 } ],
+        x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 } ]
     ]
 
 
@@ -759,18 +759,18 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
                     Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 18,
                         fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
                         textFill = { gradient("90deg", theme.accent, theme.accent2) }, text = "Declare",
-                        onClick() { app.navigate("apps/homepage/homepage.declare") },
+                        onClick() { app.navigate("apps/homepage/homepage.declare") }
                         ],
                     Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 18,
                         fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
-                        textColor = { theme.text }, text = "Docs" ],
-                    ],
+                        textColor = { theme.text }, text = "Docs" ]
+                    ]
                 ],
             g0:    View [ height = 12 ],
             modes: View [ width = { parent.width },
                 layout: SimpleLayout [ axis = x, spacing = 6 ],
                 ModeTab [ label = "Guide", m = "guide", width = { (parent.width - 6) / 2 } ],
-                ModeTab [ label = "Reference", m = "reference", width = { (parent.width - 6) / 2 } ],
+                ModeTab [ label = "Reference", m = "reference", width = { (parent.width - 6) / 2 } ]
                 ],
 
             // font-size stepper — small / reset / large "A" glyphs zoom every text size
@@ -785,7 +785,7 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
                     SizeBtn [ glyph = 15, delta = 0 ],
                     div2: View [ width = 1, height = 18, y = 6, fill = { theme.line } ],
                     SizeBtn [ glyph = 19, delta = 0.1 ],
-                    width = { this.contentWidth },
+                    width = { this.contentWidth }
                     ],
                 mode: View [ height = 30, cornerRadius = 8, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
                     layout: SimpleLayout [ axis = x, spacing = 0 ],
@@ -794,15 +794,15 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
                     ThemeBtn [ glyph = "◐", m = "system" ],
                     div2: View [ width = 1, height = 18, y = 6, fill = { theme.line } ],
                     ThemeBtn [ glyph = "☾", m = "dark" ],
-                    width = { this.contentWidth },
-                    ],
+                    width = { this.contentWidth }
+                    ]
                 ],
 
             // guide nav — parts and their chapters
 
             guideNav: View [ width = { parent.width }, visible = { app.mode == "guide" },
                 layout: SimpleLayout [ axis = y, spacing = 2 ],
-                PartGroup [ datapath = :guideParts[] ],
+                PartGroup [ datapath = :guideParts[] ]
                 ],
 
             // reference nav — the component list
@@ -812,9 +812,9 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
                 g1:    View [ height = 14 ],
                 eyebrow: Mono [ fontSize = 12, letterSpacing = 1.4, fontWeight = semibold, textColor = { theme.muted }, text = "COMPONENTS" ],
                 g2:    View [ height = 4 ],
-                ClassTab [ datapath = :tree[], cname = :name ],
-                ],
-            ],
+                ClassTab [ datapath = :tree[], cname = :name ]
+                ]
+            ]
         ],
 
     /* ## The detail pane
@@ -828,11 +828,11 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
         top: View [ x = 0, y = 0, width = 1, height = 1 ],       // showPage's scroll-to-top anchor
         col: View [ x = 48, y = 40, width = { parent.width - 96 },
             guideCol: View [ width = { parent.width }, visible = { app.mode == "guide" },
-                ChapterDetail [ datapath = :guide[], cid = :id ],
+                ChapterDetail [ datapath = :guide[], cid = :id ]
                 ],
             refCol: View [ width = { parent.width }, visible = { app.mode == "reference" },
-                ClassDetail [ datapath = :tree[], cname = :name ],
-                ],
-            ],
-        ],
+                ClassDetail [ datapath = :tree[], cname = :name ]
+                ]
+            ]
+        ]
     ]

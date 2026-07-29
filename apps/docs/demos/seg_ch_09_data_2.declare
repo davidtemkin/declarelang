@@ -1,12 +1,12 @@
 class BCard extends View [ width = { parent.width }, height = 30, cornerRadius = 10, fill = darkslategray,
     onClick() { app.advance(:id) },
-    t: Text [ x = 10, y = 10, fontSize = 12, wrap = false, text = :t ],
+    t: Text [ x = 10, y = 10, fontSize = 12, wrap = false, text = :t ]
     ]
 
 class Column extends View [ width = 130,
     layout: SimpleLayout [ axis = y, spacing = 8 ],
     name: Text [ fontSize = 12, fontWeight = bold, textColor = lightslategray, text = :name ],
-    BCard [ datapath = :cards[], key = :id ],
+    BCard [ datapath = :cards[], key = :id ]
     ]
 
 App [ width = 470, height = 250, fill = black, textColor = whitesmoke,
@@ -40,12 +40,14 @@ App [ width = 470, height = 250, fill = black, textColor = whitesmoke,
 
     cols: View [ x = 20, y = 20, datapath = { board.value },
         layout: SimpleLayout [ axis = x, spacing = 10 ],
-        Column [ datapath = :cols[] ],
+        Column [ datapath = :cols[] ]
         ],
     entryRow: View [ x = 20, y = { app.height - 50 },
         layout: SimpleLayout [ axis = x, spacing = 8 ],
         entry: TextInput [ width = 250, height = 40, padding = 10, cornerRadius = 10,
             fill = darkslategray, placeholder = "Add a task" ],
-        Button [ label = "Add", primary = true, onClick() { app.add() } ],
-        ],
+        Button [ label = "Add", primary = true,
+            onClick() { app.add() }
+            ]
+        ]
     ]

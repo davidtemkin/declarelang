@@ -16,9 +16,9 @@ App [ width = 240, height = 100, fill = white, textColor = black,
         onKeyUp(e: KeyEvent) {
             if (e.key == "ArrowUp") { app.n = app.n + 1 }
             else if (e.key == "ArrowDown") { app.n = app.n - 1 }
-            },
+            }
         ],
-    Text [ x = 20, y = 30, fontSize = 30, text = { `n = ${n}` } ],
+    Text [ x = 20, y = 30, fontSize = 30, text = { `n = ${n}` } ]
     ]
 ```
 

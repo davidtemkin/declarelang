@@ -445,10 +445,10 @@ class WeatherTab extends BaseTabElement [
 
 These are conventions (style, not syntax). The canonical spec is [formatting.md](formatting.md) (style canon + prettyprinter contract); in brief:
 
-- **Every own-line member ends with a comma — the comma is a *terminator*, not a separator** (Go's composite-literal rule): including the last member before a hanging close, so adding, removing, or reordering members never touches a neighboring line. The one place it is omitted: before an *inline* `]` (`Text [ x = 42, text = :day ]`), where it buys nothing. Ruled 2026-07-13; the formatter enforces both directions.
-- **A leaf goes on one line** (attributes only): `day: Text [ x = 42, color = #FFFFFF, text = :day ],`. Aim for this; most of a UI is leaves.
+- **Members are comma-SEPARATED, and the separator is required** (ruled 2026-07-28, reversing 2026-07-13's terminator rule): a missing comma between members is a positioned compile error. The *trailing* comma — before any `]` — is legal to write but not house style; the formatter removes it.
+- **A leaf goes on one line** (attributes only): `day: Text [ x = 42, color = #FFFFFF, text = :day ]`. Aim for this; most of a UI is leaves.
 - **A parent puts its configuration on the header line and its body below.** Plain `name = value` configuration rides the opening line (filled until it would overflow a comfortable width, then wrapped); declarations, methods, states, handlers, and child instances each get their own line.
-- **Closing brackets hang at the content indent**, carrying the trailing comma: `],` / `}`.
+- **Closing brackets hang at the content indent**: `]` bare when last, `],` when a sibling member follows.
 - **Comments** are `// ` (one space), indented to the level they sit at, and preceded and followed by a blank line (unless first in a block). Trailing inline comments are exempt.
 - **Names are camelCase** — `backgroundColor`, `fontSize`, `onClick`, `minHeight` — TypeScript/React-familiar. (OpenLaszlo's legacy lowercase names belong to the migration layer, not the surface.)
 

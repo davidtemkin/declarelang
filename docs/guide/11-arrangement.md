@@ -33,8 +33,9 @@ class Cell extends View [ cornerRadius = 10, fill = darkslategray, clip = true,
     width = { app.colW - 4 },
     height = { app.rowH - 4 },
     onClick() { app.pick(:row) },
-    n: Text [ x = 10, y = 5, fontSize = 12, textColor = gainsboro, text = :n ],
+    n: Text [ x = 10, y = 5, fontSize = 12, textColor = gainsboro, text = :n ]
     ]
+
 
 App [ width = 420, height = 240, fill = black,
     mode: string = "month",
@@ -60,8 +61,8 @@ App [ width = 420, height = 240, fill = black,
 
     board: View [ x = 20, y = 20, width = { app.width - 40 }, height = { app.height - 40 }, clip = true,
         datapath = { grid.value },
-        Cell [ datapath = :cells[], key = :n ],
-        ],
+        Cell [ datapath = :cells[], key = :n ]
+        ]
     ]
 ```
 

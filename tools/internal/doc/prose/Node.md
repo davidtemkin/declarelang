@@ -8,7 +8,8 @@ would be visual in name only.
 ```declare
 class Cart [ count: number = 0,
     add()    { count = count + 1 },
-    clear()  { count = 0 } ]
+    clear()  { count = 0 }
+    ]
 ```
 
 A view then holds one as a named member (`cart: Cart [ ]`) and reads/drives it reactively —

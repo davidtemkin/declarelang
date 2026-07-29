@@ -3,7 +3,7 @@
 class Chip extends View [ height = 30, cornerRadius = 15, fill = steelblue,
     label: string = "",
     Text [ x = 10, y = 5, fontSize = 13, fontWeight = semibold,
-        textColor = whitesmoke, text = { classroot.label } ],
+        textColor = whitesmoke, text = { classroot.label } ]
     ]
 
 
@@ -17,6 +17,6 @@ App [
         Chip [ width = 100, label = "animator" ],
         Chip [ width = 60, label = "state" ],
         Chip [ width = 90, label = "dataset" ],
-        Chip [ width = 90, label = "markdown" ],
-        ],
+        Chip [ width = 90, label = "markdown" ]
+        ]
     ]

@@ -37,13 +37,13 @@ class Ev extends View [ clip = true,
     text: View [ x = 8, y = 2, opacity = { 1 - app.yearZoom },
         layout: SimpleLayout [ axis = x, spacing = 6 ],
         tm: Text [ fontSize = 10, fontWeight = semibold, wrap = false, textColor = { app.catText(:category) }, text = { :timeLabel } ],
-        ti: Text [ fontSize = 10, fontWeight = regular, wrap = false, textColor = { app.catText(:category) }, text = { :title } ],
+        ti: Text [ fontSize = 10, fontWeight = regular, wrap = false, textColor = { app.catText(:category) }, text = { :title } ]
         ],
 
     onMouseDown(e: PointerEvent) { app.startDrag(:id, :title, :category, :timeLabel, this.width, this.height, e.x, e.y) },
     onMouseMove()  { app.dragMove() },
     onMouseUp(e: PointerUpEvent)   { app.dropDrag(e.x, e.y) },
-    onClick()      { app.selectEvent(:id, :y + "-" + :m + "-" + :d) },
+    onClick()      { app.selectEvent(:id, :y + "-" + :m + "-" + :d) }
     ]
 
 
@@ -91,7 +91,7 @@ class Cell extends View [ clip = true,
         textColor = { :current ? theme.currentDayText : theme.textMuted }, text = { :dow } ],
     Ev [ datapath = :events[], key = :id ],
 
-    onClick() { app.pickDay(:key) },
+    onClick() { app.pickDay(:key) }
     ]
 
 
@@ -108,7 +108,7 @@ class MiniDay extends View [ width = { app.miniCellW }, height = { app.miniRowH 
         textColor = { :today ? theme.accent : :inMonth ? theme.miniDayText : theme.miniDayFaint },
         text = { :inMonth ? "" + :num : "" } ],
     dot: View [ x = { (parent.width - 3) / 2 }, y = { parent.height - 4 }, width = 3, height = 3,
-        cornerRadius = 2, fill = { theme.accent }, visible = { :has } ],
+        cornerRadius = 2, fill = { theme.accent }, visible = { :has } ]
     ]
 
 
@@ -120,10 +120,10 @@ class MiniMonth extends View [ cornerRadius = 12, clip = true, fill = { theme.mi
     name: Text [ x = 14, y = 11, fontSize = 13, fontWeight = semibold,
         textColor = { :m == app.month ? theme.todayText : theme.dayNumber }, text = { :name } ],
     grid: View [ x = 10, y = 34, width = { parent.width - 20 }, height = { parent.height - 44 },
-        MiniDay [ datapath = :cells[] ],
+        MiniDay [ datapath = :cells[] ]
         ],
 
-    onClick() { app.pickMonth(:m) },
+    onClick() { app.pickMonth(:m) }
     ]
 
 
@@ -140,7 +140,7 @@ class ViewTab extends View [ width = { app.tabW }, height = { parent.height },
     lbl: Text [ width = { parent.width }, textAlign = center, y = 9, fontSize = 13, wrap = false, fontWeight = medium,
         textColor = { app.mode == classroot.mode || classroot.hovered ? theme.textPrimary : theme.textMuted },
         text = { app.tabsCompact ? classroot.label.slice(0, 1) : classroot.label } ],
-    onClick()     { app.goMode(classroot.mode) },
+    onClick()     { app.goMode(classroot.mode) }
     ]
 
 
@@ -151,7 +151,7 @@ class TabPill extends View [ cornerRadius = 10, fill = { theme.pillBg },
     lane: number = 2,
     width = { app.tabW }, height = { parent.height },
     x = { classroot.lane * app.tabW },
-    Spring [ attribute = lane, to = { app.tabIndex }, stiffness = 300, damping = 40 ],
+    Spring [ attribute = lane, to = { app.tabIndex }, stiffness = 300, damping = 40 ]
     ]
 
 
@@ -159,7 +159,7 @@ class TabPill extends View [ cornerRadius = 10, fill = { theme.pillBg },
 // and the fill; each concrete button adds its content and its action
 
 class BarButton extends View [ height = 34, cornerRadius = 10,
-    fill = { classroot.pressed ? theme.pillBg : theme.trackBg },
+    fill = { classroot.pressed ? theme.pillBg : theme.trackBg }
     ]
 
 
@@ -168,7 +168,7 @@ class NavArrow extends BarButton [ width = 36,
     glyph: string = "",
     g: Text [ width = { parent.width }, textAlign = center, y = 6, fontSize = 18, wrap = false,
         textColor = { classroot.pressed || classroot.hovered ? theme.textPrimary : theme.textMuted }, text = { classroot.glyph } ],
-    onClick()     { app.step(classroot.dir) },
+    onClick()     { app.step(classroot.dir) }
     ]
 
 
@@ -176,7 +176,7 @@ class TextButton extends BarButton [ width = 64,
     label: string = "",
     t: Text [ width = { parent.width }, textAlign = center, y = 9, fontSize = 13, wrap = false, fontWeight = medium,
         textColor = { classroot.pressed || classroot.hovered ? theme.textPrimary : theme.textMuted }, text = { classroot.label } ],
-    onClick()     { app.today() },
+    onClick()     { app.today() }
     ]
 
 
@@ -190,7 +190,7 @@ class ThemeSeg extends View [ width = 30, height = { parent.height },
     g: Text [ width = { parent.width }, textAlign = center, y = 6, fontSize = 14, wrap = false,
         textColor = { app.themeMode == classroot.m ? theme.textPrimary : classroot.hovered ? theme.textPrimary : theme.textMuted },
         text = { classroot.glyph } ],
-    onClick()     { app.themeMode = classroot.m },
+    onClick()     { app.themeMode = classroot.m }
     ]
 
 
@@ -214,7 +214,7 @@ class DetailSection extends View [ clip = true, cornerRadius = 10, fill = { them
             textColor = { app.openSection == classroot.idx ? theme.textPrimary : theme.textMuted }, text = { classroot.label } ],
         chev: Text [ x = { parent.width - 28 }, y = 13, fontSize = 17, wrap = false,
             textColor = { theme.chevron }, text = { app.openSection == classroot.idx ? "–" : "+" } ],
-        onClick() { app.openSection = classroot.idx },
+        onClick() { app.openSection = classroot.idx }
         ],
 
     // A TextInput carries its own themed chrome, derived from the HOUSE role
@@ -229,7 +229,7 @@ class DetailSection extends View [ clip = true, cornerRadius = 10, fill = { them
         fill = { theme.fieldBg },
         stroke = { stroke(1, this.focused ? theme.accent : theme.fieldEdge) },
         text <-> { classroot.field } ],
-    open: State [ applied = { app.openSection == classroot.idx }, fill = { theme.sectionOpenBg } ],
+    open: State [ applied = { app.openSection == classroot.idx }, fill = { theme.sectionOpenBg } ]
     ]
 
 
@@ -589,7 +589,7 @@ App [ clip = true, minWidth = 480, minHeight = 420, appName = "Declare Calendar"
             if (e.key == "Escape") app.closeDetail()
             else if (app.selectedId < 0 && e.key == "ArrowLeft") app.step(-1)
             else if (app.selectedId < 0 && e.key == "ArrowRight") app.step(1)
-            },
+            }
         ],
 
     /* ## The surface — day / week / month → year
@@ -607,20 +607,20 @@ App [ clip = true, minWidth = 480, minHeight = 420, appName = "Declare Calendar"
             scale = { app.yearScale }, pivotX = { app.miniW / 2 }, pivotY = { app.miniH / 2 } ],
         weekdays: View [ opacity = { (1 - app.blockness) * (1 - app.yearZoom) }, datapath = { app.cal.value },
             View [ datapath = :cols[], key = :col, x = { app.pad + :col * (app.bodyW - 2 * app.pad) / 7 + 11 },
-                l: Text [ y = 9, fontSize = 11, wrap = false, textColor = { theme.textMuted }, text = { :name } ],
-                ],
+                l: Text [ y = 9, fontSize = 11, wrap = false, textColor = { theme.textMuted }, text = { :name } ]
+                ]
             ],
         hours: View [ opacity = { app.blockness }, datapath = { app.cal.value },
             View [ datapath = :hours[], key = :h, y = { app.headH + :h / 24 * (app.bodyH - app.headH) }, width = { app.bodyW }, height = 1, fill = { theme.gridLine },
-                lbl: Text [ x = 6, y = 1, fontSize = 10, wrap = false, textColor = { theme.hourLabel }, text = { :label } ],
-                ],
+                lbl: Text [ x = 6, y = 1, fontSize = 10, wrap = false, textColor = { theme.hourLabel }, text = { :label } ]
+                ]
             ],
         grid: View [ datapath = { app.cal.value },
-            Cell [ datapath = :grid[], key = :key ],
+            Cell [ datapath = :grid[], key = :key ]
             ],
         yearName: Text [ x = { app.slotX + 14 }, y = { app.slotY + 11 }, fontSize = 13, fontWeight = semibold, wrap = false,
             textColor = { theme.todayText }, text = { app.monthName(app.month) },
-            opacity = { app.clamp((app.yearZoom - 0.5) / 0.5, 0, 1) } ],
+            opacity = { app.clamp((app.yearZoom - 0.5) / 0.5, 0, 1) } ]
         ],
 
     /* ## Year — the same surface pulled back to the full 4×3 grid, the eleven other
@@ -630,8 +630,8 @@ App [ clip = true, minWidth = 480, minHeight = 420, appName = "Declare Calendar"
         opacity = { app.clamp((app.yearZoom - 0.5) / 0.3, 0, 1) },
         scale = { app.yearScale }, pivotX = { app.slotX + app.miniW / 2 }, pivotY = { app.slotY + app.miniH / 2 },
         grid: View [ width = { parent.width }, height = { parent.height }, datapath = { app.yearCal.value },
-            MiniMonth [ datapath = :months[], key = :m ],
-            ],
+            MiniMonth [ datapath = :months[], key = :m ]
+            ]
         ],
 
     /* ## Event detail panel
@@ -656,8 +656,8 @@ App [ clip = true, minWidth = 480, minHeight = 420, appName = "Declare Calendar"
                         textColor = { theme.textMuted }, text = "EVENT" ],
                     close: Text [ x = { parent.width - 28 }, y = 12, fontSize = 17, wrap = false,
                         textColor = { theme.chevron }, text = "×",
-                        onClick() { app.closeDetail() },
-                        ],
+                        onClick() { app.closeDetail() }
+                        ]
                     ],
                 title: TextInput [ x = 13, y = 40, width = { parent.width - 26 }, height = 32, fontSize = 16, fontWeight = bold,
                     textColor = { theme.textPrimary }, placeholder = "Untitled event",
@@ -665,13 +665,13 @@ App [ clip = true, minWidth = 480, minHeight = 420, appName = "Declare Calendar"
                     stroke = { stroke(1, this.focused ? theme.accent : theme.fieldEdge) },
                     text <-> :title ],
                 meta: Text [ x = 15, y = 84, fontSize = 12.5, wrap = false, textColor = { theme.textMuted },
-                    text = { app.dayLabel(:y + "-" + :m + "-" + :d) + "  ·  " + app.shortTime(:start) + " – " + app.shortTime(:end) } ],
+                    text = { app.dayLabel(:y + "-" + :m + "-" + :d) + "  ·  " + app.shortTime(:start) + " – " + app.shortTime(:end) } ]
                 ],
 
             DetailSection [ idx = 0, label = "NOTES",     field = "notes" ],
             DetailSection [ idx = 1, label = "LOCATION",  field = "location" ],
-            DetailSection [ idx = 2, label = "ATTENDEES", field = "attendees" ],
-            ],
+            DetailSection [ idx = 2, label = "ATTENDEES", field = "attendees" ]
+            ]
         ],
 
     // the grabbed event, following the pointer during a drag
@@ -681,7 +681,7 @@ App [ clip = true, minWidth = 480, minHeight = 420, appName = "Declare Calendar"
         shadow = shadow(0, 6, 16, #00000088),
         rail: View [ width = 3, height = { parent.height }, fill = { app.catText(app.dragCat) } ],
         tm: Text [ x = 11, y = 4, fontSize = 10, fontWeight = bold, wrap = false, textColor = { app.catText(app.dragCat) }, text = { app.dragTimeLabel } ],
-        ti: Text [ x = 11, y = 17, fontSize = 11, wrap = false, textColor = { app.catText(app.dragCat) }, text = { app.dragTitle } ],
+        ti: Text [ x = 11, y = 17, fontSize = 11, wrap = false, textColor = { app.catText(app.dragCat) }, text = { app.dragTitle } ]
         ],
 
     /* ## Chrome
@@ -699,16 +699,16 @@ App [ clip = true, minWidth = 480, minHeight = 420, appName = "Declare Calendar"
             // DISTRO root, so this works on either host at any mount point
 
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textFill = { gradient("90deg", theme.accent, theme.accentTeal) }, text = "Declare",
-                onClick() { app.navigate("apps/homepage/homepage.declare") },
+                onClick() { app.navigate("apps/homepage/homepage.declare") }
                 ],
-            Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textColor = { theme.textPrimary }, text = "Calendar" ],
+            Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textColor = { theme.textPrimary }, text = "Calendar" ]
             ],
 
         themeSwitch: View [ x = 196, height = 34, width = 94, y = { (app.barH - 34) / 2 }, visible = { app.showTheme },
             cornerRadius = 10, fill = { theme.trackBg },
             s1: ThemeSeg [ x = 2,  m = "light", glyph = "☀︎" ],
             s2: ThemeSeg [ x = 32, m = "auto",  glyph = "◐" ],
-            s3: ThemeSeg [ x = 62, m = "dark",  glyph = "☾" ],
+            s3: ThemeSeg [ x = 62, m = "dark",  glyph = "☾" ]
             ],
 
         // the date block is a fixed width per view, so the arrows hold still while
@@ -719,7 +719,7 @@ App [ clip = true, minWidth = 480, minHeight = 420, appName = "Declare Calendar"
             prev:  NavArrow [ x = 0, dir = -1, glyph = "‹" ],
             title: Text [ x = 42, width = { app.dateW }, textAlign = center, y = 7, fontSize = 16, wrap = false,
                 fontWeight = semibold, textColor = { theme.textPrimary }, text = { app.periodLabel } ],
-            next:  NavArrow [ x = { app.dateW + 48 }, dir = 1, glyph = "›" ],
+            next:  NavArrow [ x = { app.dateW + 48 }, dir = 1, glyph = "›" ]
             ],
 
         today: TextButton [ y = { (app.barH - 34) / 2 }, x = { app.width - app.tabsW - 100 }, label = "Today" ],
@@ -730,7 +730,7 @@ App [ clip = true, minWidth = 480, minHeight = 420, appName = "Declare Calendar"
             d:  ViewTab [ x = { 0 * app.tabW }, mode = "day",   label = "Day" ],
             w:  ViewTab [ x = { 1 * app.tabW }, mode = "week",  label = "Week" ],
             m:  ViewTab [ x = { 2 * app.tabW }, mode = "month", label = "Month" ],
-            yt: ViewTab [ x = { 3 * app.tabW }, mode = "year",  label = "Year" ],
-            ],
-        ],
+            yt: ViewTab [ x = { 3 * app.tabW }, mode = "year",  label = "Year" ]
+            ]
+        ]
     ]

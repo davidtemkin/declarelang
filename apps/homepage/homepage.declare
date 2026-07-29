@@ -26,12 +26,12 @@ body in the muted tone — so the page's whole typography reskins from here.
 */
 
 class Heading extends Text [ fontWeight = semibold, textColor = { theme.text },
-    letterSpacing = { -0.02 * fontSize }, selectable = true,
+    letterSpacing = { -0.02 * fontSize }, selectable = true
     ]
 
 
 class Eyebrow extends Text [ fontFamily = [Mono, "monospace"], fontSize = 13,
-    fontWeight = semibold, letterSpacing = 1.6, textColor = { theme.muted }, selectable = true,
+    fontWeight = semibold, letterSpacing = 1.6, textColor = { theme.muted }, selectable = true
     ]
 
 
@@ -51,7 +51,7 @@ class Body extends Text [ fontSize = 17, fontWeight = normal, textColor = { them
 // at the writer’s margin and the line breaks collapse away in the rendering
 
 class Para extends HTMLText [ fontSize = 18, lineHeight = 1.2, width = { parent.width },
-    bodyColor = { theme.lead }, selectable = true,
+    bodyColor = { theme.lead }, selectable = true
     ]
 
 
@@ -82,7 +82,7 @@ class NavLink extends View [ height = 33, cornerRadius = 8,
     lbl: Text [ x = 12, y = 8, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14,
         text = { classroot.label },
         textColor = { classroot.hovered || classroot.pressed ? theme.text : theme.muted } ],
-    width = { this.lbl.width + 24 },
+    width = { this.lbl.width + 24 }
     ]
 
 
@@ -103,7 +103,7 @@ class MobileNavRow extends View [ width = { parent.width }, height = 44, cornerR
 
     lbl: Text [ x = 14, y = center, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 16, fontWeight = medium,
         text = { classroot.label },
-        textColor = { classroot.hovered || classroot.pressed ? theme.text : theme.lead } ],
+        textColor = { classroot.hovered || classroot.pressed ? theme.text : theme.lead } ]
     ]
 
 
@@ -124,8 +124,8 @@ class Card extends View [ width = { Math.min(357, parent.width) }, height = 172,
     pad: View [ x = 22, y = 22, width = { parent.width - 44 },
         layout: SimpleLayout [ axis = y, spacing = 14 ],
         Heading [ fontSize = 19, text = { classroot.title } ],
-        Body    [ fontSize = 15, width = { parent.width }, text = { classroot.body } ],
-        ],
+        Body    [ fontSize = 15, width = { parent.width }, text = { classroot.body } ]
+        ]
     ]
 
 
@@ -137,8 +137,8 @@ class Point extends View [ width = { Math.min(357, parent.width) },
     txt: View [ width = { parent.width },
         layout: SimpleLayout [ axis = y, spacing = 8 ],
         Heading [ fontSize = 17, text = { classroot.ptitle } ],
-        Body    [ fontSize = 15, width = { parent.width }, text = { classroot.body } ],
-        ],
+        Body    [ fontSize = 15, width = { parent.width }, text = { classroot.body } ]
+        ]
     ]
 
 
@@ -153,7 +153,7 @@ class Metric extends View [
     layout: SimpleLayout [ axis = y, spacing = 8 ],
     Heading [ fontSize = { parent.width < 420 ? 54 : 92 }, width = { parent.width }, textAlign = center,
         textFill = { theme.brand }, text = { classroot.value } ],
-    Body [ fontSize = 14, width = { parent.width }, textAlign = center, text = { classroot.note } ],
+    Body [ fontSize = 14, width = { parent.width }, textAlign = center, text = { classroot.note } ]
     ]
 
 
@@ -178,7 +178,7 @@ class Button extends View [ height = 46, cornerRadius = 9,
 
     caption: Text [ y = 14, width = { parent.width }, textAlign = center, fontSize = 15, fontWeight = semibold,
         text = { classroot.label },
-        textColor = { classroot.primary ? theme.ink : theme.text } ],
+        textColor = { classroot.primary ? theme.ink : theme.text } ]
     ]
 
 
@@ -195,7 +195,7 @@ teal hover and the brighter pressed tap feedback, navigating on click.
 class FootLink extends FootLabel [
     to: string = "",
     textColor = { pressed ? theme.accent2Press : hovered ? theme.accent2 : theme.muted },
-    onClick()     { app.navigate(to) },
+    onClick()     { app.navigate(to) }
     ]
 
 
@@ -232,8 +232,8 @@ class Footer extends View [ width = { parent.width },
         FootSep [ ],
         lic: FootLink [ to = "https://github.com/davidtemkin/declarelang/blob/main/LICENSE", text = "MIT License" ],
         FootSep [ ],
-        FootLabel [ text = "© 2026 David Temkin" ],
-        ],
+        FootLabel [ text = "© 2026 David Temkin" ]
+        ]
     ]
 
 
@@ -257,7 +257,7 @@ class CodeField extends TextInput [ multiline = true, spellcheck = false,
     editName: string = "",
     src: string = "",
     initial = { src },
-    onInput() { app.liveCard = editName; app.liveSource = text },
+    onInput() { app.liveCard = editName; app.liveSource = text }
     ]
 
 
@@ -274,7 +274,7 @@ class SourcePanel extends View [
     live: View [ x = 12, y = 7, height = 18, cornerRadius = 5, fill = { theme.accent },
         width = { this.t.width + 14 },
         t: Text [ x = 7, y = 4, fontFamily = [Sans, "system-ui"], fontSize = 9, fontWeight = bold,
-            letterSpacing = 0.8, wrap = false, textColor = { theme.ink }, text = "LIVE · EDITABLE" ],
+            letterSpacing = 0.8, wrap = false, textColor = { theme.ink }, text = "LIVE · EDITABLE" ]
         ],
     revert: View [ y = 5, height = 20, cornerRadius = 6, stroke = { stroke(1, theme.revertLine) },
         x = { parent.width - this.width - 10 },
@@ -284,7 +284,7 @@ class SourcePanel extends View [
                     app.liveCard = classroot.editName
                     app.liveSource = classroot.src },
         rlbl: Text [ x = 8, y = 3, fontFamily = [Sans, "system-ui"], fontSize = 11, fontWeight = semibold,
-            textColor = { parent.hovered ? theme.text : theme.lead }, text = "Revert" ],
+            textColor = { parent.hovered ? theme.text : theme.lead }, text = "Revert" ]
         ],
     hairline: View [ y = 31, width = { parent.width }, height = 1, fill = { theme.panelLine } ],
     field: CodeField [ x = 12, y = 40, width = { parent.width - 24 }, height = { parent.height - 48 },
@@ -300,8 +300,8 @@ class SourcePanel extends View [
         bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { theme.errBar } ],
         msg: Text [ x = 14, y = 8, width = { parent.width - 28 }, wrap = true,
             fontFamily = [Mono, "monospace"], fontSize = 11, textColor = { theme.errText },
-            text = { app.liveReport } ],
-        ],
+            text = { app.liveReport } ]
+        ]
     ]
 
 
@@ -334,9 +334,9 @@ class InspectorPitch extends View [
             fill = { pressed ? theme.accentPress : hovered ? theme.accentHover : theme.accent },
             onClick()     { app.inspect(classroot.slot) },
             cap: Text [ x = 17, y = 10, fontSize = 14, fontWeight = semibold, wrap = false,
-                textColor = { theme.ink }, text = "Try the Inspector" ],
-            ],
-        ],
+                textColor = { theme.ink }, text = "Try the Inspector" ]
+            ]
+        ]
     ]
 
 
@@ -344,7 +344,7 @@ class PreviewFrame extends View [
     runName: string = "",
     active: boolean = true,
     run: AppIsland [ width = { parent.width }, height = { parent.height },
-        program = { classroot.active ? classroot.runName : "" } ],
+        program = { classroot.active ? classroot.runName : "" } ]
     ]
 
 
@@ -367,7 +367,7 @@ class FullPageEditor extends View [ width = { app.width }, height = { app.height
     // Escape closes the editor — a lifetime-managed Keys member (the body
     // gates on `open`, since the raw keyboard fires regardless)
 
-    keys: Keys [ onKeyUp(e: KeyEvent) { if (classroot.open && e.key == "Escape") app.editing = false },
+    keys: Keys [ onKeyUp(e: KeyEvent) { if (classroot.open && e.key == "Escape") app.editing = false }
         ],
 
     // the divider x: 0 = not dragged yet (use the 46% default); the grip writes it.
@@ -387,7 +387,7 @@ class FullPageEditor extends View [ width = { app.width }, height = { app.height
             width = { this.lbl.width + 26 },
             fill = { hovered ? theme.hover : theme.surface },
             onClick()     { app.editing = false },
-            lbl: Text [ x = 13, y = 6, fontSize = 13, textColor = { theme.text }, text = "Close ✕" ],
+            lbl: Text [ x = 13, y = 6, fontSize = 13, textColor = { theme.text }, text = "Close ✕" ]
             ],
 
         // Revert — the pristine page source back in the editor, recompiled
@@ -399,8 +399,8 @@ class FullPageEditor extends View [ width = { app.width }, height = { app.height
             onClick()     { classroot.code.text = classroot.pageSource
                             app.liveCard = "__page__"
                             app.liveSource = classroot.pageSource },
-            lbl: Text [ x = 13, y = 6, fontSize = 13, textColor = { theme.text }, text = "Revert" ],
-            ],
+            lbl: Text [ x = 13, y = 6, fontSize = 13, textColor = { theme.text }, text = "Revert" ]
+            ]
         ],
 
     // source: no wrap (long lines scroll horizontally) + 16px inset off the edge
@@ -416,7 +416,7 @@ class FullPageEditor extends View [ width = { app.width }, height = { app.height
         fill = { dragging || hovered ? theme.accent2 : theme.line },
         onMouseDown()  { dragging = true },
         onMouseMove(e: PointerEvent) { if (dragging) classroot.split = Math.max(240, Math.min(app.width - 320, e.x)) },
-        onMouseUp()    { dragging = false },
+        onMouseUp()    { dragging = false }
         ],
     preview: PreviewFrame [ x = { classroot.splitX + 6 }, y = 44,
         width = { parent.width - classroot.splitX - 6 }, height = { parent.height - 44 },
@@ -431,8 +431,8 @@ class FullPageEditor extends View [ width = { app.width }, height = { app.height
         bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { theme.errBar } ],
         msg: Text [ x = 16, y = 8, width = { parent.width - 32 }, wrap = true,
             fontFamily = [Mono, "monospace"], fontSize = 12, textColor = { theme.errText },
-            text = { app.liveReport } ],
-        ],
+            text = { app.liveReport } ]
+        ]
     ]
 
 
@@ -448,7 +448,7 @@ class GridBg extends View [
         d.fillStyle = theme.grid
         for (let gx = 0; gx <= width;  gx += 32) d.fillRect(gx, 0, 1, height)
         for (let gy = 0; gy <= height; gy += 32) d.fillRect(0, gy, width, 1)
-        },
+        }
     ]
 
 
@@ -459,7 +459,7 @@ class SectionHead extends View [ width = { parent.width },
     layout: SimpleLayout [ axis = y, spacing = 14 ],
     Marker  [ text = { classroot.num } ],
     Heading [ fontSize = 40, width = { Math.min(900, parent.width) }, text = { classroot.head } ],
-    Lead    [ width = { Math.min(760, parent.width) }, text = { classroot.lead } ],
+    Lead    [ width = { Math.min(760, parent.width) }, text = { classroot.lead } ]
     ]
 
 
@@ -590,8 +590,8 @@ App [ appName = "Declare",
                             Heading [ fontSize = { app.heroFont },
                                 textFill = { theme.brand }, text = "Declare" ],
                             Heading [ fontSize = { app.heroFont }, width = { parent.width },
-                                text = "is the UI language for the AI era." ],
-                            ],
+                                text = "is the UI language for the AI era." ]
+                            ]
                         ],
                     paras: View [ width = { parent.width },
                         layout: SimpleLayout [ axis = y, spacing = 12 ],
@@ -599,8 +599,8 @@ App [ appName = "Declare",
                             accents = { ({ g: theme.brand }) },
                             html = "Just as SQL is a domain-specific language for database queries, <span class='g'>Declare</span> is a DSL for user interfaces. Its whole surface fits in your head — and inside an LLM’s context window." ],
                         Lead [ width = { Math.min(680, parent.width) },
-                            text = "This page is written in it. By an LLM." ],
-                        ],
+                            text = "This page is written in it. By an LLM." ]
+                        ]
                     ],
 
                 // the two doors in, side by side with a quiet dot between
@@ -609,14 +609,14 @@ App [ appName = "Declare",
                     layout: ResponsiveLayout [ plan = { [({ from: 600, flow: "row", gap: 16 }), ({ from: 0, flow: "stack", gap: 8 })] } ],
                     why: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
                         textColor = { this.hovered ? theme.linkHover : theme.accent }, text = "Why a new language, now? →",
-                        onClick() { app.location = "why" },
+                        onClick() { app.location = "why" }
                         ],
                     Dot [ y = 1, visible = { parent.width >= 600 } ],
                     onefile: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
                         textColor = { this.hovered ? theme.linkHover : theme.accent }, text = "Declare, in one file, for you and your LLM →",
-                        onClick() { app.location = "language" },
-                        ],
-                    ],
+                        onClick() { app.location = "language" }
+                        ]
+                    ]
                 ],
 
             /* ### 01 — Declare Calendar: the reference app leads.
@@ -635,7 +635,7 @@ App [ appName = "Declare",
                     layout: SimpleLayout [ axis = y, spacing = 14 ],
                     Marker [ text = "01" ],
                     Heading [ fontSize = 40, width = { Math.min(900, parent.width) },
-                        text = "Declare Calendar: Concise. Clear. Continuous." ],
+                        text = "Declare Calendar: Concise. Clear. Continuous." ]
                     ],
 
                 // the row spans the column so the plan answers to the COLUMN's
@@ -645,12 +645,12 @@ App [ appName = "Declare",
                 actions: View [ width = { parent.width },
                     layout: ResponsiveLayout [ plan = { [({ from: 480, flow: "row", gap: 18 }), ({ from: 0, flow: "stack", gap: 16 })] } ],
                     Button [ width = 240, label = "Run Declare Calendar →",
-                        onClick() { app.navigate("apps/calendar/calendar.declare") },
+                        onClick() { app.navigate("apps/calendar/calendar.declare") }
                         ],
                     srclink: Text [ y = 15, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
                         textColor = { this.hovered ? theme.linkHover : theme.accent }, text = "View source →",
-                        onClick() { app.navigate("apps/calendar/calendar.declare?viewer") },
-                        ],
+                        onClick() { app.navigate("apps/calendar/calendar.declare?viewer") }
+                        ]
                     ],
 
                 copy: View [ width = { parent.width },
@@ -658,7 +658,7 @@ App [ appName = "Declare",
                     Lead [ width = { Math.min(760, parent.width) },
                         text = "It’s the kind of experience you’ll see in the best native apps — a view doesn’t switch so much as become the next one, where motion carries meaning, and everything is fast and interruptible." ],
                     Lead [ width = { Math.min(760, parent.width) },
-                        text = "That’s always been specialist craft: bespoke motion code, one interaction at a time, locked to a platform. In Declare, it’s simply what the declarations do, and it works everywhere." ],
+                        text = "That’s always been specialist craft: bespoke motion code, one interaction at a time, locked to a platform. In Declare, it’s simply what the declarations do, and it works everywhere." ]
                     ],
 
                 // three big gradient figures. The first two are computed, not claimed —
@@ -674,8 +674,8 @@ App [ appName = "Declare",
                         note = "over the wire, gzipped — the whole app and its runtime" ],
                     Metric [ cols = 3,
                         value = "0",
-                        note = "lines written by hand — an LLM wrote it; the compiler kept it honest" ],
-                    ],
+                        note = "lines written by hand — an LLM wrote it; the compiler kept it honest" ]
+                    ]
                 ],
 
             /* ### 02 — Read it. Generate it. Run it. */
@@ -690,10 +690,10 @@ App [ appName = "Declare",
                     layout: WrappingLayout [ spacing = 24, lineSpacing = 24, align = center ],
                     Card [ title = "Analyzable", body = "A program’s whole structure — components, data, what reacts to what — is right there in the source. The compiler reads it statically; so can an LLM." ],
                     Card [ title = "Predictable", body = "One clear way to write each thing, and the compiler rejects the rest — no dependency arrays, no keys, no stale-value bugs. An LLM’s mistake is a compile error that names the fix — not an app that quietly runs wrong." ],
-                    Card [ title = "Runnable", body = "The compiler runs in the browser, so code renders the moment it exists — no build, no deploy. Write it and it’s live." ],
+                    Card [ title = "Runnable", body = "The compiler runs in the browser, so code renders the moment it exists — no build, no deploy. Write it and it’s live." ]
                     ],
                 pull: Heading [ fontSize = 28, width = { parent.width }, textAlign = center,
-                    text = "Everything that makes it legible to an LLM makes it legible to you." ],
+                    text = "Everything that makes it legible to an LLM makes it legible to you." ]
                 ],
 
             /* ### 03 — Declare it. It runs. It stays true.
@@ -712,9 +712,9 @@ App [ appName = "Declare",
                         layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 20, share: ({ src: 58, prev: 42 }) }), ({ from: 0, flow: "stack", gap: 20, share: ({ src: 100, prev: 100 }) })] } ],
                         src: SourcePanel [ editName = "reactivity", height = 226,
                             src = { app.demoSources.reactivity || "" } ],
-                        prev: PreviewFrame [ runName = "reactivity", height = 226 ],
-                        ],
-                    ],
+                        prev: PreviewFrame [ runName = "reactivity", height = 226 ]
+                        ]
+                    ]
                 ],
 
             /* ### 04 — Declare the shape, not the loop. */
@@ -731,9 +731,9 @@ App [ appName = "Declare",
                         layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 20, share: ({ src: 58, prev: 42 }) }), ({ from: 0, flow: "stack", gap: 20, share: ({ src: 100, prev: 100 }) })] } ],
                         src: SourcePanel [ editName = "components", height = 184,
                             src = { app.demoSources.components || "" } ],
-                        prev: PreviewFrame [ runName = "components", height = 184 ],
-                        ],
-                    ],
+                        prev: PreviewFrame [ runName = "components", height = 184 ]
+                        ]
+                    ]
                 ],
 
             /* ### 05 — Motion you declare, not schedule. */
@@ -750,9 +750,9 @@ App [ appName = "Declare",
                         layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 20, share: ({ src: 58, prev: 42 }) }), ({ from: 0, flow: "stack", gap: 20, share: ({ src: 100, prev: 100 }) })] } ],
                         src: SourcePanel [ editName = "spring", height = 184,
                             src = { app.demoSources.spring || "" } ],
-                        prev: PreviewFrame [ runName = "spring", height = 184 ],
-                        ],
-                    ],
+                        prev: PreviewFrame [ runName = "spring", height = 184 ]
+                        ]
+                    ]
                 ],
 
             /* ### 06 — Declared states, not manual wiring. */
@@ -769,9 +769,9 @@ App [ appName = "Declare",
                         layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 20, share: ({ src: 58, prev: 42 }) }), ({ from: 0, flow: "stack", gap: 20, share: ({ src: 100, prev: 100 }) })] } ],
                         src: SourcePanel [ editName = "states", height = 230,
                             src = { app.demoSources.states || "" } ],
-                        prev: PreviewFrame [ runName = "states", height = 230 ],
-                        ],
-                    ],
+                        prev: PreviewFrame [ runName = "states", height = 230 ]
+                        ]
+                    ]
                 ],
 
             /* ### 07 — the Inspector. The last panel, and the only one whose
@@ -792,7 +792,7 @@ App [ appName = "Declare",
                         layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 20, share: ({ src: 58, prev: 42 }) }), ({ from: 0, flow: "stack", gap: 20, share: ({ src: 100, prev: 100 }) })] } ],
                         src: SourcePanel [ editName = "derived", height = 236,
                             src = { app.demoSources.derived || "" } ],
-                        prev: InspectorPitch [ slot = "run:derived", height = 236 ],
+                        prev: InspectorPitch [ slot = "run:derived", height = 236 ]
                         ],
 
                     // the stage’s fill matches the demo app’s own, so the island
@@ -802,9 +802,9 @@ App [ appName = "Declare",
                         cornerRadius = 12, clip = true, fill = { theme.stage },
                         stroke = { stroke(1, theme.panelLine) },
                         PreviewFrame [ x = center, y = 0, height = 150,
-                            width = { Math.min(460, parent.width) }, runName = "derived" ],
-                        ],
-                    ],
+                            width = { Math.min(460, parent.width) }, runName = "derived" ]
+                        ]
+                    ]
                 ],
 
             /* ### The manifesto band — centered, an accent rule above and below */
@@ -821,7 +821,7 @@ App [ appName = "Declare",
                 explain: Lead [ width = { Math.min(720, parent.width) }, x = { (parent.width - Math.min(720, parent.width)) / 2 },
                     textAlign = center,
                     text = "The same program paints to the DOM or to a canvas today, WebGL next, with no rewrite. And you never touch the render layer — no DOM to poke, no paint loop to run — so the code stays small: what you write is the interface itself, not the machinery that shows it." ],
-                ruleBot: View [ x = { (parent.width - 140) / 2 }, width = 140, height = 2, fill = { theme.accent } ],
+                ruleBot: View [ x = { (parent.width - 140) / 2 }, width = 140, height = 2, fill = { theme.accent } ]
                 ],
 
             /* ### The closing call to action — the primary blue button that
@@ -834,15 +834,15 @@ App [ appName = "Declare",
 
             cta: View [ width = { parent.width }, height = 0,
                 Button [ width = 260, x = center, y = -24, label = "Get Started →",
-                    onClick() { app.location = "getstarted" },
-                    ],
+                    onClick() { app.location = "getstarted" }
+                    ]
                 ],
 
             /* ### Footer */
 
             footer: Footer [ width = { parent.width } ],
-            tail: View [ width = { parent.width }, height = 28 ],
-            ],
+            tail: View [ width = { parent.width }, height = 28 ]
+            ]
         ],
 
     /* ## The "Why" view
@@ -903,12 +903,12 @@ App [ appName = "Declare",
                     lbl: Text [ fontSize = 14, wrap = false, textColor = { theme.faint }, text = "The studies:" ],
                     s1: Text [ fontSize = 14, wrap = false,
                         textColor = { this.hovered ? theme.linkHover : theme.accent }, text = "a zero-corpus DSL vs. Python →",
-                        onClick()     { app.navigate("https://arxiv.org/abs/2512.23214") },
+                        onClick()     { app.navigate("https://arxiv.org/abs/2512.23214") }
                         ],
                     s2: Text [ fontSize = 14, wrap = false,
                         textColor = { this.hovered ? theme.linkHover : theme.accent }, text = "feedback quality vs. repair →",
-                        onClick()     { app.navigate("https://arxiv.org/abs/2504.06939") },
-                        ],
+                        onClick()     { app.navigate("https://arxiv.org/abs/2504.06939") }
+                        ]
                     ],
                 Heading [ fontSize = 24, width = { parent.width }, text = "Designed in, not bolted on" ],
                 Para [ html = """
@@ -977,9 +977,9 @@ App [ appName = "Declare",
                     """ ],
                 gap: View [ width = 8, height = 64 ],
                 Footer [ width = { parent.width } ],
-                tail: View [ width = 8, height = 40 ],
-                ],
-            ],
+                tail: View [ width = 8, height = 40 ]
+                ]
+            ]
         ],
 
     /* ## The "Language" view
@@ -1005,9 +1005,9 @@ App [ appName = "Declare",
                     text = { app.lang.value || "" } ],
                 gap: View [ width = 8, height = 64 ],
                 Footer [ width = { parent.width } ],
-                tail: View [ width = 8, height = 40 ],
-                ],
-            ],
+                tail: View [ width = 8, height = 40 ]
+                ]
+            ]
         ],
 
     /* ## The "Get Started" view
@@ -1032,9 +1032,9 @@ App [ appName = "Declare",
                     text = { app.guide.value || "" } ],
                 gap: View [ width = 8, height = 64 ],
                 Footer [ width = { parent.width } ],
-                tail: View [ width = 8, height = 40 ],
-                ],
-            ],
+                tail: View [ width = 8, height = 40 ]
+                ]
+            ]
         ],
 
     /* ## The FAQ view — the Get Started pattern at #faq */
@@ -1052,9 +1052,9 @@ App [ appName = "Declare",
                     text = { app.faq.value || "" } ],
                 gap: View [ width = 8, height = 64 ],
                 Footer [ width = { parent.width } ],
-                tail: View [ width = 8, height = 40 ],
-                ],
-            ],
+                tail: View [ width = 8, height = 40 ]
+                ]
+            ]
         ],
 
     /* ## Fixed chrome
@@ -1076,7 +1076,7 @@ App [ appName = "Declare",
         brand: View [ x = { app.gutter }, y = 18, height = 22,
             layout: SimpleLayout [ axis = x, spacing = 0 ],
             onClick() { app.location = "home" },
-            Heading [ fontSize = 15, textFill = { theme.brand }, text = "Declare" ],
+            Heading [ fontSize = 15, textFill = { theme.brand }, text = "Declare" ]
             ],
 
         // primary nav — auto-width, right-aligned to the same gutter the content
@@ -1088,7 +1088,7 @@ App [ appName = "Declare",
         nav: View [ y = 11, x = { app.width - app.gutter - this.width }, visible = { app.width >= 760 },
             layout: SimpleLayout [ axis = x, spacing = 2 ],
             datapath = { app.navSource.value },
-            NavLink [ datapath = :items[], label = { :label }, to = { :to }, url = { :url } ],
+            NavLink [ datapath = :items[], label = { :label }, to = { :to }, url = { :url } ]
             ],
 
         // the kebab — three stacked dots (the page's dot motif), the pill's own
@@ -1100,8 +1100,8 @@ App [ appName = "Declare",
             onClick()     { app.menuOpen = !app.menuOpen },
             d1: View [ x = center, y = 8,  width = 3, height = 3, cornerRadius = 1.5, fill = { parent.hovered || parent.pressed ? theme.text : theme.muted } ],
             d2: View [ x = center, y = 15, width = 3, height = 3, cornerRadius = 1.5, fill = { parent.hovered || parent.pressed ? theme.text : theme.muted } ],
-            d3: View [ x = center, y = 22, width = 3, height = 3, cornerRadius = 1.5, fill = { parent.hovered || parent.pressed ? theme.text : theme.muted } ],
-            ],
+            d3: View [ x = center, y = 22, width = 3, height = 3, cornerRadius = 1.5, fill = { parent.hovered || parent.pressed ? theme.text : theme.muted } ]
+            ]
         ],
 
     // the whole-page source editor, shown when app.editing (flipped by
@@ -1126,7 +1126,7 @@ App [ appName = "Declare",
         followX: Spring [ attribute = x, to = { app.pointerX - 5 },
             stiffness = 120, damping = 14, mass = 0.6, epsilon = 0.05 ],
         followY: Spring [ attribute = y, to = { app.pointerY - 5 },
-            stiffness = 120, damping = 14, mass = 0.6, epsilon = 0.05 ],
+            stiffness = 120, damping = 14, mass = 0.6, epsilon = 0.05 ]
         ],
 
     // the mobile nav sheet — the kebab's menu, above everything. A dim scrim below
@@ -1137,7 +1137,7 @@ App [ appName = "Declare",
 
     navSheet: View [ visible = { app.menuOpen && app.width < 760 }, width = { app.width }, height = { app.height },
         scrim: View [ y = 56, width = { parent.width }, height = { parent.height - 56 }, fill = { theme.scrim },
-            onClick() { app.menuOpen = false },
+            onClick() { app.menuOpen = false }
             ],
         panel: View [ x = { app.width - app.gutter - this.width }, y = 62, width = 236, cornerRadius = 12,
             fill = { theme.surface }, shadow = { shadow(0, 12, 40, theme.shade) },
@@ -1145,8 +1145,8 @@ App [ appName = "Declare",
             list: View [ x = 6, y = 6, width = { parent.width - 12 },
                 layout: SimpleLayout [ axis = y, spacing = 0 ],
                 datapath = { app.navSource.value },
-                MobileNavRow [ datapath = :items[], label = { :label }, to = { :to }, url = { :url } ],
-                ],
-            ],
-        ],
+                MobileNavRow [ datapath = :items[], label = { :label }, to = { :to }, url = { :url } ]
+                ]
+            ]
+        ]
     ]

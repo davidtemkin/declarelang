@@ -31,6 +31,6 @@ class Switch extends Control [
         height = { this.width },
         y = { (classroot.height - this.height) / 2 },
         fill = { theme.surface },
-        slide: Spring [ attribute = x, to = { checked ? classroot.width - classroot.thumb.width - 2 : 2 }, stiffness = 300, damping = 26 ],
-        ],
+        slide: Spring [ attribute = x, to = { checked ? classroot.width - classroot.thumb.width - 2 : 2 }, stiffness = 300, damping = 26 ]
+        ]
     ]

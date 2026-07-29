@@ -22,5 +22,5 @@ class Field extends View [
     layout: SimpleLayout [ axis = x, spacing = 12 ],
 
     cap: Text [ y = 6, wrap = false, width = { labelWidth }, textColor = { theme.textMuted },
-        text = { label } ],
+        text = { label } ]
     ]

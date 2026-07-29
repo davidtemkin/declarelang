@@ -4,6 +4,6 @@ App [ width = 260, height = 120, fill = white,
         View [ width = 70, height = 30, cornerRadius = 15, fill = gainsboro ],
         View [ width = 90, height = 30, cornerRadius = 15, fill = gainsboro ],
         View [ width = 60, height = 30, cornerRadius = 15, fill = gainsboro ],
-        View [ width = 100, height = 30, cornerRadius = 15, fill = gainsboro ],
-        ],
+        View [ width = 100, height = 30, cornerRadius = 15, fill = gainsboro ]
+        ]
     ]

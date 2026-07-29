@@ -6,6 +6,6 @@ App [ fill = white, textColor = black,
         field: TextInput [ width = 300, height = 40, padding = 10, cornerRadius = 10,
             fill = gainsboro, placeholder = "type here" ],
         Text [ fontSize = 20, fontWeight = semibold,
-            text = { "hello, " + (parent.field.text || "world") } ],
-        ],
+            text = { "hello, " + (parent.field.text || "world") } ]
+        ]
     ]

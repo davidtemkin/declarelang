@@ -30,12 +30,12 @@ class Ink extends View [ ]
 // ── small type components ────────────────────────────────────────────────────
 
 class Label extends Text [ fontSize = 12, fontFamily = [Sans, "system-ui", "sans-serif"],
-    textColor = { app.c.muted }, wrap = false,
+    textColor = { app.c.muted }, wrap = false
     ]
 
 
 class Code extends Text [ fontSize = 11.5, fontFamily = [Mono, "monospace"],
-    textColor = { app.c.text }, wrap = false,
+    textColor = { app.c.text }, wrap = false
     ]
 
 
@@ -49,7 +49,7 @@ class Tool extends View [ height = 22, cornerRadius = 6,
     fill = { classroot.on ? app.c.accent : (classroot.hovered ? app.c.hover : null) },
     g: Text [ x = 8, y = center, fontSize = 11.5, fontFamily = [Mono, "monospace"], wrap = false,
         textColor = { classroot.on ? app.c.onAccent : (classroot.hovered ? app.c.text : app.c.muted) },
-        text = { classroot.glyph } ],
+        text = { classroot.glyph } ]
     ]
 
 
@@ -72,7 +72,7 @@ class Twisty extends View [ width = 18, height = 19,
         else { d.moveTo(7, 5); d.lineTo(12, 9.5); d.lineTo(7, 14) }
         d.closePath()
         d.fill()
-        },
+        }
     ]
 
 
@@ -86,7 +86,7 @@ class Seam extends View [ width = 8, y = 0,
     fill = { classroot.hovered || app.seam == classroot.which ? app.c.seamOn : null },
     onMouseDown() { app.beginSeam(classroot.which) },
     onMouseMove() { app.moveSeam() },
-    onMouseUp() { app.endSeam() },
+    onMouseUp() { app.endSeam() }
     ]
 
 
@@ -97,7 +97,7 @@ class Dot extends View [ width = 11, height = 11, cornerRadius = 6,
     stroke = { stroke(0.5, 0xD1443B) },
     onClick() { app.shown = false },
     mark: Text [ visible = { classroot.hovered }, x = center, y = center, fontSize = 9,
-        fontWeight = bold, textColor = 0x7B1006, text = "×" ],
+        fontWeight = bold, textColor = 0x7B1006, text = "×" ]
     ]
 
 
@@ -409,7 +409,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
         onClick() {
             if (app.pickPath != "") app.select(app.pickPath)
             app.picking = false
-            },
+            }
         ],
 
     // outlines — pure decoration, never interactive
@@ -423,8 +423,8 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
         tag: View [ x = 0, y = { parent.height }, height = 16, cornerRadius = 3,
             width = { this.t.width + 12 }, fill = { app.c.accent },
             t: Text [ x = 6, y = center, fontSize = 10, fontWeight = medium, wrap = false,
-                textColor = 0xFFFFFF, text = { app.selKind + "  " + Math.round(parent.parent.width) + "×" + Math.round(parent.parent.height) } ],
-            ],
+                textColor = 0xFFFFFF, text = { app.selKind + "  " + Math.round(parent.parent.width) + "×" + Math.round(parent.parent.height) } ]
+            ]
         ],
 
     hoverOutline: View [ visible = { app.hoverRect != null && app.aimPath != app.sel }, pointerEvents = "none",
@@ -437,8 +437,8 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
         tag: View [ visible = { app.picking }, x = 0, y = -17, height = 16, cornerRadius = 3,
             width = { this.t.width + 12 }, fill = { app.c.accent2 },
             t: Text [ x = 6, y = center, fontSize = 10, fontWeight = medium, wrap = false,
-                textColor = 0x08201E, text = { app.aimPath } ],
-            ],
+                textColor = 0x08201E, text = { app.aimPath } ]
+            ]
         ],
 
     depOutline: View [ visible = { app.depRect != null }, pointerEvents = "none",
@@ -471,7 +471,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
             sub: Text [ x = { parent.width - this.width - 14 }, y = center, fontSize = 11,
                 fontFamily = [Mono, "monospace"], textColor = { app.c.faint },
                 text = { Inspect.ready() ? (Inspect.stats().nodes + " nodes · " + Inspect.stats().ownedSlots + " slots") : "no subject" } ],
-            rule: View [ x = 0, y = 33, width = { parent.width }, height = 1, fill = { app.c.line } ],
+            rule: View [ x = 0, y = 33, width = { parent.width }, height = 1, fill = { app.c.line } ]
             ],
 
         // toolbar
@@ -485,7 +485,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
 
                 Tool [ glyph = "◎ select", on = { app.picking },
                     tip = "Click any view in the app to select it. Esc cancels.",
-                    onClick() { app.picking = !app.picking; app.hoverPath = "" },
+                    onClick() { app.picking = !app.picking; app.hoverPath = "" }
                     ],
 
                 // These drive the SUBJECT's driven clock, not our refresh rate:
@@ -494,31 +494,31 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
 
                 Tool [ glyph = { app.frozen ? "▶ resume" : "⏸ freeze" }, on = { app.frozen },
                     tip = "Freeze the app's animation where it stands, so a spring can be read mid-flight",
-                    onClick() { app.freezeToggle() },
+                    onClick() { app.freezeToggle() }
                     ],
                 Tool [ glyph = "⏭ frame", tip = "Advance the frozen app by one animation frame",
-                    onClick() { app.stepFrame() },
+                    onClick() { app.stepFrame() }
                     ],
                 Tool [ glyph = { app.darkUI ? "☀ light" : "☾ dark" },
                     tip = "Switch the Inspector's own rendition",
-                    onClick() { app.darkUI = !app.darkUI },
-                    ],
+                    onClick() { app.darkUI = !app.darkUI }
+                    ]
                 ],
             crumbBox: View [ x = { parent.row.x + parent.row.width + 18 }, y = 0,
                 width = { Math.max(0, parent.width - this.x - (parent.dataBadge.visible ? 96 : 16)) },
                 height = { parent.height }, clip = true,
                 crumb: Text [ x = 0, y = center, fontSize = 11, fontFamily = [Mono, "monospace"],
                     wrap = false, textColor = { app.c.muted },
-                    text = { app.sel.split(".").join(" › ") } ],
+                    text = { app.sel.split(".").join(" › ") } ]
                 ],
             dataBadge: View [ visible = { app.hasData }, height = 17, cornerRadius = 4,
                 x = { parent.width - this.width - 12 }, y = center,
                 width = { this.t.width + 12 }, fill = #2DD4BF22,
                 stroke = { stroke(1, 0x2DD4BF66) },
                 t: Text [ x = 6, y = center, fontSize = 10, fontWeight = medium, wrap = false,
-                    textColor = { app.c.accent2 }, text = "has data" ],
+                    textColor = { app.c.accent2 }, text = "has data" ]
                 ],
-            rule: View [ x = 0, y = 33, width = { parent.width }, height = 1, fill = { app.c.line } ],
+            rule: View [ x = 0, y = 33, width = { parent.width }, height = 1, fill = { app.c.line } ]
             ],
 
         // ── the three panes ──────────────────────────────────────────────────
@@ -549,7 +549,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                             onClick() { app.select(this.rp) },
                             tw: Twisty [ x = { 2 + :depth * 11 }, y = 0,
                                 shown = { :hasKids == true }, open = { app.isOpen(parent.rp) },
-                                onClick() { app.toggle(parent.rp) },
+                                onClick() { app.toggle(parent.rp) }
                                 ],
                             nm: Text [ x = { 21 + :depth * 11 }, y = center, fontSize = 11.5, wrap = false,
                                 fontFamily = [Mono, "monospace"],
@@ -565,11 +565,11 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                                 cornerRadius = 2, x = { parent.width - 14 }, y = center,
                                 fill = { parent.on ? 0xFFFFFF : app.c.accent2 } ],
                             mo: Text [ visible = { :motion == true }, x = { parent.width - 26 }, y = center,
-                                fontSize = 9, wrap = false, textColor = { app.c.amber }, text = "◈" ],
-                            ],
-                        ],
+                                fontSize = 9, wrap = false, textColor = { app.c.amber }, text = "◈" ]
+                            ]
+                        ]
                     ],
-                edge: View [ x = { parent.width - 1 }, y = 0, width = 1, height = { parent.height }, fill = { app.c.line } ],
+                edge: View [ x = { parent.width - 1 }, y = 0, width = 1, height = { parent.height }, fill = { app.c.line } ]
                 ],
 
             // OBJECT ----------------------------------------------------------
@@ -601,7 +601,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                                 // row (events do not bubble), so the triangle has
                                 // to fold the value itself
 
-                                onClick() { if (:canOpen == true) app.vtoggle(parent.k) },
+                                onClick() { if (:canOpen == true) app.vtoggle(parent.k) }
                                 ],
                             nm: Text [ x = { 29 + :depth * 12 }, y = center, fontSize = 11.5, wrap = false,
                                 fontFamily = [Mono, "monospace"],
@@ -631,7 +631,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                                         : (:kind == "primitive" && ("" + :text).indexOf("\"") == 0) ? app.c.str
                                         : :kind == "record" || :kind == "array" || :kind == "dataset" ? app.c.muted
                                         : app.c.num },
-                                    text = { "" + :text + (:kind == "view" ? " ›" : "") } ],
+                                    text = { "" + :text + (:kind == "view" ? " ›" : "") } ]
                                 ],
                             mark: Text [ x = { parent.width - this.width - 12 }, y = center,
                                 fontSize = 9.5, wrap = false, fontFamily = [Mono, "monospace"],
@@ -640,15 +640,15 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                                 text = { :origin == "constraint" ? "⟵ constraint"
                                     : :origin == "set" ? "← set"
                                     : :origin == "data" ? ""
-                                    : :origin == "value" ? "" : "default" } ],
-                            ],
-                        ],
+                                    : :origin == "value" ? "" : "default" } ]
+                            ]
+                        ]
                     ],
                 close: Text [ visible = { 46 + this.parent.body.list.height < this.parent.height },
                     x = 12, y = { 46 + this.parent.body.list.height },
                     fontSize = 11.5,
                     fontFamily = [Mono, "monospace"], textColor = { app.c.accent2 }, text = "]" ],
-                edge: View [ x = { parent.width - 1 }, y = 0, width = 1, height = { parent.height }, fill = { app.c.line } ],
+                edge: View [ x = { parent.width - 1 }, y = 0, width = 1, height = { parent.height }, fill = { app.c.line } ]
                 ],
 
             // WHY -------------------------------------------------------------
@@ -683,7 +683,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                             fill = { app.c.field }, stroke = { stroke(1, app.c.line) },
                             t: Text [ x = 9, y = 9, width = { parent.width - 18 }, wrap = true,
                                 fontSize = 11, fontFamily = [Mono, "monospace"],
-                                textColor = { app.c.str }, text = { app.whySource } ],
+                                textColor = { app.c.str }, text = { app.whySource } ]
                             ],
 
                         where: Text [ visible = { app.whyLine != "" && !app.whyLive }, width = { parent.width }, wrap = false,
@@ -717,18 +717,18 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                                     text = { "" + :path } ],
                                 v: Text [ x = { parent.width - this.width - 4 }, y = center, fontSize = 10.5,
                                     wrap = false, fontFamily = [Mono, "monospace"],
-                                    textColor = { app.c.num }, text = { "" + :value } ],
-                                ],
-                            ],
-                        ],
-                    ],
+                                    textColor = { app.c.num }, text = { "" + :value } ]
+                                ]
+                            ]
+                        ]
+                    ]
                 ],
 
             // The seams come LAST so no column paints over them — a divider a
             // later sibling covers is a divider you cannot grab.
 
             seamA: Seam [ x = { parent.colA - 4 }, height = { parent.height }, which = "a" ],
-            seamB: Seam [ x = { parent.colA + parent.colB - 4 }, height = { parent.height }, which = "b" ],
+            seamB: Seam [ x = { parent.colA + parent.colB - 4 }, height = { parent.height }, which = "b" ]
             ],
 
         // ── transcript + evaluate strip ──────────────────────────────────────
@@ -745,7 +745,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                 fill = { this.hovered || app.seam == "c" ? app.c.seamOn : null },
                 onMouseDown() { app.beginSeam("c") },
                 onMouseMove() { app.moveSeam() },
-                onMouseUp() { app.endSeam() },
+                onMouseUp() { app.endSeam() }
                 ],
 
             scroll: View [ x = 0, y = 4, width = { parent.width }, height = { parent.height - 42 }, scrolls = true,
@@ -760,15 +760,15 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                         msg: Text [ x = 12, y = 13, width = { parent.width - 12 }, wrap = true,
                             fontSize = 11, fontFamily = [Mono, "monospace"],
                             textColor = { :ok == true ? (:temp == true ? app.c.amber : app.c.text) : app.c.danger },
-                            text = { "" + :text } ],
+                            text = { "" + :text } ]
                         ],
 
                     // the scroll anchor: a zero-size view at the end of the
                     // transcript that submit() reveals, so the newest line is
                     // always the one you are looking at
 
-                    end: View [ width = 1, height = 1 ],
-                    ],
+                    end: View [ width = 1, height = 1 ]
+                    ]
                 ],
 
             hint: View [ visible = { (app.lines || []).length == 0 }, x = 10, y = 6,
@@ -781,7 +781,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                 Text [ fontSize = 10.5, fontFamily = [Mono, "monospace"], wrap = false,
                     textColor = { app.c.faint }, text = "width = { parent.width / 3 }  bind it live" ],
                 Text [ fontSize = 10.5, fontFamily = [Mono, "monospace"], wrap = false,
-                    textColor = { app.c.faint }, text = "Text [ text = \"hi\" ]         add a view" ],
+                    textColor = { app.c.faint }, text = "Text [ text = \"hi\" ]         add a view" ]
                 ],
 
             prompt: View [ x = 10, y = { parent.height - 34 }, width = { parent.width - 20 }, height = 26,
@@ -791,9 +791,9 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                     fontSize = 12, fontFamily = [Mono, "monospace"],
                     textColor = { app.c.text },
                     placeholder = { "evaluate in " + app.sel },
-                    onEnter() { app.submit(this.text); this.text = "" },
-                    ],
-                ],
+                    onEnter() { app.submit(this.text); this.text = "" }
+                    ]
+                ]
             ],
 
         // resize grips
@@ -802,13 +802,13 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
             cursor = "ew-resize",
             onMouseDown() { app.beginSize("r") },
             onMouseMove() { app.moveSize() },
-            onMouseUp() { app.endSize() },
+            onMouseUp() { app.endSize() }
             ],
         edgeB: View [ x = 0, y = { parent.height - 6 }, width = { parent.width - 14 }, height = 6,
             cursor = "ns-resize",
             onMouseDown() { app.beginSize("b") },
             onMouseMove() { app.moveSize() },
-            onMouseUp() { app.endSize() },
+            onMouseUp() { app.endSize() }
             ],
         grip: View [ x = { parent.width - 14 }, y = { parent.height - 14 }, width = 14, height = 14,
             cursor = "nwse-resize",
@@ -822,7 +822,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                 d.moveTo(4, 12); d.lineTo(12, 4)
                 d.moveTo(8, 12); d.lineTo(12, 8)
                 d.stroke()
-                },
-            ],
-        ],
+                }
+            ]
+        ]
     ]

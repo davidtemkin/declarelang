@@ -5,6 +5,6 @@ App [ fill = white, textColor = black, minWidth = 300,
             ({ from: 0, flow: "stack" }),
         ] } ],
         menu: View [ height = 60, fill = gainsboro ],
-        body: View [ height = 60, fill = whitesmoke ],
-        ],
+        body: View [ height = 60, fill = whitesmoke ]
+        ]
     ]

@@ -26,8 +26,8 @@ App [ width = 220, height = 100, fill = white,
     btn: View [ x = 20, y = 20, width = 160, height = 40, cornerRadius = 10,
         fill = { pressed ? 0x2E5BD0 : hovered ? 0x3B74FF : 0x4C8DFF },
         onClick() { app.n = app.n + 1 },
-        Text [ x = 40, y = 10, textColor = white, text = { `clicks: ${app.n}` } ],
-        ],
+        Text [ x = 40, y = 10, textColor = white, text = { `clicks: ${app.n}` } ]
+        ]
     ]
 ```
 
@@ -93,8 +93,8 @@ App [ width = 300, height = 160, fill = white,
     card: View [ x = 20, y = 40, width = 120, height = 80, cornerRadius = 10, fill = 0x4C8DFF,
         grabX: number = 0,
         onMouseDown(e: PointerEvent) { grabX = e.x },                    // view-local: where in the card you grabbed
-        onMouseMove(e: PointerEvent) { x = Math.max(0, Math.min(180, e.x - grabX)) },   // root-space: minus the grab
-        ],
+        onMouseMove(e: PointerEvent) { x = Math.max(0, Math.min(180, e.x - grabX)) }   // root-space: minus the grab
+        ]
     ]
 ```
 
@@ -115,10 +115,10 @@ arrives as `onMouseUp`, so state resets — but the event says which it was:
 
 ```declare-fragment
 onMouseUp(e: PointerUpEvent) {
-    dragging = false                       // always reset
-    if (e.canceled) return                 // …but never commit an interrupted drag
-    classroot.commitMove(this.x, this.y)
-    },
+dragging = false                       // always reset
+if (e.canceled) return                 // …but never commit an interrupted drag
+classroot.commitMove(this.x, this.y)
+    }
 ```
 
 ## Drag and click on one view
@@ -132,7 +132,7 @@ block: View [
     onMouseDown(e: PointerEvent) { app.startDrag(:id, e.x, e.y) },
     onMouseMove()  { app.dragMove() },
     onMouseUp(e: PointerUpEvent)   { app.dropDrag(e.x, e.y) },
-    onClick()      { app.selectEvent(:id) },        // still fires — on a real tap
+    onClick()      { app.selectEvent(:id) }        // still fires — on a real tap
     ]
 ```
 
@@ -165,8 +165,8 @@ the fact.
 ```declare-fragment
 row: View [ width = 200, height = 40,
     onHold()  { classroot.showActions(this) },     // a menu, a pick-up, a peek…
-    onClick() { classroot.open(this) },
-    ],
+    onClick() { classroot.open(this) }
+    ]
 ```
 
 Because a hold does not consume the gesture, a view can offer both, as above: hold for
@@ -178,11 +178,11 @@ A drag that must *land* somewhere needs to know what it is over. Ask the tree:
 
 ```declare-fragment
 onMouseUp(e: PointerUpEvent) {
-    if (e.canceled) return
-    let t = app.viewAt(e.x, e.y)                  // root-space, like the event
-    while (t != null && t.accept == null) t = t.parent
-    if (t != null) t.accept(this.payload)
-    },
+if (e.canceled) return
+let t = app.viewAt(e.x, e.y)                  // root-space, like the event
+while (t != null && t.accept == null) t = t.parent
+if (t != null) t.accept(this.payload)
+    }
 ```
 
 `app.viewAt(x, y)` answers with the deepest view under a root-space point, and
@@ -197,10 +197,12 @@ constraint.
 
 ```declare-fragment
 // on the dragger
+
 onMouseMove(e: PointerEvent) { app.dropTarget = app.viewAt(e.x, e.y) },
 
 // on each target — no handlers, just a standing relationship
-hot = { app.dropTarget == this },
+
+hot = { app.dropTarget == this }
 ```
 
 One writer, many readers, and the highlight is a constraint like everything else.
@@ -213,7 +215,7 @@ event upward — it **calls a method** on the node that owns the behavior, reach
 
 ```declare-fragment
 class Row extends View [
-    onClick() { classroot.select(this) },      // tell the list; nothing bubbles
+    onClick() { classroot.select(this) }      // tell the list; nothing bubbles
     ]
 ```
 
@@ -238,9 +240,9 @@ App [ width = 240, height = 100, fill = white, textColor = black,
         onKeyUp(e: KeyEvent) {
             if (e.key == "ArrowUp") { app.n = app.n + 1 }
             else if (e.key == "ArrowDown") { app.n = app.n - 1 }
-            },
+            }
         ],
-    Text [ x = 20, y = 30, fontSize = 30, text = { `n = ${n}` } ],
+    Text [ x = 20, y = 30, fontSize = 30, text = { `n = ${n}` } ]
     ]
 ```
 

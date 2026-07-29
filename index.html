@@ -175,12 +175,11 @@ Declare abstracts the renderer away — you declare what the UI is, and the runt
 
     add: View [ x = 20, y = 20, width = 120, height = 40, cornerRadius = 10, fill = royalblue,
         onClick() { count = count + 1 },
-        Text [ x = 20, y = 10, text = "Add one" ],
+        Text [ x = 20, y = 10, text = "Add one" ]
         ],
 
     Text [ y = 80, x = { (parent.width - this.width) / 2 },
-        text = { `Clicked ${count} times` },
-        ],
+        text = { `Clicked ${count} times` } ]
     ]</code></pre>
 <p>Click the view and the label updates; resize the window and it re-centers. You wrote no update logic for either, and there is nowhere to put any. Every section below is this same idea applied to structure, space, data, style, and time.</p>
 <h3>Six differences</h3>
@@ -197,7 +196,7 @@ fill  = { hovered ? 0x6495ED : 0x4169E1 },        // ✓ in braces, TypeScript n
 fill  = { hovered ? #6495ED : 0x4169E1 },         // ✗ no such syntax in TypeScript
 width = 100%,                                     // ✓ bare slot, Length literal
 width = { 100% },                                 // ✗ compute it instead:
-width = { parent.width - 40 },                    // ✓</code></pre>
+width = { parent.width - 40 }                    // ✓</code></pre>
 <p>A body is TypeScript at full expression strength: ternaries, template literals, array chains, closures, and casts (<code>x as T</code>, <code>x!</code>), which are type-checked and then stripped. Two limits, each a compile error naming the rewrite. <strong>A value body is a single expression</strong> — statements live in methods. <strong>Type annotations do not live in bodies</strong> — a declared type belongs on the attribute, as <code>name: type = …</code>.</p>
 <p><strong>A <code>:path</code> may also appear inside a <code>{ }</code> body</strong>, and this is central rather than exotic: it is how anything conditional over replicated data gets written. <code>text = { :on ? :title : "—" }</code> reads the datapath exactly as the bare form does, then computes with it in TypeScript. Read <code>{ }</code> as "TypeScript, plus datapath reads."</p>
 <p>Two lexical notes. Inside <code>{ }</code> you are bound by TypeScript's rules, so a <code>"…"</code> string may not span lines there; in a bare slot it may, and a <code>"""</code> block is the form for long text either way. And a <code>Dataset</code>'s literal body is strict JSON (§7) — the one place <code>{ }</code> is not TypeScript at all.</p>
@@ -218,15 +217,15 @@ onClick()      { count = count + 1 },  // a HANDLER — `on` + an event this nod
 onMouseMove(e: PointerEvent) { x = e.x },   // pointer handlers get a typed payload
 
 draw(d: Draw) { d.fillStyle = "#4169E1"    // a DRAWING — see below
-                d.fillRect(0, 0, 12, 12) },
+            d.fillRect(0, 0, 12, 12) },
 
 bg: View [ fill = midnightblue ],      // a CHILD, named — reachable as `bg`
-Text [ text = "OK" ],                  // a CHILD, anonymous</code></pre>
+Text [ text = "OK" ]                  // a CHILD, anonymous</code></pre>
 <p><strong><code>draw(d: Draw)</code> is a first-class member, not an escape hatch.</strong> It records a display list of plain ops that both renderers replay, and it is a <em>tracked computation</em> like any constraint: it re-runs when what it read changes, never per frame. The library draws with it — a <code>Checkbox</code>'s tick is a recorded path, not a glyph. <code>d</code> takes the Canvas2D drawing calls (<code>fillStyle</code>, <code>beginPath</code>, <code>moveTo</code>, <code>stroke</code>, …).</p>
 <p><strong><code>name = value</code> sets an attribute that exists; <code>name: Type = value</code> declares a new one.</strong> Declaring is how reactive state enters a program; setting is how it is wired.</p>
 <p><strong>A method's signature is typed, name-first</strong>: <code>select() { … }</code>, <code>input(v: boolean) { … }</code>, <code>quant(v: number) -&gt; number { … }</code>. Every parameter carries a written type — a primitive, a component class, an event payload (<code>onMouseUp(e: PointerUpEvent)</code>), a function (<code>f: (id: string) -&gt; void</code>), or an array of one (<code>Window[]</code>); a <code>?</code> after the type (<code>c: Menu?</code>) says the value may be absent, and the body must check. Omit <code>-&gt; Ret</code> for a method that returns nothing. A computed <em>value</em> is still not a method but an attribute with a <code>{ }</code> default, <code>segIndex: number = { … }</code> — an attribute stays reactively true; a method runs when called.</p>
 <p><strong>Events from outside the tree arrive as children.</strong> <code>Keys [ onKeyUp(e: KeyEvent) { … } ]</code> gives a node app-wide keyboard handling regardless of focus. There is no subscription syntax and nothing to unregister: a source is a child, so it lives and dies with the node that declares it.</p>
-<p><strong>Members are separated by commas.</strong> The <em>trailing</em> one, before a closing <code>]</code>, is optional — write it or leave it off, and the formatter keeps whichever you chose.</p>
+<p><strong>Members are separated by commas</strong> — the separator is required, and the compiler names the spot when one is missing. A <em>trailing</em> comma before a closing <code>]</code> is legal to write; house style omits it, and the formatter removes it.</p>
 <h3>What a name reaches</h3>
 <p><strong>A bare name resolves outward through the enclosing brackets, innermost first</strong> — the brackets are the scope exactly as they are the tree. Each <code>[ ]</code> you are nested inside is a level whose surface is that component's whole member set, and the nearest level owning the name wins. The compiler rewrites the read to an explicit path, so this is lexical and settled at compile time, not a lookup that walks anything at runtime. Two consequences: every view carries the built-in attributes, so a bare <code>width</code> always means <em>this</em> node's <code>width</code> and built-ins never resolve outward; and a user-declared name shadowed by a nearer one is a warning that names the qualified spelling.</p>
 <p>Three reserved words say it explicitly, and nothing else may take their names: <strong><code>this</code></strong> (the node the code is written on), <strong><code>parent</code></strong>, and <strong><code>app</code></strong> (the running application, from any depth — which is why application-wide state belongs there). Bare <code>App</code> is the class; <code>app</code> is the instance. A fourth, <code>classroot</code>, belongs to authoring a component and arrives in §4.</p>
@@ -235,13 +234,14 @@ Text [ text = "OK" ],                  // a CHILD, anonymous</code></pre>
 <pre><code class="language-declare">class Chip extends View [ height = 30, cornerRadius = 10, fill = darkslategray,
     label: string = "",
     width = { this.t.width + 20 },
-    t: Text [ x = 10, y = 5, fontSize = 12, text = { label } ],
+    t: Text [ x = 10, y = 5, fontSize = 12, text = { label } ]
     ]
+
 
 App [ width = 400, height = 100, fill = black,
     layout: SimpleLayout [ axis = x, spacing = 10 ],
     Chip [ label = "one" ],
-    Chip [ label = "two" ],
+    Chip [ label = "two" ]
     ]</code></pre>
 <p><strong><code>App</code> is the one root</strong>, one per program; with <code>width</code> and <code>height</code> unset it fills its host. <strong>Any instance may declare its own members</strong> — state, methods, handlers — with no class at all, because the compiler synthesizes an anonymous subclass, and the instance remains a subtype of its base. Promote a one-off to a named <code>class</code> when you instantiate it twice, or when you need to name its type.</p>
 <p>Besides <code>class</code>, the top level holds <code>script</code>, <code>include</code>, <code>use</code>, <code>font</code>, <code>style</code>, and <code>stylesheet</code> — that is the complete set. <strong><code>script { … }</code></strong> holds free TypeScript, models and helpers; a constraint may call one and the compiler reads through it (§5). <strong><code>include
@@ -249,25 +249,26 @@ App [ width = 400, height = 100, fill = black,
 <h3><code>classroot</code></h3>
 <p><strong><code>classroot</code> is legal only inside the body of a <code>class</code> you are defining, and nowhere else.</strong> It is a tool for <em>authoring a component</em>, not for navigating a tree; if you are not writing <code>class Name extends Base [ … ]</code>, you do not want it.</p>
 <p>Inside a class definition, a bare name already reaches the class's own attributes. Reach for <code>classroot</code> when the reach is less direct — a handler, or a subview several levels down, acting on <strong>the component itself</strong>.</p>
-<pre><code class="language-declare-fragment">class WeatherTab extends View [ selected: boolean = false, label: string = "",
+<pre><code class="language-declare-fragment">class WeatherTab extends View [ selected: boolean = false,
+    label: string = "",
     select() { selected = !selected },
     header: View [
         onClick() { classroot.select() },              // `this` here is the header, not the tab
-        caption: Text [ text = { classroot.label } ],  // reaches the tab from a leaf
-        ],
+        caption: Text [ text = { classroot.label } ]  // reaches the tab from a leaf
+        ]
     ]</code></pre>
 <p>It reaches that instance from any depth inside the class, and it is also the explicit spelling when a nearer child shadows a bare name.</p>
 <h3>Layout is an attribute</h3>
 <p>There is no <code>&lt;Stack&gt;</code>, no <code>&lt;Row&gt;</code>, no flexbox, and no grid. A view positions its children absolutely by <code>x</code>/<code>y</code> until you set a <code>layout:</code> member — and because that member is an ordinary reactive slot, it can be swapped, derived, or animated.</p>
 <pre><code class="language-declare-fragment">layout: SimpleLayout   [ axis = y, spacing = 10 ],
-layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ],</code></pre>
+layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ]</code></pre>
 <p><strong>Stacking order is declaration order</strong>; later siblings paint on top. There is no <code>z-index</code>, so chrome that must float above everything is declared last.</p>
 <p>→ the layouts that ship: <code>library/</code> · their attributes: the model reference</p>
 <h2>5. Constraints</h2>
 <p>A <code>{ }</code> in a value slot is a <strong>constraint</strong>: re-evaluated when, and only when, its inputs change.</p>
 <pre><code class="language-declare-fragment">x    = { (parent.width - width) / 2 },              // re-centers on resize
 fill = { selected ? 0x4169E1 : 0x191970 },           // royalblue / midnightblue
-text = { data.failed ? data.error : "Loading…" },</code></pre>
+text = { data.failed ? data.error : "Loading…" }</code></pre>
 <p><strong>Dependencies are extracted statically, by the compiler.</strong> Nothing is tracked at runtime: the compiler reads your expression, reads <em>through</em> what it calls, and wires the result once.</p>
 <p><strong>A constraint stays live through everything it reaches</strong>, which is what decides how freely you can write. Call your own methods, chain array operations, read through a closure, call a free function in <code>script { }</code> — every read inside all of it is a wired dependency, rebased onto what you passed, so <code>{ price(app.cart) }</code> depends on whatever <code>price</code> reads of the cart. The analysis collects <em>potential</em> reads, not observed ones: <code>{ a ? b : c }</code> depends on all three.</p>
 <p><strong>Assignment is the setter.</strong> <code>count = count + 1</code> updates the value and notifies everything bound to it; there is no bypass. Reads are symmetric — a bare read <strong>is</strong> the tracked read.</p>
@@ -288,7 +289,7 @@ text = { data.failed ? data.error : "Loading…" },</code></pre>
 <p>A view's size on each axis is one of three things: <strong>unset</strong> auto-sizes to the bounding box of its visible children, <strong>a constant</strong> is fixed, and <strong>a constraint</strong> is whatever it computes.</p>
 <p>A view has no <code>minHeight</code>, <code>maxHeight</code>, or <code>overflow</code> attributes. Two read-only intrinsics, <code>contentWidth</code> and <code>contentHeight</code>, expose what the content wants, so any clamp is arithmetic.</p>
 <pre><code class="language-declare-fragment">height = { Math.min(contentHeight, 480) },    // grow to a cap, then stop
-clip   = true,                                // hide whatever passes the cap</code></pre>
+clip   = true                                // hide whatever passes the cap</code></pre>
 <p><code>clip = true</code> clips children to the box, <code>scrolls = true</code> scrolls taller content natively, and a child opts out of its parent's regime with <code>ignorelayout</code> or <code>ignoreclip</code>.</p>
 <p><strong>Positions are literals.</strong> <code>x = center</code> and <code>x = end</code>, and the same on <code>y</code>, place a view against its parent — resolved reactively, exactly like <code>100%</code>. The closed set is <code>center</code> and <code>end</code>; the start is <code>0</code>. One optical exception: on a <code>Text</code>, <code>y = center</code> centers the <em>ink</em>, the cap-height-to-baseline band, so labels read centered regardless of font metrics. Every other view centers its box.</p>
 <p><strong>The App fills its host by default</strong>, so <code>App [ … ]</code> with no size line fills the window and resizes with it, while an explicit size makes a fixed widget. For an embedded app the host is its container element, which is what lets apps nest. Responsive code reads <code>app.width</code>; the App also carries the live host facts — viewport, colour scheme, pointer — as reactive attributes.</p>
@@ -296,7 +297,7 @@ clip   = true,                                // hide whatever passes the cap</c
 <h3>The URL is an attribute</h3>
 <p>There is no router. <strong><code>location</code></strong> is the app's slice of the URL, as one two-way reactive string. The host seeds it before the first settle, mirrors app writes outward, and writes it back on back and forward.</p>
 <pre><code class="language-declare-fragment">mode = { app.location.split("/")[0] },     // derive state FROM location
-onClick() { app.location = "why" },        // write location TO navigate</code></pre>
+onClick() { app.location = "why" }        // write location TO navigate</code></pre>
 <p>Never assign the derived state — that displaces its constraint (§5) and disconnects the back button. Because state derives from <code>location</code>, the build's crawler — which boots the app headless and captures what each URL renders — can walk it cold at every location it links to, which is what makes a deep link indexable.</p>
 <p>→ the App's own attributes: the model reference</p>
 <h2>7. Data</h2>
@@ -306,15 +307,15 @@ onClick() { app.location = "why" },        // write location TO navigate</code><
     people: Dataset {
         { "rows": [ { "name": "Ada",   "score": 90 },
                     { "name": "Grace", "score": 80 } ] }
-    },
+        },
 
     list: View [ x = 20, y = 20, datapath = { people.value },
         layout: SimpleLayout [ axis = y, spacing = 10 ],
         View [ height = 20, datapath = :rows[], key = :name,   // one instance per record
             n: Text [ width = 150, text = :name ],
-            s: Text [ x = 150, text = :score ],
-            ],
-        ],
+            s: Text [ x = 150, text = :score ]
+            ]
+        ]
     ]</code></pre>
 <p><strong>The <code>[]</code> suffix is what replicates.</strong> <code>datapath = :rows[]</code> says <em>this path matches many records, so make one instance of this node per record</em>; without the brackets, <code>:rows</code> is an ordinary read of whatever is there. That is the entire distinction, and <code>[]</code> may appear only at the end of a path.</p>
 <p>A <code>Dataset</code>'s literal body is <strong>strict JSON</strong> — quoted keys, no trailing commas. <code>key = :field</code> makes replication keyed, so only changed rows rebuild; the replicated node is anonymous, but names inside it resolve per instance.</p>
@@ -337,7 +338,7 @@ onClick() { app.location = "why" },        // write location TO navigate</code><
 <p><code>visible = false</code> is the other tool, and it is the stronger one: it removes the view from input <em>and</em> from its parent's layout and auto-extent. So a fade that should end in absence is <code>visible = { opacity &gt; 0 }</code>, while flow content that merely fades in should stay visible and let opacity do the work. <code>pointerEvents = "none"</code> is the third, for a view that should be seen and not touched.</p>
 <h3>Hover and press are values</h3>
 <p>Every view carries two read-only intrinsics. <code>hovered</code> is true while the view sits on the live hit chain — the topmost visible view under the pointer, plus its ancestors — so it is occlusion-correct, and it is always false on touch. <code>pressed</code> is true from a pointer-down on the chain until release. Read them anywhere a value goes, including as a state's condition (§10):</p>
-<pre><code class="language-declare-fragment">fill = { hovered ? 0x4169E1 : 0x191970 },   // royalblue when hovered, else midnightblue</code></pre>
+<pre><code class="language-declare-fragment">fill = { hovered ? 0x4169E1 : 0x191970 }   // royalblue when hovered, else midnightblue</code></pre>
 <p>Declaring either is a compile error; assigning one is refused at runtime, the same guard §5 describes. Like <code>contentWidth</code>, they are computed for you.</p>
 <h2>9. Style</h2>
 <p>There is no CSS, no stylesheet file, no selector, no cascade, and no specificity — which is also what makes a non-DOM renderer possible. Your CSS <em>knowledge</em> transfers: colors, font stacks, and shadows read the same. The names do not. A border is a <strong>stroke</strong>, rounding is <strong><code>cornerRadius</code></strong>, and <code>borderWidth</code>, <code>boxShadow</code>, and <code>outline</code> do not exist.</p>
@@ -346,7 +347,7 @@ onClick() { app.location = "why" },        // write location TO navigate</code><
 fill  = { theme.surface },                                   // read it anywhere below
 
 panel: View [                                                // on a DESCENDANT, override one token
-    theme = { { ...app.theme, accent: 0xCC3333 } },          //   (on the App this reads itself — §5)
+    theme = { { ...app.theme, accent: 0xCC3333 } }          //   (on the App this reads itself — §5)
     ]</code></pre>
 <p>Start from a library preset — <code>Themes.sanFrancisco</code> / <code>.cupertino</code> / <code>.mountainView</code> / <code>.redmond</code>, each taking a dark flag, available without an include — and spread to change a token. The standard library reads specific token names, so build from a preset rather than an empty record; <code>library/themes/sanfrancisco.declare</code> names them all.</p>
 <p>The <code>{ { … } }</code> is not special syntax: the outer braces open the constraint, the inner ones are a TypeScript object literal. With no theme declared an app renders the default, and that zero-declaration look never varies by system dark mode — following the system is the one-line opt-in above.</p>
@@ -355,11 +356,12 @@ panel: View [                                                // on a DESCENDANT,
 
 stylesheet Dark [
     theme: Theme [ accent = #336699 ],       // the sheet's own theme
-    View:   [ opacity = 0.9 ],               // entries keyed by CLASS name
+    View:   [ opacity = 0.9 ]               // entries keyed by CLASS name
     ]
 
+
 App [ stylesheet = Dark,                     // apply it — a prevailing slot, so swap it live
-    View [ styles = [card] ],                //   a bundle is opted into per view, by list
+    View [ styles = [card] ]                //   a bundle is opted into per view, by list
     ]</code></pre>
 <p><code>stylesheet</code> is a prevailing slot like <code>theme</code>: set it high, assign a different sheet at runtime, and exactly the governed subtree restyles.</p>
 <p>A theme appears in two places, and they are not the same thing. On a <em>view</em>, <code>theme</code> is a prevailing attribute holding a plain TypeScript record. Inside a <em>stylesheet</em>, <code>theme: Theme [ … ]</code> declares the sheet's own record in the <code>[ ]</code> layer, which is why its colors are bare literals rather than the <code>0x</code> form braces require.</p>
@@ -373,16 +375,18 @@ App [ stylesheet = Dark,                     // apply it — a prevailing slot, 
         Text [ x = 20, y = 20, fontWeight = bold, text = "Summary" ],
         open: State [ applied = { hovered }, height = 140, fill = steelblue,
             Text [ x = 20, y = 50, width = 260, textColor = gainsboro, wrap = true,
-                text = "height, color, and this whole line arrive together" ] ],
-        ],
+                text = "height, color, and this whole line arrive together" ]
+            ]
+        ]
     ]</code></pre>
 <p>While the condition holds, the overrides — and any children declared inside the state — apply; when it lifts, everything reverts. The "set it on enter, forget to unset it on exit" bug is unrepresentable, because an attribute's value is a pure function of its base plus the active states. That is what lets states compose and interrupt. When two active states override the same slot, the later declaration wins.</p>
 <p><strong>A state overrides its own element's attributes only.</strong> It cannot reach into a child — <code>top.bg.opacity = 0.5</code> is a compile error, because a member always sets its own element's attributes. To coordinate several views from one condition, declare a state on each of them reading the same flag, or give the child a constraint that reads it:</p>
 <pre><code class="language-declare-fragment">bg: View [ opacity = { app.open ? 0.5 : 1 } ],                 // the child derives
-bg: View [ dim: State [ applied = { app.open }, opacity = 0.5 ] ],   // or owns a state</code></pre>
-<p>A state is driven by its condition: <code>applied = { … }</code>. (The runtime also carries imperative <code>apply()</code>/<code>remove()</code>/<code>toggle()</code>, but they are not reachable from Declare source today — calling one is a member-resolution error. Gate on a boolean and change the boolean.)</p>
+bg: View [ dim: State [ applied = { app.open }, opacity = 0.5 ]
+    ]   // or owns a state</code></pre>
+<p>A state is driven by its condition (<code>applied = { … }</code>) or imperatively by the verbs — <code>apply()</code>/<code>remove()</code>/<code>toggle()</code> from a handler. One or the other: the gate owns <code>applied</code>, so a gated state changes when what the gate reads changes.</p>
 <p>A <strong><code>Spring</code></strong> drives one attribute toward a reactive target. Declare where the thing belongs and the spring finds the path, so a change of target mid-flight is simply a new destination and interruption needs no code.</p>
-<pre><code class="language-declare-fragment">slide: Spring [ attribute = x, to = { on ? 340 : 20 }, stiffness = 170, damping = 20 ],</code></pre>
+<pre><code class="language-declare-fragment">slide: Spring [ attribute = x, to = { on ? 340 : 20 }, stiffness = 170, damping = 20 ]</code></pre>
 <p><code>Animator</code> is the time-based sibling for the cases that want a clock, and <code>Frames</code> is the raw per-frame heartbeat for when the app integrates motion itself. Springs are the house idiom. Deferred work is plain TypeScript — <code>setTimeout</code> behaves in a handler as it always does — but unlike a source member, a timer does not die with its node, so cancel it yourself.</p>
 <p>Because states, springs, and layout all sit on one reactive core, <em>arrangement</em> animates: spring a few geometry scalars and every constraint derived from them moves in lock-step.</p>
 <p>→ <code>State</code>, <code>Spring</code>, <code>Animator</code>, <code>Frames</code> attributes: the model reference · the idiom at scale: <code>apps/calendar/calendar.declare</code></p>
@@ -390,8 +394,13 @@ bg: View [ dim: State [ applied = { app.open }, opacity = 0.5 ] ],   // or owns 
 <p>Declare ships a standard component library in <code>library/</code>, written in Declare itself with no privileged API underneath. It <strong>auto-includes by bare tag</strong> — no import, no module ceremony — components follow the prevailing <code>theme</code>, and focus behavior (Tab traversal, activation, a traveling focus indicator) is provided undeclared. Check there before building a control by hand.</p>
 <p>Two contracts are worth learning because your own components should obey them too.</p>
 <p><strong>The value pattern.</strong> A control's value is a plain reactive attribute, in one of three forms: standalone, where the control owns its state and you read it by name; <strong>app-owned, deriving down and delivering up</strong>; or data-owned, <code>&lt;-&gt;</code>, editors only. The second is a <em>pair</em>, and splitting it is the §5 rule biting. A control's default <code>input</code> writes its <strong>own</strong> attribute, so a one-way <code>checked = { app.muted }</code> with no <code>input</code> override makes the control's own edit an assignment to a cell-owning slot — refused at runtime, with the same message §5 describes. Override <code>input</code> and the edit goes where the value actually lives.</p>
-<pre><code class="language-declare-fragment">Checkbox [ label = "Mute", checked = { app.muted }, input(v: boolean) { app.muted = v } ],
-Slider   [ value = { app.volume }, input(v: number) { app.volume = v }, disabled = { app.muted } ],</code></pre>
+<pre><code class="language-declare-fragment">Checkbox [ label = "Mute", checked = { app.muted },
+    input(v: boolean) { app.muted = v }
+    ],
+Slider   [ value = { app.volume },
+    input(v: number) { app.volume = v },
+    disabled = { app.muted }
+    ]</code></pre>
 <p><strong>What a component arranges, it takes as records.</strong> If the component arranges it — menu items, a dialog's buttons — it takes plain record arrays and hands the choice back through a method. If <em>you</em> arrange it, it is not a component feature at all: it is views, a layout, and replication. A component that owns its arrangement owns its rendition too, and can change either without any use site noticing; hand it children and you have frozen its internals into your source.</p>
 <p>→ what ships and how it is built: <code>library/</code> · each component's attributes: the model reference</p>
 <h2>12. Working</h2>
@@ -436,12 +445,11 @@ Slider   [ value = { app.volume }, input(v: number) { app.volume = v }, disabled
 
     add: View [ x = 20, y = 20, width = 120, height = 40, cornerRadius = 10, fill = royalblue,
         onClick() { count = count + 1 },
-        Text [ x = 20, y = 10, text = "Add one" ],
+        Text [ x = 20, y = 10, text = "Add one" ]
         ],
 
     Text [ y = 80, x = { (parent.width - this.width) / 2 },
-        text = { `Clicked ${count} times` },
-        ],
+        text = { `Clicked ${count} times` } ]
     ]</code></pre>
 <p>Two delimiters carry the whole model: <strong><code>[ … ]</code></strong> is the view tree — components, attributes, children; <strong><code>{ … }</code></strong> is TypeScript — a value, a handler body. The <code>{ }</code> lines are <em>constraints</em>, standing relationships the runtime keeps true: click the view and the text updates, resize and it re-centers — you wrote no update logic for either. (The hand-built button above shows the composition model; a themed <code>Button</code> also ships in the small standard library.)</p>
 <h2>Where everything is</h2>
@@ -582,7 +590,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=eba0f96f81d2";
+  import boot from "./bundles/declare-boot.js?v=ba22848d836c";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().

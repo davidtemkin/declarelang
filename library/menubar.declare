@@ -87,12 +87,12 @@ class MenuBar extends View [ height = 25,
             if (classroot.menu.subShown(classroot.menu.child)) return
             if (e.key == "ArrowLeft") classroot.stepMenu(-1)
             else if (e.key == "ArrowRight") { if (!classroot.hasSub(classroot.menu.activeRow)) classroot.stepMenu(1) }
-            },
+            }
         ],
 
     menu: Menu [
         items = { ((classroot.menus || []).find((m) => "" + m.id == classroot.openId) || ({ })).items || [] },
-        picked(id: string) { classroot.picked(id) },
+        picked(id: string) { classroot.picked(id) }
         ],
 
     data: Dataset [ contents = { ({ m: classroot.menus || [] }) } ],
@@ -128,7 +128,7 @@ class MenuBar extends View [ height = 25,
                 textColor = { classroot.ink != null ? classroot.ink : theme.text }, text = { "" + :label } ],
             host: View [ x = 10, y = center,
                 visible = { parent.kd != "" },
-                width = { this.contentWidth }, height = { this.contentHeight } ],
-            ],
-        ],
+                width = { this.contentWidth }, height = { this.contentHeight } ]
+            ]
+        ]
     ]

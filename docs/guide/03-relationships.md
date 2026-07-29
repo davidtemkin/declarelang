@@ -33,8 +33,8 @@ App [ fill = black, textColor = whitesmoke,
         layout: SimpleLayout [ axis = y, spacing = 20 ],
         Text [ fontSize = 70, fontWeight = bold, text = { `${v}` } ],
         Bar [ width = 300, value = { v },
-            tint = { v < 50 ? cool : warm } ],
-        ],
+            tint = { v < 50 ? cool : warm } ]
+        ]
     ]
 ```
 

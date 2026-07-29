@@ -16,7 +16,7 @@ const FIXTURE = join(ROOT, "my-apps/__ops_smoke.declare");
 // the fixture the authoring entries run against — written canon so --check passes
 mkdirSync(join(ROOT, "my-apps"), { recursive: true });
 writeFileSync(FIXTURE, `App [ width = 200, height = 100, fill = white,
-    Text [ x = 20, y = 20, text = "ops smoke" ],
+    Text [ x = 20, y = 20, text = "ops smoke" ]
     ]
 `);
 

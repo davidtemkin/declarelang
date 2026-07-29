@@ -6,7 +6,8 @@ inherits the group's — so shared timing is written once, on the group.
 ```declare
 reveal: AnimatorGroup [ process = sequential, duration = 200,
     Animator [ attribute = opacity, to = 1 ],
-    Animator [ attribute = y,       to = 0 ] ]
+    Animator [ attribute = y,       to = 0 ]
+    ]
 ```
 
 ## process

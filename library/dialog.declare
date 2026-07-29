@@ -126,7 +126,7 @@ class Dialog extends View [ visible = { shown },
             if (!classroot.shown) return
             if (e.key == "Enter") classroot.pickDefault()
             else if (e.key == "Escape") classroot.pickCancel()
-            },
+            }
         ],
 
     // buttons → Button instances through the internal derived dataset. The
@@ -145,7 +145,7 @@ class Dialog extends View [ visible = { shown },
     scrim: View [ x = 0, y = 0, width = { app.width }, height = { app.height },
         fill = { theme.scrimColor != null ? theme.scrimColor : 0x000000 },
         opacity = { typeof theme.scrimOpacity == "number" ? theme.scrimOpacity : 0.32 },
-        onMouseDown() { },
+        onMouseDown() { }
         ],
 
     panel: View [ focustrap = true,
@@ -192,8 +192,8 @@ class Dialog extends View [ visible = { shown },
                                 ? (this.parent.width - 10 * (((classroot.buttons || []).length || 1) - 1)) / ((classroot.buttons || []).length || 1)
                                 : 86 },
                         primary = { !!:default },
-                        onClick() { classroot.pick("" + :id) },
-                        ],
+                        onClick() { classroot.pick("" + :id) }
+                        ]
                     ],
 
                 stackInner: View [ visible = { classroot.arrangement == "stack" },
@@ -203,10 +203,10 @@ class Dialog extends View [ visible = { shown },
                     Button [ datapath = :b[], label = { "" + :label },
                         width = { this.parent.width },
                         primary = { !!:default },
-                        onClick() { classroot.pick("" + :id) },
-                        ],
-                    ],
-                ],
-            ],
-        ],
+                        onClick() { classroot.pick("" + :id) }
+                        ]
+                    ]
+                ]
+            ]
+        ]
     ]

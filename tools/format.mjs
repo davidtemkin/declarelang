@@ -17,7 +17,8 @@
 //   - the two closing styles (§2.4): an attributes-only ("leaf") body closes
 //     inline (`… ],`), a body holding a declaration / method / child closes
 //     hanging (`],` alone at content indent), and the member before a hanging
-//     close always carries the trailing comma;
+//     close does NOT carry a trailing comma (ruled 2026-07-28 — separators
+//     are the parser's requirement; the terminator is not house style);
 //   - declarations, methods, and child instances each start their own line and
 //     end it (plain attrs may pack); the FIRST member may ride the header line
 //     (the canon's own examples do: `class Screen extends View [ shown: … ,`);
@@ -429,10 +430,10 @@ function analyze(tokens) {
 // ── Decisions ───────────────────────────────────────────────────────────────
 // Turns the structure into token-level edits: forced line breaks and forced
 // joins (inline closes). Everything else keeps the author's layout — including
-// the commas between members, which are optional in the grammar and therefore
-// the author's business: the formatter neither adds one nor takes one away.
-// (`commaAfter` / `drop` are the seams that behavior would use; they stay
-// empty by ruling.)
+// the commas between members: SEPARATORS are required by the parser (ruled
+// 2026-07-28), and the TRAILING comma before a close is legal but not house
+// style — the formatter sheds it (`drop`, the seam built for this ruling;
+// `commaAfter` stays empty: the formatter still never ADDS a comma).
 
 function decide(tokens, { bodies }) {
   const breakBefore = new Set();
@@ -460,6 +461,9 @@ function decide(tokens, { bodies }) {
     const hang = b.topLevel ? (multiline || !leaf) : !leaf;
     b.hang = hang;
     const before = prevSolid(b.close);
+    // shed the trailing comma (house style, ruled 2026-07-28): the token
+    // directly before this body's `]`, when it is a comma, does not survive
+    if (before >= 0 && tokens[before].kind === "comma") drop.add(before);
     if (hang) {
       breakBefore.add(b.close);
     } else if (tokens[b.close - 1]?.kind === "lcomment") {

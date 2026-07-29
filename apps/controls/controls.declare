@@ -27,19 +27,19 @@ App [ width = 880, height = 320, fill = { theme.bg },
         // app-bound: derive down, deliver up — two controls, one value
 
         Checkbox [ label = "Mute", checked = { app.muted },
-            input(v: boolean) { app.muted = v },
+            input(v: boolean) { app.muted = v }
             ],
         Switch [ checked = { app.muted },
-            input(v: boolean) { app.muted = v },
+            input(v: boolean) { app.muted = v }
             ],
         Text [ fontSize = 13, textColor = { theme.textMuted },
             text = { app.muted ? "app.muted = true" : "app.muted = false" } ],
 
         Button [ label = "Add one", primary = true,
-            onClick() { app.hits = app.hits + 1 },
+            onClick() { app.hits = app.hits + 1 }
             ],
         Button [ label = "Disabled", disabled = true ],
-        Text [ textColor = { theme.text }, text = { `clicked ${app.hits} times` } ],
+        Text [ textColor = { theme.text }, text = { `clicked ${app.hits} times` } ]
         ],
 
     // continuous values + one-of-N + a labeled row — the same value contract
@@ -49,7 +49,7 @@ App [ width = 880, height = 320, fill = { theme.bg },
         layout: SimpleLayout [ axis = y, spacing = 16 ],
 
         Slider [ value = { app.volume },
-            input(v: number) { app.volume = v },
+            input(v: number) { app.volume = v }
             ],
         ProgressBar [ value = { app.volume } ],
         Text [ fontSize = 13, textColor = { theme.textMuted },
@@ -59,14 +59,14 @@ App [ width = 880, height = 320, fill = { theme.bg },
             input(v: string) { app.size = v },
             Radio [ choice = "s", label = "Small" ],
             Radio [ choice = "m", label = "Medium" ],
-            Radio [ choice = "l", label = "Large" ],
+            Radio [ choice = "l", label = "Large" ]
             ],
         Text [ fontSize = 13, textColor = { theme.textMuted },
             text = { `size: ${app.size}` } ],
 
         Field [ label = "Name",
-            TextInput [ width = 160, height = 30, fill = { theme.surface } ],
-            ],
+            TextInput [ width = 160, height = 30, fill = { theme.surface } ]
+            ]
         ],
 
     // a partial override: this panel gets the house theme with a red accent
@@ -80,8 +80,8 @@ App [ width = 880, height = 320, fill = { theme.bg },
             on: Checkbox [ label = "Armed", checked = true ],
             Switch [ checked = true ],
             Slider [ width = 200, value = 80 ],
-            Button [ label = "Fire", primary = true ],
-            ],
-        ],
+            Button [ label = "Fire", primary = true ]
+            ]
+        ]
 
     ]

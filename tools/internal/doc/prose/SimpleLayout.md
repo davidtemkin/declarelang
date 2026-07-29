@@ -8,8 +8,8 @@ overwritten.
 ```declare
 View [ layout: SimpleLayout [ axis = y, spacing = 10 ],
     Text [ text = "one" ],
-    Text [ text = "two" ],
-]
+    Text [ text = "two" ]
+    ]
 ```
 
 ## axis

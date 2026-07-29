@@ -184,7 +184,7 @@ class Menu extends View [ visible = { shown }, width = 220,
             if (!classroot.shown || e.key != "Escape") return
             if (classroot.subShown(classroot.child)) return   // the deeper menu handles
             classroot.rootClose()                             // Escape closes the WHOLE chain (macOS)
-            },
+            }
         ],
 
     // items → rows through an INTERNAL derived dataset (the author passes a
@@ -198,7 +198,7 @@ class Menu extends View [ visible = { shown }, width = 220,
     back: View [ visible = { classroot.isRoot },
         x = { -classroot.x - classroot.offX }, y = { -classroot.y - classroot.offY },
         width = { app.width }, height = { app.height },
-        onMouseDown() { classroot.rootClose() },
+        onMouseDown() { classroot.rootClose() }
         ],
 
     // the panel
@@ -301,7 +301,7 @@ class Menu extends View [ visible = { shown }, width = 220,
                         d.beginPath()
                         d.moveTo(5.3, 5.2); d.lineTo(6.5, 7.1); d.lineTo(7.7, 5.2)
                         d.stroke()
-                        },
+                        }
                     ],
 
                 lbl: Text [ y = center, fontSize = 13, visible = { !parent.divider && parent.custom == "" },
@@ -330,14 +330,14 @@ class Menu extends View [ visible = { shown }, width = 220,
                         d.lineTo(5.8, 5.5)
                         d.lineTo(1, 9.5)
                         d.stroke()
-                        },
+                        }
                     ],
 
                 // a `kind` row's author-rendered content region
 
                 host: View [ x = 24, y = 4, width = { parent.width - 34 }, height = { this.contentHeight },
-                    visible = { parent.custom != "" } ],
-                ],
-            ],
-        ],
+                    visible = { parent.custom != "" } ]
+                ]
+            ]
+        ]
     ]

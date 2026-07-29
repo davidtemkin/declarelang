@@ -168,10 +168,40 @@ export function scanDatapaths(src) {
  *  identifier grammar, so no member can ever collide with `$data`). A
  *  many-path is refused: `:items[]` replicates, which is a datapath
  *  attribute's meaning, not a value a body can hold. */
+/** The first place the path grammar STOPPED where the author plainly meant to
+ *  continue — the silent-truncation trap (data-paths.md §2): ':my-key' would
+ *  compile to a SUBTRACTION, ':rows[0]' hands '[0]' to TypeScript, ':$.store'
+ *  reads a key literally named '$'. Each refusal names the rewrite that works
+ *  today. Corpus-verified: no legitimate use of any refused spelling. */
+export function datapathTrouble(src, islands) {
+    for (const p of islands) {
+        if (p.path === "$" || p.path.startsWith("$.")) {
+            return `':${p.path}' — a :path has no JSONPath root; drop the '$.' and write ':${p.path.replace(/^\$\.?/, "")}'`;
+        }
+        const c = src[p.end] ?? "";
+        const d = src[p.end + 1] ?? "";
+        if (c === "-" && (isIdentPart(d))) {
+            return `':${p.path}-…' is ambiguous — for subtraction write ':${p.path} - …' (spaced); for a dashed KEY read $data("${p.path}-…") with the whole key as a string`;
+        }
+        if (c === "[" && !p.many && d !== "]") {
+            return `':${p.path}[' — bracket selectors are not :path syntax; index by segment ($data("${p.path}.0")), or replicate a list with ':${p.path}[]'`;
+        }
+        if (c === ".") {
+            if (d >= "0" && d <= "9")
+                return `':${p.path}.${d}…' — a numeric segment is legal in the path currency but not in the ':' literal; read $data("${p.path}.${d}…")`;
+            if (d === ".")
+                return `':${p.path}..' — an empty path segment would read the key ""; write one '.' per step`;
+        }
+    }
+    return null;
+}
 export function rewriteDatapaths(src) {
     const islands = scanDatapaths(src);
     if (islands.length === 0)
         return { src };
+    const trouble = datapathTrouble(src, islands);
+    if (trouble !== null)
+        return { error: trouble };
     const many = islands.find((p) => p.many);
     if (many !== undefined) {
         return {

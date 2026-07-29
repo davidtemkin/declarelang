@@ -5,6 +5,6 @@ App [ fill = white, textColor = black,
         { "label": "small",    "n": 64 } ] } },
     View [ x = 30, y = 30, datapath = { parent.facts.value },
         layout: SimpleLayout [ axis = y, spacing = 16 ],
-        Bar [ width = 300, datapath = :rows[], label = :label, value = :n ],
-        ],
+        Bar [ width = 300, datapath = :rows[], label = :label, value = :n ]
+        ]
     ]

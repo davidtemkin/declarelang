@@ -2,6 +2,6 @@ App [ fill = white, fontFamily = ["Helvetica Neue", "sans-serif"], fontSize = 15
     topBar: View [ x = 20, y = 20,
         layout: SimpleLayout [ axis = y, spacing = 6 ],
         Text [ text = "Rain or Shine?" ],
-        Text [ text = "94110", textColor = royalblue ],   // overrides only the color
-        ],
+        Text [ text = "94110", textColor = royalblue ]   // overrides only the color
+        ]
     ]

@@ -33,12 +33,12 @@ App [ width = 400, height = 140, fill = darkslategray, textColor = whitesmoke,
 
     add: View [ x = 20, y = 20, width = 120, height = 40, cornerRadius = 10, fill = royalblue,
         onClick() { count = count + 1 },
-        Text [ x = 20, y = 10, text = "Add one" ],
+        Text [ x = 20, y = 10, text = "Add one" ]
         ],
 
     Text [ y = 80, x = { (parent.width - this.width) / 2 },
-        text = { `Clicked ${count} times` },         // re-runs whenever count changes
-        ],
+        text = { `Clicked ${count} times` }         // re-runs whenever count changes
+        ]
     ]
 ```
 
@@ -135,8 +135,8 @@ App [ width = 360, height = 200, fill = white, textColor = black,
         body: Text [ x = 20, textColor = darkgray,
             y = { 44 + t * 20 },
             opacity = { t },
-            text = "the same card, seen closer" ],
-        ],
+            text = "the same card, seen closer" ]
+        ]
     ]
 ```
 

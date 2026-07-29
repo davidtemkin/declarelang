@@ -7,8 +7,8 @@ setting those on the container, not on each `Text`.
 
 ```declare
 View [ textColor = royalblue, fontSize = 15,
-  Text [ text = "inherits the panel's style" ]
-]
+    Text [ text = "inherits the panel's style" ]
+    ]
 ```
 
 ## text

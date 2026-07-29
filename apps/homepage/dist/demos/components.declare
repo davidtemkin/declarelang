@@ -5,6 +5,6 @@ App [ facts: Dataset { { "rows": [
     group: View [ x = center, y = center, width = 80%, height = { this.contentHeight },
         datapath = { app.facts.value },
         layout: SimpleLayout [ axis = y, spacing = 20 ],
-        Bar [ width = { parent.width }, datapath = :rows[], label = :label, value = :n ],
-        ],
+        Bar [ width = { parent.width }, datapath = :rows[], label = :label, value = :n ]
+        ]
     ]

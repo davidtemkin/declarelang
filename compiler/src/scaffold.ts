@@ -429,6 +429,11 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
   // The edit-session VERBS (editor.ts): `dirty`/`valid`/`error` are schema
   // attrs (readable state), but committing/reverting the draft are calls.
   Editor: [`  commit(): void;`, `  revert(): void;`],
+  // The State verbs (state.ts): drive `applied` imperatively — legal only on
+  // an UNGATED state (gate XOR verbs; a gated state throws with the rule named).
+  // Implemented and advertised since the start; unreachable from source until
+  // 2026-07-28 because this table simply lacked the entry.
+  State: [`  apply(): void;`, `  remove(): void;`, `  toggle(): void;`],
   Layout: [`  view: View;`, `  laid(): View[];`], // view: runtime `View | null`, non-null by the time any body runs
   TweenLayout: [`  laid(): View[];`, `  retarget(animate: boolean): void;`],
 };

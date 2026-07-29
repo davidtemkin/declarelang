@@ -10,8 +10,8 @@ arranged is the `layout` attribute, not the container's type.
 
 ```declare
 View [ width = 200, height = 120, fill = white, cornerRadius = 8,
-  Text [ text = "hello", x = 12, y = 12 ]
-]
+    Text [ text = "hello", x = 12, y = 12 ]
+    ]
 ```
 
 ## width
@@ -139,7 +139,9 @@ stray press) — answered by an `onClick()` handler. The primary interaction eve
 `mouseDown`/`mouseUp`/`mouseMove` are there when you need the raw phases.
 
 ```declare
-View [ width = 80, height = 40, cornerRadius = 10, fill = gainsboro, onClick() { fill = 0x4169E1 } ]
+View [ width = 80, height = 40, cornerRadius = 10, fill = gainsboro,
+    onClick() { fill = 0x4169E1 }
+    ]
 ```
 
 ## onInit

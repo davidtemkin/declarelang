@@ -7,6 +7,6 @@ App [ textColor = whitesmoke,
         layout: SimpleLayout [ axis = y, spacing = 20 ],
         Text [ width = { parent.width }, textAlign = center, textColor = slategray, text = "click anywhere to change v" ],
         Text [ width = { parent.width }, textAlign = center, fontSize = 70, fontWeight = bold, text = { v + "" } ],
-        Bar [ width = { parent.width }, value = { v }, tint = { v < 50 ? cool : warm } ],
-        ],
+        Bar [ width = { parent.width }, value = { v }, tint = { v < 50 ? cool : warm } ]
+        ]
     ]

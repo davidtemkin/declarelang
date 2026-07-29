@@ -8,7 +8,7 @@ App [ width = 300, height = 160, fill = midnightblue, textColor = gainsboro,
         layout: SimpleLayout [ axis = y, spacing = 8 ],
         View [ height = 20, datapath = :rows[], key = :name,
             n: Text [ width = 160, text = :name ],
-            s: Text [ x = 170, text = :score ],
-            ],
-        ],
+            s: Text [ x = 170, text = :score ]
+            ]
+        ]
     ]

@@ -64,7 +64,7 @@ class EventBar extends View [
     onMouseDown() { app.startDrag(:id) },
     onMouseMove(e: PointerEvent) { app.dragMove(e.x, e.y) },
     onMouseUp()   { app.endDrag() },
-    onClick() { if (!app.dragOccurred) app.selectEvent(:id, this.dayKey) },
+    onClick() { if (!app.dragOccurred) app.selectEvent(:id, this.dayKey) }
     ]
 
 
@@ -80,7 +80,7 @@ class InfoButton extends View [
     glyph: Text [ x = 5, y = 2, fontSize = 9, fontWeight = bold,
         textColor = #4B5D6C, text = "i" ],
 
-    onClick() { app.showInfo(:id) },
+    onClick() { app.showInfo(:id) }
     ]
 
 
@@ -103,7 +103,7 @@ class PlusMinus extends View [
     onClick() {
         if (isOpen) app.closeDay()
         else app.openDay(app.selectedKey)
-        },
+        }
     ]
 
 
@@ -132,14 +132,14 @@ class Stepper extends View [
         fill = gradient(stop(0, 0xE6EAEA), stop(1, 0x99A5AD)),
         draw(d: Draw) { d.fillStyle = 0x33454F
                   d.beginPath(); d.moveTo(8, 3); d.lineTo(4, 7); d.lineTo(8, 11); d.fill() },
-        onClick() { app.stepField(classroot.field, -1) },
+        onClick() { app.stepField(classroot.field, -1) }
         ],
     right: View [ x = { parent.width - 14 }, y = 1, width = 13, height = 14, cornerRadius = 2,
         fill = gradient(stop(0, 0xE6EAEA), stop(1, 0x99A5AD)),
         draw(d: Draw) { d.fillStyle = 0x33454F
                   d.beginPath(); d.moveTo(5, 3); d.lineTo(9, 7); d.lineTo(5, 11); d.fill() },
-        onClick() { app.stepField(classroot.field, 1) },
-        ],
+        onClick() { app.stepField(classroot.field, 1) }
+        ]
     ]
 
 
@@ -163,12 +163,12 @@ class AccordionSection extends View [
             d.fill()
             },
         lbl: Text [ x = 6, y = 5, fontSize = 10, textColor = #3A4A50, text = { classroot.label } ],
-        onClick() { app.setTab(classroot.idx) },
+        onClick() { app.setTab(classroot.idx) }
         ],
 
     area: TextInput [ x = 2, y = 20, width = { parent.width - 4 }, height = 326,
         multiline = true, fill = #FFFFFF, fontSize = 10, textColor = #333333,
-        visible = { app.openTab == classroot.idx } ],
+        visible = { app.openTab == classroot.idx } ]
     ]
 
 
@@ -189,7 +189,7 @@ class HourLabel extends View [
     num:  Text [ x = 2, fontSize = 10, textColor = #4B5D6C,
         fontWeight = { :bold ? "bold" : "normal" }, text = :num ],
     ampm: Text [ x = { parent.num.x + parent.num.width }, y = 3, fontSize = 7,
-        textColor = #4B5D6C, text = :ampm ],
+        textColor = #4B5D6C, text = :ampm ]
     ]
 
 
@@ -242,7 +242,7 @@ class TimeEvent extends View [
     onMouseDown() { app.startDrag(:id) },
     onMouseMove(e: PointerEvent) { app.dragMove(e.x, e.y) },
     onMouseUp()   { app.endDrag() },
-    onClick() { if (!app.dragOccurred) app.selectEvent(:id, this.dayKey) },
+    onClick() { if (!app.dragOccurred) app.selectEvent(:id, this.dayKey) }
     ]
 
 
@@ -304,7 +304,7 @@ class DayCell extends View [
         list: View [ width = { parent.width }, visible = { !classroot.open },
             layout: SimpleLayout [ axis = y ],
             EventBar [ datapath = :events[], category = :category,
-                dayKey = { classroot.dayKey }, selected = { app.selectedEvent == :id } ],
+                dayKey = { classroot.dayKey }, selected = { app.selectedEvent == :id } ]
             ],
 
         // Open form: an hour timeline, built only while the cell is open. The
@@ -327,12 +327,12 @@ class DayCell extends View [
                     d.fillRect(28, 0, 1, height)
                     },
                 labels: View [ width = 28,
-                    HourLabel [ datapath = :hours[], y = { :y - 6 } ],
+                    HourLabel [ datapath = :hours[], y = { :y - 6 } ]
                     ],
                 events: View [ x = 28, width = { parent.width - 38 },
                     TimeEvent [ datapath = :events[], category = :category,
-                        dayKey = { classroot.dayKey }, selected = { app.selectedEvent == :id } ],
-                    ],
+                        dayKey = { classroot.dayKey }, selected = { app.selectedEvent == :id } ]
+                    ]
                 ],
 
             // Vertical scrollbar (drawn — the original's vscrollbar was a
@@ -349,10 +349,10 @@ class DayCell extends View [
                     const ty = (0 - parent.tl.y) / maxS * (height - th)
                     d.fillStyle = 0x9BAAB3
                     d.fillRect(1, ty, width - 2, th)
-                    },
-                ],
-            ],
-        ],
+                    }
+                ]
+            ]
+        ]
     ]
 
 
@@ -363,7 +363,7 @@ class DayCell extends View [
 
 class DayName extends View [
     t: Text [ fontSize = 10, fontWeight = bold, textColor = #B7BEC1,
-        x = { (parent.width - this.width) / 2 }, text = :label ],
+        x = { (parent.width - this.width) / 2 }, text = :label ]
     ]
 
 
@@ -431,7 +431,7 @@ class CalendarGrid extends TweenLayout [
             out.push({ label: names[c], x: g.colX[c], w: g.colW[c],
                        vis: this.mode == "day" ? c == this.focusCol : true })
         return out
-        },
+        }
     ]
 
 
@@ -456,7 +456,7 @@ class CalButton extends View [
         text = { label } ],
 
     onMouseDown() { this.down = true },
-    onMouseUp()   { this.down = false },
+    onMouseUp()   { this.down = false }
     ]
 
 
@@ -975,8 +975,8 @@ App [ width = 835, height = 600, fill = #1E3A49,
             rule: View [ y = 25, width = { parent.width }, height = 1, fill = #708A94 ],
 
             names: View [ y = 11, width = { parent.width }, height = 12,
-                DayName [ datapath = :cols[], x = :x, width = :w, height = 12, visible = :vis ],
-                ],
+                DayName [ datapath = :cols[], x = :x, width = :w, height = 12, visible = :vis ]
+                ]
             ],
 
         mbar: View [ width = 806, height = 32,
@@ -1013,14 +1013,14 @@ App [ width = 835, height = 600, fill = #1E3A49,
                     textShadow = shadow(0, -1, 0, #33555577), text = "month" ],
 
                 dayHit:   View [ x = 0,   width = 47, height = 17,
-                    onClick() { App.showDay() },
+                    onClick() { App.showDay() }
                     ],
                 weekHit:  View [ x = 47,  width = 57, height = 17,
-                    onClick() { App.showWeek() },
+                    onClick() { App.showWeek() }
                     ],
                 monthHit: View [ x = 104, width = 70, height = 17,
-                    onClick() { App.showMonth() },
-                    ],
+                    onClick() { App.showMonth() }
+                    ]
                 ],
 
             monthCtl: View [ x = 321, y = 8, width = 161, height = 17, cornerRadius = 8,
@@ -1049,11 +1049,11 @@ App [ width = 835, height = 600, fill = #1E3A49,
                     },
 
                 prevBtn: View [ width = 24, height = 17,
-                    onClick() { App.step(-1) },
+                    onClick() { App.step(-1) }
                     ],
                 nextBtn: View [ x = 137, width = 24, height = 17,
-                    onClick() { App.step(1) },
-                    ],
+                    onClick() { App.step(1) }
+                    ]
                 ],
 
             // bold white centered title with the drop shadow the original
@@ -1065,9 +1065,9 @@ App [ width = 835, height = 600, fill = #1E3A49,
                 text = { App.month > 0 ? App.monthName(App.month) + " " + App.year : "" } ],
 
             addBtn: CalButton [ x = 496, y = 5, width = 76, label = "Add Event",
-                onClick() { App.addEvent() },
-                ],
-            ],
+                onClick() { App.addEvent() }
+                ]
+            ]
         ],
 
     /* ## The grid (SPEC §2)
@@ -1082,8 +1082,8 @@ App [ width = 835, height = 600, fill = #1E3A49,
         DayCell [ datapath = :days[], dayKey = :key,
             selected = { App.selectedKey == this.dayKey },
             open = { App.isOpen(this.dayKey) },
-            onClick() { App.openDay(this.dayKey) },
-            ],
+            onClick() { App.openDay(this.dayKey) }
+            ]
         ],
 
     /* ## The info panel (SPEC §7)
@@ -1099,11 +1099,11 @@ App [ width = 835, height = 600, fill = #1E3A49,
 
         slideIn:  AnimatorGroup [ process = simultaneous, duration = 500, motion = laszloBoth,
             Animator [ attribute = x, to = 622 ],
-            Animator [ attribute = opacity, to = 1 ],
+            Animator [ attribute = opacity, to = 1 ]
             ],
         slideOut: AnimatorGroup [ process = simultaneous, duration = 500, motion = laszloBoth,
             Animator [ attribute = x, to = 852 ],
-            Animator [ attribute = opacity, to = 0 ],
+            Animator [ attribute = opacity, to = 0 ]
             ],
 
         bar: View [ width = { parent.width }, height = 18, fill = #384852,
@@ -1116,8 +1116,8 @@ App [ width = 835, height = 600, fill = #1E3A49,
                     d.beginPath(); d.moveTo(2, 2); d.lineTo(9, 9)
                     d.moveTo(9, 2); d.lineTo(2, 9); d.stroke()
                     },
-                onClick() { app.closePanel() },
-                ],
+                onClick() { app.closePanel() }
+                ]
             ],
 
         titleF: TextInput [ x = 6, y = 24, width = 193, height = 17, fill = #FFFFFF,
@@ -1136,11 +1136,11 @@ App [ width = 835, height = 600, fill = #1E3A49,
         attSec:   AccordionSection [ x = 4, idx = 2, label = "Attendees" ],
 
         applyBtn:  CalButton [ x = 8, y = 486, width = 82, label = "Apply",
-            onClick() { app.apply() },
+            onClick() { app.apply() }
             ],
         deleteBtn: CalButton [ x = 115, y = 486, width = 82, label = "Delete",
-            onClick() { app.deleteEvent(); app.closePanel() },
-            ],
+            onClick() { app.deleteEvent(); app.closePanel() }
+            ]
         ],
 
     // A ghost of the dragged event that follows the pointer (SPEC §6) — the top
@@ -1151,6 +1151,6 @@ App [ width = 835, height = 600, fill = #1E3A49,
         x = { App.dragX - 10 }, y = { App.dragY - 9 },
         width = 132, height = 18, opacity = 0.82, cornerRadius = 3,
         fill = #C6CEDC, stroke = stroke(1, #8A98A4),
-        label: Text [ x = 7, y = 3, fontSize = 10, textColor = #3A4650, text = "" ],
-        ],
+        label: Text [ x = 7, y = 3, fontSize = 10, textColor = #3A4650, text = "" ]
+        ]
     ]

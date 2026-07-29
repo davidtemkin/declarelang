@@ -21,6 +21,12 @@ export declare function scanDatapaths(src: string): PathIsland[];
  *  identifier grammar, so no member can ever collide with `$data`). A
  *  many-path is refused: `:items[]` replicates, which is a datapath
  *  attribute's meaning, not a value a body can hold. */
+/** The first place the path grammar STOPPED where the author plainly meant to
+ *  continue — the silent-truncation trap (data-paths.md §2): ':my-key' would
+ *  compile to a SUBTRACTION, ':rows[0]' hands '[0]' to TypeScript, ':$.store'
+ *  reads a key literally named '$'. Each refusal names the rewrite that works
+ *  today. Corpus-verified: no legitimate use of any refused spelling. */
+export declare function datapathTrouble(src: string, islands: readonly PathIsland[]): string | null;
 export declare function rewriteDatapaths(src: string): {
     src: string;
 } | {

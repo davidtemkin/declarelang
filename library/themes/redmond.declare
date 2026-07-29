@@ -30,7 +30,7 @@ stylesheet Redmond [
         menuRadius = 8, menuShadow = shadow(0, 8, 16, #00000030), menuHl = #F0F0F0, menuHlText = #1B1B1B,
         scrimColor = #000000, scrimOpacity = 0.3, errorColor = #C42B1C,
         dialogWidth = 448, dialogButtons = "fill", dialogTitleSize = 20, dialogBodySize = 14,
-        buttonBorder = #D1D1D1 ],
+        buttonBorder = #D1D1D1 ]
     ]
 
 
@@ -52,5 +52,5 @@ stylesheet RedmondDark [
         menuRadius = 8, menuShadow = shadow(0, 8, 16, #00000059), menuHl = #3D3D3D, menuHlText = #FFFFFF,
         scrimColor = #000000, scrimOpacity = 0.5, errorColor = #FF99A4,
         dialogWidth = 448, dialogButtons = "fill", dialogTitleSize = 20, dialogBodySize = 14,
-        buttonBorder = #505050 ],
+        buttonBorder = #505050 ]
     ]

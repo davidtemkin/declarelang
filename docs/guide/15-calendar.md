@@ -34,7 +34,7 @@ Spring [ attribute = c0, to = { app.c0To }, stiffness = 150, damping = 20 ],
 Spring [ attribute = nc, to = { app.ncTo }, stiffness = 150, damping = 20 ],
 Spring [ attribute = nr, to = { app.nrTo }, stiffness = 150, damping = 20 ],
 colW: number = { (app.bodyW - 2 * app.pad - app.gutter) / app.nc },
-rowH: number = { (app.bodyH - app.headH) / app.nr },
+rowH: number = { (app.bodyH - app.headH) / app.nr }
 ```
 
 You built exactly this in [chapter 11](declare-docs:guide:arrangement), with two
@@ -54,7 +54,7 @@ geometry*:
 
 ```declare-fragment
 blockness: number = { app.clamp((app.rowH - 240) / 300, 0, 1) },   // 0 = month chips, 1 = time blocks
-gutter:    number = { app.blockness * 52 },                        // the hour gutter opens in time views
+gutter:    number = { app.blockness * 52 }                        // the hour gutter opens in time views
 ```
 
 `blockness` reads `rowH`, which reads `nr`, which is sprung — so as the view zooms,
@@ -72,7 +72,8 @@ dataset** recomputing from the visible month, with keyed replication so a recomp
 costs only the days that changed:
 
 ```declare-fragment
-cal: Dataset [ contents = { app.buildModel() } ],
+cal: Dataset [ contents = { app.buildModel() } ]
+
 // consumed by:  Cell [ datapath = :grid[], key = :key ]   and   Ev [ datapath = :events[], key = :id ]
 ```
 
@@ -89,13 +90,13 @@ threshold, up — and then a drop is *one edit to the data*:
 
 ```declare-fragment
 commitDrop(px: number, py: number) {
-    const idx = app.data.value.events.findIndex(e => e.id == this.dragId)
-    const p = "events." + idx + "."
-    const d = app.parseKey(this.cellAt(px, py).key)        // invert the mapping: point → cell
-    app.data.set(p + "y", d.getFullYear())
-    app.data.set(p + "m", d.getMonth() + 1)
-    app.data.set(p + "d", d.getDate())                     // …and the derived grid re-lays itself
-    },
+const idx = app.data.value.events.findIndex(e => e.id == this.dragId)
+const p = "events." + idx + "."
+const d = app.parseKey(this.cellAt(px, py).key)        // invert the mapping: point → cell
+app.data.set(p + "y", d.getFullYear())
+app.data.set(p + "m", d.getMonth() + 1)
+app.data.set(p + "d", d.getDate())                     // …and the derived grid re-lays itself
+    }
 ```
 
 No code moves the event's view. The writes wake exactly the constraints that read

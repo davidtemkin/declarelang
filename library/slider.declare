@@ -93,6 +93,6 @@ class Slider extends Control [
         dot: View [ visible = { classroot.dotStyle() },
             width  = { classroot.hot || classroot.down || classroot.dragging ? 14 : 12 },
             height = { this.width }, cornerRadius = { this.width / 2 },
-            x = center, y = center, fill = { theme.accent } ],
-        ],
+            x = center, y = center, fill = { theme.accent } ]
+        ]
     ]

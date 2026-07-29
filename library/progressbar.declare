@@ -14,5 +14,5 @@ class ProgressBar extends View [ width = 220, height = 8, cornerRadius = 4,
     fill = { theme.control },
 
     bar: View [ height = { parent.height }, cornerRadius = 4, fill = { theme.accent },
-        width = { parent.width * Math.max(0, Math.min(1, (value - min) / ((max - min) || 1))) } ],
+        width = { parent.width * Math.max(0, Math.min(1, (value - min) / ((max - min) || 1))) } ]
     ]

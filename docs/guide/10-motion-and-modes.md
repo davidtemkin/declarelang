@@ -39,8 +39,8 @@ App [ width = 420, height = 120, fill = black,
     on: boolean = false,
     onClick() { on = !on },
     ball: View [ x = 20, y = 40, width = 40, height = 40, cornerRadius = 20, fill = turquoise,
-        slide: Spring [ attribute = x, to = { on ? 340 : 20 }, stiffness = 170, damping = 20 ],
-        ],
+        slide: Spring [ attribute = x, to = { on ? 340 : 20 }, stiffness = 170, damping = 20 ]
+        ]
     ]
 ```
 
@@ -73,9 +73,9 @@ App [ width = 360, height = 240, fill = black, textColor = whitesmoke,
         Text [ x = 20, y = 20, fontWeight = bold, text = "Summary" ],
         big: State [ applied = { open }, height = 180, fill = steelblue,
             Text [ x = 20, y = 50, width = 260, textColor = gainsboro, wrap = true,
-                text = "height, color, and this whole line swap in together" ],
-            ],
-        ],
+                text = "height, color, and this whole line swap in together" ]
+            ]
+        ]
     ]
 ```
 

@@ -22,8 +22,8 @@ App [ width = 300, height = 160, fill = whitesmoke,
         shadow = { shadow(0, 10, 20, 0x00000033) },
         Text [ x = 20, y = 20, fontSize = 16, fontWeight = bold, text = "Drawing" ],
         Text [ x = 20, y = 50, textColor = slategray, opacity = 0.9,
-            text = "fill · stroke · shadow · radius" ],
-        ],
+            text = "fill · stroke · shadow · radius" ]
+        ]
     ]
 ```
 
@@ -47,8 +47,8 @@ App [ fill = white, fontFamily = ["Helvetica Neue", "sans-serif"], fontSize = 15
     topBar: View [ x = 20, y = 20,
         layout: SimpleLayout [ axis = y, spacing = 6 ],
         Text [ text = "Rain or Shine?" ],
-        Text [ text = "94110", textColor = royalblue ],   // overrides only the color
-        ],
+        Text [ text = "94110", textColor = royalblue ]   // overrides only the color
+        ]
     ]
 ```
 
@@ -71,8 +71,8 @@ App [ fill = { theme.surface }, theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, ac
     col: View [ x = 20, y = 20,
         layout: SimpleLayout [ axis = y, spacing = 8 ],
         Heading [ text = "Signals" ],
-        Text [ textColor = { theme.muted }, text = "muted subtitle" ],
-        ],
+        Text [ textColor = { theme.muted }, text = "muted subtitle" ]
+        ]
     ]
 ```
 
@@ -92,7 +92,7 @@ honestly is a design decision, and you should never ship a rendition you have ne
 seen. Following the system is one line of stated intent:
 
 ```declare-fragment
-theme = { Themes.sanFrancisco(app.dark) },   // follow the system, live
+theme = { Themes.sanFrancisco(app.dark) }   // follow the system, live
 ```
 
 `app.dark` is reactive, so the flip is immediate when the OS setting changes — no

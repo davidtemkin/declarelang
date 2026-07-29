@@ -12,6 +12,6 @@ class Bar extends View [ height = 28,
     rail: View [ x = { classroot.lead }, width = { parent.width - classroot.lead },
         height = { parent.height }, cornerRadius = 6, fill = #0A1119,
         bar: View [ height = { parent.height }, cornerRadius = 6, fill = { classroot.tint },
-            width = { parent.width * classroot.value / 100 } ],
-        ],
+            width = { parent.width * classroot.value / 100 } ]
+        ]
     ]

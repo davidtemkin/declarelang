@@ -50,9 +50,9 @@ class Segment extends View [ kind: string = "",
         body: View [ x = 20, y = 16, width = { parent.width - 40 }, scrollsX = true, height = { this.contentHeight },
             HTMLText [ x = 0, y = 0, width = { parent.width },
                 html = { classroot.html }, scale = { app.fontScale },
-                accents = { app.codeAccents() }, bodyColor = { app.codeFg() }, selectable = true ],
-            ],
-        ],
+                accents = { app.codeAccents() }, bodyColor = { app.codeFg() }, selectable = true ]
+            ]
+        ]
     ]
 
 
@@ -68,7 +68,7 @@ class SizeBtn extends View [ width = 34, height = 30, cornerRadius = 6,
 
     lbl: Text [ fontWeight = semibold, fontSize = { classroot.glyph }, textColor = { app.theme.muted },
         text = "A", wrap = false,
-        x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 } ],
+        x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 } ]
     ]
 
 
@@ -85,7 +85,7 @@ class ModeSeg extends View [ m: string = "",
         y = { (parent.height - this.height) / 2 },
         textColor = { app.mode == classroot.m ? app.theme.text : classroot.hovered ? app.theme.text : app.theme.muted },
         text = { classroot.lbl } ],
-    onClick() { app.location = classroot.m },
+    onClick() { app.location = classroot.m }
     ]
 
 
@@ -102,7 +102,7 @@ class ThemeSeg extends View [ m: string = "",
         y = { (parent.height - this.height) / 2 },
         textColor = { app.themeMode == classroot.m ? app.theme.text : classroot.hovered ? app.theme.text : app.theme.muted },
         text = { classroot.glyph } ],
-    onClick() { app.themeMode = classroot.m },
+    onClick() { app.themeMode = classroot.m }
     ]
 
 
@@ -127,7 +127,7 @@ App [ fill = { app.theme.bg },
     // viewed program as soon as the tab opens — no first keystroke needed
 
     rawSrc: DataSource [ format = "text", auto = true, url = { app.env.program ? "" + app.env.program + "?file" : "" },
-        onLoad() { if (app.liveCard == "") { app.liveCard = "__raw__"; app.liveSource = "" + (this.value || "") } },
+        onLoad() { if (app.liveCard == "") { app.liveCard = "__raw__"; app.liveSource = "" + (this.value || "") } }
         ],
 
     barH: number = 52,
@@ -314,14 +314,14 @@ App [ fill = { app.theme.bg },
 
                 gapm: View [ width = 10, height = 1 ],
                 m: Text [ y = { 8 * app.fontScale }, fontSize = { 13 * app.fontScale }, wrap = false,
-                    textColor = { app.theme.muted }, text = { app.metaLabel() } ],
+                    textColor = { app.theme.muted }, text = { app.metaLabel() } ]
                 ],
 
             // a blue→teal thread of the brand accent, the origin of the code spine
 
             rule: View [ y = { 34 * app.fontScale }, width = { parent.width }, height = 2, cornerRadius = 1,
                 opacity = { app.isDark ? 0.72 : 1 },
-                fill = { gradient("90deg", app.theme.accent, app.theme.accentTeal) } ],
+                fill = { gradient("90deg", app.theme.accent, app.theme.accentTeal) } ]
             ],
 
         // highlighted view: prose + colored code segments
@@ -330,7 +330,7 @@ App [ fill = { app.theme.bg },
             x = { Math.max(24, (parent.width - this.width) / 2) },
             datapath = { app.doc.value },
             layout: SimpleLayout [ axis = y, spacing = 12 ],
-            Segment [ datapath = :segments[], kind = :kind, md = :md, html = :html ],
+            Segment [ datapath = :segments[], kind = :kind, md = :md, html = :html ]
             ],
 
         // plain view: the verbatim source as one monospace flow (same size/theme)
@@ -346,14 +346,14 @@ App [ fill = { app.theme.bg },
 
             body: View [ x = 20, y = 16, width = { parent.width - 40 }, scrollsX = true, height = { this.contentHeight },
                 HTMLText [ x = 0, y = 0, width = { parent.width }, html = { app.plainHtml() },
-                    scale = { app.fontScale }, bodyColor = { app.codeFg() }, selectable = true ],
-                ],
+                    scale = { app.fontScale }, bodyColor = { app.codeFg() }, selectable = true ]
+                ]
             ],
 
         // bottom margin: a spacer just past the active view's bottom edge
 
         foot: View [ width = 8, height = 48,
-            y = { app.topM + app.headH + (app.mode == "reader" ? parent.col.height : parent.plain.height) } ],
+            y = { app.topM + app.headH + (app.mode == "reader" ? parent.col.height : parent.plain.height) } ]
         ],
 
     // Live-edit workbench — a fixed stack filling the window below the bar: the
@@ -380,7 +380,7 @@ App [ fill = { app.theme.bg },
             fontFamily = [Mono, "monospace"], fontSize = 12, textColor = { app.codeFg() },
             fill = { app.theme.codeBg },
             initial = { app.demoSources["__raw__"] || app.rawSrc.value || "" },
-            onInput() { parent.edited = true; app.liveCard = "__raw__"; app.liveSource = text },
+            onInput() { parent.edited = true; app.liveCard = "__raw__"; app.liveSource = text }
             ],
 
         // Revert — restores the file's pristine text and recompiles it; armed
@@ -400,7 +400,7 @@ App [ fill = { app.theme.bg },
                 app.liveCard = "__raw__"; app.liveSource = raw
                 },
             lbl: Text [ x = 9, y = 5, fontSize = 11, fontWeight = semibold, wrap = false,
-                textColor = { app.theme.muted }, text = "Revert" ],
+                textColor = { app.theme.muted }, text = "Revert" ]
             ],
 
         // the divider: the press captures the pointer to this view (the router's
@@ -416,7 +416,7 @@ App [ fill = { app.theme.bg },
             drag(y: number) { parent.split = Math.max(120, Math.min(parent.height - 160, y)) },
             onMouseDown()  { dragging = true },
             onMouseMove()  { if (dragging) drag(app.pointerY - app.barH) },
-            onMouseUp()    { dragging = false },
+            onMouseUp()    { dragging = false }
             ],
 
         // the error sandwich: the last recompile's report IN FULL, only while one
@@ -430,7 +430,7 @@ App [ fill = { app.theme.bg },
             bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { app.isDark ? 0xE0525E : 0xC93B47 } ],
             msg: Text [ x = 14, y = 10, width = { parent.width - 28 }, wrap = true,
                 fontFamily = [Mono, "monospace"], fontSize = 11,
-                textColor = { app.isDark ? 0xFF8B8B : 0xB42318 }, text = { app.liveReport } ],
+                textColor = { app.isDark ? 0xFF8B8B : 0xB42318 }, text = { app.liveReport } ]
             ],
 
         // the running program — an embedded child app in a host island, swapped
@@ -447,7 +447,7 @@ App [ fill = { app.theme.bg },
         // editor's textarea underneath cannot rubber-band a text selection.
 
         shield: View [ visible = { parent.grip.dragging }, x = 0, y = 0,
-            width = { parent.width }, height = { parent.height } ],
+            width = { parent.width }, height = { parent.height } ]
         ],
 
     // top bar: the brand (left) · Reader / Source / Edit (centre) · type-size
@@ -466,10 +466,10 @@ App [ fill = { app.theme.bg },
 
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
                 textFill = { gradient("90deg", app.theme.accent, app.theme.accentTeal) }, text = "Declare",
-                onClick() { app.navigate("apps/homepage/homepage.declare") },
+                onClick() { app.navigate("apps/homepage/homepage.declare") }
                 ],
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
-                textColor = { app.theme.text }, text = "Viewer" ],
+                textColor = { app.theme.text }, text = "Viewer" ]
             ],
 
         modeSwitch: View [ y = { (app.barH - 30) / 2 }, height = 30, width = 244,
@@ -477,7 +477,7 @@ App [ fill = { app.theme.bg },
             cornerRadius = 8, fill = { app.theme.track },
             r: ModeSeg [ x = 2,   m = "reader", lbl = "Reader" ],
             s: ModeSeg [ x = 82,  m = "source", lbl = "Source" ],
-            e: ModeSeg [ x = 162, m = "edit",   lbl = "Edit" ],
+            e: ModeSeg [ x = 162, m = "edit",   lbl = "Edit" ]
             ],
 
         size: View [ y = { (app.barH - 30) / 2 }, x = { parent.themeSwitch.x - this.width - 8 }, height = 30,
@@ -488,14 +488,14 @@ App [ fill = { app.theme.bg },
             d1: View [ width = 1, height = 18, y = 6, fill = { app.theme.line } ],
             SizeBtn [ glyph = 15, delta = 0 ],
             d2: View [ width = 1, height = 18, y = 6, fill = { app.theme.line } ],
-            SizeBtn [ glyph = 19, delta = 0.1 ],
+            SizeBtn [ glyph = 19, delta = 0.1 ]
             ],
 
         themeSwitch: View [ y = { (app.barH - 30) / 2 }, x = { app.hostWidth - 94 - 16 }, height = 30, width = 94,
             cornerRadius = 8, fill = { app.theme.track },
             s1: ThemeSeg [ x = 2, m = "light", glyph = "☀︎" ],
             s2: ThemeSeg [ x = 32, m = "auto", glyph = "◐" ],
-            s3: ThemeSeg [ x = 62, m = "dark", glyph = "☾" ],
-            ],
-        ],
+            s3: ThemeSeg [ x = 62, m = "dark", glyph = "☾" ]
+            ]
+        ]
     ]

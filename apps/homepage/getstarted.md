@@ -33,12 +33,11 @@ App [ width = 400, height = 140, fill = darkslategray, textColor = whitesmoke,
 
     add: View [ x = 20, y = 20, width = 120, height = 40, cornerRadius = 10, fill = royalblue,
         onClick() { count = count + 1 },
-        Text [ x = 20, y = 10, text = "Add one" ],
+        Text [ x = 20, y = 10, text = "Add one" ]
         ],
 
     Text [ y = 80, x = { (parent.width - this.width) / 2 },
-        text = { `Clicked ${count} times` },
-        ],
+        text = { `Clicked ${count} times` } ]
     ]
 ```
 <!-- /generated:flagship-example -->

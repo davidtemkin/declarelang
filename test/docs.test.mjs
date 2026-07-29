@@ -55,14 +55,18 @@ for (const rel of COVERED) {
   for (const [i, frag] of fragments.entries()) {
     const head = frag.trim().split("\n")[0].slice(0, 56);
     await test(`${rel} fragment ${i + 1} parses: ${head}`, () => {
-      // a fragment may be a TOP-LEVEL excerpt (style/stylesheet/font decls +
-      // a root) or a MEMBER excerpt — try it raw first, wrap as fallback
-      try {
-        parseProgram(frag);
+      // a fragment is one of three excerpts: a whole top-level program, a set
+      // of top-level DECLARATIONS (class/style/font/…) with no root, or a
+      // MEMBER list. Try each in turn — and note that a declaration excerpt
+      // must get a ROOT appended, never an App body wrapped around it: wrapping
+      // read `class Foo extends View [ … ]` as a run of members named `class`,
+      // `Foo`, `extends`, which only "parsed" while the comma was optional.
+      try { parseProgram(frag); return; } catch { /* not a whole program */ }
+      if (/^\s*(class|style|stylesheet|font|include|script|use)\b/.test(frag)) {
+        parseProgram(`${frag.trimEnd()}\n\nApp [ width = 1, height = 1 ]\n`);
         return;
-      } catch { /* member excerpt — wrap in an App body below */ }
-      const body = frag.trimEnd().endsWith(",") ? frag : frag.trimEnd() + ",";
-      parseProgram(`App [\n${body}\n]`);
+      }
+      parseProgram(`App [\n${frag.trimEnd()}\n]`);
     });
   }
 }

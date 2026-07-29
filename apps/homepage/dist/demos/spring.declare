@@ -6,8 +6,8 @@ App [ on: boolean = false,
         lane: View [ width = { parent.width }, height = 60,
             ball: View [ y = center, height = 60, width = 60, cornerRadius = 30, fill = dodgerblue,
                 Spring [ attribute = x, to = { on ? lane.width - ball.width : 0 },
-                    stiffness = 190, damping = 20 ],
-                ],
-            ],
-        ],
+                    stiffness = 190, damping = 20 ]
+                ]
+            ]
+        ]
     ]

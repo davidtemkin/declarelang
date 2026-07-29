@@ -6,7 +6,7 @@ App [ fill = white, textColor = black,
         Text [ x = 20, y = 20, fontWeight = bold, text = "Summary" ],
         big: State [ applied = { open }, height = 180, fill = lightsteelblue,
             Text [ x = 20, y = 50, width = 260, wrap = true,
-                text = "height, color, and this whole line swap in together" ],
-            ],
-        ],
+                text = "height, color, and this whole line swap in together" ]
+            ]
+        ]
     ]

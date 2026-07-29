@@ -1,5 +1,5 @@
 App [ fill = #F4F5F7,
     player: DOMIsland [ x = 20, y = 20, slot = "player",
         width = { parent.width - 40 }, height = { parent.height - 40 },
-        fill = #10131A, cornerRadius = 10 ],
+        fill = #10131A, cornerRadius = 10 ]
     ]

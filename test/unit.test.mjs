@@ -101,19 +101,21 @@ await test("parse() accepts an optional trailing comma", () => {
   assert.equal(el.attrs.length, 2);
 });
 
-await test("parse(): the comma between members is OPTIONAL", () => {
-  // Members are delimited by the grammar (each begins with an ident), so the
-  // comma is punctuation the author may use, omit, or trail. All four spellings
-  // of the same two-child body parse to the same tree.
-  const shapes = [
-    "App [ View [] View [] ]",           // none
-    "App [ View [], View [] ]",          // separating
-    "App [ View [], View [], ]",         // separating + trailing
-    "App [ View []\n  View []\n  ]",     // newline-delimited
-  ];
-  for (const src of shapes) {
-    assert.equal(parse(src).children.length, 2, src);
-  }
+await test("parse(): the member separator is REQUIRED; the trailing comma is optional (ruled 2026-07-28)", () => {
+  // The grammar COULD delimit by idents alone — that was the rule until
+  // 2026-07-28 — but a missing comma is nearly always an editing accident, and
+  // the formatter always refused the comma-free form. The parser now agrees.
+  for (const src of [
+    "App [ View [], View [] ]",          // separated — house style
+    "App [ View [], View [], ]",         // …plus a trailing comma, still legal
+    "App [ View [],\n  View []\n  ]",     // separated across lines
+  ]) assert.equal(parse(src).children.length, 2, src);
+
+  // …and a MISSING separator is a positioned error, one per omission (the
+  // parser recovers and keeps going rather than cascading)
+  const errs = (src) => { const r = compile(src); return (r.errors ?? []).map((e) => e.message); };
+  assert.match(errs("App [ width = 1 height = 2 ]")[0], /members are separated by commas — add ',' before 'height'/);
+  assert.equal(errs("App [ width = 1 height = 2 fill = white ]").length, 2, "one error per missing comma");
 });
 
 await test("parse() reports a source position on syntax errors", () => {
@@ -896,6 +898,50 @@ await test("a customized instance is a SINGLETON SUBCLASS — add freely, overri
   ok(`class B extends View [ say(a: object) { } ]\nApp [ width=1, height=1, btn: B [ say(a: string) { } ] ]`);
 });
 
+await test("a quoted string ends at its line — multi-line text is a \"\"\" block (H)", () => {
+  const errs = (src) => { const r = compile(src); return (r.errors ?? []).map((e) => e.message).join("\n"); };
+  assert.match(errs('App [ width=1, height=1, t: Text [ text = "line one\nline two" ] ]'),
+    /a quoted string ends at its line — for multi-line text use a """…""" block/);
+  const r = compile('App [ width=1, height=1, t: Text [ text = """\na\nb\n""" ] ]');
+  assert.ok(r.source, "the text block is the sanctioned form");
+});
+
+await test(":path truncation is a positioned error, never a silent prefix (data-paths.md §2)", () => {
+  // The scanner used to consume the longest identifier run and hand the rest
+  // to TypeScript: ':my-key' COMPILED — as `$data("my") - key`, a subtraction.
+  // Every refusal names the rewrite that works today.
+  const errs = (src) => { const r = compile(`App [ width=1, height=1, t: Text [ text = { "" + ${src} } ] ]`); return (r.errors ?? []).map((e) => e.message).join("\n"); };
+  assert.match(errs(":my-key"),      /ambiguous — for subtraction write ':my - …' \(spaced\); for a dashed KEY read \$data/);
+  assert.match(errs(":rows[0]"),     /bracket selectors are not :path syntax/);
+  assert.match(errs(":$.store.book"),/no JSONPath root; drop the '\$\.'/);
+  assert.match(errs(":rows.2"),      /numeric segment is legal in the path currency but not in the ':' literal/);
+  assert.match(errs(":a..b"),        /empty path segment/);
+  // the legitimate neighbors stay legal
+  const ok = (src) => { const r = compile(`App [ width=1, height=1, t: Text [ text = { "" + ${src} } ] ]`); assert.ok(r.source, (r.errors?.[0]?.rawMessage) ?? "expected ok"); };
+  ok("(:n - 1)");
+  ok(":location.city");
+});
+
+await test("the State verbs are reachable from source — gate XOR verbs", () => {
+  // Implemented in state.ts and advertised by the model since the start, but
+  // unreachable from a { } body until 2026-07-28: the scaffold's LANGUAGE_API
+  // table simply lacked the State entry, so member resolution refused them.
+  // ("The lack of State.apply is a language gap, not a docs gap.")
+  const app = build(`App [ width=100, height=60,
+    v: View [ width = 10, big: State [ width = 99 ] ],
+    go() { this.v.big.toggle() },
+    gated: State [ applied = { this.root.width > 50 } ],   // raw build(): 'app' is compile's rewrite
+    bad() { this.gated.apply() } ]`);
+  assert.equal(app.v.width, 10);
+  app.go(); assert.equal(app.v.width, 99, "toggle applies the override");
+  app.go(); assert.equal(app.v.width, 10, "toggle removes it");
+  // the other half of the rule: a GATED state refuses the verbs, with the rule named
+  assert.throws(() => app.bad(), /gated by \{ \} OR driven by the verbs/);
+  // and a typo still gets the near-miss
+  const errs = (() => { try { const r = compile("App [ width=1, height=1, s: State [ x = 1 ], go() { this.s.togle() } ]"); return (r.errors ?? []).map((e) => e.message).join("\n"); } catch (e) { return String(e); } })();
+  assert.match(errs, /did you mean 'toggle'/);
+});
+
 await test("element-typed arrays (`Window[]`) and the literal-tag createView", () => {
   // Both were mislabeled "gaps needing a ruling". TS has element-typed arrays;
   // only the WRITTEN-type grammar had to admit the spelling (same story as
@@ -1059,15 +1105,15 @@ await test("parse() positions a signature type, for a positioned unknown-type er
   assert.equal(el.methods[0].params[0].type, "Window");
 });
 
-await test("methods mix with attributes and children, comma or not", () => {
+await test("methods mix with attributes and children", () => {
   const el = parse("App [ width=1, onInit() { }, View [ x=2, m() { } ] ]");
   assert.equal(el.attrs.length, 1);
   assert.equal(el.methods.length, 1);
   assert.equal(el.children[0].methods.length, 1);
-  // the comma after a method body is optional like every other one
-  const bare = parse("App [ onInit() { } View [] ]");
-  assert.equal(bare.methods.length, 1);
-  assert.equal(bare.children.length, 1);
+  // a method body needs its separator too — nothing about `}` ends a member
+  const sep = parse("App [ onInit() { }, View [] ]");
+  assert.equal(sep.methods.length, 1);
+  assert.equal(sep.children.length, 1);
 });
 
 await test("a method body is the same lexical-island scan as a { } value", () => {
@@ -6049,7 +6095,7 @@ await test("@name reveal: heading slugs, named-view priority, -2 suffixes, held 
 
   // (a) a heading slug resolves; an unknown anchor is HELD (retained intent), not lost.
   const r = compile(`App [ width = 400, height = 400, location = "home",
-    md: Markdown [ width = 380, text = "# Intro\n\nbody text\n\n## Fine Details\n\nmore" ],
+    md: Markdown [ width = 380, text = "# Intro\\n\\nbody text\\n\\n## Fine Details\\n\\nmore" ],
   ]`);
   assert.equal(r.errors.length, 0);
   const app = settleHeadless(r.source, { deps: r.deps });
@@ -6083,7 +6129,7 @@ await test("@name reveal: heading slugs, named-view priority, -2 suffixes, held 
   //     heading; the heading takes the -2 (views before slugs).
   const r3 = compile(`App [ width = 400, height = 400, location = "x",
     named: View [ anchor = "intro", width = 10, height = 10 ],
-    md: Markdown [ width = 380, text = "# Intro\n\nbody" ],
+    md: Markdown [ width = 380, text = "# Intro\\n\\nbody" ],
   ]`);
   assert.equal(r3.errors.length, 0);
   const app3 = settleHeadless(r3.source, { deps: r3.deps });

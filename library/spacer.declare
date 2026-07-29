@@ -20,5 +20,5 @@ it paints nothing and has no size of its own.
 class Spacer extends View [
     flexes: boolean = true,
     width = 0,
-    height = 0,
+    height = 0
     ]

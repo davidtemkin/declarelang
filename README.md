@@ -19,8 +19,8 @@ App [ width = 400, height = 140, fill = darkslategray, textColor = whitesmoke,
     onClick() { count = count + 1 },                 // click anywhere
 
     Text [ y = 80, x = { (parent.width - this.width) / 2 },
-        text = { `Clicked ${count} times` },         // re-runs whenever count changes
-        ],
+        text = { `Clicked ${count} times` }         // re-runs whenever count changes
+        ]
     ]
 ```
 

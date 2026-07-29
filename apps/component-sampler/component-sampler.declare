@@ -16,7 +16,7 @@ use [ TintRow ]
 
 font Roboto [
     Face [ src = "../../assets/fonts/roboto/roboto-400.woff2" ],
-    Face [ src = "../../assets/fonts/roboto/roboto-500.woff2", weight = medium ],
+    Face [ src = "../../assets/fonts/roboto/roboto-500.woff2", weight = medium ]
     ]
 
 
@@ -53,7 +53,7 @@ class Swatch extends Control [ width = 26, height = 26, cornerRadius = 13,
     // hugs the color circle itself (the bounds include the selection ring's
     // 3px inset, which would leave daylight between disc and focus ring)
 
-    focusShape() { return { x: 3, y: 3, w: 20, h: 20, rad: 10 } },
+    focusShape() { return { x: 3, y: 3, w: 20, h: 20, rad: 10 } }
     ]
 
 
@@ -76,7 +76,7 @@ class TintDot extends View [ width = 16, height = 16, cornerRadius = 8,
     pivotY = 8,
     fill = { c },
     stroke = { hovered ? stroke(2, theme.text) : app.accentPick == c ? stroke(2, theme.textMuted) : null },
-    onClick() { app.accentPick = app.accentPick == c ? 0 : c || 0; app.optionsMenu.close() },
+    onClick() { app.accentPick = app.accentPick == c ? 0 : c || 0; app.optionsMenu.close() }
     ]
 
 
@@ -96,28 +96,28 @@ class TintRow extends View [
         layout: SimpleLayout [ axis = x, spacing = 7 ],
         TintDot [ c = #2E6FE0, name = "Blue",
             onMouseOver() { classroot.hoverName = this.name },
-            onMouseOut()  { if (classroot.hoverName == this.name) classroot.hoverName = "" },
+            onMouseOut()  { if (classroot.hoverName == this.name) classroot.hoverName = "" }
             ],
         TintDot [ c = #6750A4, name = "Purple",
             onMouseOver() { classroot.hoverName = this.name },
-            onMouseOut()  { if (classroot.hoverName == this.name) classroot.hoverName = "" },
+            onMouseOut()  { if (classroot.hoverName == this.name) classroot.hoverName = "" }
             ],
         TintDot [ c = #E0447E, name = "Pink",
             onMouseOver() { classroot.hoverName = this.name },
-            onMouseOut()  { if (classroot.hoverName == this.name) classroot.hoverName = "" },
+            onMouseOut()  { if (classroot.hoverName == this.name) classroot.hoverName = "" }
             ],
         TintDot [ c = #D03A2F, name = "Red",
             onMouseOver() { classroot.hoverName = this.name },
-            onMouseOut()  { if (classroot.hoverName == this.name) classroot.hoverName = "" },
+            onMouseOut()  { if (classroot.hoverName == this.name) classroot.hoverName = "" }
             ],
         TintDot [ c = #3A9E4C, name = "Green",
             onMouseOver() { classroot.hoverName = this.name },
-            onMouseOut()  { if (classroot.hoverName == this.name) classroot.hoverName = "" },
-            ],
+            onMouseOut()  { if (classroot.hoverName == this.name) classroot.hoverName = "" }
+            ]
         ],
     cap: Text [ x = 0, y = 25, fontSize = 12, textColor = { theme.textMuted },
         text = { hoverName != "" ? "Tint: " + hoverName
-               : app.accentPick == 0 ? "No tint" : "Tint: " + this.parent.nameOf(app.accentPick) } ],
+               : app.accentPick == 0 ? "No tint" : "Tint: " + this.parent.nameOf(app.accentPick) } ]
     ]
 
 
@@ -125,7 +125,7 @@ class Section extends View [ width = { parent.width },
     label: string = "",
     layout: SimpleLayout [ axis = y, spacing = 10 ],
     Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.2,
-        textColor = { theme.textFaint }, text = { label.toUpperCase() } ],
+        textColor = { theme.textFaint }, text = { label.toUpperCase() } ]
     ]
 
 
@@ -179,7 +179,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 720,
         picked(id: string) {
             if (id == "lock") app.menuLocked = !app.menuLocked
             app.lastPick = id
-            },
+            }
         ],
 
     dlg: Dialog [ ],
@@ -196,7 +196,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 720,
         header: View [ width = { parent.width },
             layout: SimpleLayout [ axis = y, spacing = 12 ],
             Text [ fontSize = 28, fontWeight = semibold, text = "Component Sampler" ],
-            View [ width = { parent.width }, height = 1, fill = { theme.line } ],
+            View [ width = { parent.width }, height = 1, fill = { theme.line } ]
             ],
 
         controls: View [ width = { parent.width },
@@ -206,17 +206,17 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 720,
                 Radio [ choice = "sanFrancisco", label = "San Francisco" ],
                 Radio [ choice = "mountainView", label = "Mountain View" ],
                 Radio [ choice = "cupertino", label = "Cupertino" ],
-                Radio [ choice = "redmond", label = "Redmond" ],
+                Radio [ choice = "redmond", label = "Redmond" ]
                 ],
             RadioGroup [ value = { app.colorMode },
                 input(v: string) { app.colorMode = v },
                 Radio [ choice = "light", label = "Light" ],
                 Radio [ choice = "system", label = "System" ],
-                Radio [ choice = "dark", label = "Dark" ],
+                Radio [ choice = "dark", label = "Dark" ]
                 ],
             Checkbox [ label = "Animate focus transitions", tip = "The focus ring flies between controls", checked = { app.animateFocus },
-                input(v: boolean) { app.animateFocus = v },
-                ],
+                input(v: boolean) { app.animateFocus = v }
+                ]
             ],
 
         // the user-settable accent (the macOS System Settings arrangement):
@@ -230,7 +230,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 720,
             Swatch [ c = 0xD03A2F ],
             Swatch [ c = 0xE0742F ],
             Swatch [ c = 0xC7A400 ],
-            Swatch [ c = 0x3A9E4C ],
+            Swatch [ c = 0x3A9E4C ]
             ],
 
         rule: View [ width = { parent.width }, height = 1, fill = { theme.line } ],
@@ -245,8 +245,8 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 720,
                     row: View [ layout: SimpleLayout [ axis = x, spacing = 14 ],
                         Button [ width = 120, label = "Primary", primary = true, tip = "The accent action" ],
                         Button [ width = 120, label = "Secondary", primary = false ],
-                        Button [ width = 120, label = "Disabled", disabled = true, tip = "Disabled — but the tip still shows" ],
-                        ],
+                        Button [ width = 120, label = "Disabled", disabled = true, tip = "Disabled — but the tip still shows" ]
+                        ]
                     ],
 
                 Section [ label = "Checkbox · Switch · Radio",
@@ -257,18 +257,18 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 720,
                         RadioGroup [ value = "m",
                             Radio [ choice = "s", label = "S" ],
                             Radio [ choice = "m", label = "M" ],
-                            Radio [ choice = "l", label = "L" ],
-                            ],
-                        ],
+                            Radio [ choice = "l", label = "L" ]
+                            ]
+                        ]
                     ],
 
                 Section [ label = "Slider · ProgressBar",
                     demo: View [ width = { parent.width },
                         layout: SimpleLayout [ axis = y, spacing = 14 ],
                         vol: Slider [ width = 260, value = 40, tip = "Volume — arrows nudge" ],
-                        ProgressBar [ width = 260, value = { this.parent.vol.value } ],
-                        ],
-                    ],
+                        ProgressBar [ width = 260, value = { this.parent.vol.value } ]
+                        ]
+                    ]
                 ],
             right: View [ width = { (parent.width - 40) / 2 },
                 layout: SimpleLayout [ axis = y, spacing = 22 ],
@@ -277,63 +277,63 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 720,
                         layout: SimpleLayout [ axis = y, spacing = 12 ],
                         TextInput [ width = 280, height = 30, placeholder = "Your name" ],
                         Field [ label = "Email", labelWidth = 60,
-                            TextInput [ width = 220, height = 30, text = "d@t.com" ],
-                            ],
-                        ],
+                            TextInput [ width = 220, height = 30, text = "d@t.com" ]
+                            ]
+                        ]
                     ],
 
                 Section [ label = "Menu",
                     row: View [ layout: SimpleLayout [ axis = x, spacing = 14 ],
                         Button [ width = 130, label = "Options ▾",
-                            onClick() { app.optionsMenu.openFor(this) },
+                            onClick() { app.optionsMenu.openFor(this) }
                             ],
                         last: Text [ y = center, fontSize = 12, textColor = { theme.textFaint },
-                            text = { "picked: " + app.lastPick } ],
-                        ],
+                            text = { "picked: " + app.lastPick } ]
+                        ]
                     ],
 
                 Section [ label = "Dialog",
                     row: View [ layout: SimpleLayout [ axis = x, spacing = 14 ],
                         Button [ width = 100, label = "Notice…",
-                            onClick() { app.dlg.notice("Saved", "Your changes were saved.", (id) => app.lastDialog = id) },
+                            onClick() { app.dlg.notice("Saved", "Your changes were saved.", (id) => app.lastDialog = id) }
                             ],
                         Button [ width = 100, label = "Ask…",
-                            onClick() { app.dlg.ask("Save changes?", "Your unsaved changes will be lost.", (id) => app.lastDialog = id) },
+                            onClick() { app.dlg.ask("Save changes?", "Your unsaved changes will be lost.", (id) => app.lastDialog = id) }
                             ],
                         Button [ width = 100, label = "Error…",
-                            onClick() { app.dlg.error("Could not connect", "The server refused the connection.", (id) => app.lastDialog = id) },
-                            ],
+                            onClick() { app.dlg.error("Could not connect", "The server refused the connection.", (id) => app.lastDialog = id) }
+                            ]
                         ],
-                    ans: Text [ fontSize = 12, textColor = { theme.textFaint }, text = { "answered: " + app.lastDialog } ],
+                    ans: Text [ fontSize = 12, textColor = { theme.textFaint }, text = { "answered: " + app.lastDialog } ]
                     ],
 
                 Section [ label = "Accordion",
                     Accordion [ width = { parent.width },
                         Pane [ label = "First", initial = true,
                             View [ width = { parent.width }, height = 70, fill = { theme.surface },
-                                Button [ x = 12, y = center, width = 110, label = "In pane 1" ],
-                                ],
+                                Button [ x = 12, y = center, width = 110, label = "In pane 1" ]
+                                ]
                             ],
                         Pane [ label = "Second",
                             View [ width = { parent.width }, height = 70, fill = { theme.surface },
-                                Button [ x = 12, y = center, width = 110, label = "In pane 2" ],
-                                ],
+                                Button [ x = 12, y = center, width = 110, label = "In pane 2" ]
+                                ]
                             ],
                         Pane [ label = "Third",
                             View [ width = { parent.width }, height = 96, fill = { theme.surface },
-                                Text [ x = 12, y = 10, textColor = { theme.textMuted }, text = "A taller third pane." ],
-                                ],
+                                Text [ x = 12, y = 10, textColor = { theme.textMuted }, text = "A taller third pane." ]
+                                ]
                             ],
                         Pane [ label = "Fourth",
                             View [ width = { parent.width }, height = 56, fill = { theme.surface },
-                                Text [ x = 12, y = 10, textColor = { theme.textMuted }, text = "And a short fourth." ],
-                                ],
-                            ],
-                        ],
-                    ],
-                ],
+                                Text [ x = 12, y = 10, textColor = { theme.textMuted }, text = "And a short fourth." ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
             ],
 
-        tail: View [ width = 8, height = 40 ],
-        ],
+        tail: View [ width = 8, height = 40 ]
+        ]
     ]

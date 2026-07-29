@@ -34,5 +34,5 @@ class AppIsland extends DOMIsland [
     // the host mount key: `run:<program>`, with the env query after `|`. No
     // program → empty slot → the island stays detached (DOMIsland unmounts it).
 
-    slot = { program == "" ? "" : "run:" + program + (env == "" ? "" : "|" + env) },
+    slot = { program == "" ? "" : "run:" + program + (env == "" ? "" : "|" + env) }
     ]

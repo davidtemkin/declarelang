@@ -23,7 +23,7 @@ class StatRow extends View [ width = 250, height = 20,
     value: string = "",
     layout: SimpleLayout [ axis = x, spacing = 8 ],
     labelText: Text [ width = 90, text = { classroot.label } ],
-    valueText: Text [ width = 150, text = { classroot.value } ],
+    valueText: Text [ width = 150, text = { classroot.value } ]
     ]
 
 
@@ -31,8 +31,8 @@ App [ fill = white, textColor = black,
     col: View [ x = 20, y = 20,
         layout: SimpleLayout [ axis = y, spacing = 6 ],
         StatRow [ label = "Humidity", value = "62%" ],
-        StatRow [ label = "Wind", value = "8 mph" ],
-        ],
+        StatRow [ label = "Wind", value = "8 mph" ]
+        ]
     ]
 ```
 
@@ -53,8 +53,8 @@ class WeatherTab extends View [
     header: View [
         onClick() { classroot.select() },                 // `this` is header; classroot is the WeatherTab
         caption: Text [ text = { classroot.label } ],
-        bg: View [ opacity = { classroot.selected ? 0.33 : 1 } ],
-        ],
+        bg: View [ opacity = { classroot.selected ? 0.33 : 1 } ]
+        ]
     ]
 ```
 
@@ -82,8 +82,8 @@ App [ width = 200, height = 90, fill = white, textColor = black,
     tally: View [ x = 20, y = 20,
         n: number = 0,                         // its own state
         onClick() { n = n + 1 },               // its own handler
-        Text [ text = { `taps: ${n}` } ],
-        ],
+        Text [ text = { `taps: ${n}` } ]
+        ]
     ]
 ```
 
@@ -100,7 +100,7 @@ no z-index; you restack by reordering, so reading order *is* paint order:
 ```declare
 App [ width = 200, height = 120, fill = white,
     View [ x = 20, y = 20, width = 80, height = 60, cornerRadius = 8, fill = royalblue ],
-    View [ x = 50, y = 40, width = 80, height = 60, cornerRadius = 8, fill = tomato ],
+    View [ x = 50, y = 40, width = 80, height = 60, cornerRadius = 8, fill = tomato ]
     ]
 ```
 

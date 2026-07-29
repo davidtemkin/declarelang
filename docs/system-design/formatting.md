@@ -4,7 +4,7 @@ This is the canon: the human style the language is written in, and the
 implementation contract for the tool that enforces it. It **supersedes**
 the earlier `indent.txt` sketch (since removed).
 [§12 of declare-language.md](declare-language.md#12-formatting-and-naming) states
-the load-bearing rules in brief (members comma-separated with a trailing
+the load-bearing rules in brief (members comma-separated, no trailing
 comma, one attribute-name vocabulary, camelCase); this document is the full
 canon those rules extend into, plus the prettyprinter that enforces it.
 
@@ -24,7 +24,8 @@ indent** (§2.5). **Revised 2026-07-12:** top-level declarations are separated
 by **one** blank line, not two (§2.1). **Revised 2026-07-13** (the
 formatter-v1 rulings, raised while building the tool and settled against the
 exemplar, `apps/viewer/viewer.declare`): the trailing comma is a
-**terminator** at hanging closes and omitted at inline closes (§2.1); the
+**terminator** at hanging closes and omitted at inline closes (§2.1 —
+**reversed 2026-07-28**, see below); the
 formatter is **line-preserving** — it never packs or re-wraps, header filling
 is authoring guidance (§2.2, §4 — ratified with recorded hesitation);
 tiered-airiness blanks are discretional (§2.3, §4); a one-line top-level
@@ -68,16 +69,14 @@ prettyprinter's implementation contract.
 ### 2.1 Indentation, commas, blank lines between top-level declarations
 
 Four-space indentation, everywhere. Members are comma-separated at every
-level, and the comma is a **terminator, not a separator** (ruled 2026-07-13
-— Go's rule): every member that ends its own line ends with a comma,
-**including the last member before a hanging close** — that is what makes
-reordering a clean diff (§12's rationale stands). Before an **inline** close
-the comma is omitted: the bracket rides the last attribute (`… text = :day ],`)
-and the member's own comma sits after it, where a comma *inside* would buy
-nothing. Neither form is a parser error — the grammar accepts both — the
-**formatter owns enforcement**: `--check` fails a comma before an inline
-close or a missing terminator before a hanging close, and `--write` fixes
-both.
+level, and the comma is a **separator, required by the parser** (ruled
+2026-07-28, reversing 2026-07-13's terminator stance): a missing separator
+between members is a positioned compile error, and the TRAILING comma —
+before any close, hanging or inline — is legal to write but **not house
+style**. The formatter sheds it (`drop`) and never adds one; `--check` fails
+a trailing comma, `--write` removes it. What 2026-07-13 bought with the
+terminator (reordering as a clean diff) the parser's requirement now costs
+one line on the last member — accepted knowingly in the reversal.
 
 The separator between top-level declarations — `script { }`, `class`, `App`,
 a future `stylesheet` — is **normalized by the preceding item's shape**
@@ -206,10 +205,10 @@ padding (§2.7), nothing else.
 The test is what *kind* of members a body holds, not how many source lines
 it happens to span. A **leaf** body holds attributes only — literal
 config and bindings, no child instance, no method, no state, no nested
-declaration — and closes **inline**, its `],` attached to the last content
+declaration — and closes **inline**, its `]` attached to the last content
 line, even when the attributes themselves wrapped onto a continuation
 line. Any body that holds a child instance, a method, a state, or a
-declaration closes **hanging**: the `],` sits alone on its own line, at
+declaration closes **hanging**: the `]` sits alone on its own line, at
 the body's own indent — regardless of whether each individual member
 happens to render on one source line.
 

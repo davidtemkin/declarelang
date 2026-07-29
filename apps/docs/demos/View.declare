@@ -6,6 +6,6 @@ App [
         fill = { hot ? 0xE0533D : 0x2E6BE6 },
         onClick() { hot = !hot },
         Text [ x = 20, y = 20, fontSize = 15, fontWeight = semibold,
-            textColor = whitesmoke, text = "click to recolor" ],
-        ],
+            textColor = whitesmoke, text = "click to recolor" ]
+        ]
     ]

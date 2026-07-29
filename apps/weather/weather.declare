@@ -12,7 +12,7 @@ font Chrome [ family = "Tahoma" ]
 
 font Body   [ family = "Helvetica" ]
 
-font Title  [ Face [ src = "resources/fonts/work-sans-700.woff2", weight = bold ],
+font Title  [ Face [ src = "resources/fonts/work-sans-700.woff2", weight = bold ]
     ]
 
 
@@ -34,7 +34,7 @@ class StatRow extends View [
     layout: SimpleLayout [ axis = x, spacing = -10 ],
 
     labelText: Text [ width = 90, text = { classroot.label } ],
-    valueText: Text [ width = 160, fontWeight = normal, text = { classroot.value } ],
+    valueText: Text [ width = 160, fontWeight = normal, text = { classroot.value } ]
     ]
 
 
@@ -47,7 +47,7 @@ class TabSlider extends View [ width = 100%,
 
     select(tab: WeatherTab) {
         for (const child of this.children) child.setSelected(child === tab)
-        },
+        }
     ]
 
 
@@ -63,7 +63,7 @@ class BeveledBar extends View [
         d.fillRect(0, 0, width, 1)
         d.fillStyle = lowlight
         d.fillRect(0, height - 1, width, 1)
-        },
+        }
     ]
 
 
@@ -103,8 +103,8 @@ class WeatherTab extends View [ width = 100%,
             opacity = { selected ? 0.33 : 1 } ],
         icon: Image [ source = "resources/slider_icon2.png", x = 2, y = 3 ],
         caption: Text [ text = { label }, x = 15, y = 4, textShadow = shadow(1, 1, 0, #3B4057),
-            textColor = { selected ? 0xFFFFFF : 0xCAD0EC } ],
-        ],
+            textColor = { selected ? 0xFFFFFF : 0xCAD0EC } ]
+        ]
     ]
 
 
@@ -123,7 +123,7 @@ class WeatherSummary extends View [ fill = #000000, width = 34, height = 34, x =
     hiLabel: Text [ x = 165, text = "Hi:" ],
     loLabel: Text [ x = 165, y = 14, text = "Lo:" ],
     hi: Text [ x = 188, width = 60, text = :high ],
-    lo: Text [ x = 188, y = 14, width = 60, text = :low ],
+    lo: Text [ x = 188, y = 14, width = 60, text = :low ]
     ]
 
 
@@ -134,7 +134,7 @@ class Screen extends View [ width = 100%, height = 100%,
     shown: boolean = false,
 
     opacity = { shown ? 1 : 0 },
-    visible = { opacity > 0 },
+    visible = { opacity > 0 }
     ]
 
 
@@ -194,7 +194,7 @@ App [ width = 240, height = 320, fill = #EAEAEA,
                         if (weatherData.failed) slideIn.start()
                         else App.report.topBar.slideDown.start()
                         })
-                    },
+                    }
                 ],
 
             // y = 9 (not a rounder number) nudges this label to line up exactly with
@@ -209,11 +209,11 @@ App [ width = 240, height = 320, fill = #EAEAEA,
             field: View [ x = 120, y = 5, width = 80, height = 20,
                 fill = #FFFFFF, stroke = stroke(2, #1A1A1A),
 
-                entry: Text [ x = 3, y = 4, text = { App.zip }, textColor = #000000 ],
+                entry: Text [ x = 3, y = 4, text = { App.zip }, textColor = #000000 ]
                 ],
 
-            ok: Text [ text = "OK", x = 205, y = 9, textShadow = shadow(1, 0, 0, #222222) ],
-            ],
+            ok: Text [ text = "OK", x = 205, y = 9, textShadow = shadow(1, 0, 0, #222222) ]
+            ]
         ],
 
     /* ## The report screen
@@ -235,11 +235,11 @@ App [ width = 240, height = 320, fill = #EAEAEA,
 
             slideDown: AnimatorGroup [ process = simultaneous, duration = 333, motion = laszloBoth,
                 Animator [ attribute = y, to = 0 ],
-                Animator [ attribute = opacity, to = 1 ],
+                Animator [ attribute = opacity, to = 1 ]
                 ],
             slideUp: AnimatorGroup [ process = simultaneous, duration = 333, motion = laszloBoth,
                 Animator [ attribute = y, to = -16 ],
-                Animator [ attribute = opacity, to = 0 ],
+                Animator [ attribute = opacity, to = 0 ]
                 ],
 
             onMouseUp() {
@@ -251,7 +251,7 @@ App [ width = 240, height = 320, fill = #EAEAEA,
             title:    Text [ text = "Rain or Shine?", x = 8, y = 3, textShadow = shadow(1, 1, 0, #1A2452) ],
             bullet:   View [ x = 150, y = 6, width = 5, height = 5, fill = #BCC4E2 ],
             zipLabel: Text [ text = "Zipcode:", x = 159, y = 3, textShadow = shadow(1, 1, 0, #1A2452) ],
-            zip:      Text [ text = { App.zip }, x = 208, y = 3, width = 100, textColor = #CAD0EC, textShadow = shadow(1, 1, 0, #1A2452) ],
+            zip:      Text [ text = { App.zip }, x = 208, y = 3, width = 100, textColor = #CAD0EC, textShadow = shadow(1, 1, 0, #1A2452) ]
             ],
 
         weatherContent: TabSlider [ y = 15, height = 305,
@@ -273,7 +273,7 @@ App [ width = 240, height = 320, fill = #EAEAEA,
                                      ? `resources/icons/${:item.condition.code}.gif` : "" } ],
 
                         temp: Text [ x = 95, y = 20, width = 240, fontSize = 60, text = :item.condition.temp ],
-                        desc: Text [ x = 15, y = 90, width = 240, text = :item.condition.text ],
+                        desc: Text [ x = 15, y = 90, width = 240, text = :item.condition.text ]
                         ],
 
                     moreData: View [ x = 15,
@@ -285,13 +285,13 @@ App [ width = 240, height = 320, fill = #EAEAEA,
                         StatRow [ label = "Windspeed:", value = :wind.speed ],
                         StatRow [ label = "Sunrise:", value = :astronomy.sunrise ],
                         StatRow [ label = "Sunset:", value = :astronomy.sunset ],
-                        StatRow [ label = "Wind Chill:", value = :wind.chill ],
+                        StatRow [ label = "Wind Chill:", value = :wind.chill ]
 
                         // The original shows a 7th row (observation date), but the mock
                         // data has no value for it, so this stops at 6.
 
-                        ],
-                    ],
+                        ]
+                    ]
                 ],
 
             radarTab: WeatherTab [ label = "Radar Maps",
@@ -303,8 +303,8 @@ App [ width = 240, height = 320, fill = #EAEAEA,
 
                     radarscan: Image [ x = 20, y = 20, width = 200, height = 135, stretches = both,
                         source = "resources/radar_us.png",
-                        fill = #00000054, shadow = shadow(3, 3, 0, #00000054) ],
-                    ],
+                        fill = #00000054, shadow = shadow(3, 3, 0, #00000054) ]
+                    ]
                 ],
 
             forecastTab: WeatherTab [ label = "Forecast",
@@ -316,9 +316,9 @@ App [ width = 240, height = 320, fill = #EAEAEA,
                     // The trailing [] builds one WeatherSummary per item in the
                     // forecast array, each bound to its own entry.
 
-                    WeatherSummary [ datapath = :item.forecast[] ],
-                    ],
-                ],
-            ],
-        ],
+                    WeatherSummary [ datapath = :item.forecast[] ]
+                    ]
+                ]
+            ]
+        ]
     ]

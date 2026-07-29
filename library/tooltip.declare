@@ -42,7 +42,7 @@ class Tooltip extends View [ visible = { shown && tipText != "" },
             classroot.tipText = e.text
             classroot.shown = true
             classroot.raise()     // chrome stays chrome: above whatever raised last
-            },
+            }
         ],
 
     // geometry derives from the label's measured size; placement is a theme
@@ -72,5 +72,5 @@ class Tooltip extends View [ visible = { shown && tipText != "" },
 
     t: Text [ x = 8, y = 5, fontSize = { typeof theme.tooltipSize == "number" ? theme.tooltipSize : 12 },
         textColor = { typeof theme.tooltipText == "number" ? theme.tooltipText : 0xF4F6FA },
-        text = { classroot.tipText } ],
+        text = { classroot.tipText } ]
     ]

@@ -6,7 +6,7 @@ App [ width = 340, height = 120, fill = midnightblue, textColor = whitesmoke,
         name: Text [ x = 20, y = 20, fontWeight = bold, text = :name ],    // from data
         role: Text [ x = 20, y = 40, textColor = lightsteelblue, text = :role ],
         badge: View [ y = 20, width = 10, height = 10, cornerRadius = 5, fill = mediumseagreen,
-            x = { parent.width - 30 },                      // braces: stays true
-            ],
-        ],
+            x = { parent.width - 30 }                      // braces: stays true
+            ]
+        ]
     ]

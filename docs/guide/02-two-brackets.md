@@ -41,9 +41,9 @@ App [ width = 340, height = 120, fill = midnightblue, textColor = whitesmoke,
         name: Text [ x = 20, y = 20, fontWeight = bold, text = :name ],    // from data
         role: Text [ x = 20, y = 40, textColor = lightsteelblue, text = :role ],
         badge: View [ y = 20, width = 10, height = 10, cornerRadius = 5, fill = mediumseagreen,
-            x = { parent.width - 30 },                      // braces: stays true
-            ],
-        ],
+            x = { parent.width - 30 }                      // braces: stays true
+            ]
+        ]
     ]
 ```
 
@@ -64,7 +64,7 @@ Try crossing the seam the wrong way. In the example above, change the badge's fi
 a computed value the way instinct suggests:
 
 ```declare-fragment
-badge: View [ fill = { :role == "analyst" ? #2E6BE6 : #556673 } ],   // ✗ won't compile
+badge: View [ fill = { :role == "analyst" ? #2E6BE6 : #556673 } ]   // ✗ won't compile
 ```
 
 The compiler stops at the `#` and tells you why — inside braces, colors are `0x2E6BE6`.
@@ -95,7 +95,7 @@ label: string = "",                    // DECLARE a new reactive attribute (name
 select() { classroot.pick(this) },     // a METHOD — a named block
 onClick() { count = count + 1 },       // a HANDLER — a method named `on` + its event
 bg: View [ fill = midnightblue ],      // a CHILD, named `bg` so others can reach it
-Text [ text = "OK" ],                  // an anonymous child
+Text [ text = "OK" ]                  // an anonymous child
 ```
 
 The line that matters most: **`name = value` sets an attribute that already exists;
@@ -112,11 +112,10 @@ happens instead.
 > `props.children` channel. And there are no expressions-as-children: `{ }` produces
 > a *value*, never a subtree — collections come from data replication, not `.map()`.
 
-One punctuation rule, borrowed from Go: **the comma is a terminator, not a
-separator.** Every member on its own line ends with one — including the last, and
-including a child's closing `],`. You never special-case the final line, and
-reordering members never breaks punctuation. (The single exception: no comma before a
-closing bracket on the *same* line — `Text [ x = 42, text = :day ]`.)
+One punctuation rule: **members are separated by commas**, and the separator is
+required — leave one out and the compiler names the spot. Nothing follows the last
+member: no comma before a closing `]`, on its own line or the same one. Write one
+anyway and it is accepted; the formatter takes it back out.
 
 ## Multi-line strings
 
@@ -125,9 +124,9 @@ A `"…"` string may not contain a newline. Prose and Markdown bodies use `"""` 
 ```declare-fragment
 note: Text [ width = 300, wrap = true,
     text = """
-        Triple-quoted blocks hold paragraphs; the surrounding
-        indentation is stripped.
-        """ ],
+    Triple-quoted blocks hold paragraphs; the surrounding
+    indentation is stripped.
+    """ ]
 ```
 
 ---

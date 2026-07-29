@@ -13,8 +13,8 @@ tips: Tip [
         if (e == null) { classroot.shown = false; return }
         classroot.label = e.text
         classroot.shown = true
-        },
-    ],
+        }
+    ]
 ```
 
 ## tip

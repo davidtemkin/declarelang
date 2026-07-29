@@ -19,10 +19,10 @@ App [ textColor = whitesmoke, fill = 0x151A22,
         track: View [ width = { parent.width }, height = 10, cornerRadius = 5, fill = { trackBg },
             bar: View [ height = 10, cornerRadius = 5,
                 width = { parent.width * (t / 5) },
-                fill = { t > 3.5 ? warm : cool } ],
+                fill = { t > 3.5 ? warm : cool } ]
             ],
 
         hint: Text [ width = { parent.width }, textAlign = center, fontSize = 12, textColor = { hintText },
-            text = "click to raise it — the width and the color both follow" ],
-        ],
+            text = "click to raise it — the width and the color both follow" ]
+        ]
     ]

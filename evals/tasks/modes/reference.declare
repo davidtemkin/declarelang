@@ -13,7 +13,7 @@ class Seg extends View [ y = 4, width = 114, height = 32, cornerRadius = 8,
     onClick() { app.mode = this.choice },
     t: Text [ x = 0, y = 8, width = 114, textAlign = center, fontSize = 13, fontWeight = semibold,
         text = { classroot.label },
-        textColor = { app.mode === classroot.choice ? theme.text : theme.textMuted } ],
+        textColor = { app.mode === classroot.choice ? theme.text : theme.textMuted } ]
     ]
 
 
@@ -28,17 +28,17 @@ App [ width = 480, height = 300, fill = { theme.bg },
 
             pill: View [ y = 4, height = 32, width = 116, cornerRadius = 8,
                 fill = { theme.surface }, stroke = { stroke(1, theme.line) },
-                slide: Spring [ attribute = x, to = { 4 + app.mode * 118 }, stiffness = 220, damping = 24 ],
+                slide: Spring [ attribute = x, to = { 4 + app.mode * 118 }, stiffness = 220, damping = 24 ]
                 ],
 
             Seg [ x = 4,   choice = 0, label = "General" ],
             Seg [ x = 122, choice = 1, label = "Privacy" ],
-            Seg [ x = 240, choice = 2, label = "Advanced" ],
+            Seg [ x = 240, choice = 2, label = "Advanced" ]
             ],
 
         body: Text [ x = 24, y = 92, width = 352, wrap = true, fontSize = 15, textColor = { theme.text },
             text = { app.mode === 0 ? "General — your account and language."
                    : app.mode === 1 ? "Privacy — who can see your activity."
-                   : "Advanced — developer and experimental options." } ],
-        ],
+                   : "Advanced — developer and experimental options." } ]
+        ]
     ]

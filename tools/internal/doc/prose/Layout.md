@@ -16,15 +16,16 @@ class Rail extends Layout [
             if (c.visible) x = x + (c as any).width + this.gap
             return box
             })
-        },
+        }
     ]
+
 
 App [
     layout: Rail [ gap = 12 ],
     View [ width = 40, height = 40, fill = tomato ],
     View [ width = 60, height = 40, fill = royalblue ],
-    View [ width = 30, height = 40, fill = seagreen ],
-]
+    View [ width = 30, height = 40, fill = seagreen ]
+    ]
 ```
 
 **`place()`** is the whole contract — no time, no side effects. `this.laid()`

@@ -14,7 +14,7 @@ class Row extends View [ height = 34, width = { parent.width }, cornerRadius = 8
     fill = { theme.surface }, stroke = { stroke(1, theme.line) },
     onClick() { app.toggle(this.id) },
     t: Text [ x = 12, y = 9, text = { label },
-        textColor = { done ? theme.textFaint : theme.text } ],
+        textColor = { done ? theme.textFaint : theme.text } ]
     ]
 
 
@@ -52,15 +52,15 @@ App [ width = 440, height = 520, fill = { theme.bg },
         field: TextInput [ x = 0, y = 0, width = 300, height = 34, fill = { theme.surface },
             stroke = { stroke(1, theme.line) }, textColor = { theme.text }, padding = 8,
             placeholder = "Add a task…",
-            onInput() { app.draft = text },
+            onInput() { app.draft = text }
             ],
         Button [ x = 312, y = 0, label = "Add", primary = true,
-            onClick() { app.add() },
-            ],
+            onClick() { app.add() }
+            ]
         ],
 
     list: View [ x = 24, y = 108, width = 392, datapath = { app.tasks.value },
         layout: SimpleLayout [ axis = y, spacing = 6 ],
-        Row [ datapath = :rows[], key = :id, id = :id, label = :label, done = :done ],
-        ],
+        Row [ datapath = :rows[], key = :id, id = :id, label = :label, done = :done ]
+        ]
     ]

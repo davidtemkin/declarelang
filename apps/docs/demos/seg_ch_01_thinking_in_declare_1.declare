@@ -10,6 +10,6 @@ App [ width = 360, height = 200, fill = white, textColor = black,
         body: Text [ x = 20, textColor = darkgray,
             y = { 44 + t * 20 },
             opacity = { t },
-            text = "the same card, seen closer" ],
-        ],
+            text = "the same card, seen closer" ]
+        ]
     ]

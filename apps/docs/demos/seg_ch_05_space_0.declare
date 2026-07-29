@@ -5,7 +5,7 @@ App [ fill = white, textColor = black,
             Text [ text = "auto-height, capped at 90" ],
             Text [ text = "line two" ],
             Text [ text = "line three" ],
-            Text [ text = "line four (clipped)" ],
-            ],
-        ],
+            Text [ text = "line four (clipped)" ]
+            ]
+        ]
     ]

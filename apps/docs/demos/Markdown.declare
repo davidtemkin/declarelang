@@ -9,5 +9,5 @@ A **declarative** UI language:
 - reactive `{ }` constraints
 - native layout, both backends
 - text authored in Markdown
-""" ],
+""" ]
     ]

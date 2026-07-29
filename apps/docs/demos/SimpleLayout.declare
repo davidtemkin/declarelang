@@ -6,6 +6,6 @@ App [ fill = white, textColor = black,
         Bar [ width = 320, label = "north", value = 70, tint = royalblue ],
         Bar [ width = 320, label = "east",  value = 50, tint = dodgerblue ],
         Bar [ width = 320, label = "south", value = 90, tint = cornflowerblue ],
-        Bar [ width = 320, label = "west",  value = 40, tint = lightskyblue ],
-        ],
+        Bar [ width = 320, label = "west",  value = 40, tint = lightskyblue ]
+        ]
     ]

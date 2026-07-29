@@ -17,7 +17,9 @@ App [ fill = white, textColor = black,
         email: TextInput [ width = 240, height = 30, padding = 6, cornerRadius = 6,
             fill = gainsboro,
             text <-> :email,
-            validate(v: string) { return v.includes("@") ? null : "not an email" } ] ],
+            validate(v: string) { return v.includes("@") ? null : "not an email" }
+            ]
+        ]
     ]
 ```
 

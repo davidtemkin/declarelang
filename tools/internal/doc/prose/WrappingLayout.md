@@ -4,7 +4,9 @@ reflows. It re-wraps reactively as the view resizes, so binding the view's `widt
 parent is all it takes to make the flow responsive.
 
 ```declare
-View [ width = { parent.width }, layout: WrappingLayout [ spacing = 8, lineSpacing = 8 ] ]
+View [ width = { parent.width },
+    layout: WrappingLayout [ spacing = 8, lineSpacing = 8 ]
+    ]
 ```
 
 ## spacing

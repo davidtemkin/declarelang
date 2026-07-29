@@ -56,5 +56,5 @@ class WrappingLayout extends Layout [
         }
         justify(kids.length, cx)   // the last (or only) row
         return out
-        },
+        }
     ]

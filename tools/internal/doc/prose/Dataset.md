@@ -8,8 +8,8 @@ of its own. For data that arrives over the network, use `DataSource`.
 ```declare
 cal: Dataset { { "days": [], "cols": [] } },
 grid: View [ datapath = { classroot.cal.value },
-    Day [ datapath = :days[] ],          // one Day per element of cal.value.days
-]
+    Day [ datapath = :days[] ]          // one Day per element of cal.value.days
+    ]
 ```
 
 Read or replace the whole value through `.value` (a reactive slot — writing it wakes
