@@ -67,7 +67,7 @@ count:    number,                      // no default — undefined until set
 select() { classroot.pick(this) },     // a METHOD — untyped params, no return annotation
 
 onClick()      { count = count + 1 },  // a HANDLER: `on` + this node's own event
-onMouseMove(e: PointerEvent) { x = e.x },            // pointer handlers get an event with .x/.y
+onPointerMove(e: PointerEvent) { x = e.x },            // pointer handlers get an event with .x/.y
 
 keys: Keys [                           // a SOURCE member: events from OUTSIDE the tree
     onKeyUp(e: KeyEvent) {                       //   e is the KeyEvent; unsubscribed at teardown
@@ -81,7 +81,7 @@ Text [ text = "OK" ]                  // an anonymous child
 
 The difference between `name = value` (sets an existing attribute) and `name: Type = value` (declares a new one) matters — declaring introduces reactive state.
 
-**Interaction state is built in, not wired.** Every view has read-only `hovered` and `pressed` intrinsics — chain-based (the topmost visible view under the pointer plus ancestors; occlusion-correct; `hovered` false on touch), updated for you. Style with a constraint (`fill = { hovered ? 0x336699 : 0x203040 }`) or gate a State; NEVER declare or assign them (compile error — computed for you, like `contentWidth`). Do not hand-wire `onMouseOver`/`onMouseOut` to track hover — the intrinsic already is that fact.
+**Interaction state is built in, not wired.** Every view has read-only `hovered` and `pressed` intrinsics — chain-based (the topmost visible view under the pointer plus ancestors; occlusion-correct; `hovered` false on touch), updated for you. Style with a constraint (`fill = { hovered ? 0x336699 : 0x203040 }`) or gate a State; NEVER declare or assign them (compile error — computed for you, like `contentWidth`). Do not hand-wire `onPointerOver`/`onPointerOut` to track hover — the intrinsic already is that fact.
 
 ## 4. Classes and composition
 
@@ -178,7 +178,7 @@ A **state** is a named, reversible bundle of attribute overrides, applied while 
 App [ width = 360, height = 240, fill = black, textColor = whitesmoke,
 
     open: boolean = false,
-    onMouseDown() { open = !open },
+    onPointerDown() { open = !open },
 
     card: View [ x = 30, y = 30, width = 300, height = 70, cornerRadius = 10, fill = midnightblue,
         Text [ x = 20, y = 20, fontWeight = bold, text = "Summary" ],

@@ -28,9 +28,21 @@ const FONT_WEIGHT = enumType("FontWeight", "thin", "extralight", "light", "regul
 // backgroundColor (ruled: Fill = Color | Gradient, the solid case by
 // coercion); cornerRadius shapes the PAINTED box only — clipping stays the
 // explicit `clip` (the recorded lean).
+// Node is the root of the whole tree — the plain atom every other kind of
+// member descends from at RUNTIME (`class View extends Node`, and likewise
+// Layout / Dataset / Animator / AnimatorGroup / Frames / State / the Sources).
+// Declared first so those schemas can name it as their base: the chain the
+// runtime has always had, finally recorded here too (2026-07-28) — before
+// this, every one of them was a schema ROOT and Node's members were
+// unreachable through any of them.
+const NodeSchema = {
+    name: "Node",
+    base: null,
+    attrs: {},
+};
 const ViewSchema = {
     name: "View",
-    base: null,
+    base: NodeSchema,
     attrs: {
         x: { kind: "length" },
         y: { kind: "length" },
@@ -185,11 +197,11 @@ const ViewSchema = {
     readOnly: ["contentWidth", "contentHeight", "childViews", "hovered", "pressed"],
     // R5: the pointer trio (click = press and release on the same view — the
     // shared router's rule, input.ts) plus the construction-complete lifecycle
-    // event `init` (Appendix A's onInit). Hover (mouseOver/Out) waits for its
+    // event `init` (Appendix A's onInit). Hover (pointerOver/Out) waits for its
     // consuming rung — it needs retained enter/leave tracking, not just a
     // per-event hit test.
     // The pointer events come in two layers (input.ts): the RAW facts —
-    // mouseDown/Move/Up, the multi-finger `touch*` family, and `wheel` (the
+    // pointerDown/Move/Up, the multi-finger `touch*` family, and `wheel` (the
     // wheel stream, trackpad pinch included) — report what the pointer
     // physically did, immediately; the RESOLVED ones — click, dblClick,
     // hold — report what the user MEANT, after the router has watched the whole
@@ -197,7 +209,7 @@ const ViewSchema = {
     // Declaring a raw-family handler is also a gesture CLAIM (backend.ts
     // InputWants): it takes from the browser exactly what that handler needs
     // to fire, nothing more.
-    events: ["click", "dblClick", "hold", "mouseDown", "mouseUp", "mouseMove", "mouseOver", "mouseOut",
+    events: ["click", "dblClick", "hold", "pointerDown", "pointerUp", "pointerMove", "pointerOver", "pointerOut",
         "touchStart", "touchMove", "touchEnd", "touchCancel", "wheel",
         "init", "focus", "blur", "escapeFocus", "keyDown", "keyUp"],
 };
@@ -455,7 +467,7 @@ const HTMLTextSchema = {
 // (negative overlaps), invisible skipped.
 const LayoutSchema = {
     name: "Layout",
-    base: null,
+    base: NodeSchema,
     attrs: {},
 };
 // TweenLayout (R7) — the animated-reflow base a custom layout extends to glide
@@ -483,7 +495,7 @@ const TweenLayoutSchema = {
 // "Dataset" is the checker's data-node test, like "Layout" for strategies).
 const DatasetSchema = {
     name: "Dataset",
-    base: null,
+    base: NodeSchema,
     // `contents` is a derived Dataset's value, always a `{ }` constraint (the
     // JSON body is the literal alternative). checkDataNode enforces the `{ }`
     // form and a code value bypasses `kind` in checkAttr — but the TYPED
@@ -501,11 +513,6 @@ const DatasetSchema = {
 // own decls, exactly as a View subclass does). `descendsFrom "Node"` is the
 // test that admits these — and ONLY these: View/Layout have their own roots,
 // and Dataset/Animator/State keep theirs, so this does not silently open them.
-const NodeSchema = {
-    name: "Node",
-    base: null,
-    attrs: {},
-};
 const DataSourceSchema = {
     name: "DataSource",
     base: DatasetSchema,
@@ -536,7 +543,7 @@ const DataSourceSchema = {
 // omit it to sample the target's current value; the runtime default is null.
 const AnimatorSchema = {
     name: "Animator",
-    base: null,
+    base: NodeSchema,
     attrs: {
         attribute: { kind: "slotref" },
         to: { kind: "number" },
@@ -565,7 +572,7 @@ const AnimatorSchema = {
 // context, and cascades the target through to its members.
 const AnimatorGroupSchema = {
     name: "AnimatorGroup",
-    base: null,
+    base: NodeSchema,
     attrs: {
         attribute: { kind: "slotref" },
         to: { kind: "number" },
@@ -604,7 +611,7 @@ const SpringSchema = {
 // are a category the language already has.
 const FramesSchema = {
     name: "Frames",
-    base: null,
+    base: NodeSchema,
     attrs: {
         running: { kind: "boolean" },
     },
@@ -617,19 +624,19 @@ const FramesSchema = {
 // all hear the keyboard at once.
 const KeysSchema = {
     name: "Keys",
-    base: null,
+    base: NodeSchema, // via the abstract Source (sources.ts)
     attrs: {},
     events: ["keyDown", "keyUp"],
 };
 const FocusSchema = {
     name: "Focus",
-    base: null,
+    base: NodeSchema, // via the abstract Source (sources.ts)
     attrs: {},
     events: ["focusChange", "geometry"],
 };
 const TipSchema = {
     name: "Tip",
-    base: null,
+    base: NodeSchema, // via the abstract Source (sources.ts)
     attrs: {},
     events: ["tip"],
 };
@@ -643,7 +650,7 @@ const TipSchema = {
 // checkStateNode (increment 1b), with the enclosing view's schema in context.
 const StateSchema = {
     name: "State",
-    base: null,
+    base: NodeSchema,
     attrs: {
         applied: { kind: "boolean" },
     },
@@ -663,6 +670,11 @@ export const SCHEMAS = {
     Markdown: MarkdownSchema,
     HTMLText: HTMLTextSchema,
     Layout: LayoutSchema,
+    // Editor — the abstract editing base TextInput extends (commitOn/error/valid/
+    // dirty and commit()/revert() live here). In the table so the reference can
+    // give it a page and TextInput can inherit from a documented class; NOT in the
+    // tag registry, so it stays uninstantiable — exactly Layout's arrangement.
+    Editor: EditorSchema,
     TweenLayout: TweenLayoutSchema,
     Dataset: DatasetSchema,
     DataSource: DataSourceSchema,
@@ -741,9 +753,9 @@ export const handlerName = (event) => "on" + event[0].toUpperCase() + event.slic
 export const EVENT_PAYLOAD = {
     // the single-point pointer family — view-local or root-space per handler
     click: "PointerEvent", dblClick: "PointerEvent", hold: "PointerEvent",
-    mouseDown: "PointerEvent", mouseMove: "PointerEvent",
-    mouseOver: "PointerEvent", mouseOut: "PointerEvent",
-    mouseUp: "PointerUpEvent", // …plus `canceled`
+    pointerDown: "PointerEvent", pointerMove: "PointerEvent",
+    pointerOver: "PointerEvent", pointerOut: "PointerEvent",
+    pointerUp: "PointerUpEvent", // …plus `canceled`
     touchStart: "TouchEvent", touchMove: "TouchEvent",
     touchEnd: "TouchEvent", touchCancel: "TouchEvent",
     wheel: "WheelEvent",

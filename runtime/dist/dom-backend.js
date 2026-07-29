@@ -893,7 +893,7 @@ class DomSurface {
                 if (s === undefined)
                     return;
                 const r = el.getBoundingClientRect();
-                // View-local point (the positional rule of mouseDown/click), the raw
+                // View-local point (the positional rule of pointerDown/click), the raw
                 // deltas, and `pinch`: a trackpad pinch arrives on the wheel stream
                 // with the zoom-intent flag set (a mouse user's ctrl+wheel zoom
                 // reports the same way) — one handler hears wheels, trackpad scrolls,
@@ -915,7 +915,7 @@ class DomSurface {
      *  the handler is the claim", compressed to one CSS property per element:
      *    - the raw touch family → `none` (every finger is the app's; the app
      *      owes its own zoom);
-     *    - `onMouseMove` → `pinch-zoom` (the single-finger drag is the app's;
+     *    - `onPointerMove` → `pinch-zoom` (the single-finger drag is the app's;
      *      pinch stays the user's — and by the measured one-way ratchet this is
      *      the MINIMUM suppression for the handler to fire at all);
      *    - no claim → inherit, except the APP ROOT's default: `pinch-zoom` for

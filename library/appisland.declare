@@ -23,7 +23,7 @@ identical on the dev server and a static host — and renders the child.
   child's `appName` reflected back up, so a host can title itself by what it shows.
 
 The window frame, activation, and titling belong to the caller — a desktop window
-adds an `onMouseDown` that raises itself and reads `childName` for its title; the
+adds an `onPointerDown` that raises itself and reads `childName` for its title; the
 homepage and the viewer just size the box. This primitive is only the embedding.
 */
 

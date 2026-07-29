@@ -29,7 +29,7 @@ value is consulted for every touch that starts below it).
 
 | declared | claims | user keeps | realized as |
 |---|---|---|---|
-| `onMouseMove` | single-finger drag | pinch-zoom | `touch-action: pinch-zoom` |
+| `onPointerMove` | single-finger drag | pinch-zoom | `touch-action: pinch-zoom` |
 | `onTouchStart/Move/End/Cancel` | every finger | nothing (app owes its own zoom) | `touch-action: none` |
 | `onWheel` | wheel + trackpad pinch | ⌘ +/− only | non-passive `wheel` listener + `preventDefault` |
 | `onDblClick` | double tap | pan + pinch | nothing extra — the root default already retires double-tap zoom |
@@ -47,7 +47,7 @@ Notes, each load-bearing:
   quick taps on a control must not lurch the page (both root values retire it,
   and `manipulation` also kills the legacy 300 ms tap delay).
 - **`pinch-zoom` on a drag claimant is the MINIMUM suppression** for
-  `onMouseMove` to fire at all on touch — without it the browser pans and
+  `onPointerMove` to fire at all on touch — without it the browser pans and
   cancels the pointer stream. It is not a policy choice stacked on the claim;
   it *is* the claim.
 - **The scroller value changed** from `pan-y` (which silently forbade pinch —
@@ -55,7 +55,7 @@ Notes, each load-bearing:
 - **The wheel listener arbitrates nearest-wins, delegation-beats-claim**: a
   wheel bubbling up from an intervening `scrolls` pane, a nearer `onWheel`
   view, an editable, or an island is left alone. Payload: view-local `x`/`y`
-  (the positional rule of `onMouseDown`), `deltaX`/`deltaY`, and `pinch` — a
+  (the positional rule of `onPointerDown`), `deltaX`/`deltaY`, and `pinch` — a
   trackpad pinch arrives as a ctrlKey wheel, and a mouse user's ctrl+wheel
   zoom reports the same way.
 

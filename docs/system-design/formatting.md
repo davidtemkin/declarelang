@@ -383,7 +383,7 @@ exceptions: no blank is needed above the *first* thing in a file or body
 (the first-in-block exception), and no blank is forced against a closing
 bracket.
 
-Trailing inline comments (`onMouseUp() { weatherData.clear() },   // back
+Trailing inline comments (`onPointerUp() { weatherData.clear() },   // back
 to entry — declaratively`) ride the code line they annotate and are exempt
 from the padding rule. Their gap has a **two-space minimum and no maximum**
 (re-ruled 2026-07-13, superseding the same day's short-lived 4–10 band): a

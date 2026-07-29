@@ -87,7 +87,15 @@ export function programSchemas(classes: readonly ClassDecl[]): {
     // yet install a subclass's own decls — the same plumbing D-7 did for Layout;
     // note DataSource already IS a Dataset subclass), and State is declarative,
     // with no computation to override. Hence "not wired yet", not "sealed".
-    if (!descendsFrom(base, "View") && !descendsFrom(base, "Layout") && !descendsFrom(base, "Node")) {
+    // The WIRED subclassable roots. `descendsFrom(base, "Node")` no longer
+    // discriminates — since 2026-07-28 every schema descends from Node (the
+    // real runtime chain) — so the three are named directly, which is what the
+    // rule always meant: View (visual), Layout (a strategy), and Node itself
+    // (the plain atom). Dataset/Animator remain a wiring gap, not a law.
+    const NODE_ROOTS = ["Dataset", "DataSource", "Animator", "AnimatorGroup", "Frames", "Keys", "Focus", "Tip", "State"];
+    const wired = descendsFrom(base, "View") || descendsFrom(base, "Layout") ||
+      (descendsFrom(base, "Node") && !NODE_ROOTS.some((n) => descendsFrom(base, n)));
+    if (!wired) {
       errors.push(new DeclareError(
         `subclassing '${decl.base}' is not wired yet — a class extends View, Layout, or Node today (Dataset/Animator want the same plumbing; State is declarative)`,
         decl.basePos

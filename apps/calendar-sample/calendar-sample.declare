@@ -61,9 +61,9 @@ class EventBar extends View [
         width = { parent.width - this.x - 2 }, fontSize = 10,
         textColor = #4B5D6C, text = :title ],
 
-    onMouseDown() { app.startDrag(:id) },
-    onMouseMove(e: PointerEvent) { app.dragMove(e.x, e.y) },
-    onMouseUp()   { app.endDrag() },
+    onPointerDown() { app.startDrag(:id) },
+    onPointerMove(e: PointerEvent) { app.dragMove(e.x, e.y) },
+    onPointerUp()   { app.endDrag() },
     onClick() { if (!app.dragOccurred) app.selectEvent(:id, this.dayKey) }
     ]
 
@@ -239,9 +239,9 @@ class TimeEvent extends View [
     title: Text [ x = { classroot.selected ? 36 : 10 }, y = 4, fontSize = 10,
         textColor = #4B5D6C, width = { parent.width - this.x - 2 }, text = :title ],
 
-    onMouseDown() { app.startDrag(:id) },
-    onMouseMove(e: PointerEvent) { app.dragMove(e.x, e.y) },
-    onMouseUp()   { app.endDrag() },
+    onPointerDown() { app.startDrag(:id) },
+    onPointerMove(e: PointerEvent) { app.dragMove(e.x, e.y) },
+    onPointerUp()   { app.endDrag() },
     onClick() { if (!app.dragOccurred) app.selectEvent(:id, this.dayKey) }
     ]
 
@@ -455,8 +455,8 @@ class CalButton extends View [
         textShadow = shadow(0, -1, 0, #33555577),
         text = { label } ],
 
-    onMouseDown() { this.down = true },
-    onMouseUp()   { this.down = false }
+    onPointerDown() { this.down = true },
+    onPointerUp()   { this.down = false }
     ]
 
 

@@ -129,7 +129,7 @@ calling a method); keyboard on the focused view; the `Keys` service via `<-` sub
 (lifetime-managed) and when to prefer it (app-level keys) over focused-view handlers;
 `<-` vs `<->` disambiguation. Deep focus management (traps, tab order) forward-links to 31.
 Also teach *(added 2026-07-14 — used by every real app, taught nowhere)*: **pointer
-states by hand** (hover/press via `onMouseOver/Out/Down/Up` + a boolean + a constraint —
+states by hand** (hover/press via `onPointerOver/Out/Down/Up` + a boolean + a constraint —
 and `app.hovering` to give touch devices press feedback instead); and **the drag pattern**
 (down/move/up on one node, the movement threshold that discriminates click from drag —
 the calendar's `startDrag`/`dragMove`/`dropDrag` shape, taught small here, seen at scale

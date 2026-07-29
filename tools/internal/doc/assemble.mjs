@@ -152,24 +152,61 @@ const listDocs = (dir, label) => {
 // the page rather than the raw JSON. This is where the docs consolidation lives.
 function elementDoc(id, ref) {
   const c = ref[id];
-  const kind = c.origin === "library" ? "Component" : "Built-in element";
-  const L = [`# ${c.name}`, "", c.extends ? `*${kind} — extends \`${c.extends}\`*` : `*${kind}*`, ""];
+  const kind = c.origin === "library" ? "Component" : c.abstract ? "Abstract element" : "Built-in element";
+  const link = (n) => (ref[n] ? `[${n}](declare-docs:${n})` : `\`${n}\``);
+  const chain = c.chain ?? [c.name];
+  const L = [`# ${c.name}`, ""];
+  // the ANCESTRY line: the whole chain, each link live — a reader can walk up
+  // from any page, which was impossible while `extends` was prose
+  L.push(chain.length > 1 ? `*${kind} — ${chain.slice(1).map(link).join(" → ")}*` : `*${kind}*`, "");
+  if (c.abstract) L.push("Extend it; it is not a tag you write.", "");
   if (c.doc) L.push(c.doc.trim(), "");
-  const pick = (ids) => ids.map((i) => ref[i]).filter((n) => n && n.api);
-  const attrs = pick(c.attributes), events = pick(c.events), methods = pick(c.methods);
-  if (attrs.length) {
-    L.push("## Attributes", "", "| name | type | default | |", "|---|---|---|---|");
-    for (const a of attrs) {
-      const badge = [a.prevailing ? "prevailing" : "", a.readOnly ? "read-only" : ""].filter(Boolean).join(" · ");
-      L.push(`| \`${a.name}\` | ${a.type ?? ""} | ${a.default != null ? "`" + a.default + "`" : ""} | ${badge} |`);
+
+  const pick = (ids) => (ids ?? []).map((i) => ref[i]).filter((n) => n && n.api);
+  // A getter is a read-only MEMBER, not a call — it reads like an attribute, so
+  // it is listed with them rather than under Methods.
+  const split = (ms) => [ms.filter((m) => m.getter), ms.filter((m) => !m.getter)];
+
+  const section = (nodes, heading, level) => {
+    const [attrs, meths, evts] = nodes;
+    if (!attrs.length && !meths.length && !evts.length) return;
+    if (heading) L.push(heading, "");
+    if (attrs.length) {
+      L.push(`${level} Attributes`, "", "| name | type | default | |", "|---|---|---|---|");
+      for (const a of attrs) {
+        const badge = [a.prevailing ? "prevailing" : "", a.readOnly ? "read-only" : ""].filter(Boolean).join(" · ");
+        L.push(`| \`${a.name}\` | ${a.type ?? (a.returns ?? "")} | ${a.default != null ? "\`" + a.default + "\`" : ""} | ${badge} |`);
+      }
+      L.push("");
+      for (const a of attrs) if (a.doc) L.push(`**\`${a.name}\`** — ${a.doc.trim()}`, "");
     }
-    L.push("");
-    for (const a of attrs) if (a.doc) L.push(`**\`${a.name}\`** — ${a.doc.trim()}`, "");
+    if (evts.length) { L.push(`${level} Events`, ""); for (const e of evts) L.push(`- \`${e.signature ?? e.name}\`${e.doc ? " — " + e.doc.trim() : ""}`); L.push(""); }
+    if (meths.length) { L.push(`${level} Methods`, ""); for (const m of meths) L.push(`- \`${m.signature ?? m.name}\`${m.doc ? " — " + m.doc.trim() : ""}`); L.push(""); }
+  };
+
+  const own = (n) => {
+    const [getters, methods] = split(pick(ref[n].methods));
+    return [[...pick(ref[n].attributes), ...getters], methods, pick(ref[n].events)];
+  };
+
+  section(own(c.name), null, "##");
+
+  // …then one section per ANCESTOR, nearest first. The model stays normalized —
+  // nothing is copied into this class — so the walk happens here, at render.
+  // Before this, a Button page showed 4 members and hid 97.
+  for (const base of chain.slice(1)) {
+    if (!ref[base]) continue;
+    section(own(base), `## Inherited from ${link(base)}`, "###");
   }
-  if (events.length) { L.push("## Events", ""); for (const e of events) L.push(`- \`${e.signature ?? e.name}\`${e.doc ? " — " + e.doc.trim() : ""}`); L.push(""); }
-  if (methods.length) { L.push("## Methods", ""); for (const m of methods) L.push(`- \`${m.signature ?? m.name}\`${m.doc ? " — " + m.doc.trim() : ""}`); L.push(""); }
+
+  // an abstract base is the index of its family
+  if (c.subclasses?.length) {
+    const subs = c.subclasses.map((sid) => ref[sid]?.name).filter(Boolean);
+    if (subs.length) L.push("## Subclasses", "", subs.map(link).join(" · "), "");
+  }
   return L.join("\n");
 }
+
 const enumsDoc = (spine) => ["# Enums", "", "*The language's fixed token sets — write the token itself, never a CSS-style value.*", "",
   ...Object.entries(spine.enums).map(([n, toks]) => `**${n}** — ${toks.map((t) => "`" + t + "`").join(" · ")}\n`)].join("\n");
 const flagsDoc = (spine) => ["# Compile flags", "", "*Modifiers on a program URL (`?…`), the `declarec` CLI (`--…`), and the JS API — one set of names.*", "",

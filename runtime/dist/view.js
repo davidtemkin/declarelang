@@ -339,13 +339,13 @@ export class View extends Node {
      *  disagree. Answers the deepest (topmost) view; walk `.parent` to find an
      *  eligible ancestor:
      *
-     *      onMouseUp(e) {
+     *      onPointerUp(e) {
      *          let t = app.viewAt(e.x, e.y)
      *          while (t != null && t.accept == null) t = t.parent
      *          if (t != null) t.accept(dragged)
      *          },
      *
-     *  Root-space, like the coordinates `onMouseMove`/`onMouseUp` carry, so a
+     *  Root-space, like the coordinates `onPointerMove`/`onPointerUp` carry, so a
      *  drag can pass its own event coordinates straight in. */
     viewAt(x, y) {
         return hitAt(this.root ?? this, x, y);
@@ -410,11 +410,11 @@ export class View extends Node {
             return null;
         return (type, x, y, extra) => {
             if (this.tip !== "") {
-                if (type === "mouseOver")
+                if (type === "pointerOver")
                     Tip.over(this);
-                else if (type === "mouseOut")
+                else if (type === "pointerOut")
                     Tip.out(this);
-                else if (type === "mouseDown")
+                else if (type === "pointerDown")
                     Tip.hide();
             }
             // One plain event argument: the point in this view's coordinates, plus
@@ -436,7 +436,7 @@ export class View extends Node {
             wantsDbl: has("dblClick"),
             wantsHold: has("hold"),
             wantsTouch: TOUCH_TYPES.some(has),
-            wantsDrag: has("mouseMove"),
+            wantsDrag: has("pointerMove"),
             wantsWheel: has("wheel"),
         };
     }

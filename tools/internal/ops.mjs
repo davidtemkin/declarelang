@@ -75,6 +75,9 @@ export const OPS = {
       { id: "spine-gate", cmd: "node tools/internal/doc/assemble.mjs --check",
         description: "The three spine projections (declare-model.json, the marker-injected doc tables, the skill inventory) match a fresh assembly of the live registries.",
         expect: { exitCode: 0 }, test: true },
+      { id: "prose-gate", cmd: "node tools/internal/doc/extract.mjs --check",
+        description: "Every `## heading` in tools/internal/doc/prose/ binds to a real attribute, event, or method — prose that binds to nothing is silently dropped from the reference (13 documented events once rendered blank this way).",
+        expect: { exitCode: 0 }, test: true },
     ],
   },
   shipping: {

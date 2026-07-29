@@ -174,7 +174,7 @@ class Compositor {
         // first finger lands, union the declared claims up the hit chain (a claim
         // covers its subtree), and suppress exactly what the claim names while
         // the gesture lives. The raw touch family claims every finger (suppress
-        // at touchstart, as root `none` used to); `onMouseMove` claims only the
+        // at touchstart, as root `none` used to); `onPointerMove` claims only the
         // single-finger drag — a second finger's pinch is left to the browser.
         let claim = null;
         canvas.addEventListener("touchstart", (e) => {

@@ -303,13 +303,13 @@ export declare class View extends Node {
      *  disagree. Answers the deepest (topmost) view; walk `.parent` to find an
      *  eligible ancestor:
      *
-     *      onMouseUp(e) {
+     *      onPointerUp(e) {
      *          let t = app.viewAt(e.x, e.y)
      *          while (t != null && t.accept == null) t = t.parent
      *          if (t != null) t.accept(dragged)
      *          },
      *
-     *  Root-space, like the coordinates `onMouseMove`/`onMouseUp` carry, so a
+     *  Root-space, like the coordinates `onPointerMove`/`onPointerUp` carry, so a
      *  drag can pass its own event coordinates straight in. */
     viewAt(x: number, y: number): View | null;
     /** Does this view's box contain the root-space point? Geometry only — what

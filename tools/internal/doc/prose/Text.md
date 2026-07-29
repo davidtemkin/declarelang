@@ -37,7 +37,3 @@ letters; overrides `textColor` when set. `textFill = { gradient("90deg", 0xFFFFF
 A drop shadow on the glyphs — the same `shadow(dx, dy, blur, color)` value as the box
 `shadow` slot, applied to the text instead of the box.
 
-## selectable
-Opt this run back into native text selection / copy (default `false`). Off by default
-so an app doesn't feel like a document; turn it on for content a user should be able to
-select and copy.

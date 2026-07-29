@@ -3,14 +3,14 @@
 // its point, with view-local coordinates): the DOM backend resolves through
 // native event targets, the Canvas backend through its own hit walk.
 // Everything above resolution — the press/release pairing, the click rule,
-// delivery order (mouseDown · mouseUp · click) — lives here, once, so the two
+// delivery order (pointerDown · pointerUp · click) — lives here, once, so the two
 // backends cannot drift: a *click* IS "press and release resolved to the same
 // view, without the pointer wandering", decided by identical code on both. (The
 // platform's own `click` event is deliberately unused: its target is the common
 // ancestor of press and release, a DOM-ism the canvas backend could only
 // imitate approximately.)
 //
-// TWO LAYERS, one wire. The RAW layer (mouseDown/mouseMove/mouseUp, and the
+// TWO LAYERS, one wire. The RAW layer (pointerDown/pointerMove/pointerUp, and the
 // touch family) reports what the pointer physically did, immediately — the
 // layer a drag, a slider, or an app running its own gesture physics needs. The
 // RESOLVED layer (click, dblClick, hold) reports what the user MEANT, which the
@@ -22,8 +22,8 @@
 // mouse events: pointer events fire uniformly for touch, pen, and mouse, so one
 // path drives desktop and mobile — a tap is a real pointerdown+pointerup (mobile
 // browsers only *synthesize* mouse events unreliably, which left taps dropping on
-// touch). The sink protocol keeps its mouse-era names (`"mouseDown"`, `"click"`,
-// …) so the language's `onMouseDown`/`onClick` handlers are unchanged; only the
+// touch). The sink protocol keeps its mouse-era names (`"pointerDown"`, `"click"`,
+// …) so the language's `onPointerDown`/`onClick` handlers are unchanged; only the
 // wire is pointer. `pointercancel` (the browser reclaimed the gesture for a
 // scroll) ends a capture without a click, and says so: the release carries
 // `canceled: true`, so a drag handler can distinguish "dropped here" from
@@ -63,7 +63,7 @@ const HOLD_MS = 500;
  *  whole route (false = the tree is gone; the listeners remove themselves
  *  on the next event). */
 export function routeInput(alive, resolve, rootPoint, onHover) {
-    // The pressed view captures the pointer: while held, `mouseMove` (and the
+    // The pressed view captures the pointer: while held, `pointerMove` (and the
     // eventual release) go to IT, not to whatever is under the pointer — the
     // capture a drag needs. (For touch the browser already implicitly captures the
     // pointer to the pressed element; window listeners cover mouse.) Move
@@ -114,7 +114,7 @@ export function routeInput(alive, resolve, rootPoint, onHover) {
     // pointerdown): selection suppression stands down for this gesture.
     let pressOnSelectable = false;
     // Hover: the sink the pointer was last OVER, so a move that crosses into a
-    // different sink (or off all of them) fires mouseOut on the old + mouseOver on
+    // different sink (or off all of them) fires pointerOut on the old + pointerOver on
     // the new — the rollover pair, resolved by the same seam as click.
     let hoveredKey = null;
     let hoveredSink = null;
@@ -124,7 +124,7 @@ export function routeInput(alive, resolve, rootPoint, onHover) {
     const touchList = () => [...fingers.values()];
     const clearHover = () => {
         if (hoveredSink !== null)
-            hoveredSink("mouseOut", 0, 0);
+            hoveredSink("pointerOut", 0, 0);
         hoveredKey = null;
         hoveredSink = null;
     };
@@ -180,7 +180,7 @@ export function routeInput(alive, resolve, rootPoint, onHover) {
                 fingers.set(e.pointerId, { id: e.pointerId, x: p0.x, y: p0.y });
                 t.sink("touchStart", p0.x, p0.y, { touches: touchList(), changed: [{ id: e.pointerId, x: p0.x, y: p0.y }] });
             }
-            t.sink("mouseDown", t.x, t.y);
+            t.sink("pointerDown", t.x, t.y);
             if (t.wantsHold === true) {
                 const target = t;
                 holdTimer = setTimeout(() => {
@@ -218,11 +218,11 @@ export function routeInput(alive, resolve, rootPoint, onHover) {
             if (onHover !== undefined)
                 onHover(t);
             if (hoveredSink !== null)
-                hoveredSink("mouseOut", 0, 0);
+                hoveredSink("pointerOut", 0, 0);
             hoveredKey = key;
             hoveredSink = t !== null ? t.sink : null;
             if (t !== null)
-                t.sink("mouseOver", t.x, t.y);
+                t.sink("pointerOver", t.x, t.y);
         }
         if (held === null || rootPoint === undefined)
             return;
@@ -243,7 +243,7 @@ export function routeInput(alive, resolve, rootPoint, onHover) {
             fingers.set(e.pointerId, { id: e.pointerId, x: p.x, y: p.y });
             held.sink("touchMove", p.x, p.y, { touches: touchList(), changed: [{ id: e.pointerId, x: p.x, y: p.y }] });
         }
-        held.sink("mouseMove", p.x, p.y);
+        held.sink("pointerMove", p.x, p.y);
     });
     listen("pointerup", (e) => {
         suppressSelection(false);
@@ -260,7 +260,7 @@ export function routeInput(alive, resolve, rootPoint, onHover) {
                 fingers.delete(e.pointerId);
                 captor.sink("touchEnd", p.x, p.y, { touches: touchList(), changed: [gone] });
             }
-            captor.sink("mouseUp", p.x, p.y, { canceled: false });
+            captor.sink("pointerUp", p.x, p.y, { canceled: false });
             // Click rule: press and release resolved to the same view, and the
             // pointer never wandered past slop (a moved finger was swiping, whatever
             // it started on). An excursion that returns still counts as wandering —
@@ -303,7 +303,7 @@ export function routeInput(alive, resolve, rootPoint, onHover) {
             }
         }
         else if (t !== null) {
-            t.sink("mouseUp", t.x, t.y, { canceled: false });
+            t.sink("pointerUp", t.x, t.y, { canceled: false });
         }
         // A touch pointer ceases to exist on release; drop the hover it carried so a
         // just-tapped view doesn't stay stuck in its rollover (hover) state.
@@ -326,7 +326,7 @@ export function routeInput(alive, resolve, rootPoint, onHover) {
                 fingers.delete(e.pointerId);
                 captor.sink("touchCancel", p.x, p.y, { touches: touchList(), changed: [gone] });
             }
-            captor.sink("mouseUp", p.x, p.y, { canceled: true });
+            captor.sink("pointerUp", p.x, p.y, { canceled: true });
         }
         if (e.pointerType === "touch")
             clearHover();

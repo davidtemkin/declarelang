@@ -40,9 +40,9 @@ class Ev extends View [ clip = true,
         ti: Text [ fontSize = 10, fontWeight = regular, wrap = false, textColor = { app.catText(:category) }, text = { :title } ]
         ],
 
-    onMouseDown(e: PointerEvent) { app.startDrag(:id, :title, :category, :timeLabel, this.width, this.height, e.x, e.y) },
-    onMouseMove()  { app.dragMove() },
-    onMouseUp(e: PointerUpEvent)   { app.dropDrag(e.x, e.y) },
+    onPointerDown(e: PointerEvent) { app.startDrag(:id, :title, :category, :timeLabel, this.width, this.height, e.x, e.y) },
+    onPointerMove()  { app.dragMove() },
+    onPointerUp(e: PointerUpEvent)   { app.dropDrag(e.x, e.y) },
     onClick()      { app.selectEvent(:id, :y + "-" + :m + "-" + :d) }
     ]
 

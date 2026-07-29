@@ -414,9 +414,9 @@ App [ fill = { app.theme.bg },
             dragging: boolean = false,
             fill = { dragging || hovered ? app.theme.accentTeal : app.theme.line },
             drag(y: number) { parent.split = Math.max(120, Math.min(parent.height - 160, y)) },
-            onMouseDown()  { dragging = true },
-            onMouseMove()  { if (dragging) drag(app.pointerY - app.barH) },
-            onMouseUp()    { dragging = false }
+            onPointerDown()  { dragging = true },
+            onPointerMove()  { if (dragging) drag(app.pointerY - app.barH) },
+            onPointerUp()    { dragging = false }
             ],
 
         // the error sandwich: the last recompile's report IN FULL, only while one

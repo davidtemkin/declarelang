@@ -52,24 +52,6 @@ An **uncontrolled seed** — React's `defaultValue` to `text`'s `value`: `text` 
 freely writable (an editor seeded with source). A **bound** `text` is the controlled form
 instead; **don't set both** — pick controlled *or* seeded.
 
-## commitOn
-For a `text <-> :path` field, **when** a valid draft commits into the dataset: `"input"`
-(live, on every edit — the default), `"blur"` (on losing focus), `"enter"` (on Return), or
-`"manual"` (never automatically — only when you call `commit()`). Point the datapath at the
-real record for autosave, or at a working copy you commit on a Save button for a transaction.
-
-## error
-The current validation message for the draft, or `""` when valid. A reactive slot — bind a
-label to it (`text = { app.field.error }`) to present the error.
-
-## valid
-Whether the draft passes `validate()`. A reactive slot; a form-wide "can save" is just a
-constraint over several fields' `valid` (no form object needed).
-
-## dirty
-Whether the draft differs from the committed dataset value — for enabling a Save affordance
-or an unsaved-changes prompt.
-
 ## onInput
 Fires on every edit, carrying the new text — for live validation or search-as-you-type. On a
 `<->` field the draft is already committed (per `commitOn`) by the time this runs.
@@ -78,10 +60,3 @@ Fires on every edit, carrying the new text — for live validation or search-as-
 Fires when the user submits a single-line field (Return). On a `multiline` field Return
 makes a newline and this never fires.
 
-## commit()
-Commit the current draft into the bound dataset field, if it validates — for a
-`commitOn = "manual"` field or a Save button (`onClick() { field.commit() }`). A no-op on a
-field that is not `<->`-bound.
-
-## revert()
-Discard edits — reset the field to the committed dataset value.

@@ -95,24 +95,24 @@ class TintRow extends View [
     dots: View [ x = 0, y = 3,
         layout: SimpleLayout [ axis = x, spacing = 7 ],
         TintDot [ c = #2E6FE0, name = "Blue",
-            onMouseOver() { classroot.hoverName = this.name },
-            onMouseOut()  { if (classroot.hoverName == this.name) classroot.hoverName = "" }
+            onPointerOver() { classroot.hoverName = this.name },
+            onPointerOut()  { if (classroot.hoverName == this.name) classroot.hoverName = "" }
             ],
         TintDot [ c = #6750A4, name = "Purple",
-            onMouseOver() { classroot.hoverName = this.name },
-            onMouseOut()  { if (classroot.hoverName == this.name) classroot.hoverName = "" }
+            onPointerOver() { classroot.hoverName = this.name },
+            onPointerOut()  { if (classroot.hoverName == this.name) classroot.hoverName = "" }
             ],
         TintDot [ c = #E0447E, name = "Pink",
-            onMouseOver() { classroot.hoverName = this.name },
-            onMouseOut()  { if (classroot.hoverName == this.name) classroot.hoverName = "" }
+            onPointerOver() { classroot.hoverName = this.name },
+            onPointerOut()  { if (classroot.hoverName == this.name) classroot.hoverName = "" }
             ],
         TintDot [ c = #D03A2F, name = "Red",
-            onMouseOver() { classroot.hoverName = this.name },
-            onMouseOut()  { if (classroot.hoverName == this.name) classroot.hoverName = "" }
+            onPointerOver() { classroot.hoverName = this.name },
+            onPointerOut()  { if (classroot.hoverName == this.name) classroot.hoverName = "" }
             ],
         TintDot [ c = #3A9E4C, name = "Green",
-            onMouseOver() { classroot.hoverName = this.name },
-            onMouseOut()  { if (classroot.hoverName == this.name) classroot.hoverName = "" }
+            onPointerOver() { classroot.hoverName = this.name },
+            onPointerOut()  { if (classroot.hoverName == this.name) classroot.hoverName = "" }
             ]
         ],
     cap: Text [ x = 0, y = 25, fontSize = 12, textColor = { theme.textMuted },

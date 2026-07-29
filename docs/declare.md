@@ -18,7 +18,7 @@ compiler disagree, the compiler is right. Status: pre-1.0, under active design (
 
 | where | what is there | go when |
 |---|---|---|
-| [`declare-model.json`](declare-model.json) | every component, attribute, type, method, event and diagnostic — generated from source, keyed `Class.attr` under `reference` | you need a name, a type, or a signature |
+| [`declare-model.json`](declare-model.json) | every component, attribute, type, method, event and diagnostic — generated from source, keyed `Class.attr` under `reference`. A class's page carries its own members and then each ancestor's, so everything reachable on it is on one page | you need a name, a type, or a signature |
 | `library/` | the standard components — controls, structure, layouts, embedding, and the `Control` base your own controls extend — written in Declare | you want to know what ships, or to read how one is built |
 | `apps/` | complete programs; `apps/calendar/calendar.declare` (~<!--stat:calendar.lines-->740<!--/stat--> lines) is the reference | you want the idiom at full scale |
 | [`docs/guide/`](guide/01-thinking-in-declare.md) | a narrative course, chapter by chapter | you want the reasoning, or you are learning rather than looking up |
@@ -148,11 +148,13 @@ label:    string  = "",                // DECLARE a new reactive attribute
 selected: boolean = false,
 tint:     Color   = navy,              //   any value type, bare-literal default
 count:    number,                      //   no default — undefined until written
+rows:     number[] = [],               //   an array, element-typed
+panel:    Menu    = null,              //   a component class — the slot holds an instance
 
 select() { selected = !selected },     // a METHOD
 
 onClick()      { count = count + 1 },  // a HANDLER — `on` + an event this node fires
-onMouseMove(e: PointerEvent) { x = e.x },   // pointer handlers get a typed payload
+onPointerMove(e: PointerEvent) { x = e.x },   // pointer handlers get a typed payload
 
 draw(d: Draw) { d.fillStyle = "#4169E1"    // a DRAWING — see below
             d.fillRect(0, 0, 12, 12) },
@@ -168,11 +170,13 @@ recorded path, not a glyph. `d` takes the Canvas2D drawing calls (`fillStyle`, `
 `moveTo`, `stroke`, …).
 
 **`name = value` sets an attribute that exists; `name: Type = value` declares a new one.**
-Declaring is how reactive state enters a program; setting is how it is wired.
+Declaring is how reactive state enters a program; setting is how it is wired. A declaration's
+type comes from the same vocabulary a signature's does (below): a primitive, a component class,
+a function, or an array of any of them.
 
 **A method's signature is typed, name-first**: `select() { … }`, `input(v: boolean) { … }`,
 `quant(v: number) -> number { … }`. Every parameter carries a written type — a primitive, a
-component class, an event payload (`onMouseUp(e: PointerUpEvent)`), a function
+component class, an event payload (`onPointerUp(e: PointerUpEvent)`), a function
 (`f: (id: string) -> void`), or an array of one (`Window[]`); a `?` after the type
 (`c: Menu?`) says the value may be absent, and the body must check. Omit `-> Ret` for a
 method that returns nothing. A computed *value* is still not a method but an attribute with
@@ -485,26 +489,30 @@ construction.
 to tell its owner something calls a method. There is no `addEventListener`, no `event` keyword,
 and no capture or propagation phase; the `on` prefix is a naming convention, not syntax.
 
-**Pointer input has two layers.** The **raw** layer — `onMouseDown`/`Move`/`Up`, the multi-finger
+**Pointer input has two layers.** The **raw** layer — `onPointerDown`/`Move`/`Up`, the multi-finger
 touch family, and `onWheel` — reports what the pointer physically did, immediately: the layer for
 *manipulation*. The **resolved** layer — `onClick`, `onDblClick`, `onHold` — reports what the user
 *meant*, decided after watching the whole gesture: the layer for *commands*.
 
-> **`onClick` activates, `onMouseDown` manipulates.**
+*Pointer*, not *mouse*: one handler serves a mouse, a fingertip, and a pen, and it fires at once
+for each — there is no compatibility event here and nothing to fall back to. `onTouch…` is the
+separate multi-finger stream, for when you need the finger list rather than a point.
+
+> **`onClick` activates, `onPointerDown` manipulates.**
 
 Reach for the raw layer to run a command and it misfires on touch, where a finger landing on a
 button may be starting a scroll. Because the runtime resolves the gesture, a wandering pointer is
 a drag and activates nothing, and declaring `onDblClick` makes that view's single click wait out
-the double window. `onMouseMove` and `onMouseUp` carry **root-space** points, because a drag needs
-a frame that does not move with the dragged thing; `onMouseDown` and `onClick` carry view-local
+the double window. `onPointerMove` and `onPointerUp` carry **root-space** points, because a drag needs
+a frame that does not move with the dragged thing; `onPointerDown` and `onClick` carry view-local
 ones.
 
 One fact a drag handler must not miss: a gesture the browser reclaims — a touch that became a
-scroll — still delivers `onMouseUp`, but with **`e.canceled` true**. Commit on release only when
+scroll — still delivers `onPointerUp`, but with **`e.canceled` true**. Commit on release only when
 it is false, or an interruption reads as a drop.
 
 **The browser owns every gesture until a view claims one — and declaring the handler *is* the
-claim**, taking exactly what that handler needs to fire and nothing more: `onMouseMove` claims the
+claim**, taking exactly what that handler needs to fire and nothing more: `onPointerMove` claims the
 single-finger drag over its view and subtree while pinch stays the user's, the raw touch family
 claims every finger (the app then owes its own zoom), `onWheel` claims the wheel stream — trackpad
 pinch included, arriving with `e.pinch` true — and a scrolling view is the opposite move,

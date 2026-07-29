@@ -280,7 +280,7 @@ export function signatureTsType(written: string, isComponent: (n: string) => boo
     const fn = written.replace(/->/g, "=>");
     return nullable ? `(${fn}) | null` : fn;
   }
-  if (PAYLOAD_TYPES.has(written)) return nul(written);   // `onMouseUp(e: PointerUpEvent)`
+  if (PAYLOAD_TYPES.has(written)) return nul(written);   // `onPointerUp(e: PointerUpEvent)`
   const t = declaredType(written);
   if (t !== null) return nul(t.kind === "view" ? "View" : t.kind === "component" ? t.of : tsType(t));
   return isComponent(written) ? nul(written) : null;
@@ -500,11 +500,11 @@ function emitClass(
     // `app.cardW` and every other root-declared member check, not just the
     // built-in App/stage surface.
     lines.push(`  root: ${rootType};`);
-    if (s.name === "View") lines.push(`  readonly children: View[];`);
+    lines.push(`  readonly children: View[];`);   // on the ROOT (Node) — every node has children
   }
   // One optional handler member per event this schema DECLARES. Emitting them
-  // is what makes a user's handler an OVERRIDE: writing `onMouseUp(e: string)`
-  // is then a TS2416 against this signature, and writing `onMouseUp(e)` with no
+  // is what makes a user's handler an OVERRIDE: writing `onPointerUp(e: string)`
+  // is then a TS2416 against this signature, and writing `onPointerUp(e)` with no
   // type is a TS7006 — the same treatment TypeScript gives any override, which
   // is the behaviour the language section that is 1:1 with TS should have.
   for (const ev of s.events ?? []) {

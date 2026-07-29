@@ -198,7 +198,7 @@ class Menu extends View [ visible = { shown }, width = 220,
     back: View [ visible = { classroot.isRoot },
         x = { -classroot.x - classroot.offX }, y = { -classroot.y - classroot.offY },
         width = { app.width }, height = { app.height },
-        onMouseDown() { classroot.rootClose() }
+        onPointerDown() { classroot.rootClose() }
         ],
 
     // the panel
@@ -230,7 +230,7 @@ class Menu extends View [ visible = { shown }, width = 220,
                 height = { divider ? 11 : custom != "" ? Math.max(26, this.host.height + 8) : (typeof theme.menuRow == "number" ? theme.menuRow : 26) },
                 opacity = { enabled ? 1 : (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) },
 
-                onMouseOver() {
+                onPointerOver() {
                     if (!enabled || divider) return
                     classroot.activeRow = null           // the mouse takes over from the rover
                     if (sub) classroot.openSub(this, :submenu)

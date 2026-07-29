@@ -18,6 +18,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { SCHEMAS, RichTextSchema, EVENT_PAYLOAD } from "../../../runtime/dist/schema.js";
+import { TAGS, LAYOUTS, DATA, ANIMATORS, SOURCES, ANIMATOR_GROUPS, STATES } from "../../../runtime/dist/registry.js";
 import { compile } from "../../../compiler/dist/compile-node.js";
 import { settleHeadless } from "../../../compiler/dist/headless.js";
 import { parseProgram } from "../../../runtime/dist/parser.js";
@@ -29,7 +30,7 @@ const DOC_SCHEMAS = { ...SCHEMAS, RichText: RichTextSchema };
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const TARGETS = [                                        // the documented component surface
   "View", "App", "Text", "Image", "RichText", "Markdown", "HTMLText", "DOMIsland", "TextInput",
-  "Layout", "TweenLayout",
+  "Layout", "TweenLayout", "Editor",
   "Dataset", "DataSource",
   "Animator", "AnimatorGroup", "Spring", "Frames", "Keys", "Focus", "Tip", "State", "Node",
 ];
@@ -37,6 +38,11 @@ const TARGETS = [                                        // the documented compo
 // assemble.mjs then augments the SAME file in place with the spine/links/meta.
 // One model, two scoped writers, no intermediate artifact.
 const OUT = path.join(ROOT, "docs/declare-model.json");
+
+// `--check` is the prose-binding GATE and must be READ-ONLY: extract writes the
+// model, assemble then augments the SAME file with its spine/browse sections —
+// so a checking run that wrote would silently strip them. (It did, once.)
+const CHECK = process.argv.includes("--check");
 const DEMOS = path.join(ROOT, "apps/docs/demos");         // generated islands land here (server seeds them)
 
 // ── inline runnable examples: every prose ```declare block becomes a live edit/run
@@ -180,11 +186,14 @@ function readDecorations(files) {
 }
 
 // ── methods + signatures, read from the runtime source with tsc ──
-// Walks each `export class X { … }` and records its OWN public instance methods:
-// name, parameter names+types, and return type — the authoritative signature, so
-// it cannot drift from the code. Skips the constructor, `private`/`protected`, and
-// `_`-prefixed internals. Inherited methods are reached through the `extends` edge
-// (per-declaration model), exactly like attributes.
+// Walks each `export class X { … }` and records its OWN public instance methods
+// AND public GETTERS: name, parameter names+types, and return type — the
+// authoritative signature, so it cannot drift from the code. A getter is a
+// read-only member (`childViews`, `loaded`, `contentWidth`) and reads as one,
+// not as a call; before 2026-07-28 they were skipped outright, so the model
+// advertised none of them. Skips the constructor, `private`/`protected`, and
+// `_`-prefixed internals. Inherited members are reached through the `extends`
+// edge (per-declaration model), exactly like attributes.
 function readMethods(files) {
   const byClass = {};                                   // className → { method → { signature, params, returns, file, line } }
   for (const rel of files) {
@@ -195,15 +204,23 @@ function readMethods(files) {
       if (ts.isClassDeclaration(node) && node.name) {
         const table = (byClass[node.name.text] ??= {});
         for (const m of node.members) {
-          if (!ts.isMethodDeclaration(m) || !m.name || !ts.isIdentifier(m.name)) continue;
+          const isGetter = ts.isGetAccessor(m);
+          if ((!ts.isMethodDeclaration(m) && !isGetter) || !m.name || !ts.isIdentifier(m.name)) continue;
           const mods = (ts.canHaveModifiers(m) ? ts.getModifiers(m) : undefined) ?? [];
           if (mods.some((x) => x.kind === ts.SyntaxKind.PrivateKeyword || x.kind === ts.SyntaxKind.ProtectedKeyword)) continue;
           const name = m.name.text;
           if (name.startsWith("_")) continue;
+          if (table[name] !== undefined) continue;      // first declaration wins (a get/set pair)
+          const returns = m.type ? m.type.getText(sf) : "void";
+          if (isGetter) {
+            // a read-only member: no parens, and the reference reads it as one
+            table[name] = { signature: `${name}: ${returns}`, params: [], returns, getter: true,
+              file: rel, line: sf.getLineAndCharacterOfPosition(m.getStart(sf)).line + 1 };
+            continue;
+          }
           const params = m.parameters
             .filter((p) => ts.isIdentifier(p.name))
             .map((p) => ({ name: p.name.text, type: p.type ? p.type.getText(sf) : null, optional: !!p.questionToken }));
-          const returns = m.type ? m.type.getText(sf) : "void";
           const sig = `${name}(${params.map((p) => p.name + (p.optional ? "?" : "") + (p.type ? ": " + p.type : "")).join(", ")}): ${returns}`;
           table[name] = { signature: sig, params, returns, file: rel, line: sf.getLineAndCharacterOfPosition(m.getStart(sf)).line + 1 };
         }
@@ -233,7 +250,27 @@ function readProse(cls) {
     if (asMethod) methods[asMethod[1]] = body;
     else members[head] = body;
   }
-  return { class: parts[0].trim() || null, members, methods };
+  return { class: parts[0].trim() || null, members, methods, file: `tools/internal/doc/prose/${cls}.md` };
+}
+
+// Every `## heading` a prose file offers that NOTHING in the model claimed.
+// A heading binds to an attribute, an event (by handler name `onKeyDown`, or by
+// event name when no attribute can claim it), or — with trailing parens — a
+// method. One that binds to nothing is prose the reference silently drops:
+// exactly how 13 documented events came to render blank. Reported by
+// `--check`, so it fails the ops gate instead of going unnoticed.
+const unboundProse = [];
+function auditProse(cls, prose, schema, clsMethods) {
+  const attrs = new Set(Object.keys(schema?.attrs ?? {}));
+  const events = new Set(schema?.events ?? []);
+  const handlers = new Set([...events].map((e) => "on" + e[0].toUpperCase() + e.slice(1)));
+  for (const head of Object.keys(prose.members)) {
+    if (attrs.has(head) || handlers.has(head) || events.has(head)) continue;
+    unboundProse.push(`${prose.file}: '## ${head}' binds to no attribute or event of ${cls}`);
+  }
+  for (const head of Object.keys(prose.methods)) {
+    if (clsMethods?.[head] === undefined) unboundProse.push(`${prose.file}: '## ${head}()' binds to no method of ${cls}`);
+  }
 }
 
 // ── build the model ──
@@ -248,8 +285,14 @@ const METHODS = readMethods([
   "runtime/src/view.ts", "runtime/src/text.ts", "runtime/src/image.ts",
   "runtime/src/markdown.ts", "runtime/src/text-input.ts", "runtime/src/layout.ts",
   "runtime/src/data.ts", "runtime/src/animator.ts", "runtime/src/spring.ts",
-  "runtime/src/state.ts", "runtime/src/node.ts",
+  "runtime/src/state.ts", "runtime/src/node.ts", "runtime/src/editor.ts",
 ]);
+// A class is ABSTRACT when no registry can instantiate it by name: Layout,
+// TweenLayout, RichText and Editor are bases you extend, never tags you write.
+// Derived from the registries rather than a hand list, so it cannot drift.
+const INSTANTIABLE = new Set([TAGS, LAYOUTS, DATA, ANIMATORS, SOURCES, ANIMATOR_GROUPS, STATES]
+  .flatMap((r) => Object.keys(r)));
+
 const RUNTIME_NAME = {};                                // doc id → runtime class name (no mismatches since the DOMIsland rename)
 
 // editable examples — a class has one when apps/docs/demos/<Class>.declare exists.
@@ -273,6 +316,7 @@ for (const name of TARGETS) {
   const prose = readProse(name);
   const decor = DECOR[name] ?? {};
   const clsMethods = METHODS[RUNTIME_NAME[name] ?? name] ?? {};
+  auditProse(name, prose, schema, clsMethods);
   const clsId = name;
 
   // members: OWN attributes + OWN methods + OWN events (inherited ones are reachable
@@ -313,6 +357,9 @@ for (const name of TARGETS) {
       parent: clsId, seeAlso: [],
       signature: m.signature,
       returns: m.returns,
+      // a GETTER is a read-only member, not a call — carried so the reference
+      // renders it as `childViews: readonly View[]`, without parens
+      ...(m.getter === true ? { getter: true, readOnly: true } : {}),
     };
     methods.push(id);
   }
@@ -320,9 +367,15 @@ for (const name of TARGETS) {
   for (const ev of schema.events ?? []) {
     const id = `${clsId}.event.${ev}`;
     const handler = "on" + ev[0].toUpperCase() + ev.slice(1);
-    // event prose is keyed by the HANDLER name (`## onRepeat`), so it can't collide
-    // with a same-named attribute's prose (`## repeat`) in the one prose map.
-    const doc = prose.members[handler] ?? null;
+    // Event prose is keyed by the HANDLER name (`## onRepeat`) — Animator really
+    // does have BOTH a `repeat` attribute and a `repeat` event, which is why the
+    // handler spelling exists. But half the corpus wrote the EVENT name
+    // (`## keyDown`), and those bound to nothing at all: 13 documented events
+    // rendered blank. Both spellings are accepted now, the bare one only when
+    // no attribute of that name can claim it — so the collision stays impossible
+    // and nobody's prose is silently dropped. The gate below keeps it honest.
+    const doc = prose.members[handler]
+      ?? (schema.attrs?.[ev] === undefined ? prose.members[ev] ?? null : null);
     nodes[id] = {
       id, name: ev, kind: "event",
       doc, docSegs: segmentize(doc, id), api: doc !== null,
@@ -347,7 +400,8 @@ for (const name of TARGETS) {
     doc: prose.class, docSegs: segmentize(prose.class, clsId), api: prose.class !== null,
     source: { file: "runtime/src/schema.ts", line: 0 },
     parent: null, seeAlso: [],
-    extends: baseName && TARGETS.includes(baseName) ? baseName : baseName,
+    extends: baseName,
+    abstract: !INSTANTIABLE.has(name),
     subclasses: [],                                     // filled below
     origin: "ts",
     attributes, methods, events,
@@ -418,6 +472,19 @@ for (const [base, subs] of Object.entries(subclassIndex)) {
   if (nodes[base]) nodes[base].subclasses = subs;
 }
 
+// ANCESTRY, precomputed: `chain` is the class's own name followed by every base
+// up to the root (Button → Control → View → Node). The model stays NORMALIZED —
+// inherited members are NOT copied into each class, which would multiply the
+// file and invite drift — but every consumer needs the walk, so it is done once
+// here. (Before 2026-07-28 there was no walk to do: View's base was null and
+// every chain stopped one link in.)
+for (const n of Object.values(nodes)) {
+  if (n.kind !== "class") continue;
+  const chain = [];
+  for (let c = n.name; c && !chain.includes(c); c = nodes[c]?.extends) chain.push(c);
+  n.chain = chain;
+}
+
 const buildId = (() => {
   const vp = path.join(ROOT, "bundles/version.json");
   if (existsSync(vp)) { try { return JSON.parse(readFileSync(vp, "utf8")).build ?? "dev"; } catch {} }
@@ -432,7 +499,7 @@ const tree = roots.map((id) => {
   const c = nodes[id];
   return {
     id: c.id, name: c.name, doc: c.doc, docSegs: c.docSegs, api: c.api,
-    extends: c.extends, subclasses: c.subclasses, origin: c.origin,
+    extends: c.extends, chain: c.chain, abstract: c.abstract === true, subclasses: c.subclasses, origin: c.origin,
     attributes: c.attributes.map((a) => nodes[a]).filter((n) => n.api),
     events: c.events.map((e) => nodes[e]).filter((n) => n.api),
     methods: c.methods.map((m) => nodes[m]).filter((n) => n.api),
@@ -510,10 +577,10 @@ const tenets = readTenets();
 // write the generated inline-example demo files (the server/host seed them by filename),
 // cleaning stale `seg_*` from a prior run first so nothing orphans. Hand-authored demos
 // (View.declare, State.declare, …) never start with `seg_`, so they're untouched.
-for (const f of readdirSync(DEMOS)) {
+if (!CHECK) for (const f of readdirSync(DEMOS)) {
   if (/^seg_.*\.declare$/.test(f)) unlinkSync(path.join(DEMOS, f));
 }
-for (const [id, src] of Object.entries(genFiles)) {
+if (!CHECK) for (const [id, src] of Object.entries(genFiles)) {
   writeFileSync(path.join(DEMOS, id + ".declare"), src + "\n");
 }
 
@@ -537,7 +604,7 @@ for (const ch of guide) {
 const spine = guide.map(({ id, num, title, short, part }) => ({ id, num, title, short, part }));
 
 const model = { version: 1, buildId, reference: nodes, roots, tree, guide: spine, guideParts, tenets };
-writeFileSync(OUT, JSON.stringify(model, null, 2) + "\n");
+if (!CHECK) writeFileSync(OUT, JSON.stringify(model, null, 2) + "\n");
 
 // ── report ──
 const counts = Object.values(nodes).reduce((a, n) => ((a[n.kind] = (a[n.kind] ?? 0) + 1), a), {});
@@ -549,3 +616,11 @@ console.log(`  guide:   ${guide.length} chapters in ${guideParts.length} parts (
 console.log(`  tenets:  ${tenets.length} (${tenets.map((t) => t.title).join(" · ")})`);
 console.log(`  islands: ${Object.keys(genFiles).length} inline runnable examples written to apps/docs/demos/seg_*.declare`);
 console.log(`  @api:    ${documented} documented / ${Object.keys(nodes).length - documented} structural-only`);
+
+// The prose-binding gate: a `## heading` nobody claimed is prose the reference
+// silently drops. Always reported; fatal under `--check` (the ops gate).
+if (unboundProse.length > 0) {
+  console.log(`  UNBOUND prose headings: ${unboundProse.length}`);
+  for (const u of unboundProse) console.log(`    ${u}`);
+  if (CHECK) process.exit(1);
+}

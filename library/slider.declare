@@ -44,7 +44,7 @@ class Slider extends Control [
         return Math.max(this.min, Math.min(this.max, q))
         },
 
-    onMouseDown(e: PointerEvent) {
+    onPointerDown(e: PointerEvent) {
         if (disabled) return
         dragging = true
         focusVisible = false                     // a press clears the :focus-visible channel (Control's rule)
@@ -53,8 +53,8 @@ class Slider extends Control [
         input(v0)
         x0 = app.pointerX
         },
-    onMouseUp()   { dragging = false },
-    onMouseMove() { if (dragging) input(quant(v0 + (app.pointerX - x0) / (width - 18) * (max - min))) },
+    onPointerUp()   { dragging = false },
+    onPointerMove() { if (dragging) input(quant(v0 + (app.pointerX - x0) / (width - 18) * (max - min))) },
     onKeyDown(e: KeyEvent) {
         if (disabled) return
         if (e.key == "ArrowLeft") input(quant(value - step))

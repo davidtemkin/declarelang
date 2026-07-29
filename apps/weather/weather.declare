@@ -242,7 +242,7 @@ App [ width = 240, height = 320, fill = #EAEAEA,
                 Animator [ attribute = opacity, to = 0 ]
                 ],
 
-            onMouseUp() {
+            onPointerUp() {
                 slideUp.start()
                 App.splash.zipBtn.slideIn.start()
                 weatherData.clear()

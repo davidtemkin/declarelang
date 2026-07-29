@@ -264,12 +264,12 @@ The discipline that falls out: reactive attributes for UI state where you want t
 
 ## 8. Events and subscriptions
 
-**Handlers** are methods named with an `on` prefix — `onClick`, `onFocus`, `onInit`, `onMouseUp`, `onData`, `onTimeout`. The prefix marks them as responses to *this node's own* events (and keeps them out of the plain-method namespace, so a handler never collides with a same-named attribute):
+**Handlers** are methods named with an `on` prefix — `onClick`, `onFocus`, `onInit`, `onPointerUp`, `onData`, `onTimeout`. The prefix marks them as responses to *this node's own* events (and keeps them out of the plain-method namespace, so a handler never collides with a same-named attribute):
 
 ```
 onClick()   { classroot.select() },
 onInit()    { Focus.setFocus(this) },
-onMouseUp() { weatherData.clear() },
+onPointerUp() { weatherData.clear() },
 ```
 
 A method *without* `on` is just a method — `open`, `select`, `loadWeather`.
@@ -364,7 +364,7 @@ Screen [ shown = {  weatherData.loaded }, … ],     // report screen — derive
 - **data:** `.value` (the validated response) · `.error`
 - **methods:** `.fetch()` · `.clear()`
 
-Because the resource's *state* drives the UI, even navigation can be a function of data: `onMouseUp() { weatherData.clear() }` returns to the entry screen by resetting the resource and letting both screens re-derive.
+Because the resource's *state* drives the UI, even navigation can be a function of data: `onPointerUp() { weatherData.clear() }` returns to the entry screen by resetting the resource and letting both screens re-derive.
 
 > **From OpenLaszlo.** `<dataset>` → `Dataset { … }`; `<view datapath="events:/event">` → `datapath = …`; `$path{'@time'}` → `:time`; replication-by-matching is unchanged. `DataSource` is new — OpenLaszlo's datasets were untyped and fetched imperatively.
 
@@ -617,7 +617,7 @@ App [ width = 240, height = 320, backgroundColor = #EAEAEA, title = "Laszlo Weat
     Screen [ shown = { weatherData.loaded }, datapath = { weatherData.value.rss.channel },
 
         topBar: View [ resource = weather_topBar, opacity = 0, y = -16, focusable = true,
-            onMouseUp() { weatherData.clear() },             // back to entry — declaratively
+            onPointerUp() { weatherData.clear() },             // back to entry — declaratively
             zip: Text [ text = { App.zip }, fontWeight = bold, color = #CAD0EC, width = 100, x = 194 ],
 
             // the topBar reveal is a state — replacing the comein/goout AnimatorGroups + .doStart()

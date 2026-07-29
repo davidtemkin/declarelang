@@ -4,15 +4,15 @@
     "code": 711,
     "comment": 253,
     "blank": 188,
-    "wireGzip": 69569,
-    "programGzip": 14170
+    "wireGzip": 69609,
+    "programGzip": 14167
   },
   "calendar": {
     "total": 736,
     "code": 484,
     "comment": 135,
     "blank": 117,
-    "wireGzip": 55651,
+    "wireGzip": 55703,
     "programGzip": 11121
   }
 }

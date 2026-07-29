@@ -28,7 +28,7 @@ chrome — a fading header, a parallax hero: `opacity = { 1 - app.scrollY / 200 
 
 ## pointerX
 The pointer's horizontal position in **viewport space**, live and continuous — present
-even between elements, unlike a view's `mouseMove` (which needs the pointer over it). For
+even between elements, unlike a view's `pointerMove` (which needs the pointer over it). For
 cursor effects and hover-at-a-distance: a `Spring` following `app.pointerX` trails the
 cursor.
 

@@ -214,7 +214,7 @@ App [ width = 240, height = 320, fill = #EAEAEA,
         datapath = { weatherData.value?.rss?.channel },
 
         topBar: Image [ source = "resources/weather_topbar2.gif",
-            onMouseUp() { weatherData.clear() },   // back to the entry screen, declaratively
+            onPointerUp() { weatherData.clear() },   // back to the entry screen, declaratively
             zip: Text [ x = 194, width = 100, text = { App.zip }, textColor = #CAD0EC ],
             ],
 

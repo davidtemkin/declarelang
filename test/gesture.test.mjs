@@ -9,7 +9,7 @@
 //   - the app-root DEFAULTS: `manipulation` unclipped (pan + pinch stay the
 //     user's), `pinch-zoom` clipped (a fixed window has no pan to keep), and
 //     the repeal this rung IS — no more unconditional root `none`;
-//   - per-view claims: onMouseMove → pinch-zoom, onTouch* → none, onWheel →
+//   - per-view claims: onPointerMove → pinch-zoom, onTouch* → none, onWheel →
 //     no touch-action at all (a wheel is not a touch gesture);
 //   - a scroller DELEGATES: `pan-y pinch-zoom` (pinch was never claimed);
 //   - onWheel delivery: deltas + the `pinch` flag (ctrlKey wheels are
@@ -48,7 +48,7 @@ const CLAIMS_RAW = `App [ width = 640, height = 400, fill = #202830,
     wdy: number = 0,
     wpinch: boolean = false,
     drag: View [ x = 20, y = 20, width = 160, height = 100, fill = #334455,
-        onMouseMove(e: PointerEvent) { },
+        onPointerMove(e: PointerEvent) { },
         ],
     mesa: View [ x = 200, y = 20, width = 160, height = 100, fill = #445566,
         onTouchStart(e: TouchEvent) { },
@@ -145,7 +145,7 @@ await test("dom: `clip = true` retires pan with the scroll — root goes `pinch-
     { timeout: 5000 });
 });
 
-await test("dom: onMouseMove claims the drag, keeps pinch — `pinch-zoom`", async () => {
+await test("dom: onPointerMove claims the drag, keeps pinch — `pinch-zoom`", async () => {
   assert.equal((await styleAt(100, 70)).touchAction, "pinch-zoom");
 });
 

@@ -115,7 +115,7 @@ class MenuBar extends View [ height = 25,
             // when the theme names one (macOS), else the solid controlActive
 
             fill = { this.open ? (theme.menuTitleHl != null ? theme.menuTitleHl : theme.controlActive) : null },
-            onMouseOver() { classroot.trackMenu(this) },
+            onPointerOver() { classroot.trackMenu(this) },
             onClick() { if (this.open) classroot.menu.close(); else classroot.openMenu(this) },
             onInit() { if (this.kd != "") app.createView(this.kd, this.host, ({ })) },
             t: Text [ x = 10, y = center, fontSize = 14,

@@ -1,5 +1,5 @@
 App [ on: boolean = false,
-    onMouseDown() { on = !on },
+    onPointerDown() { on = !on },
     View [ x = 30, y = 30,
         layout: SimpleLayout [ axis = y, spacing = 20 ],
         Text [ textColor = slategray, text = "click anywhere to toggle" ],

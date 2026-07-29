@@ -31,15 +31,15 @@ export interface RichBlock { tag: string; runs: RichRun[]; gapBefore: number; li
  *  `value Stretch = none | width | height | both` (§6). */
 export type Stretch = "none" | "width" | "height" | "both";
 
-/** The pointer events a view can answer at R5 (`onMouseDown` / `onMouseUp` /
+/** The pointer events a view can answer at R5 (`onPointerDown` / `onPointerUp` /
  *  `onClick`). A click is not a platform event here — the shared router
  *  (input.ts) synthesizes it as "press and release resolved to the same
  *  view", so both backends decide it identically by construction. */
-export type PointerType = "mouseDown" | "mouseUp" | "click" | "dblClick" | "mouseMove" | "mouseOver" | "mouseOut"
+export type PointerType = "pointerDown" | "pointerUp" | "click" | "dblClick" | "pointerMove" | "pointerOver" | "pointerOut"
   | "hold"                                     // a press held in place — the tap-hold / click-hold fact
   | "touchStart" | "touchMove" | "touchEnd" | "touchCancel"    // RAW multi-finger, for an app owning its own gestures
   | "wheel";                                   // the wheel stream over this view (trackpad pinch included)
-export const POINTER_TYPES: readonly PointerType[] = ["mouseDown", "mouseUp", "click", "dblClick", "mouseMove", "mouseOver", "mouseOut", "hold", "touchStart", "touchMove", "touchEnd", "touchCancel", "wheel"];
+export const POINTER_TYPES: readonly PointerType[] = ["pointerDown", "pointerUp", "click", "dblClick", "pointerMove", "pointerOver", "pointerOut", "hold", "touchStart", "touchMove", "touchEnd", "touchCancel", "wheel"];
 
 /** The raw-touch member of the family: declaring one of these is a view's
  *  statement that it owns multi-finger gestures in its subtree (the backend
@@ -67,7 +67,7 @@ export interface InputWants {
   wantsDbl: boolean;
   wantsHold: boolean;
   wantsTouch: boolean;
-  /** Declares `onMouseMove` — claims the single-finger drag over this view
+  /** Declares `onPointerMove` — claims the single-finger drag over this view
    *  (a finger that lands here drags instead of panning); pinch stays the
    *  user's. A mouse drag was never the browser's, so desktop is unchanged. */
   wantsDrag: boolean;

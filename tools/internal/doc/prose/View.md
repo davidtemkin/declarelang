@@ -136,7 +136,7 @@ extent of the subtree, for sizing a container to its content.
 ## onClick
 Fires when the pointer presses **and** releases on the same view (a true click, not a
 stray press) — answered by an `onClick()` handler. The primary interaction event;
-`mouseDown`/`mouseUp`/`mouseMove` are there when you need the raw phases.
+`pointerDown`/`pointerUp`/`pointerMove` are there when you need the raw phases.
 
 ```declare
 View [ width = 80, height = 40, cornerRadius = 10, fill = gainsboro,
@@ -195,25 +195,25 @@ numeric tabindex; override `tabOrder()` to reorder within a container.
 Marks a self-contained focus group: Tab cycles within it and escapes at the boundary
 (firing `escapeFocus`). For a modal or menu whose focus must not leak to the page behind.
 
-## onMouseDown
+## onPointerDown
 The pointer pressed on the view — the raw press phase. Prefer `click` (press **and**
 release on the same view) unless you need the phases apart, e.g. to begin a drag.
 
-## onMouseUp
-The pointer released. While a press is captured (it began on this view) `mouseUp` still
+## onPointerUp
+The pointer released. While a press is captured (it began on this view) `pointerUp` still
 fires **here even if the release lands off the box** — the drag-release guarantee, so a
 slider freezes its value wherever the finger lifts.
 
-## onMouseMove
+## onPointerMove
 The pointer moved over the view — and, once pressed on it, every move **while captured**
 (even outside the box), so a drag handler keeps getting positions. The event carries the
 pointer in this view's own coordinates.
 
-## onMouseOver
+## onPointerOver
 The pointer entered the view (retained enter tracking) — the hover-in half. Set a
 `hovered` flag here and read it in a `fill`/`textColor` constraint.
 
-## onMouseOut
+## onPointerOut
 The pointer left the view — the hover-out half; also fires when a press is abandoned off
 the box, so clear both `hovered` and `pressed` here.
 
@@ -308,3 +308,8 @@ Names this view as a **reveal target** for a location's `@name` suffix
 lineage, reborn reactive: the anchor namespace is named views (this attribute) plus
 heading slugs inside rendered rich text — a heading needs nothing from you. Resolution
 prefers views over slugs, preorder-first.
+
+## selectable
+Opt this run back into native text selection / copy (default `false`). Off by default
+so an app doesn't feel like a document; turn it on for content a user should be able to
+select and copy.

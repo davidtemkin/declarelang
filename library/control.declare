@@ -70,6 +70,6 @@ class Control extends View [
 
     // a click is also a focus claim — the keyboard picks up where the pointer left
 
-    onMouseDown() { if (!disabled) { focusVisible = false; Focus.focus(this) } },
+    onPointerDown() { if (!disabled) { focusVisible = false; Focus.focus(this) } },
     onKeyDown(e: KeyEvent) { if (!disabled && !e.repeat && (e.key == "Enter" || e.key == " ")) press() }
     ]

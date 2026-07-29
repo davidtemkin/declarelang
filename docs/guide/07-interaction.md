@@ -31,7 +31,7 @@ App [ width = 220, height = 100, fill = white,
     ]
 ```
 
-No declarations, no `onMouseOver` bookkeeping — the four handlers and two booleans this
+No declarations, no `onPointerOver` bookkeeping — the four handlers and two booleans this
 took before the intrinsics existed are simply gone, and what remains is the one line
 that was ever the point: the `fill` constraint. Everything composes as usual: gate a
 State on it (`applied = { hovered }`), read another view's (`visible =
@@ -49,7 +49,7 @@ gated by `disabled`, plus the keyboard flash), which is what its buttons paint w
 Every pointer handler belongs to one of two layers, and choosing between them is the
 whole skill.
 
-The **raw layer** — `onMouseDown`, `onMouseMove`, `onMouseUp` — reports what the
+The **raw layer** — `onPointerDown`, `onPointerMove`, `onPointerUp` — reports what the
 pointer physically did, the instant it did it. No waiting, no interpretation; a press
 is a press whether it came from a mouse button or a fingertip. This is the layer for
 *manipulation*: dragging a card, tracking a slider, drawing on a canvas.
@@ -59,9 +59,9 @@ The **resolved layer** — `onClick`, `onDblClick`, `onHold` — reports that th
 gesture and decides. This is the layer for *commands*: buttons, links, menu items,
 anything where "the user chose this" is the meaning.
 
-> **`onClick` activates, `onMouseDown` manipulates.**
+> **`onClick` activates, `onPointerDown` manipulates.**
 
-Reach for `onMouseDown` to run a command and it will misfire on a phone, because a
+Reach for `onPointerDown` to run a command and it will misfire on a phone, because a
 finger landing on your button may be starting a scroll — and only the resolved layer
 knows the difference. What the runtime decides, precisely:
 
@@ -92,8 +92,8 @@ travels far away, so there is no tracking code to write.
 App [ width = 300, height = 160, fill = white,
     card: View [ x = 20, y = 40, width = 120, height = 80, cornerRadius = 10, fill = 0x4C8DFF,
         grabX: number = 0,
-        onMouseDown(e: PointerEvent) { grabX = e.x },                    // view-local: where in the card you grabbed
-        onMouseMove(e: PointerEvent) { x = Math.max(0, Math.min(180, e.x - grabX)) }   // root-space: minus the grab
+        onPointerDown(e: PointerEvent) { grabX = e.x },                    // view-local: where in the card you grabbed
+        onPointerMove(e: PointerEvent) { x = Math.max(0, Math.min(180, e.x - grabX)) }   // root-space: minus the grab
         ]
     ]
 ```
@@ -104,17 +104,17 @@ an `onClick` on this same card would fire only on a real tap.
 
 Two things worth knowing about the coordinates and the ending:
 
-**`onMouseMove` and `onMouseUp` carry *root-space* coordinates** — measured against the
-whole app — while `onMouseDown`, `onClick`, and `onDblClick` carry view-local ones. A
+**`onPointerMove` and `onPointerUp` carry *root-space* coordinates** — measured against the
+whole app — while `onPointerDown`, `onClick`, and `onDblClick` carry view-local ones. A
 drag needs a frame that does not move with the thing being dragged, which is why the
 two differ.
 
 **A gesture can be interrupted.** On a touch screen the browser may reclaim a gesture
 mid-flight to scroll the page, which ends your drag without a release. That still
-arrives as `onMouseUp`, so state resets — but the event says which it was:
+arrives as `onPointerUp`, so state resets — but the event says which it was:
 
 ```declare-fragment
-onMouseUp(e: PointerUpEvent) {
+onPointerUp(e: PointerUpEvent) {
 dragging = false                       // always reset
 if (e.canceled) return                 // …but never commit an interrupted drag
 classroot.commitMove(this.x, this.y)
@@ -129,9 +129,9 @@ view, and declaring the raw handlers does not steal the tap:
 
 ```declare-fragment
 block: View [
-    onMouseDown(e: PointerEvent) { app.startDrag(:id, e.x, e.y) },
-    onMouseMove()  { app.dragMove() },
-    onMouseUp(e: PointerUpEvent)   { app.dropDrag(e.x, e.y) },
+    onPointerDown(e: PointerEvent) { app.startDrag(:id, e.x, e.y) },
+    onPointerMove()  { app.dragMove() },
+    onPointerUp(e: PointerUpEvent)   { app.dropDrag(e.x, e.y) },
     onClick()      { app.selectEvent(:id) }        // still fires — on a real tap
     ]
 ```
@@ -139,7 +139,7 @@ block: View [
 The two layers are not either/or. They ride the *same* gesture, and the slop rule
 from earlier is the one arbiter between them. A press that never wanders is a
 tap: the raw stream saw a down and an up, your drag saw nothing worth moving, and
-`onClick` fires — the panel opens. A press that wanders is a drag: `onMouseMove`
+`onClick` fires — the panel opens. A press that wanders is a drag: `onPointerMove`
 drives it, and the resolved layer stays silent, so the panel never flashes open
 at the end of a drop. There is no `if (moved)` to write on the click side — a
 gesture that moved activates nothing, and that was never your rule to enforce.
@@ -177,7 +177,7 @@ options, tap to open.
 A drag that must *land* somewhere needs to know what it is over. Ask the tree:
 
 ```declare-fragment
-onMouseUp(e: PointerUpEvent) {
+onPointerUp(e: PointerUpEvent) {
 if (e.canceled) return
 let t = app.viewAt(e.x, e.y)                  // root-space, like the event
 while (t != null && t.accept == null) t = t.parent
@@ -198,7 +198,7 @@ constraint.
 ```declare-fragment
 // on the dragger
 
-onMouseMove(e: PointerEvent) { app.dropTarget = app.viewAt(e.x, e.y) },
+onPointerMove(e: PointerEvent) { app.dropTarget = app.viewAt(e.x, e.y) },
 
 // on each target — no handlers, just a standing relationship
 

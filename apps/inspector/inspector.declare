@@ -84,9 +84,9 @@ class Seam extends View [ width = 8, y = 0,
     which: string = "a",
     cursor = "col-resize",
     fill = { classroot.hovered || app.seam == classroot.which ? app.c.seamOn : null },
-    onMouseDown() { app.beginSeam(classroot.which) },
-    onMouseMove() { app.moveSeam() },
-    onMouseUp() { app.endSeam() }
+    onPointerDown() { app.beginSeam(classroot.which) },
+    onPointerMove() { app.moveSeam() },
+    onPointerUp() { app.endSeam() }
     ]
 
 
@@ -462,9 +462,9 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
         // title bar — drag handle
 
         bar: View [ width = { parent.width }, height = 34, fill = { app.c.bar },
-            onMouseDown() { app.beginDrag() },
-            onMouseMove() { app.moveDrag() },
-            onMouseUp() { app.endDrag() },
+            onPointerDown() { app.beginDrag() },
+            onPointerMove() { app.moveDrag() },
+            onPointerUp() { app.endDrag() },
             Dot [ x = 13, y = 11 ],
             title: Text [ x = center, y = center, fontSize = 12.5, fontWeight = semibold,
                 textColor = { app.c.text }, text = "Declare Inspector" ],
@@ -544,8 +544,8 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                             rp: string = { "" + :path },
                             on: boolean = { app.sel == this.rp },
                             fill = { this.on ? app.c.accent : (this.hovered ? app.c.hover : null) },
-                            onMouseOver() { app.hoverPath = this.rp },
-                            onMouseOut() { if (app.hoverPath == this.rp) app.hoverPath = "" },
+                            onPointerOver() { app.hoverPath = this.rp },
+                            onPointerOut() { if (app.hoverPath == this.rp) app.hoverPath = "" },
                             onClick() { app.select(this.rp) },
                             tw: Twisty [ x = { 2 + :depth * 11 }, y = 0,
                                 shown = { :hasKids == true }, open = { app.isOpen(parent.rp) },
@@ -709,8 +709,8 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                             View [ datapath = :rows[], width = { parent.width }, height = 18,
                                 rp: string = { "" + :path },
                                 fill = { this.hovered ? app.c.hover : null },
-                                onMouseOver() { app.depHover = Inspect.depTargetPath(app.sel, this.rp) },
-                                onMouseOut() { app.depHover = "" },
+                                onPointerOver() { app.depHover = Inspect.depTargetPath(app.sel, this.rp) },
+                                onPointerOut() { app.depHover = "" },
                                 onClick() { const t = Inspect.depTargetPath(app.sel, this.rp); if (t != "") app.select(t) },
                                 p: Text [ x = 2, y = center, fontSize = 10.5, wrap = false,
                                     fontFamily = [Mono, "monospace"], textColor = { app.c.muted },
@@ -743,9 +743,9 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
 
             seamC: View [ x = 0, y = 0, width = { parent.width }, height = 7, cursor = "row-resize",
                 fill = { this.hovered || app.seam == "c" ? app.c.seamOn : null },
-                onMouseDown() { app.beginSeam("c") },
-                onMouseMove() { app.moveSeam() },
-                onMouseUp() { app.endSeam() }
+                onPointerDown() { app.beginSeam("c") },
+                onPointerMove() { app.moveSeam() },
+                onPointerUp() { app.endSeam() }
                 ],
 
             scroll: View [ x = 0, y = 4, width = { parent.width }, height = { parent.height - 42 }, scrolls = true,
@@ -800,21 +800,21 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
 
         edgeR: View [ x = { parent.width - 6 }, y = 34, width = 6, height = { parent.height - 40 },
             cursor = "ew-resize",
-            onMouseDown() { app.beginSize("r") },
-            onMouseMove() { app.moveSize() },
-            onMouseUp() { app.endSize() }
+            onPointerDown() { app.beginSize("r") },
+            onPointerMove() { app.moveSize() },
+            onPointerUp() { app.endSize() }
             ],
         edgeB: View [ x = 0, y = { parent.height - 6 }, width = { parent.width - 14 }, height = 6,
             cursor = "ns-resize",
-            onMouseDown() { app.beginSize("b") },
-            onMouseMove() { app.moveSize() },
-            onMouseUp() { app.endSize() }
+            onPointerDown() { app.beginSize("b") },
+            onPointerMove() { app.moveSize() },
+            onPointerUp() { app.endSize() }
             ],
         grip: View [ x = { parent.width - 14 }, y = { parent.height - 14 }, width = 14, height = 14,
             cursor = "nwse-resize",
-            onMouseDown() { app.beginSize("rb") },
-            onMouseMove() { app.moveSize() },
-            onMouseUp() { app.endSize() },
+            onPointerDown() { app.beginSize("rb") },
+            onPointerMove() { app.moveSize() },
+            onPointerUp() { app.endSize() },
             draw(d: Draw) {
                 d.strokeStyle = app.c.faint
                 d.lineWidth = 1

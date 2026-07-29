@@ -243,7 +243,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
     // in spirit: clicking anywhere else lets them go (the red light works too)
 
     activate() { app.frontWin = this; this.raise(app.lowestMini()); if (!plain) app.dismissAbouts() },
-    onMouseDown() { this.activate() },
+    onPointerDown() { this.activate() },
 
     // subclass content attaches after the base's children, so any content that
     // reaches the window's edges would eat the resize strips' events — the
@@ -344,9 +344,9 @@ class Window extends View [ width = 560, height = 400, clip = true,
         fill = { classroot.active
                 ? (app.darkMode ? gradient(0x3B3B40, 0x2E2E32) : gradient(0xFAFAFC, 0xE6E6EA))
                 : theme.bg },
-        onMouseDown() { classroot.beginDrag() },
-        onMouseMove() { classroot.dragTo() },
-        onMouseUp()   { classroot.dragging = false },
+        onPointerDown() { classroot.beginDrag() },
+        onPointerMove() { classroot.dragTo() },
+        onPointerUp()   { classroot.dragging = false },
 
         // The three window controls — close, minimize, zoom. Gray when the
         // window is inactive. Rollover is scoped to the controls block alone
@@ -358,24 +358,24 @@ class Window extends View [ width = 560, height = 400, clip = true,
         // centered in the 35px bar.
 
         lights: View [ x = 13, y = 10.5, width = 54, height = 14,
-            onMouseOver() { classroot.lightsHover = true },
-            onMouseOut()  { classroot.lightsHover = false },
+            onPointerOver() { classroot.lightsHover = true },
+            onPointerOut()  { classroot.lightsHover = false },
             close: TrafficLight [ x = 0, c = #EC6A5E, rim = #D25349, ink = #7B1006, sym = "close",
                 on = { classroot.active || classroot.lightsHover }, showGlyph = { classroot.lightsHover },
-                onMouseOver() { classroot.lightsHover = true },
-                onMouseOut()  { classroot.lightsHover = false },
+                onPointerOver() { classroot.lightsHover = true },
+                onPointerOut()  { classroot.lightsHover = false },
                 onClick() { app.closeWin(classroot) }
                 ],
             mini: TrafficLight [ x = 20, c = #F5BF4F, rim = #D9A340, ink = #8F5B00, sym = "min",
                 on = { classroot.active || classroot.lightsHover }, showGlyph = { classroot.lightsHover },
-                onMouseOver() { classroot.lightsHover = true },
-                onMouseOut()  { classroot.lightsHover = false },
+                onPointerOver() { classroot.lightsHover = true },
+                onPointerOut()  { classroot.lightsHover = false },
                 onClick() { if (!classroot.plain) app.minimizeWin(classroot) }
                 ],
             zoom: TrafficLight [ x = 40, c = #61C554, rim = #4CAF45, ink = #145E14, sym = "zoom",
                 on = { classroot.active || classroot.lightsHover }, showGlyph = { classroot.lightsHover },
-                onMouseOver() { classroot.lightsHover = true },
-                onMouseOut()  { classroot.lightsHover = false },
+                onPointerOver() { classroot.lightsHover = true },
+                onPointerOut()  { classroot.lightsHover = false },
                 onClick() { if (!classroot.plain) classroot.zoomToggle() }
                 ]
             ],
@@ -463,9 +463,9 @@ class Window extends View [ width = 560, height = 400, clip = true,
             if ((inT || inB) && !(px < g + c || px >= w - g - c)) hz = ""
             return hz + vz
             },
-        onMouseMove() { if (classroot.sizeMode != "") classroot.moveSize() },
-        onMouseDown(e: PointerEvent) { const z = this.zone(e.x, e.y); if (z != "") classroot.beginSize(z) },
-        onMouseUp() { classroot.sizeMode = "" },
+        onPointerMove() { if (classroot.sizeMode != "") classroot.moveSize() },
+        onPointerDown(e: PointerEvent) { const z = this.zone(e.x, e.y); if (z != "") classroot.beginSize(z) },
+        onPointerUp() { classroot.sizeMode = "" },
 
         // STATIC per-zone cursors: sinkless children of the band (WebKit will
         // not refresh a dynamically-set cursor mid-hover, so the shapes are
@@ -512,7 +512,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
     veil: View [ visible = { !classroot.active && app.firstClickActivatesOnly },
         x = 0, y = { classroot.barH },
         width = { parent.width }, height = { parent.height - classroot.barH },
-        onMouseDown() { classroot.activate() }
+        onPointerDown() { classroot.activate() }
         ]
     ]
 
@@ -1038,9 +1038,9 @@ class FilesWindow extends Window [ forApp = "files",
                     // drag any seam to resize the columns (fixed width, Finder-style)
 
                     grip: View [ x = { parent.width - 4 }, y = 0, width = 8, height = { parent.height }, cursor = "col-resize",
-                        onMouseDown() { classroot.activate(); classroot.cwk = :depth; classroot.cw0 = parent.width; classroot.cpx0 = app.pointerX },
-                        onMouseMove() { if (classroot.cwk == :depth) { const nw = Math.max(150, Math.min(460, classroot.cw0 + app.pointerX - classroot.cpx0)); const a = [...classroot.widths]; a[:depth] = nw; classroot.widths = a } },
-                        onMouseUp() { classroot.cwk = -1 }
+                        onPointerDown() { classroot.activate(); classroot.cwk = :depth; classroot.cw0 = parent.width; classroot.cpx0 = app.pointerX },
+                        onPointerMove() { if (classroot.cwk == :depth) { const nw = Math.max(150, Math.min(460, classroot.cw0 + app.pointerX - classroot.cpx0)); const a = [...classroot.widths]; a[:depth] = nw; classroot.widths = a } },
+                        onPointerUp() { classroot.cwk = -1 }
                         ]
                     ]
                 ]
@@ -1081,7 +1081,7 @@ class AppWindow extends Window [ width = 880, height = 560,
     // content raises this window exactly as clicking any window body does
 
     island: AppIsland [ x = 0, y = { classroot.barH }, width = { parent.width }, height = { parent.height - classroot.barH },
-        onMouseDown() { classroot.activate() },
+        onPointerDown() { classroot.activate() },
         program = { classroot.appPath },
         env = { "dark=" + (app.darkMode ? "1" : "0")
             + (classroot.extraEnv != "" ? "&" + classroot.extraEnv : "") }
@@ -1186,9 +1186,9 @@ class JotWindow extends Window [ width = 300, height = 250, chrome = false, forA
 
     strip: View [ x = 0, y = 0, width = { parent.width }, height = { classroot.barH },
         fill = { classroot.active ? 0xFEEA3D : 0xFEF49C },
-        onMouseDown() { classroot.beginDrag() },
-        onMouseMove() { classroot.dragTo() },
-        onMouseUp()   { classroot.dragging = false },
+        onPointerDown() { classroot.beginDrag() },
+        onPointerMove() { classroot.dragTo() },
+        onPointerUp()   { classroot.dragging = false },
 
         // the strip's widgets: dark olive outlines around pale interiors —
         // the close box 11px in from the left, the zoom triangle (right
@@ -2016,7 +2016,7 @@ App [ clip = true, appName = "Declare Desktop",
         for (const w of doomed) this.closeWin(w)
         },
 
-    onMouseDown() { this.dismissAbouts() },
+    onPointerDown() { this.dismissAbouts() },
 
     // Appearance follows the OS color scheme (app.dark) by default; the menu's
     // Dark / Light item locks the choice to the user's pick from that point on,
@@ -2657,7 +2657,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
 
     alert: View [ visible = { app.alertName != "" },
         x = 0, y = 0, width = { app.width }, height = { app.height },
-        onMouseDown() { },                           // modal: presses on the scrim do nothing
+        onPointerDown() { },                           // modal: presses on the scrim do nothing
 
         scrim: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height }, fill = #00000026 ],
 

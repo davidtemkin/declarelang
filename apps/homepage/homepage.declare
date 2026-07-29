@@ -414,9 +414,9 @@ class FullPageEditor extends View [ width = { app.width }, height = { app.height
     grip: View [ x = { classroot.splitX }, y = 44, width = 6, height = { parent.height - 44 },
         dragging: boolean = false,
         fill = { dragging || hovered ? theme.accent2 : theme.line },
-        onMouseDown()  { dragging = true },
-        onMouseMove(e: PointerEvent) { if (dragging) classroot.split = Math.max(240, Math.min(app.width - 320, e.x)) },
-        onMouseUp()    { dragging = false }
+        onPointerDown()  { dragging = true },
+        onPointerMove(e: PointerEvent) { if (dragging) classroot.split = Math.max(240, Math.min(app.width - 320, e.x)) },
+        onPointerUp()    { dragging = false }
         ],
     preview: PreviewFrame [ x = { classroot.splitX + 6 }, y = 44,
         width = { parent.width - classroot.splitX - 6 }, height = { parent.height - 44 },

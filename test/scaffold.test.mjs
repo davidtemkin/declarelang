@@ -166,14 +166,19 @@ await test("scaffold: View declares its attrs (AttrType→TS map) + the §11 nou
   assert.ok(view.includes("stylesheet: string | null;"), "stylesheet → string | null");
   assert.ok(view.includes("layout: Layout | null;"), "component → <of> | null");
   assert.ok(view.includes("datapath: Cursor;"), "cursor → Cursor (deferred placeholder)");
-  // The view-tree nouns (language §11), on View, inherited by View-derived
-  // classes. The `parent` MEMBER is `any` — a chain (`x.parent.…`) or a
-  // cross-instance hop lands somewhere statically unknowable; the check-block's
-  // `parent` PARAM stays precisely typed, so only member navigation is silent.
-  assert.ok(view.includes("parent: any;"), "parent noun (member navigation is any)");
-  assert.ok(view.includes("classroot: View;"), "classroot noun");
-  assert.ok(view.includes("root: App;"), "root noun typed App (backs the `app` noun)");
-  assert.ok(view.includes("readonly children: View[];"), "children noun");
+  // The tree nouns (language §11) live on the ROOT class — Node since
+  // 2026-07-28, when the schema table started recording the runtime's real
+  // chain (`class View extends Node`) instead of treating View as a root.
+  // View inherits them, as does every other kind of member.
+  const node = classBlock(s, "Node");
+  assert.ok(view.startsWith("declare class View extends Node {"), "View extends Node — the runtime's own chain");
+  // The `parent` MEMBER is `any` — a chain (`x.parent.…`) or a cross-instance
+  // hop lands somewhere statically unknowable; the check-block's `parent` PARAM
+  // stays precisely typed, so only member navigation is silent.
+  assert.ok(node.includes("parent: any;"), "parent noun (member navigation is any)");
+  assert.ok(node.includes("classroot: View;"), "classroot noun");
+  assert.ok(node.includes("root: App;"), "root noun typed App (backs the `app` noun)");
+  assert.ok(node.includes("readonly children: View[];"), "children noun");
   assert.ok(s.startsWith("type Percent"), "prelude leads the scaffold");
 });
 
@@ -188,11 +193,10 @@ await test("scaffold: Text extends View with its own leaf attrs", () => {
 await test("scaffold: the abstract Layout base is declared (strategies extend it from the library)", () => {
   const s = scaffoldFor(PROGRAM);
   const layout = classBlock(s, "Layout");
-  assert.ok(layout.startsWith("declare class Layout {"), "Layout declared so `Layout | null` + library strategies resolve");
-  // A ROOT class (base-less) carries the tree nouns — Spring/Dataset/Layout
-  // bodies say `app` too — and its LANGUAGE-API surface (runtime members a
-  // body may read/call that the schema, the [ ]-settable surface, omits).
-  assert.ok(layout.includes("root: App;"), "Layout carries the nouns (a root class)");
+  assert.ok(layout.startsWith("declare class Layout extends Node {"), "Layout declared so `Layout | null` + library strategies resolve");
+  // The nouns reach it through Node — Spring/Dataset/Layout bodies say `app`
+  // too, and now they inherit that rather than each re-declaring it.
+  assert.ok(classBlock(s, "Node").includes("root: App;"), "the nouns live on the root class");
   assert.ok(layout.includes("view: View;"), "Layout carries its language-API member");
   assert.ok(classBlock(s, "TweenLayout").startsWith("declare class TweenLayout extends Layout {"), "TweenLayout extends Layout");
 });

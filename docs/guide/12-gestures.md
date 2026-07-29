@@ -61,12 +61,12 @@ takes exactly what the handler needs in order to fire, and not one gesture more:
 
 | you declare | on a touch screen the browser yields | on the desktop it yields |
 |---|---|---|
-| `onMouseMove` | the single-finger drag over this view | nothing — a mouse drag was always yours |
+| `onPointerMove` | the single-finger drag over this view | nothing — a mouse drag was always yours |
 | `onDblClick` | the double tap | nothing — a double click was always yours |
 | `onWheel` | — | the wheel over this view, trackpad pinch included |
 | the `onTouch*` family | **every finger** | — |
 
-`onClick`, `onMouseDown`, and `onHold` claim nothing. A tap coexists with every
+`onClick`, `onPointerDown`, and `onHold` claim nothing. A tap coexists with every
 browser gesture — that is the resolved layer's whole point — and when the browser
 does take a gesture back mid-flight, `e.canceled` reports it. Everything a claim
 does not name stays with the user: a view that claimed the drag still zooms under

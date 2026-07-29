@@ -145,7 +145,7 @@ class Dialog extends View [ visible = { shown },
     scrim: View [ x = 0, y = 0, width = { app.width }, height = { app.height },
         fill = { theme.scrimColor != null ? theme.scrimColor : 0x000000 },
         opacity = { typeof theme.scrimOpacity == "number" ? theme.scrimOpacity : 0.32 },
-        onMouseDown() { }
+        onPointerDown() { }
         ],
 
     panel: View [ focustrap = true,

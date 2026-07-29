@@ -1330,6 +1330,18 @@ export function checkMethod(schema: ComponentSchema, m: Method): CheckedMethod {
   const event = eventOfHandler(m.name);
   if (event !== null && !eventsOf(schema).includes(event)) {
     const known = eventsOf(schema).map(handlerName);
+    // The 2026-07-28 rename: the single-point raw stream is `onPointer*`, not
+    // `onMouse*`. Worth its own message rather than the generic list — the old
+    // spelling is what every other toolkit taught, and the reason it is wrong
+    // here is a FACT about the event, not a naming preference: one handler
+    // serves mouse and finger alike, immediately, with no compatibility delay.
+    const renamed = /^onMouse(Down|Up|Move|Over|Out)$/.exec(m.name);
+    if (renamed !== null) {
+      return err(
+        `'${m.name}' is now 'onPointer${renamed[1]}' — one handler serves a mouse and a fingertip alike (the touch-specific stream is 'onTouch…')`,
+        m.pos
+      );
+    }
     return err(
       known.length > 0
         ? `${schema.name} has no '${m.name}' event — its handlers: ${known.join(", ")}`

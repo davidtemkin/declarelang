@@ -1131,8 +1131,8 @@ await test("method syntax errors are positioned", () => {
 
 await test("check() accepts handlers for View's declared events, incl. inherited", () => {
   const src = `App [ width=1, height=1, onInit() { },
-    View [ onClick() { this.x = 1 }, onMouseDown() { }, onMouseUp() { } ],
-    Text [ onClick() { } ], Image [ onMouseUp() { } ] ]`;
+    View [ onClick() { this.x = 1 }, onPointerDown() { }, onPointerUp() { } ],
+    Text [ onClick() { } ], Image [ onPointerUp() { } ] ]`;
   assert.deepEqual(check(parse(src)), []);
 });
 
@@ -1140,7 +1140,7 @@ await test("check() rejects a typo'd handler, naming the handlers it knows", () 
   const [err] = check(parse("View [ onClik() { } ]"));
   // names the typo and lists the handlers it knows (the set grows with the
   // schema — pin the stable leading pointer handlers, not the whole tail)
-  assert.match(err.message, /View has no 'onClik' event — its handlers: onClick, onDblClick, onHold, onMouseDown, onMouseUp, onMouseMove/);
+  assert.match(err.message, /View has no 'onClik' event — its handlers: onClick, onDblClick, onHold, onPointerDown, onPointerUp, onPointerMove/);
   assert.equal(err.pos.col, 8);
 });
 
@@ -1230,7 +1230,7 @@ await test("onInit fires once construction completes, children before parents", 
 
 await test("a view with a pointer handler gets an input sink; one without gets none", () => {
   const app = build(`App [ width=100, height=60,
-    View [ onMouseUp() { } ],
+    View [ onPointerUp() { } ],
     View [ x=1 ],
     View [ onInit() { } ] ]`);
   const logs = [[], [], [], []];
@@ -1251,12 +1251,12 @@ await test("dispatch: the sink calls the right handler with view-local {x,y}", (
   globalThis.__ev = [];
   const app = build(`App [ width=100, height=60,
     View [ onClick(e: PointerEvent) { globalThis.__ev.push(["click", e.x, e.y]); this.x = e.x },
-           onMouseDown(e: PointerEvent) { globalThis.__ev.push(["down", e.x, e.y]) } ] ]`);
+           onPointerDown(e: PointerEvent) { globalThis.__ev.push(["down", e.x, e.y]) } ] ]`);
   const log = [];
   app.attach(mockBackend(log), null);
   const childSink = log.filter(([m]) => m === "setInput")[0][1];
-  childSink("mouseDown", 7, 8);
-  childSink("mouseUp", 7, 8); // no handler — must be silently ignored
+  childSink("pointerDown", 7, 8);
+  childSink("pointerUp", 7, 8); // no handler — must be silently ignored
   childSink("click", 3, 4);
   assert.deepEqual(globalThis.__ev, [["down", 7, 8], ["click", 3, 4]]);
   assert.equal(app.children[0].x, 3, "handler writes land through the reactive setter");
@@ -1282,16 +1282,16 @@ await test("routeInput: POINTER events drive the sink protocol (down/up/click; c
       (handlers[type] ?? []).forEach((h) => h({ k, clientX: 10, clientY: 20, pointerType }));
 
     fire("pointerdown", "A"); fire("pointerup", "A");
-    assert.deepEqual(log.map((e) => e[1]), ["mouseDown", "mouseUp", "click"], "a tap fires down, up, then click");
+    assert.deepEqual(log.map((e) => e[1]), ["pointerDown", "pointerUp", "click"], "a tap fires down, up, then click");
     assert.equal(log[2][0], "A", "click resolves to the pressed view");
 
     log.length = 0;
     fire("pointerdown", "A"); fire("pointerup", "B");
-    assert.deepEqual(log.map((e) => e[1]), ["mouseDown", "mouseUp"], "release over another view clicks nothing");
+    assert.deepEqual(log.map((e) => e[1]), ["pointerDown", "pointerUp"], "release over another view clicks nothing");
 
     log.length = 0;
     fire("pointerdown", "A"); fire("pointercancel", "A");
-    assert.deepEqual(log.map((e) => e[1]), ["mouseDown", "mouseUp"], "a canceled press releases without a click (drag can finalize)");
+    assert.deepEqual(log.map((e) => e[1]), ["pointerDown", "pointerUp"], "a canceled press releases without a click (drag can finalize)");
   } finally {
     globalThis.window = realWindow;
   }
@@ -1362,13 +1362,13 @@ await test("a canceled gesture says so: the release carries canceled: true", () 
   try {
     h.fire("pointerdown", "A");
     h.fire("pointercancel", "A");
-    const up = h.log.find((e) => e[1] === "mouseUp");
+    const up = h.log.find((e) => e[1] === "pointerUp");
     assert.equal(up[2].canceled, true, "an interrupted gesture is distinguishable from a drop");
 
     h.log.length = 0;
     h.fire("pointerdown", "A");
     h.fire("pointerup", "A");
-    assert.equal(h.log.find((e) => e[1] === "mouseUp")[2].canceled, false, "a real release is not canceled");
+    assert.equal(h.log.find((e) => e[1] === "pointerUp")[2].canceled, false, "a real release is not canceled");
   } finally { h.done(); }
 });
 

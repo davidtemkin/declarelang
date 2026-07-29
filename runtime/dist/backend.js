@@ -8,7 +8,7 @@
 // which one it has; the runtime injects the backend, so the application never
 // names a substrate (APPROACH §4) — the property that lets a later optimizing
 // runtime choose a backend per view / per hierarchy.
-export const POINTER_TYPES = ["mouseDown", "mouseUp", "click", "dblClick", "mouseMove", "mouseOver", "mouseOut", "hold", "touchStart", "touchMove", "touchEnd", "touchCancel", "wheel"];
+export const POINTER_TYPES = ["pointerDown", "pointerUp", "click", "dblClick", "pointerMove", "pointerOver", "pointerOut", "hold", "touchStart", "touchMove", "touchEnd", "touchCancel", "wheel"];
 /** The raw-touch member of the family: declaring one of these is a view's
  *  statement that it owns multi-finger gestures in its subtree (the backend
  *  then stops the browser from claiming them — dom-backend setGestureOwner). */

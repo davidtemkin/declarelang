@@ -121,7 +121,7 @@ the controlled/uncontrolled split (React value/defaultValue) is a real need; mak
 it first-class, not a footgun.
 
 ### 4. Target-only events make "whole-surface" handlers awkward
-Events are target-only, no bubbling (a ruled decision). So `App [ onMouseDown ]`
+Events are target-only, no bubbling (a ruled decision). So `App [ onPointerDown ]`
 ("click anywhere to change v") only fires when the click lands on the App's own
 *background* — clicking a child (the number, the bar) does nothing, because the
 child is the target and there's no bubble. Every "click anywhere" demo is subtly
