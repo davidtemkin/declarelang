@@ -69,11 +69,49 @@
       const cv = document.querySelector("canvas");
       if (el || cv || ++tries > 20) {
         clearInterval(poll);
+        const de = document.documentElement;
+        const cs = el ? getComputedStyle(el) : null;
+        const dcs = getComputedStyle(de);
         log("root", {
-          rootTA: el ? getComputedStyle(el).touchAction : null,
+          rootTA: el ? cs.touchAction : null,
           canvasTA: cv ? getComputedStyle(cv).touchAction : null,
           meta: meta() ? meta().content : null,
-          docH: document.documentElement.scrollHeight,
+          docH: de.scrollHeight,
+          // the page-realization facts: what did THIS engine compute?
+          rootOv: cs ? [cs.overflowX, cs.overflowY] : null,
+          htmlOv: [dcs.overflowX, dcs.overflowY],
+          clientH: de.clientHeight,
+          server: !!window.__declareServer,
+          // boot timing: navigation start → app-root appearance (this poll tick)
+          bootMs: Math.round(performance.now()),
+          // the boot ladder's own account: which tier rendered (prewarm/fast/
+          // slow) and where the milliseconds went (boot-uniform perfStage)
+          perf: window.__declarePerf
+            ? {
+                path: window.__declarePerf.path || null,
+                stages: (window.__declarePerf.stages || []).map(
+                  (s) => `${s.stage}:${Math.round(s.dur)}@${Math.round(s.start)}`
+                ),
+              }
+            : null,
+          // the network's account: request count, bytes on the wire, and the
+          // slowest five resources — transfer vs compute, settled per device
+          net: (() => {
+            try {
+              const res = performance.getEntriesByType("resource");
+              return {
+                n: res.length,
+                bytes: res.reduce((a, e) => a + (e.transferSize || 0), 0),
+                slow: res
+                  .slice()
+                  .sort((a, b) => b.duration - a.duration)
+                  .slice(0, 5)
+                  .map((e) => `${e.name.split("/").pop().split("?")[0].slice(0, 32)}:${Math.round(e.duration)}`),
+              };
+            } catch (e) {
+              return null;
+            }
+          })(),
         });
       }
     }, 500);
@@ -133,7 +171,10 @@
   addEventListener("touchstart", (e) => {
     fingers = e.touches.length;
     const p = e.touches[0];
-    log("ts", { n: e.touches.length, pts: tpoints(e), chain: p ? taChain(p.clientX, p.clientY) : [] });
+    const tgt = p ? document.elementFromPoint(p.clientX, p.clientY) : null;
+    const tcs = tgt ? getComputedStyle(tgt) : null;
+    log("ts", { n: e.touches.length, pts: tpoints(e), chain: p ? taChain(p.clientX, p.clientY) : [],
+      us: tcs ? (tcs.webkitUserSelect || tcs.userSelect) : null });
     note(`ts×${e.touches.length}`);
   }, { capture: true, passive: true });
   addEventListener("touchend", (e) => {
@@ -165,6 +206,14 @@
   }, { capture: true, passive: true });
 
   addEventListener("error", (e) => log("err", { msg: String(e.message).slice(0, 200) }));
+
+  // selection activity — the smoking gun for iOS's text-interaction gesture
+  // stealing pans over selectable runs: a dead swipe that grows a selection
+  // was a selection drag, not a failed scroll
+  document.addEventListener("selectionchange", () => {
+    const sel = document.getSelection();
+    log("sel", { len: sel ? String(sel).length : 0, type: sel ? sel.type : "-" });
+  });
 
   // ── document growth — who gave the page scroll extent? ─────────────────────
   // The homepage is a viewport-sized app (inner scroller); the page should

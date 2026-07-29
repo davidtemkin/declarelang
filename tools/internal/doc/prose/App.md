@@ -3,8 +3,14 @@ one, at the top of the tree; reach it from any depth with the **`app` noun**
 (`app.hostWidth`, `app.scrollY`) rather than a fragile `parent` chain. It extends `View`,
 so it is also the outermost box — and it **fills its host by default** (its `width`/`height`
 default to `hostWidth`/`hostHeight`), so a plain app is full-window and an aspect-locked
-one reads the host extent. The attributes below are fed by the runtime from the window (or
-the embedding element): you **read** them, you never set them.
+one reads the host extent. Two rules distinguish it from a plain View (ruled 2026-07-29):
+an App is **clipped by definition** — a program owns its rectangle, so `clip = false` is a
+compile error (a Shape clip keeps its meaning) — and it **scrolls by default**
+(`scrolls = y`), with its scroller being **the page itself**: content taller than the
+window makes the browser's own page scroll, and an app whose content fits simply has
+nothing to scroll (the "fixed window" is that default, idle). Chrome that must not scroll
+away declares `ignoreScroll`. The environment attributes below are fed by the runtime from
+the window (or the embedding element): you **read** them, you never set them.
 
 ```declare
 App [ fill = white,
@@ -22,9 +28,9 @@ responsive layout at any depth. Assigning it is a compile error.
 `hostWidth`. Size full-height panes to `app.hostHeight`.
 
 ## scrollY
-The **page's** current scroll offset in pixels — the whole document, **not** a `scrolls`
-container's (which exposes its own `scrollY`). Fed by the runtime; read it for scroll-driven
-chrome — a fading header, a parallax hero: `opacity = { 1 - app.scrollY / 200 }`.
+The App's own scroll offset — which **is the page's**, since the App's scroller is the
+page (an interior `scrolls` container exposes its own `scrollY` the same way). Read it for
+scroll-driven chrome — a fading header, a parallax hero: `opacity = { 1 - app.scrollY / 200 }`.
 
 ## pointerX
 The pointer's horizontal position in **viewport space**, live and continuous — present

@@ -47,8 +47,15 @@ const html = await crawlDocument(compiled.source, {
   deps: compiled.deps, links: compiled.links,
   data: diskDataResolver(path.dirname(HOMEPAGE)),
 });
+// The block ships hidden INLINE (`display:none` on the div itself): a
+// following <script> hider proved too late — Safari paints mid-parse on a
+// slow device, flashing the crawl text before any script runs (measured
+// 2026-07-29). Crawlers read text nodes regardless of style; the <noscript>
+// unhide keeps the block as the JS-off human fallback; host-client still
+// REMOVES the node at boot.
+const NOSCRIPT = "<noscript><style>#declare-static{display:block !important}</style></noscript>";
 const block = html
-  ? `${BEGIN}<div id="declare-static">\n${html}\n</div>${END}`
+  ? `${BEGIN}${NOSCRIPT}<div id="declare-static" style="display:none">\n${html}\n</div>${END}`
   : `${BEGIN}${END}`;
 
 const idx = readFileSync(INDEX, "utf8");

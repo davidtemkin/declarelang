@@ -1,5 +1,5 @@
 App [ on: boolean = false,
-    onPointerDown() { on = !on },
+    onClick() { on = !on },
     group: View [ x = center, y = center, width = 80%, height = { this.contentHeight },
         layout: SimpleLayout [ axis = y, spacing = 20 ],
         Text [ width = { parent.width }, textAlign = center, textColor = slategray, text = "click anywhere to toggle" ],

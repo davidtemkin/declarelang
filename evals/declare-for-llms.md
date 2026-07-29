@@ -178,7 +178,7 @@ A **state** is a named, reversible bundle of attribute overrides, applied while 
 App [ width = 360, height = 240, fill = black, textColor = whitesmoke,
 
     open: boolean = false,
-    onPointerDown() { open = !open },
+    onClick() { open = !open },
 
     card: View [ x = 30, y = 30, width = 300, height = 70, cornerRadius = 10, fill = midnightblue,
         Text [ x = 20, y = 20, fontWeight = bold, text = "Summary" ],

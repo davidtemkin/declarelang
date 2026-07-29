@@ -7,7 +7,7 @@ App [ textColor = whitesmoke, fill = 0x151A22,
     level: number = 3,
     t: number = 3,
     ease: Spring [ attribute = t, to = { level }, stiffness = 170, damping = 20 ],
-    onPointerDown() { level = level >= 5 ? 1 : level + 1 },
+    onClick() { level = level >= 5 ? 1 : level + 1 },
 
     group: View [ x = center, y = center, width = 80%, height = { this.contentHeight },
         layout: SimpleLayout [ axis = y, spacing = 20 ],

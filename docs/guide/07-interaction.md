@@ -153,8 +153,10 @@ became real. That threshold is presentation, not click suppression; the click
 already died of wandering.
 
 On a touch screen there is one more party to the arbitration: declaring the drag
-handler claims that finger from the browser over that view. The full ownership
-story is [the Gestures chapter](declare-docs:guide:gestures).
+handler claims that finger from the browser over that view — and when the
+draggable thing sits on a *scrolling* surface, pairing the drag with `onHold`
+moves that claim to the press-and-hold, so a quick swipe still scrolls. The full
+ownership story is [the Gestures chapter](declare-docs:guide:gestures).
 
 ## Tap and hold
 

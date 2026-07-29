@@ -22,6 +22,7 @@
 import path from "node:path";
 import { readFileSync, writeFileSync, existsSync, statSync, mkdirSync, appendFileSync } from "node:fs";
 import { createHash } from "node:crypto";
+import { gzipSync } from "node:zlib";
 import { requestType, REQ, runWrapper, programName, directoryProgram } from "../browser/serve-core.js";
 import { createToolchain } from "./toolchain.mjs";
 import { parseFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
@@ -44,6 +45,32 @@ const send = (res, code, body, type) => {
   res.writeHead(code, { "content-type": type ?? "text/html; charset=utf-8" });
   res.end(body);
 };
+
+// Compress text responses when the client offers gzip. Production hosts all
+// compress; without this the dev server costs ~3× production's bytes on the
+// wire (declare-boot.js: 278KB raw, 88KB gzipped) — which reads as a slow
+// BOOT on a phone hitting the LAN. Buffered bodies only: install AFTER the
+// proxy short-circuit (proxied responses stream via pipe) — every other
+// route here writes head-then-end with the whole body.
+const GZ_TYPES = /^(text\/|application\/(javascript|json)|image\/svg)/;
+function enableGzip(req, res) {
+  if (!/\bgzip\b/.test(String(req.headers["accept-encoding"] ?? ""))) return;
+  const writeHead = res.writeHead.bind(res);
+  const end = res.end.bind(res);
+  let code = 200;
+  let headers = null;
+  res.writeHead = (c, h) => { code = c; headers = h ?? {}; return res; };
+  res.end = (body) => {
+    const type = String(headers?.["content-type"] ?? "");
+    const buf = body == null ? null : Buffer.isBuffer(body) ? body : Buffer.from(body);
+    if (buf !== null && buf.length >= 1024 && GZ_TYPES.test(type) && headers["content-encoding"] === undefined) {
+      writeHead(code, { ...headers, "content-encoding": "gzip", vary: "accept-encoding" });
+      return end(gzipSync(buf));
+    }
+    writeHead(code, headers ?? {});
+    return end(body);
+  };
+}
 
 export function createDeclareServer(config = {}) {
   const mounts = createMounts(config.mountSpecs ?? [
@@ -184,7 +211,11 @@ bootHost(cfg);
         const abs = hit ? hit.abs : null;
         if (abs && existsSync(abs)) {
           const ex = await toolchain.extract(readFileSync(abs, "utf8"), path.dirname(abs));
-          if (ex.ok) { staticBlock = `<div id="declare-static">\n${ex.html}\n</div>`; title = ex.title; }
+          // display:none INLINE — a following <script> hider is too late on a
+          // slow device (Safari can paint mid-parse, flashing the crawl text
+          // before the script runs); crawlers read text nodes regardless, and
+          // the <noscript> unhide keeps the block as the JS-off fallback.
+          if (ex.ok) { staticBlock = `<noscript><style>#declare-static{display:block !important}</style></noscript><div id="declare-static" style="display:none">\n${ex.html}\n</div>`; title = ex.title; }
         }
       } catch (e) { console.error("crawler embed failed:", e.message); }
     }
@@ -319,6 +350,9 @@ bootHost(cfg);
     // PROXY first — a matched prefix leaves the file system entirely.
     const route = proxy.match(req.url);
     if (route) return proxy.forward(req, res, route);
+
+    // Everything below buffers its whole body — safe to compress.
+    enableGzip(req, res);
 
     // POST /compile — live compile. `?main=<url>` (the editor sends it) names the
     // file so includes and relative data resolve against its directory; absent,

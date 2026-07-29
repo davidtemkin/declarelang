@@ -754,12 +754,10 @@ export class App extends View {
     bindPageScroll() {
         if (this.pageScroll !== null)
             return;
-        this.pageScroll = new Constraint("App.pageScrollable", () => {
-            const ax = this.scrolls;
-            const yOver = (ax === "y" || ax === "both") && this.contentHeight > this.height;
-            const xOver = (ax === "x" || ax === "both") && this.contentWidth > this.width;
-            return yOver || xOver || this.height > this.hostHeight || this.width > this.hostWidth;
-        }, (on) => this.surface?.setPageScrollable?.(on), 1);
+        this.pageScroll = new Constraint("App.pageExtent", () => [this.contentWidth, this.contentHeight], (wh) => {
+            const [w, h] = wh;
+            this.surface?.setPageExtent?.(w, h);
+        }, 1);
         this.pageScroll.run();
     }
     childrenMutated() {

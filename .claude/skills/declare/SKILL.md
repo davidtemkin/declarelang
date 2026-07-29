@@ -67,7 +67,7 @@ to learn it, or jump to the chapter your task needs:
 | program shape, the two brackets | `docs/guide/02-two-brackets.md` |
 | a constraint that won't update; setter rules | `docs/guide/03-relationships.md` |
 | scope — `this` / `parent` / `classroot` / `app`, classes, composition | `docs/guide/04-tree.md` |
-| layout, sizing, position, responsiveness | `docs/guide/05-space.md` |
+| layout, sizing, position, responsiveness, scrolling, fixed chrome (`ignoreScroll`) | `docs/guide/05-space.md` |
 | color, type, borders, shadows, themes | `docs/guide/06-style.md` |
 | hover / press / drag, clicks, keyboard | `docs/guide/07-interaction.md` |
 | the standard library (buttons, inputs), the value pattern | `docs/guide/08-controls.md` |

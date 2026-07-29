@@ -143,7 +143,7 @@ current library is explicitly scaffolding
 | radiogroup/radiobutton | `RadioGroup`/`Radio` | ✓ |
 | edittext | `TextInput` | ✓ |
 | slider | `Slider` | ✓ |
-| scrollbar (h/v) | native `scrolls`/`scrollsX` | ✓ different, better |
+| scrollbar (h/v) | native `scrolls` (the axis enum: `y`/`x`/`both`) | ✓ different, better |
 | modaldialog / alert | `Dialog` | ✓ |
 | menubar / menu / menuitem | `MenuBar` / `Menu` (record-driven) | ✓ |
 | tooltip | `Tooltip` (auto-provided) | ✓ |

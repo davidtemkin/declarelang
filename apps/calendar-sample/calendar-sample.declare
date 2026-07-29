@@ -441,11 +441,10 @@ class CalendarGrid extends TweenLayout [
 
 class CalButton extends View [
     label: string = "",
-    down: boolean = false,
     height = 17,
     cornerRadius = 8,
 
-    fill = { down
+    fill = { pressed
         ? gradient(stop(0, 0x8FA0A6), stop(0.35, 0x7D8E96), stop(1, 0x4E626E))
         : gradient(stop(0, 0xD9DFDF), stop(0.35, 0xB4BDBF), stop(1, 0x5C717D)) },
     stroke = stroke(1, #143B45),
@@ -455,8 +454,6 @@ class CalButton extends View [
         textShadow = shadow(0, -1, 0, #33555577),
         text = { label } ],
 
-    onPointerDown() { this.down = true },
-    onPointerUp()   { this.down = false }
     ]
 
 

@@ -34,6 +34,21 @@ export declare abstract class RichText extends View {
      *  falls back to the App's `navigate` channel — so external links work with no
      *  wiring, and an app that owns routing overrides by declaring `onLink`. */
     private dispatchLink;
+    /** The last layout's blocks, with the geometry each derived from. */
+    private laid;
+    /** A WIDTH-ONLY change: re-width what is already built instead of rebuilding.
+     *
+     *  Nothing structural depends on width — `parseSource()` never sees it, and a
+     *  RichBlock carries no wrapping (the backend is handed the width and does
+     *  the wrapping itself). All width does is set each block's content width and
+     *  x. Rebuilding for it re-parsed the source, discarded every view and
+     *  re-attached fresh ones, which on the native host meant a synchronous text
+     *  layout per flow — ~40 per drag step, 699ms of a 712ms frame, most of it for
+     *  flows whose width had not actually changed.
+     *
+     *  Falls back to a full rebuild if any block has no re-width registered, so an
+     *  unconverted block type stays correct. */
+    private relayout;
     private rebuild;
 }
 /** Rich content authored in Markdown (`text`). */

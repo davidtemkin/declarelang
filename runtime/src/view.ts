@@ -1020,14 +1020,12 @@ export class App extends View {
   private bindPageScroll(): void {
     if (this.pageScroll !== null) return;
     this.pageScroll = new Constraint(
-      "App.pageScrollable",
-      () => {
-        const ax = this.scrolls;
-        const yOver = (ax === "y" || ax === "both") && this.contentHeight > this.height;
-        const xOver = (ax === "x" || ax === "both") && this.contentWidth > this.width;
-        return yOver || xOver || this.height > this.hostHeight || this.width > this.hostWidth;
+      "App.pageExtent",
+      () => [this.contentWidth, this.contentHeight] as const,
+      (wh) => {
+        const [w, h] = wh as readonly [number, number];
+        this.surface?.setPageExtent?.(w, h);
       },
-      (on) => this.surface?.setPageScrollable?.(on as boolean),
       1
     );
     this.pageScroll.run();

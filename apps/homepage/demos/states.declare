@@ -1,6 +1,6 @@
 App [ textColor = whitesmoke,
     open: boolean = false,
-    onPointerDown() { open = !open },
+    onClick() { open = !open },
     card: View [ x = center, y = center, width = 80%, height = 70,
         cornerRadius = 10, fill = midnightblue,
         Text [ x = 20, y = 20, fontWeight = bold, text = "Summary" ],

@@ -49,6 +49,23 @@
 // per-sprite clickable state and a global event broker); read for intent —
 // deliver input to the view the user sees under the pointer — and rewritten
 // as one shared rule over one resolution seam.
+// ── The HOLD-GATED drag claim (ruled 2026-07-29) ─────────────────────────────
+// A view declaring `onHold` ALONGSIDE its raw drag handlers claims the finger
+// AT THE HOLD, not at touchdown — the least-claim rule read precisely: the
+// drag needs nothing until the hold fires (a hold requires a stationary
+// finger, which never competes with panning). A quick swipe scrolls, exactly
+// as the user expects, and reaches the app as `e.canceled`; a finger that
+// presses and waits picks the thing up, and every move after the hold is the
+// app's. Delivery never changes — pre-hold there is either nothing to deliver
+// (the finger is still) or the browser took the gesture (the cancel path).
+// This flag is the claim's LIVE half: it goes up when a hold fires on such a
+// view with a touch finger down, and the backends' non-passive touchmove
+// listeners suppress the browser's pan takeover exactly while it is up (the
+// finger was stationary through the hold, so no pan is latched to un-take).
+let holdCapture = false;
+/** Is a hold-gated drag capture live right now? (Backends consult this in
+ *  their non-passive touchmove listeners.) */
+export const holdCaptureActive = () => holdCapture;
 /** Movement past which a gesture is no longer an activation, by pointer kind.
  *  Touch is looser: a fingertip is wide, jitters on contact, and its motion is
  *  how a user scrolls. (The calendar hand-rolled exactly the mouse figure for
@@ -155,6 +172,13 @@ export function routeInput(alive, resolve, rootPoint, onHover) {
             // non-editable content cancels the default here, so no anchor is ever
             // planted. Selectable regions (user-select: text) and native editables
             // keep their defaults — click-to-select and click-to-focus still work.
+            // MOUSE/PEN ONLY: a touch press must never be canceled here — Chrome
+            // cancels the whole touch sequence's defaults on a canceled pointerdown
+            // (a swipe starting on any interactive view could then never pan the
+            // page, and touchmove stops dispatching entirely), while Safari ignores
+            // it — so touch gesture ownership stays where the model puts it: the
+            // claims (touch-action), never a blanket cancel. Selection anchoring is
+            // a mouse-drag fact anyway; touch selection rides long-press, untouched.
             const el = typeof Element !== "undefined" && e.target instanceof Element ? e.target : null;
             const editable = typeof HTMLElement !== "undefined" &&
                 el instanceof HTMLElement &&
@@ -163,7 +187,7 @@ export function routeInput(alive, resolve, rootPoint, onHover) {
             // (unprefixed `userSelect` reads as undefined there) — probe both.
             const cs = el !== null && typeof getComputedStyle === "function" ? getComputedStyle(el) : null;
             const selectable = cs !== null && (cs.userSelect ?? cs.webkitUserSelect) === "text";
-            if (el !== null && !editable && !selectable)
+            if (el !== null && !editable && !selectable && e.pointerType !== "touch")
                 e.preventDefault();
             // A press that BEGINS on selectable/editable content is (potentially) a
             // text-selection gesture: the captured-move suppression below must stand
@@ -183,14 +207,21 @@ export function routeInput(alive, resolve, rootPoint, onHover) {
             t.sink("pointerDown", t.x, t.y);
             if (t.wantsHold === true) {
                 const target = t;
+                const touch = e.pointerType === "touch";
                 holdTimer = setTimeout(() => {
                     holdTimer = null;
                     // Still the same press, still in place — the hold is real. It does
                     // NOT consume the gesture: the raw stream continues and the eventual
                     // click still fires unless the pointer wanders, so an app can start a
                     // pick-up-drag from the hold, open a menu, or ignore it.
-                    if (held === target && !wandered)
+                    if (held === target && !wandered) {
+                        // The HOLD-GATED claim engages here (see holdCaptureActive): on a
+                        // view that also drags, a held touch finger now belongs to the
+                        // app — the backends keep the browser's pan out from this moment.
+                        if (touch && target.wantsDrag === true)
+                            holdCapture = true;
                         target.sink("hold", target.x, target.y);
+                    }
                 }, HOLD_MS);
             }
         }
@@ -248,6 +279,7 @@ export function routeInput(alive, resolve, rootPoint, onHover) {
     listen("pointerup", (e) => {
         suppressSelection(false);
         disarmHold();
+        holdCapture = false; // a hold-gated drag ends with its finger
         const t = resolve(e);
         const captor = held;
         held = null;
@@ -313,6 +345,7 @@ export function routeInput(alive, resolve, rootPoint, onHover) {
     listen("pointercancel", (e) => {
         suppressSelection(false);
         disarmHold();
+        holdCapture = false;
         // The browser reclaimed the gesture (a touch turned into a scroll). End the
         // capture WITHOUT a click — the interaction was interrupted, not completed —
         // so a drag handler still gets its release, and can tell that it WAS an

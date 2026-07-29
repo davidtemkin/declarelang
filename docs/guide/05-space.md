@@ -102,6 +102,8 @@ badge pinned to a corner of a stacked card). `ignoreClip = true` makes the paren
 `clip` not cut it: outside the frame it still paints *and* still hits, and it stops
 counting toward the parent's content size — the idiom for frame chrome that straddles
 the frame, like a window's resize border living just outside the box it resizes.
+The family has a third member, `ignoreScroll` — it belongs to the scrolling story
+below.
 
 ## The app fills its host
 
@@ -110,6 +112,96 @@ code reads `app.width` (a filling app's width *is* the host's). Give an app expl
 dimensions only to make a fixed-size widget. And when a design degrades below some
 width instead of adapting, say so as *policy*, not clamp math: `App [ minWidth = 360 ]`
 holds the floor, and in a narrower host the stage pans natively.
+
+## Scrolling
+
+Scrolling looks like several features — a page that scrolls, panes that scroll
+inside it, chrome that doesn't — but it is one model, and it starts from a fact
+about quality: **the browser's own page scroll is the best scroller you will ever
+be offered.** It has the physics your user's thumbs already know, it remembers its
+position across back and forward, the browser's toolbar collapses for it, and it
+is the only scroll a browser lets a gesture *grow* — a second finger landing
+mid-scroll becomes a pinch-zoom there and nowhere else ([the Gestures
+chapter](declare-docs:guide:gestures) owns that story). So the model's first move
+is to hand your content the best one:
+
+> **An app scrolls by default, and its scroller is the page.**
+
+This falls out of what an App *is*, rather than being a feature. The App is the
+outermost view, and the outermost thing that can scroll it is the browser;
+identifying the App's scroll with the page's is naming a fact, not adding a
+mechanism. An app fills its window (the section above), and content taller than
+the window makes the page itself scroll, with `app.scrollY` live — the same slot
+every scroller has. Which also explains the app that *doesn't* scroll: the
+calendar fills its window and everything fits, so its scroller has nothing to do.
+A "fixed window" is not a mode you declare; it is scrolling, idle. And when a
+floored app meets a window below its minimum, the panning you get is this same
+page scroll, over a frame that held its size.
+
+Every scroller — the App included — **keeps to its frame**: overflow along a
+scrolling axis becomes scroll range, and overflow along any other axis is out of
+frame — invisible, unreachable, contributing nothing. One rule for the page and
+every pane, and the reason nothing can hand the page a scrollbar by accident.
+
+Inside all of this, any view can open its own scroll: `scrolls` is an **axis** —
+`y`, `x`, or `both` (`none` is the View default; the App's default is `y`):
+
+```declare-fragment
+log: View [ width = { parent.width }, height = 320, scrolls = y,
+    rows: View [ layout: SimpleLayout [ axis = y ] /* …hundreds of rows… */ ],
+    ]
+```
+
+The page scrolls past the log; a finger or wheel *on* the log scrolls the log —
+the nearest scroller wins — with native momentum and its own edge bounce, never
+dragging the page along. Panes nest to any depth, and a native text field is the
+smallest case, handling itself. In a `{ }` body the axis is a token string:
+compare it explicitly (`scrolls == "y"`), never truthily.
+
+Which leaves the chrome — the header that must not scroll away. A scroll is a
+*regime* a container imposes on its children, and Declare's regimes come with
+opt-outs declared on the child — you just met `ignoreLayout` and `ignoreClip`.
+Scrolling completes the family:
+
+> **`ignoreScroll` — the scroll carries everyone but me. I ride the frame.**
+
+A child that opts out stands still against its scroller's frame — the window when
+the page is the regime, the pane's own frame inside a `scrolls` view — and
+contributes nothing to the scroll range:
+
+```declare-fragment
+App [
+    bar: View [ ignoreScroll = true, width = { app.width }, height = 56, fill = #10202C ],
+    column: View [ y = 56, width = { Math.min(680, app.width - 48) }, x = center,
+        layout: SimpleLayout [ axis = y, spacing = 24 ],
+        // …the sections — taller than the window, so the page scrolls…
+        ],
+    ]
+```
+
+One idiom completes the picture: the panel that waits offstage and slides in.
+Nothing should ever extend past the app's edge — instead, stage overlays inside a
+frame-sized **layer**, and park them beyond *its* edge:
+
+```declare-fragment
+overlay: View [ ignoreScroll = true, width = { app.hostWidth }, height = { app.hostHeight },
+    detail: View [ width = 360, height = { parent.height },
+        x = { app.open ? parent.width - 360 : parent.width },   // parked in the layer's world
+        slide: Spring [ attribute = x ],
+        ],
+    ]
+```
+
+The app sees one thing: a layer exactly frame-sized, riding the frame. What the
+panel does inside it is the layer's private business — nothing off the edge, no
+scrollbar conjured by parked furniture, and the sheet slides in from the edge the
+user can actually see.
+
+Who owns a *finger* over all of this — and how a draggable thing on a scrolling
+surface takes the finger only on a press-and-hold — is gesture territory:
+[the Gestures chapter](declare-docs:guide:gestures). Everything here behaves
+identically under either renderer; what differences remain are the platform's
+ceiling, not yours.
 
 ## Responsiveness, honestly
 
@@ -150,7 +242,8 @@ a design below the width where it works.
 ---
 
 **What you can now say:** you can size and place anything — automatic, fixed, or
-derived — arrange children without a layout system's ceremony, and make a design
-respond to its window with constraints you can read.
+derived — arrange children without a layout system's ceremony, decide where
+scrolling lives (the page, a pane, both) and what rides the frame instead, and
+make a design respond to its window with constraints you can read.
 
 [Next: **Style is state** →](declare-docs:guide:style)

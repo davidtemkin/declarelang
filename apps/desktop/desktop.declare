@@ -926,7 +926,7 @@ class FilesWindow extends Window [ forApp = "files",
         fill = { theme.bg },
 
         // the column STRIP: a horizontal row as wide as the open columns need,
-        // inside a viewport that scrolls RIGHT (scrollsX) as they accumulate — a
+        // inside a viewport that scrolls RIGHT (scrolls = x) as they accumulate — a
         // trackpad's horizontal delta drives it, and the runtime swallows that
         // gesture so it never becomes Safari's back-swipe (dom-backend setScrollX).
 

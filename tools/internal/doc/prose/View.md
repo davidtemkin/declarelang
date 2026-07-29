@@ -101,7 +101,7 @@ Which **axes** of interior overflow this view scrolls — `none` (the default), 
 or `both`. A scrolling view clips to its box; overflow along a declared axis becomes its
 scroll range (live `scrollY`/`scrollX`), and overflow along any other axis is simply out
 of frame. The value is a token **string** in a `{ }` body — compare explicitly
-(`scrolls == "y"`), never truthily: `"none"` is a truthy string. Fixed chrome comes free — make it a **sibling** of the scroller, not a child.
+(`scrolls == "y"`), never truthily: `"none"` is a truthy string. Fixed chrome comes free — make it a **sibling** of the scroller, or a child that declares `ignoreScroll`.
 Both backends present the same model; only the overscroll *feel* differs, where the
 platform can do better. On DOM the OS owns the scroll — overlay scrollbar, momentum, and
 rubber-band overscroll *contained* to this pane, so it bounces on its own edges and never
@@ -226,6 +226,15 @@ The pointer entered the view (retained enter tracking) — the hover-in half. Se
 ## onPointerOut
 The pointer left the view — the hover-out half; also fires when a press is abandoned off
 the box, so clear both `hovered` and `pressed` here.
+
+## onHold
+A press held in place for half a second — the tap-hold, equally available to a mouse.
+It does **not** consume the gesture: the raw stream continues and the eventual click
+still fires unless the pointer wanders, so a hold can open a menu, start a pick-up, or
+be ignored. Declared **alongside the drag handlers** it changes who owns a touch
+finger: the drag's claim engages *at the hold* instead of at touchdown, so a quick
+swipe still scrolls the surface underneath and a held finger picks the thing up — the
+hold-to-drag idiom for draggables on scrolling surfaces.
 
 ## onWheel
 The wheel turned over the view — mouse wheel, trackpad scroll, or trackpad pinch, which

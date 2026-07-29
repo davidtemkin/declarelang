@@ -7,13 +7,18 @@ nothing more. There is no gesture-policy attribute; the handler is the policy.
 This file is the renderer side of that sentence: what each claim compiles down
 to, per backend, and the measured browser facts the design leans on. The
 language docs never name these mechanisms (a `touch-action` in declare.md would
-be a renderer leak); this is where they live.
+be a renderer leak); this is where they live. The complete audited inventory
+of realization sites that can claim a gesture — and the rule new ones must
+pass — is `claim-surface.md`.
 
 The model is three rules:
 
-1. **Size decides scrolling.** An app larger than its host scrolls natively —
-   the browser over the app object ("exterior" scrolling). `clip = true` on the
-   App is the fixed-window opt-in (containment, dom-backend `setBoxClip`).
+1. **Size decides scrolling.** An App scrolls by default AS THE PAGE
+   (`scrolls = y`; scrolling.md is the realization spec): content taller than
+   the window, or a floored frame larger than it, makes the browser's own
+   page scroll. An app whose content fits has nothing to scroll — the fixed
+   window is that default, idle, never a declaration (Apps are clipped by
+   definition; the boolean `clip` is absorbed).
 2. **Claims by declaration.** Declaring a raw-family handler claims the
    matching gesture over that view and its subtree; everything unclaimed stays
    with the user.
@@ -30,13 +35,19 @@ value is consulted for every touch that starts below it).
 | declared | claims | user keeps | realized as |
 |---|---|---|---|
 | `onPointerMove` | single-finger drag | pinch-zoom | `touch-action: pinch-zoom` |
+| `onHold` + drag handlers | the drag, FROM THE HOLD | pan until the hold; pinch always | no touch-action; hold-capture + non-passive touchmove (scrolling.md) |
 | `onTouchStart/Move/End/Cancel` | every finger | nothing (app owes its own zoom) | `touch-action: none` |
 | `onWheel` | wheel + trackpad pinch | ⌘ +/− only | non-passive `wheel` listener + `preventDefault` |
 | `onDblClick` | double tap | pan + pinch | nothing extra — the root default already retires double-tap zoom |
-| App, `clip = true` | — | pinch | root `touch-action: pinch-zoom` |
-| App, unclipped | — | pan + pinch | root `touch-action: manipulation` |
-| a `scrolls` pane | — (delegates) | pan + pinch | `touch-action: pan-y pinch-zoom` |
+| App, page scrollable | — | pan + pinch | root `touch-action: manipulation` |
+| App, nothing to scroll | — | pinch | root `touch-action: pinch-zoom` |
+| a `scrolls` pane | — (delegates) | declared-axis pan + pinch | `touch-action: pan-x/pan-y (per axis) pinch-zoom` |
 | a native editable | — | everything | `touch-action: auto` |
+
+The root rows key on the App's REACTIVE page-scrollability fact (geometry —
+content overflow on a declared axis, or a floored frame beyond the host;
+`bindPageScroll` → `setPageScrollable`), never on any attribute: the same app
+is pannable on a phone and fixed on a desktop, and the default follows.
 
 Notes, each load-bearing:
 
@@ -66,9 +77,12 @@ One shared `<canvas>` cannot carry per-subtree CSS, so (`canvas-backend.ts`):
 - the root default rides the canvas element (`rootTouchAction()` — same table);
 - per-view claims are arbitrated **per gesture**: at `touchstart` the first
   finger's landing point is hit-tested and the claims of the view under it and
-  its ancestors are unioned (`claimAt` — a claim covers its subtree); a touch
-  claim suppresses at `touchstart`, a drag claim suppresses single-finger
-  `touchmove` only, so a second finger's pinch stays the browser's;
+  its ancestors are unioned (`claimAt` — a claim covers its subtree; a
+  hold-gated view counts as no drag claim at touchdown); a touch claim
+  suppresses at `touchstart`, a drag claim suppresses single-finger
+  `touchmove` only, so a second finger's pinch stays the browser's — and a
+  live hold-capture suppresses regardless (the hold-gated claim's engaged
+  half, scrolling.md);
 - wheels route by positional descent (`wheelTo`, the same walk as `scrollBy` —
   NOT the hit chain, because a scroller has no input sink and the hit walk
   would step straight past it): nearest `onWheel` view wins unless a scrolling

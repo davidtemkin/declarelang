@@ -33,7 +33,7 @@ import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.
 import { cssWeight, fontMetrics, fontString, textWidth, wrapLines, type TextStyle } from "./measure.js";
 import { replay, type DisplayList } from "./draw.js";
 import { onDprChange } from "./dpr.js";
-import { routeInput, type HitTarget } from "./input.js";
+import { routeInput, holdCaptureActive, type HitTarget } from "./input.js";
 
 /** Style a native editable overlay to match the view's painted text metrics, so
  *  its caret and glyphs align with the static-text measure (measure.ts). */
@@ -74,6 +74,7 @@ export class CanvasBackend implements RenderBackend {
  *  `invalidate()`; nothing else about how pixels reach the screen leaks out. */
 class Compositor {
   private canvas: HTMLCanvasElement | null = null;
+  private embeddedRoot = false;
   private ctx: CanvasRenderingContext2D | null = null;
   private root: CanvasSurface | null = null;
   /** The page host — the parent of both the canvas and the native editable
@@ -113,8 +114,12 @@ class Compositor {
     // The browser owns every gesture until a view claims one — the DOM root's
     // same defaults (dom-backend refreshTouchAction), realized once on the
     // shared canvas element; per-VIEW claims are arbitrated per gesture below,
-    // since one element cannot carry per-subtree CSS.
-    canvas.style.touchAction = root.rootTouchAction();
+    // since one element cannot carry per-subtree CSS. An EMBEDDED island's
+    // default is no claim at all — the finger belongs to the host page's
+    // regime — while its declared claims still stand (rootTouchAction).
+    const embedded = typeof host.closest === "function" && host.closest("[data-declare-app], [data-declare-embed]") !== null;
+    this.embeddedRoot = embedded;
+    canvas.style.touchAction = root.rootTouchAction(embedded);
     const ctx = canvas.getContext("2d");
     if (ctx === null) throw new DeclareError("Canvas 2D is unavailable in this browser");
     this.canvas = canvas;
@@ -131,7 +136,6 @@ class Compositor {
     // the app rather than flash the stub page's ground. Solid fills only (the
     // DOM read resolves the same way) and top-level only — an embedded canvas
     // render must never touch the host page.
-    const embedded = typeof host.closest === "function" && host.closest("[data-declare-app], [data-declare-embed]") !== null;
     if (!embedded && root.fill !== null) {
       const doc = host.ownerDocument;
       doc.documentElement.style.background = root.fill;
@@ -232,6 +236,8 @@ class Compositor {
       if (claim.touch) e.preventDefault();
     }, { passive: false });
     canvas.addEventListener("touchmove", (e) => {
+      // a live hold-capture owns the finger regardless of the touchdown claim
+      if (holdCaptureActive()) { e.preventDefault(); return; }
       if (claim === null) return;
       if (claim.touch || (claim.drag && e.touches.length === 1)) e.preventDefault();
     }, { passive: false });
@@ -272,7 +278,7 @@ class Compositor {
   /** Re-brush the shared element's gesture default when the root's
    *  page-scrollability fact changes (CanvasSurface.setPageScrollable). */
   refreshRootTouchAction(s: CanvasSurface): void {
-    if (this.canvas !== null && s === this.root) this.canvas.style.touchAction = s.rootTouchAction();
+    if (this.canvas !== null && s === this.root) this.canvas.style.touchAction = s.rootTouchAction(this.embeddedRoot);
   }
 
   /** Request a repaint. Every change since the last frame coalesces into one
@@ -329,9 +335,9 @@ class Compositor {
     // scroll range is exactly the scrolling content's reach (visible children
     // that didn't opt out), never more.
     if (this.strut !== null && root.pageRoot) {
-      let extent = 0;
-      for (const c of root.children) if (c.visible && !c.ignoresScroll) extent = Math.max(extent, c.y + c.height);
-      const target = Math.max(root.height, Math.round(extent));
+      // the extent arrives from the model (setPageExtent — the App's own
+      // contentHeight), so no child walk is needed here
+      const target = Math.max(root.height, Math.round(root.extentH));
       if (this.strut.style.height !== `${target}px`) this.strut.style.height = `${target}px`;
     }
     // Glue each native editable overlay to its surface's on-screen box (Layer
@@ -556,11 +562,14 @@ class CanvasSurface implements Surface {
 
   /** ROOT only (backend.ts): the App's reactive page-scrollability fact —
    *  keys the shared element's gesture default (rootTouchAction). */
-  pageScrollable = false;
-  setPageScrollable(on: boolean): void {
-    if (this.pageScrollable === on) return;
-    this.pageScrollable = on;
+  extentW = 0;
+  extentH = 0;
+  setPageExtent(w: number, h: number): void {
+    if (this.extentW === w && this.extentH === h) return;
+    this.extentW = w;
+    this.extentH = h;
     this.compositor.refreshRootTouchAction(this);
+    this.compositor.invalidate(); // the strut tracks the extent per paint
   }
 
   /** This surface is THE PAGE: the root whose scroll regime the browser owns
@@ -578,10 +587,18 @@ class CanvasSurface implements Surface {
    *  exactly when the page can scroll (the App's reactive fact, above) and
    *  retires when it can't. Double-tap zoom retires everywhere — a painted
    *  UI can never concede it. */
-  rootTouchAction(): string {
+  rootTouchAction(embedded = false): string {
     if (this.wants?.wantsTouch === true) return "none";
     if (this.wants?.wantsDrag === true) return "pinch-zoom";
-    return this.pageScrollable ? "manipulation" : "pinch-zoom";
+    // an embedded island's box has nothing to scroll, but the finger belongs
+    // to the host page's regime — retiring pan here would eat every swipe
+    // that starts over the island. `manipulation`: pan and pinch chain to
+    // the host, double-tap zoom retires (a painted UI never concedes it).
+    if (embedded) return "manipulation";
+    const de = typeof document !== "undefined" ? document.documentElement : null;
+    const effH = this.scrolls || this.pageRoot ? Math.max(this.height, this.extentH) : this.height;
+    const pan = de !== null && (this.width > de.clientWidth + 1 || effH > de.clientHeight + 1);
+    return pan ? "manipulation" : "pinch-zoom";
   }
 
   /** Did this (root) view declare the raw touch family — the full-gesture-
@@ -599,7 +616,9 @@ class CanvasSurface implements Surface {
     const t = this.hit(px, py);
     for (let s = t !== null ? (t.key as CanvasSurface) : null; s !== null; s = s.parent) {
       if (s.wants?.wantsTouch === true) c.touch = true;
-      if (s.wants?.wantsDrag === true) c.drag = true;
+      // a hold-gated drag view (onHold + the drag pair) claims nothing at
+      // touchdown — its claim engages at the hold (holdCaptureActive)
+      if (s.wants?.wantsDrag === true && s.wants?.wantsHold !== true) c.drag = true;
     }
     return c;
   }

@@ -62,17 +62,23 @@ takes exactly what the handler needs in order to fire, and not one gesture more:
 | you declare | on a touch screen the browser yields | on the desktop it yields |
 |---|---|---|
 | `onPointerMove` | the single-finger drag over this view | nothing — a mouse drag was always yours |
+| `onHold` + the drag handlers | the drag, **from the hold** — a quick swipe still pans | nothing new — the mouse drag was already yours |
 | `onDblClick` | the double tap | nothing — a double click was always yours |
 | `onWheel` | — | the wheel over this view, trackpad pinch included |
 | the `onTouch*` family | **every finger** | — |
 
-`onClick`, `onPointerDown`, and `onHold` claim nothing. A tap coexists with every
+`onClick`, `onPointerDown`, and `onHold` alone claim nothing. A tap coexists with every
 browser gesture — that is the resolved layer's whole point — and when the browser
 does take a gesture back mid-flight, `e.canceled` reports it. Everything a claim
 does not name stays with the user: a view that claimed the drag still zooms under
 two fingers, a view that claimed the double tap still pans. A `scrolls = y`
 view is the opposite move — it *delegates* its panning to the browser — and keeps
-pinch-zoom delegated too.
+pinch-zoom delegated too. Delegation has tiers, and they are measured, not
+theoretical: the **page's own scroll** (an app taller than its window — [the
+Scrolling model](declare-docs:guide:space)) is the only one a browser will
+upgrade mid-gesture, a second finger turning the scroll into a pinch-zoom; an
+interior pane pans and pinches but never upgrades. When touch matters, primary
+content belongs on the page's scroll.
 
 **A claim takes a gesture, not the pointer.** This is the
 [drag-and-click rule](declare-docs:guide:interaction) from the other side: the
@@ -89,6 +95,38 @@ back to the browser — which is why the habit to build is:
 
 > **Claim the least you need, on the smallest view that needs it.**
 
+## Taking a drag from a scroll
+
+One row of the table deserves its own telling, because it resolves a conflict the
+others never face. A slider claims the finger from its first movement, and
+rightly — its surface never scrolls, so nothing competes. But a calendar event
+sits *on* a scrolling surface, and the finger that could drag it is the same
+finger that means *pan*. The platforms settled this long ago, and their answer is
+the right one: **press and hold to pick it up.** In Declare you state it with two
+handlers you already know — declare `onHold` alongside the drag handlers, and the
+claim engages *at the hold*:
+
+```declare-fragment
+block: View [
+    onHold(e: PointerEvent)        { app.liftEvent(:id) },          // the pick-up moment
+    onPointerDown(e: PointerEvent) { app.startDrag(:id, e.x, e.y) },
+    onPointerMove(e: PointerEvent) { app.dragMove() },
+    onPointerUp(e: PointerEvent)   { app.dropDrag(e.x, e.y) },
+    ]
+```
+
+A quick swipe scrolls, exactly as the user expects, and reaches you as
+`e.canceled` — the contract drags already honor. A finger that presses and waits
+picks the thing up, and every move after the hold is yours. Notice that nothing
+about delivery changed: pre-hold, the finger is either *stationary* (there are no
+moves to deliver) or *moving* (the browser owns it, and you get the cancel). The
+hold only decides who owns the wandering finger — which was always the claim's
+one question. This is the least-claim rule read precisely: the pair needs nothing
+until the hold fires, so nothing is taken before it. A mouse ignores all of this;
+a mouse drag was never the browser's, so on desktop the same handlers drag
+immediately — hold your visible pick-up until `onHold` if you want the two to
+feel alike.
+
 ## Full gesture control
 
 Some apps need it all. A map, a drawing canvas, a game — an app that requires
@@ -98,7 +136,7 @@ handlers: the raw touch family and `onWheel`, on the App itself, which for once
 really is the smallest view that needs it.
 
 ```declare-fragment
-App [ clip = true,                                   // a fixed window: the frame never scrolls
+App [
     onTouchStart(e: TouchEvent)  { engine.begin(e.touches) },
     onTouchMove(e: TouchEvent)   { engine.track(e.touches) },
     onTouchEnd(e: TouchEvent)    { engine.release(e.touches) },

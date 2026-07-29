@@ -24,7 +24,7 @@ import { type BoxState } from "./boxpaint.js";
 import { fontMetrics, fontString, cssWeight, type TextStyle } from "./measure.js";
 import { replay, type DisplayList } from "./draw.js";
 import { onDprChange } from "./dpr.js";
-import { routeInput } from "./input.js";
+import { routeInput, holdCaptureActive } from "./input.js";
 import { lockFocusZoom } from "./viewport-lock.js";
 
 /** Style a native editable element to match the view's painted text metrics, so
@@ -59,6 +59,18 @@ function applyEditScheme(el: HTMLElement, fill: Fill): void {
   if (fill === null || typeof fill !== "number") { el.style.colorScheme = ""; return; }
   el.style.colorScheme = luminanceOf(fill) < 0.4 ? "dark" : "light";
 }
+
+/** Primary-pointer coarseness, resolved once. The painted-UI selection
+ *  suppression (root `user-select: none`, selectable runs opting back in
+ *  with explicit `text`) is MOUSE reasoning: a mouse drag must not paint a
+ *  selection. On a coarse-pointer device the drag IS scrolling, selection
+ *  rides long-press — and iOS treats an explicit `text` island inside a
+ *  `none` page as a text-interaction surface whose drags SELECT instead of
+ *  panning (measured 2026-07-29: hero swipes died exactly on selectable
+ *  runs, and swipes beside them scrolled). So on coarse devices the DOM
+ *  realizes selection the way the rest of the web does: defaults everywhere,
+ *  no explicit values, and text runs stay pointer-inert. */
+const COARSE = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
 
 /** Element → its surface's input sink. Setting a sink is also what flips the
  *  element's pointer-events on, so membership here and native hit-testability
@@ -205,15 +217,20 @@ export class DomBackend implements RenderBackend {
     // future gesture) must not start a native text/element selection. Suppress
     // it once at the root — `user-select` inherits, so every view div is covered
     // (editable fields opt back IN, see setEditable).
-    rootEl.style.userSelect = "none";
-    (rootEl.style as CSSStyleDeclaration & { webkitUserSelect: string }).webkitUserSelect = "none";
+    if (!COARSE) {
+      rootEl.style.userSelect = "none";
+      (rootEl.style as CSSStyleDeclaration & { webkitUserSelect: string }).webkitUserSelect = "none";
+    }
     // Touch gestures are NOT suppressed here: the browser owns every gesture
     // until a view claims one by declaring the handler that answers it
     // (refreshTouchAction — the app root's default keeps pan for an app the
     // browser scrolls and keeps pinch-zoom for everyone; double-tap zoom is
     // the one gesture a painted UI always takes, since two quick taps on a
     // control must not lurch the page). Runs after the declareApp mark above
-    // so the root default applies.
+    // so the root default applies — and after the embedded fact is stamped,
+    // since an island's default is `manipulation` (the finger belongs to the
+    // host page's regime), and the root element is not yet in the host here.
+    (root as DomSurface).embeddedRoot = embedded;
     (root as DomSurface).refreshTouchAction();
     // …and while the user IS pinch-zoomed, scroller containment yields to
     // viewport panning (see watchPinchZoom — the measured iOS chain trap).
@@ -461,14 +478,28 @@ class DomSurface implements Surface {
   setY(v: number): void { this.element.style.top = v + "px"; }
 
   setWidth(v: number): void {
+    this.frameW = v;
     this.element.style.width = v + "px";
     this.box.width = v;   // border-radius/background track the box via CSS — no re-raster
+    if (this.element.dataset.declareApp !== undefined) { this.applyRootSize(); this.refreshTouchAction(); }
   }
 
   setHeight(v: number): void {
+    this.frameH = v;
     this.element.style.height = v + "px";
     this.box.height = v;
+    if (this.element.dataset.declareApp !== undefined) { this.applyRootSize(); this.refreshTouchAction(); }
   }
+
+  /** The view-model frame (setWidth/setHeight, verbatim) — the ROOT element
+   *  may realize LARGER than it along a declared scroll axis (applyRootSize). */
+  private frameW = 0;
+  private frameH = 0;
+
+  /** ROOT only, stamped by attachRoot: this app is an EMBEDDED island in a
+   *  host page — its gesture default is `manipulation`, never the geometry
+   *  read (refreshTouchAction). */
+  embeddedRoot = false;
 
   // ── Box decoration: CSS properties as PAINT PRIMITIVES where they are
   // MEASURED pixel-stable against the shared box painter — flat and square
@@ -677,15 +708,34 @@ class DomSurface implements Surface {
     else this.element.style.overflow = on ? "clip" : "";
   }
 
-  /** ROOT only (backend.ts): the App's reactive "can the page scroll?" fact.
-   *  Keys the root's gesture default — pan stays with the user exactly when
-   *  the page has somewhere to go (refreshTouchAction). */
-  setPageScrollable(on: boolean): void {
-    if (this.pageScrollable === on) return;
-    this.pageScrollable = on;
-    if (this.element.dataset.declareApp !== undefined) this.refreshTouchAction();
+  /** ROOT only (backend.ts): the App's reactive content extent. The page
+   *  realization sizes the root ELEMENT to max(frame, extent) along each
+   *  declared scroll axis — the box itself is the scroll range and the
+   *  document scrolls it natively — and refreshes the gesture default. */
+  setPageExtent(w: number, h: number): void {
+    if (this.extentW === w && this.extentH === h) return;
+    this.extentW = w;
+    this.extentH = h;
+    if (this.element.dataset.declareApp !== undefined) {
+      this.applyRootSize();
+      this.refreshTouchAction();
+    }
   }
-  private pageScrollable = false;
+  private extentW = 0;
+  private extentH = 0;
+
+  /** Realize the ROOT element's box: the model frame, stretched to the
+   *  content extent along a declared scroll axis (the page realization —
+   *  the element IS the scroll range; `overflow: clip` everywhere else keeps
+   *  exact frame containment with no per-axis overflow pairs). The view
+   *  MODEL's width/height are untouched — this is realization only. */
+  private applyRootSize(): void {
+    const el = this.element;
+    const w = this.scrollXOn ? Math.max(this.frameW, this.extentW) : this.frameW;
+    const h = this.scrollYOn ? Math.max(this.frameH, this.extentH) : this.frameH;
+    el.style.width = w + "px";
+    el.style.height = h + "px";
+  }
 
   scrollIntoView(align: "start" | "nearest" = "start", smooth = false): void {
     // Native walks the scrollable ancestors (document included) and does the
@@ -723,20 +773,25 @@ class DomSurface implements Surface {
   applyScrollStyle(): void {
     const el = this.element;
     if (el.dataset.declareApp !== undefined) {
-      // THE PAGE REALIZATION (ruled 2026-07-29): the App is the outermost
-      // view, so its scroll regime IS the browser's own page scroll — never a
-      // pane. A declared axis is left VISIBLE: its overflow is the document's
-      // scroll range, with the browser's physics, memory, and full gesture
-      // tier (the measured mid-scroll pinch upgrade lives only here). An
-      // undeclared axis is CLIPPED — out of frame, contributing nothing —
-      // which is also the App's definitional box-clip, realized per axis.
-      // (`clip` + `visible` is the one overflow pair CSS allows to mix.)
-      // Pane trappings are actively removed: attach ran before the root was
-      // stamped, so the element may carry them from the pane branch below.
-      el.style.overflowY = this.scrollYOn ? "visible" : "clip";
-      el.style.overflowX = this.scrollXOn ? "visible" : "clip";
+      // THE PAGE REALIZATION (ruled 2026-07-29, v3 after WebKit measurement):
+      // the App is the outermost view, so its scroll regime IS the browser's
+      // own page scroll — never a pane. Realization: the root ELEMENT sizes
+      // itself to max(frame, content extent) along each declared scroll axis
+      // (applyRootSize) — the box itself is the scroll range, so the document
+      // scrolls a plain tall element natively, with the browser's physics,
+      // memory, and full gesture tier (the measured mid-scroll pinch upgrade
+      // lives only here). `overflow: clip` stays on ALWAYS — the App's
+      // definitional containment, exact at the frame on every non-scroll
+      // axis, uniformly supported (the per-axis `clip`+`visible` pair is
+      // spec'd but WebKit collapsed it and the page lost its scroll —
+      // measured on iPad, 2026-07-29). Fixed chrome (ignoreScroll) escapes
+      // ancestor overflow clipping by the platform's own containing-block
+      // rule. Pane trappings are actively removed: attach ran before the
+      // root was stamped, so the element may carry them from the pane branch.
+      el.style.overflow = "clip";
       (el.style as CSSStyleDeclaration & { overscrollBehavior: string }).overscrollBehavior = "";
       delete el.dataset.declareScroll;
+      this.applyRootSize();
       this.updateCarved();       // pointer-events back to the sink-derived state
       this.refreshTouchAction(); // the root default owns the gesture surface
       return;
@@ -828,9 +883,10 @@ class DomSurface implements Surface {
     }
     host.style.width = width + "px";
     host.textContent = "";
-    host.style.userSelect = selectable ? "text" : "";
-    (host.style as CSSStyleDeclaration & { webkitUserSelect: string }).webkitUserSelect = selectable ? "text" : "";
-    host.style.pointerEvents = selectable ? "auto" : "none";
+    const selRealized = selectable && !COARSE; // coarse: default-selectable page, inert runs (see COARSE)
+    host.style.userSelect = selRealized ? "text" : "";
+    (host.style as CSSStyleDeclaration & { webkitUserSelect: string }).webkitUserSelect = selRealized ? "text" : "";
+    host.style.pointerEvents = selRealized ? "auto" : "none";
     for (const b of blocks) {
       // A `pre` block is a real <pre>: whitespace preserved and, being code, it does
       // NOT wrap — long lines keep their shape and the block scrolls HORIZONTALLY
@@ -938,9 +994,13 @@ class DomSurface implements Surface {
       // (pointerEvents:none) and unselectable (user-select:none inherits from
       // the root) — an island opts BACK in for both, so an iframe receives
       // clicks and a text field selects, whether or not the View has a sink.
+      // (On a coarse-pointer device the root never set `none` and explicit
+      // `text` islands feed iOS's pan-stealing text gesture — see COARSE —
+      // so only the pointer half applies there; native editables inside the
+      // island still opt into selection themselves.)
       s.pointerEvents = "auto";
-      s.userSelect = "text";
-      webkit.webkitUserSelect = "text";
+      s.userSelect = COARSE ? "" : "text";
+      webkit.webkitUserSelect = COARSE ? "" : "text";
     }
   }
 
@@ -956,6 +1016,18 @@ class DomSurface implements Surface {
     // The wheel claim is not a touch-action: it is a non-passive listener that
     // takes the wheel stream — trackpad pinch included, which arrives as
     // ctrlKey wheels — before the browser scrolls the page or zooms it.
+    // The hold-gated drag's live half: while a hold-capture is up (the hold
+    // fired with this finger down), suppress the browser's pan takeover so
+    // the post-hold moves belong to the app. Non-passive by necessity; costs
+    // nothing to views that never declare the pair.
+    const holdGate = sink !== null && wants?.wantsDrag === true && wants?.wantsHold === true;
+    if (holdGate && this.holdGateListener === undefined) {
+      this.holdGateListener = (e: TouchEvent) => { if (holdCaptureActive()) e.preventDefault(); };
+      this.element.addEventListener("touchmove", this.holdGateListener, { passive: false });
+    } else if (!holdGate && this.holdGateListener !== undefined) {
+      this.element.removeEventListener("touchmove", this.holdGateListener);
+      this.holdGateListener = undefined;
+    }
     const wantsWheel = sink !== null && wants?.wantsWheel === true;
     if (wantsWheel && this.wheelListener === undefined) {
       const el = this.element;
@@ -991,6 +1063,7 @@ class DomSurface implements Surface {
   }
 
   private wheelListener: ((e: WheelEvent) => void) | undefined;
+  private holdGateListener: ((e: TouchEvent) => void) | undefined;
 
   /** Realize this element's gesture CLAIM as its `touch-action` — the language
    *  rule "the browser owns a gesture until a view claims it, and declaring
@@ -1013,14 +1086,37 @@ class DomSurface implements Surface {
     const w = WANTS.get(el);
     let ta = "";
     if (w?.wantsTouch === true) ta = "none";
-    else if (w?.wantsDrag === true) ta = "pinch-zoom";
+    // A drag view that ALSO holds is HOLD-GATED (ruled 2026-07-29): it claims
+    // nothing at touchdown — the quick swipe stays the browser's pan — and
+    // takes the finger only when the hold fires (the non-passive touchmove
+    // suppressor below, keyed on input.ts holdCaptureActive).
+    else if (w?.wantsDrag === true && w?.wantsHold !== true) ta = "pinch-zoom";
     else if (el.dataset.declareApp !== undefined) {
       // The ROOT default keys on the App's reactive page-scrollability fact
       // (setPageScrollable — geometry, never any attribute): pan stays with
       // the user exactly when the page has somewhere to go; when it doesn't,
       // pan retires — stilling the rubber-band — and pinch stays. Double-tap
       // zoom retires either way: a painted UI never concedes it.
-      ta = this.pageScrollable ? "manipulation" : "pinch-zoom";
+      // TOP-LEVEL only: an EMBEDDED app root (an island in a host page) fits
+      // its box, so the geometry default below would read "nothing to
+      // scroll", retire pan, and eat every swipe that starts over the island
+      // — when the finger belongs to the HOST page's regime. Its default is
+      // `manipulation`: pan and pinch stay with the user (chaining to the
+      // host page), double-tap zoom retires — a painted UI never concedes
+      // it. Declared claims (the branches above) still stand. The fact is
+      // attachRoot's own (stamped there): the element is not yet in the host
+      // when the attach-time refresh runs, so ancestry can't answer here.
+      if (this.embeddedRoot) {
+        el.style.touchAction = "manipulation";
+        return;
+      }
+      // pan stays with the user exactly when the page has somewhere to go:
+      // the REALIZED root box (frame stretched to content on scroll axes)
+      // against the live viewport
+      const de = el.ownerDocument.documentElement;
+      const effW = this.scrollXOn ? Math.max(this.frameW, this.extentW) : this.frameW;
+      const effH = this.scrollYOn ? Math.max(this.frameH, this.extentH) : this.frameH;
+      ta = effW > de.clientWidth + 1 || effH > de.clientHeight + 1 ? "manipulation" : "pinch-zoom";
     }
     el.style.touchAction = ta;
   }
@@ -1155,7 +1251,7 @@ class DomSurface implements Surface {
     // `selectable` opts THIS run back in — user-select plus a real pointer target
     // (the run is otherwise pointer-inert so hits fall through to the box). Off
     // ⇒ restore the inert default.
-    const sel = st.selectable === true;
+    const sel = st.selectable === true && !COARSE; // coarse: see COARSE above
     s.userSelect = sel ? "text" : "";
     (s as CSSStyleDeclaration & { webkitUserSelect: string }).webkitUserSelect = sel ? "text" : "";
     s.pointerEvents = sel ? "auto" : "none";

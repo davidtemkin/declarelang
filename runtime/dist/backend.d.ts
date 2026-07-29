@@ -189,13 +189,17 @@ export interface Surface {
      *  is the regime (top level), against the pane's frame inside a scrolling
      *  view. Optional — a host/mock backend may omit it. */
     setIgnoreScroll?(on: boolean): void;
-    /** ROOT surface only: whether the app can produce page scrolling right now
-     *  (a declared axis with overflowing content, or a frame larger than the
-     *  host — floors). The App derives it reactively (view.ts bindPageScroll);
-     *  the backend keys the root's gesture default on it: pan stays with the
-     *  user exactly when the page has somewhere to go, and retires — stilling
-     *  the rubber-band — when it doesn't. Optional. */
-    setPageScrollable?(on: boolean): void;
+    /** ROOT surface only: the App's CONTENT EXTENT (the bounding reach of its
+     *  visible, non-ignoreScroll children), fed reactively by the App
+     *  (view.ts bindPageScroll). The realization of the page scroll: the DOM
+     *  root element sizes itself to max(frame, extent) along each declared
+     *  scroll axis — the box itself is the scroll range, the document scrolls
+     *  it natively, and `overflow: clip` keeps exact frame containment on
+     *  every other axis with no per-axis overflow pairs (WebKit collapsed
+     *  those — measured on iPad, 2026-07-29). The canvas compositor sizes its
+     *  extent strut from the same numbers. The root's gesture default derives
+     *  from the realized sizes against the viewport. Optional. */
+    setPageExtent?(w: number, h: number): void;
     /** Render a rich-text FLOW into this surface as native content (RichText, the
      *  read-only sibling of setEditable): the DOM backend builds real flowing HTML
      *  — one element per block, inline runs in normal flow — so selection, copy,

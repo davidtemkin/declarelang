@@ -78,7 +78,7 @@ class NavLink extends View [ height = 33, cornerRadius = 8,
     // `app.location`); `url` is an out-of-app target (the `navigate` service action,
     // capabilities.md §6). One or the other, never both.
 
-    onClick()     { if (classroot.to != "") app.location = classroot.to; else if (classroot.url != "") app.navigate(classroot.url) },
+    onClick()     { if (classroot.to != "") { app.location = classroot.to; app.toTop() } else if (classroot.url != "") app.navigate(classroot.url) },
     lbl: Text [ x = 12, y = 8, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14,
         text = { classroot.label },
         textColor = { classroot.hovered || classroot.pressed ? theme.text : theme.muted } ],
@@ -99,7 +99,7 @@ class MobileNavRow extends View [ width = { parent.width }, height = 44, cornerR
     url:     string = "",
     to:      string = "",
     fill = { pressed ? theme.pillPress : hovered ? theme.pillHover : null },
-    onClick()     { app.menuOpen = false; if (classroot.to != "") app.location = classroot.to; else if (classroot.url != "") app.navigate(classroot.url) },
+    onClick()     { app.menuOpen = false; if (classroot.to != "") { app.location = classroot.to; app.toTop() } else if (classroot.url != "") app.navigate(classroot.url) },
 
     lbl: Text [ x = 14, y = center, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 16, fontWeight = medium,
         text = { classroot.label },
@@ -506,6 +506,12 @@ App [ appName = "Declare",
 
     location = "home",
 
+    // return the page to the top — the page is the app's scroller, so a
+    // destination change must not inherit the previous view's scroll offset.
+    // (Every location write below pairs with this; the write stays a LITERAL
+    // assignment so the static crawl keeps discovering the destinations.)
+    toTop() { this.scrollIntoView("start") },
+
     // the page’s textual material, fetched DIRECTLY as text (format = "text"):
     // the core doc itself (docs/declare.md — up the tree, but still the
     // deployed repo’s own material), the getting-started guide, and the FAQ.
@@ -554,7 +560,10 @@ App [ appName = "Declare",
     gutter: number = { Math.max(24, (app.width - app.measure) / 2) },
     heroFont: number = { app.width < 700 ? 44 : 60 },
 
-    scroller: View [ width = { app.width }, height = { app.height }, scrolls = y, visible = { app.location == "home" },
+    // the front page's content — carried by the PAGE's own scroll (the App
+    // scrolls by default, and its scroller is the browser's): taller than the
+    // window, so the document scrolls, with the full native gesture tier
+    scroller: View [ width = { app.width }, visible = { app.location == "home" },
 
         // full-bleed blueprint behind the column, sized to the page's full
         // extent — its offset AND its height, so the paper runs to the very
@@ -609,12 +618,12 @@ App [ appName = "Declare",
                     layout: ResponsiveLayout [ plan = { [({ from: 600, flow: "row", gap: 16 }), ({ from: 0, flow: "stack", gap: 8 })] } ],
                     why: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
                         textColor = { this.hovered ? theme.linkHover : theme.accent }, text = "Why a new language, now? →",
-                        onClick() { app.location = "why" }
+                        onClick() { app.location = "why"; app.toTop() }
                         ],
                     Dot [ y = 1, visible = { parent.width >= 600 } ],
                     onefile: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
                         textColor = { this.hovered ? theme.linkHover : theme.accent }, text = "Declare, in one file, for you and your LLM →",
-                        onClick() { app.location = "language" }
+                        onClick() { app.location = "language"; app.toTop() }
                         ]
                     ]
                 ],
@@ -625,7 +634,7 @@ App [ appName = "Declare",
 
             cal: View [ width = { parent.width }, opacity = 0,
                 reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
-                    to = { app.scroller.scrollY + app.height > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
+                    to = { app.scrollY + app.height > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
                 layout: SimpleLayout [ axis = y, spacing = 36 ],
 
                 // the headline stands alone (SectionHead’s lead slot would sit ABOVE
@@ -682,7 +691,7 @@ App [ appName = "Declare",
 
             gen: View [ width = { parent.width }, opacity = 0,
                 reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
-                    to = { app.scroller.scrollY + app.height > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
+                    to = { app.scrollY + app.height > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
                 layout: SimpleLayout [ axis = y, spacing = 40 ],
                 SectionHead [ num = "02", head = "Read it. Generate it. Run it.",
                     lead = "The relationships that matter — structure, data, reactivity — are explicit in the language, not hidden in imperative steps or a runtime graph." ],
@@ -811,7 +820,7 @@ App [ appName = "Declare",
 
             manifesto: View [ width = { parent.width }, opacity = 0,
                 reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
-                    to = { app.scroller.scrollY + app.height > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
+                    to = { app.scrollY + app.height > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
                 layout: SimpleLayout [ axis = y, spacing = 30 ],
                 ruleTop: View [ x = { (parent.width - 140) / 2 }, width = 140, height = 2, fill = { theme.accent } ],
                 Heading [ fontSize = { app.width < 700 ? 26 : 38 },
@@ -834,7 +843,7 @@ App [ appName = "Declare",
 
             cta: View [ width = { parent.width }, height = 0,
                 Button [ width = 260, x = center, y = -24, label = "Get Started →",
-                    onClick() { app.location = "getstarted" }
+                    onClick() { app.location = "getstarted"; app.toTop() }
                     ]
                 ],
 
@@ -854,9 +863,9 @@ App [ appName = "Declare",
        prose in `"""` blocks: HTML collapses the line breaks, so the source wraps
        and the page flows. */
 
-    whyView: View [ visible = { app.location == "why" }, width = { app.width }, height = { app.height }, fill = { theme.ink },
-        grid: GridBg [ x = 0, y = 0, width = { app.width }, height = { app.height } ],
-        body: View [ y = 56, width = { app.width }, height = { app.height - 56 }, scrolls = y, selectable = true,
+    whyView: View [ visible = { app.location == "why" }, width = { app.width }, fill = { theme.ink },
+        grid: GridBg [ x = 0, y = 0, width = { app.width }, height = { parent.body.y + parent.body.height } ],
+        body: View [ y = 56, width = { app.width }, selectable = true,
             col: View [ width = { Math.min(720, app.width - 48) }, x = { Math.max(24, (app.width - 720) / 2) }, y = 52,
                 layout: SimpleLayout [ axis = y, spacing = 22 ],
                 Marker  [ text = "WHY DECLARE" ],
@@ -992,9 +1001,9 @@ App [ appName = "Declare",
        loading and failure are lifecycle states the view derives from, never
        a blank. */
 
-    languageView: View [ visible = { app.location == "language" }, width = { app.width }, height = { app.height }, fill = { theme.ink },
-        grid: GridBg [ x = 0, y = 0, width = { app.width }, height = { app.height } ],
-        body: View [ y = 56, width = { app.width }, height = { app.height - 56 }, scrolls = y, selectable = true,
+    languageView: View [ visible = { app.location == "language" }, width = { app.width }, fill = { theme.ink },
+        grid: GridBg [ x = 0, y = 0, width = { app.width }, height = { parent.body.y + parent.body.height } ],
+        body: View [ y = 56, width = { app.width }, selectable = true,
             col: View [ width = { Math.min(720, app.width - 48) }, x = { Math.max(24, (app.width - 720) / 2) }, y = 52,
                 layout: SimpleLayout [ axis = y, spacing = 22 ],
                 Marker [ text = "THE LANGUAGE" ],
@@ -1019,9 +1028,9 @@ App [ appName = "Declare",
        the static document like any other reachable location. Loading and failure
        are lifecycle states the view derives from, never a blank. */
 
-    getStartedView: View [ visible = { app.location == "getstarted" }, width = { app.width }, height = { app.height }, fill = { theme.ink },
-        grid: GridBg [ x = 0, y = 0, width = { app.width }, height = { app.height } ],
-        body: View [ y = 56, width = { app.width }, height = { app.height - 56 }, scrolls = y, selectable = true,
+    getStartedView: View [ visible = { app.location == "getstarted" }, width = { app.width }, fill = { theme.ink },
+        grid: GridBg [ x = 0, y = 0, width = { app.width }, height = { parent.body.y + parent.body.height } ],
+        body: View [ y = 56, width = { app.width }, selectable = true,
             col: View [ width = { Math.min(720, app.width - 48) }, x = { Math.max(24, (app.width - 720) / 2) }, y = 52,
                 layout: SimpleLayout [ axis = y, spacing = 22 ],
                 Marker [ text = "GETTING STARTED" ],
@@ -1039,9 +1048,9 @@ App [ appName = "Declare",
 
     /* ## The FAQ view — the Get Started pattern at #faq */
 
-    faqView: View [ visible = { app.location == "faq" }, width = { app.width }, height = { app.height }, fill = { theme.ink },
-        grid: GridBg [ x = 0, y = 0, width = { app.width }, height = { app.height } ],
-        body: View [ y = 56, width = { app.width }, height = { app.height - 56 }, scrolls = y, selectable = true,
+    faqView: View [ visible = { app.location == "faq" }, width = { app.width }, fill = { theme.ink },
+        grid: GridBg [ x = 0, y = 0, width = { app.width }, height = { parent.body.y + parent.body.height } ],
+        body: View [ y = 56, width = { app.width }, selectable = true,
             col: View [ width = { Math.min(720, app.width - 48) }, x = { Math.max(24, (app.width - 720) / 2) }, y = 52,
                 layout: SimpleLayout [ axis = y, spacing = 22 ],
                 Marker [ text = "FAQ" ],
@@ -1059,23 +1068,22 @@ App [ appName = "Declare",
 
     /* ## Fixed chrome
 
-       Siblings of the scroller, so they never scroll: the top bar (hidden until
-       you scroll past the hero, then two Springs bring it in — the declarative
-       form of a timed entrance), the whole-page editor overlay, and the pointer
-       dot that springs after the cursor. */
+       `ignoreScroll` — the scroll carries everyone but these; they ride the
+       window while the page's own scroll carries the content: the top bar, the
+       whole-page editor overlay, the pointer dot, and the mobile nav sheet. */
 
-    // the bar is ALWAYS present, stuck to the top — a sibling of the
-    // scroller, so it never scrolls (the springs that used to reveal it on
-    // scroll retired 2026-07-17: a first-time visitor sees the whole map)
+    // the bar is ALWAYS present, stuck to the top (the springs that used to
+    // reveal it on scroll retired 2026-07-17: a first-time visitor sees the
+    // whole map)
 
-    header: View [ width = { app.width }, height = 56, y = 0, opacity = 1, fill = { theme.surface },
+    header: View [ ignoreScroll = true, width = { app.width }, height = 56, y = 0, opacity = 1, fill = { theme.surface },
         hairline: View [ y = 55, width = { app.width }, height = 1, fill = { theme.line } ],
 
         // wordmark — the product name in the brand gradient, in the hero's typeface
 
         brand: View [ x = { app.gutter }, y = 18, height = 22,
             layout: SimpleLayout [ axis = x, spacing = 0 ],
-            onClick() { app.location = "home" },
+            onClick() { app.location = "home"; app.toTop() },
             Heading [ fontSize = 15, textFill = { theme.brand }, text = "Declare" ]
             ],
 
@@ -1107,14 +1115,14 @@ App [ appName = "Declare",
     // the whole-page source editor, shown when app.editing (flipped by
     // "View & Edit Source" in the footer and "Edit this page" in the hero)
 
-    editor: FullPageEditor [ open = { app.editing },
+    editor: FullPageEditor [ ignoreScroll = true, open = { app.editing },
         pageSource = { app.demoSources.__page__ || "" } ],
 
     // pointer dot — a 10px accent-2 dot in VIEWPORT space that SPRINGS after the
     // pointer (loose + low-mass = the slower, longer trail). Two position
     // Springs; the native cursor stays visible and leads, the dot follows.
 
-    pointerDot: View [ width = 10, height = 10, cornerRadius = 5, fill = { theme.accent2 }, opacity = 0.9,
+    pointerDot: View [ ignoreScroll = true, width = 10, height = 10, cornerRadius = 5, fill = { theme.accent2 }, opacity = 0.9,
         shadow = { shadow(0, 0, 12, theme.accent2) },
 
         // Only for a HOVERING pointer (mouse / trackpad) — `app.hovering` is false
@@ -1135,7 +1143,7 @@ App [ appName = "Declare",
     // a thumb-height row, replicated from the SAME navData as the pills. Auto-hides
     // if the window is widened back past the breakpoint.
 
-    navSheet: View [ visible = { app.menuOpen && app.width < 760 }, width = { app.width }, height = { app.height },
+    navSheet: View [ ignoreScroll = true, visible = { app.menuOpen && app.width < 760 }, width = { app.width }, height = { app.height },
         scrim: View [ y = 56, width = { parent.width }, height = { parent.height - 56 }, fill = { theme.scrim },
             onClick() { app.menuOpen = false }
             ],

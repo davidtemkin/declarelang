@@ -53,6 +53,10 @@ const CLAIMS_RAW = `App [ width = 640, height = 400, fill = #202830,
     mesa: View [ x = 200, y = 20, width = 160, height = 100, fill = #445566,
         onTouchStart(e: TouchEvent) { },
         ],
+    holddrag: View [ x = 20, y = 140, width = 160, height = 100, fill = #405060,
+        onHold(e: PointerEvent) { },
+        onPointerMove(e: PointerEvent) { },
+        ],
     zoomer: View [ x = 380, y = 20, width = 200, height = 300, fill = #2E3A45,
         onWheel(e: WheelEvent) { app.wdx = e.deltaX; app.wdy = e.deltaY; app.wpinch = e.pinch },
         pane: View [ x = 20, y = 120, width = 160, height = 120, fill = #3A4855, scrolls = y,
@@ -88,10 +92,10 @@ assert.deepEqual(claimsCompiled.errors, [], "claims fixture compiles clean");
 const lockCompiled = compile(LOCK_RAW);
 assert.deepEqual(lockCompiled.errors, [], "lock fixture compiles clean");
 
-const pageHtml = (backendClass, source) => `<!doctype html>
+const pageHtml = (backendClass, source, { embedded = false } = {}) => `<!doctype html>
 <meta charset="utf-8">
 <style>html,body{margin:0;padding:0}</style>
-<div id="host"></div>
+${embedded ? '<div data-declare-app="1"><div id="host"></div></div>' : '<div id="host"></div>'}
 <script type="module">
   import { render, ${backendClass} } from "/dist/index.js";
   window.__app = render(${JSON.stringify(source)}, document.getElementById("host"), new ${backendClass}());
@@ -101,12 +105,26 @@ const pageHtml = (backendClass, source) => `<!doctype html>
 const pageCompiled = compile(PAGE_RAW);
 assert.deepEqual(pageCompiled.errors, [], "page fixture compiles clean");
 
+// Selection realization on a COARSE pointer (claim-surface.md): explicit
+// `user-select: text` islands inside a `none` page feed iOS's pan-stealing
+// text gesture, so on touch devices selection stays at web defaults.
+const COARSE_RAW = `App [ width = 640, height = 400, fill = #202830,
+    label: Text [ x = 20, y = 20, text = "selectable prose", selectable = true ],
+    ]`;
+const coarseCompiled = compile(COARSE_RAW);
+assert.deepEqual(coarseCompiled.errors, [], "coarse fixture compiles clean");
+
 const pages = {
   "/dom-claims": pageHtml("DomBackend", claimsCompiled.source),
   "/canvas-claims": pageHtml("CanvasBackend", claimsCompiled.source),
   "/dom-lock": pageHtml("DomBackend", lockCompiled.source),
   "/dom-page": pageHtml("DomBackend", pageCompiled.source),
   "/canvas-page": pageHtml("CanvasBackend", pageCompiled.source),
+  // the CLAIMS app (fits its box) mounted INSIDE a marked host app — the
+  // embedded-island root default, both backends
+  "/dom-embedded": pageHtml("DomBackend", claimsCompiled.source, { embedded: true }),
+  "/canvas-embedded": pageHtml("CanvasBackend", claimsCompiled.source, { embedded: true }),
+  "/dom-coarse": pageHtml("DomBackend", coarseCompiled.source),
 };
 
 const server = http.createServer(async (req, res) => {
@@ -168,6 +186,39 @@ await test("dom: geometry, never an attribute, drives the root default — grow 
     { timeout: 5000 });
 });
 
+await test("dom+canvas: an EMBEDDED island's root default never retires pan — `manipulation`", async () => {
+  // The same fits-its-box app that reads `pinch-zoom` top-level (above): as
+  // an island inside a host app, the finger belongs to the HOST page's
+  // regime — pan and pinch chain to it; only double-tap zoom retires.
+  await open("/dom-embedded");
+  const domTa = await page.evaluate(() => getComputedStyle(document.querySelector("#host [data-declare-app]")).touchAction);
+  assert.equal(domTa, "manipulation");
+  await open("/canvas-embedded");
+  const cvTa = await page.evaluate(() => getComputedStyle(document.querySelector("canvas")).touchAction);
+  assert.equal(cvTa, "manipulation");
+  await open("/dom-claims"); // restore the suite's working page
+});
+
+await test("dom: a coarse pointer keeps selection at web defaults — no explicit user-select anywhere", async () => {
+  // The iOS pan-theft (claim-surface.md): explicit `text` islands inside a
+  // `none` page make drags select instead of pan. On a touch device the root
+  // never writes `none` and `selectable` writes no explicit `text`.
+  const tp = await browser.newPage();
+  await tp.setViewport({ width: 800, height: 600, hasTouch: true, isMobile: true });
+  await tp.goto(`${B}/dom-coarse`, { waitUntil: "networkidle2", timeout: 30000 });
+  await tp.waitForFunction(() => window.__rendered === true, { timeout: 15000 });
+  const r = await tp.evaluate(() => ({
+    coarse: matchMedia("(pointer: coarse)").matches,
+    rootUS: document.querySelector("[data-declare-app]").style.userSelect || "(unset)",
+    explicit: [...document.querySelectorAll("*")].some(
+      (el) => el.style.userSelect === "text" && el.tagName !== "INPUT" && el.tagName !== "TEXTAREA"),
+  }));
+  await tp.close();
+  assert.equal(r.coarse, true, "fixture page must emulate a coarse pointer");
+  assert.notEqual(r.rootUS, "none");
+  assert.equal(r.explicit, false);
+});
+
 await test("dom: onPointerMove claims the drag, keeps pinch — `pinch-zoom`", async () => {
   assert.equal((await styleAt(100, 70)).touchAction, "pinch-zoom");
 });
@@ -185,6 +236,36 @@ await test("dom: onWheel is not a touch claim — no touch-action of its own", a
 await test("dom: a scroller delegates pan AND keeps pinch delegated — `pan-y pinch-zoom`", async () => {
   const ta = (await styleAt(460, 200)).touchAction;
   assert.ok(ta.includes("pan-y") && ta.includes("pinch-zoom"), `got '${ta}'`);
+});
+
+await test("dom: onHold + drag handlers = the HOLD-GATED claim — nothing at touchdown", async () => {
+  // The pair claims the finger at the hold, so the element carries NO
+  // touch-action of its own (the quick swipe stays the browser's pan).
+  assert.equal((await styleAt(100, 190)).touchAction, "auto");
+});
+
+await test("dom: the hold-gated claim engages at the hold — post-hold touchmoves are suppressed", async () => {
+  await page.evaluate(() => {
+    window.__tmPrevented = null;
+    window.addEventListener("touchmove", (e) => { window.__tmPrevented = e.defaultPrevented; }, { passive: true });
+  });
+  // Press and WAIT past the hold window (500ms), then move: the claim is live
+  // and the browser's pan is kept out.
+  await page.touchscreen.touchStart(100, 190);
+  await new Promise((r) => setTimeout(r, 800));
+  await page.touchscreen.touchMove(140, 240);  // well past every slop, so the move dispatches
+  await new Promise((r) => setTimeout(r, 100));
+  const held = await page.evaluate(() => window.__tmPrevented);
+  await page.touchscreen.touchEnd();
+  assert.equal(held, true, "post-hold move belongs to the app");
+  // Control: press and move IMMEDIATELY — no hold, no claim, the browser keeps it.
+  await page.evaluate(() => { window.__tmPrevented = null; });
+  await page.touchscreen.touchStart(100, 190);
+  await page.touchscreen.touchMove(120, 220);
+  await new Promise((r) => setTimeout(r, 100));
+  const quick = await page.evaluate(() => window.__tmPrevented);
+  await page.touchscreen.touchEnd();
+  assert.equal(quick, false, "a quick swipe stays the browser's");
 });
 
 // ── DOM: wheel delivery ─────────────────────────────────────────────────────
@@ -308,12 +389,22 @@ await test("canvas: onWheel hears the wheel; an intervening scroller keeps its o
 await open("/dom-page");
 
 await test("dom: the App's content scrolls as the PAGE — the document owns the extent", async () => {
-  const r = await page.evaluate(() => ({
-    docH: document.documentElement.scrollHeight,
-    docW: document.documentElement.scrollWidth,
-    rootTA: getComputedStyle(document.querySelector("[data-declare-app]")).touchAction,
-  }));
-  assert.ok(r.docH >= 3000, `content extends the document (got ${r.docH})`);
+  const r = await page.evaluate(() => {
+    const rootEl = document.querySelector("[data-declare-app]");
+    return {
+      docH: document.documentElement.scrollHeight,
+      docW: document.documentElement.scrollWidth,
+      rootOv: getComputedStyle(rootEl).overflow,
+      elH: rootEl.getBoundingClientRect().height,
+      rootTA: getComputedStyle(rootEl).touchAction,
+    };
+  });
+  // v3 realization (the WebKit-safe one): the root ELEMENT is sized to the
+  // content extent on the declared axis — the box itself is the scroll range —
+  // and `overflow: clip` holds exact frame containment on every other axis
+  assert.ok(r.elH >= 3000, `the root element realizes the extent (got ${r.elH})`);
+  assert.ok(r.docH >= 3000, `so the content extends the document (got ${r.docH})`);
+  assert.equal(r.rootOv, "clip", "containment is uniform overflow:clip — no per-axis pair");
   assert.equal(r.docW, 800, "the cross axis is out of frame — the parked child adds no width");
   assert.equal(r.rootTA, "manipulation", "a scrollable page keeps pan with the user");
 });

@@ -1,0 +1,59 @@
+<!doctype html>
+<!-- DIAG(probe) — the CALIBRATION fixture for the sim rig: reproduces the
+     PRE-FIX selection surface (explicit user-select:text spans inside a
+     user-select:none page) that stole pans on real iOS (2026-07-29). If the
+     simulator shows the theft here — swipes on .stolen spans produce no
+     scroll — the rig can catch the whole bug class. The /quirk page logs
+     touches and scrolls to /__probe under sid "quirk". -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>quirk: selection pan-theft</title>
+<style>
+  html, body { margin: 0; background: #0B141B; color: #E8EDF2; font: 17px/1.6 -apple-system, sans-serif; }
+  body { user-select: none; -webkit-user-select: none; }
+  .stolen { user-select: text; -webkit-user-select: text; background: rgba(255,200,0,.12); }
+  section { padding: 24px; }
+  .spacer { height: 60vh; }
+</style>
+<section>
+  <h1>Pan-theft fixture</h1>
+  <p><span class="stolen">This whole paragraph is an explicit user-select:text island inside a
+  user-select:none page — the exact surface that ate swipes on the iPhone.
+  Swipe up starting on this highlighted text. If the page scrolls, the engine
+  does not exhibit the theft; if nothing moves, it does.</span></p>
+  <p>This paragraph inherits none. Swipes starting here should always scroll.</p>
+  <div class="spacer"></div>
+  <p>middle marker</p>
+  <div class="spacer"></div>
+  <div class="spacer"></div>
+  <p>bottom marker</p>
+</section>
+<script>
+  const sid = "quirk";
+  let buf = [];
+  const log = (k, d) => { buf.push({ t: Math.round(performance.now()), k, ...d }); };
+  const flush = () => {
+    if (!buf.length) return;
+    const events = buf; buf = [];
+    fetch("/__probe", { method: "POST", body: JSON.stringify({ sid, events }) }).catch(() => {});
+  };
+  setInterval(flush, 800);
+  addEventListener("touchstart", (e) => {
+    const t = e.touches[0], el = document.elementFromPoint(t.clientX, t.clientY);
+    log("ts", { n: e.touches.length, x: Math.round(t.clientX), y: Math.round(t.clientY),
+      tag: el && el.tagName.toLowerCase(), cls: el && el.className || "",
+      us: el && getComputedStyle(el).webkitUserSelect });
+  }, { passive: true });
+  addEventListener("touchmove", (e) => log("tm", { n: e.touches.length }), { passive: true });
+  addEventListener("pointercancel", () => log("pcancel", {}));
+  let lastY = -1;
+  addEventListener("scroll", () => {
+    const y = Math.round(scrollY);
+    if (y !== lastY) { log("sc", { y }); lastY = y; }
+  }, { passive: true });
+  document.addEventListener("selectionchange", () => {
+    const s = getSelection();
+    log("sel", { len: s ? String(s).length : 0 });
+  });
+  log("boot", { ua: navigator.userAgent.slice(0, 60), w: innerWidth, h: innerHeight });
+</script>
