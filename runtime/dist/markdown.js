@@ -647,7 +647,7 @@ function buildPre(b, width, bodyColor, ctx) {
     scroller.x = padL;
     scroller.y = PROSE.codePad;
     scroller.width = flowW;
-    scroller.scrollsX = true;
+    scroller.scrolls = "x";
     flow.x = 0;
     flow.y = 0;
     scroller.appendChild(flow);
@@ -687,7 +687,7 @@ function buildCode(b, width) {
     scroller.y = PROSE.codePad;
     scroller.width = width - padL - PROSE.codePad;
     scroller.height = h - 2 * PROSE.codePad;
-    scroller.scrollsX = true;
+    scroller.scrolls = "x";
     const t = textView(width - padL - PROSE.codePad, sz(CODESIZE), C.codeFg, "normal", b.text);
     t.x = 0;
     t.y = 0;

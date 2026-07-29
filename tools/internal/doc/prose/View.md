@@ -54,12 +54,12 @@ Whole-view alpha, `0`…`1` (default `1`). Applies to the view **and its subtree
 group, so a fading panel fades its contents with it. Not `prevailing`: its effect
 already composes down the render tree, so a followed copy would apply it twice.
 
-## ignorelayout
+## ignoreLayout
 Opt this child out of its parent's `layout` — the arrangement skips it and it owns
 its own position on both axes (the decoration/overlay case: a badge floating over
 a laid list). Its size still counts toward the parent's auto-extent.
 
-## ignoreclip
+## ignoreClip
 Opt this child out of its parent's `clip`: outside the parent's frame it still
 paints *and* still hits — frame chrome that straddles the frame (a window's
 resize halo; a badge poking out of a clipped card). Parent-scoped — an ancestor's
@@ -89,14 +89,16 @@ press dismisses. Look comes from `tooltipBg` / `tooltipText` / `tooltipLine`. `"
 default) = no tip.
 
 ## scrolls
-Makes the view scroll its overflowing content: it clips to its box and scrolls the
-vertical overflow, exposing `scrollY`. Fixed chrome comes free — make it a **sibling**
-of the scroller, not a child. Default `false`. Both backends realize it natively and
-present the same model (`scrollY` updates the same way either way); only the overscroll
-*feel* differs, where the platform can do better. On DOM the OS owns the scroll — overlay
-scrollbar, momentum, and rubber-band overscroll *contained* to this pane, so it bounces on
-its own edges and never chains to the page, and sibling panes overscroll independently. On
-canvas the runtime manages the offset (clip+translate+wheel), as a single element must.
+Which **axes** of interior overflow this view scrolls — `none` (the default), `y`, `x`,
+or `both`. A scrolling view clips to its box; overflow along a declared axis becomes its
+scroll range (live `scrollY`/`scrollX`), and overflow along any other axis is simply out
+of frame. The value is a token **string** in a `{ }` body — compare explicitly
+(`scrolls == "y"`), never truthily: `"none"` is a truthy string. Fixed chrome comes free — make it a **sibling** of the scroller, not a child.
+Both backends present the same model; only the overscroll *feel* differs, where the
+platform can do better. On DOM the OS owns the scroll — overlay scrollbar, momentum, and
+rubber-band overscroll *contained* to this pane, so it bounces on its own edges and never
+chains to the page, and sibling panes overscroll independently. On canvas the runtime
+manages the offset (clip+translate+wheel), as a single element must.
 
 ## scrollY
 The current vertical scroll offset in pixels of a `scrolls` view — **read it** for
@@ -191,7 +193,7 @@ and the subtree re-styles in a single settle. The reactive counterpart to the st
 Makes the view a keyboard **tab stop**. Traversal order is the view tree — there is no
 numeric tabindex; override `tabOrder()` to reorder within a container.
 
-## focustrap
+## focusTrap
 Marks a self-contained focus group: Tab cycles within it and escapes at the boundary
 (firing `escapeFocus`). For a modal or menu whose focus must not leak to the page behind.
 
@@ -233,7 +235,7 @@ focus ring off it.
 The view lost keyboard focus — the partner of `focus`.
 
 ## onEscapeFocus
-Fired on a `focustrap` when Tab reaches its boundary — your cue to move focus out (close
+Fired on a `focusTrap` when Tab reaches its boundary — your cue to move focus out (close
 the modal, advance to the next group).
 
 ## onKeyDown
@@ -261,9 +263,10 @@ both `pivotX`/`pivotY` to scale about the middle rather than the top-left.
 ## pivotY
 The vertical pivot — the twin of `pivotX`.
 
-## scrollsX
-Like `scrolls`, but for **horizontal** overflow: the view clips to its box and scrolls content
-wider than it, exposing the offset. Use it for a paging strip; `scrolls` is the vertical case.
+## scrollX
+**Read it, don't set it** in practice: the live horizontal offset of a `scrolls = x`
+(or `both`) view, mirrored from the native scroll — `scrollY`'s twin. Use it for a
+paging strip's position, scroll-driven effects, or restoring a strip's place.
 
 ## selectable
 **Prevailing.** `selectable = true` on a container makes all its `Text` — including a

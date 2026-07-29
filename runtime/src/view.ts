@@ -106,11 +106,11 @@ export class View extends Node {
   declare opacity: number;
   /** Opt out of the parent's LAYOUT (this child owns its own position; the
    *  arrangement skips it) — the decoration/overlay case. */
-  declare ignorelayout: boolean;
+  declare ignoreLayout: boolean;
   /** Opt out of the parent's CLIP (outside the parent's frame this child
    *  still paints and still hits) and of its auto-extent — frame chrome that
    *  straddles the frame. Parent-scoped: ancestors' clips still apply. */
-  declare ignoreclip: boolean;
+  declare ignoreClip: boolean;
   /** The pointer cursor while over this view (a CSS cursor keyword —
    *  "ew-resize", "col-resize", "pointer", …; "" = inherit). Meaningful on
    *  views that take input: the sink is the hit target on both backends. */
@@ -125,18 +125,21 @@ export class View extends Node {
   declare scale: number;
   declare pivotX: number;
   declare pivotY: number;
-  declare scrolls: boolean;
+  /** Which axes of interior overflow this view scrolls — `"none"` (the View
+   *  default), `"y"`, `"x"`, or `"both"`. Overflow along a declared axis
+   *  becomes scroll range; along any other axis it is out of frame. */
+  declare scrolls: "none" | "y" | "x" | "both";
   /** The tooltip text (planes.md tier 1 — one attribute at the use site). A
    *  non-empty tip wires this view's hover into the Tip service; the
    *  auto-included Tooltip singleton renders it. "" = no tip. */
   declare tip: string;
-  declare scrollsX: boolean;
   declare scrollY: number;
+  declare scrollX: number;
   /** Keyboard focus (docs/system-design/input.md, Layer 2). `focusable` = a tab stop;
-   *  `focustrap` = a self-contained focus group. Traversal order is the tree,
+   *  `focusTrap` = a self-contained focus group. Traversal order is the tree,
    *  overridable per view by defining a `tabOrder()` method. */
   declare focusable: boolean;
-  declare focustrap: boolean;
+  declare focusTrap: boolean;
   declare anchor: string;
   /** Clip the subtree (paint AND hit-test). Two forms on one slot: a Shape
    *  string clips to that SVG path (view-local coordinates); the boolean
@@ -361,7 +364,7 @@ export class View extends Node {
     let max = this.contentExtent(size);
     for (const c of this.children) {
       if (!(c instanceof View) || !c.visible) continue;
-      if (c.ignoreclip) continue; // frame chrome: derives from the bounds, never defines them
+      if (c.ignoreClip) continue; // frame chrome: derives from the bounds, never defines them
       if (percentOwned(c, axis) || percentOwned(c, size)) continue;
       const extent = c[axis] + c[size];
       if (extent > max) max = extent;
@@ -480,14 +483,14 @@ export class View extends Node {
     if (this.shadow !== null) s.setShadow(this.shadow);
     s.setVisible(this.visible);
     s.setOpacity(this.opacity);
-    if (this.ignoreclip) s.setIgnoreClip?.(true);
+    if (this.ignoreClip) s.setIgnoreClip?.(true);
     if (this.cursor !== "") s.setCursor(this.cursor);
     if (this.pointerEvents !== "") s.setPointerEvents(this.pointerEvents);
     if (this.scale !== 1 || this.pivotX !== 0 || this.pivotY !== 0)
       s.setScale(this.scale, this.pivotX, this.pivotY);
     this.applyClip(this.clip);
-    if (this.scrolls) s.setScroll(true, (y) => { this.scrollY = y; });
-    if (this.scrollsX) s.setScrollX(true);
+    if (this.scrolls === "y" || this.scrolls === "both") s.setScroll(true, (y) => { this.scrollY = y; });
+    if (this.scrolls === "x" || this.scrolls === "both") s.setScrollX(true, (x) => { this.scrollX = x; });
     const sink = this.inputSink();
     if (sink !== null) s.setInput(sink, this.inputWants());
     if (this.draw) this.bindDraw();
@@ -495,7 +498,7 @@ export class View extends Node {
 
   /** THE HIT TEST: the view under a root-space point, or null. The same walk
    *  the pointer is routed by (interaction.ts) — clip shapes, scale, pivot,
-   *  `pointerEvents`, and `ignoreclip` all count exactly as they do for a real
+   *  `pointerEvents`, and `ignoreClip` all count exactly as they do for a real
    *  press — so what a handler computes and what the runtime routes can never
    *  disagree. Answers the deepest (topmost) view; walk `.parent` to find an
    *  eligible ancestor:
@@ -649,8 +652,8 @@ defineAttributes(View, {
   stroke: { def: null, push: (v, st) => v.surface?.setStroke(st), equal: strokeEqual },
   shadow: { def: null, push: (v, sh) => v.surface?.setShadow(sh), equal: shadowEqual },
   visible: { def: true, push: (v, b) => v.surface?.setVisible(b) },
-  ignorelayout: { def: false, push: (v) => { const p = v.parent; if (p instanceof View) p.childrenMutated(); } },
-  ignoreclip: { def: false, push: (v, b: boolean) => v.surface?.setIgnoreClip?.(b) },
+  ignoreLayout: { def: false, push: (v) => { const p = v.parent; if (p instanceof View) p.childrenMutated(); } },
+  ignoreClip: { def: false, push: (v, b: boolean) => v.surface?.setIgnoreClip?.(b) },
   opacity: { def: 1, push: (v, o) => v.surface?.setOpacity(o) },
   cursor: { def: "", push: (v, c: string) => v.surface?.setCursor(c) },
   pointerEvents: { def: "", push: (v, c: string) => v.surface?.setPointerEvents(c) },
@@ -660,19 +663,23 @@ defineAttributes(View, {
   pivotX: { def: 0, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },
   pivotY: { def: 0, push: (v) => v.surface?.setScale(v.scale, v.pivotX, v.pivotY) },
   focusable: { def: false },
-  focustrap: { def: false },
+  focusTrap: { def: false },
   // `anchor` — the view's name in the reveal namespace (location.md §6). A stored
   // slot the reveal walk reads after settle; "" = not an anchor. No push: it has
   // no surface effect. (Materializes §6's "named view"; heading slugs are the rest.)
   anchor: { def: "" },
   clip: { def: null, push: (v, c) => v.applyClip(c) },
-  // Scroll container: enabling it wires the backend's native scroll and feeds
-  // the user's offset back into `scrollY` (a plain reactive write — no push, so
-  // it never echoes to the surface; reads drive fades/reveals).
-  scrolls: { def: false, push: (v, on) => v.surface?.setScroll(on, (y) => { v.scrollY = y; }) },
+  // Scroll container: the axis enum wires the backend's native scroll per
+  // declared axis and feeds the user's offsets back into `scrollY`/`scrollX`
+  // (plain reactive writes — no push, so they never echo to the surface;
+  // reads drive fades/reveals).
+  scrolls: { def: "none", push: (v, ax: string) => {
+    v.surface?.setScroll(ax === "y" || ax === "both", (y) => { v.scrollY = y; });
+    v.surface?.setScrollX(ax === "x" || ax === "both", (x) => { v.scrollX = x; });
+  } },
   tip: { def: "" },
-  scrollsX: { def: false, push: (v, on) => v.surface?.setScrollX(on) },
   scrollY: { def: 0 },
+  scrollX: { def: 0 },
   // The prevailing built-ins: model-side on View (no push — Text's style
   // derive is the consumer that crosses the seam). Defaults are the
   // browser-native text defaults Text carried through R3–R9.

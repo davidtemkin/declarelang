@@ -68,7 +68,7 @@ export declare class FocusService {
     blur(): void;
     next(): void;
     prev(): void;
-    /** The ordered focus stops in a view's group — its focustrap ancestor, else
+    /** The ordered focus stops in a view's group — its focusTrap ancestor, else
      *  the root. Exposed for tooling/tests. */
     sequenceFor(view: View | null): View[];
     private move;
@@ -78,7 +78,7 @@ export declare class FocusService {
      *  (a live-edit re-render), focus is dropped, never re-anchored into the
      *  host app's controls. Called from View.discard() via the seam in view.ts. */
     noteDiscarded(view: View): void;
-    /** The nearest focustrap ancestor of `view` (the group it belongs to), or the
+    /** The nearest focusTrap ancestor of `view` (the group it belongs to), or the
      *  view's OWN tree root when there is none. The tree anchor matters when more
      *  than one app shares the page (an embedded preview inside a host app): the
      *  focused view's group is ITS app's tree, so Tab cycles within the app the

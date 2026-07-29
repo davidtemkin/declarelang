@@ -18,8 +18,8 @@ import { createToolchain } from "../server/toolchain.mjs";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const toolchain = createToolchain(ROOT);
 
-// a program only the CURRENT schema accepts (ignoreclip is a recent View attr)
-const PROGRAM = `App [ View [ width = 40, height = 40, View [ ignoreclip = true ] ] ]`;
+// a program only the CURRENT schema accepts (ignoreClip is a recent View attr)
+const PROGRAM = `App [ View [ width = 40, height = 40, View [ ignoreClip = true ] ] ]`;
 
 try {
   await test("the realm compiles with the current schema", async () => {

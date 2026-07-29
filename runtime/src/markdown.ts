@@ -553,7 +553,7 @@ function buildPre(b: Extract<Block, { t: "pre" }>, width: number, bodyColor: num
   const rule = bar ? rectView(PROSE.codeRuleWidth, 1, CODERULE!) : null;
   if (rule !== null) { rule.x = 0; rule.y = 0; box.appendChild(rule); }
   const scroller = new View();
-  scroller.x = padL; scroller.y = PROSE.codePad; scroller.width = flowW; scroller.scrollsX = true;
+  scroller.x = padL; scroller.y = PROSE.codePad; scroller.width = flowW; scroller.scrolls = "x";
   flow.x = 0; flow.y = 0;
   scroller.appendChild(flow);
   box.appendChild(scroller);
@@ -583,7 +583,7 @@ function buildCode(b: Extract<Block, { t: "code" }>, width: number): View {
   if (bar) { const rule = rectView(PROSE.codeRuleWidth, h, CODERULE!); rule.x = 0; rule.y = 0; box.appendChild(rule); }
   // an inner scroller holds the text — long lines scroll while the bar stays fixed
   const scroller = new View();
-  scroller.x = padL; scroller.y = PROSE.codePad; scroller.width = width - padL - PROSE.codePad; scroller.height = h - 2 * PROSE.codePad; scroller.scrollsX = true;
+  scroller.x = padL; scroller.y = PROSE.codePad; scroller.width = width - padL - PROSE.codePad; scroller.height = h - 2 * PROSE.codePad; scroller.scrolls = "x";
   const t = textView(width - padL - PROSE.codePad, sz(CODESIZE), C.codeFg, "normal", b.text);
   t.x = 0; t.y = 0; t.wrap = false; t.fontFamily = CODEFAM;
   scroller.appendChild(t);

@@ -70,7 +70,7 @@ takes exactly what the handler needs in order to fire, and not one gesture more:
 browser gesture — that is the resolved layer's whole point — and when the browser
 does take a gesture back mid-flight, `e.canceled` reports it. Everything a claim
 does not name stays with the user: a view that claimed the drag still zooms under
-two fingers, a view that claimed the double tap still pans. A `scrolls = true`
+two fingers, a view that claimed the double tap still pans. A `scrolls = y`
 view is the opposite move — it *delegates* its panning to the browser — and keeps
 pinch-zoom delegated too.
 

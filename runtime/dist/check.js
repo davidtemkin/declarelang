@@ -1024,7 +1024,7 @@ const CSS_ATTRIBUTE_HINTS = {
     borderRadius: "rounding is 'cornerRadius'",
     color: "text color is 'textColor' (prevailing — set it on a container)",
     zIndex: "stacking is source order — later siblings draw above; there is no z-index",
-    overflow: "clipping is 'clip = true'; scrolling is 'scrolls = true'",
+    overflow: "clipping is 'clip = true'; scrolling is 'scrolls = y' (the axis enum)",
     display: "arrangement is the 'layout' attribute — 'layout: SimpleLayout [ axis = y, spacing = 8 ]'",
     flexDirection: "arrangement is the 'layout' attribute — 'axis = x' or 'axis = y'",
     justifyContent: "arrangement is the 'layout' attribute; fine placement is x/y constraints",
@@ -1034,9 +1034,20 @@ const CSS_ATTRIBUTE_HINTS = {
     padding: "there is no padding — inset children with x/y or an inner View",
     onChange: "the edit event is 'onInput()'",
 };
+/** Retired spellings (the 2026-07-29 camelCase ruling and the `scrolls` axis
+ *  enum) — each names its exact rewrite, so a program written against the old
+ *  surface dies with the fix in hand, never with a shrug. */
+const RENAMED_ATTRIBUTES = {
+    ignorelayout: "spelled 'ignoreLayout' now (inner cap)",
+    ignoreclip: "spelled 'ignoreClip' now (inner cap)",
+    focustrap: "spelled 'focusTrap' now (inner cap)",
+    scrollsX: "the scroll axes merged into one slot — write 'scrolls = x' (the axis enum: none | y | x | both)",
+};
 /** The CSS-instinct hint for an unknown attribute name, or "" when the miss
  *  isn't a known CSS name. */
 export function cssAttributeHint(name) {
+    if (Object.hasOwn(RENAMED_ATTRIBUTES, name))
+        return ` — ${RENAMED_ATTRIBUTES[name]}`;
     const h = Object.hasOwn(CSS_ATTRIBUTE_HINTS, name) ? CSS_ATTRIBUTE_HINTS[name] : "";
     return h ? ` — the CSS instinct: ${h}` : "";
 }
@@ -1118,10 +1129,15 @@ export function checkAttr(schema, attr) {
         // name them both (E-5: `text = label` cost eval cells that `text = { label }`
         // or `text = "label"` would have passed; the type rule alone names no fix).
         // Enum slots excepted: a bare ident there is a token typo, and c.expected
-        // already lists the tokens.
-        const hint = attr.value.kind === "ident" && type.kind !== "enum"
-            ? ` — write { ${attr.value.name} } to bind the attribute${type.kind === "string" ? `, or "${attr.value.name}" for the literal text` : ""}`
-            : "";
+        // already lists the tokens — with one migration carve-out: the retired
+        // boolean form of `scrolls` names its exact rewrite.
+        const scrollsBool = type.kind === "enum" && type.name === "Scrolls" &&
+            attr.value.kind === "ident" && (attr.value.name === "true" || attr.value.name === "false");
+        const hint = scrollsBool
+            ? ` — scrolls is an axis now: ${attr.value.kind === "ident" && attr.value.name === "true" ? "'scrolls = y' is the old 'scrolls = true'" : "'scrolls = none' is the old 'scrolls = false'"}`
+            : attr.value.kind === "ident" && type.kind !== "enum"
+                ? ` — write { ${attr.value.name} } to bind the attribute${type.kind === "string" ? `, or "${attr.value.name}" for the literal text` : ""}`
+                : "";
         return {
             ok: false,
             error: new DeclareError(`${schema.name}.${attr.name} expects ${c.expected}, got ${c.found ?? describeLiteral(attr.value)}${hint}`, attr.value.pos),

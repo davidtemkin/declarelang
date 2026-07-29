@@ -167,7 +167,7 @@ Component by component:
   backend's overlay pattern (transparent native `<input>` glued to the
   surface box per frame) promotes to NSTextField/NSTextView — except now
   the overlay is not an imitation-adjacent workaround but the platform's
-  own control: caret, IME, dictation, autofill. `scrolls = true` becomes an
+  own control: caret, IME, dictation, autofill. `scrolls = y` becomes an
   embedded NSScrollView so inertia, rubber-band, and scroll-bar behavior are
   macOS's own — scroll *feel* is the first thing a Mac user notices and the
   last thing benchmarks capture, so it is bought, not built.
@@ -454,7 +454,7 @@ extraction, applied to assistive technology.
   either renderer, subtrees included), so a faded-out subtree stays in the AX
   tree; an author who means absence writes `visible = { opacity > 0 }`.
   Focus integrates with the existing focus system (`focusable`, FocusRing,
-  focustrap) — the AX focus and the app's focus are one fact.
+  focusTrap) — the AX focus and the app's focus are one fact.
 - **The language gains what it genuinely lacks:** an explicit semantic
   surface for *bare* views — at minimum `label` (accessible name) and a
   small closed `role` vocabulary for the cases components don't cover.

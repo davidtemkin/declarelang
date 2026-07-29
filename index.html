@@ -292,7 +292,7 @@ text = { data.failed ? data.error : "Loading…" }</code></pre>
 <p>A view has no <code>minHeight</code>, <code>maxHeight</code>, or <code>overflow</code> attributes. Two read-only intrinsics, <code>contentWidth</code> and <code>contentHeight</code>, expose what the content wants, so any clamp is arithmetic.</p>
 <pre><code class="language-declare-fragment">height = { Math.min(contentHeight, 480) },    // grow to a cap, then stop
 clip   = true                                // hide whatever passes the cap</code></pre>
-<p><code>clip = true</code> clips children to the box, <code>scrolls = true</code> scrolls taller content natively, and a child opts out of its parent's regime with <code>ignorelayout</code> or <code>ignoreclip</code>.</p>
+<p><code>clip = true</code> clips children to the box, <code>scrolls = y</code> scrolls taller content natively, and a child opts out of its parent's regime with <code>ignoreLayout</code> or <code>ignoreClip</code>.</p>
 <p><strong>Positions are literals.</strong> <code>x = center</code> and <code>x = end</code>, and the same on <code>y</code>, place a view against its parent — resolved reactively, exactly like <code>100%</code>. The closed set is <code>center</code> and <code>end</code>; the start is <code>0</code>. One optical exception: on a <code>Text</code>, <code>y = center</code> centers the <em>ink</em>, the cap-height-to-baseline band, so labels read centered regardless of font metrics. Every other view centers its box.</p>
 <p><strong>The App fills its host by default</strong>, so <code>App [ … ]</code> with no size line fills the window and resizes with it, while an explicit size makes a fixed widget. For an embedded app the host is its container element, which is what lets apps nest. Responsive code reads <code>app.width</code>; the App also carries the live host facts — viewport, colour scheme, pointer — as reactive attributes.</p>
 <p><code>App [ minWidth = 480, minHeight = 420 ]</code> sets a <strong>size floor</strong>: below it the app stops adapting, holds the floor, and the host pans instead. It is a policy the host cooperates with rather than clamp arithmetic you write into constraints — and it is the App's alone, not a view attribute.</p>
@@ -593,7 +593,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=8ff475ed05a2";
+  import boot from "./bundles/declare-boot.js?v=6bf9c79015c8";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().

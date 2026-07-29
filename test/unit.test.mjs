@@ -1940,6 +1940,24 @@ await test("compile(): full gesture control (raw touch on the App) exempts the 1
   assert.deepEqual([r.errors, r.warnings], [[], []]);
 });
 
+await test("compile(): retired spellings die naming their exact rewrite (the camelCase ruling + the scrolls axis enum)", () => {
+  const cases = [
+    [`App [ width=100, height=100, View [ ignorelayout = true ] ]`, /ignoreLayout/],
+    [`App [ width=100, height=100, View [ ignoreclip = true ] ]`, /ignoreClip/],
+    [`App [ width=100, height=100, View [ focustrap = true ] ]`, /focusTrap/],
+    [`App [ width=100, height=100, View [ scrollsX = true ] ]`, /scrolls = x/],
+    [`App [ width=100, height=100, View [ scrolls = true ] ]`, /scrolls = y/],
+    [`App [ width=100, height=100, View [ scrolls = false ] ]`, /scrolls = none/],
+  ];
+  for (const [src, rx] of cases) {
+    const r = compile(src);
+    assert.ok(r.errors.length >= 1, `should refuse: ${src}`);
+    assert.match(r.errors[0].message, rx, `the rewrite is named for: ${src}`);
+  }
+  const ok = compile(`App [ width=100, height=100, View [ scrolls = both, width=50, height=50 ] ]`);
+  assert.deepEqual(ok.errors, [], "the axis tokens themselves are legal");
+});
+
 await test("compile(): bare built-ins resolve to this (never a silent outer hop); no shadow noise", () => {
   const r = compile(`class Screen extends View [ shown: boolean = false,
     opacity = { shown ? 1 : 0 },
@@ -2867,12 +2885,12 @@ await test("replication + layout: the arrangement re-arms on tree mutation", () 
   assert.deepEqual(ys(), [0, 10, 42, 48], "a field write re-flows through the ordinary wave");
 });
 
-await test("ignorelayout: a marked child keeps its own position; the arrangement skips it", () => {
+await test("ignoreLayout: a marked child keeps its own position; the arrangement skips it", () => {
   const app = buildL(`App [ width=200, height=200,
     row: View [ width = 200, height = 40,
       layout: SimpleLayout [ axis = x, spacing = 4 ],
       View [ width = 30, height = 10 ],
-      badge: View [ ignorelayout = true, x = 150, y = 5, width = 12, height = 12 ],
+      badge: View [ ignoreLayout = true, x = 150, y = 5, width = 12, height = 12 ],
       View [ width = 30, height = 10 ],
       ],
   ]`);
@@ -3074,10 +3092,10 @@ await test("auto-extent: a laid stack drives its parent's height", () => {
   assert.equal(app.stack.height, 44, "a laid child growing re-flows AND re-sizes");
 });
 
-await test("ignoreclip: exempt from the parent's auto-extent (frame chrome never defines the bounds)", () => {
+await test("ignoreClip: exempt from the parent's auto-extent (frame chrome never defines the bounds)", () => {
   const app = attachedExtent(`App [ width=300, height=300,
     card: View [ x = 10, y = 10, clip = true,
-      halo: View [ ignoreclip = true, x = -6, y = -6, width = 112, height = 112 ],
+      halo: View [ ignoreClip = true, x = -6, y = -6, width = 112, height = 112 ],
       body: View [ width = 100, height = 80 ],
     ],
   ]`);
@@ -5217,12 +5235,12 @@ await test("focus: a tabOrder() override reorders a container's members", () => 
   assert.deepEqual(Focus.sequenceFor(null), [app.r.c, app.r.b], "override reverses b/c");
 });
 
-await test("focus: a focustrap bounds the group, cycles within, and escapes at the edge", () => {
+await test("focus: a focusTrap bounds the group, cycles within, and escapes at the edge", () => {
   Focus.reset();
   globalThis.__esc = 0;
   const app = build(`App [ width = 100, height = 100,
     a: View [ focusable = true ],
-    dialog: View [ focustrap = true, onEscapeFocus() { globalThis.__esc = globalThis.__esc + 1 },
+    dialog: View [ focusTrap = true, onEscapeFocus() { globalThis.__esc = globalThis.__esc + 1 },
       p: View [ focusable = true ], q: View [ focusable = true ] ],
     b: View [ focusable = true ],
   ]`);
@@ -5750,12 +5768,12 @@ await test("interaction on touch: no hover, but pressed works while down", () =>
   assert.equal(app.pb, false);
 });
 
-await test("hovered: an ignoreclip child hits OUTSIDE its clipping parent's box (the resize-halo shape)", () => {
+await test("hovered: an ignoreClip child hits OUTSIDE its clipping parent's box (the resize-halo shape)", () => {
   const app = build(`App [ width = 200, height = 200,
     hh: boolean = { this.win.halo.hovered },
     hw: boolean = { this.win.hovered },
     win: View [ x = 50, y = 50, width = 60, height = 40, clip = true,
-        halo: View [ ignoreclip = true, x = -10, y = -10, width = 80, height = 60 ] ],
+        halo: View [ ignoreClip = true, x = -10, y = -10, width = 80, height = 60 ] ],
     ]`);
   app.hovering = true;
   app.pointerX = 45; app.pointerY = 45; settle();   // outside win's box, inside the halo's reach

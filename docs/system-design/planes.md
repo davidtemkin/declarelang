@@ -16,7 +16,7 @@ while the developer sees hierarchies:
 ```
 content   — App itself (today's entire world, unchanged)
 floating  — anchored transients: tooltips, menus, popovers; light-dismiss
-modal     — dialogs; input-blocking scrim; focustrap
+modal     — dialogs; input-blocking scrim; focusTrap
 notice    — toasts; above modal; never takes focus by default
 ```
 
@@ -272,7 +272,7 @@ only as each component demands it (no speculative machinery):
 2. **Menu** (context + attached) — the record schema + typecheck, `opener`,
    light-dismiss stratum, roving keyboard (closes the Redmond radio-group
    fidelity gap), per-item content classes (rung 2), `key:` display.
-3. **Dialog** — modal stratum, scrim (material tokens), focustrap, focus
+3. **Dialog** — modal stratum, scrim (material tokens), focusTrap, focus
    restore, `app.confirm()`. Toast/`app.notify()` rides the same wave if
    cheap.
 4. **The desktop** — a new app: high-fidelity Mac desktop under the

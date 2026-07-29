@@ -30,7 +30,7 @@ App [
 
 **`place()`** is the whole contract — no time, no side effects. `this.laid()`
 answers the managed children (the view's children minus any with
-`ignorelayout = true`), in child order; return one box per laid child,
+`ignoreLayout = true`), in child order; return one box per laid child,
 aligned by index — a plain object naming any of `x`, `y`, `w`, `h`, `vis`.
 The boxes' shape declares ownership: carry exactly the slots the strategy
 manages, uniformly across children — a `{ x }` box owns each child's

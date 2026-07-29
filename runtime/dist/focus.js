@@ -2,7 +2,7 @@
 // focused view at a time; Tab moves through the view tree in preorder, each
 // view's own `tabOrder()` deciding the order it is descended into (default =
 // visible children in source order — so an all-default tree is pure preorder,
-// no numeric tabindex, LZX over DOM). `focustrap` bounds a self-contained group
+// no numeric tabindex, LZX over DOM). `focusTrap` bounds a self-contained group
 // (Tab cycles within, `onEscapeFocus` at the boundary). The sequence is
 // recomputed LIVE per move over the current tree, and the service subscribes to
 // the discard lifecycle so a moving tree can never strand focus.
@@ -160,7 +160,7 @@ export class FocusService {
     prev() {
         this.move(-1);
     }
-    /** The ordered focus stops in a view's group — its focustrap ancestor, else
+    /** The ordered focus stops in a view's group — its focusTrap ancestor, else
      *  the root. Exposed for tooling/tests. */
     sequenceFor(view) {
         const group = view !== null ? this.groupRoot(view) : this.rootView;
@@ -175,7 +175,7 @@ export class FocusService {
             return;
         const idx = this.current !== null ? seq.indexOf(this.current) : dir === 1 ? -1 : 0;
         const atEdge = idx !== -1 && ((dir === 1 && idx === seq.length - 1) || (dir === -1 && idx === 0));
-        if (group.focustrap && atEdge)
+        if (group.focusTrap && atEdge)
             fireEvent(group, "escapeFocus");
         const nidx = (((idx + dir) % seq.length) + seq.length) % seq.length; // cyclic
         this.setKeyboard(true); // Tab traversal — the focus-visible modality
@@ -200,14 +200,14 @@ export class FocusService {
         if (survivors.length > 0)
             this.focus(survivors[0]);
     }
-    /** The nearest focustrap ancestor of `view` (the group it belongs to), or the
+    /** The nearest focusTrap ancestor of `view` (the group it belongs to), or the
      *  view's OWN tree root when there is none. The tree anchor matters when more
      *  than one app shares the page (an embedded preview inside a host app): the
      *  focused view's group is ITS app's tree, so Tab cycles within the app the
      *  user is interacting with and never leaks into the host's controls. */
     groupRoot(view) {
         for (let v = view.parent instanceof View ? view.parent : null; v !== null; v = v.parent instanceof View ? v.parent : null) {
-            if (v.focustrap)
+            if (v.focusTrap)
                 return v;
         }
         return rootOf(view);
@@ -215,7 +215,7 @@ export class FocusService {
 }
 /** The flat ordered focus stops within `root`'s group: preorder over each
  *  view's `tabOrder()`, emitting `focusable && visible` views, not descending
- *  into a NESTED focustrap (its own group). */
+ *  into a NESTED focusTrap (its own group). */
 function sequence(root) {
     const out = [];
     const walk = (v) => {
@@ -224,7 +224,7 @@ function sequence(root) {
                 continue;
             if (m.focusable)
                 out.push(m);
-            if (m.focustrap && m !== root)
+            if (m.focusTrap && m !== root)
                 continue; // a nested trap is a separate group
             walk(m);
         }

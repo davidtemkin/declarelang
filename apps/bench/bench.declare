@@ -97,7 +97,7 @@ App [
 
     // fills the viewport and scrolls its taller content natively
 
-    scroller: View [ width = { app.width }, height = { app.height }, scrolls = true,
+    scroller: View [ width = { app.width }, height = { app.height }, scrolls = y,
         page: View [ width = { app.pageW }, x = { (app.width - app.pageW) / 2 }, y = 52,
             layout: SimpleLayout [ axis = y, spacing = 28 ],
 

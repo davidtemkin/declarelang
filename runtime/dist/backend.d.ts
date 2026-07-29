@@ -165,7 +165,7 @@ export interface Surface {
      *  — or declare `clip = true` on the App itself to pin every interaction
      *  in-window — without the browser growing a scroll extent. */
     setBoxClip(on: boolean): void;
-    /** Mark this surface as exempt from its PARENT's box-clip (`ignoreclip`):
+    /** Mark this surface as exempt from its PARENT's box-clip (`ignoreClip`):
      *  outside the parent's clip it still paints AND still hits — frame chrome
      *  that straddles the frame (a window's resize halo, a badge poking out of a
      *  clipped card). Parent-scoped: an ancestor's clip above still applies.
@@ -181,7 +181,7 @@ export interface Surface {
      *  scrolls overflowing width, keeping over-wide content (a code block, a wide
      *  table) inside its box instead of spilling. Vertical overflow stays clipped.
      *  No reactive offset is mirrored (unlike `setScroll`) — it is presentation-only. */
-    setScrollX(on: boolean): void;
+    setScrollX(on: boolean, onScroll?: (x: number) => void): void;
     /** Render a rich-text FLOW into this surface as native content (RichText, the
      *  read-only sibling of setEditable): the DOM backend builds real flowing HTML
      *  — one element per block, inline runs in normal flow — so selection, copy,

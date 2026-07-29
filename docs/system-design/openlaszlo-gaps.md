@@ -108,8 +108,8 @@ derivation is runtime-truthful rather than compile-time-lexical.
 | `lz.History.setPersist`, cookies dance | no construct; `localStorage` **is** in the compiler's known-globals (`compile.ts` BROWSER_GLOBALS), so handlers reach it | soft gap: capability open, doctrine absent |
 | `lz.Browser.setClipboard` | no construct; `navigator` reachable in handlers | soft gap, same shape |
 | `lz.Timer` / `lz.Idle` | `setTimeout`/`setInterval` / `Frames` | answered — but "cancel it yourself" collides with no-teardown, §5.2 |
-| `lz.ModeManager` (modal stack, event locking) | Dialog scrim (geometric modality) + `focustrap` | answered differently |
-| `lz.Focus`, `focusable/focustrap`, `getNextSelection` | `Focus` service, same attrs, `tabOrder()`; no numeric tabindex | answered, better |
+| `lz.ModeManager` (modal stack, event locking) | Dialog scrim (geometric modality) + `focusTrap` | answered differently |
+| `lz.Focus`, `focusable/focusTrap`, `getNextSelection` | `Focus` service, same attrs, `tabOrder()`; no numeric tabindex | answered, better |
 | `lz.Keys.callOnKeyCombo` | `Keys` source; chords implemented (`keys.ts`) but not in `LANGUAGE_STATICS` | exposure gap, small |
 | `lz.Audio` + `<audio>` assets | **nothing**; `DOMIsland` cannot reasonably host a click sound | **gap — §5.7** |
 | Flash a11y attrs (`aaname`…) | native text editables only; no ARIA surface in `runtime/src` | structural flag — the canvas renderer can't ride the DOM for free |
@@ -285,7 +285,7 @@ meaning the wrong box). Any Declare design must not reproduce this.
    is a *sibling* of the content in the same stack, and the clip + height
    spring do the reveal. The limit is exact: the component **cannot put
    anything around, under, or beside the content region** — no inset panel, no
-   scrolling interior (`scrolls = true` needs the content *inside* the
+   scrolling interior (`scrolls = y` needs the content *inside* the
    scrolling view), no fixed footer below the content, no bordered content
    well. The moment chrome must nest content, this mode is out.
 2. **Records** (`Menu.items`, `Dialog.buttons`, `MenuBar.menus`): "what a
@@ -324,7 +324,7 @@ The judgment this audit supports:
   name a destination: one internal view designated as where use-site children
   construct — the `defaultplacement` half only. A sketch of the shape (not a
   ruling): a marker attribute on one descendant of the class body
-  (`content: View [ interior = true, scrolls = true, … ]`), with use-site
+  (`content: View [ interior = true, scrolls = y, … ]`), with use-site
   children constructing inside it. Exactly one region; zero new syntax at the
   use site; the use site cannot even tell.
 - **Defer per-child routing** (`placement="title_area"`). The minority tail in
@@ -474,7 +474,7 @@ already owns:
   rAF-batched surface work already exist.
 - **Instance reuse exists.** Keyed reconciliation (`key = :field`) pools
   instances across re-derivations.
-- **Native scrolling exists** (`scrolls = true`) — which OL had to fake, but
+- **Native scrolling exists** (`scrolls = y`) — which OL had to fake, but
   which also imposes the one genuinely new obligation (§7.3, extent).
 
 #### The three pieces of real work (as first framed)

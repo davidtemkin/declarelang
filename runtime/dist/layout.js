@@ -171,7 +171,7 @@ export class Layout extends Node {
         }
     }
     /** The children this strategy arranges: the view's View children, honoring
-     *  the `ignorelayout` opt-out (LZX's rule — a decoration/overlay child owns
+     *  the `ignoreLayout` opt-out (LZX's rule — a decoration/overlay child owns
      *  its own position, both axes). Non-View members (a Dataset, an Animator, a
      *  State) are never laid. In child order — order is the layout semantics —
      *  and `place()`'s boxes align with this array BY INDEX. */
@@ -179,7 +179,7 @@ export class Layout extends Node {
         const v = this.view;
         if (v === null)
             return [];
-        return v.children.filter((c) => c instanceof View && c.ignorelayout !== true);
+        return v.children.filter((c) => c instanceof View && c.ignoreLayout !== true);
     }
     /** Claim `slot` on `child` for constraint `k`: capture the authored base
      *  (first claim only — rearm must not capture the arrangement's own writes),

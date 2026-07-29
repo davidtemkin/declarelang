@@ -80,7 +80,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
     barH: number = 35,                           // title-bar height; content starts below it
     minW: number = 340,                          // resize floors
     minH: number = 120,
-    gutter: number = 6,                          // the resize halo's reach OUTSIDE the frame (ignoreclip)
+    gutter: number = 6,                          // the resize halo's reach OUTSIDE the frame (ignoreClip)
     inset: number = 3,                           // …and INSIDE it — the measured macOS band: ±3px on the
 
     //   frame line, the window winning over content (scrollbars
@@ -389,7 +389,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
         sep: View [ x = 0, y = { classroot.barH - 1 }, width = { parent.width }, height = 1, fill = { theme.line } ]
         ],
 
-    // THE RESIZE HALO — one ignoreclip child instead of eight strips: a ring
+    // THE RESIZE HALO — one ignoreClip child instead of eight strips: a ring
     // OUTSIDE the frame (the window clips; the halo opts out), raised above
     // all content by raiseChrome so the band wins everywhere it exists — and
     // ONLY there: the ring clip makes the whole interior hit-transparent, so
@@ -397,7 +397,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
     // could only thin, dissolved). Zones and cursors are arithmetic on the
     // pointer; a corner is the last `corner` px of a band.
 
-    halo: View [ ignoreclip = true, visible = { !classroot.plain && !classroot.shaded },
+    halo: View [ ignoreClip = true, visible = { !classroot.plain && !classroot.shaded },
         x = { -classroot.gutter }, y = { -classroot.gutter },
         width = { parent.width + 2 * classroot.gutter }, height = { parent.height + 2 * classroot.gutter },
 
@@ -930,7 +930,7 @@ class FilesWindow extends Window [ forApp = "files",
         // trackpad's horizontal delta drives it, and the runtime swallows that
         // gesture so it never becomes Safari's back-swipe (dom-backend setScrollX).
 
-        strip: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height }, scrollsX = true,
+        strip: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height }, scrolls = x,
             datapath = { classroot.cols.value },
             row: View [ x = 0, y = 0, height = { parent.height },
                 width = { (classroot.cols.value.list || []).reduce((s, c) => s + (classroot.widths[c.depth] != null ? classroot.widths[c.depth] : classroot.colW), 0) },
@@ -961,7 +961,7 @@ class FilesWindow extends Window [ forApp = "files",
 
                     // a LIST column — this level's nodes as selectable rows
 
-                    lst: View [ visible = { :items != null }, x = 0, y = 0, width = { parent.width }, height = { parent.height }, scrolls = true,
+                    lst: View [ visible = { :items != null }, x = 0, y = 0, width = { parent.width }, height = { parent.height }, scrolls = y,
 
                         // a second click that lands on DEAD SPACE (the reveal slide moved
                         // the rows out from under the pointer) still completes a pointer-
@@ -1125,7 +1125,7 @@ class ViewerWindow extends Window [ width = 640, height = 460, forApp = "markdow
         },
 
     body: View [ x = 0, y = { classroot.barH }, width = { parent.width }, height = { parent.height - classroot.barH },
-        scrolls = true, selectable = true,
+        scrolls = y, selectable = true,
 
         // THE DOCS READING TREATMENT, carried over whole (docs.declare is the
         // reference): 48px side margins and 40 above (the pad's explicit height

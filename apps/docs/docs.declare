@@ -737,7 +737,7 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
        Brand, the Guide/Reference switch, the font-size stepper, then the nav
        for the live mode. */
 
-    rail: View [ x = 0, y = 0, width = { app.railW }, height = { app.hostHeight }, scrolls = true, fill = { theme.rail },
+    rail: View [ x = 0, y = 0, width = { app.railW }, height = { app.hostHeight }, scrolls = y, fill = { theme.rail },
         edge: View [ x = { app.railW - 1 }, y = 0, width = 1, height = { app.hostHeight }, fill = { theme.edge } ],
         col: View [ x = 16, y = 22, width = { app.railW - 32 },
             layout: SimpleLayout [ axis = y, spacing = 4 ],
@@ -824,7 +824,7 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
        browser text selection — prose, signatures, Markdown runs — while the
        rail stays chrome. */
 
-    detail: View [ x = { app.railW }, y = 0, width = { app.hostWidth - app.railW }, height = { app.hostHeight }, scrolls = true, selectable = true,
+    detail: View [ x = { app.railW }, y = 0, width = { app.hostWidth - app.railW }, height = { app.hostHeight }, scrolls = y, selectable = true,
         top: View [ x = 0, y = 0, width = 1, height = 1 ],       // showPage's scroll-to-top anchor
         col: View [ x = 48, y = 40, width = { parent.width - 96 },
             guideCol: View [ width = { parent.width }, visible = { app.mode == "guide" },

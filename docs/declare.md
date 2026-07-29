@@ -377,8 +377,8 @@ height = { Math.min(contentHeight, 480) },    // grow to a cap, then stop
 clip   = true                                // hide whatever passes the cap
 ```
 
-`clip = true` clips children to the box, `scrolls = true` scrolls taller content natively, and a
-child opts out of its parent's regime with `ignorelayout` or `ignoreclip`.
+`clip = true` clips children to the box, `scrolls = y` scrolls taller content natively, and a
+child opts out of its parent's regime with `ignoreLayout` or `ignoreClip`.
 
 **Positions are literals.** `x = center` and `x = end`, and the same on `y`, place a view against
 its parent — resolved reactively, exactly like `100%`. The closed set is `center` and `end`; the

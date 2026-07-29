@@ -119,7 +119,7 @@ layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ]
 
 **Stacking order is declaration order** — later siblings render on top. There is no z-index.
 
-**Sizing:** unset means automatic (a view sizes to its content — read `contentWidth`/`contentHeight`); a constant is fixed; a constraint is live. `scrolls = true` makes a view scroll its taller content natively.
+**Sizing:** unset means automatic (a view sizes to its content — read `contentWidth`/`contentHeight`); a constant is fixed; a constraint is live. `scrolls = y` makes a view scroll its taller content natively.
 
 ## 5. Reactivity: constraints and the `=` setter
 

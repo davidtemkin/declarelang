@@ -319,7 +319,7 @@ class CanvasSurface {
     parent = null;
     children = [];
     /** True when this surface opts out of its parent's box/shape clip
-     *  (ignoreclip) — the parent's paint/hit brackets skip the clip for it. */
+     *  (ignoreClip) — the parent's paint/hit brackets skip the clip for it. */
     ignoresClip = false;
     setIgnoreClip(on) {
         this.ignoresClip = on;
@@ -722,7 +722,7 @@ class CanvasSurface {
         }
         const cpHit = this.clipPathObj();
         if (cpHit !== null && !hitCtx().isPointInPath(cpHit, lx, ly)) {
-            // outside this surface's clip only its ignoreclip children remain live
+            // outside this surface's clip only its ignoreClip children remain live
             const cyx = this.scrolls ? ly + this.scrollOffset : ly;
             for (let i = this.children.length - 1; i >= 0; i--) {
                 const c = this.children[i];
@@ -759,7 +759,7 @@ class CanvasSurface {
     // Horizontal scroll is a DOM-backend affordance for now (code blocks); the canvas
     // compositor's x-scroll is a later addition, so this is a no-op here (over-wide
     // content simply isn't clipped on canvas — the docs render on DOM).
-    setScrollX(_on) { }
+    setScrollX(_on, _onScroll) { }
     // Native rich-text flow is a DOM affordance; on canvas the RichText component lays
     // the runs out as child views itself. -1 signals "not handled, fall back".
     setRichContent() { return -1; }
@@ -896,7 +896,7 @@ class CanvasSurface {
             paintBoxShadow(ctx, this.box, this.shadow);
         }
         const cpPaint = this.clipPathObj();
-        // ignoreclip children paint OUTSIDE the clip bracket, in their declared
+        // ignoreClip children paint OUTSIDE the clip bracket, in their declared
         // stacking side (leading exempt run below the clipped set, the rest
         // above) — mirroring the DOM's element partition. Only taken on the
         // plain-opacity path: under a group-opacity layer the whole subtree

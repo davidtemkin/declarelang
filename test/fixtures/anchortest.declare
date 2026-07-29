@@ -6,7 +6,7 @@
 // reachable scroll offset, with a full viewport of trailing filler after the last.
 
 App [ width = 900, height = 300,
-    body: View [ width = { app.width }, height = { app.height }, scrolls = true,
+    body: View [ width = { app.width }, height = { app.height }, scrolls = y,
         page: Markdown [ x = 40, y = 40, width = 520, text = """
 # Introduction
 

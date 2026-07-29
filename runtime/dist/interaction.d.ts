@@ -10,7 +10,7 @@ export interface InteractionView {
     clip: string | boolean | null;
     visible: boolean;
     pointerEvents: string;
-    ignoreclip: boolean;
+    ignoreClip: boolean;
     parent: unknown;
     root: unknown;
     children: readonly unknown[];
@@ -39,7 +39,7 @@ export declare function leafAt(v: InteractionView, lx: number, ly: number, pierc
 /** The view under a ROOT-SPACE point — the public hit test (view.ts wraps it
  *  as `app.viewAt(x, y)`), answering with the same walk the pointer itself is
  *  routed by: clip shapes, scale and pivot, `pointerEvents: "none"`, and
- *  `ignoreclip` all count exactly as they do for a real press. Returns the
+ *  `ignoreClip` all count exactly as they do for a real press. Returns the
  *  deepest (topmost) view; walk `.parent` for an eligible ancestor. */
 export declare function hitAt(root: unknown, x: number, y: number, pierce?: boolean): InteractionView | null;
 /** Does `view`'s own box contain this point, given in ROOT space? Geometry

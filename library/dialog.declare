@@ -3,7 +3,7 @@
 
 The modal tier (planes.md): a full-app SCRIM that swallows every press —
 modal input blocking, no light dismiss — under a centered panel with a
-focustrap. Buttons are RECORDS (the records door): `{ id, label,
+focusTrap. Buttons are RECORDS (the records door): `{ id, label,
 default?, cancel? }`, rendered as themed library Buttons right-aligned in
 the platform arrangement. Focus SAVES on open and RETURNS on close.
 
@@ -148,7 +148,7 @@ class Dialog extends View [ visible = { shown },
         onPointerDown() { }
         ],
 
-    panel: View [ focustrap = true,
+    panel: View [ focusTrap = true,
         width = { typeof theme.dialogWidth == "number" ? theme.dialogWidth : 420 },
         x = { (app.width - this.width) / 2 },
         y = { Math.max(40, (app.height - this.height) / 3) },

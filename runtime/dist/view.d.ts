@@ -45,11 +45,11 @@ export declare class View extends Node {
     opacity: number;
     /** Opt out of the parent's LAYOUT (this child owns its own position; the
      *  arrangement skips it) — the decoration/overlay case. */
-    ignorelayout: boolean;
+    ignoreLayout: boolean;
     /** Opt out of the parent's CLIP (outside the parent's frame this child
      *  still paints and still hits) and of its auto-extent — frame chrome that
      *  straddles the frame. Parent-scoped: ancestors' clips still apply. */
-    ignoreclip: boolean;
+    ignoreClip: boolean;
     /** The pointer cursor while over this view (a CSS cursor keyword —
      *  "ew-resize", "col-resize", "pointer", …; "" = inherit). Meaningful on
      *  views that take input: the sink is the hit target on both backends. */
@@ -64,18 +64,21 @@ export declare class View extends Node {
     scale: number;
     pivotX: number;
     pivotY: number;
-    scrolls: boolean;
+    /** Which axes of interior overflow this view scrolls — `"none"` (the View
+     *  default), `"y"`, `"x"`, or `"both"`. Overflow along a declared axis
+     *  becomes scroll range; along any other axis it is out of frame. */
+    scrolls: "none" | "y" | "x" | "both";
     /** The tooltip text (planes.md tier 1 — one attribute at the use site). A
      *  non-empty tip wires this view's hover into the Tip service; the
      *  auto-included Tooltip singleton renders it. "" = no tip. */
     tip: string;
-    scrollsX: boolean;
     scrollY: number;
+    scrollX: number;
     /** Keyboard focus (docs/system-design/input.md, Layer 2). `focusable` = a tab stop;
-     *  `focustrap` = a self-contained focus group. Traversal order is the tree,
+     *  `focusTrap` = a self-contained focus group. Traversal order is the tree,
      *  overridable per view by defining a `tabOrder()` method. */
     focusable: boolean;
-    focustrap: boolean;
+    focusTrap: boolean;
     anchor: string;
     /** Clip the subtree (paint AND hit-test). Two forms on one slot: a Shape
      *  string clips to that SVG path (view-local coordinates); the boolean
@@ -298,7 +301,7 @@ export declare class View extends Node {
     protected flush(s: Surface): void;
     /** THE HIT TEST: the view under a root-space point, or null. The same walk
      *  the pointer is routed by (interaction.ts) — clip shapes, scale, pivot,
-     *  `pointerEvents`, and `ignoreclip` all count exactly as they do for a real
+     *  `pointerEvents`, and `ignoreClip` all count exactly as they do for a real
      *  press — so what a handler computes and what the runtime routes can never
      *  disagree. Answers the deepest (topmost) view; walk `.parent` to find an
      *  eligible ancestor:

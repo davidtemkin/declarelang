@@ -27,7 +27,7 @@ class HeadlessSurface {
     setClip(_pathData) { }
     setBoxClip(_on) { }
     setScroll(_on, _onScroll) { }
-    setScrollX(_on) { }
+    setScrollX(_on, _onScroll) { }
     /** -1 = "this backend cannot flow native rich content" — RichText then lays
      *  its runs out as child views through the shared measurer, exactly the
      *  Canvas fallback, so a headless settle still produces real flow geometry. */

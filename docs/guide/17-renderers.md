@@ -26,7 +26,7 @@ less** — anti-aliased edges, nothing structural.
 
 **DOM**: every view is a `<div>` whose geometry Declare drives directly.
 Box decoration maps to CSS exactly where CSS is measured pixel-stable
-against the shared box painter; text is real text; `scrolls = true` is a
+against the shared box painter; text is real text; `scrolls = y` is a
 native scroller; hit-testing is the browser's own, with the runtime
 resolving to the nearest handler-bearing view.
 

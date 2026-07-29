@@ -36,7 +36,7 @@ data-agnostic values; derive-down / deliver-up (`value = { app.x }` +
 base with the four states. Plus: auto-include by bare tag (the manifest), a
 reference chapter with runnable demos, verify R1–R3 probes per component, and
 keyboard behavior specified at design time, not retrofitted (the Focus
-machinery — focustrap, `onEscapeFocus`, contained Tab — already carries most
+machinery — focusTrap, `onEscapeFocus`, contained Tab — already carries most
 of it).
 
 ## 3. The component set
@@ -56,7 +56,7 @@ of it).
 |---|---|
 | `Menu` / `MenuItem` | the first `Floating` client: anchored, promotion-ordered, light-dismiss, arrow-key roving, submenu = nested promotion. |
 | `Select` | Field + Menu composed; the single most load-bearing form control. Typeahead later. |
-| `Dialog` | the modal plane: input-blocking scrim, focustrap on open, focus RETURNS on close (the `noteDiscarded` machinery half-provides), Escape = cancel. `Confirm` is a one-line specialization. |
+| `Dialog` | the modal plane: input-blocking scrim, focusTrap on open, focus RETURNS on close (the `noteDiscarded` machinery half-provides), Escape = cancel. `Confirm` is a one-line specialization. |
 | `Tooltip` | `Floating` + hover-intent delay + never-focusable; anchored to any view. |
 | `Toast` | the notice plane; a queue with timed dismissal, `app.notify(…)`-style service action. |
 

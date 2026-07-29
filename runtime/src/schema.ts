@@ -86,16 +86,16 @@ const ViewSchema: ComponentSchema = {
     shadow: { kind: "shadow" },
     visible: { kind: "boolean" },
     // The two parent-regime OPT-OUTS, declared on the child (one family):
-    // `ignorelayout` — this child is not arranged by the parent's layout (a
-    // decoration/overlay owns its own position, both axes); `ignoreclip` —
+    // `ignoreLayout` — this child is not arranged by the parent's layout (a
+    // decoration/overlay owns its own position, both axes); `ignoreClip` —
     // this child is not cut by the parent's clip (paint AND hit — frame
     // chrome that straddles the frame: a window's resize halo, a badge
     // poking out of a clipped card), and it does not count toward the
     // parent's auto-extent (frame geometry derives FROM the parent's bounds
     // and cannot also define them — the percent-slot rule's sibling). An
     // ancestor's clip above the parent still applies.
-    ignorelayout: { kind: "boolean" },
-    ignoreclip: { kind: "boolean" },
+    ignoreLayout: { kind: "boolean" },
+    ignoreClip: { kind: "boolean" },
     opacity: { kind: "number" },
     // Uniform scale transform (painted only — never layout, like opacity): the
     // view's subtree renders scaled about the pivot point (pivotX/pivotY, in the
@@ -107,16 +107,19 @@ const ViewSchema: ComponentSchema = {
     pivotX: { kind: "number" },
     pivotY: { kind: "number" },
     clip: { kind: "shape" },
-    // Scroll: a view that scrolls its overflowing content — clips to its box and
-    // scrolls the vertical overflow, exposing `scrollY` (reactive: read it for
-    // scroll-driven effects — a fading header, reveals). Chrome stays fixed for
-    // free simply by being a SIBLING of the scroller, not a child of it. Both
-    // backends realize it natively (DOM `overflow`; canvas clip+translate+wheel).
-    scrolls: { kind: "boolean" },
+    // Scroll: which AXES of interior overflow this view scrolls (ruled
+    // 2026-07-29, the axis-enum form — the Stretch shape): `none` (the View
+    // default — overflow is out of frame), `y`, `x`, or `both`. A scrolling
+    // view clips to its box; overflow along a declared axis becomes its scroll
+    // range (live `scrollY`/`scrollX`), overflow along any other axis is
+    // simply gone. Chrome stays fixed for free by being a SIBLING of the
+    // scroller — or a child that declares `ignoreScroll`. Both backends
+    // realize scrolling natively (DOM `overflow`; canvas clip+translate+wheel).
+    scrolls: enumType("Scrolls", "none", "y", "x", "both"),
     // the tooltip text — planes.md tier 1; "" (the default) = no tip
     tip: { kind: "string" },
-    scrollsX: { kind: "boolean" },
     scrollY: { kind: "number" },
+    scrollX: { kind: "number" },
     // Styling: the ruled prevailing built-ins — the four text-style slots
     // (declared on View so any container can provide them; Text renders with
     // the effective values) and the theme token record. NOT prevailing, by
@@ -201,11 +204,11 @@ const ViewSchema: ComponentSchema = {
     // expression yielding a place in a dataset, or null.
     datapath: { kind: "cursor" },
     // Keyboard focus (docs/system-design/input.md, Layer 2): `focusable` = a tab stop;
-    // `focustrap` = a self-contained focus group (Tab cycles within, escapes at
+    // `focusTrap` = a self-contained focus group (Tab cycles within, escapes at
     // the boundary). Traversal order is the view tree (no numeric tabindex),
     // customized by overriding the `tabOrder()` method.
     focusable: { kind: "boolean" },
-    focustrap: { kind: "boolean" },
+    focusTrap: { kind: "boolean" },
     // Anchor name (location.md §6): give a view a name and a fragment `@name`
     // brings it into view. This is the "named view" half of the reveal namespace
     // (heading slugs are the other); resolution is views-before-slugs, preorder,

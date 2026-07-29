@@ -29,7 +29,7 @@ The service **core is pure** (accepts normalized key events, keeps state, dispat
 
 **Default order = view-tree preorder of `focusable && visible` views — NO numeric index.** LZX deliberately avoids `tabindex`, the DOM accessibility footgun everyone is told never to use. Tree order is also visual order in a well-built tree, and it handles replicated / runtime-created views for free (they sit at their tree position; replicated instances follow data order).
 
-**Focus containment is declarative — `focustrap`.** A `focustrap` view forms a self-contained focus group: Tab cycles *within* it (wrapping), and an `onEscapeFocus` fires at the boundary. This is the modal/dialog focus-trap as one attribute — the thing DOM took ~20 years to approximate (`inert` / `<dialog>` / focus-trap libraries). Straight from LZX.
+**Focus containment is declarative — `focusTrap`.** A `focusTrap` view forms a self-contained focus group: Tab cycles *within* it (wrapping), and an `onEscapeFocus` fires at the boundary. This is the modal/dialog focus-trap as one attribute — the thing DOM took ~20 years to approximate (`inert` / `<dialog>` / focus-trap libraries). Straight from LZX.
 
 **Explicit order = a `tabOrder()` method returning an ordered array of VIEWS.** Two orthogonal things on a view: `focusable` (bool — "am I a stop?") and `tabOrder()` (ordered *members to descend into*; default = my visible children in source order). The focus service produces the flat sequence by a recursive preorder flatten that consults each view's own `tabOrder()`:
 
@@ -49,13 +49,13 @@ Returning *views* (not flattened sequences) is what buys composability: an outer
 
 Safety net (dev builds): since `tabOrder()` is dynamic there's no static "you forgot a field" check — after a traversal the service can compare the returned order against the actual focusable descendants and warn on omissions.
 
-**Keyboard delivery to focus:** the focused view receives `onKeyDown` / `onKeyUp` (target-only, per D-2 — no bubbling; replication refills the delegation gap). `Tab` / `Shift-Tab` are consumed by the focus service (advance/retreat) unless a focustrap escapes.
+**Keyboard delivery to focus:** the focused view receives `onKeyDown` / `onKeyUp` (target-only, per D-2 — no bubbling; replication refills the delegation gap). `Tab` / `Shift-Tab` are consumed by the focus service (advance/retreat) unless a focusTrap escapes.
 
 ### Mutation during traversal
 
 The tree can change while the user tabs. It works because the sequence is computed **live per Tab**, never cached — three cases:
 
-1. **Focused view survives** — free. Each Tab recomputes from the root/focustrap over the live tree, finds the focused view, and steps. Any add/remove/reorder/visibility change since the last Tab is reflected. (O(focusable) per keystroke; Tab is rare — LZX accepted this.)
+1. **Focused view survives** — free. Each Tab recomputes from the root/focusTrap over the live tree, finds the focused view, and steps. Any add/remove/reorder/visibility change since the last Tab is reflected. (O(focusable) per keystroke; Tab is rare — LZX accepted this.)
 2. **Focused view disappears** (a reconcile discards its instance, a state tears down its subtree, or it goes invisible) — handled *proactively*: the focus service hooks the leaving lifecycle (`View.discard()` and `visible → false`) and, if the departing view holds focus, moves focus to the live neighbor computed at that moment, *before* it goes. Lands cheaply because `View.discard()` already exists (replication + states teardown). Focus is never left dangling.
 3. **Tree mutates during the focus change itself** (an `onFocus`/`onBlur` handler mutating or calling `focus()`) — a **focus-change lock** serializes it (re-entry remembers the new target, applies it after the current settles — LZX's exact discipline), and `tabOrder()` must be a pure read so the collect walk sees a consistent snapshot.
 
@@ -75,7 +75,7 @@ So the focus service is a small *stateful* service (holds current focus, subscri
 ## Rulings summary
 
 - **Raw keys:** DOM kernel; LZX-shaped `Keys` service (held-set `isDown`, chords, global + focused delivery, pure testable core).
-- **Focus/tab:** tree-order default (no `tabindex`); declarative `focustrap` (LZX); explicit order via a `tabOrder()` method returning ordered **views** (Declare's improvement on LZX's per-leaf next/prev — composable, complete, dynamic-safe); sequence computed live per Tab with a discard/visibility hook + focus lock so a moving tree can't strand focus.
+- **Focus/tab:** tree-order default (no `tabindex`); declarative `focusTrap` (LZX); explicit order via a `tabOrder()` method returning ordered **views** (Declare's improvement on LZX's per-leaf next/prev — composable, complete, dynamic-safe); sequence computed live per Tab with a discard/visibility hook + focus lock so a moving tree can't strand focus.
 - **Text input:** `text` as source-of-truth (no `<->`); native element (DOM) / overlay-on-activation (canvas); native/overlay owns caret/selection/IME.
 
 ## Deferred

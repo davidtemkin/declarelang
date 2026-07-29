@@ -47,7 +47,7 @@ class Segment extends View [ kind: string = "",
         height = { this.body.height + 32 },
 
         spine: View [ x = 0, y = 0, width = 2, height = { parent.height }, fill = { app.theme.accentTeal } ],
-        body: View [ x = 20, y = 16, width = { parent.width - 40 }, scrollsX = true, height = { this.contentHeight },
+        body: View [ x = 20, y = 16, width = { parent.width - 40 }, scrolls = x, height = { this.contentHeight },
             HTMLText [ x = 0, y = 0, width = { parent.width },
                 html = { classroot.html }, scale = { app.fontScale },
                 accents = { app.codeAccents() }, bodyColor = { app.codeFg() }, selectable = true ]
@@ -299,7 +299,7 @@ App [ fill = { app.theme.bg },
 
     content: View [ x = 0, y = { app.barH }, width = { app.hostWidth }, height = { app.hostHeight - app.barH },
         visible = { app.mode != "edit" },
-        scrolls = true, selectable = true, fill = { app.theme.bg },
+        scrolls = y, selectable = true, fill = { app.theme.bg },
 
         // the filename as a page title — the directory muted, the file bold — with
         // a rule under it; the body starts below (headH)
@@ -344,7 +344,7 @@ App [ fill = { app.theme.bg },
             // verbatim source at the house code rendition — the same face and size
             // as the reader's highlighted code, so the two views read identically.
 
-            body: View [ x = 20, y = 16, width = { parent.width - 40 }, scrollsX = true, height = { this.contentHeight },
+            body: View [ x = 20, y = 16, width = { parent.width - 40 }, scrolls = x, height = { this.contentHeight },
                 HTMLText [ x = 0, y = 0, width = { parent.width }, html = { app.plainHtml() },
                     scale = { app.fontScale }, bodyColor = { app.codeFg() }, selectable = true ]
                 ]

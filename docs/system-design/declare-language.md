@@ -472,7 +472,7 @@ Roughly in priority order — corpus weight, plus how much each blocks authoring
 - **RPC / remote calls.** OL's `<rpc>` / `remotecall` (350 / 404). `DataSource` covers fetch-a-*resource*; calling a remote *method* and binding to that call's in-flight state does not. Likely collapses to "`await` a TypeScript function" plus a call-state helper — but it should be stated.
 - **Static / class-level members.** OL's `allocation="class"` (110). Probably TypeScript `static`, but a class-level *reactive* attribute shared across instances needs a stated position.
 - **Resources & fonts.** `<resource>` (4,612, often multi-`<frame>` sprite stylesheets) and `<font>`/`<face>`. Declarative asset registration, sprite frames, and font embedding need a home (some is asset-pipeline → [declare-implementation.md](declare-implementation.md)).
-- **Focus model.** `focusable` / `focustrap` / `onfocus` (384 / 21 / 9). Only an imperative `Focus.setFocus()` today; first-class focusability and tab-order tie into the accessibility story.
+- **Focus model.** `focusable` / `focusTrap` / `onfocus` (384 / 21 / 9). Only an imperative `Focus.setFocus()` today; first-class focusability and tab-order tie into the accessibility story.
 - **Mostly obviated by the abstracted, runtime-independent substrate** — conditional compilation (`<switch runtime=>`) → a build-flag convention (the app never branches on the runtime; the kernel is hidden); `<interface>` → TypeScript `interface`; `passthrough` / event bubbling → an event-propagation policy to confirm.
 
 ### Refinements to constructs already settled

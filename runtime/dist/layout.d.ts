@@ -74,7 +74,7 @@ export declare abstract class Layout extends Node implements LayoutStrategy {
      *  tracking and re-run through the ordinary machinery. */
     rearm(): void;
     /** The children this strategy arranges: the view's View children, honoring
-     *  the `ignorelayout` opt-out (LZX's rule — a decoration/overlay child owns
+     *  the `ignoreLayout` opt-out (LZX's rule — a decoration/overlay child owns
      *  its own position, both axes). Non-View members (a Dataset, an Animator, a
      *  State) are never laid. In child order — order is the layout semantics —
      *  and `place()`'s boxes align with this array BY INDEX. */

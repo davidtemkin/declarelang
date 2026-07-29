@@ -567,15 +567,15 @@ class DomSurface implements Surface {
     return carveHitCtx().isPointInPath(this.clipObj, (cx - r.left) / k, (cy - r.top) / k);
   }
 
-  /** True when this surface opts out of its parent's box-clip (ignoreclip). */
+  /** True when this surface opts out of its parent's box-clip (ignoreClip). */
   ignoresClip = false;
   /** The lazy inner clip container (see setBoxClip), discovered BY SELECTOR so
    *  either side of the seam can find or materialize it — the parent (a clip
-   *  arriving over exempt children) or the child (ignoreclip flushed after the
+   *  arriving over exempt children) or the child (ignoreClip flushed after the
    *  insert). Every ordinary child lives inside it, the exempt ones stay on
    *  the outer element, and the outer keeps ALL decoration exactly as before
    *  (radius rounds paint; the box-shadow silhouette is the outer's).
-   *  Pay-per-use: an app that never writes ignoreclip keeps today's
+   *  Pay-per-use: an app that never writes ignoreClip keeps today's
    *  single-element realization untouched. */
   private get clipBox(): HTMLElement | null {
     return this.element.querySelector(":scope > [data-declare-clipbox]");
@@ -645,38 +645,47 @@ class DomSurface implements Surface {
     return true;
   }
 
+  // Which axes this surface scrolls (the `scrolls` enum, per axis). The two
+  // setters below each own one axis and share this state so `both` composes:
+  // the overflow/touch-action/containment styling is recomputed from the pair.
+  private scrollYOn = false;
+  private scrollXOn = false;
+  /** Reconcile the scroller styling with the axis pair. A scrolling axis is
+   *  native `auto` (the OS overlay scrollbar, momentum, edge bounce); the
+   *  other axis of a scroller is `hidden` (out of frame — the axis rule);
+   *  no axes = not a scroller at all. `contain` gives the pane its own
+   *  rubber-band while refusing to chain a scroll-past up to the page; the
+   *  touch-action DELEGATES exactly the declared axes' panning and keeps
+   *  pinch-zoom delegated too (plain `pan-y` would silently forbid the
+   *  user's pinch — a claim nobody made). */
+  private applyScrollStyle(): void {
+    const el = this.element;
+    const any = this.scrollYOn || this.scrollXOn;
+    el.style.overflowY = this.scrollYOn ? "auto" : any ? "hidden" : "";
+    el.style.overflowX = this.scrollXOn ? "auto" : any ? "hidden" : "";
+    if (any) {
+      el.dataset.declareScroll = "1";   // a native scroller — its offset is preserved across a DOM move (insertChild)
+      (el.style as CSSStyleDeclaration & { overscrollBehavior: string }).overscrollBehavior = "contain";
+      el.style.touchAction = `${this.scrollXOn ? "pan-x " : ""}${this.scrollYOn ? "pan-y " : ""}pinch-zoom`;
+      // A scroll container accepts pointer/wheel events (its children stay
+      // inert, so clicks still resolve to the sink under the pointer). Native
+      // wheel then drives the box directly: abs children DO register
+      // scrollable overflow, so the browser scrolls, momentums, and
+      // rubber-bands with no manual offset math.
+      el.style.pointerEvents = "auto";
+    } else {
+      (el.style as CSSStyleDeclaration & { overscrollBehavior: string }).overscrollBehavior = "";
+      el.style.pointerEvents = "none";
+      delete el.dataset.declareScroll;
+      this.refreshTouchAction(); // back to whatever this view's own claim says
+    }
+  }
+
   private scrollListener: (() => void) | undefined;
   setScroll(on: boolean, onScroll: (y: number) => void): void {
     const el = this.element;
+    this.scrollYOn = on;
     if (on) {
-      // The box clips + owns a real vertical scroll offset; siblings stay
-      // compositor-pinned. Horizontal overflow is hidden (a horizontal scroller
-      // at this level is nearly always a bug — wide content opts in via
-      // setScrollX). Native `overflow:auto` gives the OS overlay scrollbar.
-      el.style.overflowY = "auto";
-      el.style.overflowX = "hidden";
-      el.dataset.declareScroll = "1";   // a native scroller — its offset is preserved across a DOM move (insertChild)
-      // `contain` gives THIS element its own native rubber-band (edge bounce +
-      // momentum) while refusing to chain a scroll-past up to the pinned page —
-      // so a pane bounces on its own edges and never flashes the document behind
-      // it, and two sibling panes overscroll independently. (An earlier build
-      // used `none`, which killed the chain but ALSO the wanted local bounce.)
-      (el.style as CSSStyleDeclaration & { overscrollBehavior: string }).overscrollBehavior = "contain";
-      // A scroll pane DELEGATES its panning to the browser — native vertical
-      // touch drag + momentum — and keeps pinch-zoom delegated too (plain
-      // `pan-y` would silently forbid the user's pinch over the pane, a claim
-      // nobody made). Set after the declareScroll mark so refreshTouchAction
-      // knows to leave this element alone.
-      el.style.touchAction = "pan-y pinch-zoom";
-      // A scroll container accepts pointer/wheel events (its children stay inert,
-      // so clicks still resolve to the sink under the pointer). Native wheel then
-      // drives the box directly: every Declare view is position:absolute, but abs
-      // children DO register scrollable overflow, so the browser scrolls,
-      // momentums, and rubber-bands it with no manual offset math — verified
-      // in-browser (bare abs content: scrollHeight tracks the content, wheel
-      // moves scrollTop, edges bounce). Driving scrollTop by hand instead would
-      // clamp to the bounds and defeat the overscroll.
-      el.style.pointerEvents = "auto";
       if (this.scrollListener === undefined) {
         // Mirror the browser's offset back into the view's reactive `scrollY`:
         // fires for wheel, touch, momentum, scrollbar-drag, and programmatic
@@ -684,32 +693,24 @@ class DomSurface implements Surface {
         this.scrollListener = () => onScroll(el.scrollTop);
         el.addEventListener("scroll", this.scrollListener, { passive: true });
       }
-    } else {
-      if (this.scrollListener !== undefined) {
-        el.removeEventListener("scroll", this.scrollListener);
-        this.scrollListener = undefined;
-      }
-      el.style.overflowY = "";
-      el.style.overflowX = "";
-      el.style.pointerEvents = "none";
-      delete el.dataset.declareScroll;
-      this.refreshTouchAction(); // back to whatever this view's own claim says
+    } else if (this.scrollListener !== undefined) {
+      el.removeEventListener("scroll", this.scrollListener);
+      this.scrollListener = undefined;
     }
+    this.applyScrollStyle();
   }
 
   private wheelXListener: ((e: WheelEvent) => void) | undefined;
-  setScrollX(on: boolean): void {
+  private scrollXListener: (() => void) | undefined;
+  setScrollX(on: boolean, onScroll?: (x: number) => void): void {
     const el = this.element;
+    this.scrollXOn = on;
     if (on) {
-      // Clip the box and scroll its overflowing WIDTH; vertical stays clipped.
-      el.style.overflowX = "auto";
-      el.style.overflowY = "hidden";
-      el.dataset.declareScroll = "1";   // a native scroller — offset preserved across a DOM move (insertChild)
-      el.style.pointerEvents = "auto";
       if (this.wheelXListener === undefined) {
-        // Absolute-positioned content: the wheel won't drive it (as in setScroll),
-        // so advance scrollLeft ourselves — from a trackpad's horizontal delta or a
-        // shift+wheel. A plain vertical wheel is left alone so it scrolls the PAGE.
+        // Absolute-positioned content: a PLAIN vertical wheel won't drive a
+        // horizontal box, so advance scrollLeft ourselves — from a trackpad's
+        // horizontal delta or a shift+wheel. A vertical wheel is left alone
+        // (it belongs to whatever scrolls vertically here or above).
         this.wheelXListener = (e: WheelEvent) => {
           const dx = e.deltaX || (e.shiftKey ? e.deltaY : 0);
           if (dx === 0) return;
@@ -719,13 +720,16 @@ class DomSurface implements Surface {
         };
         el.addEventListener("wheel", this.wheelXListener, { passive: false });
       }
+      if (this.scrollXListener === undefined && onScroll !== undefined) {
+        // scrollX parity with scrollY: mirror the offset into the reactive slot.
+        this.scrollXListener = () => onScroll(el.scrollLeft);
+        el.addEventListener("scroll", this.scrollXListener, { passive: true });
+      }
     } else {
       if (this.wheelXListener !== undefined) { el.removeEventListener("wheel", this.wheelXListener); this.wheelXListener = undefined; }
-      el.style.overflowX = "";
-      el.style.overflowY = "";
-      el.style.pointerEvents = "none";
-      delete el.dataset.declareScroll;
+      if (this.scrollXListener !== undefined) { el.removeEventListener("scroll", this.scrollXListener); this.scrollXListener = undefined; }
     }
+    this.applyScrollStyle();
   }
 
   /** Native rich-text flow (RichText). Build ONE flowing content element — a block
@@ -1176,7 +1180,7 @@ class DomSurface implements Surface {
     const scrollers: HTMLElement[] = el.dataset.declareScroll ? [el] : [];
     el.querySelectorAll<HTMLElement>("[data-declare-scroll]").forEach((s) => scrollers.push(s));
     const saved = scrollers.map((s) => [s, s.scrollLeft, s.scrollTop] as const);
-    // An ignoreclip child stays on the OUTER element (marked so ensureClipBox
+    // An ignoreClip child stays on the OUTER element (marked so ensureClipBox
     // never adopts it); ordinary children live in the clip box once one exists.
     // `before` may live in the other container — then fall back to append (the
     // partition quantizes cross-container order: exempt children stack below or

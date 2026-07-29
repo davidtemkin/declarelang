@@ -68,7 +68,7 @@ function readerGeo() {
   return page.evaluate(() => {
     const w = globalThis.__declare.find("app.wins").children.find((c) => c.constructor.name === "ViewerWindow");
     globalThis.__w = w;
-    const walk = (v) => { if (v.scrolls) return v; for (const c of v.children ?? []) { const r = walk(c); if (r) return r; } return null; };
+    const walk = (v) => { if (v.scrolls === "y" || v.scrolls === "both") return v; for (const c of v.children ?? []) { const r = walk(c); if (r) return r; } return null; };
     globalThis.__body = walk(w);
     return { x: w.x, y: w.y + 32, w: w.width, h: w.height, scrollY: globalThis.__body?.scrollY ?? null };
   });
@@ -90,7 +90,7 @@ try {
 
   await test("DOM: the halo realizes CSS-inert with no authored pointerEvents (the carved-sink rule)", async () => {
     const r = await page.evaluate(() => {
-      const halo = globalThis.__w.children.find((c) => c.ignoreclip);
+      const halo = globalThis.__w.children.find((c) => c.ignoreClip);
       return { attr: halo.pointerEvents, css: getComputedStyle(halo.surface.element).pointerEvents };
     });
     assert.equal(r.attr, "", "the app must not need the workaround");

@@ -200,7 +200,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
   }
 
   /** The children this strategy arranges: the view's View children, honoring
-   *  the `ignorelayout` opt-out (LZX's rule — a decoration/overlay child owns
+   *  the `ignoreLayout` opt-out (LZX's rule — a decoration/overlay child owns
    *  its own position, both axes). Non-View members (a Dataset, an Animator, a
    *  State) are never laid. In child order — order is the layout semantics —
    *  and `place()`'s boxes align with this array BY INDEX. */
@@ -208,7 +208,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
     const v = this.view;
     if (v === null) return [];
     return v.children.filter(
-      (c): c is View => c instanceof View && (c as { ignorelayout?: boolean }).ignorelayout !== true
+      (c): c is View => c instanceof View && (c as { ignoreLayout?: boolean }).ignoreLayout !== true
     );
   }
 

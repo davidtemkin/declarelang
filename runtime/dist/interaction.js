@@ -78,7 +78,7 @@ export function leafAt(v, lx, ly, pierce = false) {
         return null;
     const inside = lx >= 0 && ly >= 0 && lx <= v.width && ly <= v.height;
     // A clipping view (box or shape — a shape clip approximates as its box here)
-    // bounds its subtree's hits — EXCEPT children that opt out with `ignoreclip`
+    // bounds its subtree's hits — EXCEPT children that opt out with `ignoreClip`
     // (frame chrome straddling the frame "still paints and still hits", view.ts;
     // the desktop's resize halo lives outside its window's clipped box). Ancestors'
     // clips still apply, which the recursion gives for free.
@@ -88,7 +88,7 @@ export function leafAt(v, lx, ly, pierce = false) {
         const c = kids[i];
         if (!isView(c))
             continue;
-        if (clipping && !inside && !c.ignoreclip)
+        if (clipping && !inside && !c.ignoreClip)
             continue;
         const [cx, cy] = toChildLocal(c, lx, ly);
         const hit = leafAt(c, cx, cy, pierce);
@@ -176,7 +176,7 @@ function recOf(view) {
 /** The view under a ROOT-SPACE point — the public hit test (view.ts wraps it
  *  as `app.viewAt(x, y)`), answering with the same walk the pointer itself is
  *  routed by: clip shapes, scale and pivot, `pointerEvents: "none"`, and
- *  `ignoreclip` all count exactly as they do for a real press. Returns the
+ *  `ignoreClip` all count exactly as they do for a real press. Returns the
  *  deepest (topmost) view; walk `.parent` for an eligible ancestor. */
 export function hitAt(root, x, y, pierce = false) {
     if (!isView(root))
