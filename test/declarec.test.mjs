@@ -151,7 +151,7 @@ await test("--crawler embeds the extracted document in the host; the entry clear
 
 // ── `declarec check` — the compile without the build ────────────────────────
 // The one door for "is this source legal" without a dist/: editors, CI, and any
-// source-to-source tool verifying its own output (the LZX transpiler's oracle).
+// source-to-source tool verifying its own output.
 // Exercised through the CLI, because the CLI contract — exit code and the two
 // output forms — is what those consumers depend on.
 
@@ -179,7 +179,7 @@ await test("check: errors exit 1 and name the fix", () => {
     const r = runCheck([bad]);
     assert.equal(r.status, 1);
     // The 2026-07-28 required-parameter-type ruling, reported with the payload
-    // type from the schema's EVENT_PAYLOAD — the exact contract a transpiler
+    // type from the schema's EVENT_PAYLOAD — the exact contract any generator
     // must satisfy to emit a legal handler.
     assert.match(r.stderr, /'e' needs its payload type — write 'onPointerDown\(e: PointerEvent\)'/);
   } finally { rmSync(bad, { force: true }); }

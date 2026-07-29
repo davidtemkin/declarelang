@@ -1029,6 +1029,18 @@
       "docs": "declare-docs:operational:verify"
      },
      {
+      "id": "check",
+      "cmd": "node tools/declarec.mjs check <file.declare…>",
+      "description": "Compile and report, emitting nothing — parse, resolve, check, and typecheck, for one file or many (a library file too). --json emits a machine record per diagnostic (file, code, severity, line, col). Exit 1 on any error; warnings never fail.",
+      "testCmd": "node tools/declarec.mjs check my-apps/__ops_smoke.declare",
+      "expect": {
+       "exitCode": 0,
+       "stdoutIncludes": "clean"
+      },
+      "test": true,
+      "docs": "declare-docs:operational:verify"
+     },
+     {
       "id": "format",
       "cmd": "node tools/format.mjs --write <app.declare>",
       "description": "Rewrite to the one house style (canon). --check exits 1 on drift (the CI gate); no flag prints to stdout.",
@@ -23428,6 +23440,14 @@
      "label": "Markdown file",
      "path": "docs/system-design/capabilities.md",
      "preview": "Status: ratified 2026-07-13. The headless environment, the static (SEO) extractor, and the navigate link model (§6) below are all BUILT. Companion to docs/system-design/constraints.md (analyzability), docs/system-design/hosting.md (the prog…"
+    },
+    {
+     "name": "The claim surface",
+     "subtitle": "every site that can take a gesture, audited",
+     "kind": "doc",
+     "label": "Markdown file",
+     "path": "docs/system-design/claim-surface.md",
+     "preview": "The touch bugs of 2026-07 were one bug wearing different clothes: a local realization claimed a gesture that belonged to an enclosing regime. On touch, ownership is hierarchical and the browser arbitrates it with mid-gesture handoffs (gestu…"
     },
     {
      "name": "Baseline components",
