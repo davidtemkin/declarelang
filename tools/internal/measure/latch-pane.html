@@ -1,0 +1,33 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>latch: OVERFLOW pane</title>
+<!-- DIAG(probe) — the pan-latch experiment's SUBJECT: a full-height OVERFLOW
+     PANE scrolls, mirroring the Declare scroller exactly (overflow-y auto,
+     overscroll-behavior contain, touch-action pan-y pinch-zoom; TA⇄ toggles
+     to auto). The document itself cannot scroll. -->
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0B141B; color: #cfe0ea; font: 16px system-ui; }
+  #pane { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden;
+          overscroll-behavior: contain; touch-action: pan-y pinch-zoom; }
+  .band { height: 100px; box-sizing: border-box; padding: 8px 16px; border-top: 1px solid #1d3242; }
+  .band:nth-child(odd) { background: #10202c; }
+  h1 { padding: 70px 16px 0; font-size: 20px; }
+</style>
+<body>
+<div id="pane" data-latch-surface>
+  <h1>OVERFLOW pane — a full-height inner scroller (the Declare shape)</h1>
+  <div id="bands"></div>
+</div>
+<script src="/tools/internal/measure/latch.js"></script>
+<script>
+  const bands = document.getElementById("bands");
+  for (let i = 0; i < 60; i++) {
+    const d = document.createElement("div");
+    d.className = "band";
+    d.textContent = "band " + i;
+    bands.appendChild(d);
+  }
+  initLatch("pane");
+</script>
+</body>

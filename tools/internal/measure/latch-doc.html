@@ -1,0 +1,29 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>latch: DOCUMENT scroll</title>
+<!-- DIAG(probe) — the pan-latch experiment's CONTROL: the DOCUMENT scrolls
+     (no overflow pane anywhere). The surface carries the same touch-action
+     as the Declare scroller (pan-y pinch-zoom; toggle to auto with TA⇄). -->
+<style>
+  html, body { margin: 0; background: #0B141B; color: #cfe0ea; font: 16px system-ui; }
+  body [data-latch-surface] { touch-action: pan-y pinch-zoom; }
+  .band { height: 100px; box-sizing: border-box; padding: 8px 16px; border-top: 1px solid #1d3242; }
+  .band:nth-child(odd) { background: #10202c; }
+  h1 { padding: 70px 16px 0; font-size: 20px; }
+</style>
+<body data-latch-surface>
+<h1>DOCUMENT scroll — the page itself scrolls</h1>
+<div id="bands"></div>
+<script src="/tools/internal/measure/latch.js"></script>
+<script>
+  const bands = document.getElementById("bands");
+  for (let i = 0; i < 60; i++) {
+    const d = document.createElement("div");
+    d.className = "band";
+    d.textContent = "band " + i;
+    bands.appendChild(d);
+  }
+  initLatch("doc");
+</script>
+</body>

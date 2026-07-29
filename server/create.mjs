@@ -20,7 +20,7 @@
 // Node server unchanged (the "back end in front" topology, packaging-options §4b).
 
 import path from "node:path";
-import { readFileSync, writeFileSync, existsSync, statSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, statSync, mkdirSync, appendFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { requestType, REQ, runWrapper, programName, directoryProgram } from "../browser/serve-core.js";
 import { createToolchain } from "./toolchain.mjs";
@@ -94,6 +94,24 @@ export function createDeclareServer(config = {}) {
     const b = s.search(/<\/body>/i);
     if (b >= 0) return s.slice(0, b) + SERVER_MARKER + s.slice(b);
     return s + SERVER_MARKER;
+  }
+
+  // ── DIAG(probe) — TEMPORARY, REMOVE ────────────────────────────────────────
+  // Gesture diagnostics for the phone/iPad pinch-zoom-scroll investigation:
+  // a `?probe` query injects tools/internal/measure/probe.js into the served
+  // page (homepage and program pages); the page POSTs event batches to
+  // /__probe, which appends them server-stamped to
+  // tools/internal/measure/probe.jsonl. Served bytes without `?probe` are
+  // untouched. Remove together: this helper, its two probeTag() call sites,
+  // the /__probe route in handler(), the appendFileSync import above, and
+  // tools/internal/measure/probe.js itself.
+  const PROBE_LOG = path.join(mounts.root.dir, "tools/internal/measure/probe.jsonl");
+  function probeTag(html, req) {
+    try { if (!new URL(req.url, "http://x").searchParams.has("probe")) return html; }
+    catch { return html; }
+    const tag = '<script src="/tools/internal/measure/probe.js"></script>';
+    const b = html.search(/<\/body>/i);
+    return b >= 0 ? html.slice(0, b) + tag + html.slice(b) : html + tag;
   }
 
   // ── the VIEWER (reader / source / edit) ────────────────────────────────────
@@ -275,6 +293,29 @@ bootHost(cfg);
     try { p = decodeURIComponent(new URL(req.url, "http://x").pathname); }
     catch { return send(res, 400, "bad request", "text/plain"); }
 
+    // DIAG(probe) — TEMPORARY, REMOVE: short aliases for the latch experiment
+    // pages, so they are typeable on a device.
+    if (p === "/latch-doc" || p === "/latch-pane") {
+      res.writeHead(302, { location: `/tools/internal/measure${p}.html` });
+      return res.end();
+    }
+
+    // DIAG(probe) — TEMPORARY, REMOVE (see probeTag above): the recorder.
+    if (req.method === "POST" && p === "/__probe") {
+      let body = "";
+      req.on("data", (c) => { body += c; if (body.length > 4e6) req.destroy(); });
+      req.on("end", () => {
+        try {
+          const { sid, events } = JSON.parse(body);
+          const at = new Date().toISOString();
+          const lines = (events ?? []).map((e) => JSON.stringify({ at, sid, ...e })).join("\n");
+          if (lines) appendFileSync(PROBE_LOG, lines + "\n");
+        } catch { /* diagnostics must never fail a request */ }
+        send(res, 204, "", "text/plain");
+      });
+      return;
+    }
+
     // PROXY first — a matched prefix leaves the file system entirely.
     const route = proxy.match(req.url);
     if (route) return proxy.forward(req, res, route);
@@ -306,7 +347,8 @@ bootHost(cfg);
       // the homepage — the ONE curated HTML entry, from the ROOT mount
       if (p === "/") {
         const idx = path.join(mounts.root.dir, "index.html");
-        if (existsSync(idx)) return send(res, 200, withServerMarker(readFileSync(idx, "utf8")));
+        // probeTag: DIAG(probe), temporary — a no-op without `?probe`
+        if (existsSync(idx)) return send(res, 200, probeTag(withServerMarker(readFileSync(idx, "utf8")), req));
         return send(res, 404, "not found", "text/plain");
       }
 
@@ -358,7 +400,8 @@ bootHost(cfg);
           const navigate = req.headers["sec-fetch-mode"] === "navigate" || (req.headers.accept ?? "").includes("text/html");
           if (rt === REQ.RUN && navigate) {
             declareRunPage(p, parseFlags(params))
-              .then((page) => send(res, 200, withServerMarker(page), "text/html;charset=utf-8"))
+              // probeTag: DIAG(probe), temporary — a no-op without `?probe`
+              .then((page) => send(res, 200, probeTag(withServerMarker(page), req), "text/html;charset=utf-8"))
               .catch((e) => { if (!res.headersSent) send(res, 500, String((e && e.stack) || e), "text/plain"); });
             return;
           }

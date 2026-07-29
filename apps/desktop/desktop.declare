@@ -334,6 +334,8 @@ class Window extends View [ width = 560, height = 400, clip = true,
             }
         },
 
+    lightsHover: boolean = false,
+
     bar: View [ width = { parent.width }, height = { classroot.barH }, visible = { classroot.chrome },
 
         // The active window's bar carries a subtle vertical gradient; an
@@ -355,23 +357,25 @@ class Window extends View [ width = 560, height = 400, clip = true,
         // 14px circles on a 20px pitch, so the block is 2·20 + 14 = 54 wide,
         // centered in the 35px bar.
 
-        // the block's rollover is the container's own `hovered` — the hit chain
-        // includes ancestors and is occlusion-correct, so hovering a circle (or
-        // the gaps between) IS hovering the block. No wiring: the eight
-        // onMouseOver/Out handlers and the lightsHover flag this once took are
-        // exactly the bookkeeping the intrinsics deleted (guide §interaction).
-
         lights: View [ x = 13, y = 10.5, width = 54, height = 14,
+            onMouseOver() { classroot.lightsHover = true },
+            onMouseOut()  { classroot.lightsHover = false },
             close: TrafficLight [ x = 0, c = #EC6A5E, rim = #D25349, ink = #7B1006, sym = "close",
-                on = { classroot.active || parent.hovered }, showGlyph = { parent.hovered },
+                on = { classroot.active || classroot.lightsHover }, showGlyph = { classroot.lightsHover },
+                onMouseOver() { classroot.lightsHover = true },
+                onMouseOut()  { classroot.lightsHover = false },
                 onClick() { app.closeWin(classroot) },
                 ],
             mini: TrafficLight [ x = 20, c = #F5BF4F, rim = #D9A340, ink = #8F5B00, sym = "min",
-                on = { classroot.active || parent.hovered }, showGlyph = { parent.hovered },
+                on = { classroot.active || classroot.lightsHover }, showGlyph = { classroot.lightsHover },
+                onMouseOver() { classroot.lightsHover = true },
+                onMouseOut()  { classroot.lightsHover = false },
                 onClick() { if (!classroot.plain) app.minimizeWin(classroot) },
                 ],
             zoom: TrafficLight [ x = 40, c = #61C554, rim = #4CAF45, ink = #145E14, sym = "zoom",
-                on = { classroot.active || parent.hovered }, showGlyph = { parent.hovered },
+                on = { classroot.active || classroot.lightsHover }, showGlyph = { classroot.lightsHover },
+                onMouseOver() { classroot.lightsHover = true },
+                onMouseOut()  { classroot.lightsHover = false },
                 onClick() { if (!classroot.plain) classroot.zoomToggle() },
                 ],
             ],
@@ -727,14 +731,6 @@ class AboutWindow extends Window [ width = 280, height = 380, plain = true,
                 a: View [ x = 0, y = 0, width = 48, height = 48, scale = 2,
                     draw(d: Draw) {
                         const k = classroot.forApp
-                        const rr = (x, y, w, h, r) => {
-                            d.moveTo(x + r, y)
-                            d.lineTo(x + w - r, y); d.arc(x + w - r, y + r, r, -Math.PI / 2, 0, false)
-                            d.lineTo(x + w, y + h - r); d.arc(x + w - r, y + h - r, r, 0, Math.PI / 2, false)
-                            d.lineTo(x + r, y + h); d.arc(x + r, y + h - r, r, Math.PI / 2, Math.PI, false)
-                            d.lineTo(x, y + r); d.arc(x + r, y + r, r, Math.PI, Math.PI * 1.5, false)
-                            d.closePath()
-                            }
                         if (k == "calendar") {
                             d.fillStyle = 0xFB4238
                             d.fillRect(0, 0, 48, 13)
@@ -743,14 +739,14 @@ class AboutWindow extends Window [ width = 280, height = 380, plain = true,
                             // the folder — the dock icon's art, one rendition
                             d.fillStyle = 0xD9E7FA
                             d.beginPath()
-                            rr(9, 13.5, 14, 8, 2)
+                            d.roundRect(9, 13.5, 14, 8, 2)
                             d.fill()
                             d.beginPath()
-                            rr(9, 16, 30, 19, 2.5)
+                            d.roundRect(9, 16, 30, 19, 2.5)
                             d.fill()
                             d.fillStyle = 0xFFFFFF
                             d.beginPath()
-                            rr(9, 20, 30, 15, 2.5)
+                            d.roundRect(9, 20, 30, 15, 2.5)
                             d.fill()
                             }
                         else if (k == "jots") {
@@ -800,21 +796,12 @@ hairlines.)
 
 class FolderIcon extends View [ width = 17, height = 13,
     draw(d: Draw) {
-        const rr = (x, y, w, h, r) => {
-            d.beginPath()
-            d.moveTo(x + r, y)
-            d.lineTo(x + w - r, y); d.arc(x + w - r, y + r, r, -Math.PI / 2, 0, false)
-            d.lineTo(x + w, y + h - r); d.arc(x + w - r, y + h - r, r, 0, Math.PI / 2, false)
-            d.lineTo(x + r, y + h); d.arc(x + r, y + h - r, r, Math.PI / 2, Math.PI, false)
-            d.lineTo(x, y + r); d.arc(x + r, y + r, r, Math.PI, Math.PI * 1.5, false)
-            d.closePath()
-            }
         d.fillStyle = 0x4E9FEA
-        rr(0, 0, 7.5, 4, 1.5); d.fill()              // the back tab
+        d.beginPath(); d.roundRect(0, 0, 7.5, 4, 1.5); d.fill()       // the back tab
         d.fillStyle = 0x6AB2F5
-        rr(0, 1.8, 17, 11, 1.5); d.fill()            // the body
+        d.beginPath(); d.roundRect(0, 1.8, 17, 11, 1.5); d.fill()     // the body
         d.fillStyle = 0x8CC4F8
-        rr(0, 1.8, 17, 3.2, 1.5); d.fill()           // the top lip highlight
+        d.beginPath(); d.roundRect(0, 1.8, 17, 3.2, 1.5); d.fill()    // the top lip highlight
         },
     ]
 
@@ -1627,25 +1614,17 @@ App [ clip = true, appName = "Declare Desktop",
     // alert, so an app's icon is identical wherever it appears.
 
     drawKindArt(d: Draw, kind: string, hue1: number) {
-        const rr = (x, y, w, h, r) => {
-            d.moveTo(x + r, y)
-            d.lineTo(x + w - r, y); d.arc(x + w - r, y + r, r, -Math.PI / 2, 0, false)
-            d.lineTo(x + w, y + h - r); d.arc(x + w - r, y + h - r, r, 0, Math.PI / 2, false)
-            d.lineTo(x + r, y + h); d.arc(x + r, y + h - r, r, Math.PI / 2, Math.PI, false)
-            d.lineTo(x, y + r); d.arc(x + r, y + r, r, Math.PI, Math.PI * 1.5, false)
-            d.closePath()
-            }
         if (kind == "files") {
             d.fillStyle = 0xD9E7FA
             d.beginPath()
-            rr(9, 13.5, 14, 8, 2)
+            d.roundRect(9, 13.5, 14, 8, 2)
             d.fill()
             d.beginPath()
-            rr(9, 16, 30, 19, 2.5)
+            d.roundRect(9, 16, 30, 19, 2.5)
             d.fill()
             d.fillStyle = 0xFFFFFF
             d.beginPath()
-            rr(9, 20, 30, 15, 2.5)
+            d.roundRect(9, 20, 30, 15, 2.5)
             d.fill()
             }
         else if (kind == "mail") {
