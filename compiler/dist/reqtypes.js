@@ -45,6 +45,13 @@ export const REQ = {
      *  `?view=seo`. Distinct from the `seo` FLAG (flags.ts), which EMBEDS this document in
      *  a run/build page rather than returning it alone. */
     EXTRACT: "extract",
+    /** The COMPILED PROGRAM as JSON (`{ source, deps, etag }`) — what a client
+     *  that owns its own renderer asks for. The native host (`?render=mac`) boots
+     *  from this: the server compiles in its toolchain realm, the client caches
+     *  the answer and revalidates it with `If-None-Match`, so the ladder's
+     *  server tier is one conditional request. Renderer-agnostic by
+     *  construction — a compiled program names no backend. */
+    PROGRAM: "program",
 };
 /** The three Viewer tabs — the values `?viewer=` accepts (the Viewer is one app). */
 const VIEWS = new Set([REQ.READER, REQ.SOURCE, REQ.EDIT]);
@@ -65,6 +72,8 @@ export function requestType(params) {
         return REQ.SEGMENTS;
     if (params.has("extract"))
         return REQ.EXTRACT;
+    if (params.has("program"))
+        return REQ.PROGRAM;
     return REQ.RUN;
 }
 //# sourceMappingURL=reqtypes.js.map

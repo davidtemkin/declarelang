@@ -142,6 +142,13 @@ await (async () => {
     await test("distro: the platform prefix serves the same tree", async () => {
       assert.equal((await GET(port, "/declare/apps/weather/data/weather.json")).status, 200);
     });
+    await test("distro: /__sse streams a deterministic text/event-stream fixture", async () => {
+      const r = await GET(port, "/__sse?data=Hel,lo&interval=5&event=delta");
+      assert.equal(r.status, 200);
+      assert.match(r.headers.get("content-type"), /text\/event-stream/);
+      const body = await r.text(); // resolves when the fixture closes the stream
+      assert.equal(body, "event: delta\nid: 1\ndata: Hel\n\nevent: delta\nid: 2\ndata: lo\n\n");
+    });
     await test("distro: ?build redirects to a path-shaped build url", async () => {
       const r = await GET(port, "/apps/weather/weather.declare?build");
       assert.equal(r.status, 302);

@@ -2482,8 +2482,17 @@ var DeclareMac = (() => {
         base: ViewSchema,
         attrs: {
           source: { kind: "string" },
-          stretches: enumType("Stretch", "none", "width", "height", "both")
-        }
+          stretches: enumType("Stretch", "none", "width", "height", "both"),
+          // READ-ONLY (below): the load lifecycle as two facts, surfaced 2026-07-30
+          // (David's ruling) when the network-transport tests found them unreadable
+          // from constraints. `loaded` = a bitmap has landed (the placeholder
+          // derives from it: `visible = { !pic.loaded }`); `failed` = the CURRENT
+          // source's load failed (the broken-avatar fallback), reset when a new
+          // load starts.
+          loaded: { kind: "boolean" },
+          failed: { kind: "boolean" }
+        },
+        readOnly: ["loaded", "failed"]
       };
       DOMIslandSchema = {
         name: "DOMIsland",
@@ -2720,10 +2729,12 @@ var DeclareMac = (() => {
         name: "EventStream",
         base: StreamSchema,
         attrs: {
-          // space-separated named SSE event types to deliver — EventSource cannot
-          // hear a named `event:` it was not asked for (streams.md §2). Unnamed
-          // (default) messages always arrive.
-          listen: { kind: "string" }
+          // the named SSE event types to deliver (`listenTo = ["delta", "done"]`)
+          // — EventSource cannot hear a named `event:` it was not asked for
+          // (streams.md §2), and omission is SILENT, which is why the name carries
+          // the contract: you hear what you listen to. Unnamed (default) messages
+          // always arrive.
+          listenTo: { kind: "array", of: "string" }
         }
       };
       SocketSchema = {
@@ -3993,6 +4004,15 @@ var DeclareMac = (() => {
       errors.push(new DeclareError(`a ${el.tag} takes no children \u2014 it delivers events to its handlers, it is not a container`, c.pos));
     }
     for (const a of el.attrs) {
+      if (attrType(schema, a.name)?.kind === "array" && a.value.kind === "list") {
+        for (const it of a.value.items) {
+          const plain = it.kind === "number" || it.kind === "string" || it.kind === "hexColor" || it.kind === "ident" && (it.name === "null" || it.name === "true" || it.name === "false");
+          if (!plain) {
+            errors.push(new DeclareError(`${schema.name}.${a.name}: a bare list holds plain values \u2014 numbers, strings, booleans, null. For anything computed, write the whole list as a { } binding`, it.pos));
+          }
+        }
+        continue;
+      }
       const r = checkAttr(schema, a);
       if (!r.ok)
         errors.push(r.error);
@@ -6234,8 +6254,15 @@ var DeclareMac = (() => {
         // reads drive fades/reveals).
         scrolls: { def: "none", push: pushScrolls },
         tip: { def: "" },
-        scrollY: { def: 0 },
-        scrollX: { def: 0 },
+        // TWO-WAY: the backend mirrors user scrolling IN (setScroll's callback); a
+        // program write pushes OUT. The echo is inert — a mirrored value arrives
+        // already equal to the surface's, so the push's scrollTo is a no-op there.
+        // This is what lets an app drive its own scroller (the Files strip animates
+        // `scrollX` to reveal a fresh column) instead of asking a platform reveal to
+        // find one — scrollIntoView is axis-blind and walks ancestors, which is how
+        // a horizontal strip reveal once vertically scrolled the island hosting it.
+        scrollY: { def: 0, push: (v, y) => v.surface?.scrollToY?.(y) },
+        scrollX: { def: 0, push: (v, x) => v.surface?.scrollToX?.(x) },
         // The prevailing built-ins: model-side on View (no push — Text's style
         // derive is the consumer that crosses the seam). Defaults are the
         // browser-native text defaults Text carried through R3–R9.
@@ -8451,6 +8478,7 @@ var DeclareMac = (() => {
           const s = this.surface;
           if (s === null)
             return;
+          setBound(this, "failed", false);
           if (this.source === "") {
             s.setImage(null);
             return;
@@ -8471,13 +8499,19 @@ var DeclareMac = (() => {
             setBound(this, "loaded", true);
             this.surface.setImage(img);
           };
+          img.onerror = () => {
+            if (seq !== this.loadSeq || this.surface === null)
+              return;
+            setBound(this, "failed", true);
+          };
           img.src = this.source;
         }
       };
       defineAttributes(Image, {
         source: { def: "", push: (i) => i.load() },
         stretches: { def: "none", push: (i, v) => i.surface?.setImageStretch(v) },
-        loaded: { def: false }
+        loaded: { def: false },
+        failed: { def: false }
       });
     }
   });
@@ -10936,13 +10970,14 @@ var DeclareMac = (() => {
       });
       EventStream = class extends Stream {
         dial(cb) {
-          return currentStreams().eventSource(this.url, this.listen.split(/\s+/).filter((s) => s !== ""), cb);
+          const listen = this.listenTo.filter((s) => typeof s === "string" && s !== "");
+          return currentStreams().eventSource(this.url, listen, cb);
         }
       };
       defineAttributes(EventStream, {
         // listeners attach at construction, so changing what you listen to is a
         // readdress: close and reopen with the new set
-        listen: { def: "", push: (s) => s.readdressed() }
+        listenTo: { def: Object.freeze([]), push: (s) => s.readdressed() }
       });
       Socket = class extends Stream {
         dial(cb) {
@@ -11562,6 +11597,22 @@ var DeclareMac = (() => {
       node[m.name] = (...args) => fn.call(node, node.parent, outer, ...args);
     }
     for (const a of el.attrs) {
+      if (attrType(schema, a.name)?.kind === "array" && a.value.kind === "list") {
+        node[a.name] = Object.freeze(a.value.items.map((it) => {
+          if (it.kind === "number" || it.kind === "string")
+            return it.value;
+          if (it.kind === "ident") {
+            if (it.name === "null")
+              return null;
+            if (it.name === "true")
+              return true;
+            if (it.name === "false")
+              return false;
+          }
+          return null;
+        }));
+        continue;
+      }
       const r = routeAttr(schema, a, ctx.trusted);
       if (!r.ok)
         throw r.error;
@@ -13796,6 +13847,26 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
         return;
       this.richHeight = h;
       richCallbacks.get(this.id)?.onResize(h);
+    }
+    /** The write half of scrollY/scrollX — clamped like every other write, and
+     *  emitted so the layer tree moves this frame. */
+    scrollToY(v) {
+      if (!this.scrolls)
+        return;
+      const next = Math.min(Math.max(0, this.contentExtent() - this.height), Math.max(0, v));
+      if (next === this.scrollOffset)
+        return;
+      this.setScrollOffset(next);
+      emit(OP.SCROLLPOS, this.id, next, this.contentExtent());
+    }
+    scrollToX(v) {
+      if (!this.scrollsX)
+        return;
+      const next = Math.min(Math.max(0, this.contentExtentX() - this.width), Math.max(0, v));
+      if (next === this.scrollXOffset)
+        return;
+      this.scrollXOffset = next;
+      emit(OP.SCROLLXPOS, this.id, next, this.contentExtentX());
     }
     scrollIntoView(align = "nearest", smooth = false) {
       this.revealX(align, smooth);

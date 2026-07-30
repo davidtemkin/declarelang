@@ -3,12 +3,18 @@ import type { RenderBackend, Stretch, Surface } from "./backend.js";
 export declare class Image extends View {
     source: string;
     stretches: Stretch;
-    /** True once the bitmap has arrived (and any natural-sizing applied) —
-     *  reactive, so constraints can derive from it. Load/error *events* wait
-     *  for the rung that consumes them (R5 landed input + init only; the doc
-     *  defines no Image load event yet); a failed load simply never sets
-     *  this, and the view renders as its (possibly zero-sized) box. */
+    /** True once a bitmap has arrived (and any natural-sizing applied) —
+     *  reactive, read-only surface (schema'd 2026-07-30), so constraints can
+     *  derive from it: `visible = { !pic.loaded }` is the placeholder idiom.
+     *  Latches: re-pointing `source` keeps the previous bitmap (and this flag)
+     *  until the replacement lands. Load/error *events* wait for the rung that
+     *  consumes them (the doc defines no Image load event yet). */
     loaded: boolean;
+    /** True when the CURRENT source's load failed — the broken-avatar fact
+     *  (`fallback: View [ visible = { pic.failed } ]`). Read-only, reset when
+     *  a new load starts, so it always speaks about the present `source`;
+     *  a failure keeps whatever bitmap was already showing. */
+    failed: boolean;
     /** Discards a superseded load: only the latest request may land. */
     private loadSeq;
     /** The arrived bitmap's natural size — what contentExtent folds into a

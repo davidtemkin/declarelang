@@ -228,6 +228,16 @@ export interface Surface {
      *  visible — and not at all when it already is (the web's focus-reveal
      *  behavior; keyboard traversal uses it so Tab never lands offscreen). */
     scrollIntoView(align?: "start" | "nearest", smooth?: boolean): void;
+    /** Set this scrolling surface's own offset — the write half of the
+     *  `scrollY`/`scrollX` attributes (setScroll's callback is the read half:
+     *  user scrolling mirrors in; a program write pushes out through these).
+     *  The schema never listed the pair as readOnly, so a program could always
+     *  SAY `strip.scrollX = 200` — it just silently did nothing. Clamped by the
+     *  backend to the contained content extent, exactly like a user scroll; a
+     *  no-op on a surface that does not scroll that axis. Optional: a minimal
+     *  host/mock omits them, so callers optional-call. */
+    scrollToY?(v: number): void;
+    scrollToX?(v: number): void;
     /** Reveal a heading anchor INSIDE a native rich-text flow (location.md §6). A
      *  flow coalesces its headings into one element/region, so revealing one is not
      *  a whole-surface `scrollIntoView`. `slug` names the heading; `within` is its

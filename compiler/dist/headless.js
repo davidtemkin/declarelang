@@ -8,7 +8,7 @@
 //
 // Browser-safe by construction (the runtime graph is zero-dep), so the browser
 // compiler can do everything the Node one can — the parity principle.
-import { build, settle, App, HeadlessBackend, provideMeasurer, provideTransport } from "../../runtime/dist/index.js";
+import { build, settle, App, HeadlessBackend, provideMeasurer, provideTransport, provideStreams } from "../../runtime/dist/index.js";
 export const DEFAULT_ENV = { hostWidth: 1200, hostHeight: 800, dark: false };
 /** A deterministic stand-in for canvas text metrics on hosts with no DOM —
  *  per-character class widths, one constant table. Enough to SETTLE any tree
@@ -76,6 +76,13 @@ export function settleHeadless(source, opts = {}) {
     // after it). Scoped swap-restore: the caller's process (the server extracts
     // in-process) keeps its own transport.
     const prev = provideTransport((url) => Promise.reject(new Error(`network unavailable headless — ${url} (capabilities.md §3: supply fixtures)`)));
+    // Streams refuse the same way (streams.md §4): a synchronous factory throw
+    // is structural, so the source lands in status="failed" with the reason in
+    // `error` / onError — by construction, never a connection, never a retry.
+    const refuse = (url) => {
+        throw new Error(`network unavailable headless — ${url} (capabilities.md §3: supply fixtures)`);
+    };
+    const prevStreams = provideStreams({ eventSource: refuse, socket: refuse });
     try {
         const app = build(source, opts);
         app.attach(new HeadlessBackend(), null);
@@ -87,6 +94,7 @@ export function settleHeadless(source, opts = {}) {
     }
     finally {
         provideTransport(prev);
+        provideStreams(prevStreams);
     }
 }
 //# sourceMappingURL=headless.js.map

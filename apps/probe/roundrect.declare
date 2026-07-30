@@ -1,0 +1,22 @@
+// The desktop's folder art is built by a hand-rolled rounded rectangle: four
+// lineTo edges joined by four arc() corners, in the model's y-down space. This
+// probe draws that same construction large enough to read the corners.
+
+App [ width = 400, height = 250, fill = #202020,
+    field: View [ x = 0, y = 0, width = 400, height = 250,
+        draw(d: Draw) {
+            const rr = (x, y, w, h, r) => {
+                d.moveTo(x + r, y)
+                d.lineTo(x + w - r, y); d.arc(x + w - r, y + r, r, -Math.PI / 2, 0, false)
+                d.lineTo(x + w, y + h - r); d.arc(x + w - r, y + h - r, r, 0, Math.PI / 2, false)
+                d.lineTo(x + r, y + h); d.arc(x + r, y + h - r, r, Math.PI / 2, Math.PI, false)
+                d.lineTo(x, y + r); d.arc(x + r, y + r, r, Math.PI, Math.PI * 1.5, false)
+                d.closePath()
+                }
+            d.fillStyle = "#FFFFFF"
+            d.beginPath()
+            rr(40, 40, 320, 170, 40)
+            d.fill()
+            }
+        ]
+    ]

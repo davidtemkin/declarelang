@@ -26,7 +26,7 @@ import { gzipSync } from "node:zlib";
 import { requestType, REQ, runWrapper, programName, directoryProgram } from "../browser/serve-core.js";
 import { createToolchain } from "./toolchain.mjs";
 import { parseFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
-import { rebuildStale } from "../tools/internal/bundle-freshness.mjs";
+import { rebuildStale, BUNDLES } from "../tools/internal/bundle-freshness.mjs";
 import { createMounts, describeMounts } from "./mounts.mjs";
 import { createProxy } from "./proxy.mjs";
 import { PLATFORM_DIR, defaultBuildCache } from "./config.mjs";
@@ -225,6 +225,29 @@ bootHost(cfg);
     });
   }
 
+  // ── ?program — the COMPILED PROGRAM as JSON ────────────────────────────────
+  // A client that owns its renderer (the native host) asks for this instead of
+  // a run page. The compile is the server's ordinary one — same toolchain
+  // realm, same freshness — and the answer carries a strong ETag so the
+  // client's cache revalidates with one conditional request rather than
+  // re-compiling or re-downloading.
+  async function serveProgram(req, res, absPath, relPath) {
+    let source;
+    try { source = readFileSync(absPath, "utf8"); }
+    catch { return send(res, 404, "not found: " + relPath, "text/plain"); }
+    const out = await toolchain.compile(source, { originDir: path.dirname(absPath) });
+    if (out.source === null) {
+      return send(res, 422, JSON.stringify({ report: out.report, diagnostics: out.diagnostics }), "application/json");
+    }
+    const etag = '"' + createHash("sha256").update(out.source).digest("hex").slice(0, 24) + '"';
+    if ((req.headers["if-none-match"] ?? "") === etag) {
+      res.writeHead(304, { etag });
+      return res.end();
+    }
+    res.writeHead(200, { "content-type": "application/json", etag, "cache-control": "no-cache" });
+    res.end(JSON.stringify({ source: out.source, deps: out.deps, etag }));
+  }
+
   function serveFrom(res, baseDir, rel) {
     const abs = path.join(baseDir, rel.replace(/^\/+/, ""));
     if (!(abs === baseDir || abs.startsWith(baseDir + path.sep))) return send(res, 403, "forbidden", "text/plain");
@@ -347,6 +370,28 @@ bootHost(cfg);
       return;
     }
 
+    // SSE fixture (streams.md §4, the browser tier): a deterministic
+    // text/event-stream an EventStream can point at — browser tests and
+    // hand-driven dev checks. /__sse?data=a,b,c&interval=25&event=delta —
+    // each item is one message with an incrementing id; `event=` names them
+    // (the `listen` attribute's test case); the stream closes when done.
+    // Registered ABOVE enableGzip: an event stream must never be buffered.
+    if (p === "/__sse") {
+      const q = new URL(req.url, "http://x").searchParams;
+      const items = (q.get("data") ?? "one,two,three").split(",");
+      const interval = Math.min(Number(q.get("interval") ?? 25) || 25, 1000);
+      const event = q.get("event");
+      res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
+      let i = 0;
+      const timer = setInterval(() => {
+        if (i >= items.length) { clearInterval(timer); res.end(); return; }
+        res.write((event ? `event: ${event}\n` : "") + `id: ${i + 1}\ndata: ${items[i]}\n\n`);
+        i++;
+      }, interval);
+      req.on("close", () => clearInterval(timer));
+      return;
+    }
+
     // PROXY first — a matched prefix leaves the file system entirely.
     const route = proxy.match(req.url);
     if (route) return proxy.forward(req, res, route);
@@ -426,6 +471,12 @@ bootHost(cfg);
             serveExtract(res, hit.abs, hit.rel).catch((e) => { if (!res.headersSent) send(res, 500, String((e && e.stack) || e), "text/plain"); });
             return;
           }
+          if (rt === REQ.PROGRAM) {
+            serveProgram(req, res, hit.abs, hit.rel).catch((e) => {
+              if (!res.headersSent) send(res, 500, String((e && e.stack) || e), "text/plain");
+            });
+            return;
+          }
           if (rt === REQ.BUILD) {
             // build lives at a directory address mirroring the program url
             const dirUrl = p.replace(/[^/]*\.declare$/, "");
@@ -445,8 +496,11 @@ bootHost(cfg);
 
       // a platform BUNDLE → rebuild if stale, but only when the platform is a
       // real distro checkout (a node_modules platform has no sources to rebuild).
-      if (canRebuildBundles && (p === platURL("bundles/declare-boot.js") || p === platURL("bundles/declare-compiler.js") ||
-        p === "/bundles/declare-boot.js" || p === "/bundles/declare-compiler.js")) {
+      // The list is every artifact in bundle-freshness's BUNDLES, including the
+      // two NATIVE ones: declare-compiler-mac.js is fetched over HTTP by the
+      // host's client-compile tier, and declare-mac.js is served so the host can
+      // be pointed at a URL rather than a checkout.
+      if (canRebuildBundles && BUNDLES.some((b) => p === platURL(b.out) || p === "/" + b.out)) {
         const bundleRel = p.startsWith(PLAT) ? p.slice(PLAT.length) : p.slice(1);
         try { rebuildStale(PLATFORM_DIR, { only: [bundleRel] }); } catch (e) { console.error("bundle rebuild failed:", e.message); }
       }

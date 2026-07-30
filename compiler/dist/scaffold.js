@@ -172,6 +172,7 @@ interface WheelEvent extends PointerEvent { deltaX: number; deltaY: number; pinc
 interface KeyEvent { code: string; key: string; shift: boolean; ctrl: boolean; alt: boolean; meta: boolean; repeat: boolean }
 interface FocusGeometry { x: number; y: number; w: number; h: number; rad: number; view: View; root: View }
 interface TipEvent { readonly text: string; readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly root: View }
+interface StreamMessage { readonly data: string; readonly type: string; readonly id: string }
 type MotionCurve = { readonly __motion: true };
 declare function cubicBezier(x1: number, y1: number, x2: number, y2: number): MotionCurve;
 declare function back(overshoot: number): MotionCurve;
@@ -238,7 +239,7 @@ export function tsType(t) {
 /** The event-payload type names, writable in a handler's signature. Declared
  *  in the prelude above; the shapes live in the runtime (events.ts, keys.ts,
  *  tip.ts, focus.ts) and this list is what makes them nameable by an author. */
-const PAYLOAD_TYPES = new Set(["PointerEvent", "PointerUpEvent", "TouchEvent", "WheelEvent", "Touch", "KeyEvent", "FocusGeometry", "TipEvent", "Draw", "DrawGradient"]);
+const PAYLOAD_TYPES = new Set(["PointerEvent", "PointerUpEvent", "TouchEvent", "WheelEvent", "Touch", "KeyEvent", "FocusGeometry", "TipEvent", "StreamMessage", "Draw", "DrawGradient"]);
 /** A WRITTEN signature type name (`f(w: Window) -> number`) → its TypeScript
  *  type. Two sources, the same two an attribute declaration draws on: the
  *  declarable value vocabulary (`number`, `string`, `array`, `Axis`, …) and the
@@ -418,6 +419,10 @@ export const LANGUAGE_API = {
     ],
     Animator: [`  start(): void;`, `  stop(): void;`],
     AnimatorGroup: [`  start(): void;`, `  stop(): void;`],
+    // The socket's one verb (streams.ts): a call you make; onMessage is it
+    // calling you. The shared stream surface (url/active/retry + the read-only
+    // intrinsics) flows from the Stream schema's attrs, not from here.
+    Socket: [`  send(text: string): void;`],
     // The edit-session VERBS (editor.ts): `dirty`/`valid`/`error` are schema
     // attrs (readable state), but committing/reverting the draft are calls.
     Editor: [`  commit(): void;`, `  revert(): void;`],

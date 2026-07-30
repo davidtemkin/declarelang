@@ -29,7 +29,7 @@
 // fixed measurer, same data bytes — so the browser and Node crawls are byte-identical,
 // extending the oracle discipline to the whole document.
 
-import { build, settle, App, HeadlessBackend, provideMeasurer, provideTransport } from "../../runtime/dist/index.js";
+import { build, settle, App, HeadlessBackend, provideMeasurer, provideTransport, provideStreams } from "../../runtime/dist/index.js";
 import { approximateMeasurer, DEFAULT_ENV, type Environment } from "./headless.js";
 import { staticHtml } from "./static-html.js";
 
@@ -112,6 +112,16 @@ async function bootAt(source: string, opts: CrawlOptions, location: string, refu
   if (typeof document === "undefined") provideMeasurer(approximateMeasurer());
   const pending = new Set<Promise<unknown>>();
   const prev = provideTransport(crawlTransport(opts, refusals, pending) as never);
+  // Streams never open under a crawl (streams.md §4): a stream is live,
+  // ordered, transient — nothing a snapshot could honestly index. Unlike a
+  // refused FETCH this is not recorded as a refusal (which would fail the
+  // crawl): fetched data has build-time remedies (inline it, ship a file),
+  // a stream by definition has none — the source just lands `failed` and
+  // the app's static content is what the snapshot honestly is.
+  const refuseStream = (url: string): never => {
+    throw new Error(`crawl refused stream connection — ${url} (streams are never indexed)`);
+  };
+  const prevStreams = provideStreams({ eventSource: refuseStream, socket: refuseStream });
   try {
     const app = build(source, { deps: opts.deps, links: opts.links } as never);
     app.attach(new HeadlessBackend(), null);
@@ -130,6 +140,7 @@ async function bootAt(source: string, opts: CrawlOptions, location: string, refu
     return app;
   } finally {
     provideTransport(prev);
+    provideStreams(prevStreams);
   }
 }
 

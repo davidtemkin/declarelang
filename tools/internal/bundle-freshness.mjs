@@ -40,6 +40,24 @@ export const BUNDLES = [
     build: "tools/internal/build-compiler.mjs",
     inputs: ["compiler/dist", "runtime/dist", "tools/internal/build-compiler.mjs"],
   },
+  // The NATIVE client's two bundles. Same rule, same reason: the mac host
+  // evaluates declare-mac.js as its whole world, so an unrebuilt bundle is a
+  // silently stale runtime — the recorded footgun, one platform over. Both come
+  // out of ONE script (build-mac.mjs), which rebuildStale runs once per pass.
+  {
+    out: "bundles/declare-mac.js",
+    build: "tools/internal/build-mac.mjs",
+    inputs: ["browser", "runtime/dist", "tools/internal/build-mac.mjs"],
+  },
+  {
+    // ⚠ inputs is the COMPILER BUNDLE, not compiler/dist: build-mac re-wraps
+    // bundles/declare-compiler.js as an IIFE for JSC. It must therefore come
+    // AFTER that entry here, so a compiler change rebuilds the web bundle first
+    // and this one sees the newer mtime in the same pass.
+    out: "bundles/declare-compiler-mac.js",
+    build: "tools/internal/build-mac.mjs",
+    inputs: ["bundles/declare-compiler.js", "tools/internal/build-mac.mjs"],
+  },
 ];
 
 function newestMtime(root, p) {
@@ -68,11 +86,17 @@ export function isStale(root, bundle) {
  *  both of which WANT to wait for the fresh artifact. Returns what was rebuilt. */
 export function rebuildStale(root, { only = null, log = console.error } = {}) {
   const rebuilt = [];
+  // One script can produce SEVERAL artifacts (build-mac.mjs writes both native
+  // bundles), so a pass runs each script at most once — otherwise asking for two
+  // stale siblings rebuilds the 5.7 MB compiler bundle twice.
+  const ran = new Set();
   for (const b of BUNDLES) {
     if (only !== null && !only.includes(b.out)) continue;
     if (!isStale(root, b)) continue;
+    if (ran.has(b.build)) { rebuilt.push(b.out); continue; }
     log(`bundle-freshness: ${b.out} is stale → node ${b.build}`);
     execFileSync(process.execPath, [join(root, b.build)], { cwd: root, stdio: ["ignore", "inherit", "inherit"] });
+    ran.add(b.build);
     rebuilt.push(b.out);
   }
   return rebuilt;

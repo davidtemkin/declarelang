@@ -48,6 +48,13 @@ export const REQ = {
    *  `?view=seo`. Distinct from the `seo` FLAG (flags.ts), which EMBEDS this document in
    *  a run/build page rather than returning it alone. */
   EXTRACT: "extract",
+  /** The COMPILED PROGRAM as JSON (`{ source, deps, etag }`) — what a client
+   *  that owns its own renderer asks for. The native host (`?render=mac`) boots
+   *  from this: the server compiles in its toolchain realm, the client caches
+   *  the answer and revalidates it with `If-None-Match`, so the ladder's
+   *  server tier is one conditional request. Renderer-agnostic by
+   *  construction — a compiled program names no backend. */
+  PROGRAM: "program",
 } as const;
 
 export type ReqType = (typeof REQ)[keyof typeof REQ];
@@ -67,5 +74,6 @@ export function requestType(params: FlagParams): ReqType {
   if (params.has("file")) return REQ.FILE;
   if (params.has("segments")) return REQ.SEGMENTS;
   if (params.has("extract")) return REQ.EXTRACT;
+  if (params.has("program")) return REQ.PROGRAM;
   return REQ.RUN;
 }

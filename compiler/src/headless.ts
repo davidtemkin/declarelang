@@ -9,7 +9,7 @@
 // Browser-safe by construction (the runtime graph is zero-dep), so the browser
 // compiler can do everything the Node one can — the parity principle.
 
-import { build, settle, App, HeadlessBackend, provideMeasurer, provideTransport, type BuildOptions } from "../../runtime/dist/index.js";
+import { build, settle, App, HeadlessBackend, provideMeasurer, provideTransport, provideStreams, type BuildOptions } from "../../runtime/dist/index.js";
 
 /** The explicit environment vector (capabilities.md §3). The defaults are ONE
  *  canonical constant on every host — a nominal desktop viewport, light scheme
@@ -94,6 +94,13 @@ export function settleHeadless(source: string, opts: HeadlessOptions = {}): App 
   const prev = provideTransport((url) =>
     Promise.reject(new Error(`network unavailable headless — ${url} (capabilities.md §3: supply fixtures)`))
   );
+  // Streams refuse the same way (streams.md §4): a synchronous factory throw
+  // is structural, so the source lands in status="failed" with the reason in
+  // `error` / onError — by construction, never a connection, never a retry.
+  const refuse = (url: string): never => {
+    throw new Error(`network unavailable headless — ${url} (capabilities.md §3: supply fixtures)`);
+  };
+  const prevStreams = provideStreams({ eventSource: refuse, socket: refuse });
   try {
     const app = build(source, opts);
     app.attach(new HeadlessBackend(), null);
@@ -104,5 +111,6 @@ export function settleHeadless(source: string, opts: HeadlessOptions = {}): App 
     return app;
   } finally {
     provideTransport(prev);
+    provideStreams(prevStreams);
   }
 }

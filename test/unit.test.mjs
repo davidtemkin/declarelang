@@ -2724,6 +2724,18 @@ await test("DataSource A9: a non-GET method sends body (object→JSON, string ve
   }
 });
 
+await test("Image.loaded/.failed are readable surface, and read-only (ruled 2026-07-30)", () => {
+  assert.deepEqual(
+    compile(`App [ pic: Image [ source = "a.png" ],
+      t: Text [ text = { pic.loaded ? "y" : pic.failed ? "x" : "n" } ] ]`, {}).errors,
+    [], "constraints may read both lifecycle facts");
+  for (const attr of [`loaded = true`, `failed = true`]) {
+    const errs = compile(`App [ pic: Image [ source = "a.png", ${attr} ] ]`, {}).errors;
+    assert.notEqual(errs.length, 0);
+    assert.match(errs[0].message, /read-only/, attr);
+  }
+});
+
 await test("DataSource A9: the compiler accepts method/body attributes", () => {
   assert.deepEqual(
     compile(`App [ s: DataSource [ url = "/x", method = "POST", body = { ({ a: 1 }) } ] ]`, {}).errors,
@@ -2750,6 +2762,51 @@ await test("DataSource failure surfaces as .failed + .error; stale arrivals are 
     await p;
     assert.equal(src.status, "idle", "the superseded arrival was discarded");
     assert.equal(src.value, null);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+await test("DataSource auto: fetches once per distinct address, never for a re-derive", async () => {
+  const realFetch = globalThis.fetch;
+  try {
+    const hits = [];
+    globalThis.fetch = async (url) => { hits.push(url); return { ok: true, json: async () => ({ from: url }) }; };
+    const app = build(`App [ width=10, height=10,
+      zip: string = "",
+      s: DataSource [ url = { parent.zip != "" ? "/w/" + parent.zip : "" }, auto = true ],
+      ]`);
+    settle();
+    assert.deepEqual(hits, [], "an empty url is not an address — nothing fetches");
+    app.zip = "94110";
+    settle();
+    assert.deepEqual(hits, ["/w/94110"], "the address arriving fetches, without a handler");
+    app.zip = "94110"; // same address re-derived
+    settle();
+    assert.deepEqual(hits, ["/w/94110"], "a re-derive to the SAME address never refetches");
+    app.zip = "10014";
+    settle();
+    assert.deepEqual(hits, ["/w/94110", "/w/10014"], "a new address fetches exactly once");
+    app.discard();
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+await test("DataSource onLoad fires after value+status settle (the declared handler path)", async () => {
+  const realFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => ({ ok: true, json: async () => ({ msg: "hi" }) });
+    const app = build(`App [ width=10, height=10,
+      seen: string = "",
+      s: DataSource [ url = "/d.json",
+        onLoad() { parent.seen = \`\${this.status}:\${this.value.msg}\` },
+        ],
+      ]`);
+    await app.s.fetch();
+    settle();
+    assert.equal(app.seen, "loaded:hi", "the handler observes the settled arrival, not a half-state");
+    app.discard();
   } finally {
     globalThis.fetch = realFetch;
   }

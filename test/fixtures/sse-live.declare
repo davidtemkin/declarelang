@@ -1,0 +1,12 @@
+// The browser-tier stream fixture (test/serve-browser.test.mjs): a real
+// EventSource against the dev server's /__sse fixture route — named events
+// through listenTo (the addEventListener path), accumulation in the handler,
+// a constraint carrying the result to the screen.
+App [ width = 320, height = 120, fill = white, textColor = black,
+    got: string = "",
+    feed: EventStream [ url = "/__sse?data=alpha,beta&interval=20&event=tick",
+        listenTo = ["tick"],
+        onMessage(e: StreamMessage) { app.got = app.got + e.data },
+        ],
+    out: Text [ x = 10, y = 10, text = { `sse:${got}` } ]
+    ]

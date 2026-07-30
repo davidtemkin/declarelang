@@ -1,0 +1,20 @@
+// The same blur probe, but inside a view that is SCALED down the way the
+// desktop wallpaper is (drawn big in a reference box, then cover-scaled). If a
+// backend rasterises the drawing at its own size and lets the transform shrink
+// the raster, the on-screen sigma scales with it. If it rasterises at the
+// on-screen size instead, the blur has to be scaled by hand — and the two
+// backends disagree by exactly that factor.
+
+App [ width = 400, height = 200, fill = #000000,
+    field: View [ x = 0, y = 0, width = 800, height = 400,
+        pivotX = 0, pivotY = 0, scale = 0.5,
+        draw(d: Draw) {
+            d.fillStyle = "#000000"
+            d.fillRect(0, 0, 800, 400)
+            d.filter = "blur(40px)"
+            d.fillStyle = "#FFFFFF"
+            d.fillRect(200, -200, 400, 800)
+            d.filter = "none"
+            }
+        ]
+    ]

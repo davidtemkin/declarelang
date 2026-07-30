@@ -32,7 +32,9 @@ const TARGETS = [                                        // the documented compo
   "View", "App", "Text", "Image", "RichText", "Markdown", "HTMLText", "DOMIsland", "TextInput",
   "Layout", "TweenLayout", "Editor",
   "Dataset", "DataSource",
-  "Animator", "AnimatorGroup", "Spring", "Frames", "Keys", "Focus", "Tip", "State", "Node",
+  "Animator", "AnimatorGroup", "Spring", "Frames", "Keys", "Focus", "Tip",
+  "Stream", "EventStream", "Socket",
+  "State", "Node",
 ];
 // THE single documentation model. extract writes the walkable doc tree here;
 // assemble.mjs then augments the SAME file in place with the spine/links/meta.
@@ -286,6 +288,7 @@ const METHODS = readMethods([
   "runtime/src/markdown.ts", "runtime/src/text-input.ts", "runtime/src/layout.ts",
   "runtime/src/data.ts", "runtime/src/animator.ts", "runtime/src/spring.ts",
   "runtime/src/state.ts", "runtime/src/node.ts", "runtime/src/editor.ts",
+  "runtime/src/streams.ts",
 ]);
 // A class is ABSTRACT when no registry can instantiate it by name: Layout,
 // TweenLayout, RichText and Editor are bases you extend, never tags you write.

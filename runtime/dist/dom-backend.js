@@ -710,6 +710,19 @@ class DomSurface {
         el.style.width = w + "px";
         el.style.height = h + "px";
     }
+    /** The write half of scrollY/scrollX: drive the element's own native offset.
+     *  The browser clamps to the scrollable range itself; the half-pixel guard
+     *  breaks the mirror echo (scroll event → attribute → push → here). */
+    scrollToY(v) {
+        const el = this.element;
+        if (Math.abs(el.scrollTop - v) > 0.5)
+            el.scrollTop = v;
+    }
+    scrollToX(v) {
+        const el = this.element;
+        if (Math.abs(el.scrollLeft - v) > 0.5)
+            el.scrollLeft = v;
+    }
     scrollIntoView(align = "start", smooth = false) {
         // Native walks the scrollable ancestors (document included) and does the
         // offset math; block:start aligns the view to the top (the click-to-jump
@@ -1035,6 +1048,25 @@ class DomSurface {
         else if (!holdGate && this.holdGateListener !== undefined) {
             this.element.removeEventListener("touchmove", this.holdGateListener);
             this.holdGateListener = undefined;
+        }
+        // A drag view owns the press's MEANING on itself — immediately, or at the
+        // hold. The platform's long-press defaults over text (iOS selection + the
+        // Copy/Translate callout) fire on the same stationary press and would win
+        // the race (measured: a window title bar's hold-drag became a 570-char
+        // selection, simulator 2026-07-29), so the claim suppresses them HERE —
+        // per element, derived from the declared handlers, while the COARSE page
+        // default stays web-native everywhere else (claim-surface.md).
+        const dragOwns = sink !== null && wants?.wantsDrag === true;
+        const st = this.element.style;
+        if (dragOwns) {
+            st.userSelect = "none";
+            st.webkitUserSelect = "none";
+            st.webkitTouchCallout = "none";
+        }
+        else if (st.webkitTouchCallout === "none") {
+            st.userSelect = "";
+            st.webkitUserSelect = "";
+            st.webkitTouchCallout = "";
         }
         const wantsWheel = sink !== null && wants?.wantsWheel === true;
         if (wantsWheel && this.wheelListener === undefined) {

@@ -544,6 +544,18 @@ function checkElement(
   } else if (descendsFrom(schema, "AnimatorGroup")) {
     checkAnimatorGroupNode(el, schema, schemas, parentSchema, errors, false);
     return; // a group judges its whole subtree (its members are animators)
+  } else if (descendsFrom(schema, "Stream")) {
+    // A stream is a source with attributes (streams.md): the same shape
+    // check, plus the abstract-base refusal Layout gets.
+    if (schema.name === "Stream") {
+      errors.push(new DeclareError(
+        `'Stream' is the abstract base — it names no transport. Declare an EventStream (SSE) or a Socket (WebSocket)`,
+        el.pos
+      ));
+      return;
+    }
+    checkSourceNode(el, schema, errors);
+    return; // a stream's whole surface is judged here — no subtree
   } else if (isSourceSchema(schema)) {
     checkSourceNode(el, schema, errors);
     return; // a source's whole surface is judged here — no subtree
@@ -831,12 +843,30 @@ function checkSourceNode(el: Element, schema: ComponentSchema, errors: DeclareEr
     errors.push(new DeclareError(`only a Dataset carries a { } body — a ${el.tag}'s members go in [ ]`, el.raw.pos));
   }
   for (const d of el.decls) {
-    errors.push(new DeclareError(`a ${el.tag} declares no attributes of its own — it carries its handlers${el.tag === "Frames" ? " and 'running'" : ""}`, d.pos));
+    const builtIns = el.tag === "Frames" ? " and 'running'"
+      : descendsFrom(schema, "Stream") ? " and its built-in attributes (url, active, retry, …)"
+      : "";
+    errors.push(new DeclareError(`a ${el.tag} declares no attributes of its own — it carries its handlers${builtIns}`, d.pos));
   }
   for (const c of el.children) {
     errors.push(new DeclareError(`a ${el.tag} takes no children — it delivers events to its handlers, it is not a container`, c.pos));
   }
   for (const a of el.attrs) {
+    // A bare `[ … ]` on an array slot (`listenTo = ["delta", "done"]`) — the
+    // same literal form the generic walk admits; checkAttr's coercion has no
+    // list arm, so it is routed around here exactly as there.
+    if (attrType(schema, a.name)?.kind === "array" && a.value.kind === "list") {
+      for (const it of a.value.items) {
+        const plain = it.kind === "number" || it.kind === "string" || it.kind === "hexColor" ||
+          (it.kind === "ident" && (it.name === "null" || it.name === "true" || it.name === "false"));
+        if (!plain) {
+          errors.push(new DeclareError(
+            `${schema.name}.${a.name}: a bare list holds plain values — numbers, strings, booleans, null. For anything computed, write the whole list as a { } binding`,
+            it.pos));
+        }
+      }
+      continue;
+    }
     const r = checkAttr(schema, a);
     if (!r.ok) errors.push(r.error);
   }

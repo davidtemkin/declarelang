@@ -58,6 +58,14 @@ test("used-set: a no-prose app does NOT include rich text", () => {
   assert.ok(!u.has("Markdown") && !u.has("HTMLText"));
 });
 test("used-set: use[] adds a name with no static reference", () => assert.ok(used(`use [ Markdown ]\nApp [ Text [ text = "x" ] ]`).has("Markdown")));
+test("used-set: a declared stream member is detected", () => {
+  const u = used(`App [ feed: EventStream [ url = "x" ], Text [ text = "y" ] ]`);
+  assert.ok(u.has("EventStream") && !u.has("Socket"));
+});
+test("used-set: a stream-free app ships no stream classes (streams.md §4 slim discipline)", () => {
+  const u = used(`App [ Text [ text = "x" ] ]`);
+  assert.ok(!u.has("EventStream") && !u.has("Socket"));
+});
 
 // ── the slim manifest can't drift from the real tables ───────────────────────
 test("REGISTRY_MANIFEST matches the runtime tables exactly (no drift)", () => {

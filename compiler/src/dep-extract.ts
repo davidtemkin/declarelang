@@ -361,10 +361,18 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
       if (ts.isElementAccessExpression(n) && n.argumentExpression) walk(n.argumentExpression);
       n = n.expression;
     }
-    // A chain can BOTTOM OUT in `new X(…)` — `new Box(app).v`. The loop above does
-    // not descend through a NewExpression, so hand it to walk() explicitly or its
-    // arguments (and the script-class refusal) are skipped.
-    if (ts.isNewExpression(n)) walk(n);
+    // A chain can BOTTOM OUT in an EXPRESSION rather than a scope root —
+    // `new Box(app).v`, and just as commonly the defensive-default idiom
+    // `(chain || fallback).reduce(…)`: the parenthesized descent stops at the
+    // BinaryExpression, so the base is no reactive root and the classify
+    // returns — while walk() skips chain interiors, trusting classifyChain to
+    // have consumed them. Unless the base is handed back to walk() here, every
+    // dep inside it SILENTLY vanishes: measured, `(app.d.value.list ||
+    // []).length` extracted no dataset dep at all, which is how the Files
+    // strip's row width froze at its first-column value while the columns
+    // grew. Identifiers and `this` are the ordinary roots the classifier
+    // already judged; everything else gets walked.
+    if (!ts.isIdentifier(n) && n.kind !== ts.SyntaxKind.ThisKeyword) walk(n);
     if (!reactive) return;
     const ordered = [...segs].reverse();
     let pathEnd: ts.Node = base;

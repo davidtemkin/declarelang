@@ -889,6 +889,23 @@ class CanvasSurface {
         this.scrollIntoView(within);
         return true;
     }
+    /** The write half of `scrollY` — same clamp as scrollBy, so a program write
+     *  lands exactly where a user scroll would. (No scrollToX: this backend has
+     *  no horizontal scroll state yet — the attribute push optional-calls.) */
+    scrollToY(v) {
+        if (!this.scrolls)
+            return;
+        let extent = 0;
+        for (const c of this.children)
+            if (c.visible && !c.ignoresScroll)
+                extent = Math.max(extent, c.y + c.height);
+        const next = Math.min(Math.max(0, extent - this.height), Math.max(0, v));
+        if (next === this.scrollOffset)
+            return;
+        this.scrollOffset = next;
+        this.onScrollCb?.(next);
+        this.compositor.invalidate();
+    }
     /** Scroll this surface to the top of its nearest scrolling ancestor — the
      *  canvas twin of DOM's native scrollIntoView. Sums local offsets up to the
      *  scroll container, clamps to its content extent (the same math scrollBy

@@ -894,6 +894,22 @@ function constructSource(el: Element, schema: ComponentSchema, outer: View | nul
       (...args: unknown[]) => fn.call(node, node.parent, outer, ...args);
   }
   for (const a of el.attrs) {
+    // A bare `[ … ]` on an array slot (`listenTo = ["delta", "done"]`) —
+    // materialized exactly as the view path's literal-list arm above: frozen,
+    // set once.
+    if (attrType(schema, a.name)?.kind === "array" && a.value.kind === "list") {
+      (node as unknown as Record<string, unknown>)[a.name] =
+        Object.freeze(a.value.items.map((it) => {
+          if (it.kind === "number" || it.kind === "string") return it.value;
+          if (it.kind === "ident") {
+            if (it.name === "null") return null;
+            if (it.name === "true") return true;
+            if (it.name === "false") return false;
+          }
+          return null;
+        }));
+      continue;
+    }
     const r = routeAttr(schema, a, ctx.trusted);
     if (!r.ok) throw r.error;
     if ("binding" in r) ctx.pending.push({ view: node, attr: a, code: r.binding.src, classroot: outer });

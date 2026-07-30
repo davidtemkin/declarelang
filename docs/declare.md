@@ -475,16 +475,9 @@ child, and `insertChild` places one you already hold. Reach for replication firs
 keys, and tears down for you — but the imperative door is open, and `use [ Name ]` (§4) is how you
 keep a component the build would otherwise drop when you name it only as a string.
 
-**Data that keeps arriving is a stream** — `EventStream` (server-sent events) and `Socket`
-(WebSocket, adds `send(text)`), both extending the abstract `Stream`. No `connect()`, no cleanup:
-connected exactly while `active` (default true) and a non-empty `url` say so; node removal closes.
-`onMessage(e: StreamMessage)` receives each message (`e.data` is a string — parsing and
-accumulation are yours); `last` is the latest message, reactive, so `text = { feed.last }` needs no
-handler. Lifecycle is read-only state like a DataSource's — `status` / `open` / `error` — and
-reconnect policy is declared, never invisible: `retry = 2` re-dials 2 s after a loss the platform
-won't repair itself (SSE retries natively first). Named SSE events must be declared to be heard:
-`listen = "delta done"`. A stream is event-shaped, a dataset record-shaped — bridge them in a
-handler (parse, then write into the dataset).
+**Data that keeps arriving is a stream** — `EventStream` and `Socket`, connected exactly while
+`active` and a `url` say so, delivering `onMessage` and a reactive `last`. Same lifecycle shape as
+a `DataSource`, and nothing to unsubscribe.
 
 → `Dataset` and `DataSource` attributes, `Stream`/`EventStream`/`Socket`, `App.createView`,
 `Node.insertChild`: the model reference

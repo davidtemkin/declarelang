@@ -23,6 +23,7 @@ import { Animator, AnimatorGroup } from "./animator.js";
 import { Spring } from "./spring.js";
 import { Frames } from "./frames.js";
 import { KeysSource, FocusSource, TipSource } from "./sources.js";
+import { EventStream, Socket } from "./streams.js";
 import { State } from "./state.js";
 
 type ViewCtor = new () => View;
@@ -61,6 +62,10 @@ export const SOURCES: Readonly<Record<string, new () => Node>> = {
   Keys: KeysSource,
   Focus: FocusSource,
   Tip: TipSource,
+  // the stream family (streams.ts) — `Stream` itself is schema-only
+  // (abstract, uninstantiable), so only the concrete transports register
+  EventStream,
+  Socket,
 };
 
 /** Tag → animator-group class (animation.md §1, §4). */
@@ -109,6 +114,8 @@ export const REGISTRY_MANIFEST: readonly RegistryEntry[] = [
   { name: "Keys", table: "SOURCES", module: "sources.js", export: "KeysSource" },
   { name: "Focus", table: "SOURCES", module: "sources.js", export: "FocusSource" },
   { name: "Tip", table: "SOURCES", module: "sources.js", export: "TipSource" },
+  { name: "EventStream", table: "SOURCES", module: "streams.js", export: "EventStream" },
+  { name: "Socket", table: "SOURCES", module: "streams.js", export: "Socket" },
   { name: "AnimatorGroup", table: "ANIMATOR_GROUPS", module: "animator.js", export: "AnimatorGroup" },
   { name: "State", table: "STATES", module: "state.js", export: "State" },
 ];

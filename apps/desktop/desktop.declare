@@ -298,6 +298,13 @@ class Window extends View [ width = 560, height = 400, clip = true,
         this.wx = Math.max(-200, Math.min(app.width - 60, wx0 + app.pointerX - px0))
         this.wy = Math.max(0, Math.min(app.height - 90, wy0 + app.pointerY - py0))
         },
+    endDrag(canceled: boolean) {
+        // An interrupted drag (the browser took the finger for a page pan —
+        // a quick swipe over the title bar on a floored, panning desktop)
+        // must not leave the window displaced by the pre-take moves.
+        if (canceled) { this.wx = wx0; this.wy = wy0 }
+        dragging = false
+        },
 
     beginSize(mode: string) {
         if (plain) return
@@ -346,7 +353,12 @@ class Window extends View [ width = 560, height = 400, clip = true,
                 : theme.bg },
         onPointerDown() { classroot.beginDrag() },
         onPointerMove() { classroot.dragTo() },
-        onPointerUp()   { classroot.dragging = false },
+        onPointerUp(e: PointerUpEvent)   { classroot.endDrag(e.canceled) },
+
+        // the hold rider: with onHold declared, the bar claims the touch only
+        // at the press-and-hold — a quick swipe over it pans a floored desktop
+
+        onHold() { },
 
         // The three window controls — close, minimize, zoom. Gray when the
         // window is inactive. Rollover is scoped to the controls block alone
@@ -932,6 +944,16 @@ class FilesWindow extends Window [ forApp = "files",
 
         strip: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height }, scrolls = x,
             datapath = { classroot.cols.value },
+
+            // the strip's own reveal: a column that finds itself occluded asks
+            // the STRIP to glide to a new left position (`reveal.to` then
+            // `start()`). The strip is the only thing that moves — this is
+            // deliberately NOT scrollIntoView, which reveals on every axis
+            // through every ancestor scroller: hosted in a short viewport (the
+            // Viewer's edit preview), that walk scrolled the EMBEDDING island
+            // vertically. The window's interior animating itself cannot.
+
+            reveal: Animator [ attribute = scrollX, to = 0, duration = 260, motion = cubicOut ],
             row: View [ x = 0, y = 0, height = { parent.height },
                 width = { (classroot.cols.value.list || []).reduce((s, c) => s + (classroot.widths[c.depth] != null ? classroot.widths[c.depth] : classroot.colW), 0) },
                 layout: SimpleLayout [ axis = x, spacing = 0 ],
@@ -950,14 +972,33 @@ class FilesWindow extends Window [ forApp = "files",
                 View [ datapath = :list[], key = :depth, height = { parent.height }, clip = true, fill = { theme.bg },
                     width = { classroot.widths[:depth] != null ? classroot.widths[:depth] : classroot.colW },
 
-                    // a freshly-opened column reveals itself — the strip scrolls
-                    // to bring it into view, ANIMATED (not a pop). Deferred past the
-                    // double-click window (400ms) so a second click still lands on the
-                    // same, un-moved row (the double-click bug this fixes). A window
-                    // opened onto a folder (focusDepth >= 0) instead pins THAT column to
-                    // the left edge, so its contents lead and the ancestors scroll-left.
+                    // a freshly-opened column reveals itself — IF the window's
+                    // frame occludes it, the strip glides to a new left position,
+                    // ANIMATED (not a pop). Occlusion is judged here, against the
+                    // strip's own viewport, and only `strip.scrollX` moves: the
+                    // reveal can never touch any other scroller, however this app
+                    // is hosted. Deferred past the double-click window (400ms) so
+                    // a second click still lands on the same, un-moved row. A
+                    // window opened onto a folder (focusDepth >= 0) instead pins
+                    // THAT column to the left edge, so its contents lead.
 
-                    onInit() { setTimeout(() => { const fd = classroot.focusDepth; if (fd < 0) this.scrollIntoView("nearest", true); else if (:depth == fd) this.scrollIntoView("start", true) }, 440) },
+                    onInit() { setTimeout(() => {
+                        const strip = classroot.body.strip
+                        const fd = classroot.focusDepth
+                        const left = this.x, right = left + this.width
+                        let to = -1
+                        if (fd < 0) {
+                            if (right > strip.scrollX + strip.width) to = right - strip.width
+                            else if (left < strip.scrollX) to = left
+                        } else if (:depth == fd) to = left
+                        if (to >= 0) {
+                            // no clamp here: the scroll write is clamped by the
+                            // platform to the strip's contained extent, exactly
+                            // like a user scroll — the app states the intent
+                            strip.reveal.to = to
+                            strip.reveal.start()
+                        }
+                    }, 440) },
 
                     // a LIST column — this level's nodes as selectable rows
 
@@ -1188,7 +1229,8 @@ class JotWindow extends Window [ width = 300, height = 250, chrome = false, forA
         fill = { classroot.active ? 0xFEEA3D : 0xFEF49C },
         onPointerDown() { classroot.beginDrag() },
         onPointerMove() { classroot.dragTo() },
-        onPointerUp()   { classroot.dragging = false },
+        onPointerUp(e: PointerUpEvent)   { classroot.endDrag(e.canceled) },
+        onHold() { },   // the hold rider — same claim shape as the title bar
 
         // the strip's widgets: dark olive outlines around pale interiors —
         // the close box 11px in from the left, the zoom triangle (right
@@ -1538,7 +1580,8 @@ width, the clock's right edge, the dock's seat at the bottom — re-derives from
 app.width / app.height on every host resize.
 */
 
-App [ appName = "Declare Desktop",
+App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow (wallpaper bleed, a window past the fold) is out of frame, never scroll range
+    minWidth = 800, minHeight = 600,                 // the floors: in a smaller viewport the browser pans (and pinches) the held frame natively — frame-driven, not a scroll anyone declares
     theme = { Themes.cupertino(app.darkMode) },
     fontFamily = "system-ui, sans-serif",
 

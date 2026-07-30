@@ -20,12 +20,19 @@ import { defineAttributes, isSet, ownerOf, setBound } from "./attributes.js";
 export class Image extends View {
   declare source: string;
   declare stretches: Stretch;
-  /** True once the bitmap has arrived (and any natural-sizing applied) —
-   *  reactive, so constraints can derive from it. Load/error *events* wait
-   *  for the rung that consumes them (R5 landed input + init only; the doc
-   *  defines no Image load event yet); a failed load simply never sets
-   *  this, and the view renders as its (possibly zero-sized) box. */
+  /** True once a bitmap has arrived (and any natural-sizing applied) —
+   *  reactive, read-only surface (schema'd 2026-07-30), so constraints can
+   *  derive from it: `visible = { !pic.loaded }` is the placeholder idiom.
+   *  Latches: re-pointing `source` keeps the previous bitmap (and this flag)
+   *  until the replacement lands. Load/error *events* wait for the rung that
+   *  consumes them (the doc defines no Image load event yet). */
   declare loaded: boolean;
+
+  /** True when the CURRENT source's load failed — the broken-avatar fact
+   *  (`fallback: View [ visible = { pic.failed } ]`). Read-only, reset when
+   *  a new load starts, so it always speaks about the present `source`;
+   *  a failure keeps whatever bitmap was already showing. */
+  declare failed: boolean;
 
   /** Discards a superseded load: only the latest request may land. */
   private loadSeq = 0;
@@ -58,6 +65,9 @@ export class Image extends View {
     const seq = ++this.loadSeq;
     const s = this.surface;
     if (s === null) return;
+    // a new attempt speaks for the new source: `failed` clears here (and only
+    // here), so it is always a fact about the CURRENT address
+    setBound(this, "failed", false);
     if (this.source === "") {
       s.setImage(null);
       return;
@@ -86,6 +96,10 @@ export class Image extends View {
       setBound(this, "loaded", true);
       this.surface.setImage(img);
     };
+    img.onerror = () => {
+      if (seq !== this.loadSeq || this.surface === null) return; // superseded or detached
+      setBound(this, "failed", true);
+    };
     img.src = this.source;
   }
 }
@@ -94,4 +108,5 @@ defineAttributes(Image, {
   source: { def: "", push: (i) => i.load() },
   stretches: { def: "none", push: (i, v) => i.surface?.setImageStretch(v) },
   loaded: { def: false },
+  failed: { def: false },
 });

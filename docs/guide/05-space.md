@@ -179,9 +179,13 @@ App [
     ]
 ```
 
-One idiom completes the picture: the panel that waits offstage and slides in.
-Nothing should ever extend past the app's edge — instead, stage overlays inside a
-frame-sized **layer**, and park them beyond *its* edge:
+A view *may* extend past the app's edge — out of frame is a supported place to
+be. Whatever crosses a non-scrolling edge is simply not drawn: a wallpaper
+oversized past every side, a window dragged half below a fixed stage — clipped
+at the frame, contributing nothing. But on a **scrolling axis** the same
+geometry changes meaning: past-the-edge *is* the scroll range, by definition.
+So the panel that waits offstage on a scrolling page needs one idiom — stage
+it inside a frame-sized **layer**, and park it beyond *the layer's* edge:
 
 ```declare-fragment
 overlay: View [ ignoreScroll = true, width = { app.hostWidth }, height = { app.hostHeight },

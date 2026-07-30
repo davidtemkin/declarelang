@@ -1,0 +1,22 @@
+// `lighten` compositing of a BLURRED (so partly transparent) source over an
+// opaque ground — the exact combination the wallpaper's colour poles use, and
+// the last step of that pipeline the other probes do not cover.
+
+App [ width = 400, height = 250, fill = #000000,
+    field: View [ x = 0, y = 0, width = 400, height = 250,
+        draw(d: Draw) {
+            d.fillStyle = "#402030"
+            d.fillRect(0, 0, 400, 250)
+            d.save()
+            d.filter = "blur(20px)"
+            d.globalCompositeOperation = "lighten"
+            const g = d.createRadialGradient(60, 125, 0, 60, 125, 150)
+            g.addColorStop(0, "hsl(50,80%,52%)")
+            g.addColorStop(0.5, "hsl(50,80%,32%)")
+            g.addColorStop(1, "rgba(0,0,0,0)")
+            d.fillStyle = g
+            d.fillRect(0, 0, 400, 250)
+            d.restore()
+            }
+        ]
+    ]

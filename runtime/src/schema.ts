@@ -378,7 +378,16 @@ const ImageSchema: ComponentSchema = {
   attrs: {
     source: { kind: "string" },
     stretches: enumType("Stretch", "none", "width", "height", "both"),
+    // READ-ONLY (below): the load lifecycle as two facts, surfaced 2026-07-30
+    // (David's ruling) when the network-transport tests found them unreadable
+    // from constraints. `loaded` = a bitmap has landed (the placeholder
+    // derives from it: `visible = { !pic.loaded }`); `failed` = the CURRENT
+    // source's load failed (the broken-avatar fallback), reset when a new
+    // load starts.
+    loaded: { kind: "boolean" },
+    failed: { kind: "boolean" },
   },
+  readOnly: ["loaded", "failed"],
 };
 
 // DOMIsland (foreign-content island): a leaf View whose BOX is owned by Declare — it
@@ -700,6 +709,51 @@ const TipSchema: ComponentSchema = {
   events: ["tip"],
 };
 
+// Streams (docs/system-design/streams.md, RULED 2026-07-29) — SSE and
+// WebSocket as sources. One family, three names: the abstract `Stream` base
+// carries the whole shared surface, and sits in this table but NOT the tag
+// registry — documented, inheritable, uninstantiable, exactly the Editor
+// arrangement. `EventStream` is SSE; `Socket` is WebSocket plus send().
+// status/error/open/last are READ-ONLY lifecycle intrinsics (the
+// DataSource.status/.loaded design: one fact, boolean views, never in
+// disagreement) — computed for you, a compile error to assign. `retry` is
+// the ruled reconnect policy: seconds between attempts after a loss the
+// platform won't repair itself, visible in the declaration; 0 = none.
+const StreamSchema: ComponentSchema = {
+  name: "Stream",
+  base: NodeSchema,
+  attrs: {
+    url: { kind: "string" },
+    active: { kind: "boolean" },
+    retry: { kind: "number" },
+    status: enumType("StreamStatus", "closed", "connecting", "open", "retrying", "failed"),
+    error: { kind: "string" },
+    last: { kind: "string" },
+    open: { kind: "boolean" },
+  },
+  readOnly: ["status", "error", "last", "open"],
+  events: ["message", "open", "close", "error"],
+};
+
+const EventStreamSchema: ComponentSchema = {
+  name: "EventStream",
+  base: StreamSchema,
+  attrs: {
+    // the named SSE event types to deliver (`listenTo = ["delta", "done"]`)
+    // — EventSource cannot hear a named `event:` it was not asked for
+    // (streams.md §2), and omission is SILENT, which is why the name carries
+    // the contract: you hear what you listen to. Unnamed (default) messages
+    // always arrive.
+    listenTo: { kind: "array", of: "string" },
+  },
+};
+
+const SocketSchema: ComponentSchema = {
+  name: "Socket",
+  base: StreamSchema,
+  attrs: {},
+};
+
 // State (docs/system-design/states.md) — a twin-table component like Animator:
 // non-visual (base null; family test descendsFrom(schema, "State")), carrying
 // the one control attribute `applied` and the built-in verbs apply()/remove()/
@@ -746,6 +800,13 @@ export const SCHEMAS: Readonly<Record<string, ComponentSchema>> = {
   Keys: KeysSchema,
   Focus: FocusSchema,
   Tip: TipSchema,
+  // Stream — the abstract base EventStream/Socket extend (url/active/retry +
+  // the read-only lifecycle intrinsics live here). In the table so the
+  // reference documents it once and subclasses inherit checkably; NOT in the
+  // tag registry, so it stays uninstantiable — the Editor arrangement.
+  Stream: StreamSchema,
+  EventStream: EventStreamSchema,
+  Socket: SocketSchema,
   State: StateSchema,
   Node: NodeSchema,
 };
@@ -833,8 +894,9 @@ export const EVENT_PAYLOAD: Readonly<Record<string, string>> = {
   focusChange: "View",                             // Focus: the newly focused view
   geometry: "FocusGeometry",
   tip: "TipEvent",
+  message: "StreamMessage",                        // Stream: data/type/id (streams.ts)
   // payload-free: focus, blur, escapeFocus, init, enter, load,
-  // start, stop, repeat, apply, remove
+  // start, stop, repeat, apply, remove, open, close, error
 };
 
 /** The payload TYPE NAMES, for "is this a legal written signature type?".

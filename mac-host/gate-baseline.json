@@ -1,0 +1,38 @@
+{
+  "arc": {
+    "differing": 0.02,
+    "structural": 0
+  },
+  "blend": {
+    "differing": 0.26,
+    "structural": 0
+  },
+  "blur": {
+    "differing": 2.75,
+    "structural": 0.27
+  },
+  "roundrect": {
+    "differing": 0.02,
+    "structural": 0
+  },
+  "vignette": {
+    "differing": 0.01,
+    "structural": 0.01
+  },
+  "calendar": {
+    "differing": 0.75,
+    "structural": 0.3
+  },
+  "weather": {
+    "differing": 0.05,
+    "structural": 0.03
+  },
+  "controls": {
+    "differing": 1.17,
+    "structural": 0.78
+  },
+  "desktop": {
+    "differing": 8.77,
+    "structural": 1.88
+  }
+}

@@ -42,6 +42,9 @@ export class Image extends View {
         const s = this.surface;
         if (s === null)
             return;
+        // a new attempt speaks for the new source: `failed` clears here (and only
+        // here), so it is always a fact about the CURRENT address
+        setBound(this, "failed", false);
         if (this.source === "") {
             s.setImage(null);
             return;
@@ -72,6 +75,11 @@ export class Image extends View {
             setBound(this, "loaded", true);
             this.surface.setImage(img);
         };
+        img.onerror = () => {
+            if (seq !== this.loadSeq || this.surface === null)
+                return; // superseded or detached
+            setBound(this, "failed", true);
+        };
         img.src = this.source;
     }
 }
@@ -79,5 +87,6 @@ defineAttributes(Image, {
     source: { def: "", push: (i) => i.load() },
     stretches: { def: "none", push: (i, v) => i.surface?.setImageStretch(v) },
     loaded: { def: false },
+    failed: { def: false },
 });
 //# sourceMappingURL=image.js.map

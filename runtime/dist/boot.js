@@ -198,10 +198,17 @@ function wireEnvironment(app, host, embedded) {
     scroll();
     w.addEventListener("resize", size);
     w.addEventListener("scroll", scroll, { passive: true });
-    w.addEventListener("pointermove", move, { passive: true });
-    w.addEventListener("pointerdown", down, { passive: true });
-    w.addEventListener("pointerup", up, { passive: true });
-    w.addEventListener("pointercancel", up, { passive: true });
+    // CAPTURE phase, so the coordinates land before ANY handler dispatch: the
+    // input router listens at the app root (target/bubble), and a touch press
+    // arrives with no prior move — bubbling to the window here would hand an
+    // onPointerDown a STALE app.pointerX/Y from the previous gesture (measured:
+    // a window title-bar hold-drag jumped by the whole touch position,
+    // simulator 2026-07-29). A mouse masks the order — its moves precede every
+    // press.
+    w.addEventListener("pointermove", move, { passive: true, capture: true });
+    w.addEventListener("pointerdown", down, { passive: true, capture: true });
+    w.addEventListener("pointerup", up, { passive: true, capture: true });
+    w.addEventListener("pointercancel", up, { passive: true, capture: true });
     w.addEventListener("pointerout", out);
 }
 /** Environment wiring for an embedded app: host size follows the container
@@ -240,8 +247,10 @@ function wireEnvironmentEmbedded(app, host) {
     };
     const up = () => { app.pointerDown = false; };
     sync();
-    host.addEventListener("pointermove", move, { passive: true });
-    host.addEventListener("pointerdown", down, { passive: true });
+    // capture, for the same reason as the top-level wiring: coordinates must
+    // land before the router dispatches a touch press's onPointerDown
+    host.addEventListener("pointermove", move, { passive: true, capture: true });
+    host.addEventListener("pointerdown", down, { passive: true, capture: true });
     host.addEventListener("pointerup", up, { passive: true });
     host.addEventListener("pointercancel", up, { passive: true });
     host.addEventListener("pointerleave", leave);
@@ -251,8 +260,8 @@ function wireEnvironmentEmbedded(app, host) {
         ro.observe(host);
     }
     TEARDOWN.set(app, () => {
-        host.removeEventListener("pointermove", move);
-        host.removeEventListener("pointerdown", down);
+        host.removeEventListener("pointermove", move, { capture: true });
+        host.removeEventListener("pointerdown", down, { capture: true });
         host.removeEventListener("pointerup", up);
         host.removeEventListener("pointercancel", up);
         host.removeEventListener("pointerleave", leave);

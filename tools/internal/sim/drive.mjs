@@ -88,6 +88,12 @@ switch (cmd) {
     console.log(JSON.stringify(r.value));
     break;
   }
+  case "orient": {
+    // PORTRAIT | LANDSCAPE — rotates the simulator on the fly
+    await post("/orientation", { orientation: (args[0] || "PORTRAIT").toUpperCase() });
+    console.log("ok");
+    break;
+  }
   default:
     console.error("unknown command", cmd);
     process.exit(1);

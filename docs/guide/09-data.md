@@ -91,6 +91,53 @@ fetched as text, rendered by the native `Markdown` component.) And an optional
 malformed data yields `.failed`, never `undefined` three bindings deep — and lets
 every `:path` be checked statically against the shape.
 
+## Streams — data that arrives while you watch
+
+Some data does not arrive once; it arrives *while you watch* — an AI answer
+composing itself token by token, prices ticking, a log following itself. That is
+the third kind of source: a **stream**. `EventStream` is a server-sent event
+stream (SSE); `Socket` is a WebSocket, the same surface plus `send()`; both extend
+the abstract `Stream`. Like every source, a stream is a non-visual member whose
+lifetime is its node's — and the hard half of streaming, getting each arrival onto
+the screen, is the language's ordinary job. The handler assigns; every constraint
+that reads the state follows. This is the whole consumer for streamed AI text:
+
+```declare-fragment
+answer: string = "",
+reply: EventStream [ url = { `/api/chat?id=${app.chatId}` },
+    active = { app.chatId != "" },
+    onMessage(e: StreamMessage) { app.answer = app.answer + e.data },
+    ],
+out: Text [ width = { parent.width }, text = { app.answer } ]
+```
+
+There is no `connect()` and no cleanup. A stream is connected exactly while
+`active` is true and `url` is non-empty; a url change closes and reopens at the
+new address, and a removed node takes its connection with it. Messages are
+**transient** — `e.data` is a string, and nothing accumulates unless a handler
+writes it somewhere, because accumulation is app semantics (streamed tokens
+concatenate; JSON messages don't). For the show-the-latest case you need no
+handler at all: `last` is the most recent message, reactive, so
+`text = { feed.last }` is a complete ticker.
+
+Connection state reads exactly like a `DataSource`'s: one read-only `status` fact
+(`"closed"` / `"connecting"` / `"open"` / `"retrying"` / `"failed"`), `open` as its
+boolean view, `error` as the last failure's reason. And when a connection drops,
+the policy is *declared, never invented for you*: SSE reconnects itself — the
+platform owns that — and beyond it, `retry = 2` means re-dial two seconds after
+any loss the platform won't repair, for as long as `active` holds. No hidden
+backoff curve, no give-up count; the whole policy is one number in the
+declaration. Two fine points the transports impose: an SSE stream that *names*
+its events (`event: delta` — AI APIs do this) must declare the names it listens
+for — `listenTo = ["delta", "done"]` — because the platform delivers only what
+is asked for; and `Socket.send()` is legal only while `.open` — a send into a
+closed socket reports through `error`/`onError` instead of queueing silently.
+
+A stream is event-shaped — ordered arrivals, append-mostly, transient — where a
+dataset is record-shaped: navigable state, paths, mutation. They stay separate on
+purpose, and the bridge between them is one line of app code: parse the message,
+write into the dataset, and everything downstream re-derives.
+
 ## Editing: reads are one-way, editors opt in
 
 Reading is one-way everywhere by default. A leaf **editor** — a field that owns an

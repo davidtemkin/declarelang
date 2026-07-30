@@ -1,0 +1,17 @@
+// What a blurred shape does at the RASTER'S OWN edge. The bar is flush to the
+// left edge of the drawing, so the answer says whether the backend treats
+// everything outside the drawing as transparent (the shape fades to ~half at
+// the edge) or extends the edge pixels outward (it stays solid).
+
+App [ width = 400, height = 250, fill = #000000,
+    field: View [ x = 0, y = 0, width = 400, height = 250,
+        draw(d: Draw) {
+            d.fillStyle = "#000000"
+            d.fillRect(0, 0, 400, 250)
+            d.filter = "blur(20px)"
+            d.fillStyle = "#FFFFFF"
+            d.fillRect(0, -100, 100, 450)
+            d.filter = "none"
+            }
+        ]
+    ]

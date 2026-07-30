@@ -28,7 +28,7 @@
 // read as "indexed" when it isn't. Deterministic by construction — fixed env vector,
 // fixed measurer, same data bytes — so the browser and Node crawls are byte-identical,
 // extending the oracle discipline to the whole document.
-import { build, settle, App, HeadlessBackend, provideMeasurer, provideTransport } from "../../runtime/dist/index.js";
+import { build, settle, App, HeadlessBackend, provideMeasurer, provideTransport, provideStreams } from "../../runtime/dist/index.js";
 import { approximateMeasurer, DEFAULT_ENV } from "./headless.js";
 import { staticHtml } from "./static-html.js";
 /** A url with a scheme (or protocol-relative) — the NETWORK, never crawled. A bare
@@ -92,6 +92,16 @@ async function bootAt(source, opts, location, refusals) {
         provideMeasurer(approximateMeasurer());
     const pending = new Set();
     const prev = provideTransport(crawlTransport(opts, refusals, pending));
+    // Streams never open under a crawl (streams.md §4): a stream is live,
+    // ordered, transient — nothing a snapshot could honestly index. Unlike a
+    // refused FETCH this is not recorded as a refusal (which would fail the
+    // crawl): fetched data has build-time remedies (inline it, ship a file),
+    // a stream by definition has none — the source just lands `failed` and
+    // the app's static content is what the snapshot honestly is.
+    const refuseStream = (url) => {
+        throw new Error(`crawl refused stream connection — ${url} (streams are never indexed)`);
+    };
+    const prevStreams = provideStreams({ eventSource: refuseStream, socket: refuseStream });
     try {
         const app = build(source, { deps: opts.deps, links: opts.links });
         app.attach(new HeadlessBackend(), null);
@@ -112,6 +122,7 @@ async function bootAt(source, opts, location, refusals) {
     }
     finally {
         provideTransport(prev);
+        provideStreams(prevStreams);
     }
 }
 /** The fragment locations linked from an emitted document — every `href="#…"`

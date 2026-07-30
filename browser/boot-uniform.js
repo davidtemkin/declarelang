@@ -250,7 +250,11 @@ export default async function boot(cfg) {
   // already use. The platform default (page-relative fetch) only agrees when the
   // page IS the program URL; the root index.html boots this same app from the repo
   // root, where "language.json" would otherwise resolve a level too high.
-  provideTransport((url) => fetch(new URL(url, mainDir)));
+  // Resolve relative data urls against the PROGRAM's directory — and pass
+  // `init` through: the transport contract is (url, init), and dropping the
+  // second argument silently degraded every DataSource POST/PUT to a bare
+  // GET (found 2026-07-30 by the network-browser transport tests).
+  provideTransport((url, init) => fetch(new URL(url, mainDir), init));
   const props = { render: cfg.backend === "CanvasBackend" ? "canvas" : "dom" };
   const sVersion = perfStage("version");
   const build = await platformBuild();

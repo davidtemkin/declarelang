@@ -1,0 +1,17 @@
+// One quarter-pie. In the model's y-down space, sweeping angle 0 → pi/2 with
+// counterclockwise=false runs from due-right to straight-DOWN, so the wedge
+// fills the lower-right quadrant.
+
+App [ width = 400, height = 250, fill = #202020,
+    field: View [ x = 0, y = 0, width = 400, height = 250,
+        draw(d: Draw) {
+            d.fillStyle = "#FFFFFF"
+            d.beginPath()
+            d.moveTo(200, 125)
+            d.lineTo(300, 125)
+            d.arc(200, 125, 100, 0, Math.PI / 2, false)
+            d.closePath()
+            d.fill()
+            }
+        ]
+    ]

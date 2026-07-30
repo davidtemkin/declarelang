@@ -691,8 +691,15 @@ defineAttributes(View, {
   // reads drive fades/reveals).
   scrolls: { def: "none", push: pushScrolls },
   tip: { def: "" },
-  scrollY: { def: 0 },
-  scrollX: { def: 0 },
+  // TWO-WAY: the backend mirrors user scrolling IN (setScroll's callback); a
+  // program write pushes OUT. The echo is inert — a mirrored value arrives
+  // already equal to the surface's, so the push's scrollTo is a no-op there.
+  // This is what lets an app drive its own scroller (the Files strip animates
+  // `scrollX` to reveal a fresh column) instead of asking a platform reveal to
+  // find one — scrollIntoView is axis-blind and walks ancestors, which is how
+  // a horizontal strip reveal once vertically scrolled the island hosting it.
+  scrollY: { def: 0, push: (v, y: number) => v.surface?.scrollToY?.(y) },
+  scrollX: { def: 0, push: (v, x: number) => v.surface?.scrollToX?.(x) },
   // The prevailing built-ins: model-side on View (no push — Text's style
   // derive is the consumer that crosses the seam). Defaults are the
   // browser-native text defaults Text carried through R3–R9.

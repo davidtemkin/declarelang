@@ -27,9 +27,11 @@
  *    • URL  `?render=canvas`, `?crawler`
  *    • CLI  `--render canvas` / `--canvas`, `--crawler` */
 export interface CompileFlags {
-  /** Which RENDERER to bundle / mount (`?render=canvas` / `--render canvas`): managed
-   *  DOM, or one `<canvas>`. */
-  render: "dom" | "canvas";
+  /** Which RENDERER to bundle / mount (`?render=canvas` / `--render canvas`):
+   *  managed DOM, one `<canvas>`, or the NATIVE host's CALayer tree
+   *  (`?render=mac` — the native client asks for the compiled program and
+   *  renders it itself; docs/system-design/native-host.md). */
+  render: "dom" | "canvas" | "mac";
   /** Static extraction (docs/system-design/capabilities.md §5): embed the program's content as
    *  semantic HTML in the run/build wrapper's host element (`#declare-static`), for
    *  crawlers and AI readers that don't run the app. Removed before first paint, never
@@ -48,8 +50,8 @@ export type FlagSpec =
   | { readonly name: keyof CompileFlags; readonly kind: "enum"; readonly values: readonly string[]; readonly default: string; readonly description: string };
 
 export const FLAG_SPECS: readonly FlagSpec[] = [
-  { name: "render", kind: "enum", values: ["dom", "canvas"], default: "dom",
-    description: "render through managed DOM or a single <canvas>" },
+  { name: "render", kind: "enum", values: ["dom", "canvas", "mac"], default: "dom",
+    description: "render through managed DOM, a single <canvas>, or the native Mac host" },
   { name: "crawler", kind: "bool", default: false,
     description: "embed the crawled document in the host page, for crawlers" },
 ];

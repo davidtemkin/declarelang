@@ -1,0 +1,17 @@
+// A blur calibration probe: one hard-edged white bar, blurred by a known
+// amount, on black. The falloff across the bar's edge measures the Gaussian's
+// standard deviation directly — which is the one number that has to agree
+// between canvas `filter: blur()` and CoreImage's CIGaussianBlur.
+
+App [ width = 400, height = 200, fill = #000000,
+    field: View [ x = 0, y = 0, width = 400, height = 200,
+        draw(d: Draw) {
+            d.fillStyle = "#000000"
+            d.fillRect(0, 0, 400, 200)
+            d.filter = "blur(20px)"
+            d.fillStyle = "#FFFFFF"
+            d.fillRect(100, -100, 200, 400)
+            d.filter = "none"
+            }
+        ]
+    ]

@@ -17,3 +17,20 @@ computed URL.
 How the bitmap fills a box whose size differs from the image's natural size: `none`
 (default — natural size, no scaling), `width`, `height`, or `both`. The first built-in
 enum attribute — `stretches = both` scales the picture to the box on both axes.
+
+## loaded
+The bitmap has landed — the reactive fact a placeholder derives from
+(`spinner: View [ visible = { !pic.loaded } ]`). **Read-only** — computed by the load,
+a compile error to assign. One honest edge: re-pointing `source` does not reset it —
+the surface keeps the previous bitmap (and `loaded` stays true) until the replacement
+arrives; a superseded in-flight load is discarded. Under headless extraction there is
+no image loader, so `loaded` honestly stays false. A failure is `failed`'s fact, not
+this one's absence.
+
+## failed
+The **current** source's load failed — the broken-avatar fact, for deriving a fallback:
+`initials: Text [ visible = { pic.failed }, … ]`. **Read-only.** Reset whenever a new
+load starts (a `source` change), so it always speaks about the present address; a
+failure keeps whatever bitmap was already showing (`loaded` stays true if one had
+landed). There is no error *message* — the platform's image loader does not say why —
+so the fact is boolean by honesty, not austerity.

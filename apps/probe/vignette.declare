@@ -1,0 +1,20 @@
+// The desktop wallpaper's vignette, alone on white: a two-circle radial
+// gradient whose start and end circles have DIFFERENT centres. Canvas and
+// CGGradient both accept that focal form; this probe reads the falloff so the
+// two can be compared as a curve rather than guessed at.
+
+App [ width = 400, height = 250, fill = #FFFFFF,
+    field: View [ x = 0, y = 0, width = 400, height = 250,
+        draw(d: Draw) {
+            const W = 400
+            const H = 250
+            d.fillStyle = "#FFFFFF"
+            d.fillRect(0, 0, W, H)
+            const v = d.createRadialGradient(W / 2, H * 0.45, H * 0.1, W / 2, H * 0.5, W * 0.72)
+            v.addColorStop(0, "rgba(0,0,0,0)")
+            v.addColorStop(1, "rgba(0,0,0,1)")
+            d.fillStyle = v
+            d.fillRect(0, 0, W, H)
+            }
+        ]
+    ]

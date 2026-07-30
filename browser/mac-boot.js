@@ -1,0 +1,516 @@
+// mac-boot — the native client's boot ladder and app host.
+//
+// The web client's ladder (boot-uniform.js) has three tiers: a committed
+// prewarm artifact, a validated cache, then an in-browser compile. The native
+// client keeps the same shape, so nothing about "how a program reaches a
+// screen" is renderer-specific:
+//
+//   PRODUCTION  a built artifact (declarec --render mac) — program JSON
+//               beside its assets, loaded from disk. No compiler, no server.
+//   CACHE       a previously fetched program, revalidated with the HTTP stack
+//               itself (If-None-Match against the server's compile ETag): one
+//               cheap conditional request, 304 = run what we have.
+//   SERVER      `<url>?program&render=mac` — the dev server compiles (in its
+//               toolchain realm, with its own build cache) and answers JSON.
+//   CLIENT      the compiler bundle, loaded into JSC, compiling the fetched
+//               source locally — the native peer of in-browser compilation.
+//
+// Mounting is the ordinary runtime call: build() → mountApp() with the mac
+// backend. Because the runtime's environment probes are shimmed (mac-env.js),
+// the SAME wireInput/wireEnvironment paths the DOM client uses run here —
+// pointer capture, hover, keyboard, host sizing — and only the drawing is
+// native.
+
+import { build, mountApp, settle, provideTransport, provideMeasurer, loadFonts, fontFacesOf } from "../runtime/dist/index.js";
+import { MacBackend, flushOps, provideHitPath, macScroll, macRichHeight, macRichLink,
+         macEditInput, macEditFocus, macEditEnter, embedsPending, mountEmbed, clearEmbed, surfaceById,
+         publishChildName, macScrollTo, surfaceOrigin,
+         countOps, peekOps, macTraceHit } from "../runtime/dist/mac-backend.js";
+
+const H = globalThis.__declareMacHost;
+const log = (m) => H.log("log", m);
+
+// ── host seams the runtime already exposes ──────────────────────────────────
+provideMeasurer(globalThis.__declareMeasurer);
+provideHitPath((d, x, y) => H.pathHit(d, x, y));
+// Relative data URLs resolve against the PROGRAM's directory — the web
+// client's rule (boot-uniform's `new URL(url, mainDir)`), which is what makes
+// `url = "../../docs/declare-model.json"` mean the same thing in every host.
+provideTransport((url, opts) => fetch(new URL(url, globalThis.__declareBase || "http://localhost/").href, opts));
+
+// ── the ladder ──────────────────────────────────────────────────────────────
+
+const CACHE_NS = "programs";
+
+async function fromProduction(dirUrl) {
+  // A built artifact: program.json beside its assets (declarec --render mac).
+  try {
+    const res = await fetch(new URL("program.json", dirUrl).href);
+    if (!res.ok) return null;
+    const j = await res.json();
+    if (!j || !j.source) return null;
+    log("boot: production artifact");
+    return { source: j.source, deps: j.deps ?? {}, base: dirUrl };
+  } catch { return null; }
+}
+
+async function fromServer(programUrl) {
+  const u = new URL(programUrl);
+  u.search = (u.search ? u.search + "&" : "?") + "program&render=mac";
+  const key = CACHE_NS + ":" + programUrl;
+  let cached = null;
+  try { const raw = H.cacheGet(key); if (raw) cached = JSON.parse(raw); } catch { cached = null; }
+
+  const headers = cached && cached.etag ? { "if-none-match": cached.etag } : undefined;
+  const res = await fetch(u.href, headers ? { headers } : undefined);
+  if (res.status === 304 && cached) {
+    log("boot: client cache (304, revalidated)");
+    return { source: cached.source, deps: cached.deps ?? {}, base: programUrl };
+  }
+  if (!res.ok) return null;
+  const j = await res.json();
+  if (!j || !j.source) {
+    if (j && j.report) throw new Error(j.report);
+    return null;
+  }
+  const etag = j.etag ?? null;
+  try { H.cacheSet(key, JSON.stringify({ source: j.source, deps: j.deps ?? {}, etag })); } catch {}
+  log("boot: server compile" + (etag ? " (cached for next time)" : ""));
+  return { source: j.source, deps: j.deps ?? {}, base: programUrl };
+}
+
+let compilerLoaded = false;
+async function loadCompiler(origin) {
+  if (compilerLoaded) return true;
+  const url = new URL("/bundles/declare-compiler-mac.js", origin).href;
+  const res = await fetch(url);
+  if (!res.ok) return false;
+  const src = await res.text();
+  H.evaluate(src, url);          // into this same JSC context
+  compilerLoaded = typeof globalThis.__declareCompiler === "object";
+  return compilerLoaded;
+}
+
+/** The auto-include library, exactly as the web client supplies it.
+ *
+ *  Required by EVERY client-side compile, not just the boot fall-through: a
+ *  program compiled without it fails with `unknown component 'Button'` on every
+ *  bare tag. The live-edit channel compiles in this same context, and when boot
+ *  took the server tier this had never run — so the workbench reported ten
+ *  unknown components for a file that compiles clean. */
+async function ensureLibrary(origin) {
+  if (globalThis.__declareLibLoaded) return;
+  try {
+    const manifest = await (await fetch(new URL("/library/autoincludes.json", origin).href)).json();
+    const names = [...new Set(Object.values(manifest).filter((v) => typeof v === "string"))];
+    // ⚠ SHAPE MATTERS, in three ways that all fail the same silent way
+    // ("unknown component 'Button'" on every bare tag):
+    //   • setDefaultLibrary takes BrowserFiles — { files, manifest, libraryRoot }
+    //     — NOT a flat filename→source map.
+    //   • `files` keys are CANONICAL paths, so "library/button.declare", not
+    //     "button.declare".
+    //   • the MANIFEST (tag → path) has to ride along; without it nothing maps a
+    //     bare tag to a file, however many sources are registered.
+    const files = {};
+    await Promise.all(names.map(async (f) => {
+      const r = await fetch(new URL("/library/" + f, origin).href);
+      if (r.ok) files["library/" + f] = await r.text();
+    }));
+    globalThis.__declareCompiler.setDefaultLibrary({ files, manifest, libraryRoot: "library" });
+    globalThis.__declareLibLoaded = true;
+  } catch (e) { log("client compile: library fetch failed — " + e.message); }
+}
+
+async function fromClient(programUrl) {
+  const origin = new URL(programUrl).origin;
+  if (!(await loadCompiler(origin))) return null;
+  const src = await (await fetch(programUrl)).text();
+  await ensureLibrary(origin);
+  const dir = programUrl.replace(/[^/]*$/, "");
+  const out = globalThis.__declareCompiler.compile(src, { originDir: dir });
+  if (!out.source) throw new Error(out.report || "compile failed");
+  log("boot: client compile");
+  return { source: out.source, deps: out.deps ?? {}, base: programUrl };
+}
+
+/** The ladder, in order, with each tier falling through on absence. */
+async function resolveProgram(url) {
+  if (url.endsWith("/") || url.endsWith("program.json")) {
+    const p = await fromProduction(url.endsWith("/") ? url : url.replace(/program\.json$/, ""));
+    if (p) return p;
+  }
+  try {
+    const s = await fromServer(url);
+    if (s) return s;
+  } catch (e) {
+    // FALL THROUGH, don't rethrow. A host that does not implement `?program`
+    // answers with the .declare source instead of JSON, so this tier THROWS on
+    // exactly the hosts the client tier exists for — and rethrowing here killed
+    // boot outright ("JSON Parse error: Unrecognized token '/'") instead of
+    // trying the next rung. The docstring above always said the ladder falls
+    // through on absence; only the code disagreed.
+    log("server compile unavailable (" + e.message + ") — trying the client tier");
+  }
+  const c = await fromClient(url);
+  if (c) return c;
+  throw new Error("could not load " + url);
+}
+
+// ── mounting ────────────────────────────────────────────────────────────────
+
+let currentApp = null;
+let backend = null;
+
+export async function macBoot(url) {
+  const { source, deps, base } = await resolveProgram(url);
+  // Assets (images, data) resolve against the program's own directory — the
+  // same rule the web client uses, expressed through the transport's base.
+  globalThis.__declareBase = base.replace(/[^/]*$/, "");
+  // The program URL itself, for `POST /compile?main=` — the web passes its page's
+  // program the same way, and it is what resolves a live edit's includes.
+  globalThis.__declareMain = base;
+  const app = build(source, { deps });
+  currentApp = app;
+  globalThis.__app = app;
+  liveApps.set(app, null);       // the root app can publish live edits too
+  installChildPointerEnv();
+
+  // A deep link is an initial state: seed location BEFORE the first paint.
+  const hash = new URL(base).hash.replace(/^#/, "");
+  if (hash) { app.location = hash; settle(); }
+
+  try { await loadFonts(fontFacesOf(app)); } catch {}
+
+  backend = new MacBackend();
+  mountApp(app, hostStub(), backend);
+  settle();
+  flushOps();
+  H.setTitle(app.appName || programName(base));
+  startPumps(app);
+  return app;
+}
+
+/** mountApp expects a host element; natively the host is the window's root
+ *  layer, so this stub answers only what wireInput probes (never embedded,
+ *  no ancestors). */
+function hostStub() {
+  return { closest: () => null, clientWidth: globalThis.innerWidth, clientHeight: globalThis.innerHeight,
+           style: {}, appendChild() {}, querySelectorAll: () => [], querySelector: () => null,
+           addEventListener() {}, removeEventListener() {}, isConnected: true, ownerDocument: globalThis.document };
+}
+
+const programName = (u) => (u.split("/").pop() || "app").replace(/\.declare$/, "");
+
+/** Per-frame work the native host drives: settle-driven title, and the embed
+ *  (AppIsland) wiring — the native peer of host-client's mountPreviews. */
+function startPumps(app) {
+  let title = "";
+  const tick = () => {
+    if (currentApp !== app) return;
+    if (app.appName !== title) { title = app.appName; H.setTitle(title || "Declare"); }
+    wireEmbeds();
+    liveTick();
+    globalThis.requestAnimationFrame(tick);
+  };
+  globalThis.requestAnimationFrame(tick);
+}
+
+// ── AppIsland: a whole program inside a box, natively ───────────────────────
+//
+// The web host mounts a child app into an island's ELEMENT. Natively there is
+// no element — and none is needed: the child's root surface is inserted as a
+// CHILD SURFACE of the island's, so it lands in the same layer tree. Paint and
+// hit-testing then reach it by the ordinary walk (no second router, no
+// coordinate sync) — the embedding is strictly simpler than the web's.
+
+const wiredEmbeds = new Map();
+const embedGen = new Map();
+/** Every app that could publish a live edit → the island surface it lives in
+ *  (null for the root app). The web watches the page app AND each embedded
+ *  child, because an embedded Viewer's Edit tab publishes liveCard/liveSource on
+ *  ITS OWN app; the same is true here. */
+const liveApps = new Map();
+/** The last (card, source) each app published, so a mount happens once per edit. */
+const liveSigs = new Map();
+/** Each mounted child app → the island surface it sits in, for the pointer
+ *  environment below. */
+const childIslands = new Map();
+// debug handle: the mounted child apps, for `ctl.mjs eval`
+globalThis.__children = () => [...liveApps.keys()].filter((a) => childIslands.has(a));
+
+// ── the child pointer environment ───────────────────────────────────────────
+//
+// A child app is ATTACHED, not mounted, so `wireEnvironment` never runs for it:
+// its `app.pointerX/Y`, `hovering` and `pointerDown` sit at their defaults
+// forever. Every child-app interaction that reads them is then silently dead —
+// the Viewer's edit-pane divider reads `app.pointerY`, so its press registered
+// (a hit, routed through the shared surface tree) and the drag then computed
+// against a pointerY frozen at 0.
+//
+// The web gets this from `wireEnvironmentEmbedded`, offsetting the event by the
+// island element's rect. There is no element here, so the surface tree supplies
+// the origin instead.
+//
+// ⚠ This MUST run before the event is routed. Doing it from the per-frame
+// follow loop (the obvious place) leaves the child's pointer one event stale,
+// and a press-then-drag inside a single frame reads the PRESS point for the
+// whole gesture — the divider then jumped to wherever it was grabbed and
+// stayed. Hooking the one entry point is what makes the ordering right.
+function installChildPointerEnv() {
+  const g = globalThis;
+  const orig = g.__declarePointer;
+  if (typeof orig !== "function" || g.__declareChildPointerEnv) return;
+  g.__declareChildPointerEnv = true;
+  g.__declarePointer = (type, x, y, buttons, mods) => {
+    for (const [child] of liveApps) {
+      const islandId = childIslands.get(child);
+      if (islandId === undefined) continue;
+      const [ox, oy] = surfaceOrigin(islandId);
+      const px = x - ox, py = y - oy;
+      if (child.pointerX !== px) child.pointerX = px;
+      if (child.pointerY !== py) child.pointerY = py;
+      if (type === "pointerdown" && !child.pointerDown) child.pointerDown = true;
+      if (type === "pointerup" && child.pointerDown) child.pointerDown = false;
+      if (!child.hovering) child.hovering = true;
+    }
+    orig(type, x, y, buttons, mods);
+  };
+}
+
+function wireEmbeds() {
+  const pend = embedsPending();
+  if (pend.length === 0) return;
+  for (const { id, slot } of pend) {
+    const prev = wiredEmbeds.get(id);
+    if (prev === slot) continue;
+    wiredEmbeds.set(id, slot);
+    if (!slot || !slot.startsWith("run:")) continue;
+    const spec = slot.slice(4).split("|");
+    const name = spec[0];
+    const env = parseEnv(spec[1] || "");
+    if (!name || name.startsWith("__")) continue;      // live-edit channels: not on this path yet
+    log("island mount: " + name + " env=" + JSON.stringify(env) + " slot=" + slot);
+    mountChild(id, name, env).catch((e) => log("island " + name + ": " + e.message));
+  }
+}
+
+// ── the live-edit channel ───────────────────────────────────────────────────
+//
+// A `run:__`-named slot is NOT a fetchable file: it is a channel an editing
+// surface publishes into. The Viewer's Edit tab sets `liveCard = "__raw__"` and
+// `liveSource` to the text in its editor, and the island named `run:__raw__`
+// shows that source COMPILED AND RUNNING. Without this the workbench's lower
+// pane was simply empty natively, where the DOM ran a whole nested desktop.
+//
+// The web does this from an rAF loop in host-client.js (`watchLive`); this is the
+// same contract, scoped the same way — the island must belong to the app that
+// published, so two hosted viewers never cross wires.
+
+/** Is `s` inside the subtree rooted at `root`? */
+function within(s, root) {
+  for (let c = s; c; c = c.parent) if (c === root) return true;
+  return false;
+}
+
+/** The island surface for a live card, scoped to the publishing app. */
+function liveIsland(card, scopeBox, appRoot) {
+  for (const { id, slot } of embedsPending()) {
+    if (!slot.startsWith("run:" + card)) continue;
+    const s = surfaceById(id);
+    if (!s) continue;
+    // scoped: inside the publishing app's own surface tree
+    if (scopeBox !== null && !within(s, scopeBox)) continue;
+    if (scopeBox === null && appRoot && !within(s, appRoot)) continue;
+    return id;
+  }
+  return -1;
+}
+
+function watchLive(app, scopeBox) {
+  const card = typeof app.liveCard === "string" ? app.liveCard : "";
+  if (card === "") return;                       // nothing published yet
+  const body = typeof app.liveSource === "string" ? app.liveSource : "";
+  const sig = card + " " + body;
+  if (liveSigs.get(app) === sig) return;
+  const id = liveIsland(card, scopeBox, app.surface);
+  // The island may not be mounted yet — the edit pane slots its island only in
+  // edit mode, and the channel can publish first. Don't burn the signature.
+  if (id < 0) return;
+  liveSigs.set(app, sig);
+  compileLive(body).then((r) => {
+    if (r && r.source) { app.liveReport = ""; mountCompiled(id, r, null); }
+    else if (r && r.report != null) app.liveReport = String(r.report);
+    else liveSigs.delete(app);                   // compiler not warm — retry
+  }).catch(() => liveSigs.delete(app));
+}
+
+/** Compile a SOURCE STRING (not a URL).
+ *
+ *  `POST /compile?main=<program url>` — the SAME delegate the web client uses
+ *  (host-client.js `cfg.compile`), so a live edit is compiled by the same
+ *  compiler that served boot and resolves includes and auto-includes against the
+ *  same program. Doing it with the in-context client compiler instead reported
+ *  ten `unknown component` errors for a file that compiles clean, because
+ *  `?main=` is what tells the compiler where the program lives.
+ *  The client tier stays as the fallback for a server that has no /compile. */
+async function compileLive(src) {
+  const main = globalThis.__declareMain || "";
+  let origin = "";
+  try { origin = new URL(main).origin; } catch { return null; }
+  try {
+    const res = await fetch(new URL("/compile?main=" + encodeURIComponent(main), origin).href,
+                            { method: "POST", body: src });
+    if (res.ok) {
+      const r = await res.json();
+      return r.source ? { source: r.source, deps: r.deps ?? {} } : { report: r.report || "compile failed" };
+    }
+  } catch (e) { log("live compile: " + e.message); }
+  if (!(await loadCompiler(origin))) return null;
+  await ensureLibrary(origin);
+  try {
+    const dir = main.replace(/[^/]*$/, "");
+    const out = globalThis.__declareCompiler.compile(src, { originDir: dir });
+    return out.source ? { source: out.source, deps: out.deps ?? {} } : { report: out.report || "compile failed" };
+  } catch (e) {
+    return { report: e && e.message ? e.message : String(e) };
+  }
+}
+
+function liveTick() {
+  for (const [app, box] of liveApps) watchLive(app, box);
+}
+
+function parseEnv(q) {
+  const env = {};
+  for (const pair of q.split("&")) {
+    if (!pair) continue;
+    const i = pair.indexOf("=");
+    const k = i < 0 ? pair : pair.slice(0, i);
+    const v = i < 0 ? "true" : pair.slice(i + 1);
+    env[k] = v === "true" || v === "1" ? true : v === "false" || v === "0" ? false
+      : v !== "" && !isNaN(Number(v)) ? Number(v) : v;
+  }
+  return env;
+}
+
+async function mountChild(surfaceId, name, env) {
+  const box = surfaceById(surfaceId);
+  if (!box) return;
+  // `program` is a name or a relative path, resolved from the host program's
+  // demos/ folder — the web client's rule, kept.
+  const base = globalThis.__declareBase || "";
+  const url = new URL(name.endsWith(".declare") ? name : name + ".declare", new URL("demos/", base)).href;
+  const { source, deps } = await resolveProgram(url);
+  mountCompiled(surfaceId, { source, deps }, env);
+  log("island: " + name + " mounted");
+}
+
+/** Put an already-compiled program into an island. Shared by the URL path and
+ *  the live-edit channel, which differ only in where the source came from. */
+function mountCompiled(surfaceId, compiled, env) {
+  const box = surfaceById(surfaceId);
+  if (!box) return null;
+  // One island, one tenant: evict whatever is mounted before mounting again,
+  // and stamp this mount so the previous tenant's size-follow loop retires.
+  const gen = (embedGen.get(surfaceId) || 0) + 1;
+  embedGen.set(surfaceId, gen);
+  clearEmbed(surfaceId);
+  const child = build(compiled.source, { deps: compiled.deps ?? {} });
+  child.attach(backend, null);
+  mountEmbed(surfaceId, child.surface);
+  child.hostWidth = box.width;
+  child.hostHeight = box.height;
+  // A declared size floor makes the ISLAND a viewport — the DOM's
+  // wireEnvironmentEmbedded sets `overflow: auto` on the island element for
+  // exactly this case, so a tenant taller than its box pans inside the island
+  // (the tenant ROOT itself never self-scrolls; mountEmbed retires its scroll).
+  // The native mirror: the island surface scrolls; its extent recurses into
+  // the tenant, so the scroll range is the tenant's real height.
+  if ((child.minWidth > 0 || child.minHeight > 0) && box.setScroll) {
+    box.setScroll(true, (y) => { /* island pan — no model attribute to mirror */ });
+  }
+  if (env && Object.keys(env).length) child.env = env;
+  // The OS colour scheme, as `mountApp`'s wireColorScheme gives the root app. A
+  // child is ATTACHED, not mounted, so nothing wires it — and the live-edit
+  // pane's nested desktop came up LIGHT against the DOM's dark. (Distinct from
+  // `env.dark`, which is a host→child message the Viewer reads.)
+  child.dark = H.appearance() === "dark";
+  liveApps.set(child, box);          // a child can itself publish live edits
+  childIslands.set(child, surfaceId);
+  // Keep the tenant sized to its box (the box is a constraint target that can
+  // change with the window; the child re-derives from hostWidth/Height).
+  const follow = () => {
+    if (embedGen.get(surfaceId) !== gen) { liveApps.delete(child); childIslands.delete(child); return; }  // a newer tenant owns this island
+    if (surfaceById(surfaceId) !== box) { liveApps.delete(child); childIslands.delete(child); return; }
+    if (child.hostWidth !== box.width || child.hostHeight !== box.height) {
+      child.hostWidth = box.width; child.hostHeight = box.height;
+    }
+    const dark = H.appearance() === "dark";
+    if (child.dark !== dark) child.dark = dark;      // keep live, as the root app is
+
+    // Reflect the tenant's name up to the island, so a hosting window can title
+    // itself by what it shows (the viewer names its window by the open file).
+    publishChildName(surfaceId, typeof child.appName === "string" ? child.appName : "");
+    globalThis.requestAnimationFrame(follow);
+  };
+  globalThis.requestAnimationFrame(follow);
+  settle();
+  flushOps();
+  return child;
+}
+
+// ── host → JS entry points ──────────────────────────────────────────────────
+
+globalThis.__declareBoot = (url) => macBoot(url).catch((e) => {
+  H.log("error", "boot failed: " + (e && e.stack || e));
+  H.bootFailed(String(e && e.message || e));
+});
+globalThis.__declareScroll = (x, y, dy, dx) => macScroll(x, y, dy, dx || 0);
+// A scrollbar DRAG addresses one specific scroller by id, rather than routing a
+// delta through the geometric wheel walk.
+globalThis.__declareScrollTo = (id, y, x) => {
+  macScrollTo(id, y, x === undefined || x === null ? null : x);
+  settle(); flushOps();
+};
+globalThis.__declareTraceHit = (x, y) => macTraceHit(x, y);
+globalThis.__declareRichHeight = (id, h) => { macRichHeight(id, h); settle(); flushOps(); };
+globalThis.__declareRichLink = (id, href) => { macRichLink(id, href); settle(); flushOps(); };
+globalThis.__declareEditInput = (id, v) => { macEditInput(id, v); settle(); flushOps(); };
+globalThis.__declareEditFocus = (id, f) => { macEditFocus(id, f); settle(); flushOps(); };
+globalThis.__declareEditEnter = (id) => { macEditEnter(id); settle(); flushOps(); };
+globalThis.__declareSettle = () => { settle(); flushOps(); };
+
+// ── benchmarks ──────────────────────────────────────────────────────────────
+// The engine bench is shared code (bench-core.js); these measure the pipeline
+// that is actually ours: a settle over the live app, the op buffer it produces,
+// and the JSON round trip that crosses to Swift.
+globalThis.__declareBench = () => {
+  const app = currentApp;
+  const out = { ops: 0, settleMs: 0, serializeMs: 0, settles: 0 };
+  if (!app) return JSON.stringify(out);
+  const t = () => H.now();
+
+  // A settle that genuinely re-derives: nudge the app's own size, which every
+  // responsive constraint in the tree depends on.
+  const w = app.hostWidth, h = app.hostHeight;
+  const N = 60;
+  let settleTotal = 0, opTotal = 0, serTotal = 0;
+  for (let i = 0; i < N; i++) {
+    app.hostWidth = w + (i % 2 ? 1 : -1);
+    const a = t(); settle(); settleTotal += t() - a;
+    // measure the buffer this settle produced without disturbing delivery
+    const b = t(); const json = peekOps(); serTotal += t() - b;
+    opTotal += countOps();
+    flushOps();
+  }
+  app.hostWidth = w; app.hostHeight = h; settle(); flushOps();
+  out.settles = N;
+  out.settleMs = +(settleTotal / N).toFixed(3);
+  out.serializeMs = +(serTotal / N).toFixed(3);
+  out.ops = Math.round(opTotal / N);
+  return JSON.stringify(out);
+};
+globalThis.__declareEnvChanged = () => {
+  globalThis.__declareAppearanceChanged?.();
+  if (currentApp) { currentApp.dark = H.appearance() === "dark"; settle(); flushOps(); }
+};

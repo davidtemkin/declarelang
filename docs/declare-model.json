@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "0fef5e6a6b11",
+  "buildId": "30827b361a89",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -185,10 +185,15 @@
     "base": "View",
     "attrs": {
      "source": "string",
-     "stretches": "enum(none|width|height|both)"
+     "stretches": "enum(none|width|height|both)",
+     "loaded": "boolean",
+     "failed": "boolean"
     },
     "prevailing": [],
-    "readOnly": [],
+    "readOnly": [
+     "loaded",
+     "failed"
+    ],
     "events": []
    },
    "DOMIsland": {
@@ -388,6 +393,47 @@
     "events": [
      "tip"
     ]
+   },
+   "Stream": {
+    "base": "Node",
+    "attrs": {
+     "url": "string",
+     "active": "boolean",
+     "retry": "number",
+     "status": "enum(closed|connecting|open|retrying|failed)",
+     "error": "string",
+     "last": "string",
+     "open": "boolean"
+    },
+    "prevailing": [],
+    "readOnly": [
+     "status",
+     "error",
+     "last",
+     "open"
+    ],
+    "events": [
+     "message",
+     "open",
+     "close",
+     "error"
+    ]
+   },
+   "EventStream": {
+    "base": "Stream",
+    "attrs": {
+     "listenTo": "array"
+    },
+    "prevailing": [],
+    "readOnly": [],
+    "events": []
+   },
+   "Socket": {
+    "base": "Stream",
+    "attrs": {},
+    "prevailing": [],
+    "readOnly": [],
+    "events": []
    },
    "State": {
     "base": "Node",
@@ -735,6 +781,9 @@
     "  start(): void;",
     "  stop(): void;"
    ],
+   "Socket": [
+    "  send(text: string): void;"
+   ],
    "Editor": [
     "  commit(): void;",
     "  revert(): void;"
@@ -775,7 +824,8 @@
     "frame": "number",
     "focusChange": "View",
     "geometry": "FocusGeometry",
-    "tip": "TipEvent"
+    "tip": "TipEvent",
+    "message": "StreamMessage"
    },
    "payloadTypes": [
     "Draw",
@@ -784,6 +834,7 @@
     "KeyEvent",
     "PointerEvent",
     "PointerUpEvent",
+    "StreamMessage",
     "TipEvent",
     "Touch",
     "TouchEvent",
@@ -849,6 +900,13 @@
     "sequential",
     "simultaneous"
    ],
+   "StreamStatus": [
+    "closed",
+    "connecting",
+    "open",
+    "retrying",
+    "failed"
+   ],
    "Motion": [
     "linear",
     "ease",
@@ -890,10 +948,11 @@
     "kind": "enum",
     "values": [
      "dom",
-     "canvas"
+     "canvas",
+     "mac"
     ],
     "default": "dom",
-    "description": "render through managed DOM or a single <canvas>"
+    "description": "render through managed DOM, a single <canvas>, or the native Mac host"
    },
    {
     "name": "crawler",
@@ -910,7 +969,8 @@
    "EDIT": "edit",
    "FILE": "file",
    "SEGMENTS": "segments",
-   "EXTRACT": "extract"
+   "EXTRACT": "extract",
+   "PROGRAM": "program"
   },
   "diagnostics": {
    "prefix": "DECLARE",
@@ -1941,6 +2001,16 @@
     "title": "Editor.valid",
     "kind": "reference"
    },
+   "EventStream": {
+    "path": "docs/declare-model.json",
+    "title": "EventStream",
+    "kind": "reference"
+   },
+   "EventStream.listenTo": {
+    "path": "docs/declare-model.json",
+    "title": "EventStream.listenTo",
+    "kind": "reference"
+   },
    "Field": {
     "path": "docs/declare-model.json",
     "title": "Field",
@@ -2089,6 +2159,16 @@
    "Image": {
     "path": "docs/declare-model.json",
     "title": "Image",
+    "kind": "reference"
+   },
+   "Image.failed": {
+    "path": "docs/declare-model.json",
+    "title": "Image.failed",
+    "kind": "reference"
+   },
+   "Image.loaded": {
+    "path": "docs/declare-model.json",
+    "title": "Image.loaded",
     "kind": "reference"
    },
    "Image.method.attach": {
@@ -2676,6 +2756,16 @@
     "title": "Slider.x0",
     "kind": "reference"
    },
+   "Socket": {
+    "path": "docs/declare-model.json",
+    "title": "Socket",
+    "kind": "reference"
+   },
+   "Socket.method.send": {
+    "path": "docs/declare-model.json",
+    "title": "Socket.method.send",
+    "kind": "reference"
+   },
    "Spacer": {
     "path": "docs/declare-model.json",
     "title": "Spacer",
@@ -2794,6 +2884,76 @@
    "State.method.toggle": {
     "path": "docs/declare-model.json",
     "title": "State.method.toggle",
+    "kind": "reference"
+   },
+   "Stream": {
+    "path": "docs/declare-model.json",
+    "title": "Stream",
+    "kind": "reference"
+   },
+   "Stream.active": {
+    "path": "docs/declare-model.json",
+    "title": "Stream.active",
+    "kind": "reference"
+   },
+   "Stream.error": {
+    "path": "docs/declare-model.json",
+    "title": "Stream.error",
+    "kind": "reference"
+   },
+   "Stream.event.close": {
+    "path": "docs/declare-model.json",
+    "title": "Stream.event.close",
+    "kind": "reference"
+   },
+   "Stream.event.error": {
+    "path": "docs/declare-model.json",
+    "title": "Stream.event.error",
+    "kind": "reference"
+   },
+   "Stream.event.message": {
+    "path": "docs/declare-model.json",
+    "title": "Stream.event.message",
+    "kind": "reference"
+   },
+   "Stream.event.open": {
+    "path": "docs/declare-model.json",
+    "title": "Stream.event.open",
+    "kind": "reference"
+   },
+   "Stream.last": {
+    "path": "docs/declare-model.json",
+    "title": "Stream.last",
+    "kind": "reference"
+   },
+   "Stream.method.autoStart": {
+    "path": "docs/declare-model.json",
+    "title": "Stream.method.autoStart",
+    "kind": "reference"
+   },
+   "Stream.method.open": {
+    "path": "docs/declare-model.json",
+    "title": "Stream.method.open",
+    "kind": "reference"
+   },
+   "Stream.open": {
+    "path": "docs/declare-model.json",
+    "title": "Stream.open",
+    "kind": "reference"
+   },
+   "Stream.retry": {
+    "path": "docs/declare-model.json",
+    "title": "Stream.retry",
+    "kind": "reference"
+   },
+   "Stream.status": {
+    "path": "docs/declare-model.json",
+    "title": "Stream.status",
+    "kind": "reference"
+   },
+   "Stream.url": {
+    "path": "docs/declare-model.json",
+    "title": "Stream.url",
     "kind": "reference"
    },
    "Switch": {
@@ -4304,7 +4464,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 694
+    "line": 701
    },
    "parent": "View",
    "seeAlso": [],
@@ -4328,7 +4488,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 695
+    "line": 702
    },
    "parent": "View",
    "seeAlso": [],
@@ -4352,7 +4512,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 699
+    "line": 706
    },
    "parent": "View",
    "seeAlso": [],
@@ -4376,7 +4536,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 701
+    "line": 708
    },
    "parent": "View",
    "seeAlso": [],
@@ -4400,7 +4560,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 702
+    "line": 709
    },
    "parent": "View",
    "seeAlso": [],
@@ -4424,7 +4584,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 703
+    "line": 710
    },
    "parent": "View",
    "seeAlso": [],
@@ -4448,7 +4608,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 704
+    "line": 711
    },
    "parent": "View",
    "seeAlso": [],
@@ -4472,7 +4632,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 707
+    "line": 714
    },
    "parent": "View",
    "seeAlso": [],
@@ -4496,7 +4656,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 708
+    "line": 715
    },
    "parent": "View",
    "seeAlso": [],
@@ -4520,7 +4680,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 709
+    "line": 716
    },
    "parent": "View",
    "seeAlso": [],
@@ -4544,7 +4704,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 710
+    "line": 717
    },
    "parent": "View",
    "seeAlso": [],
@@ -4568,7 +4728,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 711
+    "line": 718
    },
    "parent": "View",
    "seeAlso": [],
@@ -4592,7 +4752,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 712
+    "line": 719
    },
    "parent": "View",
    "seeAlso": [],
@@ -4616,7 +4776,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 713
+    "line": 720
    },
    "parent": "View",
    "seeAlso": [],
@@ -4640,7 +4800,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 714
+    "line": 721
    },
    "parent": "View",
    "seeAlso": [],
@@ -4664,7 +4824,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 715
+    "line": 722
    },
    "parent": "View",
    "seeAlso": [],
@@ -4688,7 +4848,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 716
+    "line": 723
    },
    "parent": "View",
    "seeAlso": [],
@@ -4712,7 +4872,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 700
+    "line": 707
    },
    "parent": "View",
    "seeAlso": [],
@@ -4774,7 +4934,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 717
+    "line": 724
    },
    "parent": "View",
    "seeAlso": [],
@@ -4798,7 +4958,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 720
+    "line": 727
    },
    "parent": "View",
    "seeAlso": [],
@@ -4822,7 +4982,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 721
+    "line": 728
    },
    "parent": "View",
    "seeAlso": [],
@@ -4846,7 +5006,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 734
+    "line": 741
    },
    "parent": "View",
    "seeAlso": [],
@@ -5871,7 +6031,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1063
+    "line": 1068
    },
    "parent": "App",
    "seeAlso": [],
@@ -5895,7 +6055,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1064
+    "line": 1069
    },
    "parent": "App",
    "seeAlso": [],
@@ -5919,7 +6079,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1065
+    "line": 1070
    },
    "parent": "App",
    "seeAlso": [],
@@ -5943,7 +6103,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1066
+    "line": 1071
    },
    "parent": "App",
    "seeAlso": [],
@@ -5967,7 +6127,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1068
+    "line": 1073
    },
    "parent": "App",
    "seeAlso": [],
@@ -5986,7 +6146,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1067
+    "line": 1072
    },
    "parent": "App",
    "seeAlso": [],
@@ -6010,7 +6170,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1069
+    "line": 1074
    },
    "parent": "App",
    "seeAlso": [],
@@ -6034,7 +6194,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1070
+    "line": 1075
    },
    "parent": "App",
    "seeAlso": [],
@@ -6058,7 +6218,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1071
+    "line": 1076
    },
    "parent": "App",
    "seeAlso": [],
@@ -6077,7 +6237,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1072
+    "line": 1077
    },
    "parent": "App",
    "seeAlso": [],
@@ -6096,7 +6256,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1073
+    "line": 1078
    },
    "parent": "App",
    "seeAlso": [],
@@ -6115,7 +6275,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1074
+    "line": 1079
    },
    "parent": "App",
    "seeAlso": [],
@@ -6134,7 +6294,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1075
+    "line": 1080
    },
    "parent": "App",
    "seeAlso": [],
@@ -6153,7 +6313,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1079
+    "line": 1084
    },
    "parent": "App",
    "seeAlso": [],
@@ -6188,7 +6348,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1087
+    "line": 1092
    },
    "parent": "App",
    "seeAlso": [],
@@ -6212,7 +6372,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1091
+    "line": 1096
    },
    "parent": "App",
    "seeAlso": [],
@@ -6236,7 +6396,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1092
+    "line": 1097
    },
    "parent": "App",
    "seeAlso": [],
@@ -6255,7 +6415,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1094
+    "line": 1099
    },
    "parent": "App",
    "seeAlso": [],
@@ -6274,7 +6434,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 903
+    "line": 910
    },
    "parent": "App",
    "seeAlso": [],
@@ -6295,7 +6455,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 908
+    "line": 915
    },
    "parent": "App",
    "seeAlso": [],
@@ -6311,7 +6471,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 926
+    "line": 933
    },
    "parent": "App",
    "seeAlso": [],
@@ -6327,7 +6487,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 931
+    "line": 938
    },
    "parent": "App",
    "seeAlso": [],
@@ -6343,7 +6503,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 947
+    "line": 954
    },
    "parent": "App",
    "seeAlso": [],
@@ -6359,7 +6519,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1006
+    "line": 1013
    },
    "parent": "App",
    "seeAlso": [],
@@ -6375,7 +6535,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1036
+    "line": 1041
    },
    "parent": "App",
    "seeAlso": [],
@@ -6695,7 +6855,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/image.ts",
-    "line": 94
+    "line": 108
    },
    "parent": "Image",
    "seeAlso": [],
@@ -6719,7 +6879,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/image.ts",
-    "line": 95
+    "line": 109
    },
    "parent": "Image",
    "seeAlso": [],
@@ -6727,6 +6887,54 @@
    "default": "\"none\"",
    "prevailing": false,
    "readOnly": false,
+   "inheritedFrom": null
+  },
+  "Image.loaded": {
+   "id": "Image.loaded",
+   "name": "loaded",
+   "kind": "attribute",
+   "doc": "The bitmap has landed — the reactive fact a placeholder derives from\n(`spinner: View [ visible = { !pic.loaded } ]`). **Read-only** — computed by the load,\na compile error to assign. One honest edge: re-pointing `source` does not reset it —\nthe surface keeps the previous bitmap (and `loaded` stays true) until the replacement\narrives; a superseded in-flight load is discarded. Under headless extraction there is\nno image loader, so `loaded` honestly stays false. A failure is `failed`'s fact, not\nthis one's absence.",
+   "docSegs": [
+    {
+     "md": "The bitmap has landed — the reactive fact a placeholder derives from\n(`spinner: View [ visible = { !pic.loaded } ]`). **Read-only** — computed by the load,\na compile error to assign. One honest edge: re-pointing `source` does not reset it —\nthe surface keeps the previous bitmap (and `loaded` stays true) until the replacement\narrives; a superseded in-flight load is discarded. Under headless extraction there is\nno image loader, so `loaded` honestly stays false. A failure is `failed`'s fact, not\nthis one's absence.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/image.ts",
+    "line": 110
+   },
+   "parent": "Image",
+   "seeAlso": [],
+   "type": "boolean",
+   "default": "false",
+   "prevailing": false,
+   "readOnly": true,
+   "inheritedFrom": null
+  },
+  "Image.failed": {
+   "id": "Image.failed",
+   "name": "failed",
+   "kind": "attribute",
+   "doc": "The **current** source's load failed — the broken-avatar fact, for deriving a fallback:\n`initials: Text [ visible = { pic.failed }, … ]`. **Read-only.** Reset whenever a new\nload starts (a `source` change), so it always speaks about the present address; a\nfailure keeps whatever bitmap was already showing (`loaded` stays true if one had\nlanded). There is no error *message* — the platform's image loader does not say why —\nso the fact is boolean by honesty, not austerity.",
+   "docSegs": [
+    {
+     "md": "The **current** source's load failed — the broken-avatar fact, for deriving a fallback:\n`initials: Text [ visible = { pic.failed }, … ]`. **Read-only.** Reset whenever a new\nload starts (a `source` change), so it always speaks about the present address; a\nfailure keeps whatever bitmap was already showing (`loaded` stays true if one had\nlanded). There is no error *message* — the platform's image loader does not say why —\nso the fact is boolean by honesty, not austerity.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/image.ts",
+    "line": 111
+   },
+   "parent": "Image",
+   "seeAlso": [],
+   "type": "boolean",
+   "default": "false",
+   "prevailing": false,
+   "readOnly": true,
    "inheritedFrom": null
   },
   "Image.method.attach": {
@@ -6738,7 +6946,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/image.ts",
-    "line": 44
+    "line": 51
    },
    "parent": "Image",
    "seeAlso": [],
@@ -6754,7 +6962,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/image.ts",
-    "line": 57
+    "line": 64
    },
    "parent": "Image",
    "seeAlso": [],
@@ -6785,7 +6993,9 @@
    "origin": "ts",
    "attributes": [
     "Image.source",
-    "Image.stretches"
+    "Image.stretches",
+    "Image.loaded",
+    "Image.failed"
    ],
    "methods": [
     "Image.method.attach",
@@ -6894,7 +7104,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/markdown.ts",
-    "line": 704
+    "line": 842
    },
    "parent": "RichText",
    "seeAlso": [],
@@ -7191,7 +7401,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1115
+    "line": 1120
    },
    "parent": "DOMIsland",
    "seeAlso": [],
@@ -7210,7 +7420,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1116
+    "line": 1121
    },
    "parent": "DOMIsland",
    "seeAlso": [],
@@ -10003,6 +10213,451 @@
     "Node"
    ]
   },
+  "Stream.url": {
+   "id": "Stream.url",
+   "name": "url",
+   "kind": "attribute",
+   "doc": "Where to connect — a literal or a `{ }` constraint. Unlike `DataSource.url`, a change acts\n**immediately**: the old connection closes and a new one opens at the new address (there is\nno fetch() moment to wait for). `\"\"` means detached — the idiom for \"no conversation yet\"\nis deriving emptiness: `url = { app.chatId != \"\" ? \"/api/chat/\" + app.chatId : \"\" }`.",
+   "docSegs": [
+    {
+     "md": "Where to connect — a literal or a `{ }` constraint. Unlike `DataSource.url`, a change acts\n**immediately**: the old connection closes and a new one opens at the new address (there is\nno fetch() moment to wait for). `\"\"` means detached — the idiom for \"no conversation yet\"\nis deriving emptiness: `url = { app.chatId != \"\" ? \"/api/chat/\" + app.chatId : \"\" }`.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "Stream",
+   "seeAlso": [],
+   "type": "string",
+   "default": null,
+   "prevailing": false,
+   "readOnly": false,
+   "inheritedFrom": null
+  },
+  "Stream.active": {
+   "id": "Stream.active",
+   "name": "active",
+   "kind": "attribute",
+   "doc": "The gate. `false` closes the connection (and cancels any pending retry); flipping back\n`true` reopens it. Bind it to app state — `active = { app.live }` — rather than toggling\nimperatively.",
+   "docSegs": [
+    {
+     "md": "The gate. `false` closes the connection (and cancels any pending retry); flipping back\n`true` reopens it. Bind it to app state — `active = { app.live }` — rather than toggling\nimperatively.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "Stream",
+   "seeAlso": [],
+   "type": "boolean",
+   "default": null,
+   "prevailing": false,
+   "readOnly": false,
+   "inheritedFrom": null
+  },
+  "Stream.retry": {
+   "id": "Stream.retry",
+   "name": "retry",
+   "kind": "attribute",
+   "doc": "Reconnect policy, **visible in the declaration**: seconds to wait before re-dialing after\nthe connection is lost and the platform won't bring it back on its own — a `Socket`'s\nunexpected close, an `EventStream`'s terminal failure. `0` (the default) means no retry:\nthe stream lands in `status = \"failed\"` and the app decides. A declared retry keeps trying\nwhile `active` is true, at a **fixed** interval — no invisible backoff, no give-up count.\nA structural failure (the factory itself refuses — headless extraction, a missing host\nservice) never loops, whatever `retry` says.",
+   "docSegs": [
+    {
+     "md": "Reconnect policy, **visible in the declaration**: seconds to wait before re-dialing after\nthe connection is lost and the platform won't bring it back on its own — a `Socket`'s\nunexpected close, an `EventStream`'s terminal failure. `0` (the default) means no retry:\nthe stream lands in `status = \"failed\"` and the app decides. A declared retry keeps trying\nwhile `active` is true, at a **fixed** interval — no invisible backoff, no give-up count.\nA structural failure (the factory itself refuses — headless extraction, a missing host\nservice) never loops, whatever `retry` says.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "Stream",
+   "seeAlso": [],
+   "type": "number",
+   "default": null,
+   "prevailing": false,
+   "readOnly": false,
+   "inheritedFrom": null
+  },
+  "Stream.status": {
+   "id": "Stream.status",
+   "name": "status",
+   "kind": "attribute",
+   "doc": "The connection lifecycle as **one fact**, like `DataSource.status`: `\"closed\"`,\n`\"connecting\"`, `\"open\"`, `\"retrying\"`, or `\"failed\"` (down, and will not reconnect).\n**Read-only** — computed for you; assigning it is a compile error. `\"retrying\"` covers\nboth the platform's own recovery (SSE) and a declared `retry` waiting to re-dial.",
+   "docSegs": [
+    {
+     "md": "The connection lifecycle as **one fact**, like `DataSource.status`: `\"closed\"`,\n`\"connecting\"`, `\"open\"`, `\"retrying\"`, or `\"failed\"` (down, and will not reconnect).\n**Read-only** — computed for you; assigning it is a compile error. `\"retrying\"` covers\nboth the platform's own recovery (SSE) and a declared `retry` waiting to re-dial.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "Stream",
+   "seeAlso": [],
+   "type": "closed | connecting | open | retrying | failed",
+   "default": null,
+   "prevailing": false,
+   "readOnly": true,
+   "inheritedFrom": null
+  },
+  "Stream.error": {
+   "id": "Stream.error",
+   "name": "error",
+   "kind": "attribute",
+   "doc": "The last failure reason, `\"\"` when none; cleared when a connection opens. **Read-only** —\nthe state side of `onError` (the event side). A status line is\n`text = { feed.error != \"\" ? feed.error : feed.status }`.",
+   "docSegs": [
+    {
+     "md": "The last failure reason, `\"\"` when none; cleared when a connection opens. **Read-only** —\nthe state side of `onError` (the event side). A status line is\n`text = { feed.error != \"\" ? feed.error : feed.status }`.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "Stream",
+   "seeAlso": [],
+   "type": "string",
+   "default": null,
+   "prevailing": false,
+   "readOnly": true,
+   "inheritedFrom": null
+  },
+  "Stream.last": {
+   "id": "Stream.last",
+   "name": "last",
+   "kind": "attribute",
+   "doc": "The most recent message's `data`, reactive. **Read-only.** The zero-handler tier: a ticker\nthat only shows the latest value needs no handler at all — `text = { feed.last }`.",
+   "docSegs": [
+    {
+     "md": "The most recent message's `data`, reactive. **Read-only.** The zero-handler tier: a ticker\nthat only shows the latest value needs no handler at all — `text = { feed.last }`.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "Stream",
+   "seeAlso": [],
+   "type": "string",
+   "default": null,
+   "prevailing": false,
+   "readOnly": true,
+   "inheritedFrom": null
+  },
+  "Stream.open": {
+   "id": "Stream.open",
+   "name": "open",
+   "kind": "attribute",
+   "doc": "The boolean view of `status == \"open\"`, as `DataSource.loaded` is of its status — one\nfact, two spellings, never in disagreement. **Read-only.** The connection dot is\n`visible = { feed.open }`.",
+   "docSegs": [
+    {
+     "md": "The boolean view of `status == \"open\"`, as `DataSource.loaded` is of its status — one\nfact, two spellings, never in disagreement. **Read-only.** The connection dot is\n`visible = { feed.open }`.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "Stream",
+   "seeAlso": [],
+   "type": "boolean",
+   "default": null,
+   "prevailing": false,
+   "readOnly": true,
+   "inheritedFrom": null
+  },
+  "Stream.method.open": {
+   "id": "Stream.method.open",
+   "name": "open",
+   "kind": "method",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/streams.ts",
+    "line": 59
+   },
+   "parent": "Stream",
+   "seeAlso": [],
+   "signature": "open: boolean",
+   "returns": "boolean",
+   "getter": true,
+   "readOnly": true
+  },
+  "Stream.method.autoStart": {
+   "id": "Stream.method.autoStart",
+   "name": "autoStart",
+   "kind": "method",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/streams.ts",
+    "line": 91
+   },
+   "parent": "Stream",
+   "seeAlso": [],
+   "signature": "autoStart(): void",
+   "returns": "void"
+  },
+  "Stream.event.message": {
+   "id": "Stream.event.message",
+   "name": "message",
+   "kind": "event",
+   "doc": "`onMessage(e: StreamMessage)` — every message. `e.data` is always a **string**: parse it\nyourself if it is JSON, concatenate it if it is streamed text; the runtime never guesses.\n`e.type` is the SSE named event (`\"message\"` for unnamed messages and every socket frame);\n`e.id` is the SSE last-event-id (`\"\"` on sockets).",
+   "docSegs": [
+    {
+     "md": "`onMessage(e: StreamMessage)` — every message. `e.data` is always a **string**: parse it\nyourself if it is JSON, concatenate it if it is streamed text; the runtime never guesses.\n`e.type` is the SSE named event (`\"message\"` for unnamed messages and every socket frame);\n`e.id` is the SSE last-event-id (`\"\"` on sockets).",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "Stream",
+   "seeAlso": [],
+   "signature": "onMessage(e: StreamMessage)"
+  },
+  "Stream.event.open": {
+   "id": "Stream.event.open",
+   "name": "open",
+   "kind": "event",
+   "doc": "The connection is live — fires each time one opens, including reopens after a retry.\nPrefer deriving from `open`/`status` for anything a constraint can express; the handler is\nfor work state cannot do (send a subscription frame, log).",
+   "docSegs": [
+    {
+     "md": "The connection is live — fires each time one opens, including reopens after a retry.\nPrefer deriving from `open`/`status` for anything a constraint can express; the handler is\nfor work state cannot do (send a subscription frame, log).",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "Stream",
+   "seeAlso": [],
+   "signature": "onOpen()"
+  },
+  "Stream.event.close": {
+   "id": "Stream.event.close",
+   "name": "close",
+   "kind": "event",
+   "doc": "A connection that had opened went away — the app closed it (`active`, a url change, node\nremoval at discard is silent), the server ended it, or it failed. Fires once per\nconnection, before any retry dials the next one.",
+   "docSegs": [
+    {
+     "md": "A connection that had opened went away — the app closed it (`active`, a url change, node\nremoval at discard is silent), the server ended it, or it failed. Fires once per\nconnection, before any retry dials the next one.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "Stream",
+   "seeAlso": [],
+   "signature": "onClose()"
+  },
+  "Stream.event.error": {
+   "id": "Stream.event.error",
+   "name": "error",
+   "kind": "event",
+   "doc": "Something failed: a terminal connection loss, a refused transport, a `send` on a socket\nthat is not open. The reason is in `error` when the handler runs. The platform's own\nin-flight retries (SSE) are **not** errors and stay quiet.",
+   "docSegs": [
+    {
+     "md": "Something failed: a terminal connection loss, a refused transport, a `send` on a socket\nthat is not open. The reason is in `error` when the handler runs. The platform's own\nin-flight retries (SSE) are **not** errors and stay quiet.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "Stream",
+   "seeAlso": [],
+   "signature": "onError()"
+  },
+  "Stream": {
+   "id": "Stream",
+   "name": "Stream",
+   "kind": "class",
+   "doc": "The abstract base of the live-connection sources — `EventStream` (SSE) and `Socket`\n(WebSocket) extend it. Not instantiable: write the concrete transport. The one thing to\nknow: **there is no `connect()` or `disconnect()`** — the declaration decides. A stream is\nconnected exactly while `active` is true and `url` is non-empty; empty the url (or flip\n`active`) and it closes, change the url and it closes and reopens, remove the node and the\nconnection dies with it. Nothing to unsubscribe, ever. Messages are **transient**: nothing\naccumulates unless a handler writes it somewhere — the runtime keeps only `last`. An app\nthat streams JSON parses in the handler (`JSON.parse(e.data)`) and writes wherever it\nwants; accumulation is one line of app code, deliberately not a built-in policy.\n\n```declare-fragment\nchat: View [\n    answer: string = \"\",\n    reply: EventStream [ url = { `/api/chat?id=${classroot.chatId}` },\n        active = { classroot.chatId != \"\" },\n        onMessage(e: StreamMessage) { classroot.answer = classroot.answer + e.data },\n        ],\n    out: Text [ width = { parent.width }, text = { parent.answer } ]\n    ]\n```",
+   "docSegs": [
+    {
+     "md": "The abstract base of the live-connection sources — `EventStream` (SSE) and `Socket`\n(WebSocket) extend it. Not instantiable: write the concrete transport. The one thing to\nknow: **there is no `connect()` or `disconnect()`** — the declaration decides. A stream is\nconnected exactly while `active` is true and `url` is non-empty; empty the url (or flip\n`active`) and it closes, change the url and it closes and reopens, remove the node and the\nconnection dies with it. Nothing to unsubscribe, ever. Messages are **transient**: nothing\naccumulates unless a handler writes it somewhere — the runtime keeps only `last`. An app\nthat streams JSON parses in the handler (`JSON.parse(e.data)`) and writes wherever it\nwants; accumulation is one line of app code, deliberately not a built-in policy.\n\n```declare-fragment\nchat: View [\n    answer: string = \"\",\n    reply: EventStream [ url = { `/api/chat?id=${classroot.chatId}` },\n        active = { classroot.chatId != \"\" },\n        onMessage(e: StreamMessage) { classroot.answer = classroot.answer + e.data },\n        ],\n    out: Text [ width = { parent.width }, text = { parent.answer } ]\n    ]\n```",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": null,
+   "seeAlso": [],
+   "extends": "Node",
+   "abstract": true,
+   "subclasses": [
+    "EventStream",
+    "Socket"
+   ],
+   "origin": "ts",
+   "attributes": [
+    "Stream.url",
+    "Stream.active",
+    "Stream.retry",
+    "Stream.status",
+    "Stream.error",
+    "Stream.last",
+    "Stream.open"
+   ],
+   "methods": [
+    "Stream.method.open",
+    "Stream.method.autoStart"
+   ],
+   "events": [
+    "Stream.event.message",
+    "Stream.event.open",
+    "Stream.event.close",
+    "Stream.event.error"
+   ],
+   "example": [],
+   "chain": [
+    "Stream",
+    "Node"
+   ]
+  },
+  "EventStream.listenTo": {
+   "id": "EventStream.listenTo",
+   "name": "listenTo",
+   "kind": "attribute",
+   "doc": "The **named** SSE event types to deliver — `listenTo = [\"content_block_delta\",\n\"message_stop\"]`. Required for any stream that labels messages with `event:` lines\n(Anthropic-style AI streams do): the platform's `EventSource` physically cannot deliver a\nnamed event it was not asked to listen for, so an undeclared name is silently invisible —\nif `onMessage` sees nothing but the connection is `open`, this is the first thing to\ncheck. The name carries the contract: you hear what you listen to. Unnamed (default)\nmessages always arrive; `e.type` says which kind each one is.",
+   "docSegs": [
+    {
+     "md": "The **named** SSE event types to deliver — `listenTo = [\"content_block_delta\",\n\"message_stop\"]`. Required for any stream that labels messages with `event:` lines\n(Anthropic-style AI streams do): the platform's `EventSource` physically cannot deliver a\nnamed event it was not asked to listen for, so an undeclared name is silently invisible —\nif `onMessage` sees nothing but the connection is `open`, this is the first thing to\ncheck. The name carries the contract: you hear what you listen to. Unnamed (default)\nmessages always arrive; `e.type` says which kind each one is.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "EventStream",
+   "seeAlso": [],
+   "type": "array",
+   "default": null,
+   "prevailing": false,
+   "readOnly": false,
+   "inheritedFrom": null
+  },
+  "EventStream": {
+   "id": "EventStream",
+   "name": "EventStream",
+   "kind": "class",
+   "doc": "Server-Sent Events (`text/event-stream`) as a source — the streaming-AI shape: the server\npushes, the app receives, an `onMessage` that concatenates is the whole consumer. See\n`Stream` for the shared surface (`url`/`active`/`retry`, the read-only\n`status`/`open`/`error`/`last`). Receive-only — there is no `send`; a request that needs a\nbody is an ordinary `DataSource` POST, and the stream carries the reply. The platform's\n`EventSource` machinery is kept **verbatim**: it retries on its own (honoring the server's\n`retry:` hint) and resumes with `Last-Event-ID`, during which `status` reads `\"retrying\"`\nand no error is reported; `retry`/`onError` concern only **terminal** failure — the\nplatform giving up.\n\n```declare-fragment\nanswer: string = \"\",\nreply: EventStream [ url = { `/api/chat?id=${app.chatId}` },\n    active = { app.chatId != \"\" },\n    onMessage(e: StreamMessage) { app.answer = app.answer + e.data },\n    ]\n```",
+   "docSegs": [
+    {
+     "md": "Server-Sent Events (`text/event-stream`) as a source — the streaming-AI shape: the server\npushes, the app receives, an `onMessage` that concatenates is the whole consumer. See\n`Stream` for the shared surface (`url`/`active`/`retry`, the read-only\n`status`/`open`/`error`/`last`). Receive-only — there is no `send`; a request that needs a\nbody is an ordinary `DataSource` POST, and the stream carries the reply. The platform's\n`EventSource` machinery is kept **verbatim**: it retries on its own (honoring the server's\n`retry:` hint) and resumes with `Last-Event-ID`, during which `status` reads `\"retrying\"`\nand no error is reported; `retry`/`onError` concern only **terminal** failure — the\nplatform giving up.\n\n```declare-fragment\nanswer: string = \"\",\nreply: EventStream [ url = { `/api/chat?id=${app.chatId}` },\n    active = { app.chatId != \"\" },\n    onMessage(e: StreamMessage) { app.answer = app.answer + e.data },\n    ]\n```",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": null,
+   "seeAlso": [],
+   "extends": "Stream",
+   "abstract": false,
+   "subclasses": [],
+   "origin": "ts",
+   "attributes": [
+    "EventStream.listenTo"
+   ],
+   "methods": [],
+   "events": [],
+   "example": [],
+   "chain": [
+    "EventStream",
+    "Stream",
+    "Node"
+   ]
+  },
+  "Socket.method.send": {
+   "id": "Socket.method.send",
+   "name": "send",
+   "kind": "method",
+   "doc": "Sends one text frame. **Legal only while `open`** — on a socket that is not open it sends\nnothing and reports through the error channel (`error` + `onError`), never a silent queue:\nif the app needs buffering-until-connected, that policy belongs in app state, visibly.\nSending the opening frame belongs in `onOpen` (which also covers every reconnect); gate\nuser-triggered sends on `.open`.",
+   "docSegs": [
+    {
+     "md": "Sends one text frame. **Legal only while `open`** — on a socket that is not open it sends\nnothing and reports through the error channel (`error` + `onError`), never a silent queue:\nif the app needs buffering-until-connected, that policy belongs in app state, visibly.\nSending the opening frame belongs in `onOpen` (which also covers every reconnect); gate\nuser-triggered sends on `.open`.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/streams.ts",
+    "line": 257
+   },
+   "parent": "Socket",
+   "seeAlso": [],
+   "signature": "send(text: string): void",
+   "returns": "void"
+  },
+  "Socket": {
+   "id": "Socket",
+   "name": "Socket",
+   "kind": "class",
+   "doc": "WebSocket as a source: the `Stream` surface plus `send(text)` — `send` is a call you make,\n`onMessage` is it calling you. See `Stream` for `url`/`active`/`retry` and the read-only\n`status`/`open`/`error`/`last`. Unlike SSE the platform has **no native reconnect**, so a\n`Socket` that should survive a dropped connection must say so: `retry = 2` re-dials two\nseconds after any close the app didn't ask for, for as long as `active` holds — the whole\npolicy is that one number. Text frames only; a binary frame is dropped (a later attribute\nif a real project needs one, not a speculative shape now).\n\n```declare-fragment\nlive: Socket [ url = \"wss://api.example.com/feed\", retry = 2,\n    onOpen() { this.send('{\"subscribe\":\"prices\"}') },\n    onMessage(e: StreamMessage) { app.tick(JSON.parse(e.data)) },\n    ]\n```",
+   "docSegs": [
+    {
+     "md": "WebSocket as a source: the `Stream` surface plus `send(text)` — `send` is a call you make,\n`onMessage` is it calling you. See `Stream` for `url`/`active`/`retry` and the read-only\n`status`/`open`/`error`/`last`. Unlike SSE the platform has **no native reconnect**, so a\n`Socket` that should survive a dropped connection must say so: `retry = 2` re-dials two\nseconds after any close the app didn't ask for, for as long as `active` holds — the whole\npolicy is that one number. Text frames only; a binary frame is dropped (a later attribute\nif a real project needs one, not a speculative shape now).\n\n```declare-fragment\nlive: Socket [ url = \"wss://api.example.com/feed\", retry = 2,\n    onOpen() { this.send('{\"subscribe\":\"prices\"}') },\n    onMessage(e: StreamMessage) { app.tick(JSON.parse(e.data)) },\n    ]\n```",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": null,
+   "seeAlso": [],
+   "extends": "Stream",
+   "abstract": false,
+   "subclasses": [],
+   "origin": "ts",
+   "attributes": [],
+   "methods": [
+    "Socket.method.send"
+   ],
+   "events": [],
+   "example": [],
+   "chain": [
+    "Socket",
+    "Stream",
+    "Node"
+   ]
+  },
   "State.applied": {
    "id": "State.applied",
    "name": "applied",
@@ -10373,6 +11028,7 @@
     "Keys",
     "Focus",
     "Tip",
+    "Stream",
     "State"
    ],
    "origin": "ts",
@@ -14213,6 +14869,9 @@
   "Keys",
   "Focus",
   "Tip",
+  "Stream",
+  "EventStream",
+  "Socket",
   "State",
   "Node",
   "Bar",
@@ -14770,7 +15429,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 694
+      "line": 701
      },
      "parent": "View",
      "seeAlso": [],
@@ -14794,7 +15453,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 695
+      "line": 702
      },
      "parent": "View",
      "seeAlso": [],
@@ -14818,7 +15477,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 699
+      "line": 706
      },
      "parent": "View",
      "seeAlso": [],
@@ -14842,7 +15501,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 701
+      "line": 708
      },
      "parent": "View",
      "seeAlso": [],
@@ -14866,7 +15525,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 702
+      "line": 709
      },
      "parent": "View",
      "seeAlso": [],
@@ -14890,7 +15549,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 703
+      "line": 710
      },
      "parent": "View",
      "seeAlso": [],
@@ -14914,7 +15573,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 704
+      "line": 711
      },
      "parent": "View",
      "seeAlso": [],
@@ -14938,7 +15597,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 707
+      "line": 714
      },
      "parent": "View",
      "seeAlso": [],
@@ -14962,7 +15621,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 708
+      "line": 715
      },
      "parent": "View",
      "seeAlso": [],
@@ -14986,7 +15645,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 709
+      "line": 716
      },
      "parent": "View",
      "seeAlso": [],
@@ -15010,7 +15669,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 710
+      "line": 717
      },
      "parent": "View",
      "seeAlso": [],
@@ -15034,7 +15693,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 711
+      "line": 718
      },
      "parent": "View",
      "seeAlso": [],
@@ -15058,7 +15717,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 712
+      "line": 719
      },
      "parent": "View",
      "seeAlso": [],
@@ -15082,7 +15741,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 713
+      "line": 720
      },
      "parent": "View",
      "seeAlso": [],
@@ -15106,7 +15765,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 714
+      "line": 721
      },
      "parent": "View",
      "seeAlso": [],
@@ -15130,7 +15789,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 715
+      "line": 722
      },
      "parent": "View",
      "seeAlso": [],
@@ -15154,7 +15813,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 716
+      "line": 723
      },
      "parent": "View",
      "seeAlso": [],
@@ -15178,7 +15837,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 700
+      "line": 707
      },
      "parent": "View",
      "seeAlso": [],
@@ -15202,7 +15861,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 717
+      "line": 724
      },
      "parent": "View",
      "seeAlso": [],
@@ -15226,7 +15885,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 720
+      "line": 727
      },
      "parent": "View",
      "seeAlso": [],
@@ -15250,7 +15909,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 721
+      "line": 728
      },
      "parent": "View",
      "seeAlso": [],
@@ -15274,7 +15933,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 734
+      "line": 741
      },
      "parent": "View",
      "seeAlso": [],
@@ -15776,7 +16435,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1063
+      "line": 1068
      },
      "parent": "App",
      "seeAlso": [],
@@ -15800,7 +16459,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1064
+      "line": 1069
      },
      "parent": "App",
      "seeAlso": [],
@@ -15824,7 +16483,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1065
+      "line": 1070
      },
      "parent": "App",
      "seeAlso": [],
@@ -15848,7 +16507,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1066
+      "line": 1071
      },
      "parent": "App",
      "seeAlso": [],
@@ -15872,7 +16531,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1068
+      "line": 1073
      },
      "parent": "App",
      "seeAlso": [],
@@ -15896,7 +16555,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1069
+      "line": 1074
      },
      "parent": "App",
      "seeAlso": [],
@@ -15920,7 +16579,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1070
+      "line": 1075
      },
      "parent": "App",
      "seeAlso": [],
@@ -15944,7 +16603,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1071
+      "line": 1076
      },
      "parent": "App",
      "seeAlso": [],
@@ -15979,7 +16638,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1087
+      "line": 1092
      },
      "parent": "App",
      "seeAlso": [],
@@ -16003,7 +16662,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1091
+      "line": 1096
      },
      "parent": "App",
      "seeAlso": [],
@@ -16027,7 +16686,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1092
+      "line": 1097
      },
      "parent": "App",
      "seeAlso": [],
@@ -16054,7 +16713,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 908
+      "line": 915
      },
      "parent": "App",
      "seeAlso": [],
@@ -16280,7 +16939,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/image.ts",
-      "line": 94
+      "line": 108
      },
      "parent": "Image",
      "seeAlso": [],
@@ -16304,7 +16963,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/image.ts",
-      "line": 95
+      "line": 109
      },
      "parent": "Image",
      "seeAlso": [],
@@ -16312,6 +16971,54 @@
      "default": "\"none\"",
      "prevailing": false,
      "readOnly": false,
+     "inheritedFrom": null
+    },
+    {
+     "id": "Image.loaded",
+     "name": "loaded",
+     "kind": "attribute",
+     "doc": "The bitmap has landed — the reactive fact a placeholder derives from\n(`spinner: View [ visible = { !pic.loaded } ]`). **Read-only** — computed by the load,\na compile error to assign. One honest edge: re-pointing `source` does not reset it —\nthe surface keeps the previous bitmap (and `loaded` stays true) until the replacement\narrives; a superseded in-flight load is discarded. Under headless extraction there is\nno image loader, so `loaded` honestly stays false. A failure is `failed`'s fact, not\nthis one's absence.",
+     "docSegs": [
+      {
+       "md": "The bitmap has landed — the reactive fact a placeholder derives from\n(`spinner: View [ visible = { !pic.loaded } ]`). **Read-only** — computed by the load,\na compile error to assign. One honest edge: re-pointing `source` does not reset it —\nthe surface keeps the previous bitmap (and `loaded` stays true) until the replacement\narrives; a superseded in-flight load is discarded. Under headless extraction there is\nno image loader, so `loaded` honestly stays false. A failure is `failed`'s fact, not\nthis one's absence.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/image.ts",
+      "line": 110
+     },
+     "parent": "Image",
+     "seeAlso": [],
+     "type": "boolean",
+     "default": "false",
+     "prevailing": false,
+     "readOnly": true,
+     "inheritedFrom": null
+    },
+    {
+     "id": "Image.failed",
+     "name": "failed",
+     "kind": "attribute",
+     "doc": "The **current** source's load failed — the broken-avatar fact, for deriving a fallback:\n`initials: Text [ visible = { pic.failed }, … ]`. **Read-only.** Reset whenever a new\nload starts (a `source` change), so it always speaks about the present address; a\nfailure keeps whatever bitmap was already showing (`loaded` stays true if one had\nlanded). There is no error *message* — the platform's image loader does not say why —\nso the fact is boolean by honesty, not austerity.",
+     "docSegs": [
+      {
+       "md": "The **current** source's load failed — the broken-avatar fact, for deriving a fallback:\n`initials: Text [ visible = { pic.failed }, … ]`. **Read-only.** Reset whenever a new\nload starts (a `source` change), so it always speaks about the present address; a\nfailure keeps whatever bitmap was already showing (`loaded` stays true if one had\nlanded). There is no error *message* — the platform's image loader does not say why —\nso the fact is boolean by honesty, not austerity.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/image.ts",
+      "line": 111
+     },
+     "parent": "Image",
+     "seeAlso": [],
+     "type": "boolean",
+     "default": "false",
+     "prevailing": false,
+     "readOnly": true,
      "inheritedFrom": null
     }
    ],
@@ -16659,7 +17366,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1115
+      "line": 1120
      },
      "parent": "DOMIsland",
      "seeAlso": [],
@@ -18647,6 +19354,380 @@
    "example": []
   },
   {
+   "id": "Stream",
+   "name": "Stream",
+   "doc": "The abstract base of the live-connection sources — `EventStream` (SSE) and `Socket`\n(WebSocket) extend it. Not instantiable: write the concrete transport. The one thing to\nknow: **there is no `connect()` or `disconnect()`** — the declaration decides. A stream is\nconnected exactly while `active` is true and `url` is non-empty; empty the url (or flip\n`active`) and it closes, change the url and it closes and reopens, remove the node and the\nconnection dies with it. Nothing to unsubscribe, ever. Messages are **transient**: nothing\naccumulates unless a handler writes it somewhere — the runtime keeps only `last`. An app\nthat streams JSON parses in the handler (`JSON.parse(e.data)`) and writes wherever it\nwants; accumulation is one line of app code, deliberately not a built-in policy.\n\n```declare-fragment\nchat: View [\n    answer: string = \"\",\n    reply: EventStream [ url = { `/api/chat?id=${classroot.chatId}` },\n        active = { classroot.chatId != \"\" },\n        onMessage(e: StreamMessage) { classroot.answer = classroot.answer + e.data },\n        ],\n    out: Text [ width = { parent.width }, text = { parent.answer } ]\n    ]\n```",
+   "docSegs": [
+    {
+     "md": "The abstract base of the live-connection sources — `EventStream` (SSE) and `Socket`\n(WebSocket) extend it. Not instantiable: write the concrete transport. The one thing to\nknow: **there is no `connect()` or `disconnect()`** — the declaration decides. A stream is\nconnected exactly while `active` is true and `url` is non-empty; empty the url (or flip\n`active`) and it closes, change the url and it closes and reopens, remove the node and the\nconnection dies with it. Nothing to unsubscribe, ever. Messages are **transient**: nothing\naccumulates unless a handler writes it somewhere — the runtime keeps only `last`. An app\nthat streams JSON parses in the handler (`JSON.parse(e.data)`) and writes wherever it\nwants; accumulation is one line of app code, deliberately not a built-in policy.\n\n```declare-fragment\nchat: View [\n    answer: string = \"\",\n    reply: EventStream [ url = { `/api/chat?id=${classroot.chatId}` },\n        active = { classroot.chatId != \"\" },\n        onMessage(e: StreamMessage) { classroot.answer = classroot.answer + e.data },\n        ],\n    out: Text [ width = { parent.width }, text = { parent.answer } ]\n    ]\n```",
+     "code": []
+    }
+   ],
+   "api": true,
+   "extends": "Node",
+   "chain": [
+    "Stream",
+    "Node"
+   ],
+   "abstract": true,
+   "subclasses": [
+    "EventStream",
+    "Socket"
+   ],
+   "origin": "ts",
+   "attributes": [
+    {
+     "id": "Stream.url",
+     "name": "url",
+     "kind": "attribute",
+     "doc": "Where to connect — a literal or a `{ }` constraint. Unlike `DataSource.url`, a change acts\n**immediately**: the old connection closes and a new one opens at the new address (there is\nno fetch() moment to wait for). `\"\"` means detached — the idiom for \"no conversation yet\"\nis deriving emptiness: `url = { app.chatId != \"\" ? \"/api/chat/\" + app.chatId : \"\" }`.",
+     "docSegs": [
+      {
+       "md": "Where to connect — a literal or a `{ }` constraint. Unlike `DataSource.url`, a change acts\n**immediately**: the old connection closes and a new one opens at the new address (there is\nno fetch() moment to wait for). `\"\"` means detached — the idiom for \"no conversation yet\"\nis deriving emptiness: `url = { app.chatId != \"\" ? \"/api/chat/\" + app.chatId : \"\" }`.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/schema.ts",
+      "line": 0
+     },
+     "parent": "Stream",
+     "seeAlso": [],
+     "type": "string",
+     "default": null,
+     "prevailing": false,
+     "readOnly": false,
+     "inheritedFrom": null
+    },
+    {
+     "id": "Stream.active",
+     "name": "active",
+     "kind": "attribute",
+     "doc": "The gate. `false` closes the connection (and cancels any pending retry); flipping back\n`true` reopens it. Bind it to app state — `active = { app.live }` — rather than toggling\nimperatively.",
+     "docSegs": [
+      {
+       "md": "The gate. `false` closes the connection (and cancels any pending retry); flipping back\n`true` reopens it. Bind it to app state — `active = { app.live }` — rather than toggling\nimperatively.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/schema.ts",
+      "line": 0
+     },
+     "parent": "Stream",
+     "seeAlso": [],
+     "type": "boolean",
+     "default": null,
+     "prevailing": false,
+     "readOnly": false,
+     "inheritedFrom": null
+    },
+    {
+     "id": "Stream.retry",
+     "name": "retry",
+     "kind": "attribute",
+     "doc": "Reconnect policy, **visible in the declaration**: seconds to wait before re-dialing after\nthe connection is lost and the platform won't bring it back on its own — a `Socket`'s\nunexpected close, an `EventStream`'s terminal failure. `0` (the default) means no retry:\nthe stream lands in `status = \"failed\"` and the app decides. A declared retry keeps trying\nwhile `active` is true, at a **fixed** interval — no invisible backoff, no give-up count.\nA structural failure (the factory itself refuses — headless extraction, a missing host\nservice) never loops, whatever `retry` says.",
+     "docSegs": [
+      {
+       "md": "Reconnect policy, **visible in the declaration**: seconds to wait before re-dialing after\nthe connection is lost and the platform won't bring it back on its own — a `Socket`'s\nunexpected close, an `EventStream`'s terminal failure. `0` (the default) means no retry:\nthe stream lands in `status = \"failed\"` and the app decides. A declared retry keeps trying\nwhile `active` is true, at a **fixed** interval — no invisible backoff, no give-up count.\nA structural failure (the factory itself refuses — headless extraction, a missing host\nservice) never loops, whatever `retry` says.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/schema.ts",
+      "line": 0
+     },
+     "parent": "Stream",
+     "seeAlso": [],
+     "type": "number",
+     "default": null,
+     "prevailing": false,
+     "readOnly": false,
+     "inheritedFrom": null
+    },
+    {
+     "id": "Stream.status",
+     "name": "status",
+     "kind": "attribute",
+     "doc": "The connection lifecycle as **one fact**, like `DataSource.status`: `\"closed\"`,\n`\"connecting\"`, `\"open\"`, `\"retrying\"`, or `\"failed\"` (down, and will not reconnect).\n**Read-only** — computed for you; assigning it is a compile error. `\"retrying\"` covers\nboth the platform's own recovery (SSE) and a declared `retry` waiting to re-dial.",
+     "docSegs": [
+      {
+       "md": "The connection lifecycle as **one fact**, like `DataSource.status`: `\"closed\"`,\n`\"connecting\"`, `\"open\"`, `\"retrying\"`, or `\"failed\"` (down, and will not reconnect).\n**Read-only** — computed for you; assigning it is a compile error. `\"retrying\"` covers\nboth the platform's own recovery (SSE) and a declared `retry` waiting to re-dial.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/schema.ts",
+      "line": 0
+     },
+     "parent": "Stream",
+     "seeAlso": [],
+     "type": "closed | connecting | open | retrying | failed",
+     "default": null,
+     "prevailing": false,
+     "readOnly": true,
+     "inheritedFrom": null
+    },
+    {
+     "id": "Stream.error",
+     "name": "error",
+     "kind": "attribute",
+     "doc": "The last failure reason, `\"\"` when none; cleared when a connection opens. **Read-only** —\nthe state side of `onError` (the event side). A status line is\n`text = { feed.error != \"\" ? feed.error : feed.status }`.",
+     "docSegs": [
+      {
+       "md": "The last failure reason, `\"\"` when none; cleared when a connection opens. **Read-only** —\nthe state side of `onError` (the event side). A status line is\n`text = { feed.error != \"\" ? feed.error : feed.status }`.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/schema.ts",
+      "line": 0
+     },
+     "parent": "Stream",
+     "seeAlso": [],
+     "type": "string",
+     "default": null,
+     "prevailing": false,
+     "readOnly": true,
+     "inheritedFrom": null
+    },
+    {
+     "id": "Stream.last",
+     "name": "last",
+     "kind": "attribute",
+     "doc": "The most recent message's `data`, reactive. **Read-only.** The zero-handler tier: a ticker\nthat only shows the latest value needs no handler at all — `text = { feed.last }`.",
+     "docSegs": [
+      {
+       "md": "The most recent message's `data`, reactive. **Read-only.** The zero-handler tier: a ticker\nthat only shows the latest value needs no handler at all — `text = { feed.last }`.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/schema.ts",
+      "line": 0
+     },
+     "parent": "Stream",
+     "seeAlso": [],
+     "type": "string",
+     "default": null,
+     "prevailing": false,
+     "readOnly": true,
+     "inheritedFrom": null
+    },
+    {
+     "id": "Stream.open",
+     "name": "open",
+     "kind": "attribute",
+     "doc": "The boolean view of `status == \"open\"`, as `DataSource.loaded` is of its status — one\nfact, two spellings, never in disagreement. **Read-only.** The connection dot is\n`visible = { feed.open }`.",
+     "docSegs": [
+      {
+       "md": "The boolean view of `status == \"open\"`, as `DataSource.loaded` is of its status — one\nfact, two spellings, never in disagreement. **Read-only.** The connection dot is\n`visible = { feed.open }`.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/schema.ts",
+      "line": 0
+     },
+     "parent": "Stream",
+     "seeAlso": [],
+     "type": "boolean",
+     "default": null,
+     "prevailing": false,
+     "readOnly": true,
+     "inheritedFrom": null
+    }
+   ],
+   "events": [
+    {
+     "id": "Stream.event.message",
+     "name": "message",
+     "kind": "event",
+     "doc": "`onMessage(e: StreamMessage)` — every message. `e.data` is always a **string**: parse it\nyourself if it is JSON, concatenate it if it is streamed text; the runtime never guesses.\n`e.type` is the SSE named event (`\"message\"` for unnamed messages and every socket frame);\n`e.id` is the SSE last-event-id (`\"\"` on sockets).",
+     "docSegs": [
+      {
+       "md": "`onMessage(e: StreamMessage)` — every message. `e.data` is always a **string**: parse it\nyourself if it is JSON, concatenate it if it is streamed text; the runtime never guesses.\n`e.type` is the SSE named event (`\"message\"` for unnamed messages and every socket frame);\n`e.id` is the SSE last-event-id (`\"\"` on sockets).",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/schema.ts",
+      "line": 0
+     },
+     "parent": "Stream",
+     "seeAlso": [],
+     "signature": "onMessage(e: StreamMessage)"
+    },
+    {
+     "id": "Stream.event.open",
+     "name": "open",
+     "kind": "event",
+     "doc": "The connection is live — fires each time one opens, including reopens after a retry.\nPrefer deriving from `open`/`status` for anything a constraint can express; the handler is\nfor work state cannot do (send a subscription frame, log).",
+     "docSegs": [
+      {
+       "md": "The connection is live — fires each time one opens, including reopens after a retry.\nPrefer deriving from `open`/`status` for anything a constraint can express; the handler is\nfor work state cannot do (send a subscription frame, log).",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/schema.ts",
+      "line": 0
+     },
+     "parent": "Stream",
+     "seeAlso": [],
+     "signature": "onOpen()"
+    },
+    {
+     "id": "Stream.event.close",
+     "name": "close",
+     "kind": "event",
+     "doc": "A connection that had opened went away — the app closed it (`active`, a url change, node\nremoval at discard is silent), the server ended it, or it failed. Fires once per\nconnection, before any retry dials the next one.",
+     "docSegs": [
+      {
+       "md": "A connection that had opened went away — the app closed it (`active`, a url change, node\nremoval at discard is silent), the server ended it, or it failed. Fires once per\nconnection, before any retry dials the next one.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/schema.ts",
+      "line": 0
+     },
+     "parent": "Stream",
+     "seeAlso": [],
+     "signature": "onClose()"
+    },
+    {
+     "id": "Stream.event.error",
+     "name": "error",
+     "kind": "event",
+     "doc": "Something failed: a terminal connection loss, a refused transport, a `send` on a socket\nthat is not open. The reason is in `error` when the handler runs. The platform's own\nin-flight retries (SSE) are **not** errors and stay quiet.",
+     "docSegs": [
+      {
+       "md": "Something failed: a terminal connection loss, a refused transport, a `send` on a socket\nthat is not open. The reason is in `error` when the handler runs. The platform's own\nin-flight retries (SSE) are **not** errors and stay quiet.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/schema.ts",
+      "line": 0
+     },
+     "parent": "Stream",
+     "seeAlso": [],
+     "signature": "onError()"
+    }
+   ],
+   "methods": [],
+   "example": []
+  },
+  {
+   "id": "EventStream",
+   "name": "EventStream",
+   "doc": "Server-Sent Events (`text/event-stream`) as a source — the streaming-AI shape: the server\npushes, the app receives, an `onMessage` that concatenates is the whole consumer. See\n`Stream` for the shared surface (`url`/`active`/`retry`, the read-only\n`status`/`open`/`error`/`last`). Receive-only — there is no `send`; a request that needs a\nbody is an ordinary `DataSource` POST, and the stream carries the reply. The platform's\n`EventSource` machinery is kept **verbatim**: it retries on its own (honoring the server's\n`retry:` hint) and resumes with `Last-Event-ID`, during which `status` reads `\"retrying\"`\nand no error is reported; `retry`/`onError` concern only **terminal** failure — the\nplatform giving up.\n\n```declare-fragment\nanswer: string = \"\",\nreply: EventStream [ url = { `/api/chat?id=${app.chatId}` },\n    active = { app.chatId != \"\" },\n    onMessage(e: StreamMessage) { app.answer = app.answer + e.data },\n    ]\n```",
+   "docSegs": [
+    {
+     "md": "Server-Sent Events (`text/event-stream`) as a source — the streaming-AI shape: the server\npushes, the app receives, an `onMessage` that concatenates is the whole consumer. See\n`Stream` for the shared surface (`url`/`active`/`retry`, the read-only\n`status`/`open`/`error`/`last`). Receive-only — there is no `send`; a request that needs a\nbody is an ordinary `DataSource` POST, and the stream carries the reply. The platform's\n`EventSource` machinery is kept **verbatim**: it retries on its own (honoring the server's\n`retry:` hint) and resumes with `Last-Event-ID`, during which `status` reads `\"retrying\"`\nand no error is reported; `retry`/`onError` concern only **terminal** failure — the\nplatform giving up.\n\n```declare-fragment\nanswer: string = \"\",\nreply: EventStream [ url = { `/api/chat?id=${app.chatId}` },\n    active = { app.chatId != \"\" },\n    onMessage(e: StreamMessage) { app.answer = app.answer + e.data },\n    ]\n```",
+     "code": []
+    }
+   ],
+   "api": true,
+   "extends": "Stream",
+   "chain": [
+    "EventStream",
+    "Stream",
+    "Node"
+   ],
+   "abstract": false,
+   "subclasses": [],
+   "origin": "ts",
+   "attributes": [
+    {
+     "id": "EventStream.listenTo",
+     "name": "listenTo",
+     "kind": "attribute",
+     "doc": "The **named** SSE event types to deliver — `listenTo = [\"content_block_delta\",\n\"message_stop\"]`. Required for any stream that labels messages with `event:` lines\n(Anthropic-style AI streams do): the platform's `EventSource` physically cannot deliver a\nnamed event it was not asked to listen for, so an undeclared name is silently invisible —\nif `onMessage` sees nothing but the connection is `open`, this is the first thing to\ncheck. The name carries the contract: you hear what you listen to. Unnamed (default)\nmessages always arrive; `e.type` says which kind each one is.",
+     "docSegs": [
+      {
+       "md": "The **named** SSE event types to deliver — `listenTo = [\"content_block_delta\",\n\"message_stop\"]`. Required for any stream that labels messages with `event:` lines\n(Anthropic-style AI streams do): the platform's `EventSource` physically cannot deliver a\nnamed event it was not asked to listen for, so an undeclared name is silently invisible —\nif `onMessage` sees nothing but the connection is `open`, this is the first thing to\ncheck. The name carries the contract: you hear what you listen to. Unnamed (default)\nmessages always arrive; `e.type` says which kind each one is.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/schema.ts",
+      "line": 0
+     },
+     "parent": "EventStream",
+     "seeAlso": [],
+     "type": "array",
+     "default": null,
+     "prevailing": false,
+     "readOnly": false,
+     "inheritedFrom": null
+    }
+   ],
+   "events": [],
+   "methods": [],
+   "example": []
+  },
+  {
+   "id": "Socket",
+   "name": "Socket",
+   "doc": "WebSocket as a source: the `Stream` surface plus `send(text)` — `send` is a call you make,\n`onMessage` is it calling you. See `Stream` for `url`/`active`/`retry` and the read-only\n`status`/`open`/`error`/`last`. Unlike SSE the platform has **no native reconnect**, so a\n`Socket` that should survive a dropped connection must say so: `retry = 2` re-dials two\nseconds after any close the app didn't ask for, for as long as `active` holds — the whole\npolicy is that one number. Text frames only; a binary frame is dropped (a later attribute\nif a real project needs one, not a speculative shape now).\n\n```declare-fragment\nlive: Socket [ url = \"wss://api.example.com/feed\", retry = 2,\n    onOpen() { this.send('{\"subscribe\":\"prices\"}') },\n    onMessage(e: StreamMessage) { app.tick(JSON.parse(e.data)) },\n    ]\n```",
+   "docSegs": [
+    {
+     "md": "WebSocket as a source: the `Stream` surface plus `send(text)` — `send` is a call you make,\n`onMessage` is it calling you. See `Stream` for `url`/`active`/`retry` and the read-only\n`status`/`open`/`error`/`last`. Unlike SSE the platform has **no native reconnect**, so a\n`Socket` that should survive a dropped connection must say so: `retry = 2` re-dials two\nseconds after any close the app didn't ask for, for as long as `active` holds — the whole\npolicy is that one number. Text frames only; a binary frame is dropped (a later attribute\nif a real project needs one, not a speculative shape now).\n\n```declare-fragment\nlive: Socket [ url = \"wss://api.example.com/feed\", retry = 2,\n    onOpen() { this.send('{\"subscribe\":\"prices\"}') },\n    onMessage(e: StreamMessage) { app.tick(JSON.parse(e.data)) },\n    ]\n```",
+     "code": []
+    }
+   ],
+   "api": true,
+   "extends": "Stream",
+   "chain": [
+    "Socket",
+    "Stream",
+    "Node"
+   ],
+   "abstract": false,
+   "subclasses": [],
+   "origin": "ts",
+   "attributes": [],
+   "events": [],
+   "methods": [
+    {
+     "id": "Socket.method.send",
+     "name": "send",
+     "kind": "method",
+     "doc": "Sends one text frame. **Legal only while `open`** — on a socket that is not open it sends\nnothing and reports through the error channel (`error` + `onError`), never a silent queue:\nif the app needs buffering-until-connected, that policy belongs in app state, visibly.\nSending the opening frame belongs in `onOpen` (which also covers every reconnect); gate\nuser-triggered sends on `.open`.",
+     "docSegs": [
+      {
+       "md": "Sends one text frame. **Legal only while `open`** — on a socket that is not open it sends\nnothing and reports through the error channel (`error` + `onError`), never a silent queue:\nif the app needs buffering-until-connected, that policy belongs in app state, visibly.\nSending the opening frame belongs in `onOpen` (which also covers every reconnect); gate\nuser-triggered sends on `.open`.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/streams.ts",
+      "line": 257
+     },
+     "parent": "Socket",
+     "seeAlso": [],
+     "signature": "send(text: string): void",
+     "returns": "void"
+    }
+   ],
+   "example": []
+  },
+  {
    "id": "State",
    "name": "State",
    "doc": "A named bundle of overrides that snaps on and off **together**. Its body is not ordinary\nchildren: a `name = value` entry is an **override of the enclosing view's own attribute**\n(checked against *that* view's schema, not the State's), applied while the state is on;\nan `id: Type [ … ]` entry is a conditional subtree that exists only while applied. Because\nattribute reads compose as a **precedence stack**, the base values return *exactly* when\nthe state turns off — there is no manual undo to write, and no drift.\n\n```declare\ncard: View [ height = 72, fill = white,\n    open: State [ applied = { expanded }, height = 184, fill = lightsteelblue,\n        Text [ text = \"shown only while open\" ]\n        ]\n    ]\n```",
@@ -18833,6 +19914,7 @@
     "Keys",
     "Focus",
     "Tip",
+    "Stream",
     "State"
    ],
    "origin": "ts",
@@ -22593,7 +23675,7 @@
    "name": "1 SATOR",
    "segs": [
     {
-     "md": "# How it ships\n\nDelivery, hosting, and the honest posture — the promises about running and\nshipping a Declare program.\n\n### SATOR-1 — Programs are data\nA compiled program is data the toolchain can read, so one compiler powers the\ndocumentation system, static extraction for crawlers, and live editing alike —\nnot three separate pipelines.\n*Held in:* FAQ (\"programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing\").\n\n### SATOR-2 — What a visitor sees and what a crawler sees can never drift\nStatic extraction is built into the compiler: it runs the program headlessly to\nits settled state and serializes the actual content as semantic HTML — real\nheadings, paragraphs, links — baked into the page at build time. A crawler (or an\nAI reading the web) reads that; a person gets the live app that replaces it at\nboot. No server-side rendering, no hydration — it works on a plain static host.\n*Held in:* FAQ (\"How do Declare-written sites handle crawlers and SEO\"); the \"why\" essay (\"what a visitor sees and what a crawler sees can never drift\").\n\n### SATOR-3 — In-browser compilation, and no build step to develop\nBecause the compiler runs in the page, a page can edit and re-run itself: every\nsample is live-editable, and view-source culture is restored. Development needs no\nbuild step — the dev server and the browser use the *same* compiler with\nbyte-identical output.\n*Held in:* FAQ (\"What benefits does in-browser compilation bring\"); getstarted (\"no build step\").\n\n### SATOR-4 — You don't ship the compiler\nFor production, `declarec` precompiles everything into a small, self-contained\nartifact — a set of static files you can host anywhere, with no trace of the\ntoolchain and no compiler aboard.\n*Held in:* FAQ (\"For production you don't ship the compiler\").\n\n### SATOR-5 — The program's URL is the app's address\nA program is addressed by its own URL: on the dev server, browse to a `.declare`\nfile's URL and get the running app. The address is the program, not a route\nregistered elsewhere.\n*Held in:* getstarted (\"the program URL is the app's address\"); FAQ.\n\n### SATOR-6 — Small, and fast where it counts\nA full application ships small — the flagship calendar, application *and* runtime,\nat roughly 55 KB gzipped (machine-stamped from\nthe measured artifact), smaller than the runtime alone of most frameworks.\nInput latency is several times lower than the equivalent framework build, with no\nvirtual-DOM pass between gesture and pixels, and animation runs at the display's\nfull rate. The homepage reports the live figures, measured from the deployed\nartifacts on every commit.\n*Held in:* FAQ (\"What should I expect in terms of performance\").\n\n### SATOR-7 — Honest about the trades and the gaps\nThe promises come with their limits stated plainly: a framework with no in-browser\ncompiler wins the very first cold load (the production path closes the gap by\nprecompiling); Declare is young and the repository *is* the distribution and the\nsource of truth; and accessibility depth, an npm package, and a dedicated editor\nextension are named, unhidden gaps.\n*Held in:* FAQ (\"Startup\" trade; \"How mature is Declare?\"; \"Is Declare accessible?\"; \"Is there editor support?\").\n\n### SATOR-8 — Open, MIT, entirely public\nThe complete source — compiler, runtime, standard library, documentation, and the\nsite itself — is public under the MIT license.\n*Held in:* FAQ (\"What license is Declare offered under?\").",
+     "md": "# How it ships\n\nDelivery, hosting, and the honest posture — the promises about running and\nshipping a Declare program.\n\n### SATOR-1 — Programs are data\nA compiled program is data the toolchain can read, so one compiler powers the\ndocumentation system, static extraction for crawlers, and live editing alike —\nnot three separate pipelines.\n*Held in:* FAQ (\"programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing\").\n\n### SATOR-2 — What a visitor sees and what a crawler sees can never drift\nStatic extraction is built into the compiler: it runs the program headlessly to\nits settled state and serializes the actual content as semantic HTML — real\nheadings, paragraphs, links — baked into the page at build time. A crawler (or an\nAI reading the web) reads that; a person gets the live app that replaces it at\nboot. No server-side rendering, no hydration — it works on a plain static host.\n*Held in:* FAQ (\"How do Declare-written sites handle crawlers and SEO\"); the \"why\" essay (\"what a visitor sees and what a crawler sees can never drift\").\n\n### SATOR-3 — In-browser compilation, and no build step to develop\nBecause the compiler runs in the page, a page can edit and re-run itself: every\nsample is live-editable, and view-source culture is restored. Development needs no\nbuild step — the dev server and the browser use the *same* compiler with\nbyte-identical output.\n*Held in:* FAQ (\"What benefits does in-browser compilation bring\"); getstarted (\"no build step\").\n\n### SATOR-4 — You don't ship the compiler\nFor production, `declarec` precompiles everything into a small, self-contained\nartifact — a set of static files you can host anywhere, with no trace of the\ntoolchain and no compiler aboard.\n*Held in:* FAQ (\"For production you don't ship the compiler\").\n\n### SATOR-5 — The program's URL is the app's address\nA program is addressed by its own URL: on the dev server, browse to a `.declare`\nfile's URL and get the running app. The address is the program, not a route\nregistered elsewhere.\n*Held in:* getstarted (\"the program URL is the app's address\"); FAQ.\n\n### SATOR-6 — Small, and fast where it counts\nA full application ships small — the flagship calendar, application *and* runtime,\nat roughly 56 KB gzipped (machine-stamped from\nthe measured artifact), smaller than the runtime alone of most frameworks.\nInput latency is several times lower than the equivalent framework build, with no\nvirtual-DOM pass between gesture and pixels, and animation runs at the display's\nfull rate. The homepage reports the live figures, measured from the deployed\nartifacts on every commit.\n*Held in:* FAQ (\"What should I expect in terms of performance\").\n\n### SATOR-7 — Honest about the trades and the gaps\nThe promises come with their limits stated plainly: a framework with no in-browser\ncompiler wins the very first cold load (the production path closes the gap by\nprecompiling); Declare is young and the repository *is* the distribution and the\nsource of truth; and accessibility depth, an npm package, and a dedicated editor\nextension are named, unhidden gaps.\n*Held in:* FAQ (\"Startup\" trade; \"How mature is Declare?\"; \"Is Declare accessible?\"; \"Is there editor support?\").\n\n### SATOR-8 — Open, MIT, entirely public\nThe complete source — compiler, runtime, standard library, documentation, and the\nsite itself — is public under the MIT license.\n*Held in:* FAQ (\"What license is Declare offered under?\").",
      "code": []
     }
    ]
@@ -22671,7 +23753,7 @@
        "subtitle": "",
        "kind": "tenet",
        "label": "Tenet",
-       "doc": "# How it ships\n\nDelivery, hosting, and the honest posture — the promises about running and\nshipping a Declare program.\n\n### SATOR-1 — Programs are data\nA compiled program is data the toolchain can read, so one compiler powers the\ndocumentation system, static extraction for crawlers, and live editing alike —\nnot three separate pipelines.\n*Held in:* FAQ (\"programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing\").\n\n### SATOR-2 — What a visitor sees and what a crawler sees can never drift\nStatic extraction is built into the compiler: it runs the program headlessly to\nits settled state and serializes the actual content as semantic HTML — real\nheadings, paragraphs, links — baked into the page at build time. A crawler (or an\nAI reading the web) reads that; a person gets the live app that replaces it at\nboot. No server-side rendering, no hydration — it works on a plain static host.\n*Held in:* FAQ (\"How do Declare-written sites handle crawlers and SEO\"); the \"why\" essay (\"what a visitor sees and what a crawler sees can never drift\").\n\n### SATOR-3 — In-browser compilation, and no build step to develop\nBecause the compiler runs in the page, a page can edit and re-run itself: every\nsample is live-editable, and view-source culture is restored. Development needs no\nbuild step — the dev server and the browser use the *same* compiler with\nbyte-identical output.\n*Held in:* FAQ (\"What benefits does in-browser compilation bring\"); getstarted (\"no build step\").\n\n### SATOR-4 — You don't ship the compiler\nFor production, `declarec` precompiles everything into a small, self-contained\nartifact — a set of static files you can host anywhere, with no trace of the\ntoolchain and no compiler aboard.\n*Held in:* FAQ (\"For production you don't ship the compiler\").\n\n### SATOR-5 — The program's URL is the app's address\nA program is addressed by its own URL: on the dev server, browse to a `.declare`\nfile's URL and get the running app. The address is the program, not a route\nregistered elsewhere.\n*Held in:* getstarted (\"the program URL is the app's address\"); FAQ.\n\n### SATOR-6 — Small, and fast where it counts\nA full application ships small — the flagship calendar, application *and* runtime,\nat roughly 55 KB gzipped (machine-stamped from\nthe measured artifact), smaller than the runtime alone of most frameworks.\nInput latency is several times lower than the equivalent framework build, with no\nvirtual-DOM pass between gesture and pixels, and animation runs at the display's\nfull rate. The homepage reports the live figures, measured from the deployed\nartifacts on every commit.\n*Held in:* FAQ (\"What should I expect in terms of performance\").\n\n### SATOR-7 — Honest about the trades and the gaps\nThe promises come with their limits stated plainly: a framework with no in-browser\ncompiler wins the very first cold load (the production path closes the gap by\nprecompiling); Declare is young and the repository *is* the distribution and the\nsource of truth; and accessibility depth, an npm package, and a dedicated editor\nextension are named, unhidden gaps.\n*Held in:* FAQ (\"Startup\" trade; \"How mature is Declare?\"; \"Is Declare accessible?\"; \"Is there editor support?\").\n\n### SATOR-8 — Open, MIT, entirely public\nThe complete source — compiler, runtime, standard library, documentation, and the\nsite itself — is public under the MIT license.\n*Held in:* FAQ (\"What license is Declare offered under?\").",
+       "doc": "# How it ships\n\nDelivery, hosting, and the honest posture — the promises about running and\nshipping a Declare program.\n\n### SATOR-1 — Programs are data\nA compiled program is data the toolchain can read, so one compiler powers the\ndocumentation system, static extraction for crawlers, and live editing alike —\nnot three separate pipelines.\n*Held in:* FAQ (\"programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing\").\n\n### SATOR-2 — What a visitor sees and what a crawler sees can never drift\nStatic extraction is built into the compiler: it runs the program headlessly to\nits settled state and serializes the actual content as semantic HTML — real\nheadings, paragraphs, links — baked into the page at build time. A crawler (or an\nAI reading the web) reads that; a person gets the live app that replaces it at\nboot. No server-side rendering, no hydration — it works on a plain static host.\n*Held in:* FAQ (\"How do Declare-written sites handle crawlers and SEO\"); the \"why\" essay (\"what a visitor sees and what a crawler sees can never drift\").\n\n### SATOR-3 — In-browser compilation, and no build step to develop\nBecause the compiler runs in the page, a page can edit and re-run itself: every\nsample is live-editable, and view-source culture is restored. Development needs no\nbuild step — the dev server and the browser use the *same* compiler with\nbyte-identical output.\n*Held in:* FAQ (\"What benefits does in-browser compilation bring\"); getstarted (\"no build step\").\n\n### SATOR-4 — You don't ship the compiler\nFor production, `declarec` precompiles everything into a small, self-contained\nartifact — a set of static files you can host anywhere, with no trace of the\ntoolchain and no compiler aboard.\n*Held in:* FAQ (\"For production you don't ship the compiler\").\n\n### SATOR-5 — The program's URL is the app's address\nA program is addressed by its own URL: on the dev server, browse to a `.declare`\nfile's URL and get the running app. The address is the program, not a route\nregistered elsewhere.\n*Held in:* getstarted (\"the program URL is the app's address\"); FAQ.\n\n### SATOR-6 — Small, and fast where it counts\nA full application ships small — the flagship calendar, application *and* runtime,\nat roughly 56 KB gzipped (machine-stamped from\nthe measured artifact), smaller than the runtime alone of most frameworks.\nInput latency is several times lower than the equivalent framework build, with no\nvirtual-DOM pass between gesture and pixels, and animation runs at the display's\nfull rate. The homepage reports the live figures, measured from the deployed\nartifacts on every commit.\n*Held in:* FAQ (\"What should I expect in terms of performance\").\n\n### SATOR-7 — Honest about the trades and the gaps\nThe promises come with their limits stated plainly: a framework with no in-browser\ncompiler wins the very first cold load (the production path closes the gap by\nprecompiling); Declare is young and the repository *is* the distribution and the\nsource of truth; and accessibility depth, an npm package, and a dedicated editor\nextension are named, unhidden gaps.\n*Held in:* FAQ (\"Startup\" trade; \"How mature is Declare?\"; \"Is Declare accessible?\"; \"Is there editor support?\").\n\n### SATOR-8 — Open, MIT, entirely public\nThe complete source — compiler, runtime, standard library, documentation, and the\nsite itself — is public under the MIT license.\n*Held in:* FAQ (\"What license is Declare offered under?\").",
        "preview": "Delivery, hosting, and the honest posture — the promises about running and shipping a Declare program. SATOR-1 — Programs are data A compiled program is data the toolchain can read, so one compiler powers the documentation system, static ex…"
       },
       {
@@ -22936,7 +24018,7 @@
        "subtitle": "extends View",
        "kind": "element",
        "label": "Built-in element",
-       "doc": "# Image\n\n*Built-in element — [View](declare-docs:View) → [Node](declare-docs:Node)*\n\nAn async-loaded bitmap. Set `source` to a URL; the image loads in the background and,\nunless you constrain its size, adopts its natural pixel dimensions once loaded (so\n`width`/`height` left unset \"pop\" to the real size on load — constrain them if you need\na stable box before the bytes arrive).\n\n```declare\nImage [ source = { weatherIcon(:code) }, width = 52, height = 52 ]\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `source` | string | `\"\"` |  |\n| `stretches` | none | width | height | both | `\"none\"` |  |\n\n**`source`** — The image URL (`string`). Literal or a `{ }` constraint — bind it to data and the\npicture follows: `source = { weatherIcon(:code) }` swaps the bitmap whenever `:code`\nchanges. A stateless helper in a `script { }` beats wrapping a class around one\ncomputed URL.\n\n**`stretches`** — How the bitmap fills a box whose size differs from the image's natural size: `none`\n(default — natural size, no scaling), `width`, `height`, or `both`. The first built-in\nenum attribute — `stretches = both` scales the picture to the box on both axes.\n\n## Inherited from [View](declare-docs:View)\n\n### Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `x` | Length | `0` |  |\n| `y` | Length | `0` |  |\n| `width` | Length | `0` |  |\n| `height` | Length | `0` |  |\n| `fill` | Fill | `null` |  |\n| `cornerRadius` | number | `0` |  |\n| `stroke` | Stroke | `null` |  |\n| `shadow` | Shadow | `null` |  |\n| `visible` | boolean | `true` |  |\n| `ignoreLayout` | boolean | `false` |  |\n| `ignoreClip` | boolean | `false` |  |\n| `ignoreScroll` | boolean | `false` |  |\n| `opacity` | number | `1` |  |\n| `scale` | number | `1` |  |\n| `pivotX` | number | `0` |  |\n| `pivotY` | number | `0` |  |\n| `clip` | Shape | `null` |  |\n| `scrolls` | none | y | x | both | `\"none\"` |  |\n| `tip` | string | `\"\"` |  |\n| `scrollY` | number | `0` |  |\n| `scrollX` | number | `0` |  |\n| `textColor` | Color | `0x000000` | prevailing |\n| `fontSize` | number | `16` | prevailing |\n| `fontFamily` | Font | `\"sans-serif\"` | prevailing |\n| `fontWeight` | thin | extralight | light | regular | normal | medium | semibold | bold | extrabold | black | `\"normal\"` | prevailing |\n| `letterSpacing` | number | `0` | prevailing |\n| `headingColor` | Color | `null` | prevailing |\n| `headingWeight` | thin | extralight | light | regular | normal | medium | semibold | bold | extrabold | black | `\"bold\"` | prevailing |\n| `linkColor` | Color | `null` | prevailing |\n| `codeColor` | Color | `null` | prevailing |\n| `codeSize` | number | `0` | prevailing |\n| `codeFamily` | Font | `\"\"` | prevailing |\n| `codeBackground` | Color | `null` | prevailing |\n| `codeRule` | Color | `null` | prevailing |\n| `richTextLayout` | RichTextLayout | `null` | prevailing |\n| `theme` | Theme | `DEFAULT_THEME` | prevailing |\n| `selectable` | boolean | `false` | prevailing |\n| `styles` | Style[] | `null` |  |\n| `stylesheet` | Stylesheet | `null` | prevailing |\n| `layout` | Layout | `null` |  |\n| `datapath` | datapath | `null` |  |\n| `focusable` | boolean | `false` |  |\n| `focusTrap` | boolean | `false` |  |\n| `anchor` | string | `\"\"` |  |\n| `contentWidth` | Length |  | read-only |\n| `contentHeight` | Length |  | read-only |\n\n**`x`** — The horizontal offset within the parent, in pixels. Honoured only while the parent\nimposes no `layout` — **a layout overwrites `x` every pass**, so use it for absolute\nplacement (the layout-none default) and switch to `layout` for arrangement; don't fight\none with the other.\n\n**`y`** — The vertical offset within the parent — the twin of `x`, and likewise overwritten by a\nparent `layout`.\n\n**`width`** — The box's width, in **pixels** (`Length`). Defaults to `0`, so a container with no\nwidth set collapses — give it one, a `{ }` constraint, or `100%` (parent-relative).\nSet it live and children constrained to it reflow in the same frame; there is no\nre-layout call. To size *to* content instead, constrain it: `width = { Math.min(contentWidth, 480) }`.\n\n**`height`** — The box's height in pixels (`Length`), mirroring `width`. `0` by default. A `Text`\nleft unsized takes its natural measured height, so you usually set `height` only to\nclip or to drive a layout.\n\n**`fill`** — What paints the box: a solid `Color` or a `gradient(…)` — the one slot, subsuming a\nplain background color. `null` (the default) paints **nothing** — an unfilled box is\ninvisible but still lays out and still catches clicks. In a `[ ]` literal a color is\n`#RRGGBB`; inside a `{ }` body it is `0xRRGGBB` (the one place the spelling differs).\n\n```declare\nView [ fill = { gradient(\"90deg\", 0x1E2A36, 0x0B141B) } ]\n```\n\n**`cornerRadius`** — Rounds the **painted** box by this many pixels (default `0`, square). It shapes fill,\nborder, and shadow — but not hit-testing or clipping: the box stays a rectangle for\nlayout and clicks. To clip children to the rounded shape, set `clip = true` as well.\n\n**`stroke`** — A border drawn **inside** the box (`stroke(width, color)`), so it never enlarges the\nlayout rectangle — the box stays the one geometry fact. `null` by default. Chosen over\nCSS's `border` precisely so a bordered view and an unbordered one occupy the same space.\n\n**`shadow`** — A drop shadow on the box (`shadow(dx, dy, blur, color)`), the CSS box-shadow shape\nminus spread. `null` by default. The glyph equivalent on `Text` is `textShadow`.\n\n**`visible`** — Whether the view renders and participates in layout-that-skips-invisibles (default\n`true`). A `false` view is fully inert — no paint, no hit-testing — but still\nconstructed, so toggling it is cheap and keeps its state.\n\n**`ignoreLayout`** — Opt this child out of its parent's `layout` — the arrangement skips it and it owns\nits own position on both axes (the decoration/overlay case: a badge floating over\na laid list). Its size still counts toward the parent's auto-extent.\n\n**`ignoreClip`** — Opt this child out of its parent's `clip`: outside the parent's frame it still\npaints *and* still hits — frame chrome that straddles the frame (a window's\nresize halo; a badge poking out of a clipped card). Parent-scoped — an ancestor's\nclip above still applies — and the child is exempt from the parent's auto-extent\n(frame geometry derives *from* the bounds, so it cannot also define them).\n\n**`ignoreScroll`** — The third member of the opt-out family (`ignoreLayout` — the parent arranges everyone\nbut me; `ignoreClip` — the parent clips everyone but me): **the scroll carries everyone\nbut me — I ride the frame.** The child stands still against its nearest enclosing scroll\nframe — the window when the page is the regime, the pane's frame inside a `scrolls`\nview — and contributes nothing to the scroll range. The fixed header, the pinned\ntoolbar, and the overlay layer that stages parked furniture are all this one attribute.\n\n**`opacity`** — Whole-view alpha, `0`…`1` (default `1`). Applies to the view **and its subtree** as a\ngroup, so a fading panel fades its contents with it. Not `prevailing`: its effect\nalready composes down the render tree, so a followed copy would apply it twice.\n\n**`scale`** — A uniform **paint** transform — the view's subtree renders scaled about its pivot, never\nre-laid-out (like `opacity`, it changes pixels, not geometry), and hit-testing follows the\nvisible result. Pair with `pivotX`/`pivotY` to choose the center; `1` is unscaled.\n\n**`pivotX`** — The horizontal center of `scale`, in the view's own coordinates. Defaults to the origin; set\nboth `pivotX`/`pivotY` to scale about the middle rather than the top-left.\n\n**`pivotY`** — The vertical pivot — the twin of `pivotX`.\n\n**`clip`** — Clips the subtree to a shape. `clip = true` clips to the view's **own box**\n(reactively on width/height) — the common case; a `Shape` value clips to an arbitrary\npath. `null`/unset (default) draws children unclipped, even outside the box. Kept\nexplicit (not implied by `cornerRadius`) so clipping is pay-per-use.\n\n**`scrolls`** — Which **axes** of interior overflow this view scrolls — `none` (the default), `y`, `x`,\nor `both`. A scrolling view clips to its box; overflow along a declared axis becomes its\nscroll range (live `scrollY`/`scrollX`), and overflow along any other axis is simply out\nof frame. The value is a token **string** in a `{ }` body — compare explicitly\n(`scrolls == \"y\"`), never truthily: `\"none\"` is a truthy string. Fixed chrome comes free — make it a **sibling** of the scroller, or a child that declares `ignoreScroll`.\nBoth backends present the same model; only the overscroll *feel* differs, where the\nplatform can do better. On DOM the OS owns the scroll — overlay scrollbar, momentum, and\nrubber-band overscroll *contained* to this pane, so it bounces on its own edges and never\nchains to the page, and sibling panes overscroll independently. On canvas the runtime\nmanages the offset (clip+translate+wheel), as a single element must.\n\n**`tip`** — The tooltip text — the layer system's floor (one attribute at the use site): a non-empty\n`tip` makes this view hover-interactive, and after the theme's delay the auto-provided\n`Tooltip` singleton shows the text beside it. Placement, delay, and size are theme data\n(`tooltipPlacement` below | above | pointer, `tooltipDelay`, `tooltipSize`) — so Cupertino\ntips appear near the cursor after ~1s at 11px (the macOS help tag), Redmond's above the\ncontrol (WinUI), Mountain View's below at ~500ms (M3) — always flipped and clamped inside\nthe app. Moving between tip-carrying controls while a tip is up retargets instantly; a\npress dismisses. Look comes from `tooltipBg` / `tooltipText` / `tooltipLine`. `\"\"` (the\ndefault) = no tip.\n\n**`scrollY`** — The current vertical scroll offset in pixels of a `scrolls` view — **read it** for\nscroll-driven effects (a fading header, reveals, parallax): `opacity = { 1 - app.scrollY / 200 }`.\n\n**`scrollX`** — **Read it, don't set it** in practice: the live horizontal offset of a `scrolls = x`\n(or `both`) view, mirrored from the native scroll — `scrollY`'s twin. Use it for a\npaging strip's position, scroll-driven effects, or restoring a strip's place.\n\n**`textColor`** — The glyph color `Text` renders with — a `prevailing` styling slot declared on `View`\nso **any** container can provide it and the whole subtree inherits, live. Unset, it\nfollows the nearest ancestor that sets it (default `0x000000`). Set it on a panel to\nretint all text beneath without touching each `Text`.\n\n**`fontSize`** — Prevailing font size in pixels (default `16`), inherited by descendant `Text` exactly\nlike `textColor`. Set once on a container to size a whole region's text.\n\n**`fontFamily`** — The prevailing font **fallback list**, read at each descendant `Text` — `[Brand, \"system-ui\", \"sans-serif\"]`.\nA bare name resolves to a declared `font`; the first entry that resolves wins, so end\nwith a generic. Prevailing, so setting it on a container refaces the whole region.\n\n**`fontWeight`** — The prevailing weight — one of the `thin`…`black` tokens (`normal`/`bold` alias 400/700).\nThe token also **picks the matching face** when a `font` declares several, so weight and\nface never drift apart.\n\n**`letterSpacing`** — Prevailing tracking, in **px** (not em) — `0` is the font's natural advances. Prevailing,\nso a heading container can loosen all its text at once.\n\n**`headingColor`** — **Prevailing.** The color of `Markdown`/`RichText` headings, overriding `textColor` for heading\nruns only; absent, headings follow `textColor`.\n\n**`headingWeight`** — **Prevailing.** The font weight for rich-text headings — the heading-specific counterpart to\n`fontWeight`.\n\n**`linkColor`** — **Prevailing.** The color of links in rich text; absent, links use the theme's accent.\n\n**`codeColor`** — **Prevailing.** The text color of inline and fenced code in rich text.\n\n**`codeSize`** — **Prevailing.** The font size for code regions — one value driving inline code, fenced blocks,\nand `<pre>` alike, so a document's monospace stays uniform.\n\n**`codeFamily`** — **Prevailing.** The monospace family for code regions — a fallback list, like `fontFamily`.\n\n**`codeBackground`** — **Prevailing.** The fill behind fenced code blocks; absent, code carries no box.\n\n**`codeRule`** — **Prevailing.** The color of a fenced code block's left accent rule.\n\n**`richTextLayout`** — **Prevailing.** A per-block-type geometry map for `RichText`/`Markdown` — caller-controlled\nmeasure and spacing per block kind (prose narrower than code, say), so one base renders both\ntight code and wide prose.\n\n**`theme`** — A prevailing record of design tokens, read inside `{ }` as `theme.accent`, `theme.muted`,\netc. Provide it on a container and the subtree styles off it — the escape from hard-coded\ncolors when you don't want a full `stylesheet`.\n\n**`selectable`** — Opt this run back into native text selection / copy (default `false`). Off by default\nso an app doesn't feel like a document; turn it on for content a user should be able to\nselect and copy.\n\n**`styles`** — An ordered list of `style` bundles applied at **construction** — **static in v1**: unlike\n`stylesheet`, reassigning `styles` after build does nothing. For a reskin that changes\nlive, use `stylesheet` instead.\n\n**`stylesheet`** — The prevailing stylesheet: provide one anywhere and that whole subtree reskins; swap it\nand the subtree re-styles in a single settle. The reactive counterpart to the static\n`styles` list.\n\n**`layout`** — How this view arranges its children — a reactive `Layout` attribute, not a child and\nnot the container's type. Defaults to none (absolute `x`/`y`). Swap or animate it and\nthe arrangement transitions continuously: `layout: SimpleLayout [ axis = y, spacing = 10 ]`.\nSet `layout = null` for explicit none.\n\n**`datapath`** — The data cursor (language §9): sets the place in a dataset that this view and its\ndescendants read relative to. Write it as a `:path` (relative to the inherited\ncursor), `:arr[]` to **replicate** this view once per array element, or a `{ }`\nexpression yielding a place. Descendants read with their own relative `:paths`.\n\n**`focusable`** — Makes the view a keyboard **tab stop**. Traversal order is the view tree — there is no\nnumeric tabindex; override `tabOrder()` to reorder within a container.\n\n**`focusTrap`** — Marks a self-contained focus group: Tab cycles within it and escapes at the boundary\n(firing `escapeFocus`). For a modal or menu whose focus must not leak to the page behind.\n\n**`anchor`** — Names this view as a **reveal target** for a location's `@name` suffix\n(`#guide/04-tree@intro` scrolls to the view with `anchor = \"intro\"`). The `<a name>`\nlineage, reborn reactive: the anchor namespace is named views (this attribute) plus\nheading slugs inside rendered rich text — a heading needs nothing from you. Resolution\nprefers views over slugs, preorder-first.\n\n**`contentWidth`** — **Read-only** intrinsic: the width of this view's visible children's bounding box —\nthe auto-extent, surfaced. A constraint may read it (`width = { Math.min(contentWidth, 480) }`)\nto size to content with a cap; assigning it is a compile error.\n\n**`contentHeight`** — **Read-only** intrinsic mirroring `contentWidth` on the vertical axis — the measured\nextent of the subtree, for sizing a container to its content.\n\n### Events\n\n- `onClick(e: PointerEvent)` — Fires when the pointer presses **and** releases on the same view (a true click, not a\nstray press) — answered by an `onClick()` handler. The primary interaction event;\n`pointerDown`/`pointerUp`/`pointerMove` are there when you need the raw phases.\n\n```declare\nView [ width = 80, height = 40, cornerRadius = 10, fill = gainsboro,\n    onClick() { fill = 0x4169E1 }\n    ]\n```\n- `onHold(e: PointerEvent)` — A press held in place for half a second — the tap-hold, equally available to a mouse.\nIt does **not** consume the gesture: the raw stream continues and the eventual click\nstill fires unless the pointer wanders, so a hold can open a menu, start a pick-up, or\nbe ignored. Declared **alongside the drag handlers** it changes who owns a touch\nfinger: the drag's claim engages *at the hold* instead of at touchdown, so a quick\nswipe still scrolls the surface underneath and a held finger picks the thing up — the\nhold-to-drag idiom for draggables on scrolling surfaces.\n- `onPointerDown(e: PointerEvent)` — The pointer pressed on the view — the raw press phase. Prefer `click` (press **and**\nrelease on the same view) unless you need the phases apart, e.g. to begin a drag.\n- `onPointerUp(e: PointerUpEvent)` — The pointer released. While a press is captured (it began on this view) `pointerUp` still\nfires **here even if the release lands off the box** — the drag-release guarantee, so a\nslider freezes its value wherever the finger lifts.\n- `onPointerMove(e: PointerEvent)` — The pointer moved over the view — and, once pressed on it, every move **while captured**\n(even outside the box), so a drag handler keeps getting positions. The event carries the\npointer in this view's own coordinates.\n- `onPointerOver(e: PointerEvent)` — The pointer entered the view (retained enter tracking) — the hover-in half. Set a\n`hovered` flag here and read it in a `fill`/`textColor` constraint.\n- `onPointerOut(e: PointerEvent)` — The pointer left the view — the hover-out half; also fires when a press is abandoned off\nthe box, so clear both `hovered` and `pressed` here.\n- `onWheel(e: WheelEvent)` — The wheel turned over the view — mouse wheel, trackpad scroll, or trackpad pinch, which\narrives on the same stream with `e.pinch` true (a ctrl+wheel zoom reports identically).\nThe event carries the point in this view's coordinates plus `deltaX`/`deltaY`. Declaring\nit **claims the wheel** over this view and its subtree — the browser stops scrolling or\nzooming the page with it — except over a nested `scrolls` pane, which keeps its own\nwheel. ⌘ +/− dispatches no event and stays out of reach.\n- `onInit()` — Fires once when the view has finished constructing and its subtree exists — the place\nfor setup that needs the built tree. Answered by `onInit()`.\n- `onFocus()` — The view gained keyboard focus (it is `focusable` and was tabbed or clicked to). Drive a\nfocus ring off it.\n- `onBlur()` — The view lost keyboard focus — the partner of `focus`.\n- `onEscapeFocus()` — Fired on a `focusTrap` when Tab reaches its boundary — your cue to move focus out (close\nthe modal, advance to the next group).\n- `onKeyDown(e: KeyEvent)` — A key was pressed while the view holds focus; the event carries the key. For app-wide\nshortcuts use a `Keys` subscription instead — this is for the focused view only.\n- `onKeyUp(e: KeyEvent)` — A key was released while the view holds focus — the partner of `keyDown`.\n\n### Methods\n\n- `scrollIntoView(align?: \"start\" | \"nearest\", smooth?: boolean): void` — Scrolls this view into the visible region of its nearest `scrolls` ancestor (or the page),\naligning its top to the viewport top — the imperative partner of the declarative jump-index\npattern. Both backends realize it natively (DOM `scrollIntoView`, canvas clamps the scroll\nancestor's `scrollOffset`). A no-op if nothing above it scrolls.\n",
+       "doc": "# Image\n\n*Built-in element — [View](declare-docs:View) → [Node](declare-docs:Node)*\n\nAn async-loaded bitmap. Set `source` to a URL; the image loads in the background and,\nunless you constrain its size, adopts its natural pixel dimensions once loaded (so\n`width`/`height` left unset \"pop\" to the real size on load — constrain them if you need\na stable box before the bytes arrive).\n\n```declare\nImage [ source = { weatherIcon(:code) }, width = 52, height = 52 ]\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `source` | string | `\"\"` |  |\n| `stretches` | none | width | height | both | `\"none\"` |  |\n| `loaded` | boolean | `false` | read-only |\n| `failed` | boolean | `false` | read-only |\n\n**`source`** — The image URL (`string`). Literal or a `{ }` constraint — bind it to data and the\npicture follows: `source = { weatherIcon(:code) }` swaps the bitmap whenever `:code`\nchanges. A stateless helper in a `script { }` beats wrapping a class around one\ncomputed URL.\n\n**`stretches`** — How the bitmap fills a box whose size differs from the image's natural size: `none`\n(default — natural size, no scaling), `width`, `height`, or `both`. The first built-in\nenum attribute — `stretches = both` scales the picture to the box on both axes.\n\n**`loaded`** — The bitmap has landed — the reactive fact a placeholder derives from\n(`spinner: View [ visible = { !pic.loaded } ]`). **Read-only** — computed by the load,\na compile error to assign. One honest edge: re-pointing `source` does not reset it —\nthe surface keeps the previous bitmap (and `loaded` stays true) until the replacement\narrives; a superseded in-flight load is discarded. Under headless extraction there is\nno image loader, so `loaded` honestly stays false. A failure is `failed`'s fact, not\nthis one's absence.\n\n**`failed`** — The **current** source's load failed — the broken-avatar fact, for deriving a fallback:\n`initials: Text [ visible = { pic.failed }, … ]`. **Read-only.** Reset whenever a new\nload starts (a `source` change), so it always speaks about the present address; a\nfailure keeps whatever bitmap was already showing (`loaded` stays true if one had\nlanded). There is no error *message* — the platform's image loader does not say why —\nso the fact is boolean by honesty, not austerity.\n\n## Inherited from [View](declare-docs:View)\n\n### Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `x` | Length | `0` |  |\n| `y` | Length | `0` |  |\n| `width` | Length | `0` |  |\n| `height` | Length | `0` |  |\n| `fill` | Fill | `null` |  |\n| `cornerRadius` | number | `0` |  |\n| `stroke` | Stroke | `null` |  |\n| `shadow` | Shadow | `null` |  |\n| `visible` | boolean | `true` |  |\n| `ignoreLayout` | boolean | `false` |  |\n| `ignoreClip` | boolean | `false` |  |\n| `ignoreScroll` | boolean | `false` |  |\n| `opacity` | number | `1` |  |\n| `scale` | number | `1` |  |\n| `pivotX` | number | `0` |  |\n| `pivotY` | number | `0` |  |\n| `clip` | Shape | `null` |  |\n| `scrolls` | none | y | x | both | `\"none\"` |  |\n| `tip` | string | `\"\"` |  |\n| `scrollY` | number | `0` |  |\n| `scrollX` | number | `0` |  |\n| `textColor` | Color | `0x000000` | prevailing |\n| `fontSize` | number | `16` | prevailing |\n| `fontFamily` | Font | `\"sans-serif\"` | prevailing |\n| `fontWeight` | thin | extralight | light | regular | normal | medium | semibold | bold | extrabold | black | `\"normal\"` | prevailing |\n| `letterSpacing` | number | `0` | prevailing |\n| `headingColor` | Color | `null` | prevailing |\n| `headingWeight` | thin | extralight | light | regular | normal | medium | semibold | bold | extrabold | black | `\"bold\"` | prevailing |\n| `linkColor` | Color | `null` | prevailing |\n| `codeColor` | Color | `null` | prevailing |\n| `codeSize` | number | `0` | prevailing |\n| `codeFamily` | Font | `\"\"` | prevailing |\n| `codeBackground` | Color | `null` | prevailing |\n| `codeRule` | Color | `null` | prevailing |\n| `richTextLayout` | RichTextLayout | `null` | prevailing |\n| `theme` | Theme | `DEFAULT_THEME` | prevailing |\n| `selectable` | boolean | `false` | prevailing |\n| `styles` | Style[] | `null` |  |\n| `stylesheet` | Stylesheet | `null` | prevailing |\n| `layout` | Layout | `null` |  |\n| `datapath` | datapath | `null` |  |\n| `focusable` | boolean | `false` |  |\n| `focusTrap` | boolean | `false` |  |\n| `anchor` | string | `\"\"` |  |\n| `contentWidth` | Length |  | read-only |\n| `contentHeight` | Length |  | read-only |\n\n**`x`** — The horizontal offset within the parent, in pixels. Honoured only while the parent\nimposes no `layout` — **a layout overwrites `x` every pass**, so use it for absolute\nplacement (the layout-none default) and switch to `layout` for arrangement; don't fight\none with the other.\n\n**`y`** — The vertical offset within the parent — the twin of `x`, and likewise overwritten by a\nparent `layout`.\n\n**`width`** — The box's width, in **pixels** (`Length`). Defaults to `0`, so a container with no\nwidth set collapses — give it one, a `{ }` constraint, or `100%` (parent-relative).\nSet it live and children constrained to it reflow in the same frame; there is no\nre-layout call. To size *to* content instead, constrain it: `width = { Math.min(contentWidth, 480) }`.\n\n**`height`** — The box's height in pixels (`Length`), mirroring `width`. `0` by default. A `Text`\nleft unsized takes its natural measured height, so you usually set `height` only to\nclip or to drive a layout.\n\n**`fill`** — What paints the box: a solid `Color` or a `gradient(…)` — the one slot, subsuming a\nplain background color. `null` (the default) paints **nothing** — an unfilled box is\ninvisible but still lays out and still catches clicks. In a `[ ]` literal a color is\n`#RRGGBB`; inside a `{ }` body it is `0xRRGGBB` (the one place the spelling differs).\n\n```declare\nView [ fill = { gradient(\"90deg\", 0x1E2A36, 0x0B141B) } ]\n```\n\n**`cornerRadius`** — Rounds the **painted** box by this many pixels (default `0`, square). It shapes fill,\nborder, and shadow — but not hit-testing or clipping: the box stays a rectangle for\nlayout and clicks. To clip children to the rounded shape, set `clip = true` as well.\n\n**`stroke`** — A border drawn **inside** the box (`stroke(width, color)`), so it never enlarges the\nlayout rectangle — the box stays the one geometry fact. `null` by default. Chosen over\nCSS's `border` precisely so a bordered view and an unbordered one occupy the same space.\n\n**`shadow`** — A drop shadow on the box (`shadow(dx, dy, blur, color)`), the CSS box-shadow shape\nminus spread. `null` by default. The glyph equivalent on `Text` is `textShadow`.\n\n**`visible`** — Whether the view renders and participates in layout-that-skips-invisibles (default\n`true`). A `false` view is fully inert — no paint, no hit-testing — but still\nconstructed, so toggling it is cheap and keeps its state.\n\n**`ignoreLayout`** — Opt this child out of its parent's `layout` — the arrangement skips it and it owns\nits own position on both axes (the decoration/overlay case: a badge floating over\na laid list). Its size still counts toward the parent's auto-extent.\n\n**`ignoreClip`** — Opt this child out of its parent's `clip`: outside the parent's frame it still\npaints *and* still hits — frame chrome that straddles the frame (a window's\nresize halo; a badge poking out of a clipped card). Parent-scoped — an ancestor's\nclip above still applies — and the child is exempt from the parent's auto-extent\n(frame geometry derives *from* the bounds, so it cannot also define them).\n\n**`ignoreScroll`** — The third member of the opt-out family (`ignoreLayout` — the parent arranges everyone\nbut me; `ignoreClip` — the parent clips everyone but me): **the scroll carries everyone\nbut me — I ride the frame.** The child stands still against its nearest enclosing scroll\nframe — the window when the page is the regime, the pane's frame inside a `scrolls`\nview — and contributes nothing to the scroll range. The fixed header, the pinned\ntoolbar, and the overlay layer that stages parked furniture are all this one attribute.\n\n**`opacity`** — Whole-view alpha, `0`…`1` (default `1`). Applies to the view **and its subtree** as a\ngroup, so a fading panel fades its contents with it. Not `prevailing`: its effect\nalready composes down the render tree, so a followed copy would apply it twice.\n\n**`scale`** — A uniform **paint** transform — the view's subtree renders scaled about its pivot, never\nre-laid-out (like `opacity`, it changes pixels, not geometry), and hit-testing follows the\nvisible result. Pair with `pivotX`/`pivotY` to choose the center; `1` is unscaled.\n\n**`pivotX`** — The horizontal center of `scale`, in the view's own coordinates. Defaults to the origin; set\nboth `pivotX`/`pivotY` to scale about the middle rather than the top-left.\n\n**`pivotY`** — The vertical pivot — the twin of `pivotX`.\n\n**`clip`** — Clips the subtree to a shape. `clip = true` clips to the view's **own box**\n(reactively on width/height) — the common case; a `Shape` value clips to an arbitrary\npath. `null`/unset (default) draws children unclipped, even outside the box. Kept\nexplicit (not implied by `cornerRadius`) so clipping is pay-per-use.\n\n**`scrolls`** — Which **axes** of interior overflow this view scrolls — `none` (the default), `y`, `x`,\nor `both`. A scrolling view clips to its box; overflow along a declared axis becomes its\nscroll range (live `scrollY`/`scrollX`), and overflow along any other axis is simply out\nof frame. The value is a token **string** in a `{ }` body — compare explicitly\n(`scrolls == \"y\"`), never truthily: `\"none\"` is a truthy string. Fixed chrome comes free — make it a **sibling** of the scroller, or a child that declares `ignoreScroll`.\nBoth backends present the same model; only the overscroll *feel* differs, where the\nplatform can do better. On DOM the OS owns the scroll — overlay scrollbar, momentum, and\nrubber-band overscroll *contained* to this pane, so it bounces on its own edges and never\nchains to the page, and sibling panes overscroll independently. On canvas the runtime\nmanages the offset (clip+translate+wheel), as a single element must.\n\n**`tip`** — The tooltip text — the layer system's floor (one attribute at the use site): a non-empty\n`tip` makes this view hover-interactive, and after the theme's delay the auto-provided\n`Tooltip` singleton shows the text beside it. Placement, delay, and size are theme data\n(`tooltipPlacement` below | above | pointer, `tooltipDelay`, `tooltipSize`) — so Cupertino\ntips appear near the cursor after ~1s at 11px (the macOS help tag), Redmond's above the\ncontrol (WinUI), Mountain View's below at ~500ms (M3) — always flipped and clamped inside\nthe app. Moving between tip-carrying controls while a tip is up retargets instantly; a\npress dismisses. Look comes from `tooltipBg` / `tooltipText` / `tooltipLine`. `\"\"` (the\ndefault) = no tip.\n\n**`scrollY`** — The current vertical scroll offset in pixels of a `scrolls` view — **read it** for\nscroll-driven effects (a fading header, reveals, parallax): `opacity = { 1 - app.scrollY / 200 }`.\n\n**`scrollX`** — **Read it, don't set it** in practice: the live horizontal offset of a `scrolls = x`\n(or `both`) view, mirrored from the native scroll — `scrollY`'s twin. Use it for a\npaging strip's position, scroll-driven effects, or restoring a strip's place.\n\n**`textColor`** — The glyph color `Text` renders with — a `prevailing` styling slot declared on `View`\nso **any** container can provide it and the whole subtree inherits, live. Unset, it\nfollows the nearest ancestor that sets it (default `0x000000`). Set it on a panel to\nretint all text beneath without touching each `Text`.\n\n**`fontSize`** — Prevailing font size in pixels (default `16`), inherited by descendant `Text` exactly\nlike `textColor`. Set once on a container to size a whole region's text.\n\n**`fontFamily`** — The prevailing font **fallback list**, read at each descendant `Text` — `[Brand, \"system-ui\", \"sans-serif\"]`.\nA bare name resolves to a declared `font`; the first entry that resolves wins, so end\nwith a generic. Prevailing, so setting it on a container refaces the whole region.\n\n**`fontWeight`** — The prevailing weight — one of the `thin`…`black` tokens (`normal`/`bold` alias 400/700).\nThe token also **picks the matching face** when a `font` declares several, so weight and\nface never drift apart.\n\n**`letterSpacing`** — Prevailing tracking, in **px** (not em) — `0` is the font's natural advances. Prevailing,\nso a heading container can loosen all its text at once.\n\n**`headingColor`** — **Prevailing.** The color of `Markdown`/`RichText` headings, overriding `textColor` for heading\nruns only; absent, headings follow `textColor`.\n\n**`headingWeight`** — **Prevailing.** The font weight for rich-text headings — the heading-specific counterpart to\n`fontWeight`.\n\n**`linkColor`** — **Prevailing.** The color of links in rich text; absent, links use the theme's accent.\n\n**`codeColor`** — **Prevailing.** The text color of inline and fenced code in rich text.\n\n**`codeSize`** — **Prevailing.** The font size for code regions — one value driving inline code, fenced blocks,\nand `<pre>` alike, so a document's monospace stays uniform.\n\n**`codeFamily`** — **Prevailing.** The monospace family for code regions — a fallback list, like `fontFamily`.\n\n**`codeBackground`** — **Prevailing.** The fill behind fenced code blocks; absent, code carries no box.\n\n**`codeRule`** — **Prevailing.** The color of a fenced code block's left accent rule.\n\n**`richTextLayout`** — **Prevailing.** A per-block-type geometry map for `RichText`/`Markdown` — caller-controlled\nmeasure and spacing per block kind (prose narrower than code, say), so one base renders both\ntight code and wide prose.\n\n**`theme`** — A prevailing record of design tokens, read inside `{ }` as `theme.accent`, `theme.muted`,\netc. Provide it on a container and the subtree styles off it — the escape from hard-coded\ncolors when you don't want a full `stylesheet`.\n\n**`selectable`** — Opt this run back into native text selection / copy (default `false`). Off by default\nso an app doesn't feel like a document; turn it on for content a user should be able to\nselect and copy.\n\n**`styles`** — An ordered list of `style` bundles applied at **construction** — **static in v1**: unlike\n`stylesheet`, reassigning `styles` after build does nothing. For a reskin that changes\nlive, use `stylesheet` instead.\n\n**`stylesheet`** — The prevailing stylesheet: provide one anywhere and that whole subtree reskins; swap it\nand the subtree re-styles in a single settle. The reactive counterpart to the static\n`styles` list.\n\n**`layout`** — How this view arranges its children — a reactive `Layout` attribute, not a child and\nnot the container's type. Defaults to none (absolute `x`/`y`). Swap or animate it and\nthe arrangement transitions continuously: `layout: SimpleLayout [ axis = y, spacing = 10 ]`.\nSet `layout = null` for explicit none.\n\n**`datapath`** — The data cursor (language §9): sets the place in a dataset that this view and its\ndescendants read relative to. Write it as a `:path` (relative to the inherited\ncursor), `:arr[]` to **replicate** this view once per array element, or a `{ }`\nexpression yielding a place. Descendants read with their own relative `:paths`.\n\n**`focusable`** — Makes the view a keyboard **tab stop**. Traversal order is the view tree — there is no\nnumeric tabindex; override `tabOrder()` to reorder within a container.\n\n**`focusTrap`** — Marks a self-contained focus group: Tab cycles within it and escapes at the boundary\n(firing `escapeFocus`). For a modal or menu whose focus must not leak to the page behind.\n\n**`anchor`** — Names this view as a **reveal target** for a location's `@name` suffix\n(`#guide/04-tree@intro` scrolls to the view with `anchor = \"intro\"`). The `<a name>`\nlineage, reborn reactive: the anchor namespace is named views (this attribute) plus\nheading slugs inside rendered rich text — a heading needs nothing from you. Resolution\nprefers views over slugs, preorder-first.\n\n**`contentWidth`** — **Read-only** intrinsic: the width of this view's visible children's bounding box —\nthe auto-extent, surfaced. A constraint may read it (`width = { Math.min(contentWidth, 480) }`)\nto size to content with a cap; assigning it is a compile error.\n\n**`contentHeight`** — **Read-only** intrinsic mirroring `contentWidth` on the vertical axis — the measured\nextent of the subtree, for sizing a container to its content.\n\n### Events\n\n- `onClick(e: PointerEvent)` — Fires when the pointer presses **and** releases on the same view (a true click, not a\nstray press) — answered by an `onClick()` handler. The primary interaction event;\n`pointerDown`/`pointerUp`/`pointerMove` are there when you need the raw phases.\n\n```declare\nView [ width = 80, height = 40, cornerRadius = 10, fill = gainsboro,\n    onClick() { fill = 0x4169E1 }\n    ]\n```\n- `onHold(e: PointerEvent)` — A press held in place for half a second — the tap-hold, equally available to a mouse.\nIt does **not** consume the gesture: the raw stream continues and the eventual click\nstill fires unless the pointer wanders, so a hold can open a menu, start a pick-up, or\nbe ignored. Declared **alongside the drag handlers** it changes who owns a touch\nfinger: the drag's claim engages *at the hold* instead of at touchdown, so a quick\nswipe still scrolls the surface underneath and a held finger picks the thing up — the\nhold-to-drag idiom for draggables on scrolling surfaces.\n- `onPointerDown(e: PointerEvent)` — The pointer pressed on the view — the raw press phase. Prefer `click` (press **and**\nrelease on the same view) unless you need the phases apart, e.g. to begin a drag.\n- `onPointerUp(e: PointerUpEvent)` — The pointer released. While a press is captured (it began on this view) `pointerUp` still\nfires **here even if the release lands off the box** — the drag-release guarantee, so a\nslider freezes its value wherever the finger lifts.\n- `onPointerMove(e: PointerEvent)` — The pointer moved over the view — and, once pressed on it, every move **while captured**\n(even outside the box), so a drag handler keeps getting positions. The event carries the\npointer in this view's own coordinates.\n- `onPointerOver(e: PointerEvent)` — The pointer entered the view (retained enter tracking) — the hover-in half. Set a\n`hovered` flag here and read it in a `fill`/`textColor` constraint.\n- `onPointerOut(e: PointerEvent)` — The pointer left the view — the hover-out half; also fires when a press is abandoned off\nthe box, so clear both `hovered` and `pressed` here.\n- `onWheel(e: WheelEvent)` — The wheel turned over the view — mouse wheel, trackpad scroll, or trackpad pinch, which\narrives on the same stream with `e.pinch` true (a ctrl+wheel zoom reports identically).\nThe event carries the point in this view's coordinates plus `deltaX`/`deltaY`. Declaring\nit **claims the wheel** over this view and its subtree — the browser stops scrolling or\nzooming the page with it — except over a nested `scrolls` pane, which keeps its own\nwheel. ⌘ +/− dispatches no event and stays out of reach.\n- `onInit()` — Fires once when the view has finished constructing and its subtree exists — the place\nfor setup that needs the built tree. Answered by `onInit()`.\n- `onFocus()` — The view gained keyboard focus (it is `focusable` and was tabbed or clicked to). Drive a\nfocus ring off it.\n- `onBlur()` — The view lost keyboard focus — the partner of `focus`.\n- `onEscapeFocus()` — Fired on a `focusTrap` when Tab reaches its boundary — your cue to move focus out (close\nthe modal, advance to the next group).\n- `onKeyDown(e: KeyEvent)` — A key was pressed while the view holds focus; the event carries the key. For app-wide\nshortcuts use a `Keys` subscription instead — this is for the focused view only.\n- `onKeyUp(e: KeyEvent)` — A key was released while the view holds focus — the partner of `keyDown`.\n\n### Methods\n\n- `scrollIntoView(align?: \"start\" | \"nearest\", smooth?: boolean): void` — Scrolls this view into the visible region of its nearest `scrolls` ancestor (or the page),\naligning its top to the viewport top — the imperative partner of the declarative jump-index\npattern. Both backends realize it natively (DOM `scrollIntoView`, canvas clamps the scroll\nancestor's `scrollOffset`). A no-op if nothing above it scrolls.\n",
        "preview": "An async-loaded bitmap. Set source to a URL; the image loads in the background and, unless you constrain its size, adopts its natural pixel dimensions once loaded (so width/height left unset \"pop\" to the real size on load — constrain them i…"
       },
       {
@@ -23076,6 +24158,30 @@
        "preview": "The tooltip service, as a member: onTip(e) fires when a view carrying tip = \"…\" wants its tooltip shown, and with null when it should hide. The service owns the platform conventions — the show delay, instant retarget while showing, hide on…"
       },
       {
+       "name": "Stream",
+       "subtitle": "extends Node",
+       "kind": "element",
+       "label": "Built-in element",
+       "doc": "# Stream\n\n*Abstract element — [Node](declare-docs:Node)*\n\nExtend it; it is not a tag you write.\n\nThe abstract base of the live-connection sources — `EventStream` (SSE) and `Socket`\n(WebSocket) extend it. Not instantiable: write the concrete transport. The one thing to\nknow: **there is no `connect()` or `disconnect()`** — the declaration decides. A stream is\nconnected exactly while `active` is true and `url` is non-empty; empty the url (or flip\n`active`) and it closes, change the url and it closes and reopens, remove the node and the\nconnection dies with it. Nothing to unsubscribe, ever. Messages are **transient**: nothing\naccumulates unless a handler writes it somewhere — the runtime keeps only `last`. An app\nthat streams JSON parses in the handler (`JSON.parse(e.data)`) and writes wherever it\nwants; accumulation is one line of app code, deliberately not a built-in policy.\n\n```declare-fragment\nchat: View [\n    answer: string = \"\",\n    reply: EventStream [ url = { `/api/chat?id=${classroot.chatId}` },\n        active = { classroot.chatId != \"\" },\n        onMessage(e: StreamMessage) { classroot.answer = classroot.answer + e.data },\n        ],\n    out: Text [ width = { parent.width }, text = { parent.answer } ]\n    ]\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `url` | string |  |  |\n| `active` | boolean |  |  |\n| `retry` | number |  |  |\n| `status` | closed | connecting | open | retrying | failed |  | read-only |\n| `error` | string |  | read-only |\n| `last` | string |  | read-only |\n| `open` | boolean |  | read-only |\n\n**`url`** — Where to connect — a literal or a `{ }` constraint. Unlike `DataSource.url`, a change acts\n**immediately**: the old connection closes and a new one opens at the new address (there is\nno fetch() moment to wait for). `\"\"` means detached — the idiom for \"no conversation yet\"\nis deriving emptiness: `url = { app.chatId != \"\" ? \"/api/chat/\" + app.chatId : \"\" }`.\n\n**`active`** — The gate. `false` closes the connection (and cancels any pending retry); flipping back\n`true` reopens it. Bind it to app state — `active = { app.live }` — rather than toggling\nimperatively.\n\n**`retry`** — Reconnect policy, **visible in the declaration**: seconds to wait before re-dialing after\nthe connection is lost and the platform won't bring it back on its own — a `Socket`'s\nunexpected close, an `EventStream`'s terminal failure. `0` (the default) means no retry:\nthe stream lands in `status = \"failed\"` and the app decides. A declared retry keeps trying\nwhile `active` is true, at a **fixed** interval — no invisible backoff, no give-up count.\nA structural failure (the factory itself refuses — headless extraction, a missing host\nservice) never loops, whatever `retry` says.\n\n**`status`** — The connection lifecycle as **one fact**, like `DataSource.status`: `\"closed\"`,\n`\"connecting\"`, `\"open\"`, `\"retrying\"`, or `\"failed\"` (down, and will not reconnect).\n**Read-only** — computed for you; assigning it is a compile error. `\"retrying\"` covers\nboth the platform's own recovery (SSE) and a declared `retry` waiting to re-dial.\n\n**`error`** — The last failure reason, `\"\"` when none; cleared when a connection opens. **Read-only** —\nthe state side of `onError` (the event side). A status line is\n`text = { feed.error != \"\" ? feed.error : feed.status }`.\n\n**`last`** — The most recent message's `data`, reactive. **Read-only.** The zero-handler tier: a ticker\nthat only shows the latest value needs no handler at all — `text = { feed.last }`.\n\n**`open`** — The boolean view of `status == \"open\"`, as `DataSource.loaded` is of its status — one\nfact, two spellings, never in disagreement. **Read-only.** The connection dot is\n`visible = { feed.open }`.\n\n## Events\n\n- `onMessage(e: StreamMessage)` — `onMessage(e: StreamMessage)` — every message. `e.data` is always a **string**: parse it\nyourself if it is JSON, concatenate it if it is streamed text; the runtime never guesses.\n`e.type` is the SSE named event (`\"message\"` for unnamed messages and every socket frame);\n`e.id` is the SSE last-event-id (`\"\"` on sockets).\n- `onOpen()` — The connection is live — fires each time one opens, including reopens after a retry.\nPrefer deriving from `open`/`status` for anything a constraint can express; the handler is\nfor work state cannot do (send a subscription frame, log).\n- `onClose()` — A connection that had opened went away — the app closed it (`active`, a url change, node\nremoval at discard is silent), the server ended it, or it failed. Fires once per\nconnection, before any retry dials the next one.\n- `onError()` — Something failed: a terminal connection loss, a refused transport, a `send` on a socket\nthat is not open. The reason is in `error` when the handler runs. The platform's own\nin-flight retries (SSE) are **not** errors and stay quiet.\n\n## Subclasses\n\n[EventStream](declare-docs:EventStream) · [Socket](declare-docs:Socket)\n",
+       "preview": "The abstract base of the live-connection sources — EventStream (SSE) and Socket (WebSocket) extend it. Not instantiable: write the concrete transport. The one thing to know: there is no connect() or disconnect() — the declaration decides. A…"
+      },
+      {
+       "name": "EventStream",
+       "subtitle": "extends Stream",
+       "kind": "element",
+       "label": "Built-in element",
+       "doc": "# EventStream\n\n*Built-in element — [Stream](declare-docs:Stream) → [Node](declare-docs:Node)*\n\nServer-Sent Events (`text/event-stream`) as a source — the streaming-AI shape: the server\npushes, the app receives, an `onMessage` that concatenates is the whole consumer. See\n`Stream` for the shared surface (`url`/`active`/`retry`, the read-only\n`status`/`open`/`error`/`last`). Receive-only — there is no `send`; a request that needs a\nbody is an ordinary `DataSource` POST, and the stream carries the reply. The platform's\n`EventSource` machinery is kept **verbatim**: it retries on its own (honoring the server's\n`retry:` hint) and resumes with `Last-Event-ID`, during which `status` reads `\"retrying\"`\nand no error is reported; `retry`/`onError` concern only **terminal** failure — the\nplatform giving up.\n\n```declare-fragment\nanswer: string = \"\",\nreply: EventStream [ url = { `/api/chat?id=${app.chatId}` },\n    active = { app.chatId != \"\" },\n    onMessage(e: StreamMessage) { app.answer = app.answer + e.data },\n    ]\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `listenTo` | array |  |  |\n\n**`listenTo`** — The **named** SSE event types to deliver — `listenTo = [\"content_block_delta\",\n\"message_stop\"]`. Required for any stream that labels messages with `event:` lines\n(Anthropic-style AI streams do): the platform's `EventSource` physically cannot deliver a\nnamed event it was not asked to listen for, so an undeclared name is silently invisible —\nif `onMessage` sees nothing but the connection is `open`, this is the first thing to\ncheck. The name carries the contract: you hear what you listen to. Unnamed (default)\nmessages always arrive; `e.type` says which kind each one is.\n\n## Inherited from [Stream](declare-docs:Stream)\n\n### Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `url` | string |  |  |\n| `active` | boolean |  |  |\n| `retry` | number |  |  |\n| `status` | closed | connecting | open | retrying | failed |  | read-only |\n| `error` | string |  | read-only |\n| `last` | string |  | read-only |\n| `open` | boolean |  | read-only |\n\n**`url`** — Where to connect — a literal or a `{ }` constraint. Unlike `DataSource.url`, a change acts\n**immediately**: the old connection closes and a new one opens at the new address (there is\nno fetch() moment to wait for). `\"\"` means detached — the idiom for \"no conversation yet\"\nis deriving emptiness: `url = { app.chatId != \"\" ? \"/api/chat/\" + app.chatId : \"\" }`.\n\n**`active`** — The gate. `false` closes the connection (and cancels any pending retry); flipping back\n`true` reopens it. Bind it to app state — `active = { app.live }` — rather than toggling\nimperatively.\n\n**`retry`** — Reconnect policy, **visible in the declaration**: seconds to wait before re-dialing after\nthe connection is lost and the platform won't bring it back on its own — a `Socket`'s\nunexpected close, an `EventStream`'s terminal failure. `0` (the default) means no retry:\nthe stream lands in `status = \"failed\"` and the app decides. A declared retry keeps trying\nwhile `active` is true, at a **fixed** interval — no invisible backoff, no give-up count.\nA structural failure (the factory itself refuses — headless extraction, a missing host\nservice) never loops, whatever `retry` says.\n\n**`status`** — The connection lifecycle as **one fact**, like `DataSource.status`: `\"closed\"`,\n`\"connecting\"`, `\"open\"`, `\"retrying\"`, or `\"failed\"` (down, and will not reconnect).\n**Read-only** — computed for you; assigning it is a compile error. `\"retrying\"` covers\nboth the platform's own recovery (SSE) and a declared `retry` waiting to re-dial.\n\n**`error`** — The last failure reason, `\"\"` when none; cleared when a connection opens. **Read-only** —\nthe state side of `onError` (the event side). A status line is\n`text = { feed.error != \"\" ? feed.error : feed.status }`.\n\n**`last`** — The most recent message's `data`, reactive. **Read-only.** The zero-handler tier: a ticker\nthat only shows the latest value needs no handler at all — `text = { feed.last }`.\n\n**`open`** — The boolean view of `status == \"open\"`, as `DataSource.loaded` is of its status — one\nfact, two spellings, never in disagreement. **Read-only.** The connection dot is\n`visible = { feed.open }`.\n\n### Events\n\n- `onMessage(e: StreamMessage)` — `onMessage(e: StreamMessage)` — every message. `e.data` is always a **string**: parse it\nyourself if it is JSON, concatenate it if it is streamed text; the runtime never guesses.\n`e.type` is the SSE named event (`\"message\"` for unnamed messages and every socket frame);\n`e.id` is the SSE last-event-id (`\"\"` on sockets).\n- `onOpen()` — The connection is live — fires each time one opens, including reopens after a retry.\nPrefer deriving from `open`/`status` for anything a constraint can express; the handler is\nfor work state cannot do (send a subscription frame, log).\n- `onClose()` — A connection that had opened went away — the app closed it (`active`, a url change, node\nremoval at discard is silent), the server ended it, or it failed. Fires once per\nconnection, before any retry dials the next one.\n- `onError()` — Something failed: a terminal connection loss, a refused transport, a `send` on a socket\nthat is not open. The reason is in `error` when the handler runs. The platform's own\nin-flight retries (SSE) are **not** errors and stay quiet.\n",
+       "preview": "Server-Sent Events (text/event-stream) as a source — the streaming-AI shape: the server pushes, the app receives, an onMessage that concatenates is the whole consumer. See Stream for the shared surface (url/active/retry, the read-only statu…"
+      },
+      {
+       "name": "Socket",
+       "subtitle": "extends Stream",
+       "kind": "element",
+       "label": "Built-in element",
+       "doc": "# Socket\n\n*Built-in element — [Stream](declare-docs:Stream) → [Node](declare-docs:Node)*\n\nWebSocket as a source: the `Stream` surface plus `send(text)` — `send` is a call you make,\n`onMessage` is it calling you. See `Stream` for `url`/`active`/`retry` and the read-only\n`status`/`open`/`error`/`last`. Unlike SSE the platform has **no native reconnect**, so a\n`Socket` that should survive a dropped connection must say so: `retry = 2` re-dials two\nseconds after any close the app didn't ask for, for as long as `active` holds — the whole\npolicy is that one number. Text frames only; a binary frame is dropped (a later attribute\nif a real project needs one, not a speculative shape now).\n\n```declare-fragment\nlive: Socket [ url = \"wss://api.example.com/feed\", retry = 2,\n    onOpen() { this.send('{\"subscribe\":\"prices\"}') },\n    onMessage(e: StreamMessage) { app.tick(JSON.parse(e.data)) },\n    ]\n```\n\n## Methods\n\n- `send(text: string): void` — Sends one text frame. **Legal only while `open`** — on a socket that is not open it sends\nnothing and reports through the error channel (`error` + `onError`), never a silent queue:\nif the app needs buffering-until-connected, that policy belongs in app state, visibly.\nSending the opening frame belongs in `onOpen` (which also covers every reconnect); gate\nuser-triggered sends on `.open`.\n\n## Inherited from [Stream](declare-docs:Stream)\n\n### Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `url` | string |  |  |\n| `active` | boolean |  |  |\n| `retry` | number |  |  |\n| `status` | closed | connecting | open | retrying | failed |  | read-only |\n| `error` | string |  | read-only |\n| `last` | string |  | read-only |\n| `open` | boolean |  | read-only |\n\n**`url`** — Where to connect — a literal or a `{ }` constraint. Unlike `DataSource.url`, a change acts\n**immediately**: the old connection closes and a new one opens at the new address (there is\nno fetch() moment to wait for). `\"\"` means detached — the idiom for \"no conversation yet\"\nis deriving emptiness: `url = { app.chatId != \"\" ? \"/api/chat/\" + app.chatId : \"\" }`.\n\n**`active`** — The gate. `false` closes the connection (and cancels any pending retry); flipping back\n`true` reopens it. Bind it to app state — `active = { app.live }` — rather than toggling\nimperatively.\n\n**`retry`** — Reconnect policy, **visible in the declaration**: seconds to wait before re-dialing after\nthe connection is lost and the platform won't bring it back on its own — a `Socket`'s\nunexpected close, an `EventStream`'s terminal failure. `0` (the default) means no retry:\nthe stream lands in `status = \"failed\"` and the app decides. A declared retry keeps trying\nwhile `active` is true, at a **fixed** interval — no invisible backoff, no give-up count.\nA structural failure (the factory itself refuses — headless extraction, a missing host\nservice) never loops, whatever `retry` says.\n\n**`status`** — The connection lifecycle as **one fact**, like `DataSource.status`: `\"closed\"`,\n`\"connecting\"`, `\"open\"`, `\"retrying\"`, or `\"failed\"` (down, and will not reconnect).\n**Read-only** — computed for you; assigning it is a compile error. `\"retrying\"` covers\nboth the platform's own recovery (SSE) and a declared `retry` waiting to re-dial.\n\n**`error`** — The last failure reason, `\"\"` when none; cleared when a connection opens. **Read-only** —\nthe state side of `onError` (the event side). A status line is\n`text = { feed.error != \"\" ? feed.error : feed.status }`.\n\n**`last`** — The most recent message's `data`, reactive. **Read-only.** The zero-handler tier: a ticker\nthat only shows the latest value needs no handler at all — `text = { feed.last }`.\n\n**`open`** — The boolean view of `status == \"open\"`, as `DataSource.loaded` is of its status — one\nfact, two spellings, never in disagreement. **Read-only.** The connection dot is\n`visible = { feed.open }`.\n\n### Events\n\n- `onMessage(e: StreamMessage)` — `onMessage(e: StreamMessage)` — every message. `e.data` is always a **string**: parse it\nyourself if it is JSON, concatenate it if it is streamed text; the runtime never guesses.\n`e.type` is the SSE named event (`\"message\"` for unnamed messages and every socket frame);\n`e.id` is the SSE last-event-id (`\"\"` on sockets).\n- `onOpen()` — The connection is live — fires each time one opens, including reopens after a retry.\nPrefer deriving from `open`/`status` for anything a constraint can express; the handler is\nfor work state cannot do (send a subscription frame, log).\n- `onClose()` — A connection that had opened went away — the app closed it (`active`, a url change, node\nremoval at discard is silent), the server ended it, or it failed. Fires once per\nconnection, before any retry dials the next one.\n- `onError()` — Something failed: a terminal connection loss, a refused transport, a `send` on a socket\nthat is not open. The reason is in `error` when the handler runs. The platform's own\nin-flight retries (SSE) are **not** errors and stay quiet.\n",
+       "preview": "WebSocket as a source: the Stream surface plus send(text) — send is a call you make, onMessage is it calling you. See Stream for url/active/retry and the read-only status/open/error/last. Unlike SSE the platform has no native reconnect, so…"
+      },
+      {
        "name": "State",
        "subtitle": "extends Node",
        "kind": "element",
@@ -23088,7 +24194,7 @@
        "subtitle": "",
        "kind": "element",
        "label": "Built-in element",
-       "doc": "# Node\n\n*Built-in element*\n\nThe plain object-graph atom — a **non-visual** node you subclass for logic that isn't a\nview: a controller, a coordinator, a service. A bare `class X [ … ]` **defaults its base to\n`Node`**, so a class with attributes and methods but no box *is* a Node subclass. It lives in\nthe tree as a named member, shares the reactive core and the `classroot`/`app` reach, and\nfires `init` — but it paints nothing. Reach for it instead of a View when a wrapper class\nwould be visual in name only.\n\n```declare\nclass Cart [ count: number = 0,\n    add()    { count = count + 1 },\n    clear()  { count = 0 }\n    ]\n```\n\nA view then holds one as a named member (`cart: Cart [ ]`) and reads/drives it reactively —\nstate and behaviour with no pixels of its own.\n\n## Subclasses\n\n[View](declare-docs:View) · [Layout](declare-docs:Layout) · [Dataset](declare-docs:Dataset) · [Animator](declare-docs:Animator) · [AnimatorGroup](declare-docs:AnimatorGroup) · [Frames](declare-docs:Frames) · [Keys](declare-docs:Keys) · [Focus](declare-docs:Focus) · [Tip](declare-docs:Tip) · [State](declare-docs:State)\n",
+       "doc": "# Node\n\n*Built-in element*\n\nThe plain object-graph atom — a **non-visual** node you subclass for logic that isn't a\nview: a controller, a coordinator, a service. A bare `class X [ … ]` **defaults its base to\n`Node`**, so a class with attributes and methods but no box *is* a Node subclass. It lives in\nthe tree as a named member, shares the reactive core and the `classroot`/`app` reach, and\nfires `init` — but it paints nothing. Reach for it instead of a View when a wrapper class\nwould be visual in name only.\n\n```declare\nclass Cart [ count: number = 0,\n    add()    { count = count + 1 },\n    clear()  { count = 0 }\n    ]\n```\n\nA view then holds one as a named member (`cart: Cart [ ]`) and reads/drives it reactively —\nstate and behaviour with no pixels of its own.\n\n## Subclasses\n\n[View](declare-docs:View) · [Layout](declare-docs:Layout) · [Dataset](declare-docs:Dataset) · [Animator](declare-docs:Animator) · [AnimatorGroup](declare-docs:AnimatorGroup) · [Frames](declare-docs:Frames) · [Keys](declare-docs:Keys) · [Focus](declare-docs:Focus) · [Tip](declare-docs:Tip) · [Stream](declare-docs:Stream) · [State](declare-docs:State)\n",
        "preview": "The plain object-graph atom — a non-visual node you subclass for logic that isn't a view: a controller, a coordinator, a service. A bare class X … defaults its base to Node, so a class with attributes and methods but no box is a Node subcla…"
       }
      ]
@@ -23288,7 +24394,7 @@
      "subtitle": "",
      "kind": "reference",
      "label": "Reference",
-     "doc": "# Enums\n\n*The language's fixed token sets — write the token itself, never a CSS-style value.*\n\n**Scrolls** — `none` · `y` · `x` · `both`\n\n**FontWeight** — `thin` · `extralight` · `light` · `regular` · `normal` · `medium` · `semibold` · `bold` · `extrabold` · `black`\n\n**TextAlign** — `left` · `center` · `right`\n\n**Stretch** — `none` · `width` · `height` · `both`\n\n**Process** — `sequential` · `simultaneous`\n\n**Motion** — `linear` · `ease` · `easeIn` · `easeOut` · `easeBoth` · `sineIn` · `sineOut` · `sineBoth` · `quadIn` · `quadOut` · `quadBoth` · `cubicIn` · `cubicOut` · `cubicBoth` · `quartIn` · `quartOut` · `quartBoth` · `quintIn` · `quintOut` · `quintBoth` · `expoIn` · `expoOut` · `expoBoth` · `circIn` · `circOut` · `circBoth` · `backIn` · `backOut` · `backBoth` · `laszloIn` · `laszloOut` · `laszloBoth`\n",
+     "doc": "# Enums\n\n*The language's fixed token sets — write the token itself, never a CSS-style value.*\n\n**Scrolls** — `none` · `y` · `x` · `both`\n\n**FontWeight** — `thin` · `extralight` · `light` · `regular` · `normal` · `medium` · `semibold` · `bold` · `extrabold` · `black`\n\n**TextAlign** — `left` · `center` · `right`\n\n**Stretch** — `none` · `width` · `height` · `both`\n\n**Process** — `sequential` · `simultaneous`\n\n**StreamStatus** — `closed` · `connecting` · `open` · `retrying` · `failed`\n\n**Motion** — `linear` · `ease` · `easeIn` · `easeOut` · `easeBoth` · `sineIn` · `sineOut` · `sineBoth` · `quadIn` · `quadOut` · `quadBoth` · `cubicIn` · `cubicOut` · `cubicBoth` · `quartIn` · `quartOut` · `quartBoth` · `quintIn` · `quintOut` · `quintBoth` · `expoIn` · `expoOut` · `expoBoth` · `circIn` · `circOut` · `circBoth` · `backIn` · `backOut` · `backBoth` · `laszloIn` · `laszloOut` · `laszloBoth`\n",
      "preview": "The language's fixed token sets — write the token itself, never a CSS-style value. Scrolls — none · y · x · both FontWeight — thin · extralight · light · regular · normal · medium · semibold · bold · extrabold · black TextAlign — left · cen…"
     },
     {
@@ -23296,8 +24402,8 @@
      "subtitle": "",
      "kind": "reference",
      "label": "Reference",
-     "doc": "# Compile flags\n\n*Modifiers on a program URL (`?…`), the `declarec` CLI (`--…`), and the JS API — one set of names.*\n\n| flag | what it does | default |\n|---|---|---|\n| `render` | render through managed DOM or a single <canvas> | `dom` |\n| `crawler` | embed the crawled document in the host page, for crawlers | `false` |",
-     "preview": "Modifiers on a program URL (?…), the declarec CLI (--…), and the JS API — one set of names. flag what it does default --------- render render through managed DOM or a single <canvas dom crawler embed the crawled document in the host page, f…"
+     "doc": "# Compile flags\n\n*Modifiers on a program URL (`?…`), the `declarec` CLI (`--…`), and the JS API — one set of names.*\n\n| flag | what it does | default |\n|---|---|---|\n| `render` | render through managed DOM, a single <canvas>, or the native Mac host | `dom` |\n| `crawler` | embed the crawled document in the host page, for crawlers | `false` |",
+     "preview": "Modifiers on a program URL (?…), the declarec CLI (--…), and the JS API — one set of names. flag what it does default --------- render render through managed DOM, a single <canvas, or the native Mac host dom crawler embed the crawled docume…"
     },
     {
      "name": "Diagnostics",
@@ -23312,8 +24418,8 @@
      "subtitle": "",
      "kind": "reference",
      "label": "Reference",
-     "doc": "# Request types\n\n*The addressable request surface of a program URL.*\n\n`RUN` · `BUILD` · `READER` · `SOURCE` · `EDIT` · `FILE` · `SEGMENTS` · `EXTRACT`",
-     "preview": "The addressable request surface of a program URL. RUN · BUILD · READER · SOURCE · EDIT · FILE · SEGMENTS · EXTRACT"
+     "doc": "# Request types\n\n*The addressable request surface of a program URL.*\n\n`RUN` · `BUILD` · `READER` · `SOURCE` · `EDIT` · `FILE` · `SEGMENTS` · `EXTRACT` · `PROGRAM`",
+     "preview": "The addressable request surface of a program URL. RUN · BUILD · READER · SOURCE · EDIT · FILE · SEGMENTS · EXTRACT · PROGRAM"
     }
    ]
   },
@@ -23730,6 +24836,22 @@
      "preview": "Status: RATIFIED, awaiting implementation (2026-07-15). §11 is the implementation charter: one agent, one pass, Phases A→B→C with hard test gates between them, in an untracked working copy. Companion rulings: capabilities.md §2 (the three s…"
     },
     {
+     "name": "Row materialization in the Apple lineage",
+     "subtitle": "NSTableView and its successors",
+     "kind": "doc",
+     "label": "Markdown file",
+     "path": "docs/system-design/materialization-antecedents.md",
+     "preview": "Status: research notes, 2026-07-29. Commissioned by David for the materialization.md(materialization.md) thread: NSTableView is a clear antecedent with the same requirements — display a row per record over datasets too large to instantiate…"
+    },
+    {
+     "name": "Virtualization in the field",
+     "subtitle": "the developer complaint corpus",
+     "kind": "doc",
+     "label": "Markdown file",
+     "path": "docs/system-design/materialization-field-sentiment.md",
+     "preview": "Status: research notes, 2026-07-30. Companion to materialization.md(materialization.md) (the design) and materialization-antecedents.md(materialization-antecedents.md) (the Apple lineage). Commissioned by David: what do working developers s…"
+    },
+    {
      "name": "Materialization",
      "subtitle": "logical instances, invisible virtualization",
      "kind": "doc",
@@ -23872,6 +24994,14 @@
      "label": "Markdown file",
      "path": "docs/system-design/static-dep-extraction.md",
      "preview": "Outcome (2026-07-11): this measurement drove a ruling revision in docs/system-design/constraints.md(../design/constraints.md) — the analysis follows into method bodies (interprocedural), retiring the earlier \"hidden-dep calls refused\" restr…"
+    },
+    {
+     "name": "Streams",
+     "subtitle": "SSE and WebSocket as sources",
+     "kind": "doc",
+     "label": "Markdown file",
+     "path": "docs/system-design/streams.md",
+     "preview": "Status: RULED 2026-07-29 (David); §7 records the rulings. Tactical driver: showing AI responses as they arrive (an external project needs SSE now); the same construct must cover WebSocket. Deliberately independent of the data-system upgrade…"
     },
     {
      "name": "Styling",

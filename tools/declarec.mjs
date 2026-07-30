@@ -117,6 +117,30 @@ export async function buildProduction(source, opts = {}) {
   // The build's closure props: every flag that shapes the ARTIFACT (a change
   // to any invalidates a cache exactly like a file change), plus whatever the
   // caller adds (the server contributes its toolchain fingerprint).
+  // ⚠ `--render mac` IS NOT A BUILD TARGET, and must not silently become one.
+  // Two different constructs share the word "mac" and only one of them is a
+  // declarec job:
+  //   • the mac RUNTIME — bundles/declare-mac.js, the JS the native host loads
+  //     as its world. Built once for the platform by tools/internal/build-mac.mjs
+  //     and kept fresh by bundle-freshness.mjs, not per app.
+  //   • "package this program as a Mac app" — a standalone .app carrying the
+  //     program. A separate construct, still to be designed.
+  // Until the second exists, refuse: this used to fall through a two-way ternary
+  // and emit a DOM build — a page importing DomBackend that the native host
+  // cannot boot at all. A wrong artifact is worse than a refusal.
+  if (opts.render === "mac") {
+    const why =
+      "--render mac is not a build target.\n"
+      + "  The native host loads the mac RUNTIME bundle, which is a platform artifact,\n"
+      + "  not a per-app build:   node tools/internal/build-mac.mjs\n"
+      + "  (kept fresh automatically — see tools/internal/bundle-freshness.mjs)\n"
+      + "  Packaging a program as a standalone .app is a separate construct, not implemented.";
+    // `report` is what the CLI prints; it must not be "" or the `??` below it
+    // selects the empty string and the reason vanishes.
+    return { ok: false, errors: [{ message: why }], warnings: [], diagnostics: [],
+             report: why, closure: null, files: [], sizes: null };
+  }
+
   const props = {
     render: opts.render === "canvas" ? "canvas" : "dom",
     slim: String(opts.slim !== false),

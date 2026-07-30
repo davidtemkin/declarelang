@@ -8,7 +8,7 @@ compose onto a run or a build.
 <!-- generated:flags-table -->
 | modifier | what it does | CLI (`declarec`) | URL | default |
 |---|---|---|---|---|
-| **render** | render through managed DOM or a single <canvas> | `--render dom` / `--canvas` | `?render=dom` | `dom` |
+| **render** | render through managed DOM, a single <canvas>, or the native Mac host | `--render dom` / `--canvas` | `?render=dom` | `dom` |
 | **crawler** | embed the crawled document in the host page, for crawlers | `--crawler` | `?crawler` | `false` |
 <!-- /generated:flags-table -->
 

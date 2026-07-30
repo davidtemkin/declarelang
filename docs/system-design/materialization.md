@@ -9,7 +9,18 @@
 > of frameworks that don't own enough of the stack. Declare owns enough.
 > Companions: [data-paths.md](data-paths.md) (the slice substrate),
 > [instantiation.md](instantiation.md) (the construct pipeline),
-> `runtime/src/replicate.ts` (the reconciler this extends).
+> `runtime/src/replicate.ts` (the reconciler this extends), and
+> [materialization-antecedents.md](materialization-antecedents.md) — the
+> NSTableView lineage researched (2026-07-29): 34 years of evidence that
+> visibility/lifetime/reuse are absorbable and that identity and extent
+> estimation are the two burdens Apple never eliminated (Declare's data
+> model is the opening to absorb identity too), and
+> [materialization-field-sentiment.md](materialization-field-sentiment.md) —
+> the developer complaint corpus across ecosystems (2026-07-30): the ranked
+> failure classes, what earned trust (Flutter builder, content-visibility),
+> and the reception forecast; its editor's note flags the one live design
+> pressure (browser find/selection/AT over uninstantiated rows on the DOM
+> backend) that §2's contract should answer explicitly.
 
 ---
 
@@ -94,6 +105,40 @@ machinery:**
   idiom already points away from it — derive from data, not from views — but
   the limitation must be documented on the block, not discovered.
 
+### The observer boundary (ruled with David, 2026-07-30)
+
+The contract above is a promise to a specific observer: **the app's own
+semantics, and the user's interaction with what exists.** It is deliberately
+NOT a promise to the platform's document-level features. On the DOM backend,
+unmaterialized rows do not exist for browser find-in-page, text selection
+across the collection, or the document's accessibility tree — **by design,
+with native precedent**: no platform has ever let system text search
+enumerate a native table's unrendered rows (Excel, Finder, Mail all own their
+search, over their *data*). Find-in-page is a property of documents, where
+the rendered thing IS the data; a replicated block is a *projection* of data,
+and the search surface for data is the data — a Declare app searches
+`data.value` (fields not displayed, raw values behind formatted ones — more
+correct than grepping a rendering) and navigates the window to the hit. The
+field evidence agrees: the web's virtualization rage
+([materialization-field-sentiment.md](materialization-field-sentiment.md))
+comes from document-shaped experiences (articles, feeds) — a shape Declare's
+document content (a `Markdown` flow) never virtualizes, because
+materialization applies only to replication over data. Extraction drew this
+same line a year earlier: indexable content is build-time material; the
+projection is not the corpus.
+
+Two consequences are REQUIREMENTS, not options:
+
+- **Navigate-to-logical-record must work** (§3.5): app-level search is only
+  viable if the runtime can scroll to a record that is not materialized —
+  materializing it on arrival. Without this the reframe collapses.
+- **Accessibility does not follow the findability logic** and gets its own
+  answer — windowing-aware AT, the natives' solution: expose the *logical*
+  extent and position (`aria-rowcount`/`aria-rowindex` on the DOM backend;
+  the platform AT protocols on native hosts), and materialize on AT
+  traversal. Assistive tech is told "row 500 of 100,000" without 100,000
+  nodes existing.
+
 ---
 
 ## 3. Mechanism
@@ -135,6 +180,23 @@ Composed of four parts, all runtime-internal:
    the stated ambition of automatic-above-threshold once the invisibility
    claim survives measurement — the browsers' trajectory with rendering
    optimizations, and the trust-building order.
+5. **Navigate-to-logical-record** (required by §2's observer boundary): the
+   scroll-to machinery must accept a logical target — a record/index beyond
+   the window — compute its position from the extent model, move the scroll
+   box, and let the windowed match materialize the destination. This is what
+   an app-level search lands on; it is also the AT-traversal path (§2's
+   windowing-aware accessibility) wearing a different caller. Both consumers
+   exist before the feature does, so this ships WITH the windowed match, not
+   after it.
+6. **The diagnostic** (the trust requirement the field evidence ranks above
+   almost everything —
+   [materialization-field-sentiment.md](materialization-field-sentiment.md)'s
+   "invisible cliffs" class): the inspector answers, for a windowed block,
+   *that* it is windowed, the logical count, the materialized count, the
+   retained (touched) set, and whether extent is predicted or measured. Not
+   surface — introspection, riding the existing `explain()`/inspect
+   machinery. An invisible layer is trusted exactly to the degree it can be
+   SEEN when someone asks.
 
 ---
 

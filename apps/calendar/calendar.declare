@@ -42,7 +42,12 @@ class Ev extends View [ clip = true,
 
     onPointerDown(e: PointerEvent) { app.startDrag(:id, :title, :category, :timeLabel, this.width, this.height, e.x, e.y) },
     onPointerMove()  { app.dragMove() },
-    onPointerUp(e: PointerUpEvent)   { app.dropDrag(e.x, e.y) },
+    onPointerUp(e: PointerUpEvent)   { app.dropDrag(e.x, e.y, e.canceled) },
+    // The hold moves this chip's touch claim to the press-and-hold (a drag view
+    // that also holds claims nothing at touchdown) — a quick swipe over a chip
+    // pans the page; press-and-hold picks the event up, and the hold itself
+    // lifts the ghost so the pickup is visible before the finger moves.
+    onHold()       { app.armDrag() },
     onClick()      { app.selectEvent(:id, :y + "-" + :m + "-" + :d) }
     ]
 
@@ -240,9 +245,12 @@ class DetailSection extends View [ clip = true, cornerRadius = 10, fill = { them
 // cannot be focus-scrolled into view.
 
 // Below the floor the calendar degrades instead of adapting (the grid needs its
-// rows; the bar needs its controls), so it declares one and the stage pans.
+// rows), so it declares one and the stage pans. The floor is PHONE-honest:
+// with the bar tiering to two rows and the detail panel overlaying instead of
+// insetting (below), nothing but the grid itself decides the minimum — seven
+// legible columns, the same budget a phone-native month view spends.
 
-App [ minWidth = 480, minHeight = 420, appName = "Declare Calendar",
+App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     fill = { theme.pageBg }, fontFamily = [Sans, "system-ui", "sans-serif"],
 
     /* Colors are two role-named palettes; `theme` swaps between them. `themeMode`
@@ -258,7 +266,7 @@ App [ minWidth = 480, minHeight = 420, appName = "Declare Calendar",
 
     // layout constants
 
-    barH: number = 60,
+    barH: number = { app.barNarrow ? 100 : 60 },     // two rows when narrow; everything below derives
     pad: number = 20,
     gap: number = 8,
 
@@ -269,10 +277,14 @@ App [ minWidth = 480, minHeight = 420, appName = "Declare Calendar",
 
     showTheme: boolean = { app.width >= 1030 },
     tabsCompact: boolean = { app.width < 910 },
+    brandCompact: boolean = { app.width < 640 },     // "Declare Calendar" → "Declare" (still the way home)
+    barNarrow: boolean = { app.width < 560 },        // the bar tiers to TWO ROWS: controls above, date nav below
     tabW: number = { app.tabsCompact ? 44 : 74 },
     tabsW: number = { 4 * app.tabW },
     dateW: number = { app.mode == "week" ? 200 : app.mode == "day" ? 210 : app.mode == "month" ? 138 : 64 },
     navW: number = { app.dateW + 84 },      // date block plus its two arrows
+    panelOverlay: boolean = { app.width < 720 },     // the detail panel OVERLAYS the grid instead of insetting it
+    panelW: number = { Math.min(340, app.width - 32) },
 
     // view + paging state
 
@@ -320,11 +332,11 @@ App [ minWidth = 480, minHeight = 420, appName = "Declare Calendar",
     // the detail panel slides in on this value; the body shrinks by the same amount
 
     panelInset: number = 0,
-    Spring [ attribute = panelInset, to = { app.selectedId >= 0 ? 340 : 0 }, stiffness = 240, damping = 30 ],
+    Spring [ attribute = panelInset, to = { app.selectedId >= 0 ? app.panelW : 0 }, stiffness = 240, damping = 30 ],
 
     // geometry
 
-    bodyW: number = { app.width - app.panelInset },
+    bodyW: number = { app.width - (app.panelOverlay ? 0 : app.panelInset) },   // an overlaying panel never squeezes the grid
     bodyH: number = { app.height - app.barH },
     headH: number = 30,
     miniW: number = { (app.bodyW - 2 * app.pad - app.gap * 3) / 4 },
@@ -352,7 +364,13 @@ App [ minWidth = 480, minHeight = 420, appName = "Declare Calendar",
     Spring [ attribute = nr, to = { app.nrTo }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
     colW: number = { (app.bodyW - 2 * app.pad - app.gutter) / app.nc },
     rowH: number = { (app.bodyH - app.headH) / app.nr },
-    blockness: number = { app.clamp((app.rowH - 240) / 300, 0, 1) },      // 0 = month chips, 1 = time blocks
+    blockness: number = { app.clamp(2 - app.nr, 0, 1) },   // 0 = month chips, 1 = time blocks — keyed on the FOCUS SPAN
+    // (one focused row IS a time view), never on pixel height: a short-landscape
+    // day still resolves to blocks (rowH-keyed, it stalled at 0.27 there — chips
+    // posing as a day view, with in-day rescheduling silently dead), and a tall
+    // monitor's month can never start half-morphing its chips. Riding `nr`
+    // keeps the morph continuous: chips hold shape while the focus zooms,
+    // then resolve into blocks over the last row of travel.
     gutter: number = { app.blockness * 52 },                             // hour-label gutter, opens in time views
 
     /* Year zoom: `yearZoom` (0→1) shrinks the month surface into its slot in the 4×3 year
@@ -545,11 +563,22 @@ App [ minWidth = 480, minHeight = 420, appName = "Declare Calendar",
             }
         if (this.dragging) { const cell = this.cellAt(this.pointerX, this.pointerY); this.dropKey = cell != null ? cell.key : "" }
         },
-    dropDrag(px: number, py: number) {
+    armDrag() {
+        // The chip's hold fired: lift the ghost NOW, before any movement — on
+        // touch this is the moment the claim engages, and the pickup should be
+        // visible while the finger is still parked.
+        if (this.dragId < 0) return
+        this.dragging = true
+        const cell = this.cellAt(this.pointerX, this.pointerY); this.dropKey = cell != null ? cell.key : ""
+        },
+    dropDrag(px: number, py: number, canceled: boolean) {
         if (this.dragId < 0) return
         // A drag never clicks — the runtime's own rule (a gesture whose pointer
-        // wandered past slop resolves to no click), so the drop just commits.
-        if (this.dragging) this.commitDrop(px, py)
+        // wandered past slop resolves to no click), so the drop just commits —
+        // but never an INTERRUPTED one: on touch the browser may take the
+        // gesture for a scroll (a quick swipe over a chip), and that release
+        // must not move the event to wherever the finger happened to be.
+        if (this.dragging && !canceled) this.commitDrop(px, py)
         this.dragId = -1; this.dragging = false; this.dropKey = ""
         },
     cellAt(px: number, py: number) -> object {                         // invert the span mapping: screen point → grid cell
@@ -638,7 +667,7 @@ App [ minWidth = 480, minHeight = 420, appName = "Declare Calendar",
        Points its datapath at the selected event, so every field two-way binds
        straight to the record and reseeds when a different event opens. */
 
-    panel: View [ width = 340, height = { app.bodyH }, y = { app.barH }, fill = { theme.panelBg }, x = { app.width - app.panelInset },
+    panel: View [ width = { app.panelW }, height = { app.bodyH }, y = { app.barH }, fill = { theme.panelBg }, x = { app.width - app.panelInset },
         datapath = { app.data.value != null ? app.data.value.events.find(e => e.id == app.selectedId) : null },
         edge: View [ width = 1, height = { parent.height }, fill = { theme.hairline } ],
         secs: View [ x = 22, y = 24, width = { parent.width - 44 },
@@ -692,7 +721,10 @@ App [ minWidth = 480, minHeight = 420, appName = "Declare Calendar",
     bar: View [ width = { app.width }, height = { app.barH }, fill = { theme.pageBg },
         rule: View [ y = { parent.height - 1 }, width = { parent.width }, height = 1, fill = { theme.hairline } ],
 
-        brand: View [ x = 20, y = { (app.barH - 22) / 2 }, height = 22,
+        // Row-1 items center in the FIRST 60px band — fixed, not barH-derived,
+        // so the narrow tier's second row doesn't drag them downward.
+
+        brand: View [ x = 20, y = 19, height = 22,
             layout: SimpleLayout [ axis = x, spacing = 5 ],
 
             // the word "Declare" is the way home — navigate() resolves against the
@@ -701,10 +733,11 @@ App [ minWidth = 480, minHeight = 420, appName = "Declare Calendar",
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textFill = { gradient("90deg", theme.accent, theme.accentTeal) }, text = "Declare",
                 onClick() { app.navigate("apps/homepage/homepage.declare") }
                 ],
-            Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textColor = { theme.textPrimary }, text = "Calendar" ]
+            Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textColor = { theme.textPrimary }, text = "Calendar",
+                visible = { !app.brandCompact } ]
             ],
 
-        themeSwitch: View [ x = 196, height = 34, width = 94, y = { (app.barH - 34) / 2 }, visible = { app.showTheme },
+        themeSwitch: View [ x = 196, height = 34, width = 94, y = 13, visible = { app.showTheme },
             cornerRadius = 10, fill = { theme.trackBg },
             s1: ThemeSeg [ x = 2,  m = "light", glyph = "☀︎" ],
             s2: ThemeSeg [ x = 32, m = "auto",  glyph = "◐" ],
@@ -714,17 +747,26 @@ App [ minWidth = 480, minHeight = 420, appName = "Declare Calendar",
         // the date block is a fixed width per view, so the arrows hold still while
         // paging and re-place only on a view change
 
-        nav: View [ height = 34, y = { (app.barH - 34) / 2 }, width = { app.navW },
-            x = { app.clamp((app.width - app.navW) / 2, app.showTheme ? 300 : 190, app.width - app.tabsW - app.navW - 120) },
+        // Narrow: the nav takes the second row, centered, with the whole width
+        // to itself. Wide: it floats near the center, clamped off both side
+        // clusters — and the clamp can never invert (the max is floored at the
+        // min, so a squeezed bar pins the nav left rather than flinging it
+        // off-frame, the bug the 480 floor used to paint).
+        nav: View [ height = 34, y = { app.barNarrow ? 56 : 13 }, width = { app.navW },
+            x = { app.barNarrow
+                ? (app.width - app.navW) / 2
+                : app.clamp((app.width - app.navW) / 2,
+                            app.showTheme ? 300 : 190,
+                            Math.max(app.showTheme ? 300 : 190, app.width - app.tabsW - app.navW - 120)) },
             prev:  NavArrow [ x = 0, dir = -1, glyph = "‹" ],
             title: Text [ x = 42, width = { app.dateW }, textAlign = center, y = 7, fontSize = 16, wrap = false,
                 fontWeight = semibold, textColor = { theme.textPrimary }, text = { app.periodLabel } ],
             next:  NavArrow [ x = { app.dateW + 48 }, dir = 1, glyph = "›" ]
             ],
 
-        today: TextButton [ y = { (app.barH - 34) / 2 }, x = { app.width - app.tabsW - 100 }, label = "Today" ],
+        today: TextButton [ y = 13, x = { app.width - app.tabsW - (app.barNarrow ? 88 : 100) }, label = "Today" ],
 
-        tabs: View [ height = 34, width = { app.tabsW }, y = { (app.barH - 34) / 2 }, x = { app.width - app.tabsW - 20 },
+        tabs: View [ height = 34, width = { app.tabsW }, y = 13, x = { app.width - app.tabsW - (app.barNarrow ? 12 : 20) },
             track: View [ width = { parent.width }, height = { parent.height }, cornerRadius = 10, fill = { theme.trackBg } ],
             pill: TabPill [ ],
             d:  ViewTab [ x = { 0 * app.tabW }, mode = "day",   label = "Day" ],

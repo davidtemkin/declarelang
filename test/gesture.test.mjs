@@ -47,7 +47,10 @@ const CLAIMS_RAW = `App [ width = 640, height = 400, fill = #202830,
     wdx: number = 0,
     wdy: number = 0,
     wpinch: boolean = false,
+    sawX: number = -1,
+    sawY: number = -1,
     drag: View [ x = 20, y = 20, width = 160, height = 100, fill = #334455,
+        onPointerDown() { app.sawX = app.pointerX; app.sawY = app.pointerY },
         onPointerMove(e: PointerEvent) { },
         ],
     mesa: View [ x = 200, y = 20, width = 160, height = 100, fill = #445566,
@@ -221,6 +224,35 @@ await test("dom: a coarse pointer keeps selection at web defaults — no explici
 
 await test("dom: onPointerMove claims the drag, keeps pinch — `pinch-zoom`", async () => {
   assert.equal((await styleAt(100, 70)).touchAction, "pinch-zoom");
+});
+
+await test("dom: a TOUCH press lands app.pointerX/Y before onPointerDown fires", async () => {
+  // A touch arrives with no prior move (a mouse always moves first, masking
+  // the order): if the environment's coordinate write bubbled instead of
+  // capturing, every delta-based drag would launch from the PREVIOUS
+  // gesture's coordinates — the window-teleport bug (simulator 2026-07-29).
+  await page.evaluate(() => { window.__app.sawX = -1; window.__app.sawY = -1; });
+  const cdp = await page.createCDPSession();
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: 130, y: 60 }] });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await cdp.detach();
+  const saw = await page.evaluate(() => [window.__app.sawX, window.__app.sawY]);
+  assert.deepEqual(saw, [130, 60]);
+});
+
+await test("dom: a drag view suppresses the platform's long-press defaults on itself", async () => {
+  // Selection and the iOS callout fire on the same stationary press as a
+  // hold — a drag view (immediate or hold-gated) must not lose that race
+  // (claim-surface.md; measured on the simulator: a title-bar hold-drag
+  // became a text selection). Per-element: the page around it stays native.
+  const r = await page.evaluate(() => {
+    const drag = document.elementFromPoint(100, 70);   // the immediate-drag view
+    const hold = document.elementFromPoint(100, 190);  // the hold-gated view
+    const s1 = drag.style, s2 = hold.style;
+    return { drag: [s1.userSelect, s1.webkitTouchCallout], hold: [s2.userSelect, s2.webkitTouchCallout] };
+  });
+  assert.deepEqual(r.drag, ["none", "none"]);
+  assert.deepEqual(r.hold, ["none", "none"]);
 });
 
 await test("dom: the raw touch family claims every finger — `none`", async () => {
