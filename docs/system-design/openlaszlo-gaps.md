@@ -4,15 +4,18 @@
 > (`lps-4.9.0`: the LFC under `WEB-INF/lps/lfc`, the component tiers under
 > `lps/components`, the tag compiler under `WEB-INF/lps/server`) and the current
 > Declare runtime/compiler/library at HEAD. Three parallel inventory sweeps plus
-> spot verification of every "absent" claim against `runtime/src`. This is the
-> *audit*; the standing design queue is [declare-language.md](declare-language.md)
-> §13, which this doc cross-references rather than repeats.
+> spot verification of every "absent" claim against `runtime/src`; §8's corpus
+> proportions measured 2026-07-29 over 1,059 files. This is the *audit*; the
+> standing design queue is [declare-language.md](declare-language.md) §13,
+> which this doc cross-references rather than repeats.
 
 The question this doc answers: every construct in OL exists for a reason. For
 each one Declare lacks, is the reason **dissolved** (the problem no longer
 exists), **answered differently** (a better mechanism covers it), or **unmet**
-(a real gap)? Two gaps get full design-depth treatment at the end:
-slots/placement (§6) and virtualized replication (§7).
+(a real gap)? Two gaps get full design-depth treatment: slots/placement (§6)
+and virtualized replication (§7). §8 then asks the inverse question — what it
+would take to translate LZX source into Declare source mechanically — because
+the answer turns out to depend on this document's own rankings.
 
 ---
 
@@ -491,7 +494,8 @@ already owns:
    slice endpoints as compiled, tracked expressions are the same shape, a
    carve-out that keeps the path literal while its two endpoints are cells.
    Then a virtual list is `datapath = :rows[{from}:{to}][]` with `from`/`to`
-   derived from `scrollY` — fully declarative, and the §9 reactive-membership
+   derived from `scrollY` — fully declarative, and [data-paths.md](data-paths.md)
+   §9's reactive-membership
    machinery (track the container + what the selection reads; over-approximate)
    is built once for slices and virtualization alike.
 2. **Extent and placement.** With native scrolling, the full scrollable height
@@ -529,7 +533,157 @@ row heights) is a later increment, same seams.
 
 ---
 
-## 8. Relation to the standing queue
+## 8. An LZX → Declare transpiler — the scope, measured
+
+The audit above asks what Declare lacks. The inverse question is worth
+recording with the same rigor: **what would it take to mechanically translate
+LZX source into Declare source that is useful *as source*** — a program a
+person would keep and maintain, closely resembling the original?
+
+Not "compile OpenLaszlo to browser JS." That is what OpenLaszlo already did,
+and it produces no readable artifact. The target here is the source text.
+
+[declare-implementation.md](declare-implementation.md) §6–§7 laid out the
+transform list from the pre-Declare vantage (when this was the plan for
+migrating the corpus, with the original compiler as a differential oracle).
+That analysis stands, with one detail now stale — it maps `<simplelayout>` to
+"a layout child", and a layout has since become an *attribute*
+(`layout: SimpleLayout [ … ]`). What this section adds is measurement: the
+proportions, taken from the 4.9 corpus, that decide whether the work is worth
+doing and in what order.
+
+### 8.1 The proportions that decide it
+
+Measured over 1,059 `.lzx` files (~92k significant lines), counting
+`<script>` / `<method>` / `<handler>` bodies and `on*=` attribute values as
+imperative and everything else as declarative:
+
+| | |
+|---|---|
+| declarative content (tags, attributes) | **61%** |
+| imperative content (code bodies) | **39%** |
+| files whose code calls the LFC | **57%** |
+| LFC call sites in code | **5,424** |
+| element occurrences with a Declare target, or that are language forms | **~74%** |
+
+That split is the answer in miniature: the declarative majority maps well
+because Declare inherited OL's ideas; the imperative minority is where a
+transpiler's leverage ends; and roughly a quarter of elements have no target
+at all yet.
+
+### 8.2 Four layers of work
+
+**Layer 1 — the file graph.** Resolve `<include>` / `<library>` / `<import>`
+into one program, merge into the flat namespace, report collisions
+positionally. Table stakes: LZX's corpus is built on these (§13 counts 6,659
+and 2,926 files), so a tool that processes one file at a time reduces any real
+app to a shell of dangling references. Declare's own `include.ts` already does
+the analogous job, so the shape is known. Bounded, ~500 lines.
+
+**Layer 2 — the declarative 61%, which maps genuinely well.** The good news,
+and it is better than expected:
+
+- **`$always{expr}` → `{ expr }`** — near 1:1, and the corpus's most-used
+  constraint form. The two reactive cores are the same idea.
+- `<animator attribute= to= duration=>` → `Animator [ … ]`; `<state>` →
+  `State [ applied = { … } ]`; datapath multi-match → `:arr[]` replication;
+  `<method>`/`<handler>`/`<attribute>` → methods/handlers/typed declarations;
+  `setAttribute('x', v)` → `x = v`. All direct.
+- The work is *breadth*, not depth: ~220 tags, several hundred attribute
+  renames, type-aware literal coercion (colors, lengths, enum tokens), event
+  name + payload mapping, XPath → JSONPath once [data-paths.md](data-paths.md)
+  lands. Call it 3–5k lines with tests.
+
+**Layer 3 — the imperative 39%, which splits three ways.**
+
+- *(a) Plain JS/AS3 logic* — math, formatting, array work. Passes into `{ }`
+  bodies nearly untouched, and AS3's parameter type annotations are now an
+  **asset**, since a written parameter type is required (ruled 2026-07-28) and
+  the LZX source already carries one.
+- *(b) LFC calls with a direct analogue* — `canvas.` → `app.`,
+  `lz.Timer.addTimer` → `setTimeout`, `lz.Focus.setFocus` → `Focus.focus`,
+  `lz.Keys` → the `Keys` service, `destroy()` → `discard()`,
+  `new LzDelegate(this,'m')` → a method reference. Table-driven; most of the
+  5,424 sites.
+- *(c) Calls that require restructuring* — the emblematic case is
+  `w.animate("y", 30, 700)`, whose Declare answer is a *declared* `Animator`
+  sibling plus a `start()`. A transpiler can do this mechanically (synthesize
+  the declaration, rewrite the call) and be correct, but the result reads
+  mechanically — which is exactly the tension in "useful as source." Same for
+  `<datapointer>` cursor walks → the mutation API.
+
+**Layer 4 — no target exists.** Components: `window` (82 uses), `menuitem`
+(82), `textlistitem` (79), `tabpane` (44), `stableborderlayout` (71), plus
+grid/list/tree/combobox. Language: `placement` (§6), mixins, context menus
+(§5.3), audio (§5.7), `remotecall` (72), `<connection>` (§5.6), and
+multi-frame resources (`<frame>`, 888 uses — sprite-sheet art, needing an
+asset story). **None of this is transpiler work**; it is the library and
+language gaps this document already ranks.
+
+### 8.3 The sequencing conclusion
+
+**A transpiler is downstream of the component library.** Every OL app of
+consequence is assembled from window/tabs/list/grid. Until those exist, no
+quality of mapping yields something that runs or reads well — the translation
+has nowhere to send a third of the program. Build the library, and the
+achievable output rises with it; build the transpiler first, and it aims at a
+target that cannot receive the shot.
+
+### 8.4 Two architectures, one of them a trap
+
+- **Compat shim** — author an OL compatibility library *in Declare*
+  (`window`, `tabs`, an `animate()` method, a delegate), then translate
+  mechanically onto it. Fastest route to "it runs," and faithful. But it
+  yields **OL-idiom Declare** — `setAttribute`, delegates, `initstage` — which
+  fails the useful-as-source test outright, and it is a standing maintenance
+  burden whose content contradicts the language's doctrine. Rejected.
+- **Idiom-targeting** — translate to real Declare constructs, accept that
+  Layer 3(c) emits correct-but-mechanical declarations carrying a `TODO`, and
+  let a human or an LLM finish the semantic tail. This is the one that
+  produces source worth keeping.
+
+### 8.5 Measure retention, never legality alone
+
+A hazard worth recording, because it is easy to build a metric that flatters
+the tool: **"how many outputs compile" rewards dropping content.** A program
+whose body is discarded compiles trivially — an empty `App [ ]` is legal
+Declare. Verified in practice: a 51-line LZX app whose content sat behind two
+unresolved includes emitted a legal 5-line `App`, and would have counted as a
+success.
+
+Two further traps in the same family:
+
+- **Error counts understate distance.** Diagnostics are phase-ordered, so a
+  syntax error stops the compile and hides everything structural beneath it,
+  and structure errors hide name resolution and typecheck below *that*.
+  Measured: one file reporting a single error reported **20** once that error
+  was fixed, with two phases still unrun. "Errors remaining" is not a distance
+  metric unless it is iterated to a fixed point.
+- **Gap counts are distorted by upstream failures.** Unresolved includes and a
+  mis-mapped attribute both manufacture phantom gaps, so the ranked table is
+  only trustworthy once Layers 1–2 are accurate.
+
+The honest metric is a conjunction, per app: **content retained × compiles ×
+boots** — lines out over lines in, then `declarec check`, then R4. Anything
+less can improve while the tool gets worse.
+
+### 8.6 What it would cost, and when it pays
+
+Roughly **6–10k lines with tests**, assuming the library exists, plus a corpus
+harness. The honest promise is *"most of your program, in readable Declare,
+with everything it could not express flagged in place"* — not "your app runs."
+
+Value scales with volume, and the crossover is real: for two or three apps, an
+LLM given the LZX source and the language does the whole job today, including
+Layer 3(c), which is the part a rule set cannot reach. For a hundred apps,
+mechanical consistency and an audit trail are worth real money — and
+flagged-TODO output is the right input for an LLM finishing pass. That
+combination, breadth by transpiler and the semantic tail by LLM, is the target
+worth aiming at if the volume ever justifies it.
+
+---
+
+## 9. Relation to the standing queue
 
 Items this audit adds or sharpens against
 [declare-language.md](declare-language.md) §13 and

@@ -20,7 +20,7 @@ compiler disagree, the compiler is right. Status: pre-1.0, under active design (
 |---|---|---|
 | [`declare-model.json`](declare-model.json) | every component, attribute, type, method, event and diagnostic — generated from source, keyed `Class.attr` under `reference`. A class's page carries its own members and then each ancestor's, so everything reachable on it is on one page | you need a name, a type, or a signature |
 | `library/` | the standard components — controls, structure, layouts, embedding, and the `Control` base your own controls extend — written in Declare | you want to know what ships, or to read how one is built |
-| `apps/` | complete programs; `apps/calendar/calendar.declare` (~<!--stat:calendar.lines-->740<!--/stat--> lines) is the reference | you want the idiom at full scale |
+| `apps/` | complete programs; `apps/calendar/calendar.declare` (~<!--stat:calendar.lines-->780<!--/stat--> lines) is the reference | you want the idiom at full scale |
 | [`docs/guide/`](guide/01-thinking-in-declare.md) | a narrative course, chapter by chapter | you want the reasoning, or you are learning rather than looking up |
 | [`docs/operational/`](operational/) | install, dev server, build, deploy | you are running or shipping rather than writing |
 
@@ -475,7 +475,19 @@ child, and `insertChild` places one you already hold. Reach for replication firs
 keys, and tears down for you — but the imperative door is open, and `use [ Name ]` (§4) is how you
 keep a component the build would otherwise drop when you name it only as a string.
 
-→ `Dataset` and `DataSource` attributes, `App.createView`, `Node.insertChild`: the model reference
+**Data that keeps arriving is a stream** — `EventStream` (server-sent events) and `Socket`
+(WebSocket, adds `send(text)`), both extending the abstract `Stream`. No `connect()`, no cleanup:
+connected exactly while `active` (default true) and a non-empty `url` say so; node removal closes.
+`onMessage(e: StreamMessage)` receives each message (`e.data` is a string — parsing and
+accumulation are yours); `last` is the latest message, reactive, so `text = { feed.last }` needs no
+handler. Lifecycle is read-only state like a DataSource's — `status` / `open` / `error` — and
+reconnect policy is declared, never invisible: `retry = 2` re-dials 2 s after a loss the platform
+won't repair itself (SSE retries natively first). Named SSE events must be declared to be heard:
+`listen = "delta done"`. A stream is event-shaped, a dataset record-shaped — bridge them in a
+handler (parse, then write into the dataset).
+
+→ `Dataset` and `DataSource` attributes, `Stream`/`EventStream`/`Socket`, `App.createView`,
+`Node.insertChild`: the model reference
 
 ## 8. Input
 
