@@ -243,7 +243,23 @@ class Window extends View [ width = 560, height = 400, clip = true,
     // in spirit: clicking anywhere else lets them go (the red light works too)
 
     activate() { app.frontWin = this; this.raise(app.lowestMini()); if (!plain) app.dismissAbouts() },
-    onPointerDown() { this.activate() },
+
+    // RAISING IS POINTER-KIND-SPLIT (ruled 2026-07-31). A mouse raises the
+    // instant it touches a window — the platform rule, and the one that makes
+    // press-dragging a background window raise AND move it in one gesture. A
+    // finger cannot afford that: on a floored desktop a swipe that begins over
+    // a window is usually a page pan, and raising at touchdown reorders the
+    // desktop under the finger before the user has asked for anything. So the
+    // PRESS arm is mouse-only, and a finger raises on the two gestures that
+    // actually mean "this window": the click (a real tap — a wandering swipe
+    // never produces one) and the hold (which is also where a touch drag
+    // begins, so the pick-up raises as it lifts).
+
+    activateOnPress() { if (app.lastPointerType == "mouse") this.activate() },
+
+    onPointerDown() { this.activateOnPress() },
+    onClick()       { this.activate() },
+    onHold()        { this.activate() },
 
     // subclass content attaches after the base's children, so any content that
     // reaches the window's edges would eat the resize strips' events — the
@@ -286,7 +302,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
     // dragged beyond reach; some of it stays on the desktop on every side.
 
     beginDrag() {
-        this.activate()
+        this.activateOnPress()   // a finger raises at the hold instead (the bar's onHold)
         dragging = true
         px0 = app.pointerX
         py0 = app.pointerY
@@ -358,7 +374,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
         // the hold rider: with onHold declared, the bar claims the touch only
         // at the press-and-hold — a quick swipe over it pans a floored desktop
 
-        onHold() { },
+        onHold() { classroot.activate() },   // the hold that begins a touch drag also raises
 
         // The three window controls — close, minimize, zoom. Gray when the
         // window is inactive. Rollover is scoped to the controls block alone
@@ -524,7 +540,9 @@ class Window extends View [ width = 560, height = 400, clip = true,
     veil: View [ visible = { !classroot.active && app.firstClickActivatesOnly },
         x = 0, y = { classroot.barH },
         width = { parent.width }, height = { parent.height - classroot.barH },
-        onPointerDown() { classroot.activate() }
+        onPointerDown() { classroot.activateOnPress() },
+        onClick()       { classroot.activate() },
+        onHold()        { classroot.activate() }
         ]
     ]
 
@@ -1079,7 +1097,7 @@ class FilesWindow extends Window [ forApp = "files",
                     // drag any seam to resize the columns (fixed width, Finder-style)
 
                     grip: View [ x = { parent.width - 4 }, y = 0, width = 8, height = { parent.height }, cursor = "col-resize",
-                        onPointerDown() { classroot.activate(); classroot.cwk = :depth; classroot.cw0 = parent.width; classroot.cpx0 = app.pointerX },
+                        onPointerDown() { classroot.activateOnPress(); classroot.cwk = :depth; classroot.cw0 = parent.width; classroot.cpx0 = app.pointerX },
                         onPointerMove() { if (classroot.cwk == :depth) { const nw = Math.max(150, Math.min(460, classroot.cw0 + app.pointerX - classroot.cpx0)); const a = [...classroot.widths]; a[:depth] = nw; classroot.widths = a } },
                         onPointerUp() { classroot.cwk = -1 }
                         ]
@@ -1122,7 +1140,9 @@ class AppWindow extends Window [ width = 880, height = 560,
     // content raises this window exactly as clicking any window body does
 
     island: AppIsland [ x = 0, y = { classroot.barH }, width = { parent.width }, height = { parent.height - classroot.barH },
-        onPointerDown() { classroot.activate() },
+        onPointerDown() { classroot.activateOnPress() },
+        onClick()       { classroot.activate() },
+        onHold()        { classroot.activate() },
         program = { classroot.appPath },
         env = { "dark=" + (app.darkMode ? "1" : "0")
             + (classroot.extraEnv != "" ? "&" + classroot.extraEnv : "") }
@@ -1230,7 +1250,7 @@ class JotWindow extends Window [ width = 300, height = 250, chrome = false, forA
         onPointerDown() { classroot.beginDrag() },
         onPointerMove() { classroot.dragTo() },
         onPointerUp(e: PointerUpEvent)   { classroot.endDrag(e.canceled) },
-        onHold() { },   // the hold rider — same claim shape as the title bar
+        onHold() { classroot.activate() },   // the hold rider — same claim shape as the title bar; it also raises
 
         // the strip's widgets: dark olive outlines around pale interiors —
         // the close box 11px in from the left, the zoom triangle (right

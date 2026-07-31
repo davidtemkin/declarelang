@@ -11,7 +11,9 @@
 //     the repeal this rung IS — no more unconditional root `none`;
 //   - per-view claims: onPointerMove → pinch-zoom, onTouch* → none, onWheel →
 //     no touch-action at all (a wheel is not a touch gesture);
-//   - a scroller DELEGATES: `pan-y pinch-zoom` (pinch was never claimed);
+//   - a scroller DELEGATES both axes (`manipulation`) with per-axis
+//     containment: it declares which axis IT scrolls, never that the other
+//     is forbidden — the cross axis belongs to the enclosing regime;
 //   - onWheel delivery: deltas + the `pinch` flag (ctrlKey wheels are
 //     trackpad pinches), nearest-claim-wins, and an intervening scroller
 //     keeping its wheel;
@@ -384,9 +386,30 @@ await test("dom: onWheel is not a touch claim — no touch-action of its own", a
   assert.equal((await styleAt(470, 60)).touchAction, "auto");
 });
 
-await test("dom: a scroller delegates pan AND keeps pinch delegated — `pan-y pinch-zoom`", async () => {
-  const ta = (await styleAt(460, 200)).touchAction;
-  assert.ok(ta.includes("pan-y") && ta.includes("pinch-zoom"), `got '${ta}'`);
+await test("dom: a scroller delegates BOTH axes — the cross axis belongs to the enclosing regime", async () => {
+  // A pane declares which axis IT scrolls; it never declares that the other
+  // axis is forbidden. `pan-y pinch-zoom` did exactly that — measured on the
+  // desktop (2026-07-31): a `scrolls = y` Files column inside an 800px stage
+  // on a 402px phone forbade the horizontal pan that was the only way to
+  // reach the rest of the stage. `manipulation` permits both pans (plus
+  // pinch), so the browser routes each axis to the nearest ancestor that
+  // scrolls it — which is what scroll chaining IS.
+  assert.equal((await styleAt(460, 200)).touchAction, "manipulation");
+});
+
+await test("dom: overscroll containment is PER-AXIS — the undeclared axis chains out", async () => {
+  // `contain` keeps a pane's own rubber-band off the page (the
+  // keeps-to-its-frame ruling) — but only on an axis the pane actually
+  // scrolls. On the other axis it has no scroll of its own to contain, and
+  // containment only severed the outer regime.
+  const r = await page.evaluate(() => {
+    const el = document.elementFromPoint(460, 200).closest("[data-declare-scroll]");
+    const s = getComputedStyle(el);
+    return { x: s.overscrollBehaviorX, y: s.overscrollBehaviorY, scrolls: el.style.overflowY };
+  });
+  assert.equal(r.scrolls, "auto", "fixture pane scrolls y");
+  assert.equal(r.y, "contain", "the declared axis keeps to its frame");
+  assert.equal(r.x, "auto", "the undeclared axis chains to whatever encloses it");
 });
 
 await test("dom: onHold + drag handlers = the HOLD-GATED claim — nothing at touchdown", async () => {
@@ -466,8 +489,8 @@ await test("dom: while pinch-zoomed, scroller containment yields to viewport pan
     const cs = getComputedStyle(sc);
     return { ob: cs.overscrollBehaviorY ?? cs.overscrollBehavior, ta: cs.touchAction };
   });
-  assert.equal(back.ob, "contain", "containment restored at scale 1");
-  assert.ok(back.ta.includes("pan-y"), "delegation value restored at scale 1");
+  assert.equal(back.ob, "contain", "containment restored at scale 1 (on the axis it scrolls)");
+  assert.equal(back.ta, "manipulation", "delegation value restored at scale 1");
   await cdp.detach();
 });
 
@@ -574,6 +597,39 @@ await test("dom: ignoreScroll chrome rides the window — fixed through a real p
   assert.equal(r.after, 0, "the bar held still while the page moved");
   assert.equal(r.scrollY, 500, "app.scrollY mirrors the page scroll");
   await page.evaluate(() => window.scrollTo({ top: 0 }));
+});
+
+await test("dom: page-regime chrome is never STRANDED in a pane's sticky frame", async () => {
+  // Adoption into a sticky frame is a DOM move, and it used to be one-way. At
+  // attach the app root is not yet stamped `data-declare-app`, so
+  // applyScrollStyle takes its PANE branch and marks it `data-declare-scroll`
+  // — every ignoreScroll child was adopted into a frame, and nothing moved
+  // them back once attachRoot re-resolved them to the page regime. The result
+  // was `position: fixed` chrome painting inside a `position: sticky`
+  // stacking context clipped by the root's `overflow: clip`: it composites
+  // correctly most of the time, and on an iPad in landscape the homepage's
+  // header intermittently vanished or painted below a gap (2026-07-31).
+  const r = await page.evaluate(() => {
+    const root = document.querySelector("[data-declare-app]");
+    const chrome = [...root.querySelectorAll("[data-declare-ignorescroll]")];
+    const inFrame = (el) => el.parentElement?.dataset.declareScrollframe !== undefined;
+    const pane = root.querySelector("[data-declare-scroll]");
+    const paneChrome = [...pane.querySelectorAll("[data-declare-ignorescroll]")];
+    return {
+      pageChrome: chrome.filter((el) => !paneChrome.includes(el))
+        .map((el) => ({ stranded: inFrame(el), pos: el.style.position })),
+      paneChrome: paneChrome.map((el) => ({ inFrame: inFrame(el), pos: el.style.position })),
+      emptyFramesLeftBehind: [...root.querySelectorAll("[data-declare-scrollframe]")]
+        .filter((f) => f.childElementCount === 0).length,
+    };
+  });
+  for (const c of r.pageChrome) {
+    assert.equal(c.stranded, false, "page chrome sits under its own parent, not a frame");
+    assert.equal(c.pos, "fixed", "…and is viewport-fixed");
+  }
+  assert.ok(r.paneChrome.length > 0, "fixture has pane chrome too");
+  for (const c of r.paneChrome) assert.equal(c.inFrame, true, "pane chrome DOES ride its pane's frame");
+  assert.equal(r.emptyFramesLeftBehind, 0, "an adopt-nobody frame is cleaned up");
 });
 
 await test("dom: a pane's ignoreScroll toolbar rides the pane's frame (the sticky frame)", async () => {

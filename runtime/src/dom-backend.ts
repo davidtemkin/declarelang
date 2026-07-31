@@ -125,24 +125,65 @@ function watchPinchZoom(doc: Document): void {
  *  fixed arm: an embedded island's root is stamped too, but sits offset in a
  *  host page where viewport-fixed coordinates would be wrong — its children
  *  stay put (the pane arm still applies inside island panes). */
+/** Where a frame-adopted element came from, so it can be sent back. Adoption
+ *  into a pane's sticky frame is a DOM MOVE out of the element's own parent,
+ *  and the pane arm below was a one-way door: it could adopt but had no path
+ *  home. That stranded chrome whose regime later resolved differently —
+ *  measured on the homepage (2026-07-31): at attach the app root has not yet
+ *  been stamped `data-declare-app`, so `applyScrollStyle` takes its PANE
+ *  branch and marks it `data-declare-scroll`; every `ignoreScroll` child was
+ *  then adopted into a sticky frame. attachRoot re-runs both (the root branch
+ *  strips the pane's styles, and the sweep re-resolves each child to the page
+ *  regime) — but nothing moved the children back, leaving `position: fixed`
+ *  elements painting inside a `position: sticky` stacking context clipped by
+ *  the root's `overflow: clip`. It composites correctly most of the time; on
+ *  an iPad in landscape the homepage's header intermittently lost its clip
+ *  and vanished, or painted below a gap. Restoring the parent is the fix; the
+ *  sibling is kept too, so paint order survives the round trip. */
+const FRAME_HOME = new WeakMap<HTMLElement, { parent: HTMLElement; next: Element | null }>();
+
 function realizeIgnoreScroll(el: HTMLElement): void {
   if (el.dataset.declareIgnorescroll === undefined) {
     if (el.style.position === "fixed") el.style.position = "absolute";
+    sendHome(el);
     return;
   }
   for (let p = el.parentElement; p !== null; p = p.parentElement) {
     if (p.dataset !== undefined && p.dataset.declareScroll !== undefined) {
       const frame = ensureScrollFrame(p);
-      if (el.parentElement !== frame) frame.appendChild(el);
+      if (el.parentElement !== frame) {
+        // remember the seam-computed parent (insertChild's `target`) before the move
+        if (el.parentElement !== null && el.parentElement.dataset.declareScrollframe === undefined) {
+          FRAME_HOME.set(el, { parent: el.parentElement, next: el.nextElementSibling });
+        }
+        frame.appendChild(el);
+      }
       return;
     }
     if (p.dataset !== undefined && p.dataset.declareApp !== undefined) {
       // the page regime — but only where the root's frame IS the viewport
       const embedded = p.parentElement?.closest("[data-declare-app], [data-declare-embed]") ?? null;
       if (embedded === null) el.style.position = "fixed";
+      sendHome(el);      // this regime is not a pane's — never leave it in a frame
       return;
     }
   }
+}
+
+/** Return a frame-adopted element to the parent it was taken from (no-op if it
+ *  is not in a sticky frame). The remembered sibling is honoured only while it
+ *  is still a child of that parent — it may itself have been adopted since. */
+function sendHome(el: HTMLElement): void {
+  const frame = el.parentElement;
+  if (frame?.dataset.declareScrollframe === undefined) return;
+  const home = FRAME_HOME.get(el);
+  if (home === undefined) return;
+  FRAME_HOME.delete(el);
+  const next = home.next !== null && home.next.parentElement === home.parent ? home.next : null;
+  home.parent.insertBefore(el, next);
+  // A frame that adopted nobody is litter — and litter of exactly the kind
+  // this bug hid in. ensureScrollFrame rebuilds it the moment one is needed.
+  if (frame.childElementCount === 0) frame.remove();
 }
 
 /** The pane's STICKY FRAME: a zero-size, in-flow `position: sticky` first
@@ -783,11 +824,31 @@ class DomSurface implements Surface {
   /** Reconcile the scroller styling with the axis pair. A scrolling axis is
    *  native `auto` (the OS overlay scrollbar, momentum, edge bounce); the
    *  other axis of a scroller is `hidden` (out of frame — the axis rule);
-   *  no axes = not a scroller at all. `contain` gives the pane its own
-   *  rubber-band while refusing to chain a scroll-past up to the page; the
-   *  touch-action DELEGATES exactly the declared axes' panning and keeps
-   *  pinch-zoom delegated too (plain `pan-y` would silently forbid the
-   *  user's pinch — a claim nobody made). */
+   *  no axes = not a scroller at all.
+   *
+   *  THE CROSS AXIS BELONGS TO THE ENCLOSING REGIME (ruled 2026-07-31). Both
+   *  gesture properties here are per-axis facts, and both used to be written
+   *  as if the DECLARED axis were the only one that existed:
+   *
+   *    - `touch-action` is `manipulation` — pan on BOTH axes plus pinch (the
+   *      concise spelling of `pan-x pan-y pinch-zoom`). The old
+   *      `pan-<declared> pinch-zoom` forbade panning on the undeclared axis
+   *      outright, which is the very mistake the old comment here already
+   *      named for the other gesture ("plain `pan-y` would silently forbid
+   *      the user's pinch — a claim nobody made"): the cross axis was the
+   *      same claim nobody made. Measured on the desktop (2026-07-31): a
+   *      `scrolls = y` Files column inside an 800px stage on a 402px phone
+   *      forbade the horizontal pan that was the ONLY way to reach the rest
+   *      of the stage. Permitting both lets the browser route each axis to
+   *      the nearest ancestor that scrolls it — which IS scroll chaining.
+   *    - `overscroll-behavior` is per-axis too: `contain` on the axes this
+   *      pane actually scrolls (the keeps-to-its-frame ruling — its own
+   *      rubber-band, never a flash of the page behind), `auto` on the axis
+   *      it does not, where there is no scroll of its own to contain and
+   *      `contain` only severed the outer regime.
+   *
+   *  Double-tap zoom stays retired (`manipulation` excludes it), matching the
+   *  root default — a separate question from the axis one. */
   applyScrollStyle(): void {
     const el = this.element;
     if (el.dataset.declareApp !== undefined) {
@@ -817,10 +878,15 @@ class DomSurface implements Surface {
     const any = this.scrollYOn || this.scrollXOn;
     el.style.overflowY = this.scrollYOn ? "auto" : any ? "hidden" : "";
     el.style.overflowX = this.scrollXOn ? "auto" : any ? "hidden" : "";
+    const ob = el.style as CSSStyleDeclaration & {
+      overscrollBehavior: string; overscrollBehaviorX: string; overscrollBehaviorY: string;
+    };
     if (any) {
       el.dataset.declareScroll = "1";   // a native scroller — its offset is preserved across a DOM move (insertChild)
-      (el.style as CSSStyleDeclaration & { overscrollBehavior: string }).overscrollBehavior = "contain";
-      el.style.touchAction = `${this.scrollXOn ? "pan-x " : ""}${this.scrollYOn ? "pan-y " : ""}pinch-zoom`;
+      ob.overscrollBehavior = "";       // clear any shorthand from a previous axis pair
+      ob.overscrollBehaviorX = this.scrollXOn ? "contain" : "auto";
+      ob.overscrollBehaviorY = this.scrollYOn ? "contain" : "auto";
+      el.style.touchAction = "manipulation";
       // A scroll container accepts pointer/wheel events (its children stay
       // inert, so clicks still resolve to the sink under the pointer). Native
       // wheel then drives the box directly: abs children DO register
@@ -828,7 +894,9 @@ class DomSurface implements Surface {
       // rubber-bands with no manual offset math.
       el.style.pointerEvents = "auto";
     } else {
-      (el.style as CSSStyleDeclaration & { overscrollBehavior: string }).overscrollBehavior = "";
+      ob.overscrollBehavior = "";
+      ob.overscrollBehaviorX = "";
+      ob.overscrollBehaviorY = "";
       el.style.pointerEvents = "none";
       delete el.dataset.declareScroll;
       this.refreshTouchAction(); // back to whatever this view's own claim says
@@ -1114,7 +1182,8 @@ class DomSurface implements Surface {
    *      the browser scrolls — both retire double-tap zoom, which a painted
    *      UI can never concede (two quick taps on a control must not lurch
    *      the page).
-   *  A scroll pane owns its own value (setScroll's `pan-y pinch-zoom`) and is
+   *  A scroll pane owns its own value (applyScrollStyle's `manipulation` —
+   *  both axes delegated, the cross axis to the enclosing regime) and is
    *  left alone. */
   refreshTouchAction(): void {
     const el = this.element;
