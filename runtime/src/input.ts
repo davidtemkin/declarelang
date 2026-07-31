@@ -228,10 +228,21 @@ export function routeInput(
         typeof HTMLElement !== "undefined" &&
         el instanceof HTMLElement &&
         (el.isContentEditable || el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT");
-      // Safari's computed style exposes only the -webkit- prefixed property
-      // (unprefixed `userSelect` reads as undefined there) — probe both.
+      // Selectable content carries the realization's stamp (dom-backend:
+      // `data-declare-selectable` on exactly the leaves whose effective
+      // `selectable` is true) — the press landed on selectable text iff the
+      // target sits under one. Under the subtractive realization selectable
+      // text wears NO explicit `user-select`, so a computed-style probe for
+      // `text` can no longer answer; the stamp is the fact itself. The
+      // computed check that remains is the veto: a drag view's element-level
+      // `none` (setInput) inherits over stamped content beneath it, and the
+      // claim wins there by design.
       const cs = el !== null && typeof getComputedStyle === "function" ? getComputedStyle(el) : null;
-      const selectable = cs !== null && (cs.userSelect ?? (cs as CSSStyleDeclaration & { webkitUserSelect?: string }).webkitUserSelect) === "text";
+      const selectable =
+        el !== null &&
+        typeof el.closest === "function" &&
+        el.closest("[data-declare-selectable]") !== null &&
+        (cs === null || (cs.userSelect ?? (cs as CSSStyleDeclaration & { webkitUserSelect?: string }).webkitUserSelect) !== "none");
       if (el !== null && !editable && !selectable && e.pointerType !== "touch") e.preventDefault();
       // A press that BEGINS on selectable/editable content is (potentially) a
       // text-selection gesture: the captured-move suppression below must stand

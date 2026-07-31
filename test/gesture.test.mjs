@@ -117,6 +117,42 @@ const COARSE_RAW = `App [ width = 640, height = 400, fill = #202830,
 const coarseCompiled = compile(COARSE_RAW);
 assert.deepEqual(coarseCompiled.errors, [], "coarse fixture compiles clean");
 
+// THE SUBTRACTIVE SELECTION REALIZATION (ruled 2026-07-30): `none` on exactly
+// the text leaves whose effective `selectable` is false, platform defaults +
+// the stamp on the rest, `text` never written on painted content — one
+// realization for both pointer kinds. Markdown carries the flow-species
+// default (a document is selectable unless somebody says otherwise).
+const SEL_RAW = `App [ width = 640, height = 700, fill = #202830,
+    prose: Text [ x = 20, y = 20, text = "selectable prose", selectable = true ],
+    label: Text [ x = 20, y = 60, text = "plain label" ],
+    doc: Markdown [ x = 20, y = 100, width = 300, text = "a **document** paragraph" ],
+    card: View [ x = 20, y = 300, width = 300, height = 120, fill = #334455, selectable = false,
+        vetoed: Markdown [ width = 280, text = "a vetoed document" ],
+        onClick() { },
+        ],
+    ]`;
+const selCompiled = compile(SEL_RAW);
+assert.deepEqual(selCompiled.errors, [], "selection fixture compiles clean");
+
+// THE SCROLL-AWARE WALK (ruled 2026-07-30): hovered/pressed hit where things
+// PAINT, at any page or pane scroll; ignoreScroll chrome hits at its frame.
+const WALK_RAW = `App [ fill = #202830,
+    hd: boolean = { this.deep.hovered },
+    pd: boolean = { this.deep.pressed },
+    hbar: boolean = { this.bar.hovered },
+    hi: boolean = { this.column.pane.inner.hovered },
+    bar: View [ ignoreScroll = true, width = { app.width }, height = 40, fill = #10202C ],
+    column: View [ y = 40, width = { app.width }, height = 3000, fill = #223344,
+        pane: View [ x = 40, y = 1200, width = 300, height = 200, fill = #445566, scrolls = y,
+            inner: View [ x = 0, y = 400, width = 300, height = 60, fill = #66AA88 ],
+            tail: View [ x = 0, y = 800, width = 300, height = 40, fill = #223344 ] ],
+        ],
+    deep: View [ x = 40, y = 900, width = 200, height = 60, fill = #3A4855,
+        onClick() { } ],
+    ]`;
+const walkCompiled = compile(WALK_RAW);
+assert.deepEqual(walkCompiled.errors, [], "walk fixture compiles clean");
+
 const pages = {
   "/dom-claims": pageHtml("DomBackend", claimsCompiled.source),
   "/canvas-claims": pageHtml("CanvasBackend", claimsCompiled.source),
@@ -128,6 +164,8 @@ const pages = {
   "/dom-embedded": pageHtml("DomBackend", claimsCompiled.source, { embedded: true }),
   "/canvas-embedded": pageHtml("CanvasBackend", claimsCompiled.source, { embedded: true }),
   "/dom-coarse": pageHtml("DomBackend", coarseCompiled.source),
+  "/dom-selection": pageHtml("DomBackend", selCompiled.source),
+  "/dom-walk": pageHtml("DomBackend", walkCompiled.source),
 };
 
 const server = http.createServer(async (req, res) => {
@@ -220,6 +258,87 @@ await test("dom: a coarse pointer keeps selection at web defaults — no explici
   assert.equal(r.coarse, true, "fixture page must emulate a coarse pointer");
   assert.notEqual(r.rootUS, "none");
   assert.equal(r.explicit, false);
+});
+
+await test("dom: the subtractive selection realization — `none` on unselectable leaves, defaults + stamp elsewhere, `text` never", async () => {
+  const tp = await browser.newPage();
+  await tp.goto(`${B}/dom-selection`, { waitUntil: "networkidle2", timeout: 30000 });
+  await tp.waitForFunction(() => window.__rendered === true, { timeout: 15000 });
+  const r = await tp.evaluate(() => {
+    const root = document.querySelector("[data-declare-app]");
+    const runs = [...root.querySelectorAll("span")].filter((el) => el.textContent.trim().length > 0);
+    const prose = runs.find((el) => el.textContent === "selectable prose");
+    const label = runs.find((el) => el.textContent === "plain label");
+    // The rich HOST is the flow's own element — the <p>'s direct parent (an
+    // ancestor div would match a textContent probe and read unstamped).
+    const hosts = [...root.querySelectorAll("p")].map((p) => p.parentElement);
+    const doc = hosts.find((el) => el.textContent.includes("document paragraph"));
+    const vetoed = hosts.find((el) => el.textContent.includes("vetoed document"));
+    return {
+      rootUS: root.style.userSelect || "(unset)",
+      tapFlash: root.style.webkitTapHighlightColor,
+      textWrittenAnywhere: [...root.querySelectorAll("*")].some(
+        (el) => el.style.userSelect === "text" && el.tagName !== "INPUT" && el.tagName !== "TEXTAREA"),
+      prose: { us: prose.style.userSelect || "(unset)", stamped: prose.dataset.declareSelectable === "1", pe: getComputedStyle(prose).pointerEvents },
+      label: { us: label.style.userSelect, stamped: "declareSelectable" in label.dataset },
+      doc: { us: doc.style.userSelect || "(unset)", stamped: doc.dataset.declareSelectable === "1" },
+      vetoed: { us: vetoed.style.userSelect, stamped: "declareSelectable" in vetoed.dataset },
+    };
+  });
+  await tp.close();
+  assert.equal(r.rootUS, "(unset)", "the root writes no user-select at all");
+  assert.equal(r.tapFlash, "transparent", "the tap flash retires at the root — a painted UI draws its own feedback");
+  assert.equal(r.textWrittenAnywhere, false, "`text` is never written on painted content");
+  assert.deepEqual(r.prose, { us: "(unset)", stamped: true, pe: "auto" }, "selectable Text: platform default + the stamp + a pointer target");
+  assert.deepEqual(r.label, { us: "none", stamped: false }, "unselectable Text: leaf `none`, no stamp");
+  assert.deepEqual(r.doc, { us: "(unset)", stamped: true }, "Markdown with no declaration: the flow-species default — a document selects");
+  assert.deepEqual(r.vetoed, { us: "none", stamped: false }, "…and one `selectable = false` provision on the card vetoes it");
+});
+
+await test("dom: hovered/pressed hit where things PAINT — page scroll, pane scroll, ignoreScroll chrome", async () => {
+  const tp = await browser.newPage();
+  await tp.goto(`${B}/dom-walk`, { waitUntil: "networkidle2", timeout: 30000 });
+  await tp.waitForFunction(() => window.__rendered === true, { timeout: 15000 });
+  const flags = () => tp.evaluate(() => ({
+    hd: window.__app.hd, pd: window.__app.pd, hbar: window.__app.hbar, hi: window.__app.hi,
+    scrollY: window.scrollY,
+  }));
+  // Page scrolled: the deep button paints near the viewport top — hover and press it there.
+  await tp.evaluate(() => window.scrollTo(0, 800));
+  const rect = await tp.evaluate(() => {
+    const r = window.__app.deep.surface.element.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  await tp.mouse.move(rect.x, rect.y);
+  let f = await flags();
+  assert.equal(f.hd, true, `deep hovers at its painted position (scrollY=${f.scrollY})`);
+  await tp.mouse.down();
+  f = await flags();
+  assert.equal(f.pd, true, "and presses there");
+  await tp.mouse.up();
+  // The fixed bar, same scroll.
+  await tp.mouse.move(100, 20);
+  f = await flags();
+  assert.equal(f.hbar, true, "ignoreScroll chrome hovers at its frame position");
+  assert.equal(f.hd, false, "the content view a scroll away does not");
+  // A pane-interior view, pane scrolled while the page is too.
+  await tp.evaluate(() => {
+    window.__app.column.pane.surface.element.scrollTop = 390;
+  });
+  const irect = await tp.evaluate(() => {
+    const r = window.__app.column.pane.inner.surface.element.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  await tp.mouse.move(irect.x, irect.y);
+  f = await flags();
+  assert.equal(f.hi, true, "a scrolled pane's content hovers where it paints");
+  // viewAt keeps the CONTENT-space contract (the drag pairing) at any scroll.
+  const va = await tp.evaluate(() => {
+    const app = window.__app;
+    return { deep: app.viewAt(140, 930) === app.deep, chrome: app.viewAt(140, 930 - window.scrollY) !== app.deep };
+  });
+  assert.equal(va.deep, true, "viewAt(contentX, contentY) answers the painted view");
+  await tp.close();
 });
 
 await test("dom: onPointerMove claims the drag, keeps pinch — `pinch-zoom`", async () => {

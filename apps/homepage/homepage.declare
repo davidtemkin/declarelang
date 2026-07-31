@@ -194,6 +194,9 @@ teal hover and the brighter pressed tap feedback, navigating on click.
 
 class FootLink extends FootLabel [
     to: string = "",
+    // A navigating link is a control, not copy — FootLabel's `selectable`
+    // is for the static footer text and must not ride along here.
+    selectable = false,
     textColor = { pressed ? theme.accent2Press : hovered ? theme.accent2 : theme.muted },
     onClick()     { app.navigate(to) }
     ]
@@ -478,7 +481,9 @@ App [ appName = "Declare",
         // text, brightest to faintest
         text: 0xE7EEF2, lead: 0x9DB0BC, muted: 0x8A9BA6, dim: 0x6A7C89, faint: 0x556673,
         // the blue accent and its interaction shades; links brighten past accent
-        accent: 0x4C8DFF, accentHover: 0x63A0FF, accentPress: 0x3D7BE0, linkHover: 0x7FB0FF,
+        // (hover), then flash brighter still at the press — the same direction
+        // FootLink's teal takes, so every text link answers a tap the same way
+        accent: 0x4C8DFF, accentHover: 0x63A0FF, accentPress: 0x3D7BE0, linkHover: 0x7FB0FF, linkPress: 0xB2CFFF,
         // the teal second accent; the brand gradient runs accent → accent2
         accent2: 0x37E0C8, accent2Press: 0x9BF2E4,
         brand: gradient("90deg", 0x4C8DFF, 0x37E0C8),
@@ -617,12 +622,12 @@ App [ appName = "Declare",
                 learn: View [ width = { parent.width },
                     layout: ResponsiveLayout [ plan = { [({ from: 600, flow: "row", gap: 16 }), ({ from: 0, flow: "stack", gap: 8 })] } ],
                     why: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
-                        textColor = { this.hovered ? theme.linkHover : theme.accent }, text = "Why a new language, now? →",
+                        textColor = { this.pressed ? theme.linkPress : this.hovered ? theme.linkHover : theme.accent }, text = "Why a new language, now? →",
                         onClick() { app.location = "why"; app.toTop() }
                         ],
                     Dot [ y = 1, visible = { parent.width >= 600 } ],
                     onefile: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
-                        textColor = { this.hovered ? theme.linkHover : theme.accent }, text = "Declare, in one file, for you and your LLM →",
+                        textColor = { this.pressed ? theme.linkPress : this.hovered ? theme.linkHover : theme.accent }, text = "Declare, in one file, for you and your LLM →",
                         onClick() { app.location = "language"; app.toTop() }
                         ]
                     ]
@@ -657,7 +662,7 @@ App [ appName = "Declare",
                         onClick() { app.navigate("apps/calendar/calendar.declare") }
                         ],
                     srclink: Text [ y = 15, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
-                        textColor = { this.hovered ? theme.linkHover : theme.accent }, text = "View source →",
+                        textColor = { this.pressed ? theme.linkPress : this.hovered ? theme.linkHover : theme.accent }, text = "View source →",
                         onClick() { app.navigate("apps/calendar/calendar.declare?viewer") }
                         ]
                     ],
@@ -910,12 +915,12 @@ App [ appName = "Declare",
                 sources: View [ width = { parent.width },
                     layout: ResponsiveLayout [ plan = { [({ from: 560, flow: "row", gap: 20 }), ({ from: 0, flow: "stack", gap: 8 })] } ],
                     lbl: Text [ fontSize = 14, wrap = false, textColor = { theme.faint }, text = "The studies:" ],
-                    s1: Text [ fontSize = 14, wrap = false,
-                        textColor = { this.hovered ? theme.linkHover : theme.accent }, text = "a zero-corpus DSL vs. Python →",
+                    s1: Text [ fontSize = 14, wrap = false, selectable = false,
+                        textColor = { this.pressed ? theme.linkPress : this.hovered ? theme.linkHover : theme.accent }, text = "a zero-corpus DSL vs. Python →",
                         onClick()     { app.navigate("https://arxiv.org/abs/2512.23214") }
                         ],
-                    s2: Text [ fontSize = 14, wrap = false,
-                        textColor = { this.hovered ? theme.linkHover : theme.accent }, text = "feedback quality vs. repair →",
+                    s2: Text [ fontSize = 14, wrap = false, selectable = false,
+                        textColor = { this.pressed ? theme.linkPress : this.hovered ? theme.linkHover : theme.accent }, text = "feedback quality vs. repair →",
                         onClick()     { app.navigate("https://arxiv.org/abs/2504.06939") }
                         ]
                     ],
@@ -1124,6 +1129,14 @@ App [ appName = "Declare",
 
     pointerDot: View [ ignoreScroll = true, width = 10, height = 10, cornerRadius = 5, fill = { theme.accent2 }, opacity = 0.9,
         shadow = { shadow(0, 0, 12, theme.accent2) },
+
+        // Decoration, not a target: the dot settles exactly under a resting
+        // cursor, and the hit chain is occlusion-correct — without this line
+        // the dot swallows every hover and press the moment the mouse stops
+        // (links lit only while the cursor was moving; clicks resolved, but
+        // `pressed`/`hovered` styling died at rest).
+
+        pointerEvents = "none",
 
         // Only for a HOVERING pointer (mouse / trackpad) — `app.hovering` is false
         // for touch, so the dot never appears on a phone, yet an iPad trackpad

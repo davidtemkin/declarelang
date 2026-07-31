@@ -516,9 +516,13 @@ export class View extends Node {
    *          },
    *
    *  Root-space, like the coordinates `onPointerMove`/`onPointerUp` carry, so a
-   *  drag can pass its own event coordinates straight in. */
+   *  drag can pass its own event coordinates straight in. (Root-space is the
+   *  root's CONTENT space; the walk itself runs in frame space, so the root's
+   *  own scroll converts here at the boundary — the contract stays exactly
+   *  what the drag pairing needs, scrolled or not.) */
   viewAt(x: number, y: number): View | null {
-    return hitAt(this.root ?? this, x, y) as View | null;
+    const r = (this.root ?? this) as View;
+    return hitAt(r, x - r.scrollX, y - r.scrollY) as View | null;
   }
 
   /** Does this view's box contain the root-space point? Geometry only — what

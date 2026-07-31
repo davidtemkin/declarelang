@@ -17,7 +17,7 @@ import { View, onDiscard, fireEvent } from "./view.js";
 import { Text } from "./text.js";
 import { Layout } from "./layout.js";
 import { Constraint } from "./reactive.js";
-import { defineAttributes } from "./attributes.js";
+import { defineAttributes, prevailingProvided } from "./attributes.js";
 import { fontMetrics, fontString, textWidth } from "./measure.js";
 import { parse } from "./md.js";
 import { headingSlug } from "./slug.js";
@@ -501,10 +501,23 @@ class TextFlow extends View {
         const within = this.anchorYs.has(slug) ? this.anchorYs.get(slug) : -1;
         return this.surface?.revealRichAnchor(slug, within) ?? false;
     }
+    /** The flow's EFFECTIVE `selectable` — the species default (ruled
+     *  2026-07-30): a flowing document is selectable BY ITS NATURE, so when
+     *  nobody on the prevailing chain says otherwise, the answer is true — the
+     *  Jots shape (a Markdown note, no declaration anywhere) reads as the
+     *  document it is. Any provision still wins over this default, in either
+     *  direction: `selectable = false` on the instance, a container, or a
+     *  Control ancestor vetoes it (the unusual non-selectable document, one
+     *  explicit line); the View-wide default stays false for everything that is
+     *  not a flow (a `Text` is a label). `prevailingProvided` is tracked, so a
+     *  provision appearing later re-flows. */
+    effSelectable() {
+        return prevailingProvided(this, "selectable") ? this.selectable : true;
+    }
     attach(backend, parentSurface, before = null) {
         super.attach(backend, parentSurface, before);
-        // Re-flow when the width or the prevailing `selectable` changes.
-        const c = new Constraint("TextFlow.flow", () => `${this.flowWidth} ${this.selectable}`, () => this.render(), 0);
+        // Re-flow when the width or the effective `selectable` changes.
+        const c = new Constraint("TextFlow.flow", () => `${this.flowWidth} ${this.effSelectable()}`, () => this.render(), 0);
         c.run();
         onDiscard(this, () => c.dispose());
     }
@@ -526,7 +539,7 @@ class TextFlow extends View {
         if (s === null)
             return;
         const link = this.onLink ?? (() => { });
-        const h = s.setRichContent(this.content, this.selectable, this.flowWidth, (nh) => this.onMeasured(nh), link);
+        const h = s.setRichContent(this.content, this.effSelectable(), this.flowWidth, (nh) => this.onMeasured(nh), link);
         if (h >= 0) { // native path: the backend flowed + measured
             this.clearManual();
             this.height = h;

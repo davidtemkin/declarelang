@@ -155,9 +155,13 @@ const ViewSchema = {
         theme: { kind: "record", name: "Theme" },
         // Native text selection — a prevailing slot so a whole subtree opts in from
         // one place: `selectable = true` on a container makes all its Text (including
-        // a `Markdown` component's rendered runs) selectable/copyable; off by default
-        // (the app is a UI, not a document). Declared on View so any container provides
-        // it, like the text-style slots; only Text acts on the effective value.
+        // a `Markdown` component's rendered runs) selectable/copyable. Defaults by
+        // SPECIES (ruled 2026-07-30): off for Text and views (a label is chrome), ON
+        // for the RichText family (a flowing document is selectable by its nature —
+        // markdown.ts effSelectable); any declaration beats any default, in either
+        // direction, so a control inside prose vetoes with `selectable = false` and
+        // the unusual non-selectable document is one explicit line. Declared on View
+        // so any container provides it, like the text-style slots.
         selectable: { kind: "boolean" },
         // The pointer cursor while over this view (a CSS cursor keyword; "" =
         // inherit) — resize affordances, drag handles. Meaningful on views that

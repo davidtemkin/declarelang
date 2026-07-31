@@ -42,9 +42,32 @@ const APPS = new WeakMap();
 /** Reads on a not-yet-attached view (no root) park here and migrate on the
  *  first read after attach. Weak: a discarded detached view carries its rec away. */
 const ORPHANS = new WeakMap();
-/** Point in `v`'s local space → the same point in child `c`'s local space,
- *  inverting translate(x,y) then scale about the pivot (the paint transform). */
-function toChildLocal(c, lx, ly) {
+/** THE VIEW→CHILD TRANSFORM — a point in `v`'s FRAME space (its own box,
+ *  [0,width]×[0,height] the visible frame) to the same point in child `c`'s
+ *  frame space. THE complete inverse of the paint transform, all three terms:
+ *
+ *    1. the parent's SCROLL — a scrolling parent's content is translated by
+ *       the platform (the browser's scroller, the canvas compositor's offset);
+ *       no view's `x`/`y` changes, so the walk must add the offset back. The
+ *       one exception is frame chrome: an `ignoreScroll` child rides the
+ *       frame, unshifted (the DOM realizes it by reparenting into a sticky
+ *       frame; here it is a term that doesn't apply);
+ *    2. the child's translate (`x`, `y`);
+ *    3. the child's scale about its pivot.
+ *
+ *  Frame space is the invariant that makes every level uniform: the pointer
+ *  enters at the root in VIEWPORT coordinates — which ARE the root's frame
+ *  coordinates (the page realization scrolls the root's content, not its
+ *  frame) — and each descent lands in the child's frame. Omitting term 1 was
+ *  the scroll-blind-walk bug (measured 2026-07-30: every `pressed` below the
+ *  fold landed on the view a full scrollY away); the canvas backend's hit walk
+ *  had all three terms all along (canvas-backend `hit`), which is exactly the
+ *  drift the ONE-WALK rule below exists to prevent. */
+function toChildLocal(v, c, lx, ly) {
+    if (v.scrolls !== "none" && !c.ignoreScroll) {
+        lx += v.scrollX;
+        ly += v.scrollY;
+    }
     let cx = lx - c.x;
     let cy = ly - c.y;
     const s = c.scale;
@@ -77,6 +100,11 @@ export function leafAt(v, lx, ly, pierce = false) {
     if (!pierce && v.pointerEvents === "none")
         return null;
     const inside = lx >= 0 && ly >= 0 && lx <= v.width && ly <= v.height;
+    // A scroller bounds its subtree at its FRAME — content beyond the frame is
+    // out of view by definition, whatever the `clip` attribute says (the canvas
+    // hit walk's exact rule, chrome included: its sticky frame lives in-frame).
+    if (v.scrolls !== "none" && !inside)
+        return null;
     // A clipping view (box or shape — a shape clip approximates as its box here)
     // bounds its subtree's hits — EXCEPT children that opt out with `ignoreClip`
     // (frame chrome straddling the frame "still paints and still hits", view.ts;
@@ -84,13 +112,31 @@ export function leafAt(v, lx, ly, pierce = false) {
     // clips still apply, which the recursion gives for free.
     const clipping = v.clip !== null && v.clip !== false && v.clip !== "";
     const kids = v.children;
+    // A scroller's frame chrome (ignoreScroll) paints ABOVE its scrolled content
+    // (the DOM's sticky frame carries a zIndex; the canvas walk probes chrome
+    // first) — so it hits first too, in its own unshifted coordinates.
+    if (v.scrolls !== "none") {
+        for (let i = kids.length - 1; i >= 0; i--) {
+            const c = kids[i];
+            if (!isView(c) || !c.ignoreScroll)
+                continue;
+            if (clipping && !inside && !c.ignoreClip)
+                continue;
+            const [cx, cy] = toChildLocal(v, c, lx, ly);
+            const hit = leafAt(c, cx, cy, pierce);
+            if (hit !== null)
+                return hit;
+        }
+    }
     for (let i = kids.length - 1; i >= 0; i--) {
         const c = kids[i];
         if (!isView(c))
             continue;
+        if (v.scrolls !== "none" && c.ignoreScroll)
+            continue; // probed above
         if (clipping && !inside && !c.ignoreClip)
             continue;
-        const [cx, cy] = toChildLocal(c, lx, ly);
+        const [cx, cy] = toChildLocal(v, c, lx, ly);
         const hit = leafAt(c, cx, cy, pierce);
         if (hit !== null)
             return hit;
@@ -173,34 +219,59 @@ function recOf(view) {
     }
     return r;
 }
-/** The view under a ROOT-SPACE point — the public hit test (view.ts wraps it
- *  as `app.viewAt(x, y)`), answering with the same walk the pointer itself is
- *  routed by: clip shapes, scale and pivot, `pointerEvents: "none"`, and
- *  `ignoreClip` all count exactly as they do for a real press. Returns the
- *  deepest (topmost) view; walk `.parent` for an eligible ancestor. */
+/** The view under a point in the root's FRAME space (viewport coordinates for
+ *  a top-level app) — the walk's own space. view.ts wraps it as
+ *  `app.viewAt(x, y)` with the CONTENT-space contract the language documents
+ *  (root-space, pairing with drag coordinates), converting at that boundary;
+ *  the Inspector's picker calls it directly (its overlay is viewport-fixed).
+ *  Same walk the pointer is routed by: clip shapes, scale and pivot,
+ *  `pointerEvents: "none"`, `ignoreClip`, and every scroll regime count
+ *  exactly as they do for a real press. Returns the deepest (topmost) view;
+ *  walk `.parent` for an eligible ancestor. */
 export function hitAt(root, x, y, pierce = false) {
     if (!isView(root))
         return null;
     return leafAt(root, x, y, pierce);
 }
-/** Does `view`'s own box contain this point, given in ROOT space? Geometry
- *  only — occlusion is `hitAt`'s question — so a view can ask "is the pointer
- *  within me" without a tree walk. */
+/** Does `view`'s own box contain this point, given in the root's CONTENT
+ *  space (the language's root-space — what drag events carry)? Geometry only —
+ *  occlusion is `hitAt`'s question — so a view can ask "is the pointer within
+ *  me" without a tree walk. */
 export function boxContains(view, x, y) {
     // Walk down from the root accumulating the transform, so the answer honours
-    // the same scale/pivot inversion the routed hit does.
+    // the same scroll/scale/pivot inversion the routed hit does. Content space
+    // in, so the ROOT's own scroll is already in the coordinates (frame =
+    // content − scroll); each descent then re-applies each level's terms.
     const chain = [];
     for (let n = view; isView(n); n = n.parent)
         chain.push(n);
-    let lx = x;
-    let ly = y;
-    for (let i = chain.length - 1; i >= 0; i--) {
-        const c = chain[i];
-        if (i === chain.length - 1)
-            continue; // the root is already in root space
-        [lx, ly] = toChildLocal(c, lx, ly);
+    const rootV = chain[chain.length - 1];
+    let lx = x - rootV.scrollX;
+    let ly = y - rootV.scrollY;
+    for (let i = chain.length - 2; i >= 0; i--) {
+        [lx, ly] = toChildLocal(chain[i + 1], chain[i], lx, ly);
     }
     return lx >= 0 && ly >= 0 && lx <= view.width && ly <= view.height;
+}
+/** A view's origin in the ROOT'S FRAME space (viewport coordinates for a
+ *  top-level app) — the inverse of the descent the walk makes, minus scale
+ *  (callers so far box overlays that don't scale; the term joins when one
+ *  does). Shared for the same reason the walk is: the Inspector's highlight
+ *  accumulated x/y by hand and was blind to every scroll regime. */
+export function rootFrameOrigin(view) {
+    let x = 0;
+    let y = 0;
+    for (let n = view; n !== null;) {
+        x += n.x;
+        y += n.y;
+        const p = isView(n.parent) ? n.parent : null;
+        if (p !== null && p.scrolls !== "none" && !n.ignoreScroll) {
+            x -= p.scrollX;
+            y -= p.scrollY;
+        }
+        n = p;
+    }
+    return { x, y };
 }
 /** The tracked read behind `View.hovered`. */
 export function readHovered(view) {

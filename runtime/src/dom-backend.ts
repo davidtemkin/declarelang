@@ -60,17 +60,25 @@ function applyEditScheme(el: HTMLElement, fill: Fill): void {
   el.style.colorScheme = luminanceOf(fill) < 0.4 ? "dark" : "light";
 }
 
-/** Primary-pointer coarseness, resolved once. The painted-UI selection
- *  suppression (root `user-select: none`, selectable runs opting back in
- *  with explicit `text`) is MOUSE reasoning: a mouse drag must not paint a
- *  selection. On a coarse-pointer device the drag IS scrolling, selection
- *  rides long-press — and iOS treats an explicit `text` island inside a
- *  `none` page as a text-interaction surface whose drags SELECT instead of
- *  panning (measured 2026-07-29: hero swipes died exactly on selectable
- *  runs, and swipes beside them scrolled). So on coarse devices the DOM
- *  realizes selection the way the rest of the web does: defaults everywhere,
- *  no explicit values, and text runs stay pointer-inert. */
-const COARSE = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+// ── THE SELECTION REALIZATION (ruled 2026-07-30, superseding the COARSE
+// stance of 07-29). The language fact is `selectable` (prevailing, view.ts);
+// its realization is SUBTRACTIVE ONLY: `user-select: none` lands on exactly
+// the text leaves (Text runs, rich-flow hosts) whose effective `selectable`
+// is false, and NOTHING ever writes `user-select: text` on painted content —
+// selectable text sits at platform defaults, indistinguishable from any web
+// page. The shape iOS punishes (an explicit `text` island inside a `none`
+// page turns drags into selection instead of panning — measured 2026-07-29:
+// hero swipes died exactly on selectable runs) is thereby unconstructible,
+// which is what let the per-pointer-kind split (COARSE) be deleted: one
+// realization, both pointer kinds, and `selectable` finally governs touch.
+// Boxes are never written — so native editables and islands stay selectable
+// by inheritance with no opt-back-in, and a `selectable` region inside a
+// tappable card needs no `text` to escape anything. Selectable leaves are
+// additionally STAMPED `data-declare-selectable`, the fact the input
+// router's selection-anchor guard reads (input.ts) — realization-derived,
+// never inferred from handlers. The one deliberate `text` that remains is
+// setEditable's, on a NATIVE editable element: already a text-interaction
+// surface to the platform, no island semantics (claim-surface.md).
 
 /** Element → its surface's input sink. Setting a sink is also what flips the
  *  element's pointer-events on, so membership here and native hit-testability
@@ -213,14 +221,12 @@ export class DomBackend implements RenderBackend {
     // (index.ts isEmbedded), and the boundary the input router stops at so an
     // outer app never double-handles a click that belongs to an embedded child.
     rootEl.dataset.declareApp = "";
-    // Views are a painted UI, not a document: a press-drag (event drag, and any
-    // future gesture) must not start a native text/element selection. Suppress
-    // it once at the root — `user-select` inherits, so every view div is covered
-    // (editable fields opt back IN, see setEditable).
-    if (!COARSE) {
-      rootEl.style.userSelect = "none";
-      (rootEl.style as CSSStyleDeclaration & { webkitUserSelect: string }).webkitUserSelect = "none";
-    }
+    // Selection is realized at the LEAVES (see the ruling above the class):
+    // the root writes no `user-select` at all. What the root does own is the
+    // tap flash — WebKit's gray tap-highlight rectangle is feedback for a
+    // page that gives none, and a painted UI draws its own (`pressed`); the
+    // property inherits, so one write covers every view.
+    (rootEl.style as CSSStyleDeclaration & { webkitTapHighlightColor: string }).webkitTapHighlightColor = "transparent";
     // Touch gestures are NOT suppressed here: the browser owns every gesture
     // until a view claims one by declaring the handler that answers it
     // (refreshTouchAction — the app root's default keeps pan for an app the
@@ -895,10 +901,13 @@ class DomSurface implements Surface {
     }
     host.style.width = width + "px";
     host.textContent = "";
-    const selRealized = selectable && !COARSE; // coarse: default-selectable page, inert runs (see COARSE)
-    host.style.userSelect = selRealized ? "text" : "";
-    (host.style as CSSStyleDeclaration & { webkitUserSelect: string }).webkitUserSelect = selRealized ? "text" : "";
-    host.style.pointerEvents = selRealized ? "auto" : "none";
+    // Subtractive selection (the class ruling): `none` on an unselectable
+    // flow, platform default + the stamp on a selectable one — never `text`.
+    host.style.userSelect = selectable ? "" : "none";
+    (host.style as CSSStyleDeclaration & { webkitUserSelect: string }).webkitUserSelect = selectable ? "" : "none";
+    host.style.pointerEvents = selectable ? "auto" : "none";
+    if (selectable) host.dataset.declareSelectable = "1";
+    else delete host.dataset.declareSelectable;
     for (const b of blocks) {
       // A `pre` block is a real <pre>: whitespace preserved and, being code, it does
       // NOT wrap — long lines keep their shape and the block scrolls HORIZONTALLY
@@ -986,33 +995,25 @@ class DomSurface implements Surface {
     // content inside this Declare-sized element; the tenant fills the box (100%), so
     // Declare's width/height constraints drive its size with no coordinate sync.
     const s = this.element.style;
-    const webkit = s as CSSStyleDeclaration & { webkitUserSelect: string };
     const el = this.element as HTMLElement & { __declareView?: unknown };
     if (id === "") {
       delete this.element.dataset.declareSlot;
       delete el.__declareView;
-      // Back to the painted-UI defaults: pointer-inert, unselectable.
+      // Back to the painted-UI default: pointer-inert. (Selection needs no
+      // reset — under the subtractive realization nothing was ever written
+      // on this box, and an island's interior selects by platform default.)
       s.pointerEvents = "none";
-      s.userSelect = "";
-      webkit.webkitUserSelect = "";
     } else {
       this.element.dataset.declareSlot = id;
       // the view back-reference the name-mirror writes `childName` onto, plus a
       // start of that mirror (self-retiring, so it only runs while islands live)
       el.__declareView = view;
       ensureEmbeddedNameMirror();
-      // A live foreign surface, not painted UI: its interior owns hits and
-      // native text selection. Declare's model makes every view pointer-inert
-      // (pointerEvents:none) and unselectable (user-select:none inherits from
-      // the root) — an island opts BACK in for both, so an iframe receives
-      // clicks and a text field selects, whether or not the View has a sink.
-      // (On a coarse-pointer device the root never set `none` and explicit
-      // `text` islands feed iOS's pan-stealing text gesture — see COARSE —
-      // so only the pointer half applies there; native editables inside the
-      // island still opt into selection themselves.)
+      // A live foreign surface, not painted UI: its interior owns hits, so an
+      // iframe receives clicks whether or not the View has a sink. Selection
+      // inside is already the platform's — boxes carry no `user-select` under
+      // the subtractive realization, so there is nothing to opt back out of.
       s.pointerEvents = "auto";
-      s.userSelect = COARSE ? "" : "text";
-      webkit.webkitUserSelect = COARSE ? "" : "text";
     }
   }
 
@@ -1045,8 +1046,13 @@ class DomSurface implements Surface {
     // Copy/Translate callout) fire on the same stationary press and would win
     // the race (measured: a window title bar's hold-drag became a 570-char
     // selection, simulator 2026-07-29), so the claim suppresses them HERE —
-    // per element, derived from the declared handlers, while the COARSE page
-    // default stays web-native everywhere else (claim-surface.md).
+    // per element, derived from the declared drag pair (claim-surface.md).
+    // `user-select` inherits, so the claim covers the drag view's SUBTREE:
+    // selectable content under a drag view is unselectable while the claim
+    // stands — two claims on one finger, and the drag was declared. (The
+    // measured race itself is doubly covered now: label runs carry leaf
+    // `none` under the subtractive realization, so a title bar's text offers
+    // the long-press nothing to bind to even before this element-level claim.)
     const dragOwns = sink !== null && wants?.wantsDrag === true;
     const st = this.element.style as CSSStyleDeclaration & { webkitUserSelect: string; webkitTouchCallout: string };
     if (dragOwns) {
@@ -1277,14 +1283,18 @@ class DomSurface implements Surface {
     // backend's fillText(…, ascent) place identical glyph geometry.
     const m = fontMetrics(fontString(st));
     s.lineHeight = m.ascent + m.descent + "px";
-    // Selection: the app root sets `user-select: none` (a UI, not a document);
-    // `selectable` opts THIS run back in — user-select plus a real pointer target
-    // (the run is otherwise pointer-inert so hits fall through to the box). Off
-    // ⇒ restore the inert default.
-    const sel = st.selectable === true && !COARSE; // coarse: see COARSE above
-    s.userSelect = sel ? "text" : "";
-    (s as CSSStyleDeclaration & { webkitUserSelect: string }).webkitUserSelect = sel ? "text" : "";
+    // Selection, subtractive (the ruling above the class): an unselectable
+    // run wears `none`; a selectable run wears NO explicit value — platform
+    // default, like any web page — plus the stamp and a real pointer target
+    // (an unselectable run stays pointer-inert so hits fall through to the
+    // box; a selectable one must catch the selection gesture itself).
+    const el = this.textRun();
+    const sel = st.selectable === true;
+    s.userSelect = sel ? "" : "none";
+    (s as CSSStyleDeclaration & { webkitUserSelect: string }).webkitUserSelect = sel ? "" : "none";
     s.pointerEvents = sel ? "auto" : "none";
+    if (sel) el.dataset.declareSelectable = "1";
+    else delete el.dataset.declareSelectable;
   }
 
   /** The text run element, created on first use. A positioned <span> — not a
@@ -1302,8 +1312,8 @@ class DomSurface implements Surface {
       // Content is pointer-inert (here and for img/drawing below): the hit
       // region is the view's geometry BOX, so a glyph run overflowing an
       // explicit box can't grow it — keeping DOM hits identical to the
-      // canvas walk's box test. (Native text selection goes with this;
-      // it returns via a future `selectable` attribute — HANDOFF §R5.)
+      // canvas walk's box test. (A `selectable` run opts back into pointer
+      // targeting in setTextStyle — the selection gesture needs the glyphs.)
       s.pointerEvents = "none";
       this.placeContent(el, this.imgEl, this.drawEl);
       this.textEl = el;

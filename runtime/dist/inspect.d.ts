@@ -86,10 +86,13 @@ export declare const clock: {
  *  whole inspect API bound to that app's root. What verify's rung 5 drives,
  *  and what a human pokes in the console. */
 export declare function bridgeFor(root: Node): Record<string, unknown>;
-/** The VIEW under a root-space point — THE hit walk (interaction.ts leafAt),
- *  the same one the pointer is routed by and `View.viewAt` exposes, so the
- *  picker highlights exactly what a press would reach. `pierce` is the
- *  picker's one deviation: a pointer-transparent view is still selectable,
+/** The VIEW under a point in the subject's FRAME space (its viewport — the
+ *  space the picker's own pointer lives in, since the overlay is fixed) — THE
+ *  hit walk (interaction.ts leafAt), the same one the pointer is routed by and
+ *  `View.viewAt` exposes (that wrapper converts from content space; the picker
+ *  needs no conversion), so the picker highlights exactly what a press would
+ *  reach, at any scroll. `pierce` is the picker's one deviation: a
+ *  pointer-transparent view is still selectable,
  *  because a developer asking "what is this?" means the thing they can see.
  *  (This used to be a second, cruder implementation — plain rectangle
  *  containment, blind to clip, scale, and pivot — which is precisely the

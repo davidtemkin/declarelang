@@ -5848,6 +5848,70 @@ await test("hovered: an ignoreClip child hits OUTSIDE its clipping parent's box 
   assert.equal(app.hh, false);
 });
 
+await test("hovered/pressed under the PAGE scroll — the walk's transform carries the scroll term", () => {
+  // The scroll-blind-walk bug (measured 2026-07-30): app.pointerX/Y are
+  // viewport coordinates — the root's FRAME — while children sit in content
+  // coordinates. The transform adds the scroll back per level; every view
+  // below the fold presses where it PAINTS, and ignoreScroll chrome (which
+  // rides the frame) keeps hitting at its unshifted place.
+  const app = build(`App [ width = 200, height = 200,
+    hd: boolean = { this.deep.hovered },
+    pd: boolean = { this.deep.pressed },
+    hbar: boolean = { this.bar.hovered },
+    bar: View [ ignoreScroll = true, width = 200, height = 20 ],
+    deep: View [ x = 50, y = 900, width = 60, height = 40 ],
+    ]`);
+  app.hovering = true; app.scrollY = 880; settle();
+  app.pointerX = 60; app.pointerY = 40; settle();       // viewport 40 = content 920 → inside deep
+  assert.equal(app.hd, true, "a below-the-fold view hovers at its painted position");
+  app.pointerDown = true; settle();
+  assert.equal(app.pd, true, "and presses there");
+  app.pointerDown = false; settle();
+  app.pointerX = 60; app.pointerY = 10; settle();       // on the fixed bar, page still scrolled
+  assert.equal(app.hbar, true, "ignoreScroll chrome hits at its frame position");
+  assert.equal(app.hd, false, "content a scroll away does not");
+  app.scrollY = 0; settle();                            // scroll home under a stationary pointer
+  assert.equal(app.hbar, true, "chrome unmoved");
+});
+
+await test("hovered: scrolling under a STATIONARY pointer re-fires (the offset is a dependency)", () => {
+  const app = build(`App [ width = 200, height = 200,
+    hd: boolean = { this.deep.hovered },
+    deep: View [ x = 50, y = 250, width = 60, height = 40 ],
+    ]`);
+  app.hovering = true; app.pointerX = 60; app.pointerY = 100; settle();
+  assert.equal(app.hd, false, "below the fold, unscrolled");
+  app.scrollY = 170; settle();                          // content 270 slides under the pointer
+  assert.equal(app.hd, true, "the scroll alone re-derived the chain");
+});
+
+await test("hovered in a scrolled PANE — frame-space at every level, and the pane bounds its subtree", () => {
+  const app = build(`App [ width = 200, height = 200,
+    hi: boolean = { this.pane.inner.hovered },
+    pane: View [ x = 20, y = 20, width = 100, height = 100, scrolls = y,
+        inner: View [ x = 0, y = 400, width = 100, height = 40 ],
+        tall: View [ x = 0, y = 800, width = 100, height = 10 ] ],
+    ]`);
+  app.hovering = true;
+  app.pointerX = 60; app.pointerY = 50; settle();       // pane-frame (40,30); content 30 → nothing
+  assert.equal(app.hi, false, "unscrolled: inner is 400px down the pane's content");
+  app.pane.scrollY = 390; settle();                     // content 30+390 = 420 → inside inner
+  assert.equal(app.hi, true, "scrolled: inner hovers where it paints, inside the pane's frame");
+  app.pointerX = 60; app.pointerY = 140; settle();      // below the pane's frame (h=100)
+  assert.equal(app.hi, false, "the pane bounds its subtree at its frame — no hits past the edge");
+});
+
+await test("viewAt/containsPoint keep the CONTENT-space contract at any scroll (the drag pairing)", () => {
+  const app = build(`App [ width = 200, height = 200,
+    deep: View [ x = 50, y = 900, width = 60, height = 40 ],
+    ]`);
+  app.scrollY = 880; settle();
+  // Drag events carry root-CONTENT coordinates; viewAt takes exactly those.
+  assert.equal(app.viewAt(60, 920), app.deep, "viewAt answers in content space, scrolled");
+  assert.equal(app.deep.containsPoint(60, 920), true, "containsPoint agrees");
+  assert.equal(app.viewAt(60, 40), null, "the content point 40 is above the fold's content — not the view");
+});
+
 await test("hovered/pressed are read-only intrinsics: declaring or setting one is refused", () => {
   const decl = compile(`App [ width = 1, height = 1, v: View [ hovered: boolean = false ] ]`, {});
   assert.equal(decl.source, null);

@@ -21,6 +21,12 @@ class Control extends View [
     disabled: boolean = false,
     focused:  boolean = false,
 
+    // A control is chrome, not prose: its label never selects, even inside a
+    // `selectable` region (a provision here vetoes the inherited value — the
+    // language rule: anything that activates declares itself unselectable).
+
+    selectable = false,
+
     // the styling pair — the interaction intrinsics under CONTROL policy
 
     hot:  boolean = { this.hovered && !this.disabled },

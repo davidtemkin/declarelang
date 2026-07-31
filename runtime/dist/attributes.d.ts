@@ -68,6 +68,19 @@ export declare function defaultOf(self: object, name: string): unknown;
  *  slot — the declaration default is just the chain's end, so "unresolved →
  *  the followed value" is the consistent generalization (ruling item 15). */
 export declare function followedValue(self: object, name: string): unknown;
+/** Is this prevailing slot PROVIDED anywhere — on the view itself, or on any
+ *  ancestor the follow walk would consult? Distinguishes "somebody declared a
+ *  value" from "the chain ran out and the class default answered". A component
+ *  SPECIES whose nature differs from the View-wide default asks this and
+ *  supplies its own fallback at the read site (RichText: a document is
+ *  selectable unless somebody says otherwise) — the only mechanism that gives
+ *  a species default WITHOUT breaking the slot's semantics: a class-body
+ *  provision would defeat ancestor vetoes (a provision always wins), and
+ *  re-declaring the slot on the subclass would fork its identity and make
+ *  every ancestor transparent to the follow walk. Tracked like any prevailing
+ *  read: a provision appearing, changing, or clearing anywhere on the chain
+ *  re-runs the asking constraint. */
+export declare function prevailingProvided(self: object, name: string): boolean;
 /** Retire every constraint that owns a slot on `self` — the teardown half a
  *  removed view needs (R8's replication is the first thing that removes):
  *  disposed constraints unlink from their Cells, so a later data or

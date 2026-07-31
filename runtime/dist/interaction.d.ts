@@ -11,6 +11,15 @@ export interface InteractionView {
     visible: boolean;
     pointerEvents: string;
     ignoreClip: boolean;
+    /** The scroll regime facts (view.ts): which axes this view scrolls, its
+     *  live offsets, and whether it opts out of its parent's regime. The
+     *  transform below is incomplete without them — a scrolled parent's content
+     *  is translated by the platform, and that translation is as much a part of
+     *  the view→child transform as `x`/`y` and `scale` are. */
+    scrolls: string;
+    scrollX: number;
+    scrollY: number;
+    ignoreScroll: boolean;
     parent: unknown;
     root: unknown;
     children: readonly unknown[];
@@ -36,16 +45,30 @@ export declare function initInteraction(test: (n: unknown) => n is InteractionVi
  *  question — the inspector's picker, a calendar's cell math, a window's resize
  *  zones — is how the desktop's corner bug happened.) */
 export declare function leafAt(v: InteractionView, lx: number, ly: number, pierce?: boolean): InteractionView | null;
-/** The view under a ROOT-SPACE point — the public hit test (view.ts wraps it
- *  as `app.viewAt(x, y)`), answering with the same walk the pointer itself is
- *  routed by: clip shapes, scale and pivot, `pointerEvents: "none"`, and
- *  `ignoreClip` all count exactly as they do for a real press. Returns the
- *  deepest (topmost) view; walk `.parent` for an eligible ancestor. */
+/** The view under a point in the root's FRAME space (viewport coordinates for
+ *  a top-level app) — the walk's own space. view.ts wraps it as
+ *  `app.viewAt(x, y)` with the CONTENT-space contract the language documents
+ *  (root-space, pairing with drag coordinates), converting at that boundary;
+ *  the Inspector's picker calls it directly (its overlay is viewport-fixed).
+ *  Same walk the pointer is routed by: clip shapes, scale and pivot,
+ *  `pointerEvents: "none"`, `ignoreClip`, and every scroll regime count
+ *  exactly as they do for a real press. Returns the deepest (topmost) view;
+ *  walk `.parent` for an eligible ancestor. */
 export declare function hitAt(root: unknown, x: number, y: number, pierce?: boolean): InteractionView | null;
-/** Does `view`'s own box contain this point, given in ROOT space? Geometry
- *  only — occlusion is `hitAt`'s question — so a view can ask "is the pointer
- *  within me" without a tree walk. */
+/** Does `view`'s own box contain this point, given in the root's CONTENT
+ *  space (the language's root-space — what drag events carry)? Geometry only —
+ *  occlusion is `hitAt`'s question — so a view can ask "is the pointer within
+ *  me" without a tree walk. */
 export declare function boxContains(view: InteractionView, x: number, y: number): boolean;
+/** A view's origin in the ROOT'S FRAME space (viewport coordinates for a
+ *  top-level app) — the inverse of the descent the walk makes, minus scale
+ *  (callers so far box overlays that don't scale; the term joins when one
+ *  does). Shared for the same reason the walk is: the Inspector's highlight
+ *  accumulated x/y by hand and was blind to every scroll regime. */
+export declare function rootFrameOrigin(view: InteractionView): {
+    x: number;
+    y: number;
+};
 /** The tracked read behind `View.hovered`. */
 export declare function readHovered(view: InteractionView): boolean;
 /** The tracked read behind `View.pressed`. */

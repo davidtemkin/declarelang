@@ -2293,9 +2293,13 @@ var DeclareMac = (() => {
           theme: { kind: "record", name: "Theme" },
           // Native text selection — a prevailing slot so a whole subtree opts in from
           // one place: `selectable = true` on a container makes all its Text (including
-          // a `Markdown` component's rendered runs) selectable/copyable; off by default
-          // (the app is a UI, not a document). Declared on View so any container provides
-          // it, like the text-style slots; only Text acts on the effective value.
+          // a `Markdown` component's rendered runs) selectable/copyable. Defaults by
+          // SPECIES (ruled 2026-07-30): off for Text and views (a label is chrome), ON
+          // for the RichText family (a flowing document is selectable by its nature —
+          // markdown.ts effSelectable); any declaration beats any default, in either
+          // direction, so a control inside prose vetoes with `selectable = false` and
+          // the unusual non-selectable document is one explicit line. Declared on View
+          // so any container provides it, like the text-style slots.
           selectable: { kind: "boolean" },
           // The pointer cursor while over this view (a CSS cursor keyword; "" =
           // inherit) — resize affordances, drag handles. Meaningful on views that
@@ -4882,6 +4886,20 @@ var DeclareMac = (() => {
     }
     return table[name];
   }
+  function prevailingProvided(self, name) {
+    const c = self;
+    if (isTracking())
+      cellFor(c, name).track();
+    if (provided(c, name))
+      return true;
+    const table = tableFor(DEFAULTS, self.constructor);
+    if (table === null)
+      return false;
+    const declaring = declaringOf(table, name);
+    if (declaring === null)
+      return false;
+    return followRead(c, name, declaring) !== NOTHING;
+  }
   function disposeBindings(self) {
     const owners = self.$owners;
     if (owners === void 0)
@@ -5574,7 +5592,11 @@ var DeclareMac = (() => {
   function initInteraction(test) {
     isView = test;
   }
-  function toChildLocal(c, lx, ly) {
+  function toChildLocal(v, c, lx, ly) {
+    if (v.scrolls !== "none" && !c.ignoreScroll) {
+      lx += v.scrollX;
+      ly += v.scrollY;
+    }
     let cx = lx - c.x;
     let cy = ly - c.y;
     const s = c.scale;
@@ -5590,15 +5612,32 @@ var DeclareMac = (() => {
     if (!pierce && v.pointerEvents === "none")
       return null;
     const inside = lx >= 0 && ly >= 0 && lx <= v.width && ly <= v.height;
+    if (v.scrolls !== "none" && !inside)
+      return null;
     const clipping = v.clip !== null && v.clip !== false && v.clip !== "";
     const kids = v.children;
+    if (v.scrolls !== "none") {
+      for (let i = kids.length - 1; i >= 0; i--) {
+        const c = kids[i];
+        if (!isView(c) || !c.ignoreScroll)
+          continue;
+        if (clipping && !inside && !c.ignoreClip)
+          continue;
+        const [cx, cy] = toChildLocal(v, c, lx, ly);
+        const hit = leafAt(c, cx, cy, pierce);
+        if (hit !== null)
+          return hit;
+      }
+    }
     for (let i = kids.length - 1; i >= 0; i--) {
       const c = kids[i];
       if (!isView(c))
         continue;
+      if (v.scrolls !== "none" && c.ignoreScroll)
+        continue;
       if (clipping && !inside && !c.ignoreClip)
         continue;
-      const [cx, cy] = toChildLocal(c, lx, ly);
+      const [cx, cy] = toChildLocal(v, c, lx, ly);
       const hit = leafAt(c, cx, cy, pierce);
       if (hit !== null)
         return hit;
@@ -5683,15 +5722,28 @@ var DeclareMac = (() => {
     const chain = [];
     for (let n = view; isView(n); n = n.parent)
       chain.push(n);
-    let lx = x;
-    let ly = y;
-    for (let i = chain.length - 1; i >= 0; i--) {
-      const c = chain[i];
-      if (i === chain.length - 1)
-        continue;
-      [lx, ly] = toChildLocal(c, lx, ly);
+    const rootV = chain[chain.length - 1];
+    let lx = x - rootV.scrollX;
+    let ly = y - rootV.scrollY;
+    for (let i = chain.length - 2; i >= 0; i--) {
+      [lx, ly] = toChildLocal(chain[i + 1], chain[i], lx, ly);
     }
     return lx >= 0 && ly >= 0 && lx <= view.width && ly <= view.height;
+  }
+  function rootFrameOrigin(view) {
+    let x = 0;
+    let y = 0;
+    for (let n = view; n !== null; ) {
+      x += n.x;
+      y += n.y;
+      const p = isView(n.parent) ? n.parent : null;
+      if (p !== null && p.scrolls !== "none" && !n.ignoreScroll) {
+        x -= p.scrollX;
+        y -= p.scrollY;
+      }
+      n = p;
+    }
+    return { x, y };
   }
   function readHovered(view) {
     const r = recOf(view);
@@ -6079,9 +6131,13 @@ var DeclareMac = (() => {
          *          },
          *
          *  Root-space, like the coordinates `onPointerMove`/`onPointerUp` carry, so a
-         *  drag can pass its own event coordinates straight in. */
+         *  drag can pass its own event coordinates straight in. (Root-space is the
+         *  root's CONTENT space; the walk itself runs in frame space, so the root's
+         *  own scroll converts here at the boundary — the contract stays exactly
+         *  what the drag pairing needs, scrolled or not.) */
         viewAt(x, y) {
-          return hitAt(this.root ?? this, x, y);
+          const r = this.root ?? this;
+          return hitAt(r, x - r.scrollX, y - r.scrollY);
         }
         /** Does this view's box contain the root-space point? Geometry only — what
          *  paints ON TOP is `viewAt`'s question — so a drop target can ask about
@@ -10301,9 +10357,22 @@ var DeclareMac = (() => {
           const within2 = this.anchorYs.has(slug) ? this.anchorYs.get(slug) : -1;
           return this.surface?.revealRichAnchor(slug, within2) ?? false;
         }
+        /** The flow's EFFECTIVE `selectable` — the species default (ruled
+         *  2026-07-30): a flowing document is selectable BY ITS NATURE, so when
+         *  nobody on the prevailing chain says otherwise, the answer is true — the
+         *  Jots shape (a Markdown note, no declaration anywhere) reads as the
+         *  document it is. Any provision still wins over this default, in either
+         *  direction: `selectable = false` on the instance, a container, or a
+         *  Control ancestor vetoes it (the unusual non-selectable document, one
+         *  explicit line); the View-wide default stays false for everything that is
+         *  not a flow (a `Text` is a label). `prevailingProvided` is tracked, so a
+         *  provision appearing later re-flows. */
+        effSelectable() {
+          return prevailingProvided(this, "selectable") ? this.selectable : true;
+        }
         attach(backend2, parentSurface, before = null) {
           super.attach(backend2, parentSurface, before);
-          const c = new Constraint("TextFlow.flow", () => `${this.flowWidth} ${this.selectable}`, () => this.render(), 0);
+          const c = new Constraint("TextFlow.flow", () => `${this.flowWidth} ${this.effSelectable()}`, () => this.render(), 0);
           c.run();
           onDiscard(this, () => c.dispose());
         }
@@ -10326,7 +10395,7 @@ var DeclareMac = (() => {
             return;
           const link = this.onLink ?? (() => {
           });
-          const h = s.setRichContent(this.content, this.selectable, this.flowWidth, (nh) => this.onMeasured(nh), link);
+          const h = s.setRichContent(this.content, this.effSelectable(), this.flowWidth, (nh) => this.onMeasured(nh), link);
           if (h >= 0) {
             this.clearManual();
             this.height = h;
@@ -11984,14 +12053,8 @@ var DeclareMac = (() => {
   function rectOf(n) {
     if (!(n instanceof View))
       return null;
-    let x = 0, y = 0;
-    let cur = n;
-    while (cur !== null) {
-      x += cur.x || 0;
-      y += cur.y || 0;
-      cur = cur.parent;
-    }
-    return { x, y, width: n.width || 0, height: n.height || 0 };
+    const o = rootFrameOrigin(n);
+    return { x: o.x, y: o.y, width: n.width || 0, height: n.height || 0 };
   }
   function rows(n, open, depth, path, out) {
     let anyConstrained = false;
@@ -12275,6 +12338,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       "use strict";
       init_node();
       init_view();
+      init_interaction();
       init_inspect();
       init_expr();
       init_datapath();
@@ -13332,7 +13396,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
         const el = typeof Element !== "undefined" && e.target instanceof Element ? e.target : null;
         const editable = typeof HTMLElement !== "undefined" && el instanceof HTMLElement && (el.isContentEditable || el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT");
         const cs = el !== null && typeof getComputedStyle === "function" ? getComputedStyle(el) : null;
-        const selectable = cs !== null && (cs.userSelect ?? cs.webkitUserSelect) === "text";
+        const selectable = el !== null && typeof el.closest === "function" && el.closest("[data-declare-selectable]") !== null && (cs === null || (cs.userSelect ?? cs.webkitUserSelect) !== "none");
         if (el !== null && !editable && !selectable && e.pointerType !== "touch")
           e.preventDefault();
         pressOnSelectable = editable || selectable;
@@ -13469,9 +13533,6 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
         clearHover();
     });
   }
-
-  // runtime/dist/dom-backend.js
-  var COARSE = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
 
   // runtime/dist/canvas-backend.js
   init_errors();
