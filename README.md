@@ -59,6 +59,9 @@ to assume a rule from React, CSS, or HTML carries over.
   [verify](docs/operational/verify.md), then *ask the running program* with
   [introspection](docs/operational/introspection.md). A clean compile is not a working app:
   layout, fonts, paint, and input routing do not exist until it runs.
+- **Changing the platform itself** rather than writing a program in it —
+  [CONTRIBUTING.md](CONTRIBUTING.md): the tenets, the gates, how documentation is generated,
+  and the narrow rules for touching `docs/declare.md`.
 
 Write your own programs to `my-apps/` and browse to their URL.
 
