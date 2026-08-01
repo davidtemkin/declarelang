@@ -14653,6 +14653,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     throw new Error("could not load " + url);
   }
   var currentApp = null;
+  var keysWired = false;
   var backend = null;
   async function macBoot(url) {
     const { source, deps, base: base2 } = await resolveProgram(url);
@@ -14676,8 +14677,11 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     mountApp(app, hostStub(), backend);
     globalThis.__declare = bridgeFor(app);
     Focus.setRoot(app);
-    Keys.listen(() => app.surface !== null);
-    deliverKeys(Keys, Focus);
+    if (!keysWired) {
+      keysWired = true;
+      Keys.listen(() => currentApp?.surface != null);
+      deliverKeys(Keys, Focus);
+    }
     settle();
     flushOps();
     H.setTitle(app.appName || programName(base2));

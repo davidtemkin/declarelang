@@ -160,6 +160,7 @@ async function resolveProgram(url) {
 // ── mounting ────────────────────────────────────────────────────────────────
 
 let currentApp = null;
+let keysWired = false;   // process-lived, unlike the app (see mountApp below)
 let backend = null;
 
 export async function macBoot(url) {
@@ -201,9 +202,20 @@ export async function macBoot(url) {
   // verb drives), so nothing was missing but these three calls: the listener
   // had no one listening. Found by the conformance suite's first keyboard
   // test — DOM cycled filled → empty → filled on Tab, native did nothing.
+  // The ROOT is per program; the LISTENERS are per process. Keys.listen has no
+  // guard against re-registration — it just adds handlers — and this function
+  // runs on every `__declareBoot`, so wiring here unguarded added another
+  // keydown listener per navigation and fired Focus.next() once per boot. One
+  // Tab then advanced N steps, and an even N around a two-field cycle lands on
+  // the same field every time: the native column reported [empty,empty,empty]
+  // and looked exactly like "focus does not advance". A browser never sees this
+  // because a new document means new listeners; a long-lived host does.
   Focus.setRoot(app);
-  Keys.listen(() => app.surface !== null);
-  deliverKeys(Keys, Focus);
+  if (!keysWired) {
+    keysWired = true;
+    Keys.listen(() => currentApp?.surface != null);
+    deliverKeys(Keys, Focus);
+  }
   settle();
   flushOps();
   H.setTitle(app.appName || programName(base));

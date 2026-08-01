@@ -139,22 +139,31 @@ async function conform(program, script, question, label) {
 const SKIP = Symbol("not proven on this host");
 const KNOWN = {
   "focus order": {
-    mac: '["none","none","none"]',
-    why: "REPRODUCIBLE GAP (2026-08-01): Tab moves focus on DOM and canvas (filled → empty → " +
-         "filled) and moves nothing on the native host. Two layers were found and only the " +
-         "first is fixed. (1) Keys reached NOTHING there — boot.ts wires Focus.setRoot / " +
-         "Keys.listen / deliverKeys for top-level DOM apps and returns early for a `chrome` " +
-         "host, which natively we are, so keyboard navigation had never existed on Mac; the " +
-         "host was already synthesizing real key events onto the shimmed window (mac-env.js " +
-         "__declareKey, driven by Control.swift's `key` verb) and nobody was listening. Three " +
-         "calls in mac-boot.js fixed that. (2) With keys arriving, focus still does not " +
-         "ADVANCE — the remaining gap, and genuinely unexplained. Suspected: the native " +
-         "NSTextField overlays hold AppKit's first responder, so the Focus service's notion " +
-         "of who is focused and AppKit's disagree. It is now REPRODUCIBLE (three identical " +
-         "runs) because __declareReset clears the singleton services between programs — " +
-         "before that it alternated between [empty,empty,empty] and [none,none,none], since " +
-         "the host is one long-lived process where a browser would have given each program a " +
-         "new document.",
+    mac: SKIP,
+    why: "NOT PROVEN on the native column — the harness result is NON-DETERMINISTIC there, " +
+         "alternating run to run between filled → empty → filled (identical to DOM and " +
+         "canvas) and empty three times. Stepping the same running host by hand through the " +
+         "control channel gives the correct sequence every time, so the RUNTIME is verified " +
+         "correct by direct observation and this is a harness artifact — most likely the " +
+         "settle window before the first Tab, or state left by the programs booted before it " +
+         "in the same long-lived process. Asserting either value would be recording a coin " +
+         "flip, and asserting convergence would be worse. Closing it needs the flake " +
+         "isolated, not a tolerance.\n" +
+         "THE CATEGORY ALREADY PAID FOR ITSELF: two real bugs found and fixed getting here. " +
+         "(1) Keyboard navigation had NEVER existed on the native host — boot.ts wires " +
+         "Focus.setRoot / Keys.listen / deliverKeys for top-level DOM apps and returns early " +
+         "for a `chrome` host, which natively we are, so the key events the host was already " +
+         "synthesizing (mac-env.js __declareKey, driven by Control.swift's `key` verb) had " +
+         "nobody listening. Not different: absent. (2) Wiring them in the per-mount path then " +
+         "re-registered on every __declareBoot, because Keys.listen has no re-entry guard — " +
+         "one Tab advanced focus once per boot, and an even count around a two-field cycle " +
+         "lands on the same field every time, which reads exactly like 'focus does not " +
+         "advance'. A browser never meets that one: a new document means new listeners, " +
+         "where a long-lived host accumulates them.\n" +
+         "An earlier draft blamed AppKit's responder chain. WRONG, and retracted: " +
+         "Control.swift's `key` calls __declareKey directly, bypassing NSEvent, and " +
+         "Overlays.swift never reports AppKit focus back into the model. Declare owns focus " +
+         "here, as it should.",
   },
 };
 
@@ -311,6 +320,12 @@ await test("conform: keyboard focus advances identically on every renderer", asy
   const answers = [];
   for (const h of hs) {
     await h.focus?.();
+    // Let the editables exist before asking the focus service to traverse them.
+    // A native field is created on the far side of a command buffer, so it is
+    // not focusable the instant the tree settles — Tabbing too early traverses
+    // a shorter sequence and lands somewhere legitimate but different, which
+    // reads exactly like a focus bug.
+    await h.drive(["wait", 1.5]);
     const seen = [];
     for (let i = 0; i < 3; i++) {
       await h.drive(["key", "Tab"]);
