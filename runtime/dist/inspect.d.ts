@@ -98,6 +98,34 @@ export declare function bridgeFor(root: Node): Record<string, unknown>;
  *  containment, blind to clip, scale, and pivot — which is precisely the
  *  duplication that produced a mis-hit window corner elsewhere.) */
 export declare function viewAt(root: Node, x: number, y: number): View | null;
+/** WHY the point resolved the way it did — the hit walk's own decisions, in
+ *  order: what it descended into, what it skipped and for which reason, and
+ *  what finally took the point.
+ *
+ *  `viewAt` answers *what*, which is enough when the answer is right and
+ *  useless when it is wrong. Every interaction bug of the 2026-07 run was a
+ *  disagreement between where a view PAINTS and where the walk THINKS it is —
+ *  a scroll term missing from the transform, a cursor-following dot silently
+ *  occluding the page, chrome stranded in the wrong parent — and each cost
+ *  hours of inference from the outside because nothing could be asked directly.
+ *
+ *  The narration is produced by instrumenting THE walk (interaction.ts
+ *  traceHitAt), so it can never drift from the router's real answer, and it is
+ *  backend-neutral: the same question, identically answered, over the DOM
+ *  bridge, the canvas host, and the native control channel's `eval`. Takes a
+ *  point in the root's FRAME space, like `viewAt`. `pierce` defaults false —
+ *  the router's own rule — so a pointer-transparent view reports as skipped
+ *  rather than silently being the answer. */
+export declare function explainHit(root: Node, x: number, y: number, pierce?: boolean): {
+    hit: string | null;
+    steps: {
+        path: string;
+        kind: string;
+        why: string;
+        x: number;
+        y: number;
+    }[];
+};
 /** Every (path, attr) whose constraint READS `target` — the reverse of
  *  `explain().deps`, answering "what moves if this changes?". Computed by
  *  scanning owned slots and matching wired read-paths; O(slots), which at the

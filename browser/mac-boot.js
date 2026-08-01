@@ -21,7 +21,7 @@
 // pointer capture, hover, keyboard, host sizing — and only the drawing is
 // native.
 
-import { build, mountApp, settle, provideTransport, provideMeasurer, loadFonts, fontFacesOf } from "../runtime/dist/index.js";
+import { build, mountApp, settle, provideTransport, provideMeasurer, loadFonts, fontFacesOf, bridgeFor } from "../runtime/dist/index.js";
 import { MacBackend, flushOps, provideHitPath, macScroll, macRichHeight, macRichLink,
          macEditInput, macEditFocus, macEditEnter, embedsPending, mountEmbed, clearEmbed, surfaceById,
          publishChildName, macScrollTo, surfaceOrigin,
@@ -183,6 +183,15 @@ export async function macBoot(url) {
 
   backend = new MacBackend();
   mountApp(app, hostStub(), backend);
+  // The inspect bridge. boot.ts installs it for top-level DOM apps only —
+  // wireInput returns early for a `chrome` host, which natively we are — so the
+  // native client had every capability of inspect.ts and no way to reach any of
+  // it. Installing it here costs one line and means the control channel's
+  // `eval` verb answers the SAME questions as the DOM's `__declare`: the tree,
+  // provenance, geometry, and `explainHit` — one vocabulary, three transports,
+  // rather than a bespoke Swift verb per question (Control.swift's own `trace`
+  // narrates the LAYER walk, which is a different tree and a different answer).
+  globalThis.__declare = bridgeFor(app);
   settle();
   flushOps();
   H.setTitle(app.appName || programName(base));

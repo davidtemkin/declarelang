@@ -15,7 +15,7 @@
 import { Node } from "./node.js";
 import { View, App, inheritedCursor } from "./view.js";
 import { rootFrameOrigin } from "./interaction.js";
-import { inspect, find, explain, stats, viewAt, dependentsOf, expandValue, slotsOf, clock, kindName, nameOf, type ValueSlice } from "./inspect.js";
+import { inspect, find, explain, stats, viewAt, explainHit, dependentsOf, expandValue, slotsOf, clock, kindName, nameOf, type ValueSlice } from "./inspect.js";
 import { compileExpr, validateExpr } from "./expr.js";
 import { scanDatapaths } from "./datapath.js";
 import { parseProgram } from "./parser.js";
@@ -431,6 +431,22 @@ export const Inspect = {
     const o = ORIGIN();
     const v = viewAt(needTarget(), x - o.x, y - o.y);
     return v === null ? "" : pathOfNode(v);
+  },
+  /** WHY the point resolved that way — the hit walk's own decisions in order.
+   *  `at` answers what, which is enough when the answer is right and useless
+   *  when it is wrong; every interaction bug of the 2026-07 run was a
+   *  disagreement between where a view paints and where the walk thinks it is,
+   *  and each was diagnosed from outside because nothing could be asked. The
+   *  narration instruments THE walk, so it cannot drift from the router, and
+   *  it is backend-neutral: the same answer over the DOM bridge, the canvas
+   *  host, and the native control channel's `eval`. `pierce` defaults to the
+   *  ROUTER's rule (false), so a pointer-transparent view reports as skipped
+   *  rather than quietly being the answer — which is the shape of the
+   *  homepage's cursor-dot bug, where the dot settled under every resting
+   *  pointer and swallowed the page's hover and press. */
+  explainHit: (x: number, y: number, pierce = false) => {
+    const o = ORIGIN();
+    return explainHit(needTarget(), x - o.x, y - o.y, pierce);
   },
   stats: () => stats(needTarget()),
   /** Is this view under a datapath? The Object pane badges it, and the

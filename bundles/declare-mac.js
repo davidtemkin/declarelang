@@ -5589,6 +5589,12 @@ var DeclareMac = (() => {
   });
 
   // runtime/dist/interaction.js
+  function traceHitAt(root, x, y, pierce = false) {
+    const notes = [];
+    if (!isView(root))
+      return { hit: null, notes };
+    return { hit: leafAt(root, x, y, pierce, notes), notes };
+  }
   function initInteraction(test) {
     isView = test;
   }
@@ -5606,14 +5612,19 @@ var DeclareMac = (() => {
     }
     return [cx, cy];
   }
-  function leafAt(v, lx, ly, pierce = false) {
+  function leafAt(v, lx, ly, pierce = false, trace) {
+    const note = (why) => {
+      if (trace !== void 0)
+        trace.push({ view: v, why, x: Math.round(lx), y: Math.round(ly) });
+      return null;
+    };
     if (!v.visible)
-      return null;
+      return note("skipped \u2014 visible = false");
     if (!pierce && v.pointerEvents === "none")
-      return null;
+      return note('skipped \u2014 pointerEvents = "none" (the subtree is pointer-transparent)');
     const inside = lx >= 0 && ly >= 0 && lx <= v.width && ly <= v.height;
     if (v.scrolls !== "none" && !inside)
-      return null;
+      return note("skipped \u2014 outside a scroller's FRAME, so its whole subtree is out of view");
     const clipping = v.clip !== null && v.clip !== false && v.clip !== "";
     const kids = v.children;
     if (v.scrolls !== "none") {
@@ -5624,7 +5635,7 @@ var DeclareMac = (() => {
         if (clipping && !inside && !c.ignoreClip)
           continue;
         const [cx, cy] = toChildLocal(v, c, lx, ly);
-        const hit = leafAt(c, cx, cy, pierce);
+        const hit = leafAt(c, cx, cy, pierce, trace);
         if (hit !== null)
           return hit;
       }
@@ -5638,11 +5649,15 @@ var DeclareMac = (() => {
       if (clipping && !inside && !c.ignoreClip)
         continue;
       const [cx, cy] = toChildLocal(v, c, lx, ly);
-      const hit = leafAt(c, cx, cy, pierce);
+      const hit = leafAt(c, cx, cy, pierce, trace);
       if (hit !== null)
         return hit;
     }
-    return inside ? v : null;
+    if (!inside)
+      return note("missed \u2014 the point is outside this view's own box");
+    if (trace !== void 0)
+      trace.push({ view: v, why: "HIT \u2014 the deepest box containing the point", x: Math.round(lx), y: Math.round(ly) });
+    return v;
   }
   function chainAt(app, x, y) {
     const chain = /* @__PURE__ */ new Set();
@@ -12480,6 +12495,22 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
           const v = viewAt(needTarget(), x - o.x, y - o.y);
           return v === null ? "" : pathOfNode(v);
         },
+        /** WHY the point resolved that way — the hit walk's own decisions in order.
+         *  `at` answers what, which is enough when the answer is right and useless
+         *  when it is wrong; every interaction bug of the 2026-07 run was a
+         *  disagreement between where a view paints and where the walk thinks it is,
+         *  and each was diagnosed from outside because nothing could be asked. The
+         *  narration instruments THE walk, so it cannot drift from the router, and
+         *  it is backend-neutral: the same answer over the DOM bridge, the canvas
+         *  host, and the native control channel's `eval`. `pierce` defaults to the
+         *  ROUTER's rule (false), so a pointer-transparent view reports as skipped
+         *  rather than quietly being the answer — which is the shape of the
+         *  homepage's cursor-dot bug, where the dot settled under every resting
+         *  pointer and swallowed the page's hover and press. */
+        explainHit: (x, y, pierce = false) => {
+          const o = ORIGIN();
+          return explainHit(needTarget(), x - o.x, y - o.y, pierce);
+        },
         stats: () => stats(needTarget()),
         /** Is this view under a datapath? The Object pane badges it, and the
          *  evaluate strip's `:` support depends on it. */
@@ -12730,6 +12761,14 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
         const v = viewAt(root, x, y);
         return v === null ? null : { path: pathOf(root, v), kind: kindName(v) };
       },
+      /** WHY that point resolved so — the hit walk's own decisions in order.
+       *  On the bridge because this is the question a HOST asks: the DOM's
+       *  `__declare`, the canvas page, and the native control channel's `eval`
+       *  all reach it identically, so "what would take this press, and what did
+       *  it step over" is one answer with three transports instead of a verb
+       *  per host. (The native `trace` narrates the Mac LAYER walk, which is a
+       *  different question about a different tree.) */
+      explainHit: (x, y, pierce = false) => explainHit(root, x, y, pierce),
       dependents: (attr) => dependentsOf(root, attr),
       /** Evaluate Declare in the scope of a node — read, set, bind, or add a view.
        *  The Inspector's strip and an agent hit the same entry point. */
@@ -12752,6 +12791,20 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
   }
   function viewAt(root, x, y) {
     return hitAt(root, x, y, true);
+  }
+  function explainHit(root, x, y, pierce = false) {
+    const { hit, notes } = traceHitAt(root, x, y, pierce);
+    const path = (v) => {
+      const parts = [];
+      for (let n = v; n !== null && n.parent !== null; n = n.parent) {
+        parts.unshift(nameOf(n) ?? String(n.parent.children.indexOf(n)));
+      }
+      return ["app", ...parts].join(".");
+    };
+    return {
+      hit: hit === null ? null : path(hit),
+      steps: notes.map((n) => ({ path: path(n.view), kind: kindName(n.view), why: n.why, x: n.x, y: n.y }))
+    };
   }
   function dependentsOf(root, attr) {
     const out = [];
@@ -14614,6 +14667,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     }
     backend = new MacBackend();
     mountApp(app, hostStub(), backend);
+    globalThis.__declare = bridgeFor(app);
     settle();
     flushOps();
     H.setTitle(app.appName || programName(base2));

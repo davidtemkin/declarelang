@@ -5912,6 +5912,32 @@ await test("viewAt/containsPoint keep the CONTENT-space contract at any scroll (
   assert.equal(app.viewAt(60, 40), null, "the content point 40 is above the fold's content — not the view");
 });
 
+await test("explainHit narrates WHY a point resolved — the walk's own decisions, not a second walk", async () => {
+  // `viewAt` answers WHAT, which is enough when the answer is right and useless
+  // when it is wrong. Every interaction bug of the 2026-07 run was a
+  // disagreement between where a view PAINTS and where the walk THINKS it is,
+  // and each was diagnosed by inference from outside because nothing could be
+  // asked directly. The narration instruments THE walk, so it can never drift
+  // from the router's real answer — and being backend-neutral, it is the same
+  // answer over the DOM bridge, the canvas host, and the native `eval`.
+  const { explainHit } = await import("../runtime/dist/inspect.js");
+  const app = build(`App [ width = 200, height = 200,
+    box:  View [ x = 20, y = 20, width = 100, height = 100 ],
+    gone: View [ x = 40, y = 40, width = 40, height = 40, visible = false ],
+    dot:  View [ x = 40, y = 40, width = 40, height = 40, pointerEvents = "none" ],
+    ]`);
+  settle();
+  const r = explainHit(app, 50, 50);
+  // the pointer-transparent dot and the invisible sibling are both SKIPPED, each
+  // saying which rule did it — that is the homepage cursor-dot bug, askable
+  assert.match(r.steps.map((s) => `${s.path} ${s.why}`).join("\n"), /dot.*pointerEvents/);
+  assert.match(r.steps.map((s) => `${s.path} ${s.why}`).join("\n"), /gone.*visible = false/);
+  assert.equal(r.hit, "app.box", "…and the point lands on the box beneath them");
+  // and it agrees with the router's own answer, always
+  assert.equal(r.hit, "app." + (app.viewAt(50, 50) === app.box ? "box" : "?"),
+    "the narration and viewAt cannot disagree — they are one walk");
+});
+
 await test("hovered/pressed are read-only intrinsics: declaring or setting one is refused", () => {
   const decl = compile(`App [ width = 1, height = 1, v: View [ hovered: boolean = false ] ]`, {});
   assert.equal(decl.source, null);

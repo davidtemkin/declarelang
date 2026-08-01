@@ -70,6 +70,33 @@ export interface InteractionApp extends InteractionView {
   hovering: boolean;
 }
 
+/** One decision the hit walk made, for `traceHitAt` below. Carries the VIEW
+ *  rather than a name: this module is deliberately view-free (structural
+ *  typing, no import of view.ts), so naming is the caller's job — inspect.ts
+ *  maps each to its path. */
+export interface HitNote {
+  view: InteractionView;
+  why: string;
+  /** the point in that view's own coordinates, which is usually the tell */
+  x: number;
+  y: number;
+}
+
+/** Narrate the hit walk at a root-FRAME point: what it descended into, what it
+ *  skipped and why, and what finally took the point (or that nothing did).
+ *
+ *  The narration comes from instrumenting THE walk, never from a second one
+ *  that re-derives the rules — a duplicate diagnostic that disagrees with the
+ *  real router is worse than none, and duplicated hit logic is precisely what
+ *  produced the desktop's mis-hit corner and the Inspector's blind highlight.
+ *  Costs nothing when unused: the collector is optional and the notes are only
+ *  built when one is passed. */
+export function traceHitAt(root: unknown, x: number, y: number, pierce = false): { hit: InteractionView | null; notes: HitNote[] } {
+  const notes: HitNote[] = [];
+  if (!isView(root)) return { hit: null, notes };
+  return { hit: leafAt(root, x, y, pierce, notes), notes };
+}
+
 let isView: (n: unknown) => n is InteractionView = (_n): _n is InteractionView => false;
 
 /** view.ts calls this once at module init — the injected instance test. */
@@ -147,20 +174,24 @@ function toChildLocal(v: InteractionView, c: InteractionView, lx: number, ly: nu
  *  be the same answer, from the same code. (Three hand-rolled versions of this
  *  question — the inspector's picker, a calendar's cell math, a window's resize
  *  zones — is how the desktop's corner bug happened.) */
-export function leafAt(v: InteractionView, lx: number, ly: number, pierce = false): InteractionView | null {
-  if (!v.visible) return null;
+export function leafAt(v: InteractionView, lx: number, ly: number, pierce = false, trace?: HitNote[]): InteractionView | null {
+  const note = (why: string): null => {
+    if (trace !== undefined) trace.push({ view: v, why, x: Math.round(lx), y: Math.round(ly) });
+    return null;
+  };
+  if (!v.visible) return note("skipped — visible = false");
   // "none" makes the subtree pointer-transparent (the overlay rule) — the walk
   // falls through it exactly as input resolution does. `pierce` is the ONE
   // caller-visible difference in the whole walk: the Inspector's picker must be
   // able to select a view the pointer would pass through, because a developer
   // asking "what is this?" means the thing they can see, not the thing that
   // would receive a press.
-  if (!pierce && v.pointerEvents === "none") return null;
+  if (!pierce && v.pointerEvents === "none") return note('skipped — pointerEvents = "none" (the subtree is pointer-transparent)');
   const inside = lx >= 0 && ly >= 0 && lx <= v.width && ly <= v.height;
   // A scroller bounds its subtree at its FRAME — content beyond the frame is
   // out of view by definition, whatever the `clip` attribute says (the canvas
   // hit walk's exact rule, chrome included: its sticky frame lives in-frame).
-  if (v.scrolls !== "none" && !inside) return null;
+  if (v.scrolls !== "none" && !inside) return note("skipped — outside a scroller's FRAME, so its whole subtree is out of view");
   // A clipping view (box or shape — a shape clip approximates as its box here)
   // bounds its subtree's hits — EXCEPT children that opt out with `ignoreClip`
   // (frame chrome straddling the frame "still paints and still hits", view.ts;
@@ -177,7 +208,7 @@ export function leafAt(v: InteractionView, lx: number, ly: number, pierce = fals
       if (!isView(c) || !c.ignoreScroll) continue;
       if (clipping && !inside && !c.ignoreClip) continue;
       const [cx, cy] = toChildLocal(v, c, lx, ly);
-      const hit = leafAt(c, cx, cy, pierce);
+      const hit = leafAt(c, cx, cy, pierce, trace);
       if (hit !== null) return hit;
     }
   }
@@ -187,10 +218,12 @@ export function leafAt(v: InteractionView, lx: number, ly: number, pierce = fals
     if (v.scrolls !== "none" && c.ignoreScroll) continue; // probed above
     if (clipping && !inside && !c.ignoreClip) continue;
     const [cx, cy] = toChildLocal(v, c, lx, ly);
-    const hit = leafAt(c, cx, cy, pierce);
+    const hit = leafAt(c, cx, cy, pierce, trace);
     if (hit !== null) return hit;
   }
-  return inside ? v : null;
+  if (!inside) return note("missed — the point is outside this view's own box");
+  if (trace !== undefined) trace.push({ view: v, why: "HIT — the deepest box containing the point", x: Math.round(lx), y: Math.round(ly) });
+  return v;
 }
 
 function chainAt(app: InteractionApp, x: number, y: number): Set<InteractionView> {

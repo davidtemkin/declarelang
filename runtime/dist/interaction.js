@@ -33,6 +33,21 @@
 // structurally and view.ts injects its own instance test at module init, so
 // view.ts can import this module without a cycle.
 import { Cell, Constraint } from "./reactive.js";
+/** Narrate the hit walk at a root-FRAME point: what it descended into, what it
+ *  skipped and why, and what finally took the point (or that nothing did).
+ *
+ *  The narration comes from instrumenting THE walk, never from a second one
+ *  that re-derives the rules — a duplicate diagnostic that disagrees with the
+ *  real router is worse than none, and duplicated hit logic is precisely what
+ *  produced the desktop's mis-hit corner and the Inspector's blind highlight.
+ *  Costs nothing when unused: the collector is optional and the notes are only
+ *  built when one is passed. */
+export function traceHitAt(root, x, y, pierce = false) {
+    const notes = [];
+    if (!isView(root))
+        return { hit: null, notes };
+    return { hit: leafAt(root, x, y, pierce, notes), notes };
+}
 let isView = (_n) => false;
 /** view.ts calls this once at module init — the injected instance test. */
 export function initInteraction(test) {
@@ -88,9 +103,14 @@ function toChildLocal(v, c, lx, ly) {
  *  be the same answer, from the same code. (Three hand-rolled versions of this
  *  question — the inspector's picker, a calendar's cell math, a window's resize
  *  zones — is how the desktop's corner bug happened.) */
-export function leafAt(v, lx, ly, pierce = false) {
-    if (!v.visible)
+export function leafAt(v, lx, ly, pierce = false, trace) {
+    const note = (why) => {
+        if (trace !== undefined)
+            trace.push({ view: v, why, x: Math.round(lx), y: Math.round(ly) });
         return null;
+    };
+    if (!v.visible)
+        return note("skipped — visible = false");
     // "none" makes the subtree pointer-transparent (the overlay rule) — the walk
     // falls through it exactly as input resolution does. `pierce` is the ONE
     // caller-visible difference in the whole walk: the Inspector's picker must be
@@ -98,13 +118,13 @@ export function leafAt(v, lx, ly, pierce = false) {
     // asking "what is this?" means the thing they can see, not the thing that
     // would receive a press.
     if (!pierce && v.pointerEvents === "none")
-        return null;
+        return note('skipped — pointerEvents = "none" (the subtree is pointer-transparent)');
     const inside = lx >= 0 && ly >= 0 && lx <= v.width && ly <= v.height;
     // A scroller bounds its subtree at its FRAME — content beyond the frame is
     // out of view by definition, whatever the `clip` attribute says (the canvas
     // hit walk's exact rule, chrome included: its sticky frame lives in-frame).
     if (v.scrolls !== "none" && !inside)
-        return null;
+        return note("skipped — outside a scroller's FRAME, so its whole subtree is out of view");
     // A clipping view (box or shape — a shape clip approximates as its box here)
     // bounds its subtree's hits — EXCEPT children that opt out with `ignoreClip`
     // (frame chrome straddling the frame "still paints and still hits", view.ts;
@@ -123,7 +143,7 @@ export function leafAt(v, lx, ly, pierce = false) {
             if (clipping && !inside && !c.ignoreClip)
                 continue;
             const [cx, cy] = toChildLocal(v, c, lx, ly);
-            const hit = leafAt(c, cx, cy, pierce);
+            const hit = leafAt(c, cx, cy, pierce, trace);
             if (hit !== null)
                 return hit;
         }
@@ -137,11 +157,15 @@ export function leafAt(v, lx, ly, pierce = false) {
         if (clipping && !inside && !c.ignoreClip)
             continue;
         const [cx, cy] = toChildLocal(v, c, lx, ly);
-        const hit = leafAt(c, cx, cy, pierce);
+        const hit = leafAt(c, cx, cy, pierce, trace);
         if (hit !== null)
             return hit;
     }
-    return inside ? v : null;
+    if (!inside)
+        return note("missed — the point is outside this view's own box");
+    if (trace !== undefined)
+        trace.push({ view: v, why: "HIT — the deepest box containing the point", x: Math.round(lx), y: Math.round(ly) });
+    return v;
 }
 function chainAt(app, x, y) {
     const chain = new Set();

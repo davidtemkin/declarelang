@@ -10,7 +10,7 @@
 // allocates until asked). The `__declare` page bridge is installed by boot.ts
 // for top-level apps.
 import { Node } from "./node.js";
-import { hitAt } from "./interaction.js";
+import { hitAt, traceHitAt } from "./interaction.js";
 import { View } from "./view.js";
 import { isSet, ownerOf, ownValues, ownedSlots } from "./attributes.js";
 import { sharedClock, browserScheduler } from "./animate.js";
@@ -303,6 +303,14 @@ export function bridgeFor(root) {
             const v = viewAt(root, x, y);
             return v === null ? null : { path: pathOf(root, v), kind: kindName(v) };
         },
+        /** WHY that point resolved so — the hit walk's own decisions in order.
+         *  On the bridge because this is the question a HOST asks: the DOM's
+         *  `__declare`, the canvas page, and the native control channel's `eval`
+         *  all reach it identically, so "what would take this press, and what did
+         *  it step over" is one answer with three transports instead of a verb
+         *  per host. (The native `trace` narrates the Mac LAYER walk, which is a
+         *  different question about a different tree.) */
+        explainHit: (x, y, pierce = false) => explainHit(root, x, y, pierce),
         dependents: (attr) => dependentsOf(root, attr),
         /** Evaluate Declare in the scope of a node — read, set, bind, or add a view.
          *  The Inspector's strip and an agent hit the same entry point. */
@@ -341,6 +349,38 @@ function pathOf(root, n) {
  *  duplication that produced a mis-hit window corner elsewhere.) */
 export function viewAt(root, x, y) {
     return hitAt(root, x, y, true);
+}
+/** WHY the point resolved the way it did — the hit walk's own decisions, in
+ *  order: what it descended into, what it skipped and for which reason, and
+ *  what finally took the point.
+ *
+ *  `viewAt` answers *what*, which is enough when the answer is right and
+ *  useless when it is wrong. Every interaction bug of the 2026-07 run was a
+ *  disagreement between where a view PAINTS and where the walk THINKS it is —
+ *  a scroll term missing from the transform, a cursor-following dot silently
+ *  occluding the page, chrome stranded in the wrong parent — and each cost
+ *  hours of inference from the outside because nothing could be asked directly.
+ *
+ *  The narration is produced by instrumenting THE walk (interaction.ts
+ *  traceHitAt), so it can never drift from the router's real answer, and it is
+ *  backend-neutral: the same question, identically answered, over the DOM
+ *  bridge, the canvas host, and the native control channel's `eval`. Takes a
+ *  point in the root's FRAME space, like `viewAt`. `pierce` defaults false —
+ *  the router's own rule — so a pointer-transparent view reports as skipped
+ *  rather than silently being the answer. */
+export function explainHit(root, x, y, pierce = false) {
+    const { hit, notes } = traceHitAt(root, x, y, pierce);
+    const path = (v) => {
+        const parts = [];
+        for (let n = v; n !== null && n.parent !== null; n = n.parent) {
+            parts.unshift(nameOf(n) ?? String(n.parent.children.indexOf(n)));
+        }
+        return ["app", ...parts].join(".");
+    };
+    return {
+        hit: hit === null ? null : path(hit),
+        steps: notes.map((n) => ({ path: path(n.view), kind: kindName(n.view), why: n.why, x: n.x, y: n.y })),
+    };
 }
 /** Every (path, attr) whose constraint READS `target` — the reverse of
  *  `explain().deps`, answering "what moves if this changes?". Computed by

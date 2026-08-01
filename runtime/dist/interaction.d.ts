@@ -31,6 +31,30 @@ export interface InteractionApp extends InteractionView {
     pointerDown: boolean;
     hovering: boolean;
 }
+/** One decision the hit walk made, for `traceHitAt` below. Carries the VIEW
+ *  rather than a name: this module is deliberately view-free (structural
+ *  typing, no import of view.ts), so naming is the caller's job — inspect.ts
+ *  maps each to its path. */
+export interface HitNote {
+    view: InteractionView;
+    why: string;
+    /** the point in that view's own coordinates, which is usually the tell */
+    x: number;
+    y: number;
+}
+/** Narrate the hit walk at a root-FRAME point: what it descended into, what it
+ *  skipped and why, and what finally took the point (or that nothing did).
+ *
+ *  The narration comes from instrumenting THE walk, never from a second one
+ *  that re-derives the rules — a duplicate diagnostic that disagrees with the
+ *  real router is worse than none, and duplicated hit logic is precisely what
+ *  produced the desktop's mis-hit corner and the Inspector's blind highlight.
+ *  Costs nothing when unused: the collector is optional and the notes are only
+ *  built when one is passed. */
+export declare function traceHitAt(root: unknown, x: number, y: number, pierce?: boolean): {
+    hit: InteractionView | null;
+    notes: HitNote[];
+};
 /** view.ts calls this once at module init — the injected instance test. */
 export declare function initInteraction(test: (n: unknown) => n is InteractionView): void;
 /** The topmost visible view whose box contains the point — reverse paint
@@ -44,7 +68,7 @@ export declare function initInteraction(test: (n: unknown) => n is InteractionVi
  *  be the same answer, from the same code. (Three hand-rolled versions of this
  *  question — the inspector's picker, a calendar's cell math, a window's resize
  *  zones — is how the desktop's corner bug happened.) */
-export declare function leafAt(v: InteractionView, lx: number, ly: number, pierce?: boolean): InteractionView | null;
+export declare function leafAt(v: InteractionView, lx: number, ly: number, pierce?: boolean, trace?: HitNote[]): InteractionView | null;
 /** The view under a point in the root's FRAME space (viewport coordinates for
  *  a top-level app) — the walk's own space. view.ts wraps it as
  *  `app.viewAt(x, y)` with the CONTENT-space contract the language documents
