@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Declare — a clean-slate successor to OpenLaszlo. A single self-contained distro: the compiler (.declare → JS), the browser runtime, a component library, examples, and docs. Runs a dev server with dynamic compilation, or host the whole tree statically for in-browser compilation.",
+  "description": "Declare \u2014 a clean-slate successor to OpenLaszlo. A single self-contained distro: the compiler (.declare \u2192 JS), the browser runtime, a component library, examples, and docs. Runs a dev server with dynamic compilation, or host the whole tree statically for in-browser compilation.",
   "license": "MIT",
   "author": "David Temkin",
   "bin": {
@@ -15,7 +15,7 @@
     "build": "tsc -b",
     "build:dev": "tsc -b && node tools/reload-dev.mjs",
     "start": "node server/dev.mjs",
-    "test": "npm run build && node test/unit.test.mjs && node test/perceptual.test.mjs && node test/scaffold.test.mjs && node test/declarec.test.mjs && node test/databinding.test.mjs && node test/streams.test.mjs && node test/dep-extract.test.mjs && node test/static-constraint.test.mjs && node test/highlight.test.mjs && node test/docs.test.mjs && node test/inspect.test.mjs && node test/format.test.mjs && node test/md.test.mjs && node test/themes.test.mjs && node test/html.test.mjs && node test/richtext.test.mjs && node test/slim.test.mjs && node test/crawl.test.mjs && node test/prewarm.test.mjs && node test/serve-parity.test.mjs && node test/serve.test.mjs && node test/toolchain-realm.test.mjs && node test/hydrate.test.mjs && node test/prod-parity.test.mjs && node test/serve-browser.test.mjs && node test/streams-browser.test.mjs && node test/network-browser.test.mjs && node test/desktop-input.test.mjs && node test/gesture.test.mjs && node test/verify-apps.test.mjs && node test/ops.test.mjs",
+    "test": "npm run build && node test/unit.test.mjs && node test/seam.test.mjs && node test/perceptual.test.mjs && node test/scaffold.test.mjs && node test/declarec.test.mjs && node test/databinding.test.mjs && node test/streams.test.mjs && node test/dep-extract.test.mjs && node test/static-constraint.test.mjs && node test/highlight.test.mjs && node test/docs.test.mjs && node test/inspect.test.mjs && node test/format.test.mjs && node test/md.test.mjs && node test/themes.test.mjs && node test/html.test.mjs && node test/richtext.test.mjs && node test/slim.test.mjs && node test/crawl.test.mjs && node test/prewarm.test.mjs && node test/serve-parity.test.mjs && node test/serve.test.mjs && node test/toolchain-realm.test.mjs && node test/hydrate.test.mjs && node test/prod-parity.test.mjs && node test/serve-browser.test.mjs && node test/streams-browser.test.mjs && node test/network-browser.test.mjs && node test/desktop-input.test.mjs && node test/gesture.test.mjs && node test/verify-apps.test.mjs && node test/ops.test.mjs",
     "test:ladder": "npm run build && node test/ladder.test.mjs",
     "test:all": "npm test && npm run test:ladder"
   },

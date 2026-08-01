@@ -55,6 +55,45 @@ async function ctl(cmd) {
   throw new Error("no reply — is the app running with DECLARE_CONTROL=1?");
 }
 
+/** The layer count, which is this host's cheapest per-program fingerprint
+ *  (`geom` → "content WxH layers=N subviews=M"). NaN if it cannot be read. */
+async function layerCount() {
+  const m = (await ctl("geom")).match(/layers=(\d+)/);
+  return m ? +m[1] : NaN;
+}
+
+/** Wait for the program just booted to actually be the one on screen.
+ *
+ *  The gate navigates IN PROCESS (`__declareBoot`) rather than relaunching —
+ *  that is what buys a whole corpus for one launch. It used to follow the
+ *  navigation with a flat `sleep(4)` and shoot whatever was there. On a COLD
+ *  run (first compile, empty caches) boot can outrun four seconds, and the
+ *  shot then captures the PREVIOUS program: measured 2026-07-31, calendar
+ *  reported 53.5% differing against a 0.71% baseline — a loud, plausible,
+ *  entirely false regression that cost a bisect across two commits to
+ *  disbelieve, and which never reproduced once the caches were warm. A timing
+ *  race that only fires when cold is the worst kind of number to publish,
+ *  because it fires exactly when someone is checking something new.
+ *
+ *  So: watch the layer count instead of the clock. Wait for it to CHANGE from
+ *  the outgoing program's and then hold still for two consecutive reads. Two
+ *  programs can coincidentally have the same count, so there is a floor and a
+ *  ceiling — and if the ceiling is hit, the row says so rather than quietly
+ *  reporting whatever was on screen. */
+async function awaitProgram(before) {
+  const t0 = Date.now();
+  let changed = Number.isNaN(before), stable = 0, last = NaN;
+  while (Date.now() - t0 < 20000) {
+    await sleep(0.25);
+    const n = await layerCount();
+    if (!changed && n !== before) changed = true;
+    stable = n === last ? stable + 1 : 0;
+    last = n;
+    if (changed && stable >= 2 && Date.now() - t0 > 1500) { await sleep(1); return ""; }
+  }
+  return `settle timeout (layers stuck at ${last}${changed ? "" : ", never changed from " + before})`;
+}
+
 const base = existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, "utf8")) : {};
 const now = {};
 const rows = [];
@@ -63,11 +102,13 @@ for (const prog of CORPUS) {
   const name = path.basename(prog, ".declare");
   if (only && !only.includes(name)) continue;
   const url = `${ORIGIN}/${prog}`;
-  // navigate the running app, in process
+  // navigate the running app, in process — then wait for the program itself,
+  // not for a guess at how long it takes (awaitProgram: the cold-run race)
+  const before = await layerCount();
   await ctl(`eval __declareBoot(${JSON.stringify(url + "?render=mac")}); 'ok'`);
-  await sleep(4);                       // boot + first settle (+ any async images)
-  let differing = NaN, structural = NaN, err = "";
+  let differing = NaN, structural = NaN, err = await awaitProgram(before);
   try {
+    if (err) throw new Error(err);
     const out = execFileSync("node", [path.join(HERE, "fidelity.mjs"), url],
                              { encoding: "utf8", timeout: 180000 });
     const m = out.match(/differing\s+([\d.]+)%\s+structural\s+([\d.]+)%/);
@@ -95,6 +136,22 @@ for (const r of rows) {
     else verdict = `ok (${sign}${d.toFixed(2)}pt)`;
   }
   console.log(`  ${r.name.padEnd(18)} ${String(r.differing).padStart(7)}%  ${String(r.structural).padStart(8)}%   ${verdict}`);
+}
+// PROGRAMS THAT RENDER A CLOCK. The date itself cancels — both sides render
+// the same instant, so the native-vs-DOM residual is what is measured and a
+// moving highlight moves on both. What does NOT cancel is the SHAPE the date
+// implies: a 6-week month lays out a row more than a 5-week one, which is more
+// glyphs, which is more of the text residual that is this comparison's whole
+// noise floor. So the month a baseline was blessed in is recorded with it, and
+// a later run says so rather than letting the drift read as a regression.
+const CLOCKED = { calendar: () => new Date().toISOString().slice(0, 7) };
+for (const [name, stamp] of Object.entries(CLOCKED)) {
+  if (now[name] !== undefined) now[name].blessedIn = stamp();
+  const was = base[name]?.blessedIn;
+  if (!bless && was !== undefined && now[name] !== undefined && was !== stamp()) {
+    console.log(`\n  note: ${name} renders the current month — baseline blessed in ${was}, now ${stamp()}.` +
+                `\n        A row of layout more or less shifts the text residual; re-bless if the delta is small and stable.`);
+  }
 }
 if (bless) {
   writeFileSync(BASELINE, JSON.stringify(now, null, 2) + "\n");
