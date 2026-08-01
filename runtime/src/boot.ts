@@ -8,7 +8,7 @@
 // the instantiated program, so this module is the runtime's true floor.
 
 import { instantiate } from "./instantiate.js";
-import { App } from "./view.js";
+import { App, View } from "./view.js";
 import { fontFacesOf } from "./font.js";
 import type { RenderBackend } from "./backend.js";
 import { DeclareError } from "./errors.js";
@@ -283,8 +283,31 @@ function wireEnvironmentEmbedded(app: App, host: HTMLElement): void {
 export function mountApp(app: App, host: HTMLElement, backend: RenderBackend, opts: { chrome?: boolean } = {}): App {
   app.attach(backend, null);
   backend.attachRoot(host, app.surface!);
+  applyDeclaredScroll(app);
   wireInput(app, host, opts.chrome === true);
   return app;
+}
+
+/** Land the DECLARED initial scroll offsets, once the tree is IN the document.
+ *
+ *  `attach` builds the whole tree detached and `attachRoot` inserts it only
+ *  afterwards, so during attach a scroller has no layout and therefore nothing
+ *  to scroll: the push that rode `scrollY`'s own attribute write clamped to
+ *  zero. The write's equality gate then made the value permanently unreachable
+ *  — `scrollY = 120` left the attribute reading 120 with the surface at 0, and
+ *  no later assignment of 120 could ever reconcile them. (Measured 2026-07-31
+ *  by a probe written to exercise `ignoreScroll`, which needed a scrolled pane
+ *  to mean anything and silently got an unscrolled one: assigning 121 at
+ *  runtime worked, which is what named the ordering rather than scrollToY.)
+ *
+ *  Re-applying is idempotent, so the backends that need no layout to scroll
+ *  (canvas and mac keep their own offset) are unaffected. */
+function applyDeclaredScroll(v: View): void {
+  if (v.scrolls !== "none") {
+    if (v.scrollY !== 0) v.surface?.scrollToY?.(v.scrollY);
+    if (v.scrollX !== 0) v.surface?.scrollToX?.(v.scrollX);
+  }
+  for (const c of v.children) if (c instanceof View) applyDeclaredScroll(c);
 }
 
 /** `app.appName` → `document.title` — the ONE place that mapping lives. Call it

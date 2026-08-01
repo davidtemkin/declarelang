@@ -1,0 +1,25 @@
+// The native editable seam (`setEditable`), probed on its own.
+//
+// A text field is the one place a backend hands a box back to the PLATFORM: a
+// real NSTextField natively, a real <input> in the DOM, the canvas backend's
+// overlay. So it is the seam most likely to disagree about the things nobody
+// declares — where the baseline sits inside the box, how padding resolves,
+// what the placeholder looks like — and none of that is visible in an app
+// screenshot where a field is one small element among hundreds.
+//
+// Two fields: one carrying text, one showing its placeholder, so both halves
+// of the field's own rendering are on the frame.
+
+App [ width = 400, height = 250, fill = #14181C, textColor = #E7EEF2,
+    filled: TextInput [ x = 20, y = 40, width = 360, height = 34,
+        fill = #202932, cornerRadius = 6, fontSize = 16,
+        text = "typed content" ],
+
+    empty: TextInput [ x = 20, y = 96, width = 360, height = 34,
+        fill = #202932, cornerRadius = 6, fontSize = 16,
+        placeholder = "the placeholder" ],
+
+    // a plain painted Text at the same size beside them: the two rendering
+    // paths for the "same" string, so a metrics disagreement is one comparison
+    label: Text [ x = 20, y = 160, fontSize = 16, text = "typed content" ]
+    ]

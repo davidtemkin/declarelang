@@ -34,5 +34,18 @@
   "desktop": {
     "differing": 8.77,
     "structural": 1.88
+  },
+  "richtext": {
+    "differing": 0.9,
+    "structural": 0.83
+  },
+  "editable": {
+    "differing": 0.26,
+    "structural": 0.22
+  },
+  "ignorescroll": {
+    "differing": 1.18,
+    "structural": 1.17,
+    "note": "KNOWN GAP, not agreement: the native backend has no setIgnoreScroll (test/seam.test.mjs), so this probe's pinned chrome scrolls away with the content and this figure IS the size of that hole. Implementing it should DROP the number \u2014 the gate will report an improvement and the baseline should be re-blessed then."
   }
 }

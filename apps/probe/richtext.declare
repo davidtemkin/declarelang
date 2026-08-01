@@ -1,0 +1,23 @@
+// The rich-text flow seam (`setRichContent`), probed on its own.
+//
+// Flowed text is the one content kind whose LAYOUT the backend owns rather
+// than the runtime: wrapping, block spacing, heading sizes and the code
+// block's own shape are all decided on the far side of the seam. In an app
+// that residual hides inside a much larger picture; alone on a dark field, a
+// wrapping or leading disagreement is the whole frame.
+
+App [ width = 400, height = 250, fill = #14181C, textColor = #E7EEF2,
+    doc: Markdown [ x = 16, y = 12, width = 368, selectable = true,
+        text = """
+# Heading
+
+A paragraph that must wrap at the flow's own measure, not the window's,
+so a disagreement about the break point shows as a whole displaced line.
+
+- a list item
+- a second one
+
+`inline code` beside ordinary prose.
+"""
+        ]
+    ]

@@ -145,7 +145,7 @@ const WALK_RAW = `App [ fill = #202830,
     hi: boolean = { this.column.pane.inner.hovered },
     bar: View [ ignoreScroll = true, width = { app.width }, height = 40, fill = #10202C ],
     column: View [ y = 40, width = { app.width }, height = 3000, fill = #223344,
-        pane: View [ x = 40, y = 1200, width = 300, height = 200, fill = #445566, scrolls = y,
+        pane: View [ x = 40, y = 1200, width = 300, height = 200, fill = #445566, scrolls = y, scrollY = 240,
             inner: View [ x = 0, y = 400, width = 300, height = 60, fill = #66AA88 ],
             tail: View [ x = 0, y = 800, width = 300, height = 40, fill = #223344 ] ],
         ],
@@ -597,6 +597,30 @@ await test("dom: ignoreScroll chrome rides the window — fixed through a real p
   assert.equal(r.after, 0, "the bar held still while the page moved");
   assert.equal(r.scrollY, 500, "app.scrollY mirrors the page scroll");
   await page.evaluate(() => window.scrollTo({ top: 0 }));
+});
+
+await test("dom: a DECLARED initial scroll offset actually lands", async () => {
+  // `attach` builds the tree DETACHED and attachRoot inserts it afterwards, so
+  // during attach a scroller has no layout and nothing to scroll: the push that
+  // rode `scrollY`'s own attribute write clamped to zero, and the write's
+  // equality gate then made the value permanently unreachable — the attribute
+  // read 120 while the surface sat at 0, and no later assignment of 120 could
+  // ever reconcile them. Found 2026-07-31 writing a native probe that needed a
+  // scrolled pane to mean anything and silently got an unscrolled one.
+  const tp = await browser.newPage();
+  await tp.goto(`${B}/dom-walk`, { waitUntil: "networkidle2", timeout: 30000 });
+  await tp.waitForFunction(() => window.__rendered === true, { timeout: 15000 });
+  const r = await tp.evaluate(() => {
+    const pane = window.__app.column.pane;
+    const el = pane.surface.element;
+    return { attr: pane.scrollY, dom: el.scrollTop,
+             innerTop: Math.round(pane.inner.surface.element.getBoundingClientRect().top),
+             paneTop: Math.round(el.getBoundingClientRect().top) };
+  });
+  await tp.close();
+  assert.equal(r.attr, 240, "the fixture declares scrollY = 240");
+  assert.equal(r.dom, 240, "…and the surface is actually scrolled there, not clamped to 0");
+  assert.equal(r.innerTop - r.paneTop, 400 - 240, "content sits at its declared offset minus the scroll");
 });
 
 await test("dom: page-regime chrome is never STRANDED in a pane's sticky frame", async () => {

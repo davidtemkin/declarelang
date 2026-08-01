@@ -13287,8 +13287,20 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
   function mountApp(app, host2, backend2, opts = {}) {
     app.attach(backend2, null);
     backend2.attachRoot(host2, app.surface);
+    applyDeclaredScroll(app);
     wireInput(app, host2, opts.chrome === true);
     return app;
+  }
+  function applyDeclaredScroll(v) {
+    if (v.scrolls !== "none") {
+      if (v.scrollY !== 0)
+        v.surface?.scrollToY?.(v.scrollY);
+      if (v.scrollX !== 0)
+        v.surface?.scrollToX?.(v.scrollX);
+    }
+    for (const c of v.children)
+      if (c instanceof View)
+        applyDeclaredScroll(c);
   }
 
   // runtime/dist/index.js

@@ -28,12 +28,24 @@ const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
 
 /** Programs under test. Small probes pin one drawing stage each; the apps are
  *  the integration end — between them they cover the surface the backend has. */
+// The DRAWING probes pin one rasterization stage each; the SEAM probes pin one
+// Surface capability each, in a state where its ABSENCE shows. That second
+// group exists because likeness testing is blind to a missing feature: the
+// desktop is shot at scroll 0, where fixed chrome and ordinary chrome sit in
+// the same place, so `ignoreScroll` being entirely unimplemented on the native
+// backend passed this gate for as long as both have existed (found 2026-07-31
+// by diffing the backends' seam coverage, not by any render — see
+// test/seam.test.mjs). A capability with no probe is a capability this gate
+// cannot report on.
 const CORPUS = [
   "apps/probe/arc.declare",
   "apps/probe/blend.declare",
   "apps/probe/blur.declare",
   "apps/probe/roundrect.declare",
   "apps/probe/vignette.declare",
+  "apps/probe/ignorescroll.declare",
+  "apps/probe/richtext.declare",
+  "apps/probe/editable.declare",
   "apps/calendar/calendar.declare",
   "apps/weather/weather.declare",
   "apps/controls/controls.declare",
@@ -89,7 +101,13 @@ async function awaitProgram(before) {
     if (!changed && n !== before) changed = true;
     stable = n === last ? stable + 1 : 0;
     last = n;
+    // A CHANGED count is the strong signal that the new program is up. But
+    // re-booting the SAME program (a `--only` rerun, or two corpus entries of
+    // equal size) legitimately produces the same count forever, so holding out
+    // for a change turns an ordinary rerun into a 20s timeout and a NaN row.
+    // Stability is the fallback: quiet for longer, and accept.
     if (changed && stable >= 2 && Date.now() - t0 > 1500) { await sleep(1); return ""; }
+    if (stable >= 6 && Date.now() - t0 > 3000) { await sleep(1); return ""; }
   }
   return `settle timeout (layers stuck at ${last}${changed ? "" : ", never changed from " + before})`;
 }
@@ -154,8 +172,26 @@ for (const [name, stamp] of Object.entries(CLOCKED)) {
   }
 }
 if (bless) {
-  writeFileSync(BASELINE, JSON.stringify(now, null, 2) + "\n");
-  console.log(`\n  baseline written: ${BASELINE}`);
+  // MERGE, never replace. `now` holds only the programs this run measured, so
+  // `--only arc --bless` used to silently delete every other program's
+  // baseline — a one-flag way to destroy the record the gate exists to keep.
+  // Per-program merge that keeps a `note`: a baseline is sometimes not a clean
+  // agreement but a RECORDED HOLE (ignorescroll's number is the size of the
+  // native backend's missing setIgnoreScroll), and that context has to survive
+  // the next bless or the figure silently reads as "fine".
+  const merged = { ...base };
+  for (const [name, row] of Object.entries(now)) {
+    const note = base[name]?.note;
+    merged[name] = note === undefined ? row : { ...row, note };
+  }
+  // Never record a failed measurement as the thing to compare against.
+  for (const [name, row] of Object.entries(merged)) {
+    if (row.differing === null || Number.isNaN(row.differing)) delete merged[name];
+  }
+  writeFileSync(BASELINE, JSON.stringify(merged, null, 2) + "\n");
+  const names = Object.keys(now).join(", ");
+  console.log(`\n  baseline written: ${BASELINE}\n  updated: ${names}` +
+              (only ? `  (the other ${Object.keys(base).length - Object.keys(now).length} kept)` : ""));
 }
 console.log(`\n  ${rows.length} programs · ${failed} failing · ${fresh} without a baseline\n`);
 process.exit(failed > 0 && !bless ? 1 : 0);

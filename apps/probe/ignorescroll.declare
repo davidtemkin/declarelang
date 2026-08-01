@@ -1,0 +1,28 @@
+// ignoreScroll, probed where its ABSENCE is visible.
+//
+// A backend that never implements `setIgnoreScroll` renders this identically
+// to a backend that does — unless the surrounding scroller is actually
+// SCROLLED. So the pane starts at an offset: the orange band is declared 40px
+// down and must therefore be gone, while the green chrome rides the frame and
+// must still be at the top. Get it wrong and the top 30px is content instead
+// of green — a large, localized, unmistakable diff.
+//
+// The gate shoots at rest, so the offset has to be declared rather than
+// gestured; `scrollY` is a settable attribute, which is exactly that.
+
+App [ width = 400, height = 250, fill = #202020,
+    pane: View [ x = 0, y = 0, width = 400, height = 250, scrolls = y, scrollY = 120,
+
+        // the scrolled content: tall enough to have somewhere to go
+        tall: View [ x = 0, y = 0, width = 400, height = 900, fill = #2E3742 ],
+
+        // a marker that MUST scroll away (declared at 40, offset 120 ⇒ off-frame)
+        band: View [ x = 0, y = 40, width = 400, height = 40, fill = #FF8800 ],
+
+        // …and one that must NOT: frame chrome, pinned at the pane's top edge
+        chrome: View [ ignoreScroll = true, x = 0, y = 0, width = 400, height = 30, fill = #00CC66 ],
+
+        // a second marker deep in the content, to prove the offset really took
+        deep: View [ x = 0, y = 300, width = 400, height = 40, fill = #6688FF ]
+        ]
+    ]
