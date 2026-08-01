@@ -45,11 +45,22 @@ export declare class KeysService {
      *  the held set. Listeners live on `window` (a key released outside the tree
      *  must still update state) and self-retire once `alive` goes false — the
      *  same discipline as routeInput. Node-free core; only this method touches
-     *  the DOM. */
+     *  the DOM.
+     *
+     *  IDEMPOTENT PER TARGET. A browser calls this once per document, so
+     *  stacking never showed there — but a LONG-LIVED host re-mounts app after
+     *  app into one process, and wireInput calls this per mount. Un-guarded,
+     *  each mount stacked another listener trio whose `alive` (the old app's)
+     *  never went false, so every keydown fed the core once per mount ever
+     *  made: N listeners × N delivery handlers = N² focus advances per Tab on
+     *  the native host, with N² 's parity alternating per boot — measured
+     *  2026-08-01 as nextCalls 9, 16, 25, 36 on four consecutive boots, and
+     *  presenting for two days as a focus "coin toss". A repeat call now
+     *  REPLACES the previous registration's liveness probe instead of adding
+     *  listeners: the newest app owns the wire, exactly re-mount semantics. */
     listen(alive: () => boolean, target?: Window): void;
 }
 /** A DOM KeyboardEvent → the normalized KeyEvent the core consumes. */
 export declare function normalize(ev: KeyboardEvent): KeyEvent;
-/** The runtime's keyboard service (LZX's lz.Keys). */
 export declare const Keys: KeysService;
 export {};

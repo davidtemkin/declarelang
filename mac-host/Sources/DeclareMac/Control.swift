@@ -39,9 +39,23 @@ final class ControlChannel {
     }
 
     private func poll() {
-        guard let raw = try? String(contentsOfFile: inPath, encoding: .utf8),
+        // ATOMIC TAKE. The old shape — read the inbox, THEN overwrite it empty —
+        // had a window between the two where a client's write was silently
+        // erased: the command never ran, no reply was ever written, and the
+        // client could not tell it lost one. Measured 2026-08-01: two of three
+        // `key Tab` probes in a row vanished while the host was healthy, which
+        // surfaced as a "focus doesn't advance" bug and cost a day of chasing
+        // the wrong layer. rename(2) is atomic on the same volume, so the race
+        // is structural now, not probabilistic: a concurrent write either lands
+        // before the rename (and is taken whole) or recreates the inbox after
+        // (and is taken next tick). Nothing is ever overwritten unread.
+        let takePath = inPath + ".take"
+        guard FileManager.default.fileExists(atPath: inPath) else { return }
+        try? FileManager.default.removeItem(atPath: takePath)
+        guard (try? FileManager.default.moveItem(atPath: inPath, toPath: takePath)) != nil else { return }
+        defer { try? FileManager.default.removeItem(atPath: takePath) }
+        guard let raw = try? String(contentsOfFile: takePath, encoding: .utf8),
               !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        try? "".write(toFile: inPath, atomically: true, encoding: .utf8)
         var out: [String] = []
         for line in raw.split(separator: "\n") {
             let cmd = line.trimmingCharacters(in: .whitespaces)

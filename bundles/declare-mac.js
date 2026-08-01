@@ -8630,6 +8630,11 @@ var DeclareMac = (() => {
     return false;
   }
   function deliverKeys(keys, focus) {
+    const perFocus = DELIVERING.get(keys) ?? /* @__PURE__ */ new WeakMap();
+    DELIVERING.set(keys, perFocus);
+    const existing = perFocus.get(focus);
+    if (existing !== void 0)
+      return existing;
     const offDown = keys.onKeyDown((e) => {
       if (e.code === "Tab") {
         if (e.shift)
@@ -8649,12 +8654,15 @@ var DeclareMac = (() => {
       if (f !== null)
         fireEvent(f, "keyUp", e);
     });
-    return () => {
+    const off = () => {
+      perFocus.delete(focus);
       offDown();
       offUp();
     };
+    perFocus.set(focus, off);
+    return off;
   }
-  var FocusService, Focus;
+  var FocusService, DELIVERING, Focus;
   var init_focus = __esm({
     "runtime/dist/focus.js"() {
       "use strict";
@@ -8861,6 +8869,7 @@ var DeclareMac = (() => {
           return rootOf(view);
         }
       };
+      DELIVERING = /* @__PURE__ */ new WeakMap();
       Focus = new FocusService();
       setFocusDiscardHook((view) => Focus.noteDiscarded(view));
     }
@@ -10674,7 +10683,7 @@ var DeclareMac = (() => {
       repeat: ev.repeat
     };
   }
-  var keysFocusProbe, KeysService, Keys;
+  var keysFocusProbe, KeysService, LISTENING, Keys;
   var init_keys = __esm({
     "runtime/dist/keys.js"() {
       "use strict";
@@ -10757,12 +10766,38 @@ var DeclareMac = (() => {
          *  the held set. Listeners live on `window` (a key released outside the tree
          *  must still update state) and self-retire once `alive` goes false — the
          *  same discipline as routeInput. Node-free core; only this method touches
-         *  the DOM. */
+         *  the DOM.
+         *
+         *  IDEMPOTENT PER TARGET. A browser calls this once per document, so
+         *  stacking never showed there — but a LONG-LIVED host re-mounts app after
+         *  app into one process, and wireInput calls this per mount. Un-guarded,
+         *  each mount stacked another listener trio whose `alive` (the old app's)
+         *  never went false, so every keydown fed the core once per mount ever
+         *  made: N listeners × N delivery handlers = N² focus advances per Tab on
+         *  the native host, with N² 's parity alternating per boot — measured
+         *  2026-08-01 as nextCalls 9, 16, 25, 36 on four consecutive boots, and
+         *  presenting for two days as a focus "coin toss". A repeat call now
+         *  REPLACES the previous registration's liveness probe instead of adding
+         *  listeners: the newest app owns the wire, exactly re-mount semantics. */
         listen(alive, target = window) {
+          const bound = LISTENING.get(target);
+          if (bound !== void 0) {
+            bound.alive = alive;
+            return;
+          }
+          const box = { alive };
+          LISTENING.set(target, box);
+          const isAlive = () => box.alive();
+          const retire = () => {
+            LISTENING.delete(target);
+            target.removeEventListener("keydown", onDown);
+            target.removeEventListener("keyup", onUp);
+            target.removeEventListener("blur", onBlur);
+          };
           const focusHolds = () => keysFocusProbe !== null && keysFocusProbe();
           const onDown = (ev) => {
-            if (!alive())
-              return void target.removeEventListener("keydown", onDown);
+            if (!isAlive())
+              return retire();
             if (ev.key === "Tab")
               ev.preventDefault();
             if (document.activeElement === document.body || document.activeElement === null) {
@@ -10774,13 +10809,13 @@ var DeclareMac = (() => {
             this.keyDown(normalize(ev));
           };
           const onUp = (ev) => {
-            if (!alive())
-              return void target.removeEventListener("keyup", onUp);
+            if (!isAlive())
+              return retire();
             this.keyUp(normalize(ev));
           };
           const onBlur = () => {
-            if (!alive())
-              return void target.removeEventListener("blur", onBlur);
+            if (!isAlive())
+              return retire();
             this.clearHeld();
           };
           target.addEventListener("keydown", onDown);
@@ -10788,6 +10823,7 @@ var DeclareMac = (() => {
           target.addEventListener("blur", onBlur);
         }
       };
+      LISTENING = /* @__PURE__ */ new WeakMap();
       Keys = new KeysService();
     }
   });
@@ -14653,8 +14689,6 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     throw new Error("could not load " + url);
   }
   var currentApp = null;
-  var keysWired = false;
-  var keyWirings = 0;
   var backend = null;
   async function macBoot(url) {
     const { source, deps, base: base2 } = await resolveProgram(url);
@@ -14678,12 +14712,9 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     mountApp(app, hostStub(), backend);
     globalThis.__declare = bridgeFor(app);
     Focus.setRoot(app);
-    if (!keysWired) {
-      keysWired = true;
-      keyWirings++;
-      Keys.listen(() => currentApp?.surface != null);
-      deliverKeys(Keys, Focus);
-    }
+    Keys.listen(() => currentApp?.surface != null);
+    deliverKeys(Keys, Focus);
+    wireDiag();
     settle();
     flushOps();
     H.setTitle(app.appName || programName(base2));
@@ -14963,10 +14994,33 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     out.ops = Math.round(opTotal / N);
     return JSON.stringify(out);
   };
+  var diag = { rawKeydowns: 0, deliveries: 0, nextCalls: 0 };
   globalThis.__declareDiag = () => ({
-    keyWirings,
+    ...diag,
     focused: Focus.getFocus()?.constructor?.name ?? null
   });
+  globalThis.__declareDiagReset = () => {
+    diag.rawKeydowns = 0;
+    diag.deliveries = 0;
+    diag.nextCalls = 0;
+    return "ok";
+  };
+  var diagWired = false;
+  function wireDiag() {
+    if (diagWired) return;
+    diagWired = true;
+    window.addEventListener("keydown", () => {
+      diag.rawKeydowns++;
+    });
+    Keys.onKeyDown(() => {
+      diag.deliveries++;
+    });
+    const origNext = Focus.next.bind(Focus);
+    Focus.next = () => {
+      diag.nextCalls++;
+      origNext();
+    };
+  }
   globalThis.__declareReset = () => {
     Focus.reset();
     Keys.clearHeld();

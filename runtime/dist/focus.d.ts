@@ -85,12 +85,6 @@ export declare class FocusService {
      *  user is interacting with and never leaks into the host's controls. */
     private groupRoot;
 }
-/** Wire a Keys service to a Focus service: `Tab` / `Shift-Tab` are consumed by
- *  focus traversal; every other key is delivered to the focused view as
- *  `onKeyDown` / `onKeyUp` (target-only, no bubbling — D-2). Returns an
- *  unsubscribe thunk. The runtime entry calls this; a test drives it with a
- *  fresh KeysService. (v1: Tab is always the traversal key; a field that wants
- *  a literal Tab is a later refinement.) */
 export declare function deliverKeys(keys: KeysService, focus: FocusService): () => void;
 /** The runtime's focus service (LZX's lz.Focus). */
 export declare const Focus: FocusService;

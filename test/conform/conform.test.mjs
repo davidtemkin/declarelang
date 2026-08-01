@@ -138,34 +138,30 @@ async function conform(program, script, question, label) {
 // baselines and test/seam.test.mjs's table.
 const SKIP = Symbol("not proven on this host");
 const KNOWN = {
-  "focus order": {
-    mac: SKIP,
-    why: "NOT PROVEN natively. Narrowed a long way, not yet solved — recorded honestly " +
-         "rather than asserted or hidden.\n" +
-         "WHAT IT IS NOT. Not AppKit (Control.swift's `key` calls __declareKey directly, " +
-         "bypassing NSEvent; Overlays.swift never reports AppKit focus into the model). Not " +
-         "the harness (it reproduces stepping the host by hand). Not listener accumulation " +
-         "(__declareDiag reports keyWirings=1 on every run). Not a dropped command (the " +
-         "driver now handshakes). Not the starting state (Focus.getFocus() is null before " +
-         "every Tab). Not tree order (children are filled*, empty*, label — identical every " +
-         "boot, both focusable, both visible). Not double dispatch at the window (one " +
-         "__declareKey fires a window keydown handler exactly once).\n" +
-         "WHAT IT IS. Alternating per BOOT: odd boots give filled → empty → filled, " +
-         "identical to DOM and canvas; even boots give empty three times. From " +
-         "current = null, move(1) computes idx = -1 → nidx = 0 → seq[0], which is always " +
-         "`filled` — so on the even boots Tab is advancing TWICE (null → filled → empty, " +
-         "and thereafter two steps around a two-element cycle returns to the same field). " +
-         "Something delivers one Tab as two Focus.next() calls on alternate boots, between " +
-         "Keys.keyDown and deliverKeys' handler, and its parity survives __declareReset.\n" +
-         "NEXT PROBE: count Focus.next() invocations per key rather than inferring them from " +
-         "where focus lands — the inference is what has been ambiguous throughout.\n" +
-         "THE CATEGORY HAS ALREADY PAID FOR ITSELF: keyboard navigation had NEVER existed " +
-         "on the native host (boot.ts's `chrome` early-return skipped Focus.setRoot / " +
-         "Keys.listen / deliverKeys, so synthesized key events had nobody listening); a " +
-         "per-mount re-registration of those listeners; a dropped-command race in the " +
-         "control channel; and DECLARE_ROOT being ignored in favour of the baked bundle. " +
-         "Four real defects, all fixed.",
-  },
+  /* EMPTY, and the emptiness is the point: every divergence found by this
+     suite so far has been fixed rather than recorded. The longest-lived one —
+     keyboard focus on the native host — is worth its history, because five
+     successive diagnoses were wrong before counters replaced inference:
+
+       · keyboard navigation had never been wired natively at all (boot.ts's
+         wiring was believed skipped for a `chrome` host);
+       · then a re-registration per boot was blamed — partly right, wrongly
+         located;
+       · then AppKit's responder chain — wrong, and retracted (the `key` verb
+         bypasses NSEvent entirely);
+       · then the control channel's read-then-clear race — real, fixed (the
+         host now takes the inbox by atomic rename), but not this bug;
+       · the truth, measured as nextCalls = 9, 16, 25, 36 across four boots:
+         wireInput runs per mount, and neither Keys.listen nor deliverKeys was
+         re-entrant, so N mounts stacked N listeners × N delivery handlers and
+         one Tab advanced focus N² times — N²'s PARITY alternating per boot,
+         which is what made it read as a coin toss for two days.
+
+     The fix is in the runtime, where it belongs: `listen` is idempotent per
+     target (a repeat call replaces the liveness probe), `deliverKeys` is once
+     per service pair. A browser could never see this bug — one document, one
+     mount; a long-lived host re-mounts forever. That asymmetry is exactly what
+     this suite exists to catch. */
 };
 
 /** Hold every host to the reference answer, except where a divergence is

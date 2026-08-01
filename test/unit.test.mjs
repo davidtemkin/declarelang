@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
 import { compile, compileTracked, isUpToDate, diskProbe, extractStatic, settleHeadless } from "../compiler/dist/compile-node.js";
 import { KeysService } from "../runtime/dist/keys.js";
-import { Focus, deliverKeys } from "../runtime/dist/focus.js";
+import { Focus, FocusService, deliverKeys } from "../runtime/dist/focus.js";
 import { routeInput } from "../runtime/dist/input.js";
 import {
   parse,
@@ -5203,6 +5203,74 @@ await test("diagnostics: every phase's error carries a coded, phase-classified D
 // ── Keys service (docs/system-design/input.md, Layer 1) ───────────────────────────
 
 const kev = (code, over = {}) => ({ code, key: code, shift: false, ctrl: false, alt: false, meta: false, repeat: false, ...over });
+
+await test("keys: listen is IDEMPOTENT per target — a re-mount replaces the wire, never stacks it", () => {
+  // The native-host N² bug (2026-08-01): wireInput runs per mount, and a
+  // long-lived host mounts app after app into one process. Un-guarded, each
+  // mount stacked another listener trio whose alive() never went false, so a
+  // single Tab advanced focus once per mount ever made, squared — measured as
+  // nextCalls 9/16/25/36 across four boots, its parity alternating, presenting
+  // for two days as a focus coin toss. A browser can never exhibit this (one
+  // document, one mount), so the pin lives here, where no host is needed.
+  const registered = [];
+  const target = {
+    addEventListener: (type, fn) => registered.push([type, fn]),
+    removeEventListener: (type, fn) => {
+      const i = registered.findIndex(([t, f]) => t === type && f === fn);
+      if (i >= 0) registered.splice(i, 1);
+    },
+  };
+  const keys = new KeysService();
+  keys.listen(() => true, target);
+  const after1 = registered.length;
+  keys.listen(() => true, target);  // the second mount
+  keys.listen(() => true, target);  // and a third
+  assert.equal(after1, 3, "one wire = the keydown/keyup/blur trio");
+  assert.equal(registered.length, 3, "re-mounting replaces the liveness probe — it adds NOTHING");
+});
+
+await test("keys: a replaced liveness probe governs — the newest app owns the wire", () => {
+  const handlers = {};
+  const target = {
+    addEventListener: (type, fn) => { handlers[type] = fn; },
+    removeEventListener: (type) => { delete handlers[type]; },
+  };
+  const keys = new KeysService();
+  let firstAlive = true;
+  keys.listen(() => firstAlive, target);
+  keys.listen(() => true, target);   // the re-mount installs an always-live probe
+  firstAlive = false;                // the FIRST app dies
+  const seen = [];
+  keys.onKeyDown((e) => seen.push(e.code));
+  // were the first probe still governing, this event would retire the wire
+  handlers.keyup({ code: "KeyA", key: "a", shiftKey: false, ctrlKey: false, altKey: false, metaKey: false, repeat: false });
+  assert.ok(handlers.keyup !== undefined, "the wire survives the old app's death — the new probe governs");
+});
+
+await test("focus: deliverKeys is once per service pair; off() re-arms it", () => {
+  // The other half of the N² bug: deliverKeys per mount stacked delivery
+  // handlers with no liveness at all. Now: same pair → the same off, one
+  // handler; off() genuinely unhooks and a later call wires fresh.
+  const keys = new KeysService();
+  const focus = new FocusService();
+  let advances = 0;
+  const origNext = focus.next.bind(focus);
+  focus.next = () => { advances++; origNext(); };
+  const off1 = deliverKeys(keys, focus);
+  const off2 = deliverKeys(keys, focus);
+  const off3 = deliverKeys(keys, focus);
+  assert.equal(off2, off1, "a repeat delivery on the same pair is the SAME wiring");
+  assert.equal(off3, off1, "…however many times");
+  const tab = { code: "Tab", key: "Tab", shift: false, ctrl: false, alt: false, meta: false, repeat: false };
+  keys.keyDown(tab);
+  assert.equal(advances, 1, "one Tab, one advance — never one per mount");
+  off1();
+  keys.keyDown(tab);
+  assert.equal(advances, 1, "off() unhooks for real");
+  deliverKeys(keys, focus);
+  keys.keyDown(tab);
+  assert.equal(advances, 2, "and a fresh delivery after off() wires again");
+});
 
 await test("keys: the held-set tracks pressed keys (isDown / held)", () => {
   const K = new KeysService();

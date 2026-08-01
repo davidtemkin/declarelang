@@ -97,12 +97,38 @@ export class KeysService {
      *  the held set. Listeners live on `window` (a key released outside the tree
      *  must still update state) and self-retire once `alive` goes false — the
      *  same discipline as routeInput. Node-free core; only this method touches
-     *  the DOM. */
+     *  the DOM.
+     *
+     *  IDEMPOTENT PER TARGET. A browser calls this once per document, so
+     *  stacking never showed there — but a LONG-LIVED host re-mounts app after
+     *  app into one process, and wireInput calls this per mount. Un-guarded,
+     *  each mount stacked another listener trio whose `alive` (the old app's)
+     *  never went false, so every keydown fed the core once per mount ever
+     *  made: N listeners × N delivery handlers = N² focus advances per Tab on
+     *  the native host, with N² 's parity alternating per boot — measured
+     *  2026-08-01 as nextCalls 9, 16, 25, 36 on four consecutive boots, and
+     *  presenting for two days as a focus "coin toss". A repeat call now
+     *  REPLACES the previous registration's liveness probe instead of adding
+     *  listeners: the newest app owns the wire, exactly re-mount semantics. */
     listen(alive, target = window) {
+        const bound = LISTENING.get(target);
+        if (bound !== undefined) {
+            bound.alive = alive;
+            return;
+        }
+        const box = { alive };
+        LISTENING.set(target, box);
+        const isAlive = () => box.alive();
+        const retire = () => {
+            LISTENING.delete(target);
+            target.removeEventListener("keydown", onDown);
+            target.removeEventListener("keyup", onUp);
+            target.removeEventListener("blur", onBlur);
+        };
         const focusHolds = () => keysFocusProbe !== null && keysFocusProbe();
         const onDown = (ev) => {
-            if (!alive())
-                return void target.removeEventListener("keydown", onDown);
+            if (!isAlive())
+                return retire();
             // Declare owns Tab traversal (Layer 2); stop the browser from also moving its
             // own focus, which would fight the focus service (and skip a canvas app's
             // overlay inputs).
@@ -122,13 +148,13 @@ export class KeysService {
             this.keyDown(normalize(ev));
         };
         const onUp = (ev) => {
-            if (!alive())
-                return void target.removeEventListener("keyup", onUp);
+            if (!isAlive())
+                return retire();
             this.keyUp(normalize(ev));
         };
         const onBlur = () => {
-            if (!alive())
-                return void target.removeEventListener("blur", onBlur);
+            if (!isAlive())
+                return retire();
             this.clearHeld();
         };
         target.addEventListener("keydown", onDown);
@@ -149,5 +175,9 @@ export function normalize(ev) {
     };
 }
 /** The runtime's keyboard service (LZX's lz.Keys). */
+/** Targets this service is already listening on → the liveness box a repeat
+ *  `listen` swaps its probe into (see listen's idempotence note). Weak: a
+ *  discarded shim window carries its registration away. */
+const LISTENING = new WeakMap();
 export const Keys = new KeysService();
 //# sourceMappingURL=keys.js.map

@@ -274,7 +274,20 @@ function isInSubtree(node: View, ancestor: View): boolean {
  *  unsubscribe thunk. The runtime entry calls this; a test drives it with a
  *  fresh KeysService. (v1: Tab is always the traversal key; a field that wants
  *  a literal Tab is a later refinement.) */
+/** Pairs already delivering → their off(). The browser calls deliverKeys once
+ *  per document; a long-lived host calls it per MOUNT (boot.ts wireInput), and
+ *  each un-guarded call stacked another pair of handlers that nothing ever
+ *  removed — the other half of the native host's N² Tab advances (keys.ts
+ *  `listen` has the full account). A repeat call on the same pair now returns
+ *  the existing off. Weak on the keys service; tests constructing fresh
+ *  services are untouched. */
+const DELIVERING = new WeakMap<KeysService, WeakMap<FocusService, () => void>>();
+
 export function deliverKeys(keys: KeysService, focus: FocusService): () => void {
+  const perFocus = DELIVERING.get(keys) ?? new WeakMap<FocusService, () => void>();
+  DELIVERING.set(keys, perFocus);
+  const existing = perFocus.get(focus);
+  if (existing !== undefined) return existing;
   const offDown = keys.onKeyDown((e) => {
     if (e.code === "Tab") {
       if (e.shift) focus.prev();
@@ -289,10 +302,13 @@ export function deliverKeys(keys: KeysService, focus: FocusService): () => void 
     const f = focus.getFocus();
     if (f !== null) fireEvent(f, "keyUp", e);
   });
-  return () => {
+  const off = (): void => {
+    perFocus.delete(focus);
     offDown();
     offUp();
   };
+  perFocus.set(focus, off);
+  return off;
 }
 
 /** The runtime's focus service (LZX's lz.Focus). */

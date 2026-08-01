@@ -160,8 +160,6 @@ async function resolveProgram(url) {
 // ── mounting ────────────────────────────────────────────────────────────────
 
 let currentApp = null;
-let keysWired = false;   // process-lived, unlike the app (see mountApp below)
-let keyWirings = 0;      // how many times we actually installed the key listeners
 let backend = null;
 
 export async function macBoot(url) {
@@ -186,38 +184,30 @@ export async function macBoot(url) {
 
   backend = new MacBackend();
   mountApp(app, hostStub(), backend);
-  // The inspect bridge. boot.ts installs it for top-level DOM apps only —
-  // wireInput returns early for a `chrome` host, which natively we are — so the
-  // native client had every capability of inspect.ts and no way to reach any of
-  // it. Installing it here costs one line and means the control channel's
-  // `eval` verb answers the SAME questions as the DOM's `__declare`: the tree,
-  // provenance, geometry, and `explainHit` — one vocabulary, three transports,
-  // rather than a bespoke Swift verb per question (Control.swift's own `trace`
-  // narrates the LAYER walk, which is a different tree and a different answer).
+  // wireInput (inside mountApp) treats the host stub as a TOP-LEVEL app and
+  // wires everything a browser page gets: Focus root, Keys.listen, deliverKeys,
+  // and `window.__declare`. Two native realities on top of that:
+  //
+  //   THE BRIDGE lands on the shim's `window` object, which is not JSC's
+  //   global — so it is re-published on globalThis, where the control
+  //   channel's `eval` (and a human at the FIFO) can reach it bare. One
+  //   vocabulary, three transports.
+  //
+  //   RE-MOUNTING is this host's normal life — one process, many
+  //   `__declareBoot`s — where a browser gets one mount per document. The
+  //   runtime's wiring is idempotent for exactly this reason (keys.ts
+  //   `listen` replaces the liveness probe per target; focus.ts `deliverKeys`
+  //   is once per service pair): before it was, each boot stacked another
+  //   listener × another delivery handler, and one Tab advanced focus N²
+  //   times — measured 2026-08-01 as nextCalls 9/16/25/36 on four consecutive
+  //   boots, N²'s parity alternating per boot, presenting for two days as a
+  //   focus "coin toss". The alive probe below is the one per-host refinement:
+  //   it tracks the CURRENT app, not the app that happened to mount first.
   globalThis.__declare = bridgeFor(app);
-  // Keyboard + focus. boot.ts wires these for top-level DOM apps and returns
-  // early for a `chrome` host — which natively we are — so Tab navigation,
-  // key delivery to the focused view, and the Focus service's root were all
-  // simply absent here. The host already synthesizes real key events onto the
-  // shimmed window (mac-env.js `__declareKey`, which Control.swift's `key`
-  // verb drives), so nothing was missing but these three calls: the listener
-  // had no one listening. Found by the conformance suite's first keyboard
-  // test — DOM cycled filled → empty → filled on Tab, native did nothing.
-  // The ROOT is per program; the LISTENERS are per process. Keys.listen has no
-  // guard against re-registration — it just adds handlers — and this function
-  // runs on every `__declareBoot`, so wiring here unguarded added another
-  // keydown listener per navigation and fired Focus.next() once per boot. One
-  // Tab then advanced N steps, and an even N around a two-field cycle lands on
-  // the same field every time: the native column reported [empty,empty,empty]
-  // and looked exactly like "focus does not advance". A browser never sees this
-  // because a new document means new listeners; a long-lived host does.
   Focus.setRoot(app);
-  if (!keysWired) {
-    keysWired = true;
-    keyWirings++;
-    Keys.listen(() => currentApp?.surface != null);
-    deliverKeys(Keys, Focus);
-  }
+  Keys.listen(() => currentApp?.surface != null);
+  deliverKeys(Keys, Focus);
+  wireDiag();
   settle();
   flushOps();
   H.setTitle(app.appName || programName(base));
@@ -560,12 +550,29 @@ globalThis.__declareBench = () => {
  *  from a test between two programs. Call it BEFORE booting the next program:
  *  `Focus.setRoot` re-establishes the root on the way back up.
  */
-/** Diagnostic: what the key/focus wiring currently looks like. Counts, not
- *  booleans, because the bug being chased is an accumulation. */
+/** Diagnostic: counters at EVERY stage of the key path, reset per boot.
+ *  Counts, not booleans — the bugs chased here are accumulations — and per
+ *  stage, because "where focus landed" proved un-inferable: the same end state
+ *  can mean one advance from the wrong start or two from the right one.
+ *    rawKeydowns   window keydown events seen (the shim's dispatch)
+ *    deliveries    Keys' onKeyDown fan-out (what deliverKeys hears)
+ *    nextCalls     Focus.next() invocations (the advance itself)
+ *  One Tab must read 1/1/1. Any stage reading 2 names the doubling layer. */
+const diag = { rawKeydowns: 0, deliveries: 0, nextCalls: 0 };
 globalThis.__declareDiag = () => ({
-  keyWirings: keyWirings,
+  ...diag,
   focused: Focus.getFocus()?.constructor?.name ?? null,
 });
+globalThis.__declareDiagReset = () => { diag.rawKeydowns = 0; diag.deliveries = 0; diag.nextCalls = 0; return "ok"; };
+let diagWired = false;
+function wireDiag() {
+  if (diagWired) return;
+  diagWired = true;
+  window.addEventListener("keydown", () => { diag.rawKeydowns++; });
+  Keys.onKeyDown(() => { diag.deliveries++; });
+  const origNext = Focus.next.bind(Focus);
+  Focus.next = () => { diag.nextCalls++; origNext(); };
+}
 
 globalThis.__declareReset = () => {
   Focus.reset();
