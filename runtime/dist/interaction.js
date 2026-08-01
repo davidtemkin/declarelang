@@ -104,27 +104,37 @@ function toChildLocal(v, c, lx, ly) {
  *  question — the inspector's picker, a calendar's cell math, a window's resize
  *  zones — is how the desktop's corner bug happened.) */
 export function leafAt(v, lx, ly, pierce = false, trace) {
-    const note = (why) => {
+    // The trace pushes are INLINE and guarded, never a closure: `leafAt` recurses
+    // once per view per hit test and the interaction driver runs it on every
+    // pointer move, so a per-call closure would allocate hundreds of times a
+    // second on a real tree to serve a diagnostic nobody asked for. Guarded this
+    // way, an untraced walk allocates nothing and the object literals below are
+    // only ever built when a collector was actually passed.
+    if (!v.visible) {
         if (trace !== undefined)
-            trace.push({ view: v, why, x: Math.round(lx), y: Math.round(ly) });
+            trace.push({ view: v, why: "skipped — visible = false", x: Math.round(lx), y: Math.round(ly) });
         return null;
-    };
-    if (!v.visible)
-        return note("skipped — visible = false");
+    }
     // "none" makes the subtree pointer-transparent (the overlay rule) — the walk
     // falls through it exactly as input resolution does. `pierce` is the ONE
     // caller-visible difference in the whole walk: the Inspector's picker must be
     // able to select a view the pointer would pass through, because a developer
     // asking "what is this?" means the thing they can see, not the thing that
     // would receive a press.
-    if (!pierce && v.pointerEvents === "none")
-        return note('skipped — pointerEvents = "none" (the subtree is pointer-transparent)');
+    if (!pierce && v.pointerEvents === "none") {
+        if (trace !== undefined)
+            trace.push({ view: v, why: 'skipped — pointerEvents = "none" (the subtree is pointer-transparent)', x: Math.round(lx), y: Math.round(ly) });
+        return null;
+    }
     const inside = lx >= 0 && ly >= 0 && lx <= v.width && ly <= v.height;
     // A scroller bounds its subtree at its FRAME — content beyond the frame is
     // out of view by definition, whatever the `clip` attribute says (the canvas
     // hit walk's exact rule, chrome included: its sticky frame lives in-frame).
-    if (v.scrolls !== "none" && !inside)
-        return note("skipped — outside a scroller's FRAME, so its whole subtree is out of view");
+    if (v.scrolls !== "none" && !inside) {
+        if (trace !== undefined)
+            trace.push({ view: v, why: "skipped — outside a scroller's FRAME, so its whole subtree is out of view", x: Math.round(lx), y: Math.round(ly) });
+        return null;
+    }
     // A clipping view (box or shape — a shape clip approximates as its box here)
     // bounds its subtree's hits — EXCEPT children that opt out with `ignoreClip`
     // (frame chrome straddling the frame "still paints and still hits", view.ts;
@@ -161,8 +171,11 @@ export function leafAt(v, lx, ly, pierce = false, trace) {
         if (hit !== null)
             return hit;
     }
-    if (!inside)
-        return note("missed — the point is outside this view's own box");
+    if (!inside) {
+        if (trace !== undefined)
+            trace.push({ view: v, why: "missed — the point is outside this view's own box", x: Math.round(lx), y: Math.round(ly) });
+        return null;
+    }
     if (trace !== undefined)
         trace.push({ view: v, why: "HIT — the deepest box containing the point", x: Math.round(lx), y: Math.round(ly) });
     return v;

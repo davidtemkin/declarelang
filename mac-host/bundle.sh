@@ -1,5 +1,8 @@
 #!/bin/bash
-# bundle.sh — assemble Declare.app.
+# bundle.sh — assemble "Declare Mac.app".
+#
+# TWO WORDS, deliberately: the product is Declare, and this is its Mac host —
+# `DeclareMac` is the SwiftPM target's identifier, never a name shown to anyone.
 #
 # The app is the Swift shell plus the two JS scripts it evaluates (the env shim
 # and the runtime+backend+boot bundle). Those live in Resources, which is where
@@ -9,13 +12,13 @@
 set -e
 cd "$(dirname "$0")"
 ROOT="$(cd .. && pwd)"
-OUT="${1:-$HOME/Desktop}/Declare.app"
+OUT="${1:-$HOME/Desktop}/Declare Mac.app"
 
 swift build -c release >/dev/null
 rm -rf "$OUT"
 mkdir -p "$OUT/Contents/MacOS" "$OUT/Contents/Resources"
 
-cp .build/release/DeclareMac "$OUT/Contents/MacOS/Declare"
+cp .build/release/DeclareMac "$OUT/Contents/MacOS/Declare Mac"
 cp "$ROOT/browser/mac-env.js" "$OUT/Contents/Resources/"
 cp "$ROOT/bundles/declare-mac.js" "$OUT/Contents/Resources/"
 # The icon is GENERATED from the desktop's own Declare Viewer glyph — see
@@ -30,9 +33,9 @@ cat > "$OUT/Contents/Info.plist" <<'PLIST'
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>Declare</string>
-  <key>CFBundleDisplayName</key><string>Declare</string>
-  <key>CFBundleExecutable</key><string>Declare</string>
+  <key>CFBundleName</key><string>Declare Mac</string>
+  <key>CFBundleDisplayName</key><string>Declare Mac</string>
+  <key>CFBundleExecutable</key><string>Declare Mac</string>
   <key>CFBundleIdentifier</key><string>com.davidtemkin.declare.host</string>
   <key>CFBundleIconFile</key><string>Declare</string>
   <key>CFBundleIconName</key><string>Declare</string>

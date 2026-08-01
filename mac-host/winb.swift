@@ -15,9 +15,9 @@
 // binary with no source anywhere in the tree, one `/tmp` clear away from making
 // gate/fidelity/parity/ctl silently unrunnable — and, because it matched a
 // single owner name, it saw the bare SwiftPM binary (owner "DeclareMac") but
-// NOT a properly bundled Declare.app (owner "Declare"), which quietly tied the
-// whole native gate to running the host un-bundled and icon-less. Both spellings
-// answer here, so how the host was launched stops being load-bearing.
+// NOT a properly bundled app, which quietly tied the whole native gate to
+// running the host un-bundled and icon-less. Every spelling answers here, so
+// how the host was launched stops being load-bearing.
 //
 // Source tracked, binary per-machine and gitignored — the same split as
 // tools/internal/pointer.swift. win.mjs rebuilds it on demand.
@@ -26,9 +26,11 @@ import CoreGraphics
 import Foundation
 
 let args = CommandLine.arguments
-// The host answers to both spellings: `swift build`'s bare executable and the
-// bundled app that bundle.sh produces.
-let names: Set<String> = args.count > 1 ? [args[1]] : ["DeclareMac", "Declare"]
+// The host answers to every spelling it has worn: the bundled app ("Declare
+// Mac" — two words, the product plus its host), `swift build`'s bare
+// executable ("DeclareMac", a target identifier that was never a display
+// name), and the single-word bundle that preceded the rename.
+let names: Set<String> = args.count > 1 ? [args[1]] : ["Declare Mac", "DeclareMac", "Declare"]
 
 let opts: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
 guard let list = CGWindowListCopyWindowInfo(opts, kCGNullWindowID) as? [[String: Any]] else {

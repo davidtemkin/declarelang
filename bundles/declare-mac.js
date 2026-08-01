@@ -5613,18 +5613,22 @@ var DeclareMac = (() => {
     return [cx, cy];
   }
   function leafAt(v, lx, ly, pierce = false, trace) {
-    const note = (why) => {
+    if (!v.visible) {
       if (trace !== void 0)
-        trace.push({ view: v, why, x: Math.round(lx), y: Math.round(ly) });
+        trace.push({ view: v, why: "skipped \u2014 visible = false", x: Math.round(lx), y: Math.round(ly) });
       return null;
-    };
-    if (!v.visible)
-      return note("skipped \u2014 visible = false");
-    if (!pierce && v.pointerEvents === "none")
-      return note('skipped \u2014 pointerEvents = "none" (the subtree is pointer-transparent)');
+    }
+    if (!pierce && v.pointerEvents === "none") {
+      if (trace !== void 0)
+        trace.push({ view: v, why: 'skipped \u2014 pointerEvents = "none" (the subtree is pointer-transparent)', x: Math.round(lx), y: Math.round(ly) });
+      return null;
+    }
     const inside = lx >= 0 && ly >= 0 && lx <= v.width && ly <= v.height;
-    if (v.scrolls !== "none" && !inside)
-      return note("skipped \u2014 outside a scroller's FRAME, so its whole subtree is out of view");
+    if (v.scrolls !== "none" && !inside) {
+      if (trace !== void 0)
+        trace.push({ view: v, why: "skipped \u2014 outside a scroller's FRAME, so its whole subtree is out of view", x: Math.round(lx), y: Math.round(ly) });
+      return null;
+    }
     const clipping = v.clip !== null && v.clip !== false && v.clip !== "";
     const kids = v.children;
     if (v.scrolls !== "none") {
@@ -5653,8 +5657,11 @@ var DeclareMac = (() => {
       if (hit !== null)
         return hit;
     }
-    if (!inside)
-      return note("missed \u2014 the point is outside this view's own box");
+    if (!inside) {
+      if (trace !== void 0)
+        trace.push({ view: v, why: "missed \u2014 the point is outside this view's own box", x: Math.round(lx), y: Math.round(ly) });
+      return null;
+    }
     if (trace !== void 0)
       trace.push({ view: v, why: "HIT \u2014 the deepest box containing the point", x: Math.round(lx), y: Math.round(ly) });
     return v;
