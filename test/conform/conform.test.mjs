@@ -140,30 +140,34 @@ const SKIP = Symbol("not proven on this host");
 const KNOWN = {
   "focus order": {
     mac: SKIP,
-    why: "NOT PROVEN on the native column — the harness result is NON-DETERMINISTIC there, " +
-         "alternating run to run between filled → empty → filled (identical to DOM and " +
-         "canvas) and empty three times. Stepping the same running host by hand through the " +
-         "control channel gives the correct sequence every time, so the RUNTIME is verified " +
-         "correct by direct observation and this is a harness artifact — most likely the " +
-         "settle window before the first Tab, or state left by the programs booted before it " +
-         "in the same long-lived process. Asserting either value would be recording a coin " +
-         "flip, and asserting convergence would be worse. Closing it needs the flake " +
-         "isolated, not a tolerance.\n" +
-         "THE CATEGORY ALREADY PAID FOR ITSELF: two real bugs found and fixed getting here. " +
-         "(1) Keyboard navigation had NEVER existed on the native host — boot.ts wires " +
-         "Focus.setRoot / Keys.listen / deliverKeys for top-level DOM apps and returns early " +
-         "for a `chrome` host, which natively we are, so the key events the host was already " +
-         "synthesizing (mac-env.js __declareKey, driven by Control.swift's `key` verb) had " +
-         "nobody listening. Not different: absent. (2) Wiring them in the per-mount path then " +
-         "re-registered on every __declareBoot, because Keys.listen has no re-entry guard — " +
-         "one Tab advanced focus once per boot, and an even count around a two-field cycle " +
-         "lands on the same field every time, which reads exactly like 'focus does not " +
-         "advance'. A browser never meets that one: a new document means new listeners, " +
-         "where a long-lived host accumulates them.\n" +
-         "An earlier draft blamed AppKit's responder chain. WRONG, and retracted: " +
+    why: "NOT PROVEN natively, and the reason is now a NAMED HOST BUG rather than a mystery.\n" +
+         "THE COIN TOSS IS THE CONTROL CHANNEL, not focus. Control.swift's poll READS the " +
+         "inbox and THEN clears it, so a client write landing between those two steps is " +
+         "erased: the command never runs, no reply is ever written, and the client cannot " +
+         "tell. Measured 2026-08-01 — two of three `key Tab` probes in a row returned no " +
+         "reply while the host was perfectly healthy. Three Tabs sent, two arriving, focus " +
+         "landing wherever the survivors left it. The driver now handshakes (waits for the " +
+         "inbox to drain before writing), which removes the drop.\n" +
+         "WHAT REMAINS, and it is worse: after the keyboard sequence the host's control loop " +
+         "WEDGES. It stays alive and keeps rendering, but stops consuming the inbox entirely " +
+         "— a plain `ping` sits unread indefinitely. So the residual failure is not focus " +
+         "disagreeing, it is the host ceasing to answer. Reproducible, and squarely the " +
+         "host's: the poll timer is on the main run loop and something in the key path stops " +
+         "it servicing. Fixing it belongs in Control.swift (an atomic take — rename or " +
+         "sequence-number the inbox — and a poll that cannot be starved), not here.\n" +
+         "Focus itself is verified CORRECT natively by direct observation: stepping the host " +
+         "by hand gives filled → empty → filled, identical to DOM and canvas.\n" +
+         "TWO REAL BUGS were already found and fixed by this category. (1) Keyboard " +
+         "navigation had NEVER existed on the native host — boot.ts wires Focus.setRoot / " +
+         "Keys.listen / deliverKeys for top-level DOM apps and returns early for a `chrome` " +
+         "host, so the key events the host was already synthesizing had nobody listening. " +
+         "(2) Wiring them in the per-mount path then re-registered on every __declareBoot, " +
+         "because Keys.listen has no re-entry guard — one Tab advanced focus once per boot. " +
+         "A browser never meets the second: a new document means new listeners, where a " +
+         "long-lived host accumulates them.\n" +
+         "An earlier draft blamed AppKit's responder chain. WRONG and retracted: " +
          "Control.swift's `key` calls __declareKey directly, bypassing NSEvent, and " +
-         "Overlays.swift never reports AppKit focus back into the model. Declare owns focus " +
-         "here, as it should.",
+         "Overlays.swift never reports AppKit focus back into the model.",
   },
 };
 

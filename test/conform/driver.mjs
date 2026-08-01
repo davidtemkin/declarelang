@@ -86,10 +86,31 @@ export function browserDriver(page, label) {
 /** The native host, over the control channel. Same two verbs; the transport is
  *  a FIFO and a screenshot tool instead of CDP, which the caller never sees. */
 export function macDriver({ inPath = "/tmp/declare-ctl.in", outPath = "/tmp/declare-ctl.out" } = {}) {
+  /** One command, one reply — with a HANDSHAKE, because the channel has a race
+   *  and the client cannot see it lose.
+   *
+   *  Control.swift polls the inbox, READS it, and THEN clears it. A write that
+   *  lands between those two steps is erased: the command never runs, no reply
+   *  is ever written, and the caller simply times out — or worse, moves on
+   *  having silently skipped a step. That is what made keyboard conformance a
+   *  coin toss: three Tabs sent, two arriving, and focus landing wherever the
+   *  survivors left it. Measured 2026-08-01 — two of three probes in a row came
+   *  back "(no reply)" while the host was perfectly healthy.
+   *
+   *  So: wait for the inbox to DRAIN before writing (the host has taken the
+   *  previous command and cleared it), then write, then wait for the reply.
+   *  A dropped command is now impossible rather than merely unlikely. */
   async function ctl(cmd) {
+    for (let i = 0; i < 300 && existsSync(inPath) && readFileSync(inPath, "utf8").trim() !== ""; i++) {
+      await sleep(0.02);
+    }
     if (existsSync(outPath)) unlinkSync(outPath);
     writeFileSync(inPath, cmd + "\n");
-    for (let i = 0; i < 300; i++) {
+    // Patient on purpose: the host's control poll shares its main loop with
+    // compiling and booting a program, so a reply can legitimately be seconds
+    // out while `__declareBoot` runs. Too short a wait reports a healthy host
+    // as dead — which is itself a coin toss, just a different one.
+    for (let i = 0; i < 1500; i++) {
       await sleep(0.02);
       if (existsSync(outPath)) return readFileSync(outPath, "utf8").trim();
     }

@@ -258,6 +258,23 @@ final class Bridge {
 
     /// Scripts live beside the distro (dev) or in the app bundle (shipped).
     static func resource(_ name: String) -> URL? {
+        // AN EXPLICIT DECLARE_ROOT WINS over the bundled copy. A shipped
+        // Declare Mac.app carries its own runtime in Contents/Resources and
+        // must keep using it — that self-containment is the point. But a
+        // developer who sets DECLARE_ROOT is saying "run the tree I am
+        // editing", and Bundle.main being consulted first made that a lie:
+        // rebuilding bundles/declare-mac.js changed nothing, the app went on
+        // running whatever bundle.sh had baked into it, and a whole diagnosis
+        // was made against stale code before the discrepancy surfaced
+        // (2026-08-01). Silent staleness in a conformance host is worse than
+        // no host.
+        if ProcessInfo.processInfo.environment["DECLARE_ROOT"] != nil {
+            let root = distroRoot()
+            for sub in ["browser", "bundles"] {
+                let u = root.appendingPathComponent(sub).appendingPathComponent(name)
+                if FileManager.default.fileExists(atPath: u.path) { return u }
+            }
+        }
         if let b = Bundle.main.url(forResource: name, withExtension: nil) { return b }
         let root = distroRoot()
         for sub in ["browser", "bundles"] {
