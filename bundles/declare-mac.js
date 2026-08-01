@@ -14654,6 +14654,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
   }
   var currentApp = null;
   var keysWired = false;
+  var keyWirings = 0;
   var backend = null;
   async function macBoot(url) {
     const { source, deps, base: base2 } = await resolveProgram(url);
@@ -14679,6 +14680,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     Focus.setRoot(app);
     if (!keysWired) {
       keysWired = true;
+      keyWirings++;
       Keys.listen(() => currentApp?.surface != null);
       deliverKeys(Keys, Focus);
     }
@@ -14961,6 +14963,10 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     out.ops = Math.round(opTotal / N);
     return JSON.stringify(out);
   };
+  globalThis.__declareDiag = () => ({
+    keyWirings,
+    focused: Focus.getFocus()?.constructor?.name ?? null
+  });
   globalThis.__declareReset = () => {
     Focus.reset();
     Keys.clearHeld();

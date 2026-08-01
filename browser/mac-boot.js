@@ -161,6 +161,7 @@ async function resolveProgram(url) {
 
 let currentApp = null;
 let keysWired = false;   // process-lived, unlike the app (see mountApp below)
+let keyWirings = 0;      // how many times we actually installed the key listeners
 let backend = null;
 
 export async function macBoot(url) {
@@ -213,6 +214,7 @@ export async function macBoot(url) {
   Focus.setRoot(app);
   if (!keysWired) {
     keysWired = true;
+    keyWirings++;
     Keys.listen(() => currentApp?.surface != null);
     deliverKeys(Keys, Focus);
   }
@@ -558,6 +560,13 @@ globalThis.__declareBench = () => {
  *  from a test between two programs. Call it BEFORE booting the next program:
  *  `Focus.setRoot` re-establishes the root on the way back up.
  */
+/** Diagnostic: what the key/focus wiring currently looks like. Counts, not
+ *  booleans, because the bug being chased is an accumulation. */
+globalThis.__declareDiag = () => ({
+  keyWirings: keyWirings,
+  focused: Focus.getFocus()?.constructor?.name ?? null,
+});
+
 globalThis.__declareReset = () => {
   Focus.reset();
   Keys.clearHeld();
