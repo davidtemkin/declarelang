@@ -37,6 +37,10 @@ import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 
 const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
 
+/** Modifier spellings: the control channel's vocabulary (Control.swift) mapped
+ *  to the browser's. One `["key", "Tab", "shift"]` step, two transports. */
+const MODS = { shift: "Shift", cmd: "Meta", meta: "Meta", ctrl: "Control", alt: "Alt", option: "Alt" };
+
 /** A puppeteer-backed host: the DOM and canvas renderers, which differ only by
  *  the `render=` query the page was opened with. */
 export function browserDriver(page, label) {
@@ -62,6 +66,12 @@ export function browserDriver(page, label) {
         await page.mouse.move(a[0], a[1]);
         await sleep(0.05);
         return page.mouse.wheel({ deltaY: a[2] ?? 0, deltaX: a[3] ?? 0 });
+      }
+      if (verb === "key") {
+        for (const m of a.slice(1)) await page.keyboard.down(MODS[m] ?? m);
+        await page.keyboard.press(a[0]);
+        for (const m of a.slice(1)) await page.keyboard.up(MODS[m] ?? m);
+        return;
       }
       throw new Error(`conform: unknown step ${verb}`);
     },
@@ -94,13 +104,21 @@ export function macDriver({ inPath = "/tmp/declare-ctl.in", outPath = "/tmp/decl
       if (verb === "move") return void (await ctl(`move ${a[0]} ${a[1]}`));
       if (verb === "click") return void (await ctl(`click ${a[0]} ${a[1]}`));
       if (verb === "scroll") return void (await ctl(`scroll ${a[0]} ${a[1]} ${a[2] ?? 0} ${a[3] ?? 0}`));
+      if (verb === "key") return void (await ctl(`key ${a.join(" ")}`));
       throw new Error(`conform: unknown step ${verb}`);
     },
     async ask(expr) {
       // `eval` returns the value's string form, so the expression is wrapped to
       // produce JSON on the far side — the one place the transports differ, and
       // it is a serialization detail, not a difference in the question.
-      const out = await ctl(`eval JSON.stringify((() => (${expr}))())`);
+      //
+      // THE CONTROL PROTOCOL IS LINE-BASED (Control.swift polls the FIFO and
+      // splits on newlines), so a multi-line expression would arrive as several
+      // commands and only its first line would run — silently, returning
+      // whatever that fragment evaluated to. Collapsed to one line here, which
+      // is why an `ask` expression may not contain `//` comments: use `/* */`.
+      const oneLine = expr.replace(/\s*\n\s*/g, " ");
+      const out = await ctl(`eval JSON.stringify((() => (${oneLine}))())`);
       if (out === "undefined" || out === "") return undefined;
       try { return JSON.parse(out); } catch { return out; }
     },
@@ -108,6 +126,12 @@ export function macDriver({ inPath = "/tmp/declare-ctl.in", outPath = "/tmp/decl
      *  (gate.mjs learned this the hard way: a flat sleep races a cold boot and
      *  measures the PREVIOUS program). */
     async open(url) {
+      // A NEW PAGE, natively. The host is one long-lived process where a
+      // browser would give each program a fresh document, so the singleton
+      // services (Focus's focused view and root, Keys's held-set) carry across
+      // `__declareBoot` unless something clears them — which is what made the
+      // first keyboard conformance run non-reproducible.
+      await ctl("eval typeof __declareReset === 'function' ? __declareReset() : 'no reset verb'");
       const layers = async () => {
         const m = (await ctl("geom")).match(/layers=(\d+)/);
         return m ? +m[1] : NaN;
@@ -130,10 +154,22 @@ export function macDriver({ inPath = "/tmp/declare-ctl.in", outPath = "/tmp/decl
   };
 }
 
-/** Is a native host live right now? Conformance runs are opt-in, and a missing
- *  host should SKIP the third column with a word about why — never fail, and
- *  never quietly pass while proving two thirds of what it claims. */
-export function macAvailable() {
+/** Should this run include the native column? REQUESTED, never inferred.
+ *
+ *  Mac conformance is deliberately not a per-commit cost: it needs the host
+ *  launched, a window server, and a GUI session, so a developer opts in with
+ *  `--mac` (or CONFORM_MAC=1) and CI simply does not. Auto-detecting "is a host
+ *  running?" was wrong in the other direction — it would silently widen or
+ *  narrow what a run proved depending on what happened to be open, which is the
+ *  one thing a conformance gate must never do.
+ *
+ *  Asked for but not there is an ERROR, not a skip: a run that was told to
+ *  prove three renderers must never quietly prove two. */
+export function macRequested() {
+  return process.argv.includes("--mac") || process.env.CONFORM_MAC === "1";
+}
+
+export function macLive() {
   try {
     return execFileSync(new URL("../../mac-host/winb", import.meta.url).pathname, { encoding: "utf8" }).trim() !== "";
   } catch {

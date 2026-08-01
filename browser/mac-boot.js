@@ -21,7 +21,8 @@
 // pointer capture, hover, keyboard, host sizing — and only the drawing is
 // native.
 
-import { build, mountApp, settle, provideTransport, provideMeasurer, loadFonts, fontFacesOf, bridgeFor } from "../runtime/dist/index.js";
+import { build, mountApp, settle, provideTransport, provideMeasurer, loadFonts, fontFacesOf, bridgeFor,
+         Keys, Focus, deliverKeys } from "../runtime/dist/index.js";
 import { MacBackend, flushOps, provideHitPath, macScroll, macRichHeight, macRichLink,
          macEditInput, macEditFocus, macEditEnter, embedsPending, mountEmbed, clearEmbed, surfaceById,
          publishChildName, macScrollTo, surfaceOrigin,
@@ -192,6 +193,17 @@ export async function macBoot(url) {
   // rather than a bespoke Swift verb per question (Control.swift's own `trace`
   // narrates the LAYER walk, which is a different tree and a different answer).
   globalThis.__declare = bridgeFor(app);
+  // Keyboard + focus. boot.ts wires these for top-level DOM apps and returns
+  // early for a `chrome` host — which natively we are — so Tab navigation,
+  // key delivery to the focused view, and the Focus service's root were all
+  // simply absent here. The host already synthesizes real key events onto the
+  // shimmed window (mac-env.js `__declareKey`, which Control.swift's `key`
+  // verb drives), so nothing was missing but these three calls: the listener
+  // had no one listening. Found by the conformance suite's first keyboard
+  // test — DOM cycled filled → empty → filled on Tab, native did nothing.
+  Focus.setRoot(app);
+  Keys.listen(() => app.surface !== null);
+  deliverKeys(Keys, Focus);
   settle();
   flushOps();
   H.setTitle(app.appName || programName(base));
@@ -519,6 +531,27 @@ globalThis.__declareBench = () => {
   out.ops = Math.round(opTotal / N);
   return JSON.stringify(out);
 };
+/** Reset every SINGLETON service to a fresh state — the native equivalent of
+ *  loading a new page.
+ *
+ *  `__declareBoot` rebuilds the whole tree, so per-program state goes with it.
+ *  What survives is the module-level services — Focus holds the focused view
+ *  and its root, Keys holds the held-set — because the host is one long-lived
+ *  process where a browser would have been a new document. That carryover is
+ *  why parity.mjs relaunches by default, and why the conformance suite's first
+ *  keyboard run was not reproducible: successive runs inherited whichever field
+ *  the previous program had left focused.
+ *
+ *  Resetting is cheaper than relaunching and, unlike a relaunch, is scriptable
+ *  from a test between two programs. Call it BEFORE booting the next program:
+ *  `Focus.setRoot` re-establishes the root on the way back up.
+ */
+globalThis.__declareReset = () => {
+  Focus.reset();
+  Keys.clearHeld();
+  return "ok";
+};
+
 globalThis.__declareEnvChanged = () => {
   globalThis.__declareAppearanceChanged?.();
   if (currentApp) { currentApp.dark = H.appearance() === "dark"; settle(); flushOps(); }

@@ -14675,6 +14675,9 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     backend = new MacBackend();
     mountApp(app, hostStub(), backend);
     globalThis.__declare = bridgeFor(app);
+    Focus.setRoot(app);
+    Keys.listen(() => app.surface !== null);
+    deliverKeys(Keys, Focus);
     settle();
     flushOps();
     H.setTitle(app.appName || programName(base2));
@@ -14953,6 +14956,11 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     out.serializeMs = +(serTotal / N).toFixed(3);
     out.ops = Math.round(opTotal / N);
     return JSON.stringify(out);
+  };
+  globalThis.__declareReset = () => {
+    Focus.reset();
+    Keys.clearHeld();
+    return "ok";
   };
   globalThis.__declareEnvChanged = () => {
     globalThis.__declareAppearanceChanged?.();
