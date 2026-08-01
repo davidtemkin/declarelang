@@ -14,6 +14,7 @@
 // while a low uniform haze over text is expected and fine.
 
 import { execFileSync } from "node:child_process";
+import { hostWindow } from "./win.mjs";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import puppeteer from "puppeteer-core";
@@ -32,9 +33,7 @@ const W = 1280, H = 800;      // the content size both sides render at
 
 // ── the native side: find the window, capture it, crop off the title bar ────
 function nativeShot(file) {
-  const info = execFileSync("/tmp/winb2").toString().trim().split("\n")[0];
-  if (!info) throw new Error("the native app is not running");
-  const [id, x, y, w, h] = info.split(" ").map(Number);
+  const { id, x, y, w, h } = hostWindow();
   execFileSync("/usr/sbin/screencapture", ["-x", "-o", "-l", String(id), file]);
   // Crop the window chrome off EXACTLY. (sips --cropOffset does not mean
   // "from the top" — it left the title bar in, which is precisely the 32pt

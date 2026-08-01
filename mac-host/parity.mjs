@@ -34,6 +34,7 @@
 
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from "node:fs";
 import { execFileSync, spawn } from "node:child_process";
+import { hostWindow } from "./win.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer-core";
@@ -83,7 +84,7 @@ async function ctl(cmd) {
 }
 
 async function runNative(shots) {
-  const id = execFileSync("/tmp/winb2").toString().trim().split("\n")[0].split(" ")[0];
+  const id = String(hostWindow().id);
   let n = 0;
   for (const [verb, ...a] of steps) {
     if (verb === "wait") await sleep(a[0]);

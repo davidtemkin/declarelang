@@ -42,3 +42,7 @@ tools/internal/measure/probe.jsonl
 # `swift build` (which also dirties .lock/build.db on every run). The .swift
 # source, Package.swift, bundle.sh and the icon are tracked; the output is not.
 mac-host/.build/
+
+# the window-finder the native rigs share: winb.swift is tracked, the compiled
+# helper is per-machine (win.mjs rebuilds it on demand) — same split as pointer.
+mac-host/winb

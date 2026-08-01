@@ -14,14 +14,13 @@
 
 import { writeFileSync, readFileSync, existsSync, unlinkSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { hostWindow } from "./win.mjs";
 
 const IN = "/tmp/declare-ctl.in";
 const OUT = "/tmp/declare-ctl.out";
 
 function windowId() {
-  const line = execFileSync("/tmp/winb2").toString().trim().split("\n")[0];
-  if (!line) throw new Error("the native app is not running");
-  return line.split(" ")[0];
+  return String(hostWindow().id);
 }
 
 function shot(path) {
