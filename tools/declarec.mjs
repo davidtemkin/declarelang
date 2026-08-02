@@ -172,8 +172,16 @@ export async function buildProduction(source, opts = {}) {
   // the boolean flags need no restoring (absence already reads as false).
   if (!opts.debug) await minifyBodies(built.program);
   const programJson = JSON.stringify(built.program, opts.debug ? undefined : compactValue);
+  // services.js, NOT index.js. The entry needs the `{ }`-body service wiring
+  // (Focus/Keys/Themes/Inspect) and nothing else the barrel re-exports. esbuild
+  // can only drop a re-export when the module behind it is side-effect-free,
+  // and most of this runtime is not (top-level `defineAttributes`), so
+  // importing index.js pinned modules the program could never reach — it
+  // shipped `image.js` and `text-input.js` to apps that name neither, undoing
+  // slim-registry's correct exclusion through a second door. The dev path still
+  // imports index.js, which imports services.js, so nothing there changes.
   const entry =
-    `import ${JSON.stringify(join(RUNTIME, "index.js"))};\n` +
+    `import ${JSON.stringify(join(RUNTIME, "services.js"))};\n` +
     `import { renderProgramAsync } from ${JSON.stringify(join(RUNTIME, "boot.js"))};\n` +
     `import { hydrateProgram } from ${JSON.stringify(join(RUNTIME, "hydrate.js"))};\n` +
     `import { ${backend.cls} } from ${JSON.stringify(join(RUNTIME, backend.file))};\n` +

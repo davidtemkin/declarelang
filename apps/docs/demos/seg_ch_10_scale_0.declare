@@ -1,0 +1,19 @@
+class Row extends View [ width = 288, height = 24,
+    t: Text [ y = 4, width = 260, text = :task ]
+    ]
+
+App [ width = 320, height = 240, fill = white,
+    d: Dataset [ contents = { ({ rows: app.make(50000) }) } ],
+    make(n: number) -> array {
+        const out = []
+        for (let i = 0; i < n; i++) out.push({ id: i, task: "Task " + i })
+        return out
+        },
+    head: Text [ x = 16, y = 12, width = 288, textColor = 0x666666,
+        text = { (d.value.rows).length + " records, ~20 views" } ],
+    list: View [ x = 16, y = 36, width = 288, height = 190, scrolls = y,
+        inner: View [ width = 288, datapath = { d.value },
+            Row [ datapath = :rows[], materialize = auto ]
+            ]
+        ]
+    ]

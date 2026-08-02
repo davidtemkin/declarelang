@@ -116,7 +116,7 @@ zooming rectangle — normally a bespoke project on its own:
 
 | <!--stat:calendar.code-->511<!--/stat--> | lines of Declare — four views, continuous zoom, drag, and edit |
 |----:|:---|
-| **<!--stat:calendar.wireKB-->62<!--/stat--> KB** | over the wire, gzipped — the whole app and its runtime |
+| **<!--stat:calendar.wireKB-->61<!--/stat--> KB** | over the wire, gzipped — the whole app and its runtime |
 | **0** | lines written by hand — an LLM wrote it; the compiler kept it honest |
 
 → How to think in it: [the guide](docs/guide/01-thinking-in-declare.md). The language in

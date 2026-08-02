@@ -36,8 +36,8 @@ preserved below, because that part was real.
 | Demo-generator apparatus | ~90 | 75 (ported) |
 | Runtime dependencies | **0** (the platform) | 9 |
 | Direct dev dependencies | **0** | 7 |
-| Wire, raw JS+CSS | ~316 KB | 354 KB |
-| Wire, gzipped | **~98 KB** | 108 KB (105 JS + 4.6 CSS + 0.8 HTML) |
+| Wire, raw JS+CSS | **388 KB** | 354 KB |
+| Wire, gzipped | **85 KB** (87 JS + 0.2 HTML) | 108 KB (105 JS + 4.6 CSS + 0.8 HTML) |
 | Load 10K (fetch+parse) | ~70 ms | **52 ms** |
 | Ingest 10K | **8 ms** | 12 ms |
 | Ingest 100K | ~80 ms | **76 ms** |
@@ -70,7 +70,7 @@ CSS Modules throughout. Largest single file is the store at 217 lines.
 
 ## Wire size: Declare ships less, and its floor is lower
 
-**On the paved road, React costs more: 108 KB gz vs our 98 KB, in 2.4× the
+**On the paved road, React costs more: 108 KB gz vs our 85 KB, in 2.4× the
 code.** Per-package composition of its bundle (KB gz), from a one-off build
 with per-package chunks:
 
@@ -81,24 +81,24 @@ scheduler 1.7     zustand 1.6     react-virtual 1.0      clsx 0.2
 ```
 
 **React's platform floor is 61.5 KB gz** — react + react-dom + scheduler,
-before a line of app code. Declare's measured floor is **48 KB gz**: a
+before a line of app code. Declare's measured floor is **47 KB gz**: a
 hello-world production build (`App [ Text [ text = "hello" ] ]`) with the whole
-platform in. We are 13 KB *under* React's floor. Their app code is 12.2 KB of
-their 108; ours is ~31 KB of our 98, so the remaining difference is program
-representation, not runtime.
+platform in. We are 14 KB *under* React's floor. Their app code is 12.2 KB of
+their 108 — **89% of what React ships is framework**; ours is 32 KB of our 85,
+so the remaining difference is program representation, not runtime.
 
 **On tree-shaking (audited 2026-08-02).** Declare's production bundle *is*
 tree-shaken — generated registry slimming plus eleven fact-gated module
-substitutions — and the whole app corpus's runtime range is 48→62 KB gz, so the
+substitutions — and the whole app corpus's runtime range is 47→62 KB gz, so the
 residual is kernel, not dead code. An aggressive-stub ceiling measurement puts
 the theoretical floor at ~31 KB gz, but the Tracker could claim only ~2 KB of
 that: it genuinely uses replication, windowing, datasets, state, animation,
 text editing, pointer input, stylesheets and fonts. Capability slimming
 therefore cannot move this comparison and is not worth doing on size grounds.
-One real defect surfaced and is worth fixing on its own merits: the production
-entry's bare `import "index.js"` drags `image.js` and `text-input.js` past a
-correct `slim-registry` exclusion — ~1.6 KB gz, and a hole in a mechanism the
-build relies on.
+One real defect surfaced and was FIXED: the production entry's bare
+`import "index.js"` dragged `image.js` and `text-input.js` past a correct
+`slim-registry` exclusion — 1.1 KB gz, and a hole in a mechanism the build
+relies on. See [bundle-slimming.md](../../../docs/system-design/bundle-slimming.md).
 
 ## What each side won
 
@@ -107,10 +107,12 @@ build relies on.
 animated in-place expansion, design-reviewed chrome against ecosystem
 components. Zero dependencies and zero build configuration against nine
 runtime packages and a Vite/TypeScript toolchain. Smaller wire. Ingest is
-near-free because search has no index to build. And the virtualization is
-invisible in the source — not one word of windowing vocabulary in the file —
-where the React app delegates it to TanStack Virtual and still pays the
-dynamic-measurement plumbing at every call site.
+near-free because search has no index to build. And virtualization is **one
+word**: the Tracker's row template says `materialize = auto` and that is the
+entire windowing story in the file — no row heights, no scroll container, no
+keys, no overscan tuning, no memoization discipline. The React app delegates
+windowing to TanStack Virtual and still pays the dynamic-measurement plumbing at
+every call site.
 
 **React** — load and ingest at scale (52 ms vs ~70 ms at 10K; 861 ms vs ~1.4 s
 at 1M), 1M scroll fidelity (see below), and the ecosystem itself: nine
@@ -172,6 +174,60 @@ and measured numbers to be visible. Any claim of "independent convergence on
 the same design" would be false. What the brief did NOT prescribe — and where
 the apps genuinely differ — is form: iconography, avatars, motion, the editor's
 presentation, and the whole design system.
+
+## Quoting these numbers in public
+
+Everything below is measured, but not everything is equally durable. Anyone
+folding this into the homepage or a talk should know which is which.
+
+**Stable — safe to quote flat.** Byte sizes and dependency counts do not vary
+between runs; they are properties of the two artifacts.
+
+| | Declare | React |
+|---|---:|---:|
+| App code | **~1,125** lines, one file | 2,703 lines, 46 files |
+| Runtime dependencies | **0** | 9 |
+| Dev dependencies | **0** | 7 |
+| Wire, gzipped | **85 KB** | 108 KB |
+| Platform floor, gzipped | **48 KB** (hello world, whole platform) | 61.5 KB (react + react-dom + scheduler, before any app code) |
+
+**Variable — quote with the protocol or not at all.** Timings move run to run
+and with machine load: scrub 8.3 ms both sides at 100K; search 28.2/42.4 vs
+30/35 ms at 100K; load 10K ~70 vs 52 ms; ingest 100K ~80 vs 76 ms; 1M ingest
+~1.4 s vs 861 ms. React wins load and ingest. Search is a tie and both sides
+sit far under the brief's 50 ms bar. Say so when citing them.
+
+**The sharpest single fact**, and the one worth leading with: of React's
+108 KB, its own app code is **12.2 KB** — *89% of what it ships is framework*.
+Ours is 32 KB of 85 KB. The rest of their bundle is the nine packages a
+disciplined engineer correctly reached for.
+
+**Three framings that hold up:**
+
+1. Half the code, zero dependencies, smaller wire — the three stable columns.
+2. We are 13 KB under React's floor before either app writes a line.
+3. Virtualization is **one word** — `materialize = auto` on the row template is
+   the Declare Tracker's entire windowing story — against TanStack Virtual plus
+   dynamic-measurement plumbing at every call site, and that is React's
+   *idiomatic* path. Arm 1 proved that hand-rolling it instead costs you the
+   most fragile code in either repository. (Say "one word", never "zero": the
+   default is full materialization, so scale is opted into, deliberately.)
+
+**What must travel with any public claim:** one run of one agent per side; the
+brief was functional only, with design unspecified; and the maturity asymmetry
+runs both ways — the Declare app had many review rounds, the React agent had a
+single session. Omitting these turns a measurement into a boast.
+
+**Never cite arm 1's 60 KB.** It is a ceiling bought off the paved road, it was
+withdrawn, and its source is no longer in the tree.
+
+**On stamping.** The Declare side of this table can ride the homepage's
+`<!--stat:key-->` mechanism (`apps/homepage/stats.json`, machine-stamped by
+`tools/internal/stamp-stats.mjs`) so the numbers cannot rot — today that file
+carries only `homepage.*` and `calendar.*` keys, so tracker keys would need
+adding. **The React side cannot**: it is a frozen measurement of an archived
+artifact, not something the build can re-derive. Quote it as dated —
+*measured 2026-08-02* — and point at this directory.
 
 ## Caveats, honestly
 

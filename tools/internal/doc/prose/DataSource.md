@@ -1,5 +1,6 @@
 A `Dataset` whose value arrives over HTTP — a reactive remote resource. The one thing to
-know: **`fetch()` is explicit — a DataSource does not auto-load.** Call it when the data
+know: **`fetch()` is explicit — a DataSource does not auto-load** (`auto = true` is a
+deliberate opt-in for reactive addresses, not the default). Call it when the data
 should load (typically `onInit`, or on a user action); value and status then settle
 *together*, a frame ahead, so a constraint reading `.loaded` and one reading `.value`
 never disagree. Read the lifecycle through bindings — `.loading`, `.loaded`, `.failed`,
@@ -32,14 +33,46 @@ doc: Markdown [ visible = { article.loaded }, text = { article.value || "" } ]
 ## url
 The resource URL — a literal or a `{ }` constraint, so the source **re-points reactively**:
 change a dependency (a zip, a filter) and the *next* `fetch()` hits the new URL. Setting
-`url` never triggers a load on its own — fetching stays explicit.
+`url` does not load on its own — fetching stays explicit unless you opt into `auto`.
 
 ## fetch()
 Loads (or reloads) the resource from the current `url`, then settles `value` and the status
-flags **together**, a frame ahead. This is the whole point of DataSource: loading is a verb
-you call — there is no auto-load — so you decide *when* (usually in `onInit`, or on a user
-action). Calling it again re-fetches; change `url`'s dependencies first to fetch a new
-address. Returns a `Promise` you can `await`, but the reactive flags are the idiomatic path.
+flags **together**, a frame ahead. Loading is a verb you call, not something that happens
+to you, so you decide *when* (usually in `onInit`, or on a user action). Calling it again
+re-fetches; change `url`'s dependencies first to fetch a new address. Returns a `Promise`
+you can `await`, but the reactive flags are the idiomatic path.
+
+## auto
+Fetch unprompted whenever `url` arrives or changes, instead of waiting for `fetch()`.
+**Off by default, and the default is the discipline** — explicit loading is what stops a
+source firing requests nobody asked for as unrelated dependencies settle. Turn it on when
+the address *is* the reactive thing: a detail pane whose `url` derives from the current
+selection, where "the URL changed" and "load it" are the same event. With `auto` off,
+changing `url` arms the next `fetch()` and does nothing else.
+
+```declare-fragment
+detail: DataSource [ auto = true, url = { "/api/issue/" + app.selectedId } ]
+```
+
+## method
+The HTTP verb — `"GET"` by default. A body-carrying verb (`"POST"`, `"PUT"`, `"PATCH"`)
+sends `body` with the request. A DataSource stays a *source* either way: the response lands
+in `value` and the status flags exactly as a GET's would, so a POST that returns the created
+record leaves you reading it like anything else.
+
+## body
+The payload for a non-GET `method` — an object or array (JSON-encoded on the way out), or a
+string (sent as-is). Ignored on a GET. Like `url` it can be a `{ }` constraint, so the
+payload re-derives from live state; also like `url`, changing it sends nothing until the
+next `fetch()`.
+
+## onLoad
+Fires when a fetch settles successfully, after `value` and the flags are consistent — a
+handler reading `value` sees the arrived data, never the previous one. Failures do not fire
+it; they set `failed` and `error`. **You usually do not need this**: any binding reading
+`.value` or a `:path` beneath it already updates on arrival, which is the entire reactive
+point. Reach for `onLoad` only when arrival must cause something a binding cannot express —
+focusing the first result, chaining a follow-up fetch, announcing to a screen reader.
 
 ## clear()
 Returns the source to the idle state — drops `value`, `error`, and the loaded/failed flags,

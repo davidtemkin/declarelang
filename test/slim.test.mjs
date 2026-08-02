@@ -110,6 +110,30 @@ test("argv modifiers: removed/CLI-owned switches pass through to rest", () => {
   assert.ok(rest.includes("--no-slim")); assert.ok(rest.includes("--debug"));
 });
 
+// ── the registry's exclusion is not undone by a second door ──────────────────
+// The production entry once imported index.js — the barrel — for the nine lines
+// that inject the `{ }`-body services. esbuild can only drop a re-export when
+// the module behind it is side-effect-free, and most of this runtime is not
+// (top-level `defineAttributes`), so the barrel PINNED modules the program
+// could never reach: `image.js` and `text-input.js` shipped in a hello-world
+// whose used-set correctly excluded Image and TextInput. The registry did its
+// job; a second door undid it. The entry imports services.js now, and this test
+// pins that — the failure mode is invisible, a correct bundle that is merely
+// bigger, with every other test still green.
+await test("registry exclusion holds through the entry (no barrel import)", async () => {
+  const out = await buildProduction(`App [ width = 200, Text [ text = "a" ] ]`, {});
+  assert.ok(out.ok, "build failed");
+  const modules = Object.keys(Object.values(out.metafile.outputs)[0].inputs).map((p) => p.split(/[/\\]/).pop());
+  assert.ok(!out.usedComponents.includes("Image") && !out.usedComponents.includes("TextInput"),
+    "fixture must use neither Image nor TextInput for this test to mean anything");
+  assert.ok(!modules.includes("image.js"),
+    "image.js is bundled though Image is unused — something in the entry is pinning it (a barrel import?)");
+  assert.ok(!modules.includes("text-input.js"),
+    "text-input.js is bundled though TextInput is unused — something in the entry is pinning it (a barrel import?)");
+  assert.ok(!modules.includes("index.js"),
+    "index.js (the barrel) reached the production bundle — the entry should import services.js");
+});
+
 // ── a slimmed bundle renders ─────────────────────────────────────────────────
 const CHROME = ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome"].find((p) => existsSync(p));
 async function renders(src) {

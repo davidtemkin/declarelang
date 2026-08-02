@@ -137,16 +137,12 @@ export type { KeyEvent } from "./keys.js";
 export { Focus, FocusService, deliverKeys } from "./focus.js";
 
 // The runtime services usable INSIDE `{ }` bodies (`Focus.focus(this)` in a
-// click handler): injected into body scope here — index.ts sits above both
-// expr.ts and the services in the module graph, so no cycle.
-import { setBodyServices } from "./expr.js";
-import { setKeysFocusProbe } from "./keys.js";
-import { Themes as Themes_ } from "./themes.js";
-import { Focus as FocusService_ } from "./focus.js";
-import { Keys as KeysService_ } from "./keys.js";
-import { Inspect as Inspect_ } from "./inspect-service.js";
-setBodyServices({ Focus: FocusService_, Keys: KeysService_, Themes: Themes_, Inspect: Inspect_ });
-setKeysFocusProbe(() => FocusService_.getFocus() !== null);
+// click handler) are injected by services.js — a side-effect-only module, split
+// out so the PRODUCTION entry can carry the wiring without importing this
+// barrel. Re-exports are only droppable when the module behind them is
+// side-effect-free, and most of this runtime is not, so importing index.js for
+// these lines pinned modules a program could not reach (see services.ts).
+import "./services.js";
 export type { RenderBackend, Surface, Stretch, PointerType, InputSink, EditableSpec } from "./backend.js";
 export type { LayoutStrategy } from "./view.js";
 export type { DrawOp, DisplayList, Bounds } from "./draw.js";

@@ -440,12 +440,17 @@ App [ width = 420, height = 260, fill = midnightblue, textColor = gainsboro,
 
 **The `[]` suffix is what replicates.** `datapath = :rows[]` says *this path matches many
 records, so make one instance of this node per record*; without the brackets, `:rows` is an
-ordinary read of whatever is there. That is the entire distinction, and `[]` may appear only at
-the end of a path.
+ordinary read of whatever is there, and `[]` may appear only at the end of a path.
+
+Between those, a path may **select**: `:path` follows JSONPath (RFC 9535) over the shipped
+subset — `[0]`, `[-1]`, `[1:4]`, `[*]`, `['quoted key']`. So `:rows[*].label` is every row's
+label, and `:rows[2:8][]` replicates exactly that range, each instance cursored at its real
+index.
 
 A `Dataset`'s literal body is **strict JSON** — quoted keys, no trailing commas. `key = :field`
 makes replication keyed, so only changed rows rebuild; the replicated node is anonymous, but
-names inside it resolve per instance.
+names inside it resolve per instance. `key` is rarely needed: a record's `id` field is its
+identity by convention.
 
 **Count the data, not the tree.** A Dataset's `.value` is the parsed data, so a count is ordinary
 TypeScript on it. Reach for this whenever you would have counted rendered rows.
@@ -458,16 +463,25 @@ rather than being toggled. An optional `schema = [ field: type, rows[]: [ … ] 
 response's shape: it validates the payload on receipt — so malformed data yields `.failed` rather
 than `undefined` three bindings deep — and lets every `:path` be checked against the shape at
 compile time. Without one, paths are dynamic: an unresolved `:path` yields null and the bound
-attribute falls back to its default. (Landing; `docs/system-design/data-paths.md` tracks it.)
+attribute falls back to its default.
 
 **Two-way binding is opt-in, with `<->`, and for leaf editors only** — `TextInput [ text <-> :title ]`
 against data, or `text <-> { app.note }` against a slot: the right-hand side names a *place* to
 write, either a datapath or a `{ }` yielding one. One-way `:path` everywhere else. It is the only
 arrow in the language.
 
+**Datasets are mutable from handlers** — `d.set(path, v)`, with `insert`, `removeAt` and `move`
+for collections. A path is a segments array (`["rows", 0, "name"]`) or a JSON Pointer string
+(RFC 6901 — `"/rows/0/name"`, and `"/rows/-"` appends). A write wakes exactly the bindings that
+read the changed region.
+
 **A derived dataset recomputes from its inputs** — `cal: Dataset [ contents = { app.buildModel() } ]`.
-This is also the window pattern for large collections: derive the visible slice and replicate the
-slice, never the whole source.
+
+**Large collections virtualize on one word.** `materialize = auto` on a replicated node builds
+only the rows near the viewport and leaves the rest logical — same records, same paths, same
+behaviour, reconstructed indistinguishably as you scroll. The default is `all`, full
+materialization, which below a few thousand rows is simply faster; `window` and a row count
+force it. There is nothing else to write: no row heights, no scroll wiring, no keys.
 
 **When structure is genuinely imperative**, build it from a handler:
 `app.createView(tag, parent, props)` instantiates a component by name and inserts it as a live
@@ -480,7 +494,9 @@ keep a component the build would otherwise drop when you name it only as a strin
 a `DataSource`, and nothing to unsubscribe.
 
 → `Dataset` and `DataSource` attributes, `Stream`/`EventStream`/`Socket`, `App.createView`,
-`Node.insertChild`: the model reference
+`Node.insertChild`: the model reference · paths, selection and editing:
+[the data chapter](declare-docs:guide:data) · virtualization at scale:
+[scale](declare-docs:guide:scale)
 
 ## 8. Input
 

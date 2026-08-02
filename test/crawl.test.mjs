@@ -45,8 +45,8 @@ await test("crawl: docs emits a document per chapter AND per reference class (da
   // guide/01-thinking-in-declare is the DEFAULT (canonicalized to ""), so it is the "" doc — every
   // OTHER chapter has its own key. The whole guide + reference is reached from the rails.
   assert.ok(guide.includes("guide/04-tree"), "a mid chapter is reached from the rail");
-  assert.ok(guide.includes("guide/17-renderers"), "the last chapter is reached too");
-  assert.ok(guide.length >= 16, `most chapters emitted (got ${guide.length})`);   // 17 chapters − the default ("" doc)
+  assert.ok(guide.includes("guide/18-renderers"), "the last chapter is reached too");
+  assert.ok(guide.length >= 17, `most chapters emitted (got ${guide.length})`);   // 18 chapters − the default ("" doc)
   assert.ok(ref.includes("reference/View") && ref.includes("reference/Text"), "reference classes are reached");
   const tree = docs.find((d) => d.key === "guide/04-tree");
   assert.ok(tree.html.includes("keeps Declare code flat"),

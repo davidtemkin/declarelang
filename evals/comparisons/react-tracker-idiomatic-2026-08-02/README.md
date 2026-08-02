@@ -49,11 +49,11 @@ Pin those to reproduce the measurements rather than merely re-run the app.
 
 ## The headline
 
-**~1,125 lines and 98 KB gz (Declare) against 2,703 lines, 9 runtime
+**~1,125 lines and 85 KB gz (Declare) against 2,703 lines, 9 runtime
 dependencies and 108 KB gz (React)** — at parity on scrub (8.3 ms/frame at
 100K) and search (28/42 vs 30/35 ms at 100K), with React ahead on load and
 ingest. React's platform floor alone (react + react-dom + scheduler) is
-61.5 KB gz against Declare's measured 48 KB whole-platform floor.
+61.5 KB gz against Declare's measured 47 KB whole-platform floor.
 
 ## Why it was worth doing
 
@@ -69,7 +69,8 @@ experiment found in OUR platform:
 3. **Springs silently disabled row recycling** — a dragged scrollbar ran at
    ~8 fps. A `Spring`'s raw slot assignment set the divergence bit, so any row
    holding a spring read as user-touched and was refused recycling. **Fixed**
-   (`attributes.ts`, `replicate.ts`, `Spring.resnap()`): 126.8 → 8.3 ms/frame.
+   (`attributes.ts`, `replicate.ts`, and `Spring.arrive()` — which superseded the
+   first `resnap()` attempt): 126.8 → 8.3 ms/frame.
 
 None of the three would have been found by building more apps in Declare.
 

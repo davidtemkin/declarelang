@@ -15241,6 +15241,8 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
   init_slug();
   init_keys();
   init_focus();
+
+  // runtime/dist/services.js
   init_expr();
   init_keys();
 
@@ -15259,10 +15261,13 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     }
   });
 
-  // runtime/dist/index.js
+  // runtime/dist/services.js
   init_focus();
-  init_keys();
   init_inspect_service();
+  setBodyServices({ Focus, Keys, Themes, Inspect });
+  setKeysFocusProbe(() => Focus.getFocus() !== null);
+
+  // runtime/dist/index.js
   function build(source, opts = {}) {
     const parsed = parseProgram(source);
     const { program, errors: incErrors } = resolveIncludes(parsed, opts.host ?? NO_INCLUDES, opts.originDir ?? "");
@@ -15280,8 +15285,6 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     }
     return root;
   }
-  setBodyServices({ Focus, Keys, Themes, Inspect });
-  setKeysFocusProbe(() => Focus.getFocus() !== null);
 
   // runtime/dist/mac-backend.js
   init_value();

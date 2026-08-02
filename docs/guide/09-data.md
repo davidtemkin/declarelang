@@ -274,8 +274,9 @@ you with.
 
 ---
 
-**What you can now say:** you can bind any tree to any data, let the data decide the
-count, derive screens from a source's lifecycle instead of choreographing fetches,
-and structure a real app as raw truth + derived model + edits-as-writes.
+**What you can now say:** you can bind any tree to any data, select and slice within
+it, declare the shape you rely on, let the data decide the count, derive screens from a
+source's lifecycle instead of choreographing fetches, and structure a real app as raw
+truth + derived model + edits-as-writes.
 
-[Next: **Motion is a target; a mode is a bundle** →](declare-docs:guide:motion-and-modes)
+[Next: **Virtualization is one word** →](declare-docs:guide:scale)

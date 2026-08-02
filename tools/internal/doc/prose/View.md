@@ -124,6 +124,27 @@ descendants read relative to. Write it as a `:path` (relative to the inherited
 cursor), `:arr[]` to **replicate** this view once per array element, or a `{ }`
 expression yielding a place. Descendants read with their own relative `:paths`.
 
+## childViews
+This view's child views, as a live collection — reading it re-runs when the child **set**
+changes. **Two things it deliberately is not.** It carries set membership only, not the
+children's own attributes: `.length` is live, but `.map(c => c.width)` would wire half of
+what it reads, so aggregation over a node collection is refused rather than answered
+wrongly. And on a **windowed block it throws** — a replicated collection past the
+materialization threshold has only the rows near the viewport actually constructed, so any
+answer would be scroll-dependent and would change under a user who did nothing but scroll.
+
+Both refusals point at the same idiom: **the number you want is in the data, which is
+complete by definition.** Count the records, not the instances rendering them.
+
+```declare-fragment
+count: number = { (app.d.value.rows).length }
+```
+
+If you genuinely need the live window — an accessibility traversal, a diagnostic — that is
+kernel API (`blocksOf`, `realized()`, `materializationInfo`), not app language. The split is
+deliberate: the app language must not be able to observe whether the runtime built a row,
+because not having to care is the whole promise of invisible materialization.
+
 ## textColor
 The glyph color `Text` renders with — a `prevailing` styling slot declared on `View`
 so **any** container can provide it and the whole subtree inherits, live. Unset, it

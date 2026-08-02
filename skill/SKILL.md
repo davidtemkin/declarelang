@@ -72,11 +72,11 @@ to learn it, or jump to the chapter your task needs:
 | hover / press / drag, clicks, keyboard | `docs/guide/07-interaction.md` |
 | the standard library (buttons, inputs), the value pattern | `docs/guide/08-controls.md` |
 | lists, datasets, editing data, loading documents | `docs/guide/09-data.md` |
-| states, springs, animation | `docs/guide/10-motion-and-modes.md` |
-| touch, gesture ownership, pinch/wheel zoom, `Frames` | `docs/guide/12-gestures.md` |
-| deep links, the URL, run / verify / ship | `docs/guide/13-loop.md` |
+| states, springs, animation | `docs/guide/11-motion-and-modes.md` |
+| touch, gesture ownership, pinch/wheel zoom, `Frames` | `docs/guide/13-gestures.md` |
+| deep links, the URL, run / verify / ship | `docs/guide/14-loop.md` |
 
-(`docs/guide/` holds the full set; `14-with-an-llm.md` and `evals/declare-for-llms.md` are
+(`docs/guide/` holds the full set; `15-with-an-llm.md` and `evals/declare-for-llms.md` are
 written for an agent in particular.)
 
 **For an exact fact** — an attribute's name, an enum's tokens, a flag, a diagnostic code,
