@@ -83,6 +83,9 @@ export declare class Replicator {
     private winStart;
     private logical;
     private positioned;
+    private scale;
+    private pRel;
+    private relLogical;
     private heightOwner;
     private lastLeading;
     private lastRel;

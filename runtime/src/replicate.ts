@@ -44,7 +44,7 @@ import { Constraint, Cell } from "./reactive.js";
 import { setBound, bindDerived, isSet, ownerOf, armDivergence, nodeDiverged } from "./attributes.js";
 import { splitPath, isSelective, type PathSeg } from "./datapath.js";
 import { Focus } from "./focus.js";
-import { resnapSubtree } from "./spring.js";
+import { arriveSubtree } from "./spring.js";
 import { selectNodes, type PathNode } from "./select.js";
 import type { Dataset } from "./data.js";
 import type { Surface } from "./backend.js";
@@ -79,6 +79,44 @@ const AUTO_THRESHOLD = 64;
 
 const DEFAULT_UNIT = 24;     // pre-measurement row-extent estimate (corrected by the first real row)
 const BUFFER_ROWS = 5;       // rows materialized beyond each viewport edge (reconcile-latency hiding)
+
+// ── EXTENT COMPRESSION (the 2²⁵ layout ceiling) ──────────────────────────────
+// Browsers saturate element layout at ~2²⁵ px, and they do it SILENTLY: past
+// the ceiling a strut stops growing and an absolutely-positioned row stops
+// moving. Both halves bite a windowed block — the scroll range would clamp
+// (1M × 44px rows reaches 76% of itself) and the rows past the cap would pile
+// at one y. Measured 2026-08-02: Chrome clamps `scrollHeight` at 33,554,428
+// and `top` at 33,554,432; Firefox's ceiling is lower still (~17.9M).
+//
+// So the block keeps TWO coordinate spaces once its content outgrows the cap:
+// LOGICAL (the ledger's — real row extents, what the app and the AT reason in)
+// and PHYSICAL (what the browser is told). The scroll range is compressed into
+// the physical space and mapped back; rows are placed relative to the physical
+// viewport so their own coordinates never leave it. Rows keep their REAL size
+// — only the scroll range is scaled, never a row.
+//
+// CAP is 2²⁴, comfortably under every engine's ceiling including Firefox's.
+// The mapping is proportional, which costs scroll GRANULARITY: one physical
+// pixel becomes `scale` logical pixels. That stays sub-row until scale exceeds
+// a row's height — ~16M rows at 44px, far past anything this is for. If a
+// collection ever needs finer control than that, the answer is the
+// anchor-plus-offset scheme (keep deltas 1:1, map only absolute positions),
+// not a bigger cap.
+const EXTENT_CAP = 16_777_216; // 2²⁴
+
+/** The physical extent to publish for a logical one — identity below the cap. */
+const physicalExtent = (logical: number): number => Math.min(logical, EXTENT_CAP);
+
+/** Logical-per-physical scroll ratio for a block of `logical` extent in a
+ *  `viewH` viewport. Exactly 1 whenever the content fits under the cap, so
+ *  every expression below reduces to its pre-compression form and an
+ *  uncompressed block is bit-for-bit unaffected. */
+function extentScale(logical: number, viewH: number): number {
+  if (logical <= EXTENT_CAP) return 1;
+  const logicalRange = logical - viewH;
+  const physicalRange = EXTENT_CAP - viewH;
+  return physicalRange > 0 ? logicalRange / physicalRange : 1;
+}
 
 // parent view → its replication blocks: the KERNEL WINDOW API's registry
 // (D5: the live window — realized instances + logical positions — is
@@ -280,6 +318,13 @@ export class Replicator {
   private winStart = 0;
   private logical = 0;
   private positioned = false;             // we own instance y's (windowed placement)
+  // Extent compression (the 2²⁵ ceiling): the live logical↔physical ratio and
+  // the physical scroll offset into this block, both published by the match so
+  // placement can re-base against them. `scale === 1` is the uncompressed case
+  // and every consumer reduces to its old form there.
+  private scale = 1;
+  private pRel = 0;
+  private relLogical = 0;
   private heightOwner: Constraint | null = null; // the parent-extent derive
   private lastLeading = 0;                // the block-start offset (see Match.leading)
   private lastRel: number | null = null;  // last window offset — the overscan's velocity probe
@@ -391,7 +436,10 @@ export class Replicator {
     }
     const scroller = this.findScroller();
     if (scroller === null) return;
-    const target = this.offsetTo(scroller) + this.lastLeading + index * (this.unit > 0 ? this.unit : DEFAULT_UNIT);
+    // The row's place is LOGICAL; scrollY is PHYSICAL, so a compressed block
+    // divides through the scale on the way out (identity below the cap).
+    const into = this.lastLeading + index * (this.unit > 0 ? this.unit : DEFAULT_UNIT);
+    const target = this.offsetTo(scroller) + into / extentScale(this.ledger.total(), scroller.height);
     // Writing the reactive slot is the whole move: the surface pans
     // (scrollY's pusher) and the windowed match — which tracks scrollY —
     // rematerializes the destination in the same settle.
@@ -538,7 +586,10 @@ export class Replicator {
       if (oldOffset !== null) {
         const at = ids.indexOf(this.anchorId);
         if (at >= 0) {
-          const shift = this.ledger.offset(at) - oldOffset;
+          // The anchor moved by a LOGICAL amount; the scroller travels in
+          // PHYSICAL pixels, so a compressed block converts before it nudges.
+          // (Uncompressed the scale is 1 and this is the original line.)
+          const shift = (this.ledger.offset(at) - oldOffset) / extentScale(this.ledger.total(), scroller.height);
           if (shift !== 0) {
             y = Math.max(0, y + shift);
             setBound(scroller, "scrollY", y);
@@ -556,13 +607,25 @@ export class Replicator {
     // agree, or headless state (and anything derived from scrollY) lives in
     // NaN-land the browser never shows (criterion 4: position lands sane).
     if (membershipRebuilt) {
-      const end = Math.max(0, offset + leading + this.ledger.total() - viewH);
+      // The clamp is against the PHYSICAL end — what the scroller can actually
+      // reach — so a compressed block lands sane instead of parking scrollY
+      // out past a range the browser will never honour.
+      const end = Math.max(0, offset + leading + physicalExtent(this.ledger.total()) - viewH);
       if (y > end) {
         y = end;
         setBound(scroller, "scrollY", y);
       }
     }
-    const rel = Math.max(0, y - offset - leading);
+    // PHYSICAL → LOGICAL. `pRel` is how far the real scroller has travelled
+    // into this block; `rel` is where that lands in the ledger's coordinates.
+    // Below the cap the scale is 1 and the two are the same number.
+    const pRel = Math.max(0, y - offset - leading);
+    this.scale = extentScale(this.ledger.total(), viewH);
+    this.pRel = pRel;
+    const rel = this.scale === 1
+      ? pRel
+      : Math.min(Math.max(0, this.ledger.total() - viewH), pRel * this.scale);
+    this.relLogical = rel;
     // VELOCITY-ADAPTIVE OVERSCAN (the momentum-flick answer — UIKit's
     // prefetch shape): the compositor scrolls ASYNCHRONOUSLY, painting
     // frames before any JS runs, so a flick can outrun a fixed buffer and
@@ -849,10 +912,13 @@ export class Replicator {
     next.forEach((v, i) => {
       setBound(v, "datapath", data === null ? null : data.cursorAt(nodes[i].path));
     });
-    // A recycled instance now serves a different record: its cursor is set,
-    // so any spring's target has re-derived — take those targets outright
-    // rather than sliding from the departed record's geometry (Spring.resnap).
-    for (const v of recycled) resnapSubtree(v);
+    // Recycled and freshly built instances are presenting a record they were
+    // not presenting before: their springs take the arriving target outright
+    // instead of sliding from the departed record's geometry (Spring.arrive).
+    // Armed, not snapped — the cursor write above invalidates lazily, so the
+    // new target is not readable yet.
+    for (const v of recycled) arriveSubtree(v);
+    for (const v of fresh.keys()) arriveSubtree(v);
     // Retained rows re-point on data change (their logical index may shift).
     if (m.arrayPath !== null && this.retained.size > 0) {
       for (const [id, v] of this.retained) {
@@ -868,15 +934,24 @@ export class Replicator {
     // runtime arranging what the runtime materializes.
     if (windowed) {
       // incremental placement: one O(log n) offset for the window's first
-      // row, then O(1) spans — the scrub bench's ledger overhead reclaimed
-      let yy = m.leading + this.ledger.offset(m.start);
+      // row, then O(1) spans — the scrub bench's ledger overhead reclaimed.
+      //
+      // Placement is LOGICAL-relative-to-the-viewport, then re-based into
+      // physical space: a row's distance from the top of the viewport is
+      // logical (`ledger.offset(i) - rel`), and where the viewport itself sits
+      // is physical (`pRel`). Below the cap `pRel === rel` and `base` collapses
+      // to `m.leading`, leaving the original `leading + offset(i)` exactly.
+      // Above it, rows track the physical viewport instead of running off past
+      // 2²⁵ where the browser would stop moving them.
+      const base = m.leading + this.pRel - this.relLogical;
+      let yy = base + this.ledger.offset(m.start);
       next.forEach((v, i) => {
         setBound(v, "y", yy);
         yy += this.ledger.span(this.idOf(m.items[m.start + i]));
       });
       for (const [id, v] of this.retained) {
         const idx = this.indexCache?.get(id);
-        if (idx !== undefined) setBound(v, "y", m.leading + this.ledger.offset(idx));
+        if (idx !== undefined) setBound(v, "y", base + this.ledger.offset(idx));
       }
       this.positioned = true;
       const total = m.leading + this.ledger.total();
@@ -889,16 +964,21 @@ export class Replicator {
       // the first frame, so the scrollbar thumb maps the whole collection
       // (without this the range grew only as rows materialized — the
       // treadmill: dragging the thumb "to the end" landed mid-sequence).
+      // What the browser is told is the PHYSICAL extent — capped under the
+      // 2²⁵ ceiling. Both publication paths cap: a strut of 44M px and a
+      // parent `height` of 44M px saturate identically. Below the cap this is
+      // `total` unchanged.
+      const published = physicalExtent(total);
       const heightAuthored = isSet(this.parent, "height") || ownerOf(this.parent, "height")?.yielding === false;
       if (heightAuthored) {
         this.heightOwner?.dispose();
         this.heightOwner = null;
-        if (this.parent.scrolls !== "none") this.parent.surface?.setVirtualExtent?.(total);
+        if (this.parent.scrolls !== "none") this.parent.surface?.setVirtualExtent?.(published);
       } else if (this.heightOwner === null) {
-        this.totalExtent = total;
+        this.totalExtent = published;
         this.heightOwner = bindDerived(this.parent, "height", () => this.totalExtent);
-      } else if (this.totalExtent !== total) {
-        this.totalExtent = total;
+      } else if (this.totalExtent !== published) {
+        this.totalExtent = published;
         this.heightOwner.run();
       }
     } else if (this.windowedActive) {
@@ -955,11 +1035,23 @@ export class Replicator {
     // the view holds still while estimates converge. Any change re-pings the
     // match (the estimate-then-correct loop, generalized per-row).
     if (windowed && next.length > 0) {
+      // A row materialized or re-pointed THIS pass has not resolved its
+      // height yet: its constraints (and any spring's arriving target) settle
+      // after this reconcile returns, so what it reads right now is the
+      // TEMPLATE's default. Recording that would tell the ledger a 356px
+      // expanded row is 44px — dropping its correction, shifting every offset
+      // below it, and moving the index the viewport maps to (a visible jump of
+      // several rows). It is measured on the next pass instead, which the
+      // measure ping already schedules; a row whose default happens to be
+      // right loses nothing by waiting one frame.
+      const justPointed = new Set<View>(recycled);
+      for (const v of fresh.keys()) justPointed.add(v);
       let changed2 = false;
       let aboveShift = 0;
       const anchorIdx = this.anchorId !== undefined ? this.indexCache?.get(this.anchorId) : undefined;
       for (let i = 0; i < next.length; i++) {
         const idx = m.start + i;
+        if (justPointed.has(next[i])) { changed2 = true; continue; }
         const h = next[i].height + this.rowGap;
         if (h <= this.rowGap) continue;
         const d = this.ledger.measure(idx, this.idOf(m.items[idx]), h);

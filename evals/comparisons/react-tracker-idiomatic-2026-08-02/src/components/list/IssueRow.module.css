@@ -1,0 +1,147 @@
+.row {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.row.selected {
+  background: var(--accent-soft);
+}
+
+.row.editing {
+  background: var(--surface-2);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* Flex, not grid: several cells are conditional (labels, comment count) and a
+   grid would reflow the remaining columns whenever one is absent. */
+.summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  /* The 1px separator lives on `.row`, so the inner height is one less: a
+     collapsed row is then exactly `--row-h`, matching the virtualiser estimate. */
+  height: calc(var(--row-h) - 1px);
+  padding-inline: var(--space-3) var(--space-2);
+  cursor: default;
+  user-select: none;
+}
+
+.row:not(.selected):not(.editing) .summary:hover {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+
+.check {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.title {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  font-weight: 450;
+}
+
+/* The ellipsis has to live on the text node's own box, not on the flex row. */
+.titleText {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.id {
+  flex: none;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.labels {
+  flex: 0 1 auto;
+  display: flex;
+  gap: var(--space-1);
+  overflow: hidden;
+  max-width: 240px;
+  /* Fade the overflow rather than slicing a chip in half. */
+  mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
+}
+
+.label {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-size: 11px;
+  line-height: 17px;
+  white-space: nowrap;
+}
+
+.comments {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  width: 34px;
+  color: var(--text-3);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.updated {
+  flex: none;
+  width: 82px;
+  color: var(--text-3);
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.expand {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-3);
+  transition: transform 160ms var(--ease), color 120ms var(--ease);
+}
+.expand:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.expand[aria-expanded="true"] {
+  transform: rotate(180deg);
+  color: var(--accent);
+}
+
+@media (max-width: 1120px) {
+  .labels {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .summary {
+    gap: 6px;
+    padding-inline: var(--space-2) 2px;
+  }
+  .comments {
+    display: none;
+  }
+  .updated {
+    width: 62px;
+    font-size: 11px;
+  }
+}

@@ -23,8 +23,8 @@
 > edit 0.04 ms, ~20 materialized at every scale; 1M-row boot 587 ms,
 > dominated by data adoption (tagTree), not construction.
 >
-> **The 2026-07-31 QA rounds LANDED four of the five deferrals** (record in
-> the data tree's DATA-PROJECT.md): RECYCLING (a window shift's clean
+> **The 2026-07-31 QA rounds LANDED four of the five deferrals**: RECYCLING
+> (a window shift's clean
 > leavers re-point at its arrivers; spares park; eligibility = clean ∧
 > unfocused — the thumb-scrub bench forced it: 71→8 ms/frame median);
 > FOCUS-COUNTS-AS-TOUCHED (a row holding the keyboard focus retains like a
@@ -66,14 +66,29 @@
 > pressure (browser find/selection/AT over uninstantiated rows on the DOM
 > backend) that §2's contract should answer explicitly.
 
-> **New deferral (2026-08-01, found by the React control-arm experiment):
-> browsers saturate element layout at ~2²⁵ px (Chrome: 33,554,428), so a
-> windowed list whose logical extent exceeds it (1M × 44px rows ≈ 44M px)
-> can only scroll to ~76% of its content — the strut clamps silently.
-> Needed: extent COMPRESSION — cap the physical strut below the
-> saturation point and map physical scrollTop ↔ logical offset in the
-> reconciler (placement re-based so row coordinates also stay under the
-> cap). 100K and below are unaffected.**
+> **OPEN — the extent-saturation ceiling. Found 2026-08-01 by the React
+> control-arm experiment; RE-VERIFIED 2026-08-02 against Chrome 150 and
+> still live.** Browsers saturate element layout at ~2²⁵ px (Chrome:
+> 33,554,428), so a windowed list whose logical extent exceeds it can only
+> scroll to a fraction of its content — the strut clamps silently, with no
+> error and no symptom short of noticing the scrollbar bottoms out early.
+> Measured directly: a bare absolutely-positioned strut in an `overflow:auto`
+> box, driven to its true bottom.
+>
+> | rows @ 44 px | intended extent | `scrollHeight` | reachable |
+> |---:|---:|---:|---:|
+> | 10,000 | 440,000 px | 440,000 | 100% |
+> | 100,000 | 4,400,000 px | 4,400,000 | 100% |
+> | 1,000,000 | 44,000,000 px | **33,554,428** | **76.3%** |
+>
+> `DomBackend.setVirtualExtent` still writes the logical height straight to
+> the strut (`runtime/src/dom-backend.ts`), so nothing intervenes. **Needed:**
+> extent COMPRESSION — cap the physical strut below the saturation point and
+> map physical scrollTop ↔ logical offset in the reconciler, with placement
+> re-based so row coordinates also stay under the cap. The React control arm
+> hit the same ceiling and engineered around it, which is how we learned ours
+> was there. 100K and below are unaffected; the threshold is ~762K rows at
+> 44 px and scales inversely with row height.
 
 > **LANDED 2026-08-01 — THE ANIMATOR/RECYCLING INTERACTION. Symptom: a
 > dragged scrollbar ran at ~8fps (112 ms/frame at 10K, 127 ms at 100K)
@@ -91,14 +106,27 @@
 > and was exempt, only `Spring` was not); (2) the harvest is
 > ORDER-PRESERVING (k-th leaver → k-th arriver), so a fully-missed window
 > leaves every instance at its existing child index and re-links nothing;
-> (3) `Spring.resnap()` — a recycled instance takes its new target
-> outright instead of sliding from the departed record's geometry.
+> (3) **`Spring.arrive()`** — an instance presenting a record it was not
+> presenting before must APPEAR at that record's geometry, not animate to it,
+> since the geometry is a fact about the record rather than a change this row
+> lived through. It ARMS rather than snapping: the new target is not known at
+> recycle time (the cursor write that produces it invalidates lazily, so
+> reading `to` there would pin the DEPARTED record's value), so the next
+> target the spring receives is taken outright. The arming expires on the next
+> FRAME, not the next microtask — the settle wave's boundary differs per
+> engine (Chrome completes it inside the arming task, WebKit does not), and a
+> microtask deadline silently disarmed there and let the row animate. A frame
+> is long enough for any engine's wave and far shorter than a human gesture,
+> so a genuine change a moment later still animates.
 > Measured after: 8.3 ms/frame dragging at 100K, 9.4 ms at 10K, expansion
 > animation intact. NOTE ON MEASUREMENT: the old scrub probe (set
 > scrollTop, await one rAF) timed rAF latency, NOT the reconcile the
 > scroll event dispatches afterward — it could not see any of this. Frame
 > intervals across a sustained drag are the honest measure; every earlier
-> scrub number in this project used the flawed probe.**
+> scrub number in this project used the flawed probe.
+> (Historical note: this shipped first as `Spring.resnap()`, which snapped
+> immediately and therefore pinned the departed record's value; `arrive()`
+> replaced it 2026-08-02. `resnap` no longer exists — don't look for it.)**
 
 ---
 

@@ -1,0 +1,92 @@
+/* Design tokens. Both themes define the same names, so every component is
+   written once and is correct in light and dark by construction. */
+
+:root {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
+  --radius-sm: 4px;
+  --radius: 7px;
+  --radius-lg: 11px;
+
+  --row-h: 52px;
+  --group-h: 38px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+:root[data-theme="light"] {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #f0f2f5;
+  --surface-3: #e6e9ee;
+  --overlay: rgb(255 255 255 / 0.72);
+  --border: #dfe3e9;
+  --border-strong: #c3cad4;
+
+  --text: #16191d;
+  --text-2: #545c68;
+  --text-3: #838c99;
+
+  --accent: #3355e0;
+  --accent-text: #ffffff;
+  --accent-soft: #e6ebfd;
+
+  --danger: #c3352b;
+  --danger-soft: #fdeceb;
+
+  --status-open: #2f6fd0;
+  --status-in-progress: #a86504;
+  --status-blocked: #c3352b;
+  --status-closed: #2c7a53;
+
+  --prio-p0: #c3352b;
+  --prio-p1: #b4620a;
+  --prio-p2: #4b5563;
+  --prio-p3: #838c99;
+
+  --shadow-1: 0 1px 2px rgb(16 20 28 / 0.06), 0 1px 1px rgb(16 20 28 / 0.04);
+  --shadow-2: 0 8px 24px rgb(16 20 28 / 0.12), 0 2px 6px rgb(16 20 28 / 0.06);
+  --tint: 0.04;
+}
+
+:root[data-theme="dark"] {
+  --bg: #0e1116;
+  --surface: #151a21;
+  --surface-2: #1b212a;
+  --surface-3: #232b36;
+  --overlay: rgb(14 17 22 / 0.72);
+  --border: #262e3a;
+  --border-strong: #3a4451;
+
+  --text: #e8ecf2;
+  --text-2: #a3adbb;
+  --text-3: #737f8d;
+
+  --accent: #6b8afc;
+  --accent-text: #0b0f16;
+  --accent-soft: #1d2740;
+
+  --danger: #f0776c;
+  --danger-soft: #34191a;
+
+  --status-open: #6ba1f0;
+  --status-in-progress: #e0a145;
+  --status-blocked: #f0776c;
+  --status-closed: #5cbb8a;
+
+  --prio-p0: #f0776c;
+  --prio-p1: #e0a145;
+  --prio-p2: #a3adbb;
+  --prio-p3: #737f8d;
+
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-2: 0 10px 30px rgb(0 0 0 / 0.5), 0 2px 8px rgb(0 0 0 / 0.35);
+  --tint: 0.14;
+}

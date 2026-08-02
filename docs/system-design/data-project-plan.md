@@ -1,7 +1,18 @@
 # The data project — ordering and the design work that precedes the build
 
-> **Status: proposed 2026-07-30, for David's review.** The charter for this
-> tree (see /DATA-PROJECT.md): full JSONPath, JSON Pointer (validated, not
+> **Status: RULED 2026-07-30; the work it schedules was BUILT 2026-07-30 →
+> 08-02 and is COMPLETE.** Kept as the plan of record — what the ordering
+> argument was, and why. Outcomes live in the sibling docs, not here:
+> [data-paths.md](data-paths.md) (paths, pointers, selectors, schemas),
+> [materialization.md](materialization.md) (windowing, and the one ceiling
+> still open), [selection-model.md](selection-model.md),
+> [component-briefs.md](component-briefs.md),
+> [focus-scopes.md](focus-scopes.md),
+> [jsonpath-spelling.md](jsonpath-spelling.md). The day-to-day tracking file
+> this once pointed at (`/DATA-PROJECT.md`) was working-copy scaffolding and
+> has been deleted; nothing here depends on it.
+>
+> The charter was: full JSONPath, JSON Pointer (validated, not
 > assumed), materialization/virtualization, retirement of `key`, the
 > components that exercise the substrate, and a capstone CRUD exemplar with
 > good UX, end to end. This doc answers two questions: what ORDER the work

@@ -161,6 +161,20 @@ script {
         for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0
         return TRK_HUES[Math.abs(h) % TRK_HUES.length]
     }
+    // BASELINES. `y = center` centers a Text's INK BAND — cap top to
+    // baseline — so a centered line's baseline lands at (boxHeight + cap)/2.
+    // Two centered texts of different sizes therefore do NOT share a
+    // baseline: the smaller one rides higher by half the cap difference.
+    // `trkBaselineNudge` is that correction, in terms of the cap-height
+    // fraction of the em (SF, Inter and Roboto all sit within a hair of
+    // 0.72). Same-sized labels need none of this — they share a baseline by
+    // construction once their boxes are the same height, which is why the
+    // footer gives every control one row height. Lands within half a pixel.
+    const TRK_CAP_RATIO = 0.72
+    function trkBaselineNudge(refPx: number, ownPx: number): number {
+        return Math.round(TRK_CAP_RATIO * (refPx - ownPx) / 2 * 10) / 10
+    }
+
     function trkStatusLabel(s: string): string {
         return s === "open" ? "Open" : s === "in-progress" ? "In Progress" : s === "blocked" ? "Blocked" : "Closed"
     }
@@ -276,9 +290,13 @@ class IssueRow extends TableRow [
     isHdr: boolean = { ("" + :kind) == "hdr" },
 
     exp: boolean = { !isHdr && ("" + :id) == ("" + app.expandedId) },
-    targetH: number = { isHdr ? 42 : exp ? 356 : 44 },
-    height = 44,
-    Spring [ attribute = height, to = { targetH }, stiffness = 320, damping = 34 ],
+    // The open row simply IS its open height. An animated expansion reads
+    // well for one deliberate click and badly for everything else: walking
+    // the list with the arrows outruns it, so the row you are leaving is
+    // still tall while the row you are entering is still short — two rows
+    // mid-flight at once, which looks like one issue sliding rather than
+    // two rows changing. Browsing is not an occasion for motion.
+    height = { isHdr ? 42 : exp ? 356 : 44 },
 
     // ── the group header face ─────────────────────────────────────────────
 
@@ -529,22 +547,33 @@ class EditorCard extends View [
             onInput(t: string) { app.draftRev = app.draftRev + 1 }
             ],
 
-        foot: View [ width = { parent.width }, height = 32,
+        // ONE ROW, ONE BASELINE. Every control here is the same height, so
+        // the same-sized labels (the buttons' and Delete's) share a baseline
+        // by construction; only the small meta line needs the cap-difference
+        // correction that `trkBaselineNudge` names.
+        foot: View [ width = { parent.width }, height = { app.footRowH },
             layout: SimpleLayout [ axis = x, spacing = 10 ],
-            save: Button [ width = 96, label = { app.creating ? "Create" : "Save" }, primary = true,
+            save: Button [ width = 96, height = { app.footRowH }, label = { app.creating ? "Create" : "Save" }, primary = true,
                 disabled = { !app.draftDirty },
                 onClick() { if (!disabled) app.commitDraft() }
                 ],
-            cancel: Button [ width = 84, label = "Cancel",
+            cancel: Button [ width = 84, height = { app.footRowH }, label = "Cancel",
                 onClick() { app.closeDetail() }
                 ],
-            meta: Text [ y = center, fontSize = 11, wrap = false, textColor = { theme.textFaint }, visible = { !app.creating },
+            meta: Text [ fontSize = 11, wrap = false, textColor = { theme.textFaint }, visible = { !app.creating },
+                y = { (parent.height - this.height) / 2 + trkBaselineNudge(app.footLabelPx, this.fontSize) },
                 text = { "Created " + trkDate(:it.created ?? 0) + " · Updated " + trkDate(:it.updated ?? 0) + " · " + ("" + (:it.comments ?? 0)) + " comments" } ],
             sp: Spacer [ ],
-            del: Control [ height = 32, cornerRadius = 8, width = 84, visible = { !app.creating },
-                fill = { hot || down ? trkRed() : null },
-                t: Text [ x = 0, y = center, width = 84, textAlign = center, fontWeight = semibold, wrap = false,
-                    textColor = { this.parent.hot || this.parent.down ? trkWhite() : trkRed() },
+            // the destructive action wears the same button as its neighbours —
+            // same box, same label size — and says what it is in outline only
+            del: Control [ width = 84, visible = { !app.creating },
+                height = { app.footRowH },
+                cornerRadius = { typeof theme.buttonRadius == "number" ? Math.min(theme.buttonRadius, this.height / 2) : theme.controlRadius },
+                fill = { hot || down ? theme.control : theme.surface },
+                stroke = { stroke(1, trkRed()) },
+                t: Text [ x = 0, y = center, width = 84, textAlign = center, wrap = false,
+                    fontSize = { app.footLabelPx },
+                    textColor = { trkRed() },
                     text = "Delete…" ],
                 press() { app.deleteSelection() },
                 onClick() { if (!disabled) press() }
@@ -581,6 +610,8 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
     compact: boolean = { app.width < 640 },      // the bar: brand compacts, omnibox shrinks
 
     barH: number = 56,
+    footRowH: number = 32,        // the editor footer's one row height
+    footLabelPx: number = 16,     // …and its button-label size, the baseline reference
     railW: number = 300,
     railOn: boolean = { app.width >= 1100 },     // below this the rail yields to the list
 
@@ -619,8 +650,6 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
 
     adopt(issues: array) {
         for (const it of issues as any) {
-            (it as any).updatedText = trkDate((it as any).updated ?? 0)
-            ;(it as any).labelsText = (((it as any).labels ?? []) as any).join(", ")
             }
         db.set(["issues"], issues)
         rev = rev + 1
@@ -655,6 +684,15 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
     rearranged() {
         this.list.scrollY = 0
         setTimeout(() => { this.list.scrollY = 0 }, 0)
+        },
+
+    // Is the keyboard currently owned by a text field? A bare-character
+    // shortcut must never steal a keystroke from one. `placeholder` is
+    // declared by TextInput alone, so its presence identifies an editor
+    // without the App needing to know where every field in the tree is.
+    typing() -> boolean {
+        const f = Focus.getFocus()
+        return f != null && (f as any).placeholder !== undefined
         },
 
     clearAll() {
@@ -729,11 +767,14 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
                 })
             searchMs = Math.max(0, Math.round((trkNow() - t0) * 10) / 10)
             }
-        const RANK = ({ P0: 0, P1: 1, P2: 2, P3: 3 })
-        const cmp = sortOn == "priority" ? (a, b) => (RANK as any)[(a as any).priority] - (RANK as any)[(b as any).priority] || (b as any).updated - (a as any).updated
+        // Every comparator is ASCENDING — least-interesting first: oldest,
+        // lowest priority, A→Z. `desc` then reverses, uniformly, with no key
+        // carrying a special case (so a new sort field inherits the rule).
+        const RANK = ({ P0: 3, P1: 2, P2: 1, P3: 0 })
+        const asc = sortOn == "priority" ? (a, b) => (RANK as any)[(a as any).priority] - (RANK as any)[(b as any).priority] || (a as any).updated - (b as any).updated
             : sortOn == "title" ? (a, b) => ((a as any).title < (b as any).title ? -1 : (a as any).title > (b as any).title ? 1 : 0)
-            : (a, b) => (b as any).updated - (a as any).updated
-        rows = [...rows].sort(sortDir == "desc" && sortOn != "updated" ? (a, b) => cmp(b, a) : sortDir == "asc" && sortOn == "updated" ? (a, b) => cmp(b, a) : cmp)
+            : (a, b) => (a as any).updated - (b as any).updated
+        rows = [...rows].sort(sortDir == "desc" ? (a, b) => asc(b, a) : asc)
         if (grouping != "status") return ({ rows: rows, total: rows.length, searchMs: searchMs })
         const order = ["open", "in-progress", "blocked", "closed"]
         const collapsed = this.collapsedSet()
@@ -872,7 +913,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         const inst = this.list.children.find((c) => (c as any).isTableRow && (c as any).exp)
         if (inst == null) return
         const top = (inst as any).y
-        const bottom = top + (inst as any).targetH
+        const bottom = top + (inst as any).height
         const viewTop = this.list.scrollY
         const viewBottom = viewTop + this.list.height
         if (bottom > viewBottom) this.list.scrollY = Math.min(top - 8, bottom - this.list.height + 8)
@@ -897,8 +938,6 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         if (d == null) return
         if (creating) {
             const rec0 = ({ ...(d as any) })
-            ;(rec0 as any).updatedText = trkDate((rec0 as any).updated ?? 0)
-            ;(rec0 as any).labelsText = (((rec0 as any).labels ?? []) as any).join(", ")
             db.insert(["issues"], 0, rec0)
             rev = rev + 1
             const rec = this.issuesOf(rev)[0]
@@ -916,10 +955,8 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         db.set(["issues", i, "priority"], (d as any).priority)
         db.set(["issues", i, "assignee"], (d as any).assignee)
         db.set(["issues", i, "labels"], [...((d as any).labels ?? [])])
-        db.set(["issues", i, "labelsText"], (((d as any).labels ?? []) as any).join(", "))
         const up2 = ((d as any).updated ?? 0) + 1
         db.set(["issues", i, "updated"], up2)
-        db.set(["issues", i, "updatedText"], trkDate(up2))
         db.set(["issues", i, "closedAt"], ("" + (d as any).status) == "closed" ? up2 : null)
         rev = rev + 1
         editing = false
@@ -933,7 +970,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
     // ── MUTATION VERBS — every write to the truth lives here ──────────────
     //
     // Each verb writes `db`, keeps the derived display fields honest
-    // (updatedText, labelsText, closedAt), and bumps `rev`. Nothing else
+    // (closedAt), and bumps `rev`. Nothing else
     // in the file mutates data; everything else derives.
 
     // the people who actually hold work — the truth decides who is listed
@@ -941,13 +978,11 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         return [...new Set(this.issuesOf(r).map((it) => (it as any).assignee).filter((a) => a != null))].sort()
         },
 
+    // No confirmation dialog: the undo toast is the safety net, and a modal
+    // in front of it taxes every delete to save the rare one.
     deleteSelection() {
-        const sel = selection
-        if (sel == null) return
-        const n = (sel as any).length
-        this.dlg.open("Delete " + n + (n == 1 ? " issue?" : " issues?"), "You can undo this from the toast.",
-            [({ id: "cancel", label: "Cancel", cancel: true }), ({ id: "delete", label: "Delete", default: true })],
-            "error", (id) => { if (id == "delete") app.performDelete() })
+        if (selection == null) return
+        this.performDelete()
         },
 
     performDelete() {
@@ -988,13 +1023,11 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
                 const ls = [...(((issues[i] as any).labels) ?? [])]
                 if (!ls.includes(v)) ls.push(v)
                 db.set(["issues", i, "labels"], ls)
-                db.set(["issues", i, "labelsText"], (ls as any).join(", "))
                 } else {
                 db.set(["issues", i, field], v)
                 }
             const up = ((issues[i] as any).updated ?? 0) + 1
             db.set(["issues", i, "updated"], up)
-            db.set(["issues", i, "updatedText"], trkDate(up))
             if (field == "status") db.set(["issues", i, "closedAt"], v == "closed" ? up : null)
             }
         rev = rev + 1
@@ -1121,11 +1154,26 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
 
     keys: Keys [
         onKeyDown(e: KeyEvent) {
+            // ⌘K or "/" reach the search field from anywhere — but "/" is a
+            // character, so it only counts when nothing is taking text
             if ((e.meta || e.ctrl) && e.code == "KeyK") { Focus.focus(app.bar.omni as any) }
+            // Escape unwinds the INNERMOST layer first: the open editor, then
+            // a selection, then the query, then the facet filters. Anything
+            // else and a keystroke meant for the thing in front of you lands
+            // on something behind it.
             else if (e.key == "Escape") {
-                if (app.query != "") { app.query = ""; app.bar.omni.text = ""; app.rearranged() }
-                else if (app.editing) app.closeDetail()
+                if (app.editing) app.closeDetail()
+                else if (app.selCount > 0) app.takeSelection(null)
+                else if (app.query != "") { app.query = ""; app.bar.omni.text = ""; app.rearranged() }
+                else if (app.fStatus != "" || app.fAssignee != "" || app.fLabel != "") app.clearAll()
                 }
+            },
+
+        // "/" moves focus on key UP, not down: a printable shortcut handled on
+        // the way down would still be delivered as text to the field it just
+        // focused, and the search box would open holding a stray "/".
+        onKeyUp(e: KeyEvent) {
+            if (e.key == "/" && !app.typing()) Focus.focus(app.bar.omni as any)
             }
         ],
 
@@ -1323,6 +1371,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         selection = { app.selection },
         input(sel: object) { app.takeSelection(sel) },
         deleteRequested() { app.deleteSelection() },
+        activateRequested() { app.openDetail() },
         IssueRow [ datapath = :rows[], materialize = auto ]
         ],
 

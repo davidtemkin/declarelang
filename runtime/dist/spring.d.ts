@@ -11,6 +11,8 @@ export declare class Spring extends Animator {
      *  opacity, ~a fraction of a pixel for a position. */
     epsilon: number;
     private springRunning;
+    /** Armed by `arrive()`: consume the next target outright (see arrive). */
+    private arriving;
     private springLastNow;
     private vel;
     private primed;
@@ -36,20 +38,28 @@ export declare class Spring extends Animator {
      *  a lazy primer would then swallow the first REAL change instead — the
      *  calendar's month→year zoom snapping while year→month animated. */
     prime(): void;
-    /** RE-SNAP (recycling): a recycled instance is re-born serving a
-     *  DIFFERENT record, so motion still in flight belongs to the record that
-     *  left — it is not this row's animation to finish. Take the current
-     *  target outright, exactly as the declaration snap does at boot, and
-     *  drop off the clock. (A windowed row whose height animates makes this
-     *  load-bearing: without it the measured ladder chases a height that is
-     *  sliding toward the departed record's geometry, and re-derives the
-     *  window on every frame of the slide.) */
-    resnap(): void;
+    /** ARRIVAL (recycling / materialization). A recycled or freshly built
+     *  instance is presenting a record it was not presenting before, so the
+     *  geometry it lands on is a FACT ABOUT THAT RECORD, not a change this
+     *  row lived through — it must appear, not animate.
+     *
+     *  This arms rather than snaps because the new target is not known yet:
+     *  the cursor write that will produce it invalidates lazily, so reading
+     *  `to` here would return the DEPARTED record's value and pin it. The
+     *  next target this spring receives is therefore taken outright; the
+     *  arming clears itself on the following microtask, so a genuine change
+     *  a moment later still animates. When the two records agree the slot is
+     *  already correct and no push ever comes — which is also right.
+     *
+     *  (A windowed row whose height animates makes this load-bearing: an
+     *  expanded row scrolled out and back must return at its open height,
+     *  and the measured ladder must never see it slide.) */
+    arrive(): void;
     tick(now: number): boolean;
 }
-/** Walk a recycled subtree and re-snap every spring in it (see
- *  `Spring.resnap`). Children of a view include its animators, so the walk
+/** Walk a newly-pointed subtree and arm every spring in it (see
+ *  `Spring.arrive`). Children of a view include its animators, so the walk
  *  is the ordinary tree walk; nothing else in the subtree is touched. */
-export declare function resnapSubtree(root: {
+export declare function arriveSubtree(root: {
     children?: readonly unknown[];
 }): void;

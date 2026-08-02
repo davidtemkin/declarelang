@@ -1,0 +1,20 @@
+.scroller {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  contain: paint;
+  background: var(--surface);
+}
+
+.canvas {
+  position: relative;
+  width: 100%;
+}
+
+.window {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  will-change: transform;
+}

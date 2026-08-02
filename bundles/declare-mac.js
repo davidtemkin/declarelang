@@ -7847,12 +7847,12 @@ var DeclareMac = (() => {
     const v = target[attr];
     return typeof v === "number" ? v : 0;
   }
-  function resnapSubtree(root) {
+  function arriveSubtree(root) {
     const stack = [root];
     while (stack.length > 0) {
       const n = stack.pop();
       if (n instanceof Spring) {
-        n.resnap();
+        n.arrive();
         continue;
       }
       const kids = n?.children;
@@ -7875,12 +7875,24 @@ var DeclareMac = (() => {
       };
       Spring = class extends Animator {
         springRunning = false;
+        /** Armed by `arrive()`: consume the next target outright (see arrive). */
+        arriving = false;
         springLastNow = null;
         vel = 0;
         primed = false;
         /** Called by the `to` pusher on every retarget: (re)enroll on the clock.
          *  A no-op while already live, so a moving target does not pile up tickers. */
         wake() {
+          if (this.arriving) {
+            this.arriving = false;
+            this.stop();
+            this.vel = 0;
+            this.primed = true;
+            const at = this.resolveTarget();
+            if (at !== null && this.attribute !== "")
+              drive(at, this.attribute, this.to);
+            return;
+          }
           if (this.springRunning)
             return;
           if (this.attribute === "" || this.resolveTarget() === null)
@@ -7925,21 +7937,33 @@ var DeclareMac = (() => {
             drive(t, this.attribute, this.to);
           this.vel = 0;
         }
-        /** RE-SNAP (recycling): a recycled instance is re-born serving a
-         *  DIFFERENT record, so motion still in flight belongs to the record that
-         *  left — it is not this row's animation to finish. Take the current
-         *  target outright, exactly as the declaration snap does at boot, and
-         *  drop off the clock. (A windowed row whose height animates makes this
-         *  load-bearing: without it the measured ladder chases a height that is
-         *  sliding toward the departed record's geometry, and re-derives the
-         *  window on every frame of the slide.) */
-        resnap() {
-          this.stop();
-          this.vel = 0;
-          this.primed = true;
-          const t = this.resolveTarget();
-          if (t !== null && this.attribute !== "")
-            drive(t, this.attribute, this.to);
+        /** ARRIVAL (recycling / materialization). A recycled or freshly built
+         *  instance is presenting a record it was not presenting before, so the
+         *  geometry it lands on is a FACT ABOUT THAT RECORD, not a change this
+         *  row lived through — it must appear, not animate.
+         *
+         *  This arms rather than snaps because the new target is not known yet:
+         *  the cursor write that will produce it invalidates lazily, so reading
+         *  `to` here would return the DEPARTED record's value and pin it. The
+         *  next target this spring receives is therefore taken outright; the
+         *  arming clears itself on the following microtask, so a genuine change
+         *  a moment later still animates. When the two records agree the slot is
+         *  already correct and no push ever comes — which is also right.
+         *
+         *  (A windowed row whose height animates makes this load-bearing: an
+         *  expanded row scrolled out and back must return at its open height,
+         *  and the measured ladder must never see it slide.) */
+        arrive() {
+          this.arriving = true;
+          const raf = globalThis.requestAnimationFrame;
+          if (typeof raf === "function")
+            raf(() => {
+              this.arriving = false;
+            });
+          else
+            setTimeout(() => {
+              this.arriving = false;
+            }, 0);
         }
         tick(now) {
           if (!this.springRunning)
@@ -9213,6 +9237,13 @@ var DeclareMac = (() => {
   });
 
   // runtime/dist/replicate.js
+  function extentScale(logical, viewH) {
+    if (logical <= EXTENT_CAP)
+      return 1;
+    const logicalRange = logical - viewH;
+    const physicalRange = EXTENT_CAP - viewH;
+    return physicalRange > 0 ? logicalRange / physicalRange : 1;
+  }
   function materializationInfo(view) {
     const b = BLOCKS.get(view)?.[0];
     return b === void 0 ? null : b.info();
@@ -9253,7 +9284,7 @@ var DeclareMac = (() => {
       return null;
     }
   }
-  var AUTO_THRESHOLD, DEFAULT_UNIT, BUFFER_ROWS, BLOCKS, ExtentLedger, Replicator;
+  var AUTO_THRESHOLD, DEFAULT_UNIT, BUFFER_ROWS, EXTENT_CAP, physicalExtent, BLOCKS, ExtentLedger, Replicator;
   var init_replicate = __esm({
     "runtime/dist/replicate.js"() {
       "use strict";
@@ -9268,6 +9299,8 @@ var DeclareMac = (() => {
       AUTO_THRESHOLD = 64;
       DEFAULT_UNIT = 24;
       BUFFER_ROWS = 5;
+      EXTENT_CAP = 16777216;
+      physicalExtent = (logical) => Math.min(logical, EXTENT_CAP);
       BLOCKS = /* @__PURE__ */ new WeakMap();
       ExtentLedger = class {
         est = 0;
@@ -9418,6 +9451,13 @@ var DeclareMac = (() => {
         logical = 0;
         positioned = false;
         // we own instance y's (windowed placement)
+        // Extent compression (the 2²⁵ ceiling): the live logical↔physical ratio and
+        // the physical scroll offset into this block, both published by the match so
+        // placement can re-base against them. `scale === 1` is the uncompressed case
+        // and every consumer reduces to its old form there.
+        scale = 1;
+        pRel = 0;
+        relLogical = 0;
         heightOwner = null;
         // the parent-extent derive
         lastLeading = 0;
@@ -9508,7 +9548,8 @@ var DeclareMac = (() => {
           const scroller = this.findScroller();
           if (scroller === null)
             return;
-          const target = this.offsetTo(scroller) + this.lastLeading + index * (this.unit > 0 ? this.unit : DEFAULT_UNIT);
+          const into = this.lastLeading + index * (this.unit > 0 ? this.unit : DEFAULT_UNIT);
+          const target = this.offsetTo(scroller) + into / extentScale(this.ledger.total(), scroller.height);
           scroller.scrollY = Math.max(0, target);
         }
         /** The inspector diagnostic (§3.6). */
@@ -9628,7 +9669,7 @@ var DeclareMac = (() => {
             if (oldOffset !== null) {
               const at2 = ids.indexOf(this.anchorId);
               if (at2 >= 0) {
-                const shift = this.ledger.offset(at2) - oldOffset;
+                const shift = (this.ledger.offset(at2) - oldOffset) / extentScale(this.ledger.total(), scroller.height);
                 if (shift !== 0) {
                   y = Math.max(0, y + shift);
                   setBound(scroller, "scrollY", y);
@@ -9641,13 +9682,17 @@ var DeclareMac = (() => {
           const anchor = this.leadingAnchor();
           const leading = anchor !== null ? anchor.y + anchor.height + gap : 0;
           if (membershipRebuilt) {
-            const end = Math.max(0, offset + leading + this.ledger.total() - viewH);
+            const end = Math.max(0, offset + leading + physicalExtent(this.ledger.total()) - viewH);
             if (y > end) {
               y = end;
               setBound(scroller, "scrollY", y);
             }
           }
-          const rel = Math.max(0, y - offset - leading);
+          const pRel = Math.max(0, y - offset - leading);
+          this.scale = extentScale(this.ledger.total(), viewH);
+          this.pRel = pRel;
+          const rel = this.scale === 1 ? pRel : Math.min(Math.max(0, this.ledger.total() - viewH), pRel * this.scale);
+          this.relLogical = rel;
           const delta = this.lastRel === null ? 0 : rel - this.lastRel;
           this.lastRel = rel;
           const estRow = this.ledger.est > 0 ? this.ledger.est : unit;
@@ -9884,7 +9929,9 @@ var DeclareMac = (() => {
             setBound(v, "datapath", data === null ? null : data.cursorAt(nodes[i].path));
           });
           for (const v of recycled)
-            resnapSubtree(v);
+            arriveSubtree(v);
+          for (const v of fresh.keys())
+            arriveSubtree(v);
           if (m.arrayPath !== null && this.retained.size > 0) {
             for (const [id, v] of this.retained) {
               const idx = this.indexCache?.get(id);
@@ -9894,7 +9941,8 @@ var DeclareMac = (() => {
             }
           }
           if (windowed) {
-            let yy = m.leading + this.ledger.offset(m.start);
+            const base2 = m.leading + this.pRel - this.relLogical;
+            let yy = base2 + this.ledger.offset(m.start);
             next.forEach((v, i) => {
               setBound(v, "y", yy);
               yy += this.ledger.span(this.idOf(m.items[m.start + i]));
@@ -9902,21 +9950,22 @@ var DeclareMac = (() => {
             for (const [id, v] of this.retained) {
               const idx = this.indexCache?.get(id);
               if (idx !== void 0)
-                setBound(v, "y", m.leading + this.ledger.offset(idx));
+                setBound(v, "y", base2 + this.ledger.offset(idx));
             }
             this.positioned = true;
             const total = m.leading + this.ledger.total();
+            const published = physicalExtent(total);
             const heightAuthored = isSet(this.parent, "height") || ownerOf(this.parent, "height")?.yielding === false;
             if (heightAuthored) {
               this.heightOwner?.dispose();
               this.heightOwner = null;
               if (this.parent.scrolls !== "none")
-                this.parent.surface?.setVirtualExtent?.(total);
+                this.parent.surface?.setVirtualExtent?.(published);
             } else if (this.heightOwner === null) {
-              this.totalExtent = total;
+              this.totalExtent = published;
               this.heightOwner = bindDerived(this.parent, "height", () => this.totalExtent);
-            } else if (this.totalExtent !== total) {
-              this.totalExtent = total;
+            } else if (this.totalExtent !== published) {
+              this.totalExtent = published;
               this.heightOwner.run();
             }
           } else if (this.windowedActive) {
@@ -9963,11 +10012,18 @@ var DeclareMac = (() => {
           for (const view of recycled)
             armTree(view);
           if (windowed && next.length > 0) {
+            const justPointed = new Set(recycled);
+            for (const v of fresh.keys())
+              justPointed.add(v);
             let changed2 = false;
             let aboveShift = 0;
             const anchorIdx = this.anchorId !== void 0 ? this.indexCache?.get(this.anchorId) : void 0;
             for (let i = 0; i < next.length; i++) {
               const idx = m.start + i;
+              if (justPointed.has(next[i])) {
+                changed2 = true;
+                continue;
+              }
               const h = next[i].height + this.rowGap;
               if (h <= this.rowGap)
                 continue;

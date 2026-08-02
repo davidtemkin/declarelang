@@ -1,0 +1,88 @@
+.section {
+  padding-block: var(--space-1);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.toggle:hover {
+  color: var(--text);
+}
+
+.chevron {
+  transition: transform 140ms var(--ease);
+}
+.toggle[aria-expanded="true"] .chevron {
+  transform: rotate(90deg);
+}
+
+.badge {
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.reset {
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 11px;
+  text-decoration: underline;
+}
+.reset:hover {
+  color: var(--accent);
+}
+
+.options {
+  max-height: 190px;
+  margin: 2px 0 0;
+  padding: 0 0 0 17px;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 2px 0;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.option:hover {
+  color: var(--text);
+}
+
+.option input {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+}
+
+.text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -1,0 +1,46 @@
+.pill {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 104px;
+  color: var(--tone);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.pill[data-status="open"] {
+  --tone: var(--status-open);
+}
+.pill[data-status="in-progress"] {
+  --tone: var(--status-in-progress);
+}
+.pill[data-status="blocked"] {
+  --tone: var(--status-blocked);
+}
+.pill[data-status="closed"] {
+  --tone: var(--status-closed);
+}
+
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tone);
+}
+
+.pill[data-status="closed"] .dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--tone);
+}
+
+@media (max-width: 760px) {
+  .pill {
+    width: auto;
+  }
+  .text {
+    display: none;
+  }
+}

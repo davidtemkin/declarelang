@@ -12,6 +12,12 @@ further out, each month folding into a mini.
 
 font Sans [ family = "system-ui" ]
 
+script {
+    // The day the program loaded — read once, before the tree is built, so it is
+    // already true when the first constraint evaluates.
+    const CAL_BOOT = new Date()
+    }
+
 /*
 ## Event
 
@@ -289,10 +295,21 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     // view + paging state
 
     mode: string = "month",
-    year: number = 2026,
-    month: number = 7,      // month is 1-based
-    anchorKey: string = "",
-    todayKey: string = "",
+
+    // Where the user has paged to — the only date cells, and all navigation
+    // writes. `0` / `""` mean "today"; a bare-literal default owns a cell, so
+    // writing one wakes every reader.
+    navYear: number = 0,
+    navMonth: number = 0,      // month is 1-based
+    navKey: string = "",
+
+    // The visible date, derived. A sentinel rather than a literal date keeps the
+    // declaration true at construction, where the focus rectangle's springs
+    // take their snap.
+    year: number = { app.navYear == 0 ? CAL_BOOT.getFullYear() : app.navYear },
+    month: number = { app.navMonth == 0 ? CAL_BOOT.getMonth() + 1 : app.navMonth },
+    todayKey: string = { app.keyOf(CAL_BOOT) },
+    anchorKey: string = { app.navKey == "" ? app.todayKey : app.navKey },
     monthRows: number = { app.computeMonthRows() },
     yearSeen: boolean = false,
     selectedId: number = -1,
@@ -515,34 +532,35 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
 
     /* ## Navigation
        A view switch is just a new `mode` (the focus rect springs); a page turn is
-       new year/month/anchorKey. The model derives from those, so navigation only
-       sets state. */
+       a new navYear/navMonth/navKey. The model derives from those, so navigation
+       only sets state — and `today()` is a return to the defaults. */
 
     goMode(m: string) { this.selectedId = -1; this.mode = m; if (m == "year") this.yearSeen = true },
     pickDay(key: string) {
         const d = app.parseKey(key)
-        this.anchorKey = key; this.year = d.getFullYear(); this.month = d.getMonth() + 1; this.selectedId = -1; this.mode = "day"
+        this.navKey = key; this.navYear = d.getFullYear(); this.navMonth = d.getMonth() + 1; this.selectedId = -1; this.mode = "day"
         },
-    pickMonth(m: number) { this.month = m; this.selectedId = -1; this.mode = "month" },
-    today()       { const n = new Date(); this.year = n.getFullYear(); this.month = n.getMonth() + 1; this.anchorKey = this.todayKey },
+    pickMonth(m: number) { this.navMonth = m; this.selectedId = -1; this.mode = "month" },
+    today()       { this.navYear = 0; this.navMonth = 0; this.navKey = "" },
     step(dir: number) {
         const a = app.parseKey(this.anchorKey)      // paging keeps the anchor day coherent
         if (this.mode == "year") {
-            this.year = this.year + dir
-            this.anchorKey = this.year + "-" + (a.getMonth() + 1) + "-" + Math.min(a.getDate(), new Date(this.year, a.getMonth() + 1, 0).getDate())
+            const y = this.year + dir
+            this.navYear = y
+            this.navKey = y + "-" + (a.getMonth() + 1) + "-" + Math.min(a.getDate(), new Date(y, a.getMonth() + 1, 0).getDate())
         } else if (this.mode == "month") {
             let m = this.month + dir, y = this.year
             if (m < 1) { m = 12; y-- } else if (m > 12) { m = 1; y++ }
-            this.month = m; this.year = y
-            this.anchorKey = y + "-" + m + "-" + Math.min(a.getDate(), new Date(y, m, 0).getDate())
+            this.navMonth = m; this.navYear = y
+            this.navKey = y + "-" + m + "-" + Math.min(a.getDate(), new Date(y, m, 0).getDate())
         } else {
             const n = new Date(a.getFullYear(), a.getMonth(), a.getDate() + dir * (this.mode == "week" ? 7 : 1))
-            this.anchorKey = app.keyOf(n); this.year = n.getFullYear(); this.month = n.getMonth() + 1
+            this.navKey = app.keyOf(n); this.navYear = n.getFullYear(); this.navMonth = n.getMonth() + 1
             }
         },
     selectEvent(id: number, key: string?) {
         this.selectedId = id; this.openSection = 0
-        if (key != null) this.anchorKey = key
+        if (key != null) this.navKey = key
         },
     closeDetail() { this.selectedId = -1 },
 
@@ -605,9 +623,6 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
         },
 
     onInit() {
-        const n = new Date()
-        this.todayKey = this.keyOf(n); this.year = n.getFullYear(); this.month = n.getMonth() + 1; this.anchorKey = this.todayKey
-        this.nr = this.monthRows      // start on the real row count so the month just shows, no squish-in
         if (app.env.base == null) this.data.fetch()      // hosted: auto refetches when env.base lands
         },
 

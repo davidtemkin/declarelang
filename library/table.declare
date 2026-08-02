@@ -172,6 +172,8 @@ class Table extends Control [
             }
         else if ((e.key == "Delete" || e.key == "Backspace") && (selection ?? []).length > 0)
             this.deleteRequested()                         // the list idiom: Delete acts on the selection
+        else if (e.key == "Enter" && !e.repeat && activeIndex >= 0)
+            this.activateRequested()                       // …and Enter opens what the walk landed on
         },
 
     // Delete/Backspace with a selection, delivered only while the table IS the
@@ -180,6 +182,12 @@ class Table extends Control [
     // the default is refusal-by-inertness.
 
     deleteRequested() { },
+
+    // Enter on the walked row — the list's "open this" verb, delivered only
+    // while the table itself holds focus, so a field's Enter is never it.
+    // Same seam shape as `deleteRequested`: the app declares what opening is.
+
+    activateRequested() { },
 
     // rows stack — a vertical SimpleLayout, which the windowing kernel
     // composes with (full mode stacks written or short lists; a windowed

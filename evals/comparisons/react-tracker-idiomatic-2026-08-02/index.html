@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Tracker</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='4' fill='%233355e0'/%3E%3Cpath d='M4 5h8M4 8h8M4 11h5' stroke='white' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E"
+    />
+    <script>
+      // Resolve the theme before first paint so the initial frame is never the
+      // wrong colour. Reads the same storage key as zustand's `persist`.
+      (() => {
+        let mode = "system";
+        try {
+          mode = JSON.parse(localStorage.getItem("tracker.theme") ?? "{}").state?.mode ?? "system";
+        } catch {
+          /* corrupt storage — fall back to the system preference */
+        }
+        const resolved =
+          mode === "light" || mode === "dark"
+            ? mode
+            : matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+        document.documentElement.dataset.theme = resolved;
+        document.documentElement.style.colorScheme = resolved;
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
