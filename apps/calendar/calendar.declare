@@ -289,8 +289,11 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     // view + paging state
 
     mode: string = "month",
-    year: number = 2026,
-    month: number = 7,      // month is 1-based
+    // TODAY, never a frozen date: a hardcoded default month is the wrong row
+    // count eleven months a year, and the `nr` spring animates the difference
+    // away in front of the user on every load.
+    year: number = { new Date().getFullYear() },
+    month: number = { new Date().getMonth() + 1 },      // month is 1-based
     anchorKey: string = "",
     todayKey: string = "",
     monthRows: number = { app.computeMonthRows() },
@@ -357,7 +360,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     c0: number = 0,
     r0: number = 0,
     nc: number = 7,
-    nr: number = 6,
+    nr: number = { app.monthRows },      // the real count, so nothing springs on load
     Spring [ attribute = c0, to = { app.c0To }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
     Spring [ attribute = r0, to = { app.r0To }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
     Spring [ attribute = nc, to = { app.ncTo }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
@@ -603,7 +606,9 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     onInit() {
         const n = new Date()
         this.todayKey = this.keyOf(n); this.year = n.getFullYear(); this.month = n.getMonth() + 1; this.anchorKey = this.todayKey
-        this.nr = this.monthRows      // start on the real row count so the month just shows, no squish-in
+        // The METHOD, not the `monthRows` slot: the slot is a constraint over the
+        // year/month just written, and has not re-run yet in this tick.
+        this.nr = this.computeMonthRows()
         if (app.env.base == null) this.data.fetch()      // hosted: auto refetches when env.base lands
         },
 
