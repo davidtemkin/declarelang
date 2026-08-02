@@ -124,6 +124,12 @@ const ViewSchema: ComponentSchema = {
     // scroller — or a child that declares `ignoreScroll`. Both backends
     // realize scrolling natively (DOM `overflow`; canvas clip+translate+wheel).
     scrolls: enumType("Scrolls", "none", "y", "x", "both"),
+    // The axis a declared drag CLAIMS (D8 RULED; claim-surface.md): `both`
+    // (default — the whole single-finger gesture, today's semantics) or
+    // `x`/`y`, scoping the claim to one axis so the cross axis stays the
+    // enclosing scroll regime's. The forcing cases: a grid column's header
+    // drag and edge-resize on touch.
+    claim: enumType("Claim", "both", "x", "y"),
     // the tooltip text — planes.md tier 1; "" (the default) = no tip
     tip: { kind: "string" },
     scrollY: { kind: "number" },
@@ -254,7 +260,7 @@ const ViewSchema: ComponentSchema = {
   // to fire, nothing more.
   events: ["click", "dblClick", "hold", "pointerDown", "pointerUp", "pointerMove", "pointerOver", "pointerOut",
     "touchStart", "touchMove", "touchEnd", "touchCancel", "wheel",
-    "init", "focus", "blur", "escapeFocus", "keyDown", "keyUp"],
+    "init", "retire", "contextMenu", "focus", "blur", "escapeFocus", "keyDown", "keyUp"],
 };
 
 // App is the root View plus the app's reactive environment. `hostWidth`/
@@ -568,6 +574,10 @@ const DatasetSchema: ComponentSchema = {
   // `string` formality a real typecheck error).
   attrs: {
     contents: { kind: "object" },
+    // The optional data shape (B4, language §9): validate on receipt, check
+    // `:path`s statically, declare the identity field. Presence is the only
+    // switch — the `:path` surface never changes.
+    schema: { kind: "dataschema" },
   },
 };
 
@@ -696,7 +706,9 @@ const KeysSchema: ComponentSchema = {
   name: "Keys",
   base: NodeSchema,   // via the abstract Source (sources.ts)
   attrs: {},
-  events: ["keyDown", "keyUp"],
+  // navClaim: an overlay took (true) / released (false) the navigation keys
+  // (keys.ts navClaim) — what a focus indicator stands down for.
+  events: ["keyDown", "keyUp", "navClaim"],
 };
 
 const FocusSchema: ComponentSchema = {
@@ -883,6 +895,7 @@ export const handlerName = (event: string): string =>
 export const EVENT_PAYLOAD: Readonly<Record<string, string>> = {
   // the single-point pointer family — view-local or root-space per handler
   click: "PointerEvent", dblClick: "PointerEvent", hold: "PointerEvent",
+  contextMenu: "PointerEvent",
   pointerDown: "PointerEvent", pointerMove: "PointerEvent",
   pointerOver: "PointerEvent", pointerOut: "PointerEvent",
   pointerUp: "PointerUpEvent",                       // …plus `canceled`
@@ -893,6 +906,7 @@ export const EVENT_PAYLOAD: Readonly<Record<string, string>> = {
   keyDown: "KeyEvent", keyUp: "KeyEvent",
   // value-carrying events
   input: "string",                                 // TextInput: the new text
+  navClaim: "boolean",                             // Keys: an overlay took/released the nav keys
   link: "string",                                  // RichText: the href
   frame: "number",                                 // Frames: dt, in SECONDS
   focusChange: "View",                             // Focus: the newly focused view

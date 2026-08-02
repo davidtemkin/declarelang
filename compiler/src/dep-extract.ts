@@ -20,7 +20,7 @@
 // read-paths onto the program AST for the runtime's static-constraint path.
 
 import ts from "typescript";
-import { scanDatapaths } from "../../runtime/dist/datapath.js";
+import { scanDatapaths, splitPath } from "../../runtime/dist/datapath.js";
 import type { Program, Element, Attr, AttrDecl, Method } from "../../runtime/dist/parser.js";
 import { LANGUAGE_METHOD_EFFECTS } from "./effects.js";
 
@@ -81,6 +81,44 @@ function pathTextOf(n: ts.Node): string {
   if (ts.isPropertyAccessExpression(n)) return `${pathTextOf(n.expression)}.${n.name.text}`;
   if (ts.isElementAccessExpression(n)) return `${pathTextOf(n.expression)}[${n.argumentExpression.getText()}]`;
   return n.getText();
+}
+
+/** The `:path` dep-currency text of a LITERAL plan array (`["rows",{"s":[2,8,null]}]`
+ *  → `rows[2:8]`), or null when any element is not a literal segment. The
+ *  spelling only needs to be stable within one extraction — bind.ts keys on
+ *  the leading `:` alone. */
+function planLiteralText(arr: ts.ArrayLiteralExpression): string | null {
+  const parts: string[] = [];
+  for (const e of arr.elements) {
+    if (ts.isStringLiteral(e)) { parts.push((parts.length > 0 ? "." : "") + e.text); continue; }
+    if (!ts.isObjectLiteralExpression(e)) return null;
+    const props = new Map<string, ts.Expression>();
+    for (const p of e.properties) {
+      if (!ts.isPropertyAssignment(p)) return null;
+      const nm = ts.isIdentifier(p.name) ? p.name.text : ts.isStringLiteral(p.name) ? p.name.text : null;
+      if (nm === null) return null;
+      props.set(nm, p.initializer);
+    }
+    const num = (x: ts.Expression | undefined): number | null | undefined => {
+      if (x === undefined) return undefined;
+      if (x.kind === ts.SyntaxKind.NullKeyword) return null;
+      if (ts.isNumericLiteral(x)) return Number(x.text);
+      if (ts.isPrefixUnaryExpression(x) && x.operator === ts.SyntaxKind.MinusToken && ts.isNumericLiteral(x.operand)) return -Number(x.operand.text);
+      return undefined;
+    };
+    if (props.has("i")) { const v = num(props.get("i")); if (typeof v !== "number") return null; parts.push(`[${v}]`); continue; }
+    if (props.has("w")) { parts.push("[*]"); continue; }
+    if (props.has("s")) {
+      const sv = props.get("s")!;
+      if (!ts.isArrayLiteralExpression(sv)) return null;
+      const ns = sv.elements.map((el) => num(el));
+      if (ns.some((v) => v === undefined)) return null;
+      parts.push(`[${ns.map((v) => (v == null ? "" : String(v))).join(":").replace(/:+$/, ":").replace(/^(-?\d*:-?\d*):$/, "$1")}]`);
+      continue;
+    }
+    return null;
+  }
+  return parts.join("");
 }
 
 function parseBody(src: string, expression: boolean): ts.SourceFile | null {
@@ -420,8 +458,25 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
           if (m === "read") {
             const a0 = s.arguments[0];
             const staticArr = a0 && ts.isArrayLiteralExpression(a0) && a0.elements.every((e) => ts.isStringLiteral(e) || ts.isNumericLiteral(e));
-            if (staticArr) reads.add(`${pathTextOf(recv)}.read(${a0.getText()})`);
+            // A literal RFC 6901 pointer string (B2's interop spelling) is as
+            // static as the array form — the probe evaluates it identically.
+            const staticPtr = a0 && ts.isStringLiteral(a0) && a0.text.startsWith("/");
+            if (staticArr || staticPtr) reads.add(`${pathTextOf(recv)}.read(${a0.getText()})`);
             else errors.push(new DepError(`dynamic datapath — read([<expr>]) resolves the region at runtime; use a literal path`, s.getStart()));
+          } else if (m === "$data" && recv.kind === ts.SyntaxKind.ThisKeyword) {
+            // The compiled form of a datapath island (compile.ts resolveBody):
+            // `this.$data(["a","b"])` ≡ `:a.b`, and a selector plan
+            // (`this.$data(["rows",{"s":[2,8,null]}])` ≡ `:rows[2:8]`) —
+            // recorded in the same `:path` read currency (bind.ts keeps
+            // region reads on the tracking path, and rebase() already leaves
+            // `:` paths alone: cursor-relative, not noun-relative). A
+            // non-literal plan is refused exactly like read([<expr>]) — the
+            // same dynamic-datapath rule.
+            const a0 = s.arguments[0];
+            const text = a0 && ts.isArrayLiteralExpression(a0) ? planLiteralText(a0)
+              : a0 && ts.isStringLiteral(a0) ? splitPath(a0.text).join(".") : null;
+            if (text !== null) reads.add(":" + text);
+            else errors.push(new DepError(`dynamic datapath — $data(<expr>) resolves the region at runtime; use a literal path`, s.getStart()));
           } else if (ITER.has(m)) {
             if (recvName && NODE_COLLECTIONS.has(recvName)) errors.push(new DepError(`aggregation over a reactive node collection (.${recvName}.${m}) — a data-dependent number of slots; derive from data`, s.getStart()));
           } else if (PURE_METHODS.has(m)) { /* pure projection */ }

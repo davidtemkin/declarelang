@@ -284,15 +284,18 @@ function analyze(tokens) {
         }
         return at;
       }
-      case "colon": { // datapath `:a.b` / `:arr[]`
+      case "colon": { // datapath `:a.b` / `:arr[]` / `:arr[2:8][]` (slices, indices)
         t.colonKind = "path";
         p++;
         let last = tokens[expect("ident", "a field name after ':'")];
         while (tok().kind === "dot") { p++; last = tokens[expect("ident", "a field name after '.'")]; }
-        if (tok().kind === "lb" && tok().start === last.end && tok(1).kind === "rb") {
+        // bracket segments glue to the path: `[]` (replication), `[3]`,
+        // `[a:b]` — any run of them, each emitted with no interior gaps
+        while (tok().kind === "lb" && tok().start === last.end) {
           tok().role = "repl"; p++;
+          while (tok().kind !== "rb" && tok().kind !== "eof") { tok().role = "repl"; p++; }
           tok().role = "repl";
-          return expect("rb", "']'");
+          last = tokens[expect("rb", "']'")];
         }
         return nc[p - 1];
       }
@@ -419,6 +422,8 @@ function analyze(tokens) {
       p++;
       expect("ident", "the declaration's name");
       parseBody(true);
+    } else if (at("script", "code")) {
+      p += 2; // `script { … }` — the body is opaque TS, passed through verbatim
     } else break;
   }
   if (tok().kind !== "eof") parseElement(true); // the root instance
@@ -551,6 +556,7 @@ function gap(prev, t) {
   if (t.kind === "lcomment") return Math.max(2, t.start - prev.end);
   let d;
   if (prev.kind === "dot" || prev.kind === "lp") d = 0;
+  else if (t.role === "repl" && prev.role === "repl") d = 0;
   else if (t.kind === "colon") d = t.colonKind === "path" ? 1 : 0;
   else if (prev.kind === "colon") d = prev.colonKind === "path" ? 0 : 1;
   else if (t.kind === "lb") d = t.role === "body" ? 1 : t.role === "repl" ? 0 : prev.kind === "lb" ? 0 : 1;

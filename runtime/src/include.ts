@@ -227,6 +227,9 @@ export function resolveAutoIncludes(
   const styles: TopDecl[] = [...program.styles];
   const fonts: TopDecl[] = [...program.fonts];
   const scripts: ScriptBlock[] = [...program.scripts];
+  // the keep-list folds here exactly as in resolveIncludes: an auto-pulled
+  // library's `use [ … ]` (its by-name construction deps) joins the program's
+  const uses: string[] = [...program.uses];
   const sources: string[] = [];
 
   // name → the file that declared it (main + explicit includes seed it). A
@@ -278,6 +281,7 @@ export function resolveAutoIncludes(
     for (const s of lib.styles) if (foldOne(s.name, s.pos, path)) styles.push(s);
     for (const f of lib.fonts) if (foldOne(f.name, f.pos, path)) fonts.push(f);
     scripts.push(...lib.scripts);
+    uses.push(...lib.uses);
     sources.push(exciseSpans(resolved.source, lib.includeSpans));
   };
 
@@ -286,11 +290,17 @@ export function resolveAutoIncludes(
   // The keep-list is a reference too: `use [ Bar ]` pulls Bar's library even with
   // no static tag (the escape hatch for by-name construction). A built-in or
   // unknown name isn't in the manifest, so pull() no-ops — the checker validates
-  // the name against the merged program afterwards.
-  for (const name of program.uses) pull(name, program.root.pos);
+  // the name against the merged program afterwards. Indexed loop on purpose:
+  // a pulled library can CONTRIBUTE uses (line ~139), and those pull too —
+  // a component that `use`s what it createView's (Combobox → Menu) keeps its
+  // dependency even when no static tag references it.
+  for (let i = 0; i < uses.length; i++) pull(uses[i], program.root.pos);
 
   return {
-    program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: program.uses, scripts, root: program.root },
+    // `uses` is the FOLDED list — the root's plus every included library's
+    // (returning the root's alone silently dropped a library's keep-list,
+    // which broke by-name construction inside components).
+    program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], scripts, root: program.root },
     sources,
     errors,
   };

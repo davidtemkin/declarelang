@@ -1,15 +1,19 @@
 /*
 # The component sampler
 
-The styling arc's proof point (library-charter §6): every library component,
-under three switchable stylings — Declare-native (the default), Mountain View,
-and Cupertino — selected by a RadioGroup. One machinery, three token records: the
-emulations are DATA, never code paths. The "Animate focus transitions" toggle
-drives the focus renderer's flight (charter: the flight is the suppressible
-flourish; the at-rest indication is not).
+The styling arc's proof point (library-charter §6): EVERY library component,
+under four switchable stylings — San Francisco (the default), Mountain View,
+Cupertino, and Redmond. One machinery, four token records: the emulations are
+DATA, never code paths.
 
-The Mountain View and Cupertino records here are PLACEHOLDERS awaiting the fidelity
-passes — the switching machinery is the point of this skeleton.
+The chrome is the house arrangement (Viewer/Calendar): a FIXED-HEIGHT top bar
+— the brand at left (compacting to just "Declare" when narrow, the Calendar
+move), the page switch in the centre (Controls · Table · DataGrid), and ONE
+appearance affordance at right opening the APPEARANCE MENU: theme mode
+(Light/System/Dark, checked rows), the four stylings, the accent-tint dot row
+(the Finder tag-dots idiom), and the focus-flourish toggle — the whole
+styling rig, off the page and into the menu. The Controls page reads as
+CARDS, two columns wide, one below the breakpoint the cards actually need.
 */
 
 use [ TintRow ]
@@ -17,43 +21,6 @@ use [ TintRow ]
 font Roboto [
     Face [ src = "../../assets/fonts/roboto/roboto-400.woff2" ],
     Face [ src = "../../assets/fonts/roboto/roboto-500.woff2", weight = medium ]
-    ]
-
-
-// a swatch is a CONTROL: the base supplies the whole keyboard story — a Tab
-// stop, Space/Enter driving the same press() a click does, hover/press
-// states, and the ring hugging the circle (focus reads the cornerRadius)
-
-class Swatch extends Control [ width = 26, height = 26, cornerRadius = 13,
-    c: number = 0,
-    on: boolean = { app.accentPick == c },
-
-    // the Cupertino treatment: plain discs; only the SELECTED swatch earns a ring
-    // — in its own color, with the background showing through as the gap.
-    // The ring is this control's bounds, the disc an inset child.
-
-    // every disc wears a THIN DEEPER ring of its own color (Cupertino's subtle
-    // containment — same hue at ~78% tone); selection adds the outer ring
-    // with the background gap
-
-    deep(v: number) -> number {
-        const m = (ch) => Math.round(ch * 0.78)
-        return (m((v >> 16) & 255) << 16) | (m((v >> 8) & 255) << 8) | m(v & 255)
-        },
-
-    stroke = { on ? stroke(2, c == 0 ? theme.textMuted : c) : null },
-    disc: View [ x = 3, y = 3, width = 20, height = 20, cornerRadius = 10,
-        fill = { c == 0 ? theme.control : c },
-        stroke = { stroke(1, c == 0 ? theme.line : classroot.deep(c)) } ],
-
-    press()   { app.accentPick = c },
-    onClick() { if (!disabled) press() },
-
-    // the focus silhouette is the DISC, not the control's bounds — the ring
-    // hugs the color circle itself (the bounds include the selection ring's
-    // 3px inset, which would leave daylight between disc and focus ring)
-
-    focusShape() { return { x: 3, y: 3, w: 20, h: 20, rad: 10 } }
     ]
 
 
@@ -76,68 +43,61 @@ class TintDot extends View [ width = 16, height = 16, cornerRadius = 8,
     pivotY = 8,
     fill = { c },
     stroke = { hovered ? stroke(2, theme.text) : app.accentPick == c ? stroke(2, theme.textMuted) : null },
-    onClick() { app.accentPick = app.accentPick == c ? 0 : c || 0; app.optionsMenu.close() }
+    onClick() { app.accentPick = app.accentPick == c ? 0 : c || 0; app.appearanceMenu.close() }
     ]
 
 
-// The hover wiring lives at the USE SITES, where `classroot` is the TintRow —
-// each dot reports itself to the row, the row grows to show the caption, and
-// the menu's row/panel heights re-derive live (the structure cell at work).
+// The dots row: color and the selected ring say everything — no caption
+// (ruled 2026-07-31). The menu's row host aligns it to the text edge, the
+// Finder rollover enlarges the hovered dot, a re-click clears the tint.
 
 class TintRow extends View [
-    hoverName: string = "",
-    height = 42,                                 // the caption line is ALWAYS there — no height bounce
+    height = 22,
 
-    nameOf(c: number) -> string {
-        return c == 0x2E6FE0 ? "Blue" : c == 0x6750A4 ? "Purple" : c == 0xE0447E ? "Pink"
-             : c == 0xD03A2F ? "Red" : c == 0x3A9E4C ? "Green" : ""
-        },
     dots: View [ x = 0, y = 3,
         layout: SimpleLayout [ axis = x, spacing = 7 ],
-        TintDot [ c = #2E6FE0, name = "Blue",
-            onPointerOver() { classroot.hoverName = this.name },
-            onPointerOut()  { if (classroot.hoverName == this.name) classroot.hoverName = "" }
-            ],
-        TintDot [ c = #6750A4, name = "Purple",
-            onPointerOver() { classroot.hoverName = this.name },
-            onPointerOut()  { if (classroot.hoverName == this.name) classroot.hoverName = "" }
-            ],
-        TintDot [ c = #E0447E, name = "Pink",
-            onPointerOver() { classroot.hoverName = this.name },
-            onPointerOut()  { if (classroot.hoverName == this.name) classroot.hoverName = "" }
-            ],
-        TintDot [ c = #D03A2F, name = "Red",
-            onPointerOver() { classroot.hoverName = this.name },
-            onPointerOut()  { if (classroot.hoverName == this.name) classroot.hoverName = "" }
-            ],
-        TintDot [ c = #3A9E4C, name = "Green",
-            onPointerOver() { classroot.hoverName = this.name },
-            onPointerOut()  { if (classroot.hoverName == this.name) classroot.hoverName = "" }
-            ]
-        ],
-    cap: Text [ x = 0, y = 25, fontSize = 12, textColor = { theme.textMuted },
-        text = { hoverName != "" ? "Tint: " + hoverName
-               : app.accentPick == 0 ? "No tint" : "Tint: " + this.parent.nameOf(app.accentPick) } ]
+        TintDot [ c = #2E6FE0, name = "Blue" ],
+        TintDot [ c = #6750A4, name = "Purple" ],
+        TintDot [ c = #E0447E, name = "Pink" ],
+        TintDot [ c = #D03A2F, name = "Red" ],
+        TintDot [ c = #3A9E4C, name = "Green" ]
+        ]
     ]
 
 
-class Section extends View [ width = { parent.width },
+// A specimen CARD: a surface with an eyebrow label; the use-site content
+// child positions itself at the 16px inset and the card wraps its height.
+
+class Card extends View [ width = { parent.width },
     label: string = "",
-    layout: SimpleLayout [ axis = y, spacing = 10 ],
-    Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.2,
+    height = { this.contentHeight + 16 },
+    cornerRadius = 10,
+    fill = { theme.surface },
+    stroke = { stroke(1, theme.line) },
+    hd: Text [ x = 16, y = 14, fontSize = 11.5, fontWeight = semibold, letterSpacing = 1.1,
         textColor = { theme.textFaint }, text = { label.toUpperCase() } ]
     ]
 
 
-App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 720,
+App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320,
 
+    // ── the responsive facts, each scoped to what it governs ───────────────
+
+    compact: boolean = { app.width < 640 },      // the BAR: brand drops "Sampler", tighter segments
+    narrow: boolean = { app.width < 940 },       // the CONTROLS page: the card columns stack
+    gridNarrow: boolean = { app.width < 760 },   // the GRID: the narrow column-width set
+
+    barH: number = 52,                           // fixed — the bar never grows
+
+    page: string = "controls",                   // controls | table | grid — the centre switch
     style: string = "sanFrancisco",
     menuLocked: boolean = true,
     lastPick: string = "(none yet)",
-    colorMode: string = "system",              // light | system | dark — ORTHOGONAL to the theme (the islands.md arrangement)
-    darkUI: boolean = { colorMode == "dark" || (colorMode == "system" && app.dark) },
+    lastCtx: string = "(none yet)",
+    themeMode: string = "auto",                  // light | auto | dark — ORTHOGONAL to the styling
+    darkUI: boolean = { themeMode == "dark" || (themeMode == "auto" && app.dark) },
     animateFocus: boolean = true,
-    accentPick: number = 0,                    // 0 = the mode's own accent; a swatch overrides it EVERYWHERE
+    accentPick: number = 0,                      // 0 = the mode's own accent; a tint overrides it EVERYWHERE
 
     // the LIBRARY presets, by city: Themes.sanFrancisco / cupertino / mountainView,
     // each a function of the one resolved mode fact. An accent pick re-derives
@@ -158,7 +118,87 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 720,
 
     fontFamily = { style == "mountainView" ? "Roboto, system-ui, sans-serif" : style == "cupertino" ? "-apple-system, system-ui, sans-serif" : style == "redmond" ? "'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif" : "system-ui, sans-serif" },
 
-    // ── the options menu: the full record vocabulary in one declaration ────
+    // ── data: the Table's cities; the DataGrid's issues (OWNED — seeded
+    //    once, so cell edits persist; the sort verb reorders the data) ──────
+
+    cities: Dataset { {
+        "rows": [
+            { "id": "sf",  "name": "San Francisco", "pop": "808,000" },
+            { "id": "cu",  "name": "Cupertino",     "pop": "57,000" },
+            { "id": "mv",  "name": "Mountain View", "pop": "81,000" },
+            { "id": "re",  "name": "Redmond",       "pop": "78,000" },
+            { "id": "au",  "name": "Austin",        "pop": "979,000" },
+            { "id": "po",  "name": "Portland",      "pop": "635,000" },
+            { "id": "se",  "name": "Seattle",       "pop": "755,000" },
+            { "id": "ch",  "name": "Chicago",       "pop": "2,665,000" },
+            { "id": "ny",  "name": "New York",      "pop": "8,258,000" },
+            { "id": "bo",  "name": "Boston",        "pop": "654,000" }
+        ]
+    } },
+
+    gd: Dataset { { "rows": [] } },
+
+    // the grid's width overrides, APP-OWNED (the value pattern working):
+    // user resizes merge here; the narrow set folds beneath them
+
+    gridWidths: object = null,
+
+    issueRows() -> array {
+        const states = ["open", "triage", "done"]
+        const owners = ["ada", "alan", "grace", "edsger"]
+        return Array.from({ length: 500 }, (_, i) => ({
+            id: i + 1,
+            title: "Issue " + (i + 1),
+            state: states[i % 3],
+            owner: owners[(i * 7) % 4],
+            done: i % 4 == 0,
+            }))
+        },
+
+    onInit() { gd.set(["rows"], this.issueRows()) },
+
+    // the sort DELIVERY's consumer: the app owns the data, so sorting is a
+    // data verb — a reordered copy replaces the rows (identity by `id` keeps
+    // every instance and every edit)
+
+    resort(on: string, dir: string) {
+        const rows = [...(gd.value.rows ?? [])]
+        rows.sort((a, b) => {
+            const va = (a as any)[on]
+            const vb = (b as any)[on]
+            const c = va < vb ? -1 : va > vb ? 1 : 0
+            return dir == "desc" ? -c : c
+            })
+        gd.set(["rows"], rows)
+        },
+
+    // ── the APPEARANCE menu — the whole styling rig as records: mode rows,
+    //    styling rows, the tint dots (the Finder idiom), the flourish ───────
+
+    appearanceMenu: Menu [
+        width = 240,
+        items = { [
+            ({ id: "mode:light", label: "Light", icon: "☀︎", checked: app.themeMode == "light" }),
+            ({ id: "mode:auto", label: "System", icon: "◐", checked: app.themeMode == "auto" }),
+            ({ id: "mode:dark", label: "Dark", icon: "☾", checked: app.themeMode == "dark" }),
+            ({ divider: true }),
+            ({ id: "style:sanFrancisco", label: "San Francisco", checked: app.style == "sanFrancisco" }),
+            ({ id: "style:mountainView", label: "Mountain View", checked: app.style == "mountainView" }),
+            ({ id: "style:cupertino", label: "Cupertino", checked: app.style == "cupertino" }),
+            ({ id: "style:redmond", label: "Redmond", checked: app.style == "redmond" }),
+            ({ divider: true }),
+            ({ kind: "TintRow" }),
+            ({ divider: true }),
+            ({ id: "animate", label: "Animate focus transitions", checked: app.animateFocus }),
+        ] },
+        picked(id: string) {
+            if (id.startsWith("mode:")) app.themeMode = id.slice(5)
+            else if (id.startsWith("style:")) app.style = id.slice(6)
+            else if (id == "animate") app.animateFocus = !app.animateFocus
+            }
+        ],
+
+    // ── the options menu demo: the record vocabulary in one declaration ────
 
     optionsMenu: Menu [
         items = { [
@@ -172,7 +212,6 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 720,
                 ({ divider: true }),
                 ({ id: "airdrop", label: "AirDrop" }),
             ] }),
-            ({ kind: "TintRow" }),
             ({ divider: true }),
             ({ id: "delete", label: "Delete", key: "⌫", enabled: !app.menuLocked }),
         ] },
@@ -182,158 +221,288 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 720,
             }
         ],
 
+    // the context menu — declared ONCE, opened by the serving surface's own
+    // two-line gesture wiring (right-click on fine pointers, hold on touch)
+
+    ctxMenu: ContextMenu [
+        items = { [
+            ({ id: "open", label: "Open" }),
+            ({ id: "rename", label: "Rename…" }),
+            ({ id: "duplicate", label: "Duplicate" }),
+            ({ divider: true }),
+            ({ id: "delete", label: "Delete", key: "⌫" }),
+        ] },
+        picked(id: string) { app.lastCtx = id }
+        ],
+
     dlg: Dialog [ ],
     lastDialog: string = "(none yet)",
 
-    // ── chrome: title + the mode switcher + the transitions toggle ─────────
+    // ── the top bar: FIXED height — brand · pages · the appearance door ────
 
-    col: View [ x = 32, y = 28, width = { Math.min(800, app.width - 64) },
-        layout: SimpleLayout [ axis = y, spacing = 22 ],
+    bar: View [ x = 0, y = 0, width = { app.width }, height = { app.barH }, fill = { theme.surface },
 
-        // the page title — a real masthead: the name, then a rule the full
-        // measure of the page under it
+        hair: View [ x = 0, y = { app.barH - 1 }, width = { parent.width }, height = 1, fill = { theme.line } ],
 
-        header: View [ width = { parent.width },
-            layout: SimpleLayout [ axis = y, spacing = 12 ],
-            Text [ fontSize = 28, fontWeight = semibold, text = "Component Sampler" ],
-            View [ width = { parent.width }, height = 1, fill = { theme.line } ]
+        brand: View [ x = 20, y = 15, height = 22,
+            layout: SimpleLayout [ axis = x, spacing = 5 ],
+
+            // "Declare" is the way home — navigate() resolves against the
+            // distro root, so this works on either host at any mount point
+
+            Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
+                textFill = { gradient("90deg", theme.accent, 0x37B6A9) }, text = "Declare",
+                onClick() { app.navigate("apps/homepage/homepage.declare") }
+                ],
+
+            // the Calendar compaction: the app word yields first
+
+            Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
+                visible = { !app.compact }, text = "Sampler" ]
             ],
 
-        controls: View [ width = { parent.width },
-            layout: SimpleLayout [ axis = x, spacing = 24 ],
-            RadioGroup [ value = { app.style },
-                input(v: string) { app.style = v },
-                Radio [ choice = "sanFrancisco", label = "San Francisco" ],
-                Radio [ choice = "mountainView", label = "Mountain View" ],
-                Radio [ choice = "cupertino", label = "Cupertino" ],
-                Radio [ choice = "redmond", label = "Redmond" ]
-                ],
-            RadioGroup [ value = { app.colorMode },
-                input(v: string) { app.colorMode = v },
-                Radio [ choice = "light", label = "Light" ],
-                Radio [ choice = "system", label = "System" ],
-                Radio [ choice = "dark", label = "Dark" ]
-                ],
-            Checkbox [ label = "Animate focus transitions", tip = "The focus ring flies between controls", checked = { app.animateFocus },
-                input(v: boolean) { app.animateFocus = v }
-                ]
+        // the page switch IS the platform pattern — the library Segmented
+        // (one tab stop, arrows move, the ring hugs the active segment)
+
+        pageSwitch: Segmented [ y = 11,
+            x = { Math.max(app.compact ? 104 : 200, (app.width - this.width) / 2) },
+            pad = { app.compact ? 22 : 34 },
+            value = { app.page },
+            input(v: object) { app.page = "" + v },
+            Segment [ choice = { "controls" }, lbl = "Controls" ],
+            Segment [ choice = { "table" }, lbl = "Table" ],
+            Segment [ choice = { "grid" }, lbl = "DataGrid" ]
             ],
 
-        // the user-settable accent (the macOS System Settings arrangement):
-        // one token, and every control, ring, and fill on the page follows
+        // the appearance DOOR — reads as a menu popper: the mode glyph and a
+        // chevron in a bordered pill; opens the menu right under itself
 
-        accents: View [ layout: SimpleLayout [ axis = x, spacing = 10 ],
-            Swatch [ c = 0, tip = "The theme's own accent" ],
-            Swatch [ c = 0x2E6FE0 ],
-            Swatch [ c = 0x6750A4 ],
-            Swatch [ c = 0xE0447E ],
-            Swatch [ c = 0xD03A2F ],
-            Swatch [ c = 0xE0742F ],
-            Swatch [ c = 0xC7A400 ],
-            Swatch [ c = 0x3A9E4C ]
-            ],
-
-        rule: View [ width = { parent.width }, height = 1, fill = { theme.line } ],
-
-        // ── the specimens — two columns, so the page reads at a glance ─────
-
-        grid: View [ width = { parent.width },
-            layout: SimpleLayout [ axis = x, spacing = 40 ],
-            left: View [ width = { (parent.width - 40) / 2 },
-                layout: SimpleLayout [ axis = y, spacing = 22 ],
-                Section [ label = "Button",
-                    row: View [ layout: SimpleLayout [ axis = x, spacing = 14 ],
-                        Button [ width = 120, label = "Primary", primary = true, tip = "The accent action" ],
-                        Button [ width = 120, label = "Secondary", primary = false ],
-                        Button [ width = 120, label = "Disabled", disabled = true, tip = "Disabled — but the tip still shows" ]
-                        ]
-                    ],
-
-                Section [ label = "Checkbox · Switch · Radio",
-                    row: View [ layout: SimpleLayout [ axis = x, spacing = 28 ],
-                        Checkbox [ label = "Notifications", checked = true ],
-                        Switch [ checked = true ],
-                        Switch [ ],
-                        RadioGroup [ value = "m",
-                            Radio [ choice = "s", label = "S" ],
-                            Radio [ choice = "m", label = "M" ],
-                            Radio [ choice = "l", label = "L" ]
-                            ]
-                        ]
-                    ],
-
-                Section [ label = "Slider · ProgressBar",
-                    demo: View [ width = { parent.width },
-                        layout: SimpleLayout [ axis = y, spacing = 14 ],
-                        vol: Slider [ width = 260, value = 40, tip = "Volume — arrows nudge" ],
-                        ProgressBar [ width = 260, value = { this.parent.vol.value } ]
-                        ]
-                    ]
+        appear: Control [ y = 11, height = 30,
+            width = 54,
+            x = { app.width - this.width - 14 },
+            cornerRadius = 8, tip = "Appearance",
+            fill = { hot || down ? theme.control : null },
+            stroke = { stroke(1, theme.line) },
+            g: Text [ x = 10, y = center, fontSize = 14,
+                text = { app.themeMode == "light" ? "☀︎" : app.themeMode == "dark" ? "☾" : "◐" } ],
+            arrow: View [ width = 9, height = 6,
+                x = { parent.width - 17 }, y = { (parent.height - this.height) / 2 + 1 },
+                draw(d: Draw) {
+                    d.strokeStyle = theme.textMuted
+                    d.lineWidth = 1.6
+                    d.lineCap = "round"
+                    d.lineJoin = "round"
+                    d.beginPath()
+                    d.moveTo(0.5, 1)
+                    d.lineTo(4.5, 5)
+                    d.lineTo(8.5, 1)
+                    d.stroke()
+                    }
                 ],
-            right: View [ width = { (parent.width - 40) / 2 },
-                layout: SimpleLayout [ axis = y, spacing = 22 ],
-                Section [ label = "TextInput · Field",
-                    demo: View [ width = { parent.width },
-                        layout: SimpleLayout [ axis = y, spacing = 12 ],
-                        TextInput [ width = 280, height = 30, placeholder = "Your name" ],
-                        Field [ label = "Email", labelWidth = 60,
-                            TextInput [ width = 220, height = 30, text = "d@t.com" ]
-                            ]
-                        ]
-                    ],
+            press() { app.appearanceMenu.openFor(this) },
+            onClick() { if (!disabled) press() }
+            ]
+        ],
 
-                Section [ label = "Menu",
-                    row: View [ layout: SimpleLayout [ axis = x, spacing = 14 ],
-                        Button [ width = 130, label = "Options ▾",
-                            onClick() { app.optionsMenu.openFor(this) }
-                            ],
-                        last: Text [ y = center, fontSize = 12, textColor = { theme.textFaint },
-                            text = { "picked: " + app.lastPick } ]
-                        ]
-                    ],
+    // ── the page: everything below the bar scrolls ─────────────────────────
 
-                Section [ label = "Dialog",
-                    row: View [ layout: SimpleLayout [ axis = x, spacing = 14 ],
-                        Button [ width = 100, label = "Notice…",
-                            onClick() { app.dlg.notice("Saved", "Your changes were saved.", (id) => app.lastDialog = id) }
-                            ],
-                        Button [ width = 100, label = "Ask…",
-                            onClick() { app.dlg.ask("Save changes?", "Your unsaved changes will be lost.", (id) => app.lastDialog = id) }
-                            ],
-                        Button [ width = 100, label = "Error…",
-                            onClick() { app.dlg.error("Could not connect", "The server refused the connection.", (id) => app.lastDialog = id) }
+    content: View [ x = 0, y = { app.barH }, width = { app.width }, height = { app.height - app.barH },
+        scrolls = y, clip = true,
+
+        col: View [ y = 24,
+            x = { app.narrow ? 16 : 32 },
+            width = { Math.min(960, app.width - (app.narrow ? 32 : 64)) },
+            layout: SimpleLayout [ axis = y, spacing = 24 ],
+
+            // ── CONTROLS page: specimen cards, two balanced columns ────────
+
+            grid: View [ visible = { app.page == "controls" }, width = { parent.width },
+                layout: SimpleLayout [ axis = { app.narrow ? "y" : "x" }, spacing = { app.narrow ? 20 : 32 } ],
+
+                left: View [ width = { app.narrow ? parent.width : (parent.width - 32) / 2 },
+                    layout: SimpleLayout [ axis = y, spacing = 20 ],
+
+                    Card [ label = "Buttons",
+                        row: View [ x = 16, y = 44,
+                            layout: SimpleLayout [ axis = x, spacing = 12 ],
+                            Button [ width = { app.compact ? 94 : 110 }, label = "Primary", primary = true, tip = "The accent action" ],
+                            Button [ width = { app.compact ? 94 : 110 }, label = "Secondary", primary = false ],
+                            Button [ width = { app.compact ? 94 : 110 }, label = "Disabled", disabled = true, tip = "Disabled — but the tip still shows" ]
                             ]
                         ],
-                    ans: Text [ fontSize = 12, textColor = { theme.textFaint }, text = { "answered: " + app.lastDialog } ]
+
+                    Card [ label = "Checkbox · Switch · Radio",
+                        row: View [ x = 16, y = 44,
+                            layout: SimpleLayout [ axis = x, spacing = 24 ],
+                            Checkbox [ label = "Notifications", checked = true ],
+                            Switch [ checked = true ],
+                            Switch [ ],
+                            RadioGroup [ value = "m",
+                                Radio [ choice = "s", label = "S" ],
+                                Radio [ choice = "m", label = "M" ],
+                                Radio [ choice = "l", label = "L" ]
+                                ]
+                            ]
+                        ],
+
+                    Card [ label = "Slider · Progress",
+                        demo: View [ x = 16, y = 44, width = { parent.width - 32 },
+                            layout: SimpleLayout [ axis = y, spacing = 14 ],
+                            vol: Slider [ width = { Math.min(280, parent.width) }, value = 40, tip = "Volume — arrows nudge" ],
+                            ProgressBar [ width = { Math.min(280, parent.width) }, value = { this.parent.vol.value } ]
+                            ]
+                        ],
+
+                    Card [ label = "Combobox",
+                        demo: View [ x = 16, y = 44, width = { parent.width - 32 },
+                            layout: SimpleLayout [ axis = y, spacing = 10 ],
+                            cb: Combobox [ width = 250, placeholder = "Assignee…",
+                                items = { [
+                                    ({ id: "ada", label: "Ada Lovelace" }),
+                                    ({ id: "alan", label: "Alan Turing" }),
+                                    ({ id: "grace", label: "Grace Hopper" }),
+                                    ({ id: "edsger", label: "Edsger Dijkstra" }),
+                                    ({ id: "barbara", label: "Barbara Liskov" }),
+                                ] } ],
+                            cap: Text [ fontSize = 12, textColor = { theme.textFaint },
+                                text = { "chosen: " + (this.parent.cb.value != null ? (this.parent.cb.value as any).label : "none") } ]
+                            ]
+                        ],
+
+                    Card [ label = "Context menu",
+                        pad: View [ x = 16, y = 44, width = { parent.width - 32 }, height = 74,
+                            cornerRadius = 8, fill = { theme.bg }, stroke = { stroke(1, theme.line) },
+                            onContextMenu(e: PointerEvent) { app.ctxMenu.open(this, e) },
+                            onHold(e: PointerEvent) { app.ctxMenu.open(this, e) },
+                            Text [ x = 14, y = 14, fontSize = 13, textColor = { theme.textMuted },
+                                text = "Right-click (or long-press) in this box." ],
+                            got: Text [ x = 14, y = 40, fontSize = 12, textColor = { theme.textFaint },
+                                text = { "picked: " + app.lastCtx } ]
+                            ]
+                        ]
                     ],
 
-                Section [ label = "Accordion",
-                    Accordion [ width = { parent.width },
-                        Pane [ label = "First", initial = true,
-                            View [ width = { parent.width }, height = 70, fill = { theme.surface },
-                                Button [ x = 12, y = center, width = 110, label = "In pane 1" ]
+                right: View [ width = { app.narrow ? parent.width : (parent.width - 32) / 2 },
+                    layout: SimpleLayout [ axis = y, spacing = 20 ],
+
+                    Card [ label = "Text input · Field",
+                        demo: View [ x = 16, y = 44, width = { parent.width - 32 },
+                            layout: SimpleLayout [ axis = y, spacing = 12 ],
+                            TextInput [ width = { Math.min(280, parent.width) }, height = 30, placeholder = "Your name" ],
+                            Field [ label = "Email", labelWidth = 56,
+                                TextInput [ width = 220, height = 30, text = "d@t.com" ]
                                 ]
-                            ],
-                        Pane [ label = "Second",
-                            View [ width = { parent.width }, height = 70, fill = { theme.surface },
-                                Button [ x = 12, y = center, width = 110, label = "In pane 2" ]
-                                ]
-                            ],
-                        Pane [ label = "Third",
-                            View [ width = { parent.width }, height = 96, fill = { theme.surface },
-                                Text [ x = 12, y = 10, textColor = { theme.textMuted }, text = "A taller third pane." ]
-                                ]
-                            ],
-                        Pane [ label = "Fourth",
-                            View [ width = { parent.width }, height = 56, fill = { theme.surface },
-                                Text [ x = 12, y = 10, textColor = { theme.textMuted }, text = "And a short fourth." ]
+                            ]
+                        ],
+
+                    Card [ label = "Menu",
+                        row: View [ x = 16, y = 44,
+                            layout: SimpleLayout [ axis = x, spacing = 14 ],
+                            Button [ width = 130, label = "Options ▾",
+                                onClick() { app.optionsMenu.openFor(this) }
+                                ],
+                            last: Text [ y = center, fontSize = 12, textColor = { theme.textFaint },
+                                text = { "picked: " + app.lastPick } ]
+                            ]
+                        ],
+
+                    Card [ label = "Dialog",
+                        demo: View [ x = 16, y = 44, width = { parent.width - 32 },
+                            layout: SimpleLayout [ axis = y, spacing = 10 ],
+                            row: View [ layout: SimpleLayout [ axis = x, spacing = 12 ],
+                                Button [ width = 96, label = "Notice…",
+                                    onClick() { app.dlg.notice("Saved", "Your changes were saved.", (id) => app.lastDialog = id) }
+                                    ],
+                                Button [ width = 96, label = "Ask…",
+                                    onClick() { app.dlg.ask("Save changes?", "Your unsaved changes will be lost.", (id) => app.lastDialog = id) }
+                                    ],
+                                Button [ width = 96, label = "Error…",
+                                    onClick() { app.dlg.error("Could not connect", "The server refused the connection.", (id) => app.lastDialog = id) }
+                                    ]
+                                ],
+                            ans: Text [ fontSize = 12, textColor = { theme.textFaint }, text = { "answered: " + app.lastDialog } ]
+                            ]
+                        ],
+
+                    Card [ label = "Accordion",
+                        acc: Accordion [ x = 16, y = 44, width = { parent.width - 32 },
+                            Pane [ label = "First", initial = true,
+                                View [ width = { parent.width }, height = 64, fill = { theme.bg },
+                                    Button [ x = 12, y = center, width = 110, label = "In pane 1" ]
+                                    ]
+                                ],
+                            Pane [ label = "Second",
+                                View [ width = { parent.width }, height = 64, fill = { theme.bg },
+                                    Button [ x = 12, y = center, width = 110, label = "In pane 2" ]
+                                    ]
+                                ],
+                            Pane [ label = "Third",
+                                View [ width = { parent.width }, height = 56, fill = { theme.bg },
+                                    Text [ x = 12, y = 10, textColor = { theme.textMuted }, text = "A taller third pane." ]
+                                    ]
                                 ]
                             ]
                         ]
                     ]
-                ]
-            ],
+                ],
 
-        tail: View [ width = 8, height = 40 ]
+            // ── TABLE page: the ruled selection model, at real height ──────
+
+            tablePage: View [ visible = { app.page == "table" }, width = { parent.width },
+                layout: SimpleLayout [ axis = y, spacing = 10 ],
+                Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.2,
+                    textColor = { theme.textFaint }, text = "TABLE — THE RULED SELECTION MODEL" ],
+                tbl: Table [ width = { parent.width },
+                    height = { Math.max(240, app.height - app.barH - 190) },
+                    datapath = { app.cities.value }, selects = "multi",
+                    fill = { theme.surface }, stroke = { stroke(1, theme.line) }, cornerRadius = 8,
+                    TableRow [ datapath = :rows[], height = 30,
+                        n: Text [ x = 12, y = center, fontSize = 13, text = :name ],
+                        p: Text [ x = 260, y = center, fontSize = 13, textColor = { theme.textMuted }, text = :pop ]
+                        ]
+                    ],
+                cap: Text [ fontSize = 12, textColor = { theme.textFaint },
+                    text = { "Click, ⇧-range, ⌘-toggle; arrows + Space from the keyboard.  Selected: "
+                           + (((parent.tbl.selection ?? []).map((r) => r.name).join(", ")) || "none") } ]
+                ],
+
+            // ── DATAGRID page: 500 windowed rows, LIVE cells ───────────────
+
+            gridPage: View [ visible = { app.page == "grid" }, width = { parent.width },
+                layout: SimpleLayout [ axis = y, spacing = 10 ],
+                Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.2,
+                    textColor = { theme.textFaint },
+                    text = "DATAGRID — 500 ROWS, WINDOWED; EVERY CELL WRITES THE RECORD" ],
+                hdrBand: View [ width = 8, height = 22 ],
+                grid: DataGrid [ width = { parent.width },
+                    height = { Math.max(280, app.height - app.barH - 220) },
+                    datapath = { app.gd.value }, selects = "multi",
+                    fill = { theme.surface }, stroke = { stroke(1, theme.line) }, cornerRadius = 8,
+                    widths = { app.gridNarrow
+                        ? ({ id: 34, title: 116, state: 84, owner: 74, done: 44, ...(app.gridWidths ?? ({})) })
+                        : app.gridWidths },
+                    resizeInput(id: string, w: number) {
+                        app.gridWidths = ({ ...(app.gridWidths ?? ({})), [id]: w })
+                        },
+                    sortInput(on: string, dir: string) {
+                        sortOn = on
+                        sortDir = dir
+                        app.resort(on, dir)
+                        },
+                    Column [ title = "#", field = "id", width = 56 ],
+                    Column [ title = "Title", field = "title", width = 250, kind = "edit" ],
+                    Column [ title = "State", field = "state", width = 120, kind = "select",
+                        options = { ["open", "triage", "done"] } ],
+                    Column [ title = "Owner", field = "owner", width = 120, kind = "select",
+                        options = { ["ada", "alan", "grace", "edsger"] } ],
+                    Column [ title = "Done", field = "done", width = 64, kind = "check" ],
+                    GridRow [ datapath = :rows[], materialize = window ]
+                    ],
+                cap: Text [ fontSize = 12, textColor = { theme.textFaint },
+                    text = "Title edits live; State and Owner pick from a menu; Done is a checkbox — every edit writes the RECORD (windowing keeps it). Drag headers to reorder, edges to resize, click to sort." ]
+                ],
+
+            tail: View [ width = 8, height = 40 ]
+            ]
         ]
     ]

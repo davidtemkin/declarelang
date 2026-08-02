@@ -13,6 +13,7 @@
 // is wired by the runtime entry, not here, keeping this layer independent.
 import { View, fireEvent, setFocusDiscardHook } from "./view.js";
 import { Cell, Constraint } from "./reactive.js";
+import { rootFrameOrigin } from "./interaction.js";
 export class FocusService {
     current = null;
     rootView = null;
@@ -120,8 +121,16 @@ export class FocusService {
         return () => this.geometryHandlers.delete(fn);
     }
     /** (Re)install the follower for the current focus. The constraint's body
-     *  reads TRACKED slots (ancestor x/y, the focusShape's inputs), so any
-     *  change re-fires it; its push notifies the geometry subscribers. */
+     *  reads TRACKED slots (ancestor x/y AND every scroll offset on the chain —
+     *  the shared walk's reads; the focusShape's inputs), so any change,
+     *  scrolling included, re-fires it; its push notifies the geometry
+     *  subscribers. Geometry is the root's CONTENT space — the FocusRing is a
+     *  child of the App and scrolls with the page like the control it rings, so
+     *  the root's own scroll is added back onto the frame-space origin;
+     *  an intermediate pane's scroll (which moves the control on screen while
+     *  the ring's coordinate space stands still) stays subtracted. Hand-rolled
+     *  x/y accumulation here was the scroll-blind focus ring (found 2026-07-31,
+     *  the same missing term as the pointer walk's — ONE WALK, everywhere). */
     retargetFollower() {
         this.follower?.dispose();
         this.follower = null;
@@ -129,14 +138,33 @@ export class FocusService {
         if (v === null || this.geometryHandlers.size === 0)
             return;
         const k = new Constraint("Focus.follower", () => {
-            let x = 0, y = 0;
-            let n = v;
-            for (;;) {
-                x += n.x;
-                y += n.y;
+            const o = rootFrameOrigin(v);
+            const root = rootOf(v);
+            const x = o.x + root.scrollX;
+            const y = o.y + root.scrollY;
+            // the nearest scrolling ancestor (exclusive) — the travel home; and
+            // the view's origin in ITS content space (plain accumulation up to
+            // the scroller: nearest means no scrolled pane sits between, and the
+            // scroller's OWN offset is deliberately not a read — a traveled
+            // indicator must NOT re-derive per scroll tick, that's the point)
+            let scroller = root;
+            for (let n = v.parent; n instanceof View; n = n.parent) {
+                if (n.scrolls !== "none") {
+                    scroller = n;
+                    break;
+                }
+            }
+            let homeX = 0, homeY = 0;
+            for (let n = v; n !== scroller;) {
+                homeX += n.x;
+                homeY += n.y;
                 if (!(n.parent instanceof View))
                     break;
                 n = n.parent;
+            }
+            if (scroller === root) {
+                homeX = x;
+                homeY = y;
             }
             const fsFn = v.focusShape;
             const fs = typeof fsFn === "function" ? fsFn.call(v) : null;
@@ -144,7 +172,8 @@ export class FocusService {
                 x: x + (fs ? fs.x : 0), y: y + (fs ? fs.y : 0),
                 w: fs ? fs.w : v.width, h: fs ? fs.h : v.height,
                 rad: fs ? fs.rad : (v.cornerRadius > 0 ? v.cornerRadius : 4),
-                view: v, root: n,
+                view: v, root, scroller,
+                homeX: homeX + (fs ? fs.x : 0), homeY: homeY + (fs ? fs.y : 0),
             };
         }, (g) => { if (g != null)
             for (const fn of [...this.geometryHandlers])

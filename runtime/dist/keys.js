@@ -22,6 +22,40 @@ export function setKeysFocusProbe(fn) {
 export class KeysService {
     /** The held-key set (LZX's downKeysHash) — what is pressed right now. */
     heldKeys = new Set();
+    /** Views currently claiming the NAVIGATION keys (arrows, Space, Home/End,
+     *  PageUp/Down) from the browser's scroll defaults — an open Menu chain,
+     *  any overlay that roves with arrows while nothing holds Declare focus.
+     *  A Set of claimant owners so overlapping claims (a menu over a menu)
+     *  compose; `navClaim(owner, false)` releases only its own. */
+    navClaims = new Set();
+    navHandlers = new Set();
+    /** Claim (or release) the navigation keys for `owner`. While any claim is
+     *  live, the DOM listener prevents the browser's scroll defaults for the
+     *  nav keys exactly as it does when a Declare control holds focus — an
+     *  open menu's arrows rove the menu, never scroll the page. Idempotent.
+     *  0↔1 transitions notify onNavClaim subscribers (the FocusRing stands
+     *  down while an overlay owns the keys — the menu's rover is the focus). */
+    navClaim(owner, on) {
+        const was = this.navClaims.size > 0;
+        if (on)
+            this.navClaims.add(owner);
+        else
+            this.navClaims.delete(owner);
+        const is = this.navClaims.size > 0;
+        if (was !== is)
+            for (const fn of [...this.navHandlers])
+                fn(is);
+    }
+    /** Is any navigation-keys claim live right now? */
+    navClaimed() {
+        return this.navClaims.size > 0;
+    }
+    /** Subscribe to nav-claim TRANSITIONS (true = an overlay took the keys,
+     *  false = the last claim released). Returns the unsubscribe thunk. */
+    onNavClaim(fn) {
+        this.navHandlers.add(fn);
+        return () => this.navHandlers.delete(fn);
+    }
     downHandlers = new Set();
     upHandlers = new Set();
     chords = [];
@@ -140,10 +174,10 @@ export class KeysService {
             // (its own element focused) keeps every default: typing a space in a
             // field is a space.
             if (document.activeElement === document.body || document.activeElement === null) {
-                if (ev.key === " " || ev.key === "ArrowUp" || ev.key === "ArrowDown" || ev.key === "ArrowLeft" || ev.key === "ArrowRight") {
-                    if (focusHolds())
-                        ev.preventDefault();
-                }
+                const nav = ev.key === " " || ev.key === "ArrowUp" || ev.key === "ArrowDown" || ev.key === "ArrowLeft" || ev.key === "ArrowRight";
+                const jump = ev.key === "Home" || ev.key === "End" || ev.key === "PageUp" || ev.key === "PageDown";
+                if ((nav && (focusHolds() || this.navClaimed())) || (jump && this.navClaimed()))
+                    ev.preventDefault();
             }
             this.keyDown(normalize(ev));
         };

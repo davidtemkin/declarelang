@@ -36,5 +36,20 @@ export declare class Spring extends Animator {
      *  a lazy primer would then swallow the first REAL change instead — the
      *  calendar's month→year zoom snapping while year→month animated. */
     prime(): void;
+    /** RE-SNAP (recycling): a recycled instance is re-born serving a
+     *  DIFFERENT record, so motion still in flight belongs to the record that
+     *  left — it is not this row's animation to finish. Take the current
+     *  target outright, exactly as the declaration snap does at boot, and
+     *  drop off the clock. (A windowed row whose height animates makes this
+     *  load-bearing: without it the measured ladder chases a height that is
+     *  sliding toward the departed record's geometry, and re-derives the
+     *  window on every frame of the slide.) */
+    resnap(): void;
     tick(now: number): boolean;
 }
+/** Walk a recycled subtree and re-snap every spring in it (see
+ *  `Spring.resnap`). Children of a view include its animators, so the walk
+ *  is the ordinary tree walk; nothing else in the subtree is touched. */
+export declare function resnapSubtree(root: {
+    children?: readonly unknown[];
+}): void;

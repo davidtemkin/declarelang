@@ -101,7 +101,7 @@ type Fill = Color | Gradient;
 interface Stroke { width: number; color: Color }
 interface Shadow { dx: number; dy: number; blur: number; color: Color }
 type Theme = Readonly<Record<string, any>>;
-type Cursor = unknown;
+interface Cursor { readonly data: any; readonly path: readonly string[] }
 declare function gradient(...args: (Color | string | { offset: number | null; color: Color })[]): Gradient;
 declare function stroke(width: number, color: Color): Stroke;
 declare function stop(offset: number, color: Color): { offset: number; color: Color };
@@ -175,7 +175,7 @@ interface PointerUpEvent extends PointerEvent { canceled: boolean }
 interface TouchEvent extends PointerEvent { touches: readonly Touch[]; changed: readonly Touch[] }
 interface WheelEvent extends PointerEvent { deltaX: number; deltaY: number; pinch: boolean }
 interface KeyEvent { code: string; key: string; shift: boolean; ctrl: boolean; alt: boolean; meta: boolean; repeat: boolean }
-interface FocusGeometry { x: number; y: number; w: number; h: number; rad: number; view: View; root: View }
+interface FocusGeometry { x: number; y: number; w: number; h: number; rad: number; view: View; root: View; scroller: View; homeX: number; homeY: number }
 interface TipEvent { readonly text: string; readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly root: View }
 interface StreamMessage { readonly data: string; readonly type: string; readonly id: string }
 type MotionCurve = { readonly __motion: true };
@@ -224,6 +224,7 @@ export function tsType(t: AttrType): string {
     case "string": return "string";
     case "color": return "Color";
     case "shape": return "Shape";
+    case "dataschema": return "any"; // the parsed shape declarations — data, not a body-facing type
     case "enum": return t.name; // references the emitted `type <Name> = …` alias
     case "component": return `${t.of} | null`; // the only literal is `null` for "none"
     case "fn": return `(${t.written.replace(/->/g, "=>")}) | null`; // a callback slot; `null` = none
@@ -344,6 +345,9 @@ export const LANGUAGE_STATICS: Readonly<Record<string, readonly string[]>> = {
   Keys: [
     `  static isDown(code: string): boolean;`,
     `  static held(): string[];`,
+    // Claim the nav keys (arrows/Space/Home/End/Page) from the browser's
+    // scroll defaults while an overlay roves — an open Menu's claim.
+    `  static navClaim(owner: object, on: boolean): void;`,
   ],
   Focus: [
     `  static focus(v: unknown): void;`,
@@ -385,7 +389,21 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
     `  readonly liveReport: string;`,
   ],
   View: [
+    // The datapath read/write pair (view.ts): the compiled form every `:path`
+    // island lowers to (compile.ts emits the pre-parsed plan —
+    // `this.$data(["location","city"])`, selectors as tagged segments), and
+    // callable by hand. Data-shaped → `any`, the same deliberate under-report
+    // as Dataset.value: a datum's shape is unknowable until the `schema`
+    // construct lands.
+    `  $data(path: string | readonly (string | { i: number } | { s: (number | null)[] } | { w: number })[]): any;`,
+    `  $setData(path: string | readonly string[], v: any): void;`,
     `  scrollIntoView(align?: "start" | "nearest", smooth?: boolean): void;`,
+    // The view's origin in root space via THE one walk (scroll-aware) — the
+    // anchor primitive overlays position by (menus, popovers).
+    `  rootOrigin(): { x: number; y: number };`,
+    // Re-host this view's surface inside a scroller so the platform carries
+    // it with the content (the FocusRing's ride); false = unsupported.
+    `  travelWith(scroller: View | null): boolean;`,
     `  raise(below?: View | null): void;`,
     `  removeChild(child: View): void;`,
     // Tear a runtime-created view down for good (unwire constraints, drop the
@@ -405,15 +423,18 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
     `  lookupStylesheet(name: string): any;`,
   ],
   Dataset: [
-    // The read + structural-mutation surface (runtime/src/data.ts). Paths are
-    // dot-strings, root-relative; array indices are ordinary segments. Edits
+    // The read + structural-mutation surface (runtime/src/data.ts) — D7's
+    // ratified authoring surface. Paths are the B2 currency (data-paths.md
+    // §11): SEGMENTS (["events", idx, "y"] — the documented form, numbers
+    // welcome) or an RFC 6901 POINTER string ("/events/3/y" — the interop
+    // spelling; "/rows/-" appends on set). Dot-strings are refused. Edits
     // drive bindings and replication through the ordinary settle.
     `  readonly value: any;`,
-    `  read(path: readonly (string | number)[]): any;`,
-    `  set(path: any, v: any): void;`,
-    `  insert(path: any, index: number, v: any): void;`,
-    `  removeAt(path: any, index: number): any;`,
-    `  move(path: any, from: number, to: number): void;`,
+    `  read(path: string | readonly (string | number)[]): any;`,
+    `  set(path: string | readonly (string | number)[], v: any): void;`,
+    `  insert(path: string | readonly (string | number)[], index: number, v: any): void;`,
+    `  removeAt(path: string | readonly (string | number)[], index: number): any;`,
+    `  move(path: string | readonly (string | number)[], from: number, to: number): void;`,
   ],
   DataSource: [
     `  readonly idle: boolean;`,

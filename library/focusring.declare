@@ -36,6 +36,14 @@ emulation passes.)
 
 class FocusRing extends View [ opacity = 0,
 
+    // an OVERLAY owns the keys (an open menu — Keys.navClaim): the ring
+    // stands down while it's up — the menu's rover is the focus story, and
+    // a page ring poking around a panel reads as chrome fighting chrome
+
+    overlayUp: boolean = false,
+    claims: Keys [ onNavClaim(on: boolean) { classroot.overlayUp = on }
+        ],
+
     // where the ring is HEADED — written by the subscription; the springs chase
 
     tx: number = 0,
@@ -69,11 +77,41 @@ class FocusRing extends View [ opacity = 0,
     focus: Focus [
         onGeometry(g: FocusGeometry) {
             if (g.root != app) return
+            // TRAVEL WITH the target's scroller: the ring's surface re-hosts
+            // inside the scrolled container and positions in ITS content
+            // coordinates — the platform then carries ring and control
+            // together, zero lag, no per-scroll re-derive (the sticky-frame
+            // inverse). A backend without the ride keeps root-space reactive
+            // positioning.
+            const prev = (this as any)._lastTarget
+            const prevHome = (this as any)._lastHome
+            const hadHome = (this as any)._hasHome === true
+            const px = classroot.x
+            const py = classroot.y
+            const homed = classroot.travelWith(g.scroller)
+            const gx = homed ? g.homeX : g.x
+            const gy = homed ? g.homeY : g.y
+            // Crossing scroll HOMES (the bar's button → a control in the
+            // scrolled page): the flight must still fly. The ring's current
+            // position converts through ROOT space into the DESTINATION
+            // home's coordinates — same painted spot, new numbers — and the
+            // springs then travel entirely within the new space (correct
+            // even if that pane scrolls mid-flight).
+            if (hadHome && prevHome != g.scroller) {
+                const toRoot = prevHome == null || prevHome == app
+                    ? ({ x: px, y: py })
+                    : (() => { const o = prevHome.rootOrigin(); return ({ x: o.x + px - prevHome.scrollX, y: o.y + py - prevHome.scrollY }) })()
+                const dst = !homed || g.scroller == app
+                    ? toRoot
+                    : (() => { const o = g.scroller.rootOrigin(); return ({ x: toRoot.x - o.x + g.scroller.scrollX, y: toRoot.y - o.y + g.scroller.scrollY }) })()
+                classroot.x = dst.x
+                classroot.y = dst.y
+                }
             const gap = typeof theme.focusRingGap == "number" ? theme.focusRingGap : 0
             const lw = typeof theme.focusRingWidth == "number" ? theme.focusRingWidth : 3
             const iw = typeof theme.focusRingInnerWidth == "number" ? theme.focusRingInnerWidth : 0
             const off = gap + iw + lw / 2
-            classroot.tx = g.x - off; classroot.ty = g.y - off
+            classroot.tx = gx - off; classroot.ty = gy - off
             classroot.tw = g.w + 2 * off; classroot.th = g.h + 2 * off
             classroot.trad = g.rad + off
             // Only a FOCUS CHANGE flies. The same control moving under a resting
@@ -81,8 +119,9 @@ class FocusRing extends View [ opacity = 0,
             // rigidly: the springs' targets just moved, so land them NOW. The
             // discriminator is target IDENTITY (a handler-scratch expando — not
             // reactive state, just the previous event's view for comparison).
-            const prev = (this as any)._lastTarget
             ;(this as any)._lastTarget = g.view
+            ;(this as any)._lastHome = g.scroller
+            ;(this as any)._hasHome = true
             if (prev == g.view) classroot.snapTo()
             },
 
@@ -124,7 +163,7 @@ class FocusRing extends View [ opacity = 0,
 
     Spring [ attribute = opacity, to = { shown && !idle ? 0.9 : 0 }, stiffness = 90, damping = 20 ],
 
-    visible = { opacity > 0.02 },
+    visible = { opacity > 0.02 && !overlayUp },
 
     // pure chrome: never a pointer target — and never on the hover chain
     // either, which is what pointerEvents (unlike a hit-test override) governs

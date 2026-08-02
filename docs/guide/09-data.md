@@ -47,11 +47,34 @@ reconciliation **keyed**: when data changes, only rows whose key changed rebuild
 
 A `:path` is a real path into the datum, so it reaches through structure the way you
 would expect: `:score` reads a field, `:owner.name` a nested field, and `:images[0]`
-indexes into a bound array. The one shape it does **not** read is a *scalar* datum —
-when a replicated array holds bare values (`"tags": ["new", "sale"]`), `datapath =
-:tags[]` instances a node per string, but there is no `:` that names the string
-itself. Give the values a field server-side (`[{ "label": "new" }, …]`) and read
-`:label`. (A bare-scalar cursor is a known gap.)
+indexes into a bound array (`[-1]` counts from the end). The selector vocabulary is
+RFC 9535's, and it goes further: `:rows[1:4]` reads a **slice**, `:rows[*].label` a
+**wildcard projection** (the list of every row's label), and `:rec['my-key']` a
+**quoted name** — any key a JSON document can hold, dashes and dots included. A
+slice or wildcard yields a list; use it like one (`(:rows[1:4]).map(…)` — a `.name(`
+after a path is a method call on the value, never a path segment). And selection
+composes with replication: `datapath = :rows[2:8][]` replicates over exactly that
+window, each instance cursored at its **true** index. (Filters — `[?…]` — are not
+in the subset yet; derive the filtered set in a `Dataset [ contents = { … } ]` and
+bind to that.)
+
+The one shape a `:` does **not** name is a *scalar* datum — when a replicated array
+holds bare values (`"tags": ["new", "sale"]`), `datapath = :tags[]` instances a node
+per string, but there is no `:` that names the string itself (though `:tags[*]` now
+reads the whole list as a value). Give the values a field server-side
+(`[{ "label": "new" }, …]`) and read `:label`. (A bare-scalar cursor is a known gap.)
+
+And replication scales past what it materializes. A replicated block accepts
+a **materialization policy** — `materialize = all | auto | window | <count>` —
+under which the runtime constructs only the rows in and around the viewport
+and everything else exists *logically*: same records, same paths, same
+behavior, reconstructed indistinguishably as you scroll (rows you actually
+touched are kept alive as-is). The scroll range reads the full logical
+extent, a screen reader hears "row N of 100,000," and `onInit` fires once
+per *record*, never per reconstruction. The default is `all` (below a few
+thousand rows, full materialization is simply faster); the policy word is
+permanent — it pins, forces, and lets tests compare both modes — while the
+default is slated to become `auto` once the invisibility proof settles.
 
 ## Two kinds of source
 
@@ -88,8 +111,13 @@ doc: Markdown [ visible = { article.loaded }, text = { article.value || "" } ]
 (That is how this site serves its FAQ and the language document — `.md` files,
 fetched as text, rendered by the native `Markdown` component.) And an optional
 `schema = [ field: type, rows[]: [ … ] ]` validates a response **at the boundary** —
-malformed data yields `.failed`, never `undefined` three bindings deep — and lets
-every `:path` be checked statically against the shape.
+malformed data yields `.failed` with the exact path, never `undefined` three
+bindings deep — and lets every `:path` be checked statically against the shape
+(a typo'd `:labell` dies at compile time, with the schema's fields named).
+Mark a field `name?:` when the data may omit it. Identity needs no marking
+at all: a record's `id` field **is** its identity, by convention — selection,
+reconciliation, and windowed retention all key by it with nothing declared
+anywhere (`key = :field` remains only for an unconventionally-named one).
 
 ## Streams — data that arrives while you watch
 
@@ -159,8 +187,11 @@ Type in the field and the record follows; change the record and the field follow
 `<->` is for editors only (`TextInput.text`, a slider's value) — everywhere else,
 one-way `:path`, and app-owned control state uses the derive-down/deliver-up pair
 from [chapter 7](declare-docs:guide:interaction). Mutating from code is just as
-direct: `data.set("rows.0.name", "Ada L.")` writes one place and wakes exactly what
-derives from it; `insert`, `removeAt`, and `move` reshape collections the same way.
+direct: `data.set(["rows", 0, "name"], "Ada L.")` writes one place and wakes exactly
+what derives from it; `insert`, `removeAt`, and `move` reshape collections the same
+way. A path is a segments array — numbers welcome, no escaping ever — or an RFC 6901
+pointer string (`"/rows/0/name"`; `set("/rows/-", v)` appends), so any key a JSON
+document can hold is addressable.
 
 ## The board — everything at once
 
@@ -202,12 +233,12 @@ App [ width = 470, height = 250, fill = black, textColor = whitesmoke,
     advance(id: string) {
         const cards = this.raw.read(["cards"])
         const i = cards.findIndex(c => c.id == id)
-        if (i >= 0 && cards[i].col < 2) this.raw.set("cards." + i + ".col", cards[i].col + 1)
+        if (i >= 0 && cards[i].col < 2) this.raw.set(["cards", i, "col"], cards[i].col + 1)
         },
     add() {
         const t = this.entryRow.entry.text
         if (t == "") return
-        this.raw.insert("cards", this.raw.read(["cards"]).length, ({ id: this.nextId, col: 0, t: t }))
+        this.raw.set("/cards/-", ({ id: this.nextId, col: 0, t: t }))
         this.nextId = this.nextId + 1
         this.entryRow.entry.text = ""
         },

@@ -97,6 +97,13 @@ export declare function ownerOf(self: object, name: string): Constraint | null;
  *  and the slot names currently owned by constraints. Snapshots, not live. */
 export declare function ownValues(self: object): Record<string, unknown>;
 export declare function ownedSlots(self: object): string[];
+/** Run `f` with its direct writes exempt from the divergence bit. */
+export declare function asRuntimeWrite<T>(f: () => T): T;
+/** Arm divergence tracking on one node (the replicator walks the instance
+ *  subtree after finish). */
+export declare function armDivergence(self: object): void;
+/** Has this node received a direct write since it was armed? */
+export declare function nodeDiverged(self: object): boolean;
 /** Record that `c` is a percent binding (called by bindPercent). */
 export declare function markPercent(c: Constraint): void;
 /** Is `self.name` owned by a percent binding — a slot whose value resolves

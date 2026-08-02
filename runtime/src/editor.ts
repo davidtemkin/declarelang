@@ -28,10 +28,11 @@ import { DeclareError, type Pos } from "./errors.js";
 import type { AttrType } from "./value.js";
 
 interface Session {
-  /** The bound field's path relative to the inherited cursor. A thunk, so a
+  /** The bound field's path relative to the inherited cursor — a string, or
+   *  pre-parsed segments (a quoted-name `<->` target, B3). A thunk, so a
    *  DYNAMIC `<->` (`name <-> { classroot.field }`) can vary it reactively — the
    *  reseed reads it under tracking, so changing the field re-seeds the editor. */
-  path: () => string;
+  path: () => string | readonly string[];
   type: AttrType;
 }
 
@@ -60,7 +61,7 @@ function committed(view: View, s: Session): unknown {
  *  the datapath value (or, for a dynamic path, the field it names) changes, so an
  *  in-record edit is never clobbered mid-keystroke (the "controlled reverts"
  *  trap, avoided). */
-function register(view: View, name: string, path: () => string, type: AttrType): void {
+function register(view: View, name: string, path: () => string | readonly string[], type: AttrType): void {
   let map = SESSIONS.get(view);
   if (map === undefined) SESSIONS.set(view, (map = new Map()));
   map.set(name, { path, type });
@@ -75,7 +76,7 @@ function register(view: View, name: string, path: () => string, type: AttrType):
 }
 
 /** Wire a STATIC `name <-> :path` (called from instantiate). */
-export function bindTwoWay(view: View, name: string, path: string, type: AttrType): void {
+export function bindTwoWay(view: View, name: string, path: string | readonly string[], type: AttrType): void {
   register(view, name, () => path, type);
 }
 

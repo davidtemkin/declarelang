@@ -1,0 +1,471 @@
+/*
+# DataGrid / Column / GridRow
+
+The Table contract plus a COLUMN MODEL (component-briefs.md §5 — D8 RULED):
+headers, sortable, reorderable and resizable by drag, touch-correct, over a
+windowed collection — the header drags are the forcing case the axis-scoped
+`claim = x` was designed for.
+
+    DataGrid [ width = 600, height = 400, datapath = { app.d.value },
+        selects = "multi",
+        Column [ title = "ID",    field = "id",    width = 70 ],
+        Column [ title = "Title", field = "title", width = 280 ],
+        Column [ title = "State", field = "state", width = 110 ],
+        GridRow [ datapath = :rows[], materialize = auto ] ]
+
+- **Columns are written members** (`Column` — selection-model §1b: permanent,
+  authored, identity = the child): `title` heads the column, `field` names
+  what a cell shows, `width` is the authored width — a PLAIN value (the
+  column model derives through an unanalyzed children walk; a responsive
+  width belongs in the grid's `widths` state, which IS a tracked dep:
+  `widths = { app.narrow ? ({ id: 40, … }) : null }`). A column's id is its
+  `field` (title as fallback).
+- **Order and widths are the grid's value-pattern state** (Contract 1 form b):
+  `order` (column ids, presented order) and `widths` (id → width overrides).
+  Reorder delivers through `arrangeInput(order)`, resize through
+  `resizeInput(id, w)` — defaults write the slots; an app override owns them
+  (persisted layouts). Widths are PLAIN VALUES — nothing measures cells.
+- **Header interactions**: click sorts — a DELIVERY (`sortInput(on, dir)`
+  writing `sortOn`/`sortDir` by default): sort NAMES a derivation, the truth
+  stays in data (the app derives the sorted dataset; a grid displays the
+  order its collection has). Horizontal drag REORDERS (live swap at the
+  midpoint); the right-edge grip RESIZES. Both drags declare `claim = x` —
+  on touch the page keeps vertical pan while the drag owns x.
+- **Rows**: the use site writes ONE bare `GridRow` template over its rows
+  path — cells generate from the column model, each showing `record[field]`.
+  Selection, keyboard, windowing: Table's, unchanged — `materialize` on the
+  template windows the grid, and the header (a preceding sibling) offsets
+  the window's geometry (the kernel's leading anchor).
+- Focus: land-as-one-stop, browse mode (arrows navigate rows). Entry-mode
+  grids (`focusScope = capture`, the tax-form convention) are a later
+  increment; nothing here forecloses it.
+- AT: rows speak logical position (the Surface seam). The column dimension
+  (`aria-colcount`/`colindex`) is DEFERRED to the same seam — noted, not
+  wired, in v1.
+- Narrow widths: v1 clips (`clip` on the cell); the deliberate degrade
+  (priority, not squish) is a designed later increment per the brief.
+*/
+
+include [ "table.declare", "menu.declare" ]
+
+use [ Menu ]
+
+// A column DECLARATION — a data-only member (invisible; SimpleLayout skips
+// it and reclaims its space). `width` is the View slot, reused as the
+// authored column width. `kind` declares what a CELL is:
+//   "text"   — a static label (the default)
+//   "edit"   — a TextInput committing each edit into the record (live)
+//   "check"  — a Checkbox over a boolean field
+//   "select" — the value + a chevron; a tap opens the shared options menu
+// `options` feeds "select" (records or strings, shown by String()).
+
+class Column extends View [
+    isColumn: boolean = true,
+
+    visible = false,
+    title: string = "",
+    field: string = "",
+    kind: string = "text",
+    options: array = null,
+    width = 120
+    ]
+
+
+class DataGrid extends Table [
+    // the marker (the wrap-probe discipline)
+
+    isDataGrid: boolean = true,
+
+    headerH: number = 30,
+
+    // ── the column-model state (Contract 1 form b) ────────────────────────
+
+    order: array = null,        // column ids, presented order (null = authored)
+    widths: object = null,      // { id: width } overrides (null = authored)
+    sortOn: string = "",        // the column id the sort names ("" = unsorted)
+    sortDir: string = "",       // "asc" | "desc"
+    colVersion: number = 0,     // bump if columns are added/removed at runtime
+
+    // ── the delivery seams — defaults write the slots; use-site overrides
+    //    own the state (persisted layouts, app-derived sorts) ──────────────
+
+    sortInput(on: string, dir: string) { sortOn = on; sortDir = dir },
+    arrangeInput(ord: array) { order = ord },
+    resizeInput(id: string, w: number) { widths = ({ ...(widths ?? ({})), [id]: w }) },
+
+    headerClick(id: string) {
+        this.sortInput(id, sortOn == id && sortDir == "asc" ? "desc" : "asc")
+        },
+
+    // ── the column records: the authored Columns, ordered and widthed by
+    //    the state, with running x offsets — the ONE derived truth every
+    //    header cell and grid cell positions from. A for-of children walk
+    //    (never .filter in constraint-reachable code); the state rides in as
+    //    ARGUMENTS so the deriving constraint tracks it ──────────────────────
+
+    columnRecords(v: number, ord: array, w: object) -> array {
+        const cols = []
+        for (const c of this.children) { if ((c as Column).isColumn === true) cols.push(c) }
+        if (ord != null) {
+            const rank = (c) => {
+                const i = ord.indexOf(this.colId(c))
+                return i < 0 ? ord.length + cols.indexOf(c) : i
+                }
+            cols.sort((a, b) => rank(a) - rank(b))
+            }
+        const out = []
+        let x = 0
+        for (const c of cols) {
+            const id = this.colId(c)
+            const wd = w != null && typeof (w as any)[id] == "number" ? (w as any)[id] : c.width
+            // width 0 DROPS the column — the deliberate narrow degrade
+            // (priority, not squish): a responsive `widths` state zeroes the
+            // low-priority columns and the model omits them entirely
+            if (wd <= 0) continue
+            out.push({ id: id, title: (c as Column).title, field: (c as Column).field, width: wd, x: x,
+                kind: (c as Column).kind })
+            x = x + wd
+            }
+        return out
+        },
+
+    colId(c: object) -> string {
+        return "" + ((c as Column).field != "" ? (c as Column).field : (c as Column).title)
+        },
+
+    currentOrder() -> array { return this.colData.value.cols.map((r) => r.id) },
+
+    colData: Dataset [ contents = { ({ cols: classroot.columnRecords(classroot.colVersion, classroot.order, classroot.widths) }) } ],
+
+    // reorder-by-drag: the dragged header's CENTER against each column's
+    // span — crossing a neighbor's midpoint swaps live (the arrangement
+    // re-derives and every undragged cell animates to its new x)
+
+    // reorder-by-drag, DROP-COMMIT (no live swap — swapping under the
+    // pointer re-derived the spans mid-drag and flickered): while a header
+    // drags, `dragCol`/`dropAt` drive the INSERTION BAR (the vertical
+    // divider at the would-be slot); the order commits on release.
+
+    dragCol: string = "",
+    dropAt: number = -1,
+
+    dropIndexFor(cx: number) -> number {
+        const cols = this.colData.value.cols
+        for (let i = 0; i < cols.length; i = i + 1) {
+            if (cx < cols[i].x + cols[i].width / 2) return i
+            }
+        return cols.length
+        },
+
+    // `at` rides in as an ARGUMENT so the insertion bar's constraint tracks
+    // it (the columnRecords discipline: method bodies are unanalyzed)
+
+    dropBarX(at: number) -> number {
+        const cols = this.colData.value.cols
+        if (at < 0) return -10
+        if (at >= cols.length) {
+            const last = cols[cols.length - 1]
+            return last != null ? last.x + last.width : 0
+            }
+        return cols[at].x
+        },
+
+    commitDrop(id: string) {
+        const cols = this.colData.value.cols
+        const from = cols.findIndex((r) => r.id == id)
+        const at = dropAt
+        dragCol = ""
+        dropAt = -1
+        if (from < 0 || at < 0) return
+        const to = at > from ? at - 1 : at
+        if (to == from) return
+        const ord = cols.map((r) => r.id)
+        ord.splice(from, 1)
+        ord.splice(to, 0, id)
+        this.arrangeInput(ord)
+        },
+
+    // resize helpers: the grip lives on the LEFT edge of the FOLLOWING cell
+    // (the boundary belongs to the cell that paints last there — hit-testing
+    // probes topmost siblings first), so it resizes the PREVIOUS column
+
+    // vertical arrows from an ACTIVE editor cell: the edit moves to the
+    // same column one row up/down (the spreadsheet expectation) — the
+    // destination scrolls into existence and its editor takes focus (a
+    // beat later: materialization lands on the settle after showRow)
+
+    editStep(row: View, field: string, d: number) {
+        const i = (row as TableRow).rowIndex() + d
+        if (i < 0 || i >= this.memberCount()) return
+        this.showRow(i)
+        setTimeout(() => {
+            const inst = this.children.find((c) => (c as TableRow).isTableRow === true && (c as TableRow).rowIndex() == i)
+            if (inst == null) return
+            const cell = (inst as GridRow).cells.children.find((c) => "" + (c as any).fld == field) as any
+            if (cell != null && cell.ed != null) Focus.focus(cell.ed)
+            }, 0)
+        },
+
+    prevColId(id: string) -> string {
+        const cols = this.colData.value.cols
+        const i = cols.findIndex((r) => r.id == id)
+        return i > 0 ? cols[i - 1].id : ""
+        },
+
+    colWidthOf(id: string) -> number {
+        const cols = this.colData.value.cols
+        const r = cols.find((c) => c.id == id)
+        return r != null ? r.width : 0
+        },
+
+    // ── the select-cell options menu: ONE app-layer Menu shared by every
+    //    select cell in the grid (the Combobox door — created by name at
+    //    first use, retargeted per cell); picking writes the RECORD through
+    //    the row's cursor, and the cell re-derives like any other read ─────
+
+    selMenu: View = null,
+
+    openSelect(row: View, cell: View, field: string, current: object) {
+        // the column's options are read HERE, at gesture time — a Column's
+        // `options` may be a constraint (a fresh handler read sees it; the
+        // record deliberately does not carry it, the widths lesson)
+        let opts = null
+        for (const c of this.children) {
+            if ((c as Column).isColumn === true && this.colId(c) == field) opts = (c as Column).options
+            }
+        if (selMenu == null) selMenu = app.createView("Menu", app, ({ }))
+        const m = this.selMenu as any
+        m.width = 170
+        m.items = (opts ?? []).map((o) => ({ id: "" + o, label: "" + o, checked: "" + (current ?? "") == "" + o }))
+        m.picked = (id) => { (row as any).$setData([field], id) }
+        m.openFor(cell)
+        },
+
+    // ── the header: chrome ABOVE the scroll region. The grid's BOX is the
+    //    rows' scroll region exactly — the scrollbar spans rows only, no
+    //    row ever slides under the header. A DOM scroller CLIPS at its box
+    //    (overflow is real clipping — ignoreClip is Declare's rule, not the
+    //    browser's), so the header's SURFACE escapes into the grid's parent
+    //    (travelWith — the ring's re-homing door, run the other way) and
+    //    positions in PARENT coordinates; the view-tree stays put, so hit
+    //    testing (ignoreClip) and the column model see nothing move.
+    //    Backends without the ride keep an in-box header (recorded gap).
+    //    ignoreLayout keeps full-mode stacking AND the kernel's leading
+    //    anchor off it — rows start at content 0 either way ─────────────────
+
+    escaped: boolean = false,
+
+    // init can fire before the backend attaches (no surfaces yet) — retry
+    // briefly until the ride exists; backends without it settle at false
+
+    onInit() { this.tryEscape(20) },
+
+    tryEscape(left: number) {
+        escaped = this.hdr.travelWith(this.parent as any)
+        if (!escaped && left > 0) setTimeout(() => this.tryEscape(left - 1), 50)
+        },
+
+    hdr: View [ height = { classroot.headerH },
+        x = { classroot.escaped ? classroot.x : 0 },
+        y = { classroot.escaped ? classroot.y - classroot.headerH : -classroot.headerH },
+        // escaped chrome leaves the grid's display subtree, so the grid's
+        // own visibility no longer reaches it through the platform — mirror it
+        visible = { classroot.visible },
+        width = { classroot.width },
+        ignoreLayout = true,
+        ignoreClip = true,
+        fill = { theme.surface },
+        datapath = { classroot.colData.value },
+
+        View [ datapath = :cols[], claim = x,
+            colid: string = { "" + :id },
+            x = { dragging && moved ? dragX : :x },
+            width = { :width },
+            height = { parent.height },
+
+            // dragging LIFTS the header: an opaque ghost above its
+            // neighbors (raise + surface fill + edge), tracking the pointer;
+            // the grid's insertion bar shows the would-be slot; the order
+            // commits at RELEASE (drop-commit — no mid-drag re-derives)
+
+            dragging: boolean = false,
+            moved: boolean = false,
+            dragX: number = 0,
+            x0: number = 0,
+            p0: number = 0,
+
+            // the lifted ghost is unmistakably IN HAND: an accent-edged,
+            // shadowed, rounded card floating over its neighbors
+
+            fill = { dragging && moved ? theme.surface : null },
+            stroke = { dragging && moved ? stroke(1.5, theme.accent) : null },
+            shadow = { dragging && moved ? shadow(0, 4, 14, 0x00000038) : null },
+            cornerRadius = { dragging && moved ? 6 : 0 },
+            opacity = { dragging && moved ? 0.95 : 1 },
+
+            onPointerDown(e: PointerEvent) {
+                if ((classroot as DataGrid).isDataGrid !== true) return
+                dragging = true
+                moved = false
+                x0 = this.x
+                dragX = this.x
+                p0 = app.pointerX
+                },
+            onPointerMove() {
+                if (!dragging) return
+                const dx = app.pointerX - p0
+                if (!moved && Math.abs(dx) > 3) { moved = true; this.raise() }
+                dragX = x0 + dx
+                if (moved) {
+                    (classroot as DataGrid).dragCol = colid
+                    ;(classroot as DataGrid).dropAt = (classroot as DataGrid).dropIndexFor(dragX + :width / 2)
+                    }
+                },
+            onPointerUp() {
+                if (!dragging) return
+                dragging = false
+                if (moved) (classroot as DataGrid).commitDrop(colid)
+                // an unmoved press is the CLICK — the sort delivery
+                else (classroot as DataGrid).headerClick(colid)
+                },
+
+            lbl: Text [ x = 8, y = center, fontSize = 12, fontWeight = semibold, wrap = false,
+                textColor = { theme.textMuted },
+                text = { "" + :title } ],
+
+            sortMark: Text [ y = center, fontSize = 9,
+                x = { parent.width - this.width - 14 },
+                visible = { (classroot as DataGrid).sortOn == parent.colid },
+                textColor = { theme.textMuted },
+                text = { (classroot as DataGrid).sortDir == "desc" ? "▼" : "▲" } ],
+
+            // the resize grip: the LEFT-edge sliver, resizing the PREVIOUS
+            // column — the boundary region belongs to this cell (later
+            // siblings hit first), so the grip must live here to be
+            // reachable; absent on the first column. Plain widths delivered
+            // through resizeInput — nothing measures anything.
+
+            grip: View [ width = 10, height = { parent.height },
+                x = -5,
+                visible = { (:x ?? 0) > 0 },
+                cursor = "col-resize", claim = x,
+                resizing: boolean = false,
+                pid: string = "",
+                w0: number = 0,
+                g0: number = 0,
+                onPointerDown(e: PointerEvent) {
+                    if ((classroot as DataGrid).isDataGrid !== true) return
+                    pid = (classroot as DataGrid).prevColId(this.parent.colid)
+                    if (pid == "") return
+                    w0 = (classroot as DataGrid).colWidthOf(pid)
+                    g0 = app.pointerX
+                    resizing = true
+                    },
+                onPointerMove() {
+                    if (!resizing) return
+                    (classroot as DataGrid).resizeInput(pid, Math.max(40, w0 + app.pointerX - g0))
+                    },
+                onPointerUp() { resizing = false }
+                ],
+
+            hair: View [ width = 1, height = { parent.height - 10 }, y = 5,
+                x = { parent.width - 1 }, fill = { theme.line } ]
+            ],
+
+        // the INSERTION BAR — where the dragged column would land
+
+        drop: View [ width = 2, y = 2, height = { parent.height - 4 },
+            visible = { (classroot as DataGrid).dragCol != "" },
+            x = { (classroot as DataGrid).dropBarX((classroot as DataGrid).dropAt) - 1 },
+            fill = { theme.accent } ],
+
+        rule: View [ x = 0, width = { parent.width }, height = 1,
+            y = { parent.height - 1 }, fill = { theme.line } ]
+        ]
+    ]
+
+
+// The row: TableRow's whole contract (selection, member, the click wiring),
+// generating one cell per column record. The use site writes it BARE over
+// its rows path — the cells come from the grid's column model.
+
+class GridRow extends TableRow [
+    isGridRow: boolean = true,
+
+    height = 28,
+
+    // the row's RECORD as a DERIVED slot — the $data read is analyzed, so
+    // cells re-render when the record's fields change (a method call would
+    // go stale); null when written/unreplicated
+
+    rec: object = { this.datapath != null ? this.$data("") : null },
+
+    cells: View [ x = 0, y = 0,
+        width = { parent.width },
+        height = { parent.height },
+        datapath = { (classroot.parent as DataGrid).isDataGrid === true ? (classroot.parent as DataGrid).colData.value : null },
+
+        // ONE cell per column record; `kind` picks the presentation. Editors
+        // write the RECORD through the row's cursor ($setData) — the grid
+        // never holds cell state, so windowing and sort re-derives keep
+        // every edit (the instance-free doctrine, applied to editing).
+
+        View [ datapath = :cols[],
+            x = { :x },
+            width = { :width },
+            height = { parent.height },
+            clip = true,
+            k: string = { "" + (:kind ?? "text") },
+            fld: string = { "" + :field },
+
+            t: Text [ x = 8, y = center, fontSize = 13, wrap = false,
+                visible = { parent.k == "text" },
+                text = { "" + ((classroot.rec ?? ({}) as any)["" + :field] ?? "") } ],
+
+            ed: TextInput [ x = 4, y = 3, fontSize = 13,
+                visible = { parent.k == "edit" },
+                width = { parent.width - 8 },
+                height = { parent.height - 6 },
+                initial = { "" + ((classroot.rec ?? ({}) as any)["" + :field] ?? "") },
+                onInput(v: string) { classroot.$setData(["" + :field], v) },
+                onKeyDown(e: KeyEvent) {
+                    if ((classroot.parent as DataGrid).isDataGrid !== true) return
+                    if (e.key == "ArrowDown") (classroot.parent as DataGrid).editStep(classroot, "" + :field, 1)
+                    else if (e.key == "ArrowUp") (classroot.parent as DataGrid).editStep(classroot, "" + :field, -1)
+                    }
+                ],
+
+            ck: Checkbox [ label = "",
+                visible = { parent.k == "check" },
+                x = { (parent.width - 18) / 2 },
+                y = { (parent.height - 18) / 2 },
+                checked = { ((classroot.rec ?? ({}) as any)["" + :field]) == true },
+                input(v: boolean) { classroot.$setData(["" + :field], v) }
+                ],
+
+            // the select cell is a CONTROL — a real tab stop (Space/Enter
+            // opens the menu, the Control activation path), styled as a
+            // quiet button so it READS as interactive
+
+            sel: Control [ x = 2, y = 2,
+                visible = { parent.k == "select" },
+                width = { parent.width - 4 },
+                height = { parent.height - 4 },
+                cornerRadius = 5,
+                fill = { this.hot || this.down ? theme.control : null },
+                press() {
+                    if ((classroot.parent as DataGrid).isDataGrid !== true) return
+                    (classroot.parent as DataGrid).openSelect(classroot, this, "" + :field,
+                        (classroot.rec ?? ({}) as any)["" + :field])
+                    },
+                onClick() { if (!this.disabled) this.press() },
+                v: Text [ x = 6, y = center, fontSize = 13, wrap = false,
+                    text = { "" + ((classroot.rec ?? ({}) as any)["" + :field] ?? "") } ],
+                arrow: Text [ y = center, fontSize = 9,
+                    x = { parent.width - this.width - 6 },
+                    textColor = { theme.textMuted },
+                    text = "▾" ]
+                ]
+            ]
+        ]
+    ]

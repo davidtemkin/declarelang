@@ -16,6 +16,25 @@ export declare function setKeysFocusProbe(fn: () => boolean): void;
 export declare class KeysService {
     /** The held-key set (LZX's downKeysHash) — what is pressed right now. */
     private readonly heldKeys;
+    /** Views currently claiming the NAVIGATION keys (arrows, Space, Home/End,
+     *  PageUp/Down) from the browser's scroll defaults — an open Menu chain,
+     *  any overlay that roves with arrows while nothing holds Declare focus.
+     *  A Set of claimant owners so overlapping claims (a menu over a menu)
+     *  compose; `navClaim(owner, false)` releases only its own. */
+    private readonly navClaims;
+    private readonly navHandlers;
+    /** Claim (or release) the navigation keys for `owner`. While any claim is
+     *  live, the DOM listener prevents the browser's scroll defaults for the
+     *  nav keys exactly as it does when a Declare control holds focus — an
+     *  open menu's arrows rove the menu, never scroll the page. Idempotent.
+     *  0↔1 transitions notify onNavClaim subscribers (the FocusRing stands
+     *  down while an overlay owns the keys — the menu's rover is the focus). */
+    navClaim(owner: object, on: boolean): void;
+    /** Is any navigation-keys claim live right now? */
+    navClaimed(): boolean;
+    /** Subscribe to nav-claim TRANSITIONS (true = an overlay took the keys,
+     *  false = the last claim released). Returns the unsubscribe thunk. */
+    onNavClaim(fn: (on: boolean) => void): () => void;
     private readonly downHandlers;
     private readonly upHandlers;
     private readonly chords;

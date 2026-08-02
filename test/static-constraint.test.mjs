@@ -75,7 +75,7 @@ test("datapath static constraint updates on an in-place edit", () => {
       card: View [ datapath = { app.rec.value },
         w: View [ width = { :n } ] ] ]`);
   assert.equal(app.card.w.width, 5);
-  app.rec.set("n", 42); settle();
+  app.rec.set(["n"], 42); settle();
   assert.equal(app.card.w.width, 42, "datapath edge propagated the region edit");
 });
 

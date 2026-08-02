@@ -43,10 +43,15 @@
 // diagnostic's line within a block maps to (block's original start line + the
 // offset within the block). v1 reports at LINE granularity (what APPROACH asks).
 //
-// v1 SCOPE: bodies that embed a datapath island (`:path`) are skipped — `:path`
-// is Declare surface the runtime rewrites (expr.ts), not TypeScript; typechecking
-// data reads is a later slice. All other `{ }` bodies (attribute expressions,
-// declaration-default bindings, method statements) are checked.
+// SCOPE: every `{ }` body (attribute expressions, declaration-default
+// bindings, method statements) is checked. Datapath islands (`:path`) are no
+// longer a skip class: compile-time resolution (compile.ts resolveBody,
+// data-paths.md §5) lowers each to `this.$data([…])` BEFORE this phase runs,
+// so a datapath body reaches tsc as plain TypeScript (`$data` is typed in the
+// scaffold, returning `any` — the same deliberate under-report as
+// Dataset.value until the `schema` construct lands). The island guard below
+// remains for a source that somehow still carries one — skipped, never
+// misparsed.
 
 import ts from "typescript";
 import { parseProgram, type Element, type Param, type Program } from "../../runtime/dist/parser.js";
@@ -481,8 +486,9 @@ class CaseEmitter {
     params: readonly Param[],
     classBody: boolean
   ): void {
-    // v1: skip a body that embeds a datapath island (neutralizing it is a later
-    // slice) — `:path` is not TypeScript.
+    // A body that still embeds a datapath island is not TypeScript — compile()
+    // lowers islands before this phase, so this only guards a caller handing
+    // in un-resolved source; skipped, never misparsed.
     if (fillDatapaths(src) !== src) return;
 
     const ty = (el: Element): string => this.instType.get(el) ?? el.tag;

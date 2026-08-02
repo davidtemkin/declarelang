@@ -50,6 +50,7 @@ import { SCHEMAS, descendsFrom } from "../../runtime/dist/schema.js";
 import { serializeDeps } from "../../runtime/dist/deps.js";
 import { serializeLinks } from "../../runtime/dist/links.js";
 import { annotateProgram } from "./dep-extract.js";
+import { schemaCheck } from "./schema-check.js";
 import { extractLinks } from "./links.js";
 import ts from "typescript";
 import { stripEditsFor, tsBodySyntax } from "./strip-types.js";
@@ -98,7 +99,7 @@ import { setBodySyntaxValidator } from "../../runtime/dist/expr.js";
 // every host goes through this file.
 setBodySyntaxValidator(tsBodySyntax);
 import { freeIdentifiers, hexColor8Literals } from "./free-idents.js";
-import { fillDatapaths } from "../../runtime/dist/datapath.js";
+import { fillDatapaths, scanDatapaths, splitPath } from "../../runtime/dist/datapath.js";
 import { CONSTRUCTOR_NAMES } from "../../runtime/dist/expr.js";
 import { CSS_COLORS } from "../../runtime/dist/css-colors.js";
 import { resolveIncludes, resolveAutoIncludes, exciseSpans, NO_INCLUDES } from "../../runtime/dist/include.js";
@@ -504,6 +505,15 @@ export function compile(source, opts = {}) {
         }
         throw e;
     }
+    // Static `:path` checking against declared schemas (B4, language §9) —
+    // runs on the resolved parse, where cursor expressions are explicit.
+    {
+        const schemaErrors = rbAll(schemaCheck(depProgram));
+        if (schemaErrors.length > 0) {
+            const ws = rbAll(r.warnings);
+            return { source: null, errors: schemaErrors, warnings: ws, ...diagnose(schemaErrors, ws, "structure") };
+        }
+    }
     const residue = annotateProgram(depProgram).errors;
     if (residue.length > 0) {
         const errs = rbAll(residue
@@ -666,11 +676,26 @@ class Resolver {
     }
     resolveBody(src, brace, expression, params, levels, mainRoot, scope) {
         const bodyStart = brace.offset + 1; // the body begins just after `{`
-        // Datapath islands (R8) are not TypeScript: neutralize each with a
-        // same-length, identifier-free filler so the TS parse sees valid source
-        // and every offset stays true. The islands themselves pass through to
-        // the output untouched — `:path` is language surface; the runtime
-        // rewrites it (expr.ts), keeping resolve-twice a fixpoint.
+        // Datapath islands (R8) resolve HERE, at compile time (data-paths.md §5's
+        // emitted plans): each island becomes its explicit runtime form over
+        // pre-parsed segments — `:location.city` → `this.$data(["location","city"])`
+        // — so the emitted program carries no `:` value mode and the runtime's
+        // island scanner is a dev-path affordance only (direct instantiate;
+        // production builds stub it out, declarec.mjs). check() ran before
+        // resolution, so islands here are clean single paths — trouble spellings
+        // and many-paths were refused with their pointed errors. Resolve-twice
+        // stays a fixpoint: the emitted form has no islands to find, and `$data`
+        // is a member of `this`, never a free identifier.
+        for (const p of scanDatapaths(src)) {
+            this.edits.push({
+                start: bodyStart + p.start,
+                end: bodyStart + p.end,
+                text: `this.$data(${JSON.stringify(p.plan ?? splitPath(p.path))})`,
+            });
+        }
+        // The TS-facing passes below still see the ORIGINAL body text (edits are
+        // collected, not applied), so islands are neutralized with a same-length,
+        // identifier-free filler to keep every offset true.
         const idents = freeIdentifiers(fillDatapaths(src), { expression, bound: [...BOUND, ...params] });
         if (idents === null)
             return; // TS could not parse what new Function did — leave the body alone

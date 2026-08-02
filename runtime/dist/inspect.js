@@ -13,6 +13,7 @@ import { Node } from "./node.js";
 import { hitAt, traceHitAt } from "./interaction.js";
 import { View } from "./view.js";
 import { isSet, ownerOf, ownValues, ownedSlots } from "./attributes.js";
+import { materializationInfo } from "./replicate.js";
 import { sharedClock, browserScheduler } from "./animate.js";
 import { TAGS, LAYOUTS, DATA, ANIMATORS, ANIMATOR_GROUPS, STATES } from "./registry.js";
 import { settle } from "./reactive.js";
@@ -158,6 +159,11 @@ export function inspect(node, path = "app") {
     const text = node.text;
     if (typeof text === "string" && text !== "")
         record.text = text;
+    if (v !== null) {
+        const w = materializationInfo(v);
+        if (w !== null)
+            record.materialization = w;
+    }
     return record;
 }
 /** Resolve a dotted inspect path (`app.col.opts`, `app.col.3`) to the node.

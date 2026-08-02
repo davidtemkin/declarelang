@@ -3,6 +3,13 @@ import { View } from "./view.js";
 /** Build a Node/View tree from a parsed Program or Element fragment (no
  *  rendering). */
 export declare function instantiate(input: Element | Program): View;
+/** Mark a whole subtree as already-inited WITHOUT firing anything — the
+ *  membership-anchored lifecycle (materialization.md §2, RULED 2026-07-30):
+ *  onInit fires once per record-MEMBERSHIP, so when the reconciler
+ *  reconstructs an instance for a member whose init already fired (a
+ *  windowed row scrolling back in, a keyed re-derivation reusing identity),
+ *  it pre-marks the fresh subtree and initTree stays silent. */
+export declare function markInited(view: View): void;
 /** Imperative creation (planes.md §7): instantiate `tag` by NAME into
  *  `parent`, on the tree rooted at `root` — the same construct pipeline as
  *  replication (one materializer instance: construct → link → attach →

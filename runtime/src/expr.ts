@@ -111,22 +111,42 @@ export type ExprFn = (this: unknown, parent: unknown, classroot: unknown) => unk
  *  expression parses. (A determined string can still smuggle statements
  *  through balanced parens — expression-*enforcement*, like typechecking,
  *  is the tsc path's job; this is a syntax gate, not a sandbox.) */
+// ── the compiled-body memo ─────────────────────────────────────────────────
+// Replicated instances re-bind the SAME body text once per row: without a
+// memo every fresh row re-runs the datapath rewrite and a `new Function` per
+// body — priced in SECONDS when a 10k list's filter mints a hundred rows
+// (measured 2026-08-01: 1.1–1.4s per filter pick on the Tracker). Keyed by
+// the script scope's IDENTITY (a program's scope object is stable for its
+// lifetime; two programs never share one), then the exact source text —
+// sound because the compiled function's only compile-time inputs are the
+// source and the scope's KEY SET, while the values ride in at call time.
+const EXPR_MEMO = new WeakMap<object, Map<string, { fn: ExprFn } | { error: string }>>();
+const BODY_MEMO = new WeakMap<object, Map<string, { fn: BodyFn } | { error: string }>>();
+
 export function compileExpr(src: string): { fn: ExprFn } | { error: string } {
-  const r = rewriteDatapaths(src);
-  if ("error" in r) return r;
-  try {
-    // The script scope is captured HERE, at compile time — the body is bound to
-    // the program being built, not to whatever is current when it later runs.
-    const scripts = SCRIPT_SCOPE;
-    const raw = new Function("$d", "$s", "parent", "classroot", `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} return (${r.src});`);
-    return {
-      fn: function (this: unknown, parent: unknown, classroot: unknown): unknown {
-        return raw.call(this, SCOPE, scripts, parent, classroot);
-      },
-    };
-  } catch (e) {
-    return { error: `is not a valid expression — ${(e as Error).message}` };
-  }
+  // The script scope is captured HERE, at compile time — the body is bound to
+  // the program being built, not to whatever is current when it later runs.
+  const scripts = SCRIPT_SCOPE;
+  let memo = EXPR_MEMO.get(scripts);
+  if (memo === undefined) EXPR_MEMO.set(scripts, (memo = new Map()));
+  const hit = memo.get(src);
+  if (hit !== undefined) return hit;
+  const out = ((): { fn: ExprFn } | { error: string } => {
+    const r = rewriteDatapaths(src);
+    if ("error" in r) return r;
+    try {
+      const raw = new Function("$d", "$s", "parent", "classroot", `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} return (${r.src});`);
+      return {
+        fn: function (this: unknown, parent: unknown, classroot: unknown): unknown {
+          return raw.call(this, SCOPE, scripts, parent, classroot);
+        },
+      };
+    } catch (e) {
+      return { error: `is not a valid expression — ${(e as Error).message}` };
+    }
+  })();
+  memo.set(src, out);
+  return out;
 }
 
 /** Check-time body-SYNTAX validation, injectable (2026-07-13): bodies are
@@ -219,20 +239,29 @@ export type BodyFn = (this: unknown, parent: unknown, classroot: unknown, ...arg
  *  Scope rules and the replacement plan are compileExpr's, unchanged. The
  *  error fragment matches the compileExpr pattern for callers to prefix. */
 export function compileBody(params: readonly string[], src: string): { fn: BodyFn } | { error: string } {
-  const r = rewriteDatapaths(src);
-  if ("error" in r) return r;
-  try {
-    // The body runs inside its own block so a statement may shadow a
-    // constructor name (`const stop = …`) without a redeclaration error;
-    // `var` still hoists to the function and `return` works unchanged.
-    const scripts = SCRIPT_SCOPE;
-    const raw = new Function("$d", "$s", "parent", "classroot", ...params, `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} { ${r.src} }`);
-    return {
-      fn: function (this: unknown, parent: unknown, classroot: unknown, ...args: unknown[]): unknown {
-        return raw.call(this, SCOPE, scripts, parent, classroot, ...args);
-      },
-    };
-  } catch (e) {
-    return { error: `is not a valid method body — ${(e as Error).message}` };
-  }
+  const scripts = SCRIPT_SCOPE;
+  let memo = BODY_MEMO.get(scripts);
+  if (memo === undefined) BODY_MEMO.set(scripts, (memo = new Map()));
+  const key = params.join("\u001f") + "\u0000" + src;   // params shape the signature — part of the identity
+  const hit = memo.get(key);
+  if (hit !== undefined) return hit;
+  const out = ((): { fn: BodyFn } | { error: string } => {
+    const r = rewriteDatapaths(src);
+    if ("error" in r) return r;
+    try {
+      // The body runs inside its own block so a statement may shadow a
+      // constructor name (`const stop = …`) without a redeclaration error;
+      // `var` still hoists to the function and `return` works unchanged.
+      const raw = new Function("$d", "$s", "parent", "classroot", ...params, `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} { ${r.src} }`);
+      return {
+        fn: function (this: unknown, parent: unknown, classroot: unknown, ...args: unknown[]): unknown {
+          return raw.call(this, SCOPE, scripts, parent, classroot, ...args);
+        },
+      };
+    } catch (e) {
+      return { error: `is not a valid method body — ${(e as Error).message}` };
+    }
+  })();
+  memo.set(key, out);
+  return out;
 }

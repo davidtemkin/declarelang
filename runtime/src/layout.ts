@@ -66,7 +66,7 @@ import { Node } from "./node.js";
 import { Constraint } from "./reactive.js";
 import { defineAttributes, markPercent, own, ownerOf, release, setBound } from "./attributes.js";
 import { DeclareError } from "./errors.js";
-import { View, type LayoutStrategy } from "./view.js";
+import { isWindowedBlock, View, type LayoutStrategy } from "./view.js";
 import { Animator } from "./animator.js";
 import { motionToken } from "./animate.js";
 
@@ -245,6 +245,11 @@ export abstract class Layout extends Node implements LayoutStrategy {
   protected unclaim(child: View, slot: string, k: Constraint): void {
     release(child, slot, k);
     if (!this.rearming) return;
+    // While the windowing kernel owns this block's placement, a rearm's
+    // base-restore must not clobber the logical positions it just wrote
+    // (the suspension's other half — the pass skip alone leaves this
+    // restore re-stacking every reconcile's rows at their captured bases).
+    if (this.view !== null && isWindowedBlock(this.view)) return;
     const base = this.bases.get(child);
     if (base !== undefined && slot in base) {
       setBound(child, slot, base[slot]);
@@ -311,6 +316,11 @@ export abstract class Layout extends Node implements LayoutStrategy {
           label,
           () => this.place(),
           (v) => {
+            // While the WINDOWING KERNEL owns this block's placement
+            // (materialization.md — a windowed vertical stack), the pass
+            // computes but does not apply: rows sit at their LOGICAL
+            // positions, and disengaging re-arms through childrenMutated.
+            if (this.view !== null && isWindowedBlock(this.view)) return;
             const boxes = v as Box[];
             for (const c of passClaims) {
               const b = boxes[c.i];
@@ -328,7 +338,10 @@ export abstract class Layout extends Node implements LayoutStrategy {
         const k = new Constraint(
           `${label} → ${c.child.constructor.name}.${c.slot}`,
           () => this.place()[c.i]?.[c.key],
-          (v) => setBound(c.child, c.slot, v)
+          (v) => {
+            if (this.view !== null && isWindowedBlock(this.view)) return;
+            setBound(c.child, c.slot, v);
+          }
         );
         markPercent(k);
         this.claim(c.child, c.slot, k, label);

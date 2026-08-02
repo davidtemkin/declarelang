@@ -1,6 +1,7 @@
 import { type Pos } from "./errors.js";
 import { View } from "./view.js";
 import type { Node } from "./node.js";
+import { type PathSeg } from "./datapath.js";
 import type { AttrType } from "./value.js";
 /** Bind `name = { src }`: compile, install as the slot's owner, evaluate
  *  once now. check() already validated the syntax on the build path; a
@@ -25,12 +26,12 @@ deps?: readonly string[]): void;
  *  just the chain's end). The fallback is read inside the tracked compute,
  *  so an unresolved prevailing slot keeps following live and lets go of the
  *  chain the moment the path resolves. */
-export declare function bindData(view: View, name: string, path: string, type: AttrType): void;
+export declare function bindData(view: View, name: string, path: string, type: AttrType, plan?: readonly PathSeg[]): void;
 /** Bind `datapath = :rel.path`: this view's cursor is the INHERITED cursor
  *  (from the parent chain — never this view's own slot, which it defines)
  *  extended by `rel.path`. Interned, so a re-derivation of the same place
  *  stops at the equality gate. */
-export declare function bindDatapath(view: View, path: string): void;
+export declare function bindDatapath(view: View, path: string | readonly string[]): void;
 /** Bind `datapath = { expr }`: the expression yields a value from a
  *  dataset (`weatherData.value.rss.channel` — plain TS dereferences), and
  *  toCursor turns it back into a *place*, inside the tracked compute so the

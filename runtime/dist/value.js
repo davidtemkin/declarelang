@@ -155,6 +155,14 @@ export function coerce(type, lit) {
             return coerceColor(lit);
         case "shape":
             return coerceShape(lit);
+        case "dataschema":
+            // The parsed ShapeField declarations pass through as plain data; null
+            // is "no schema" (the default — schema presence is the only switch).
+            if (lit.kind === "schema")
+                return ok(lit.shape);
+            if (lit.kind === "ident" && lit.name === "null")
+                return ok(null);
+            return fail("a schema shape ([ field: type, rows[]: [ … ] ]), or null for none");
         case "enum":
             if (lit.kind === "ident" && type.tokens.includes(lit.name))
                 return ok(lit.name);
@@ -452,6 +460,8 @@ export function describeLiteral(lit) {
             return "a { … } expression";
         case "path":
             return `the datapath :${lit.path}${lit.many ? "[]" : ""}`;
+        case "schema":
+            return "a schema shape";
         case "call":
             return `'${lit.name}(…)'`;
         case "list":

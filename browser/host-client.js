@@ -14,7 +14,7 @@
 //
 // Relative import so the whole tree is subpath-portable (GitHub Pages project
 // pages live under /<repo>/): resolved against THIS module's URL, not the page's.
-import { renderAsync, build, mountApp, loadFonts, fontFacesOf, settle, disposeApp, reflectAppName, DomBackend, CanvasBackend } from "../runtime/dist/index.js";
+import { renderAsync, build, mountApp, loadFonts, fontFacesOf, settle, disposeApp, reflectAppName, DomBackend, CanvasBackend, provideTransport } from "../runtime/dist/index.js";
 
 const BACKENDS = { DomBackend, CanvasBackend };
 
@@ -39,10 +39,19 @@ const fragmentOf = () => decodeURIComponent(location.hash.replace(/^#/, ""));
  *   precompiled?: Record<string,string>,  // { <demo>: compiledSource } — static initial previews
  *   compile?: (source: string) => Promise<{source:string, deps?:any}|null>,  // live recompile (server/in-browser); null = keep last
  *   location?: string,           // initial app.location when it is NOT in the URL fragment — the host's ?view= → initial-location translation (docs/system-design/location.md §4); a real fragment still wins
+ *   dataBase?: string,           // abs/page-relative URL of the VIEWED program's directory: a source page's <base> points at the Viewer, so the island's relative DataSource urls (its data lives beside its file) are re-based here via the transport seam
  * }}
  */
 export async function bootHost(cfg) {
   const host = document.getElementById("host");
+  // The transport seam (data.ts): on a source page every island runs the VIEWED
+  // file, whose relative data urls mean "beside my .declare" — but the document
+  // <base> points at the Viewer's own directory. Re-base RELATIVE urls against
+  // the viewed program's directory; absolute urls pass through untouched.
+  if (cfg.dataBase) {
+    const dataBase = new URL(cfg.dataBase, document.baseURI);
+    provideTransport((url, init) => fetch(new URL(url, dataBase), init));
+  }
   // The `?crawler` flag's embedded static document (docs/system-design/capabilities.md §5): content
   // for crawlers that never run any script. The page already removes #declare-static
   // in a SYNCHRONOUS pre-paint script (serve-core.js / index.html / declarec) so a
@@ -120,7 +129,11 @@ export async function bootHost(cfg) {
     if (app.location !== mirrored) {                   // the app navigated — one push per changed settle
       mirrored = app.location;
       const frag = app.location === locationInitial ? "" : app.location;   // clean URL at the default (§3)
-      history.pushState(null, "", frag ? "#" + frag : location.pathname + location.search);
+      // Anchored to the page's OWN path+query, never a bare "#frag": history
+      // resolves its url against the DOCUMENT BASE, and a source page's <base>
+      // points at the Viewer's directory — a bare fragment would silently
+      // rewrite the whole URL to apps/viewer/ (measured on ?viewer, 2026-08-01).
+      history.pushState(null, "", location.pathname + location.search + (frag ? "#" + frag : ""));
     }
     // The `@name` reveal (docs/system-design/location.md §6) — a retained intent, resolved each
     // frame so a cold deep link fires once the target (a DataSource-fed heading) is

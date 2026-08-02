@@ -154,6 +154,12 @@ export function defineAttributes<S extends object>(
           );
         }
         const self = this as Carrier;
+        // The divergence bit (materialization.md §2): a DIRECT write on an
+        // armed node marks it diverged — local state reconstruction could
+        // not reproduce. One WeakSet probe on the author-write path only
+        // (setBound — constraint applies, runtime derives — never lands
+        // here), armed only for replicated-instance subtrees.
+        if (RUNTIME_WRITE === 0 && ARMED.has(self)) DIVERGED.add(self);
         // A first write to a prevailing slot changes what it MEANS (following
         // → providing) even when the written value equals the stored default,
         // so the equality gate below cannot be the only wake.
@@ -222,12 +228,23 @@ function evalDefault(
 }
 
 /** The declaring table for `name` within a chained table — the slot's
- *  identity. */
+ *  identity. MEMOIZED per (table, name): tables are per-constructor chained
+ *  objects, immutable after registration, and the prevailing follow walk
+ *  asks this per ANCESTOR per READ — the scrub bench showed the naive
+ *  prototype re-walk as the single hottest app-code frame cost. */
+const DECLARING = new WeakMap<object, Map<string, object | null>>();
 function declaringOf(table: Record<string, unknown> | null, name: string): object | null {
+  if (table === null) return null;
+  let m = DECLARING.get(table);
+  if (m === undefined) DECLARING.set(table, (m = new Map()));
+  const hit = m.get(name);
+  if (hit !== undefined) return hit;
+  let found: object | null = null;
   for (let t: object | null = table; t !== null; t = Object.getPrototypeOf(t)) {
-    if (Object.hasOwn(t, name)) return t;
+    if (Object.hasOwn(t, name)) { found = t; break; }
   }
-  return null;
+  m.set(name, found);
+  return found;
 }
 
 /** The prevailing follow walk (styling rung — the R8 cursor-inheritance
@@ -423,6 +440,46 @@ export function ownedSlots(self: object): string[] {
   return owners !== undefined ? Object.keys(owners) : [];
 }
 
+// ── The divergence bit (materialization.md §2, B5) ─────────────────────────
+//
+// "The runtime owns the cells, so it can KNOW which instances have diverged."
+// A replicated instance's subtree is ARMED once construction completes
+// (bindings evaluated, init fired — construct-phase literal writes never
+// count); from then on, any direct author/handler write through the public
+// setter marks the node DIVERGED. The windowed reconciler retains diverged
+// instances (keep-alive, the D5 ruling) and freely discards clean ones —
+// the retained set is exactly the set for which reconstruction would be
+// observable. Both sets are WeakSets: pay-per-use, collected with the nodes.
+
+const ARMED = new WeakSet<object>();
+const DIVERGED = new WeakSet<object>();
+
+// A RUNTIME write: an animator driving the slot it declares. It uses plain
+// assignment on purpose (§5: assignment wins, so an animator displaces any
+// derive that would otherwise overwrite its rest value) — but it is NOT an
+// author's touch. The value is derived from a declared animator and its
+// declared target, so a reconstruction reproduces it exactly; the divergence
+// bit must not see it, or every row holding a spring becomes permanently
+// "touched" and the windowed reconciler stops recycling it.
+let RUNTIME_WRITE = 0;
+
+/** Run `f` with its direct writes exempt from the divergence bit. */
+export function asRuntimeWrite<T>(f: () => T): T {
+  RUNTIME_WRITE++;
+  try { return f(); } finally { RUNTIME_WRITE--; }
+}
+
+/** Arm divergence tracking on one node (the replicator walks the instance
+ *  subtree after finish). */
+export function armDivergence(self: object): void {
+  ARMED.add(self);
+}
+
+/** Has this node received a direct write since it was armed? */
+export function nodeDiverged(self: object): boolean {
+  return DIVERGED.has(self);
+}
+
 // Percent bindings, marked: a percent resolves against the PARENT's extent
 // (bind.ts), so a parent deriving its own extent from its children must not
 // count a child's percent-bound slot — it would be reading its own output
@@ -452,7 +509,10 @@ export function percentOwned(self: object, name: string): boolean {
 export function own(self: object, name: string, c: Constraint): void {
   const owners = ((self as Carrier).$owners ??= Object.create(null) as Record<string, Constraint>);
   const prior = owners[name];
-  if (prior !== undefined && prior.yielding && !c.yielding) {
+  if (prior !== undefined && prior.yielding) {
+    // A yielding owner yields to ANY newcomer — an author binding as before,
+    // and since B5 also a newer runtime derive (the windowed block's extent
+    // derive displaces auto-extent exactly as an author write would).
     prior.dispose();
     delete owners[name];
   } else if (prior !== undefined) {

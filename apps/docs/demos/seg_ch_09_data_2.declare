@@ -28,12 +28,12 @@ App [ width = 470, height = 250, fill = black, textColor = whitesmoke,
     advance(id: string) {
         const cards = this.raw.read(["cards"])
         const i = cards.findIndex(c => c.id == id)
-        if (i >= 0 && cards[i].col < 2) this.raw.set("cards." + i + ".col", cards[i].col + 1)
+        if (i >= 0 && cards[i].col < 2) this.raw.set(["cards", i, "col"], cards[i].col + 1)
         },
     add() {
         const t = this.entryRow.entry.text
         if (t == "") return
-        this.raw.insert("cards", this.raw.read(["cards"]).length, ({ id: this.nextId, col: 0, t: t }))
+        this.raw.set("/cards/-", ({ id: this.nextId, col: 0, t: t }))
         this.nextId = this.nextId + 1
         this.entryRow.entry.text = ""
         },

@@ -56,6 +56,7 @@
 
 import { DeclareError, DeclareErrors, type Pos } from "./errors.js";
 import { Diag } from "./diagnostics.js";
+import type { PathSeg } from "./datapath.js";
 
 /** A literal value as written — the parser classifies syntax, not type.
  *  `hex` preserves whether a number was written `0x…`: the Color type only
@@ -68,7 +69,8 @@ export type Literal =
   | { kind: "hexColor"; raw: string; pos: Pos } // `#RGB` / `#RRGGBB`
   | { kind: "ident"; name: string; pos: Pos } // named color / true / false / null
   | { kind: "code"; src: string; pos: Pos; deps?: readonly string[] } // `{ … }` — a constraint body, raw TS source; `deps` = the compiler's extracted dependency read-paths (docs/system-design/constraints.md §5), attached post-resolution
-  | { kind: "path"; path: string; many: boolean; pos: Pos } // `:a.b` / `:arr[]` — a datapath
+  | { kind: "path"; path: string; many: boolean; pos: Pos; plan?: PathSeg[] } // `:a.b` / `:arr[]` — a datapath; `plan` present iff the spelling used selectors/quoted names (B3)
+  | { kind: "schema"; shape: ShapeField[]; pos: Pos } // `schema = [ city: string, rows[]: [ … ] ]` — a data shape (B4, language §9)
   // `name(args)` — a value CONSTRUCTOR (styling rung: gradient/stroke/shadow/
   // stop). Pure syntax: which names construct what is the value vocabulary's
   // question (value.ts), like every other literal meaning.
@@ -209,6 +211,23 @@ export interface TopDecl {
   pos: Pos;
 }
 
+/** One field of a data-shape literal (B4, language §9's optional `schema`):
+ *  `name: string`, `name?: number` (optional — absent or null is fine),
+ *  `rows[]: [ … ]` (an array whose ELEMENTS have the nested shape; the array
+ *  marker lives in the shape, which is what lets a shape and a replication
+ *  walk agree), and `tags[]: string` (an array of scalars). Identity is NOT
+ *  declared — it is INFERRED from a record's `id` field by convention (ruled
+ *  2026-07-30, the invisible version; `key = :field` is the explicit
+ *  override, the structural-equality fallback beneath). `type` is null
+ *  exactly when `fields` carries a nested shape. */
+export interface ShapeField {
+  name: string;
+  array: boolean;
+  optional: boolean;
+  type: "string" | "number" | "boolean" | "any" | null;
+  fields?: ShapeField[];
+}
+
 /** One `include` entry — a quoted, relative path and the position of its
  *  string literal (composition.md §1). The directive `include [ "a", "b" ]`
  *  yields one IncludeRef per path; resolution is a front-end phase
@@ -301,7 +320,9 @@ type TokKind =
   | "lbracket" | "rbracket" | "lparen" | "rparen" | "eq" | "comma" | "colon" | "dot"
   | "bindtwo" | "subfrom" | "ident" | "number" | "percent" | "string" | "hexColor" | "code" | "eof"
   | "arrow" // `->` — the return-type marker in a method signature (language §4)
-  | "query"; // `?` — the nullable marker on a signature type (`c: Menu?`)
+  | "query" // `?` — the nullable marker on a signature type (`c: Menu?`)
+  | "star" // `*` — the wildcard selector in a :path (`:rows[*]`, B3)
+  | "bang"; // `!` — refused in shapes with the identity-is-inferred rule named (ruled 2026-07-30)
 
 interface Token {
   kind: TokKind;
@@ -434,7 +455,7 @@ function tokenize(src: string): Token[] {
 
     // single-character punctuation
     const punct: Record<string, TokKind> = {
-      "[": "lbracket", "]": "rbracket", "(": "lparen", ")": "rparen", "=": "eq", ",": "comma", ":": "colon", ".": "dot",
+      "[": "lbracket", "]": "rbracket", "(": "lparen", ")": "rparen", "=": "eq", ",": "comma", ":": "colon", ".": "dot", "*": "star", "!": "bang",
     };
     if (punct[c]) { advance(); tokens.push({ kind: punct[c], text: c, pos: start }); continue; }
 
@@ -754,6 +775,13 @@ class Parser {
           this.next();
           this.parseMembers(child);
           this.expect("rbracket", "']'");
+          // `d: Dataset [ schema = [ … ] ] { …json… }` (B4): attributes AND
+          // an embedded body compose — the schema'd embedded dataset's form.
+          // Pure syntax here; the checker owns whether the tag admits a body.
+          if (this.peek().kind === "code") {
+            const body = this.next();
+            child.raw = { src: body.str!, pos: body.pos };
+          }
           el.children.push(child);
         } else if (this.peek().kind === "code") {
           // `events: Dataset { …json… }` — a named child with an embedded raw
@@ -897,6 +925,16 @@ class Parser {
       case "code": return { kind: "code", src: t.str!, pos: t.pos };
       case "colon": return this.parsePath(t.pos);
       case "lbracket": {
+        // `[ name: … ]` — a data-shape literal (B4): a field name followed by
+        // a shape marker or `:` distinguishes it from a plain list at two
+        // tokens of lookahead ([a, b] hits comma; [a] hits rbracket).
+        if (this.peek().kind === "ident") {
+          const after = this.peekAt(1).kind;
+          if (after === "colon" || after === "query" || after === "bang" ||
+              (after === "lbracket" && this.peekAt(2).kind === "rbracket")) {
+            return { kind: "schema", shape: this.parseShapeFields(), pos: t.pos };
+          }
+        }
         // `[a, b, …]` — a list literal (idents for `styles`; font names,
         // strings, and url()/local() sources for the font slots).
         const items: Literal[] = [];
@@ -912,25 +950,135 @@ class Parser {
     }
   }
 
-  /** `:field(.field)*` with an optional glued `[]` (the replication form,
-   *  language §9: `:arr[]` matches many). `[]` must sit hard against the
-   *  path — `%`-style adjacency: the marker is part of the value's spelling. */
+  /** The fields of a data-shape literal (B4), after the opening `[`:
+   *  `name markers : (type | [ nested ])` comma-separated to the `]`.
+   *  Markers, in this order when combined: `[]` (array), `?` (optional).
+   *  Identity is never declared — a record's `id` field is its identity by
+   *  convention (the invisible rule), so `!` refuses pointedly. */
+  private parseShapeFields(): ShapeField[] {
+    const fields: ShapeField[] = [];
+    while (this.peek().kind !== "rbracket" && this.peek().kind !== "eof") {
+      const name = this.expect("ident", "a field name in the schema shape");
+      let array = false, optional = false;
+      if (this.peek().kind === "lbracket" && this.peekAt(1).kind === "rbracket") { this.next(); this.next(); array = true; }
+      if (this.peek().kind === "query") { this.next(); optional = true; }
+      if (this.peek().kind === "bang") {
+        throw new DeclareError(
+          `'${name.text}!' — identity is never declared: a record's 'id' field IS its identity by convention (key = :field overrides an unconventional name); drop the '!'`,
+          this.peek().pos
+        );
+      }
+      this.expect("colon", `':' after the shape field '${name.text}'`);
+      let field: ShapeField;
+      if (this.peek().kind === "lbracket") {
+        this.next();
+        const nested = this.parseShapeFields();
+        field = { name: name.text, array, optional, type: null, fields: nested };
+      } else {
+        const ty = this.expect("ident", "a shape field's type — string | number | boolean | any, or a nested [ … ]");
+        if (ty.text !== "string" && ty.text !== "number" && ty.text !== "boolean" && ty.text !== "any") {
+          throw new DeclareError(`a shape field's type is string | number | boolean | any, or a nested [ … ] — not '${ty.text}'`, ty.pos);
+        }
+        field = { name: name.text, array, optional, type: ty.text };
+      }
+      fields.push(field);
+      if (this.peek().kind === "comma") this.next();
+      else break;
+    }
+    this.expect("rbracket", "']' closing the schema shape");
+    return fields;
+  }
+
+  /** `:field(.field)*` with selectors (B3, jsonpath-spelling.md): glued
+   *  bracket groups carry the RFC 9535 v1 subset — `[2]` index (negative from
+   *  the end), `[a:b]`/`[a:b:c]` slice, `[*]` wildcard (`.​*` normalizes to
+   *  it), `["name"]`/`['name']` quoted name — and the empty `[]` remains the
+   *  replication marker, trailing only (D4 §2: `[]` replicates, `[*]`
+   *  selects). Brackets sit hard against the path (`%`-style adjacency);
+   *  filters and unions refuse with their gate named. `plan` is attached
+   *  exactly when the spelling used anything beyond dot-idents. */
   private parsePath(pos: Pos): Literal {
-    let last = this.expect("ident", "a field name after ':'");
-    let path = last.text;
-    while (this.peek().kind === "dot") {
-      this.next();
-      last = this.expect("ident", "a field name after '.'");
-      path += "." + last.text;
-    }
+    const first = this.expect("ident", "a field name after ':'");
+    let path = first.text;
+    const plan: PathSeg[] = [first.text];
+    let planful = false;
+    let end = first.pos.offset + first.text.length;
     let many = false;
-    const lb = this.peek();
-    if (lb.kind === "lbracket" && lb.pos.offset === last.pos.offset + last.text.length) {
-      this.next();
-      this.expect("rbracket", "']' — a many-path is written ':items[]'");
-      many = true;
+    for (;;) {
+      const t = this.peek();
+      if (t.kind === "dot") {
+        this.next();
+        if (this.peek().kind === "star") {
+          const st = this.next();
+          path += "[*]";
+          plan.push({ w: 1 });
+          planful = true;
+          end = st.pos.offset + 1;
+          continue;
+        }
+        const name = this.expect("ident", "a field name after '.' (an index is written [2])");
+        path += "." + name.text;
+        plan.push(name.text);
+        end = name.pos.offset + name.text.length;
+        continue;
+      }
+      if (t.kind === "lbracket" && t.pos.offset === end) {
+        this.next();
+        const s = this.peek();
+        if (s.kind === "rbracket") {
+          this.next();
+          many = true;
+          break; // the replication marker is trailing by grammar
+        }
+        if (s.kind === "query") {
+          throw new DeclareError("filter selectors ([?…]) are not in the path subset yet (jsonpath-spelling.md §5) — derive the subset in a Dataset [ contents = { … } ] and bind to that", s.pos);
+        }
+        if (s.kind === "star") {
+          this.next();
+          path += "[*]";
+          plan.push({ w: 1 });
+        } else if (s.kind === "string") {
+          this.next();
+          path += `[${JSON.stringify(s.str!)}]`;
+          plan.push(s.str!);
+        } else if (s.kind === "number" || s.kind === "colon") {
+          const readInt = (): number | null => {
+            if (this.peek().kind !== "number") return null;
+            const nt = this.next();
+            if (!Number.isInteger(nt.num) || nt.hex === true) throw new DeclareError("a path index is a plain integer", nt.pos);
+            return nt.num!;
+          };
+          const parts: (number | null)[] = [readInt()];
+          let colons = 0;
+          while (this.peek().kind === "colon" && colons < 2) {
+            this.next();
+            colons++;
+            parts.push(readInt());
+          }
+          if (colons === 0) {
+            path += `[${parts[0]}]`;
+            plan.push({ i: parts[0]! });
+          } else {
+            while (parts.length < 3) parts.push(null);
+            path += `[${parts.map((v) => (v === null ? "" : String(v))).join(":").replace(/:$/, "")}]`;
+            plan.push({ s: parts as [number | null, number | null, number | null] });
+          }
+        } else {
+          throw new DeclareError("a path selector is [index], [start:end:step], [*], or ['name']", s.pos);
+        }
+        if (this.peek().kind === "comma") {
+          throw new DeclareError("union selectors ([a, b]) are not in the path subset (jsonpath-spelling.md §5) — write separate reads, or derive the set in a Dataset [ contents = { … } ]", this.peek().pos);
+        }
+        const rb = this.expect("rbracket", "']' closing the path selector");
+        end = rb.pos.offset + 1;
+        planful = true;
+        continue;
+      }
+      break;
     }
-    return { kind: "path", path, many, pos };
+    return planful
+      ? { kind: "path", path, many, pos, plan }
+      : { kind: "path", path, many, pos };
   }
 
   atClass(): boolean {

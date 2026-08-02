@@ -155,6 +155,25 @@ export function routeInput(alive, resolve, rootPoint, onHover) {
         };
         window.addEventListener(type, listener);
     };
+    // The platform's CONTEXT gesture (right-click / two-finger tap): resolved
+    // through the same seam as every press; delivered — and the browser's own
+    // menu suppressed — exactly where an onContextMenu handler is declared.
+    // Touch context rides onHold instead (the hold gate), so nothing here
+    // touches the touch stream.
+    {
+        const ctxListener = (e) => {
+            if (!alive()) {
+                window.removeEventListener("contextmenu", ctxListener);
+                return;
+            }
+            const t = resolve(e);
+            if (t !== null && t.wantsContext === true) {
+                e.preventDefault();
+                t.sink("contextMenu", t.x, t.y);
+            }
+        };
+        window.addEventListener("contextmenu", ctxListener);
+    }
     listen("pointerdown", (e) => {
         const t = resolve(e);
         held = t;

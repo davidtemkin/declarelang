@@ -46,6 +46,26 @@ export const LANGUAGE_METHOD_EFFECTS = new Map([
     // View.scrollIntoView(align?) — the imperative reveal (backend.ts). Writes
     // scroll state, reads no reactive cell → pure for analysis.
     ["scrollIntoView", []],
+    // View.rootOrigin() — the view's origin in root space via THE scroll-aware
+    // walk (interaction.ts rootFrameOrigin). It READS geometry (ancestor x/y,
+    // scroll offsets) — but callers so far are handlers anchoring an overlay at
+    // gesture time (Menu.openAt/openFor), where a snapshot is the semantics; a
+    // constraint that wants live geometry declares the reads it derives from.
+    // Registered with no modeled reads: pure for dependency analysis.
+    ["rootOrigin", []],
+    // Keys.navClaim(owner, on) — claim/release the navigation keys from the
+    // browser's scroll defaults (keys.ts). Mutates a plain claim set, reads no
+    // reactive cell → pure for analysis. A Menu claims at open, releases at close.
+    ["navClaim", []],
+    // View.travelWith(scroller) — re-hosts the view's surface (view.ts). A
+    // structural/backend move, no reactive read → pure for analysis.
+    ["travelWith", []],
+    // View.$setData(path, v) — the datapath WRITE (view.ts). The this-receiver
+    // literal-path form is special-cased in dep-extract (the plan currency);
+    // this row covers OTHER receivers — a cell writing through its ROW's cursor
+    // (`classroot.$setData(["title"], v)`, the DataGrid editors). A write reads
+    // no reactive cell → pure for analysis.
+    ["$setData", []],
     // App.createView(tag, parent, props?) — imperative creation (planes.md §7,
     // instantiate.ts). Constructs a subtree; reads no reactive cell at the call
     // site → pure for analysis (the created instance's own bindings wire

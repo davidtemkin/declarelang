@@ -31,6 +31,7 @@ import { attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerNa
 import { Diag } from "./diagnostics.js";
 import { coerce, describeLiteral, declaredType, DECLARED_TYPE_NAMES } from "./value.js";
 import { validateExpr, validateBody } from "./expr.js";
+import { isSelective, staticSegs } from "./datapath.js";
 import { faceWeight, FONT_WEIGHTS } from "./font.js";
 import { NOUNS, RESERVED, programSchemas, checkDecl, withDecls, manyPathOf, coerceToken } from "./program-schema.js";
 // The schema half of the twin tables — class registration, effective schemas,
@@ -542,6 +543,21 @@ classRoot = false) {
             if (attr.name === "key" && replicated) {
                 if (attr.value.kind !== "path" || attr.value.many) {
                     errors.push(new DeclareError(`key = :field names each record's identity field (e.g. 'key = :id') — a single :path, not ${attr.value.kind === "path" ? "a many-path" : "a literal"}`, attr.value.pos));
+                }
+                continue;
+            }
+            // `materialize` is replication metadata like `key` (materialization.md,
+            // D5 RULED 2026-07-30; renamed from `windowed` in the naming ruling):
+            // the PERMANENT materialization policy slot — `all` (full — the
+            // default) | `auto` (platform threshold) | `window` (always window) |
+            // a count (window above N). Magic only on a replication template;
+            // elsewhere `materialize` is an ordinary attribute name.
+            if (attr.name === "materialize" && replicated) {
+                const v = attr.value;
+                const okIdent = v.kind === "ident" && (v.name === "all" || v.name === "auto" || v.name === "window");
+                const okNumber = v.kind === "number" && !v.hex && Number.isInteger(v.value) && v.value >= 0;
+                if (!okIdent && !okNumber) {
+                    errors.push(new DeclareError(`materialize = all | auto | window | <count> — the materialization policy (all: full materialization, the default; auto: the platform threshold decides; window: always window; a count: window above that many records)`, v.pos));
                 }
                 continue;
             }
@@ -1151,7 +1167,28 @@ export function checkAttr(schema, attr) {
                 error: new DeclareError(`${schema.name}.${attr.name} = :${attr.value.path}[] — a many-path replicates, which is 'datapath's meaning; a value slot reads a single :path`, attr.value.pos),
             };
         }
-        return { ok: true, datapath: { path: attr.value.path, many: attr.value.many, pos: attr.value.pos } };
+        // The D4 legality table (jsonpath-spelling.md §4): a SELECTIVE path
+        // (slice/wildcard) is legal in value reads and in `:path[]` replication;
+        // a write target and a bare cursor are ONE place each — and must be
+        // STATIC (a negative index reads the array's length, a live fact).
+        if (attr.value.plan !== undefined && staticSegs(attr.value.plan) === null) {
+            const why = isSelective(attr.value.plan)
+                ? "a selective path (slice/wildcard) matches many"
+                : "a negative index resolves against the array's length — a live fact, not a place";
+            if (attr.bind === "two") {
+                return {
+                    ok: false,
+                    error: new DeclareError(`'${attr.name} <-> :${attr.value.path}' — a two-way binding writes ONE place; ${why}. Bind the editor to a singular, static path`, attr.value.pos),
+                };
+            }
+            if (type.kind === "cursor" && !attr.value.many) {
+                return {
+                    ok: false,
+                    error: new DeclareError(`datapath = :${attr.value.path} — a cursor is ONE place; ${why}. Read it as a value, or replicate over it: datapath = :${attr.value.path}[]`, attr.value.pos),
+                };
+            }
+        }
+        return { ok: true, datapath: { path: attr.value.path, many: attr.value.many, pos: attr.value.pos, plan: attr.value.plan } };
     }
     const c = coerce(type, attr.value);
     if (c.ok && typeof c.value === "object" && c.value !== null && "align" in c.value &&

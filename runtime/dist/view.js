@@ -10,6 +10,7 @@
 // attach the pushes are no-ops (`surface` is null) and attach's flush sends
 // the full state once — literals cost no reactive machinery at all.
 import { Node, runRetire } from "./node.js";
+import { DeclareError } from "./errors.js";
 import { DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual } from "./value.js";
 import { disposeApplier, stylesheetArrived, stylesheetByName } from "./stylesheet.js";
 import { POINTER_TYPES, TOUCH_TYPES } from "./backend.js";
@@ -20,10 +21,11 @@ export function provideViewCreator(fn) {
 }
 import { record } from "./draw.js";
 import { Constraint } from "./reactive.js";
-import { initInteraction, readHovered, readPressed, hitAt, boxContains } from "./interaction.js";
+import { initInteraction, readHovered, readPressed, hitAt, boxContains, rootFrameOrigin } from "./interaction.js";
 import { bindDerived, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned } from "./attributes.js";
 import { handlerName } from "./schema.js";
 import { splitPath } from "./datapath.js";
+import { selectValue } from "./select.js";
 // view → the installed strategy's detach. Module-private bookkeeping rather
 // than a View field: only the pusher below touches it, and a layout-free
 // view (the common case) carries nothing.
@@ -32,6 +34,58 @@ const INSTALLED = new WeakMap();
 // Node can host a `<-` subscription, so the registry lives at the base.
 // Re-exported here so existing importers keep their path.
 export { onDiscard } from "./node.js";
+// Views whose replicated content is currently WINDOWED (replicate.ts marks
+// and unmarks) — consulted by the childViews refusal above. Lives here so
+// view.ts needs no import of the replicator (the dependency runs the other
+// way).
+const WINDOWED_BLOCKS = new WeakSet();
+/** Is this view's replicated content currently windowed? Consulted by the
+ *  layout kernel (the pass suspends while the windowing kernel owns
+ *  placement) and by the childViews refusal. */
+export function isWindowedBlock(v) {
+    return WINDOWED_BLOCKS.has(v);
+}
+export function markWindowedBlock(v, on) {
+    if (on)
+        WINDOWED_BLOCKS.add(v);
+    else
+        WINDOWED_BLOCKS.delete(v);
+}
+// ── onRetire — the DEPARTURE hook (D5 ruled the semantics, D8 the name) ──
+//
+// Fires when a member's PRESENCE ends — its record leaves the match, or its
+// subtree is discarded — the exact symmetric of the membership-anchored
+// onInit, and NEVER on window eviction (a dematerialized row's presence
+// continues; the replicator marks evictions so discard stays silent for
+// them). Children before parents, mirroring initTree's order; once per
+// lifetime. Fired at the TOP of discard, so handlers see live state.
+const EVICTING = new WeakSet();
+const RETIRED = new WeakSet();
+export function markEvicting(v) {
+    EVICTING.add(v);
+}
+export function fireRetireTree(v) {
+    if (RETIRED.has(v))
+        return;
+    RETIRED.add(v);
+    for (const c of v.children) {
+        if (c instanceof View)
+            fireRetireTree(c);
+    }
+    fireEvent(v, "retire");
+}
+/** Fire the membership-anchored `init` down an EXISTING subtree — the
+ *  RECYCLED-instance arrival (replicate.ts): a live row re-pointed at a
+ *  record whose presence episode is new fires that MEMBER's init without a
+ *  reconstruction, the exact mirror of suppressInit on a rebuilt member
+ *  whose episode continues. Parent-first, like construction's own order. */
+export function fireInitTree(v) {
+    fireEvent(v, "init");
+    for (const c of v.children) {
+        if (c instanceof View)
+            fireInitTree(c);
+    }
+}
 // ── Auto-extent (the weather rung, ruled at the R7 checkpoint) ──────────
 //
 // A view whose width/height the author never set sizes to its children's
@@ -116,28 +170,40 @@ export class View extends Node {
         }
     }
     /** Read data relative to this view's inherited cursor — the runtime form
-     *  every `:path` in a `{ }` body rewrites to (`:location.city` →
-     *  `this.$data("location.city")`, expr.ts). Tracked like any read: the
-     *  binding wakes when exactly this region — or any datapath on the chain
-     *  above — changes. An unresolved path yields null (language §9). */
+     *  every `:path` in a `{ }` body resolves to. The COMPILER emits the
+     *  pre-parsed segments (`:location.city` → `this.$data(["location","city"])`,
+     *  compile.ts resolveBody — data-paths.md §5's emitted plans); the string
+     *  form remains for hand-written calls and the direct-instantiate dev path
+     *  (expr.ts's link-time rewrite). Tracked like any read: the binding wakes
+     *  when exactly this region — or any datapath on the chain above — changes.
+     *  An unresolved path yields null (language §9). */
     $data(path) {
         const cursor = inheritedCursor(this);
         if (cursor === null)
             return null;
-        const v = cursor.data.read([...cursor.path, ...splitPath(path)]);
-        return v === undefined ? null : v;
+        const plan = typeof path === "string" ? splitPath(path) : path;
+        // Pure-name plans ride the currency walk (today's read, coercing —
+        // `:rows.length` stays live); a plan with selectors evaluates per RFC
+        // 9535 (select.ts), the B3 surface.
+        if (plan.every((s) => typeof s === "string")) {
+            const v = cursor.data.read([...cursor.path, ...plan]);
+            return v === undefined ? null : v;
+        }
+        return selectValue(cursor.data, cursor.path, plan);
     }
     /** Write `v` to `path` relative to this view's inherited cursor — the write
      *  twin of `$data`, the runtime half of a two-way `<->` binding (language §9,
      *  the leaf-input exception). Lands through `Dataset.set` (equality-gated →
      *  the read side that fed the field re-reads the same value and stops at the
      *  gate, so committing a draft is a no-op round-trip, not a loop). A datapath
-     *  that resolves to no dataset is a no-op — there is nowhere to write. */
+     *  that resolves to no dataset is a no-op — there is nowhere to write.
+     *  Accepts pre-parsed segments like $data, for symmetry. */
     $setData(path, v) {
         const cursor = inheritedCursor(this);
         if (cursor === null)
             return;
-        cursor.data.set([...cursor.path, ...splitPath(path)].join("."), v);
+        const segs = typeof path === "string" ? splitPath(path) : path;
+        cursor.data.set([...cursor.path, ...segs], v);
     }
     /** The tree-mutation entry (R8): children were inserted/removed/reordered
      *  as a unit — re-arm the installed arrangement and re-derive auto-extent,
@@ -224,6 +290,14 @@ export class View extends Node {
      *  reads. Aggregation over a node collection is refused for exactly that
      *  reason (dep-extract); the number you want is usually in the data. */
     get childViews() {
+        // The honest seam made loud (materialization.md §2, D5 RULED 2026-07-30):
+        // on a WINDOWED block the instance list is the runtime's business — a
+        // partial answer would be scroll-dependent, so the app-language read
+        // refuses and names the idiom. The live window is kernel API
+        // (replicate.ts blockOf/windowInfo); non-windowed blocks are unchanged.
+        if (WINDOWED_BLOCKS.has(this)) {
+            throw new DeclareError(`childViews on a windowed block answers with whichever rows happen to be materialized — a scroll-dependent lie. Derive counts and aggregates from the DATA (:rows), which is complete by definition`);
+        }
         this.watchChildList();
         return this.children.filter((c) => c instanceof View);
     }
@@ -270,6 +344,13 @@ export class View extends Node {
      *  can ever wake work for a removed view. Children first; the model links
      *  (parent/children) are the caller's to cut (Node.removeChild). */
     discard() {
+        // The departure hook (D5/D8): presence is ENDING — fire onRetire down
+        // the subtree while everything is still alive, unless this discard is a
+        // window EVICTION (the presence continues; the replicator marked it).
+        if (EVICTING.has(this))
+            EVICTING.delete(this);
+        else
+            fireRetireTree(this);
         // Move focus off this subtree before it is torn down (input.md §mutation).
         focusDiscardHook?.(this);
         // EVERY child, not just Views: an Animator/Spring child is a Node, and its
@@ -362,6 +443,43 @@ export class View extends Node {
     containsPoint(x, y) {
         return boxContains(this, x, y);
     }
+    /** This view's origin in ROOT space (the root's content coordinates — the
+     *  same space `viewAt` takes and drag events carry). THE one walk
+     *  (interaction.ts): translate per level MINUS every intermediate scroll
+     *  offset, with the root's own scroll added back at the boundary — so an
+     *  overlay anchored by it (a menu at a pointer, a popover under a control)
+     *  lands where the view is SEEN, at any scroll. Components call this
+     *  instead of hand-accumulating ancestor x/y, which is scroll-blind. */
+    rootOrigin() {
+        const o = rootFrameOrigin(this);
+        const r = (this.root ?? this);
+        return { x: o.x + r.scrollX, y: o.y + r.scrollY };
+    }
+    /** Travel with `scroller`: re-host this view's SURFACE inside the
+     *  scroller's container so the platform carries it with the scrolled
+     *  content — zero-lag chrome that belongs to content (the FocusRing's
+     *  ride; the inverse of `ignoreScroll`). Position slots then mean the
+     *  scroller's CONTENT coordinates. Pass null (or this view's own parent —
+     *  its natural host) to come home; the ROOT is a real destination, not
+     *  home, so chrome can climb OUT of a scroller that sits directly under
+     *  it (the DataGrid header's escape).
+     *  Returns whether the surface now rides the scroller — false when the
+     *  backend can't (no surface yet, or no travelWith), so callers keep the
+     *  reactive root-space fallback. */
+    travelWith(scroller) {
+        const s = this.surface;
+        if (s === null || typeof s.travelWith !== "function")
+            return false;
+        const home = scroller === null || scroller === this.parent;
+        if (home) {
+            s.travelWith(null);
+            return false;
+        }
+        if (scroller.surface === null)
+            return false;
+        s.travelWith(scroller.surface);
+        return true;
+    }
     /** Scroll this view to the top of its nearest scrolling ancestor — the
      *  imperative companion to the reactive `scrolls`/`scrollY` pair (a click
      *  handler calls it to jump to a target). Both backends do the work in their
@@ -444,6 +562,8 @@ export class View extends Node {
             wantsTouch: TOUCH_TYPES.some(has),
             wantsDrag: has("pointerMove"),
             wantsWheel: has("wheel"),
+            claimAxis: this.claim,
+            wantsContext: has("contextMenu"),
         };
     }
     /** Stand up the draw method as a tracked, re-recording computation. */
@@ -534,6 +654,7 @@ defineAttributes(View, {
     // find one — scrollIntoView is axis-blind and walks ancestors, which is how
     // a horizontal strip reveal once vertically scrolled the island hosting it.
     scrollY: { def: 0, push: (v, y) => v.surface?.scrollToY?.(y) },
+    claim: { def: "both" },
     scrollX: { def: 0, push: (v, x) => v.surface?.scrollToX?.(x) },
     // The prevailing built-ins: model-side on View (no push — Text's style
     // derive is the consumer that crosses the seam). Defaults are the

@@ -55,6 +55,9 @@ const CLAIMS_RAW = `App [ width = 640, height = 400, fill = #202830,
         onPointerDown() { app.sawX = app.pointerX; app.sawY = app.pointerY },
         onPointerMove(e: PointerEvent) { },
         ],
+    xdrag: View [ x = 200, y = 140, width = 160, height = 100, fill = #38495A, claim = x,
+        onPointerMove(e: PointerEvent) { },
+        ],
     mesa: View [ x = 200, y = 20, width = 160, height = 100, fill = #445566,
         onTouchStart(e: TouchEvent) { },
         ],
@@ -345,6 +348,12 @@ await test("dom: hovered/pressed hit where things PAINT — page scroll, pane sc
 
 await test("dom: onPointerMove claims the drag, keeps pinch — `pinch-zoom`", async () => {
   assert.equal((await styleAt(100, 70)).touchAction, "pinch-zoom");
+});
+
+await test("dom: the AXIS-SCOPED claim (claim = x) keeps vertical pan — `pan-y pinch-zoom` (D8, claim-surface.md)", async () => {
+  // The datagrid forcing case: a horizontal drag owns x while the page keeps
+  // vertical pan — the browser's own arbitration runs the cross axis.
+  assert.equal((await styleAt(280, 190)).touchAction, "pan-y pinch-zoom");
 });
 
 await test("dom: a TOUCH press lands app.pointerX/Y before onPointerDown fires", async () => {
@@ -704,6 +713,52 @@ await test("canvas: scrolling the page moves the content but not the ignoreScrol
   assert.equal(r.offset, 500, "the root pane offset mirrors the window");
   assert.equal(r.scrollY, 500);
   await page.evaluate(() => window.scrollTo({ top: 0 }));
+});
+
+await test("dom: hovered/pressed hit where things PAINT — page scroll, pane scroll, ignoreScroll chrome", async () => {
+  const tp = await browser.newPage();
+  await tp.goto(`${B}/dom-walk`, { waitUntil: "networkidle2", timeout: 30000 });
+  await tp.waitForFunction(() => window.__rendered === true, { timeout: 15000 });
+  const flags = () => tp.evaluate(() => ({
+    hd: window.__app.hd, pd: window.__app.pd, hbar: window.__app.hbar, hi: window.__app.hi,
+    scrollY: window.scrollY,
+  }));
+  // Page scrolled: the deep button paints near the viewport top — hover and press it there.
+  await tp.evaluate(() => window.scrollTo(0, 800));
+  const rect = await tp.evaluate(() => {
+    const r = window.__app.deep.surface.element.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  await tp.mouse.move(rect.x, rect.y);
+  let f = await flags();
+  assert.equal(f.hd, true, `deep hovers at its painted position (scrollY=${f.scrollY})`);
+  await tp.mouse.down();
+  f = await flags();
+  assert.equal(f.pd, true, "and presses there");
+  await tp.mouse.up();
+  // The fixed bar, same scroll.
+  await tp.mouse.move(100, 20);
+  f = await flags();
+  assert.equal(f.hbar, true, "ignoreScroll chrome hovers at its frame position");
+  assert.equal(f.hd, false, "the content view a scroll away does not");
+  // A pane-interior view, pane scrolled while the page is too.
+  await tp.evaluate(() => {
+    window.__app.column.pane.surface.element.scrollTop = 390;
+  });
+  const irect = await tp.evaluate(() => {
+    const r = window.__app.column.pane.inner.surface.element.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  });
+  await tp.mouse.move(irect.x, irect.y);
+  f = await flags();
+  assert.equal(f.hi, true, "a scrolled pane's content hovers where it paints");
+  // viewAt keeps the CONTENT-space contract (the drag pairing) at any scroll.
+  const va = await tp.evaluate(() => {
+    const app = window.__app;
+    return { deep: app.viewAt(140, 930) === app.deep, chrome: app.viewAt(140, 930 - window.scrollY) !== app.deep };
+  });
+  assert.equal(va.deep, true, "viewAt(contentX, contentY) answers the painted view");
+  await tp.close();
 });
 
 await open("/dom-lock");

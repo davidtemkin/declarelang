@@ -25,7 +25,7 @@ import type { AttrType } from "./value.js";
  *  running the session, so an unbound field costs nothing. */
 export declare function isTwoWay(view: View, name: string): boolean;
 /** Wire a STATIC `name <-> :path` (called from instantiate). */
-export declare function bindTwoWay(view: View, name: string, path: string, type: AttrType): void;
+export declare function bindTwoWay(view: View, name: string, path: string | readonly string[], type: AttrType): void;
 /** Wire a DYNAMIC `name <-> { expr }`: the expression yields the field name (or a
  *  relative path) at runtime — a generic editor bound to a slot chosen by a
  *  `classroot.field` string. The path thunk reads the expr under the reseed's

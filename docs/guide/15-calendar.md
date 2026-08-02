@@ -91,11 +91,11 @@ threshold, up — and then a drop is *one edit to the data*:
 ```declare-fragment
 commitDrop(px: number, py: number) {
 const idx = app.data.value.events.findIndex(e => e.id == this.dragId)
-const p = "events." + idx + "."
+const p = ["events", idx]
 const d = app.parseKey(this.cellAt(px, py).key)        // invert the mapping: point → cell
-app.data.set(p + "y", d.getFullYear())
-app.data.set(p + "m", d.getMonth() + 1)
-app.data.set(p + "d", d.getDate())                     // …and the derived grid re-lays itself
+app.data.set([...p, "y"], d.getFullYear())
+app.data.set([...p, "m"], d.getMonth() + 1)
+app.data.set([...p, "d"], d.getDate())                 // …and the derived grid re-lays itself
     }
 ```
 

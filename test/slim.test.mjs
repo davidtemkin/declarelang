@@ -196,6 +196,50 @@ if (!CHROME) {
     assert.ok(modsOf(with_)["tip.js"] > STUBBED, "one tip attribute keeps it");
   });
 
+  await test("the datapath island scanner drops from EVERY production build (data-paths.md §5)", async () => {
+    // Even an app that USES datapaths ships without the scanner: compile()
+    // lowered each `:path` island to `this.$data([…])` at emission, so the
+    // runtime rewrite is the identity and only splitPath (the attribute-path
+    // currency, kept real in the stub) remains live. The render proves the
+    // emitted plans carry the reads end to end under the stub.
+    const src = `App [ width = 200, fill = white,
+      d: Dataset { { "label": "hi from a plan" } },
+      v: View [ datapath = { d.value }, Text [ x = 10, y = 10, text = { "" + :label } ] ],
+    ]`;
+    const b = await buildProduction(src, {});
+    const m = modsOf(b);
+    assert.ok(m["datapath.js"] < STUBBED, `datapath.js should be stubbed, was ${m["datapath.js"]}`);
+    const appJs = b.files.find((f) => f.name.startsWith("app.")).contents;
+    // The program rides app.js as a serialized string, so the plan's quotes
+    // arrive escaped (`$data([\\"label\\"])`) — match through any escaping.
+    assert.ok(/\$data\(\[[\\"]*label/.test(appJs), "the embedded program carries the pre-parsed plan");
+    await renders(src);
+  });
+
+  await test("the selector evaluator rides only with selectors aboard (data-paths.md §7 — pay-for-what-you-write)", async () => {
+    const without = await buildProduction(`App [ width = 200,
+      d: Dataset { { "label": "x" } },
+      v: View [ datapath = { d.value }, Text [ text = { "" + :label } ] ],
+    ]`, {});
+    assert.ok((modsOf(without)["select.js"] ?? 0) < STUBBED, `a name-only program stubs select.js, was ${modsOf(without)["select.js"]}`);
+    const src = `App [ width = 200, fill = white,
+      d: Dataset { { "rows": ["a", "b", "c", "d"] } },
+      v: View [ datapath = { d.value }, Text [ x = 10, y = 10, text = { (:rows[1:3]).join("+") } ] ],
+    ]`;
+    const with_ = await buildProduction(src, {});
+    assert.ok(modsOf(with_)["select.js"] > STUBBED, "a slice keeps the evaluator");
+    await renders(src); // and it evaluates under the production stubs
+  });
+
+  await test("the shape validator rides only with a schema aboard (B4 — pay-per-use)", async () => {
+    const without = await buildProduction(`App [ width = 200, d: Dataset { { "x": 1 } }, Text [ text = "n" ] ]`, {});
+    assert.ok((modsOf(without)["data-schema.js"] ?? 0) < STUBBED, `no schema → data-schema.js stubbed, was ${modsOf(without)["data-schema.js"]}`);
+    const with_ = await buildProduction(`App [ width = 200,
+      d: Dataset [ schema = [ rows[]: [ id: string ] ] ] { { "rows": [] } },
+      Text [ text = "n" ] ]`, {});
+    assert.ok(modsOf(with_)["data-schema.js"] > STUBBED, "a declared schema keeps the validator");
+  });
+
   await test("a service-free app still RENDERS (the stubs satisfy boot's wiring)", async () => {
     await renders(`App [ width = 200, fill = white, Text [ x = 10, y = 10, text = "no services" ] ]`);
   });

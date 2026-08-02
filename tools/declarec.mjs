@@ -243,7 +243,18 @@ export const Inspect = new Proxy({ ready: () => false }, {
     for (const c of el.children ?? []) walkBodies(c, fn);
   };
   const programFacts = (() => {
-    let themes = false, draw = false, focusKeys = false, tips = false, touch = false;
+    let themes = false, draw = false, focusKeys = false, tips = false, touch = false, selectors = false, schemas = false;
+    // A SELECTOR plan (any non-string segment — index/slice/wildcard) in an
+    // attribute path or an emitted body plan keeps the evaluator aboard.
+    const planful = (v) => v != null && v.kind === "path" && Array.isArray(v.plan) && v.plan.some((s) => typeof s !== "string");
+    const walkSel = (el) => {
+      for (const a of el.attrs ?? []) {
+        if (planful(a.value)) selectors = true;
+        if (a.value?.kind === "schema") schemas = true;
+      }
+      for (const d of el.decls ?? []) if (planful(d.def)) selectors = true;
+      for (const c of el.children ?? []) walkSel(c);
+    };
     const roots = [built.program.root, ...built.program.classes.map((c) => c.body)];
     // Any component the program can construct whose RUNTIME class makes itself
     // a tab stop without the source saying so (text-input.ts sets `focusable`
@@ -282,10 +293,13 @@ export const Inspect = new Proxy({ ready: () => false }, {
         // A body may CALL the services (`Keys.isDown(…)`, `Focus.focus(this)`).
         if (/\bKeys\b|\bFocus\b/.test(src)) focusKeys = true;
         if (/\bTip\b/.test(src)) tips = true;
+        // An emitted body plan with a selector segment: $data([…{…]).
+        if (/\$data\(\[[^\]]*\{/.test(src)) selectors = true;
       });
       walkEl(r);
+      walkSel(r);
     }
-    return { usesThemes: themes, usesDraw: draw, usesFocusKeys: focusKeys, usesTips: tips, claimsTouch: touch };
+    return { usesThemes: themes, usesDraw: draw, usesFocusKeys: focusKeys, usesTips: tips, claimsTouch: touch, usesSelectors: selectors, usesSchemas: schemas };
   })();
   // index.js re-exports inspect's query surface by name; a stub must export
   // every name (esbuild resolves named re-exports even when unused downstream).
@@ -349,6 +363,42 @@ export function normalize() { return null; }
 const NOOP = () => {};
 export const Tip = { over: NOOP, out: NOOP, hide: NOOP, onTip: () => NOOP, show: NOOP };
 `;
+  // The datapath ISLAND SCANNER (datapath.js's lexical layer) is compile-time
+  // machinery since the emitted-plans change (data-paths.md §5): compile()
+  // lowers every `:path` island to `this.$data([…])` before emission, so a
+  // production program has no `:` value mode left for the runtime to scan —
+  // rewriteDatapaths is the identity on every body it will ever see here.
+  // splitPath stays REAL: the attribute-path currency (bindDatapath,
+  // replication, $data's string form) still splits at link time.
+  const datapathStub = `
+export const splitPath = (path) => (path === "" ? [] : path.split("."));
+export const isSelective = (plan) => plan.some((s) => typeof s !== "string" && !("i" in s));
+export function staticSegs(plan) {
+  const out = [];
+  for (const s of plan) {
+    if (typeof s === "string") out.push(s);
+    else if ("i" in s && s.i >= 0) out.push(String(s.i));
+    else return null;
+  }
+  return out;
+}
+export function scanDatapaths() { return []; }
+export function datapathTrouble() { return null; }
+export function rewriteDatapaths(src) { return { src }; }
+export function fillDatapaths(src) { return src; }
+`;
+  // The selector EVALUATOR (select.js — slices/wildcards/indices, B3) rides
+  // only when the program's plans actually contain a selector segment — the
+  // §7 pay-for-what-you-write table. A name-only program ships today's walk.
+  const selectStub = `
+const REFUSE = () => { throw new Error("path selectors are not aboard this build (the program declared none at compile time — rebuild)"); };
+export const selectNodes = REFUSE, selectValue = REFUSE, evaluatePlan = REFUSE;
+`;
+  // The data-shape validator (data-schema.js, B4) rides only when the
+  // program declares a schema — the same pay-per-use lever.
+  const dataSchemaStub = `
+export function validateShape() { return null; }
+`;
   const themesStub = `export const Themes = Object.freeze({});\n`;
   const viewportStub = `export function lockFocusZoom() {}\n`;
   const drawStub = `export function record() { return null; }\nexport function replay() {}\nexport class Draw {}\nexport class DrawGradient {}\n`;
@@ -361,6 +411,7 @@ export const Tip = { over: NOOP, out: NOOP, hide: NOOP, onTip: () => NOOP, show:
   const factPlugins = opts.debug ? [] : [
     stubFor("slim-check", /[/\\]check\.js$/, checkStub),
     stubFor("slim-bridge", /[/\\]inspect\.js$/, bridgeStub),
+    stubFor("slim-datapath", /[/\\]datapath\.js$/, datapathStub),
     ...(programFacts.usesThemes ? [] : [stubFor("slim-themes", /[/\\]themes\.js$/, themesStub)]),
     ...(programFacts.usesDraw ? [] : [stubFor("slim-draw", /[/\\]draw\.js$/, drawStub)]),
     ...(programFacts.usesFocusKeys ? [] : [
@@ -369,6 +420,8 @@ export const Tip = { over: NOOP, out: NOOP, hide: NOOP, onTip: () => NOOP, show:
     ]),
     ...(programFacts.usesTips ? [] : [stubFor("slim-tip", /[/\\]tip\.js$/, tipStub)]),
     ...(programFacts.claimsTouch ? [] : [stubFor("slim-viewport", /[/\\]viewport-lock\.js$/, viewportStub)]),
+    ...(programFacts.usesSelectors ? [] : [stubFor("slim-select", /[/\\]select\.js$/, selectStub)]),
+    ...(programFacts.usesSchemas ? [] : [stubFor("slim-dataschema", /[/\\]data-schema\.js$/, dataSchemaStub)]),
   ];
 
   const result = await esbuild.build({

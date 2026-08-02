@@ -46,7 +46,7 @@
 <p>That’s always been specialist craft: bespoke motion code, one interaction at a time, locked to a platform. In Declare, it’s simply what the declarations do, and it works everywhere.</p>
 <h2>505</h2>
 <p>lines of Declare — four views, continuous zoom, drag, and edit</p>
-<h2>56 KB</h2>
+<h2>62 KB</h2>
 <p>over the wire, gzipped — the whole app and its runtime</p>
 <h2>0</h2>
 <p>lines written by hand — an LLM wrote it; the compiler kept it honest</p>
@@ -516,7 +516,7 @@ Slider   [ value = { app.volume },
 <h2>Performance</h2>
 <h3>What should I expect in terms of performance — download size and interactive responsiveness?</h3>
 <p>Concretely, from the flagship comparison (a full-featured calendar built twice, once in Declare and once in React, measured side by side):</p>
-<ul><li><strong>Size</strong>: the entire Declare calendar — application <em>and</em> runtime — ships at about 56 KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte). The React equivalent is roughly twice the wire weight, with more than twice the source code.</li><li><strong>Responsiveness</strong>: measured input latency was several times lower in the Declare version. When you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.</li><li><strong>Startup</strong>: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.</li></ul>
+<ul><li><strong>Size</strong>: the entire Declare calendar — application <em>and</em> runtime — ships at about 62 KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte). The React equivalent is roughly twice the wire weight, with more than twice the source code.</li><li><strong>Responsiveness</strong>: measured input latency was several times lower in the Declare version. When you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.</li><li><strong>Startup</strong>: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.</li></ul>
 <p>Live numbers are on the homepage, measured from the deployed artifacts themselves.</p>
 <h2>Declare and LLMs</h2>
 <h3>What benefits does Declare bring for LLM coding, where a human may never read or write the code?</h3>
@@ -594,7 +594,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=0d8ed19dcd70";
+  import boot from "./bundles/declare-boot.js?v=342cfae29b69";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().

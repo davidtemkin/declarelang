@@ -301,6 +301,15 @@ only as each component demands it (no speculative machinery):
 
 ## 12. Open rulings
 
+> **The FocusRing canary (noted 2026-07-31, from the data tree's QA
+> rounds):** the ring is a Declare component whose only runtime privileges
+> are (a) geometry-as-fact (the `Focus.onGeometry` follower — dynamic
+> tracked reads no language constraint can express) and (b) the
+> surface-level `travelWith` ride (a chrome-scoped portal pending
+> `Floating`). When the layer system and a first-class geometry spelling
+> land, the ring should need NEITHER — making it the acceptance test for
+> whether those two doors are wide enough.
+
 1. Light-dismiss delivery: swallow-and-dismiss (Mac menus) vs
    dismiss-and-deliver (most web).
 2. `raise()` scope: layer children only (the lean — content stays pure

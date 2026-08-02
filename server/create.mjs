@@ -164,6 +164,9 @@ export function createDeclareServer(config = {}) {
     const title = relPath.split("/").pop();
     const cfg = {
       backend: backendClass, source: r.source, deps: r.deps, location: mode,
+      // the viewed program's own directory — the island's relative data urls
+      // (e.g. the Tracker's issues.json) resolve here, not at the Viewer's <base>
+      dataBase: "/" + relPath.replace(/^\/+/, "").replace(/[^/]*$/, ""),
       seeds: { __source__: JSON.stringify(segments), __raw__: rawSource, __path__: relPath,
         __metrics__: JSON.stringify(await toolchain.metrics(rawSource)) },
     };

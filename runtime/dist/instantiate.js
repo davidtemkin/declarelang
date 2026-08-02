@@ -69,8 +69,10 @@ import { defineAttributes, setBound } from "./attributes.js";
 import { bindConstraint, bindPercent, bindAlign, bindData, bindDatapath, bindCursor } from "./bind.js";
 import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
 import { Replicator } from "./replicate.js";
+import { staticSegs } from "./datapath.js";
 import { provideViewCreator } from "./view.js";
 import { toCursor } from "./data.js";
+import { validateShape } from "./data-schema.js";
 import { TAGS, LAYOUTS, LAYOUT_BASES, DATA, ANIMATORS, ANIMATOR_GROUPS, SOURCES, STATES } from "./registry.js";
 /** A SOURCE node — duck-typed on the lifecycle hook rather than imported by
  *  class, so instantiate keeps no static edge to the individual services (which
@@ -90,7 +92,7 @@ function routeAttr(schema, attr, trusted) {
     if (v.kind === "code")
         return { ok: true, binding: { src: v.src, pos: v.pos } };
     if (v.kind === "path")
-        return { ok: true, datapath: { path: v.path, many: v.many, pos: v.pos } };
+        return { ok: true, datapath: { path: v.path, many: v.many, pos: v.pos, plan: v.plan } };
     const type = attrType(schema, attr.name);
     const c = type !== null ? coerce(type, v) : null;
     if (c === null || !c.ok) {
@@ -115,8 +117,16 @@ export function instantiate(input) {
     const scriptScope = {};
     for (const s of program.scripts)
         Object.assign(scriptScope, evalScript(s.src));
+    CURRENT_SCRIPTS = scriptScope;
     return withScriptScope(scriptScope, () => buildTree(program, trusted));
 }
+/** The last program's script scope — replicated instances compile their
+ *  bodies LAZILY (a row materializes during a settle long after build), and
+ *  those compilations must see the same `script { }` helpers the eager ones
+ *  did. The materializer re-enters the scope around each construct. (Found
+ *  the day a replicated row called a script function: the eager bodies
+ *  bound it; the first materialized instance threw ReferenceError.) */
+let CURRENT_SCRIPTS = {};
 function buildTree(program, trusted) {
     const { infos, schemas, errors } = programSchemas(program.classes);
     if (errors.length > 0)
@@ -192,7 +202,7 @@ function installPending(pending, ctx) {
         else if ("twoWayCode" in p)
             bindTwoWayDynamic(p.view, p.attr.name, p.twoWayCode, p.attr.value.pos, p.classroot, p.type);
         else if ("dataPath" in p)
-            bindData(p.view, p.attr.name, p.dataPath, p.type);
+            bindData(p.view, p.attr.name, p.dataPath, p.type, p.plan);
         else if ("cursorPath" in p)
             bindDatapath(p.view, p.cursorPath);
         else if ("cursorCode" in p)
@@ -219,6 +229,19 @@ function installPending(pending, ctx) {
  *  view arrived (the initial build, or a later replication reconcile whose
  *  own initTree ran before the root's walk reached it). */
 const INITED = new WeakSet();
+/** Mark a whole subtree as already-inited WITHOUT firing anything — the
+ *  membership-anchored lifecycle (materialization.md §2, RULED 2026-07-30):
+ *  onInit fires once per record-MEMBERSHIP, so when the reconciler
+ *  reconstructs an instance for a member whose init already fired (a
+ *  windowed row scrolling back in, a keyed re-derivation reusing identity),
+ *  it pre-marks the fresh subtree and initTree stays silent. */
+export function markInited(view) {
+    INITED.add(view);
+    for (const child of view.children) {
+        if (child instanceof View)
+            markInited(child);
+    }
+}
 function initTree(view) {
     // The stylesheet channel arms here — construction-complete, before init
     // fires and before any paint, so onInit and the first frame both see the
@@ -638,16 +661,27 @@ function construct(el, outer, ctx, parentSchema = null) {
                     // is on a body root or a direct construct, which check refuses.
                     throw new DeclareError(`':${r.datapath.path}[]' makes many instances — a replication belongs on a child element, not here`, r.datapath.pos);
                 }
-                ctx.pending.push({ view, attr, cursorPath: r.datapath.path });
+                // The D4 legality table, enforced here too for the unchecked-tree
+                // path (check refuses at compile time): a cursor is ONE static place.
+                const cSegs = r.datapath.plan === undefined ? null : staticSegs(r.datapath.plan);
+                if (r.datapath.plan !== undefined && cSegs === null) {
+                    throw new DeclareError(`datapath = :${r.datapath.path} — a cursor is ONE place; a selective or data-resolved path matches elsewhere. Read it as a value, or replicate over it: datapath = :${r.datapath.path}[]`, r.datapath.pos);
+                }
+                ctx.pending.push({ view, attr, cursorPath: cSegs ?? r.datapath.path });
             }
             else if (attr.bind === "two") {
                 // `name <-> :path` — a two-way binding on an editable leaf slot: read
                 // the datapath AND write edits back to it (editor.ts). check() has
-                // already confirmed the slot is eligible.
-                ctx.pending.push({ view, attr, twoWay: r.datapath.path, type: t });
+                // already confirmed the slot is eligible — and that the path is a
+                // SINGULAR, STATIC place; the unchecked-tree path enforces it here.
+                const wSegs = r.datapath.plan === undefined ? null : staticSegs(r.datapath.plan);
+                if (r.datapath.plan !== undefined && wSegs === null) {
+                    throw new DeclareError(`'${attr.name} <-> :${r.datapath.path}' — a two-way binding writes ONE place; a selective or data-resolved path cannot name it`, r.datapath.pos);
+                }
+                ctx.pending.push({ view, attr, twoWay: wSegs ?? r.datapath.path, type: t });
             }
             else {
-                ctx.pending.push({ view, attr, dataPath: r.datapath.path, type: t });
+                ctx.pending.push({ view, attr, dataPath: r.datapath.path, type: t, plan: r.datapath.plan });
             }
         }
         else if (isPercent(r.value)) {
@@ -741,12 +775,24 @@ function constructData(el, schema, outer, ctx) {
             throw new DeclareError(`a Dataset needs data — a JSON body '{ … }' or a derived 'contents = { … }'`, el.pos);
         }
         if (el.raw !== undefined) {
+            let value;
             try {
-                node.value = JSON.parse(el.raw.src);
+                value = JSON.parse(el.raw.src);
             }
             catch (e) {
                 throw new DeclareError(`${el.name ?? el.tag}: the Dataset body is not valid JSON — ${e.message}`, el.raw.pos);
             }
+            // Validate the EMBEDDED body against a declared schema at build —
+            // static data fails loudly and early (B4; a DataSource validates the
+            // same way at arrival, landing in .failed).
+            const shape = node.schema;
+            if (shape !== null) {
+                const err = validateShape(value, shape);
+                if (err !== null) {
+                    throw new DeclareError(`${el.name ?? el.tag}: the embedded data does not match the schema — ${err}`, el.raw.pos);
+                }
+            }
+            node.value = value;
         }
     }
     else if (el.raw !== undefined) {
@@ -1168,7 +1214,20 @@ function appendChildren(from, parentView, croot, ctx, eff, slot) {
             // object identity, so a re-derived collection reuses instances by key.
             const keyAttr = childEl.attrs.find((a) => a.name === "key" && a.value.kind === "path");
             const keyPath = keyAttr !== undefined ? keyAttr.value.path : null;
-            const replicator = new Replicator(parentView, childEl, many.value.path, croot, materializer(ctx), slot.prev, keyPath);
+            // `materialize` — the materialization policy slot (D5 RULED
+            // 2026-07-30; renamed from `windowed` in the naming ruling):
+            // replication metadata like `key`, consumed here, stripped from the
+            // template by the Replicator. check() validated the vocabulary.
+            const matAttr = childEl.attrs.find((a) => a.name === "materialize");
+            let policy = "all"; // the v1 default; flips to auto once the differ proves invisibility
+            if (matAttr !== undefined) {
+                const wv = matAttr.value;
+                policy = wv.kind === "number" ? wv.value
+                    : wv.name === "auto" ? "auto"
+                        : wv.name === "window" ? "window"
+                            : "all";
+            }
+            const replicator = new Replicator(parentView, childEl, many.value.path, croot, materializer(ctx), slot.prev, keyPath, many.value.plan ?? null, policy);
             ctx.pending.push({ replicator });
             slot.prev = replicator;
             continue;
@@ -1238,17 +1297,25 @@ function materializer(ctx) {
         const saved = ctx.pending;
         ctx.pending = [];
         try {
-            const node = construct(template, classroot, ctx);
+            const node = withScriptScope(CURRENT_SCRIPTS, () => construct(template, classroot, ctx));
             if (!(node instanceof View)) {
                 throw new DeclareError(`a ${template.tag} cannot replicate — it is not a view`, template.pos);
             }
             const pending = ctx.pending;
             return {
                 view: node,
+                // finish COMPILES (installPending binds constraints, which capture
+                // the script scope at compile time) — it needs the scope exactly as
+                // construct does
                 finish: () => {
-                    installPending(pending, ctx);
+                    withScriptScope(CURRENT_SCRIPTS, () => installPending(pending, ctx));
                     initTree(node);
                 },
+                // Membership-anchored init (the D5 ruling): the reconciler calls this
+                // before finish when the record's membership already fired its init —
+                // a reconstructed window row, a keyed re-derivation — so initTree
+                // stays silent for the whole subtree.
+                suppressInit: () => markInited(node),
             };
         }
         finally {

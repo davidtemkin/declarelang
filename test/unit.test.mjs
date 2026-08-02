@@ -911,15 +911,23 @@ await test(":path truncation is a positioned error, never a silent prefix (data-
   // to TypeScript: ':my-key' COMPILED — as `$data("my") - key`, a subtraction.
   // Every refusal names the rewrite that works today.
   const errs = (src) => { const r = compile(`App [ width=1, height=1, t: Text [ text = { "" + ${src} } ] ]`); return (r.errors ?? []).map((e) => e.message).join("\n"); };
-  assert.match(errs(":my-key"),      /ambiguous — for subtraction write ':my - …' \(spaced\); for a dashed KEY read \$data/);
-  assert.match(errs(":rows[0]"),     /bracket selectors are not :path syntax/);
-  assert.match(errs(":$.store.book"),/no JSONPath root; drop the '\$\.'/);
-  assert.match(errs(":rows.2"),      /numeric segment is legal in the path currency but not in the ':' literal/);
-  assert.match(errs(":a..b"),        /empty path segment/);
-  // the legitimate neighbors stay legal
-  const ok = (src) => { const r = compile(`App [ width=1, height=1, t: Text [ text = { "" + ${src} } ] ]`); assert.ok(r.source, (r.errors?.[0]?.rawMessage) ?? "expected ok"); };
+  assert.match(errs(":my-key"),      /ambiguous — for subtraction write ':my - …' \(spaced\); for a dashed KEY write a quoted-name selector/);
+  assert.match(errs(":$.store.book"),/no JSONPath root/);
+  assert.match(errs(":rows.2"),      /a numeric segment is written as an index selector: ':rows\[2…\]'/);
+  assert.match(errs(":a..b"),        /descendant search \('\.\.'\) is not in the path subset/);
+  // The B3 gates refuse with the feature and the idiom named (jsonpath-spelling.md §5).
+  assert.match(errs(":rows[?(@.n>1)]"), /filter selectors \(\[\?…\]\) are not in the path subset yet/);
+  assert.match(errs(":rows[0,2]"),      /union selectors \(\[a, b\]\) are not in the path subset/);
+  assert.match(errs(":rows[zap]"),      /a path selector is \[index\], \[start:end:step\], \[\*\], or \['name'\]/);
+  // the legitimate neighbors stay legal — including the B3 selector subset
+  const ok = (src) => { const r = compile(`App [ width=1, height=1, d: Dataset { {"rows":[{"n":1}]} }, v: View [ datapath = { d.value }, t: Text [ text = { "" + ${src} } ] ] ]`); assert.ok(r.source, (r.errors?.[0]?.rawMessage) ?? "expected ok"); };
   ok("(:n - 1)");
   ok(":location.city");
+  ok(":rows[0]");
+  ok(":rows[-1].n");
+  ok(":rows[1:3]");
+  ok(":rows[*].n");
+  ok(':rows[0]["my-key"]');
 });
 
 await test("the State verbs are reachable from source — gate XOR verbs", () => {
@@ -2391,8 +2399,8 @@ await test("scanDatapaths: islands vs ternaries, keys, strings, templates", () =
 });
 
 await test("rewriteDatapaths: islands become this.$data(…); many is refused", () => {
-  const r = rewriteDatapaths(` "Hi " + :high `);
-  assert.equal(r.src, ` "Hi " + this.$data("high") `);
+  const r = rewriteDatapaths(` "Hi " + :high `); // islands rewrite to the PLAN form (pre-parsed segments)
+  assert.equal(r.src, ` "Hi " + this.$data(["high"]) `);
   const bad = rewriteDatapaths(` :rows[] `);
   assert.match(bad.error, /many-path replicates/);
 });
@@ -2492,7 +2500,7 @@ await test("run: a derived Dataset recomputes, keyed replication reuses instance
   app.n = 2;
   assert.deepEqual(rows(), before, "keyed reconcile reused the SAME instances across a recompute");
   // a granular in-place edit to the source retriggers the derivation
-  app.src.set("rows.0.id", "a2");
+  app.src.set(["rows", 0, "id"], "a2");
   assert.equal(rows().length, 2, "still two instances after a keyed edit");
 });
 
@@ -2573,16 +2581,16 @@ await test("wake precision: a one-field set wakes exactly that region's readers"
       wa: View [ opacity = { globalThis.__wa++, (:a ? 1 : 1) } ]`);
   settle();
   const [x0, y0, a0] = [globalThis.__wx, globalThis.__wy, globalThis.__wa];
-  app.d.set("a.x", 5);
+  app.d.set(["a", "x"], 5);
   settle();
   assert.equal(app.box.wx.width, 5);
   assert.equal(globalThis.__wx, x0 + 1, "the x reader re-ran");
   assert.equal(globalThis.__wy, y0, "the sibling-field reader did NOT");
   assert.equal(globalThis.__wa, a0 + 1, "the ancestor-object reader did (it can observe the deep change)");
-  app.d.set("a.x", 5); // equal write
+  app.d.set(["a", "x"], 5); // equal write
   settle();
   assert.equal(globalThis.__wx, x0 + 1, "an equal write wakes nothing");
-  app.d.set("user.name", "Lin"); // a sibling region entirely
+  app.d.set(["user", "name"], "Lin"); // a sibling region entirely
   settle();
   assert.equal(globalThis.__wx, x0 + 1);
   assert.equal(globalThis.__wy, y0);
@@ -2593,7 +2601,7 @@ await test("replacing a container wakes the readers inside the old region", () =
   const app = dataApp(`,
       wx: View [ width = { (globalThis.__wx++, :a.x) } ]`);
   const before = globalThis.__wx;
-  app.d.set("a", { x: 9, y: 9 });
+  app.d.set(["a"], { x: 9, y: 9 });
   settle();
   assert.equal(app.box.wx.width, 9);
   assert.equal(globalThis.__wx, before + 1);
@@ -2617,10 +2625,172 @@ await test("mutation API errors are pointed; paths address strictly", () => {
   const d = new Dataset();
   d.value = { a: { b: 1 }, list: [1] };
   assert.throws(() => d.set("", 1), /assign \.value to replace it/);
-  assert.throws(() => d.set("a.zip.deep", 1), /'a\.zip\.deep' addresses nothing — 'a\.zip' is missing/);
-  assert.throws(() => d.insert("a", 0, 1), /'a' is not an array/);
-  d.set("a.c", 3); // the FINAL field may be new
+  assert.throws(() => d.set(["a", "zip", "deep"], 1), /'\/a\/zip\/deep' addresses nothing — '\/a\/zip' is missing/);
+  assert.throws(() => d.insert(["a"], 0, 1), /'\/a' is not an array/);
+  d.set(["a", "c"], 3); // the FINAL field may be new
   assert.equal(d.read(["a", "c"]), 3);
+});
+
+await test("RFC 6901: the spec's own document reads through pointer strings (B2, data-paths.md §11)", () => {
+  // RFC 6901 §5 — the example document and every pointer it defines, verbatim.
+  const d = new Dataset();
+  d.value = {
+    "foo": ["bar", "baz"], "": 0, "a/b": 1, "c%d": 2, "e^f": 3,
+    "g|h": 4, "i\\j": 5, "k\"l": 6, " ": 7, "m~n": 8,
+  };
+  assert.deepEqual(d.read("/foo"), ["bar", "baz"]);
+  assert.equal(d.read("/foo/0"), "bar");
+  assert.equal(d.read("/"), 0, "the pointer '/' addresses the empty key");
+  assert.equal(d.read("/a~1b"), 1, "~1 unescapes to '/'");
+  assert.equal(d.read("/c%d"), 2);
+  assert.equal(d.read("/e^f"), 3);
+  assert.equal(d.read("/g|h"), 4);
+  assert.equal(d.read("/i\\j"), 5);
+  assert.equal(d.read('/k"l'), 6);
+  assert.equal(d.read("/ "), 7);
+  assert.equal(d.read("/m~0n"), 8, "~0 unescapes to '~'");
+  assert.equal(d.read("/m~01"), undefined, "'~01' is the key '~1', not '/' — unescape order per §4");
+  assert.throws(() => d.read("/bad~2"), /escapes only as ~0 .* or ~1/);
+  // Segments are the no-escaping twin: every key addressable verbatim.
+  assert.equal(d.read(["a/b"]), 1);
+  assert.equal(d.read(["m~n"]), 8);
+  assert.equal(d.read([""]), 0);
+});
+
+await test("B2 writes: pointer + segments intake, /- append, dot-strings refused with the rewrite named", () => {
+  const d = new Dataset();
+  d.value = { rows: [{ n: 1 }], "a.b": { deep: true }, obj: {} };
+  // The two living spellings write identically; numbers are segments.
+  d.set("/rows/0/n", 2);
+  assert.equal(d.read(["rows", 0, "n"]), 2);
+  d.set(["rows", 0, "n"], 3);
+  assert.equal(d.read("/rows/0/n"), 3);
+  // `/-` appends against an array (RFC 6901's after-last, given meaning by 6902 add)…
+  d.set("/rows/-", { n: 99 });
+  assert.equal(d.read(["rows", 1, "n"]), 99, "append landed at the real index");
+  d.set(["rows", "-"], { n: 100 });
+  assert.equal(d.read(["rows", 2, "n"]), 100, "segments spell append too");
+  // …and is just the key "-" against an object.
+  d.set(["obj", "-"], 7);
+  assert.equal(d.read(["obj", "-"]), 7);
+  // The dotted-key hole is closed: segments address it verbatim, pointers by escape-freedom.
+  d.set(["a.b", "deep"], false);
+  assert.equal(d.read(["a.b", "deep"]), false);
+  // The retired dot-string form refuses, naming both replacements.
+  assert.throws(() => d.set("rows.0.n", 5), /paths are segments \(\["rows", "0", "n"\]\) or an RFC 6901 pointer \("\/rows\/0\/n"\); the dot-string form retired/);
+  assert.throws(() => d.insert("rows", 0, {}), /the dot-string form retired/);
+  assert.equal(d.read(["rows", 0, "n"]), 3, "the refused write wrote nothing");
+});
+
+await test("B2 reactivity: an append wakes order readers; a pointer write wakes the region (replication end to end)", () => {
+  const app = build(`App [ width=10, height=10,
+    d: Dataset { {"rows": [ {"n": "a"}, {"n": "b"} ]} },
+    list: View [ datapath = { parent.d.value },   // raw build(): no bare-name resolution
+      View [ datapath = :rows[], t: Text [ text = :n ] ],
+    ],
+    go() { this.d.set("/rows/-", { n: "c" }) },
+    fix() { this.d.set(["rows", 0, "n"], "A") },
+  ]`);
+  const texts = () => app.list.children.filter((c) => c.t).map((c) => c.t.text);
+  assert.deepEqual(texts(), ["a", "b"]);
+  app.go(); settle();
+  assert.deepEqual(texts(), ["a", "b", "c"], "the append replicated one instance in the settle");
+  app.fix(); settle();
+  assert.deepEqual(texts(), ["A", "b", "c"], "the pointer write woke exactly its region");
+});
+
+await test("RFC 9535 semantics: the strict evaluator over the v1 subset (B3, jsonpath-spelling.md)", async () => {
+  const { evaluatePlan } = await import("../runtime/dist/select.js");
+  const vals = (value, plan) => evaluatePlan(value, plan).map((n) => n.value);
+  const paths = (value, plan) => evaluatePlan(value, plan).map((n) => n.path.join("/"));
+  const doc = { rows: [1, 2, 3, 4, 5], rec: { a: 1, b: 2 }, "my-key": 9 };
+  // index — negative from the end, out-of-bounds selects nothing
+  assert.deepEqual(vals(doc, ["rows", { i: 2 }]), [3]);
+  assert.deepEqual(vals(doc, ["rows", { i: -1 }]), [5]);
+  assert.deepEqual(vals(doc, ["rows", { i: 9 }]), []);
+  assert.deepEqual(vals(doc, ["rec", { i: 0 }]), [], "an index selects from arrays only");
+  // slice — RFC bounds: defaults, negatives, step, step 0, negative step
+  assert.deepEqual(vals(doc, ["rows", { s: [1, 3, null] }]), [2, 3]);
+  assert.deepEqual(vals(doc, ["rows", { s: [null, null, 2] }]), [1, 3, 5]);
+  assert.deepEqual(vals(doc, ["rows", { s: [-2, null, null] }]), [4, 5]);
+  assert.deepEqual(vals(doc, ["rows", { s: [null, null, 0] }]), [], "step 0 selects nothing (RFC)");
+  assert.deepEqual(vals(doc, ["rows", { s: [null, null, -1] }]), [5, 4, 3, 2, 1], "negative step reverses");
+  assert.deepEqual(vals(doc, ["rows", { s: [3, 0, -1] }]), [4, 3, 2]);
+  // wildcard — array elements; object member values; nothing on scalars
+  assert.deepEqual(vals(doc, ["rows", { w: 1 }]), [1, 2, 3, 4, 5]);
+  assert.deepEqual(vals(doc, ["rec", { w: 1 }]), [1, 2]);
+  assert.deepEqual(vals(doc, ["my-key", { w: 1 }]), []);
+  // names select object members only (strict past the currency seam); quoted names are plain strings
+  assert.deepEqual(vals(doc, ["my-key"]), [9]);
+  assert.deepEqual(vals(doc, ["rows", "length"]), [], "a name selects nothing on an array (RFC)");
+  // locations are REAL — the replication contract
+  assert.deepEqual(paths(doc, ["rows", { s: [2, 4, null] }]), ["rows/2", "rows/3"]);
+  assert.deepEqual(paths(doc, ["rec", { w: 1 }]), ["rec/a", "rec/b"]);
+  // nested selection flattens in document order (RFC nodelist semantics)
+  const deep = { g: [{ t: [1, 2] }, { t: [3] }] };
+  assert.deepEqual(vals(deep, ["g", { w: 1 }, "t", { w: 1 }]), [1, 2, 3]);
+});
+
+await test("selector plans evaluate and TRACK end to end: $data slices/wildcards re-derive on edits (§9)", () => {
+  const app = build(`App [ width=10, height=10,
+    d: Dataset { {"rows": [ {"n": 1}, {"n": 2}, {"n": 3}, {"n": 4} ]} },
+    box: View [ datapath = { parent.d.value },
+      mid: Text [ text = { (:rows[1:3]).map(r => r.n).join("+") } ],
+      all: Text [ text = { (:rows[*].n).join(",") } ],
+      last: Text [ text = { "" + (:rows[-1].n) } ],
+    ],
+    bump() { this.d.set(["rows", 1, "n"], 20) },
+    grow() { this.d.set("/rows/-", { n: 5 }) },
+    cut() { this.d.removeAt(["rows"], 0) },
+  ]`);
+  assert.equal(app.box.mid.text, "2+3");
+  assert.equal(app.box.all.text, "1,2,3,4");
+  assert.equal(app.box.last.text, "4");
+  app.bump(); settle();
+  assert.equal(app.box.mid.text, "20+3", "a member edit inside the slice re-derives");
+  app.grow(); settle();
+  assert.equal(app.box.all.text, "1,20,3,4,5", "an append re-derives the wildcard");
+  assert.equal(app.box.last.text, "5", "a negative index follows the new end");
+  app.cut(); settle();
+  assert.equal(app.box.mid.text, "3+4", "membership shifts re-derive the slice");
+});
+
+await test("slice replication: datapath = :rows[2:5][] instances the selection at its TRUE indices", () => {
+  const app = build(`App [ width=10, height=10,
+    d: Dataset { {"rows": [ {"n": "a"}, {"n": "b"}, {"n": "c"}, {"n": "d"}, {"n": "e"}, {"n": "f"} ]} },
+    list: View [ datapath = { parent.d.value },
+      View [ datapath = :rows[2:5][], t: Text [ text = :n ] ],
+    ],
+    fix() { this.d.set(["rows", 3, "n"], "D") },
+    cut() { this.d.removeAt(["rows"], 0) },
+  ]`);
+  const texts = () => app.list.children.filter((c) => c.t).map((c) => c.t.text);
+  assert.deepEqual(texts(), ["c", "d", "e"], "the window is rows 2..4");
+  // The cursors point at the REAL places — the materialization contract (§3.1).
+  const cursors = app.list.children.filter((c) => c.t).map((c) => c.datapath.path.join("/"));
+  assert.deepEqual(cursors, ["rows/2", "rows/3", "rows/4"]);
+  app.fix(); settle();
+  assert.deepEqual(texts(), ["c", "D", "e"], "an in-window edit lands in the right instance");
+  app.cut(); settle();
+  assert.deepEqual(texts(), ["D", "e", "f"], "membership shift slides the window");
+});
+
+await test("compiled selector plans round-trip: emitted program instantiates and evaluates", () => {
+  const src = `App [ width=10, height=10,
+    d: Dataset { {"rows": [ {"n": 1}, {"n": 2}, {"n": 3} ]} },
+    box: View [ datapath = { d.value },
+      t: Text [ text = { (:rows[0:2].map(r => r.n)).join("|") } ],
+    ],
+  ]`;
+  const compiled = compile(src);
+  assert.deepEqual(compiled.errors, []);
+  assert.ok(compiled.source.includes(`this.$data(["rows",{"s":[0,2,null]}])`), "the plan is emitted pre-parsed");
+  const again = compile(compiled.source);
+  assert.deepEqual(again.errors, []);
+  assert.equal(again.source, compiled.source, "resolve twice = resolve once, selectors included");
+  assert.ok(compiled.deps.some((d) => d.some((rp) => rp.startsWith(":rows["))), "the dep currency carries the selective read");
+  const app = build(compiled.source);
+  assert.equal(app.box.t.text, "1|2");
 });
 
 await test("toCursor: tagged values come back as places; foreign values refuse", () => {
@@ -2639,7 +2809,7 @@ await test("toCursor heals a place whose structure shifted underneath it", () =>
   d.value = { list: [{ n: "a" }, { n: "b" }] };
   const b = d.value.list[1];
   toCursor(b, "test");
-  d.move("list", 1, 0); // b is now at index 0; its tag says 1
+  d.move(["list"], 1, 0); // b is now at index 0; its tag says 1
   assert.deepEqual([...toCursor(b, "test").path], ["list", "0"]);
 });
 
@@ -2841,7 +3011,7 @@ await test("replication: insert makes exactly one instance; existing ones are re
   resetCounters();
   const app = listApp();
   const [i0, i1, i2] = app.list.children;
-  app.d.insert("rows", 1, { n: "x", w: 15 });
+  app.d.insert(["rows"], 1, { n: "x", w: 15 });
   settle();
   const kids = app.list.children;
   assert.equal(kids.length, 5);
@@ -2858,7 +3028,7 @@ await test("replication: removal discards the instance and retires its machinery
   const app = listApp();
   const removed = app.list.children[1]; // "b"
   const record = app.d.value.rows[1];
-  app.d.removeAt("rows", 1);
+  app.d.removeAt(["rows"], 1);
   settle();
   assert.equal(app.list.children.length, 3);
   assert.deepEqual(app.list.children.slice(0, 2).map((v) => v.width), [10, 30]);
@@ -2867,7 +3037,7 @@ await test("replication: removal discards the instance and retires its machinery
   // The removed record's region can still be written (it is gone from the
   // tree, not the heap) — nothing may wake for the dead instance.
   record.w = 99; // a raw edit; and through the API on live data:
-  app.d.set("rows.0.w", 11);
+  app.d.set(["rows", 0, "w"], 11);
   settle();
   assert.equal(removed.width, 20, "the discarded instance's binding is dead");
   assert.equal(app.list.children[0].width, 11);
@@ -2878,7 +3048,7 @@ await test("replication: a move reorders the SAME instances to data order", () =
   resetCounters();
   const app = listApp();
   const [a, b, c] = app.list.children;
-  app.d.move("rows", 0, 2); // a b c → b c a
+  app.d.move(["rows"], 0, 2); // a b c → b c a
   settle();
   const kids = app.list.children;
   assert.deepEqual(kids.slice(0, 3), [b, c, a], "instances moved, none rebuilt");
@@ -2891,7 +3061,7 @@ await test("replication: a field write re-runs exactly that instance's binding",
   const app = listApp();
   settle();
   const before = globalThis.__runs;
-  app.d.set("rows.2.w", 33);
+  app.d.set(["rows", 2, "w"], 33);
   settle();
   assert.equal(app.list.children[2].width, 33);
   assert.equal(globalThis.__runs, before + 1, "one region, one reader, one run");
@@ -2905,7 +3075,7 @@ await test("replication: an unresolved match is zero instances — until the reg
     ],
   ]`);
   assert.equal(app.list.children.length, 0);
-  app.d.set("rows", [1, 2]);
+  app.d.set(["rows"], [1, 2]);
   settle();
   assert.equal(app.list.children.length, 2, "the match re-resolved when the region appeared");
   app.d.value = null;
@@ -2916,9 +3086,9 @@ await test("replication: an unresolved match is zero instances — until the reg
 await test("replication: a burst of edits reconciles once, to the final data", () => {
   resetCounters();
   const app = listApp();
-  app.d.set("rows.0.w", 12);
-  app.d.insert("rows", 3, { n: "z", w: 40 });
-  app.d.removeAt("rows", 1);
+  app.d.set(["rows", 0, "w"], 12);
+  app.d.insert(["rows"], 3, { n: "z", w: 40 });
+  app.d.removeAt(["rows"], 1);
   settle();
   assert.deepEqual(app.list.children.slice(0, 3).map((v) => v.width), [12, 30, 40]);
   assert.equal(globalThis.__inits, 4, "one new instance across the whole burst");
@@ -2935,17 +3105,17 @@ await test("replication + layout: the arrangement re-arms on tree mutation", () 
   ]`);
   const ys = () => app.list.children.map((v) => v.y);
   assert.deepEqual(ys(), [0, 12, 34, 66], "initial stack includes the replicated block + foot");
-  app.d.insert("rows", 1, { h: 4 });
+  app.d.insert(["rows"], 1, { h: 4 });
   settle();
   assert.deepEqual(ys(), [0, 12, 18, 40, 72], "insertion re-arms the arrangement");
-  app.d.removeAt("rows", 0);
+  app.d.removeAt(["rows"], 0);
   settle();
   assert.deepEqual(ys(), [0, 6, 28, 60], "removal reclaims the space");
-  app.d.move("rows", 0, 2);
+  app.d.move(["rows"], 0, 2);
   settle();
   assert.deepEqual(app.list.children.map((v) => v.height), [20, 30, 4, 5], "order follows the data");
   assert.deepEqual(ys(), [0, 22, 54, 60], "…and the stack follows the order");
-  app.d.set("rows.0.h", 8);
+  app.d.set(["rows", 0, "h"], 8);
   settle();
   assert.deepEqual(ys(), [0, 10, 42, 48], "a field write re-flows through the ordinary wave");
 });
@@ -2976,14 +3146,14 @@ await test("replication: surfaces mirror the reconciled order (canvas, Node-safe
   app.attach(backend, null);
   const order = () => app.list.surface.children.map((s) => s.width);
   assert.deepEqual(order(), [1, 2, 3, 9]);
-  app.d.move("rows", 2, 0);
+  app.d.move(["rows"], 2, 0);
   settle();
   assert.deepEqual(app.list.children.slice(0, 3).map((v) => v.width), [3, 1, 2]);
   assert.deepEqual(order(), [3, 1, 2, 9], "the surface tree reordered with the model");
-  app.d.insert("rows", 1, { w: 7 });
+  app.d.insert(["rows"], 1, { w: 7 });
   settle();
   assert.deepEqual(order(), [3, 7, 1, 2, 9], "a post-attach instance attached mid-list");
-  app.d.removeAt("rows", 3);
+  app.d.removeAt(["rows"], 3);
   settle();
   assert.deepEqual(order(), [3, 7, 1, 9], "a removed instance's surface is gone");
 });
@@ -3001,10 +3171,10 @@ await test("replication: two blocks under one parent keep their slots", () => {
   ]`);
   const widths = () => app.list.children.map((v) => v.width);
   assert.deepEqual(widths(), [2, 5, 45, 3]);
-  app.d.insert("ys", 0, { w: 6 });
+  app.d.insert(["ys"], 0, { w: 6 });
   settle();
   assert.deepEqual(widths(), [2, 6, 5, 46, 45, 3], "each block grew in ITS slot");
-  app.d.removeAt("ys", 1);
+  app.d.removeAt(["ys"], 1);
   settle();
   assert.deepEqual(widths(), [2, 6, 46, 3]);
 });
@@ -3034,12 +3204,12 @@ await test("replicated instances are full citizens: methods, classroot, user cla
   rows[0].poke();
   rows[1].poke();
   assert.deepEqual(rows.map((r) => r.hits), [2, 1], "methods act on per-instance class state");
-  app.d.set("rows.1.n", "B");
+  app.d.set(["rows", 1, "n"], "B");
   settle();
   assert.equal(rows[1].t.text, "row/B");
 });
 
-await test("compile(): :paths pass through untouched; resolution stays a fixpoint", () => {
+await test("compile(): :paths lower to emitted plans (data-paths.md §5); resolution stays a fixpoint", () => {
   const src = `App [ width=10, height=10,
     d: Dataset { {"n": 4} },
     zip: number = 2,
@@ -3051,12 +3221,16 @@ await test("compile(): :paths pass through untouched; resolution stays a fixpoin
   assert.deepEqual(compiled.errors, []);
   assert.ok(compiled.source.includes("this.root.d.value"), "bare names in the App body resolve to this.root (app), never classroot");
   assert.ok(compiled.source.includes(`this.root.zip + ":" +`), "…even beside an island");
-  assert.ok(compiled.source.includes("+ :n }"), "the island itself ships through");
+  assert.ok(compiled.source.includes(`this.$data(["n"])`), "the island lowers to its pre-parsed plan — the emitted program carries no ':' value mode");
+  assert.ok(!/[+] :n \}/.test(compiled.source), "the raw island does not ship through");
   const again = compile(compiled.source);
   assert.deepEqual(again.errors, []);
   assert.equal(again.source, compiled.source, "resolve twice = resolve once");
   const app = build(compiled.source);
   assert.equal(app.box.t.text, "2:4");
+  // The dep currency is unchanged: the region read still serializes as `:n`
+  // (bind.ts keeps region reads on the tracking path by that spelling).
+  assert.ok(compiled.deps.some((d) => d.includes(":n")), "deps keep the :path read currency");
 });
 
 // ── Auto-extent (the weather rung): unset sizes derive from children ────
@@ -3398,7 +3572,7 @@ await test("prevailing: an unresolved :path on a prevailing slot lands the FOLLO
   settle();
   assert.equal(app.box.leaf.fontSize, 13);
   // The moment the path resolves, the data wins and the chain is let go.
-  app.d.set("row.missing", 24);
+  app.d.set(["row", "missing"], 24);
   settle();
   assert.equal(app.box.leaf.fontSize, 24);
 });
@@ -5819,7 +5993,7 @@ await test("sources: a source member does not collide with `<->` lexing", () => 
   const r = compile(`App [ width = 100, height = 100,
     d: Dataset { { "title": "x" } },
     card: View [ datapath = { app.d.value }, f: TextInput [ text <-> :title ] ],
-    nav: Keys [ onKeyUp(e: KeyEvent) { app.d.set("title", e.key) } ],
+    nav: Keys [ onKeyUp(e: KeyEvent) { app.d.set(["title"], e.key) } ],
     ]`, {});
   assert.notEqual(r.source, null, "the two-way arrow still lexes: " + r.errors.map((e) => e.message).join("; "));
 });
@@ -6006,6 +6180,39 @@ await test("explainHit narrates WHY a point resolved — the walk's own decision
     "the narration and viewAt cannot disagree — they are one walk");
 });
 
+await test("rootOrigin + the focus follower: geometry is scroll-true (ONE WALK, everywhere)", () => {
+  // The scroll-blind focus ring (found 2026-07-31): the follower hand-summed
+  // ancestor x/y, so a control inside a scrolled pane wore its ring a full
+  // scrollY away. Both now ride interaction.ts's walk: an intermediate pane's
+  // scroll subtracts (the control moved on screen), the root's own scroll adds
+  // back (ring and control share the root's content space) — and the scroll
+  // read is a DEPENDENCY, so scrolling re-fires the follower live.
+  const app = build(`App [ width = 200, height = 300,
+    pane: View [ x = 20, y = 30, width = 160, height = 200, scrolls = y,
+        deep: View [ x = 10, y = 400, width = 60, height = 24 ] ],
+    ]`);
+  settle();
+  assert.deepEqual(app.pane.deep.rootOrigin(), { x: 30, y: 430 }, "unscrolled: plain accumulation");
+  app.pane.scrollY = 380; settle();
+  assert.deepEqual(app.pane.deep.rootOrigin(), { x: 30, y: 50 }, "the pane's scroll moved it on screen");
+  const seen = [];
+  const off = Focus.onGeometry((g) => seen.push({ x: g.x, y: g.y, scroller: g.scroller, homeX: g.homeX, homeY: g.homeY }));
+  app.pane.deep.focusable = true;
+  Focus.focus(app.pane.deep);
+  settle();
+  assert.deepEqual({ x: seen.at(-1).x, y: seen.at(-1).y }, { x: 30, y: 50 }, "the ring lands where the control is SEEN");
+  app.pane.scrollY = 300; settle();
+  assert.deepEqual({ x: seen.at(-1).x, y: seen.at(-1).y }, { x: 30, y: 130 }, "…and follows the scroll live (tracked read)");
+  // the TRAVEL facts: the nearest scroller is the home; home coords are the
+  // scroller's CONTENT space — independent of its own scroll offset, so a
+  // traveled (platform-carried) indicator needs no re-derive per scroll tick
+  assert.equal(seen.at(-1).scroller, app.pane, "the travel home is the nearest scroller");
+  assert.deepEqual({ x: seen.at(-1).homeX, y: seen.at(-1).homeY }, { x: 10, y: 400 }, "home coords are content-space");
+  assert.equal(app.pane.deep.travelWith(app.pane), false, "no surface headless — callers keep the reactive fallback");
+  off();
+  Focus.blur();
+});
+
 await test("hovered/pressed are read-only intrinsics: declaring or setting one is refused", () => {
   const decl = compile(`App [ width = 1, height = 1, v: View [ hovered: boolean = false ] ]`, {});
   assert.equal(decl.source, null);
@@ -6060,7 +6267,7 @@ await test("typed bodies: a cast SHARING a body with a :path island strips and r
   assert.notEqual(r.source, null, "compiles + typechecks: " + r.errors.map((e) => e.message).join("; "));
   assert.ok(!r.source.includes(" as string"), "the casts are stripped from the emitted source");
   assert.ok(!r.source.includes(" as {"), "the object-type cast is stripped too");
-  assert.ok(r.source.includes(":tags"), "the datapath island survives verbatim");
+  assert.ok(r.source.includes(`this.$data(["tags"])`), "the datapath island lowers to its emitted plan");
   const app = instantiate(parseProgram(r.source));
   settle();
   assert.equal(app.card.t.text, "a · b", "array cast beside an island evaluates");

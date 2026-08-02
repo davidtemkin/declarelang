@@ -47,7 +47,7 @@ test("commit writes the draft back into the dataset", () => {
 test("an external dataset change reseeds the field", () => {
   const app = build(BASIC);
   app.form.field.text = "edited"; // uncommitted draft
-  app.store.set("rec.name", "Carol"); // a new value underneath
+  app.store.set(["rec", "name"], "Carol"); // a new value underneath
   settle();
   assert.equal(app.form.field.text, "Carol", "cursor/value change resets the session");
 });

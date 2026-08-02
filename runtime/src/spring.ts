@@ -18,7 +18,7 @@
 import { Animator } from "./animator.js";
 import type { Node } from "./node.js";
 import { sharedClock } from "./animate.js";
-import { defineAttributes } from "./attributes.js";
+import { defineAttributes, asRuntimeWrite } from "./attributes.js";
 
 /** A spring's write is a DRIVEN ASSIGNMENT, not a bound push: it must
  *  DISPLACE whatever owns the slot (§5's rule — assignment wins), or an
@@ -26,7 +26,7 @@ import { defineAttributes } from "./attributes.js";
  *  silently overwrites the spring's rest value while the spring sleeps. The
  *  plain reactive setter is exactly that displacement. */
 const drive = (target: object, attr: string, v: number): void => {
-  (target as Record<string, number>)[attr] = v;
+  asRuntimeWrite(() => { (target as Record<string, number>)[attr] = v; });
 };
 
 /** Read a numeric slot off a node (0 for a non-number / absent slot). */
@@ -99,6 +99,22 @@ export class Spring extends Animator {
     this.vel = 0;
   }
 
+  /** RE-SNAP (recycling): a recycled instance is re-born serving a
+   *  DIFFERENT record, so motion still in flight belongs to the record that
+   *  left — it is not this row's animation to finish. Take the current
+   *  target outright, exactly as the declaration snap does at boot, and
+   *  drop off the clock. (A windowed row whose height animates makes this
+   *  load-bearing: without it the measured ladder chases a height that is
+   *  sliding toward the departed record's geometry, and re-derives the
+   *  window on every frame of the slide.) */
+  resnap(): void {
+    this.stop();
+    this.vel = 0;
+    this.primed = true;
+    const t = this.resolveTarget();
+    if (t !== null && this.attribute !== "") drive(t, this.attribute, this.to);
+  }
+
   override tick(now: number): boolean {
     if (!this.springRunning) return false;
     // The lazy fallback for a spring constructed outside the init walk —
@@ -167,3 +183,17 @@ defineAttributes(Spring, {
   mass: { def: 1 },
   epsilon: { def: 0.1 },
 });
+
+
+/** Walk a recycled subtree and re-snap every spring in it (see
+ *  `Spring.resnap`). Children of a view include its animators, so the walk
+ *  is the ordinary tree walk; nothing else in the subtree is touched. */
+export function resnapSubtree(root: { children?: readonly unknown[] }): void {
+  const stack: unknown[] = [root];
+  while (stack.length > 0) {
+    const n = stack.pop() as { children?: readonly unknown[] };
+    if (n instanceof Spring) { n.resnap(); continue; }
+    const kids = n?.children;
+    if (kids !== undefined) for (const k of kids) stack.push(k);
+  }
+}

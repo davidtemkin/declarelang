@@ -1,5 +1,6 @@
 import { Node } from "./node.js";
 import type { AttrType } from "./value.js";
+import { type ShapeField } from "./data-schema.js";
 /** A place in a dataset: the `datapath` attribute's value. Interned per
  *  dataset (see Dataset.cursorAt), so equal places are equal values. */
 export interface Cursor {
@@ -18,29 +19,40 @@ export declare class Dataset extends Node {
     /** A derived Dataset's write slot: `contents = { … }` binds here and its
      *  push mirrors the computed value into `value` (see defineAttributes). */
     contents: unknown;
+    /** The optional data shape (B4, language §9): parsed ShapeField
+     *  declarations, or null. Presence is the only switch — arrival validates
+     *  against it, the compiler checks `:path`s against it, and its declared
+     *  identity field keys records (D6 ladder rung 1). */
+    schema: readonly ShapeField[] | null;
     private readonly cursors;
     /** The interned cursor for `path` — one object per distinct place, so a
-     *  re-derived cursor is `===` the old one and the equality gate holds. */
+     *  re-derived cursor is `===` the old one and the equality gate holds.
+     *  The intern key joins on NUL, not "." — a key containing a dot must not
+     *  collide with the path that spells it as two segments. */
     cursorAt(path: readonly string[]): Cursor;
     /** Tracked read of the region at `path` (root-relative). Registers exactly
      *  one region cell — the deepest slot the walk reaches (see the header) —
      *  plus the `value` attribute read the first line makes. `undefined` means
-     *  unresolved (a missing region); consumers surface it as null. */
-    read(path: readonly string[]): unknown;
+     *  unresolved (a missing region); consumers surface it as null. Takes the
+     *  path currency: segments, or an RFC 6901 pointer string. */
+    read(path: string | readonly (string | number)[]): unknown;
     /** Set the field at `path`. The path's containers must exist (a pointed
      *  error names the first missing step); the final field may be new.
-     *  Equality-gated: writing the value already there wakes nothing. */
-    set(path: string, v: unknown): void;
+     *  Against an array, the final token `-` (RFC 6901's after-last) APPENDS —
+     *  `set("/rows/-", v)` / `set(["rows", "-"], v)`; against an object, "-"
+     *  is just the key "-". Equality-gated: writing the value already there
+     *  wakes nothing. */
+    set(path: string | readonly (string | number)[], v: unknown): void;
     /** Insert `v` at `index` of the array at `path`. */
-    insert(path: string, index: number, v: unknown): void;
+    insert(path: string | readonly (string | number)[], index: number, v: unknown): void;
     /** Remove (and return) the element at `index` of the array at `path`. */
-    removeAt(path: string, index: number): unknown;
+    removeAt(path: string | readonly (string | number)[], index: number): unknown;
     /** Move the element at `from` to `to` within the array at `path` — a pure
      *  reorder: item regions are identity-anchored, so only order readers (the
      *  array's own cells, the ancestors) wake; no item REGION cell stirs (the
      *  replicator's re-pointed cursors are the only item-side wake, and their
      *  equal re-reads die at the equality gate — replicate.ts). */
-    move(path: string, from: number, to: number): void;
+    move(path: string | readonly (string | number)[], from: number, to: number): void;
     private segs;
     /** Walk `segs` from the root, collecting the (container, key) step chain —
      *  which is exactly the ancestor set a write must wake. */

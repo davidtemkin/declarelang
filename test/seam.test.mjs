@@ -61,6 +61,37 @@ const TABLE = {
     headless: NOT_APPLICABLE,
   },
 
+  // ── the windowed-collection seam (added with materialization) ────────────
+
+  setRowCount: {
+    dom: true,
+    canvas: "GAP — the canvas backend paints; it publishes no accessibility tree at all, so there is no object to carry a windowed collection's LOGICAL row count. Assistive technology over a canvas app is its own unbuilt story; this member is one symptom, not the disease",
+    mac: "GAP (not yet built) — AppKit has the row semantics (NSAccessibility rowCount / rowIndexRange), so the native host CAN say it; nothing is wired yet. Until it is, a windowed list there announces the size of its WINDOW rather than of the collection",
+    headless: NOT_APPLICABLE,
+  },
+  setRowIndex: {
+    dom: true,
+    canvas: "GAP — same absence as setRowCount: no accessibility tree, so a row cannot report its logical position within the collection",
+    mac: "GAP (not yet built) — the twin of setRowCount; both land together or neither is useful",
+    headless: NOT_APPLICABLE,
+  },
+  setVirtualExtent: {
+    dom: true, canvas: true,
+    mac: "GAP (not yet built) — the windowed block publishes its LOGICAL extent so the scroller's range spans every row from the first frame, materialized or not. Without it a windowed list on the native host would give the platform a scroll range covering only the rows currently realized, and dragging the thumb 'to the end' would land mid-collection",
+    headless: NOT_APPLICABLE,
+  },
+  travelWith: {
+    dom: true, canvas: true,
+    mac: "GAP (not yet built) — surface re-homing: chrome that must ride a scroller's content (the focus ring) or escape one (the DataGrid's header). The callers all check the RETURN value and keep a reactive root-space fallback, so the native host degrades to correct-but-lagging geometry rather than breaking — which is exactly why this absence could go unnoticed without this table",
+    headless: NOT_APPLICABLE,
+  },
+  setRichWidth: {
+    dom: true,
+    canvas: "deliberate — canvas does not use the native rich-text path at all (its setRichContent returns -1, which is the signal for 'lay the runs out yourself'), so RichText re-flows through its own manual layout on every width change. There is no host box to re-size, and nothing to skip",
+    mac: "GAP (not yet built) — the native host DOES implement setRichContent, so it has the same host box and the same optimization available: an all-`pre` flow (which cannot re-wrap) skips the re-flow but must still adopt the new width, or the flow stays clipped to its width at first layout. On DOM that absence rendered the Viewer's Source tab blank",
+    headless: NOT_APPLICABLE,
+  },
+
   scrollToY: {
     dom: true, canvas: true, mac: true,
     headless: NOT_APPLICABLE,
@@ -133,9 +164,19 @@ for (const member of members) {
 
 // The count is load-bearing enough to state out loud: it is the size of the
 // seam's silent-failure surface, and it should move deliberately.
+//
+// 7 → 12 (2026-08-01, the materialization merge): windowed collections added
+// five optional members at once — setRowCount / setRowIndex (a windowed row's
+// LOGICAL position, for assistive technology), setVirtualExtent (the scroll
+// range spans the whole collection, not just what is materialized),
+// travelWith (surface re-homing for chrome that rides or escapes a scroller)
+// and setRichWidth (adopt a width without re-flowing). Each is optional for
+// the same reason the original seven are: a backend without it degrades to a
+// defined fallback rather than failing to compile. Each therefore also carries
+// its own row above, which is the price of that optionality.
 await test("the size of the silent-failure surface is stated, not drifting", () => {
   const total = [...src("backend.ts").matchAll(/^ {2}[a-zA-Z][a-zA-Z0-9]*\??\(/gm)].length;
-  assert.equal(members.length, 7,
+  assert.equal(members.length, 12,
     `Surface's optional-member count changed (${members.length} of ~${total}). That is the ` +
     `set of capabilities a backend can omit in total silence — update the number here ` +
     `deliberately, with the row that justifies it.`);

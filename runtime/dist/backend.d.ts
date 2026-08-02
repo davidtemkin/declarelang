@@ -42,7 +42,7 @@ export type Stretch = "none" | "width" | "height" | "both";
  *  `onClick`). A click is not a platform event here — the shared router
  *  (input.ts) synthesizes it as "press and release resolved to the same
  *  view", so both backends decide it identically by construction. */
-export type PointerType = "pointerDown" | "pointerUp" | "click" | "dblClick" | "pointerMove" | "pointerOver" | "pointerOut" | "hold" | "touchStart" | "touchMove" | "touchEnd" | "touchCancel" | "wheel";
+export type PointerType = "pointerDown" | "pointerUp" | "click" | "dblClick" | "pointerMove" | "pointerOver" | "pointerOut" | "hold" | "contextMenu" | "touchStart" | "touchMove" | "touchEnd" | "touchCancel" | "wheel";
 export declare const POINTER_TYPES: readonly PointerType[];
 /** The raw-touch member of the family: declaring one of these is a view's
  *  statement that it owns multi-finger gestures in its subtree (the backend
@@ -72,6 +72,16 @@ export interface InputWants {
      *  (a finger that lands here drags instead of panning); pinch stays the
      *  user's. A mouse drag was never the browser's, so desktop is unchanged. */
     wantsDrag: boolean;
+    /** The AXIS the drag claim covers (`claim = x | y | both`, D8 RULED
+     *  2026-07-30 — claim-surface.md): `both` is today's whole-gesture claim;
+     *  `x`/`y` scope it, leaving the CROSS axis to the enclosing regime (a
+     *  column drag owns horizontal while the page keeps vertical pan).
+     *  Meaningful only with wantsDrag. */
+    claimAxis: "both" | "x" | "y";
+    /** Declares `onContextMenu` — the platform's context gesture over this
+     *  view (right-click, two-finger tap). The router suppresses the browser's
+     *  own menu exactly where the handler is declared, nowhere else. */
+    wantsContext: boolean;
     /** Declares `onWheel` — claims the wheel stream over this view, trackpad
      *  pinch included (it arrives as wheel deltas). ⌘+/− dispatches no event
      *  and stays out of everyone's reach. */
@@ -177,6 +187,15 @@ export interface Surface {
      *  scroll event; canvas: the wheel/touch the compositor routes here), so the
      *  runtime can mirror it into the view's reactive `scrollY`. */
     setScroll?(on: boolean, onScroll: (y: number) => void): void;
+    /** Windowing-aware AT (materialization.md §2, ruled): expose the LOGICAL
+     *  extent and position of a windowed replication so assistive tech hears
+     *  "row N of 100,000" without 100,000 nodes existing. `setRowCount` lands
+     *  on the block's container surface (null clears when windowing
+     *  disengages); `setRowIndex` on each materialized instance (1-based,
+     *  null clears). DOM realizes them as aria-rowcount/aria-rowindex;
+     *  backends without an AT story may omit them. */
+    setRowCount?(n: number | null): void;
+    setRowIndex?(i: number | null): void;
     /** Make this surface a HORIZONTAL scroll container (`on`): it clips its box and
      *  scrolls overflowing width, keeping over-wide content (a code block, a wide
      *  table) inside its box instead of spilling. Vertical overflow stays clipped.
@@ -218,6 +237,11 @@ export interface Surface {
      *  link runs real `<a href>` (native affordances) but routes a plain click here
      *  so the app's navigation policy, not the browser, decides. */
     setRichContent(blocks: RichBlock[], selectable: boolean, width: number, onResize: (height: number) => void, onLink: (href: string) => void): number;
+    /** OPTIONAL width-only follow-up to `setRichContent`: adopt a new flow width
+     *  without re-flowing content — for flows whose layout provably cannot change
+     *  (an all-`pre` flow; its lines never rewrap) but whose host box still bounds
+     *  the native horizontal scroller. A backend without it gets a full render. */
+    setRichWidth?(width: number): void;
     /** Scroll this surface to the top of its nearest scrolling ancestor — the
      *  imperative companion to `setScroll`, behind `View.scrollIntoView()` (a click-to-
      *  jump index, "scroll this into view"). No-op when nothing above scrolls.
@@ -228,6 +252,19 @@ export interface Surface {
      *  visible — and not at all when it already is (the web's focus-reveal
      *  behavior; keyboard traversal uses it so Tab never lands offscreen). */
     scrollIntoView(align?: "start" | "nearest", smooth?: boolean): void;
+    /** OPTIONAL — a windowed block's LOGICAL extent when this surface IS the
+     *  scroller (rows as direct children of a scrolling Table/DataGrid): the
+     *  scroll RANGE must span all N logical rows while only a window of them
+     *  exists. DOM realizes it as a zero-width strut; null clears. Without it
+     *  the range ends at the last materialized row — the scrollbar treadmill. */
+    setVirtualExtent?(h: number | null): void;
+    /** OPTIONAL — travel with a scroller: re-host this surface's element inside
+     *  `host`'s scroll container so the PLATFORM carries it with the scrolled
+     *  content (zero-lag chrome that belongs to content — the focus ring around
+     *  a row in a pane; the inverse of setIgnoreScroll's sticky frame). null
+     *  restores the natural parent. DOM realizes it by reparenting; a backend
+     *  without it leaves callers on reactive root-space positioning. */
+    travelWith?(host: Surface | null): void;
     /** Set this scrolling surface's own offset — the write half of the
      *  `scrollY`/`scrollX` attributes (setScroll's callback is the read half:
      *  user scrolling mirrors in; a program write pushes out through these).

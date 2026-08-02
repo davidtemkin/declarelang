@@ -166,6 +166,36 @@ a typical published JSONPath library, all of which carry a parser. Add ~4–5 KB
 only if the parser must ship after all. Treat as ±40%; the least certain rows are
 the filter engine and I-Regexp conformance.
 
+**Revision (2026-07-30, after emitted plans landed): the table is a CEILING,
+not a price.** Its two worst rows move out of the runtime entirely:
+
+- **Filters compile to closures at the compiler** (§5 already said so; the
+  size consequence is the point here): RFC 9535's comparison semantics inline
+  at lowering, and the runtime keeps only the few-line comparison helpers a
+  program actually uses — individually shakeable. Realistic cost for a
+  filter-using program ~0.3–0.5 KB; **0 for everyone else**, replacing the
+  1.2–1.8 KB general engine.
+- **I-Regexp translates at compile time**: RFC 9485 is designed to be
+  mechanically translatable to JS `RegExp`; validate + translate in the
+  compiler, ship the translated literal in the plan. Runtime cost ≈ 0, and
+  conformance becomes a compiler test — where being right is cheapest.
+- **Nodelists are their own module**: the singular-path walk (today's `read`)
+  stays separate, so an all-singular program never references nodelist code.
+
+And the plan representation itself is measured noise: calendar's program
+artifact went 12,189 → 12,283 bytes gz (+94, +0.8%) when plans replaced
+verbatim islands — gzip eats the wordier spelling, and any "compact" string
+encoding would reintroduce a parser, the anti-goal.
+
+Perf, same date, measured: the link-time island scan over all 306 calendar
+bodies costs 0.48 ms (negligible before and after — the production stub's win
+is bytes); per read, `splitPath` is ~52 ns against ~1 ns for the emitted
+array literal — irrelevant today, real against a 16 ms frame budget at
+materialization's 10⁵-read scale (and the compiler can further hoist segment
+constants per body if profiling ever asks). The migration's value today is
+structural — the conformance seam, §7's shaking, static analyzability — with
+the speed benefit banked for exactly the workload B5/B8 create.
+
 ## 7. Tree-shaking
 
 The precedent is already in the repo. `tools/declarec.mjs:342`:
@@ -185,6 +215,25 @@ substitution. The three pieces here shake differently:
   minimal walker — dropping the filter engine and functions for the common case,
   which the LZX corpus study suggests is name-and-index.
 - **JSON Pointer** is too small to bother shaking.
+
+**Concretely (2026-07-30, now that §5 is landed):** the lever exists and is
+proven — `slim-datapath` joined declarec's `factPlugins` with the emitted-plans
+change, and the compiler parses every path in the program, so it knows the
+exact union of segment kinds. Extend `programFacts` (the `usesThemes` /
+`usesDraw` mechanism) with `pathKinds`, and the cost becomes
+pay-for-what-you-write:
+
+| the program writes | it ships |
+|---|---|
+| names only (today's entire corpus) | today's walk — zero added bytes |
+| + index / slice | the segment evaluator (~0.5–1 KB) |
+| + wildcard | + nodelist accumulation |
+| + filters | + compiled closures + only the comparison helpers used |
+| + `schema` | + the validator (esbuild drops it unreferenced — no plugin needed) |
+| Pointer writes | always (~0.3–0.6 KB) |
+
+A runtime parser would have had to ship everything always; this table is what
+moving resolution to compile time bought.
 
 ## 8. Which features are actually wanted
 
@@ -220,15 +269,161 @@ Parsing is not the work; this is.
 
 1. **Refuse what the scanner cannot consume** (§2). Independent of everything else
    and prevents new silent-wrong-program classes as syntax grows.
+   **DONE 2026-07-30** — body islands via `datapathTrouble` (surfaced at
+   compile time through check), attribute paths via the token parser,
+   imperative paths via `locate`'s pointed errors; tests cover §2's table.
 2. **Move path resolution to compile time** (§5). The enabling change: drops
    2.2 KB gz today, keeps the parser out of the runtime, makes §7 possible.
+   **DONE 2026-07-30** — compile() lowers each island to a pre-parsed plan
+   (`this.$data(["location","city"])`) at emission; `$data`/`$setData`
+   evaluate segments; dep-extract reads the lowered form (recompile parity);
+   datapath bodies became typecheckable (no longer a skip class); declarec
+   production builds stub the scanner (`slim-datapath`), keeping `splitPath`
+   as the attribute-path currency. The runtime's link-time rewrite remains
+   for the direct-instantiate dev path only.
 3. **JSON Pointer writes** — ~0.3–0.6 KB gz, closes the write half, gives `<->` a
    conformance story.
+   **DONE 2026-07-30 (B2, per §11's rulings)** — segments + pointer-string
+   intake on read/set/insert/removeAt/move, `~0`/`~1` escaping, `/-` append,
+   dot-strings refused with the rewrite named, diagnostics speak pointer,
+   `$setData` passes segments (the dotted-key join hole closed), RFC 6901's
+   §5 example document wired as a conformance test, calendar + guide + prose
+   migrated.
 4. **Index, slice, wildcard** — ~2.3–3.8 KB gz, covers what the corpus data says
    was actually used, retires hand-written windowing.
+   **DONE 2026-07-30 (B3, per jsonpath-spelling.md's rulings)** — the v1
+   subset (index incl. negative, RFC slices incl. negative step, wildcard,
+   quoted names) in both grammars (body scanner + attribute parser), emitted
+   as tagged plan segments; the evaluator (select.ts) is RFC-strict past the
+   currency seam and returns NODES (value + true location), which is what
+   makes `datapath = :rows[2:8][]` replicate the window at real indices —
+   the materialization substrate. §9 tracking rides the prefix region cell +
+   full ancestor-chain waking (over-approximate, never misses). Filters,
+   functions, unions, `..` refuse with their gates named; selective paths
+   refuse on `<->` and bare `datapath =` (the D4 table) at check AND
+   instantiate. Production builds shake the evaluator when no selector is
+   aboard (`slim-select` + the `usesSelectors` fact — §7's table made real).
 5. **Schema** — independent of 3 and 4, different code, cleanest tree-shake, and
    the optional typechecking the design promised.
+   **DONE 2026-07-30 (B4; identity REVISED same day in the ratification
+   conversation)** — the weather-sketch shape literal (nested `[ ]`,
+   `rows[]:` array marker, `name?:` optional). Identity is NOT schema
+   surface: David refused the proposed `id!` marker as key-by-another-name
+   (a regression against the invisibility program and the brief's own
+   "records carry id but the app must NOT need to say so"), and RULED the
+   invisible version — a record's `id` field IS its identity by CONVENTION,
+   inferred by the reconciler with zero declaration; `key = :field` is the
+   sole explicit override (unconventional names), the structural-equality
+   fallback beneath, object identity last, and the inspector diagnostic
+   reports the mode in force. The `!` marker now refuses with the
+   convention named;
+   validate-on-receipt (a malformed response lands in `.failed`/`.error`
+   with an RFC 6901 pointer path; an embedded body fails loudly at build —
+   the `Dataset [ schema = … ] { json }` composition was added for this);
+   static `:path` checking compile-side (compiler/src/schema-check.ts —
+   best-effort by construction: the direct `datapath = { d.value }` idiom
+   resolves, anything dynamic is unchecked, and what IS checked names the
+   schema's own fields in the error); the validator (data-schema.ts) stubs
+   out of schema-less production builds (`slim-dataschema` — the §7 shake,
+   via the fact lever like the others). The `Dataset [ attrs ] { body }`
+   composition is RATIFIED (2026-07-30) — it is what makes a build-validated
+   embedded fixture writable.
 6. **Filters and functions** — the expensive tail; gate on demand once 4 lands.
+
+## 11. Addendum — D3: JSON Pointer, validated against the real mutation surface
+
+> **Status: RULED 2026-07-30 (David), all four points as proposed — and D7
+> RATIFIED with it: handler-called dataset methods (Pointer-addressed per
+> this addendum) plus `<->` for leaf edits ARE the language's mutation
+> authoring surface, closing language §13's open design. B2 is unblocked.**
+> The rulings: (1) leaf writes address the slot in the pointer, structural
+> verbs address the array with index arguments; (2) `/-` append adopted,
+> Relative JSON Pointer REFUSED; (3) segments are the documented currency,
+> pointer strings the interop spelling, dot-strings retire in B2 with a
+> pointed error; (4) D7 ratified as above. Question asked: does RFC 6901
+> actually cover the mutation API's needs, is Relative JSON Pointer wanted,
+> and where does an author ever *see* a pointer?
+
+### 11.1 What RFC 6901 is, in one paragraph
+
+A pointer is a string of reference tokens each prefixed by `/`; `""` addresses
+the whole document. Tokens escape only two characters — `~0` → `~`, `~1` → `/`
+— so every JSON key, including `""`, is addressable. Against an array, a token
+must be a plain decimal (no leading zeros), and the token `-` names the
+position *after* the last element — the append slot (given meaning by RFC
+6902's `add`). That is the entire spec. It is an *addressing* standard; the
+verbs are ours.
+
+### 11.2 Coverage, verb by verb (measured against `data.ts`)
+
+| verb (today) | what it needs addressed | 6901 covers? |
+|---|---|---|
+| `set(path, v)` | a leaf slot (containers must exist; final field may be new) | ✓ — the RFC 6902 `add`/`replace` correspondence |
+| `insert(path, i, v)` | the **array**, plus an index | ✓ for the array; the index stays an argument (below) |
+| `removeAt(path, i)` | the array + an index | ✓ likewise |
+| `move(path, from, to)` | the array + two indices | ✓ — no pointer *pair* exists in 6901, and none is wanted |
+
+The shape to keep: **leaf writes address the slot in the pointer; structural
+verbs address the array and take indices as arguments.** A structural edit is
+an operation *on the array* — which is literally the wake model (`data.ts`
+wakes the array's cells plus the ancestor chain) — and `move`'s two indices
+cannot ride one pointer anyway. We do NOT adopt RFC 6902 (patch documents,
+cross-container `move`/`copy`, `test`): the mutation API is a method surface,
+not a patch interpreter.
+
+One 6902-ism is worth adopting: **`/-` append** — `set("/rows/-", v)` appends,
+exactly 6901's "the member after the last". Tracker's create-at-top is
+`insert(…, 0)`; append gets its standard spelling without a length read.
+
+### 11.3 Escaping: the hole it closes
+
+Today's dot-strings cannot address a key containing `.` (the §2 refusal
+routes authors to `$data(…)` with the whole key), and no spelling reaches a
+key containing `/`, `~`, or the empty key. Pointer tokens close all four.
+Note where escaping actually lives: **only at string boundaries.** The
+segments-array currency (`read(["rows","2"])`, and since the emitted-plans
+change every compiled `:path`) has no escaping problem at all — a segment is
+just a string.
+
+### 11.4 Relative JSON Pointer: refuse
+
+Refused, on three grounds. (1) It is a *draft*, not standards-track — a
+conformance claim would chase a moving target, and §"Why conformance" is the
+point of this work. (2) Its job — up-navigation (`1/foo`), key-of (`0#`) — is
+already Declare's cursor chain: relativity in Declare is datapath
+*inheritance*, and `$setData` composes `cursor.path + suffix` by plain token
+concatenation, which 6901 already defines. (3) Zero corpus demand. The
+refusal is a ruling, not a deferral: if cursor-relative up-navigation is ever
+wanted, it is a cursor feature, not a path spelling.
+
+### 11.5 The author-facing story: authors never write pointers
+
+Where does an author ever SEE a pointer? Proposed answer: **nowhere.**
+
+- **`<->` targets and `:path` reads** stay Declare surface (`:title`,
+  cursor-relative). The compiler emits pre-parsed segments (landed with the
+  §5 emitted-plans change); the engine's composed absolute address *is* a
+  pointer in segment form. Conformance is the engine's claim, not the
+  author's burden.
+- **Handler mutation calls** take the segments array as the documented form:
+  `data.set(["events", idx, "y"], v)`. Measured: every imperative `set` in
+  the corpus (5 sites, one app) builds a *computed* dot-string
+  (`"events." + idx + "."`) — the array form is what those sites were
+  reaching for.
+- **Pointer strings** (`"/a/~1b/2"`, `"/rows/-"`) are accepted at the same
+  argument as the *interop* spelling, parsed per 6901 — this is where the
+  testable conformance claim attaches (the RFC's own examples + the JSON
+  Patch suite's pointer cases wire in as a unit tier).
+- **The dot-string form retires with B2**, refused with a pointed error
+  naming both replacements — it is the one spelling that can never address a
+  dotted key. Migration cost, measured: 5 call sites + 3 guide lines.
+
+### 11.6 What B2 builds, restated
+
+Segments + pointer-string intake at `data.ts` (escaping at the string
+boundary only), `/-` append on `set`, the dot-string refusal + calendar and
+guide migration, and the conformance test tier. `<->` needs nothing — its
+targets already compile to segments.
 
 ## Why conformance is worth claiming
 

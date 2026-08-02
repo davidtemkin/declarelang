@@ -43,7 +43,7 @@ import { Cell, isTracking } from "./reactive.js";
 import { DeclareError } from "./errors.js";
 import { defineAttributes, setBound } from "./attributes.js";
 import type { AttrType } from "./value.js";
-import { splitPath } from "./datapath.js";
+import { validateShape, type ShapeField } from "./data-schema.js";
 
 /** A place in a dataset: the `datapath` attribute's value. Interned per
  *  dataset (see Dataset.cursorAt), so equal places are equal values. */
@@ -103,6 +103,48 @@ function tagTree(data: Dataset, v: unknown, path: string[]): void {
 const getOwn = (container: object, key: string): unknown =>
   Object.hasOwn(container, key) ? (container as Record<string, unknown>)[key] : undefined;
 
+// ── The path currency (B2, data-paths.md §11 — RULED 2026-07-30) ──────────
+//
+// The mutation/read API takes SEGMENTS (the documented form — an array of
+// strings/numbers, no escaping anywhere) or an RFC 6901 POINTER STRING (the
+// interop spelling: "/events/3/y", "~0"/"~1" escapes honored — the testable
+// conformance claim). The dot-string form is RETIRED: it is the one spelling
+// that can never address a dotted key, and its silent ambiguity was the §2
+// hole. Diagnostics SPEAK pointer (authors never have to write one).
+
+/** The path a diagnostic shows: the pointer rendering of `segs` — exact for
+ *  every key, including dotted, slashed, and empty ones. */
+const showPath = (segs: readonly string[]): string =>
+  "/" + segs.map((t) => t.replace(/~/g, "~0").replace(/\//g, "~1")).join("/");
+
+/** RFC 6901 §4: a pointer is "" (the whole document) or "/"-led tokens;
+ *  unescape ~1 → "/" then ~0 → "~" (that order — "~01" must yield "~1", not
+ *  "/"). A "~" before anything but 0/1 is malformed and refused. */
+function parsePointer(p: string): string[] {
+  const out: string[] = [];
+  for (const raw of p.slice(1).split("/")) {
+    const bad = raw.match(/~(?![01])/);
+    if (bad !== null) {
+      throw new DeclareError(`'${p}' is not an RFC 6901 pointer — '~' escapes only as ~0 ('~') or ~1 ('/')`);
+    }
+    out.push(raw.replace(/~1/g, "/").replace(/~0/g, "~"));
+  }
+  return out;
+}
+
+/** Normalize a path argument to segments. Arrays pass through (numbers become
+ *  the string keys JS indexing already treats them as); a string must be a
+ *  pointer. Any other string — the retired dot-string form included — is a
+ *  pointed refusal naming both living spellings. */
+function toSegs(path: string | readonly (string | number)[]): string[] {
+  if (typeof path !== "string") return path.map(String);
+  if (path.startsWith("/")) return parsePointer(path);
+  if (path === "") return []; // the whole dataset — each verb refuses it with its own message
+  throw new DeclareError(
+    `'${path}' — paths are segments (["${path.split(".").join('", "')}"]) or an RFC 6901 pointer ("/${path.split(".").join("/")}"); the dot-string form retired with Pointer writes (data-paths.md §11)`
+  );
+}
+
 /** A Dataset holds embedded JSON (language §9: `events: Dataset { … }` — the
  *  `{ }` carries its JSON meaning there) and is the data half every source
  *  shares: the reactive `value` slot, region reads, and the mutation API.
@@ -117,12 +159,20 @@ export class Dataset extends Node {
    *  push mirrors the computed value into `value` (see defineAttributes). */
   declare contents: unknown;
 
+  /** The optional data shape (B4, language §9): parsed ShapeField
+   *  declarations, or null. Presence is the only switch — arrival validates
+   *  against it, the compiler checks `:path`s against it, and its declared
+   *  identity field keys records (D6 ladder rung 1). */
+  declare schema: readonly ShapeField[] | null;
+
   private readonly cursors = new Map<string, Cursor>();
 
   /** The interned cursor for `path` — one object per distinct place, so a
-   *  re-derived cursor is `===` the old one and the equality gate holds. */
+   *  re-derived cursor is `===` the old one and the equality gate holds.
+   *  The intern key joins on NUL, not "." — a key containing a dot must not
+   *  collide with the path that spells it as two segments. */
   cursorAt(path: readonly string[]): Cursor {
-    const key = path.join(".");
+    const key = path.join("\u0000");
     let c = this.cursors.get(key);
     if (c === undefined) this.cursors.set(key, (c = { data: this, path: [...path] }));
     return c;
@@ -131,12 +181,13 @@ export class Dataset extends Node {
   /** Tracked read of the region at `path` (root-relative). Registers exactly
    *  one region cell — the deepest slot the walk reaches (see the header) —
    *  plus the `value` attribute read the first line makes. `undefined` means
-   *  unresolved (a missing region); consumers surface it as null. */
-  read(path: readonly string[]): unknown {
+   *  unresolved (a missing region); consumers surface it as null. Takes the
+   *  path currency: segments, or an RFC 6901 pointer string. */
+  read(path: string | readonly (string | number)[]): unknown {
     let cur: unknown = this.value; // tracked: whole-value replacement wakes every reader
     let container: object | null = null;
     let key = "";
-    for (const seg of path) {
+    for (const seg of toSegs(path)) {
       if (!isContainer(cur)) { cur = undefined; break; }
       container = cur;
       key = seg;
@@ -146,29 +197,39 @@ export class Dataset extends Node {
     return cur;
   }
 
-  // ── The mutation API — imperative edits that drive bindings and
-  //    replication through the ordinary settle. Language §13 lists the
-  //    authoring surface for structural mutation as an open design; these
-  //    methods are the runtime layer it will bind to (recorded in HANDOFF).
-  //    Paths are dot-strings, root-relative; array indices are ordinary
-  //    segments ("rows.2.label"). ─────────────────────────────────────────
+  // ── The mutation API — THE structural-mutation authoring surface (D7,
+  //    ratified 2026-07-30 with data-paths.md §11: handler-called dataset
+  //    methods plus `<->` for leaf edits close language §13's open design).
+  //    Paths are the currency above: segments (documented) or an RFC 6901
+  //    pointer (interop); leaf writes address the slot, structural verbs
+  //    address the ARRAY and take indices as arguments (the §11.2 ruling —
+  //    a structural edit is an operation on the array, which is literally
+  //    the wake model below). ────────────────────────────────────────────
 
   /** Set the field at `path`. The path's containers must exist (a pointed
    *  error names the first missing step); the final field may be new.
-   *  Equality-gated: writing the value already there wakes nothing. */
-  set(path: string, v: unknown): void {
+   *  Against an array, the final token `-` (RFC 6901's after-last) APPENDS —
+   *  `set("/rows/-", v)` / `set(["rows", "-"], v)`; against an object, "-"
+   *  is just the key "-". Equality-gated: writing the value already there
+   *  wakes nothing. */
+  set(path: string | readonly (string | number)[], v: unknown): void {
     const segs = this.segs(path);
-    const { chain, container, key } = this.locate(segs);
+    const { chain, container, key: at } = this.locate(segs);
+    // `/-` append: resolve to the real index so the tag, the wake, and the
+    // write all speak the element's actual location.
+    const key = at === "-" && Array.isArray(container) ? String(container.length) : at;
+    if (key !== at) { segs[segs.length - 1] = key; chain[chain.length - 1] = [container, key]; }
     const old = getOwn(container, key);
     if (old === v) return;
     (container as Record<string, unknown>)[key] = v;
     tagTree(this, v, segs);
     this.wakeChain(chain);
+    if (key !== at) wakeAll(container); // an append is structural: length/order readers wake
     wakeTree(old);
   }
 
   /** Insert `v` at `index` of the array at `path`. */
-  insert(path: string, index: number, v: unknown): void {
+  insert(path: string | readonly (string | number)[], index: number, v: unknown): void {
     const { arr, chain, segs } = this.array(path);
     arr.splice(index, 0, v);
     tagTree(this, v, [...segs, String(index)]);
@@ -177,7 +238,7 @@ export class Dataset extends Node {
   }
 
   /** Remove (and return) the element at `index` of the array at `path`. */
-  removeAt(path: string, index: number): unknown {
+  removeAt(path: string | readonly (string | number)[], index: number): unknown {
     const { arr, chain } = this.array(path);
     const [removed] = arr.splice(index, 1);
     wakeAll(arr);
@@ -191,7 +252,7 @@ export class Dataset extends Node {
    *  array's own cells, the ancestors) wake; no item REGION cell stirs (the
    *  replicator's re-pointed cursors are the only item-side wake, and their
    *  equal re-reads die at the equality gate — replicate.ts). */
-  move(path: string, from: number, to: number): void {
+  move(path: string | readonly (string | number)[], from: number, to: number): void {
     if (from === to) return;
     const { arr, chain } = this.array(path);
     const [item] = arr.splice(from, 1);
@@ -200,8 +261,8 @@ export class Dataset extends Node {
     this.wakeChain(chain);
   }
 
-  private segs(path: string): string[] {
-    const segs = splitPath(path);
+  private segs(path: string | readonly (string | number)[]): string[] {
+    const segs = toSegs(path);
     if (segs.length === 0) {
       throw new DeclareError(`an empty path addresses the whole dataset — assign .value to replace it`);
     }
@@ -215,8 +276,8 @@ export class Dataset extends Node {
     const chain: [object, string][] = [];
     for (let i = 0; ; i++) {
       if (!isContainer(cur)) {
-        const at = i === 0 ? "the dataset has no value" : `'${segs.slice(0, i).join(".")}' is ${cur === undefined ? "missing" : "not a container"}`;
-        throw new DeclareError(`'${segs.join(".")}' addresses nothing — ${at}`);
+        const at = i === 0 ? "the dataset has no value" : `'${showPath(segs.slice(0, i))}' is ${cur === undefined ? "missing" : "not a container"}`;
+        throw new DeclareError(`'${showPath(segs)}' addresses nothing — ${at}`);
       }
       chain.push([cur, segs[i]]);
       if (i === segs.length - 1) return { chain, container: cur, key: segs[i] };
@@ -224,12 +285,12 @@ export class Dataset extends Node {
     }
   }
 
-  private array(path: string): { arr: unknown[]; chain: [object, string][]; segs: string[] } {
+  private array(path: string | readonly (string | number)[]): { arr: unknown[]; chain: [object, string][]; segs: string[] } {
     const segs = this.segs(path);
     const { chain, container, key } = this.locate(segs);
     const arr = getOwn(container, key);
     if (!Array.isArray(arr)) {
-      throw new DeclareError(`'${segs.join(".")}' is not an array — structural edits need one`);
+      throw new DeclareError(`'${showPath(segs)}' is not an array — structural edits need one`);
     }
     return { arr, chain, segs };
   }
@@ -245,6 +306,7 @@ defineAttributes(Dataset, {
   // places. The write itself is ordinary reactive machinery: every data read
   // tracked this slot, so replacement wakes them all.
   value: { def: null, push: (d, v) => tagTree(d, v, []) },
+  schema: { def: null },
   // A derived Dataset's `contents = { … }` binds here; its push mirrors the
   // computed value into `value` through value's own reactive setter — so a
   // recompute tags the new tree and wakes every `:path` reader and replicator,
@@ -347,6 +409,13 @@ export class DataSource extends Dataset {
       if (!res.ok) throw new Error(`HTTP ${res.status} for ${this.url}`);
       const value: unknown = this.format === "text" ? await res.text() : await res.json();
       if (seq !== this.seq) return; // superseded
+      // Validate on receipt (B4, language §9): malformed data lands in
+      // `.failed`/`.error` with the pointed path — never `undefined` three
+      // layers into a binding. Schema presence is the only switch.
+      if (this.schema !== null && this.format === "json") {
+        const err = validateShape(value, this.schema);
+        if (err !== null) throw new Error(`the response does not match the schema — ${err}`);
+      }
       setBound(this, "value", value);
       setBound(this, "status", "loaded");
       // the arrival EVENT (`onLoad`), after value+status settle: the hook for
@@ -463,6 +532,8 @@ export function coerceData(type: AttrType, v: unknown, def: unknown): unknown {
       return typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 0xffffff ? v : def;
     case "shape":
       return typeof v === "string" ? v : def;
+    case "dataschema":
+      return def; // a shape is declaration surface, never a data read
     case "enum":
       return typeof v === "string" && type.tokens.includes(v) ? v : def;
     // the records door: a data-borne array/record binds as itself

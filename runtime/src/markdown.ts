@@ -382,7 +382,12 @@ class TextFlow extends View {
     // width changes, so it needs no re-flow at all. Skipping it here also skips
     // serializing its blocks across the seam, which for a document of code
     // fences was megabytes per drag.
-    if (this.content.every((b) => b.pre === true)) return;
+    if (this.content.every((b) => b.pre === true)) {
+      // ... but the HOST box must still adopt the width (it bounds the pre's
+      // native horizontal scroller — stuck at a boot-time 0 it clips the flow
+      // to nothing). Width-only, no re-flow; no backend hook ⇒ full render.
+      if (this.surface?.setRichWidth !== undefined) { this.surface.setRichWidth(w); return; }
+    }
     this.render();
   }
 
@@ -866,7 +871,7 @@ export abstract class RichText extends View {
     // WIDTH — nothing structural depends on it, so re-width in place. Separate
     // constraint, and it must run AFTER the first build (c.run() above) so there
     // is something to re-width.
-    const cw = new Constraint(`${this.constructor.name}.rewidth`, () => `${this.width}`, () => this.relayout(this.width || 640), 0);
+    const cw = new Constraint(`${this.constructor.name}.rewidth`, () => `${this.width}`, () => this.relayout(this.width > 0 ? this.width : 640), 0);
     cw.run();
     onDiscard(this, () => cw.dispose());
   }
@@ -922,7 +927,7 @@ export abstract class RichText extends View {
     ACCENTS = this.accentsOf();                       // named text fills for this render
     for (const v of this.built) { this.removeChild(v); v.discard(); }
     this.built = [];
-    const width = this.width || 640;
+    const width = this.width > 0 ? this.width : 640;
     const family = this.fontFamily || FALLBACK_FAMILY;
     const lead = this.lineHeight || 1;
     const bodyColor = this.bodyColor ?? C.bodyColor;

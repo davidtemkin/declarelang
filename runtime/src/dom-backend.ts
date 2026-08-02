@@ -29,6 +29,14 @@ import { lockFocusZoom } from "./viewport-lock.js";
 
 /** Style a native editable element to match the view's painted text metrics, so
  *  the caret and glyphs sit exactly where the static measure would place them. */
+/** Field-wise equality over exactly what applyEditStyle writes — the spec
+ *  object is rebuilt per push, so identity can never gate it. */
+function editStyleEq(a: TextStyle, b: TextStyle): boolean {
+  return a.fontFamily === b.fontFamily && a.fontSize === b.fontSize &&
+    a.fontWeight === b.fontWeight && a.letterSpacing === b.letterSpacing &&
+    a.color === b.color;
+}
+
 function applyEditStyle(el: HTMLElement, st: TextStyle): void {
   const s = el.style;
   s.fontFamily = st.fontFamily;
@@ -55,7 +63,10 @@ function luminanceOf(c: number): number {
  *  app-level dark flag: the box's own background is the thing they sit on, and
  *  it is a fact the surface already has. A gradient or an unfilled field keeps
  *  the platform default. */
+const EDIT_SCHEME_FILL = new WeakMap<HTMLElement, Fill>();
 function applyEditScheme(el: HTMLElement, fill: Fill): void {
+  if (EDIT_SCHEME_FILL.get(el) === fill) return;
+  EDIT_SCHEME_FILL.set(el, fill);
   if (fill === null || typeof fill !== "number") { el.style.colorScheme = ""; return; }
   el.style.colorScheme = luminanceOf(fill) < 0.4 ? "dark" : "light";
 }
@@ -559,11 +570,20 @@ class DomSurface implements Surface {
   // value the attribute system produced — no selector, no cascade, no CSS
   // *model* anywhere. Cross-backend identity is pinned by the suite.
 
+  /** A scrolling pane's browser-drawn scrollbar follows the pane's own fill
+   *  (the editable-scheme rule, applied to scrollers). */
+  private applyScrollScheme(): void {
+    const f = this.fillV;
+    this.element.style.colorScheme = typeof f === "number" ? (luminanceOf(f) < 0.4 ? "dark" : "light") : "";
+  }
+
   setFill(f: Fill): void {
     this.fillV = f;
     // an editable already mounted here re-reads the scheme: a themed field's
     // fill arrives (and flips light↔dark) after the element exists
     if (this.editEl !== null) applyEditScheme(this.editEl, f);
+    // a scroller's scrollbar likewise: the theme's bg lands after attach
+    if (this.scrollYOn || this.scrollXOn) this.applyScrollScheme();
     if (isGradient(f)) {
       this.box.gradient = f;
       this.box.fill = null;
@@ -893,7 +913,13 @@ class DomSurface implements Surface {
       // scrollable overflow, so the browser scrolls, momentums, and
       // rubber-bands with no manual offset math.
       el.style.pointerEvents = "auto";
+      // The scrollbar is browser-drawn chrome sitting on THIS box — the same
+      // rule as an editable's (applyEditScheme): scheme from the box's own
+      // resolved fill, so a dark pane gets a light thumb whatever the page
+      // scheme says. Unfilled/gradient keeps the platform default.
+      this.applyScrollScheme();
     } else {
+      el.style.colorScheme = "";
       ob.overscrollBehavior = "";
       ob.overscrollBehaviorX = "";
       ob.overscrollBehaviorY = "";
@@ -904,6 +930,20 @@ class DomSurface implements Surface {
   }
 
   private scrollListener: (() => void) | undefined;
+  // Windowing-aware AT (backend.ts): the logical extent/position of a
+  // windowed replication, spoken in ARIA — the browser's protocol for
+  // "row N of M without M nodes". aria-rowcount on the block container,
+  // aria-rowindex per materialized row (1-based); null clears both when
+  // windowing disengages.
+  setRowCount(n: number | null): void {
+    if (n === null) this.element.removeAttribute("aria-rowcount");
+    else this.element.setAttribute("aria-rowcount", String(n));
+  }
+  setRowIndex(i: number | null): void {
+    if (i === null) this.element.removeAttribute("aria-rowindex");
+    else this.element.setAttribute("aria-rowindex", String(i));
+  }
+
   setScroll(on: boolean, onScroll: (y: number) => void): void {
     const el = this.element;
     this.scrollYOn = on;
@@ -958,6 +998,13 @@ class DomSurface implements Surface {
    *  per RichBlock (real `<p>`/`<h*>` for a11y), inline runs in NORMAL flow (a
    *  `<span>`/`<code>`) — so the browser wraps, aligns baselines, and lets the user
    *  select/copy/find contiguously. Returns the measured (flowed) height. */
+  /** Width-only follow-up to setRichContent: the host tracks the flow's width
+   *  (it bounds a pre block's native horizontal scroller) without re-flowing —
+   *  the cheap half the all-`pre` reflow early-out still needs. */
+  setRichWidth(width: number): void {
+    if (this.richEl !== null) this.richEl.style.width = width + "px";
+  }
+
   setRichContent(blocks: RichBlock[], selectable: boolean, width: number, onResize: (height: number) => void, onLink: (href: string) => void): number {
     const doc = this.element.ownerDocument;
     let host = this.richEl;
@@ -1195,7 +1242,12 @@ class DomSurface implements Surface {
     // nothing at touchdown — the quick swipe stays the browser's pan — and
     // takes the finger only when the hold fires (the non-passive touchmove
     // suppressor below, keyed on input.ts holdCaptureActive).
-    else if (w?.wantsDrag === true && w?.wantsHold !== true) ta = "pinch-zoom";
+    else if (w?.wantsDrag === true && w?.wantsHold !== true) {
+      // The axis-scoped claim (claim-surface.md, D8 RULED): `claim = x`
+      // keeps vertical pan with the enclosing regime — the browser's own
+      // arbitration runs the cross axis natively.
+      ta = w.claimAxis === "x" ? "pan-y pinch-zoom" : w.claimAxis === "y" ? "pan-x pinch-zoom" : "pinch-zoom";
+    }
     else if (el.dataset.declareApp !== undefined) {
       // The ROOT default keys on the App's reactive page-scrollability fact
       // (setPageScrollable — geometry, never any attribute): pan stays with
@@ -1239,6 +1291,58 @@ class DomSurface implements Surface {
     if (on) el.dataset.declareIgnorescroll = "1";
     else delete el.dataset.declareIgnorescroll;
     realizeIgnoreScroll(el);
+  }
+
+  /** The virtual-extent strut (setVirtualExtent) — a zero-width, inert,
+   *  invisible child whose height IS the scroll range's floor. */
+  private strutEl: HTMLElement | null = null;
+  private strutH: number | null = null;
+
+  setVirtualExtent(h: number | null): void {
+    if (h === this.strutH) return; // a same-height write per reconcile is a free recalc
+    this.strutH = h;
+    if (h === null) {
+      this.strutEl?.remove();
+      this.strutEl = null;
+      return;
+    }
+    if (this.strutEl === null) {
+      const s = this.element.ownerDocument.createElement("div");
+      s.dataset.declareStrut = "1";
+      const st = s.style;
+      st.position = "absolute";
+      st.left = "0";
+      st.top = "0";
+      st.width = "1px";
+      st.pointerEvents = "none";
+      st.visibility = "hidden";
+      this.element.appendChild(s);
+      this.strutEl = s;
+    }
+    this.strutEl.style.height = `${h}px`;
+  }
+
+  /** Where this element lived before travelWith moved it (null = at home). */
+  private travelHomeEl: HTMLElement | null = null;
+
+  travelWith(host: Surface | null): void {
+    const el = this.element;
+    if (host === null) {
+      if (this.travelHomeEl !== null) {
+        if (el.parentElement !== this.travelHomeEl) this.travelHomeEl.appendChild(el);
+        this.travelHomeEl = null;
+        el.style.zIndex = "";
+      }
+      return;
+    }
+    const target = (host as DomSurface).element;
+    if (el.parentElement === target) return;
+    if (this.travelHomeEl === null) this.travelHomeEl = el.parentElement;
+    // absolute child of the scroll container = content coordinates, carried
+    // by the platform's own scroll; z lifts it over the unindexed content
+    // (the sticky frame's stratum) so late-created rows never bury it
+    target.appendChild(el);
+    el.style.zIndex = "1";
   }
 
   setEditable(spec: EditableSpec | null): void {
@@ -1285,19 +1389,25 @@ class DomSurface implements Surface {
       this.element.appendChild(el);
       this.editEl = el;
     }
+    const prev = this.edit;
     this.edit = spec;
     if (el.value !== spec.value) el.value = spec.value; // guard: don't reset the caret on an echo
-    el.spellcheck = spec.spellcheck; // code fields turn the red squiggles off
-    el.style.padding = spec.padding > 0 ? `${spec.padding}px` : "0";
+    // Dirty-guarded against the previous spec: syncEditable pushes the WHOLE
+    // spec on any model change, and re-applying an unchanged style is not
+    // free — applyEditStyle runs a fontMetrics MEASURE per call, and every
+    // style write invites a recalc. The scrub bench (recycled editor cells)
+    // made the blanket reapply visible.
+    if (prev === null || prev.spellcheck !== spec.spellcheck) el.spellcheck = spec.spellcheck;
+    if (prev === null || prev.padding !== spec.padding) el.style.padding = spec.padding > 0 ? `${spec.padding}px` : "0";
     // no-wrap = one line per line + horizontal scroll (both native to a textarea
     // whose wrap attribute is "off"); soft = the wrapping default.
-    if (el instanceof HTMLTextAreaElement) {
+    if (el instanceof HTMLTextAreaElement && (prev === null || prev.wrap !== spec.wrap)) {
       el.wrap = spec.wrap ? "soft" : "off";
       el.style.whiteSpace = spec.wrap ? "pre-wrap" : "pre";
       el.style.overflow = "auto";
     }
-    (el as HTMLInputElement).placeholder = spec.placeholder;
-    applyEditStyle(el, spec.style);
+    if (prev === null || prev.placeholder !== spec.placeholder) (el as HTMLInputElement).placeholder = spec.placeholder;
+    if (prev === null || !editStyleEq(prev.style, spec.style)) applyEditStyle(el, spec.style);
     applyEditScheme(el, this.fillV);
   }
 

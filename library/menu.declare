@@ -5,7 +5,7 @@ The record-driven menu (planes.md §4–§6): items are DATA — the component
 arranges; the author never composes rows. The standard record covers real OS
 menus:
 
-    { id, label, key?, icon?, enabled?, checked?, divider?, submenu?, kind?, props? }
+    { id, label, key?, icon?, iconKind?, enabled?, checked?, divider?, submenu?, kind?, props? }
 
 - `key` renders right-aligned (display only — registration is the Keys
   service's, later).
@@ -41,11 +41,17 @@ class Menu extends View [ visible = { shown }, width = 220,
     opener: View = null,
     shown: boolean = false,
 
-    // whether ANY row in this menu carries an icon — so every label aligns to
-    // the same column (the reserved icon gutter), the macOS read, rather than
-    // an icon-less row's label sliding left under the icons.
+    // THE COLUMN MODEL (ruled 2026-07-31, resolving Apple's own unevenness):
+    // a CHECK column is ALWAYS present — fixed leading space whether or not
+    // anything is checked or even checkable; an ICON column exists only when
+    // some row in THIS menu carries an icon (no icons → no gutter at all);
+    // and the TEXT LEFT EDGE is one line for every row, icons or not.
+    // Custom (kind) rows align their content to the same text edge.
+    //   check col: x 7..24   ·   icon col (iff hasIcons): x 24..44
+    //   text edge: 46 with icons, 24 without
 
-    hasIcons: boolean = { (this.items || []).some((r) => r.icon != null) },
+    hasIcons: boolean = { (this.items || []).some((r) => r.icon != null || r.iconKind != null) },
+    textEdge: number = { hasIcons ? 46 : 24 },
 
     // the cascade: ONE lazily-created child Menu (app.createView — a Menu
     // cannot declare a Menu child without recursing), reused across rows;
@@ -63,41 +69,53 @@ class Menu extends View [ visible = { shown }, width = 220,
 
     picked(id: string) { },
 
+    // the panel's height BEFORE first paint: measured when it exists, else
+    // estimated from the records (the flip decision can't wait a settle)
+
+    expectedHeight() -> number {
+        const est = (this.items ?? []).length * (typeof theme.menuRow == "number" ? theme.menuRow : 26) + 10
+        return Math.max(this.height, est)
+        },
+
     openAt(v: View, e: PointerEvent) {
-        let x = e.x
-        let y = e.y
-        let n = v
-        while (n != null) { x += n.x || 0; y += n.y || 0; n = n.parent }
-        this.place(x, y)
+        const o = v.rootOrigin()
+        this.place(o.x + e.x, o.y + e.y)
         opener = v
         shown = true
+        Keys.navClaim(this, true)
         this.raise()
         },
+
+    // viewport-aware: the list drops BELOW the control; when it wouldn't fit
+    // and there's more room above, it emerges ABOVE instead (the native
+    // select discipline). place() still clamps whatever remains.
 
     openFor(v: View) {
-        let x = 0
-        let y = 0
-        let n = v
-        while (n != null) { x += n.x || 0; y += n.y || 0; n = n.parent }
-        this.place(x, y + v.height + 4)
+        const o = v.rootOrigin()
+        const h = this.expectedHeight()
+        const below = o.y + v.height + 4
+        const up = below + h > app.height - 4 && o.y - 4 - h >= 4
+        this.place(o.x, up ? o.y - 4 - h : below)
         opener = v
         shown = true
+        Keys.navClaim(this, true)
         this.raise()
         },
 
-    // place() takes ROOT-space targets (openAt/openFor compute them by
-    // walking up) and converts to parent-space, so a Menu works declared at
-    // App level OR inside a component (MenuBar owns one). The chain offset
-    // is snapshotted at open — menu chrome doesn't move while a menu is up.
+    // place() takes ROOT-space targets (openAt/openFor get them from
+    // `rootOrigin()` — THE one scroll-aware walk, so a serving view inside a
+    // scrolled pane anchors where the user SEES it) and converts to
+    // parent-space, so a Menu works declared at App level OR inside a
+    // component (MenuBar owns one). The chain offset is snapshotted at
+    // open — menu chrome doesn't move while a menu is up.
 
     offX: number = 0,
     offY: number = 0,
 
     place(x: number, y: number) {
-        let px = 0
-        let py = 0
-        let n = this.parent
-        while (n != null) { px += n.x || 0; py += n.y || 0; n = n.parent }
+        const po = this.parent != null ? this.parent.rootOrigin() : ({ x: 0, y: 0 })
+        const px = po.x
+        const py = po.y
         offX = px
         offY = py
         this.x = Math.max(4, Math.min(app.width - this.width - 4, x)) - px
@@ -109,9 +127,26 @@ class Menu extends View [ visible = { shown }, width = 220,
         shown = false
         opener = null
         activeRow = null
+        Keys.navClaim(this, false)
         },
 
-    pick(id: string) { this.picked(id); this.close() },
+    // A pick DISMISSES FIRST, then delivers — the native menu contract
+    // (AppKit ends tracking and dispatches on the next runloop pass; Win32
+    // destroys the menu window before WM_COMMAND): the takedown is part of
+    // the GESTURE, so a long action can never freeze an open menu on
+    // screen. Delivery defers past one PAINT (rAF, then a tick — rAF alone
+    // runs BEFORE that frame's paint); a host with no rAF defers a plain
+    // tick. Submenus route synchronously to the ROOT: the chain closes as
+    // one, and only the root defers the app-facing delivery.
+
+    pick(id: string) {
+        if (!isRoot) { this.picked(id); this.close(); return }
+        this.close()
+        const deliver = () => this.picked(id)
+        const raf = (globalThis as any).requestAnimationFrame
+        if (typeof raf == "function") raf(() => setTimeout(deliver, 0))
+        else setTimeout(deliver, 0)
+        },
 
     // ── the cascade ────────────────────────────────────────────────────────
 
@@ -120,18 +155,16 @@ class Menu extends View [ visible = { shown }, width = 220,
     // write. The declared any-seam, until a template's type is nameable.
 
     openSub(row: object, subItems: array) {
-        let x = 0
-        let y = 0
-        let n = row
-        while (n != null) { x += n.x || 0; y += n.y || 0; n = n.parent }
+        const o = (row as View).rootOrigin()
         if (child == null) child = app.createView("Menu", app, ({ isRoot: false, rootMenu: this.rootMenu != null ? this.rootMenu : this }))
-        this.driveSub(child, subItems, x + this.width - 6, y - 5)
+        this.driveSub(child, subItems, o.x + this.width - 6, o.y - 5)
         },
 
     driveSub(c: Menu, subItems: array, x: number, y: number) {
         c.items = subItems
         c.picked = (id) => this.pick(id)         // delivery + close route through the CHAIN to the root
         c.shown = true
+        Keys.navClaim(c, true)
         c.place(x, y)
         c.raise()
         },
@@ -150,7 +183,10 @@ class Menu extends View [ visible = { shown }, width = 220,
         if (rows.length == 0) return
         const i = rows.indexOf(this.activeRow)
         activeRow = rows[i < 0 ? (d > 0 ? 0 : rows.length - 1) : (i + d + rows.length) % rows.length]
+        this.revealRow(this.activeRow)
         },
+
+    revealRow(r: View?) { if (r != null) r.scrollIntoView("nearest") },
 
     pickActive() { this.pickRow(this.activeRow) },
 
@@ -203,8 +239,12 @@ class Menu extends View [ visible = { shown }, width = 220,
 
     // the panel
 
+    // the panel caps at the viewport; past that the BODY scrolls (the long
+    // list — a thousand bound options stay usable, the rover reveals as it
+    // roves)
+
     panel: View [ width = { classroot.width },
-        height = { this.body.contentHeight + 10 },
+        height = { Math.min(this.body.contentHeight + 10, app.height - 8) },
         cornerRadius = { typeof theme.menuRadius == "number" ? theme.menuRadius : 8 },
 
         // a frosted material when the theme names one (the macOS vibrancy read),
@@ -215,6 +255,8 @@ class Menu extends View [ visible = { shown }, width = 220,
         shadow = { theme.menuShadow != null ? theme.menuShadow : shadow(0, 10, 40, 0x00000038) },
 
         body: View [ x = 0, y = 5, width = { parent.width },
+            height = { parent.height - 10 },
+            scrolls = y, clip = true,
             layout: SimpleLayout [ axis = y, spacing = 0 ],
             datapath = { classroot.data.value },
 
@@ -251,6 +293,7 @@ class Menu extends View [ visible = { shown }, width = 220,
 
                 onInit() {
                     if (custom != "") app.createView(custom, this.host, ({ datapath: :props }))
+                    if (typeof :iconKind == "string") app.createView("" + :iconKind, this.icoHost, ({ datapath: :props }))
                     },
 
                 // the hover highlight — inset, rounded, accent (the Mac read)
@@ -262,10 +305,32 @@ class Menu extends View [ visible = { shown }, width = 220,
                 rule: View [ x = 10, y = 5, width = { parent.width - 20 }, height = 1,
                     visible = { parent.divider }, fill = { theme.line } ],
 
-                check: Text [ x = 8, y = center, fontSize = 12, visible = { !parent.divider && !!:checked },
-                    textColor = { (parent.hot || classroot.activeRow == parent) ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.text }, text = "✓" ],
+                // the check is DRAWN (the Checkbox rule): pixel-identical on
+                // both backends, independent of any font's ✓ glyph
 
-                ico: Text [ x = 14, y = center, fontSize = 13, visible = { !parent.divider && parent.custom == "" && :icon != null && :icon != "lightbulb" },
+                check: View [ x = 7, y = center, width = 12, height = 12,
+                    visible = { !parent.divider && !!:checked },
+                    draw(d: Draw) {
+                        const on = parent.hot || classroot.activeRow == parent
+                        d.strokeStyle = on ? (typeof theme.menuHlText == "number" ? theme.menuHlText : theme.accentText) : theme.text
+                        d.lineWidth = 1.8
+                        d.lineCap = "round"
+                        d.lineJoin = "round"
+                        d.beginPath()
+                        d.moveTo(1.5, 6.5)
+                        d.lineTo(4.5, 9.5)
+                        d.lineTo(10.5, 2.5)
+                        d.stroke()
+                        }
+                    ],
+
+                // an authored icon-column cell (`iconKind`): the class renders
+                // the icon; the ROW stays standard — check, text edge, pick
+
+                icoHost: View [ x = 25, y = center, width = 16, height = 16,
+                    visible = { !parent.divider && :iconKind != null } ],
+
+                ico: Text [ x = 25, y = center, fontSize = 13, visible = { !parent.divider && parent.custom == "" && :icon != null && :icon != "lightbulb" },
                     textColor = { (parent.hot || classroot.activeRow == parent) ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.text },
                     text = { "" + (:icon || "") } ],
 
@@ -273,7 +338,7 @@ class Menu extends View [ visible = { shown }, width = 220,
                 // affordance) — a monochrome outline no text glyph matches,
                 // in the same slot and color as a glyph icon would take
 
-                bulb: View [ x = 11, y = center, width = 13, height = 16,
+                bulb: View [ x = 23, y = center, width = 13, height = 16,
                     visible = { !parent.divider && parent.custom == "" && :icon == "lightbulb" },
                     draw(d: Draw) {
                         const on = parent.hot || classroot.activeRow == parent
@@ -305,7 +370,7 @@ class Menu extends View [ visible = { shown }, width = 220,
                     ],
 
                 lbl: Text [ y = center, fontSize = 13, visible = { !parent.divider && parent.custom == "" },
-                    x = { classroot.hasIcons ? 40 : 24 },
+                    x = { classroot.textEdge },
                     textColor = { (parent.hot || classroot.activeRow == parent) ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.text },
                     text = { "" + (:label || "") } ],
 
@@ -335,7 +400,9 @@ class Menu extends View [ visible = { shown }, width = 220,
 
                 // a `kind` row's author-rendered content region
 
-                host: View [ x = 24, y = 4, width = { parent.width - 34 }, height = { this.contentHeight },
+                host: View [ y = 4, height = { this.contentHeight },
+                    x = { classroot.textEdge },
+                    width = { parent.width - this.x - 10 },
                     visible = { parent.custom != "" } ]
                 ]
             ]

@@ -1,0 +1,166 @@
+/*
+# Combobox
+
+Filter-as-you-type over a collection (component-briefs.md §3 — D8 RULED): a
+text field owning a QUERY plus a dismissable option list owning a CHOICE — the
+canonical derived selection over data. Composition, not invention: TextInput
+for the entry, the Menu machinery for the list (overlay, raise, light-dismiss,
+Escape closes — the whole dismissal discipline rides along), and the matches
+are a DERIVED collection — a constraint over the items array, so the live
+match count is free and no rendered row is ever scanned.
+
+    Combobox [ width = 240, placeholder = "Assignee",
+        items = { app.people }, input(v: object) { app.assignee = v } ]
+
+- **Items are members** (the selection model's currency): records — shown by
+  their `label` (or `id`) — or plain strings. `value` holds the CHOSEN member;
+  `input(v)` is the delivery seam (Contract 1): the default writes `value`, a
+  use-site override redirects and the slot stays untouched.
+- **Typing filters live** (case-insensitive substring); opening WITHOUT typing
+  shows the full list (the disclosure-button read). Picking echoes the label
+  into the field and closes; editing again re-filters from the new text.
+- **Keyboard**: arrows rove the list (the Menu rover), Enter picks the roved
+  row — or the FIRST match when none is roved (the type-then-Enter path);
+  Escape closes the list (then a second Escape leaves the control — the
+  focus-scope ascent). The list is never a tab stop of its own.
+- The list is a collection like any other — bind 100k options and
+  `materialize` applies to it the same way (via the Menu it composes).
+*/
+
+include [ "control.declare", "menu.declare" ]
+
+use [ Menu ]
+
+class Combobox extends Control [
+    // the marker (the wrap-probe discipline)
+
+    isCombobox: boolean = true,
+
+    width = 220,
+    height = 30,
+
+    // ── the surface ───────────────────────────────────────────────────────
+
+    items: array = null,        // the option members: records or strings
+    value: object = null,       // the CHOICE — the chosen member, or null
+    placeholder: string = "",
+
+    // the QUERY — what the user has typed since last pick; `filtering` is
+    // false until they type, so a bare disclosure shows the whole list
+
+    query: string = "",
+    filtering: boolean = false,
+
+    labelOf(m: object) -> string {
+        if (m == null) return ""
+        if (typeof m == "object") return "" + ((m as any).label ?? (m as any).id ?? "")
+        return "" + m
+        },
+
+    // ── the derived collection (the brief's constraint: filtering is a data
+    //    derivation — the count rides along, nothing scans rendered rows) ──
+
+    matches: array = { !filtering || query == ""
+        ? (items ?? [])
+        : (items ?? []).filter((m) => this.labelOf(m).toLowerCase().includes(query.toLowerCase())) },
+    matchCount: number = { (matches ?? []).length },
+
+    // ── the delivery seam (Contract 1 form b) ─────────────────────────────
+
+    input(v: object) { value = v },
+
+    pickIndex(i: number) {
+        const m = (this.matches ?? [])[i]
+        if (m === undefined) return
+        this.entry.text = this.labelOf(m)
+        filtering = false
+        this.closeList()
+        input(m)
+        },
+
+    // ── the list lives at the APP layer (the shipped overlay idiom — the
+    //    same app.createView Menu's own cascade uses; planes.md's floating
+    //    stratum by construction): created lazily at first open, so it
+    //    paints over EVERYTHING, not just the combobox's later siblings.
+    //    Its items are PUSHED on each keystroke (the driveSub discipline) ──
+
+    //    (View-typed slot + any-seam driving — Menu members are invisible
+    //    across files, the menu.declare discipline)
+
+    list: View = null,
+
+    ensureList() {
+        if (list != null) return
+        list = app.createView("Menu", app, ({ }))
+        const m = this.list as any
+        m.picked = (id) => this.pickIndex(parseInt(id))
+        },
+
+    syncList() {
+        this.ensureList()
+        const m = this.list as any
+        m.width = this.width
+        m.items = (this.matches ?? []).map((o, i) => ({ id: "" + i, label: this.labelOf(o) }))
+        },
+
+    closeList() { if (list != null) (this.list as any).close() },
+    listShown() -> boolean { return this.list != null && (this.list as any).shown === true },
+    listRoved() -> boolean { return this.list != null && (this.list as any).activeRow != null },
+
+    open() {
+        filtering = false
+        this.syncList()
+        const m = this.list as any
+        m.openFor(this)
+        },
+    toggle() { if (this.listShown()) this.closeList(); else this.open() },
+
+    // ── the entry: a TextInput owning the draft; each edit re-derives the
+    //    matches and shows the list ─────────────────────────────────────────
+
+    entry: TextInput [ x = 0, y = 0,
+        width = { classroot.width },
+        height = { classroot.height },
+        placeholder = { classroot.placeholder },
+        onInput(t: string) {
+            classroot.query = "" + t
+            classroot.filtering = true
+            classroot.syncList()
+            if (!classroot.listShown()) (classroot.list as any).openFor(classroot)
+            },
+        onEnter() {
+            if (!classroot.listShown()) { classroot.open(); return }
+            // the roved row picks through the Menu's own Enter; unroved,
+            // Enter takes the first match — the type-then-Enter path
+            if (!classroot.listRoved()) classroot.pickIndex(0)
+            }
+        ],
+
+    // the disclosure — a drawn chevron over the entry's right edge; tap
+    // opens (the touch path: tap opens, tap picks)
+
+    disc: View [ width = 22,
+        x = { classroot.width - this.width - 2 },
+        y = { (classroot.height - this.height) / 2 },
+        height = { classroot.height - 4 },
+        onClick() { classroot.toggle() },
+        draw(d: Draw) {
+            d.strokeStyle = theme.textMuted
+            d.lineWidth = 1.6
+            d.lineCap = "round"
+            d.lineJoin = "round"
+            const cx = this.width / 2
+            const cy = this.height / 2
+            d.beginPath()
+            d.moveTo(cx - 4, cy - 2)
+            d.lineTo(cx, cy + 2.5)
+            d.lineTo(cx + 4, cy - 2)
+            d.stroke()
+            }
+        ]
+
+    // (the Menu machinery arrives whole with the app-level instance above:
+    //  overlay, raise, backdrop light-dismiss, Escape, the arrow rover, the
+    //  viewport flip, the long-list scroll — the id is the match INDEX,
+    //  identity stays the member's)
+    ]

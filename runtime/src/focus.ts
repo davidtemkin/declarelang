@@ -15,6 +15,7 @@
 import { View, fireEvent, setFocusDiscardHook } from "./view.js";
 import type { KeysService } from "./keys.js";
 import { Cell, Constraint } from "./reactive.js";
+import { rootFrameOrigin, type InteractionView } from "./interaction.js";
 
 /** The focused control's live silhouette, root-space — what the follower
  *  (below) computes and onGeometry subscribers receive. `root` lets a ring
@@ -22,6 +23,16 @@ import { Cell, Constraint } from "./reactive.js";
 export interface FocusGeometry {
   x: number; y: number; w: number; h: number; rad: number;
   view: View; root: View;
+  /** The focused view's nearest scrolling ancestor (the root when none) —
+   *  the container an indicator TRAVELS WITH (View.travelWith) so the
+   *  platform carries it through scrolls with zero lag. */
+  scroller: View;
+  /** The view's origin in the scroller's CONTENT coordinates — where a
+   *  traveled indicator positions itself (deliberately independent of the
+   *  scroller's own scroll offset, so scrolling does not re-derive it: the
+   *  platform moves both together). Equal to x/y when the scroller IS the
+   *  root. focusShape offsets are folded in, like x/y. */
+  homeX: number; homeY: number;
 }
 
 export class FocusService {
@@ -137,8 +148,16 @@ export class FocusService {
   }
 
   /** (Re)install the follower for the current focus. The constraint's body
-   *  reads TRACKED slots (ancestor x/y, the focusShape's inputs), so any
-   *  change re-fires it; its push notifies the geometry subscribers. */
+   *  reads TRACKED slots (ancestor x/y AND every scroll offset on the chain —
+   *  the shared walk's reads; the focusShape's inputs), so any change,
+   *  scrolling included, re-fires it; its push notifies the geometry
+   *  subscribers. Geometry is the root's CONTENT space — the FocusRing is a
+   *  child of the App and scrolls with the page like the control it rings, so
+   *  the root's own scroll is added back onto the frame-space origin;
+   *  an intermediate pane's scroll (which moves the control on screen while
+   *  the ring's coordinate space stands still) stays subtracted. Hand-rolled
+   *  x/y accumulation here was the scroll-blind focus ring (found 2026-07-31,
+   *  the same missing term as the pointer walk's — ONE WALK, everywhere). */
   private retargetFollower(): void {
     this.follower?.dispose();
     this.follower = null;
@@ -147,20 +166,34 @@ export class FocusService {
     const k = new Constraint(
       "Focus.follower",
       (): FocusGeometry | null => {
-        let x = 0, y = 0;
-        let n: View = v;
-        for (;;) {
-          x += n.x; y += n.y;
+        const o = rootFrameOrigin(v as unknown as InteractionView);
+        const root = rootOf(v);
+        const x = o.x + root.scrollX;
+        const y = o.y + root.scrollY;
+        // the nearest scrolling ancestor (exclusive) — the travel home; and
+        // the view's origin in ITS content space (plain accumulation up to
+        // the scroller: nearest means no scrolled pane sits between, and the
+        // scroller's OWN offset is deliberately not a read — a traveled
+        // indicator must NOT re-derive per scroll tick, that's the point)
+        let scroller: View = root;
+        for (let n = v.parent; n instanceof View; n = n.parent) {
+          if (n.scrolls !== "none") { scroller = n; break; }
+        }
+        let homeX = 0, homeY = 0;
+        for (let n: View = v; n !== scroller; ) {
+          homeX += n.x; homeY += n.y;
           if (!(n.parent instanceof View)) break;
           n = n.parent;
         }
+        if (scroller === root) { homeX = x; homeY = y; }
         const fsFn = (v as unknown as { focusShape?: () => { x: number; y: number; w: number; h: number; rad: number } | null }).focusShape;
         const fs = typeof fsFn === "function" ? fsFn.call(v) : null;
         return {
           x: x + (fs ? fs.x : 0), y: y + (fs ? fs.y : 0),
           w: fs ? fs.w : v.width, h: fs ? fs.h : v.height,
           rad: fs ? fs.rad : (v.cornerRadius > 0 ? v.cornerRadius : 4),
-          view: v, root: n,
+          view: v, root, scroller,
+          homeX: homeX + (fs ? fs.x : 0), homeY: homeY + (fs ? fs.y : 0),
         };
       },
       (g) => { if (g != null) for (const fn of [...this.geometryHandlers]) fn(g as FocusGeometry); }

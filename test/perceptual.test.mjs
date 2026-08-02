@@ -551,9 +551,9 @@ const r8PageHtml = (backendClass) => `<!doctype html>
   const app = render(${JSON.stringify(R8_SOURCE)}, document.getElementById("host"), new ${backendClass}());
   window.__app = app;
   window.__mutate = () => {
-    app.src.set("rows.1.label", "BETA");
-    app.src.insert("rows", 3, { label: "delta", w: 25, c: 0x9b59b6 });
-    app.src.removeAt("rows", 0);
+    app.src.set(["rows", 1, "label"], "BETA");
+    app.src.insert(["rows"], 3, { label: "delta", w: 25, c: 0x9b59b6 });
+    app.src.removeAt(["rows"], 0);
   };
   window.__refetch = async () => {
     app.src.url = "/data/r8b.json";

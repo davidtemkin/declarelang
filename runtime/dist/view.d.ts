@@ -6,6 +6,7 @@ import { type RenderBackend, type Surface } from "./backend.js";
 type ViewCreator = (root: View, tag: string, parent: View, props?: Record<string, unknown>) => View;
 export declare function provideViewCreator(fn: ViewCreator): void;
 import { type Draw } from "./draw.js";
+import { type PathSeg } from "./datapath.js";
 import type { LinkTarget } from "./parser.js";
 import type { Cursor } from "./data.js";
 /** What a layout strategy is to the View — the whole protocol: begin
@@ -20,6 +21,19 @@ export interface LayoutStrategy {
     rearm(): void;
 }
 export { onDiscard } from "./node.js";
+/** Is this view's replicated content currently windowed? Consulted by the
+ *  layout kernel (the pass suspends while the windowing kernel owns
+ *  placement) and by the childViews refusal. */
+export declare function isWindowedBlock(v: View): boolean;
+export declare function markWindowedBlock(v: View, on: boolean): void;
+export declare function markEvicting(v: View): void;
+export declare function fireRetireTree(v: View): void;
+/** Fire the membership-anchored `init` down an EXISTING subtree — the
+ *  RECYCLED-instance arrival (replicate.ts): a live row re-pointed at a
+ *  record whose presence episode is new fires that MEMBER's init without a
+ *  reconstruction, the exact mirror of suppressInit on a rebuilt member
+ *  whose episode continues. Parent-first, like construction's own order. */
+export declare function fireInitTree(v: View): void;
 export declare class View extends Node {
     /** The navigation target the compiler's link extraction (links.ts) found for
      *  this instance's activation handler — stamped by instantiate from the source
@@ -73,6 +87,10 @@ export declare class View extends Node {
      *  default), `"y"`, `"x"`, or `"both"`. Overflow along a declared axis
      *  becomes scroll range; along any other axis it is out of frame. */
     scrolls: "none" | "y" | "x" | "both";
+    /** The axis a declared drag claims (`claim = x | y | both`; D8 RULED —
+     *  claim-surface.md's axis-scoped drag claim). Read into InputWants at
+     *  attach; `both` is the whole-gesture claim drags always had. */
+    claim: "both" | "x" | "y";
     /** The tooltip text (planes.md tier 1 — one attribute at the use site). A
      *  non-empty tip wires this view's hover into the Tip service; the
      *  auto-included Tooltip singleton renders it. "" = no tip. */
@@ -211,18 +229,22 @@ export declare class View extends Node {
      *  live surface one Surface call at a time. */
     attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
     /** Read data relative to this view's inherited cursor — the runtime form
-     *  every `:path` in a `{ }` body rewrites to (`:location.city` →
-     *  `this.$data("location.city")`, expr.ts). Tracked like any read: the
-     *  binding wakes when exactly this region — or any datapath on the chain
-     *  above — changes. An unresolved path yields null (language §9). */
-    $data(path: string): unknown;
+     *  every `:path` in a `{ }` body resolves to. The COMPILER emits the
+     *  pre-parsed segments (`:location.city` → `this.$data(["location","city"])`,
+     *  compile.ts resolveBody — data-paths.md §5's emitted plans); the string
+     *  form remains for hand-written calls and the direct-instantiate dev path
+     *  (expr.ts's link-time rewrite). Tracked like any read: the binding wakes
+     *  when exactly this region — or any datapath on the chain above — changes.
+     *  An unresolved path yields null (language §9). */
+    $data(path: string | readonly PathSeg[]): unknown;
     /** Write `v` to `path` relative to this view's inherited cursor — the write
      *  twin of `$data`, the runtime half of a two-way `<->` binding (language §9,
      *  the leaf-input exception). Lands through `Dataset.set` (equality-gated →
      *  the read side that fed the field re-reads the same value and stops at the
      *  gate, so committing a draft is a no-op round-trip, not a loop). A datapath
-     *  that resolves to no dataset is a no-op — there is nowhere to write. */
-    $setData(path: string, v: unknown): void;
+     *  that resolves to no dataset is a no-op — there is nowhere to write.
+     *  Accepts pre-parsed segments like $data, for symmetry. */
+    $setData(path: string | readonly string[], v: unknown): void;
     /** The tree-mutation entry (R8): children were inserted/removed/reordered
      *  as a unit — re-arm the installed arrangement and re-derive auto-extent,
      *  once per burst (the replicator calls this once per reconcile, not per
@@ -327,6 +349,29 @@ export declare class View extends Node {
      *  paints ON TOP is `viewAt`'s question — so a drop target can ask about
      *  itself without walking the tree. */
     containsPoint(x: number, y: number): boolean;
+    /** This view's origin in ROOT space (the root's content coordinates — the
+     *  same space `viewAt` takes and drag events carry). THE one walk
+     *  (interaction.ts): translate per level MINUS every intermediate scroll
+     *  offset, with the root's own scroll added back at the boundary — so an
+     *  overlay anchored by it (a menu at a pointer, a popover under a control)
+     *  lands where the view is SEEN, at any scroll. Components call this
+     *  instead of hand-accumulating ancestor x/y, which is scroll-blind. */
+    rootOrigin(): {
+        x: number;
+        y: number;
+    };
+    /** Travel with `scroller`: re-host this view's SURFACE inside the
+     *  scroller's container so the platform carries it with the scrolled
+     *  content — zero-lag chrome that belongs to content (the FocusRing's
+     *  ride; the inverse of `ignoreScroll`). Position slots then mean the
+     *  scroller's CONTENT coordinates. Pass null (or this view's own parent —
+     *  its natural host) to come home; the ROOT is a real destination, not
+     *  home, so chrome can climb OUT of a scroller that sits directly under
+     *  it (the DataGrid header's escape).
+     *  Returns whether the surface now rides the scroller — false when the
+     *  backend can't (no surface yet, or no travelWith), so callers keep the
+     *  reactive root-space fallback. */
+    travelWith(scroller: View | null): boolean;
     /** Scroll this view to the top of its nearest scrolling ancestor — the
      *  imperative companion to the reactive `scrolls`/`scrollY` pair (a click
      *  handler calls it to jump to a target). Both backends do the work in their

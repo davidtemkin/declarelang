@@ -15,6 +15,14 @@ grid: View [ datapath = { classroot.cal.value },
 Read or replace the whole value through `.value` (a reactive slot — writing it wakes
 every reader); a whole-value swap re-renders the datapaths that read it in one settle.
 
+## schema
+The optional data shape (`schema = [ city: string, rows[]: [ id: string, n?: number ] ]`):
+arrivals validate against it at the boundary (a malformed response lands in `.failed` with
+the pointed path; an embedded body fails at build), and every `:path` under a direct cursor
+is checked statically against it. Validation only — identity is not declared here or
+anywhere: a record's `id` field is its identity by convention (`key = :field` overrides an
+unconventional name). Presence is the only switch; the `:path` surface never changes.
+
 ## contents
 Makes the `Dataset` **derived**: a `{ }` constraint (in place of a JSON body) that computes
 the value from other reactive state — `matches: Dataset [ contents = { app.filter() } ]`. It
@@ -29,9 +37,12 @@ in-place `.set` edit to that region — the granular counterpart to reading `.va
 tracks only a wholesale replacement).
 
 ## set()
-Writes `v` at a dotted `path` inside the value (`data.set("cols.0.label", "Mon")`), waking
-exactly the readers of that place — the surgical alternative to swapping the whole `.value`.
-Creates missing intermediate objects along the path.
+Writes `v` at a path inside the value, waking exactly the readers of that place — the
+surgical alternative to swapping the whole `.value`. A path is a **segments array**
+(`data.set(["cols", 0, "label"], "Mon")` — numbers welcome, no escaping ever) or an
+**RFC 6901 pointer** string (`data.set("/cols/0/label", "Mon")`; against an array, the
+final token `-` appends: `set("/rows/-", v)`). The path's containers must exist (a
+pointed error names the first missing step); the final field may be new.
 
 ## insert()
 Splices `v` into the array at `path`, at `index` — every replicated view bound to that array

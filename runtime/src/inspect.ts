@@ -14,6 +14,7 @@ import { Node } from "./node.js";
 import { hitAt, traceHitAt } from "./interaction.js";
 import { View } from "./view.js";
 import { isSet, ownerOf, ownValues, ownedSlots } from "./attributes.js";
+import { materializationInfo, type MaterializationDiag } from "./replicate.js";
 import { sharedClock, browserScheduler, type FrameScheduler } from "./animate.js";
 import { TAGS, LAYOUTS, DATA, ANIMATORS, ANIMATOR_GROUPS, STATES } from "./registry.js";
 import { settle } from "./reactive.js";
@@ -36,6 +37,11 @@ export interface InspectNode {
   /** The node's OWN attribute values (instance writes and bound results —
    *  the overlay over class defaults). A snapshot. */
   attrs: Record<string, unknown>;
+  /** The materialization diagnostic (materialization.md §3.6, the trust
+   *  requirement): present on a view carrying a replication block — whether
+   *  it is windowed, the logical vs materialized counts, the retained
+   *  (touched) set, and whether extent is measured or predicted. */
+  materialization?: MaterializationDiag;
   children: InspectNode[];
 }
 
@@ -164,6 +170,10 @@ export function inspect(node: Node, path = "app"): InspectNode {
   };
   const text = (node as unknown as { text?: unknown }).text;
   if (typeof text === "string" && text !== "") record.text = text;
+  if (v !== null) {
+    const w = materializationInfo(v);
+    if (w !== null) record.materialization = w;
+  }
   return record;
 }
 

@@ -1,0 +1,248 @@
+/*
+# Table / TableRow
+
+The list collection, componentized (docs/system-design/component-briefs.md §2 —
+D8 RULED): the selection-bearing, scroll-owning frame around a replicated (or
+written) collection, carrying the RULED selection model
+(docs/system-design/selection-model.md) so no app hand-rolls it again:
+
+- **Selection is the Table's VALUE** — `selected` (the primary member) and
+  `selection` (all of them, presented order), holding MEMBERS: the record for
+  a replicated row, the row view itself for a written one. App-ownable via
+  `input` (Contract 1 form b); identity per the ruled ladder (a record's `id`
+  by convention, else the object itself — the reconciler's own rule).
+- **The three facts**: selection, the ANCHOR (where ranges extend from), and
+  the keyboard position `active` — moved by arrows, extended by shift,
+  walked alone by ⌘ with Space toggling (discontiguous keyboard selection).
+- **`selects` declares the mode**: `none | single | multi` (default single).
+  (Build note: the ruled docs used one word for the mode AND the value; the
+  value keeps the ruled name `selection`, so the mode rides `selects`.)
+- Rows are TableRow instances — the RadioGroup discipline: direct children
+  reaching their table as `parent`, replicated over data or written by hand.
+  The row template stays free of any selection wiring.
+- Windowing composes: put `materialize` on the row template and selection,
+  ranges, and keyboard travel keep working — members are read from the DATA
+  through any row's cursor, never from instances, so an unmaterialized row
+  can be range-selected and arrow travel scrolls it into existence (uniform
+  row extents, the kernel's own v1 assumption).
+
+    Table [ width = 300, height = 400, datapath = { app.d.value },
+        selects = "multi", input(sel: object) { app.chosen = sel },
+        TableRow [ datapath = :rows[], height = 30,
+            t: Text [ x = 8, y = center, text = :label ] ] ]
+*/
+
+include [ "control.declare" ]
+
+class Table extends Control [
+    // the marker rows guard on (the wrap-probe discipline: a bare TableRow
+    // under a plain parent must boot, not crash into a missing protocol)
+
+    isTable: boolean = true,
+
+    // ── the value (selection-model.md §3) ─────────────────────────────────
+
+    selected:  object = null,   // the primary selected member, or null
+    selection: array  = null,   // every selected member, presented order (null = none)
+
+    // the keyboard position — the member the keyboard stands on (D8: `active`)
+
+    active: object = null,
+
+    // the mode: "none" | "single" | "multi"
+
+    selects: string = "single",
+
+    // ── internals: the anchor and the active INDEX (logical, data order) ──
+
+    anchorIndex: number = -1,
+    activeIndex: number = -1,
+
+    // ── identity — the ruled ladder's keyless rungs, shared with the
+    //    reconciler by convention: a record's scalar `id` IS its identity;
+    //    anything else compares as itself ─────────────────────────────────
+
+    idOf(m: object) -> object { return m != null && typeof m == "object" && !Array.isArray(m) && m.id !== undefined && typeof m.id != "object" ? m.id : m },
+    same(a: object, b: object) -> boolean { return this.idOf(a) === this.idOf(b) },
+    isSelected(m: object) -> boolean { return (this.selection ?? []).some(s => this.same(s, m)) },
+    isActive(m: object)   -> boolean { return this.active != null && this.same(this.active, m) },
+
+    // ── the delivery seam (Contract 1): every gesture lands here; the
+    //    default writes the value slots, a use-site override redirects ────
+
+    input(sel: object) {
+        selection = sel
+        selected = sel != null && sel.length > 0 ? sel[sel.length - 1] : null
+        },
+
+    clearSelection() { input(null) },
+
+    // ── the member universe, read from DATA (never instances — the
+    //    windowing contract). A replicated table reaches its array through
+    //    any row's cursor; a written table's members are its TableRow
+    //    children. Handlers only — presentation code derives from the value.
+
+    memberAt(i: number) -> object {
+        const arr = this.memberArray()
+        return arr != null ? arr[i] : null
+        },
+    memberArray() -> array {
+        // the probe must be a ROW (a subclass may hold other cursor-bearing
+        // children — DataGrid's header island rides a different dataset)
+        const probe = this.children.find(c => (c as TableRow).isTableRow === true && c.datapath != null && (c.datapath as Cursor).data != null) as any
+        if (probe != null) return probe.datapath.data.read(probe.datapath.path.slice(0, -1))
+        return this.children.filter(c => (c as TableRow).isTableRow === true)
+        },
+    memberCount() -> number {
+        const arr = this.memberArray()
+        return arr != null ? arr.length : 0
+        },
+
+    // ── the protocol (selection-model.md §4) ─────────────────────────────
+
+    rowClick(i: number, m: object, toggle: boolean, range: boolean) {
+        if (selects == "none" || disabled) return
+        activeIndex = i
+        active = m
+        if (selects == "multi" && range && anchorIndex >= 0) {
+            const arr = this.memberArray() ?? []
+            const lo = Math.min(anchorIndex, i), hi = Math.max(anchorIndex, i)
+            input(arr.slice(lo, hi + 1))
+            return
+            }
+        anchorIndex = i
+        if (selects == "multi" && toggle) {
+            const cur = selection ?? []
+            input(this.isSelected(m) ? cur.filter(s => !this.same(s, m)) : cur.concat([m]))
+            return
+            }
+        // plain click: exactly this member (⌘-click on single deselects)
+        input(toggle && this.isSelected(m) ? null : [m])
+        },
+
+    // arrows move active; plain = select-and-move, shift = extend the range,
+    // ⌘ = move alone (Space toggles) — keyboard parity for discontiguous
+    // selection. Home/End jump, same modifiers.
+
+    step(to: number, e: KeyEvent) {
+        const n = this.memberCount()
+        if (n == 0) return
+        const i = Math.max(0, Math.min(n - 1, to))
+        activeIndex = i
+        active = this.memberAt(i)
+        this.showRow(i)
+        if (e.meta || e.ctrl) return                       // the ⌘-walk: position only
+        if (selects == "none") return
+        if (selects == "multi" && e.shift && anchorIndex >= 0) {
+            const arr = this.memberArray() ?? []
+            const lo = Math.min(anchorIndex, i), hi = Math.max(anchorIndex, i)
+            input(arr.slice(lo, hi + 1))
+            return
+            }
+        anchorIndex = i
+        input([this.active])
+        },
+
+    // ensure the active row is on screen: use its instance when one exists;
+    // an unmaterialized target scrolls by arithmetic (uniform extents — the
+    // windowed kernel's own v1 model) and materializes on arrival.
+
+    showRow(i: number) {
+        const inst = this.children.find(c => (c as TableRow).isTableRow === true && (c as TableRow).rowIndex() == i)
+        if (inst != null) { inst.scrollIntoView("nearest"); return }
+        const some = this.children.find(c => (c as TableRow).isTableRow === true)
+        const unit = some != null && some.height > 0 ? some.height : 24
+        const top = i * unit
+        if (top < this.scrollY) this.scrollY = top
+        else if (top + unit > this.scrollY + this.height) this.scrollY = top + unit - this.height
+        },
+
+    onKeyDown(e: KeyEvent) {
+        if (disabled || e.repeat && e.key == " ") return
+        if (e.key == "ArrowDown")      step(activeIndex + 1, e)
+        else if (e.key == "ArrowUp")   step(activeIndex - 1, e)
+        else if (e.key == "Home")      step(0, e)
+        else if (e.key == "End")       step(this.memberCount() - 1, e)
+        else if (e.key == " " && selects == "multi" && activeIndex >= 0) {
+            // toggle at the position — the ⌘-walk's other half
+            const m = this.memberAt(activeIndex)
+            const cur = selection ?? []
+            anchorIndex = activeIndex
+            input(this.isSelected(m) ? cur.filter(s => !this.same(s, m)) : cur.concat([m]))
+            }
+        else if ((e.key == "Delete" || e.key == "Backspace") && (selection ?? []).length > 0)
+            this.deleteRequested()                         // the list idiom: Delete acts on the selection
+        },
+
+    // Delete/Backspace with a selection, delivered only while the table IS the
+    // focus (target-only keys) — so a field's Backspace is never confused for
+    // it. A delivery seam like Menu's `picked`: the app declares the verb;
+    // the default is refusal-by-inertness.
+
+    deleteRequested() { },
+
+    // rows stack — a vertical SimpleLayout, which the windowing kernel
+    // composes with (full mode stacks written or short lists; a windowed
+    // row template suspends the pass and folds the spacing into its unit)
+
+    layout: SimpleLayout [ axis = y ],
+
+    // one tab stop (the browse focus policy); rows are never stops
+
+    scrolls = y,
+    clip = true
+    ]
+
+
+class TableRow extends Control [
+    // the marker Table's walks key on (a plain fact, minifier-safe)
+
+    isTableRow: boolean = true,
+
+    // The MEMBER this row presents: its RECORD when replicated (the whole
+    // region at its cursor), the row view itself when written.
+
+    member() -> object { return this.datapath != null ? this.$data("") : this },
+
+    // the row's LOGICAL index — the cursor path's last segment when
+    // replicated (true data order, windowing included); a written row asks
+    // its position among its table's row children. A method, not a derived
+    // slot: its consumers are gestures (handlers), and the written-member
+    // fallback walks children, which no constraint may aggregate.
+
+    rowIndex() -> number {
+        if (this.datapath != null) return parseInt(this.datapath.path[this.datapath.path.length - 1])
+        if ((parent as Table).isTable !== true) return -1
+        return (parent as Table).children.filter(c => (c as TableRow).isTableRow === true).indexOf(this as any)
+        },
+
+    // the selection facts, DERIVED from the table's value — a row presents
+    // membership, it never stores it (the instance-free doctrine)
+
+    selected: boolean = { (parent as Table).isTable === true && (parent as Table).isSelected(this.member()) },
+    active:   boolean = { (parent as Table).isTable === true && (parent as Table).isActive(this.member()) },
+
+    // rows are NEVER tab stops (the one-stop policy — focus-scopes.md): the
+    // TABLE is the stop and the keyboard position moves inside it. A pointer
+    // press on a row therefore focuses the TABLE (Control's default would
+    // claim focus for the row itself, stranding the arrow keys).
+
+    focusable = false,
+
+    onPointerDown() {
+        if (!disabled && (parent as Table).isTable === true) Focus.focus(parent as any)
+        },
+
+    onClick() {
+        if (disabled || (parent as Table).isTable !== true) return
+        (parent as Table).rowClick(this.rowIndex(), this.member(),
+            Keys.isDown("MetaLeft") || Keys.isDown("MetaRight") || Keys.isDown("ControlLeft") || Keys.isDown("ControlRight"),
+            Keys.isDown("ShiftLeft") || Keys.isDown("ShiftRight"))
+        },
+
+    // quiet defaults, styled against the theme; use sites override freely
+
+    width = { (parent as Table).width },
+    fill = { selected ? theme.control : hot ? theme.surface : null },
+    stroke = { active && (parent as Table).focusVisible ? stroke(1, theme.accent) : null }
+    ]

@@ -70,9 +70,11 @@ import { coerce, isPercent, isAlign, type AttrType, type Theme } from "./value.j
 import { defineAttributes, setBound, type AttrSpec } from "./attributes.js";
 import { bindConstraint, bindPercent, bindAlign, bindData, bindDatapath, bindCursor } from "./bind.js";
 import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
-import { Replicator } from "./replicate.js";
+import { Replicator, type MaterializePolicy } from "./replicate.js";
+import { staticSegs, type PathSeg } from "./datapath.js";
 import { provideViewCreator } from "./view.js";
-import { toCursor } from "./data.js";
+import { toCursor, type Dataset } from "./data.js";
+import { validateShape } from "./data-schema.js";
 import { TAGS, LAYOUTS, LAYOUT_BASES, DATA, ANIMATORS, ANIMATOR_GROUPS, SOURCES, STATES } from "./registry.js";
 
 type ViewCtor = new () => View;
@@ -134,7 +136,7 @@ function routeAttr(schema: ComponentSchema, attr: Attr, trusted: boolean): Check
   if (!trusted) return checkAttr(schema, attr);
   const v = attr.value;
   if (v.kind === "code") return { ok: true, binding: { src: v.src, pos: v.pos } };
-  if (v.kind === "path") return { ok: true, datapath: { path: v.path, many: v.many, pos: v.pos } };
+  if (v.kind === "path") return { ok: true, datapath: { path: v.path, many: v.many, pos: v.pos, plan: v.plan } };
   const type = attrType(schema, attr.name);
   const c = type !== null ? coerce(type, v) : null;
   if (c === null || !c.ok) {
@@ -156,10 +158,10 @@ type Pending =
   | { view: Node; attr: Attr; code: string; classroot: View | null }
   | { view: View; attr: Attr; percent: number }
   | { view: View; attr: Attr; align: "center" | "end" }
-  | { view: View; attr: Attr; dataPath: string; type: AttrType }
-  | { view: View; attr: Attr; twoWay: string; type: AttrType }
+  | { view: View; attr: Attr; dataPath: string; type: AttrType; plan?: readonly PathSeg[] }
+  | { view: View; attr: Attr; twoWay: string | readonly string[]; type: AttrType }
   | { view: View; attr: Attr; twoWayCode: string; type: AttrType; classroot: View | null }
-  | { view: View; attr: Attr; cursorPath: string }
+  | { view: View; attr: Attr; cursorPath: string | readonly string[] }
   | { view: View; attr: Attr; cursorCode: string; classroot: View | null }
   | { view: View; layoutEl: Element; of: string }
   | { replicator: Replicator };
@@ -179,8 +181,17 @@ export function instantiate(input: Element | Program): View {
   // blocks share one namespace, in source order, exactly as a module would.
   const scriptScope: Record<string, unknown> = {};
   for (const s of program.scripts) Object.assign(scriptScope, evalScript(s.src));
+  CURRENT_SCRIPTS = scriptScope;
   return withScriptScope(scriptScope, () => buildTree(program, trusted));
 }
+
+/** The last program's script scope — replicated instances compile their
+ *  bodies LAZILY (a row materializes during a settle long after build), and
+ *  those compilations must see the same `script { }` helpers the eager ones
+ *  did. The materializer re-enters the scope around each construct. (Found
+ *  the day a replicated row called a script function: the eager bodies
+ *  bound it; the first materialized instance threw ReferenceError.) */
+let CURRENT_SCRIPTS: Record<string, unknown> = {};
 
 function buildTree(program: Program, trusted: boolean): View {
   const { infos, schemas, errors } = programSchemas(program.classes);
@@ -252,7 +263,7 @@ function installPending(pending: readonly Pending[], ctx: Ctx): void {
     if ("code" in p) bindConstraint(p.view, p.attr.name, p.code, p.attr.value.pos, p.classroot, p.attr.value.kind === "code" ? p.attr.value.deps : undefined);
     else if ("twoWay" in p) bindTwoWay(p.view, p.attr.name, p.twoWay, p.type);
     else if ("twoWayCode" in p) bindTwoWayDynamic(p.view, p.attr.name, p.twoWayCode, p.attr.value.pos, p.classroot, p.type);
-    else if ("dataPath" in p) bindData(p.view, p.attr.name, p.dataPath, p.type);
+    else if ("dataPath" in p) bindData(p.view, p.attr.name, p.dataPath, p.type, p.plan);
     else if ("cursorPath" in p) bindDatapath(p.view, p.cursorPath);
     else if ("cursorCode" in p) bindCursor(p.view, p.cursorCode, p.attr.value.pos, p.classroot);
     else if ("layoutEl" in p) {
@@ -273,6 +284,19 @@ function installPending(pending: readonly Pending[], ctx: Ctx): void {
  *  view arrived (the initial build, or a later replication reconcile whose
  *  own initTree ran before the root's walk reached it). */
 const INITED = new WeakSet<View>();
+
+/** Mark a whole subtree as already-inited WITHOUT firing anything — the
+ *  membership-anchored lifecycle (materialization.md §2, RULED 2026-07-30):
+ *  onInit fires once per record-MEMBERSHIP, so when the reconciler
+ *  reconstructs an instance for a member whose init already fired (a
+ *  windowed row scrolling back in, a keyed re-derivation reusing identity),
+ *  it pre-marks the fresh subtree and initTree stays silent. */
+export function markInited(view: View): void {
+  INITED.add(view);
+  for (const child of view.children) {
+    if (child instanceof View) markInited(child);
+  }
+}
 
 function initTree(view: View): void {
   // The stylesheet channel arms here — construction-complete, before init
@@ -695,14 +719,31 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
             r.datapath.pos
           );
         }
-        ctx.pending.push({ view, attr, cursorPath: r.datapath.path });
+        // The D4 legality table, enforced here too for the unchecked-tree
+        // path (check refuses at compile time): a cursor is ONE static place.
+        const cSegs = r.datapath.plan === undefined ? null : staticSegs(r.datapath.plan);
+        if (r.datapath.plan !== undefined && cSegs === null) {
+          throw new DeclareError(
+            `datapath = :${r.datapath.path} — a cursor is ONE place; a selective or data-resolved path matches elsewhere. Read it as a value, or replicate over it: datapath = :${r.datapath.path}[]`,
+            r.datapath.pos
+          );
+        }
+        ctx.pending.push({ view, attr, cursorPath: cSegs ?? r.datapath.path });
       } else if (attr.bind === "two") {
         // `name <-> :path` — a two-way binding on an editable leaf slot: read
         // the datapath AND write edits back to it (editor.ts). check() has
-        // already confirmed the slot is eligible.
-        ctx.pending.push({ view, attr, twoWay: r.datapath.path, type: t });
+        // already confirmed the slot is eligible — and that the path is a
+        // SINGULAR, STATIC place; the unchecked-tree path enforces it here.
+        const wSegs = r.datapath.plan === undefined ? null : staticSegs(r.datapath.plan);
+        if (r.datapath.plan !== undefined && wSegs === null) {
+          throw new DeclareError(
+            `'${attr.name} <-> :${r.datapath.path}' — a two-way binding writes ONE place; a selective or data-resolved path cannot name it`,
+            r.datapath.pos
+          );
+        }
+        ctx.pending.push({ view, attr, twoWay: wSegs ?? r.datapath.path, type: t });
       } else {
-        ctx.pending.push({ view, attr, dataPath: r.datapath.path, type: t });
+        ctx.pending.push({ view, attr, dataPath: r.datapath.path, type: t, plan: r.datapath.plan });
       }
     } else if (isPercent(r.value)) {
       ctx.pending.push({ view, attr, percent: r.value.percent });
@@ -796,14 +837,29 @@ function constructData(el: Element, schema: ComponentSchema, outer: View | null,
       );
     }
     if (el.raw !== undefined) {
+      let value: unknown;
       try {
-        node.value = JSON.parse(el.raw.src);
+        value = JSON.parse(el.raw.src);
       } catch (e) {
         throw new DeclareError(
           `${el.name ?? el.tag}: the Dataset body is not valid JSON — ${(e as Error).message}`,
           el.raw.pos
         );
       }
+      // Validate the EMBEDDED body against a declared schema at build —
+      // static data fails loudly and early (B4; a DataSource validates the
+      // same way at arrival, landing in .failed).
+      const shape = (node as Dataset).schema;
+      if (shape !== null) {
+        const err = validateShape(value, shape);
+        if (err !== null) {
+          throw new DeclareError(
+            `${el.name ?? el.tag}: the embedded data does not match the schema — ${err}`,
+            el.raw.pos
+          );
+        }
+      }
+      node.value = value;
     }
   } else if (el.raw !== undefined) {
     throw new DeclareError(`a ${el.tag}'s data arrives from its url — only a Dataset embeds a { } body`, el.raw.pos);
@@ -1225,7 +1281,21 @@ function appendChildren(from: Element, parentView: View, croot: View, ctx: Ctx, 
       // object identity, so a re-derived collection reuses instances by key.
       const keyAttr = childEl.attrs.find((a) => a.name === "key" && a.value.kind === "path");
       const keyPath = keyAttr !== undefined ? (keyAttr.value as { path: string }).path : null;
-      const replicator = new Replicator(parentView, childEl, many.value.path, croot, materializer(ctx), slot.prev, keyPath);
+      // `materialize` — the materialization policy slot (D5 RULED
+      // 2026-07-30; renamed from `windowed` in the naming ruling):
+      // replication metadata like `key`, consumed here, stripped from the
+      // template by the Replicator. check() validated the vocabulary.
+      const matAttr = childEl.attrs.find((a) => a.name === "materialize");
+      let policy: MaterializePolicy = "all"; // the v1 default; flips to auto once the differ proves invisibility
+      if (matAttr !== undefined) {
+        const wv = matAttr.value as { kind: string; name?: string; value?: number };
+        policy = wv.kind === "number" ? (wv.value as number)
+          : wv.name === "auto" ? "auto"
+          : wv.name === "window" ? "window"
+          : "all";
+      }
+      const replicator = new Replicator(parentView, childEl, many.value.path, croot, materializer(ctx), slot.prev, keyPath,
+        (many.value as { plan?: readonly PathSeg[] }).plan ?? null, policy);
       ctx.pending.push({ replicator });
       slot.prev = replicator;
       continue;
@@ -1295,21 +1365,29 @@ export function createViewIn(root: View, tag: string, parent: View, props?: Reco
  *  init fires) via `finish`, once the replicator has linked, attached, and
  *  cursored it. Identical machinery at build time and at every arrival. */
 function materializer(ctx: Ctx) {
-  return (template: Element, classroot: View): { view: View; finish: () => void } => {
+  return (template: Element, classroot: View): { view: View; finish: () => void; suppressInit: () => void } => {
     const saved = ctx.pending;
     ctx.pending = [];
     try {
-      const node = construct(template, classroot, ctx);
+      const node = withScriptScope(CURRENT_SCRIPTS, () => construct(template, classroot, ctx));
       if (!(node instanceof View)) {
         throw new DeclareError(`a ${template.tag} cannot replicate — it is not a view`, template.pos);
       }
       const pending = ctx.pending;
       return {
         view: node,
+        // finish COMPILES (installPending binds constraints, which capture
+        // the script scope at compile time) — it needs the scope exactly as
+        // construct does
         finish: () => {
-          installPending(pending, ctx);
+          withScriptScope(CURRENT_SCRIPTS, () => installPending(pending, ctx));
           initTree(node);
         },
+        // Membership-anchored init (the D5 ruling): the reconciler calls this
+        // before finish when the record's membership already fired its init —
+        // a reconstructed window row, a keyed re-derivation — so initTree
+        // stays silent for the whole subtree.
+        suppressInit: () => markInited(node),
       };
     } finally {
       ctx.pending = saved;

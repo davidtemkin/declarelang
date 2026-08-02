@@ -1,5 +1,6 @@
 import { Node } from "./node.js";
 import { View } from "./view.js";
+import { type MaterializationDiag } from "./replicate.js";
 export interface InspectNode {
     /** The component kind — the class's name (`Checkbox`, `View`, `Spring`…). */
     kind: string;
@@ -20,6 +21,11 @@ export interface InspectNode {
     /** The node's OWN attribute values (instance writes and bound results —
      *  the overlay over class defaults). A snapshot. */
     attrs: Record<string, unknown>;
+    /** The materialization diagnostic (materialization.md §3.6, the trust
+     *  requirement): present on a view carrying a replication block — whether
+     *  it is windowed, the logical vs materialized counts, the retained
+     *  (touched) set, and whether extent is measured or predicted. */
+    materialization?: MaterializationDiag;
     children: InspectNode[];
 }
 export declare function kindName(n: Node): string;

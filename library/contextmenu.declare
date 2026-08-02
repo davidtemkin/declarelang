@@ -1,0 +1,41 @@
+/*
+# ContextMenu
+
+The right-click / long-press menu (component-briefs.md §4 — D8 RULED): Menu's
+machinery WHOLE — overlay, raise, pointer-anchored placement with viewport
+clamping, the Mac light-dismiss rule (outside press closes AND is swallowed),
+Escape closes the chain — with a gesture-opened entry. No new overlay
+machinery, by the brief's own constraint: if ContextMenu ever needs something
+Menu lacks, Menu grows it and both ride.
+
+Declared ONCE, opened by many. The SERVING view declares the gesture — that
+declaration is what routes it (the claim model: `contextMenu` engages the
+right-click/two-finger path, `hold` is the touch long-press gate, and each
+engages only where a handler is declared). The whole wiring is two lines on
+the view the menu serves:
+
+    rowMenu: ContextMenu [ items = { … }, picked(id: string) { … } ],
+    …
+    Row [ …,
+        onContextMenu(e: PointerEvent) { app.rowMenu.open(this, e) },
+        onHold(e: PointerEvent) { app.rowMenu.open(this, e) } ]
+
+`open(v, e)` anchors at the pointer (view-relative event coordinates walked to
+root space) and clamps inside the app — Menu's own placement discipline. Items
+are the standard Menu records — written lists or derived from the opener
+(`items = { … opener … }` for per-row menus with zero per-row instances);
+picking delivers through `picked(id)` and closes.
+*/
+
+include [ "menu.declare" ]
+
+class ContextMenu extends Menu [
+    // the marker (the wrap-probe discipline)
+
+    isContextMenu: boolean = true,
+
+    // the gesture entry: anchor at the POINTER, not below a control —
+    // openAt's contract, named for the serving view's two-line wiring
+
+    open(v: View, e: PointerEvent) { this.openAt(v, e) }
+    ]

@@ -1,6 +1,50 @@
 # Materialization — logical instances, invisible virtualization
 
-> **Status: proposed 2026-07-28, not yet ruled.** Grew out of the OL gap audit
+> **Build record (2026-07-30): B5 v1 LANDED, in §8's order, per the D5
+> rulings (the RULED block in §8).** What ships: the divergence bit
+> (attributes.ts — a WeakSet probe on the author-write path) + membership-
+> anchored `onInit` (suppressed reconstruction via the reconciler's
+> membership set, general — keyed re-derivations included); the windowed
+> match behind the materialization policy slot (`materialize = all | auto |
+> window | <count>`, default `all` — renamed from `windowed` in the naming
+> ruling), uniform extents with estimate-then-correct measurement,
+> the block owning row placement and the parent's logical extent (yielding,
+> author-respecting); keep-alive retention of touched instances at their
+> logical places; the honest fallbacks (layout strategy present, no
+> scroller, selective plans → full materialization, reason inspectable);
+> `childViews` refusal on windowed blocks with the live window as kernel API
+> (`blocksOf`/`realized()`/`navigateTo`/`materializationInfo`, replicate.ts —
+> the API speaks materialization words, never the Window noun);
+> navigate-to-logical-record; windowing-aware AT (aria-rowcount/rowindex via
+> the Surface seam, DOM backend); the inspector diagnostic (§3.6, on the
+> inspect payload); and THE SEMANTIC DIFFER (test/materialization.test.mjs)
+> — one script, windowed vs full, identical projection — plus the §5 bench,
+> measured: scroll 0.06–0.11 ms/frame flat across 10³–10⁶ rows, offscreen
+> edit 0.04 ms, ~20 materialized at every scale; 1M-row boot 587 ms,
+> dominated by data adoption (tagTree), not construction.
+>
+> **The 2026-07-31 QA rounds LANDED four of the five deferrals** (record in
+> the data tree's DATA-PROJECT.md): RECYCLING (a window shift's clean
+> leavers re-point at its arrivers; spares park; eligibility = clean ∧
+> unfocused — the thumb-scrub bench forced it: 71→8 ms/frame median);
+> FOCUS-COUNTS-AS-TOUCHED (a row holding the keyboard focus retains like a
+> diverged one — recycling made the gap visible); a VERTICAL SimpleLayout
+> COMPOSES (the pass suspends, spacing folds into the unit — the first
+> layout-aware case); and VARIABLE EXTENTS (the measured ladder: an
+> estimate baseline + identity-keyed measured heights with Fenwick-indexed
+> corrections; offset/indexAt O(log n); prepend/measure corrections above
+> the viewport compensate the scroll — the anchoring discipline; uniform
+> collections degenerate to the empty-corrections i×unit math). Plus the
+> VIRTUAL EXTENT seam (Surface.setVirtualExtent — the scroll range spans
+> the logical collection when the block's parent IS the scroller) and
+> velocity-adaptive overscan. Still deferred: windowing over selective
+> plans; mid-flight animator settle at dematerialization; the full
+> VirtualLayout generalization beyond vertical stacks. One nuance made explicit in the build: for a member
+> never materialized, `onInit` fires at FIRST materialization (at most once
+> per membership) — handlers live on instances, so a lazy member's init is
+> lazy; the differ therefore projects per-row state, not global init counts.
+>
+> **Status: proposed 2026-07-28; core rulings D5 2026-07-30 (see §8).** Grew out of the OL gap audit
 > ([openlaszlo-gaps.md](openlaszlo-gaps.md) §7) under David's challenge: *"how
 > can this be solved so giant datasets just look like a regular dataset and the
 > developer doesn't need to care?"* The first draft answered with an OL-shaped
@@ -21,6 +65,40 @@
 > and the reception forecast; its editor's note flags the one live design
 > pressure (browser find/selection/AT over uninstantiated rows on the DOM
 > backend) that §2's contract should answer explicitly.
+
+> **New deferral (2026-08-01, found by the React control-arm experiment):
+> browsers saturate element layout at ~2²⁵ px (Chrome: 33,554,428), so a
+> windowed list whose logical extent exceeds it (1M × 44px rows ≈ 44M px)
+> can only scroll to ~76% of its content — the strut clamps silently.
+> Needed: extent COMPRESSION — cap the physical strut below the
+> saturation point and map physical scrollTop ↔ logical offset in the
+> reconciler (placement re-based so row coordinates also stay under the
+> cap). 100K and below are unaffected.**
+
+> **LANDED 2026-08-01 — THE ANIMATOR/RECYCLING INTERACTION. Symptom: a
+> dragged scrollbar ran at ~8fps (112 ms/frame at 10K, 127 ms at 100K)
+> while wheel scrolling was fine. Cause: a `Spring` drives its slot by
+> plain assignment (§5's displacement rule), and that write path set the
+> DIVERGENCE BIT — so a row holding any spring read as user-touched and
+> the reconciler refused to recycle it (499 of 937 candidates rejected;
+> 45 reconciles per scroll step; 1,155 instances constructed where
+> re-pointing was correct). A spring had just been added to every Tracker
+> row for in-place expansion, which is how a latent rule collision became
+> visible. Fixes: (1) an animator's write is a runtime DERIVE, not an
+> author's touch — a declared animator toward a declared target is
+> reproducible by reconstruction — so it is exempt from divergence
+> (`asRuntimeWrite`, attributes.ts; `Animator` already used `addBound`
+> and was exempt, only `Spring` was not); (2) the harvest is
+> ORDER-PRESERVING (k-th leaver → k-th arriver), so a fully-missed window
+> leaves every instance at its existing child index and re-links nothing;
+> (3) `Spring.resnap()` — a recycled instance takes its new target
+> outright instead of sliding from the departed record's geometry.
+> Measured after: 8.3 ms/frame dragging at 100K, 9.4 ms at 10K, expansion
+> animation intact. NOTE ON MEASUREMENT: the old scrub probe (set
+> scrollTop, await one rAF) timed rAF latency, NOT the reconcile the
+> scroll event dispatches afterward — it could not see any of this. Frame
+> intervals across a sustained drag are the honest measure; every earlier
+> scrub number in this project used the flawed probe.**
 
 ---
 
@@ -389,3 +467,40 @@ count vs. measured construct budget); whether hibernation (suspend + keep
 cells) ships in v1 or touched instances simply stay fully alive (simpler, and
 touched counts are small); whether `childViews` on a virtualized block should
 be refused outright rather than partial (the honest-seam question, §2).
+
+> **RULED 2026-07-30 (David — the D5 gate; B5 is unblocked), with two
+> refinements made in the ruling conversation:**
+>
+> 1. **Lifecycle is MEMBERSHIP-anchored, as a general principle.** `onInit`
+>    keeps its name and means "this record's presence began" — once per
+>    membership, never refired by window reconstruction. The future
+>    pre-destroy hook gets the symmetric meaning — presence ENDING (leave
+>    the set / subtree removal), never window eviction — and a departure
+>    name (D8 picks the spelling). Instance construct/teardown never becomes
+>    language surface. Verified (2026-07-30, post-B5): State
+>    apply/unapply already reads this way — a State's children fire init
+>    once per PRESENCE EPISODE (apply → membership begins; unapply →
+>    ends; reapply → a new membership fires again), the same rule as
+>    leave-and-return in a match.
+> 2. **The materialization policy is a permanent slot, not a boolean
+>    opt-in** — spelled `materialize = all | auto | window | <count>` (RULED
+>    as `windowed` 2026-07-30, RENAMED the same day in the naming ruling:
+>    "window" stays the mechanism's term of art in prose but leaves the
+>    author-facing surface, clearing the word for Window-the-component; the
+>    values inverted with the noun — `all` forces full materialization, the
+>    differ's forcing switch). The word stays in the language forever
+>    (debugging, pinning, the differ); only the DEFAULT migrates: `all` in
+>    v1, flipping to `auto` once the differ + bench prove invisibility. The
+>    capstone's zero-vocabulary claim rides the default, not the word's
+>    absence.
+> 3. **Touched instances keep-alive in v1** — no hibernation machinery;
+>    touched counts are human-bounded. Hibernation stays available as a
+>    later optimization if measurement asks.
+> 4. **`childViews` on a windowed block refuses** (app-language read) with a
+>    pointed error naming the derive-from-data idiom — a partial answer
+>    would be scroll-dependent, the exact observable-difference class §2
+>    abolishes. The LIVE WINDOW (realized instances + logical positions) is
+>    first-class RUNTIME/LIBRARY API on the windowing kernel — the door the
+>    layout strategy, AT traversal, the inspector diagnostic, and
+>    navigate-to-logical-record consume — designed as part of B5.
+>    Non-windowed blocks keep `childViews` unchanged.

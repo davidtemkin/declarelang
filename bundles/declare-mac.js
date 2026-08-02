@@ -330,7 +330,9 @@ var DeclareMac = (() => {
         "=": "eq",
         ",": "comma",
         ":": "colon",
-        ".": "dot"
+        ".": "dot",
+        "*": "star",
+        "!": "bang"
       };
       if (punct[c]) {
         advance();
@@ -709,6 +711,10 @@ var DeclareMac = (() => {
                 this.next();
                 this.parseMembers(child);
                 this.expect("rbracket", "']'");
+                if (this.peek().kind === "code") {
+                  const body = this.next();
+                  child.raw = { src: body.str, pos: body.pos };
+                }
                 el.children.push(child);
               } else if (this.peek().kind === "code") {
                 if (prevailing || readOnly) {
@@ -838,6 +844,12 @@ var DeclareMac = (() => {
             case "colon":
               return this.parsePath(t.pos);
             case "lbracket": {
+              if (this.peek().kind === "ident") {
+                const after = this.peekAt(1).kind;
+                if (after === "colon" || after === "query" || after === "bang" || after === "lbracket" && this.peekAt(2).kind === "rbracket") {
+                  return { kind: "schema", shape: this.parseShapeFields(), pos: t.pos };
+                }
+              }
               const items = [];
               while (this.peek().kind !== "rbracket" && this.peek().kind !== "eof") {
                 items.push(this.parseLiteral());
@@ -853,25 +865,141 @@ var DeclareMac = (() => {
               throw new DeclareError(`expected a value, got '${t.text || t.kind}'`, t.pos);
           }
         }
-        /** `:field(.field)*` with an optional glued `[]` (the replication form,
-         *  language §9: `:arr[]` matches many). `[]` must sit hard against the
-         *  path — `%`-style adjacency: the marker is part of the value's spelling. */
+        /** The fields of a data-shape literal (B4), after the opening `[`:
+         *  `name markers : (type | [ nested ])` comma-separated to the `]`.
+         *  Markers, in this order when combined: `[]` (array), `?` (optional).
+         *  Identity is never declared — a record's `id` field is its identity by
+         *  convention (the invisible rule), so `!` refuses pointedly. */
+        parseShapeFields() {
+          const fields = [];
+          while (this.peek().kind !== "rbracket" && this.peek().kind !== "eof") {
+            const name = this.expect("ident", "a field name in the schema shape");
+            let array = false, optional = false;
+            if (this.peek().kind === "lbracket" && this.peekAt(1).kind === "rbracket") {
+              this.next();
+              this.next();
+              array = true;
+            }
+            if (this.peek().kind === "query") {
+              this.next();
+              optional = true;
+            }
+            if (this.peek().kind === "bang") {
+              throw new DeclareError(`'${name.text}!' \u2014 identity is never declared: a record's 'id' field IS its identity by convention (key = :field overrides an unconventional name); drop the '!'`, this.peek().pos);
+            }
+            this.expect("colon", `':' after the shape field '${name.text}'`);
+            let field;
+            if (this.peek().kind === "lbracket") {
+              this.next();
+              const nested = this.parseShapeFields();
+              field = { name: name.text, array, optional, type: null, fields: nested };
+            } else {
+              const ty = this.expect("ident", "a shape field's type \u2014 string | number | boolean | any, or a nested [ \u2026 ]");
+              if (ty.text !== "string" && ty.text !== "number" && ty.text !== "boolean" && ty.text !== "any") {
+                throw new DeclareError(`a shape field's type is string | number | boolean | any, or a nested [ \u2026 ] \u2014 not '${ty.text}'`, ty.pos);
+              }
+              field = { name: name.text, array, optional, type: ty.text };
+            }
+            fields.push(field);
+            if (this.peek().kind === "comma")
+              this.next();
+            else
+              break;
+          }
+          this.expect("rbracket", "']' closing the schema shape");
+          return fields;
+        }
+        /** `:field(.field)*` with selectors (B3, jsonpath-spelling.md): glued
+         *  bracket groups carry the RFC 9535 v1 subset — `[2]` index (negative from
+         *  the end), `[a:b]`/`[a:b:c]` slice, `[*]` wildcard (`.​*` normalizes to
+         *  it), `["name"]`/`['name']` quoted name — and the empty `[]` remains the
+         *  replication marker, trailing only (D4 §2: `[]` replicates, `[*]`
+         *  selects). Brackets sit hard against the path (`%`-style adjacency);
+         *  filters and unions refuse with their gate named. `plan` is attached
+         *  exactly when the spelling used anything beyond dot-idents. */
         parsePath(pos) {
-          let last = this.expect("ident", "a field name after ':'");
-          let path = last.text;
-          while (this.peek().kind === "dot") {
-            this.next();
-            last = this.expect("ident", "a field name after '.'");
-            path += "." + last.text;
-          }
+          const first = this.expect("ident", "a field name after ':'");
+          let path = first.text;
+          const plan = [first.text];
+          let planful = false;
+          let end = first.pos.offset + first.text.length;
           let many = false;
-          const lb = this.peek();
-          if (lb.kind === "lbracket" && lb.pos.offset === last.pos.offset + last.text.length) {
-            this.next();
-            this.expect("rbracket", "']' \u2014 a many-path is written ':items[]'");
-            many = true;
+          for (; ; ) {
+            const t = this.peek();
+            if (t.kind === "dot") {
+              this.next();
+              if (this.peek().kind === "star") {
+                const st = this.next();
+                path += "[*]";
+                plan.push({ w: 1 });
+                planful = true;
+                end = st.pos.offset + 1;
+                continue;
+              }
+              const name = this.expect("ident", "a field name after '.' (an index is written [2])");
+              path += "." + name.text;
+              plan.push(name.text);
+              end = name.pos.offset + name.text.length;
+              continue;
+            }
+            if (t.kind === "lbracket" && t.pos.offset === end) {
+              this.next();
+              const s = this.peek();
+              if (s.kind === "rbracket") {
+                this.next();
+                many = true;
+                break;
+              }
+              if (s.kind === "query") {
+                throw new DeclareError("filter selectors ([?\u2026]) are not in the path subset yet (jsonpath-spelling.md \xA75) \u2014 derive the subset in a Dataset [ contents = { \u2026 } ] and bind to that", s.pos);
+              }
+              if (s.kind === "star") {
+                this.next();
+                path += "[*]";
+                plan.push({ w: 1 });
+              } else if (s.kind === "string") {
+                this.next();
+                path += `[${JSON.stringify(s.str)}]`;
+                plan.push(s.str);
+              } else if (s.kind === "number" || s.kind === "colon") {
+                const readInt = () => {
+                  if (this.peek().kind !== "number")
+                    return null;
+                  const nt = this.next();
+                  if (!Number.isInteger(nt.num) || nt.hex === true)
+                    throw new DeclareError("a path index is a plain integer", nt.pos);
+                  return nt.num;
+                };
+                const parts = [readInt()];
+                let colons = 0;
+                while (this.peek().kind === "colon" && colons < 2) {
+                  this.next();
+                  colons++;
+                  parts.push(readInt());
+                }
+                if (colons === 0) {
+                  path += `[${parts[0]}]`;
+                  plan.push({ i: parts[0] });
+                } else {
+                  while (parts.length < 3)
+                    parts.push(null);
+                  path += `[${parts.map((v) => v === null ? "" : String(v)).join(":").replace(/:$/, "")}]`;
+                  plan.push({ s: parts });
+                }
+              } else {
+                throw new DeclareError("a path selector is [index], [start:end:step], [*], or ['name']", s.pos);
+              }
+              if (this.peek().kind === "comma") {
+                throw new DeclareError("union selectors ([a, b]) are not in the path subset (jsonpath-spelling.md \xA75) \u2014 write separate reads, or derive the set in a Dataset [ contents = { \u2026 } ]", this.peek().pos);
+              }
+              const rb = this.expect("rbracket", "']' closing the path selector");
+              end = rb.pos.offset + 1;
+              planful = true;
+              continue;
+            }
+            break;
           }
-          return { kind: "path", path, many, pos };
+          return planful ? { kind: "path", path, many, pos, plan } : { kind: "path", path, many, pos };
         }
         atClass() {
           const t = this.tokens[this.i];
@@ -1843,6 +1971,12 @@ var DeclareMac = (() => {
         return coerceColor(lit);
       case "shape":
         return coerceShape(lit);
+      case "dataschema":
+        if (lit.kind === "schema")
+          return ok(lit.shape);
+        if (lit.kind === "ident" && lit.name === "null")
+          return ok(null);
+        return fail("a schema shape ([ field: type, rows[]: [ \u2026 ] ]), or null for none");
       case "enum":
         if (lit.kind === "ident" && type.tokens.includes(lit.name))
           return ok(lit.name);
@@ -2071,6 +2205,8 @@ var DeclareMac = (() => {
         return "a { \u2026 } expression";
       case "path":
         return `the datapath :${lit.path}${lit.many ? "[]" : ""}`;
+      case "schema":
+        return "a schema shape";
       case "call":
         return `'${lit.name}(\u2026)'`;
       case "list":
@@ -2234,6 +2370,12 @@ var DeclareMac = (() => {
           // scroller — or a child that declares `ignoreScroll`. Both backends
           // realize scrolling natively (DOM `overflow`; canvas clip+translate+wheel).
           scrolls: enumType("Scrolls", "none", "y", "x", "both"),
+          // The axis a declared drag CLAIMS (D8 RULED; claim-surface.md): `both`
+          // (default — the whole single-finger gesture, today's semantics) or
+          // `x`/`y`, scoping the claim to one axis so the cross axis stays the
+          // enclosing scroll regime's. The forcing cases: a grid column's header
+          // drag and edge-resize on touch.
+          claim: enumType("Claim", "both", "x", "y"),
           // the tooltip text — planes.md tier 1; "" (the default) = no tip
           tip: { kind: "string" },
           scrollY: { kind: "number" },
@@ -2377,6 +2519,8 @@ var DeclareMac = (() => {
           "touchCancel",
           "wheel",
           "init",
+          "retire",
+          "contextMenu",
           "focus",
           "blur",
           "escapeFocus",
@@ -2615,7 +2759,11 @@ var DeclareMac = (() => {
         // dataset computes arbitrary structure (the records door made the old
         // `string` formality a real typecheck error).
         attrs: {
-          contents: { kind: "object" }
+          contents: { kind: "object" },
+          // The optional data shape (B4, language §9): validate on receipt, check
+          // `:path`s statically, declare the identity field. Presence is the only
+          // switch — the `:path` surface never changes.
+          schema: { kind: "dataschema" }
         }
       };
       DataSourceSchema = {
@@ -2698,7 +2846,9 @@ var DeclareMac = (() => {
         base: NodeSchema,
         // via the abstract Source (sources.ts)
         attrs: {},
-        events: ["keyDown", "keyUp"]
+        // navClaim: an overlay took (true) / released (false) the navigation keys
+        // (keys.ts navClaim) — what a focus indicator stands down for.
+        events: ["keyDown", "keyUp", "navClaim"]
       };
       FocusSchema = {
         name: "Focus",
@@ -2795,6 +2945,7 @@ var DeclareMac = (() => {
         click: "PointerEvent",
         dblClick: "PointerEvent",
         hold: "PointerEvent",
+        contextMenu: "PointerEvent",
         pointerDown: "PointerEvent",
         pointerMove: "PointerEvent",
         pointerOver: "PointerEvent",
@@ -2812,6 +2963,8 @@ var DeclareMac = (() => {
         // value-carrying events
         input: "string",
         // TextInput: the new text
+        navClaim: "boolean",
+        // Keys: an overlay took/released the nav keys
         link: "string",
         // RichText: the href
         frame: "number",
@@ -2837,6 +2990,99 @@ var DeclareMac = (() => {
   });
 
   // runtime/dist/datapath.js
+  function staticSegs(plan) {
+    const out = [];
+    for (const s of plan) {
+      if (typeof s === "string")
+        out.push(s);
+      else if ("i" in s && s.i >= 0)
+        out.push(String(s.i));
+      else
+        return null;
+    }
+    return out;
+  }
+  function unescapeName(body, quote) {
+    let out = "";
+    for (let i = 0; i < body.length; i++) {
+      const c = body[i];
+      if (c !== "\\") {
+        out += c;
+        continue;
+      }
+      const e = body[++i];
+      if (e === void 0)
+        return null;
+      if (e === "b")
+        out += "\b";
+      else if (e === "t")
+        out += "	";
+      else if (e === "n")
+        out += "\n";
+      else if (e === "f")
+        out += "\f";
+      else if (e === "r")
+        out += "\r";
+      else if (e === "/")
+        out += "/";
+      else if (e === "\\")
+        out += "\\";
+      else if (e === quote)
+        out += quote;
+      else if (e === "u") {
+        const hex = body.slice(i + 1, i + 5);
+        if (!/^[0-9a-fA-F]{4}$/.test(hex))
+          return null;
+        out += String.fromCharCode(parseInt(hex, 16));
+        i += 4;
+      } else
+        return null;
+    }
+    return out;
+  }
+  function parsePathSpec(raw) {
+    const t = raw.trim();
+    if (t === "*")
+      return { seg: { w: 1 }, text: "[*]" };
+    if (t.startsWith("?")) {
+      return { error: "filter selectors ([?\u2026]) are not in the path subset yet (jsonpath-spelling.md \xA75) \u2014 derive the subset in a Dataset [ contents = { \u2026 } ] and bind to that" };
+    }
+    if (t.startsWith("'") || t.startsWith('"')) {
+      const q = t[0];
+      if (t.length < 2 || !t.endsWith(q))
+        return { error: "unterminated quoted name" };
+      const un = unescapeName(t.slice(1, -1), q);
+      if (un === null)
+        return { error: `bad escape in a quoted name (RFC 9535 string escapes: \\\\ \\' \\" \\b \\t \\n \\f \\r \\uXXXX)` };
+      return { seg: un, text: `[${JSON.stringify(un)}]` };
+    }
+    if (t.includes(",")) {
+      return { error: "union selectors ([a, b]) are not in the path subset (jsonpath-spelling.md \xA75) \u2014 write separate reads, or derive the set in a Dataset [ contents = { \u2026 } ]" };
+    }
+    const parts = t.split(":");
+    if (parts.length > 3)
+      return { error: "a slice is [start:end] or [start:end:step]" };
+    const nums = [];
+    for (const p of parts) {
+      const s = p.trim();
+      if (s === "") {
+        nums.push(null);
+        continue;
+      }
+      if (!/^-?\d+$/.test(s))
+        return { error: "a path selector is [index], [start:end:step], [*], or ['name']" };
+      nums.push(parseInt(s, 10));
+    }
+    if (parts.length === 1) {
+      if (nums[0] === null)
+        return { error: "a path selector is [index], [start:end:step], [*], or ['name']" };
+      return { seg: { i: nums[0] }, text: `[${nums[0]}]` };
+    }
+    while (nums.length < 3)
+      nums.push(null);
+    const text = `[${nums.map((v) => v === null ? "" : String(v)).join(":").replace(/:$/, "")}]`;
+    return { seg: { s: nums }, text };
+  }
   function scanDatapaths(src) {
     const out = [];
     const n = src.length;
@@ -2919,22 +3165,90 @@ var DeclareMac = (() => {
           const start = i;
           i++;
           let path = "";
-          for (; ; ) {
+          const plan = [];
+          let planful = false;
+          let trouble = null;
+          let many = false;
+          {
+            let name = "";
             while (i < n && isIdentPart2(src[i]))
-              path += src[i++];
+              name += src[i++];
+            path += name;
+            plan.push(name);
+          }
+          for (; ; ) {
             if (src[i] === "." && isIdentStart2(src[i + 1])) {
-              path += ".";
+              let j = i + 1;
+              let name = "";
+              while (j < n && isIdentPart2(src[j]))
+                name += src[j++];
+              if (src[j] === "(")
+                break;
+              i = j;
+              path += "." + name;
+              plan.push(name);
+              continue;
+            }
+            if (src[i] === "." && src[i + 1] === "*") {
+              i += 2;
+              path += "[*]";
+              plan.push({ w: 1 });
+              planful = true;
+              continue;
+            }
+            if (src[i] === "[") {
               i++;
+              let spec = "";
+              let q = null;
+              while (i < n) {
+                const ch = src[i];
+                if (q !== null) {
+                  if (ch === "\\") {
+                    spec += ch + (src[i + 1] ?? "");
+                    i += 2;
+                    continue;
+                  }
+                  if (ch === q)
+                    q = null;
+                  spec += ch;
+                  i++;
+                  continue;
+                }
+                if (ch === "'" || ch === '"') {
+                  q = ch;
+                  spec += ch;
+                  i++;
+                  continue;
+                }
+                if (ch === "]")
+                  break;
+                spec += ch;
+                i++;
+              }
+              if (i >= n || src[i] !== "]") {
+                trouble ??= `':${path}[' \u2014 unclosed '[' in a path selector`;
+                break;
+              }
+              i++;
+              if (spec.trim() === "") {
+                many = true;
+                break;
+              }
+              const r = parsePathSpec(spec);
+              if ("error" in r) {
+                trouble ??= `':${path}[${spec.trim()}]' \u2014 ${r.error}`;
+                path += `[${spec.trim()}]`;
+                planful = true;
+                continue;
+              }
+              path += r.text;
+              plan.push(r.seg);
+              planful = true;
               continue;
             }
             break;
           }
-          let many = false;
-          if (src[i] === "[" && src[i + 1] === "]") {
-            many = true;
-            i += 2;
-          }
-          out.push({ start, end: i, path, many });
+          out.push({ start, end: i, path, many, plan: planful ? plan : void 0, trouble });
           ends = true;
           continue;
         }
@@ -2965,22 +3279,21 @@ var DeclareMac = (() => {
   }
   function datapathTrouble(src, islands) {
     for (const p of islands) {
+      if (p.trouble != null)
+        return p.trouble;
       if (p.path === "$" || p.path.startsWith("$.")) {
-        return `':${p.path}' \u2014 a :path has no JSONPath root; drop the '$.' and write ':${p.path.replace(/^\$\.?/, "")}'`;
+        return `':${p.path}' \u2014 a :path has no JSONPath root ('${":" + p.path.replace(/^\$\.?/, "")}' is already cursor-anchored, jsonpath-spelling.md \xA71); drop the '$.'`;
       }
       const c = src[p.end] ?? "";
       const d = src[p.end + 1] ?? "";
       if (c === "-" && isIdentPart2(d)) {
-        return `':${p.path}-\u2026' is ambiguous \u2014 for subtraction write ':${p.path} - \u2026' (spaced); for a dashed KEY read $data("${p.path}-\u2026") with the whole key as a string`;
-      }
-      if (c === "[" && !p.many && d !== "]") {
-        return `':${p.path}[' \u2014 bracket selectors are not :path syntax; index by segment ($data("${p.path}.0")), or replicate a list with ':${p.path}[]'`;
+        return `':${p.path}-\u2026' is ambiguous \u2014 for subtraction write ':${p.path} - \u2026' (spaced); for a dashed KEY write a quoted-name selector: ':${beforeLastName(p.path)}['${lastName(p.path)}-\u2026']'`;
       }
       if (c === ".") {
         if (d >= "0" && d <= "9")
-          return `':${p.path}.${d}\u2026' \u2014 a numeric segment is legal in the path currency but not in the ':' literal; read $data("${p.path}.${d}\u2026")`;
+          return `':${p.path}.${d}\u2026' \u2014 a numeric segment is written as an index selector: ':${p.path}[${d}\u2026]'`;
         if (d === ".")
-          return `':${p.path}..' \u2014 an empty path segment would read the key ""; write one '.' per step`;
+          return `':${p.path}..' \u2014 descendant search ('..') is not in the path subset: it selects an unbounded, shape-dependent set that cannot be tracked reactively at acceptable cost (jsonpath-spelling.md \xA73); spell the path to the level you mean`;
       }
     }
     return null;
@@ -3001,15 +3314,16 @@ var DeclareMac = (() => {
     let out = "";
     let at = 0;
     for (const p of islands) {
-      out += src.slice(at, p.start) + `this.$data(${JSON.stringify(p.path)})`;
+      out += src.slice(at, p.start) + `this.$data(${JSON.stringify(p.plan ?? splitPath(p.path))})`;
       at = p.end;
     }
     return { src: out + src.slice(at) };
   }
-  var splitPath, NON_ENDING, isIdentStart2, isIdentPart2;
+  var isSelective, splitPath, NON_ENDING, isIdentStart2, isIdentPart2, lastName, beforeLastName;
   var init_datapath = __esm({
     "runtime/dist/datapath.js"() {
       "use strict";
+      isSelective = (plan) => plan.some((s) => typeof s !== "string" && !("i" in s));
       splitPath = (path) => path === "" ? [] : path.split(".");
       NON_ENDING = /* @__PURE__ */ new Set([
         "return",
@@ -3029,6 +3343,11 @@ var DeclareMac = (() => {
       ]);
       isIdentStart2 = (c) => c >= "a" && c <= "z" || c >= "A" && c <= "Z" || c === "_" || c === "$";
       isIdentPart2 = (c) => isIdentStart2(c) || c >= "0" && c <= "9";
+      lastName = (path) => path.slice(path.lastIndexOf(".") + 1);
+      beforeLastName = (path) => {
+        const k = path.lastIndexOf(".");
+        return k < 0 ? "" : path.slice(0, k + 1);
+      };
     }
   });
 
@@ -3056,20 +3375,30 @@ var DeclareMac = (() => {
     return names.length > 0 ? `const { ${names.join(", ")} } = $s;` : "";
   }
   function compileExpr(src) {
-    const r = rewriteDatapaths(src);
-    if ("error" in r)
-      return r;
-    try {
-      const scripts = SCRIPT_SCOPE;
-      const raw = new Function("$d", "$s", "parent", "classroot", `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} return (${r.src});`);
-      return {
-        fn: function(parent, classroot) {
-          return raw.call(this, SCOPE, scripts, parent, classroot);
-        }
-      };
-    } catch (e) {
-      return { error: `is not a valid expression \u2014 ${e.message}` };
-    }
+    const scripts = SCRIPT_SCOPE;
+    let memo = EXPR_MEMO.get(scripts);
+    if (memo === void 0)
+      EXPR_MEMO.set(scripts, memo = /* @__PURE__ */ new Map());
+    const hit = memo.get(src);
+    if (hit !== void 0)
+      return hit;
+    const out = (() => {
+      const r = rewriteDatapaths(src);
+      if ("error" in r)
+        return r;
+      try {
+        const raw = new Function("$d", "$s", "parent", "classroot", `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} return (${r.src});`);
+        return {
+          fn: function(parent, classroot) {
+            return raw.call(this, SCOPE, scripts, parent, classroot);
+          }
+        };
+      } catch (e) {
+        return { error: `is not a valid expression \u2014 ${e.message}` };
+      }
+    })();
+    memo.set(src, out);
+    return out;
   }
   function hashToOx(hex) {
     const full = hex.length === 3 || hex.length === 4 ? hex.split("").map((c) => c + c).join("") : hex;
@@ -3122,22 +3451,33 @@ var DeclareMac = (() => {
     return e === null ? null : refineBodyError(src, e, false);
   }
   function compileBody(params, src) {
-    const r = rewriteDatapaths(src);
-    if ("error" in r)
-      return r;
-    try {
-      const scripts = SCRIPT_SCOPE;
-      const raw = new Function("$d", "$s", "parent", "classroot", ...params, `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} { ${r.src} }`);
-      return {
-        fn: function(parent, classroot, ...args) {
-          return raw.call(this, SCOPE, scripts, parent, classroot, ...args);
-        }
-      };
-    } catch (e) {
-      return { error: `is not a valid method body \u2014 ${e.message}` };
-    }
+    const scripts = SCRIPT_SCOPE;
+    let memo = BODY_MEMO.get(scripts);
+    if (memo === void 0)
+      BODY_MEMO.set(scripts, memo = /* @__PURE__ */ new Map());
+    const key = params.join("") + "\0" + src;
+    const hit = memo.get(key);
+    if (hit !== void 0)
+      return hit;
+    const out = (() => {
+      const r = rewriteDatapaths(src);
+      if ("error" in r)
+        return r;
+      try {
+        const raw = new Function("$d", "$s", "parent", "classroot", ...params, `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} { ${r.src} }`);
+        return {
+          fn: function(parent, classroot, ...args) {
+            return raw.call(this, SCOPE, scripts, parent, classroot, ...args);
+          }
+        };
+      } catch (e) {
+        return { error: `is not a valid method body \u2014 ${e.message}` };
+      }
+    })();
+    memo.set(key, out);
+    return out;
   }
-  var DECOR, LOWERED, SCOPE, PRELUDE, SCRIPT_SCOPE, SCRIPT_STACK, CONSTRUCTOR_NAMES, syntaxValidator;
+  var DECOR, LOWERED, SCOPE, PRELUDE, SCRIPT_SCOPE, SCRIPT_STACK, CONSTRUCTOR_NAMES, EXPR_MEMO, BODY_MEMO, syntaxValidator;
   var init_expr = __esm({
     "runtime/dist/expr.js"() {
       "use strict";
@@ -3150,6 +3490,8 @@ var DeclareMac = (() => {
       SCRIPT_SCOPE = {};
       SCRIPT_STACK = [];
       CONSTRUCTOR_NAMES = Object.keys(DECOR);
+      EXPR_MEMO = /* @__PURE__ */ new WeakMap();
+      BODY_MEMO = /* @__PURE__ */ new WeakMap();
       syntaxValidator = null;
     }
   });
@@ -3859,6 +4201,15 @@ var DeclareMac = (() => {
           }
           continue;
         }
+        if (attr.name === "materialize" && replicated) {
+          const v = attr.value;
+          const okIdent = v.kind === "ident" && (v.name === "all" || v.name === "auto" || v.name === "window");
+          const okNumber = v.kind === "number" && !v.hex && Number.isInteger(v.value) && v.value >= 0;
+          if (!okIdent && !okNumber) {
+            errors.push(new DeclareError(`materialize = all | auto | window | <count> \u2014 the materialization policy (all: full materialization, the default; auto: the platform threshold decides; window: always window; a count: window above that many records)`, v.pos));
+          }
+          continue;
+        }
         const t = attrType(eff, attr.name);
         if (t?.kind === "styles" && attr.value.kind === "list") {
           for (const n of attr.value.items) {
@@ -4270,7 +4621,22 @@ var DeclareMac = (() => {
           error: new DeclareError(`${schema.name}.${attr.name} = :${attr.value.path}[] \u2014 a many-path replicates, which is 'datapath's meaning; a value slot reads a single :path`, attr.value.pos)
         };
       }
-      return { ok: true, datapath: { path: attr.value.path, many: attr.value.many, pos: attr.value.pos } };
+      if (attr.value.plan !== void 0 && staticSegs(attr.value.plan) === null) {
+        const why = isSelective(attr.value.plan) ? "a selective path (slice/wildcard) matches many" : "a negative index resolves against the array's length \u2014 a live fact, not a place";
+        if (attr.bind === "two") {
+          return {
+            ok: false,
+            error: new DeclareError(`'${attr.name} <-> :${attr.value.path}' \u2014 a two-way binding writes ONE place; ${why}. Bind the editor to a singular, static path`, attr.value.pos)
+          };
+        }
+        if (type.kind === "cursor" && !attr.value.many) {
+          return {
+            ok: false,
+            error: new DeclareError(`datapath = :${attr.value.path} \u2014 a cursor is ONE place; ${why}. Read it as a value, or replicate over it: datapath = :${attr.value.path}[]`, attr.value.pos)
+          };
+        }
+      }
+      return { ok: true, datapath: { path: attr.value.path, many: attr.value.many, pos: attr.value.pos, plan: attr.value.plan } };
     }
     const c = coerce(type, attr.value);
     if (c.ok && typeof c.value === "object" && c.value !== null && "align" in c.value && attr.name !== "x" && attr.name !== "y") {
@@ -4323,6 +4689,7 @@ var DeclareMac = (() => {
       init_diagnostics();
       init_value();
       init_expr();
+      init_datapath();
       init_font();
       init_program_schema();
       init_program_schema();
@@ -4763,6 +5130,8 @@ var DeclareMac = (() => {
             throw new DeclareError(`${this.constructor.name}.${name} is read-only \u2014 it is computed from its declaration and cannot be assigned`);
           }
           const self = this;
+          if (RUNTIME_WRITE === 0 && ARMED.has(self))
+            DIVERGED.add(self);
           const becameProvider = follows && !provided(self, name);
           const owner = self.$owners?.[name];
           if (owner !== void 0) {
@@ -4803,11 +5172,23 @@ var DeclareMac = (() => {
     }
   }
   function declaringOf(table, name) {
+    if (table === null)
+      return null;
+    let m = DECLARING.get(table);
+    if (m === void 0)
+      DECLARING.set(table, m = /* @__PURE__ */ new Map());
+    const hit = m.get(name);
+    if (hit !== void 0)
+      return hit;
+    let found = null;
     for (let t = table; t !== null; t = Object.getPrototypeOf(t)) {
-      if (Object.hasOwn(t, name))
-        return t;
+      if (Object.hasOwn(t, name)) {
+        found = t;
+        break;
+      }
     }
-    return null;
+    m.set(name, found);
+    return found;
   }
   function followRead(self, name, declaring) {
     for (let p = self.parent; typeof p === "object" && p !== null; p = p.parent) {
@@ -4929,6 +5310,20 @@ var DeclareMac = (() => {
     const owners = self.$owners;
     return owners !== void 0 ? Object.keys(owners) : [];
   }
+  function asRuntimeWrite(f) {
+    RUNTIME_WRITE++;
+    try {
+      return f();
+    } finally {
+      RUNTIME_WRITE--;
+    }
+  }
+  function armDivergence(self) {
+    ARMED.add(self);
+  }
+  function nodeDiverged(self) {
+    return DIVERGED.has(self);
+  }
   function markPercent(c) {
     PERCENTS.add(c);
   }
@@ -4939,7 +5334,7 @@ var DeclareMac = (() => {
   function own(self, name, c) {
     const owners = self.$owners ??= /* @__PURE__ */ Object.create(null);
     const prior = owners[name];
-    if (prior !== void 0 && prior.yielding && !c.yielding) {
+    if (prior !== void 0 && prior.yielding) {
       prior.dispose();
       delete owners[name];
     } else if (prior !== void 0) {
@@ -4966,7 +5361,7 @@ var DeclareMac = (() => {
     c.run();
     return c;
   }
-  var DEFAULTS, PUSHERS, PREVAILING, EQUALS, NOTHING, EVALING, PERCENTS;
+  var DEFAULTS, PUSHERS, PREVAILING, EQUALS, NOTHING, EVALING, DECLARING, ARMED, DIVERGED, RUNTIME_WRITE, PERCENTS;
   var init_attributes = __esm({
     "runtime/dist/attributes.js"() {
       "use strict";
@@ -4978,6 +5373,10 @@ var DeclareMac = (() => {
       EQUALS = /* @__PURE__ */ new WeakMap();
       NOTHING = /* @__PURE__ */ Symbol("no provider");
       EVALING = /* @__PURE__ */ new WeakMap();
+      DECLARING = /* @__PURE__ */ new WeakMap();
+      ARMED = /* @__PURE__ */ new WeakSet();
+      DIVERGED = /* @__PURE__ */ new WeakSet();
+      RUNTIME_WRITE = 0;
       PERCENTS = /* @__PURE__ */ new WeakSet();
     }
   });
@@ -5103,7 +5502,7 @@ var DeclareMac = (() => {
   var init_backend = __esm({
     "runtime/dist/backend.js"() {
       "use strict";
-      POINTER_TYPES = ["pointerDown", "pointerUp", "click", "dblClick", "pointerMove", "pointerOver", "pointerOut", "hold", "touchStart", "touchMove", "touchEnd", "touchCancel", "wheel"];
+      POINTER_TYPES = ["pointerDown", "pointerUp", "click", "dblClick", "pointerMove", "pointerOver", "pointerOut", "hold", "contextMenu", "touchStart", "touchMove", "touchEnd", "touchCancel", "wheel"];
       TOUCH_TYPES = ["touchStart", "touchMove", "touchEnd", "touchCancel"];
     }
   });
@@ -5788,9 +6187,119 @@ var DeclareMac = (() => {
     }
   });
 
+  // runtime/dist/select.js
+  function sliceIndices(len, [start, end, step0]) {
+    const step = step0 ?? 1;
+    if (step === 0)
+      return [];
+    const norm = (v) => v >= 0 ? v : len + v;
+    const s = start ?? (step > 0 ? 0 : len - 1);
+    const e = end ?? (step > 0 ? len : -len - 1);
+    const out = [];
+    if (step > 0) {
+      const lower = Math.min(Math.max(norm(s), 0), len);
+      const upper = Math.min(Math.max(norm(e), 0), len);
+      for (let i = lower; i < upper; i += step)
+        out.push(i);
+    } else {
+      const upper = Math.min(Math.max(norm(s), -1), len - 1);
+      const lower = Math.min(Math.max(norm(e), -1), len - 1);
+      for (let i = upper; i > lower; i += step)
+        out.push(i);
+    }
+    return out;
+  }
+  function applySeg(nodes, seg) {
+    const out = [];
+    for (const n of nodes) {
+      const v = n.value;
+      if (typeof seg === "string") {
+        if (isObj(v) && !Array.isArray(v) && Object.hasOwn(v, seg)) {
+          out.push({ path: [...n.path, seg], value: v[seg] });
+        }
+      } else if ("i" in seg) {
+        if (Array.isArray(v)) {
+          const i = seg.i < 0 ? v.length + seg.i : seg.i;
+          if (i >= 0 && i < v.length)
+            out.push({ path: [...n.path, String(i)], value: v[i] });
+        }
+      } else if ("w" in seg) {
+        if (Array.isArray(v)) {
+          v.forEach((el, i) => out.push({ path: [...n.path, String(i)], value: el }));
+        } else if (isObj(v)) {
+          for (const key of Object.keys(v))
+            out.push({ path: [...n.path, key], value: v[key] });
+        }
+      } else {
+        if (Array.isArray(v)) {
+          for (const i of sliceIndices(v.length, seg.s)) {
+            out.push({ path: [...n.path, String(i)], value: v[i] });
+          }
+        }
+      }
+    }
+    return out;
+  }
+  function selectNodes(data, base2, plan) {
+    const k = plan.findIndex((s) => typeof s !== "string");
+    const prefix = k < 0 ? plan : plan.slice(0, k);
+    const path = [...base2, ...prefix];
+    const start = data.read(path);
+    if (start === void 0)
+      return [];
+    let nodes = [{ path, value: start }];
+    if (k >= 0)
+      for (const seg of plan.slice(k))
+        nodes = applySeg(nodes, seg);
+    return nodes;
+  }
+  function selectValue(data, base2, plan) {
+    const singular = plan.every((s) => typeof s === "string" || "i" in s);
+    const nodes = selectNodes(data, base2, plan);
+    if (singular)
+      return nodes.length > 0 && nodes[0].value !== void 0 ? nodes[0].value : null;
+    return nodes.map((n) => n.value);
+  }
+  var isObj;
+  var init_select = __esm({
+    "runtime/dist/select.js"() {
+      "use strict";
+      isObj = (v) => typeof v === "object" && v !== null;
+    }
+  });
+
   // runtime/dist/view.js
   function provideViewCreator(fn) {
     viewCreator = fn;
+  }
+  function isWindowedBlock(v) {
+    return WINDOWED_BLOCKS.has(v);
+  }
+  function markWindowedBlock(v, on) {
+    if (on)
+      WINDOWED_BLOCKS.add(v);
+    else
+      WINDOWED_BLOCKS.delete(v);
+  }
+  function markEvicting(v) {
+    EVICTING.add(v);
+  }
+  function fireRetireTree(v) {
+    if (RETIRED.has(v))
+      return;
+    RETIRED.add(v);
+    for (const c of v.children) {
+      if (c instanceof View)
+        fireRetireTree(c);
+    }
+    fireEvent(v, "retire");
+  }
+  function fireInitTree(v) {
+    fireEvent(v, "init");
+    for (const c of v.children) {
+      if (c instanceof View)
+        fireInitTree(c);
+    }
   }
   function inheritedCursor(node) {
     for (let n = node; n !== null; n = n.parent) {
@@ -5844,11 +6353,12 @@ var DeclareMac = (() => {
     }
     return null;
   }
-  var viewCreator, INSTALLED, EXTENT, AXIS_OF, View, pushScrolls, focusDiscardHook, App, EMPTY_ENV2, DOMIsland;
+  var viewCreator, INSTALLED, WINDOWED_BLOCKS, EVICTING, RETIRED, EXTENT, AXIS_OF, View, pushScrolls, focusDiscardHook, App, EMPTY_ENV2, DOMIsland;
   var init_view = __esm({
     "runtime/dist/view.js"() {
       "use strict";
       init_node();
+      init_errors();
       init_value();
       init_stylesheet();
       init_backend();
@@ -5859,9 +6369,13 @@ var DeclareMac = (() => {
       init_attributes();
       init_schema();
       init_datapath();
+      init_select();
       init_node();
       viewCreator = null;
       INSTALLED = /* @__PURE__ */ new WeakMap();
+      WINDOWED_BLOCKS = /* @__PURE__ */ new WeakSet();
+      EVICTING = /* @__PURE__ */ new WeakSet();
+      RETIRED = /* @__PURE__ */ new WeakSet();
       EXTENT = /* @__PURE__ */ new WeakMap();
       AXIS_OF = { width: "x", height: "y" };
       View = class _View extends Node2 {
@@ -5921,28 +6435,37 @@ var DeclareMac = (() => {
           }
         }
         /** Read data relative to this view's inherited cursor — the runtime form
-         *  every `:path` in a `{ }` body rewrites to (`:location.city` →
-         *  `this.$data("location.city")`, expr.ts). Tracked like any read: the
-         *  binding wakes when exactly this region — or any datapath on the chain
-         *  above — changes. An unresolved path yields null (language §9). */
+         *  every `:path` in a `{ }` body resolves to. The COMPILER emits the
+         *  pre-parsed segments (`:location.city` → `this.$data(["location","city"])`,
+         *  compile.ts resolveBody — data-paths.md §5's emitted plans); the string
+         *  form remains for hand-written calls and the direct-instantiate dev path
+         *  (expr.ts's link-time rewrite). Tracked like any read: the binding wakes
+         *  when exactly this region — or any datapath on the chain above — changes.
+         *  An unresolved path yields null (language §9). */
         $data(path) {
           const cursor = inheritedCursor(this);
           if (cursor === null)
             return null;
-          const v = cursor.data.read([...cursor.path, ...splitPath(path)]);
-          return v === void 0 ? null : v;
+          const plan = typeof path === "string" ? splitPath(path) : path;
+          if (plan.every((s) => typeof s === "string")) {
+            const v = cursor.data.read([...cursor.path, ...plan]);
+            return v === void 0 ? null : v;
+          }
+          return selectValue(cursor.data, cursor.path, plan);
         }
         /** Write `v` to `path` relative to this view's inherited cursor — the write
          *  twin of `$data`, the runtime half of a two-way `<->` binding (language §9,
          *  the leaf-input exception). Lands through `Dataset.set` (equality-gated →
          *  the read side that fed the field re-reads the same value and stops at the
          *  gate, so committing a draft is a no-op round-trip, not a loop). A datapath
-         *  that resolves to no dataset is a no-op — there is nowhere to write. */
+         *  that resolves to no dataset is a no-op — there is nowhere to write.
+         *  Accepts pre-parsed segments like $data, for symmetry. */
         $setData(path, v) {
           const cursor = inheritedCursor(this);
           if (cursor === null)
             return;
-          cursor.data.set([...cursor.path, ...splitPath(path)].join("."), v);
+          const segs = typeof path === "string" ? splitPath(path) : path;
+          cursor.data.set([...cursor.path, ...segs], v);
         }
         /** The tree-mutation entry (R8): children were inserted/removed/reordered
          *  as a unit — re-arm the installed arrangement and re-derive auto-extent,
@@ -6027,6 +6550,9 @@ var DeclareMac = (() => {
          *  reads. Aggregation over a node collection is refused for exactly that
          *  reason (dep-extract); the number you want is usually in the data. */
         get childViews() {
+          if (WINDOWED_BLOCKS.has(this)) {
+            throw new DeclareError(`childViews on a windowed block answers with whichever rows happen to be materialized \u2014 a scroll-dependent lie. Derive counts and aggregates from the DATA (:rows), which is complete by definition`);
+          }
           this.watchChildList();
           return this.children.filter((c) => c instanceof _View);
         }
@@ -6078,6 +6604,10 @@ var DeclareMac = (() => {
          *  can ever wake work for a removed view. Children first; the model links
          *  (parent/children) are the caller's to cut (Node.removeChild). */
         discard() {
+          if (EVICTING.has(this))
+            EVICTING.delete(this);
+          else
+            fireRetireTree(this);
           focusDiscardHook?.(this);
           for (const child of this.children)
             child.discard();
@@ -6167,6 +6697,43 @@ var DeclareMac = (() => {
         containsPoint(x, y) {
           return boxContains(this, x, y);
         }
+        /** This view's origin in ROOT space (the root's content coordinates — the
+         *  same space `viewAt` takes and drag events carry). THE one walk
+         *  (interaction.ts): translate per level MINUS every intermediate scroll
+         *  offset, with the root's own scroll added back at the boundary — so an
+         *  overlay anchored by it (a menu at a pointer, a popover under a control)
+         *  lands where the view is SEEN, at any scroll. Components call this
+         *  instead of hand-accumulating ancestor x/y, which is scroll-blind. */
+        rootOrigin() {
+          const o = rootFrameOrigin(this);
+          const r = this.root ?? this;
+          return { x: o.x + r.scrollX, y: o.y + r.scrollY };
+        }
+        /** Travel with `scroller`: re-host this view's SURFACE inside the
+         *  scroller's container so the platform carries it with the scrolled
+         *  content — zero-lag chrome that belongs to content (the FocusRing's
+         *  ride; the inverse of `ignoreScroll`). Position slots then mean the
+         *  scroller's CONTENT coordinates. Pass null (or this view's own parent —
+         *  its natural host) to come home; the ROOT is a real destination, not
+         *  home, so chrome can climb OUT of a scroller that sits directly under
+         *  it (the DataGrid header's escape).
+         *  Returns whether the surface now rides the scroller — false when the
+         *  backend can't (no surface yet, or no travelWith), so callers keep the
+         *  reactive root-space fallback. */
+        travelWith(scroller) {
+          const s = this.surface;
+          if (s === null || typeof s.travelWith !== "function")
+            return false;
+          const home = scroller === null || scroller === this.parent;
+          if (home) {
+            s.travelWith(null);
+            return false;
+          }
+          if (scroller.surface === null)
+            return false;
+          s.travelWith(scroller.surface);
+          return true;
+        }
         /** Scroll this view to the top of its nearest scrolling ancestor — the
          *  imperative companion to the reactive `scrolls`/`scrollY` pair (a click
          *  handler calls it to jump to a target). Both backends do the work in their
@@ -6242,7 +6809,9 @@ var DeclareMac = (() => {
             wantsHold: has("hold"),
             wantsTouch: TOUCH_TYPES.some(has),
             wantsDrag: has("pointerMove"),
-            wantsWheel: has("wheel")
+            wantsWheel: has("wheel"),
+            claimAxis: this.claim,
+            wantsContext: has("contextMenu")
           };
         }
         /** Stand up the draw method as a tracked, re-recording computation. */
@@ -6340,6 +6909,7 @@ var DeclareMac = (() => {
         // find one — scrollIntoView is axis-blind and walks ancestors, which is how
         // a horizontal strip reveal once vertically scrolled the island hosting it.
         scrollY: { def: 0, push: (v, y) => v.surface?.scrollToY?.(y) },
+        claim: { def: "both" },
         scrollX: { def: 0, push: (v, x) => v.surface?.scrollToX?.(x) },
         // The prevailing built-ins: model-side on View (no push — Text's style
         // derive is the consumer that crosses the seam). Defaults are the
@@ -7076,6 +7646,8 @@ var DeclareMac = (() => {
           release(child, slot, k);
           if (!this.rearming)
             return;
+          if (this.view !== null && isWindowedBlock(this.view))
+            return;
           const base2 = this.bases.get(child);
           if (base2 !== void 0 && slot in base2) {
             setBound(child, slot, base2[slot]);
@@ -7140,6 +7712,8 @@ var DeclareMac = (() => {
           try {
             if (passClaims.length > 0) {
               const pass = new Constraint(label, () => this.place(), (v) => {
+                if (this.view !== null && isWindowedBlock(this.view))
+                  return;
                 const boxes = v;
                 for (const c of passClaims) {
                   const b = boxes[c.i];
@@ -7154,7 +7728,11 @@ var DeclareMac = (() => {
               pass.run();
             }
             for (const c of sizeClaims) {
-              const k = new Constraint(`${label} \u2192 ${c.child.constructor.name}.${c.slot}`, () => this.place()[c.i]?.[c.key], (v) => setBound(c.child, c.slot, v));
+              const k = new Constraint(`${label} \u2192 ${c.child.constructor.name}.${c.slot}`, () => this.place()[c.i]?.[c.key], (v) => {
+                if (this.view !== null && isWindowedBlock(this.view))
+                  return;
+                setBound(c.child, c.slot, v);
+              });
               markPercent(k);
               this.claim(c.child, c.slot, k, label);
               installed.push({ child: c.child, slot: c.slot, k });
@@ -7269,6 +7847,20 @@ var DeclareMac = (() => {
     const v = target[attr];
     return typeof v === "number" ? v : 0;
   }
+  function resnapSubtree(root) {
+    const stack = [root];
+    while (stack.length > 0) {
+      const n = stack.pop();
+      if (n instanceof Spring) {
+        n.resnap();
+        continue;
+      }
+      const kids = n?.children;
+      if (kids !== void 0)
+        for (const k of kids)
+          stack.push(k);
+    }
+  }
   var drive, Spring;
   var init_spring = __esm({
     "runtime/dist/spring.js"() {
@@ -7277,7 +7869,9 @@ var DeclareMac = (() => {
       init_animate();
       init_attributes();
       drive = (target, attr, v) => {
-        target[attr] = v;
+        asRuntimeWrite(() => {
+          target[attr] = v;
+        });
       };
       Spring = class extends Animator {
         springRunning = false;
@@ -7330,6 +7924,22 @@ var DeclareMac = (() => {
           if (t !== null && this.attribute !== "")
             drive(t, this.attribute, this.to);
           this.vel = 0;
+        }
+        /** RE-SNAP (recycling): a recycled instance is re-born serving a
+         *  DIFFERENT record, so motion still in flight belongs to the record that
+         *  left — it is not this row's animation to finish. Take the current
+         *  target outright, exactly as the declaration snap does at boot, and
+         *  drop off the clock. (A windowed row whose height animates makes this
+         *  load-bearing: without it the measured ladder chases a height that is
+         *  sliding toward the departed record's geometry, and re-derives the
+         *  window on every frame of the slide.) */
+        resnap() {
+          this.stop();
+          this.vel = 0;
+          this.primed = true;
+          const t = this.resolveTarget();
+          if (t !== null && this.attribute !== "")
+            drive(t, this.attribute, this.to);
         }
         tick(now) {
           if (!this.springRunning)
@@ -7605,6 +8215,68 @@ var DeclareMac = (() => {
     }
   });
 
+  // runtime/dist/data-schema.js
+  function typeOk(type, v) {
+    if (type === "any")
+      return v !== void 0;
+    return typeof v === type;
+  }
+  function describe(v) {
+    if (v === null)
+      return "null";
+    if (Array.isArray(v))
+      return "an array";
+    return typeof v === "object" ? "an object" : typeof v;
+  }
+  function validateShape(value, fields, at = []) {
+    if (!isObj2(value)) {
+      return `${showPtr(at) || "/"} \u2014 expected an object with ${fields.map((f) => f.name).join(", ")}, got ${describe(value)}`;
+    }
+    for (const f of fields) {
+      const v = value[f.name];
+      const here = [...at, f.name];
+      if (v === void 0 || v === null) {
+        if (f.optional)
+          continue;
+        return `${showPtr(here)} is ${v === null ? "null" : "missing"} \u2014 the schema requires ${f.array ? "an array" : f.type ?? "a structure"} (mark it '${f.name}?' if it may be absent)`;
+      }
+      if (f.array) {
+        if (!Array.isArray(v)) {
+          return `${showPtr(here)} \u2014 the schema declares '${f.name}[]' (an array), got ${describe(v)}`;
+        }
+        for (let i = 0; i < v.length; i++) {
+          const el = v[i];
+          if (f.fields !== void 0) {
+            const err2 = validateShape(el, f.fields, [...here, i]);
+            if (err2 !== null)
+              return err2;
+          } else if (!typeOk(f.type, el)) {
+            return `${showPtr([...here, i])} \u2014 expected ${f.type}, got ${describe(el)}`;
+          }
+        }
+        continue;
+      }
+      if (f.fields !== void 0) {
+        const err2 = validateShape(v, f.fields, here);
+        if (err2 !== null)
+          return err2;
+        continue;
+      }
+      if (!typeOk(f.type, v)) {
+        return `${showPtr(here)} \u2014 expected ${f.type}, got ${describe(v)}`;
+      }
+    }
+    return null;
+  }
+  var isObj2, showPtr;
+  var init_data_schema = __esm({
+    "runtime/dist/data-schema.js"() {
+      "use strict";
+      isObj2 = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+      showPtr = (segs) => "/" + segs.map((t) => String(t).replace(/~/g, "~0").replace(/\//g, "~1")).join("/");
+    }
+  });
+
   // runtime/dist/data.js
   function cellAt(container, key) {
     let cells = CELLS.get(container);
@@ -7628,6 +8300,26 @@ var DeclareMac = (() => {
     TAGS.set(v, { data, path });
     for (const k of Object.keys(v))
       tagTree(data, v[k], [...path, k]);
+  }
+  function parsePointer(p) {
+    const out = [];
+    for (const raw of p.slice(1).split("/")) {
+      const bad = raw.match(/~(?![01])/);
+      if (bad !== null) {
+        throw new DeclareError(`'${p}' is not an RFC 6901 pointer \u2014 '~' escapes only as ~0 ('~') or ~1 ('/')`);
+      }
+      out.push(raw.replace(/~1/g, "/").replace(/~0/g, "~"));
+    }
+    return out;
+  }
+  function toSegs(path) {
+    if (typeof path !== "string")
+      return path.map(String);
+    if (path.startsWith("/"))
+      return parsePointer(path);
+    if (path === "")
+      return [];
+    throw new DeclareError(`'${path}' \u2014 paths are segments (["${path.split(".").join('", "')}"]) or an RFC 6901 pointer ("/${path.split(".").join("/")}"); the dot-string form retired with Pointer writes (data-paths.md \xA711)`);
   }
   function provideTransport(fn) {
     const prev = transport;
@@ -7694,6 +8386,9 @@ var DeclareMac = (() => {
         return typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 16777215 ? v : def;
       case "shape":
         return typeof v === "string" ? v : def;
+      case "dataschema":
+        return def;
+      // a shape is declaration surface, never a data read
       case "enum":
         return typeof v === "string" && type.tokens.includes(v) ? v : def;
       // the records door: a data-borne array/record binds as itself
@@ -7718,7 +8413,7 @@ var DeclareMac = (() => {
         return def;
     }
   }
-  var CELLS, TAGS, isContainer, wake, wakeAll, getOwn, Dataset, transport, DataSource;
+  var CELLS, TAGS, isContainer, wake, wakeAll, getOwn, showPath, Dataset, transport, DataSource;
   var init_data = __esm({
     "runtime/dist/data.js"() {
       "use strict";
@@ -7726,7 +8421,7 @@ var DeclareMac = (() => {
       init_reactive();
       init_errors();
       init_attributes();
-      init_datapath();
+      init_data_schema();
       CELLS = /* @__PURE__ */ new WeakMap();
       TAGS = /* @__PURE__ */ new WeakMap();
       isContainer = (v) => typeof v === "object" && v !== null;
@@ -7740,12 +8435,15 @@ var DeclareMac = (() => {
             c.changed();
       };
       getOwn = (container, key) => Object.hasOwn(container, key) ? container[key] : void 0;
+      showPath = (segs) => "/" + segs.map((t) => t.replace(/~/g, "~0").replace(/\//g, "~1")).join("/");
       Dataset = class extends Node2 {
         cursors = /* @__PURE__ */ new Map();
         /** The interned cursor for `path` — one object per distinct place, so a
-         *  re-derived cursor is `===` the old one and the equality gate holds. */
+         *  re-derived cursor is `===` the old one and the equality gate holds.
+         *  The intern key joins on NUL, not "." — a key containing a dot must not
+         *  collide with the path that spells it as two segments. */
         cursorAt(path) {
-          const key = path.join(".");
+          const key = path.join("\0");
           let c = this.cursors.get(key);
           if (c === void 0)
             this.cursors.set(key, c = { data: this, path: [...path] });
@@ -7754,12 +8452,13 @@ var DeclareMac = (() => {
         /** Tracked read of the region at `path` (root-relative). Registers exactly
          *  one region cell — the deepest slot the walk reaches (see the header) —
          *  plus the `value` attribute read the first line makes. `undefined` means
-         *  unresolved (a missing region); consumers surface it as null. */
+         *  unresolved (a missing region); consumers surface it as null. Takes the
+         *  path currency: segments, or an RFC 6901 pointer string. */
         read(path) {
           let cur = this.value;
           let container = null;
           let key = "";
-          for (const seg of path) {
+          for (const seg of toSegs(path)) {
             if (!isContainer(cur)) {
               cur = void 0;
               break;
@@ -7772,24 +8471,36 @@ var DeclareMac = (() => {
             cellAt(container, key).track();
           return cur;
         }
-        // ── The mutation API — imperative edits that drive bindings and
-        //    replication through the ordinary settle. Language §13 lists the
-        //    authoring surface for structural mutation as an open design; these
-        //    methods are the runtime layer it will bind to (recorded in HANDOFF).
-        //    Paths are dot-strings, root-relative; array indices are ordinary
-        //    segments ("rows.2.label"). ─────────────────────────────────────────
+        // ── The mutation API — THE structural-mutation authoring surface (D7,
+        //    ratified 2026-07-30 with data-paths.md §11: handler-called dataset
+        //    methods plus `<->` for leaf edits close language §13's open design).
+        //    Paths are the currency above: segments (documented) or an RFC 6901
+        //    pointer (interop); leaf writes address the slot, structural verbs
+        //    address the ARRAY and take indices as arguments (the §11.2 ruling —
+        //    a structural edit is an operation on the array, which is literally
+        //    the wake model below). ────────────────────────────────────────────
         /** Set the field at `path`. The path's containers must exist (a pointed
          *  error names the first missing step); the final field may be new.
-         *  Equality-gated: writing the value already there wakes nothing. */
+         *  Against an array, the final token `-` (RFC 6901's after-last) APPENDS —
+         *  `set("/rows/-", v)` / `set(["rows", "-"], v)`; against an object, "-"
+         *  is just the key "-". Equality-gated: writing the value already there
+         *  wakes nothing. */
         set(path, v) {
           const segs = this.segs(path);
-          const { chain, container, key } = this.locate(segs);
+          const { chain, container, key: at } = this.locate(segs);
+          const key = at === "-" && Array.isArray(container) ? String(container.length) : at;
+          if (key !== at) {
+            segs[segs.length - 1] = key;
+            chain[chain.length - 1] = [container, key];
+          }
           const old = getOwn(container, key);
           if (old === v)
             return;
           container[key] = v;
           tagTree(this, v, segs);
           this.wakeChain(chain);
+          if (key !== at)
+            wakeAll(container);
           wakeTree(old);
         }
         /** Insert `v` at `index` of the array at `path`. */
@@ -7824,7 +8535,7 @@ var DeclareMac = (() => {
           this.wakeChain(chain);
         }
         segs(path) {
-          const segs = splitPath(path);
+          const segs = toSegs(path);
           if (segs.length === 0) {
             throw new DeclareError(`an empty path addresses the whole dataset \u2014 assign .value to replace it`);
           }
@@ -7837,8 +8548,8 @@ var DeclareMac = (() => {
           const chain = [];
           for (let i = 0; ; i++) {
             if (!isContainer(cur)) {
-              const at = i === 0 ? "the dataset has no value" : `'${segs.slice(0, i).join(".")}' is ${cur === void 0 ? "missing" : "not a container"}`;
-              throw new DeclareError(`'${segs.join(".")}' addresses nothing \u2014 ${at}`);
+              const at = i === 0 ? "the dataset has no value" : `'${showPath(segs.slice(0, i))}' is ${cur === void 0 ? "missing" : "not a container"}`;
+              throw new DeclareError(`'${showPath(segs)}' addresses nothing \u2014 ${at}`);
             }
             chain.push([cur, segs[i]]);
             if (i === segs.length - 1)
@@ -7851,7 +8562,7 @@ var DeclareMac = (() => {
           const { chain, container, key } = this.locate(segs);
           const arr = getOwn(container, key);
           if (!Array.isArray(arr)) {
-            throw new DeclareError(`'${segs.join(".")}' is not an array \u2014 structural edits need one`);
+            throw new DeclareError(`'${showPath(segs)}' is not an array \u2014 structural edits need one`);
           }
           return { arr, chain, segs };
         }
@@ -7866,6 +8577,7 @@ var DeclareMac = (() => {
         // places. The write itself is ordinary reactive machinery: every data read
         // tracked this slot, so replacement wakes them all.
         value: { def: null, push: (d, v) => tagTree(d, v, []) },
+        schema: { def: null },
         // A derived Dataset's `contents = { … }` binds here; its push mirrors the
         // computed value into `value` through value's own reactive setter — so a
         // recompute tags the new tree and wakes every `:path` reader and replicator,
@@ -7935,6 +8647,11 @@ var DeclareMac = (() => {
             const value = this.format === "text" ? await res.text() : await res.json();
             if (seq !== this.seq)
               return;
+            if (this.schema !== null && this.format === "json") {
+              const err2 = validateShape(value, this.schema);
+              if (err2 !== null)
+                throw new Error(`the response does not match the schema \u2014 ${err2}`);
+            }
             setBound(this, "value", value);
             setBound(this, "status", "loaded");
             const h = this["onLoad"];
@@ -7997,18 +8714,19 @@ var DeclareMac = (() => {
       k.run();
     }
   }
-  function bindData(view, name, path, type) {
+  function bindData(view, name, path, type, plan) {
     const UNRESOLVED = {};
+    const read = plan ?? path;
     const k = new Constraint(`${view.constructor.name}.${name} = :${path}`, () => {
-      const v = coerceData(type, view.$data(path), UNRESOLVED);
+      const v = coerceData(type, view.$data(read), UNRESOLVED);
       return v === UNRESOLVED ? followedValue(view, name) : v;
     }, (v) => setBound(view, name, v));
     own(view, name, k);
     k.run();
   }
   function bindDatapath(view, path) {
-    const segs = splitPath(path);
-    const k = new Constraint(`${view.constructor.name}.datapath = :${path}`, () => {
+    const segs = typeof path === "string" ? splitPath(path) : path;
+    const k = new Constraint(`${view.constructor.name}.datapath = :${typeof path === "string" ? path : path.join(".")}`, () => {
       const base2 = inheritedCursor(view.parent);
       return base2 === null ? null : base2.data.cursorAt([...base2.path, ...segs]);
     }, (v) => setBound(view, "datapath", v));
@@ -8187,13 +8905,355 @@ var DeclareMac = (() => {
     }
   });
 
+  // runtime/dist/focus.js
+  function sequence(root) {
+    const out = [];
+    const walk = (v) => {
+      for (const m of tabOrderOf(v)) {
+        if (!m.visible)
+          continue;
+        if (m.focusable)
+          out.push(m);
+        if (m.focusTrap && m !== root)
+          continue;
+        walk(m);
+      }
+    };
+    walk(root);
+    return out;
+  }
+  function tabOrderOf(v) {
+    const fn = v.tabOrder;
+    const members = typeof fn === "function" ? fn.call(v) : v.tabDefault();
+    return Array.isArray(members) ? members.filter((m) => m instanceof View) : [];
+  }
+  function rootOf(view) {
+    let v = view;
+    while (v.parent instanceof View)
+      v = v.parent;
+    return v;
+  }
+  function isInSubtree(node, ancestor) {
+    for (let v = node; v !== null; v = v.parent instanceof View ? v.parent : null) {
+      if (v === ancestor)
+        return true;
+    }
+    return false;
+  }
+  function deliverKeys(keys, focus) {
+    const perFocus = DELIVERING.get(keys) ?? /* @__PURE__ */ new WeakMap();
+    DELIVERING.set(keys, perFocus);
+    const existing = perFocus.get(focus);
+    if (existing !== void 0)
+      return existing;
+    const offDown = keys.onKeyDown((e) => {
+      if (e.code === "Tab") {
+        if (e.shift)
+          focus.prev();
+        else
+          focus.next();
+        return;
+      }
+      const f = focus.getFocus();
+      if (f !== null)
+        fireEvent(f, "keyDown", e);
+    });
+    const offUp = keys.onKeyUp((e) => {
+      if (e.code === "Tab")
+        return;
+      const f = focus.getFocus();
+      if (f !== null)
+        fireEvent(f, "keyUp", e);
+    });
+    const off = () => {
+      perFocus.delete(focus);
+      offDown();
+      offUp();
+    };
+    perFocus.set(focus, off);
+    return off;
+  }
+  var FocusService, DELIVERING, Focus;
+  var init_focus = __esm({
+    "runtime/dist/focus.js"() {
+      "use strict";
+      init_view();
+      init_reactive();
+      init_interaction();
+      FocusService = class {
+        current = null;
+        rootView = null;
+        /** Whether the LAST focus change was keyboard-driven (Tab traversal). The
+         *  focus-visible modality: a ring/indicator shows only for keyboard focus —
+         *  a pointer press focuses silently (the click itself is the feedback).
+         *  A REACTIVE fact: `byKeyboard()` is a tracked read, so a component's
+         *  styling constraint (a Tab header's focus edge) re-derives when the
+         *  modality flips — same slot, event handlers and constraints alike. */
+        keyboard = false;
+        keyboardCell = new Cell();
+        setKeyboard(v) {
+          if (this.keyboard === v)
+            return;
+          this.keyboard = v;
+          this.keyboardCell.changed();
+        }
+        /** Subscribers to focus CHANGES (`Focus [ onFocusChange(v) { … } ]`) —
+         *  called with the newly focused view (or null on blur) after the change
+         *  settles. What the traveling focus indicator rides. */
+        changeHandlers = /* @__PURE__ */ new Set();
+        /** Subscribers to the focused control's LIVE GEOMETRY
+         *  (`Focus [ onGeometry(g) { … } ]`). A standing runtime constraint follows
+         *  the target: tracked reads
+         *  of the parent chain's x/y and the control's focusShape() mean an
+         *  arrow-keyed slider thumb, a reflowing layout, or a resized ancestor
+         *  moves the resting ring WITH its control — no re-focus needed. */
+        geometryHandlers = /* @__PURE__ */ new Set();
+        follower = null;
+        /** Reentrancy lock: a focus change fires onFocus/onBlur handlers that may
+         *  call focus() again; remember the latest target and apply it after the
+         *  current change settles (LZX's discipline). */
+        changing = false;
+        queued = false;
+        queuedTarget = null;
+        /** The tree root, for traversal when nothing is focused (set at attach). */
+        setRoot(view) {
+          this.rootView = view;
+        }
+        getFocus() {
+          return this.current;
+        }
+        /** True when the current focus arrived by KEYBOARD (Tab/Shift-Tab) — the
+         *  focus-visible modality gate an indicator reads: show for keyboard focus,
+         *  stay hidden for pointer/programmatic focus. */
+        byKeyboard() {
+          this.keyboardCell.track();
+          return this.keyboard;
+        }
+        /** Test/lifecycle reset. */
+        reset() {
+          this.current = null;
+          this.rootView = null;
+          this.changing = false;
+          this.queued = false;
+          this.follower?.dispose();
+          this.follower = null;
+        }
+        /** Focus a view (null = blur). A non-focusable or invisible view is ignored
+         *  (never becomes the focus). Fires onBlur on the old, onFocus on the new.
+         *  This public entry is the POINTER/PROGRAMMATIC path — it clears the
+         *  keyboard modality; Tab traversal (move) sets it. */
+        focus(view) {
+          this.setKeyboard(false);
+          this.apply(view);
+        }
+        apply(view) {
+          if (view !== null && !(view.focusable && view.visible))
+            return;
+          if (this.changing) {
+            this.queued = true;
+            this.queuedTarget = view;
+            return;
+          }
+          if (view === this.current)
+            return;
+          this.changing = true;
+          const old = this.current;
+          this.current = view;
+          if (old !== null) {
+            old.focusChanged(false);
+            fireEvent(old, "blur");
+          }
+          if (view !== null) {
+            view.focusChanged(true);
+            fireEvent(view, "focus");
+          }
+          this.changing = false;
+          this.retargetFollower();
+          for (const h of [...this.changeHandlers])
+            h(this.current);
+          if (this.queued) {
+            this.queued = false;
+            this.apply(this.queuedTarget);
+          }
+        }
+        /** Subscribe to focus changes. Returns the unsubscribe thunk — the `<-`
+         *  wiring's contract (sources.ts). */
+        onFocusChange(fn) {
+          this.changeHandlers.add(fn);
+          return () => this.changeHandlers.delete(fn);
+        }
+        onGeometry(fn) {
+          this.geometryHandlers.add(fn);
+          return () => this.geometryHandlers.delete(fn);
+        }
+        /** (Re)install the follower for the current focus. The constraint's body
+         *  reads TRACKED slots (ancestor x/y AND every scroll offset on the chain —
+         *  the shared walk's reads; the focusShape's inputs), so any change,
+         *  scrolling included, re-fires it; its push notifies the geometry
+         *  subscribers. Geometry is the root's CONTENT space — the FocusRing is a
+         *  child of the App and scrolls with the page like the control it rings, so
+         *  the root's own scroll is added back onto the frame-space origin;
+         *  an intermediate pane's scroll (which moves the control on screen while
+         *  the ring's coordinate space stands still) stays subtracted. Hand-rolled
+         *  x/y accumulation here was the scroll-blind focus ring (found 2026-07-31,
+         *  the same missing term as the pointer walk's — ONE WALK, everywhere). */
+        retargetFollower() {
+          this.follower?.dispose();
+          this.follower = null;
+          const v = this.current;
+          if (v === null || this.geometryHandlers.size === 0)
+            return;
+          const k = new Constraint("Focus.follower", () => {
+            const o = rootFrameOrigin(v);
+            const root = rootOf(v);
+            const x = o.x + root.scrollX;
+            const y = o.y + root.scrollY;
+            let scroller = root;
+            for (let n = v.parent; n instanceof View; n = n.parent) {
+              if (n.scrolls !== "none") {
+                scroller = n;
+                break;
+              }
+            }
+            let homeX = 0, homeY = 0;
+            for (let n = v; n !== scroller; ) {
+              homeX += n.x;
+              homeY += n.y;
+              if (!(n.parent instanceof View))
+                break;
+              n = n.parent;
+            }
+            if (scroller === root) {
+              homeX = x;
+              homeY = y;
+            }
+            const fsFn = v.focusShape;
+            const fs = typeof fsFn === "function" ? fsFn.call(v) : null;
+            return {
+              x: x + (fs ? fs.x : 0),
+              y: y + (fs ? fs.y : 0),
+              w: fs ? fs.w : v.width,
+              h: fs ? fs.h : v.height,
+              rad: fs ? fs.rad : v.cornerRadius > 0 ? v.cornerRadius : 4,
+              view: v,
+              root,
+              scroller,
+              homeX: homeX + (fs ? fs.x : 0),
+              homeY: homeY + (fs ? fs.y : 0)
+            };
+          }, (g) => {
+            if (g != null)
+              for (const fn of [...this.geometryHandlers])
+                fn(g);
+          });
+          k.run();
+        }
+        blur() {
+          this.focus(null);
+        }
+        next() {
+          this.move(1);
+        }
+        prev() {
+          this.move(-1);
+        }
+        /** The ordered focus stops in a view's group — its focusTrap ancestor, else
+         *  the root. Exposed for tooling/tests. */
+        sequenceFor(view) {
+          const group = view !== null ? this.groupRoot(view) : this.rootView;
+          return group !== null ? sequence(group) : [];
+        }
+        move(dir) {
+          const group = this.current !== null ? this.groupRoot(this.current) : this.rootView;
+          if (group === null)
+            return;
+          const seq = sequence(group);
+          if (seq.length === 0)
+            return;
+          const idx = this.current !== null ? seq.indexOf(this.current) : dir === 1 ? -1 : 0;
+          const atEdge = idx !== -1 && (dir === 1 && idx === seq.length - 1 || dir === -1 && idx === 0);
+          if (group.focusTrap && atEdge)
+            fireEvent(group, "escapeFocus");
+          const nidx = ((idx + dir) % seq.length + seq.length) % seq.length;
+          this.setKeyboard(true);
+          this.apply(seq[nidx]);
+          if (this.current === seq[nidx])
+            seq[nidx].scrollIntoView("nearest");
+        }
+        /** The focused view's subtree is being discarded (or hidden) — move focus to
+         *  a live stop OUTSIDE it before it goes, so focus never dangles. Survivors
+         *  come from the dying view's OWN tree: when an embedded app is torn down
+         *  (a live-edit re-render), focus is dropped, never re-anchored into the
+         *  host app's controls. Called from View.discard() via the seam in view.ts. */
+        noteDiscarded(view) {
+          if (this.current === null || !isInSubtree(this.current, view))
+            return;
+          const survivors = sequence(rootOf(view)).filter((v) => !isInSubtree(v, view));
+          this.current = null;
+          if (survivors.length > 0)
+            this.focus(survivors[0]);
+        }
+        /** The nearest focusTrap ancestor of `view` (the group it belongs to), or the
+         *  view's OWN tree root when there is none. The tree anchor matters when more
+         *  than one app shares the page (an embedded preview inside a host app): the
+         *  focused view's group is ITS app's tree, so Tab cycles within the app the
+         *  user is interacting with and never leaks into the host's controls. */
+        groupRoot(view) {
+          for (let v = view.parent instanceof View ? view.parent : null; v !== null; v = v.parent instanceof View ? v.parent : null) {
+            if (v.focusTrap)
+              return v;
+          }
+          return rootOf(view);
+        }
+      };
+      DELIVERING = /* @__PURE__ */ new WeakMap();
+      Focus = new FocusService();
+      setFocusDiscardHook((view) => Focus.noteDiscarded(view));
+    }
+  });
+
   // runtime/dist/replicate.js
+  function materializationInfo(view) {
+    const b = BLOCKS.get(view)?.[0];
+    return b === void 0 ? null : b.info();
+  }
   function lastNodeOf(prev) {
     if (prev === null)
       return null;
     return prev instanceof Replicator ? prev.last() : prev;
   }
-  var Replicator;
+  function focusedWithin(root) {
+    const f = Focus.getFocus();
+    if (f === null)
+      return false;
+    for (let n = f; n !== null; n = n.parent) {
+      if (n === root)
+        return true;
+    }
+    return false;
+  }
+  function subtreeDiverged(root) {
+    if (nodeDiverged(root))
+      return true;
+    for (const c of root.children ?? []) {
+      if (subtreeDiverged(c))
+        return true;
+    }
+    return false;
+  }
+  function armTree(root) {
+    armDivergence(root);
+    for (const c of root.children ?? [])
+      armTree(c);
+  }
+  function safeStringify(v) {
+    try {
+      return JSON.stringify(v);
+    } catch {
+      return null;
+    }
+  }
+  var AUTO_THRESHOLD, DEFAULT_UNIT, BUFFER_ROWS, BLOCKS, ExtentLedger, Replicator;
   var init_replicate = __esm({
     "runtime/dist/replicate.js"() {
       "use strict";
@@ -8202,14 +9262,187 @@ var DeclareMac = (() => {
       init_reactive();
       init_attributes();
       init_datapath();
+      init_focus();
+      init_spring();
+      init_select();
+      AUTO_THRESHOLD = 64;
+      DEFAULT_UNIT = 24;
+      BUFFER_ROWS = 5;
+      BLOCKS = /* @__PURE__ */ new WeakMap();
+      ExtentLedger = class {
+        est = 0;
+        // the per-row estimate (includes the gap)
+        estMeasured = false;
+        // has est ever come from real rows?
+        n = 0;
+        fen = null;
+        // Fenwick over (h_i − est); 1-based
+        fenTotal = 0;
+        known = /* @__PURE__ */ new Map();
+        // member id → measured h
+        knownSum = 0;
+        // Σ known — shouldRebaseline is per-match, keep it O(1)
+        /** Remember a measured height (by identity). Returns the CHANGE at that
+         *  index (0 when already current) so callers can anchor-compensate. */
+        measure(index, id, h) {
+          const prev = this.known.get(id);
+          if (prev === h)
+            return 0;
+          this.known.set(id, h);
+          this.knownSum += h - (prev ?? 0);
+          const before = prev ?? this.est;
+          this.update(index, h - before);
+          return h - before;
+        }
+        measuredCount() {
+          return this.known.size;
+        }
+        /** Has the measured mean drifted far enough from the estimate that the
+         *  unmeasured majority is being mis-sized? (Checked per match; a rebuild
+         *  is O(n) and happens only when this fires or membership changes.) */
+        shouldRebaseline() {
+          if (this.known.size === 0)
+            return false;
+          if (!this.estMeasured)
+            return true;
+          const mean = this.knownSum / this.known.size;
+          return Math.abs(mean - this.est) > Math.max(1, this.est * 0.2);
+        }
+        /** Rebuild the index-keyed corrections for a NEW membership (data change).
+         *  `est` re-baselines to the measured mean when it has drifted. */
+        rebuild(ids, fallbackEst) {
+          this.n = ids.length;
+          if (this.known.size > 0) {
+            const mean = this.knownSum / this.known.size;
+            if (!this.estMeasured || Math.abs(mean - this.est) > this.est * 0.2)
+              this.est = mean;
+            this.estMeasured = true;
+          }
+          if (this.est === 0)
+            this.est = fallbackEst;
+          this.fen = null;
+          this.fenTotal = 0;
+          for (let i = 0; i < ids.length; i++) {
+            const h = this.known.get(ids[i]);
+            if (h !== void 0 && h !== this.est)
+              this.update(i, h - this.est);
+          }
+        }
+        update(index, delta) {
+          if (delta === 0 || index < 0 || index >= this.n)
+            return;
+          if (this.fen === null)
+            this.fen = new Float64Array(this.n + 1);
+          for (let i = index + 1; i <= this.n; i += i & -i)
+            this.fen[i] += delta;
+          this.fenTotal += delta;
+        }
+        /** Sum of corrections for rows [0, index). */
+        prefix(index) {
+          if (this.fen === null)
+            return 0;
+          let s = 0;
+          for (let i = Math.min(index, this.n); i > 0; i -= i & -i)
+            s += this.fen[i];
+          return s;
+        }
+        /** The top of row `index`, block-local (no leading). */
+        offset(index) {
+          return index * this.est + this.prefix(index);
+        }
+        /** One row's span (measured, else the estimate) — the incremental
+         *  placement walk's step, O(1). */
+        span(id) {
+          return this.known.get(id) ?? this.est;
+        }
+        /** Total extent of all n rows. */
+        total() {
+          return this.n * this.est + this.fenTotal;
+        }
+        /** The row whose span contains block-local `y` (clamped). O(log n): a
+         *  Fenwick walk over est·i + corrections, exact because spans are
+         *  positive. Uniform fast path: plain division. */
+        indexAt(y) {
+          if (this.n === 0)
+            return 0;
+          if (this.fen === null) {
+            return Math.max(0, Math.min(this.n - 1, Math.floor(y / this.est)));
+          }
+          let lo = 0;
+          let hi = this.n - 1;
+          while (lo < hi) {
+            const mid = lo + hi + 1 >> 1;
+            if (this.offset(mid) <= y)
+              lo = mid;
+            else
+              hi = mid - 1;
+          }
+          return lo;
+        }
+      };
       Replicator = class {
         parent;
         path;
         classroot;
         make;
         prev;
+        plan;
+        policy;
         views = [];
         items = [];
+        /** Every child this block currently owns: the window instances plus the
+         *  RETAINED (touched, off-window) instances — what linking and discard
+         *  operate over. Equal to `views` when nothing is retained. */
+        allViews = [];
+        /** Touched instances kept alive off-window (keep-alive, D5): member
+         *  identity → instance. Bounded by rows a human actually touched. */
+        retained = /* @__PURE__ */ new Map();
+        /** PARKED spares (recycling's idle pool): clean instances the window no
+         *  longer needs, kept hidden instead of discarded so the next growth —
+         *  an oscillating overscan lead, a direction flip, a viewport resize —
+         *  re-points an existing row instead of constructing one (the thumb-drag
+         *  bench's spikes were exactly these discard-then-rebuild bursts). */
+        spares = [];
+        /** Member identities whose init has fired — the membership-anchored
+         *  lifecycle (D5): an identity in this set never refires onInit while its
+         *  membership lasts; intersected with the live membership on data change,
+         *  so leave-and-return is a NEW membership and fires again. */
+        inited = /* @__PURE__ */ new Set();
+        unit = 0;
+        // measured row extent (0 = none yet)
+        measuredUnit = false;
+        windowedActive = false;
+        fallback = null;
+        // why windowing disengaged (diagnostic)
+        winStart = 0;
+        logical = 0;
+        positioned = false;
+        // we own instance y's (windowed placement)
+        heightOwner = null;
+        // the parent-extent derive
+        lastLeading = 0;
+        // the block-start offset (see Match.leading)
+        lastRel = null;
+        // last window offset — the overscan's velocity probe
+        ledger = new ExtentLedger();
+        rowGap = 0;
+        /** The membership signature the ledger was last rebuilt for. */
+        ledgerShape = null;
+        /** The viewport-stability anchor: the first in-view member and where its
+         *  top sat relative to the scroll, captured each match — a data change
+         *  that moves it (a prepend, a measured correction above) compensates the
+         *  scroll so the user's view holds still (Tracker criterion 2). */
+        anchorId = void 0;
+        anchorDelta = 0;
+        lastArr = null;
+        // membership-change detection
+        lastLen = -1;
+        /** Wakes the match when the FIRST instances exist to measure — the
+         *  estimate-then-correct loop's trigger (a plain cell; reconcile pings it
+         *  after creating rows while the unit is still predicted). */
+        measureCell = new Cell();
+        indexCache = null;
+        // identity → logical index (retained bookkeeping)
         template;
         constraint;
         /** The record field that identifies an instance across re-derivations
@@ -8218,89 +9451,427 @@ var DeclareMac = (() => {
          *  objects every recompute, so identity would rebuild all of them; a key
          *  pools by a stable field, so only genuinely changed records rebuild. */
         keyPath;
-        constructor(parent, element, path, classroot, make, prev, key = null) {
+        constructor(parent, element, path, classroot, make, prev, key = null, plan = null, policy = "all") {
           this.parent = parent;
           this.path = path;
           this.classroot = classroot;
           this.make = make;
           this.prev = prev;
+          this.plan = plan;
+          this.policy = policy;
           this.keyPath = key === null ? null : splitPath(key);
           this.template = {
             ...element,
-            attrs: element.attrs.filter((a) => !(a.name === "datapath" && a.value.kind === "path" && a.value.many) && !(a.name === "key" && a.value.kind === "path"))
+            attrs: element.attrs.filter((a) => !(a.name === "datapath" && a.value.kind === "path" && a.value.many) && !(a.name === "key" && a.value.kind === "path") && a.name !== "materialize")
           };
           this.constraint = new Constraint(`${parent.constructor.name}'s replication (:${path}[])`, () => this.match(), (m) => this.reconcile(m));
         }
         /** First run (instantiate pass two — the tree is linked) + retire with the
          *  parent, so a discarded subtree's replicators can never wake again. */
         arm() {
+          const list = BLOCKS.get(this.parent);
+          if (list !== void 0)
+            list.push(this);
+          else
+            BLOCKS.set(this.parent, [this]);
           onDiscard(this.parent, () => this.constraint.dispose());
           this.constraint.run();
         }
-        /** The tracked half: the inherited cursor chain + the array region. A
-         *  non-array (unresolved, or scalar) matches nothing — zero instances,
-         *  re-matched the moment the region becomes an array. */
+        // ── The kernel window API (D5: the live window is runtime/library
+        //    surface — layout, AT, the inspector, navigate-to-record) ───────────
+        /** The block's logical member count. */
+        logicalCount() {
+          return this.logical;
+        }
+        /** The realized instances, each with its LOGICAL index — the live
+         *  window under the mechanism's name-of-art, spoken as `realized` so the
+         *  API never collides with Window-the-component. */
+        realized() {
+          const out = [];
+          this.views.forEach((view, i) => out.push({ view, index: this.winStart + i }));
+          for (const [id, view] of this.retained) {
+            const idx = this.indexCache?.get(id);
+            if (idx !== void 0)
+              out.push({ view, index: idx });
+          }
+          return out;
+        }
+        /** Navigate-to-logical-record (materialization.md §3.5 — required by the
+         *  observer boundary): scroll so the record at `index` materializes —
+         *  app-level search's landing and the AT-traversal path. Imperative (a
+         *  handler's verb), so reads here are untracked by design. */
+        navigateTo(index) {
+          if (!this.windowedActive) {
+            this.views[index]?.scrollIntoView("nearest");
+            return;
+          }
+          const scroller = this.findScroller();
+          if (scroller === null)
+            return;
+          const target = this.offsetTo(scroller) + this.lastLeading + index * (this.unit > 0 ? this.unit : DEFAULT_UNIT);
+          scroller.scrollY = Math.max(0, target);
+        }
+        /** The inspector diagnostic (§3.6). */
+        info() {
+          return {
+            windowed: this.windowedActive,
+            logical: this.logical,
+            materialized: this.views.length,
+            retained: this.retained.size,
+            unit: this.unit,
+            extent: this.windowedActive ? this.measuredUnit ? "measured" : "predicted" : null,
+            fallback: this.fallback,
+            identity: this.identityMode()
+          };
+        }
+        /** The nearest scrolling ancestor (scrolls = y | both), or null. Tracked
+         *  when called from match(), plain when called imperatively. */
+        findScroller() {
+          for (let v = this.parent; v instanceof View; v = v.parent) {
+            const ax = v.scrolls;
+            if (ax === "y" || ax === "both")
+              return v;
+          }
+          return null;
+        }
+        /** This block's y offset within the scroller's CONTENT coordinates: the
+         *  sum of `y` from the block's parent up to (excluding) the scroller. */
+        offsetTo(scroller) {
+          let off = 0;
+          for (let v = this.parent; v instanceof View && v !== scroller; v = v.parent)
+            off += v.y;
+          return off;
+        }
+        /** The tracked half: the inherited cursor chain + the matched region — and
+         *  in windowed mode also the scroll box (scrollY, viewport extent, the
+         *  offset chain, the first row's measured height): the windowed match is
+         *  the SAME standing computation with more tracked dependencies
+         *  (materialization.md §3.1). A non-array (unresolved, or scalar) matches
+         *  nothing — zero instances, re-matched the moment the region becomes an
+         *  array. A SELECTIVE plan (`:rows[2:8][]`) replicates the selection
+         *  itself — windowing over selections is a later increment. */
         match() {
+          const none = { data: null, nodes: [], items: [], arrayPath: null, logical: 0, start: 0, unit: 0, windowed: false, dataChanged: true, leading: 0 };
           const base2 = inheritedCursor(this.parent);
           if (base2 === null)
-            return { data: null, arrayPath: [], items: [] };
-          const arrayPath = [...base2.path, ...splitPath(this.path)];
-          const arr = base2.data.read(arrayPath);
-          return { data: base2.data, arrayPath, items: Array.isArray(arr) ? arr : [] };
-        }
-        /** A record's pooling identity: the value at `keyPath` when a key is set
-         *  (stable across re-derivations), else the record object itself (===). */
-        idOf(item) {
-          if (this.keyPath === null)
-            return item;
-          let cur = item;
-          for (const seg of this.keyPath) {
-            if (cur === null || typeof cur !== "object")
-              return void 0;
-            cur = cur[seg];
+            return none;
+          if (this.plan !== null && isSelective(this.plan)) {
+            if (this.policy !== "all")
+              this.fallback = "a selective path replicates its selection fully (windowing over selections is a later increment)";
+            const nodes2 = selectNodes(base2.data, base2.path, this.plan);
+            return { data: base2.data, nodes: nodes2, items: nodes2.map((n) => n.value), arrayPath: null, logical: nodes2.length, start: 0, unit: 0, windowed: false, dataChanged: true, leading: 0 };
           }
-          return cur;
+          const at = this.plan === null ? splitPath(this.path) : selectNodes(base2.data, base2.path, this.plan)[0]?.path;
+          if (at === void 0)
+            return { ...none, data: base2.data };
+          const arrayPath = this.plan === null ? [...base2.path, ...at] : at;
+          const arr = base2.data.read(arrayPath);
+          if (!Array.isArray(arr))
+            return { ...none, data: base2.data };
+          const logical = arr.length;
+          const dataChanged = arr !== this.lastArr || logical !== this.lastLen;
+          this.lastArr = arr;
+          this.lastLen = logical;
+          const wants = this.policy === "window" ? true : this.policy === "all" ? false : typeof this.policy === "number" ? logical > this.policy : logical > AUTO_THRESHOLD;
+          const full = () => ({
+            data: base2.data,
+            nodes: arr.map((value, i) => ({ path: [...arrayPath, String(i)], value })),
+            items: arr,
+            arrayPath,
+            logical,
+            start: 0,
+            unit: 0,
+            windowed: false,
+            dataChanged,
+            leading: 0
+          });
+          if (!wants) {
+            this.fallback = null;
+            return full();
+          }
+          const scroller = this.findScroller();
+          if (scroller === null) {
+            this.fallback = "no scrolling ancestor (scrolls = y) to window against";
+            return full();
+          }
+          const lay = this.parent.layout;
+          let gap = 0;
+          if (lay !== null) {
+            if (lay.axis === "y") {
+              gap = typeof lay.spacing === "number" ? lay.spacing : 0;
+              this.rowGap = gap;
+            } else {
+              this.fallback = "the block's parent runs a layout windowing cannot predict (a vertical SimpleLayout composes; others fall back) \u2014 set materialize = all or drop the layout";
+              return full();
+            }
+          }
+          this.fallback = null;
+          let y = scroller.scrollY;
+          const viewH = scroller.height;
+          const offset = this.offsetTo(scroller);
+          this.measureCell.track();
+          for (const v of this.views)
+            void v.height;
+          const probe = this.views[0];
+          const measured = probe !== void 0 ? probe.height + gap : 0;
+          if (measured > gap)
+            this.measuredUnit = true;
+          const unit = measured > gap ? measured : this.unit > 0 ? this.unit : DEFAULT_UNIT + gap;
+          this.unit = unit;
+          let membershipRebuilt = false;
+          if (dataChanged || this.ledgerShape === null || this.ledger.shouldRebaseline()) {
+            const ids = dataChanged || this.ledgerShape === null ? arr.map((v) => this.idOf(v)) : this.ledgerShape;
+            const oldOffset = this.anchorId !== void 0 ? this.anchorFind(this.anchorId) : null;
+            this.ledger.rebuild(ids, unit);
+            this.ledgerShape = ids;
+            membershipRebuilt = dataChanged;
+            if (oldOffset !== null) {
+              const at2 = ids.indexOf(this.anchorId);
+              if (at2 >= 0) {
+                const shift = this.ledger.offset(at2) - oldOffset;
+                if (shift !== 0) {
+                  y = Math.max(0, y + shift);
+                  setBound(scroller, "scrollY", y);
+                }
+              }
+            }
+          }
+          if (this.ledger.est === 0)
+            this.ledger.rebuild(arr.map((v) => this.idOf(v)), unit);
+          const anchor = this.leadingAnchor();
+          const leading = anchor !== null ? anchor.y + anchor.height + gap : 0;
+          if (membershipRebuilt) {
+            const end = Math.max(0, offset + leading + this.ledger.total() - viewH);
+            if (y > end) {
+              y = end;
+              setBound(scroller, "scrollY", y);
+            }
+          }
+          const rel = Math.max(0, y - offset - leading);
+          const delta = this.lastRel === null ? 0 : rel - this.lastRel;
+          this.lastRel = rel;
+          const estRow = this.ledger.est > 0 ? this.ledger.est : unit;
+          const deltaRows = Math.ceil(Math.abs(delta) / estRow);
+          const viewRows = Math.ceil(viewH / estRow);
+          const lead = deltaRows > viewRows ? BUFFER_ROWS : Math.min(30, BUFFER_ROWS + 3 * deltaRows);
+          const before = delta >= 0 ? BUFFER_ROWS : lead;
+          const after = delta >= 0 ? lead : BUFFER_ROWS;
+          const firstIdx = this.ledger.indexAt(rel);
+          const lastIdx = this.ledger.indexAt(rel + viewH);
+          const start = Math.max(0, Math.min(logical, firstIdx - before));
+          const count = Math.max(0, Math.min(logical - start, lastIdx - firstIdx + 1 + before + after));
+          this.anchorId = arr.length > 0 ? this.idOf(arr[Math.min(arr.length - 1, firstIdx)]) : void 0;
+          this.anchorDelta = rel - this.ledger.offset(Math.min(Math.max(0, arr.length - 1), firstIdx));
+          const nodes = [];
+          for (let i = 0; i < count; i++) {
+            nodes.push({ path: [...arrayPath, String(start + i)], value: arr[start + i] });
+          }
+          return { data: base2.data, nodes, items: arr, arrayPath, logical, start, unit, windowed: true, dataChanged, leading };
         }
-        reconcile({ data, arrayPath, items }) {
+        /** A record's pooling identity, per the REVISED ladder (ruled 2026-07-30,
+         *  the invisible version): the explicit `key = :field` override first,
+         *  then the INFERRED convention — a record's own scalar `id` field IS its
+         *  identity, no declaration anywhere — then the record object itself
+         *  (===; the structural-equality fallback catches misses beneath that). */
+        idOf(item) {
+          if (this.keyPath !== null) {
+            let cur = item;
+            for (const seg of this.keyPath) {
+              if (cur === null || typeof cur !== "object")
+                return void 0;
+              cur = cur[seg];
+            }
+            return cur;
+          }
+          if (item !== null && typeof item === "object" && !Array.isArray(item) && Object.hasOwn(item, "id")) {
+            const v = item.id;
+            if (v !== null && v !== void 0 && typeof v !== "object")
+              return v;
+          }
+          return item;
+        }
+        /** The identity mode in force — the inspector's honesty about an invisible
+         *  rule (key | id | object; structural fallback applies on misses either
+         *  way when keyless). */
+        identityMode() {
+          if (this.keyPath !== null)
+            return "key";
+          const first = this.items[0];
+          if (first !== null && typeof first === "object" && !Array.isArray(first) && Object.hasOwn(first, "id"))
+            return "id";
+          return "object";
+        }
+        reconcile(m) {
+          const { data, nodes, windowed, dataChanged } = m;
+          this.logical = m.logical;
+          this.winStart = m.start;
+          this.lastLeading = m.leading;
+          const items = nodes.map((n) => n.value);
+          const droppedRetained = [];
+          if (dataChanged) {
+            this.indexCache = null;
+            if (this.retained.size > 0 || this.inited.size > 0) {
+              const idx = /* @__PURE__ */ new Map();
+              m.items.forEach((item, i) => {
+                const id = this.idOf(item);
+                if (!idx.has(id))
+                  idx.set(id, i);
+              });
+              this.indexCache = idx;
+              for (const id of this.inited)
+                if (!idx.has(id))
+                  this.inited.delete(id);
+              for (const [id, view] of this.retained) {
+                if (!idx.has(id)) {
+                  this.retained.delete(id);
+                  droppedRetained.push(view);
+                }
+              }
+            }
+          }
           const pool = /* @__PURE__ */ new Map();
+          const entries = [];
           this.items.forEach((item, i) => {
+            const e = { item, view: this.views[i], used: false };
+            entries.push(e);
             const id = this.idOf(item);
             const q = pool.get(id);
             if (q !== void 0)
-              q.push(this.views[i]);
+              q.push(e);
             else
-              pool.set(id, [this.views[i]]);
+              pool.set(id, [e]);
           });
+          const take = (q) => {
+            const e = q?.find((p) => !p.used);
+            if (e === void 0)
+              return void 0;
+            e.used = true;
+            return e.view;
+          };
+          let byContent = null;
+          const contentMatch = (value) => {
+            if (this.keyPath !== null || typeof value !== "object" || value === null)
+              return void 0;
+            if (byContent === null) {
+              byContent = /* @__PURE__ */ new Map();
+              for (const e of entries) {
+                if (e.used || typeof e.item !== "object" || e.item === null)
+                  continue;
+                const k2 = safeStringify(e.item);
+                if (k2 === null)
+                  continue;
+                const q = byContent.get(k2);
+                if (q !== void 0)
+                  q.push(e);
+                else
+                  byContent.set(k2, [e]);
+              }
+            }
+            const k = safeStringify(value);
+            return k === null ? void 0 : take(byContent.get(k));
+          };
           const next = [];
           const fresh = /* @__PURE__ */ new Map();
-          for (const item of items) {
-            const reuse = pool.get(this.idOf(item))?.shift();
-            if (reuse !== void 0) {
-              next.push(reuse);
+          const misses = [];
+          for (const node of nodes) {
+            const id = this.idOf(node.value);
+            let v = take(pool.get(id));
+            if (v === void 0) {
+              const kept = this.retained.get(id);
+              if (kept !== void 0) {
+                this.retained.delete(id);
+                v = kept;
+              }
+            }
+            if (v === void 0)
+              v = contentMatch(node.value);
+            if (v !== void 0) {
+              next.push(v);
             } else {
-              const made = this.make(this.template, this.classroot);
-              fresh.set(made.view, made.finish);
-              next.push(made.view);
+              next.push(null);
+              misses.push({ slot: next.length - 1, id });
             }
           }
-          const removed = [];
-          for (const q of pool.values())
-            removed.push(...q);
-          const changed = fresh.size > 0 || removed.length > 0 || next.some((v, i) => this.views[i] !== v);
+          const recycled = [];
+          const recycledNewMember = [];
+          if (windowed && misses.length > 0) {
+            const harvest = [];
+            for (const [id, q] of pool) {
+              if (harvest.length >= misses.length)
+                break;
+              for (const e of q) {
+                if (e.used || harvest.length >= misses.length)
+                  continue;
+                const stillMember = !dataChanged || this.indexCache?.has(id) === true;
+                if (stillMember && !subtreeDiverged(e.view) && !focusedWithin(e.view)) {
+                  e.used = true;
+                  harvest.push(e.view);
+                }
+              }
+            }
+            let hAt = 0;
+            for (const miss of misses) {
+              const r = hAt < harvest.length ? harvest[hAt++] : this.unpark();
+              if (r === void 0)
+                break;
+              next[miss.slot] = r;
+              recycled.push(r);
+              if (!this.inited.has(miss.id))
+                recycledNewMember.push(r);
+            }
+          }
+          for (const miss of misses) {
+            if (next[miss.slot] !== null)
+              continue;
+            const made = this.make(this.template, this.classroot);
+            if (this.inited.has(miss.id))
+              made.suppressInit();
+            fresh.set(made.view, made.finish);
+            next[miss.slot] = made.view;
+          }
+          const removed = [...droppedRetained];
+          const evictions = /* @__PURE__ */ new Set();
+          for (const [id, q] of pool) {
+            for (const e of q) {
+              if (e.used)
+                continue;
+              const stillMember = windowed && (!dataChanged || this.indexCache?.has(id) === true);
+              if (stillMember && (subtreeDiverged(e.view) || focusedWithin(e.view))) {
+                this.retained.set(id, e.view);
+              } else {
+                if (stillMember) {
+                  if (windowed && this.spares.length < 60) {
+                    this.park(e.view);
+                    continue;
+                  }
+                  evictions.add(e.view);
+                  markEvicting(e.view);
+                }
+                removed.push(e.view);
+              }
+            }
+          }
+          for (const v of removed)
+            if (!evictions.has(v))
+              fireRetireTree(v);
+          const retainedViews = [...this.retained.values()];
+          const nextAll = [...next, ...retainedViews, ...this.spares];
+          const changed = fresh.size > 0 || removed.length > 0 || nextAll.length !== this.allViews.length || nextAll.some((v, i) => this.allViews[i] !== v);
           if (changed) {
-            for (const v of this.views)
+            for (const v of this.allViews)
               this.parent.removeChild(v);
             let at = this.start();
-            const end = at + next.length;
-            for (const v of next)
+            const end = at + nextAll.length;
+            for (const v of nextAll)
               this.parent.insertChild(v, at++);
             for (const v of removed)
               v.discard();
+            const sameSet = windowed && fresh.size === 0 && removed.length === 0;
             const ps = this.parent.surface;
-            if (ps !== null && this.parent.backend !== null) {
+            if (ps !== null && this.parent.backend !== null && !sameSet) {
               let before = this.surfaceAfter(end);
-              for (let i = next.length - 1; i >= 0; i--) {
-                const v = next[i];
+              for (let i = nextAll.length - 1; i >= 0; i--) {
+                const v = nextAll[i];
                 if (v.surface === null)
                   v.attach(this.parent.backend, ps, before);
                 else
@@ -8310,19 +9881,156 @@ var DeclareMac = (() => {
             }
           }
           next.forEach((v, i) => {
-            setBound(v, "datapath", data === null ? null : data.cursorAt([...arrayPath, String(i)]));
+            setBound(v, "datapath", data === null ? null : data.cursorAt(nodes[i].path));
           });
+          for (const v of recycled)
+            resnapSubtree(v);
+          if (m.arrayPath !== null && this.retained.size > 0) {
+            for (const [id, v] of this.retained) {
+              const idx = this.indexCache?.get(id);
+              if (idx !== void 0 && data !== null) {
+                setBound(v, "datapath", data.cursorAt([...m.arrayPath, String(idx)]));
+              }
+            }
+          }
+          if (windowed) {
+            let yy = m.leading + this.ledger.offset(m.start);
+            next.forEach((v, i) => {
+              setBound(v, "y", yy);
+              yy += this.ledger.span(this.idOf(m.items[m.start + i]));
+            });
+            for (const [id, v] of this.retained) {
+              const idx = this.indexCache?.get(id);
+              if (idx !== void 0)
+                setBound(v, "y", m.leading + this.ledger.offset(idx));
+            }
+            this.positioned = true;
+            const total = m.leading + this.ledger.total();
+            const heightAuthored = isSet(this.parent, "height") || ownerOf(this.parent, "height")?.yielding === false;
+            if (heightAuthored) {
+              this.heightOwner?.dispose();
+              this.heightOwner = null;
+              if (this.parent.scrolls !== "none")
+                this.parent.surface?.setVirtualExtent?.(total);
+            } else if (this.heightOwner === null) {
+              this.totalExtent = total;
+              this.heightOwner = bindDerived(this.parent, "height", () => this.totalExtent);
+            } else if (this.totalExtent !== total) {
+              this.totalExtent = total;
+              this.heightOwner.run();
+            }
+          } else if (this.windowedActive) {
+            this.heightOwner?.dispose();
+            this.heightOwner = null;
+            this.parent.surface?.setVirtualExtent?.(null);
+            for (const v of this.spares.splice(0)) {
+              markEvicting(v);
+              this.parent.removeChild(v);
+              v.discard();
+            }
+            if (this.positioned) {
+              for (const v of nextAll)
+                setBound(v, "y", 0);
+              this.positioned = false;
+            }
+          }
+          this.parent.surface?.setRowCount?.(windowed ? m.logical : null);
+          next.forEach((v, i) => v.surface?.setRowIndex?.(windowed ? m.start + i + 1 : null));
+          if (windowed) {
+            for (const [id, v] of this.retained) {
+              const idx = this.indexCache?.get(id);
+              v.surface?.setRowIndex?.(idx !== void 0 ? idx + 1 : null);
+            }
+          }
+          if (this.windowedActive !== windowed) {
+            this.windowedActive = windowed;
+            markWindowedBlock(this.parent, windowed);
+          }
           this.views = next;
-          this.items = [...items];
+          this.items = items;
+          this.allViews = nextAll;
           for (const finish of fresh.values())
             finish();
-          if (changed)
+          for (const v of recycledNewMember)
+            fireInitTree(v);
+          for (const node of nodes) {
+            const id = this.idOf(node.value);
+            if (!this.inited.has(id))
+              this.inited.add(id);
+          }
+          for (const view of fresh.keys())
+            armTree(view);
+          for (const view of recycled)
+            armTree(view);
+          if (windowed && next.length > 0) {
+            let changed2 = false;
+            let aboveShift = 0;
+            const anchorIdx = this.anchorId !== void 0 ? this.indexCache?.get(this.anchorId) : void 0;
+            for (let i = 0; i < next.length; i++) {
+              const idx = m.start + i;
+              const h = next[i].height + this.rowGap;
+              if (h <= this.rowGap)
+                continue;
+              const d = this.ledger.measure(idx, this.idOf(m.items[idx]), h);
+              if (d !== 0) {
+                changed2 = true;
+                if (anchorIdx !== void 0 && idx < anchorIdx)
+                  aboveShift += d;
+              }
+            }
+            if (aboveShift !== 0) {
+              const sc = this.findScroller();
+              if (sc !== null)
+                setBound(sc, "scrollY", Math.max(0, sc.scrollY + aboveShift));
+            }
+            if (changed2 || !this.measuredUnit)
+              this.measureCell.changed();
+          }
+          if (changed) {
             this.parent.childrenMutated();
+            this.measureCell.changed();
+          }
         }
+        /** The parent-extent the height derive publishes (windowed mode). */
+        totalExtent = 0;
         /** Where the block starts right now: after its anchor. */
         start() {
           const anchor = lastNodeOf(this.prev);
           return anchor === null ? 0 : this.parent.children.indexOf(anchor) + 1;
+        }
+        /** The last VISIBLE View before the block — the GEOMETRY anchor the
+         *  window's leading offset builds on. Distinct from the structural anchor
+         *  (`lastNodeOf(this.prev)`): an invisible sibling (a DataGrid Column, a
+         *  hidden control) occupies no space — the SimpleLayout rule — so the
+         *  walk skips it rather than offsetting below a phantom. */
+        /** The anchor member's offset under the CURRENT (pre-rebuild) ledger,
+         *  or null when it is no longer known. */
+        anchorFind(id) {
+          const shape = this.ledgerShape;
+          if (shape === null)
+            return null;
+          const at = shape.indexOf(id);
+          return at < 0 ? null : this.ledger.offset(at) - this.anchorDelta + this.anchorDelta;
+        }
+        /** Hide and shelve a clean evicted instance for reuse. */
+        park(v) {
+          setBound(v, "visible", false);
+          this.spares.push(v);
+        }
+        /** Take a spare back into service (visible again; the caller re-points). */
+        unpark() {
+          const v = this.spares.pop();
+          if (v !== void 0)
+            setBound(v, "visible", true);
+          return v;
+        }
+        leadingAnchor() {
+          for (let i = this.start() - 1; i >= 0; i--) {
+            const sib = this.parent.children[i];
+            if (sib instanceof View && sib.visible && sib.ignoreLayout !== true)
+              return sib;
+          }
+          return null;
         }
         /** The first live surface after the block — the `before` reference the
          *  re-inserted surfaces stack up against (null = the parent's end). */
@@ -8336,7 +10044,7 @@ var DeclareMac = (() => {
         }
         /** @internal The block's last instance — the next block's anchor. */
         last() {
-          return this.views.length > 0 ? this.views[this.views.length - 1] : lastNodeOf(this.prev);
+          return this.allViews.length > 0 ? this.allViews[this.allViews.length - 1] : lastNodeOf(this.prev);
         }
       };
     }
@@ -8594,287 +10302,6 @@ var DeclareMac = (() => {
     }
   });
 
-  // runtime/dist/focus.js
-  function sequence(root) {
-    const out = [];
-    const walk = (v) => {
-      for (const m of tabOrderOf(v)) {
-        if (!m.visible)
-          continue;
-        if (m.focusable)
-          out.push(m);
-        if (m.focusTrap && m !== root)
-          continue;
-        walk(m);
-      }
-    };
-    walk(root);
-    return out;
-  }
-  function tabOrderOf(v) {
-    const fn = v.tabOrder;
-    const members = typeof fn === "function" ? fn.call(v) : v.tabDefault();
-    return Array.isArray(members) ? members.filter((m) => m instanceof View) : [];
-  }
-  function rootOf(view) {
-    let v = view;
-    while (v.parent instanceof View)
-      v = v.parent;
-    return v;
-  }
-  function isInSubtree(node, ancestor) {
-    for (let v = node; v !== null; v = v.parent instanceof View ? v.parent : null) {
-      if (v === ancestor)
-        return true;
-    }
-    return false;
-  }
-  function deliverKeys(keys, focus) {
-    const perFocus = DELIVERING.get(keys) ?? /* @__PURE__ */ new WeakMap();
-    DELIVERING.set(keys, perFocus);
-    const existing = perFocus.get(focus);
-    if (existing !== void 0)
-      return existing;
-    const offDown = keys.onKeyDown((e) => {
-      if (e.code === "Tab") {
-        if (e.shift)
-          focus.prev();
-        else
-          focus.next();
-        return;
-      }
-      const f = focus.getFocus();
-      if (f !== null)
-        fireEvent(f, "keyDown", e);
-    });
-    const offUp = keys.onKeyUp((e) => {
-      if (e.code === "Tab")
-        return;
-      const f = focus.getFocus();
-      if (f !== null)
-        fireEvent(f, "keyUp", e);
-    });
-    const off = () => {
-      perFocus.delete(focus);
-      offDown();
-      offUp();
-    };
-    perFocus.set(focus, off);
-    return off;
-  }
-  var FocusService, DELIVERING, Focus;
-  var init_focus = __esm({
-    "runtime/dist/focus.js"() {
-      "use strict";
-      init_view();
-      init_reactive();
-      FocusService = class {
-        current = null;
-        rootView = null;
-        /** Whether the LAST focus change was keyboard-driven (Tab traversal). The
-         *  focus-visible modality: a ring/indicator shows only for keyboard focus —
-         *  a pointer press focuses silently (the click itself is the feedback).
-         *  A REACTIVE fact: `byKeyboard()` is a tracked read, so a component's
-         *  styling constraint (a Tab header's focus edge) re-derives when the
-         *  modality flips — same slot, event handlers and constraints alike. */
-        keyboard = false;
-        keyboardCell = new Cell();
-        setKeyboard(v) {
-          if (this.keyboard === v)
-            return;
-          this.keyboard = v;
-          this.keyboardCell.changed();
-        }
-        /** Subscribers to focus CHANGES (`Focus [ onFocusChange(v) { … } ]`) —
-         *  called with the newly focused view (or null on blur) after the change
-         *  settles. What the traveling focus indicator rides. */
-        changeHandlers = /* @__PURE__ */ new Set();
-        /** Subscribers to the focused control's LIVE GEOMETRY
-         *  (`Focus [ onGeometry(g) { … } ]`). A standing runtime constraint follows
-         *  the target: tracked reads
-         *  of the parent chain's x/y and the control's focusShape() mean an
-         *  arrow-keyed slider thumb, a reflowing layout, or a resized ancestor
-         *  moves the resting ring WITH its control — no re-focus needed. */
-        geometryHandlers = /* @__PURE__ */ new Set();
-        follower = null;
-        /** Reentrancy lock: a focus change fires onFocus/onBlur handlers that may
-         *  call focus() again; remember the latest target and apply it after the
-         *  current change settles (LZX's discipline). */
-        changing = false;
-        queued = false;
-        queuedTarget = null;
-        /** The tree root, for traversal when nothing is focused (set at attach). */
-        setRoot(view) {
-          this.rootView = view;
-        }
-        getFocus() {
-          return this.current;
-        }
-        /** True when the current focus arrived by KEYBOARD (Tab/Shift-Tab) — the
-         *  focus-visible modality gate an indicator reads: show for keyboard focus,
-         *  stay hidden for pointer/programmatic focus. */
-        byKeyboard() {
-          this.keyboardCell.track();
-          return this.keyboard;
-        }
-        /** Test/lifecycle reset. */
-        reset() {
-          this.current = null;
-          this.rootView = null;
-          this.changing = false;
-          this.queued = false;
-          this.follower?.dispose();
-          this.follower = null;
-        }
-        /** Focus a view (null = blur). A non-focusable or invisible view is ignored
-         *  (never becomes the focus). Fires onBlur on the old, onFocus on the new.
-         *  This public entry is the POINTER/PROGRAMMATIC path — it clears the
-         *  keyboard modality; Tab traversal (move) sets it. */
-        focus(view) {
-          this.setKeyboard(false);
-          this.apply(view);
-        }
-        apply(view) {
-          if (view !== null && !(view.focusable && view.visible))
-            return;
-          if (this.changing) {
-            this.queued = true;
-            this.queuedTarget = view;
-            return;
-          }
-          if (view === this.current)
-            return;
-          this.changing = true;
-          const old = this.current;
-          this.current = view;
-          if (old !== null) {
-            old.focusChanged(false);
-            fireEvent(old, "blur");
-          }
-          if (view !== null) {
-            view.focusChanged(true);
-            fireEvent(view, "focus");
-          }
-          this.changing = false;
-          this.retargetFollower();
-          for (const h of [...this.changeHandlers])
-            h(this.current);
-          if (this.queued) {
-            this.queued = false;
-            this.apply(this.queuedTarget);
-          }
-        }
-        /** Subscribe to focus changes. Returns the unsubscribe thunk — the `<-`
-         *  wiring's contract (sources.ts). */
-        onFocusChange(fn) {
-          this.changeHandlers.add(fn);
-          return () => this.changeHandlers.delete(fn);
-        }
-        onGeometry(fn) {
-          this.geometryHandlers.add(fn);
-          return () => this.geometryHandlers.delete(fn);
-        }
-        /** (Re)install the follower for the current focus. The constraint's body
-         *  reads TRACKED slots (ancestor x/y, the focusShape's inputs), so any
-         *  change re-fires it; its push notifies the geometry subscribers. */
-        retargetFollower() {
-          this.follower?.dispose();
-          this.follower = null;
-          const v = this.current;
-          if (v === null || this.geometryHandlers.size === 0)
-            return;
-          const k = new Constraint("Focus.follower", () => {
-            let x = 0, y = 0;
-            let n = v;
-            for (; ; ) {
-              x += n.x;
-              y += n.y;
-              if (!(n.parent instanceof View))
-                break;
-              n = n.parent;
-            }
-            const fsFn = v.focusShape;
-            const fs = typeof fsFn === "function" ? fsFn.call(v) : null;
-            return {
-              x: x + (fs ? fs.x : 0),
-              y: y + (fs ? fs.y : 0),
-              w: fs ? fs.w : v.width,
-              h: fs ? fs.h : v.height,
-              rad: fs ? fs.rad : v.cornerRadius > 0 ? v.cornerRadius : 4,
-              view: v,
-              root: n
-            };
-          }, (g) => {
-            if (g != null)
-              for (const fn of [...this.geometryHandlers])
-                fn(g);
-          });
-          k.run();
-        }
-        blur() {
-          this.focus(null);
-        }
-        next() {
-          this.move(1);
-        }
-        prev() {
-          this.move(-1);
-        }
-        /** The ordered focus stops in a view's group — its focusTrap ancestor, else
-         *  the root. Exposed for tooling/tests. */
-        sequenceFor(view) {
-          const group = view !== null ? this.groupRoot(view) : this.rootView;
-          return group !== null ? sequence(group) : [];
-        }
-        move(dir) {
-          const group = this.current !== null ? this.groupRoot(this.current) : this.rootView;
-          if (group === null)
-            return;
-          const seq = sequence(group);
-          if (seq.length === 0)
-            return;
-          const idx = this.current !== null ? seq.indexOf(this.current) : dir === 1 ? -1 : 0;
-          const atEdge = idx !== -1 && (dir === 1 && idx === seq.length - 1 || dir === -1 && idx === 0);
-          if (group.focusTrap && atEdge)
-            fireEvent(group, "escapeFocus");
-          const nidx = ((idx + dir) % seq.length + seq.length) % seq.length;
-          this.setKeyboard(true);
-          this.apply(seq[nidx]);
-          if (this.current === seq[nidx])
-            seq[nidx].scrollIntoView("nearest");
-        }
-        /** The focused view's subtree is being discarded (or hidden) — move focus to
-         *  a live stop OUTSIDE it before it goes, so focus never dangles. Survivors
-         *  come from the dying view's OWN tree: when an embedded app is torn down
-         *  (a live-edit re-render), focus is dropped, never re-anchored into the
-         *  host app's controls. Called from View.discard() via the seam in view.ts. */
-        noteDiscarded(view) {
-          if (this.current === null || !isInSubtree(this.current, view))
-            return;
-          const survivors = sequence(rootOf(view)).filter((v) => !isInSubtree(v, view));
-          this.current = null;
-          if (survivors.length > 0)
-            this.focus(survivors[0]);
-        }
-        /** The nearest focusTrap ancestor of `view` (the group it belongs to), or the
-         *  view's OWN tree root when there is none. The tree anchor matters when more
-         *  than one app shares the page (an embedded preview inside a host app): the
-         *  focused view's group is ITS app's tree, so Tab cycles within the app the
-         *  user is interacting with and never leaks into the host's controls. */
-        groupRoot(view) {
-          for (let v = view.parent instanceof View ? view.parent : null; v !== null; v = v.parent instanceof View ? v.parent : null) {
-            if (v.focusTrap)
-              return v;
-          }
-          return rootOf(view);
-        }
-      };
-      DELIVERING = /* @__PURE__ */ new WeakMap();
-      Focus = new FocusService();
-      setFocusDiscardHook((view) => Focus.noteDiscarded(view));
-    }
-  });
-
   // runtime/dist/text-input.js
   var TextInput;
   var init_text_input = __esm({
@@ -8896,7 +10323,7 @@ var DeclareMac = (() => {
           if (!isSet(this, "focusable") && ownerOf(this, "focusable") === null)
             this.focusable = true;
           super.attach(backend2, parentSurface);
-          if ((isSet(this, "initial") || ownerOf(this, "initial") !== null) && !isSet(this, "text") && ownerOf(this, "text") === null) {
+          if (!isSet(this, "text") && ownerOf(this, "text") === null) {
             bindDerived(this, "text", () => this.initial);
           }
           const tok = (name, fallback) => {
@@ -10361,8 +11788,12 @@ var DeclareMac = (() => {
             return;
           this.width = w;
           this.flowWidth = w;
-          if (this.content.every((b) => b.pre === true))
-            return;
+          if (this.content.every((b) => b.pre === true)) {
+            if (this.surface?.setRichWidth !== void 0) {
+              this.surface.setRichWidth(w);
+              return;
+            }
+          }
           this.render();
         }
         onLink = null;
@@ -10482,7 +11913,7 @@ var DeclareMac = (() => {
           const c = new Constraint(`${this.constructor.name}.render`, () => `${this.sourceKey()} ${this.lineHeight} ${this.bodyColor} ${this.isDark()} ${this.scale} ${this.codeBackground} ${this.codeRule}`, () => this.rebuild(), 0);
           c.run();
           onDiscard(this, () => c.dispose());
-          const cw = new Constraint(`${this.constructor.name}.rewidth`, () => `${this.width}`, () => this.relayout(this.width || 640), 0);
+          const cw = new Constraint(`${this.constructor.name}.rewidth`, () => `${this.width}`, () => this.relayout(this.width > 0 ? this.width : 640), 0);
           cw.run();
           onDiscard(this, () => cw.dispose());
         }
@@ -10545,7 +11976,7 @@ var DeclareMac = (() => {
             v.discard();
           }
           this.built = [];
-          const width = this.width || 640;
+          const width = this.width > 0 ? this.width : 640;
           const family = this.fontFamily || FALLBACK_FAMILY;
           const lead = this.lineHeight || 1;
           const bodyColor = this.bodyColor ?? C.bodyColor;
@@ -10691,6 +12122,40 @@ var DeclareMac = (() => {
       KeysService = class {
         /** The held-key set (LZX's downKeysHash) — what is pressed right now. */
         heldKeys = /* @__PURE__ */ new Set();
+        /** Views currently claiming the NAVIGATION keys (arrows, Space, Home/End,
+         *  PageUp/Down) from the browser's scroll defaults — an open Menu chain,
+         *  any overlay that roves with arrows while nothing holds Declare focus.
+         *  A Set of claimant owners so overlapping claims (a menu over a menu)
+         *  compose; `navClaim(owner, false)` releases only its own. */
+        navClaims = /* @__PURE__ */ new Set();
+        navHandlers = /* @__PURE__ */ new Set();
+        /** Claim (or release) the navigation keys for `owner`. While any claim is
+         *  live, the DOM listener prevents the browser's scroll defaults for the
+         *  nav keys exactly as it does when a Declare control holds focus — an
+         *  open menu's arrows rove the menu, never scroll the page. Idempotent.
+         *  0↔1 transitions notify onNavClaim subscribers (the FocusRing stands
+         *  down while an overlay owns the keys — the menu's rover is the focus). */
+        navClaim(owner, on) {
+          const was = this.navClaims.size > 0;
+          if (on)
+            this.navClaims.add(owner);
+          else
+            this.navClaims.delete(owner);
+          const is = this.navClaims.size > 0;
+          if (was !== is)
+            for (const fn of [...this.navHandlers])
+              fn(is);
+        }
+        /** Is any navigation-keys claim live right now? */
+        navClaimed() {
+          return this.navClaims.size > 0;
+        }
+        /** Subscribe to nav-claim TRANSITIONS (true = an overlay took the keys,
+         *  false = the last claim released). Returns the unsubscribe thunk. */
+        onNavClaim(fn) {
+          this.navHandlers.add(fn);
+          return () => this.navHandlers.delete(fn);
+        }
         downHandlers = /* @__PURE__ */ new Set();
         upHandlers = /* @__PURE__ */ new Set();
         chords = [];
@@ -10801,10 +12266,10 @@ var DeclareMac = (() => {
             if (ev.key === "Tab")
               ev.preventDefault();
             if (document.activeElement === document.body || document.activeElement === null) {
-              if (ev.key === " " || ev.key === "ArrowUp" || ev.key === "ArrowDown" || ev.key === "ArrowLeft" || ev.key === "ArrowRight") {
-                if (focusHolds())
-                  ev.preventDefault();
-              }
+              const nav = ev.key === " " || ev.key === "ArrowUp" || ev.key === "ArrowDown" || ev.key === "ArrowLeft" || ev.key === "ArrowRight";
+              const jump = ev.key === "Home" || ev.key === "End" || ev.key === "PageUp" || ev.key === "PageDown";
+              if (nav && (focusHolds() || this.navClaimed()) || jump && this.navClaimed())
+                ev.preventDefault();
             }
             this.keyDown(normalize(ev));
           };
@@ -10871,7 +12336,8 @@ var DeclareMac = (() => {
       };
       CHANNELS_KEYS = [
         ["onKeyDown", (fn) => Keys.onKeyDown(fn)],
-        ["onKeyUp", (fn) => Keys.onKeyUp(fn)]
+        ["onKeyUp", (fn) => Keys.onKeyUp(fn)],
+        ["onNavClaim", (fn) => Keys.onNavClaim(fn)]
       ];
       FocusSource = class extends Source {
         channels() {
@@ -11194,7 +12660,7 @@ var DeclareMac = (() => {
     if (v.kind === "code")
       return { ok: true, binding: { src: v.src, pos: v.pos } };
     if (v.kind === "path")
-      return { ok: true, datapath: { path: v.path, many: v.many, pos: v.pos } };
+      return { ok: true, datapath: { path: v.path, many: v.many, pos: v.pos, plan: v.plan } };
     const type = attrType(schema, attr.name);
     const c = type !== null ? coerce(type, v) : null;
     if (c === null || !c.ok) {
@@ -11208,6 +12674,7 @@ var DeclareMac = (() => {
     const scriptScope = {};
     for (const s of program.scripts)
       Object.assign(scriptScope, evalScript(s.src));
+    CURRENT_SCRIPTS = scriptScope;
     return withScriptScope(scriptScope, () => buildTree2(program, trusted));
   }
   function buildTree2(program, trusted) {
@@ -11261,7 +12728,7 @@ var DeclareMac = (() => {
       else if ("twoWayCode" in p)
         bindTwoWayDynamic(p.view, p.attr.name, p.twoWayCode, p.attr.value.pos, p.classroot, p.type);
       else if ("dataPath" in p)
-        bindData(p.view, p.attr.name, p.dataPath, p.type);
+        bindData(p.view, p.attr.name, p.dataPath, p.type, p.plan);
       else if ("cursorPath" in p)
         bindDatapath(p.view, p.cursorPath);
       else if ("cursorCode" in p)
@@ -11279,6 +12746,13 @@ var DeclareMac = (() => {
         bindAlign(p.view, p.attr.name, p.align, p.attr.value.pos);
       else
         bindPercent(p.view, p.attr.name, p.percent, p.attr.value.pos);
+    }
+  }
+  function markInited(view) {
+    INITED.add(view);
+    for (const child of view.children) {
+      if (child instanceof View)
+        markInited(child);
     }
   }
   function initTree(view) {
@@ -11576,11 +13050,19 @@ var DeclareMac = (() => {
           if (r.datapath.many) {
             throw new DeclareError(`':${r.datapath.path}[]' makes many instances \u2014 a replication belongs on a child element, not here`, r.datapath.pos);
           }
-          ctx.pending.push({ view, attr, cursorPath: r.datapath.path });
+          const cSegs = r.datapath.plan === void 0 ? null : staticSegs(r.datapath.plan);
+          if (r.datapath.plan !== void 0 && cSegs === null) {
+            throw new DeclareError(`datapath = :${r.datapath.path} \u2014 a cursor is ONE place; a selective or data-resolved path matches elsewhere. Read it as a value, or replicate over it: datapath = :${r.datapath.path}[]`, r.datapath.pos);
+          }
+          ctx.pending.push({ view, attr, cursorPath: cSegs ?? r.datapath.path });
         } else if (attr.bind === "two") {
-          ctx.pending.push({ view, attr, twoWay: r.datapath.path, type: t });
+          const wSegs = r.datapath.plan === void 0 ? null : staticSegs(r.datapath.plan);
+          if (r.datapath.plan !== void 0 && wSegs === null) {
+            throw new DeclareError(`'${attr.name} <-> :${r.datapath.path}' \u2014 a two-way binding writes ONE place; a selective or data-resolved path cannot name it`, r.datapath.pos);
+          }
+          ctx.pending.push({ view, attr, twoWay: wSegs ?? r.datapath.path, type: t });
         } else {
-          ctx.pending.push({ view, attr, dataPath: r.datapath.path, type: t });
+          ctx.pending.push({ view, attr, dataPath: r.datapath.path, type: t, plan: r.datapath.plan });
         }
       } else if (isPercent(r.value)) {
         ctx.pending.push({ view, attr, percent: r.value.percent });
@@ -11650,11 +13132,20 @@ var DeclareMac = (() => {
         throw new DeclareError(`a Dataset needs data \u2014 a JSON body '{ \u2026 }' or a derived 'contents = { \u2026 }'`, el.pos);
       }
       if (el.raw !== void 0) {
+        let value;
         try {
-          node.value = JSON.parse(el.raw.src);
+          value = JSON.parse(el.raw.src);
         } catch (e) {
           throw new DeclareError(`${el.name ?? el.tag}: the Dataset body is not valid JSON \u2014 ${e.message}`, el.raw.pos);
         }
+        const shape = node.schema;
+        if (shape !== null) {
+          const err2 = validateShape(value, shape);
+          if (err2 !== null) {
+            throw new DeclareError(`${el.name ?? el.tag}: the embedded data does not match the schema \u2014 ${err2}`, el.raw.pos);
+          }
+        }
+        node.value = value;
       }
     } else if (el.raw !== void 0) {
       throw new DeclareError(`a ${el.tag}'s data arrives from its url \u2014 only a Dataset embeds a { } body`, el.raw.pos);
@@ -11965,7 +13456,13 @@ var DeclareMac = (() => {
         }
         const keyAttr = childEl.attrs.find((a) => a.name === "key" && a.value.kind === "path");
         const keyPath = keyAttr !== void 0 ? keyAttr.value.path : null;
-        const replicator = new Replicator(parentView, childEl, many.value.path, croot, materializer(ctx), slot.prev, keyPath);
+        const matAttr = childEl.attrs.find((a) => a.name === "materialize");
+        let policy = "all";
+        if (matAttr !== void 0) {
+          const wv = matAttr.value;
+          policy = wv.kind === "number" ? wv.value : wv.name === "auto" ? "auto" : wv.name === "window" ? "window" : "all";
+        }
+        const replicator = new Replicator(parentView, childEl, many.value.path, croot, materializer(ctx), slot.prev, keyPath, many.value.plan ?? null, policy);
         ctx.pending.push({ replicator });
         slot.prev = replicator;
         continue;
@@ -12012,17 +13509,25 @@ var DeclareMac = (() => {
       const saved = ctx.pending;
       ctx.pending = [];
       try {
-        const node = construct(template, classroot, ctx);
+        const node = withScriptScope(CURRENT_SCRIPTS, () => construct(template, classroot, ctx));
         if (!(node instanceof View)) {
           throw new DeclareError(`a ${template.tag} cannot replicate \u2014 it is not a view`, template.pos);
         }
         const pending = ctx.pending;
         return {
           view: node,
+          // finish COMPILES (installPending binds constraints, which capture
+          // the script scope at compile time) — it needs the scope exactly as
+          // construct does
           finish: () => {
-            installPending(pending, ctx);
+            withScriptScope(CURRENT_SCRIPTS, () => installPending(pending, ctx));
             initTree(node);
-          }
+          },
+          // Membership-anchored init (the D5 ruling): the reconciler calls this
+          // before finish when the record's membership already fired its init —
+          // a reconstructed window row, a keyed re-derivation — so initTree
+          // stays silent for the whole subtree.
+          suppressInit: () => markInited(node)
         };
       } finally {
         ctx.pending = saved;
@@ -12048,7 +13553,7 @@ var DeclareMac = (() => {
       ctx.trusted = wasTrusted;
     }
   }
-  var INITED, ANON, CASCADE_ATTRS, CONTEXTS;
+  var CURRENT_SCRIPTS, INITED, ANON, CASCADE_ATTRS, CONTEXTS;
   var init_instantiate = __esm({
     "runtime/dist/instantiate.js"() {
       "use strict";
@@ -12071,9 +13576,12 @@ var DeclareMac = (() => {
       init_bind();
       init_editor();
       init_replicate();
+      init_datapath();
       init_view();
       init_data();
+      init_data_schema();
       init_registry();
+      CURRENT_SCRIPTS = {};
       INITED = /* @__PURE__ */ new WeakSet();
       ANON = /* @__PURE__ */ new WeakMap();
       CASCADE_ATTRS = /* @__PURE__ */ new Set([
@@ -12723,6 +14231,11 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     const text = node.text;
     if (typeof text === "string" && text !== "")
       record2.text = text;
+    if (v !== null) {
+      const w = materializationInfo(v);
+      if (w !== null)
+        record2.materialization = w;
+    }
     return record2;
   }
   function find(root, path) {
@@ -12957,6 +14470,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       init_interaction();
       init_view();
       init_attributes();
+      init_replicate();
       init_animate();
       init_registry();
       init_reactive();
@@ -13492,6 +15006,20 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       };
       window.addEventListener(type, listener);
     };
+    {
+      const ctxListener = (e) => {
+        if (!alive()) {
+          window.removeEventListener("contextmenu", ctxListener);
+          return;
+        }
+        const t = resolve(e);
+        if (t !== null && t.wantsContext === true) {
+          e.preventDefault();
+          t.sink("contextMenu", t.x, t.y);
+        }
+      };
+      window.addEventListener("contextmenu", ctxListener);
+    }
     listen("pointerdown", (e) => {
       const t = resolve(e);
       held = t;

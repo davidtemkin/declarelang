@@ -13,15 +13,6 @@ export declare const CONSTRUCTOR_NAMES: readonly string[];
  *  parent and classroot as arguments, so all three scope nouns resolve
  *  naturally. */
 export type ExprFn = (this: unknown, parent: unknown, classroot: unknown) => unknown;
-/** Compile a body's source to a function, or say why it can't be. The
- *  error text is a fragment ("is not a valid expression — …") for callers
- *  to prefix with the slot's name; one wording, used by check() at check
- *  time and bindConstraint() at instantiate time.
- *
- *  Strict mode, and the body is parenthesized into a `return`, so only an
- *  expression parses. (A determined string can still smuggle statements
- *  through balanced parens — expression-*enforcement*, like typechecking,
- *  is the tsc path's job; this is a syntax gate, not a sandbox.) */
 export declare function compileExpr(src: string): {
     fn: ExprFn;
 } | {

@@ -553,7 +553,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
                 firstStart: events.length > 0 ? events[0].start : 450,
                 })
             }
-        this.cal.set("days", days)
+        this.cal.set(["days"], days)
 
         if (selKey != null) this.selectedKey = selKey
         else {
@@ -653,7 +653,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
         L.focusCol = fCol
         L.focusRow = fRow
         L.retarget(animate)
-        this.cal.set("cols", L.colBoxes())
+        this.cal.set(["cols"], L.colBoxes())
         },
 
     // a day key's grid position (col/row) in the displayed month, or -1/-1

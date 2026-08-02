@@ -26,6 +26,10 @@ class Checkbox extends Control [
     checked: boolean = false,
     label:   string = "",
 
+    // the box's size: the theme fact by default, one attribute to override
+    // (a toolbar checkbox can shrink to its neighbors without a subclass)
+    size: number = 0,             // 0 = theme.checkboxSize (else 20)
+
     input(v: boolean) { checked = v },
 
     press()   { input(!checked) },
@@ -35,7 +39,7 @@ class Checkbox extends Control [
     opacity = { disabled ? (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) : 1 },
 
     box: View [ y = { (parent.height - this.height) / 2 },
-        width  = { typeof theme.checkboxSize == "number" ? theme.checkboxSize : 20 },
+        width  = { classroot.size > 0 ? classroot.size : typeof theme.checkboxSize == "number" ? theme.checkboxSize : 20 },
         height = { this.width },
         cornerRadius = { typeof theme.checkboxRadius == "number" ? theme.checkboxRadius : Math.min(8, Math.max(3, theme.controlRadius - 2)) },
         fill   = { checked ? theme.accent : theme.control },
@@ -65,6 +69,10 @@ class Checkbox extends Control [
     // box's size is a theme fact — 14 in Cupertino, 20 in Redmond), and both
     // center in the control's height, so they align automatically everywhere
 
-    cap: Text [ x = { parent.box.width + 8 }, y = center, wrap = false, textColor = { theme.text },
+    // NO explicit textColor: the label follows the PREVAILING text style
+    // (the App's default is theme.text, so nothing changes anywhere) — and a
+    // use site restyles it with ordinary attributes, no subclass:
+    //     Checkbox [ label = "Grouped", fontSize = 12.5, textColor = { theme.textMuted }, size = 16 ]
+    cap: Text [ x = { parent.box.width + 8 }, y = center, wrap = false,
         visible = { label != "" }, text = { label } ]
     ]

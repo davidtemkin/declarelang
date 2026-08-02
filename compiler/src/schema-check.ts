@@ -1,0 +1,142 @@
+// Static `:path` checking against declared schemas (B4 — the second half of
+// language §9's promise: "statically check every `:path` against the shape").
+// Runs over the RESOLVED program (cursor expressions are explicit
+// `this.root.d.value` chains there), so the walk is: find the elements whose
+// `datapath = { … }` matches the direct-cursor idiom onto a schema'd
+// dataset, then check every path literal in that subtree — cursor
+// extensions, replication paths, value reads, `<->` targets — against the
+// shape, with the schema's own field lists in the errors.
+//
+// HONESTY OF SCOPE: this is best-effort by construction. A cursor derived
+// through arbitrary code (`datapath = { cond ? a.value : b.value }`) is
+// statically unknowable and its subtree is simply UNCHECKED (never refused);
+// `{ }`-body islands are unchecked in v1 (the attribute surface is where
+// paths concentrate). What IS checked fails loudly with the fields named —
+// the typo'd `:labell` dies at compile time, which is the promise.
+
+import type { Program, Element, ShapeField } from "../../runtime/dist/parser.js";
+import { DeclareError } from "../../runtime/dist/errors.js";
+import { splitPath, type PathSeg } from "../../runtime/dist/datapath.js";
+
+type Ctx =
+  | { kind: "record"; fields: readonly ShapeField[] }
+  | { kind: "array"; field: ShapeField } // resting at an array field
+  | { kind: "scalar"; field: ShapeField }
+  | { kind: "open" }; // beyond the declared world — unchecked
+
+const OPEN: Ctx = { kind: "open" };
+
+const fieldList = (fields: readonly ShapeField[]): string =>
+  fields.map((f) => f.name + (f.array ? "[]" : "")).join(", ");
+
+const describeCtx = (ctx: Ctx): string =>
+  ctx.kind === "record" ? "a record" : ctx.kind === "array" ? "an array" : ctx.kind === "scalar" ? `a ${ctx.field.type}` : "unchecked";
+
+/** Walk one plan from a context. Returns the endpoint context (plus whether
+ *  a selective segment made it PLURAL — legal ground for `[]`) or an error. */
+function walkPlan(start: Ctx, plan: readonly PathSeg[], spelled: string): { ctx: Ctx; plural: boolean } | { error: string } {
+  let ctx = start;
+  let plural = false;
+  const enter = (f: ShapeField): Ctx =>
+    f.fields !== undefined ? { kind: "record", fields: f.fields }
+    : f.type === "any" ? OPEN
+    : { kind: "scalar", field: f };
+  for (const seg of plan) {
+    if (ctx.kind === "open") return { ctx: OPEN, plural };
+    if (typeof seg === "string") {
+      if (ctx.kind === "scalar") {
+        return { error: `':${spelled}' — '${ctx.field.name}' is a ${ctx.field.type}, not a structure` };
+      }
+      if (ctx.kind === "array") {
+        return { error: `':${spelled}' — '${ctx.field.name}[]' is an array; select an element ([0], [*], a slice) before '.${seg}'` };
+      }
+      const f = ctx.fields.find((x) => x.name === seg);
+      if (f === undefined) {
+        return { error: `':${spelled}' — '${seg}' is not in the schema here; fields: ${fieldList(ctx.fields)}` };
+      }
+      ctx = f.array ? { kind: "array", field: f } : enter(f);
+    } else if ("i" in seg) {
+      if (ctx.kind !== "array") {
+        return { error: `':${spelled}' — [${seg.i}] indexes an array, and the schema says this is ${describeCtx(ctx)}` };
+      }
+      ctx = enter(ctx.field);
+    } else {
+      // Slice / wildcard — a selection over the array's elements; further
+      // names apply per element (RFC nodelist semantics).
+      if (ctx.kind !== "array") {
+        if ("w" in seg && ctx.kind === "record") { ctx = OPEN; plural = true; continue; } // [*] over a record's values — mixed shapes, unchecked
+        return { error: `':${spelled}' — a ${"w" in seg ? "wildcard" : "slice"} selects from an array, and the schema says this is ${describeCtx(ctx)}` };
+      }
+      ctx = enter(ctx.field);
+      plural = true;
+    }
+  }
+  return { ctx, plural };
+}
+
+/** Check a program's path literals against its datasets' schemas. */
+export function schemaCheck(program: Program): DeclareError[] {
+  const errors: DeclareError[] = [];
+  const walkRoot = (root: Element, nouns: readonly string[]): void => {
+    // The root's named schema'd datasets — the resolvable cursor targets.
+    const datasets = new Map<string, readonly ShapeField[]>();
+    for (const c of root.children) {
+      if (c.name !== null && (c.tag === "Dataset" || c.tag === "DataSource")) {
+        const sa = c.attrs.find((a) => a.name === "schema" && a.value.kind === "schema");
+        if (sa !== undefined && sa.value.kind === "schema") datasets.set(c.name, sa.value.shape);
+      }
+    }
+    if (datasets.size === 0) return;
+    const idiom = new RegExp(`^\\s*(?:${nouns.join("|")})\\.([A-Za-z_$][\\w$]*)\\.value\\s*$`);
+    const visit = (el: Element, ctx: Ctx): void => {
+      let here = ctx;
+      const dp = el.attrs.find((a) => a.name === "datapath");
+      if (dp !== undefined) {
+        if (dp.value.kind === "code") {
+          const m = dp.value.src.match(idiom);
+          const shape = m !== null ? datasets.get(m[1]) : undefined;
+          here = shape !== undefined ? { kind: "record", fields: shape } : OPEN;
+        } else if (dp.value.kind === "path") {
+          const v = dp.value;
+          const r = walkPlan(here, v.plan ?? splitPath(v.path), v.path);
+          if ("error" in r) {
+            errors.push(new DeclareError(r.error, v.pos));
+            here = OPEN;
+          } else if (v.many) {
+            if (r.ctx.kind === "record" && !r.plural) {
+              errors.push(new DeclareError(`':${v.path}[]' replicates an ARRAY, and the schema says '${v.path}' is a record`, v.pos));
+              here = OPEN;
+            } else if (r.ctx.kind === "scalar" && !r.plural) {
+              errors.push(new DeclareError(`':${v.path}[]' replicates an ARRAY, and the schema says '${v.path}' is a ${r.ctx.field.type}`, v.pos));
+              here = OPEN;
+            } else if (r.ctx.kind === "array") {
+              // Replicating the array: each instance's cursor is an ELEMENT.
+              here = r.ctx.field.fields !== undefined ? { kind: "record", fields: r.ctx.field.fields } : OPEN;
+            } else {
+              // A selective plan already stands at the elements.
+              here = r.ctx;
+            }
+          } else {
+            here = r.ctx;
+          }
+        } else {
+          here = OPEN;
+        }
+      }
+      // Every other path-valued attribute reads (or two-way binds) at `here`
+      // — `key = :field` included: after the many branch, `here` IS the
+      // element shape, so a typo'd key field dies here too.
+      for (const a of el.attrs) {
+        if (a === dp || a.value.kind !== "path") continue;
+        const v = a.value;
+        const r = walkPlan(here, v.plan ?? splitPath(v.path), v.path);
+        if ("error" in r) errors.push(new DeclareError(r.error, v.pos));
+      }
+      for (const child of el.children) visit(child, here);
+    };
+    visit(root, OPEN);
+  };
+  walkRoot(program.root, ["this\\.root", "this", "app"]);
+  for (const cls of program.classes) walkRoot(cls.body, ["classroot", "this"]);
+  return errors;
+}

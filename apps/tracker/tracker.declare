@@ -1,0 +1,1574 @@
+/*
+# Declare Tracker
+
+An issue tracker fast enough to triage a six-figure backlog: one flat
+list, searched as you type, filtered, sorted, and grouped; issues open
+IN PLACE for editing; create, bulk operations, and delete with undo; a
+live statistics rail. Not one word of virtualization vocabulary appears
+in this file — the list windows, recycles, measures its mixed-height
+rows, and holds its viewport steady because the RUNTIME does all of
+that; this source just declares rows over data.
+
+The architecture, end to end:
+
+- **One truth.** `db` holds the issues. Every mutation writes `db` and
+  bumps `rev` — the one clock every derivation listens to. Nothing
+  anywhere keeps view-side state about data.
+- **Views are derivations.** `shown` — the projected dataset the list
+  renders — derives from the truth plus the view facts (filters, query,
+  sort, grouping). So do the rail's counts, the workload bars, and the
+  closed-per-day chart: change the data and every number moves, because
+  each one is a constraint over the same truth.
+- **Search is one more filter on the projection**, never a scan of
+  rendered rows. The query narrows the derived dataset exactly as a
+  status chip does; Enter and the search field's arrows walk the
+  narrowed rows, which materialize on arrival like any others.
+- **Editing is a working copy.** An open issue edits a DRAFT dataset
+  bound with `<->`; Save commits the draft into the truth and closes,
+  Cancel discards and closes — cancel is honest, and autosave is not
+  pretended.
+- **Selection holds RECORDS**, not indices: it survives sort flips,
+  filter changes, and scrolling out of the window; regenerating the
+  dataset is the only thing that clears it.
+
+Scale: the shipped asset is 10,000 issues (~350 KB gzipped); the header's
+scale control regenerates 10K / 100K / 1M in memory from the seeded
+generator below — the same algorithm as tools/internal/gen-issues.mjs,
+kept in sync by hand (the seed and the pools are the contract). Every
+millisecond the rail reports is measured in this file, not asserted.
+*/
+
+use [ Menu ]
+
+// ── script land: plain TypeScript helpers, zero reactive machinery ────────
+//
+// Functions declared here are callable from `{ }` constraint bodies and
+// from methods; they compute, they never store. App state lives on the
+// App below; record-shaped state lives in its datasets.
+
+script {
+    // mulberry32 — the seeded generator's PRNG (sync with gen-issues.mjs)
+    function trkRng(seed: number) {
+        let a = seed >>> 0
+        return () => {
+            a |= 0; a = (a + 0x6D2B79F5) | 0
+            let t = Math.imul(a ^ (a >>> 15), 1 | a)
+            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+        }
+    }
+
+    const TRK_VERBS = ["Fix", "Investigate", "Refactor", "Remove", "Add", "Update", "Migrate", "Document", "Optimize", "Rename", "Extract", "Restore", "Audit", "Polish", "Unify"]
+    const TRK_NOUNS = ["login flow", "scroll jank", "cache layer", "search index", "settings panel", "date parsing", "focus ring", "theme tokens", "row recycling", "keyboard traversal", "undo stack", "detail panel", "column widths", "group headers", "session restore", "toolbar overflow", "empty states", "error toasts", "import pipeline", "export dialog", "onboarding tour", "billing webhook", "avatar upload", "draft autosync", "print styles", "clipboard shim", "drag preview", "context menu", "release notes", "smoke tests"]
+    const TRK_TAILS = ["on Windows", "under load", "at 1M rows", "for RTL locales", "after resume", "in Safari", "on touch devices", "when offline", "with long titles", "in the grouped view", "during migration", "for new tenants", ""]
+    const TRK_SENT = [
+        "Reproduces reliably after the second navigation.",
+        "The regression window points at last Tuesday's deploy.",
+        "Customers on the annual plan are disproportionately affected.",
+        "A workaround exists but it is not discoverable.",
+        "Profiling shows the time is going to layout, not script.",
+        "The fix likely belongs a layer lower than where the symptom shows.",
+        "We should add a regression test before closing.",
+        "Related reports have been merged into this issue.",
+        "The design doc covers this case but the implementation drifted.",
+        "Needs a decision from design before engineering can proceed.",
+        "The error rate doubled after the retry logic changed.",
+        "Rollback is safe; the migration is additive.",
+    ]
+    const TRK_LABELS = ["bug", "regression", "perf", "ux", "a11y", "docs", "infra", "mobile", "desktop", "search", "editor", "billing", "onboarding", "api", "security", "i18n", "dark-mode", "keyboard", "touch", "animation", "data", "flaky", "tech-debt", "design", "needs-repro", "blocked-upstream", "good-first", "papercut", "release", "customer"]
+    const TRK_PEOPLE = ["ada", "grace", "ken", "bjarne", "tony", "radia", "lynn", "sophie", "adele", "hedy", "ruth", "donald"].map((n) => n[0].toUpperCase() + n.slice(1))
+    const TRK_EPOCH = 1735689600000   // 2025-01-01 — a fixed base, no wall clock
+
+    function trkGenerate(count: number): any[] {
+        const r = trkRng(1337)
+        const pick = (arr: any[]) => arr[Math.floor(r() * arr.length)]
+        const issues = []
+        for (let i = 1; i <= count; i++) {
+            const ragged = r() < 0.03
+            let title = (pick(TRK_VERBS) + " " + pick(TRK_NOUNS) + " " + pick(TRK_TAILS)).trim()
+            if (r() < 0.03) title = title + " — 直す 🚧"
+            if (r() < 0.01) title = title + " " + "deadbeef".repeat(12)
+            const sr = r()
+            const status = sr < 0.4 ? "open" : sr < 0.65 ? "in-progress" : sr < 0.75 ? "blocked" : "closed"
+            const pr = r()
+            const priority = pr < 0.03 ? "P0" : pr < 0.2 ? "P1" : pr < 0.7 ? "P2" : "P3"
+            const nLabels = Math.floor(r() * r() * 6)
+            const labels = [...new Set(Array.from({ length: nLabels }, () => pick(TRK_LABELS)))]
+            const nSent = r() < 0.3 ? 0 : 1 + Math.floor(r() * r() * 6)
+            const description = Array.from({ length: nSent }, () => pick(TRK_SENT)).join(" ")
+            const created = TRK_EPOCH + Math.floor(r() * 500) * 86400000 + Math.floor(r() * 86400000)
+            const updated = created + Math.floor(r() * r() * 120) * 86400000
+            issues.push({
+                id: i, title, description, status, priority, labels,
+                assignee: ragged || r() < 0.12 ? null : pick(TRK_PEOPLE),
+                created, updated,
+                closedAt: status === "closed" ? updated : null,
+                comments: Math.floor(r() * r() * 40),
+            })
+        }
+        // Recency: a real tracker's activity clusters near the present, so
+        // a second seeded stream pulls ~30% of issues' `updated` into the
+        // last 90 days of dataset time (closedAt follows for closed ones).
+        // Two independent streams keep each one's draws stable on its own.
+        const r2 = trkRng(4242)
+        const horizon = issues.reduce((m, it) => Math.max(m, (it as any).updated), 0)
+        for (const it of issues) {
+            if (r2() < 0.3) {
+                const u = horizon - Math.floor(r2() * r2() * 90) * 86400000 - Math.floor(r2() * 86400000)
+                ;(it as any).updated = Math.max((it as any).created, u)
+                if (("" + (it as any).status) == "closed") (it as any).closedAt = (it as any).updated
+            }
+        }
+        return issues
+    }
+
+    // the measurement clock — `[ ]` attribute values have no globals, so
+    // the wall-clock read lives here in script land
+    function trkNow(): number { return performance.now() }
+
+    const TRK_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    function trkDate(ts: number): string {
+        const d = new Date(ts)
+        return TRK_MONTHS[d.getMonth()] + " " + d.getDate()
+    }
+
+    // ── the app's palette: every color that is not a theme token, named ──
+    const TRK_GREEN = 0x45A557    // open
+    const TRK_BLUE = 0x4C6FE7     // in progress
+    const TRK_RED = 0xE5484D      // blocked · urgent · destructive
+    const TRK_GRAY = 0x9A9DA5     // closed
+    const TRK_AMBER = 0xB88024    // high priority
+    const TRK_SLATE = 0x7C8698    // medium priority
+    const TRK_MIST = 0xAAB4BE     // low priority
+    const TRK_TEAL = 0x37B6A9     // the brand gradient's far stop
+    const TRK_WHITE = 0xFFFFFF    // glyphs cut into filled shapes
+
+    function trkStatusColor(s: string): number {
+        return s === "open" ? TRK_GREEN : s === "in-progress" ? TRK_BLUE : s === "blocked" ? TRK_RED : TRK_GRAY
+    }
+    function trkPrioColor(p: string): number {
+        return p === "P0" ? TRK_RED : p === "P1" ? TRK_AMBER : p === "P2" ? TRK_SLATE : TRK_MIST
+    }
+    function trkRed(): number { return TRK_RED }
+    function trkTeal(): number { return TRK_TEAL }
+    function trkWhite(): number { return TRK_WHITE }
+
+    // avatars and label dots color by NAME — a stable hash into a small
+    // palette of muted tones that hold white initials in both themes
+    const TRK_HUES = [0x6C7BD9, 0x4FA3A5, 0xC97B63, 0x8E6BC1, 0x5B9E5E, 0xC06A8C, 0x557FB8, 0xB08A4F]
+    function trkHue(name: string): number {
+        let h = 0
+        for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0
+        return TRK_HUES[Math.abs(h) % TRK_HUES.length]
+    }
+    function trkStatusLabel(s: string): string {
+        return s === "open" ? "Open" : s === "in-progress" ? "In Progress" : s === "blocked" ? "Blocked" : "Closed"
+    }
+    function trkInitials(name: string): string {
+        const parts = name.split(/[\s._-]+/).filter((x) => x.length > 0)
+        if (parts.length === 0) return "?"
+        if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+        return (parts[0][0] + parts[1][0]).toUpperCase()
+    }
+}
+
+
+// ── small pieces: the tracker's ICON VOCABULARY ───────────────────────────
+//
+// One glance, no reading: status is a RING (hollow = open, dotted =
+// in progress, filled = blocked, checked = done), priority is a BAR
+// TRIO, a person is an AVATAR. Text codes ("P2", "in-progress") retreat
+// to the places prose belongs — menus and the detail panel.
+
+class StatusIcon extends View [ width = 14, height = 14,
+    s: string = "open",
+    ring: View [ x = 0, y = 0, width = 14, height = 14, cornerRadius = 7,
+        fill = { s == "blocked" || s == "closed" ? trkStatusColor(classroot.s) : null },
+        stroke = { stroke(1.5, trkStatusColor(classroot.s)) } ],
+    dot: View [ visible = { s == "in-progress" }, x = 4.5, y = 4.5, width = 5, height = 5, cornerRadius = 2.5,
+        fill = { trkStatusColor(classroot.s) } ],
+    chk: Text [ visible = { s == "closed" }, x = 3, y = 1.5, fontSize = 8.5, fontWeight = bold, wrap = false,
+        textColor = { trkWhite() }, text = "✓" ],
+    bang: Text [ visible = { s == "blocked" }, x = 5.5, y = 1, fontSize = 9, fontWeight = bold, wrap = false,
+        textColor = { trkWhite() }, text = "!" ]
+    ]
+
+
+class PrioIcon extends View [ width = 13, height = 12,
+    p: string = "P3",
+    tip = { p == "P0" ? "Priority · P0 Urgent" : p == "P1" ? "Priority · P1 High" : p == "P2" ? "Priority · P2 Medium" : "Priority · P3 Low" },
+    lit: number = { p == "P0" || p == "P1" ? 3 : p == "P2" ? 2 : 1 },
+    tone: number = { p == "P0" ? trkRed() : 0 },
+    b1: View [ x = 0, y = 7, width = 3, height = 5, cornerRadius = 1,
+        fill = { classroot.tone != 0 ? classroot.tone : theme.textMuted } ],
+    b2: View [ x = 5, y = 4, width = 3, height = 8, cornerRadius = 1,
+        fill = { classroot.lit >= 2 ? (classroot.tone != 0 ? classroot.tone : theme.textMuted) : theme.line } ],
+    b3: View [ x = 10, y = 0, width = 3, height = 12, cornerRadius = 1,
+        fill = { classroot.lit >= 3 ? (classroot.tone != 0 ? classroot.tone : theme.textMuted) : theme.line } ]
+    ]
+
+
+class Avatar extends View [ width = 22, height = 22, cornerRadius = 11,
+    name: string = "",
+    capSize: number = 8.5,
+    fill = { name == "" ? null : trkHue(name) },
+    stroke = { name == "" ? stroke(1, theme.line) : null },
+    cap: Text [ x = 0, y = center, textAlign = center, fontWeight = semibold, wrap = false,
+        width = { parent.width },
+        fontSize = { classroot.capSize },
+        letterSpacing = 0.3,
+        textColor = { classroot.name == "" ? theme.textFaint : trkWhite() },
+        text = { classroot.name == "" ? "—" : trkInitials(classroot.name) } ]
+    ]
+
+
+// a label pill: a color-keyed dot and the name, outline-quiet
+
+class Tag extends View [ height = 18, cornerRadius = 9,
+    t: string = "",
+    width = { this.cap.width + 26 },
+    stroke = { stroke(1, theme.line) },
+    dot: View [ x = 7, y = 6, width = 6, height = 6, cornerRadius = 3, fill = { trkHue(t) } ],
+    cap: Text [ x = 17, y = 2.5, fontSize = 10.5, wrap = false,
+        textColor = { theme.textMuted }, text = { t } ]
+    ]
+
+
+// a FILTER CHIP: one value of one facet, its live count, and the on state —
+// clicking toggles the facet (a Control: tab stop, Space/Enter, the ring)
+
+class Chip extends Control [ height = 28, cornerRadius = 8,
+    facet: string = "",         // "status" | "assignee" | "label"
+    value: string = "",
+    count: number = -1,         // -1 hides the count
+    on: boolean = false,
+    width = { this.row.contentWidth + 24 },
+    fill = { on ? theme.controlActive : hot ? theme.control : null },
+
+    // the tally is a SPRUNG NUMBER — `Spring [ attribute = … ]` animates any
+    // slot, data included, so a bulk move rolls the counts over instead of
+    // snapping them. One declaration; no other wiring anywhere.
+    anim: number = 0,
+    Spring [ attribute = anim, to = { count < 0 ? 0 : count }, stiffness = 170, damping = 26 ],
+
+    row: View [ x = 12, y = 6,
+        layout: SimpleLayout [ axis = x, spacing = 6 ],
+        dot: View [ y = 5, width = 6, height = 6, cornerRadius = 3,
+            fill = { trkStatusColor(classroot.value) } ],
+        cap: Text [ fontSize = 12.5, wrap = false,
+            fontWeight = { classroot.on ? "semibold" : "normal" },
+            textColor = { classroot.on ? theme.text : theme.textMuted },
+            text = { trkStatusLabel(classroot.value) } ],
+        n: Text [ y = 1, fontSize = 11, wrap = false, visible = { classroot.count >= 0 && !app.compact },
+            textColor = { theme.textFaint }, text = { "" + Math.round(classroot.anim) } ]
+        ],
+    press() { app.toggleFilter(facet, value) },
+    onClick() { if (!disabled) press() }
+    ]
+
+
+// the ISSUE ROW — one calm line: icons carry status and priority, the
+// title is the row's single strong element, everything else recedes to
+// the right (labels, the avatar, the date). Group headers are the
+// taller face. The row never mentions how many of it exist.
+
+class IssueRow extends TableRow [
+    isHdr: boolean = { ("" + :kind) == "hdr" },
+
+    exp: boolean = { !isHdr && ("" + :id) == ("" + app.expandedId) },
+    targetH: number = { isHdr ? 42 : exp ? 356 : 44 },
+    height = 44,
+    Spring [ attribute = height, to = { targetH }, stiffness = 320, damping = 34 ],
+
+    // ── the group header face ─────────────────────────────────────────────
+
+    hdrRow: View [ visible = { parent.isHdr }, x = 0, y = 12, width = { parent.width }, height = 24,
+        chev: Text [ x = 24, y = 4, fontSize = 9, textColor = { theme.textFaint },
+            text = { app.isCollapsed("" + :status, app.groupRev) ? "▶" : "▼" } ],
+        d: StatusIcon [ x = 42, y = 3, s = { "" + :status } ],
+        cap: Text [ x = 64, y = 2, fontSize = 13, fontWeight = semibold, wrap = false,
+            text = { trkStatusLabel("" + :status) } ],
+        n: Roll [ y = 3.5, fontSize = 11.5, textColor = { theme.textFaint },
+            x = { this.parent.cap.x + this.parent.cap.width + 10 },
+            n = { (:count ?? 0) + 0 } ]
+        ],
+
+    // ── the issue face: a fixed column map, left to right ─────────────────
+    //
+    //   inset ▸ status ring ▸ priority bars ▸ title … labels ▸ avatar ▸ date
+    //
+    // `ind` is the grouped view's indent: rows tuck under their header so
+    // every status ring hangs on one vertical line.
+
+    ind: number = { app.groupBy == "status" ? 18 : 0 },
+    colStat: number = { 24 + ind },      // the status ring's left edge
+    colPrio: number = { 50 + ind },      // the priority bars'
+    colTitle: number = { 76 + ind },     // the title's
+
+    stat: StatusIcon [ visible = { !parent.isHdr }, y = 15, x = { parent.colStat }, s = { "" + :status } ],
+
+    prio: PrioIcon [ visible = { !parent.isHdr }, y = 16, x = { parent.colPrio }, p = { "" + :priority } ],
+
+    title: Text [ visible = { !parent.isHdr }, y = 14, fontSize = 13.5, wrap = false, clip = true,
+        x = { parent.colTitle },
+        width = { parent.tags.x - parent.colTitle - 16 },
+        text = { "" + :title } ],
+
+    when: Text [ visible = { !parent.isHdr }, y = 15, fontSize = 11.5, wrap = false, textAlign = right,
+        x = { parent.width - 24 - 40 }, width = 40,
+        textColor = { theme.textFaint },
+        text = { trkDate(:updated ?? 0) } ],
+
+    avatar: Avatar [ visible = { !parent.isHdr }, y = 11,
+        x = { parent.when.x - 34 },
+        name = { "" + (:assignee ?? "") } ],
+
+    // the first two labels ride inline (slice replication); "+n" carries
+    // the rest — the detail panel shows them all
+
+    tags: View [ visible = { !parent.isHdr && !app.compact && (:labels ?? []).length > 0 }, height = 18, y = 13,
+        x = { this.parent.avatar.x - 12 - this.contentWidth },
+        layout: SimpleLayout [ axis = x, spacing = 6 ],
+        Tag [ datapath = :labels[0:2][], t = { "" + this.$data("") } ],
+        more: Text [ y = 3, fontSize = 10.5, wrap = false, visible = { ((:labels ?? []) as any).length > 2 },
+            textColor = { theme.textFaint },
+            text = { "+" + (((:labels ?? []) as any).length - 2) } ]
+        ],
+
+    // selection announces itself with the accent bar, not a heavy fill
+
+    bar: View [ visible = { !parent.isHdr && parent.selected && !parent.exp }, x = 0, y = 6, width = 3, cornerRadius = 1.5,
+        height = { Math.min(parent.height, 44) - 12 },
+        fill = { theme.accent } ],
+
+    // the OPEN-IN-PLACE editor: rides below the row's own line while the
+    // height spring makes room; absorbs clicks so the row doesn't toggle
+
+    card: EditorCard [ visible = { parent.exp }, x = 12, y = 48, clip = true,
+        width = { parent.width - 24 },
+        height = { Math.max(0, parent.height - 56) },
+        fill = { theme.surface }, cornerRadius = 10,
+        stroke = { stroke(1, theme.line) },
+        shadow = { shadow(0, 4, 16, 0x00000018) },
+        onClick() { }
+        ],
+
+    // a header row collapses its group instead of selecting; an issue row
+    // keeps TableRow's whole selection protocol and adds the context menu
+
+    onClick() {
+        if (disabled) return
+        if (isHdr) { app.toggleGroup("" + :status); return }
+        if (exp) { app.closeDetail(); return }
+        (parent as Table).rowClick(this.rowIndex(), this.member(),
+            Keys.isDown("MetaLeft") || Keys.isDown("MetaRight") || Keys.isDown("ControlLeft") || Keys.isDown("ControlRight"),
+            Keys.isDown("ShiftLeft") || Keys.isDown("ShiftRight"))
+        app.openDetail()
+        },
+
+    onContextMenu(e: PointerEvent) { if (!isHdr) app.rowMenu(this, e) },
+    onHold(e: PointerEvent) { if (!isHdr) app.rowMenu(this, e) },
+
+    fill = { isHdr ? theme.bg
+           : selected ? theme.controlActive
+           : hot ? theme.surface : null },
+    stroke = { active && (parent as Table).focusVisible ? stroke(1, theme.accent) : null }
+    ]
+
+
+// the UNDO TOAST — one at a time, rises from the bottom, waits eight
+// seconds, honors its word
+
+// a person's avatar as a MENU ICON — created into the standard icon
+// column (`iconKind`), so person rows keep the settled anatomy: check
+// column, icon column, labels on one text edge
+
+class PersonIcon extends Avatar [ width = 16, height = 16, cornerRadius = 8, capSize = 6.5,
+    name = { "" + this.$data(["name"]) }
+    ]
+
+
+// a ROLLING NUMBER — the rail's working unit: a Spring on the value itself
+
+class Roll extends Text [ wrap = false,
+    n: number = 0,
+    anim: number = 0,
+    Spring [ attribute = anim, to = { n }, stiffness = 170, damping = 26 ],
+    text = { Math.round(anim).toLocaleString() }
+    ]
+
+
+// one rail statistic: status icon or avatar, a name, a bar, a rolling count.
+// The row IS a filter — clicking it toggles the facet it counts.
+
+class RailStat extends Control [ height = 30, cornerRadius = 7,
+    width = { app.railW - 40 },
+    facet: string = "",
+    value: string = "",
+    cap: string = "",
+    n: number = 0,
+    peak: number = 1,
+    tint: number = 0,
+    hueName: string = "",
+    tintUse: number = { hueName != "" ? trkHue(hueName) : tint },
+    on: boolean = false,
+    fill = { on ? theme.controlActive : hot ? theme.control : null },
+    name: Text [ x = 30, y = center, fontSize = 12.5, wrap = false, clip = true, width = 92,
+        fontWeight = { classroot.on ? "semibold" : "normal" },
+        textColor = { classroot.on ? theme.text : theme.textMuted },
+        text = { classroot.cap } ],
+    track: View [ x = 128, y = 13, height = 4, cornerRadius = 2,
+        width = { classroot.width - 128 - 54 },
+        fill = { theme.control },
+        fillbar: View [ x = 0, y = 0, height = 4, cornerRadius = 2,
+            width = { Math.max(2, parent.width * classroot.n / Math.max(1, classroot.peak)) },
+            fill = { classroot.tintUse != 0 ? classroot.tintUse : theme.accent } ]
+        ],
+    num: Roll [ y = center, fontSize = 12, textAlign = right, width = 44,
+        x = { parent.width - 48 },
+        textColor = { theme.textMuted },
+        n = { classroot.n } ],
+    press() { app.toggleFilter(facet, value) },
+    onClick() { if (!disabled) press() }
+    ]
+
+
+class Toast extends View [ visible = { shown || lift > 0.02 }, height = 40, cornerRadius = 10,
+    shown: boolean = false,
+    msg: string = "",
+    gen: number = 0,
+    lift: number = 0,
+    Spring [ attribute = lift, to = { shown ? 1 : 0 }, stiffness = 260, damping = 26 ],
+    opacity = { lift },
+    width = { this.cap.width + this.u.width + 46 },
+    fill = { theme.tooltipBg },
+    shadow = { shadow(0, 6, 24, 0x00000040) },
+    cap: Text [ x = 16, y = center, fontSize = 12.5, wrap = false,
+        textColor = { theme.tooltipText }, text = { msg } ],
+    u: Control [ y = 7, height = 26, cornerRadius = 7,
+        x = { parent.cap.x + parent.cap.width + 10 },
+        width = { this.t.width + 18 },
+        fill = { hot || down ? theme.accent : null },
+        t: Text [ x = 9, y = center, fontSize = 12, fontWeight = semibold, wrap = false,
+            textColor = { this.parent.hot || this.parent.down ? theme.accentText : theme.accent }, text = "Undo" ],
+        press() { app.undoDelete() },
+        onClick() { if (!disabled) press() }
+        ],
+    show(m: string) {
+        msg = m
+        shown = true
+        this.raise()
+        gen = gen + 1
+        const g = gen
+        setTimeout(() => { if (this.gen == g) this.shown = false }, 8000)
+        },
+    hide() { gen = gen + 1; shown = false }
+    ]
+
+
+// an editable LABEL TAG for the detail panel — the list Tag plus a remove ×
+
+class EditTag extends View [ height = 22, cornerRadius = 7,
+    t: string = "",
+    width = { this.cap.width + 30 },
+    fill = { theme.control },
+    cap: Text [ x = 8, y = 4, fontSize = 11.5, textColor = { theme.textMuted }, text = { t } ],
+    x2: Text [ y = 4, fontSize = 11, textColor = { theme.textFaint }, text = "×",
+        x = { parent.cap.x + parent.cap.width + 4 },
+        onClick() {
+            const ls = ((app.draft.value.it as any).labels ?? []).filter((l) => l != classroot.t)
+            app.setDraftField("labels", ls)
+            }
+        ]
+    ]
+
+
+// the in-place EDITOR — an issue edits WHERE IT LIVES. The card binds the
+// draft dataset (Save commits and closes, Cancel discards and closes);
+// the host row's height springs open around it, and the windowed kernel's
+// measured ladder carries the animation, so the rows below glide out of
+// the way. One class, two hosts: the expanded row, and the New-issue
+// strip above the list.
+
+class EditorCard extends View [
+    datapath = { app.draft.value },
+
+    col: View [ x = 16, y = 12, width = { parent.width - 32 },
+        layout: SimpleLayout [ axis = y, spacing = 12 ],
+
+        titleF: TextInput [ width = { parent.width }, height = 36, fontSize = 16, fontWeight = semibold,
+            text <-> :it.title,
+            placeholder = "Issue title",
+            onInput(t: string) { app.draftRev = app.draftRev + 1 }
+            ],
+
+        facets: View [ width = { parent.width }, height = 28,
+            layout: SimpleLayout [ axis = x, spacing = 8 ],
+            st: Facet [ field = "status", value = { trkStatusLabel("" + (:it.status ?? "open")) }, tint = { trkStatusColor("" + (:it.status ?? "open")) } ],
+            pr: Facet [ field = "priority", value = { "" + (:it.priority ?? "P2") }, tint = { trkPrioColor("" + (:it.priority ?? "P2")) } ],
+            as: Facet [ field = "assignee", value = { (:it.assignee ?? "Unassigned") + "" } ]
+            ],
+
+        labels: View [ width = { parent.width }, height = { Math.max(22, this.row.contentHeight) },
+            row: View [ x = 0, y = 0, width = { parent.width },
+                layout: WrappingLayout [ spacing = 6 ],
+                EditTag [ datapath = :it.labels[], t = { "" + this.$data("") } ],
+                add: Control [ height = 22, cornerRadius = 7, width = 26,
+                    fill = { hot ? theme.control : null },
+                    stroke = { stroke(1, theme.line) },
+                    t: Text [ x = 8, y = 3, fontSize = 12, textColor = { theme.textMuted }, text = "+" ],
+                    press() { app.openAddLabel(this) },
+                    onClick() { if (!disabled) press() }
+                    ]
+                ]
+            ],
+
+        descF: TextInput [ width = { parent.width }, height = 84, fontSize = 16, multiline = true, wrap = true,
+            text <-> :it.description,
+            placeholder = "Add a description…",
+            onInput(t: string) { app.draftRev = app.draftRev + 1 }
+            ],
+
+        foot: View [ width = { parent.width }, height = 32,
+            layout: SimpleLayout [ axis = x, spacing = 10 ],
+            save: Button [ width = 96, label = { app.creating ? "Create" : "Save" }, primary = true,
+                disabled = { !app.draftDirty },
+                onClick() { if (!disabled) app.commitDraft() }
+                ],
+            cancel: Button [ width = 84, label = "Cancel",
+                onClick() { app.closeDetail() }
+                ],
+            meta: Text [ y = center, fontSize = 11, wrap = false, textColor = { theme.textFaint }, visible = { !app.creating },
+                text = { "Created " + trkDate(:it.created ?? 0) + " · Updated " + trkDate(:it.updated ?? 0) + " · " + ("" + (:it.comments ?? 0)) + " comments" } ],
+            sp: Spacer [ ],
+            del: Control [ height = 32, cornerRadius = 8, width = 84, visible = { !app.creating },
+                fill = { hot || down ? trkRed() : null },
+                t: Text [ x = 0, y = center, width = 84, textAlign = center, fontWeight = semibold, wrap = false,
+                    textColor = { this.parent.hot || this.parent.down ? trkWhite() : trkRed() },
+                    text = "Delete…" ],
+                press() { app.deleteSelection() },
+                onClick() { if (!disabled) press() }
+                ]
+            ]
+        ]
+    ]
+
+
+// one editable FACET BUTTON in the editor card: the current value and a
+// chevron; press opens the shared options menu for its field
+
+class Facet extends Control [ height = 28, cornerRadius = 7,
+    field: string = "",
+    value: string = "",
+    tint: number = 0,
+    width = { this.v.width + (tint != 0 ? 46 : 34) },
+    fill = { hot || down ? theme.control : null },
+    stroke = { stroke(1, theme.line) },
+    dot: View [ visible = { tint != 0 }, x = 9, y = 10, width = 8, height = 8, cornerRadius = 4, fill = { tint } ],
+    v: Text [ y = center, fontSize = 12.5, wrap = false,
+        x = { tint != 0 ? 22 : 10 },
+        text = { value } ],
+    arr: Text [ y = center, fontSize = 9, x = { parent.width - 15 }, textColor = { theme.textMuted }, text = "▾" ],
+    press() { app.openFacet(this, field) },
+    onClick() { if (!disabled) press() }
+    ]
+
+
+App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName = "Declare Tracker",
+
+    // ── the responsive facts ───────────────────────────────────────────────
+
+    compact: boolean = { app.width < 640 },      // the bar: brand compacts, omnibox shrinks
+
+    barH: number = 56,
+    railW: number = 300,
+    railOn: boolean = { app.width >= 1100 },     // below this the rail yields to the list
+
+    // ── the chrome facts (the flagship family conventions) ─────────────────
+
+    themeMode: string = "auto",
+    darkUI: boolean = { themeMode == "dark" || (themeMode == "auto" && app.dark) },
+    theme = { app.darkUI ? Themes.sanFrancisco(true) : Themes.sanFrancisco(false) },
+
+    // ── THE TRUTH, and its one clock ───────────────────────────────────────
+    //
+    // `db` holds the issues; `rev` is the mutation clock every projection
+    // hangs from (a method's reads are not tracked — the ARGUMENTS are the
+    // wiring, so the clock rides in as one). Every verb below writes db,
+    // then ticks. Nothing else anywhere holds data.
+
+    db: Dataset { { "issues": [] } },
+    rev: number = 0,
+
+    src: DataSource [ url = "issues.json" ],
+
+    booted: boolean = false,
+    loadMs: number = 0,
+    adoptMs: number = 0,
+
+    onInit() {
+        const t0 = trkNow()
+        src.fetch().then(() => {
+            const t1 = trkNow()
+            this.adopt(this.src.value != null ? this.src.value.issues : [])
+            this.loadMs = Math.round(t1 - t0)
+            this.adoptMs = Math.round(trkNow() - t1)
+            this.booted = true
+            })
+        },
+
+    adopt(issues: array) {
+        for (const it of issues as any) {
+            (it as any).updatedText = trkDate((it as any).updated ?? 0)
+            ;(it as any).labelsText = (((it as any).labels ?? []) as any).join(", ")
+            }
+        db.set(["issues"], issues)
+        rev = rev + 1
+        this.takeSelection(null)
+        this.closeDetail()
+        },
+
+    regenerate(count: number) {
+        const t0 = trkNow()
+        const issues = trkGenerate(count)
+        const t1 = trkNow()
+        this.adopt(issues)
+        this.loadMs = Math.round(t1 - t0)
+        this.adoptMs = Math.round(trkNow() - t1)
+        },
+
+    // ── the view facts ─────────────────────────────────────────────────────
+
+    sortOn: string = "updated",
+    sortDir: string = "desc",
+    groupBy: string = "none",                    // none | status
+    fStatus: string = "",                        // "" = no filter
+    fAssignee: string = "",
+    fLabel: string = "",
+
+    // A filter, sort, or grouping change is a NEW arrangement, not an edit
+    // to the old one — the list starts it at the top. The runtime pins the
+    // viewport to its anchor row across DATA changes (so an edit never
+    // yanks the reader); a rearrangement is the one case where that
+    // stability is wrong, so the reset is written twice: once now, and
+    // once after the new projection has settled under the anchor logic.
+    rearranged() {
+        this.list.scrollY = 0
+        setTimeout(() => { this.list.scrollY = 0 }, 0)
+        },
+
+    clearAll() {
+        fStatus = ""; fAssignee = ""; fLabel = ""; query = ""
+        this.bar.omni.text = ""
+        this.rearranged()
+        },
+
+    toggleFilter(facet: string, value: string) {
+        if (facet == "status") fStatus = fStatus == value ? "" : value
+        else if (facet == "assignee") fAssignee = fAssignee == value ? "" : value
+        else if (facet == "label") fLabel = fLabel == value ? "" : value
+        this.rearranged()
+        },
+
+    setSort(field: string) {
+        if (sortOn != field) { sortOn = field; sortDir = field == "title" ? "asc" : "desc" }
+        this.rearranged()
+        },
+
+    toggleSortDir() {
+        sortDir = sortDir == "desc" ? "asc" : "desc"
+        this.rearranged()
+        },
+
+    // collapsed groups — a plain set behind a change clock (the same
+    // arguments-are-wiring discipline as rev)
+
+    groupRev: number = 0,
+    collapsedSet() -> array { return (this as any)._collapsed ?? ((this as any)._collapsed = []) },
+    isCollapsed(s: string, g: number) -> boolean { return this.collapsedSet().includes(s) },
+    toggleGroup(s: string) {
+        const c = this.collapsedSet()
+        const i = c.indexOf(s)
+        if (i < 0) c.push(s); else c.splice(i, 1)
+        groupRev = groupRev + 1
+        },
+
+    // ── THE PROJECTION — the one derived dataset the list renders.
+    //    filter → sort → (group); group headers are records too ({ kind:
+    //    "hdr" }) — non-uniform rows are just rows. The method's ARGUMENTS
+    //    are the reactive wiring (bodies are unanalyzed by design); `rev`
+    //    stands for the data, the rest are the view facts. ─────────────────
+
+    shown: Dataset [ contents = { app.project(app.rev, app.fStatus, app.fAssignee, app.fLabel, app.query, app.sortOn, app.sortDir, app.groupBy, app.groupRev) } ],
+
+    issuesOf(r: number) -> array { return db.value.issues ?? [] },
+
+    project(rev: number, byStatus: string, byAssignee: string, byLabel: string, query: string, sortOn: string, sortDir: string, grouping: string, groupClock: number) -> object {
+        let rows = this.issuesOf(rev)
+        if (byStatus != "" || byAssignee != "" || byLabel != "") {
+            rows = rows.filter((it) =>
+                (byStatus == "" || (it as any).status == byStatus) &&
+                (byAssignee == "" || (it as any).assignee == byAssignee) &&
+                (byLabel == "" || (((it as any).labels ?? []) as any).includes(byLabel)))
+            }
+        // the query NARROWS like any other filter (a tracker searches by
+        // hiding what doesn't match, not by bolding what does); the scan is
+        // timed and the number rides out with the value — pure, no clocks
+        let searchMs = 0
+        if (query.trim() != "") {
+            const t0 = trkNow()
+            const needle = query.trim().toLowerCase()
+            const hay = ((this as any)._hay ??= new WeakMap())
+            rows = rows.filter((it) => {
+                let h = hay.get(it)
+                if (h == null || (h as any).u != (it as any).updated) {
+                    h = ({ u: (it as any).updated, s: ((it as any).title + "\n" + ((it as any).description ?? "") + "\n" + (((it as any).labels ?? []) as any).join(" ") + "\n" + ((it as any).assignee ?? "")).toLowerCase() })
+                    hay.set(it, h)
+                    }
+                return (h as any).s.includes(needle)
+                })
+            searchMs = Math.max(0, Math.round((trkNow() - t0) * 10) / 10)
+            }
+        const RANK = ({ P0: 0, P1: 1, P2: 2, P3: 3 })
+        const cmp = sortOn == "priority" ? (a, b) => (RANK as any)[(a as any).priority] - (RANK as any)[(b as any).priority] || (b as any).updated - (a as any).updated
+            : sortOn == "title" ? (a, b) => ((a as any).title < (b as any).title ? -1 : (a as any).title > (b as any).title ? 1 : 0)
+            : (a, b) => (b as any).updated - (a as any).updated
+        rows = [...rows].sort(sortDir == "desc" && sortOn != "updated" ? (a, b) => cmp(b, a) : sortDir == "asc" && sortOn == "updated" ? (a, b) => cmp(b, a) : cmp)
+        if (grouping != "status") return ({ rows: rows, total: rows.length, searchMs: searchMs })
+        const order = ["open", "in-progress", "blocked", "closed"]
+        const collapsed = this.collapsedSet()
+        const out = []
+        for (const st of order) {
+            const members = rows.filter((it) => (it as any).status == st)
+            if (members.length == 0) continue
+            out.push(({ kind: "hdr", id: "hdr:" + st, status: st, count: members.length }))
+            if (!collapsed.includes(st)) out.push(...members)
+            }
+        return ({ rows: out, total: rows.length, searchMs: searchMs })
+        },
+
+    counts: object = { app.countStatuses(app.rev) },
+
+    closedSeries: Dataset [ contents = { app.closedPerDay(app.rev) } ],
+    closedPerDay(r: number) -> object {
+        const DAY = 86400000
+        let maxU = 0
+        const issues = this.issuesOf(r)
+        for (const it of issues) if (((it as any).updated ?? 0) > maxU) maxU = (it as any).updated
+        const today = Math.floor(maxU / DAY)
+        const days = new Array(14).fill(0)
+        for (const it of issues) {
+            const c = (it as any).closedAt
+            if (c == null) continue
+            const d = today - Math.floor(c / DAY)
+            if (d >= 0 && d < 14) days[13 - d] = days[13 - d] + 1
+            }
+        return ({ days: days, peak: Math.max(1, ...days) })
+        },
+    countStatuses(r: number) -> object {
+        const c = ({ open: 0, "in-progress": 0, blocked: 0, closed: 0 })
+        for (const it of this.issuesOf(r)) (c as any)[(it as any).status] = ((c as any)[(it as any).status] ?? 0) + 1
+        return c
+        },
+
+    shownTotal: number = { (app.shown.value.total ?? 0) },
+
+    workload: Dataset [ contents = { app.workloadOf(app.rev) } ],
+    workloadOf(r: number) -> object {
+        const m = new Map()
+        let un = 0
+        for (const it of this.issuesOf(r)) {
+            if (("" + (it as any).status) == "closed") continue
+            const a = (it as any).assignee
+            if (a == null) un = un + 1
+            else m.set(a, (m.get(a) ?? 0) + 1)
+            }
+        const top = [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6)
+        const peak = Math.max(1, un, ...top.map((e) => e[1]))
+        // peak rides ON EACH ROW (a row's cursor sees its own record, not
+        // the root) — the view-model fact lands where the view reads it
+        const rows = top.map((e) => ({ name: e[0], n: e[1], peak: peak }))
+        return ({ rows: [...rows, ({ name: "", n: un, peak: peak })] })
+        },
+
+    // ── SEARCH — one more filter on the projection: the query NARROWS the
+    //    list (typing hides the non-matches; clearing restores). Enter and
+    //    the omnibox arrows walk the narrowed rows; Enter opens the walked
+    //    row's detail. ────────────────────────────────────────────────────
+
+    query: string = "",
+
+    stepHit(d: number) {
+        const rows = (this.shown.value.rows ?? [])
+        if (rows.length == 0) return
+        let j = this.selected != null ? rows.indexOf(this.selected) : (d > 0 ? -1 : rows.length)
+        do { j = j + d } while (j >= 0 && j < rows.length && (rows[j] as any).kind == "hdr")
+        if (j < 0 || j >= rows.length) return
+        this.takeSelection([rows[j]])
+        this.list.showRow(j)
+        this.list.activeIndex = j
+        this.list.active = rows[j]
+        },
+
+    enterHit() {
+        if (this.selected == null) this.stepHit(1)
+        if (this.selected != null) this.openDetail()
+        },
+
+    // ── SELECTION — held on the App, as RECORDS ───────────────────────────
+    //
+    // The Table's selection binds down to these slots, and every verb that
+    // needs "what is selected" reads them here — so selection survives any
+    // re-projection, because a record is the same record however the list
+    // is currently arranged.
+
+    selected: object = null,
+    selection: array = null,
+
+    takeSelection(sel: object) {
+        const clean = sel == null ? null : (sel as any).filter((r) => r.kind != "hdr")
+        selection = clean != null && (clean as any).length > 0 ? clean : null
+        if (clean != null && (clean as any).length > 1) editing = false
+        selected = selection != null ? (selection as any)[(selection as any).length - 1] : null
+        if (selection == null) this.closeDetail()
+        },
+
+    selCount: number = { (selection ?? []).length },
+
+    // ── THE DETAIL DRAFT — a working copy; Save commits, Cancel is honest ──
+
+    draft: Dataset { { "it": null } },
+    editing: boolean = false,
+    creating: boolean = false,
+    draftRev: number = 0,
+
+    openDetail() {
+        if (selected == null || selCount != 1) return
+        creating = false
+        draft.set(["it"], ({ ...(selected as any), labels: [...((selected as any).labels ?? [])] }))
+        draftRev = draftRev + 1
+        editing = true
+        setTimeout(() => this.revealOpen(), 380)
+        },
+
+    newIssue() {
+        this.takeSelection(null)
+        creating = true
+        const maxId = this.issuesOf(rev).reduce((m, it) => Math.max(m, (it as any).id), 0)
+        draft.set(["it"], ({ id: maxId + 1, title: "", description: "", status: "open", priority: "P2", labels: [], assignee: null, created: 1735689600000, updated: 1735689600000, comments: 0 }))
+        draftRev = draftRev + 1
+        editing = true
+        setTimeout(() => Focus.focus(this.creator.card.col.titleF as any), 0)
+        },
+
+    closeDetail() { editing = false; creating = false },
+
+    // best effort: once the card has sprung open, scroll so its full extent
+    // sits inside the pane — top-aligned when it cannot all fit
+    revealOpen() {
+        const rows = (this.shown.value.rows ?? [])
+        const idx = rows.findIndex((r) => ("" + (r as any).id) == ("" + this.expandedId))
+        if (idx < 0) return
+        const inst = this.list.children.find((c) => (c as any).isTableRow && (c as any).exp)
+        if (inst == null) return
+        const top = (inst as any).y
+        const bottom = top + (inst as any).targetH
+        const viewTop = this.list.scrollY
+        const viewBottom = viewTop + this.list.height
+        if (bottom > viewBottom) this.list.scrollY = Math.min(top - 8, bottom - this.list.height + 8)
+        else if (top < viewTop) this.list.scrollY = top - 8
+        },
+
+    draftDirty: boolean = { app.draftRev >= 0 && app.editing && app.draftDiffers(app.draftRev, app.rev) },
+    draftDiffers(dr: number, r: number) -> boolean {
+        const d = draft.value.it
+        if (d == null) return false
+        if (creating) return true
+        const t = this.issuesOf(r).find((it) => (it as any).id == (d as any).id)
+        if (t == null) return true
+        return (d as any).title != (t as any).title || (d as any).description != (t as any).description ||
+            (d as any).status != (t as any).status || (d as any).priority != (t as any).priority ||
+            (d as any).assignee != (t as any).assignee ||
+            JSON.stringify((d as any).labels) != JSON.stringify((t as any).labels)
+        },
+
+    commitDraft() {
+        const d = draft.value.it
+        if (d == null) return
+        if (creating) {
+            const rec0 = ({ ...(d as any) })
+            ;(rec0 as any).updatedText = trkDate((rec0 as any).updated ?? 0)
+            ;(rec0 as any).labelsText = (((rec0 as any).labels ?? []) as any).join(", ")
+            db.insert(["issues"], 0, rec0)
+            rev = rev + 1
+            const rec = this.issuesOf(rev)[0]
+            this.takeSelection([rec])
+            creating = false
+            editing = false
+            return
+            }
+        const issues = this.issuesOf(rev)
+        const i = issues.findIndex((it) => (it as any).id == (d as any).id)
+        if (i < 0) return
+        db.set(["issues", i, "title"], (d as any).title)
+        db.set(["issues", i, "description"], (d as any).description)
+        db.set(["issues", i, "status"], (d as any).status)
+        db.set(["issues", i, "priority"], (d as any).priority)
+        db.set(["issues", i, "assignee"], (d as any).assignee)
+        db.set(["issues", i, "labels"], [...((d as any).labels ?? [])])
+        db.set(["issues", i, "labelsText"], (((d as any).labels ?? []) as any).join(", "))
+        const up2 = ((d as any).updated ?? 0) + 1
+        db.set(["issues", i, "updated"], up2)
+        db.set(["issues", i, "updatedText"], trkDate(up2))
+        db.set(["issues", i, "closedAt"], ("" + (d as any).status) == "closed" ? up2 : null)
+        rev = rev + 1
+        editing = false
+        },
+
+    setDraftField(field: string, v: object) {
+        draft.set(["it", field], v)
+        draftRev = draftRev + 1
+        },
+
+    // ── MUTATION VERBS — every write to the truth lives here ──────────────
+    //
+    // Each verb writes `db`, keeps the derived display fields honest
+    // (updatedText, labelsText, closedAt), and bumps `rev`. Nothing else
+    // in the file mutates data; everything else derives.
+
+    // the people who actually hold work — the truth decides who is listed
+    assignees(r: number) -> array {
+        return [...new Set(this.issuesOf(r).map((it) => (it as any).assignee).filter((a) => a != null))].sort()
+        },
+
+    deleteSelection() {
+        const sel = selection
+        if (sel == null) return
+        const n = (sel as any).length
+        this.dlg.open("Delete " + n + (n == 1 ? " issue?" : " issues?"), "You can undo this from the toast.",
+            [({ id: "cancel", label: "Cancel", cancel: true }), ({ id: "delete", label: "Delete", default: true })],
+            "error", (id) => { if (id == "delete") app.performDelete() })
+        },
+
+    performDelete() {
+        const sel = selection ?? []
+        const ids = (sel as any).map((r) => (r as any).id)
+        const issues = this.issuesOf(rev)
+        const removed = []
+        for (const id of ids) {
+            const i = issues.findIndex((it) => (it as any).id == id)
+            if (i >= 0) removed.push(({ index: i, rec: issues[i] }))
+            }
+        removed.sort((a, b) => (b as any).index - (a as any).index)
+        for (const r of removed) db.removeAt(["issues"], (r as any).index)
+        rev = rev + 1
+        ;(this as any)._undo = removed
+        this.takeSelection(null)
+        this.toast.show((removed as any).length == 1 ? "Deleted 1 issue" : "Deleted " + (removed as any).length + " issues")
+        },
+
+    undoDelete() {
+        const u = (this as any)._undo
+        if (u == null) return
+        const back = [...(u as any)].sort((a, b) => (a as any).index - (b as any).index)
+        for (const r of back) db.insert(["issues"], Math.min((r as any).index, this.issuesOf(rev).length), (r as any).rec)
+        rev = rev + 1
+        ;(this as any)._undo = null
+        this.takeSelection((back as any).map((r) => (r as any).rec))
+        this.toast.hide()
+        },
+
+    bulkSet(field: string, v: object) {
+        const sel = selection ?? []
+        const issues = this.issuesOf(rev)
+        for (const r of sel as any) {
+            const i = issues.findIndex((it) => (it as any).id == (r as any).id)
+            if (i < 0) continue
+            if (field == "label") {
+                const ls = [...(((issues[i] as any).labels) ?? [])]
+                if (!ls.includes(v)) ls.push(v)
+                db.set(["issues", i, "labels"], ls)
+                db.set(["issues", i, "labelsText"], (ls as any).join(", "))
+                } else {
+                db.set(["issues", i, field], v)
+                }
+            const up = ((issues[i] as any).updated ?? 0) + 1
+            db.set(["issues", i, "updated"], up)
+            db.set(["issues", i, "updatedText"], trkDate(up))
+            if (field == "status") db.set(["issues", i, "closedAt"], v == "closed" ? up : null)
+            }
+        rev = rev + 1
+        },
+
+    // ── the shared MENUS (one instance each — the record-driven door) ──────
+
+    facetMenu: Menu [ width = 190 ],
+
+    openFacet(anchor: View, field: string) {
+        const cur = draft.value.it != null ? (draft.value.it as any)[field] : null
+        const m = this.facetMenu as any
+        if (field == "assignee") {
+            m.items = [({ id: "null", label: "Unassigned", checked: cur == null }), ({ id: "d", divider: true }),
+                ...this.assignees(rev).map((p) => ({ id: p, label: p, iconKind: "PersonIcon", props: ({ name: p }), checked: cur == p }))]
+            }
+        else {
+            const opts = field == "status" ? ["open", "in-progress", "blocked", "closed"] : ["P0", "P1", "P2", "P3"]
+            m.items = opts.map((o) => ({ id: "" + o,
+                label: field == "status" ? trkStatusLabel("" + o) : "" + o,
+                checked: cur == o }))
+            }
+        m.picked = (id) => app.setDraftField(field, id == "null" ? null : id)
+        m.openFor(anchor)
+        },
+
+    addLabelMenu: Menu [ width = 190 ],
+
+    openAddLabel(anchor: View) {
+        const have = draft.value.it != null ? ((draft.value.it as any).labels ?? []) : []
+        const m = this.addLabelMenu as any
+        m.items = TRK_LABELS.filter((l) => !have.includes(l)).map((l) => ({ id: l, label: l }))
+        m.picked = (id) => {
+            const ls = [...(((draft.value.it as any).labels) ?? [])]
+            ls.push(id)
+            app.setDraftField("labels", ls)
+            }
+        m.openFor(anchor)
+        },
+
+    bulkMenu: Menu [ width = 210 ],
+
+    openBulk(anchor: View) {
+        const m = this.bulkMenu as any
+        m.items = [
+            ({ id: "s:open", label: "Set open" }),
+            ({ id: "s:in-progress", label: "Set in-progress" }),
+            ({ id: "s:blocked", label: "Set blocked" }),
+            ({ id: "s:closed", label: "Set closed" }),
+            ({ divider: true }),
+            ...TRK_LABELS.slice(0, 8).map((l) => ({ id: "l:" + l, label: "Label: " + l })),
+            ({ divider: true }),
+            ({ id: "delete", label: "Delete…" }),
+        ]
+        m.picked = (id) => {
+            if (id.startsWith("s:")) app.bulkSet("status", id.slice(2))
+            else if (id.startsWith("l:")) app.bulkSet("label", id.slice(2))
+            else if (id == "delete") app.deleteSelection()
+            }
+        m.openFor(anchor)
+        },
+
+    ctx: ContextMenu [
+        items = { [
+            ({ id: "s:open", label: "Set open" }),
+            ({ id: "s:in-progress", label: "Set in-progress" }),
+            ({ id: "s:blocked", label: "Set blocked" }),
+            ({ id: "s:closed", label: "Set closed" }),
+            ({ divider: true }),
+            ({ id: "delete", label: "Delete…" }),
+        ] }
+        ],
+
+    rowMenu(row: View, e: PointerEvent) {
+        const rec = (row as TableRow).member()
+        if (selection == null || !(selection as any).some((r) => (r as any).id == (rec as any).id)) this.takeSelection([rec])
+        const m = this.ctx as any
+        m.picked = (id) => {
+            if (id.startsWith("s:")) app.bulkSet("status", id.slice(2))
+            else if (id == "delete") app.deleteSelection()
+            }
+        m.open(row, e)
+        },
+
+    sortMenu: Menu [ width = 190 ],
+
+    openSort(anchor: View) {
+        const m = this.sortMenu as any
+        m.items = [
+            ({ id: "updated", label: "Updated", checked: app.sortOn == "updated" }),
+            ({ id: "priority", label: "Priority", checked: app.sortOn == "priority" }),
+            ({ id: "title", label: "Title", checked: app.sortOn == "title" }),
+        ]
+        m.picked = (id) => app.setSort(id)
+        m.openFor(anchor)
+        },
+
+    gaugeMenu: Menu [ width = 230 ],
+
+    openGauge(anchor: View) {
+        const n = this.issuesOf(rev).length
+        const m = this.gaugeMenu as any
+        m.items = [
+            ({ id: "10000", label: "10,000 issues", checked: n == 10000 }),
+            ({ id: "100000", label: "100,000 issues", checked: n == 100000 }),
+            ({ id: "1000000", label: "1,000,000 issues", checked: n == 1000000 }),
+        ]
+        m.picked = (id) => app.regenerate(parseInt(id))
+        m.openFor(anchor)
+        },
+
+    appearanceMenu: Menu [ width = 190,
+        items = { [
+            ({ id: "light", label: "Light", icon: "☀︎", checked: app.themeMode == "light" }),
+            ({ id: "auto", label: "System", icon: "◐", checked: app.themeMode == "auto" }),
+            ({ id: "dark", label: "Dark", icon: "☾", checked: app.themeMode == "dark" }),
+        ] },
+        picked(id: string) { app.themeMode = id }
+        ],
+
+    dlg: Dialog [ ],
+
+    // ⌘K claims the omnibox from anywhere; Escape backs out by layers
+
+    keys: Keys [
+        onKeyDown(e: KeyEvent) {
+            if ((e.meta || e.ctrl) && e.code == "KeyK") { Focus.focus(app.bar.omni as any) }
+            else if (e.key == "Escape") {
+                if (app.query != "") { app.query = ""; app.bar.omni.text = ""; app.rearranged() }
+                else if (app.editing) app.closeDetail()
+                }
+            }
+        ],
+
+    // ── THE BAR — brand · search · scale · appearance ─────────────────────
+
+    bar: View [ x = 0, y = 0, width = { app.width }, height = { app.barH }, fill = { theme.surface },
+        hair: View [ x = 0, y = { app.barH - 1 }, width = { parent.width }, height = 1, fill = { theme.line } ],
+
+        brand: View [ x = 24, y = 17, height = 22,
+            layout: SimpleLayout [ axis = x, spacing = 5 ],
+            Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
+                textFill = { gradient("90deg", theme.accent, trkTeal()) }, text = "Declare",
+                onClick() { app.navigate("apps/homepage/homepage.declare") }
+                ],
+            Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
+                visible = { !app.compact }, text = "Tracker" ]
+            ],
+
+        // the omnibox: search-as-you-type over the data; Enter jumps to the
+        // first hit, arrows cycle, the count keeps score
+
+        omni: TextInput [ y = 12, height = 32,
+            x = { app.compact ? 96 : 210 },
+            width = { Math.min(380, Math.max(110, parent.views.x - this.x - 16)) },
+            placeholder = { app.compact ? "Search" : "Search issues…   ⌘K" },
+            onInput(t: string) { app.query = "" + t; app.rearranged() },
+            onEnter() { app.enterHit() },
+            onKeyDown(e: KeyEvent) {
+                if (e.key == "ArrowDown") app.stepHit(1)
+                else if (e.key == "ArrowUp") app.stepHit(-1)
+                }
+            ],
+
+        hitCount: Text [ y = center, fontSize = 11, wrap = false, visible = { app.query != "" },
+            x = { parent.omni.x + parent.omni.width - this.width - 10 },
+            textColor = { theme.textFaint },
+            text = { app.shownTotal + " match" + (app.shownTotal == 1 ? "" : "es") } ],
+
+        views: Segmented [ y = 12,
+            x = { app.width - this.width - 100 },
+            pad = 22,
+            value = { app.issuesOf(app.rev).length >= 1000000 ? "1M" : app.issuesOf(app.rev).length >= 100000 ? "100k" : "10k" },
+            input(v: object) { app.regenerate(("" + v) == "1M" ? 1000000 : ("" + v) == "100k" ? 100000 : 10000) },
+            Segment [ choice = { "10k" }, lbl = "10K" ],
+            Segment [ choice = { "100k" }, lbl = "100K" ],
+            Segment [ choice = { "1M" }, lbl = "1M" ]
+            ],
+
+        appear: Control [ y = 12, height = 32, width = 54, cornerRadius = 8, tip = "Appearance",
+            x = { app.width - this.width - 14 },
+            fill = { hot || down ? theme.control : null },
+            stroke = { stroke(1, theme.line) },
+            g: Text [ x = 10, y = center, fontSize = 14,
+                text = { app.themeMode == "light" ? "☀︎" : app.themeMode == "dark" ? "☾" : "◐" } ],
+            arrow: View [ width = 9, height = 6, x = { parent.width - 17 }, y = { (parent.height - this.height) / 2 + 1 },
+                draw(d: Draw) {
+                    d.strokeStyle = theme.textMuted
+                    d.lineWidth = 1.6
+                    d.lineCap = "round"
+                    d.beginPath()
+                    d.moveTo(0.5, 1)
+                    d.lineTo(4.5, 5)
+                    d.lineTo(8.5, 1)
+                    d.stroke()
+                    }
+                ],
+            press() { app.appearanceMenu.openFor(this) },
+            onClick() { if (!disabled) press() }
+            ]
+        ],
+
+    // ── the TOOLBAR: filters on the left, actions on the right ────────────
+
+    // compact wraps the tools into two rows — chips (countless), then acts —
+    // instead of letting the clusters collide in the middle
+    tools: View [ x = 0, y = { app.barH }, width = { app.width },
+        height = { app.compact ? 96 : 56 }, fill = { theme.bg },
+        hairB: View [ x = 0, y = { parent.height - 1 }, width = { parent.width }, height = 1, fill = { theme.line } ],
+        // on compact the strip keeps every filter reachable by scrolling
+        // sideways (the phone chip-row idiom) instead of spilling off-screen
+        chips: View [ x = 24, y = 14, height = 28,
+            width = { app.compact ? app.width - 32 : this.contentWidth },
+            scrolls = { app.compact ? "x" : "none" }, clip = true,
+            layout: SimpleLayout [ axis = x, spacing = 8 ],
+            Chip [ facet = "status", value = "open", count = { (app.counts as any).open ?? 0 }, on = { app.fStatus == "open" } ],
+            Chip [ facet = "status", value = "in-progress", count = { (app.counts as any)["in-progress"] ?? 0 }, on = { app.fStatus == "in-progress" } ],
+            Chip [ facet = "status", value = "blocked", count = { (app.counts as any).blocked ?? 0 }, on = { app.fStatus == "blocked" } ],
+            Chip [ facet = "status", value = "closed", count = { (app.counts as any).closed ?? 0 }, on = { app.fStatus == "closed" } ],
+            gap1: View [ width = 6, height = 1 ],
+            assigneeBtn: Control [ height = 28, cornerRadius = 8,
+                width = { this.t.width + 26 },
+                fill = { app.fAssignee != "" ? theme.controlActive : hot ? theme.control : null },
+                t: Text [ x = 13, y = center, fontSize = 12.5, wrap = false,
+                    fontWeight = { app.fAssignee != "" ? "semibold" : "normal" },
+                    textColor = { app.fAssignee != "" ? theme.text : theme.textMuted },
+                    text = { app.fAssignee != "" ? "@" + app.fAssignee : "Assignee ▾" } ],
+                press() { app.openAssigneeFilter(this) },
+                onClick() { if (!disabled) press() }
+                ],
+            labelBtn: Control [ height = 28, cornerRadius = 8,
+                width = { this.t.width + 26 },
+                fill = { app.fLabel != "" ? theme.controlActive : hot ? theme.control : null },
+                t: Text [ x = 13, y = center, fontSize = 12.5, wrap = false,
+                    fontWeight = { app.fLabel != "" ? "semibold" : "normal" },
+                    textColor = { app.fLabel != "" ? theme.text : theme.textMuted },
+                    text = { app.fLabel != "" ? app.fLabel : "Label ▾" } ],
+                press() { app.openLabelFilter(this) },
+                onClick() { if (!disabled) press() }
+                ]
+            ],
+
+        acts: View [ height = 30,
+            y = { app.compact ? 54 : 13 },
+            x = { app.compact ? 16 : app.width - this.contentWidth - 24 },
+            layout: SimpleLayout [ axis = x, spacing = 4 ],
+            groupCheck: Checkbox [ y = 3, height = 24, size = 15, fontSize = 12.5, x = 0,
+                label = "Grouped",
+                textColor = { theme.textMuted },
+                checked = { app.groupBy == "status" },
+                input(v: object) { app.groupBy = v ? "status" : "none"; app.rearranged() }
+                ],
+            gapSort: View [ width = 8, height = 1 ],
+            sortBtn: Control [ height = 28, cornerRadius = 8, y = 1,
+                width = { this.t.width + 26 },
+                fill = { hot ? theme.control : null },
+                t: Text [ x = 13, y = center, fontSize = 12.5, wrap = false, textColor = { theme.textMuted },
+                    text = { "Sort: " + app.sortOn.charAt(0).toUpperCase() + app.sortOn.slice(1) + " ▾" } ],
+                press() { app.openSort(this) },
+                onClick() { if (!disabled) press() }
+                ],
+            dirBtn: Control [ height = 28, width = 28, cornerRadius = 8, y = 1, tip = "Toggle sort direction",
+                fill = { hot || down ? theme.control : null },
+                t: Text [ x = 0, y = center, width = 28, textAlign = center, fontSize = 13, textColor = { theme.textMuted },
+                    text = { app.sortDir == "desc" ? "↓" : "↑" } ],
+                press() { app.toggleSortDir() },
+                onClick() { if (!disabled) press() }
+                ],
+            gapNew: View [ width = 16, height = 1 ],
+            newBtn: Control [ height = 30, cornerRadius = 8,
+                pressedFill: number = 0x3557C7,      // the accent, one step deeper
+                width = { this.t.width + 30 },
+                fill = { hot || down ? this.pressedFill : theme.accent },
+                shadow = { shadow(0, 1, 3, 0x00000030) },
+                t: Text [ x = 15, y = center, fontSize = 12.5, fontWeight = semibold, wrap = false,
+                    textColor = { theme.accentText }, text = "New issue" ],
+                press() { app.newIssue() },
+                onClick() { if (!disabled) press() }
+                ]
+            ]
+        ],
+
+    openAssigneeFilter(anchor: View) {
+        const m = this.facetMenu as any
+        const names = this.assignees(rev)
+        m.items = [({ id: "", label: "Anyone", checked: app.fAssignee == "" }), ({ id: "d", divider: true }),
+            ...names.map((p) => ({ id: p, label: p, iconKind: "PersonIcon", props: ({ name: p }), checked: app.fAssignee == p }))]
+        m.picked = (id) => { app.fAssignee = id; app.rearranged() }
+        m.openFor(anchor)
+        },
+
+    openLabelFilter(anchor: View) {
+        const m = this.facetMenu as any
+        m.items = [({ id: "", label: "any label", checked: app.fLabel == "" }),
+            ...TRK_LABELS.map((l) => ({ id: l, label: l, checked: app.fLabel == l }))]
+        m.picked = (id) => { app.fLabel = id; app.rearranged() }
+        m.openFor(anchor)
+        },
+
+    // ── THE LIST — a windowed Table over the projection ───────────────────
+    //
+    // `materialize = auto` is the whole virtualization story: the runtime
+    // windows, recycles, and measures rows (including one springing open
+    // into the editor card) with no further instruction from this file.
+
+    contentY: number = { app.barH + (app.compact ? 96 : 56) },
+    mainW: number = { Math.min(app.width - (app.railOn ? app.railW : 0), 1460) },
+
+    // which row is OPEN IN PLACE: an issue edits where it lives — the
+    // row's height springs open and the kernel's measured ladder carries
+    // the animation through the windowed list
+    expandedId: number = { app.editing && !app.creating && app.selCount == 1 && app.selected != null ? ((app.selected as any).id ?? -1) : -1 },
+
+    // THE LIST. Rows over the projection; every hard thing about scale is
+    // someone else's honest work. The empty state says why it is empty.
+
+    creatorH: number = { app.creating ? 356 : 0 },
+
+    list: Table [ x = 0,
+        y = { app.contentY + app.creatorH },
+        width = { app.mainW },
+        height = { app.height - app.contentY - app.creatorH - 32 },
+        datapath = { app.shown.value },
+        selects = "multi",
+        selected = { app.selected },
+        selection = { app.selection },
+        input(sel: object) { app.takeSelection(sel) },
+        deleteRequested() { app.deleteSelection() },
+        IssueRow [ datapath = :rows[], materialize = auto ]
+        ],
+
+    // ── THE RAIL: an instrument, not a sidebar. Every number below is a
+    //    live derivation off the one truth; every row is also a filter. ─────
+
+    rail: View [ visible = { app.railOn }, clip = true,
+        x = { app.width - app.railW },
+        y = { app.contentY },
+        width = { app.railW },
+        height = { app.height - app.contentY - 32 },
+        scrolls = y,
+        edge: View [ x = 0, y = 0, width = 1, height = { Math.max(parent.height, parent.contentHeight) }, fill = { theme.line } ],
+
+        col: View [ x = 20, y = 20, width = { parent.width - 40 },
+            layout: SimpleLayout [ axis = y, spacing = 22 ],
+
+            hero: View [ width = { parent.width }, height = 66,
+                n: Roll [ x = 0, y = 0, fontSize = 38, fontWeight = bold, letterSpacing = -1,
+                    textFill = { gradient("90deg", theme.accent, trkTeal()) },
+                    n = { app.shownTotal } ],
+                cap: Text [ x = 2, y = 48, fontSize = 11.5, wrap = false, textColor = { theme.textFaint },
+                    text = { app.shownTotal == app.issuesOf(app.rev).length
+                        ? "issues · nothing filtered out"
+                        : "matching · of " + app.issuesOf(app.rev).length.toLocaleString() + " issues" } ]
+                ],
+
+            byStatus: View [ width = { parent.width },
+                layout: SimpleLayout [ axis = y, spacing = 2 ],
+                cap: Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
+                    textColor = { theme.textFaint }, text = "BY STATUS" ],
+                gap: View [ width = 1, height = 6 ],
+                dist: View [ width = { parent.width }, height = 6, cornerRadius = 3, clip = true,
+                    s1: View [ x = 0, y = 0, height = 6, fill = { trkStatusColor("open") },
+                        width = { parent.width * ((app.counts as any).open ?? 0) / Math.max(1, app.issuesOf(app.rev).length) } ],
+                    s2: View [ y = 0, height = 6, fill = { trkStatusColor("in-progress") },
+                        x = { this.parent.s1.width },
+                        width = { parent.width * ((app.counts as any)["in-progress"] ?? 0) / Math.max(1, app.issuesOf(app.rev).length) } ],
+                    s3: View [ y = 0, height = 6, fill = { trkStatusColor("blocked") },
+                        x = { this.parent.s2.x + this.parent.s2.width },
+                        width = { parent.width * ((app.counts as any).blocked ?? 0) / Math.max(1, app.issuesOf(app.rev).length) } ],
+                    s4: View [ y = 0, height = 6, fill = { trkStatusColor("closed") },
+                        x = { this.parent.s3.x + this.parent.s3.width },
+                        width = { Math.max(0, parent.width - this.parent.s3.x - this.parent.s3.width) } ]
+                    ],
+                gap2: View [ width = 1, height = 8 ],
+                r1: RailStat [ width = { parent.width }, facet = "status", value = "open", cap = "Open",
+                    n = { (app.counts as any).open ?? 0 }, peak = { app.issuesOf(app.rev).length }, tint = { trkStatusColor("open") },
+                    on = { app.fStatus == "open" },
+                    ic: StatusIcon [ x = 8, y = 8, s = "open" ] ],
+                r2: RailStat [ width = { parent.width }, facet = "status", value = "in-progress", cap = "In Progress",
+                    n = { (app.counts as any)["in-progress"] ?? 0 }, peak = { app.issuesOf(app.rev).length }, tint = { trkStatusColor("in-progress") },
+                    on = { app.fStatus == "in-progress" },
+                    ic: StatusIcon [ x = 8, y = 8, s = "in-progress" ] ],
+                r3: RailStat [ width = { parent.width }, facet = "status", value = "blocked", cap = "Blocked",
+                    n = { (app.counts as any).blocked ?? 0 }, peak = { app.issuesOf(app.rev).length }, tint = { trkStatusColor("blocked") },
+                    on = { app.fStatus == "blocked" },
+                    ic: StatusIcon [ x = 8, y = 8, s = "blocked" ] ],
+                r4: RailStat [ width = { parent.width }, facet = "status", value = "closed", cap = "Closed",
+                    n = { (app.counts as any).closed ?? 0 }, peak = { app.issuesOf(app.rev).length }, tint = { trkStatusColor("closed") },
+                    on = { app.fStatus == "closed" },
+                    ic: StatusIcon [ x = 8, y = 8, s = "closed" ] ]
+                ],
+
+            work: View [ width = { parent.width },
+                datapath = { app.workload.value },
+                layout: SimpleLayout [ axis = y, spacing = 2 ],
+                cap: Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
+                    textColor = { theme.textFaint }, text = "WORKLOAD · OPEN WORK" ],
+                gap: View [ width = 1, height = 6 ],
+                RailStat [ datapath = :rows[], width = { parent.width },
+                    facet = "assignee",
+                    value = { "" + (:name ?? "") },
+                    cap = { ("" + (:name ?? "")) == "" ? "Unassigned" : "" + :name },
+                    n = { (:n ?? 0) + 0 },
+                    peak = { (:peak ?? 1) + 0 },
+                    hueName = { "" + (:name ?? "") },
+                    on = { app.fAssignee != "" && app.fAssignee == ("" + (:name ?? "")) },
+                    av: Avatar [ x = 4, y = 4, width = 20, height = 20, cornerRadius = 10, name = { "" + (:name ?? "") } ]
+                    ]
+                ],
+
+            closed14: View [ width = { parent.width },
+                datapath = { app.closedSeries.value },
+                cap: Text [ x = 0, y = 0, fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
+                    textColor = { theme.textFaint }, text = "CLOSED · LAST 14 DAYS" ],
+                bars: View [ x = 0, y = 22, width = { parent.width }, height = 40,
+                    pk: number = { Math.max(1, (:peak ?? 1) + 0) },
+                    layout: SimpleLayout [ axis = x, spacing = 3 ],
+                    View [ datapath = :days[], width = { (this.parent.width - 39) / 14 },
+                        height = 40,
+                        b: View [ x = 0, cornerRadius = 1.5,
+                            width = { parent.width },
+                            y = { 40 - Math.max(2, 38 * ((this.$data("") as any) + 0) / this.parent.parent.pk) },
+                            height = { Math.max(2, 38 * ((this.$data("") as any) + 0) / this.parent.parent.pk) },
+                            fill = { trkStatusColor("closed") } ]
+                        ]
+                    ]
+                ],
+
+            perf: View [ width = { parent.width },
+                layout: SimpleLayout [ axis = y, spacing = 8 ],
+                cap: Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
+                    textColor = { theme.textFaint }, text = "PERFORMANCE" ],
+                l1: View [ width = { parent.width }, height = 16,
+                    a: Text [ x = 0, y = 0, fontSize = 11.5, wrap = false, textColor = { theme.textMuted }, text = "Initial load" ],
+                    b: Text [ y = 0, fontSize = 11.5, wrap = false, textAlign = right, width = 70, x = { parent.width - 70 },
+                        textColor = { theme.text }, text = { app.loadMs + " ms" } ] ],
+                l2: View [ width = { parent.width }, height = 16,
+                    a: Text [ x = 0, y = 0, fontSize = 11.5, wrap = false, textColor = { theme.textMuted }, text = "Ingest" ],
+                    b: Text [ y = 0, fontSize = 11.5, wrap = false, textAlign = right, width = 70, x = { parent.width - 70 },
+                        textColor = { theme.text }, text = { app.adoptMs + " ms" } ] ],
+                l3: View [ width = { parent.width }, height = 16, visible = { app.query != "" },
+                    a: Text [ x = 0, y = 0, fontSize = 11.5, wrap = false, textColor = { theme.textMuted }, text = "Last search" ],
+                    b: Text [ y = 0, fontSize = 11.5, wrap = false, textAlign = right, width = 70, x = { parent.width - 70 },
+                        textColor = { theme.text }, text = { (app.shown.value.searchMs ?? 0) + " ms" } ] ]
+                ],
+
+            keys: View [ width = { parent.width },
+                layout: SimpleLayout [ axis = y, spacing = 6 ],
+                cap: Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
+                    textColor = { theme.textFaint }, text = "KEYBOARD" ],
+                k1: View [ width = { parent.width }, height = 18,
+                    k: Text [ x = 0, y = 1, fontSize = 10.5, textColor = { theme.textMuted }, text = "⌘K" ],
+                    v: Text [ x = 44, y = 1, fontSize = 11.5, wrap = false, textColor = { theme.textFaint }, text = "Search" ] ],
+                k2: View [ width = { parent.width }, height = 18,
+                    k: Text [ x = 0, y = 1, fontSize = 10.5, textColor = { theme.textMuted }, text = "↵" ],
+                    v: Text [ x = 44, y = 1, fontSize = 11.5, wrap = false, textColor = { theme.textFaint }, text = "Open selected row" ] ],
+                k3: View [ width = { parent.width }, height = 18,
+                    k: Text [ x = 0, y = 1, fontSize = 10.5, textColor = { theme.textMuted }, text = "⌫" ],
+                    v: Text [ x = 44, y = 1, fontSize = 11.5, wrap = false, textColor = { theme.textFaint }, text = "Delete selection" ] ],
+                k4: View [ width = { parent.width }, height = 18,
+                    k: Text [ x = 0, y = 1, fontSize = 10.5, textColor = { theme.textMuted }, text = "esc" ],
+                    v: Text [ x = 44, y = 1, fontSize = 11.5, wrap = false, textColor = { theme.textFaint }, text = "Close · clear" ] ],
+                tail: View [ width = 1, height = 8 ]
+                ]
+            ]
+        ],
+
+    creator: View [ visible = { app.creating }, x = 24, clip = true,
+        y = { app.contentY + 8 },
+        width = { app.mainW - 48 },
+        height = 340,
+        fill = { theme.surface }, cornerRadius = 10,
+        stroke = { stroke(1, theme.line) },
+        shadow = { shadow(0, 4, 16, 0x00000018) },
+        card: EditorCard [ x = 0, y = 0, width = { parent.width } ]
+        ],
+
+    // ── the FOOTER — the quiet ledger line: how many, how many shown ──────
+
+    foot: View [ x = 0, width = { app.width }, height = 32,
+        y = { app.height - 32 },
+        fill = { theme.surface },
+        hair: View [ x = 0, y = 0, width = { parent.width }, height = 1, fill = { theme.line } ],
+        stats: Text [ x = 24, y = center, fontSize = 11.5, wrap = false, textColor = { theme.textFaint },
+            text = { app.issuesOf(app.rev).length.toLocaleString() + " issues   ·   " + app.shownTotal.toLocaleString() + " shown" } ],
+        perf: Text [ y = center, fontSize = 10.5, wrap = false, visible = { app.booted && !app.railOn },
+            x = { app.width - this.width - 16 },
+            textColor = { theme.textFaint },
+            text = { "load " + app.loadMs + " ms · adopt " + app.adoptMs + " ms" } ]
+        ],
+
+    empty: View [ visible = { app.booted && app.shownTotal == 0 }, width = 280,
+        x = { (app.mainW - 280) / 2 },
+        pop: number = 0,
+        Spring [ attribute = pop, to = { app.booted && app.shownTotal == 0 ? 1 : 0 }, stiffness = 220, damping = 26 ],
+        opacity = { this.pop },
+        y = { app.contentY + 120 + (1 - this.pop) * 14 },
+        layout: SimpleLayout [ axis = y, spacing = 12 ],
+        ring: View [ x = 122, width = 36, height = 36, cornerRadius = 18,
+            stroke = { stroke(2, theme.line) },
+            g: Text [ x = 0, y = center, width = 36, textAlign = center, fontSize = 15, textColor = { theme.textFaint }, text = "?" ] ],
+        cap: Text [ width = 280, textAlign = center, fontSize = 14.5, fontWeight = semibold,
+            text = { app.issuesOf(app.rev).length == 0 ? "No issues yet" : "No issues match" } ],
+        sub: Text [ width = 280, textAlign = center, fontSize = 12.5, textColor = { theme.textMuted },
+            text = { app.issuesOf(app.rev).length == 0
+                ? "Create the first one — N is waiting."
+                : "Try a different search, or clear the filters." } ],
+        clear: Control [ x = 90, height = 30, cornerRadius = 8, width = 100,
+            visible = { app.issuesOf(app.rev).length > 0 },
+            fill = { hot || down ? theme.control : null },
+            stroke = { stroke(1, theme.line) },
+            t: Text [ x = 0, y = center, width = 100, textAlign = center, fontSize = 12.5, textColor = { theme.textMuted }, text = "Clear all" ],
+            press() { app.clearAll() },
+            onClick() { if (!disabled) press() }
+            ]
+        ],
+
+    bulk: View [ height = 44, cornerRadius = 12,
+        visible = { app.selCount > 1 || this.lift > 0.02 },
+        // the bar inverts to the tooltip surface; its interior inks are its
+        // own facts, named here where they are used
+        inkLine: number = 0x666B72,      // dividers on the dark surface
+        inkHover: number = 0x3A4048,     // button hover wash
+        inkDanger: number = 0xFF9D9D,    // destructive label at rest
+        lift: number = 0,
+        Spring [ attribute = lift, to = { app.selCount > 1 ? 1 : 0 }, stiffness = 260, damping = 26 ],
+        opacity = { lift },
+        width = { this.row.contentWidth + 32 },
+        x = { (app.mainW - this.width) / 2 },
+        y = { app.height - 92 + (1 - this.lift) * 20 },
+        fill = { theme.tooltipBg },
+        shadow = { shadow(0, 8, 28, 0x00000050) },
+        row: View [ x = 16, y = 8, height = 28,
+            layout: SimpleLayout [ axis = x, spacing = 14 ],
+            cnt: View [ height = 28, width = { this.t.width + this.l.width + 6 },
+                t: Roll [ x = 0, y = center, fontSize = 13, fontWeight = semibold,
+                    textColor = { theme.tooltipText }, n = { app.selCount } ],
+                l: Text [ y = center, fontSize = 13, wrap = false, x = { this.parent.t.width + 6 },
+                    textColor = { theme.tooltipText }, text = "selected" ]
+                ],
+            div1: View [ width = 1, height = 20, y = 4, fill = { app.bulk.inkLine } ],
+            act: Control [ height = 28, cornerRadius = 7, width = { this.t.width + 20 },
+                fill = { hot ? app.bulk.inkHover : null },
+                t: Text [ x = 10, y = center, fontSize = 12.5, wrap = false,
+                    textColor = { theme.tooltipText }, text = "Set status ▾" ],
+                press() { app.openBulk(this) }, onClick() { if (!disabled) press() } ],
+            del: Control [ height = 28, cornerRadius = 7, width = { this.t.width + 20 },
+                fill = { hot || down ? trkRed() : null },
+                t: Text [ x = 10, y = center, fontSize = 12.5, fontWeight = semibold, wrap = false,
+                    textColor = { this.parent.hot || this.parent.down ? trkWhite() : app.bulk.inkDanger }, text = "Delete…" ],
+                press() { app.deleteSelection() }, onClick() { if (!disabled) press() } ],
+            div2: View [ width = 1, height = 20, y = 4, fill = { app.bulk.inkLine } ],
+            clr: Control [ height = 28, cornerRadius = 7, width = 28,
+                fill = { hot ? app.bulk.inkHover : null },
+                t: Text [ x = 0, y = center, width = 28, textAlign = center, fontSize = 13,
+                    textColor = { theme.tooltipText }, text = "×" ],
+                press() { app.takeSelection(null) }, onClick() { if (!disabled) press() } ]
+            ]
+        ],
+
+    toast: Toast [ x = { (app.width - this.width) / 2 },
+        y = { app.height - 84 + (1 - this.lift) * 20 }
+        ],
+
+    // the ENTRY SCREEN — honest states for the one fetch
+
+    entry: View [ visible = { !app.booted }, x = 0, y = 0, width = { app.width }, height = { app.height },
+        fill = { theme.bg },
+        col: View [ x = { (app.width - 220) / 2 }, y = { app.height * 0.38 }, width = 220,
+            layout: SimpleLayout [ axis = y, spacing = 10 ],
+            Text [ fontSize = 22, fontWeight = semibold, textAlign = center, width = 220,
+                textFill = { gradient("90deg", theme.accent, 0x37B6A9) }, text = "Tracker" ],
+            Text [ fontSize = 12.5, textAlign = center, width = 220, textColor = { theme.textMuted },
+                text = { app.src.failed ? "Could not load issues.json" : "Loading issues…" } ]
+            ]
+        ]
+    ]

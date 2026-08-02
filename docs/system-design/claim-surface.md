@@ -82,6 +82,31 @@ modality.) Everything below is the complete inventory as of 2026-07-29.
   listener — adds a row here and a pin in `test/gesture.test.mjs`, or it
   doesn't merge.
 
+## The axis-scoped drag claim — RULED 2026-07-30 (D8), LANDED same day
+
+The forcing cases are the DataGrid header drag and edge-resize on touch
+(component-briefs.md §5; Tracker acceptance criterion 13): a horizontal
+column drag must own the finger's x while the page keeps vertical pan —
+today's drag pair claims the whole gesture (`pinch-zoom`), which steals the
+scroll.
+
+**Spelling: `claim = x | y | both` on the drag-declaring view.** Default
+`both` — exactly today's semantics, so nothing existing changes. The claim
+stays derived from a declaration (the rule above): `claim` scopes a drag
+pair that is already declared; it never creates one.
+
+| site | writes | derives from | deference |
+|---|---|---|---|
+| `refreshTouchAction` (drag pair + `claim = x`) | `pan-y pinch-zoom` | the declared drag pair, scoped by the declared axis | the CROSS axis stays the enclosing regime's — the browser's own arbitration runs it natively (a mostly-vertical finger pans the page; a mostly-horizontal one is ours). Composes with `onHold` unchanged (the hold engages the scoped claim) |
+| canvas touchmove | `preventDefault` iff the drag claim's axis matches the gesture's dominant axis (the slope test the hold gate already practices) | same declaration | mirrors the DOM's native arbitration; second finger's pinch stays the browser's, as ever |
+
+Landed: the `claim` enum on View (schema.ts), `claimAxis` on InputWants,
+the DOM realization in `refreshTouchAction` (`pan-y pinch-zoom` for
+`claim = x`), the canvas dominant-axis latch in its touchmove arbitration
+(decide once per gesture at ≥4px of travel, then hold — the one-way rule
+every claim follows), and the pin in `test/gesture.test.mjs` ("the
+AXIS-SCOPED claim keeps vertical pan").
+
 ## Held true by
 
 `test/gesture.test.mjs`: the claims table per view (none / pinch-zoom /

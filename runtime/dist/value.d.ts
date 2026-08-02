@@ -1,4 +1,4 @@
-import type { Literal } from "./parser.js";
+import type { Literal, ShapeField } from "./parser.js";
 import { type Motion } from "./animate.js";
 /** A color as one number, or `null` for "no color".
  *
@@ -86,7 +86,7 @@ export type Length = number | Percent;
 /** A coerced literal — ready to assign to a typed view field. Percent is the
  *  one member with no field to land in yet (see above); the decoration
  *  records (Gradient/Stroke/Shadow) arrive from constructor literals. */
-export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | Shadow | Motion;
+export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | Shadow | Motion | readonly ShapeField[];
 /** Narrow an AttrValue to the Percent arm (no longer the only object in the
  *  union since decoration values landed — the key is the discriminant). */
 export declare function isPercent(v: AttrValue): v is Percent;
@@ -98,6 +98,8 @@ export declare function isPercent(v: AttrValue): v is Percent;
  *  that member shape here; the only literal such a slot coerces is `null`). */
 export type AttrType = {
     readonly kind: "length" | "number" | "boolean" | "string" | "color" | "shape";
+} | {
+    readonly kind: "dataschema";
 } | {
     readonly kind: "object" | "view";
 } | {

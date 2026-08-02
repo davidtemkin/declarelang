@@ -75,10 +75,11 @@ deps) {
  *  just the chain's end). The fallback is read inside the tracked compute,
  *  so an unresolved prevailing slot keeps following live and lets go of the
  *  chain the moment the path resolves. */
-export function bindData(view, name, path, type) {
+export function bindData(view, name, path, type, plan) {
     const UNRESOLVED = {}; // sentinel: coerceData returns the def verbatim
+    const read = plan ?? path; // a selector-bearing path arrives pre-parsed (B3)
     const k = new Constraint(`${view.constructor.name}.${name} = :${path}`, () => {
-        const v = coerceData(type, view.$data(path), UNRESOLVED);
+        const v = coerceData(type, view.$data(read), UNRESOLVED);
         return v === UNRESOLVED ? followedValue(view, name) : v;
     }, (v) => setBound(view, name, v));
     own(view, name, k);
@@ -89,8 +90,8 @@ export function bindData(view, name, path, type) {
  *  extended by `rel.path`. Interned, so a re-derivation of the same place
  *  stops at the equality gate. */
 export function bindDatapath(view, path) {
-    const segs = splitPath(path);
-    const k = new Constraint(`${view.constructor.name}.datapath = :${path}`, () => {
+    const segs = typeof path === "string" ? splitPath(path) : path;
+    const k = new Constraint(`${view.constructor.name}.datapath = :${typeof path === "string" ? path : path.join(".")}`, () => {
         const base = inheritedCursor(view.parent);
         return base === null ? null : base.data.cursorAt([...base.path, ...segs]);
     }, (v) => setBound(view, "datapath", v));

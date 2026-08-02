@@ -44,6 +44,7 @@ await build({
   platform: "browser",
   target: "es2022",
   minify: true,
+  sourcemap: process.env.BOOT_SOURCEMAP ? true : false,
   legalComments: "none",
   outfile: OUT,
   // The compiler bundle is fetched lazily on the slow path — never inlined here.

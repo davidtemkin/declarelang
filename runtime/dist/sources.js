@@ -68,6 +68,7 @@ export class KeysSource extends Source {
 const CHANNELS_KEYS = [
     ["onKeyDown", (fn) => Keys.onKeyDown(fn)],
     ["onKeyUp", (fn) => Keys.onKeyUp(fn)],
+    ["onNavClaim", (fn) => Keys.onNavClaim(fn)],
 ];
 /** The focus service, as a member: `onFocusChange(v)` when focus moves, and
  *  `onGeometry(g)` for the focused control's live silhouette — what a focus

@@ -37,5 +37,14 @@
   "SimpleLayout": "simplelayout.declare",
   "WrappingLayout": "wrappinglayout.declare",
   "ResponsiveLayout": "responsive.declare",
-  "Spacer": "spacer.declare"
+  "Spacer": "spacer.declare",
+  "Table": "table.declare",
+  "TableRow": "table.declare",
+  "Combobox": "combobox.declare",
+  "ContextMenu": "contextmenu.declare",
+  "DataGrid": "datagrid.declare",
+  "Column": "datagrid.declare",
+  "GridRow": "datagrid.declare",
+  "Segmented": "segmented.declare",
+  "Segment": "segmented.declare"
 }

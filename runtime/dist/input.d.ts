@@ -33,6 +33,10 @@ export interface HitTarget {
     /** True when this view declares `onWheel` — its claim on the wheel stream
      *  (delivered by the backend directly; wheels never enter this router). */
     wantsWheel?: boolean;
+    /** True when this view declares `onContextMenu` — the platform context
+     *  gesture is delivered and the browser's own menu suppressed, exactly
+     *  there (D8's ContextMenu brief). */
+    wantsContext?: boolean;
 }
 /** One finger, as the raw touch family reports it. `id` is stable for the
  *  life of that finger's contact, so an engine can track it across events. */

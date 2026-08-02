@@ -289,11 +289,8 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     // view + paging state
 
     mode: string = "month",
-    // TODAY, never a frozen date: a hardcoded default month is the wrong row
-    // count eleven months a year, and the `nr` spring animates the difference
-    // away in front of the user on every load.
-    year: number = { new Date().getFullYear() },
-    month: number = { new Date().getMonth() + 1 },      // month is 1-based
+    year: number = 2026,
+    month: number = 7,      // month is 1-based
     anchorKey: string = "",
     todayKey: string = "",
     monthRows: number = { app.computeMonthRows() },
@@ -360,7 +357,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     c0: number = 0,
     r0: number = 0,
     nc: number = 7,
-    nr: number = { app.monthRows },      // the real count, so nothing springs on load
+    nr: number = 6,
     Spring [ attribute = c0, to = { app.c0To }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
     Spring [ attribute = r0, to = { app.r0To }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
     Spring [ attribute = nc, to = { app.ncTo }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
@@ -432,8 +429,12 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
              + (s.getMonth() == e.getMonth() ? "" : app.monthName(e.getMonth() + 1) + " ") + e.getDate()
         },
     dayLabel(k: string) -> string { const d = app.parseKey(k); return app.dowLong(d.getDay()) + ", " + app.monthName(d.getMonth() + 1) + " " + d.getDate() },
-    catFill(c: string) -> Color { const t = this.theme; return c == "holiday" ? t.holidayBg : c == "astro" ? t.astroBg : c == "milestone" ? t.milestoneBg : t.defaultBg },
-    catText(c: string) -> Color { const t = this.theme; return c == "holiday" ? t.holidayText : c == "astro" ? t.astroText : c == "milestone" ? t.milestoneText : t.defaultText },
+    // -> number, not Color: these return a CONCRETE 0xRRGGBB (theme slots are
+    // never null at read time), and number is what mix() blends — the
+    // nullable Color return would refuse every mix(catFill(…), …) call site.
+    // (Surfaced when compile-time path plans made datapath bodies typecheckable.)
+    catFill(c: string) -> number { const t = this.theme; return c == "holiday" ? t.holidayBg : c == "astro" ? t.astroBg : c == "milestone" ? t.milestoneBg : t.defaultBg },
+    catText(c: string) -> number { const t = this.theme; return c == "holiday" ? t.holidayText : c == "astro" ? t.astroText : c == "milestone" ? t.milestoneText : t.defaultText },
 
     // ── the two palettes — every color in the app, named by role ──
 
@@ -593,22 +594,20 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
         const events = app.data.value != null ? app.data.value.events : []
         const idx = events.findIndex(e => e.id == this.dragId)
         if (idx < 0) return
-        const ev = events[idx], p = "events." + idx + "."
+        const ev = events[idx], p = ["events", idx]
         const cell = this.cellAt(px, py)
-        if (cell != null) { const d = app.parseKey(cell.key); app.data.set(p + "y", d.getFullYear()); app.data.set(p + "m", d.getMonth() + 1); app.data.set(p + "d", d.getDate()) }
+        if (cell != null) { const d = app.parseKey(cell.key); app.data.set([...p, "y"], d.getFullYear()); app.data.set([...p, "m"], d.getMonth() + 1); app.data.set([...p, "d"], d.getDate()) }
         if (this.blockness > 0.5) {          // a time view: also reschedule from the drop height
             const dur = ev.end - ev.start
             let s = Math.round(((py - this.barH - this.headH - this.grabDY) / this.rowH * 1440) / 15) * 15
-            s = app.clamp(s, 0, 1440 - dur); app.data.set(p + "start", s); app.data.set(p + "end", s + dur)
+            s = app.clamp(s, 0, 1440 - dur); app.data.set([...p, "start"], s); app.data.set([...p, "end"], s + dur)
             }
         },
 
     onInit() {
         const n = new Date()
         this.todayKey = this.keyOf(n); this.year = n.getFullYear(); this.month = n.getMonth() + 1; this.anchorKey = this.todayKey
-        // The METHOD, not the `monthRows` slot: the slot is a constraint over the
-        // year/month just written, and has not re-run yet in this tick.
-        this.nr = this.computeMonthRows()
+        this.nr = this.monthRows      // start on the real row count so the month just shows, no squish-in
         if (app.env.base == null) this.data.fetch()      // hosted: auto refetches when env.base lands
         },
 

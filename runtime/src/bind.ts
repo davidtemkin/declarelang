@@ -16,7 +16,7 @@ import { compileExpr, type ExprFn } from "./expr.js";
 import { View, inheritedCursor } from "./view.js";
 import type { Node } from "./node.js";
 import { coerceData, toCursor } from "./data.js";
-import { splitPath } from "./datapath.js";
+import { splitPath, type PathSeg } from "./datapath.js";
 import type { AttrType } from "./value.js";
 
 /** Bind `name = { src }`: compile, install as the slot's owner, evaluate
@@ -86,12 +86,13 @@ export function bindConstraint(
  *  just the chain's end). The fallback is read inside the tracked compute,
  *  so an unresolved prevailing slot keeps following live and lets go of the
  *  chain the moment the path resolves. */
-export function bindData(view: View, name: string, path: string, type: AttrType): void {
+export function bindData(view: View, name: string, path: string, type: AttrType, plan?: readonly PathSeg[]): void {
   const UNRESOLVED = {}; // sentinel: coerceData returns the def verbatim
+  const read = plan ?? path; // a selector-bearing path arrives pre-parsed (B3)
   const k = new Constraint(
     `${view.constructor.name}.${name} = :${path}`,
     () => {
-      const v = coerceData(type, view.$data(path), UNRESOLVED);
+      const v = coerceData(type, view.$data(read), UNRESOLVED);
       return v === UNRESOLVED ? followedValue(view, name) : v;
     },
     (v) => setBound(view, name, v)
@@ -104,10 +105,10 @@ export function bindData(view: View, name: string, path: string, type: AttrType)
  *  (from the parent chain — never this view's own slot, which it defines)
  *  extended by `rel.path`. Interned, so a re-derivation of the same place
  *  stops at the equality gate. */
-export function bindDatapath(view: View, path: string): void {
-  const segs = splitPath(path);
+export function bindDatapath(view: View, path: string | readonly string[]): void {
+  const segs = typeof path === "string" ? splitPath(path) : path;
   const k = new Constraint(
-    `${view.constructor.name}.datapath = :${path}`,
+    `${view.constructor.name}.datapath = :${typeof path === "string" ? path : path.join(".")}`,
     () => {
       const base = inheritedCursor(view.parent);
       return base === null ? null : base.data.cursorAt([...base.path, ...segs]);

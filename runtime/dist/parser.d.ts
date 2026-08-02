@@ -1,4 +1,5 @@
 import { type Pos } from "./errors.js";
+import type { PathSeg } from "./datapath.js";
 /** A literal value as written — the parser classifies syntax, not type.
  *  `hex` preserves whether a number was written `0x…`: the Color type only
  *  admits the hex-written numeric form (language §6), so the written form is
@@ -34,6 +35,11 @@ export type Literal = {
     kind: "path";
     path: string;
     many: boolean;
+    pos: Pos;
+    plan?: PathSeg[];
+} | {
+    kind: "schema";
+    shape: ShapeField[];
     pos: Pos;
 } | {
     kind: "call";
@@ -173,6 +179,22 @@ export interface TopDecl {
     name: string;
     body: Element;
     pos: Pos;
+}
+/** One field of a data-shape literal (B4, language §9's optional `schema`):
+ *  `name: string`, `name?: number` (optional — absent or null is fine),
+ *  `rows[]: [ … ]` (an array whose ELEMENTS have the nested shape; the array
+ *  marker lives in the shape, which is what lets a shape and a replication
+ *  walk agree), and `tags[]: string` (an array of scalars). Identity is NOT
+ *  declared — it is INFERRED from a record's `id` field by convention (ruled
+ *  2026-07-30, the invisible version; `key = :field` is the explicit
+ *  override, the structural-equality fallback beneath). `type` is null
+ *  exactly when `fields` carries a nested shape. */
+export interface ShapeField {
+    name: string;
+    array: boolean;
+    optional: boolean;
+    type: "string" | "number" | "boolean" | "any" | null;
+    fields?: ShapeField[];
 }
 /** One `include` entry — a quoted, relative path and the position of its
  *  string literal (composition.md §1). The directive `include [ "a", "b" ]`

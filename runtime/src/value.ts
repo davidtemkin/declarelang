@@ -6,7 +6,7 @@
 // Declare source. Each type's `coerce` case owns its "expects …" wording, so
 // a type and its diagnostics are one thing and cannot drift apart.
 
-import type { Literal } from "./parser.js";
+import type { Literal, ShapeField } from "./parser.js";
 import { CSS_COLORS } from "./css-colors.js";
 import { validatePathData } from "./shape.js";
 import { motionToken, MOTION_TOKENS, type Motion } from "./animate.js";
@@ -166,7 +166,7 @@ export type Length = number | Percent;
 /** A coerced literal — ready to assign to a typed view field. Percent is the
  *  one member with no field to land in yet (see above); the decoration
  *  records (Gradient/Stroke/Shadow) arrive from constructor literals. */
-export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | Shadow | Motion;
+export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | Shadow | Motion | readonly ShapeField[];
 
 /** Narrow an AttrValue to the Percent arm (no longer the only object in the
  *  union since decoration values landed — the key is the discriminant). */
@@ -182,6 +182,10 @@ export function isPercent(v: AttrValue): v is Percent {
  *  that member shape here; the only literal such a slot coerces is `null`). */
 export type AttrType =
   | { readonly kind: "length" | "number" | "boolean" | "string" | "color" | "shape" }
+  // A data-shape (B4, language §9's optional `schema` — the "shape" kind
+  // above is the SVG clip path, unrelated): the slot holds parsed ShapeField
+  // declarations, literal-only (`[ city: string, rows[]: [ … ] ]`).
+  | { readonly kind: "dataschema" }
   // The records door (planes.md §4): structured slots — an array of records,
   // a plain record, a View reference. Literal form: null only; the values
   // arrive from `{ }` bindings (plain TS) and runtime writes.
@@ -322,6 +326,12 @@ export function coerce(type: AttrType, lit: Literal): Coerced {
       return coerceColor(lit);
     case "shape":
       return coerceShape(lit);
+    case "dataschema":
+      // The parsed ShapeField declarations pass through as plain data; null
+      // is "no schema" (the default — schema presence is the only switch).
+      if (lit.kind === "schema") return ok(lit.shape);
+      if (lit.kind === "ident" && lit.name === "null") return ok(null);
+      return fail("a schema shape ([ field: type, rows[]: [ … ] ]), or null for none");
     case "enum":
       if (lit.kind === "ident" && type.tokens.includes(lit.name)) return ok(lit.name);
       // Vowel-aware article: R7's Axis is the first enum that needs "an".
@@ -597,6 +607,8 @@ export function describeLiteral(lit: Literal): string {
       return "a { … } expression";
     case "path":
       return `the datapath :${lit.path}${lit.many ? "[]" : ""}`;
+    case "schema":
+      return "a schema shape";
     case "call":
       return `'${lit.name}(…)'`;
     case "list":

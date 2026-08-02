@@ -212,6 +212,8 @@ class Compositor {
         // at touchstart, as root `none` used to); `onPointerMove` claims only the
         // single-finger drag — a second finger's pinch is left to the browser.
         let claim = null;
+        let claimStart = null; // axis arbitration anchor
+        let axisVerdict = null; // latched once per gesture
         canvas.addEventListener("touchstart", (e) => {
             if (this.canvas === null || this.root === null)
                 return;
@@ -219,6 +221,8 @@ class Compositor {
                 const r = this.canvas.getBoundingClientRect();
                 const t0 = e.touches[0];
                 claim = this.root.claimAt(t0.clientX - r.left, t0.clientY - r.top);
+                claimStart = { x: t0.clientX, y: t0.clientY };
+                axisVerdict = null;
             }
             if (claim.touch)
                 e.preventDefault();
@@ -231,12 +235,36 @@ class Compositor {
             }
             if (claim === null)
                 return;
-            if (claim.touch || (claim.drag && e.touches.length === 1))
+            if (claim.touch) {
+                e.preventDefault();
+                return;
+            }
+            if (claim.drag === false || e.touches.length !== 1)
+                return;
+            if (claim.drag === "both") {
+                e.preventDefault();
+                return;
+            }
+            // The AXIS-SCOPED claim (claim-surface.md, D8 RULED): mirror the DOM's
+            // native pan-x/pan-y arbitration — decide ONCE per gesture by the
+            // dominant axis of the first meaningful movement, then latch (the same
+            // one-way rule every claim follows).
+            if (axisVerdict === null && claimStart !== null) {
+                const t0 = e.touches[0];
+                const dx = Math.abs(t0.clientX - claimStart.x);
+                const dy = Math.abs(t0.clientY - claimStart.y);
+                if (dx + dy >= 4)
+                    axisVerdict = (claim.drag === "x" ? dx >= dy : dy >= dx) ? "ours" : "theirs";
+            }
+            if (axisVerdict === "ours")
                 e.preventDefault();
         }, { passive: false });
         const gestureEnd = (e) => {
-            if (e.touches.length === 0)
+            if (e.touches.length === 0) {
                 claim = null;
+                claimStart = null;
+                axisVerdict = null;
+            }
         };
         canvas.addEventListener("touchend", gestureEnd);
         canvas.addEventListener("touchcancel", gestureEnd);
@@ -260,6 +288,133 @@ class Compositor {
                 this.invalidate();
             }
         }, { passive: false });
+        // ── the OVERLAY SCROLLBAR's interaction (macOS/iOS mirrored, renderer-
+        // only): a fine pointer near the bar WIDENS it and can grab the thumb
+        // (track press jumps-to-spot, then drags); touch has no hover — a
+        // touch-HOLD on the thumb (250ms, <8px wander) engages the scrub and
+        // widens until release. All state lives here; the app never routes. ──
+        const findBar = (px, py) => {
+            const walk = (sf, lx, ly, ax, ay) => {
+                if (!sf.visible)
+                    return null;
+                const inBox = lx >= 0 && ly >= 0 && lx < sf.width && ly < sf.height;
+                if (sf.scrolls && !inBox)
+                    return null;
+                for (let i = sf.children.length - 1; i >= 0; i--) {
+                    const c = sf.children[i];
+                    const shift = sf.scrolls && !c.ignoresScroll ? sf.scrollOffset : 0;
+                    const hit = walk(c, lx - c.x, ly + shift - c.y, ax + c.x, ay + c.y - shift);
+                    if (hit !== null)
+                        return hit;
+                }
+                if (sf.scrolls && !sf.pageRoot && inBox && lx >= sf.width - 16 && sf.barGeom() !== null)
+                    return { s: sf, ax, ay };
+                return null;
+            };
+            return this.root === null ? null : walk(this.root, px, py, 0, 0);
+        };
+        const toLocal = (e) => {
+            const r = canvas.getBoundingClientRect();
+            return { x: e.clientX - r.left, y: e.clientY - r.top };
+        };
+        let barHover = null;
+        let barDrag = null;
+        let barHold = null;
+        const setHover = (sf) => {
+            if (barHover === sf)
+                return;
+            if (barHover !== null && barDrag === null)
+                barHover.barWide = false;
+            barHover = sf;
+            if (sf !== null)
+                sf.barWide = true;
+            this.invalidate();
+        };
+        const dragMove = (e) => {
+            const p = toLocal(e);
+            if (barDrag !== null) {
+                barDrag.s.scrubTo(p.y - barDrag.ay - barDrag.grabDy);
+            }
+            else if (barHold !== null) {
+                if (barHold.engaged)
+                    barHold.s.scrubTo(p.y - barHold.ay - barHold.s.barGeom().thumbH / 2);
+                else if (Math.abs(p.y - barHold.startY) > 8)
+                    dragEnd(); // it was a pan — stand down
+            }
+        };
+        const dragEnd = () => {
+            if (barDrag !== null) {
+                if (barDrag.s !== barHover)
+                    barDrag.s.barWide = false;
+                barDrag = null;
+            }
+            if (barHold !== null) {
+                window.clearTimeout(barHold.timer);
+                barHold.s.barWide = false;
+                barHold = null;
+            }
+            window.removeEventListener("pointermove", dragMove, true);
+            window.removeEventListener("pointerup", dragEnd, true);
+            window.removeEventListener("pointercancel", dragEnd, true);
+            this.invalidate();
+        };
+        const armWindow = () => {
+            window.addEventListener("pointermove", dragMove, true);
+            window.addEventListener("pointerup", dragEnd, true);
+            window.addEventListener("pointercancel", dragEnd, true);
+        };
+        canvas.addEventListener("pointermove", (e) => {
+            if (e.pointerType !== "mouse" || barDrag !== null)
+                return;
+            const p = toLocal(e);
+            setHover(findBar(p.x, p.y)?.s ?? null);
+        });
+        canvas.addEventListener("pointerleave", () => { if (barDrag === null)
+            setHover(null); });
+        canvas.addEventListener("pointerdown", (e) => {
+            const p = toLocal(e);
+            const f = findBar(p.x, p.y);
+            if (f === null)
+                return;
+            const g = f.s.barGeom();
+            const localY = p.y - f.ay;
+            // The CLAIM is the painted bar's pixels only — the wider proximity
+            // band is hover-widen territory, and presses there belong to the app
+            // (the desktop's inside-edge RESIZE band lives exactly in it).
+            const lx = p.x - f.ax;
+            const bw = f.s.barWide ? 9 : 5;
+            const bx = f.s.width - (f.s.barWide ? 12 : 8);
+            if (lx < bx - 1 || lx > bx + bw)
+                return;
+            if (e.pointerType === "mouse") {
+                // on the thumb → grab where held; on the track → jump-to-spot, then grab centered
+                let grabDy = localY - g.thumbY;
+                if (grabDy < 0 || grabDy > g.thumbH) {
+                    f.s.scrubTo(localY - g.thumbH / 2);
+                    grabDy = g.thumbH / 2;
+                }
+                barDrag = { s: f.s, ay: f.ay, grabDy };
+                f.s.barWide = true;
+                e.stopPropagation();
+                e.preventDefault();
+                armWindow();
+                this.invalidate();
+            }
+            else {
+                // touch: only the THUMB arms, and only a HOLD engages (no hover on
+                // touch — iOS's grab-the-indicator gesture); a pan cancels the arm
+                if (localY < g.thumbY || localY > g.thumbY + g.thumbH)
+                    return;
+                const hold = { s: f.s, ay: f.ay, startY: p.y, engaged: false, timer: 0 };
+                hold.timer = window.setTimeout(() => {
+                    hold.engaged = true;
+                    hold.s.barWide = true;
+                    this.invalidate();
+                }, 250);
+                barHold = hold;
+                armWindow();
+            }
+        }, true);
         // The full-gesture-control clause (Rule 3, viewport-lock.ts): an app that
         // claimed every finger holds the viewport still while a field has focus —
         // the editable overlays live in `host`, so the lock scopes there. Top-level
@@ -373,6 +528,39 @@ class CanvasSurface {
     pivotY = 0;
     scrolls = false;
     scrollOffset = 0;
+    /** A windowed block's LOGICAL extent (setVirtualExtent — replicate.ts):
+     *  the scroll range's floor when only a window of rows exists. */
+    virtualExtent = 0;
+    /** The overlay scrollbar's WIDE state (pointer near, grabbed, or
+     *  touch-held) — the macOS proximity widen / iOS hold widen, mirrored. */
+    barWide = false;
+    /** The bar's frame-local geometry, or null when nothing overflows. */
+    barGeom() {
+        if (!this.scrolls || this.pageRoot)
+            return null;
+        const ext = this.contentExtent();
+        if (ext <= this.height + 1)
+            return null;
+        const trackH = this.height - 4;
+        const thumbH = Math.max(24, (this.height / ext) * trackH);
+        const maxOff = ext - this.height;
+        const thumbY = 2 + (maxOff > 0 ? (this.scrollOffset / maxOff) * (trackH - thumbH) : 0);
+        return { trackH, thumbH, thumbY, ext };
+    }
+    /** Drive the scroll from a bar-scrub position (frame-local thumb top). */
+    scrubTo(thumbTop) {
+        const g = this.barGeom();
+        if (g === null)
+            return;
+        const span = g.trackH - g.thumbH;
+        const frac = span > 0 ? Math.min(1, Math.max(0, (thumbTop - 2) / span)) : 0;
+        const next = frac * (g.ext - this.height);
+        if (next === this.scrollOffset)
+            return;
+        this.scrollOffset = next;
+        this.onScrollCb?.(next);
+        this.compositor.invalidate();
+    }
     onScrollCb = null;
     parent = null;
     children = [];
@@ -605,9 +793,12 @@ class CanvasSurface {
             if (s.wants?.wantsTouch === true)
                 c.touch = true;
             // a hold-gated drag view (onHold + the drag pair) claims nothing at
-            // touchdown — its claim engages at the hold (holdCaptureActive)
-            if (s.wants?.wantsDrag === true && s.wants?.wantsHold !== true)
-                c.drag = true;
+            // touchdown — its claim engages at the hold (holdCaptureActive).
+            // The INNERMOST drag view's declared axis is the claim's scope
+            // (claim-surface.md, D8): first found wins, never widened by an outer.
+            if (s.wants?.wantsDrag === true && s.wants?.wantsHold !== true && c.drag === false) {
+                c.drag = s.wants.claimAxis ?? "both";
+            }
         }
         return c;
     }
@@ -751,7 +942,9 @@ class CanvasSurface {
         for (let s = this; s !== null; s = s.parent) {
             if (!s.visible)
                 shown = false;
-            if (s.clipData !== null || s.boxClip) {
+            // A SCROLLER frame-bounds its subtree exactly as paint does — without
+            // this, a scrolled-away field's overlay floated outside the pane.
+            if (s.clipData !== null || s.boxClip || s.scrolls) {
                 // Every calendar clip is a box (clip=true → rect(0,0,width,height)); an
                 // ancestor's box, expressed in this surface's local space, is [-ax..width-ax].
                 clipped = true;
@@ -766,6 +959,12 @@ class CanvasSurface {
             }
             ax += s.x;
             ay += s.y;
+            // the paint transform's missing term (found live: editable titles held
+            // still while the grid scrolled beneath them): a scrolling parent
+            // TRANSLATES its content — the overlay must ride the same translation
+            const p = s.parent;
+            if (p !== null && p.scrolls && !s.ignoresScroll)
+                ay -= p.scrollOffset;
         }
         const st = el.style;
         st.left = ax + "px";
@@ -871,6 +1070,21 @@ class CanvasSurface {
         if (!on)
             this.scrollOffset = 0;
     }
+    setVirtualExtent(h) {
+        const v = h ?? 0;
+        if (v === this.virtualExtent)
+            return;
+        this.virtualExtent = v;
+        this.compositor.invalidate();
+    }
+    /** Content extent along y — the real children floor'd by the virtual one. */
+    contentExtent() {
+        let extent = this.virtualExtent;
+        for (const c of this.children)
+            if (c.visible && !c.ignoresScroll)
+                extent = Math.max(extent, c.y + c.height);
+        return extent;
+    }
     // Horizontal scroll is a DOM-backend affordance for now (code blocks); the canvas
     // compositor's x-scroll is a later addition, so this is a no-op here (over-wide
     // content simply isn't clipped on canvas — the docs render on DOM).
@@ -895,10 +1109,7 @@ class CanvasSurface {
     scrollToY(v) {
         if (!this.scrolls)
             return;
-        let extent = 0;
-        for (const c of this.children)
-            if (c.visible && !c.ignoresScroll)
-                extent = Math.max(extent, c.y + c.height);
+        const extent = this.contentExtent();
         const next = Math.min(Math.max(0, extent - this.height), Math.max(0, v));
         if (next === this.scrollOffset)
             return;
@@ -925,11 +1136,7 @@ class CanvasSurface {
         if (sc === null)
             return; // nothing scrolls above us
         off += cur.y + within; // cur is the scroll container's direct child
-        let extent = 0;
-        for (const c of sc.children)
-            if (c.visible && !c.ignoresScroll)
-                extent = Math.max(extent, c.y + c.height);
-        const max = Math.max(0, extent - sc.height);
+        const max = Math.max(0, sc.contentExtent() - sc.height);
         let next = Math.min(max, Math.max(0, off));
         if (align === "nearest") {
             const top = sc.scrollOffset, bottom = top + sc.height;
@@ -977,11 +1184,7 @@ class CanvasSurface {
         }
         // the page root's own scroll is the browser's — never consumed here
         if (this.scrolls && !this.pageRoot && inBox) {
-            let extent = 0;
-            for (const c of this.children)
-                if (c.visible && !c.ignoresScroll)
-                    extent = Math.max(extent, c.y + c.height);
-            const max = Math.max(0, extent - this.height);
+            const max = Math.max(0, this.contentExtent() - this.height);
             const next = Math.min(max, Math.max(0, this.scrollOffset + dy));
             if (next !== this.scrollOffset) {
                 this.scrollOffset = next;
@@ -990,6 +1193,32 @@ class CanvasSurface {
             return true;
         }
         return false;
+    }
+    /** Where this surface lived before travelWith moved it (null = at home). */
+    travelHomeSurface = null;
+    /** Travel with a scroller (the FocusRing's ride — DOM re-parents the
+     *  element; here the surface re-homes in the tree, so it paints inside
+     *  the scroller's clip AND scroll translate, last = above the rows). */
+    travelWith(host) {
+        if (host === null) {
+            if (this.travelHomeSurface !== null) {
+                this.travelHomeSurface.insertChild(this, null);
+                this.travelHomeSurface = null;
+            }
+            return;
+        }
+        const h = host;
+        if (this.parent === h)
+            return;
+        if (this.travelHomeSurface === null)
+            this.travelHomeSurface = this.parent;
+        if (this.parent !== null) {
+            const sib = this.parent.children;
+            const i = sib.indexOf(this);
+            if (i >= 0)
+                sib.splice(i, 1);
+        }
+        h.insertChild(this, null);
     }
     insertChild(child, before) {
         const c = child;
@@ -1196,6 +1425,27 @@ class CanvasSurface {
                 child.paint(ctx);
             }
             ctx.restore();
+            // the SCROLLBAR: canvas panes had none at all (the DOM pane gets the
+            // platform's overlay bar for free) — a thumb proportional to the
+            // content, on the right edge, whenever the content overflows.
+            const g = this.barGeom();
+            if (g !== null) {
+                const wide = this.barWide;
+                const bw = wide ? 9 : 5;
+                const bx = this.width - (wide ? 12 : 8);
+                ctx.save();
+                if (wide) {
+                    ctx.fillStyle = "rgba(128, 134, 140, 0.14)";
+                    ctx.beginPath();
+                    ctx.roundRect(bx - 1.5, 1, bw + 3, this.height - 2, (bw + 3) / 2);
+                    ctx.fill();
+                }
+                ctx.fillStyle = wide ? "rgba(110, 116, 122, 0.72)" : "rgba(128, 134, 140, 0.5)";
+                ctx.beginPath();
+                ctx.roundRect(bx, g.thumbY, bw, g.thumbH, bw / 2);
+                ctx.fill();
+                ctx.restore();
+            }
         }
         else {
             for (const child of this.children) {

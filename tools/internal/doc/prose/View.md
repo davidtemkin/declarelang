@@ -268,6 +268,14 @@ aligning its top to the viewport top — the imperative partner of the declarati
 pattern. Both backends realize it natively (DOM `scrollIntoView`, canvas clamps the scroll
 ancestor's `scrollOffset`). A no-op if nothing above it scrolls.
 
+## rootOrigin()
+This view's origin in **root space** (the root's content coordinates — the same space
+`viewAt` takes and drag events carry), computed by the one scroll-aware walk the pointer
+itself is routed by: translate per level, minus every intermediate scroller's offset, the
+root's own scroll back at the boundary. The anchor primitive for overlays — a menu opening
+at a pointer, a popover dropping under a control — so they land where the view is *seen*,
+at any scroll. Hand-accumulating ancestor `x`/`y` is scroll-blind; call this instead.
+
 ## scale
 A uniform **paint** transform — the view's subtree renders scaled about its pivot, never
 re-laid-out (like `opacity`, it changes pixels, not geometry), and hit-testing follows the
@@ -333,3 +341,15 @@ prefers views over slugs, preorder-first.
 Opt this run back into native text selection / copy (default `false`). Off by default
 so an app doesn't feel like a document; turn it on for content a user should be able to
 select and copy.
+
+## claim
+The axis a declared drag claims (`claim = x | y | both`, default `both`): `x` keeps
+vertical pan with the enclosing scroll regime while the drag owns horizontal — a grid
+column's header drag or edge-resize on touch. Scopes an existing drag declaration
+(`onPointerMove`); it never creates one. See claim-surface.md for the arbitration.
+
+## onRetire
+The departure hook — fires once when this view's PRESENCE ends (its record leaves the
+replicated match, or the subtree is discarded), children before parents, with everything
+still alive. The exact symmetric of `onInit`'s membership rule: a windowed row's
+dematerialization is NOT a departure and never fires it.

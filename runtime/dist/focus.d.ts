@@ -11,6 +11,17 @@ export interface FocusGeometry {
     rad: number;
     view: View;
     root: View;
+    /** The focused view's nearest scrolling ancestor (the root when none) —
+     *  the container an indicator TRAVELS WITH (View.travelWith) so the
+     *  platform carries it through scrolls with zero lag. */
+    scroller: View;
+    /** The view's origin in the scroller's CONTENT coordinates — where a
+     *  traveled indicator positions itself (deliberately independent of the
+     *  scroller's own scroll offset, so scrolling does not re-derive it: the
+     *  platform moves both together). Equal to x/y when the scroller IS the
+     *  root. focusShape offsets are folded in, like x/y. */
+    homeX: number;
+    homeY: number;
 }
 export declare class FocusService {
     private current;
@@ -62,8 +73,16 @@ export declare class FocusService {
     onFocusChange(fn: (v: View | null) => void): () => void;
     onGeometry(fn: (g: FocusGeometry) => void): () => void;
     /** (Re)install the follower for the current focus. The constraint's body
-     *  reads TRACKED slots (ancestor x/y, the focusShape's inputs), so any
-     *  change re-fires it; its push notifies the geometry subscribers. */
+     *  reads TRACKED slots (ancestor x/y AND every scroll offset on the chain —
+     *  the shared walk's reads; the focusShape's inputs), so any change,
+     *  scrolling included, re-fires it; its push notifies the geometry
+     *  subscribers. Geometry is the root's CONTENT space — the FocusRing is a
+     *  child of the App and scrolls with the page like the control it rings, so
+     *  the root's own scroll is added back onto the frame-space origin;
+     *  an intermediate pane's scroll (which moves the control on screen while
+     *  the ring's coordinate space stands still) stays subtracted. Hand-rolled
+     *  x/y accumulation here was the scroll-blind focus ring (found 2026-07-31,
+     *  the same missing term as the pointer walk's — ONE WALK, everywhere). */
     private retargetFollower;
     blur(): void;
     next(): void;

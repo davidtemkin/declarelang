@@ -1,10 +1,15 @@
 // The `:path` value mode's lexical layer (language §9: "a leading `:` marks a
 // datapath — its own value mode, neither literal nor TypeScript"). A `{ }`
 // body is TypeScript *plus datapath islands*: `:location.city` may appear
-// anywhere an expression may. This module finds those islands — so expr.ts
-// can rewrite them to their explicit runtime form (`this.$data("…")`, the
-// same discipline as R6's bare-name rewrites) and compile.ts can neutralize
-// them before handing the body to the TypeScript parser.
+// anywhere an expression may. This module finds those islands — so compile.ts
+// can lower each to its explicit runtime form at EMISSION
+// (`this.$data(["…"])` — data-paths.md §5's emitted plans) and neutralize
+// them before handing the body to the TypeScript parser, and so expr.ts can
+// perform the same rewrite at link time on the DIRECT-INSTANTIATE path (an
+// unchecked, un-compiled tree — the dev and test affordance). A compiled
+// program reaches the runtime island-free, which is what lets declarec
+// production builds stub this scanner out entirely (splitPath stays — it is
+// the attribute-path currency, not the scanner).
 //
 // Disambiguation: `:` also appears in TS as the ternary's second clause, an
 // object literal's key separator, a label, and a type annotation. The rule —
@@ -17,6 +22,113 @@
 // expression and an identifier follows. Shares the parser's known, accepted
 // regex-literal gap (a `/}/`-style regex defeats any heuristic short of full
 // lexing — HANDOFF §R4); real lexing arrives with the tsc front-end.
+/** Does this plan select MANY (slice/wildcard present)? Names and indices are
+ *  singular; a selective path is legal in reads and `:path[]` replication,
+ *  refused on `<->` and bare `datapath =` (the D4 §4 table). */
+export const isSelective = (plan) => plan.some((s) => typeof s !== "string" && !("i" in s));
+/** A singular plan's STATIC segments — names pass, a non-negative index is
+ *  its string key. Null when the place needs the data to resolve (a negative
+ *  index reads the array's length) or the plan selects many — the cases a
+ *  cursor or write target refuses with a pointed error. */
+export function staticSegs(plan) {
+    const out = [];
+    for (const s of plan) {
+        if (typeof s === "string")
+            out.push(s);
+        else if ("i" in s && s.i >= 0)
+            out.push(String(s.i));
+        else
+            return null;
+    }
+    return out;
+}
+/** RFC 9535 string-literal escapes for quoted name selectors. Returns null on
+ *  a bad escape. */
+function unescapeName(body, quote) {
+    let out = "";
+    for (let i = 0; i < body.length; i++) {
+        const c = body[i];
+        if (c !== "\\") {
+            out += c;
+            continue;
+        }
+        const e = body[++i];
+        if (e === undefined)
+            return null;
+        if (e === "b")
+            out += "\b";
+        else if (e === "t")
+            out += "\t";
+        else if (e === "n")
+            out += "\n";
+        else if (e === "f")
+            out += "\f";
+        else if (e === "r")
+            out += "\r";
+        else if (e === "/")
+            out += "/";
+        else if (e === "\\")
+            out += "\\";
+        else if (e === quote)
+            out += quote;
+        else if (e === "u") {
+            const hex = body.slice(i + 1, i + 5);
+            if (!/^[0-9a-fA-F]{4}$/.test(hex))
+                return null;
+            out += String.fromCharCode(parseInt(hex, 16));
+            i += 4;
+        }
+        else
+            return null;
+    }
+    return out;
+}
+/** Parse one bracket selector's interior (trimmed). The refusals are the D4
+ *  ruling's named gates — filters, functions, unions — each pointing at the
+ *  living idiom. */
+export function parsePathSpec(raw) {
+    const t = raw.trim();
+    if (t === "*")
+        return { seg: { w: 1 }, text: "[*]" };
+    if (t.startsWith("?")) {
+        return { error: "filter selectors ([?…]) are not in the path subset yet (jsonpath-spelling.md §5) — derive the subset in a Dataset [ contents = { … } ] and bind to that" };
+    }
+    if (t.startsWith("'") || t.startsWith('"')) {
+        const q = t[0];
+        if (t.length < 2 || !t.endsWith(q))
+            return { error: "unterminated quoted name" };
+        const un = unescapeName(t.slice(1, -1), q);
+        if (un === null)
+            return { error: "bad escape in a quoted name (RFC 9535 string escapes: \\\\ \\' \\\" \\b \\t \\n \\f \\r \\uXXXX)" };
+        return { seg: un, text: `[${JSON.stringify(un)}]` };
+    }
+    if (t.includes(",")) {
+        return { error: "union selectors ([a, b]) are not in the path subset (jsonpath-spelling.md §5) — write separate reads, or derive the set in a Dataset [ contents = { … } ]" };
+    }
+    const parts = t.split(":");
+    if (parts.length > 3)
+        return { error: "a slice is [start:end] or [start:end:step]" };
+    const nums = [];
+    for (const p of parts) {
+        const s = p.trim();
+        if (s === "") {
+            nums.push(null);
+            continue;
+        }
+        if (!/^-?\d+$/.test(s))
+            return { error: "a path selector is [index], [start:end:step], [*], or ['name']" };
+        nums.push(parseInt(s, 10));
+    }
+    if (parts.length === 1) {
+        if (nums[0] === null)
+            return { error: "a path selector is [index], [start:end:step], [*], or ['name']" };
+        return { seg: { i: nums[0] }, text: `[${nums[0]}]` };
+    }
+    while (nums.length < 3)
+        nums.push(null);
+    const text = `[${nums.map((v) => (v === null ? "" : String(v))).join(":").replace(/:$/, "")}]`;
+    return { seg: { s: nums }, text };
+}
 /** Split a dot-path into segments ("" → the cursor itself: no segments).
  *  Array indices are ordinary string segments — JS containers index
  *  identically with "2" and 2, so the path currency stays one type. */
@@ -118,22 +230,97 @@ export function scanDatapaths(src) {
                 const start = i;
                 i++;
                 let path = "";
-                for (;;) {
+                const plan = [];
+                let planful = false; // any piece beyond dot-idents (selector, quoted name)
+                let trouble = null;
+                let many = false;
+                {
+                    let name = "";
                     while (i < n && isIdentPart(src[i]))
-                        path += src[i++];
+                        name += src[i++];
+                    path += name;
+                    plan.push(name);
+                }
+                for (;;) {
                     if (src[i] === "." && isIdentStart(src[i + 1])) {
-                        path += ".";
+                        let j = i + 1;
+                        let name = "";
+                        while (j < n && isIdentPart(src[j]))
+                            name += src[j++];
+                        // `.method(…)` is a CALL on the read value, not a path segment —
+                        // data fields are not callables. (`:rows[1:3].map(…)` maps over
+                        // the selection; `:t.toFixed(2)` formats the read.) The path ends
+                        // before the dot.
+                        if (src[j] === "(")
+                            break;
+                        i = j;
+                        path += "." + name;
+                        plan.push(name);
+                        continue;
+                    }
+                    if (src[i] === "." && src[i + 1] === "*") {
+                        i += 2;
+                        path += "[*]"; // `.​*` normalizes to `[*]` — one canonical form (D4 §2)
+                        plan.push({ w: 1 });
+                        planful = true;
+                        continue;
+                    }
+                    if (src[i] === "[") {
+                        // Consume the WHOLE bracket group (string-aware) — refuse, never
+                        // truncate: a malformed selector becomes a pointed trouble, not a
+                        // silent prefix handed to TypeScript.
                         i++;
+                        let spec = "";
+                        let q = null;
+                        while (i < n) {
+                            const ch = src[i];
+                            if (q !== null) {
+                                if (ch === "\\") {
+                                    spec += ch + (src[i + 1] ?? "");
+                                    i += 2;
+                                    continue;
+                                }
+                                if (ch === q)
+                                    q = null;
+                                spec += ch;
+                                i++;
+                                continue;
+                            }
+                            if (ch === "'" || ch === '"') {
+                                q = ch;
+                                spec += ch;
+                                i++;
+                                continue;
+                            }
+                            if (ch === "]")
+                                break;
+                            spec += ch;
+                            i++;
+                        }
+                        if (i >= n || src[i] !== "]") {
+                            trouble ??= `':${path}[' — unclosed '[' in a path selector`;
+                            break;
+                        }
+                        i++; // the ]
+                        if (spec.trim() === "") {
+                            many = true;
+                            break;
+                        } // `[]` — replicate; trailing by grammar
+                        const r = parsePathSpec(spec);
+                        if ("error" in r) {
+                            trouble ??= `':${path}[${spec.trim()}]' — ${r.error}`;
+                            path += `[${spec.trim()}]`;
+                            planful = true;
+                            continue;
+                        }
+                        path += r.text;
+                        plan.push(r.seg);
+                        planful = true;
                         continue;
                     }
                     break;
                 }
-                let many = false;
-                if (src[i] === "[" && src[i + 1] === "]") {
-                    many = true;
-                    i += 2;
-                }
-                out.push({ start, end: i, path, many });
+                out.push({ start, end: i, path, many, plan: planful ? plan : undefined, trouble });
                 ends = true; // a datapath read is an operand
                 continue;
             }
@@ -170,31 +357,38 @@ export function scanDatapaths(src) {
  *  attribute's meaning, not a value a body can hold. */
 /** The first place the path grammar STOPPED where the author plainly meant to
  *  continue — the silent-truncation trap (data-paths.md §2): ':my-key' would
- *  compile to a SUBTRACTION, ':rows[0]' hands '[0]' to TypeScript, ':$.store'
- *  reads a key literally named '$'. Each refusal names the rewrite that works
- *  today. Corpus-verified: no legitimate use of any refused spelling. */
+ *  compile to a SUBTRACTION, ':$.store' reads a key literally named '$'.
+ *  Each refusal names the rewrite that works today (post-B3, the selector
+ *  spellings). A malformed selector arrives as the island's own `trouble`
+ *  (gated features refuse there: filters, unions — jsonpath-spelling.md §5). */
 export function datapathTrouble(src, islands) {
     for (const p of islands) {
+        if (p.trouble != null)
+            return p.trouble;
         if (p.path === "$" || p.path.startsWith("$.")) {
-            return `':${p.path}' — a :path has no JSONPath root; drop the '$.' and write ':${p.path.replace(/^\$\.?/, "")}'`;
+            return `':${p.path}' — a :path has no JSONPath root ('${":" + p.path.replace(/^\$\.?/, "")}' is already cursor-anchored, jsonpath-spelling.md §1); drop the '$.'`;
         }
         const c = src[p.end] ?? "";
         const d = src[p.end + 1] ?? "";
         if (c === "-" && (isIdentPart(d))) {
-            return `':${p.path}-…' is ambiguous — for subtraction write ':${p.path} - …' (spaced); for a dashed KEY read $data("${p.path}-…") with the whole key as a string`;
-        }
-        if (c === "[" && !p.many && d !== "]") {
-            return `':${p.path}[' — bracket selectors are not :path syntax; index by segment ($data("${p.path}.0")), or replicate a list with ':${p.path}[]'`;
+            return `':${p.path}-…' is ambiguous — for subtraction write ':${p.path} - …' (spaced); for a dashed KEY write a quoted-name selector: ':${beforeLastName(p.path)}['${lastName(p.path)}-…']'`;
         }
         if (c === ".") {
             if (d >= "0" && d <= "9")
-                return `':${p.path}.${d}…' — a numeric segment is legal in the path currency but not in the ':' literal; read $data("${p.path}.${d}…")`;
+                return `':${p.path}.${d}…' — a numeric segment is written as an index selector: ':${p.path}[${d}…]'`;
             if (d === ".")
-                return `':${p.path}..' — an empty path segment would read the key ""; write one '.' per step`;
+                return `':${p.path}..' — descendant search ('..') is not in the path subset: it selects an unbounded, shape-dependent set that cannot be tracked reactively at acceptable cost (jsonpath-spelling.md §3); spell the path to the level you mean`;
         }
     }
     return null;
 }
+// The dashed-key rewrite splits the last dot-name off the path text so the
+// suggestion reads ':a.b['c-d']', not a selector wrapping the whole path.
+const lastName = (path) => path.slice(path.lastIndexOf(".") + 1);
+const beforeLastName = (path) => {
+    const k = path.lastIndexOf(".");
+    return k < 0 ? "" : path.slice(0, k + 1);
+};
 export function rewriteDatapaths(src) {
     const islands = scanDatapaths(src);
     if (islands.length === 0)
@@ -211,16 +405,20 @@ export function rewriteDatapaths(src) {
     let out = "";
     let at = 0;
     for (const p of islands) {
-        out += src.slice(at, p.start) + `this.$data(${JSON.stringify(p.path)})`;
+        // The same pre-parsed plan the compiler emits (compile.ts resolveBody) —
+        // the dev path and the compiled path evaluate identically.
+        out += src.slice(at, p.start) + `this.$data(${JSON.stringify(p.plan ?? splitPath(p.path))})`;
         at = p.end;
     }
     return { src: out + src.slice(at) };
 }
 /** Replace each island with a same-length, identifier-free TS expression
  *  (`0` + padding), so the TypeScript parser can consume the body for
- *  free-identifier analysis (compile.ts) with every source offset intact —
- *  the resolved output keeps the `:path` spelling (it is language surface;
- *  the runtime performs the final rewrite). */
+ *  free-identifier analysis (compile.ts) with every source offset intact.
+ *  Since the emitted-plans change (data-paths.md §5) the RESOLVED output no
+ *  longer keeps the `:path` spelling — compile.ts lowers each island to
+ *  `this.$data([…])` at emission, so this filler serves only the passes that
+ *  run on the pre-lowered text. */
 export function fillDatapaths(src) {
     const islands = scanDatapaths(src);
     if (islands.length === 0)

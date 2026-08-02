@@ -112,6 +112,10 @@ export interface HitTarget {
   /** True when this view declares `onWheel` — its claim on the wheel stream
    *  (delivered by the backend directly; wheels never enter this router). */
   wantsWheel?: boolean;
+  /** True when this view declares `onContextMenu` — the platform context
+   *  gesture is delivered and the browser's own menu suppressed, exactly
+   *  there (D8's ContextMenu brief). */
+  wantsContext?: boolean;
 }
 
 /** One finger, as the raw touch family reports it. `id` is stable for the
@@ -199,6 +203,22 @@ export function routeInput(
     };
     window.addEventListener(type, listener);
   };
+  // The platform's CONTEXT gesture (right-click / two-finger tap): resolved
+  // through the same seam as every press; delivered — and the browser's own
+  // menu suppressed — exactly where an onContextMenu handler is declared.
+  // Touch context rides onHold instead (the hold gate), so nothing here
+  // touches the touch stream.
+  {
+    const ctxListener = (e: Event): void => {
+      if (!alive()) { window.removeEventListener("contextmenu", ctxListener); return; }
+      const t = resolve(e as MouseEvent);
+      if (t !== null && t.wantsContext === true) {
+        e.preventDefault();
+        t.sink("contextMenu", t.x, t.y);
+      }
+    };
+    window.addEventListener("contextmenu", ctxListener);
+  }
   listen("pointerdown", (e) => {
     const t = resolve(e);
     held = t;

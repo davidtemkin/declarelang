@@ -90,12 +90,18 @@ class Dialog extends View [ visible = { shown },
         if (s != null) setTimeout(() => Focus.focus(s), 0)
         },
 
+    // Dismiss-then-deliver, the same contract as Menu's pick: transient
+    // chrome leaves the screen (one painted frame) before the action runs,
+    // so a slow verb can never freeze the dialog in place.
+
     pick(id: string) {
         if (!shown) return                       // the double-activation guard
         const f = this.cb
         this.close()
-        this.picked(id)
-        if (f != null) this.callCb(f, id)
+        const deliver = () => { this.picked(id); if (f != null) this.callCb(f, id) }
+        const raf = (globalThis as any).requestAnimationFrame
+        if (typeof raf == "function") raf(() => setTimeout(deliver, 0))
+        else setTimeout(deliver, 0)
         },
 
     callCb(f: (id: string) -> void, id: string) { f(id) },

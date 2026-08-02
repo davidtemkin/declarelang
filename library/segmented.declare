@@ -1,0 +1,120 @@
+/*
+# Segmented / Segment
+
+The SEGMENTED CONTROL — the platform pattern behind every "Controls · Table ·
+DataGrid" switch (macOS/iOS call it NSSegmentedControl / UISegmentedControl;
+Material calls it the segmented button): N mutually exclusive choices in one
+pill, the active segment raised. Button ANATOMY with radio-shaped STATE:
+every segment is its own tab stop (tab to an inactive choice, Space/Enter
+picks it), arrows rove focus across the group, a click picks directly. The
+Viewer's mode switch and Calendar's theme switch are this pattern by hand;
+this is the component form.
+
+    Segmented [ value = { app.page }, input(v: object) { app.page = "" + v },
+        Segment [ choice = "controls", lbl = "Controls" ],
+        Segment [ choice = "table", lbl = "Table" ],
+        Segment [ choice = "grid", lbl = "DataGrid" ] ]
+
+- **Value pattern** (Contract 1): `value` holds the active CHOICE; `input(v)`
+  is the delivery — the default writes the slot, a use-site override owns it.
+- Segments are written members (the RadioGroup practice): `choice` is the
+  member's identity, `lbl` its face. A segment sizes to its label plus the
+  control's `pad`.
+- **Every segment is a TAB STOP** — the user tabs to an inactive segment and
+  picks it with Space/Enter (the Control activation path); arrows rove focus
+  across the group's segments. The ring hugs the focused segment's pill.
+*/
+
+include [ "control.declare" ]
+
+class Segmented extends View [
+    // the marker (the wrap-probe discipline)
+
+    isSegmented: boolean = true,
+
+    value: object = null,
+    disabled: boolean = false,
+    pad: number = 34,            // per-segment horizontal padding (label + pad)
+
+    height = 30,
+    cornerRadius = 8,
+    fill = { theme.control },
+    width = { this.contentWidth + 2 },
+
+    // ── the delivery seam ─────────────────────────────────────────────────
+
+    input(v: object) { value = v },
+    pick(v: object) { input(v) },
+
+    // the member walk (handlers only — the for-of discipline)
+
+    segs() -> array {
+        const out = []
+        for (const c of this.children) { if ((c as Segment).isSegment === true) out.push(c) }
+        return out
+        },
+
+    // arrows ROVE focus across the segments (a focused segment calls this);
+    // Space/Enter on the landed segment picks — so an inactive choice is
+    // reachable and selectable entirely from the keyboard
+
+    roveFrom(seg: View, d: number) {
+        const ss = this.segs()
+        const i = ss.indexOf(seg)
+        if (i < 0) return
+        const n = Math.max(0, Math.min(ss.length - 1, i + d))
+        if (n != i) Focus.focus(ss[n] as any)
+        },
+
+    layout: SimpleLayout [ axis = x, spacing = 0 ],
+
+    lead: View [ width = 2, height = 1 ]
+    ]
+
+
+// Every segment is a CONTROL — its own tab stop, Space/Enter activating the
+// pick (so the user tabs to an INACTIVE segment and selects it), the ring
+// hugging its pill.
+
+class Segment extends Control [
+    // the marker Segmented's walks key on
+
+    isSegment: boolean = true,
+
+    choice: object = null,
+    lbl: string = "",
+
+    height = { parent.height },
+    width = { this.t.width + ((parent as Segmented).isSegmented === true ? (parent as Segmented).pad : 34) },
+
+    on: boolean = { (parent as Segmented).isSegmented === true && (parent as Segmented).value === choice },
+
+    bg: View [ x = 2, y = 2, width = { parent.width - 4 }, height = { parent.height - 4 }, cornerRadius = 6,
+        // three states, three depths: chosen wears the raised surface, a
+        // PRESS is visibly deeper than a hover
+        fill = { parent.on ? theme.surface : parent.down ? theme.line : parent.hovered ? theme.control : null },
+        stroke = { parent.on ? stroke(1, theme.line) : null } ],
+
+    t: Text [ wrap = false, fontSize = 13, fontWeight = medium,
+        x = { (parent.width - this.width) / 2 },
+        y = { (parent.height - this.height) / 2 },
+        textColor = { parent.on || parent.hovered ? theme.text : theme.textMuted },
+        text = { parent.lbl } ],
+
+    press() {
+        if ((parent as Segmented).isSegmented === true && !(parent as Segmented).disabled) (parent as Segmented).pick(choice)
+        },
+
+    onClick() { if (!disabled) press() },
+
+    onKeyDown(e: KeyEvent) {
+        if (disabled) return
+        if (e.key == "ArrowRight" || e.key == "ArrowDown") { if ((parent as Segmented).isSegmented === true) (parent as Segmented).roveFrom(this, 1) }
+        else if (e.key == "ArrowLeft" || e.key == "ArrowUp") { if ((parent as Segmented).isSegmented === true) (parent as Segmented).roveFrom(this, -1) }
+        else if (!e.repeat && (e.key == "Enter" || e.key == " ")) press()
+        },
+
+    // the ring hugs the segment's PILL, not the raw box
+
+    focusShape() { return { x: 2, y: 2, w: this.width - 4, h: this.height - 4, rad: 6 } }
+    ]

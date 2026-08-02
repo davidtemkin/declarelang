@@ -29,12 +29,17 @@ export class TextInput extends Editor {
         if (!isSet(this, "focusable") && ownerOf(this, "focusable") === null)
             this.focusable = true;
         super.attach(backend, parentSurface);
-        // Uncontrolled seed: when the author gives an `initial` (and hasn't
-        // hard-set `text`), `text` follows it via a YIELDING derive — reactive, so
-        // a source that arrives late fills the field, and disposed on the first
-        // edit (onNativeInput) so typing takes over. A bound `text` is untouched.
-        if ((isSet(this, "initial") || ownerOf(this, "initial") !== null) &&
-            !isSet(this, "text") && ownerOf(this, "text") === null) {
+        // Uncontrolled seed: unless the author bound or hard-set `text`, it
+        // follows `initial` via a YIELDING derive — reactive, so a source that
+        // arrives late fills the field — disposed on the first edit
+        // (onNativeInput) so typing takes over; a programmatic `text` write
+        // displaces it the same way (own()'s yielding-replace). The guard is
+        // text-side ONLY: probing whether `initial` is set at attach raced
+        // constraint installation on windowed creation (a late-batch grid cell
+        // attached before its `initial` constraint installed, so the seed never
+        // bound and the field stayed empty); following the default "" until an
+        // initial arrives is the same observable behavior, race-free.
+        if (!isSet(this, "text") && ownerOf(this, "text") === null) {
             bindDerived(this, "text", () => this.initial);
         }
         // The house FIELD rendition (library-charter §6: a bare TextInput must

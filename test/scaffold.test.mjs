@@ -122,7 +122,7 @@ await test("scaffold: the fixed value prelude mirrors value.ts", () => {
     // `any`, not `unknown` — a record's keys are open by design (no schema
     // construct yet); `unknown` would flag every correct read of a theme token.
     "type Theme = Readonly<Record<string, any>>;",
-    "type Cursor = unknown;",
+    "interface Cursor { readonly data: any; readonly path: readonly string[] }",
     "declare function gradient(",
     "declare function stroke(width: number, color: Color): Stroke;",
     "declare function shadow(dx: number, dy: number, blur: number, color: Color): Shadow;",
