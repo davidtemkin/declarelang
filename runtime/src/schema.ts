@@ -241,6 +241,20 @@ const ViewSchema: ComponentSchema = {
     contentWidth: { kind: "length" },
     childViews: { kind: "array" },
     virtualized: { kind: "boolean" },
+    // Replication metadata, declared on the replicated child and consumed by
+    // the Replicator (stripped from the template — not a live slot on the
+    // instance). It is in the schema so it DOCUMENTS ITSELF (the reference is
+    // generated from these tables) and so a `{ }` body has a declared type to
+    // check against; check.ts gates it to a replication template.
+    //
+    // `key` is deliberately NOT here, though it is the same kind of metadata.
+    // Being a View attribute would take the name out of every author's reach —
+    // no member and no child could be called `key` again — and the corpus
+    // proved that immediately: library/menu.declare has a child named `key`.
+    // A common English word is too expensive to spend on a rare override, so
+    // `key` stays a special case in check.ts and is taught in the guide's
+    // identity ladder rather than the reference.
+    virtualize: { kind: "boolean" },
     contentHeight: { kind: "length" },
   },
   prevailing: ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing", "headingColor", "headingWeight", "linkColor", "codeColor", "codeSize", "codeFamily", "codeBackground", "codeRule", "richTextLayout", "theme", "stylesheet", "selectable"],

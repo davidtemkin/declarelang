@@ -430,7 +430,7 @@ App [ width = 420, height = 260, fill = midnightblue, textColor = gainsboro,
 
     list: View [ x = 20, y = 20, datapath = { people.value },
         layout: SimpleLayout [ axis = y, spacing = 10 ],
-        View [ height = 20, datapath = :rows[], key = :name,   // one instance per record
+        View [ height = 20, datapath = :rows[],                // one instance per record
             n: Text [ width = 150, text = :name ],
             s: Text [ x = 150, text = :score ]
             ]
@@ -447,10 +447,10 @@ subset — `[0]`, `[-1]`, `[1:4]`, `[*]`, `['quoted key']`. So `:rows[*].label` 
 label, and `:rows[2:8][]` replicates exactly that range, each instance cursored at its real
 index.
 
-A `Dataset`'s literal body is **strict JSON** — quoted keys, no trailing commas. `key = :field`
-makes replication keyed, so only changed rows rebuild; the replicated node is anonymous, but
-names inside it resolve per instance. `key` is rarely needed: a record's `id` field is its
-identity by convention.
+A `Dataset`'s literal body is **strict JSON** — quoted keys, no trailing commas. The
+replicated node is anonymous, but names inside it resolve per instance. **Identity is
+inferred** — a record's `id` field is its identity by convention, so reconciliation reuses
+instances across sorts, filters and edits with nothing declared.
 
 **Count the data, not the tree.** A Dataset's `.value` is the parsed data, so a count is ordinary
 TypeScript on it. Reach for this whenever you would have counted rendered rows.

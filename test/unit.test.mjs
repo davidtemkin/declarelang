@@ -2480,9 +2480,35 @@ await test("check: `key = :field` is replication metadata, refused off a templat
   // key that is not a single :path
   const many = check(parse(`App [ d: Dataset { {"rows":[]} }, list: View [ datapath = { classroot.d.value }, View [ datapath = :rows[], key = :id[] ] ] ]`));
   assert.match(many.find((e) => /key/.test(e.message)).message, /names each record's identity field/);
-  // `key` on a NON-replicated element is just an unknown attribute (no magic)
+  // `key` on a NON-replicated element is refused BY NAME. It used to fall out
+  // as an unknown attribute; since 2026-08-03 `key` is a real View attribute
+  // (so it documents itself in the reference and a `{ }` body has a declared
+  // type to check against), which means schema membership alone would have made
+  // it silently legal here — hence the explicit refusal, naming where it goes.
   const plain = check(parse(`App [ v: View [ key = :id ] ]`));
-  assert.ok(plain.some((e) => /has no attribute 'key'|data lives/.test(e.message)));
+  assert.ok(plain.some((e) => /replication metadata/.test(e.message)),
+    `expected a replication-metadata refusal, got: ${plain.map((e) => e.message).join(" | ")}`);
+});
+
+await test("check: `virtualize` is replication metadata too — same gate as `key`", () => {
+  // legal on a replicated child, as a literal and as a constraint
+  assert.deepEqual(
+    check(parse(`App [ d: Dataset { {"rows":[]} }, list: View [ datapath = { classroot.d.value }, View [ datapath = :rows[], virtualize = true ] ] ]`)),
+    []
+  );
+  assert.deepEqual(
+    check(parse(`App [ big: boolean = false, d: Dataset { {"rows":[]} }, list: View [ datapath = { classroot.d.value }, View [ datapath = :rows[], virtualize = { app.big } ] ] ]`)),
+    []
+  );
+  // the retired enum spellings are refused by name
+  const old = check(parse(`App [ d: Dataset { {"rows":[]} }, list: View [ datapath = { classroot.d.value }, View [ datapath = :rows[], virtualize = always ] ] ]`));
+  assert.ok(old.some((e) => /virtualize = true \| false/.test(e.message)),
+    `expected the boolean vocabulary named, got: ${old.map((e) => e.message).join(" | ")}`);
+  // and off a template it is refused BY NAME, not silently accepted because it
+  // is in View's schema
+  const plain = check(parse(`App [ v: View [ virtualize = true ] ]`));
+  assert.ok(plain.some((e) => /replication metadata/.test(e.message)),
+    `expected a replication-metadata refusal, got: ${plain.map((e) => e.message).join(" | ")}`);
 });
 
 await test("run: a derived Dataset recomputes, keyed replication reuses instances", () => {

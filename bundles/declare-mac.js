@@ -2493,6 +2493,20 @@ var DeclareMac = (() => {
           contentWidth: { kind: "length" },
           childViews: { kind: "array" },
           virtualized: { kind: "boolean" },
+          // Replication metadata, declared on the replicated child and consumed by
+          // the Replicator (stripped from the template — not a live slot on the
+          // instance). It is in the schema so it DOCUMENTS ITSELF (the reference is
+          // generated from these tables) and so a `{ }` body has a declared type to
+          // check against; check.ts gates it to a replication template.
+          //
+          // `key` is deliberately NOT here, though it is the same kind of metadata.
+          // Being a View attribute would take the name out of every author's reach —
+          // no member and no child could be called `key` again — and the corpus
+          // proved that immediately: library/menu.declare has a child named `key`.
+          // A common English word is too expensive to spend on a rare override, so
+          // `key` stays a special case in check.ts and is taught in the guide's
+          // identity ladder rather than the reference.
+          virtualize: { kind: "boolean" },
           contentHeight: { kind: "length" }
         },
         prevailing: ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing", "headingColor", "headingWeight", "linkColor", "codeColor", "codeSize", "codeFamily", "codeBackground", "codeRule", "richTextLayout", "theme", "stylesheet", "selectable"],
@@ -4202,6 +4216,10 @@ var DeclareMac = (() => {
       checkNamespace(el, eff, errors);
       const replicated = manyPathOf(el, schemas) !== null;
       for (const attr of el.attrs) {
+        if ((attr.name === "key" || attr.name === "virtualize") && !replicated) {
+          errors.push(new DeclareError(`'${attr.name}' is replication metadata \u2014 it belongs on a node whose datapath matches many ('datapath = :rows[]'), beside that path. This node replicates nothing, so there is no collection for it to describe`, attr.pos));
+          continue;
+        }
         if (attr.name === "key" && replicated) {
           if (attr.value.kind !== "path" || attr.value.many) {
             errors.push(new DeclareError(`key = :field names each record's identity field (e.g. 'key = :id') \u2014 a single :path, not ${attr.value.kind === "path" ? "a many-path" : "a literal"}`, attr.value.pos));

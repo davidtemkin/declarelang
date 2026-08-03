@@ -356,7 +356,26 @@ Composed of four parts, all runtime-internal:
 
 ---
 
-## 4. Retiring `key`
+## 4. Retiring `key` — REVISED 2026-08-03: it does not retire
+
+**The plan below is superseded; the analysis is kept because it is correct
+about everything except its conclusion.** Its precondition has been met —
+JSONPath selections landed with B3 — and `key` did not leave the surface,
+because it cannot. The residual case at the end of this section is authored out
+by DOCTRINE, not by the language: nothing stops a `{ }` body writing
+`rows.map(r => ({ ...r, extra }))`, and that is ordinary TypeScript in an
+ordinary Dataset. A retirement that depends on a transform-derivation ceasing
+to be idiomatic is a bet on habit, and the language does not enforce it.
+
+So the standing ruling is: **`key` is a narrow, permanent override**, not a
+scheduled removal. Identity is inferred (the `id` convention), structural
+matching sits beneath it, and `key` covers the one case neither reaches — a
+transform that manufactures records whose instances hold local state. It is
+therefore documented as real surface: it has a reference entry, and it is
+deliberately ABSENT from declare.md, where a mention is a promotion and a rare
+override does not belong on the map.
+
+The original analysis follows.
 
 David asked whether `key = :field` can go away. **Viable — in three moves,
 with one residual case that the doctrine authors out.**

@@ -147,6 +147,34 @@ count: number = { (app.d.value.rows).length }
 If you want the window with its logical indices — an accessibility traversal, a diagnostic
 — that is kernel API (`blocksOf`, `realized()`, `materializationInfo`).
 
+## virtualize
+Virtualize this replicated collection: build the instances near the viewport and leave the
+rest logical, reconstructed indistinguishably as you scroll. **Replication metadata** — it
+belongs on the node whose `datapath` matches many, beside that path, and it means nothing
+anywhere else (a node that replicates nothing has no collection to describe, and the checker
+says so).
+
+**A boolean, off by default.** Below the threshold where construction hurts, materializing
+everything is simply faster and keeps `childViews` whole; above it, this is the one word that
+changes. There is no automatic mode and no count to tune — a virtualized block costs a flat
+~0.06 ms per scroll tick at any size, so there is no cliff a threshold could protect, and
+what full materialization actually costs is construction, which depends on how rich a row is
+rather than how many there are.
+
+Like any boolean it takes a `{ }`, and the policy is read inside the replication match — so a
+collection can start fully materialized and virtualize when it grows, engaging and
+disengaging as the answer changes. What you never write is everything *around* the word: no
+row heights, no scroll container, no keys, no overscan tuning, no memoization.
+
+Virtualization needs a scrolling ancestor (`scrolls = y`, or `both`) and — if the block's
+parent runs a layout — that layout must stack on `y`. A wrapping gallery, a horizontal strip,
+a scatter of pins: those fully materialize instead, deliberately, with an inspectable reason.
+Read `virtualized` on the container to see whether it engaged.
+
+```declare-fragment
+Row [ datapath = :rows[], virtualize = true ]
+```
+
 ## virtualized
 Whether **this view's replicated content** is virtualized right now — a content intrinsic,
 like `contentWidth` and `contentHeight`, and read-only. `false` unless this view is the

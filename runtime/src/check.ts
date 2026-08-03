@@ -591,6 +591,18 @@ function checkElement(
     // name — so the special case can't collide with a real `key` slot.
     const replicated = manyPathOf(el, schemas) !== null;
     for (const attr of el.attrs) {
+      // Both are REPLICATION metadata. They sit in View's schema so they
+      // document themselves (the reference is generated from those tables) and
+      // so a `{ }` body has a declared type to check against — but they mean
+      // nothing on a node that replicates nothing, and schema membership alone
+      // would make them silently legal there.
+      if ((attr.name === "key" || attr.name === "virtualize") && !replicated) {
+        errors.push(new DeclareError(
+          `'${attr.name}' is replication metadata — it belongs on a node whose datapath matches many ('datapath = :rows[]'), beside that path. This node replicates nothing, so there is no collection for it to describe`,
+          attr.pos
+        ));
+        continue;
+      }
       if (attr.name === "key" && replicated) {
         if (attr.value.kind !== "path" || attr.value.many) {
           errors.push(new DeclareError(

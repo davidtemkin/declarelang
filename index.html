@@ -313,7 +313,7 @@ onClick() { app.location = "why" }        // write location TO navigate</code></
 
     list: View [ x = 20, y = 20, datapath = { people.value },
         layout: SimpleLayout [ axis = y, spacing = 10 ],
-        View [ height = 20, datapath = :rows[], key = :name,   // one instance per record
+        View [ height = 20, datapath = :rows[],                // one instance per record
             n: Text [ width = 150, text = :name ],
             s: Text [ x = 150, text = :score ]
             ]
@@ -321,7 +321,7 @@ onClick() { app.location = "why" }        // write location TO navigate</code></
     ]</code></pre>
 <p><strong>The <code>[]</code> suffix is what replicates.</strong> <code>datapath = :rows[]</code> says <em>this path matches many records, so make one instance of this node per record</em>; without the brackets, <code>:rows</code> is an ordinary read of whatever is there, and <code>[]</code> may appear only at the end of a path.</p>
 <p>Between those, a path may <strong>select</strong>: <code>:path</code> follows JSONPath (RFC 9535) over the shipped subset — <code>[0]</code>, <code>[-1]</code>, <code>[1:4]</code>, <code>[*]</code>, <code>['quoted key']</code>. So <code>:rows[*].label</code> is every row's label, and <code>:rows[2:8][]</code> replicates exactly that range, each instance cursored at its real index.</p>
-<p>A <code>Dataset</code>'s literal body is <strong>strict JSON</strong> — quoted keys, no trailing commas. <code>key = :field</code> makes replication keyed, so only changed rows rebuild; the replicated node is anonymous, but names inside it resolve per instance. <code>key</code> is rarely needed: a record's <code>id</code> field is its identity by convention.</p>
+<p>A <code>Dataset</code>'s literal body is <strong>strict JSON</strong> — quoted keys, no trailing commas. The replicated node is anonymous, but names inside it resolve per instance. <strong>Identity is inferred</strong> — a record's <code>id</code> field is its identity by convention, so reconciliation reuses instances across sorts, filters and edits with nothing declared.</p>
 <p><strong>Count the data, not the tree.</strong> A Dataset's <code>.value</code> is the parsed data, so a count is ordinary TypeScript on it. Reach for this whenever you would have counted rendered rows.</p>
 <p><strong>A <code>DataSource</code> is a remote resource whose lifecycle is reactive state</strong> — <code>data: DataSource [ url = "data/events.json" ]</code>. <strong>Nothing loads on its own</strong> unless you set <code>auto = true</code>; forgetting <code>.fetch()</code> is legal, silent, and the common first bug, and <code>onInit()</code> is the usual place for it. Screens then derive from the resource (<code>shown = { data.loaded }</code>) rather than being toggled. An optional <code>schema = [ field: type, rows[]: [ … ] ]</code> declares the response's shape: it validates the payload on receipt — so malformed data yields <code>.failed</code> rather than <code>undefined</code> three bindings deep — and lets every <code>:path</code> be checked against the shape at compile time. Without one, paths are dynamic: an unresolved <code>:path</code> yields null and the bound attribute falls back to its default.</p>
 <p><strong>Two-way binding is opt-in, with <code>&lt;-&gt;</code>, and for leaf editors only</strong> — <code>TextInput [ text &lt;-&gt; :title ]</code> against data, or <code>text &lt;-&gt; { app.note }</code> against a slot: the right-hand side names a <em>place</em> to write, either a datapath or a <code>{ }</code> yielding one. One-way <code>:path</code> everywhere else. It is the only arrow in the language.</p>
@@ -597,7 +597,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=b9af004725a5";
+  import boot from "./bundles/declare-boot.js?v=f6ad05250b82";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().

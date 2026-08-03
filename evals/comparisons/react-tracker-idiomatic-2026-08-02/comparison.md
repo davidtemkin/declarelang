@@ -46,7 +46,7 @@ preserved below, because that part was real.
 | Search median/max @100K (warm) | **28.2 / 42.4 ms** | 30 / 35 ms |
 | 1M: ingest | ~1.4 s (generate) | **861 ms** |
 | 1M: search per keystroke | — | 199 / 225 ms (stated shortfall) |
-| 1M: full scroll fidelity | **NO — see platform findings** | YES |
+| 1M: full scroll fidelity | **YES** (fixed after this run — see platform findings) | YES |
 | Acceptance | 15 scripted criteria green | 91/91 checks (S1–S15) |
 | Visual/design maturity | multiple review rounds, design system | one shot, ecosystem components |
 
@@ -115,9 +115,10 @@ windowing to TanStack Virtual and still pays the dynamic-measurement plumbing at
 every call site.
 
 **React** — load and ingest at scale (52 ms vs ~70 ms at 10K; 861 ms vs ~1.4 s
-at 1M), 1M scroll fidelity (see below), and the ecosystem itself: nine
-problems answered by nine packages the agent did not have to design, each
-carrying accessibility and edge-case behaviour it got for free.
+at 1M), and the ecosystem itself: nine problems answered by nine packages the
+agent did not have to design, each carrying accessibility and edge-case
+behaviour it got for free. 1M scroll fidelity belonged on this list when the
+run was scored and no longer does (see below).
 
 Search is a tie: 30/35 ms against our 28.2/42.4, both far under the 50 ms bar.
 
@@ -127,12 +128,28 @@ Three defects, none of which would have been found by building more apps in
 Declare. The first two were surfaced by the discarded first arm; they are kept
 here because the findings are real regardless of that arm's comparative value.
 
-1. **Browsers saturate element layout at ~2²⁵ px, and we have the bug live.**
+1. **Browsers saturate element layout at ~2²⁵ px, and we had the bug live.**
    The React agent hit it and engineered around it with a compressed scroll
-   space. Ours: the virtual-extent strut clamps at 33,554,428 px, so at 1M rows
-   the scrollbar reaches only row ~762,000 of 1,000,000. At 100K and below we
-   are untouched (7.6M px). **FILED** as a kernel work item — extent
-   compression + scroll mapping in the windowed reconciler. Still open.
+   space. Ours: the virtual-extent strut clamped at 33,554,428 px, so at 1M rows
+   the scrollbar reached only row ~762,000 of 1,000,000. At 100K and below we
+   were untouched (7.6M px).
+
+   **FIXED** in `f610541`, the same day as this run, which is why the table row
+   above disagrees with the diagnosis here. The strut is now capped at 2²⁴
+   (16,777,216 px — under the measured Chrome clamp, with headroom for
+   Firefox's lower one) and `extentScale()` maps compressed physical offsets
+   back to logical record offsets, so scrollbar position is proportional to
+   record position however far past the cap the logical extent runs.
+   Re-measured at 1M: dragging to 0 / 25 / 50 / 75 / 100 % puts records 0 /
+   ~250,000 / ~500,000 / ~750,000 / 999,999 on screen. The last record is
+   reachable. Above ~16M rows the residual is sub-pixel resolution — one
+   physical pixel spans more than one record — which is an anchor-plus-offset
+   problem, not a reachability one, and is filed in
+   `docs/system-design/materialization.md`.
+
+   The finding stands as the arm's; only its status changed. It is a good
+   example of the comparative's value: nothing in our own corpus was large
+   enough to hit it.
 
 2. **A measurement that could not see the thing it measured.** The scrub probe
    used throughout this project set `scrollTop` and awaited one
