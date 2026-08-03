@@ -698,28 +698,43 @@ while focused), which a wrapper drawing the box itself would have displaced.
 class HelpSearch extends View [ height = 40,
     width = { parent.width },
 
-    // the field reaches to 12px from the menu's edges,
-    // past the kind-row host's standard 24px inset — hence the negative x
+    // The capsule is a VIEW, and the field sits inside it. It used to BE the
+    // field, inset with `padding = 28` to clear the glyph — but `padding` is one
+    // number on all four sides, and 28px of it does not fit a 30px-tall box.
+    // Under `box-sizing: border-box` the padding alone claims 56px, so the
+    // element grew past its declared height and the placeholder hung below the
+    // capsule it was supposed to sit in. A leading glyph needs the inset
+    // HORIZONTALLY only, which is a position, not a padding.
+    //
+    // The cost is reproducing the chrome TextInput derives for itself — surface
+    // fill, and the 1px edge that turns accent while focused. Both are read off
+    // the same prevailing theme the field would have used, so a theme swap still
+    // carries. The capsule reaches 12px from the menu's edges, past the kind-row
+    // host's standard 24px inset — hence the negative x.
 
-    sf: TextInput [ x = -12, y = 5, width = { parent.width + 10 }, height = 30,
+    cap: View [ x = -12, y = 5, width = { parent.width + 10 }, height = 30,
         cornerRadius = { this.height / 2 },
-        padding = 28,                                  // room for the glyph below
-        placeholder = "Search" ],
+        fill = { theme.surface },
+        stroke = { stroke(1, this.sf.focused ? theme.accent : theme.line) },
 
-    // declared after the field, so it paints over it
+        // chrome off: the capsule draws it. The x IS the glyph's room.
+        sf: TextInput [ x = 28, y = 0, width = { parent.width - 36 }, height = { parent.height },
+            padding = 0, fill = null, stroke = null, cornerRadius = 0,
+            placeholder = "Search" ],
 
-    mag: View [ x = { classroot.sf.x + 10 }, y = { classroot.sf.y + (classroot.sf.height - 14) / 2 },
-        width = 14, height = 14, pointerEvents = "none",
-        draw(d: Draw) {
-            d.strokeStyle = theme.textFaint
-            d.lineWidth = 1.5
-            d.lineCap = "round"
-            d.beginPath()
-            d.arc(6, 6, 4.2, 0, Math.PI * 2, false)
-            d.moveTo(9.4, 9.4)
-            d.lineTo(12.5, 12.5)
-            d.stroke()
-            }
+        mag: View [ x = 10, y = { (parent.height - 14) / 2 },
+            width = 14, height = 14, pointerEvents = "none",
+            draw(d: Draw) {
+                d.strokeStyle = theme.textFaint
+                d.lineWidth = 1.5
+                d.lineCap = "round"
+                d.beginPath()
+                d.arc(6, 6, 4.2, 0, Math.PI * 2, false)
+                d.moveTo(9.4, 9.4)
+                d.lineTo(12.5, 12.5)
+                d.stroke()
+                }
+            ]
         ]
     ]
 
@@ -1865,7 +1880,24 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     // their stacking order, so the front one ends front); with none open —
     // running or not — the app's default open runs instead.
 
+    /* A dock press dismisses an open menu AND does its own work — the macOS rule,
+       and worth stating because it is the opposite of a light dismiss. Clicking
+       the wallpaper closes a menu and does nothing else; clicking the Dock closes
+       it and opens the app, so the click is TAKEN, not swallowed.
+
+       That is why the dock stays declared after `bar`: it paints above the menu's
+       full-app backdrop, so the press reaches the dock rather than the catcher,
+       and the dock closes the menu itself. `rootClose()` is what Escape uses —
+       the whole chain, submenus included. Harmless when nothing is open.
+
+       Every dock press routes through one of three verbs (dockOpen, notImpl,
+       restoreMiniAt), so this sits at the top of each rather than on a wrapper
+       view: events do not bubble, so a press on an icon never reaches the dock. */
+
+    dockDismiss() { app.bar.mb.menu.rootClose() },
+
     dockOpen(a: string, open: () -> void) {
+        this.dockDismiss()
         const live = this.windows().filter((w) => this.appOf(w) == a && !this.isPlain(w) && !this.isMin(w))
         if (live.length > 0) { for (const w of live) this.focusWin(w); return }
         // nothing up but something in the dock: restore the most recent tile
@@ -2059,6 +2091,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
         },
 
     restoreMiniAt(i: number) {
+        this.dockDismiss()
         const ws = this.miniList()
         if (i >= 0 && i < ws.length) this.restoreMini(ws[i])
         },
@@ -2101,6 +2134,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     alertHue1: Color = #4A90D9,
     alertHue2: Color = #2E5FA3,
     notImpl(head: string, name: string, kind: string, glyph: string, gsize: number, h1: number, h2: number) {
+        this.dockDismiss()
         alertHead = head
         alertName = name
         alertKind = kind
