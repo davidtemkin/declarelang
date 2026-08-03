@@ -300,8 +300,8 @@ export class Replicator {
     /** The pre-parsed plan when the path used selectors (B3) — null means
      *  `splitPath(path)` is the plan (pure names, today's fast path). */
     plan = null, 
-    /** The materialization policy (`materialize = …`; D5). */
-    policy = "all") {
+    /** The virtualization policy (`virtualize = …`; D5). */
+    policy = "never") {
         this.parent = parent;
         this.path = path;
         this.classroot = classroot;
@@ -318,7 +318,7 @@ export class Replicator {
             ...element,
             attrs: element.attrs.filter((a) => !(a.name === "datapath" && a.value.kind === "path" && a.value.many) &&
                 !(a.name === "key" && a.value.kind === "path") &&
-                a.name !== "materialize"),
+                a.name !== "virtualize"),
         };
         this.constraint = new Constraint(`${parent.constructor.name}'s replication (:${path}[])`, () => this.match(), (m) => this.reconcile(m));
     }
@@ -419,7 +419,7 @@ export class Replicator {
         if (base === null)
             return none;
         if (this.plan !== null && isSelective(this.plan)) {
-            if (this.policy !== "all")
+            if (this.policy !== "never")
                 this.fallback = "a selective path replicates its selection fully (windowing over selections is a later increment)";
             const nodes = selectNodes(base.data, base.path, this.plan);
             return { data: base.data, nodes, items: nodes.map((n) => n.value), arrayPath: null, logical: nodes.length, start: 0, unit: 0, windowed: false, dataChanged: true, leading: 0 };
@@ -435,8 +435,8 @@ export class Replicator {
         const dataChanged = arr !== this.lastArr || logical !== this.lastLen;
         this.lastArr = arr;
         this.lastLen = logical;
-        const wants = this.policy === "window" ? true
-            : this.policy === "all" ? false
+        const wants = this.policy === "always" ? true
+            : this.policy === "never" ? false
                 : typeof this.policy === "number" ? logical > this.policy
                     : logical > AUTO_THRESHOLD; // auto
         const full = () => ({
@@ -476,7 +476,7 @@ export class Replicator {
                 this.rowGap = gap;
             }
             else {
-                this.fallback = "the block's parent runs a layout windowing cannot predict (a vertical SimpleLayout composes; others fall back) — set materialize = all or drop the layout";
+                this.fallback = "the block's parent runs a layout windowing cannot predict (a vertical SimpleLayout composes; others fall back) — set virtualize = never or drop the layout";
                 return full();
             }
         }

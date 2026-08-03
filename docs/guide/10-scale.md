@@ -27,7 +27,7 @@ App [ width = 320, height = 240, fill = white,
         text = { (d.value.rows).length + " records, ~20 views" } ],
     list: View [ x = 16, y = 36, width = 288, height = 190, scrolls = y,
         inner: View [ width = 288, datapath = { d.value },
-            Row [ datapath = :rows[], materialize = auto ]
+            Row [ datapath = :rows[], virtualize = auto ]
             ]
         ]
     ]
@@ -36,18 +36,25 @@ App [ width = 320, height = 240, fill = white,
 
 Fifty thousand records; **eighteen views** in that viewport. Scroll it — the rows you
 can see are built, the rest are logical, and nothing in the source says how. Take
-`materialize = auto` away and the same program tries to build fifty thousand views.
+`virtualize = auto` away and the same program tries to build fifty thousand views.
 That one word is this chapter's subject.
 
 Two other things happened here that you did not write, and the next two sections are
 about them: the records reconciled by their `id` field, inferred with nothing declared;
-and each row's lifetime is tied to its record, not to the scroll position.
+and each instance's lifetime is tied to its record, not to the scroll position.
+
+**A note on vocabulary, because this chapter says "row" a lot.** Replication has nothing
+to do with rows: the node a path replicates is any View — cards in a gallery, pins on a
+map, bars in a chart, avatars in a stack. Identity, lifecycle and selection below are
+about *records and instances*, whatever shape they take. Virtualization is the one
+exception — it is vertical-list shaped today, for reasons its own section gives — so
+there, "row" is meant literally.
 
 ## Identity is inferred, not declared
 
 When the data changes, the runtime must decide which instance belongs to which record —
-otherwise a sort would rebuild every row and a row's own state would follow the wrong
-record. That decision is **identity**, and you almost never declare it.
+otherwise a sort would rebuild every instance, and an instance's own state would follow
+the wrong record. That decision is **identity**, and you almost never declare it.
 
 The ladder, in order:
 
@@ -58,7 +65,7 @@ The ladder, in order:
 
 So the example above already reconciles correctly: the records carry `id`. Reorder
 them and the instances *move* — they are not rebuilt, no lifecycle re-fires, and any
-state a row is holding travels with its record. That is the payoff for identity being
+state an instance is holding travels with its record. That is the payoff for identity being
 a first-class idea rather than a prop you remember to pass.
 
 Reach for `key` only when the convention does not fit:
@@ -78,12 +85,13 @@ is routinely a fifth of an app's code and the source of its worst bugs.
 Here it is one word on the row template:
 
 ```declare-fragment
-IssueRow [ datapath = :rows[], materialize = auto ]
+IssueRow [ datapath = :rows[], virtualize = auto ]
 ```
 
 That is the whole windowing story — the same line the Tracker uses to hold a million
-records. `auto` lets the platform's threshold decide; `window` always windows; a bare
-number windows above that many records; `all` is the default and fully materializes.
+records. `auto` lets the platform's threshold decide; `always` virtualizes regardless; a
+bare number virtualizes above that many records; `never` is the default and fully
+materializes.
 
 **Be precise about the claim: it is one word, not zero.** The default is full
 materialization, so you opt into scale deliberately — which is right, because below the
@@ -107,10 +115,21 @@ from the data, which is complete by definition:
 total: number = { (app.d.value.rows).length }
 ```
 
+**What virtualization needs, and what it does when it cannot get it.** This is the one
+part of the chapter that really is row-shaped. A block virtualizes only when it has a
+scrolling ancestor (`scrolls = y`, or `both`) and — if its parent runs a layout — that
+layout stacks on `y`. A wrapping gallery of cards, a horizontal strip, a scatter of pins:
+none of those virtualize today. They **fully materialize**, deliberately, because the
+alternative is degrading semantics to fit an arrangement the runtime cannot predict. The
+same is true of slice replication (`:rows[2:8][]`), which materializes its selection
+whole. Nothing fails silently — the fallback and its reason are inspectable, and the
+program stays correct, just unwindowed. Replication itself carries none of these
+constraints; only the windowing of it does.
+
 **Which to write.** `auto` is the answer for a collection whose size you do not control
 — a search result, a feed, a table over a real dataset. Leave it off for a menu, a
 palette, a form: a handful of rows materialize faster than any window can be computed.
-Reach for `window` or an explicit count only when you have measured something `auto`
+Reach for `always` or an explicit count only when you have measured something `auto`
 got wrong. It is the only knob in this chapter, and one word is the whole of it.
 
 ## Arriving and departing
@@ -127,7 +146,7 @@ View [ datapath = :rows[],
 ```
 
 The pairing is exact and it is *membership*, not materialization: scrolling a row out of
-the window does not retire it, because the record is still a member. A row that was
+the window does not retire it, because the record is still a member. An instance that was
 never built does not fire either hook until it is — lazily, the symmetric of lazy init.
 This is the law again, in lifecycle form: presence in the data is what is real.
 
@@ -148,7 +167,7 @@ Note the shape: the table *owns* `selected` and `selection`, and hands them out 
 `input` — the derive-down/deliver-up pair from
 [chapter 7](declare-docs:guide:interaction). You do not write into its slots.
 
-Sort the table, flip the direction, apply a filter, scroll a selected row out of the
+Sort the table, flip the direction, apply a filter, scroll a selected record out of the
 window — the selection is unchanged, because it was never a set of views. A selected
 record that a filter has hidden is still selected, and any count you show the user must
 be the full-dataset count, not the visible one.
@@ -164,8 +183,8 @@ discipline. No virtualizer to install, no row-height measurement, no scroll list
 overscan tuning. No memoization to stop siblings re-rendering. No selection state
 machine, and no bug where sorting scrambles what was selected.
 
-One template, a path that matches many, one word when it gets big — and a runtime that
-owns enough of the stack to keep the rest invisible.
+One template — of any shape — a path that matches many, one word when it gets big, and a
+runtime that owns enough of the stack to keep the rest invisible.
 
 ---
 

@@ -5,9 +5,8 @@
 > (attributes.ts — a WeakSet probe on the author-write path) + membership-
 > anchored `onInit` (suppressed reconstruction via the reconciler's
 > membership set, general — keyed re-derivations included); the windowed
-> match behind the materialization policy slot (`materialize = all | auto |
-> window | <count>`, default `all` — renamed from `windowed` in the naming
-> ruling), uniform extents with estimate-then-correct measurement,
+> match behind the virtualization policy slot (`virtualize = never | auto |
+> always | <count>`, default `never` — see the 2026-08-02 naming note in §8.2), uniform extents with estimate-then-correct measurement,
 > the block owning row placement and the parent's logical extent (yielding,
 > author-respecting); keep-alive retention of touched instances at their
 > logical places; the honest fallbacks (layout strategy present, no
@@ -537,9 +536,16 @@ be refused outright rather than partial (the honest-seam question, §2).
 >    once per PRESENCE EPISODE (apply → membership begins; unapply →
 >    ends; reapply → a new membership fires again), the same rule as
 >    leave-and-return in a match.
-> 2. **The materialization policy is a permanent slot, not a boolean
->    opt-in** — spelled `materialize = all | auto | window | <count>` (RULED
->    as `windowed` 2026-07-30, RENAMED the same day in the naming ruling:
+> 2. **The virtualization policy is a permanent slot, not a boolean
+>    opt-in** — spelled `virtualize = never | auto | always | <count>`
+>    (RESPELLED 2026-08-02, superseding the below: the 07-30 options were
+>    `windowed` and `materialize`, both naming the thing from the RUNTIME's
+>    side. A knob belongs in its audience's vocabulary — the MECHANISM stays
+>    materialization, this doc and `materializationInfo` included; the AUTHORED
+>    slot is `virtualize`, the word a reader arrives with, and the values
+>    inverted with the verb: `all`→`never`, `window`→`always`. §1's doctrine is
+>    untouched — a matched record has an instance either way.)
+>    (RULED as `windowed` 2026-07-30, RENAMED the same day in the naming ruling:
 >    "window" stays the mechanism's term of art in prose but leaves the
 >    author-facing surface, clearing the word for Window-the-component; the
 >    values inverted with the noun — `all` forces full materialization, the

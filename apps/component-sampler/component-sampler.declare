@@ -496,7 +496,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320,
                     Column [ title = "Owner", field = "owner", width = 120, kind = "select",
                         options = { ["ada", "alan", "grace", "edsger"] } ],
                     Column [ title = "Done", field = "done", width = 64, kind = "check" ],
-                    GridRow [ datapath = :rows[], materialize = window ]
+                    GridRow [ datapath = :rows[], virtualize = always ]
                     ],
                 cap: Text [ fontSize = 12, textColor = { theme.textFaint },
                     text = "Title edits live; State and Owner pick from a menu; Done is a checkbox — every edit writes the RECORD (windowing keeps it). Drag headers to reorder, edges to resize, click to sort." ]

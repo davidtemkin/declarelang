@@ -18,7 +18,7 @@ Table [ width = 300, height = 400, datapath = { app.d.value },
 The full gesture and keyboard protocol rides along: click selects, ⌘-click toggles,
 shift ranges from the anchor; arrows move-and-select, shift-arrows extend, ⌘-arrows walk
 the position alone with Space toggling (discontiguous selection by keyboard). Ranges and
-travel read the **data**, never the instances, so `materialize = window` on the row
+travel read the **data**, never the instances, so `virtualize = always` on the row
 template composes: a range can cross 500 unmaterialized rows and arrow travel scrolls
 its destination into existence. One tab stop; `input(sel)` delivers when the app owns
 the value (the default writes the slots).

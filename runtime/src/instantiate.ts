@@ -70,7 +70,7 @@ import { coerce, isPercent, isAlign, type AttrType, type Theme } from "./value.j
 import { defineAttributes, setBound, type AttrSpec } from "./attributes.js";
 import { bindConstraint, bindPercent, bindAlign, bindData, bindDatapath, bindCursor } from "./bind.js";
 import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
-import { Replicator, type MaterializePolicy } from "./replicate.js";
+import { Replicator, type VirtualizePolicy } from "./replicate.js";
 import { staticSegs, type PathSeg } from "./datapath.js";
 import { provideViewCreator } from "./view.js";
 import { toCursor, type Dataset } from "./data.js";
@@ -1285,14 +1285,14 @@ function appendChildren(from: Element, parentView: View, croot: View, ctx: Ctx, 
       // 2026-07-30; renamed from `windowed` in the naming ruling):
       // replication metadata like `key`, consumed here, stripped from the
       // template by the Replicator. check() validated the vocabulary.
-      const matAttr = childEl.attrs.find((a) => a.name === "materialize");
-      let policy: MaterializePolicy = "all"; // the v1 default; flips to auto once the differ proves invisibility
+      const matAttr = childEl.attrs.find((a) => a.name === "virtualize");
+      let policy: VirtualizePolicy = "never"; // the v1 default; flips to auto once the differ proves invisibility
       if (matAttr !== undefined) {
         const wv = matAttr.value as { kind: string; name?: string; value?: number };
         policy = wv.kind === "number" ? (wv.value as number)
           : wv.name === "auto" ? "auto"
-          : wv.name === "window" ? "window"
-          : "all";
+          : wv.name === "always" ? "always"
+          : "never";
       }
       const replicator = new Replicator(parentView, childEl, many.value.path, croot, materializer(ctx), slot.prev, keyPath,
         (many.value as { plan?: readonly PathSeg[] }).plan ?? null, policy);

@@ -243,10 +243,10 @@ await test("criterion 12: the differ — the same script, windowed vs full, iden
     out.push(app.issuesOf(app.rev).length);
     return out;
   };
-  // windowed (auto at 10k) vs virtualization OFF (materialize = all)
+  // windowed (auto at 10k) vs virtualization OFF (virtualize = never)
   const a = boot(10000);
   const wa = script(a);
-  const SRC_ALL = SRC.replace("materialize = auto ]", "materialize = all ]");
+  const SRC_ALL = SRC.replace("virtualize = auto ]", "virtualize = never ]");
   const b = compileProgram(SRC_ALL, { originDir: process.cwd() + "/library", stripPos: false });
   assert.equal(b.errors.length, 0);
   const appB = instantiate(b.program);

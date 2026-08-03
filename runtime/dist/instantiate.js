@@ -1218,14 +1218,14 @@ function appendChildren(from, parentView, croot, ctx, eff, slot) {
             // 2026-07-30; renamed from `windowed` in the naming ruling):
             // replication metadata like `key`, consumed here, stripped from the
             // template by the Replicator. check() validated the vocabulary.
-            const matAttr = childEl.attrs.find((a) => a.name === "materialize");
-            let policy = "all"; // the v1 default; flips to auto once the differ proves invisibility
+            const matAttr = childEl.attrs.find((a) => a.name === "virtualize");
+            let policy = "never"; // the v1 default; flips to auto once the differ proves invisibility
             if (matAttr !== undefined) {
                 const wv = matAttr.value;
                 policy = wv.kind === "number" ? wv.value
                     : wv.name === "auto" ? "auto"
-                        : wv.name === "window" ? "window"
-                            : "all";
+                        : wv.name === "always" ? "always"
+                            : "never";
             }
             const replicator = new Replicator(parentView, childEl, many.value.path, croot, materializer(ctx), slot.prev, keyPath, many.value.plan ?? null, policy);
             ctx.pending.push({ replicator });

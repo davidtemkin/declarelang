@@ -4201,12 +4201,12 @@ var DeclareMac = (() => {
           }
           continue;
         }
-        if (attr.name === "materialize" && replicated) {
+        if (attr.name === "virtualize" && replicated) {
           const v = attr.value;
-          const okIdent = v.kind === "ident" && (v.name === "all" || v.name === "auto" || v.name === "window");
+          const okIdent = v.kind === "ident" && (v.name === "never" || v.name === "auto" || v.name === "always");
           const okNumber = v.kind === "number" && !v.hex && Number.isInteger(v.value) && v.value >= 0;
           if (!okIdent && !okNumber) {
-            errors.push(new DeclareError(`materialize = all | auto | window | <count> \u2014 the materialization policy (all: full materialization, the default; auto: the platform threshold decides; window: always window; a count: window above that many records)`, v.pos));
+            errors.push(new DeclareError(`virtualize = never | auto | always | <count> \u2014 the virtualization policy (never: full materialization, the default; auto: the platform threshold decides; always: virtualize regardless; a count: virtualize above that many records)`, v.pos));
           }
           continue;
         }
@@ -4725,7 +4725,8 @@ var DeclareMac = (() => {
         ignorelayout: "spelled 'ignoreLayout' now (inner cap)",
         ignoreclip: "spelled 'ignoreClip' now (inner cap)",
         focustrap: "spelled 'focusTrap' now (inner cap)",
-        scrollsX: "the scroll axes merged into one slot \u2014 write 'scrolls = x' (the axis enum: none | y | x | both)"
+        scrollsX: "the scroll axes merged into one slot \u2014 write 'scrolls = x' (the axis enum: none | y | x | both)",
+        materialize: "spelled 'virtualize' now, and the values inverted with the verb \u2014 'materialize = all' is 'virtualize = never', 'window' is 'always', 'auto' and a count are unchanged"
       };
     }
   });
@@ -9491,7 +9492,7 @@ var DeclareMac = (() => {
          *  objects every recompute, so identity would rebuild all of them; a key
          *  pools by a stable field, so only genuinely changed records rebuild. */
         keyPath;
-        constructor(parent, element, path, classroot, make, prev, key = null, plan = null, policy = "all") {
+        constructor(parent, element, path, classroot, make, prev, key = null, plan = null, policy = "never") {
           this.parent = parent;
           this.path = path;
           this.classroot = classroot;
@@ -9502,7 +9503,7 @@ var DeclareMac = (() => {
           this.keyPath = key === null ? null : splitPath(key);
           this.template = {
             ...element,
-            attrs: element.attrs.filter((a) => !(a.name === "datapath" && a.value.kind === "path" && a.value.many) && !(a.name === "key" && a.value.kind === "path") && a.name !== "materialize")
+            attrs: element.attrs.filter((a) => !(a.name === "datapath" && a.value.kind === "path" && a.value.many) && !(a.name === "key" && a.value.kind === "path") && a.name !== "virtualize")
           };
           this.constraint = new Constraint(`${parent.constructor.name}'s replication (:${path}[])`, () => this.match(), (m) => this.reconcile(m));
         }
@@ -9597,7 +9598,7 @@ var DeclareMac = (() => {
           if (base2 === null)
             return none;
           if (this.plan !== null && isSelective(this.plan)) {
-            if (this.policy !== "all")
+            if (this.policy !== "never")
               this.fallback = "a selective path replicates its selection fully (windowing over selections is a later increment)";
             const nodes2 = selectNodes(base2.data, base2.path, this.plan);
             return { data: base2.data, nodes: nodes2, items: nodes2.map((n) => n.value), arrayPath: null, logical: nodes2.length, start: 0, unit: 0, windowed: false, dataChanged: true, leading: 0 };
@@ -9613,7 +9614,7 @@ var DeclareMac = (() => {
           const dataChanged = arr !== this.lastArr || logical !== this.lastLen;
           this.lastArr = arr;
           this.lastLen = logical;
-          const wants = this.policy === "window" ? true : this.policy === "all" ? false : typeof this.policy === "number" ? logical > this.policy : logical > AUTO_THRESHOLD;
+          const wants = this.policy === "always" ? true : this.policy === "never" ? false : typeof this.policy === "number" ? logical > this.policy : logical > AUTO_THRESHOLD;
           const full = () => ({
             data: base2.data,
             nodes: arr.map((value, i) => ({ path: [...arrayPath, String(i)], value })),
@@ -9642,7 +9643,7 @@ var DeclareMac = (() => {
               gap = typeof lay.spacing === "number" ? lay.spacing : 0;
               this.rowGap = gap;
             } else {
-              this.fallback = "the block's parent runs a layout windowing cannot predict (a vertical SimpleLayout composes; others fall back) \u2014 set materialize = all or drop the layout";
+              this.fallback = "the block's parent runs a layout windowing cannot predict (a vertical SimpleLayout composes; others fall back) \u2014 set virtualize = never or drop the layout";
               return full();
             }
           }
@@ -13512,11 +13513,11 @@ var DeclareMac = (() => {
         }
         const keyAttr = childEl.attrs.find((a) => a.name === "key" && a.value.kind === "path");
         const keyPath = keyAttr !== void 0 ? keyAttr.value.path : null;
-        const matAttr = childEl.attrs.find((a) => a.name === "materialize");
-        let policy = "all";
+        const matAttr = childEl.attrs.find((a) => a.name === "virtualize");
+        let policy = "never";
         if (matAttr !== void 0) {
           const wv = matAttr.value;
-          policy = wv.kind === "number" ? wv.value : wv.name === "auto" ? "auto" : wv.name === "window" ? "window" : "all";
+          policy = wv.kind === "number" ? wv.value : wv.name === "auto" ? "auto" : wv.name === "always" ? "always" : "never";
         }
         const replicator = new Replicator(parentView, childEl, many.value.path, croot, materializer(ctx), slot.prev, keyPath, many.value.plan ?? null, policy);
         ctx.pending.push({ replicator });

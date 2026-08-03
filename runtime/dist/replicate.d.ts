@@ -14,15 +14,25 @@ export interface Materialize {
         suppressInit: () => void;
     };
 }
-/** The materialization policy (`materialize = …` on the replicated element —
- *  D5 RULED 2026-07-30 as the permanent policy slot; renamed from
- *  `windowed` in the 2026-07-30 naming ruling, clearing the word out of
- *  Window-the-component's neighborhood): `all` (full materialization — the
- *  v1 default), `auto` (window above the platform threshold), `window`
- *  (always window), or a count (window above that many records). Only the
- *  DEFAULT is scheduled to change (all → auto, once the semantic differ
- *  proves invisibility); the vocabulary is forever. */
-export type MaterializePolicy = "all" | "auto" | "window" | number;
+/** The virtualization policy (`virtualize = …` on the replicated element —
+ *  D5 RULED 2026-07-30 as the permanent policy slot): `never` (full
+ *  materialization — the v1 default), `auto` (virtualize above the platform
+ *  threshold), `always`, or a count (virtualize above that many records).
+ *  Only the DEFAULT is scheduled to change (never → auto, once the semantic
+ *  differ proves invisibility); the vocabulary is forever.
+ *
+ *  NAMING (2026-08-02, superseding the 07-30 ruling's spelling). The slot was
+ *  ruled as `windowed`, renamed the same day to `materialize` to clear the
+ *  word for Window-the-component. Both options named the thing from the
+ *  RUNTIME's side — which is right for the mechanism and wrong for a knob.
+ *  `virtualize` is the word an author arrives with, and a knob should be
+ *  spelled in its audience's vocabulary even when the mechanism is not:
+ *  the concept stays MATERIALIZATION (this file, materialization.md, the
+ *  kernel's `materializationInfo`), because that is the honest description of
+ *  what the runtime does; the authored slot is `virtualize`, because that is
+ *  the decision the author is making. §1's doctrine is untouched — a matched
+ *  record HAS an instance either way; the policy only governs construction. */
+export type VirtualizePolicy = "never" | "auto" | "always" | number;
 /** The replication blocks under `view` — the kernel door for layout
  *  strategies, AT traversal, the inspector, and navigate-to-record. */
 export declare function blocksOf(view: View): readonly Replicator[];
@@ -54,7 +64,7 @@ export declare class Replicator {
     /** The pre-parsed plan when the path used selectors (B3) — null means
      *  `splitPath(path)` is the plan (pure names, today's fast path). */
     private readonly plan;
-    /** The materialization policy (`materialize = …`; D5). */
+    /** The virtualization policy (`virtualize = …`; D5). */
     private readonly policy;
     private views;
     private items;
@@ -121,8 +131,8 @@ export declare class Replicator {
     /** The pre-parsed plan when the path used selectors (B3) — null means
      *  `splitPath(path)` is the plan (pure names, today's fast path). */
     plan?: readonly PathSeg[] | null, 
-    /** The materialization policy (`materialize = …`; D5). */
-    policy?: MaterializePolicy);
+    /** The virtualization policy (`virtualize = …`; D5). */
+    policy?: VirtualizePolicy);
     /** First run (instantiate pass two — the tree is linked) + retire with the
      *  parent, so a discarded subtree's replicators can never wake again. */
     arm(): void;

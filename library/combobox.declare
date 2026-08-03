@@ -24,7 +24,7 @@ match count is free and no rendered row is ever scanned.
   Escape closes the list (then a second Escape leaves the control — the
   focus-scope ascent). The list is never a tab stop of its own.
 - The list is a collection like any other — bind 100k options and
-  `materialize` applies to it the same way (via the Menu it composes).
+  `virtualize` applies to it the same way (via the Menu it composes).
 */
 
 include [ "control.declare", "menu.declare" ]

@@ -1873,9 +1873,9 @@ var DeclareCompilerMac = (() => {
           (le.value.kind !== "path" || le.value.many) && d.push(new Ht(`key = :field names each record's identity field (e.g. 'key = :id') \u2014 a single :path, not ${le.value.kind === "path" ? "a many-path" : "a literal"}`, le.value.pos));
           continue;
         }
-        if (le.name === "materialize" && ot) {
-          let Oe = le.value, Tn = Oe.kind === "ident" && (Oe.name === "all" || Oe.name === "auto" || Oe.name === "window"), hn = Oe.kind === "number" && !Oe.hex && Number.isInteger(Oe.value) && Oe.value >= 0;
-          !Tn && !hn && d.push(new Ht("materialize = all | auto | window | <count> \u2014 the materialization policy (all: full materialization, the default; auto: the platform threshold decides; window: always window; a count: window above that many records)", Oe.pos));
+        if (le.name === "virtualize" && ot) {
+          let Oe = le.value, Tn = Oe.kind === "ident" && (Oe.name === "never" || Oe.name === "auto" || Oe.name === "always"), hn = Oe.kind === "number" && !Oe.hex && Number.isInteger(Oe.value) && Oe.value >= 0;
+          !Tn && !hn && d.push(new Ht("virtualize = never | auto | always | <count> \u2014 the virtualization policy (never: full materialization, the default; auto: the platform threshold decides; always: virtualize regardless; a count: virtualize above that many records)", Oe.pos));
           continue;
         }
         let jt = n_(De, le.name);
@@ -2178,7 +2178,7 @@ var DeclareCompilerMac = (() => {
     MJ();
     MJ();
     u2t = { bundles: /* @__PURE__ */ new Map(), stylesheets: /* @__PURE__ */ new Set(), fonts: /* @__PURE__ */ new Set(), validated: /* @__PURE__ */ new Set() }, hJe = { component: "a component slot (layout) is structure", cursor: "a data cursor is structure", styles: "a bundle list cannot arrive through the styling channels", stylesheet: "a stylesheet cannot set the stylesheet" };
-    dJe = { border: "a border is 'stroke = { stroke(1, 0xE2E5E9) }' \u2014 drawn inside the box", borderWidth: "a border is 'stroke = { stroke(1, 0xE2E5E9) }' \u2014 width and color travel together", borderColor: "a border is 'stroke = { stroke(1, 0xE2E5E9) }' \u2014 width and color travel together", borderStyle: "a border is 'stroke = { stroke(width, color) }' \u2014 solid only", boxShadow: "a shadow is 'shadow = { shadow(dx, dy, blur, 0x00000040) }'", background: "the paint slot is 'fill' (a color or gradient(\u2026))", backgroundColor: "the paint slot is 'fill'", borderRadius: "rounding is 'cornerRadius'", color: "text color is 'textColor' (prevailing \u2014 set it on a container)", zIndex: "stacking is source order \u2014 later siblings draw above; there is no z-index", overflow: "clipping is 'clip = true'; scrolling is 'scrolls = y' (the axis enum)", display: "arrangement is the 'layout' attribute \u2014 'layout: SimpleLayout [ axis = y, spacing = 8 ]'", flexDirection: "arrangement is the 'layout' attribute \u2014 'axis = x' or 'axis = y'", justifyContent: "arrangement is the 'layout' attribute; fine placement is x/y constraints", alignItems: "arrangement is the 'layout' attribute; fine placement is x/y constraints", gap: "spacing rides the layout \u2014 'layout: SimpleLayout [ axis = y, spacing = 8 ]'", margin: "there is no margin \u2014 position with x/y, a layout's spacing, or a wrapping View", padding: "there is no padding \u2014 inset children with x/y or an inner View", onChange: "the edit event is 'onInput()'" }, mJe = { ignorelayout: "spelled 'ignoreLayout' now (inner cap)", ignoreclip: "spelled 'ignoreClip' now (inner cap)", focustrap: "spelled 'focusTrap' now (inner cap)", scrollsX: "the scroll axes merged into one slot \u2014 write 'scrolls = x' (the axis enum: none | y | x | both)" };
+    dJe = { border: "a border is 'stroke = { stroke(1, 0xE2E5E9) }' \u2014 drawn inside the box", borderWidth: "a border is 'stroke = { stroke(1, 0xE2E5E9) }' \u2014 width and color travel together", borderColor: "a border is 'stroke = { stroke(1, 0xE2E5E9) }' \u2014 width and color travel together", borderStyle: "a border is 'stroke = { stroke(width, color) }' \u2014 solid only", boxShadow: "a shadow is 'shadow = { shadow(dx, dy, blur, 0x00000040) }'", background: "the paint slot is 'fill' (a color or gradient(\u2026))", backgroundColor: "the paint slot is 'fill'", borderRadius: "rounding is 'cornerRadius'", color: "text color is 'textColor' (prevailing \u2014 set it on a container)", zIndex: "stacking is source order \u2014 later siblings draw above; there is no z-index", overflow: "clipping is 'clip = true'; scrolling is 'scrolls = y' (the axis enum)", display: "arrangement is the 'layout' attribute \u2014 'layout: SimpleLayout [ axis = y, spacing = 8 ]'", flexDirection: "arrangement is the 'layout' attribute \u2014 'axis = x' or 'axis = y'", justifyContent: "arrangement is the 'layout' attribute; fine placement is x/y constraints", alignItems: "arrangement is the 'layout' attribute; fine placement is x/y constraints", gap: "spacing rides the layout \u2014 'layout: SimpleLayout [ axis = y, spacing = 8 ]'", margin: "there is no margin \u2014 position with x/y, a layout's spacing, or a wrapping View", padding: "there is no padding \u2014 inset children with x/y or an inner View", onChange: "the edit event is 'onInput()'" }, mJe = { ignorelayout: "spelled 'ignoreLayout' now (inner cap)", ignoreclip: "spelled 'ignoreClip' now (inner cap)", focustrap: "spelled 'focusTrap' now (inner cap)", scrollsX: "the scroll axes merged into one slot \u2014 write 'scrolls = x' (the axis enum: none | y | x | both)", materialize: "spelled 'virtualize' now, and the values inverted with the verb \u2014 'materialize = all' is 'virtualize = never', 'window' is 'always', 'auto' and a count are unchanged" };
   });
   var SJe = {};
   dF(SJe, { default: () => S2t });
@@ -95745,8 +95745,8 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
       template;
       constraint;
       keyPath;
-      constructor(d, T, A, R, J, W, ue = null, me = null, Be = "all") {
-        this.parent = d, this.path = A, this.classroot = R, this.make = J, this.prev = W, this.plan = me, this.policy = Be, this.keyPath = ue === null ? null : cy(ue), this.template = { ...T, attrs: T.attrs.filter((De) => !(De.name === "datapath" && De.value.kind === "path" && De.value.many) && !(De.name === "key" && De.value.kind === "path") && De.name !== "materialize") }, this.constraint = new el(`${d.constructor.name}'s replication (:${A}[])`, () => this.match(), (De) => this.reconcile(De));
+      constructor(d, T, A, R, J, W, ue = null, me = null, Be = "never") {
+        this.parent = d, this.path = A, this.classroot = R, this.make = J, this.prev = W, this.plan = me, this.policy = Be, this.keyPath = ue === null ? null : cy(ue), this.template = { ...T, attrs: T.attrs.filter((De) => !(De.name === "datapath" && De.value.kind === "path" && De.value.many) && !(De.name === "key" && De.value.kind === "path") && De.name !== "virtualize") }, this.constraint = new el(`${d.constructor.name}'s replication (:${A}[])`, () => this.match(), (De) => this.reconcile(De));
       }
       arm() {
         let d = pTe.get(this.parent);
@@ -95793,7 +95793,7 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
         let d = { data: null, nodes: [], items: [], arrayPath: null, logical: 0, start: 0, unit: 0, windowed: false, dataChanged: true, leading: 0 }, T = MT(this.parent);
         if (T === null) return d;
         if (this.plan !== null && dee(this.plan)) {
-          this.policy !== "all" && (this.fallback = "a selective path replicates its selection fully (windowing over selections is a later increment)");
+          this.policy !== "never" && (this.fallback = "a selective path replicates its selection fully (windowing over selections is a later increment)");
           let pc = jee(T.data, T.path, this.plan);
           return { data: T.data, nodes: pc, items: pc.map((fs) => fs.value), arrayPath: null, logical: pc.length, start: 0, unit: 0, windowed: false, dataChanged: true, leading: 0 };
         }
@@ -95803,13 +95803,13 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
         if (!Array.isArray(J)) return { ...d, data: T.data };
         let W = J.length, ue = J !== this.lastArr || W !== this.lastLen;
         this.lastArr = J, this.lastLen = W;
-        let me = this.policy === "window" ? true : this.policy === "all" ? false : typeof this.policy == "number" ? W > this.policy : W > Hkt, Be = () => ({ data: T.data, nodes: J.map((pc, fs) => ({ path: [...R, String(fs)], value: pc })), items: J, arrayPath: R, logical: W, start: 0, unit: 0, windowed: false, dataChanged: ue, leading: 0 });
+        let me = this.policy === "always" ? true : this.policy === "never" ? false : typeof this.policy == "number" ? W > this.policy : W > Hkt, Be = () => ({ data: T.data, nodes: J.map((pc, fs) => ({ path: [...R, String(fs)], value: pc })), items: J, arrayPath: R, logical: W, start: 0, unit: 0, windowed: false, dataChanged: ue, leading: 0 });
         if (!me) return this.fallback = null, Be();
         let De = this.findScroller();
         if (De === null) return this.fallback = "no scrolling ancestor (scrolls = y) to window against", Be();
         let ot = this.parent.layout, le = 0;
         if (ot !== null) if (ot.axis === "y") le = typeof ot.spacing == "number" ? ot.spacing : 0, this.rowGap = le;
-        else return this.fallback = "the block's parent runs a layout windowing cannot predict (a vertical SimpleLayout composes; others fall back) \u2014 set materialize = all or drop the layout", Be();
+        else return this.fallback = "the block's parent runs a layout windowing cannot predict (a vertical SimpleLayout composes; others fall back) \u2014 set virtualize = never or drop the layout", Be();
         this.fallback = null;
         let jt = De.scrollY, Ve = De.height, Oe = this.offsetTo(De);
         this.measureCell.track();
@@ -97971,10 +97971,10 @@ Additional information: BADCLIENT: Bad error code, ${C} not found in range ${c}.
       let ue = SF(W, A.schemas);
       if (ue !== null && ue.value.kind === "path") {
         if (W.name !== null) throw new Ht(`a replicated child cannot be named \u2014 ':${ue.value.path}[]' makes one instance per record, and '${W.name}' can only name one; reach the instances through their data`, W.pos);
-        let Be = W.attrs.find((Ve) => Ve.name === "key" && Ve.value.kind === "path"), De = Be !== void 0 ? Be.value.path : null, ot = W.attrs.find((Ve) => Ve.name === "materialize"), le = "all";
+        let Be = W.attrs.find((Ve) => Ve.name === "key" && Ve.value.kind === "path"), De = Be !== void 0 ? Be.value.path : null, ot = W.attrs.find((Ve) => Ve.name === "virtualize"), le = "never";
         if (ot !== void 0) {
           let Ve = ot.value;
-          le = Ve.kind === "number" ? Ve.value : Ve.name === "auto" ? "auto" : Ve.name === "window" ? "window" : "all";
+          le = Ve.kind === "number" ? Ve.value : Ve.name === "auto" ? "auto" : Ve.name === "always" ? "always" : "never";
         }
         let jt = new cU(d, W, ue.value.path, T, dte(A), J.prev, De, ue.value.plan ?? null, le);
         A.pending.push({ replicator: jt }), J.prev = jt;

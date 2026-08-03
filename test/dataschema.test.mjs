@@ -124,7 +124,7 @@ await test("windowed retention keys by INFERRED identity across wholesale replac
     d: Dataset { { "rows": [] } },
     sc: View [ scrolls = y, width=300, height=300,
       content: View [ width=300, datapath = { d.value },
-        View [ datapath = :rows[], materialize = window, width=300, height=30,
+        View [ datapath = :rows[], virtualize = always, width=300, height=30,
           flag: boolean = false,
           t: Text [ text = :label ],
         ],

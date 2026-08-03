@@ -20,7 +20,7 @@ written) collection, carrying the RULED selection model
 - Rows are TableRow instances — the RadioGroup discipline: direct children
   reaching their table as `parent`, replicated over data or written by hand.
   The row template stays free of any selection wiring.
-- Windowing composes: put `materialize` on the row template and selection,
+- Windowing composes: put `virtualize` on the row template and selection,
   ranges, and keyboard travel keep working — members are read from the DATA
   through any row's cursor, never from instances, so an unmaterialized row
   can be range-selected and arrow travel scrolls it into existence (uniform

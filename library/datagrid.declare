@@ -11,7 +11,7 @@ windowed collection — the header drags are the forcing case the axis-scoped
         Column [ title = "ID",    field = "id",    width = 70 ],
         Column [ title = "Title", field = "title", width = 280 ],
         Column [ title = "State", field = "state", width = 110 ],
-        GridRow [ datapath = :rows[], materialize = auto ] ]
+        GridRow [ datapath = :rows[], virtualize = auto ] ]
 
 - **Columns are written members** (`Column` — selection-model §1b: permanent,
   authored, identity = the child): `title` heads the column, `field` names
@@ -33,7 +33,7 @@ windowed collection — the header drags are the forcing case the axis-scoped
   on touch the page keeps vertical pan while the drag owns x.
 - **Rows**: the use site writes ONE bare `GridRow` template over its rows
   path — cells generate from the column model, each showing `record[field]`.
-  Selection, keyboard, windowing: Table's, unchanged — `materialize` on the
+  Selection, keyboard, windowing: Table's, unchanged — `virtualize` on the
   template windows the grid, and the header (a preceding sibling) offsets
   the window's geometry (the kernel's leading anchor).
 - Focus: land-as-one-stop, browse mode (arrows navigate rows). Entry-mode
