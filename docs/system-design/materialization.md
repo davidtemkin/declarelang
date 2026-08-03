@@ -66,9 +66,9 @@
 > pressure (browser find/selection/AT over uninstantiated rows on the DOM
 > backend) that §2's contract should answer explicitly.
 
-> **OPEN — the extent-saturation ceiling. Found 2026-08-01 by the React
-> control-arm experiment; RE-VERIFIED 2026-08-02 against Chrome 150 and
-> still live.** Browsers saturate element layout at ~2²⁵ px (Chrome:
+> **THE EXTENT-SATURATION CEILING — found 2026-08-01 by the React
+> control-arm experiment, re-verified against Chrome 150, FIXED 2026-08-02.**
+> Browsers saturate element layout at ~2²⁵ px (Chrome:
 > 33,554,428), so a windowed list whose logical extent exceeds it can only
 > scroll to a fraction of its content — the strut clamps silently, with no
 > error and no symptom short of noticing the scrollbar bottoms out early.
@@ -81,14 +81,41 @@
 > | 100,000 | 4,400,000 px | 4,400,000 | 100% |
 > | 1,000,000 | 44,000,000 px | **33,554,428** | **76.3%** |
 >
-> `DomBackend.setVirtualExtent` still writes the logical height straight to
-> the strut (`runtime/src/dom-backend.ts`), so nothing intervenes. **Needed:**
-> extent COMPRESSION — cap the physical strut below the saturation point and
-> map physical scrollTop ↔ logical offset in the reconciler, with placement
-> re-based so row coordinates also stay under the cap. The React control arm
-> hit the same ceiling and engineered around it, which is how we learned ours
-> was there. 100K and below are unaffected; the threshold is ~762K rows at
-> 44 px and scales inversely with row height.
+> Two halves, both real: the scroll RANGE clamps, and so do the row
+> COORDINATES — an absolutely-positioned `top` past the ceiling stops moving,
+> so even with range to spare the rows beyond it would pile at one y.
+> The React control arm hit the same ceiling and engineered around it, which
+> is how we learned ours was there.
+>
+> **LANDED 2026-08-02 — extent compression.** A windowed block now keeps two
+> coordinate spaces once its content outgrows the cap: LOGICAL (the ledger's
+> real row extents — what the app and the AT reason in) and PHYSICAL (what the
+> browser is told). `physicalExtent()` caps the published height at **2²⁴**
+> (16,777,216 — under every engine's ceiling, Firefox's ~17.9M included), both
+> where the extent publishes to the strut and where the block owns the parent's
+> `height`. `extentScale()` gives the logical-per-physical ratio, and the match
+> converts the scroller's offset through it; placement re-bases against the
+> physical viewport (`base = leading + pRel − rel`), so a row's own coordinate
+> never leaves the range the browser will honour. Rows keep their REAL size —
+> only the scroll range is scaled, never a row. `navigateTo` and the
+> prepend-anchor compensation divide through the same scale.
+>
+> **The identity property is what makes it safe in the hot path:** below the cap
+> `extentScale()` returns exactly 1, `pRel === rel`, `base` collapses to
+> `leading`, and every expression reduces to its pre-compression form. A 100K
+> list is bit-for-bit unaffected.
+>
+> Verified: at 1M rows the published extent is 16,777,216, the last realized row
+> at the physical end is 999,999 of 999,999 (**100%**, from 76.3%), and the
+> maximum row y is 16,777,172 — under the ceiling. The semantic differ still
+> holds.
+>
+> **The cost, written down:** the mapping is proportional, so one physical pixel
+> becomes `scale` logical pixels. That stays sub-row until the scale exceeds a
+> row's height — about 16M rows at 44 px, far past what this is for. If a
+> collection ever needs finer control than that, the answer is the
+> anchor-plus-offset scheme (keep deltas 1:1, map only absolute positions), not
+> a bigger cap.
 
 > **LANDED 2026-08-01 — THE ANIMATOR/RECYCLING INTERACTION. Symptom: a
 > dragged scrollbar ran at ~8fps (112 ms/frame at 10K, 127 ms at 100K)
