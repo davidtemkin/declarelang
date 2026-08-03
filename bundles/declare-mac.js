@@ -2309,7 +2309,7 @@ var DeclareMac = (() => {
     }
     return out;
   }
-  var FONT_WEIGHT, NodeSchema, ViewSchema, AppSchema, TextSchema, ImageSchema, DOMIslandSchema, EditorSchema, TextInputSchema, RichTextSchema, MarkdownSchema, HTMLTextSchema, LayoutSchema, TweenLayoutSchema, DatasetSchema, DataSourceSchema, AnimatorSchema, AnimatorGroupSchema, SpringSchema, HeartbeatSchema, KeysSchema, FocusSchema, TipSchema, StreamSchema, EventStreamSchema, SocketSchema, StateSchema, SCHEMAS, handlerName, EVENT_PAYLOAD, PAYLOAD_TYPE_NAMES;
+  var FONT_WEIGHT, NodeSchema, ViewSchema, AppSchema, TextSchema, ImageSchema, VideoSchema, DOMIslandSchema, EditorSchema, TextInputSchema, RichTextSchema, MarkdownSchema, HTMLTextSchema, LayoutSchema, TweenLayoutSchema, DatasetSchema, DataSourceSchema, AnimatorSchema, AnimatorGroupSchema, SpringSchema, HeartbeatSchema, KeysSchema, FocusSchema, TipSchema, StreamSchema, EventStreamSchema, SocketSchema, StateSchema, SCHEMAS, handlerName, EVENT_PAYLOAD, PAYLOAD_TYPE_NAMES;
   var init_schema = __esm({
     "runtime/dist/schema.js"() {
       "use strict";
@@ -2663,6 +2663,28 @@ var DeclareMac = (() => {
         },
         readOnly: ["loaded", "failed"]
       };
+      VideoSchema = {
+        name: "Video",
+        base: ViewSchema,
+        attrs: {
+          source: { kind: "string" },
+          stretches: enumType("Stretch", "none", "width", "height", "both"),
+          playing: { kind: "boolean" },
+          loop: { kind: "boolean" },
+          muted: { kind: "boolean" },
+          position: { kind: "number" },
+          volume: { kind: "number" },
+          playbackRate: { kind: "number" },
+          // READ-ONLY: the clip's own facts, for constraints to derive from
+          ended: { kind: "boolean" },
+          duration: { kind: "number" },
+          buffering: { kind: "boolean" },
+          loaded: { kind: "boolean" },
+          failed: { kind: "boolean" }
+        },
+        readOnly: ["ended", "duration", "buffering", "loaded", "failed"],
+        events: ["ended"]
+      };
       DOMIslandSchema = {
         name: "DOMIsland",
         base: ViewSchema,
@@ -2930,6 +2952,7 @@ var DeclareMac = (() => {
         App: AppSchema,
         Text: TextSchema,
         Image: ImageSchema,
+        Video: VideoSchema,
         DOMIsland: DOMIslandSchema,
         TextInput: TextInputSchema,
         Markdown: MarkdownSchema,
@@ -10342,12 +10365,24 @@ var DeclareMac = (() => {
   });
 
   // runtime/dist/image.js
-  var Image;
+  function resolveAsset(source) {
+    if (assetBase === null || source === "")
+      return source;
+    if (/^[a-z][a-z0-9+.-]*:/i.test(source) || source.startsWith("//") || source.startsWith("/"))
+      return source;
+    try {
+      return new URL(source, assetBase).href;
+    } catch {
+      return source;
+    }
+  }
+  var assetBase, Image;
   var init_image = __esm({
     "runtime/dist/image.js"() {
       "use strict";
       init_view();
       init_attributes();
+      assetBase = null;
       Image = class extends View {
         /** Discards a superseded load: only the latest request may land. */
         loadSeq = 0;
@@ -10400,12 +10435,178 @@ var DeclareMac = (() => {
               return;
             setBound(this, "failed", true);
           };
-          img.src = this.source;
+          img.src = resolveAsset(this.source);
         }
       };
       defineAttributes(Image, {
         source: { def: "", push: (i) => i.load() },
         stretches: { def: "none", push: (i, v) => i.surface?.setImageStretch(v) },
+        loaded: { def: false },
+        failed: { def: false }
+      });
+    }
+  });
+
+  // runtime/dist/video.js
+  var Video;
+  var init_video = __esm({
+    "runtime/dist/video.js"() {
+      "use strict";
+      init_view();
+      init_attributes();
+      init_image();
+      Video = class extends View {
+        /** Discards a superseded load: only the latest request may land. */
+        loadSeq = 0;
+        el = null;
+        /** The frame's natural size — what contentExtent folds into an auto-extent. */
+        natural = { width: 0, height: 0 };
+        contentExtent(size) {
+          return this.loaded ? this.natural[size] : 0;
+        }
+        attach(backend2, parentSurface) {
+          super.attach(backend2, parentSurface);
+          this.load();
+        }
+        flush(s) {
+          super.flush(s);
+          s.setImageStretch(this.stretches);
+        }
+        /** (Re)load `source` — at attach, and from the `source` pusher. */
+        load() {
+          const seq = ++this.loadSeq;
+          const s = this.surface;
+          if (s === null)
+            return;
+          setBound(this, "failed", false);
+          setBound(this, "ended", false);
+          if (this.source === "") {
+            this.el = null;
+            s.setImage(null);
+            return;
+          }
+          if (typeof document === "undefined")
+            return;
+          const el = document.createElement("video");
+          this.el = el;
+          el.muted = this.muted;
+          el.loop = this.loop;
+          el.volume = this.volume;
+          el.playbackRate = this.playbackRate;
+          el.playsInline = true;
+          el.preload = "metadata";
+          el.onloadedmetadata = () => {
+            if (seq !== this.loadSeq || this.surface === null)
+              return;
+            this.natural = { width: el.videoWidth, height: el.videoHeight };
+            if (!isSet(this, "width") && ownerOf(this, "width") === null) {
+              setBound(this, "width", el.videoWidth);
+            }
+            if (!isSet(this, "height") && ownerOf(this, "height") === null) {
+              setBound(this, "height", el.videoHeight);
+            }
+            setBound(this, "duration", isFinite(el.duration) ? el.duration : 0);
+            setBound(this, "loaded", true);
+            this.surface.setImage(el);
+            if (this.playing)
+              this.syncPlaying();
+          };
+          el.onerror = () => {
+            if (seq !== this.loadSeq || this.surface === null)
+              return;
+            setBound(this, "failed", true);
+          };
+          el.onplay = () => {
+            if (seq !== this.loadSeq)
+              return;
+            setBound(this, "playing", true);
+            setBound(this, "ended", false);
+          };
+          el.onpause = () => {
+            if (seq === this.loadSeq)
+              setBound(this, "playing", false);
+          };
+          el.onended = () => {
+            if (seq !== this.loadSeq)
+              return;
+            setBound(this, "playing", false);
+            setBound(this, "ended", true);
+            fireEvent(this, "ended");
+          };
+          el.onwaiting = () => {
+            if (seq === this.loadSeq)
+              setBound(this, "buffering", true);
+          };
+          el.onplaying = () => {
+            if (seq === this.loadSeq)
+              setBound(this, "buffering", false);
+          };
+          el.ontimeupdate = () => {
+            if (seq !== this.loadSeq)
+              return;
+            setBound(this, "position", el.currentTime);
+          };
+          el.src = resolveAsset(this.source);
+        }
+        /** Author (or constraint) asked to play or pause. `play()` can be REFUSED —
+         *  autoplay policy, a source that never loaded — and it answers with a
+         *  rejected promise. When it is refused the slot goes back to false, because
+         *  a `playing` that reads true over a still picture is a lie. */
+        syncPlaying() {
+          const el = this.el;
+          if (el === null)
+            return;
+          if (this.playing) {
+            const p = el.play();
+            if (p !== void 0 && typeof p.catch === "function") {
+              p.catch(() => {
+                if (this.el === el)
+                  setBound(this, "playing", false);
+              });
+            }
+          } else if (!el.paused) {
+            el.pause();
+          }
+        }
+        /** Author asked to seek. Guarded by a quarter-second so the runtime's own
+         *  `timeupdate` writes — which land in this same slot — cannot bounce back
+         *  out as seeks and stutter the playhead. */
+        seek() {
+          const el = this.el;
+          if (el === null)
+            return;
+          if (Math.abs(el.currentTime - this.position) > 0.25)
+            el.currentTime = this.position;
+        }
+      };
+      defineAttributes(Video, {
+        source: { def: "", push: (v) => v.load() },
+        stretches: { def: "none", push: (v, s) => v.surface?.setImageStretch(s) },
+        playing: { def: false, push: (v) => v.syncPlaying() },
+        loop: { def: false, push: (v, on) => {
+          const e = v.el;
+          if (e !== null)
+            e.loop = on;
+        } },
+        muted: { def: true, push: (v, on) => {
+          const e = v.el;
+          if (e !== null)
+            e.muted = on;
+        } },
+        position: { def: 0, push: (v) => v.seek() },
+        volume: { def: 1, push: (v, n) => {
+          const e = v.el;
+          if (e !== null)
+            e.volume = n;
+        } },
+        playbackRate: { def: 1, push: (v, n) => {
+          const e = v.el;
+          if (e !== null)
+            e.playbackRate = n;
+        } },
+        ended: { def: false },
+        duration: { def: 0 },
+        buffering: { def: false },
         loaded: { def: false },
         failed: { def: false }
       });
@@ -12709,6 +12910,7 @@ var DeclareMac = (() => {
       init_node();
       init_text();
       init_image();
+      init_video();
       init_text_input();
       init_markdown();
       init_layout();
@@ -12724,6 +12926,7 @@ var DeclareMac = (() => {
         View,
         Text,
         Image,
+        Video,
         DOMIsland,
         TextInput,
         Markdown,
@@ -12950,7 +13153,7 @@ var DeclareMac = (() => {
     const B = base2;
     const cls = class extends B {
     };
-    Object.defineProperty(cls, "name", { value: name });
+    Object.defineProperty(cls, "name", { value: name, configurable: false });
     if (body.decls.length > 0) {
       const probe = new B();
       const specs = {};
@@ -15045,6 +15248,8 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
   init_text_input();
   init_layout();
   init_data();
+  init_image();
+  init_video();
   init_stream_seam();
   init_tip();
   init_animator();

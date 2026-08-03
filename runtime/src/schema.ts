@@ -414,6 +414,33 @@ const ImageSchema: ComponentSchema = {
   },
   readOnly: ["loaded", "failed"],
 };
+// Video (2026-08): Image's twin — the same `source`/`stretches`/`loaded`/
+// `failed` vocabulary, plus the transport as ATTRIBUTES rather than controls.
+// `playing` and `position` are the two-way pair (author writes, runtime writes
+// back, on the `scrollY` pattern); `duration`/`buffering` are facts to derive
+// from. No player chrome ships here: a scrubber is an application.
+const VideoSchema: ComponentSchema = {
+  name: "Video",
+  base: ViewSchema,
+  attrs: {
+    source: { kind: "string" },
+    stretches: enumType("Stretch", "none", "width", "height", "both"),
+    playing: { kind: "boolean" },
+    loop: { kind: "boolean" },
+    muted: { kind: "boolean" },
+    position: { kind: "number" },
+    volume: { kind: "number" },
+    playbackRate: { kind: "number" },
+    // READ-ONLY: the clip's own facts, for constraints to derive from
+    ended: { kind: "boolean" },
+    duration: { kind: "number" },
+    buffering: { kind: "boolean" },
+    loaded: { kind: "boolean" },
+    failed: { kind: "boolean" },
+  },
+  readOnly: ["ended", "duration", "buffering", "loaded", "failed"],
+  events: ["ended"],
+};
 
 // DOMIsland (foreign-content island): a leaf View whose BOX is owned by Declare — it
 // lays out and obeys constraints like any view — but whose INTERIOR is
@@ -811,6 +838,7 @@ export const SCHEMAS: Readonly<Record<string, ComponentSchema>> = {
   App: AppSchema,
   Text: TextSchema,
   Image: ImageSchema,
+  Video: VideoSchema,
   DOMIsland: DOMIslandSchema,
   TextInput: TextInputSchema,
   Markdown: MarkdownSchema,

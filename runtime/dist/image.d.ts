@@ -1,5 +1,10 @@
 import { View } from "./view.js";
 import type { RenderBackend, Stretch, Surface } from "./backend.js";
+/** Set the base that relative bitmap sources resolve against; returns the
+ *  previous one, so a scoped caller can restore it — the provideTransport
+ *  contract. */
+export declare function provideAssetBase(base: string | null): string | null;
+export declare function resolveAsset(source: string): string;
 export declare class Image extends View {
     source: string;
     stretches: Stretch;

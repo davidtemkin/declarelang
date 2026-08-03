@@ -53,9 +53,29 @@ const html = await crawlDocument(compiled.source, {
 // 2026-07-29). Crawlers read text nodes regardless of style; the <noscript>
 // unhide keeps the block as the JS-off human fallback; host-client still
 // REMOVES the node at boot.
+// REBASE the extraction's relative asset URLs. The program says
+// `source = "shots/calendar.webp"`, meaning "beside the program" — and at run
+// time it is, because the boot hands the runtime the program's directory
+// (browser/boot-uniform.js, provideAssetBase). The baked document has no such
+// seam: it lands in index.html at the DEPLOY ROOT, where the same relative
+// path resolves a directory too high and 404s. So the crawler's copy is
+// rewritten to the entry page's own base — which is what "what a visitor sees
+// and what a crawler sees can never drift" costs here. Absolute, protocol-
+// relative, root-relative, data: and #fragment URLs are already unambiguous
+// and pass through untouched.
+const REL_BASE = path.relative(ROOT, path.dirname(HOMEPAGE)).split(path.sep).join("/") + "/";
+// `src`/`poster` ONLY — never `href`. The two are relative to DIFFERENT bases:
+// a media source is resolved against the program's directory (the runtime's
+// asset base), while a navigation target like "apps/calendar/calendar.declare"
+// is authored against the DEPLOY ROOT, which is exactly where this document
+// lands. Rewriting hrefs too turns every in-app link into
+// apps/homepage/apps/calendar/… — checked, and it did.
+const rebase = (h) => h.replace(/\b(src|poster)="([^"]*)"/g, (m, attr, url) =>
+  /^([a-z][a-z0-9+.-]*:|\/\/|\/|#|data:)/i.test(url) ? m : `${attr}="${REL_BASE}${url}"`);
+
 const NOSCRIPT = "<noscript><style>#declare-static{display:block !important}</style></noscript>";
 const block = html
-  ? `${BEGIN}${NOSCRIPT}<div id="declare-static" style="display:none">\n${html}\n</div>${END}`
+  ? `${BEGIN}${NOSCRIPT}<div id="declare-static" style="display:none">\n${rebase(html)}\n</div>${END}`
   : `${BEGIN}${END}`;
 
 const idx = readFileSync(INDEX, "utf8");

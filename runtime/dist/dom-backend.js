@@ -1570,8 +1570,11 @@ class DomSurface {
     applyStretch() {
         const img = this.imgEl;
         const s = img.style;
-        s.width = this.stretch === "width" || this.stretch === "both" ? "100%" : `${img.naturalWidth}px`;
-        s.height = this.stretch === "height" || this.stretch === "both" ? "100%" : `${img.naturalHeight}px`;
+        // an <img> reports naturalWidth, a <video> videoWidth — same fact, two
+        // spellings, and the un-stretched axis is pinned to it either way
+        const nat = naturalSize(img);
+        s.width = this.stretch === "width" || this.stretch === "both" ? "100%" : `${nat.width}px`;
+        s.height = this.stretch === "height" || this.stretch === "both" ? "100%" : `${nat.height}px`;
     }
     setDrawing(list) {
         this.drawing = list;
@@ -1653,5 +1656,16 @@ class DomSurface {
         CARVED.delete(this.element);
         this.element.remove();
     }
+}
+/** The intrinsic size of whatever crossed the bitmap seam. An <img> spells it
+ *  naturalWidth/Height; a <video> spells it videoWidth/Height. Before a
+ *  video's metadata lands both are 0, which is honest — the box keeps its
+ *  declared size until the real one is known. */
+function naturalSize(el) {
+    const v = el;
+    if (typeof v.videoWidth === "number")
+        return { width: v.videoWidth, height: v.videoHeight };
+    const i = el;
+    return { width: i.naturalWidth, height: i.naturalHeight };
 }
 //# sourceMappingURL=dom-backend.js.map

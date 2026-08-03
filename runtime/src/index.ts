@@ -108,6 +108,8 @@ export { Image } from "./image.js";
 export { TextInput } from "./text-input.js";
 export { Layout } from "./layout.js";
 export { Dataset, DataSource, toCursor, provideTransport } from "./data.js";
+export { provideAssetBase } from "./image.js";
+export { Video } from "./video.js";
 // The stream SEAM only — the Stream/EventStream/Socket classes are reachable
 // through registry.js alone, so slimming can drop them (stream-seam.ts).
 export { provideStreams } from "./stream-seam.js";

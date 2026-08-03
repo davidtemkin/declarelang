@@ -29,7 +29,7 @@ const DOC_SCHEMAS = { ...SCHEMAS, RichText: RichTextSchema };
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const TARGETS = [                                        // the documented component surface
-  "View", "App", "Text", "Image", "RichText", "Markdown", "HTMLText", "DOMIsland", "TextInput",
+  "View", "App", "Text", "Image", "Video", "RichText", "Markdown", "HTMLText", "DOMIsland", "TextInput",
   "Layout", "TweenLayout", "Editor",
   "Dataset", "DataSource",
   "Animator", "AnimatorGroup", "Spring", "Heartbeat", "Keys", "Focus", "Tip",
@@ -280,11 +280,11 @@ const nodes = {};
 const roots = [];
 const subclassIndex = {};                               // base name → [subclass names]
 
-const DECOR = readDecorations(["runtime/src/view.ts", "runtime/src/text.ts", "runtime/src/image.ts"]);
+const DECOR = readDecorations(["runtime/src/view.ts", "runtime/src/text.ts", "runtime/src/image.ts", "runtime/src/video.ts"]);
 
 // method signatures — read from every runtime file that declares a documented class.
 const METHODS = readMethods([
-  "runtime/src/view.ts", "runtime/src/text.ts", "runtime/src/image.ts",
+  "runtime/src/view.ts", "runtime/src/text.ts", "runtime/src/image.ts", "runtime/src/video.ts",
   "runtime/src/markdown.ts", "runtime/src/text-input.ts", "runtime/src/layout.ts",
   "runtime/src/data.ts", "runtime/src/animator.ts", "runtime/src/spring.ts",
   "runtime/src/state.ts", "runtime/src/node.ts", "runtime/src/editor.ts",

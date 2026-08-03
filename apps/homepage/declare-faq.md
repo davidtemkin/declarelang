@@ -74,10 +74,11 @@ One program renders through managed DOM elements or directly to a single canvas 
 
 ### What should I expect in terms of performance — download size and interactive responsiveness?
 
-Concretely, from the flagship comparison (a full-featured calendar built twice, once in Declare and once in React, measured side by side):
+Concretely, measured from the deployed production artifacts:
 
-- **Size**: the entire Declare calendar — application *and* runtime — ships at about <!--stat:calendar.wireKB-->61<!--/stat--> KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte). The React equivalent is roughly twice the wire weight, with more than twice the source code.
-- **Responsiveness**: measured input latency was several times lower in the Declare version. When you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.
+- **Wire size**: the entire Declare calendar — application *and* runtime — ships at about <!--stat:calendar.wireKB-->61<!--/stat--> KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).
+- **Source size**: the tracker — a million issues, search as you type, editing in place with undo — is <!--stat:tracker.total-->1,652<!--/stat--> lines: <!--stat:tracker.code-->1,275<!--/stat--> of code and <!--stat:tracker.comment-->187<!--/stat--> of comments, and no dependencies. It ships at <!--stat:tracker.wireKB-->87<!--/stat--> KB gzipped before its data, which a `DataSource` fetches at run time.
+- **Responsiveness**: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.
 - **Startup**: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.
 
 Live numbers are on the homepage, measured from the deployed artifacts themselves.
@@ -157,7 +158,9 @@ The shape of the language: `[ ]` declares structure, `{ }` holds TypeScript, att
 
 ### How do I get data into an app?
 
-Declaratively, like everything else. A `Dataset` holds inline or computed data; a `DataSource` fetches JSON. UI binds to data with a cursor — set `datapath` on a view and its descendants read relative to it; bind it to an array and the view replicates per element. Two-way binding connects a text field to the data it edits. When data changes, everything bound to it updates — the same reactivity as the rest of the language. For large collections, bind a *computed* dataset — a derived window over the source — rather than replicating everything; replication builds what you bind.
+Declaratively, like everything else. A `Dataset` holds inline or computed data; a `DataSource` fetches JSON. UI binds to data with a cursor — set `datapath` on a view and its descendants read relative to it; bind it to an array and the view replicates per element. Two-way binding connects a text field to the data it edits. When data changes, everything bound to it updates — the same reactivity as the rest of the language.
+
+Large collections virtualize on one word. `virtualize = true` on a replicated node builds only the rows near the viewport and leaves the rest logical — same records, same paths, same behaviour, reconstructed indistinguishably as you scroll. There is nothing else to write: no row heights, no scroll wiring, no windowing library. It is a boolean and it is **off by default**, so that full replication keeps browser find-in-page working over every record — and like any other boolean it takes a `{ }` constraint, engaging and disengaging as the answer changes. The tracker on this site is a million issues on that one word.
 
 ### How mature is Declare? Should I build on it today?
 

@@ -30,10 +30,22 @@ const stats = JSON.parse(readFileSync(path.join(ROOT, "apps/homepage/stats.json"
 const FORMATS = {
   "calendar.wireKB":   () => String(Math.round(stats.calendar.wireGzip / 1024)),
   "calendar.code":     () => String(stats.calendar.code),
+  "calendar.comment":  () => String(stats.calendar.comment),
+  "calendar.total":    () => group(stats.calendar.total),
   "calendar.lines":    () => String(Math.round(stats.calendar.total / 10) * 10),
   "homepage.wireKB":   () => String(Math.round(stats.homepage.wireGzip / 1024)),
   "homepage.code":     () => String(stats.homepage.code),
+  // The tracker is what prose cites for SOURCE size, the way the calendar is
+  // cited for wire size — a thousand-line program over a million records. Its
+  // wire figure excludes issues.json, which a DataSource fetches at run time.
+  "tracker.total":     () => group(stats.tracker.total),
+  "tracker.code":      () => group(stats.tracker.code),
+  "tracker.comment":   () => String(stats.tracker.comment),
+  "tracker.wireKB":    () => String(Math.round(stats.tracker.wireGzip / 1024)),
 };
+
+/** Thousands separators — prose reads "1,623 lines", never "1623". */
+function group(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
 
 const FILES = ["README.md", "docs/declare.md", "apps/homepage/declare-faq.md", "docs/tenets/1 SATOR.md"];
 const RE = /(<!--stat:([a-zA-Z.]+)-->)([^<]*)(<!--\/stat-->)/g;

@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "dbb75c417171",
+  "buildId": "13af6d36a2b8",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -201,6 +201,35 @@
      "failed"
     ],
     "events": []
+   },
+   "Video": {
+    "base": "View",
+    "attrs": {
+     "source": "string",
+     "stretches": "enum(none|width|height|both)",
+     "playing": "boolean",
+     "loop": "boolean",
+     "muted": "boolean",
+     "position": "number",
+     "volume": "number",
+     "playbackRate": "number",
+     "ended": "boolean",
+     "duration": "number",
+     "buffering": "boolean",
+     "loaded": "boolean",
+     "failed": "boolean"
+    },
+    "prevailing": [],
+    "readOnly": [
+     "ended",
+     "duration",
+     "buffering",
+     "loaded",
+     "failed"
+    ],
+    "events": [
+     "ended"
+    ]
    },
    "DOMIsland": {
     "base": "View",
@@ -3903,6 +3932,101 @@
     "title": "TweenLayout.t",
     "kind": "reference"
    },
+   "Video": {
+    "path": "docs/declare-model.json",
+    "title": "Video",
+    "kind": "reference"
+   },
+   "Video.buffering": {
+    "path": "docs/declare-model.json",
+    "title": "Video.buffering",
+    "kind": "reference"
+   },
+   "Video.duration": {
+    "path": "docs/declare-model.json",
+    "title": "Video.duration",
+    "kind": "reference"
+   },
+   "Video.ended": {
+    "path": "docs/declare-model.json",
+    "title": "Video.ended",
+    "kind": "reference"
+   },
+   "Video.event.ended": {
+    "path": "docs/declare-model.json",
+    "title": "Video.event.ended",
+    "kind": "reference"
+   },
+   "Video.failed": {
+    "path": "docs/declare-model.json",
+    "title": "Video.failed",
+    "kind": "reference"
+   },
+   "Video.loaded": {
+    "path": "docs/declare-model.json",
+    "title": "Video.loaded",
+    "kind": "reference"
+   },
+   "Video.loop": {
+    "path": "docs/declare-model.json",
+    "title": "Video.loop",
+    "kind": "reference"
+   },
+   "Video.method.attach": {
+    "path": "docs/declare-model.json",
+    "title": "Video.method.attach",
+    "kind": "reference"
+   },
+   "Video.method.load": {
+    "path": "docs/declare-model.json",
+    "title": "Video.method.load",
+    "kind": "reference"
+   },
+   "Video.method.seek": {
+    "path": "docs/declare-model.json",
+    "title": "Video.method.seek",
+    "kind": "reference"
+   },
+   "Video.method.syncPlaying": {
+    "path": "docs/declare-model.json",
+    "title": "Video.method.syncPlaying",
+    "kind": "reference"
+   },
+   "Video.muted": {
+    "path": "docs/declare-model.json",
+    "title": "Video.muted",
+    "kind": "reference"
+   },
+   "Video.playbackRate": {
+    "path": "docs/declare-model.json",
+    "title": "Video.playbackRate",
+    "kind": "reference"
+   },
+   "Video.playing": {
+    "path": "docs/declare-model.json",
+    "title": "Video.playing",
+    "kind": "reference"
+   },
+   "Video.position": {
+    "path": "docs/declare-model.json",
+    "title": "Video.position",
+    "kind": "reference"
+   },
+   "Video.source": {
+    "path": "docs/declare-model.json",
+    "title": "Video.source",
+    "kind": "reference"
+   },
+   "Video.stretches": {
+    "path": "docs/declare-model.json",
+    "title": "Video.stretches",
+    "kind": "reference"
+   },
+   "Video.volume": {
+    "path": "docs/declare-model.json",
+    "title": "Video.volume",
+    "kind": "reference"
+   },
    "View": {
     "path": "docs/declare-model.json",
     "title": "View",
@@ -6843,6 +6967,7 @@
     "App",
     "Text",
     "Image",
+    "Video",
     "RichText",
     "DOMIsland",
     "Editor",
@@ -7817,7 +7942,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/image.ts",
-    "line": 108
+    "line": 140
    },
    "parent": "Image",
    "seeAlso": [],
@@ -7841,7 +7966,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/image.ts",
-    "line": 109
+    "line": 141
    },
    "parent": "Image",
    "seeAlso": [],
@@ -7865,7 +7990,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/image.ts",
-    "line": 110
+    "line": 142
    },
    "parent": "Image",
    "seeAlso": [],
@@ -7889,7 +8014,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/image.ts",
-    "line": 111
+    "line": 143
    },
    "parent": "Image",
    "seeAlso": [],
@@ -7908,7 +8033,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/image.ts",
-    "line": 51
+    "line": 83
    },
    "parent": "Image",
    "seeAlso": [],
@@ -7924,7 +8049,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/image.ts",
-    "line": 64
+    "line": 96
    },
    "parent": "Image",
    "seeAlso": [],
@@ -7967,6 +8092,466 @@
    "example": [],
    "chain": [
     "Image",
+    "View",
+    "Node"
+   ]
+  },
+  "Video.source": {
+   "id": "Video.source",
+   "name": "source",
+   "kind": "attribute",
+   "doc": "The clip URL (`string`). Literal or a `{ }` constraint — bind it to data and the picture\nfollows. Re-pointing it starts a fresh load; a superseded in-flight load is discarded.",
+   "docSegs": [
+    {
+     "md": "The clip URL (`string`). Literal or a `{ }` constraint — bind it to data and the picture\nfollows. Re-pointing it starts a fresh load; a superseded in-flight load is discarded.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/video.ts",
+    "line": 207
+   },
+   "parent": "Video",
+   "seeAlso": [],
+   "type": "string",
+   "default": "\"\"",
+   "prevailing": false,
+   "readOnly": false,
+   "inheritedFrom": null
+  },
+  "Video.stretches": {
+   "id": "Video.stretches",
+   "name": "stretches",
+   "kind": "attribute",
+   "doc": "How the frame fills a box whose size differs from the clip's natural size: `none`\n(default — natural size, no scaling), `width`, `height`, or `both`.",
+   "docSegs": [
+    {
+     "md": "How the frame fills a box whose size differs from the clip's natural size: `none`\n(default — natural size, no scaling), `width`, `height`, or `both`.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/video.ts",
+    "line": 208
+   },
+   "parent": "Video",
+   "seeAlso": [],
+   "type": "none | width | height | both",
+   "default": "\"none\"",
+   "prevailing": false,
+   "readOnly": false,
+   "inheritedFrom": null
+  },
+  "Video.playing": {
+   "id": "Video.playing",
+   "name": "playing",
+   "kind": "attribute",
+   "doc": "Whether the clip is running. **Two-way**: a constraint decides when it plays, and the\nelement writes back when something outside the program changes it — the browser pausing a\nbackgrounded tab, or the user hitting a media key. Bind it to a fact about the world\n(`playing = { visible && !app.reducedMotion }`) rather than assigning it from a handler,\nand the clip does the right thing without anything scheduling it.",
+   "docSegs": [
+    {
+     "md": "Whether the clip is running. **Two-way**: a constraint decides when it plays, and the\nelement writes back when something outside the program changes it — the browser pausing a\nbackgrounded tab, or the user hitting a media key. Bind it to a fact about the world\n(`playing = { visible && !app.reducedMotion }`) rather than assigning it from a handler,\nand the clip does the right thing without anything scheduling it.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/video.ts",
+    "line": 209
+   },
+   "parent": "Video",
+   "seeAlso": [],
+   "type": "boolean",
+   "default": "false",
+   "prevailing": false,
+   "readOnly": false,
+   "inheritedFrom": null
+  },
+  "Video.loop": {
+   "id": "Video.loop",
+   "name": "loop",
+   "kind": "attribute",
+   "doc": "Restart at the end rather than stopping. Default `false`.",
+   "docSegs": [
+    {
+     "md": "Restart at the end rather than stopping. Default `false`.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/video.ts",
+    "line": 210
+   },
+   "parent": "Video",
+   "seeAlso": [],
+   "type": "boolean",
+   "default": "false",
+   "prevailing": false,
+   "readOnly": false,
+   "inheritedFrom": null
+  },
+  "Video.muted": {
+   "id": "Video.muted",
+   "name": "muted",
+   "kind": "attribute",
+   "doc": "Default **`true`**, and deliberately: an unmuted clip that tries to autoplay is blocked by\nevery browser, so a clip that declares `playing` and forgets `muted` would simply never\nstart. Set it `false` only where a person has asked for sound.",
+   "docSegs": [
+    {
+     "md": "Default **`true`**, and deliberately: an unmuted clip that tries to autoplay is blocked by\nevery browser, so a clip that declares `playing` and forgets `muted` would simply never\nstart. Set it `false` only where a person has asked for sound.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/video.ts",
+    "line": 211
+   },
+   "parent": "Video",
+   "seeAlso": [],
+   "type": "boolean",
+   "default": "true",
+   "prevailing": false,
+   "readOnly": false,
+   "inheritedFrom": null
+  },
+  "Video.position": {
+   "id": "Video.position",
+   "name": "position",
+   "kind": "attribute",
+   "doc": "The playhead, in seconds. **Two-way** — read it to follow along (a progress bar is\n`width = { parent.width * (reel.position / reel.duration) }`), assign it to seek. Writing\na position the clip has not buffered seeks as soon as it can.",
+   "docSegs": [
+    {
+     "md": "The playhead, in seconds. **Two-way** — read it to follow along (a progress bar is\n`width = { parent.width * (reel.position / reel.duration) }`), assign it to seek. Writing\na position the clip has not buffered seeks as soon as it can.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/video.ts",
+    "line": 212
+   },
+   "parent": "Video",
+   "seeAlso": [],
+   "type": "number",
+   "default": "0",
+   "prevailing": false,
+   "readOnly": false,
+   "inheritedFrom": null
+  },
+  "Video.volume": {
+   "id": "Video.volume",
+   "name": "volume",
+   "kind": "attribute",
+   "doc": "`0`–`1`, default `1`. Independent of `muted`, which gates it.",
+   "docSegs": [
+    {
+     "md": "`0`–`1`, default `1`. Independent of `muted`, which gates it.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/video.ts",
+    "line": 213
+   },
+   "parent": "Video",
+   "seeAlso": [],
+   "type": "number",
+   "default": "1",
+   "prevailing": false,
+   "readOnly": false,
+   "inheritedFrom": null
+  },
+  "Video.playbackRate": {
+   "id": "Video.playbackRate",
+   "name": "playbackRate",
+   "kind": "attribute",
+   "doc": "Speed multiplier, default `1`. `0.5` is half speed, `2` double; pitch is the platform's\nbusiness.",
+   "docSegs": [
+    {
+     "md": "Speed multiplier, default `1`. `0.5` is half speed, `2` double; pitch is the platform's\nbusiness.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/video.ts",
+    "line": 214
+   },
+   "parent": "Video",
+   "seeAlso": [],
+   "type": "number",
+   "default": "1",
+   "prevailing": false,
+   "readOnly": false,
+   "inheritedFrom": null
+  },
+  "Video.ended": {
+   "id": "Video.ended",
+   "name": "ended",
+   "kind": "attribute",
+   "doc": "The clip reached its end and stopped. **Read-only.** Stays false while `loop` is true,\nsince a looping clip never ends. Pair with `onEnded()` when you want the moment rather\nthan the state.",
+   "docSegs": [
+    {
+     "md": "The clip reached its end and stopped. **Read-only.** Stays false while `loop` is true,\nsince a looping clip never ends. Pair with `onEnded()` when you want the moment rather\nthan the state.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/video.ts",
+    "line": 215
+   },
+   "parent": "Video",
+   "seeAlso": [],
+   "type": "boolean",
+   "default": "false",
+   "prevailing": false,
+   "readOnly": true,
+   "inheritedFrom": null
+  },
+  "Video.duration": {
+   "id": "Video.duration",
+   "name": "duration",
+   "kind": "attribute",
+   "doc": "Total length in seconds, `0` until the metadata lands. **Read-only** — computed by the\nload, a compile error to assign.",
+   "docSegs": [
+    {
+     "md": "Total length in seconds, `0` until the metadata lands. **Read-only** — computed by the\nload, a compile error to assign.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/video.ts",
+    "line": 216
+   },
+   "parent": "Video",
+   "seeAlso": [],
+   "type": "number",
+   "default": "0",
+   "prevailing": false,
+   "readOnly": true,
+   "inheritedFrom": null
+  },
+  "Video.buffering": {
+   "id": "Video.buffering",
+   "name": "buffering",
+   "kind": "attribute",
+   "doc": "The clip wants data it does not have and has stalled. **Read-only** — the reactive fact a\nspinner derives from (`spinner: View [ visible = { reel.buffering } ]`). Distinct from\n`!loaded`: buffering is a stall *during* playback, not the wait before it.",
+   "docSegs": [
+    {
+     "md": "The clip wants data it does not have and has stalled. **Read-only** — the reactive fact a\nspinner derives from (`spinner: View [ visible = { reel.buffering } ]`). Distinct from\n`!loaded`: buffering is a stall *during* playback, not the wait before it.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/video.ts",
+    "line": 217
+   },
+   "parent": "Video",
+   "seeAlso": [],
+   "type": "boolean",
+   "default": "false",
+   "prevailing": false,
+   "readOnly": true,
+   "inheritedFrom": null
+  },
+  "Video.loaded": {
+   "id": "Video.loaded",
+   "name": "loaded",
+   "kind": "attribute",
+   "doc": "Enough of the clip has arrived to display a frame — the fact a poster derives from\n(`still: Image [ visible = { !reel.loaded } ]`, which is how you get a poster image\nwithout a `poster` attribute: compose the two). **Read-only.** Re-pointing `source` does\nnot reset it; the surface keeps the previous frame until the replacement arrives. Under\nheadless extraction there is no media loader, so `loaded` honestly stays false.",
+   "docSegs": [
+    {
+     "md": "Enough of the clip has arrived to display a frame — the fact a poster derives from\n(`still: Image [ visible = { !reel.loaded } ]`, which is how you get a poster image\nwithout a `poster` attribute: compose the two). **Read-only.** Re-pointing `source` does\nnot reset it; the surface keeps the previous frame until the replacement arrives. Under\nheadless extraction there is no media loader, so `loaded` honestly stays false.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/video.ts",
+    "line": 218
+   },
+   "parent": "Video",
+   "seeAlso": [],
+   "type": "boolean",
+   "default": "false",
+   "prevailing": false,
+   "readOnly": true,
+   "inheritedFrom": null
+  },
+  "Video.failed": {
+   "id": "Video.failed",
+   "name": "failed",
+   "kind": "attribute",
+   "doc": "The **current** source's load failed. **Read-only.** Reset whenever a new load starts, so\nit always speaks about the present address. There is no error *message* — the platform's\nmedia loader does not say why — so the fact is boolean by honesty, not austerity.",
+   "docSegs": [
+    {
+     "md": "The **current** source's load failed. **Read-only.** Reset whenever a new load starts, so\nit always speaks about the present address. There is no error *message* — the platform's\nmedia loader does not say why — so the fact is boolean by honesty, not austerity.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/video.ts",
+    "line": 219
+   },
+   "parent": "Video",
+   "seeAlso": [],
+   "type": "boolean",
+   "default": "false",
+   "prevailing": false,
+   "readOnly": true,
+   "inheritedFrom": null
+  },
+  "Video.method.attach": {
+   "id": "Video.method.attach",
+   "name": "attach",
+   "kind": "method",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/video.ts",
+    "line": 98
+   },
+   "parent": "Video",
+   "seeAlso": [],
+   "signature": "attach(backend: RenderBackend, parentSurface: Surface | null): void",
+   "returns": "void"
+  },
+  "Video.method.load": {
+   "id": "Video.method.load",
+   "name": "load",
+   "kind": "method",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/video.ts",
+    "line": 109
+   },
+   "parent": "Video",
+   "seeAlso": [],
+   "signature": "load(): void",
+   "returns": "void"
+  },
+  "Video.method.syncPlaying": {
+   "id": "Video.method.syncPlaying",
+   "name": "syncPlaying",
+   "kind": "method",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/video.ts",
+    "line": 183
+   },
+   "parent": "Video",
+   "seeAlso": [],
+   "signature": "syncPlaying(): void",
+   "returns": "void"
+  },
+  "Video.method.seek": {
+   "id": "Video.method.seek",
+   "name": "seek",
+   "kind": "method",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/video.ts",
+    "line": 199
+   },
+   "parent": "Video",
+   "seeAlso": [],
+   "signature": "seek(): void",
+   "returns": "void"
+  },
+  "Video.event.ended": {
+   "id": "Video.event.ended",
+   "name": "ended",
+   "kind": "event",
+   "doc": "Fired when the clip reaches its end. Like every Declare event it is delivered to the\nhandler that declared interest and does not bubble.",
+   "docSegs": [
+    {
+     "md": "Fired when the clip reaches its end. Like every Declare event it is delivered to the\nhandler that declared interest and does not bubble.",
+     "code": []
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": "Video",
+   "seeAlso": [],
+   "signature": "onEnded()"
+  },
+  "Video": {
+   "id": "Video",
+   "name": "Video",
+   "kind": "class",
+   "doc": "Moving pictures, declared the way a still one is. Set `source` to a URL; the clip loads\nin the background and, unless you constrain its size, adopts its natural pixel dimensions\nonce the metadata arrives. `Image`'s shape, with time added.\n\nThere are **no player controls and no methods to call**. Transport is attributes: you do\nnot tell a clip to play, you declare the condition under which it is playing, and it\nfollows — so a clip below the fold is not decoding while nobody is looking, and one that\nscrolls into view starts because the answer changed.\n\n```declare\nreel: Video [ source = \"shots/tour.mp4\", stretches = both, loop = true,\n    playing = { app.scrollY + app.height > this.parent.y } ]\n```",
+   "docSegs": [
+    {
+     "md": "Moving pictures, declared the way a still one is. Set `source` to a URL; the clip loads\nin the background and, unless you constrain its size, adopts its natural pixel dimensions\nonce the metadata arrives. `Image`'s shape, with time added.\n\nThere are **no player controls and no methods to call**. Transport is attributes: you do\nnot tell a clip to play, you declare the condition under which it is playing, and it\nfollows — so a clip below the fold is not decoding while nobody is looking, and one that\nscrolls into view starts because the answer changed.",
+     "code": []
+    },
+    {
+     "md": "",
+     "code": [
+      {
+       "id": "seg_Video_0",
+       "source": "App [\n    reel: Video [ source = \"shots/tour.mp4\", stretches = both, loop = true,\n        playing = { app.scrollY + app.height > this.parent.y } ]\n]",
+       "lines": 4,
+       "stageH": 224
+      }
+     ]
+    }
+   ],
+   "api": true,
+   "source": {
+    "file": "runtime/src/schema.ts",
+    "line": 0
+   },
+   "parent": null,
+   "seeAlso": [],
+   "extends": "View",
+   "abstract": false,
+   "subclasses": [],
+   "origin": "ts",
+   "attributes": [
+    "Video.source",
+    "Video.stretches",
+    "Video.playing",
+    "Video.loop",
+    "Video.muted",
+    "Video.position",
+    "Video.volume",
+    "Video.playbackRate",
+    "Video.ended",
+    "Video.duration",
+    "Video.buffering",
+    "Video.loaded",
+    "Video.failed"
+   ],
+   "methods": [
+    "Video.method.attach",
+    "Video.method.load",
+    "Video.method.syncPlaying",
+    "Video.method.seek"
+   ],
+   "events": [
+    "Video.event.ended"
+   ],
+   "example": [],
+   "chain": [
+    "Video",
     "View",
     "Node"
    ]
@@ -18086,6 +18671,7 @@
   "App",
   "Text",
   "Image",
+  "Video",
   "RichText",
   "Markdown",
   "HTMLText",
@@ -18173,6 +18759,7 @@
     "App",
     "Text",
     "Image",
+    "Video",
     "RichText",
     "DOMIsland",
     "Editor",
@@ -20321,7 +20908,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/image.ts",
-      "line": 108
+      "line": 140
      },
      "parent": "Image",
      "seeAlso": [],
@@ -20345,7 +20932,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/image.ts",
-      "line": 109
+      "line": 141
      },
      "parent": "Image",
      "seeAlso": [],
@@ -20369,7 +20956,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/image.ts",
-      "line": 110
+      "line": 142
      },
      "parent": "Image",
      "seeAlso": [],
@@ -20393,7 +20980,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/image.ts",
-      "line": 111
+      "line": 143
      },
      "parent": "Image",
      "seeAlso": [],
@@ -20405,6 +20992,376 @@
     }
    ],
    "events": [],
+   "methods": [],
+   "example": []
+  },
+  {
+   "id": "Video",
+   "name": "Video",
+   "doc": "Moving pictures, declared the way a still one is. Set `source` to a URL; the clip loads\nin the background and, unless you constrain its size, adopts its natural pixel dimensions\nonce the metadata arrives. `Image`'s shape, with time added.\n\nThere are **no player controls and no methods to call**. Transport is attributes: you do\nnot tell a clip to play, you declare the condition under which it is playing, and it\nfollows — so a clip below the fold is not decoding while nobody is looking, and one that\nscrolls into view starts because the answer changed.\n\n```declare\nreel: Video [ source = \"shots/tour.mp4\", stretches = both, loop = true,\n    playing = { app.scrollY + app.height > this.parent.y } ]\n```",
+   "docSegs": [
+    {
+     "md": "Moving pictures, declared the way a still one is. Set `source` to a URL; the clip loads\nin the background and, unless you constrain its size, adopts its natural pixel dimensions\nonce the metadata arrives. `Image`'s shape, with time added.\n\nThere are **no player controls and no methods to call**. Transport is attributes: you do\nnot tell a clip to play, you declare the condition under which it is playing, and it\nfollows — so a clip below the fold is not decoding while nobody is looking, and one that\nscrolls into view starts because the answer changed.",
+     "code": []
+    },
+    {
+     "md": "",
+     "code": [
+      {
+       "id": "seg_Video_0",
+       "source": "App [\n    reel: Video [ source = \"shots/tour.mp4\", stretches = both, loop = true,\n        playing = { app.scrollY + app.height > this.parent.y } ]\n]",
+       "lines": 4,
+       "stageH": 224
+      }
+     ]
+    }
+   ],
+   "api": true,
+   "extends": "View",
+   "chain": [
+    "Video",
+    "View",
+    "Node"
+   ],
+   "abstract": false,
+   "subclasses": [],
+   "origin": "ts",
+   "attributes": [
+    {
+     "id": "Video.source",
+     "name": "source",
+     "kind": "attribute",
+     "doc": "The clip URL (`string`). Literal or a `{ }` constraint — bind it to data and the picture\nfollows. Re-pointing it starts a fresh load; a superseded in-flight load is discarded.",
+     "docSegs": [
+      {
+       "md": "The clip URL (`string`). Literal or a `{ }` constraint — bind it to data and the picture\nfollows. Re-pointing it starts a fresh load; a superseded in-flight load is discarded.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/video.ts",
+      "line": 207
+     },
+     "parent": "Video",
+     "seeAlso": [],
+     "type": "string",
+     "default": "\"\"",
+     "prevailing": false,
+     "readOnly": false,
+     "inheritedFrom": null
+    },
+    {
+     "id": "Video.stretches",
+     "name": "stretches",
+     "kind": "attribute",
+     "doc": "How the frame fills a box whose size differs from the clip's natural size: `none`\n(default — natural size, no scaling), `width`, `height`, or `both`.",
+     "docSegs": [
+      {
+       "md": "How the frame fills a box whose size differs from the clip's natural size: `none`\n(default — natural size, no scaling), `width`, `height`, or `both`.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/video.ts",
+      "line": 208
+     },
+     "parent": "Video",
+     "seeAlso": [],
+     "type": "none | width | height | both",
+     "default": "\"none\"",
+     "prevailing": false,
+     "readOnly": false,
+     "inheritedFrom": null
+    },
+    {
+     "id": "Video.playing",
+     "name": "playing",
+     "kind": "attribute",
+     "doc": "Whether the clip is running. **Two-way**: a constraint decides when it plays, and the\nelement writes back when something outside the program changes it — the browser pausing a\nbackgrounded tab, or the user hitting a media key. Bind it to a fact about the world\n(`playing = { visible && !app.reducedMotion }`) rather than assigning it from a handler,\nand the clip does the right thing without anything scheduling it.",
+     "docSegs": [
+      {
+       "md": "Whether the clip is running. **Two-way**: a constraint decides when it plays, and the\nelement writes back when something outside the program changes it — the browser pausing a\nbackgrounded tab, or the user hitting a media key. Bind it to a fact about the world\n(`playing = { visible && !app.reducedMotion }`) rather than assigning it from a handler,\nand the clip does the right thing without anything scheduling it.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/video.ts",
+      "line": 209
+     },
+     "parent": "Video",
+     "seeAlso": [],
+     "type": "boolean",
+     "default": "false",
+     "prevailing": false,
+     "readOnly": false,
+     "inheritedFrom": null
+    },
+    {
+     "id": "Video.loop",
+     "name": "loop",
+     "kind": "attribute",
+     "doc": "Restart at the end rather than stopping. Default `false`.",
+     "docSegs": [
+      {
+       "md": "Restart at the end rather than stopping. Default `false`.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/video.ts",
+      "line": 210
+     },
+     "parent": "Video",
+     "seeAlso": [],
+     "type": "boolean",
+     "default": "false",
+     "prevailing": false,
+     "readOnly": false,
+     "inheritedFrom": null
+    },
+    {
+     "id": "Video.muted",
+     "name": "muted",
+     "kind": "attribute",
+     "doc": "Default **`true`**, and deliberately: an unmuted clip that tries to autoplay is blocked by\nevery browser, so a clip that declares `playing` and forgets `muted` would simply never\nstart. Set it `false` only where a person has asked for sound.",
+     "docSegs": [
+      {
+       "md": "Default **`true`**, and deliberately: an unmuted clip that tries to autoplay is blocked by\nevery browser, so a clip that declares `playing` and forgets `muted` would simply never\nstart. Set it `false` only where a person has asked for sound.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/video.ts",
+      "line": 211
+     },
+     "parent": "Video",
+     "seeAlso": [],
+     "type": "boolean",
+     "default": "true",
+     "prevailing": false,
+     "readOnly": false,
+     "inheritedFrom": null
+    },
+    {
+     "id": "Video.position",
+     "name": "position",
+     "kind": "attribute",
+     "doc": "The playhead, in seconds. **Two-way** — read it to follow along (a progress bar is\n`width = { parent.width * (reel.position / reel.duration) }`), assign it to seek. Writing\na position the clip has not buffered seeks as soon as it can.",
+     "docSegs": [
+      {
+       "md": "The playhead, in seconds. **Two-way** — read it to follow along (a progress bar is\n`width = { parent.width * (reel.position / reel.duration) }`), assign it to seek. Writing\na position the clip has not buffered seeks as soon as it can.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/video.ts",
+      "line": 212
+     },
+     "parent": "Video",
+     "seeAlso": [],
+     "type": "number",
+     "default": "0",
+     "prevailing": false,
+     "readOnly": false,
+     "inheritedFrom": null
+    },
+    {
+     "id": "Video.volume",
+     "name": "volume",
+     "kind": "attribute",
+     "doc": "`0`–`1`, default `1`. Independent of `muted`, which gates it.",
+     "docSegs": [
+      {
+       "md": "`0`–`1`, default `1`. Independent of `muted`, which gates it.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/video.ts",
+      "line": 213
+     },
+     "parent": "Video",
+     "seeAlso": [],
+     "type": "number",
+     "default": "1",
+     "prevailing": false,
+     "readOnly": false,
+     "inheritedFrom": null
+    },
+    {
+     "id": "Video.playbackRate",
+     "name": "playbackRate",
+     "kind": "attribute",
+     "doc": "Speed multiplier, default `1`. `0.5` is half speed, `2` double; pitch is the platform's\nbusiness.",
+     "docSegs": [
+      {
+       "md": "Speed multiplier, default `1`. `0.5` is half speed, `2` double; pitch is the platform's\nbusiness.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/video.ts",
+      "line": 214
+     },
+     "parent": "Video",
+     "seeAlso": [],
+     "type": "number",
+     "default": "1",
+     "prevailing": false,
+     "readOnly": false,
+     "inheritedFrom": null
+    },
+    {
+     "id": "Video.ended",
+     "name": "ended",
+     "kind": "attribute",
+     "doc": "The clip reached its end and stopped. **Read-only.** Stays false while `loop` is true,\nsince a looping clip never ends. Pair with `onEnded()` when you want the moment rather\nthan the state.",
+     "docSegs": [
+      {
+       "md": "The clip reached its end and stopped. **Read-only.** Stays false while `loop` is true,\nsince a looping clip never ends. Pair with `onEnded()` when you want the moment rather\nthan the state.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/video.ts",
+      "line": 215
+     },
+     "parent": "Video",
+     "seeAlso": [],
+     "type": "boolean",
+     "default": "false",
+     "prevailing": false,
+     "readOnly": true,
+     "inheritedFrom": null
+    },
+    {
+     "id": "Video.duration",
+     "name": "duration",
+     "kind": "attribute",
+     "doc": "Total length in seconds, `0` until the metadata lands. **Read-only** — computed by the\nload, a compile error to assign.",
+     "docSegs": [
+      {
+       "md": "Total length in seconds, `0` until the metadata lands. **Read-only** — computed by the\nload, a compile error to assign.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/video.ts",
+      "line": 216
+     },
+     "parent": "Video",
+     "seeAlso": [],
+     "type": "number",
+     "default": "0",
+     "prevailing": false,
+     "readOnly": true,
+     "inheritedFrom": null
+    },
+    {
+     "id": "Video.buffering",
+     "name": "buffering",
+     "kind": "attribute",
+     "doc": "The clip wants data it does not have and has stalled. **Read-only** — the reactive fact a\nspinner derives from (`spinner: View [ visible = { reel.buffering } ]`). Distinct from\n`!loaded`: buffering is a stall *during* playback, not the wait before it.",
+     "docSegs": [
+      {
+       "md": "The clip wants data it does not have and has stalled. **Read-only** — the reactive fact a\nspinner derives from (`spinner: View [ visible = { reel.buffering } ]`). Distinct from\n`!loaded`: buffering is a stall *during* playback, not the wait before it.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/video.ts",
+      "line": 217
+     },
+     "parent": "Video",
+     "seeAlso": [],
+     "type": "boolean",
+     "default": "false",
+     "prevailing": false,
+     "readOnly": true,
+     "inheritedFrom": null
+    },
+    {
+     "id": "Video.loaded",
+     "name": "loaded",
+     "kind": "attribute",
+     "doc": "Enough of the clip has arrived to display a frame — the fact a poster derives from\n(`still: Image [ visible = { !reel.loaded } ]`, which is how you get a poster image\nwithout a `poster` attribute: compose the two). **Read-only.** Re-pointing `source` does\nnot reset it; the surface keeps the previous frame until the replacement arrives. Under\nheadless extraction there is no media loader, so `loaded` honestly stays false.",
+     "docSegs": [
+      {
+       "md": "Enough of the clip has arrived to display a frame — the fact a poster derives from\n(`still: Image [ visible = { !reel.loaded } ]`, which is how you get a poster image\nwithout a `poster` attribute: compose the two). **Read-only.** Re-pointing `source` does\nnot reset it; the surface keeps the previous frame until the replacement arrives. Under\nheadless extraction there is no media loader, so `loaded` honestly stays false.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/video.ts",
+      "line": 218
+     },
+     "parent": "Video",
+     "seeAlso": [],
+     "type": "boolean",
+     "default": "false",
+     "prevailing": false,
+     "readOnly": true,
+     "inheritedFrom": null
+    },
+    {
+     "id": "Video.failed",
+     "name": "failed",
+     "kind": "attribute",
+     "doc": "The **current** source's load failed. **Read-only.** Reset whenever a new load starts, so\nit always speaks about the present address. There is no error *message* — the platform's\nmedia loader does not say why — so the fact is boolean by honesty, not austerity.",
+     "docSegs": [
+      {
+       "md": "The **current** source's load failed. **Read-only.** Reset whenever a new load starts, so\nit always speaks about the present address. There is no error *message* — the platform's\nmedia loader does not say why — so the fact is boolean by honesty, not austerity.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/video.ts",
+      "line": 219
+     },
+     "parent": "Video",
+     "seeAlso": [],
+     "type": "boolean",
+     "default": "false",
+     "prevailing": false,
+     "readOnly": true,
+     "inheritedFrom": null
+    }
+   ],
+   "events": [
+    {
+     "id": "Video.event.ended",
+     "name": "ended",
+     "kind": "event",
+     "doc": "Fired when the clip reaches its end. Like every Declare event it is delivered to the\nhandler that declared interest and does not bubble.",
+     "docSegs": [
+      {
+       "md": "Fired when the clip reaches its end. Like every Declare event it is delivered to the\nhandler that declared interest and does not bubble.",
+       "code": []
+      }
+     ],
+     "api": true,
+     "source": {
+      "file": "runtime/src/schema.ts",
+      "line": 0
+     },
+     "parent": "Video",
+     "seeAlso": [],
+     "signature": "onEnded()"
+    }
+   ],
    "methods": [],
    "example": []
   },
@@ -29549,7 +30506,7 @@
        "subtitle": "extends Node",
        "kind": "element",
        "label": "Built-in element",
-       "doc": "# View\n\n*Built-in element — [Node](declare-docs:Node)*\n\nThe base of every visual thing in Declare — a rectangular **box** with a position, a\nsize, and decoration (fill, corner radius, border, shadow). Everything you see\ndescends from `View`: `Text`, `Image`, your own `class … extends View`. A plain\n`View` is a colored box; give it children and it becomes a container.\n\nIts geometry is set two ways that read the same: literal (`width = 200`) or a reactive\n`{ }` constraint the runtime keeps true (`width = { parent.width }`). Children nest\ninside the brackets, so the source shape mirrors the visual shape; *how* they are\narranged is the `layout` attribute, not the container's type.\n\n```declare\nView [ width = 200, height = 120, fill = white, cornerRadius = 8,\n    Text [ text = \"hello\", x = 12, y = 12 ]\n    ]\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `x` | Length | `0` |  |\n| `y` | Length | `0` |  |\n| `width` | Length | `0` |  |\n| `height` | Length | `0` |  |\n| `fill` | Fill | `null` |  |\n| `cornerRadius` | number | `0` |  |\n| `stroke` | Stroke | `null` |  |\n| `shadow` | Shadow | `null` |  |\n| `visible` | boolean | `true` |  |\n| `ignoreLayout` | boolean | `false` |  |\n| `ignoreClip` | boolean | `false` |  |\n| `ignoreScroll` | boolean | `false` |  |\n| `opacity` | number | `1` |  |\n| `scale` | number | `1` |  |\n| `pivotX` | number | `0` |  |\n| `pivotY` | number | `0` |  |\n| `clip` | Shape | `null` |  |\n| `scrolls` | none | y | x | both | `\"none\"` |  |\n| `claim` | both | x | y | `\"both\"` |  |\n| `tip` | string | `\"\"` |  |\n| `scrollY` | number | `0` |  |\n| `scrollX` | number | `0` |  |\n| `textColor` | Color | `0x000000` | prevailing |\n| `fontSize` | number | `16` | prevailing |\n| `fontFamily` | Font | `\"sans-serif\"` | prevailing |\n| `fontWeight` | thin | extralight | light | regular | normal | medium | semibold | bold | extrabold | black | `\"normal\"` | prevailing |\n| `letterSpacing` | number | `0` | prevailing |\n| `headingColor` | Color | `null` | prevailing |\n| `headingWeight` | thin | extralight | light | regular | normal | medium | semibold | bold | extrabold | black | `\"bold\"` | prevailing |\n| `linkColor` | Color | `null` | prevailing |\n| `codeColor` | Color | `null` | prevailing |\n| `codeSize` | number | `0` | prevailing |\n| `codeFamily` | Font | `\"\"` | prevailing |\n| `codeBackground` | Color | `null` | prevailing |\n| `codeRule` | Color | `null` | prevailing |\n| `richTextLayout` | RichTextLayout | `null` | prevailing |\n| `theme` | Theme | `DEFAULT_THEME` | prevailing |\n| `selectable` | boolean | `false` | prevailing |\n| `styles` | Style[] | `null` |  |\n| `stylesheet` | Stylesheet | `null` | prevailing |\n| `layout` | Layout | `null` |  |\n| `datapath` | datapath | `null` |  |\n| `focusable` | boolean | `false` |  |\n| `focusTrap` | boolean | `false` |  |\n| `anchor` | string | `\"\"` |  |\n| `contentWidth` | Length |  | read-only |\n| `childViews` | array |  | read-only |\n| `virtualized` | boolean |  | read-only |\n| `virtualize` | boolean |  |  |\n| `contentHeight` | Length |  | read-only |\n\n**`x`** — The horizontal offset within the parent, in pixels. Honoured only while the parent\nimposes no `layout` — **a layout overwrites `x` every pass**, so use it for absolute\nplacement (the layout-none default) and switch to `layout` for arrangement; don't fight\none with the other.\n\n**`y`** — The vertical offset within the parent — the twin of `x`, and likewise overwritten by a\nparent `layout`.\n\n**`width`** — The box's width, in **pixels** (`Length`). Defaults to `0`, so a container with no\nwidth set collapses — give it one, a `{ }` constraint, or `100%` (parent-relative).\nSet it live and children constrained to it reflow in the same frame; there is no\nre-layout call. To size *to* content instead, constrain it: `width = { Math.min(contentWidth, 480) }`.\n\n**`height`** — The box's height in pixels (`Length`), mirroring `width`. `0` by default. A `Text`\nleft unsized takes its natural measured height, so you usually set `height` only to\nclip or to drive a layout.\n\n**`fill`** — What paints the box: a solid `Color` or a `gradient(…)` — the one slot, subsuming a\nplain background color. `null` (the default) paints **nothing** — an unfilled box is\ninvisible but still lays out and still catches clicks. In a `[ ]` literal a color is\n`#RRGGBB`; inside a `{ }` body it is `0xRRGGBB` (the one place the spelling differs).\n\n```declare\nView [ fill = { gradient(\"90deg\", 0x1E2A36, 0x0B141B) } ]\n```\n\n**`cornerRadius`** — Rounds the **painted** box by this many pixels (default `0`, square). It shapes fill,\nborder, and shadow — but not hit-testing or clipping: the box stays a rectangle for\nlayout and clicks. To clip children to the rounded shape, set `clip = true` as well.\n\n**`stroke`** — A border drawn **inside** the box (`stroke(width, color)`), so it never enlarges the\nlayout rectangle — the box stays the one geometry fact. `null` by default. Chosen over\nCSS's `border` precisely so a bordered view and an unbordered one occupy the same space.\n\n**`shadow`** — A drop shadow on the box (`shadow(dx, dy, blur, color)`), the CSS box-shadow shape\nminus spread. `null` by default. The glyph equivalent on `Text` is `textShadow`.\n\n**`visible`** — Whether the view renders and participates in layout-that-skips-invisibles (default\n`true`). A `false` view is fully inert — no paint, no hit-testing — but still\nconstructed, so toggling it is cheap and keeps its state.\n\n**`ignoreLayout`** — Opt this child out of its parent's `layout` — the arrangement skips it and it owns\nits own position on both axes (the decoration/overlay case: a badge floating over\na laid list). Its size still counts toward the parent's auto-extent.\n\n**`ignoreClip`** — Opt this child out of its parent's `clip`: outside the parent's frame it still\npaints *and* still hits — frame chrome that straddles the frame (a window's\nresize halo; a badge poking out of a clipped card). Parent-scoped — an ancestor's\nclip above still applies — and the child is exempt from the parent's auto-extent\n(frame geometry derives *from* the bounds, so it cannot also define them).\n\n**`ignoreScroll`** — The third member of the opt-out family (`ignoreLayout` — the parent arranges everyone\nbut me; `ignoreClip` — the parent clips everyone but me): **the scroll carries everyone\nbut me — I ride the frame.** The child stands still against its nearest enclosing scroll\nframe — the window when the page is the regime, the pane's frame inside a `scrolls`\nview — and contributes nothing to the scroll range. The fixed header, the pinned\ntoolbar, and the overlay layer that stages parked furniture are all this one attribute.\n\n**`opacity`** — Whole-view alpha, `0`…`1` (default `1`). Applies to the view **and its subtree** as a\ngroup, so a fading panel fades its contents with it. Not `prevailing`: its effect\nalready composes down the render tree, so a followed copy would apply it twice.\n\n**`scale`** — A uniform **paint** transform — the view's subtree renders scaled about its pivot, never\nre-laid-out (like `opacity`, it changes pixels, not geometry), and hit-testing follows the\nvisible result. Pair with `pivotX`/`pivotY` to choose the center; `1` is unscaled.\n\n**`pivotX`** — The horizontal center of `scale`, in the view's own coordinates. Defaults to the origin; set\nboth `pivotX`/`pivotY` to scale about the middle rather than the top-left.\n\n**`pivotY`** — The vertical pivot — the twin of `pivotX`.\n\n**`clip`** — Clips the subtree to a shape. `clip = true` clips to the view's **own box**\n(reactively on width/height) — the common case; a `Shape` value clips to an arbitrary\npath. `null`/unset (default) draws children unclipped, even outside the box. Kept\nexplicit (not implied by `cornerRadius`) so clipping is pay-per-use.\n\n**`scrolls`** — Which **axes** of interior overflow this view scrolls — `none` (the default), `y`, `x`,\nor `both`. A scrolling view clips to its box; overflow along a declared axis becomes its\nscroll range (live `scrollY`/`scrollX`), and overflow along any other axis is simply out\nof frame. The value is a token **string** in a `{ }` body — compare explicitly\n(`scrolls == \"y\"`), never truthily: `\"none\"` is a truthy string. Fixed chrome comes free — make it a **sibling** of the scroller, or a child that declares `ignoreScroll`.\nBoth backends present the same model; only the overscroll *feel* differs, where the\nplatform can do better. On DOM the OS owns the scroll — overlay scrollbar, momentum, and\nrubber-band overscroll *contained* to this pane, so it bounces on its own edges and never\nchains to the page, and sibling panes overscroll independently. On canvas the runtime\nmanages the offset (clip+translate+wheel), as a single element must.\n\n**`claim`** — The axis a declared drag claims (`claim = x | y | both`, default `both`): `x` keeps\nvertical pan with the enclosing scroll regime while the drag owns horizontal — a grid\ncolumn's header drag or edge-resize on touch. Scopes an existing drag declaration\n(`onPointerMove`); it never creates one. See claim-surface.md for the arbitration.\n\n**`tip`** — The tooltip text — the layer system's floor (one attribute at the use site): a non-empty\n`tip` makes this view hover-interactive, and after the theme's delay the auto-provided\n`Tooltip` singleton shows the text beside it. Placement, delay, and size are theme data\n(`tooltipPlacement` below | above | pointer, `tooltipDelay`, `tooltipSize`) — so Cupertino\ntips appear near the cursor after ~1s at 11px (the macOS help tag), Redmond's above the\ncontrol (WinUI), Mountain View's below at ~500ms (M3) — always flipped and clamped inside\nthe app. Moving between tip-carrying controls while a tip is up retargets instantly; a\npress dismisses. Look comes from `tooltipBg` / `tooltipText` / `tooltipLine`. `\"\"` (the\ndefault) = no tip.\n\n**`scrollY`** — The current vertical scroll offset in pixels of a `scrolls` view — **read it** for\nscroll-driven effects (a fading header, reveals, parallax): `opacity = { 1 - app.scrollY / 200 }`.\n\n**`scrollX`** — **Read it, don't set it** in practice: the live horizontal offset of a `scrolls = x`\n(or `both`) view, mirrored from the native scroll — `scrollY`'s twin. Use it for a\npaging strip's position, scroll-driven effects, or restoring a strip's place.\n\n**`textColor`** — The glyph color `Text` renders with — a `prevailing` styling slot declared on `View`\nso **any** container can provide it and the whole subtree inherits, live. Unset, it\nfollows the nearest ancestor that sets it (default `0x000000`). Set it on a panel to\nretint all text beneath without touching each `Text`.\n\n**`fontSize`** — Prevailing font size in pixels (default `16`), inherited by descendant `Text` exactly\nlike `textColor`. Set once on a container to size a whole region's text.\n\n**`fontFamily`** — The prevailing font **fallback list**, read at each descendant `Text` — `[Brand, \"system-ui\", \"sans-serif\"]`.\nA bare name resolves to a declared `font`; the first entry that resolves wins, so end\nwith a generic. Prevailing, so setting it on a container refaces the whole region.\n\n**`fontWeight`** — The prevailing weight — one of the `thin`…`black` tokens (`normal`/`bold` alias 400/700).\nThe token also **picks the matching face** when a `font` declares several, so weight and\nface never drift apart.\n\n**`letterSpacing`** — Prevailing tracking, in **px** (not em) — `0` is the font's natural advances. Prevailing,\nso a heading container can loosen all its text at once.\n\n**`headingColor`** — **Prevailing.** The color of `Markdown`/`RichText` headings, overriding `textColor` for heading\nruns only; absent, headings follow `textColor`.\n\n**`headingWeight`** — **Prevailing.** The font weight for rich-text headings — the heading-specific counterpart to\n`fontWeight`.\n\n**`linkColor`** — **Prevailing.** The color of links in rich text; absent, links use the theme's accent.\n\n**`codeColor`** — **Prevailing.** The text color of inline and fenced code in rich text.\n\n**`codeSize`** — **Prevailing.** The font size for code regions — one value driving inline code, fenced blocks,\nand `<pre>` alike, so a document's monospace stays uniform.\n\n**`codeFamily`** — **Prevailing.** The monospace family for code regions — a fallback list, like `fontFamily`.\n\n**`codeBackground`** — **Prevailing.** The fill behind fenced code blocks; absent, code carries no box.\n\n**`codeRule`** — **Prevailing.** The color of a fenced code block's left accent rule.\n\n**`richTextLayout`** — **Prevailing.** A per-block-type geometry map for `RichText`/`Markdown` — caller-controlled\nmeasure and spacing per block kind (prose narrower than code, say), so one base renders both\ntight code and wide prose.\n\n**`theme`** — A prevailing record of design tokens, read inside `{ }` as `theme.accent`, `theme.muted`,\netc. Provide it on a container and the subtree styles off it — the escape from hard-coded\ncolors when you don't want a full `stylesheet`.\n\n**`selectable`** — Opt this run back into native text selection / copy (default `false`). Off by default\nso an app doesn't feel like a document; turn it on for content a user should be able to\nselect and copy.\n\n**`styles`** — An ordered list of `style` bundles applied at **construction** — **static in v1**: unlike\n`stylesheet`, reassigning `styles` after build does nothing. For a reskin that changes\nlive, use `stylesheet` instead.\n\n**`stylesheet`** — The prevailing stylesheet: provide one anywhere and that whole subtree reskins; swap it\nand the subtree re-styles in a single settle. The reactive counterpart to the static\n`styles` list.\n\n**`layout`** — How this view arranges its children — a reactive `Layout` attribute, not a child and\nnot the container's type. Defaults to none (absolute `x`/`y`). Swap or animate it and\nthe arrangement transitions continuously: `layout: SimpleLayout [ axis = y, spacing = 10 ]`.\nSet `layout = null` for explicit none.\n\n**`datapath`** — The data cursor (language §9): sets the place in a dataset that this view and its\ndescendants read relative to. Write it as a `:path` (relative to the inherited\ncursor), `:arr[]` to **replicate** this view once per array element, or a `{ }`\nexpression yielding a place. Descendants read with their own relative `:paths`.\n\n**`focusable`** — Makes the view a keyboard **tab stop**. Traversal order is the view tree — there is no\nnumeric tabindex; override `tabOrder()` to reorder within a container.\n\n**`focusTrap`** — Marks a self-contained focus group: Tab cycles within it and escapes at the boundary\n(firing `escapeFocus`). For a modal or menu whose focus must not leak to the page behind.\n\n**`anchor`** — Names this view as a **reveal target** for a location's `@name` suffix\n(`#guide/04-tree@intro` scrolls to the view with `anchor = \"intro\"`). The `<a name>`\nlineage, reborn reactive: the anchor namespace is named views (this attribute) plus\nheading slugs inside rendered rich text — a heading needs nothing from you. Resolution\nprefers views over slugs, preorder-first.\n\n**`contentWidth`** — **Read-only** intrinsic: the width of this view's visible children's bounding box —\nthe auto-extent, surfaced. A constraint may read it (`width = { Math.min(contentWidth, 480) }`)\nto size to content with a cap; assigning it is a compile error.\n\n**`childViews`** — This view's child views, as a live collection — reading it re-runs when the child **set**\nchanges. It carries set membership only, not the children's own attributes: `.length` is\nlive, but `.map(c => c.width)` would wire half of what it reads, so aggregation over a node\ncollection is refused rather than answered wrongly.\n\n**On a virtualized block it answers with the instances that exist** — a subset of the\nrecords, and it changes as you scroll. That is a fact about the block, not a trap: check\n`virtualized` on this same container and you know which kind of answer you are holding\n(the flag is declared on the replicated child, but read on the container — see\n`virtualized`). The list also includes instances the recycler has parked\n(`visible = false`), because they are children.\n\n**For a count of the collection, count the data.** The records are complete by definition;\nthe instances never claimed to be.\n\n```declare-fragment\ncount: number = { (app.d.value.rows).length }\n```\n\nIf you want the window with its logical indices — an accessibility traversal, a diagnostic\n— that is kernel API (`blocksOf`, `realized()`, `materializationInfo`).\n\n**`virtualized`** — Whether **this view's replicated content** is virtualized right now — a content intrinsic,\nlike `contentWidth` and `contentHeight`, and read-only. `false` unless this view is the\ncontainer of a virtualized block, which is every view in a program that never asks for\nvirtualization.\n\n**Read it on the CONTAINER, not the template.** `virtualize` is declared on the replicated\nchild — beside its `datapath = :rows[]`, where `key` lives too — but the block belongs to\nthe *parent* that holds the instances, so the parent is what answers. A row instance reports\n`false`, and that is the honest answer: an instance has no replicated content of its own. In\nordinary speech the list is virtualized, not the row.\n\n```declare-fragment\nlist: View [ datapath = { app.d.value },                  // ← ask THIS one\n    Row [ datapath = :rows[], virtualize = true ]         // ← declared HERE\n    ]\n```\n\nIt is **tracked**, so a constraint reading it follows a block engaging or disengaging —\nwhich can happen mid-run, since the policy accepts a `{ }`. And it is what makes\n`childViews` legible on a virtualized block: the list is a subset, and this is how you know.\n\n**`virtualize`** — Virtualize this replicated collection: build the instances near the viewport and leave the\nrest logical, reconstructed indistinguishably as you scroll. **Replication metadata** — it\nbelongs on the node whose `datapath` matches many, beside that path, and it means nothing\nanywhere else (a node that replicates nothing has no collection to describe, and the checker\nsays so).\n\n**A boolean, off by default.** Below the threshold where construction hurts, materializing\neverything is simply faster and keeps `childViews` whole; above it, this is the one word that\nchanges. There is no automatic mode and no count to tune — a virtualized block costs a flat\n~0.06 ms per scroll tick at any size, so there is no cliff a threshold could protect, and\nwhat full materialization actually costs is construction, which depends on how rich a row is\nrather than how many there are.\n\nLike any boolean it takes a `{ }`, and the policy is read inside the replication match — so a\ncollection can start fully materialized and virtualize when it grows, engaging and\ndisengaging as the answer changes. What you never write is everything *around* the word: no\nrow heights, no scroll container, no keys, no overscan tuning, no memoization.\n\nVirtualization needs a scrolling ancestor (`scrolls = y`, or `both`) and — if the block's\nparent runs a layout — that layout must stack on `y`. A wrapping gallery, a horizontal strip,\na scatter of pins: those fully materialize instead, deliberately, with an inspectable reason.\nRead `virtualized` on the container to see whether it engaged.\n\n```declare-fragment\nRow [ datapath = :rows[], virtualize = true ]\n```\n\n**`contentHeight`** — **Read-only** intrinsic mirroring `contentWidth` on the vertical axis — the measured\nextent of the subtree, for sizing a container to its content.\n\n## Events\n\n- `onClick(e: PointerEvent)` — Fires when the pointer presses **and** releases on the same view (a true click, not a\nstray press) — answered by an `onClick()` handler. The primary interaction event;\n`pointerDown`/`pointerUp`/`pointerMove` are there when you need the raw phases.\n\n```declare\nView [ width = 80, height = 40, cornerRadius = 10, fill = gainsboro,\n    onClick() { fill = 0x4169E1 }\n    ]\n```\n- `onHold(e: PointerEvent)` — A press held in place for half a second — the tap-hold, equally available to a mouse.\nIt does **not** consume the gesture: the raw stream continues and the eventual click\nstill fires unless the pointer wanders, so a hold can open a menu, start a pick-up, or\nbe ignored. Declared **alongside the drag handlers** it changes who owns a touch\nfinger: the drag's claim engages *at the hold* instead of at touchdown, so a quick\nswipe still scrolls the surface underneath and a held finger picks the thing up — the\nhold-to-drag idiom for draggables on scrolling surfaces.\n- `onPointerDown(e: PointerEvent)` — The pointer pressed on the view — the raw press phase. Prefer `click` (press **and**\nrelease on the same view) unless you need the phases apart, e.g. to begin a drag.\n- `onPointerUp(e: PointerUpEvent)` — The pointer released. While a press is captured (it began on this view) `pointerUp` still\nfires **here even if the release lands off the box** — the drag-release guarantee, so a\nslider freezes its value wherever the finger lifts.\n- `onPointerMove(e: PointerEvent)` — The pointer moved over the view — and, once pressed on it, every move **while captured**\n(even outside the box), so a drag handler keeps getting positions. The event carries the\npointer in this view's own coordinates.\n- `onPointerOver(e: PointerEvent)` — The pointer entered the view (retained enter tracking) — the hover-in half. Set a\n`hovered` flag here and read it in a `fill`/`textColor` constraint.\n- `onPointerOut(e: PointerEvent)` — The pointer left the view — the hover-out half; also fires when a press is abandoned off\nthe box, so clear both `hovered` and `pressed` here.\n- `onWheel(e: WheelEvent)` — The wheel turned over the view — mouse wheel, trackpad scroll, or trackpad pinch, which\narrives on the same stream with `e.pinch` true (a ctrl+wheel zoom reports identically).\nThe event carries the point in this view's coordinates plus `deltaX`/`deltaY`. Declaring\nit **claims the wheel** over this view and its subtree — the browser stops scrolling or\nzooming the page with it — except over a nested `scrolls` pane, which keeps its own\nwheel. ⌘ +/− dispatches no event and stays out of reach.\n- `onInit()` — Fires once when the view has finished constructing and its subtree exists — the place\nfor setup that needs the built tree. Answered by `onInit()`.\n- `onRetire()` — The departure hook — fires once when this view's PRESENCE ends (its record leaves the\nreplicated match, or the subtree is discarded), children before parents, with everything\nstill alive. The exact symmetric of `onInit`'s membership rule: a windowed row's\ndematerialization is NOT a departure and never fires it.\n- `onFocus()` — The view gained keyboard focus (it is `focusable` and was tabbed or clicked to). Drive a\nfocus ring off it.\n- `onBlur()` — The view lost keyboard focus — the partner of `focus`.\n- `onEscapeFocus()` — Fired on a `focusTrap` when Tab reaches its boundary — your cue to move focus out (close\nthe modal, advance to the next group).\n- `onKeyDown(e: KeyEvent)` — A key was pressed while the view holds focus; the event carries the key. For app-wide\nshortcuts use a `Keys` subscription instead — this is for the focused view only.\n- `onKeyUp(e: KeyEvent)` — A key was released while the view holds focus — the partner of `keyDown`.\n\n## Methods\n\n- `rootOrigin(): { x: number; y: number }` — This view's origin in **root space** (the root's content coordinates — the same space\n`viewAt` takes and drag events carry), computed by the one scroll-aware walk the pointer\nitself is routed by: translate per level, minus every intermediate scroller's offset, the\nroot's own scroll back at the boundary. The anchor primitive for overlays — a menu opening\nat a pointer, a popover dropping under a control — so they land where the view is *seen*,\nat any scroll. Hand-accumulating ancestor `x`/`y` is scroll-blind; call this instead.\n- `scrollIntoView(align?: \"start\" | \"nearest\", smooth?: boolean): void` — Scrolls this view into the visible region of its nearest `scrolls` ancestor (or the page),\naligning its top to the viewport top — the imperative partner of the declarative jump-index\npattern. Both backends realize it natively (DOM `scrollIntoView`, canvas clamps the scroll\nancestor's `scrollOffset`). A no-op if nothing above it scrolls.\n\n## Subclasses\n\n[App](declare-docs:App) · [Text](declare-docs:Text) · [Image](declare-docs:Image) · [RichText](declare-docs:RichText) · [DOMIsland](declare-docs:DOMIsland) · [Editor](declare-docs:Editor) · [Bar](declare-docs:Bar) · [Control](declare-docs:Control) · [RadioGroup](declare-docs:RadioGroup) · [Field](declare-docs:Field) · [ProgressBar](declare-docs:ProgressBar) · [FocusRing](declare-docs:FocusRing) · [Accordion](declare-docs:Accordion) · [Tooltip](declare-docs:Tooltip) · [Menu](declare-docs:Menu) · [MenuBar](declare-docs:MenuBar) · [Dialog](declare-docs:Dialog) · [Spacer](declare-docs:Spacer) · [Column](declare-docs:Column) · [Segmented](declare-docs:Segmented)\n",
+       "doc": "# View\n\n*Built-in element — [Node](declare-docs:Node)*\n\nThe base of every visual thing in Declare — a rectangular **box** with a position, a\nsize, and decoration (fill, corner radius, border, shadow). Everything you see\ndescends from `View`: `Text`, `Image`, your own `class … extends View`. A plain\n`View` is a colored box; give it children and it becomes a container.\n\nIts geometry is set two ways that read the same: literal (`width = 200`) or a reactive\n`{ }` constraint the runtime keeps true (`width = { parent.width }`). Children nest\ninside the brackets, so the source shape mirrors the visual shape; *how* they are\narranged is the `layout` attribute, not the container's type.\n\n```declare\nView [ width = 200, height = 120, fill = white, cornerRadius = 8,\n    Text [ text = \"hello\", x = 12, y = 12 ]\n    ]\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `x` | Length | `0` |  |\n| `y` | Length | `0` |  |\n| `width` | Length | `0` |  |\n| `height` | Length | `0` |  |\n| `fill` | Fill | `null` |  |\n| `cornerRadius` | number | `0` |  |\n| `stroke` | Stroke | `null` |  |\n| `shadow` | Shadow | `null` |  |\n| `visible` | boolean | `true` |  |\n| `ignoreLayout` | boolean | `false` |  |\n| `ignoreClip` | boolean | `false` |  |\n| `ignoreScroll` | boolean | `false` |  |\n| `opacity` | number | `1` |  |\n| `scale` | number | `1` |  |\n| `pivotX` | number | `0` |  |\n| `pivotY` | number | `0` |  |\n| `clip` | Shape | `null` |  |\n| `scrolls` | none | y | x | both | `\"none\"` |  |\n| `claim` | both | x | y | `\"both\"` |  |\n| `tip` | string | `\"\"` |  |\n| `scrollY` | number | `0` |  |\n| `scrollX` | number | `0` |  |\n| `textColor` | Color | `0x000000` | prevailing |\n| `fontSize` | number | `16` | prevailing |\n| `fontFamily` | Font | `\"sans-serif\"` | prevailing |\n| `fontWeight` | thin | extralight | light | regular | normal | medium | semibold | bold | extrabold | black | `\"normal\"` | prevailing |\n| `letterSpacing` | number | `0` | prevailing |\n| `headingColor` | Color | `null` | prevailing |\n| `headingWeight` | thin | extralight | light | regular | normal | medium | semibold | bold | extrabold | black | `\"bold\"` | prevailing |\n| `linkColor` | Color | `null` | prevailing |\n| `codeColor` | Color | `null` | prevailing |\n| `codeSize` | number | `0` | prevailing |\n| `codeFamily` | Font | `\"\"` | prevailing |\n| `codeBackground` | Color | `null` | prevailing |\n| `codeRule` | Color | `null` | prevailing |\n| `richTextLayout` | RichTextLayout | `null` | prevailing |\n| `theme` | Theme | `DEFAULT_THEME` | prevailing |\n| `selectable` | boolean | `false` | prevailing |\n| `styles` | Style[] | `null` |  |\n| `stylesheet` | Stylesheet | `null` | prevailing |\n| `layout` | Layout | `null` |  |\n| `datapath` | datapath | `null` |  |\n| `focusable` | boolean | `false` |  |\n| `focusTrap` | boolean | `false` |  |\n| `anchor` | string | `\"\"` |  |\n| `contentWidth` | Length |  | read-only |\n| `childViews` | array |  | read-only |\n| `virtualized` | boolean |  | read-only |\n| `virtualize` | boolean |  |  |\n| `contentHeight` | Length |  | read-only |\n\n**`x`** — The horizontal offset within the parent, in pixels. Honoured only while the parent\nimposes no `layout` — **a layout overwrites `x` every pass**, so use it for absolute\nplacement (the layout-none default) and switch to `layout` for arrangement; don't fight\none with the other.\n\n**`y`** — The vertical offset within the parent — the twin of `x`, and likewise overwritten by a\nparent `layout`.\n\n**`width`** — The box's width, in **pixels** (`Length`). Defaults to `0`, so a container with no\nwidth set collapses — give it one, a `{ }` constraint, or `100%` (parent-relative).\nSet it live and children constrained to it reflow in the same frame; there is no\nre-layout call. To size *to* content instead, constrain it: `width = { Math.min(contentWidth, 480) }`.\n\n**`height`** — The box's height in pixels (`Length`), mirroring `width`. `0` by default. A `Text`\nleft unsized takes its natural measured height, so you usually set `height` only to\nclip or to drive a layout.\n\n**`fill`** — What paints the box: a solid `Color` or a `gradient(…)` — the one slot, subsuming a\nplain background color. `null` (the default) paints **nothing** — an unfilled box is\ninvisible but still lays out and still catches clicks. In a `[ ]` literal a color is\n`#RRGGBB`; inside a `{ }` body it is `0xRRGGBB` (the one place the spelling differs).\n\n```declare\nView [ fill = { gradient(\"90deg\", 0x1E2A36, 0x0B141B) } ]\n```\n\n**`cornerRadius`** — Rounds the **painted** box by this many pixels (default `0`, square). It shapes fill,\nborder, and shadow — but not hit-testing or clipping: the box stays a rectangle for\nlayout and clicks. To clip children to the rounded shape, set `clip = true` as well.\n\n**`stroke`** — A border drawn **inside** the box (`stroke(width, color)`), so it never enlarges the\nlayout rectangle — the box stays the one geometry fact. `null` by default. Chosen over\nCSS's `border` precisely so a bordered view and an unbordered one occupy the same space.\n\n**`shadow`** — A drop shadow on the box (`shadow(dx, dy, blur, color)`), the CSS box-shadow shape\nminus spread. `null` by default. The glyph equivalent on `Text` is `textShadow`.\n\n**`visible`** — Whether the view renders and participates in layout-that-skips-invisibles (default\n`true`). A `false` view is fully inert — no paint, no hit-testing — but still\nconstructed, so toggling it is cheap and keeps its state.\n\n**`ignoreLayout`** — Opt this child out of its parent's `layout` — the arrangement skips it and it owns\nits own position on both axes (the decoration/overlay case: a badge floating over\na laid list). Its size still counts toward the parent's auto-extent.\n\n**`ignoreClip`** — Opt this child out of its parent's `clip`: outside the parent's frame it still\npaints *and* still hits — frame chrome that straddles the frame (a window's\nresize halo; a badge poking out of a clipped card). Parent-scoped — an ancestor's\nclip above still applies — and the child is exempt from the parent's auto-extent\n(frame geometry derives *from* the bounds, so it cannot also define them).\n\n**`ignoreScroll`** — The third member of the opt-out family (`ignoreLayout` — the parent arranges everyone\nbut me; `ignoreClip` — the parent clips everyone but me): **the scroll carries everyone\nbut me — I ride the frame.** The child stands still against its nearest enclosing scroll\nframe — the window when the page is the regime, the pane's frame inside a `scrolls`\nview — and contributes nothing to the scroll range. The fixed header, the pinned\ntoolbar, and the overlay layer that stages parked furniture are all this one attribute.\n\n**`opacity`** — Whole-view alpha, `0`…`1` (default `1`). Applies to the view **and its subtree** as a\ngroup, so a fading panel fades its contents with it. Not `prevailing`: its effect\nalready composes down the render tree, so a followed copy would apply it twice.\n\n**`scale`** — A uniform **paint** transform — the view's subtree renders scaled about its pivot, never\nre-laid-out (like `opacity`, it changes pixels, not geometry), and hit-testing follows the\nvisible result. Pair with `pivotX`/`pivotY` to choose the center; `1` is unscaled.\n\n**`pivotX`** — The horizontal center of `scale`, in the view's own coordinates. Defaults to the origin; set\nboth `pivotX`/`pivotY` to scale about the middle rather than the top-left.\n\n**`pivotY`** — The vertical pivot — the twin of `pivotX`.\n\n**`clip`** — Clips the subtree to a shape. `clip = true` clips to the view's **own box**\n(reactively on width/height) — the common case; a `Shape` value clips to an arbitrary\npath. `null`/unset (default) draws children unclipped, even outside the box. Kept\nexplicit (not implied by `cornerRadius`) so clipping is pay-per-use.\n\n**`scrolls`** — Which **axes** of interior overflow this view scrolls — `none` (the default), `y`, `x`,\nor `both`. A scrolling view clips to its box; overflow along a declared axis becomes its\nscroll range (live `scrollY`/`scrollX`), and overflow along any other axis is simply out\nof frame. The value is a token **string** in a `{ }` body — compare explicitly\n(`scrolls == \"y\"`), never truthily: `\"none\"` is a truthy string. Fixed chrome comes free — make it a **sibling** of the scroller, or a child that declares `ignoreScroll`.\nBoth backends present the same model; only the overscroll *feel* differs, where the\nplatform can do better. On DOM the OS owns the scroll — overlay scrollbar, momentum, and\nrubber-band overscroll *contained* to this pane, so it bounces on its own edges and never\nchains to the page, and sibling panes overscroll independently. On canvas the runtime\nmanages the offset (clip+translate+wheel), as a single element must.\n\n**`claim`** — The axis a declared drag claims (`claim = x | y | both`, default `both`): `x` keeps\nvertical pan with the enclosing scroll regime while the drag owns horizontal — a grid\ncolumn's header drag or edge-resize on touch. Scopes an existing drag declaration\n(`onPointerMove`); it never creates one. See claim-surface.md for the arbitration.\n\n**`tip`** — The tooltip text — the layer system's floor (one attribute at the use site): a non-empty\n`tip` makes this view hover-interactive, and after the theme's delay the auto-provided\n`Tooltip` singleton shows the text beside it. Placement, delay, and size are theme data\n(`tooltipPlacement` below | above | pointer, `tooltipDelay`, `tooltipSize`) — so Cupertino\ntips appear near the cursor after ~1s at 11px (the macOS help tag), Redmond's above the\ncontrol (WinUI), Mountain View's below at ~500ms (M3) — always flipped and clamped inside\nthe app. Moving between tip-carrying controls while a tip is up retargets instantly; a\npress dismisses. Look comes from `tooltipBg` / `tooltipText` / `tooltipLine`. `\"\"` (the\ndefault) = no tip.\n\n**`scrollY`** — The current vertical scroll offset in pixels of a `scrolls` view — **read it** for\nscroll-driven effects (a fading header, reveals, parallax): `opacity = { 1 - app.scrollY / 200 }`.\n\n**`scrollX`** — **Read it, don't set it** in practice: the live horizontal offset of a `scrolls = x`\n(or `both`) view, mirrored from the native scroll — `scrollY`'s twin. Use it for a\npaging strip's position, scroll-driven effects, or restoring a strip's place.\n\n**`textColor`** — The glyph color `Text` renders with — a `prevailing` styling slot declared on `View`\nso **any** container can provide it and the whole subtree inherits, live. Unset, it\nfollows the nearest ancestor that sets it (default `0x000000`). Set it on a panel to\nretint all text beneath without touching each `Text`.\n\n**`fontSize`** — Prevailing font size in pixels (default `16`), inherited by descendant `Text` exactly\nlike `textColor`. Set once on a container to size a whole region's text.\n\n**`fontFamily`** — The prevailing font **fallback list**, read at each descendant `Text` — `[Brand, \"system-ui\", \"sans-serif\"]`.\nA bare name resolves to a declared `font`; the first entry that resolves wins, so end\nwith a generic. Prevailing, so setting it on a container refaces the whole region.\n\n**`fontWeight`** — The prevailing weight — one of the `thin`…`black` tokens (`normal`/`bold` alias 400/700).\nThe token also **picks the matching face** when a `font` declares several, so weight and\nface never drift apart.\n\n**`letterSpacing`** — Prevailing tracking, in **px** (not em) — `0` is the font's natural advances. Prevailing,\nso a heading container can loosen all its text at once.\n\n**`headingColor`** — **Prevailing.** The color of `Markdown`/`RichText` headings, overriding `textColor` for heading\nruns only; absent, headings follow `textColor`.\n\n**`headingWeight`** — **Prevailing.** The font weight for rich-text headings — the heading-specific counterpart to\n`fontWeight`.\n\n**`linkColor`** — **Prevailing.** The color of links in rich text; absent, links use the theme's accent.\n\n**`codeColor`** — **Prevailing.** The text color of inline and fenced code in rich text.\n\n**`codeSize`** — **Prevailing.** The font size for code regions — one value driving inline code, fenced blocks,\nand `<pre>` alike, so a document's monospace stays uniform.\n\n**`codeFamily`** — **Prevailing.** The monospace family for code regions — a fallback list, like `fontFamily`.\n\n**`codeBackground`** — **Prevailing.** The fill behind fenced code blocks; absent, code carries no box.\n\n**`codeRule`** — **Prevailing.** The color of a fenced code block's left accent rule.\n\n**`richTextLayout`** — **Prevailing.** A per-block-type geometry map for `RichText`/`Markdown` — caller-controlled\nmeasure and spacing per block kind (prose narrower than code, say), so one base renders both\ntight code and wide prose.\n\n**`theme`** — A prevailing record of design tokens, read inside `{ }` as `theme.accent`, `theme.muted`,\netc. Provide it on a container and the subtree styles off it — the escape from hard-coded\ncolors when you don't want a full `stylesheet`.\n\n**`selectable`** — Opt this run back into native text selection / copy (default `false`). Off by default\nso an app doesn't feel like a document; turn it on for content a user should be able to\nselect and copy.\n\n**`styles`** — An ordered list of `style` bundles applied at **construction** — **static in v1**: unlike\n`stylesheet`, reassigning `styles` after build does nothing. For a reskin that changes\nlive, use `stylesheet` instead.\n\n**`stylesheet`** — The prevailing stylesheet: provide one anywhere and that whole subtree reskins; swap it\nand the subtree re-styles in a single settle. The reactive counterpart to the static\n`styles` list.\n\n**`layout`** — How this view arranges its children — a reactive `Layout` attribute, not a child and\nnot the container's type. Defaults to none (absolute `x`/`y`). Swap or animate it and\nthe arrangement transitions continuously: `layout: SimpleLayout [ axis = y, spacing = 10 ]`.\nSet `layout = null` for explicit none.\n\n**`datapath`** — The data cursor (language §9): sets the place in a dataset that this view and its\ndescendants read relative to. Write it as a `:path` (relative to the inherited\ncursor), `:arr[]` to **replicate** this view once per array element, or a `{ }`\nexpression yielding a place. Descendants read with their own relative `:paths`.\n\n**`focusable`** — Makes the view a keyboard **tab stop**. Traversal order is the view tree — there is no\nnumeric tabindex; override `tabOrder()` to reorder within a container.\n\n**`focusTrap`** — Marks a self-contained focus group: Tab cycles within it and escapes at the boundary\n(firing `escapeFocus`). For a modal or menu whose focus must not leak to the page behind.\n\n**`anchor`** — Names this view as a **reveal target** for a location's `@name` suffix\n(`#guide/04-tree@intro` scrolls to the view with `anchor = \"intro\"`). The `<a name>`\nlineage, reborn reactive: the anchor namespace is named views (this attribute) plus\nheading slugs inside rendered rich text — a heading needs nothing from you. Resolution\nprefers views over slugs, preorder-first.\n\n**`contentWidth`** — **Read-only** intrinsic: the width of this view's visible children's bounding box —\nthe auto-extent, surfaced. A constraint may read it (`width = { Math.min(contentWidth, 480) }`)\nto size to content with a cap; assigning it is a compile error.\n\n**`childViews`** — This view's child views, as a live collection — reading it re-runs when the child **set**\nchanges. It carries set membership only, not the children's own attributes: `.length` is\nlive, but `.map(c => c.width)` would wire half of what it reads, so aggregation over a node\ncollection is refused rather than answered wrongly.\n\n**On a virtualized block it answers with the instances that exist** — a subset of the\nrecords, and it changes as you scroll. That is a fact about the block, not a trap: check\n`virtualized` on this same container and you know which kind of answer you are holding\n(the flag is declared on the replicated child, but read on the container — see\n`virtualized`). The list also includes instances the recycler has parked\n(`visible = false`), because they are children.\n\n**For a count of the collection, count the data.** The records are complete by definition;\nthe instances never claimed to be.\n\n```declare-fragment\ncount: number = { (app.d.value.rows).length }\n```\n\nIf you want the window with its logical indices — an accessibility traversal, a diagnostic\n— that is kernel API (`blocksOf`, `realized()`, `materializationInfo`).\n\n**`virtualized`** — Whether **this view's replicated content** is virtualized right now — a content intrinsic,\nlike `contentWidth` and `contentHeight`, and read-only. `false` unless this view is the\ncontainer of a virtualized block, which is every view in a program that never asks for\nvirtualization.\n\n**Read it on the CONTAINER, not the template.** `virtualize` is declared on the replicated\nchild — beside its `datapath = :rows[]`, where `key` lives too — but the block belongs to\nthe *parent* that holds the instances, so the parent is what answers. A row instance reports\n`false`, and that is the honest answer: an instance has no replicated content of its own. In\nordinary speech the list is virtualized, not the row.\n\n```declare-fragment\nlist: View [ datapath = { app.d.value },                  // ← ask THIS one\n    Row [ datapath = :rows[], virtualize = true ]         // ← declared HERE\n    ]\n```\n\nIt is **tracked**, so a constraint reading it follows a block engaging or disengaging —\nwhich can happen mid-run, since the policy accepts a `{ }`. And it is what makes\n`childViews` legible on a virtualized block: the list is a subset, and this is how you know.\n\n**`virtualize`** — Virtualize this replicated collection: build the instances near the viewport and leave the\nrest logical, reconstructed indistinguishably as you scroll. **Replication metadata** — it\nbelongs on the node whose `datapath` matches many, beside that path, and it means nothing\nanywhere else (a node that replicates nothing has no collection to describe, and the checker\nsays so).\n\n**A boolean, off by default.** Below the threshold where construction hurts, materializing\neverything is simply faster and keeps `childViews` whole; above it, this is the one word that\nchanges. There is no automatic mode and no count to tune — a virtualized block costs a flat\n~0.06 ms per scroll tick at any size, so there is no cliff a threshold could protect, and\nwhat full materialization actually costs is construction, which depends on how rich a row is\nrather than how many there are.\n\nLike any boolean it takes a `{ }`, and the policy is read inside the replication match — so a\ncollection can start fully materialized and virtualize when it grows, engaging and\ndisengaging as the answer changes. What you never write is everything *around* the word: no\nrow heights, no scroll container, no keys, no overscan tuning, no memoization.\n\nVirtualization needs a scrolling ancestor (`scrolls = y`, or `both`) and — if the block's\nparent runs a layout — that layout must stack on `y`. A wrapping gallery, a horizontal strip,\na scatter of pins: those fully materialize instead, deliberately, with an inspectable reason.\nRead `virtualized` on the container to see whether it engaged.\n\n```declare-fragment\nRow [ datapath = :rows[], virtualize = true ]\n```\n\n**`contentHeight`** — **Read-only** intrinsic mirroring `contentWidth` on the vertical axis — the measured\nextent of the subtree, for sizing a container to its content.\n\n## Events\n\n- `onClick(e: PointerEvent)` — Fires when the pointer presses **and** releases on the same view (a true click, not a\nstray press) — answered by an `onClick()` handler. The primary interaction event;\n`pointerDown`/`pointerUp`/`pointerMove` are there when you need the raw phases.\n\n```declare\nView [ width = 80, height = 40, cornerRadius = 10, fill = gainsboro,\n    onClick() { fill = 0x4169E1 }\n    ]\n```\n- `onHold(e: PointerEvent)` — A press held in place for half a second — the tap-hold, equally available to a mouse.\nIt does **not** consume the gesture: the raw stream continues and the eventual click\nstill fires unless the pointer wanders, so a hold can open a menu, start a pick-up, or\nbe ignored. Declared **alongside the drag handlers** it changes who owns a touch\nfinger: the drag's claim engages *at the hold* instead of at touchdown, so a quick\nswipe still scrolls the surface underneath and a held finger picks the thing up — the\nhold-to-drag idiom for draggables on scrolling surfaces.\n- `onPointerDown(e: PointerEvent)` — The pointer pressed on the view — the raw press phase. Prefer `click` (press **and**\nrelease on the same view) unless you need the phases apart, e.g. to begin a drag.\n- `onPointerUp(e: PointerUpEvent)` — The pointer released. While a press is captured (it began on this view) `pointerUp` still\nfires **here even if the release lands off the box** — the drag-release guarantee, so a\nslider freezes its value wherever the finger lifts.\n- `onPointerMove(e: PointerEvent)` — The pointer moved over the view — and, once pressed on it, every move **while captured**\n(even outside the box), so a drag handler keeps getting positions. The event carries the\npointer in this view's own coordinates.\n- `onPointerOver(e: PointerEvent)` — The pointer entered the view (retained enter tracking) — the hover-in half. Set a\n`hovered` flag here and read it in a `fill`/`textColor` constraint.\n- `onPointerOut(e: PointerEvent)` — The pointer left the view — the hover-out half; also fires when a press is abandoned off\nthe box, so clear both `hovered` and `pressed` here.\n- `onWheel(e: WheelEvent)` — The wheel turned over the view — mouse wheel, trackpad scroll, or trackpad pinch, which\narrives on the same stream with `e.pinch` true (a ctrl+wheel zoom reports identically).\nThe event carries the point in this view's coordinates plus `deltaX`/`deltaY`. Declaring\nit **claims the wheel** over this view and its subtree — the browser stops scrolling or\nzooming the page with it — except over a nested `scrolls` pane, which keeps its own\nwheel. ⌘ +/− dispatches no event and stays out of reach.\n- `onInit()` — Fires once when the view has finished constructing and its subtree exists — the place\nfor setup that needs the built tree. Answered by `onInit()`.\n- `onRetire()` — The departure hook — fires once when this view's PRESENCE ends (its record leaves the\nreplicated match, or the subtree is discarded), children before parents, with everything\nstill alive. The exact symmetric of `onInit`'s membership rule: a windowed row's\ndematerialization is NOT a departure and never fires it.\n- `onFocus()` — The view gained keyboard focus (it is `focusable` and was tabbed or clicked to). Drive a\nfocus ring off it.\n- `onBlur()` — The view lost keyboard focus — the partner of `focus`.\n- `onEscapeFocus()` — Fired on a `focusTrap` when Tab reaches its boundary — your cue to move focus out (close\nthe modal, advance to the next group).\n- `onKeyDown(e: KeyEvent)` — A key was pressed while the view holds focus; the event carries the key. For app-wide\nshortcuts use a `Keys` subscription instead — this is for the focused view only.\n- `onKeyUp(e: KeyEvent)` — A key was released while the view holds focus — the partner of `keyDown`.\n\n## Methods\n\n- `rootOrigin(): { x: number; y: number }` — This view's origin in **root space** (the root's content coordinates — the same space\n`viewAt` takes and drag events carry), computed by the one scroll-aware walk the pointer\nitself is routed by: translate per level, minus every intermediate scroller's offset, the\nroot's own scroll back at the boundary. The anchor primitive for overlays — a menu opening\nat a pointer, a popover dropping under a control — so they land where the view is *seen*,\nat any scroll. Hand-accumulating ancestor `x`/`y` is scroll-blind; call this instead.\n- `scrollIntoView(align?: \"start\" | \"nearest\", smooth?: boolean): void` — Scrolls this view into the visible region of its nearest `scrolls` ancestor (or the page),\naligning its top to the viewport top — the imperative partner of the declarative jump-index\npattern. Both backends realize it natively (DOM `scrollIntoView`, canvas clamps the scroll\nancestor's `scrollOffset`). A no-op if nothing above it scrolls.\n\n## Subclasses\n\n[App](declare-docs:App) · [Text](declare-docs:Text) · [Image](declare-docs:Image) · [Video](declare-docs:Video) · [RichText](declare-docs:RichText) · [DOMIsland](declare-docs:DOMIsland) · [Editor](declare-docs:Editor) · [Bar](declare-docs:Bar) · [Control](declare-docs:Control) · [RadioGroup](declare-docs:RadioGroup) · [Field](declare-docs:Field) · [ProgressBar](declare-docs:ProgressBar) · [FocusRing](declare-docs:FocusRing) · [Accordion](declare-docs:Accordion) · [Tooltip](declare-docs:Tooltip) · [Menu](declare-docs:Menu) · [MenuBar](declare-docs:MenuBar) · [Dialog](declare-docs:Dialog) · [Spacer](declare-docs:Spacer) · [Column](declare-docs:Column) · [Segmented](declare-docs:Segmented)\n",
        "preview": "The base of every visual thing in Declare — a rectangular box with a position, a size, and decoration (fill, corner radius, border, shadow). Everything you see descends from View: Text, Image, your own class … extends View. A plain View is…"
       },
       {
@@ -29575,6 +30532,14 @@
        "label": "Built-in element",
        "doc": "# Image\n\n*Built-in element — [View](declare-docs:View) → [Node](declare-docs:Node)*\n\nAn async-loaded bitmap. Set `source` to a URL; the image loads in the background and,\nunless you constrain its size, adopts its natural pixel dimensions once loaded (so\n`width`/`height` left unset \"pop\" to the real size on load — constrain them if you need\na stable box before the bytes arrive).\n\n```declare\nImage [ source = { weatherIcon(:code) }, width = 52, height = 52 ]\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `source` | string | `\"\"` |  |\n| `stretches` | none | width | height | both | `\"none\"` |  |\n| `loaded` | boolean | `false` | read-only |\n| `failed` | boolean | `false` | read-only |\n\n**`source`** — The image URL (`string`). Literal or a `{ }` constraint — bind it to data and the\npicture follows: `source = { weatherIcon(:code) }` swaps the bitmap whenever `:code`\nchanges. A stateless helper in a `script { }` beats wrapping a class around one\ncomputed URL.\n\n**`stretches`** — How the bitmap fills a box whose size differs from the image's natural size: `none`\n(default — natural size, no scaling), `width`, `height`, or `both`. The first built-in\nenum attribute — `stretches = both` scales the picture to the box on both axes.\n\n**`loaded`** — The bitmap has landed — the reactive fact a placeholder derives from\n(`spinner: View [ visible = { !pic.loaded } ]`). **Read-only** — computed by the load,\na compile error to assign. One honest edge: re-pointing `source` does not reset it —\nthe surface keeps the previous bitmap (and `loaded` stays true) until the replacement\narrives; a superseded in-flight load is discarded. Under headless extraction there is\nno image loader, so `loaded` honestly stays false. A failure is `failed`'s fact, not\nthis one's absence.\n\n**`failed`** — The **current** source's load failed — the broken-avatar fact, for deriving a fallback:\n`initials: Text [ visible = { pic.failed }, … ]`. **Read-only.** Reset whenever a new\nload starts (a `source` change), so it always speaks about the present address; a\nfailure keeps whatever bitmap was already showing (`loaded` stays true if one had\nlanded). There is no error *message* — the platform's image loader does not say why —\nso the fact is boolean by honesty, not austerity.\n\n## Inherited from [View](declare-docs:View)\n\n### Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `x` | Length | `0` |  |\n| `y` | Length | `0` |  |\n| `width` | Length | `0` |  |\n| `height` | Length | `0` |  |\n| `fill` | Fill | `null` |  |\n| `cornerRadius` | number | `0` |  |\n| `stroke` | Stroke | `null` |  |\n| `shadow` | Shadow | `null` |  |\n| `visible` | boolean | `true` |  |\n| `ignoreLayout` | boolean | `false` |  |\n| `ignoreClip` | boolean | `false` |  |\n| `ignoreScroll` | boolean | `false` |  |\n| `opacity` | number | `1` |  |\n| `scale` | number | `1` |  |\n| `pivotX` | number | `0` |  |\n| `pivotY` | number | `0` |  |\n| `clip` | Shape | `null` |  |\n| `scrolls` | none | y | x | both | `\"none\"` |  |\n| `claim` | both | x | y | `\"both\"` |  |\n| `tip` | string | `\"\"` |  |\n| `scrollY` | number | `0` |  |\n| `scrollX` | number | `0` |  |\n| `textColor` | Color | `0x000000` | prevailing |\n| `fontSize` | number | `16` | prevailing |\n| `fontFamily` | Font | `\"sans-serif\"` | prevailing |\n| `fontWeight` | thin | extralight | light | regular | normal | medium | semibold | bold | extrabold | black | `\"normal\"` | prevailing |\n| `letterSpacing` | number | `0` | prevailing |\n| `headingColor` | Color | `null` | prevailing |\n| `headingWeight` | thin | extralight | light | regular | normal | medium | semibold | bold | extrabold | black | `\"bold\"` | prevailing |\n| `linkColor` | Color | `null` | prevailing |\n| `codeColor` | Color | `null` | prevailing |\n| `codeSize` | number | `0` | prevailing |\n| `codeFamily` | Font | `\"\"` | prevailing |\n| `codeBackground` | Color | `null` | prevailing |\n| `codeRule` | Color | `null` | prevailing |\n| `richTextLayout` | RichTextLayout | `null` | prevailing |\n| `theme` | Theme | `DEFAULT_THEME` | prevailing |\n| `selectable` | boolean | `false` | prevailing |\n| `styles` | Style[] | `null` |  |\n| `stylesheet` | Stylesheet | `null` | prevailing |\n| `layout` | Layout | `null` |  |\n| `datapath` | datapath | `null` |  |\n| `focusable` | boolean | `false` |  |\n| `focusTrap` | boolean | `false` |  |\n| `anchor` | string | `\"\"` |  |\n| `contentWidth` | Length |  | read-only |\n| `childViews` | array |  | read-only |\n| `virtualized` | boolean |  | read-only |\n| `virtualize` | boolean |  |  |\n| `contentHeight` | Length |  | read-only |\n\n**`x`** — The horizontal offset within the parent, in pixels. Honoured only while the parent\nimposes no `layout` — **a layout overwrites `x` every pass**, so use it for absolute\nplacement (the layout-none default) and switch to `layout` for arrangement; don't fight\none with the other.\n\n**`y`** — The vertical offset within the parent — the twin of `x`, and likewise overwritten by a\nparent `layout`.\n\n**`width`** — The box's width, in **pixels** (`Length`). Defaults to `0`, so a container with no\nwidth set collapses — give it one, a `{ }` constraint, or `100%` (parent-relative).\nSet it live and children constrained to it reflow in the same frame; there is no\nre-layout call. To size *to* content instead, constrain it: `width = { Math.min(contentWidth, 480) }`.\n\n**`height`** — The box's height in pixels (`Length`), mirroring `width`. `0` by default. A `Text`\nleft unsized takes its natural measured height, so you usually set `height` only to\nclip or to drive a layout.\n\n**`fill`** — What paints the box: a solid `Color` or a `gradient(…)` — the one slot, subsuming a\nplain background color. `null` (the default) paints **nothing** — an unfilled box is\ninvisible but still lays out and still catches clicks. In a `[ ]` literal a color is\n`#RRGGBB`; inside a `{ }` body it is `0xRRGGBB` (the one place the spelling differs).\n\n```declare\nView [ fill = { gradient(\"90deg\", 0x1E2A36, 0x0B141B) } ]\n```\n\n**`cornerRadius`** — Rounds the **painted** box by this many pixels (default `0`, square). It shapes fill,\nborder, and shadow — but not hit-testing or clipping: the box stays a rectangle for\nlayout and clicks. To clip children to the rounded shape, set `clip = true` as well.\n\n**`stroke`** — A border drawn **inside** the box (`stroke(width, color)`), so it never enlarges the\nlayout rectangle — the box stays the one geometry fact. `null` by default. Chosen over\nCSS's `border` precisely so a bordered view and an unbordered one occupy the same space.\n\n**`shadow`** — A drop shadow on the box (`shadow(dx, dy, blur, color)`), the CSS box-shadow shape\nminus spread. `null` by default. The glyph equivalent on `Text` is `textShadow`.\n\n**`visible`** — Whether the view renders and participates in layout-that-skips-invisibles (default\n`true`). A `false` view is fully inert — no paint, no hit-testing — but still\nconstructed, so toggling it is cheap and keeps its state.\n\n**`ignoreLayout`** — Opt this child out of its parent's `layout` — the arrangement skips it and it owns\nits own position on both axes (the decoration/overlay case: a badge floating over\na laid list). Its size still counts toward the parent's auto-extent.\n\n**`ignoreClip`** — Opt this child out of its parent's `clip`: outside the parent's frame it still\npaints *and* still hits — frame chrome that straddles the frame (a window's\nresize halo; a badge poking out of a clipped card). Parent-scoped — an ancestor's\nclip above still applies — and the child is exempt from the parent's auto-extent\n(frame geometry derives *from* the bounds, so it cannot also define them).\n\n**`ignoreScroll`** — The third member of the opt-out family (`ignoreLayout` — the parent arranges everyone\nbut me; `ignoreClip` — the parent clips everyone but me): **the scroll carries everyone\nbut me — I ride the frame.** The child stands still against its nearest enclosing scroll\nframe — the window when the page is the regime, the pane's frame inside a `scrolls`\nview — and contributes nothing to the scroll range. The fixed header, the pinned\ntoolbar, and the overlay layer that stages parked furniture are all this one attribute.\n\n**`opacity`** — Whole-view alpha, `0`…`1` (default `1`). Applies to the view **and its subtree** as a\ngroup, so a fading panel fades its contents with it. Not `prevailing`: its effect\nalready composes down the render tree, so a followed copy would apply it twice.\n\n**`scale`** — A uniform **paint** transform — the view's subtree renders scaled about its pivot, never\nre-laid-out (like `opacity`, it changes pixels, not geometry), and hit-testing follows the\nvisible result. Pair with `pivotX`/`pivotY` to choose the center; `1` is unscaled.\n\n**`pivotX`** — The horizontal center of `scale`, in the view's own coordinates. Defaults to the origin; set\nboth `pivotX`/`pivotY` to scale about the middle rather than the top-left.\n\n**`pivotY`** — The vertical pivot — the twin of `pivotX`.\n\n**`clip`** — Clips the subtree to a shape. `clip = true` clips to the view's **own box**\n(reactively on width/height) — the common case; a `Shape` value clips to an arbitrary\npath. `null`/unset (default) draws children unclipped, even outside the box. Kept\nexplicit (not implied by `cornerRadius`) so clipping is pay-per-use.\n\n**`scrolls`** — Which **axes** of interior overflow this view scrolls — `none` (the default), `y`, `x`,\nor `both`. A scrolling view clips to its box; overflow along a declared axis becomes its\nscroll range (live `scrollY`/`scrollX`), and overflow along any other axis is simply out\nof frame. The value is a token **string** in a `{ }` body — compare explicitly\n(`scrolls == \"y\"`), never truthily: `\"none\"` is a truthy string. Fixed chrome comes free — make it a **sibling** of the scroller, or a child that declares `ignoreScroll`.\nBoth backends present the same model; only the overscroll *feel* differs, where the\nplatform can do better. On DOM the OS owns the scroll — overlay scrollbar, momentum, and\nrubber-band overscroll *contained* to this pane, so it bounces on its own edges and never\nchains to the page, and sibling panes overscroll independently. On canvas the runtime\nmanages the offset (clip+translate+wheel), as a single element must.\n\n**`claim`** — The axis a declared drag claims (`claim = x | y | both`, default `both`): `x` keeps\nvertical pan with the enclosing scroll regime while the drag owns horizontal — a grid\ncolumn's header drag or edge-resize on touch. Scopes an existing drag declaration\n(`onPointerMove`); it never creates one. See claim-surface.md for the arbitration.\n\n**`tip`** — The tooltip text — the layer system's floor (one attribute at the use site): a non-empty\n`tip` makes this view hover-interactive, and after the theme's delay the auto-provided\n`Tooltip` singleton shows the text beside it. Placement, delay, and size are theme data\n(`tooltipPlacement` below | above | pointer, `tooltipDelay`, `tooltipSize`) — so Cupertino\ntips appear near the cursor after ~1s at 11px (the macOS help tag), Redmond's above the\ncontrol (WinUI), Mountain View's below at ~500ms (M3) — always flipped and clamped inside\nthe app. Moving between tip-carrying controls while a tip is up retargets instantly; a\npress dismisses. Look comes from `tooltipBg` / `tooltipText` / `tooltipLine`. `\"\"` (the\ndefault) = no tip.\n\n**`scrollY`** — The current vertical scroll offset in pixels of a `scrolls` view — **read it** for\nscroll-driven effects (a fading header, reveals, parallax): `opacity = { 1 - app.scrollY / 200 }`.\n\n**`scrollX`** — **Read it, don't set it** in practice: the live horizontal offset of a `scrolls = x`\n(or `both`) view, mirrored from the native scroll — `scrollY`'s twin. Use it for a\npaging strip's position, scroll-driven effects, or restoring a strip's place.\n\n**`textColor`** — The glyph color `Text` renders with — a `prevailing` styling slot declared on `View`\nso **any** container can provide it and the whole subtree inherits, live. Unset, it\nfollows the nearest ancestor that sets it (default `0x000000`). Set it on a panel to\nretint all text beneath without touching each `Text`.\n\n**`fontSize`** — Prevailing font size in pixels (default `16`), inherited by descendant `Text` exactly\nlike `textColor`. Set once on a container to size a whole region's text.\n\n**`fontFamily`** — The prevailing font **fallback list**, read at each descendant `Text` — `[Brand, \"system-ui\", \"sans-serif\"]`.\nA bare name resolves to a declared `font`; the first entry that resolves wins, so end\nwith a generic. Prevailing, so setting it on a container refaces the whole region.\n\n**`fontWeight`** — The prevailing weight — one of the `thin`…`black` tokens (`normal`/`bold` alias 400/700).\nThe token also **picks the matching face** when a `font` declares several, so weight and\nface never drift apart.\n\n**`letterSpacing`** — Prevailing tracking, in **px** (not em) — `0` is the font's natural advances. Prevailing,\nso a heading container can loosen all its text at once.\n\n**`headingColor`** — **Prevailing.** The color of `Markdown`/`RichText` headings, overriding `textColor` for heading\nruns only; absent, headings follow `textColor`.\n\n**`headingWeight`** — **Prevailing.** The font weight for rich-text headings — the heading-specific counterpart to\n`fontWeight`.\n\n**`linkColor`** — **Prevailing.** The color of links in rich text; absent, links use the theme's accent.\n\n**`codeColor`** — **Prevailing.** The text color of inline and fenced code in rich text.\n\n**`codeSize`** — **Prevailing.** The font size for code regions — one value driving inline code, fenced blocks,\nand `<pre>` alike, so a document's monospace stays uniform.\n\n**`codeFamily`** — **Prevailing.** The monospace family for code regions — a fallback list, like `fontFamily`.\n\n**`codeBackground`** — **Prevailing.** The fill behind fenced code blocks; absent, code carries no box.\n\n**`codeRule`** — **Prevailing.** The color of a fenced code block's left accent rule.\n\n**`richTextLayout`** — **Prevailing.** A per-block-type geometry map for `RichText`/`Markdown` — caller-controlled\nmeasure and spacing per block kind (prose narrower than code, say), so one base renders both\ntight code and wide prose.\n\n**`theme`** — A prevailing record of design tokens, read inside `{ }` as `theme.accent`, `theme.muted`,\netc. Provide it on a container and the subtree styles off it — the escape from hard-coded\ncolors when you don't want a full `stylesheet`.\n\n**`selectable`** — Opt this run back into native text selection / copy (default `false`). Off by default\nso an app doesn't feel like a document; turn it on for content a user should be able to\nselect and copy.\n\n**`styles`** — An ordered list of `style` bundles applied at **construction** — **static in v1**: unlike\n`stylesheet`, reassigning `styles` after build does nothing. For a reskin that changes\nlive, use `stylesheet` instead.\n\n**`stylesheet`** — The prevailing stylesheet: provide one anywhere and that whole subtree reskins; swap it\nand the subtree re-styles in a single settle. The reactive counterpart to the static\n`styles` list.\n\n**`layout`** — How this view arranges its children — a reactive `Layout` attribute, not a child and\nnot the container's type. Defaults to none (absolute `x`/`y`). Swap or animate it and\nthe arrangement transitions continuously: `layout: SimpleLayout [ axis = y, spacing = 10 ]`.\nSet `layout = null` for explicit none.\n\n**`datapath`** — The data cursor (language §9): sets the place in a dataset that this view and its\ndescendants read relative to. Write it as a `:path` (relative to the inherited\ncursor), `:arr[]` to **replicate** this view once per array element, or a `{ }`\nexpression yielding a place. Descendants read with their own relative `:paths`.\n\n**`focusable`** — Makes the view a keyboard **tab stop**. Traversal order is the view tree — there is no\nnumeric tabindex; override `tabOrder()` to reorder within a container.\n\n**`focusTrap`** — Marks a self-contained focus group: Tab cycles within it and escapes at the boundary\n(firing `escapeFocus`). For a modal or menu whose focus must not leak to the page behind.\n\n**`anchor`** — Names this view as a **reveal target** for a location's `@name` suffix\n(`#guide/04-tree@intro` scrolls to the view with `anchor = \"intro\"`). The `<a name>`\nlineage, reborn reactive: the anchor namespace is named views (this attribute) plus\nheading slugs inside rendered rich text — a heading needs nothing from you. Resolution\nprefers views over slugs, preorder-first.\n\n**`contentWidth`** — **Read-only** intrinsic: the width of this view's visible children's bounding box —\nthe auto-extent, surfaced. A constraint may read it (`width = { Math.min(contentWidth, 480) }`)\nto size to content with a cap; assigning it is a compile error.\n\n**`childViews`** — This view's child views, as a live collection — reading it re-runs when the child **set**\nchanges. It carries set membership only, not the children's own attributes: `.length` is\nlive, but `.map(c => c.width)` would wire half of what it reads, so aggregation over a node\ncollection is refused rather than answered wrongly.\n\n**On a virtualized block it answers with the instances that exist** — a subset of the\nrecords, and it changes as you scroll. That is a fact about the block, not a trap: check\n`virtualized` on this same container and you know which kind of answer you are holding\n(the flag is declared on the replicated child, but read on the container — see\n`virtualized`). The list also includes instances the recycler has parked\n(`visible = false`), because they are children.\n\n**For a count of the collection, count the data.** The records are complete by definition;\nthe instances never claimed to be.\n\n```declare-fragment\ncount: number = { (app.d.value.rows).length }\n```\n\nIf you want the window with its logical indices — an accessibility traversal, a diagnostic\n— that is kernel API (`blocksOf`, `realized()`, `materializationInfo`).\n\n**`virtualized`** — Whether **this view's replicated content** is virtualized right now — a content intrinsic,\nlike `contentWidth` and `contentHeight`, and read-only. `false` unless this view is the\ncontainer of a virtualized block, which is every view in a program that never asks for\nvirtualization.\n\n**Read it on the CONTAINER, not the template.** `virtualize` is declared on the replicated\nchild — beside its `datapath = :rows[]`, where `key` lives too — but the block belongs to\nthe *parent* that holds the instances, so the parent is what answers. A row instance reports\n`false`, and that is the honest answer: an instance has no replicated content of its own. In\nordinary speech the list is virtualized, not the row.\n\n```declare-fragment\nlist: View [ datapath = { app.d.value },                  // ← ask THIS one\n    Row [ datapath = :rows[], virtualize = true ]         // ← declared HERE\n    ]\n```\n\nIt is **tracked**, so a constraint reading it follows a block engaging or disengaging —\nwhich can happen mid-run, since the policy accepts a `{ }`. And it is what makes\n`childViews` legible on a virtualized block: the list is a subset, and this is how you know.\n\n**`virtualize`** — Virtualize this replicated collection: build the instances near the viewport and leave the\nrest logical, reconstructed indistinguishably as you scroll. **Replication metadata** — it\nbelongs on the node whose `datapath` matches many, beside that path, and it means nothing\nanywhere else (a node that replicates nothing has no collection to describe, and the checker\nsays so).\n\n**A boolean, off by default.** Below the threshold where construction hurts, materializing\neverything is simply faster and keeps `childViews` whole; above it, this is the one word that\nchanges. There is no automatic mode and no count to tune — a virtualized block costs a flat\n~0.06 ms per scroll tick at any size, so there is no cliff a threshold could protect, and\nwhat full materialization actually costs is construction, which depends on how rich a row is\nrather than how many there are.\n\nLike any boolean it takes a `{ }`, and the policy is read inside the replication match — so a\ncollection can start fully materialized and virtualize when it grows, engaging and\ndisengaging as the answer changes. What you never write is everything *around* the word: no\nrow heights, no scroll container, no keys, no overscan tuning, no memoization.\n\nVirtualization needs a scrolling ancestor (`scrolls = y`, or `both`) and — if the block's\nparent runs a layout — that layout must stack on `y`. A wrapping gallery, a horizontal strip,\na scatter of pins: those fully materialize instead, deliberately, with an inspectable reason.\nRead `virtualized` on the container to see whether it engaged.\n\n```declare-fragment\nRow [ datapath = :rows[], virtualize = true ]\n```\n\n**`contentHeight`** — **Read-only** intrinsic mirroring `contentWidth` on the vertical axis — the measured\nextent of the subtree, for sizing a container to its content.\n\n### Events\n\n- `onClick(e: PointerEvent)` — Fires when the pointer presses **and** releases on the same view (a true click, not a\nstray press) — answered by an `onClick()` handler. The primary interaction event;\n`pointerDown`/`pointerUp`/`pointerMove` are there when you need the raw phases.\n\n```declare\nView [ width = 80, height = 40, cornerRadius = 10, fill = gainsboro,\n    onClick() { fill = 0x4169E1 }\n    ]\n```\n- `onHold(e: PointerEvent)` — A press held in place for half a second — the tap-hold, equally available to a mouse.\nIt does **not** consume the gesture: the raw stream continues and the eventual click\nstill fires unless the pointer wanders, so a hold can open a menu, start a pick-up, or\nbe ignored. Declared **alongside the drag handlers** it changes who owns a touch\nfinger: the drag's claim engages *at the hold* instead of at touchdown, so a quick\nswipe still scrolls the surface underneath and a held finger picks the thing up — the\nhold-to-drag idiom for draggables on scrolling surfaces.\n- `onPointerDown(e: PointerEvent)` — The pointer pressed on the view — the raw press phase. Prefer `click` (press **and**\nrelease on the same view) unless you need the phases apart, e.g. to begin a drag.\n- `onPointerUp(e: PointerUpEvent)` — The pointer released. While a press is captured (it began on this view) `pointerUp` still\nfires **here even if the release lands off the box** — the drag-release guarantee, so a\nslider freezes its value wherever the finger lifts.\n- `onPointerMove(e: PointerEvent)` — The pointer moved over the view — and, once pressed on it, every move **while captured**\n(even outside the box), so a drag handler keeps getting positions. The event carries the\npointer in this view's own coordinates.\n- `onPointerOver(e: PointerEvent)` — The pointer entered the view (retained enter tracking) — the hover-in half. Set a\n`hovered` flag here and read it in a `fill`/`textColor` constraint.\n- `onPointerOut(e: PointerEvent)` — The pointer left the view — the hover-out half; also fires when a press is abandoned off\nthe box, so clear both `hovered` and `pressed` here.\n- `onWheel(e: WheelEvent)` — The wheel turned over the view — mouse wheel, trackpad scroll, or trackpad pinch, which\narrives on the same stream with `e.pinch` true (a ctrl+wheel zoom reports identically).\nThe event carries the point in this view's coordinates plus `deltaX`/`deltaY`. Declaring\nit **claims the wheel** over this view and its subtree — the browser stops scrolling or\nzooming the page with it — except over a nested `scrolls` pane, which keeps its own\nwheel. ⌘ +/− dispatches no event and stays out of reach.\n- `onInit()` — Fires once when the view has finished constructing and its subtree exists — the place\nfor setup that needs the built tree. Answered by `onInit()`.\n- `onRetire()` — The departure hook — fires once when this view's PRESENCE ends (its record leaves the\nreplicated match, or the subtree is discarded), children before parents, with everything\nstill alive. The exact symmetric of `onInit`'s membership rule: a windowed row's\ndematerialization is NOT a departure and never fires it.\n- `onFocus()` — The view gained keyboard focus (it is `focusable` and was tabbed or clicked to). Drive a\nfocus ring off it.\n- `onBlur()` — The view lost keyboard focus — the partner of `focus`.\n- `onEscapeFocus()` — Fired on a `focusTrap` when Tab reaches its boundary — your cue to move focus out (close\nthe modal, advance to the next group).\n- `onKeyDown(e: KeyEvent)` — A key was pressed while the view holds focus; the event carries the key. For app-wide\nshortcuts use a `Keys` subscription instead — this is for the focused view only.\n- `onKeyUp(e: KeyEvent)` — A key was released while the view holds focus — the partner of `keyDown`.\n\n### Methods\n\n- `rootOrigin(): { x: number; y: number }` — This view's origin in **root space** (the root's content coordinates — the same space\n`viewAt` takes and drag events carry), computed by the one scroll-aware walk the pointer\nitself is routed by: translate per level, minus every intermediate scroller's offset, the\nroot's own scroll back at the boundary. The anchor primitive for overlays — a menu opening\nat a pointer, a popover dropping under a control — so they land where the view is *seen*,\nat any scroll. Hand-accumulating ancestor `x`/`y` is scroll-blind; call this instead.\n- `scrollIntoView(align?: \"start\" | \"nearest\", smooth?: boolean): void` — Scrolls this view into the visible region of its nearest `scrolls` ancestor (or the page),\naligning its top to the viewport top — the imperative partner of the declarative jump-index\npattern. Both backends realize it natively (DOM `scrollIntoView`, canvas clamps the scroll\nancestor's `scrollOffset`). A no-op if nothing above it scrolls.\n",
        "preview": "An async-loaded bitmap. Set source to a URL; the image loads in the background and, unless you constrain its size, adopts its natural pixel dimensions once loaded (so width/height left unset \"pop\" to the real size on load — constrain them i…"
+      },
+      {
+       "name": "Video",
+       "subtitle": "extends View",
+       "kind": "element",
+       "label": "Built-in element",
+       "doc": "# Video\n\n*Built-in element — [View](declare-docs:View) → [Node](declare-docs:Node)*\n\nMoving pictures, declared the way a still one is. Set `source` to a URL; the clip loads\nin the background and, unless you constrain its size, adopts its natural pixel dimensions\nonce the metadata arrives. `Image`'s shape, with time added.\n\nThere are **no player controls and no methods to call**. Transport is attributes: you do\nnot tell a clip to play, you declare the condition under which it is playing, and it\nfollows — so a clip below the fold is not decoding while nobody is looking, and one that\nscrolls into view starts because the answer changed.\n\n```declare\nreel: Video [ source = \"shots/tour.mp4\", stretches = both, loop = true,\n    playing = { app.scrollY + app.height > this.parent.y } ]\n```\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `source` | string | `\"\"` |  |\n| `stretches` | none | width | height | both | `\"none\"` |  |\n| `playing` | boolean | `false` |  |\n| `loop` | boolean | `false` |  |\n| `muted` | boolean | `true` |  |\n| `position` | number | `0` |  |\n| `volume` | number | `1` |  |\n| `playbackRate` | number | `1` |  |\n| `ended` | boolean | `false` | read-only |\n| `duration` | number | `0` | read-only |\n| `buffering` | boolean | `false` | read-only |\n| `loaded` | boolean | `false` | read-only |\n| `failed` | boolean | `false` | read-only |\n\n**`source`** — The clip URL (`string`). Literal or a `{ }` constraint — bind it to data and the picture\nfollows. Re-pointing it starts a fresh load; a superseded in-flight load is discarded.\n\n**`stretches`** — How the frame fills a box whose size differs from the clip's natural size: `none`\n(default — natural size, no scaling), `width`, `height`, or `both`.\n\n**`playing`** — Whether the clip is running. **Two-way**: a constraint decides when it plays, and the\nelement writes back when something outside the program changes it — the browser pausing a\nbackgrounded tab, or the user hitting a media key. Bind it to a fact about the world\n(`playing = { visible && !app.reducedMotion }`) rather than assigning it from a handler,\nand the clip does the right thing without anything scheduling it.\n\n**`loop`** — Restart at the end rather than stopping. Default `false`.\n\n**`muted`** — Default **`true`**, and deliberately: an unmuted clip that tries to autoplay is blocked by\nevery browser, so a clip that declares `playing` and forgets `muted` would simply never\nstart. Set it `false` only where a person has asked for sound.\n\n**`position`** — The playhead, in seconds. **Two-way** — read it to follow along (a progress bar is\n`width = { parent.width * (reel.position / reel.duration) }`), assign it to seek. Writing\na position the clip has not buffered seeks as soon as it can.\n\n**`volume`** — `0`–`1`, default `1`. Independent of `muted`, which gates it.\n\n**`playbackRate`** — Speed multiplier, default `1`. `0.5` is half speed, `2` double; pitch is the platform's\nbusiness.\n\n**`ended`** — The clip reached its end and stopped. **Read-only.** Stays false while `loop` is true,\nsince a looping clip never ends. Pair with `onEnded()` when you want the moment rather\nthan the state.\n\n**`duration`** — Total length in seconds, `0` until the metadata lands. **Read-only** — computed by the\nload, a compile error to assign.\n\n**`buffering`** — The clip wants data it does not have and has stalled. **Read-only** — the reactive fact a\nspinner derives from (`spinner: View [ visible = { reel.buffering } ]`). Distinct from\n`!loaded`: buffering is a stall *during* playback, not the wait before it.\n\n**`loaded`** — Enough of the clip has arrived to display a frame — the fact a poster derives from\n(`still: Image [ visible = { !reel.loaded } ]`, which is how you get a poster image\nwithout a `poster` attribute: compose the two). **Read-only.** Re-pointing `source` does\nnot reset it; the surface keeps the previous frame until the replacement arrives. Under\nheadless extraction there is no media loader, so `loaded` honestly stays false.\n\n**`failed`** — The **current** source's load failed. **Read-only.** Reset whenever a new load starts, so\nit always speaks about the present address. There is no error *message* — the platform's\nmedia loader does not say why — so the fact is boolean by honesty, not austerity.\n\n## Events\n\n- `onEnded()` — Fired when the clip reaches its end. Like every Declare event it is delivered to the\nhandler that declared interest and does not bubble.\n\n## Inherited from [View](declare-docs:View)\n\n### Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `x` | Length | `0` |  |\n| `y` | Length | `0` |  |\n| `width` | Length | `0` |  |\n| `height` | Length | `0` |  |\n| `fill` | Fill | `null` |  |\n| `cornerRadius` | number | `0` |  |\n| `stroke` | Stroke | `null` |  |\n| `shadow` | Shadow | `null` |  |\n| `visible` | boolean | `true` |  |\n| `ignoreLayout` | boolean | `false` |  |\n| `ignoreClip` | boolean | `false` |  |\n| `ignoreScroll` | boolean | `false` |  |\n| `opacity` | number | `1` |  |\n| `scale` | number | `1` |  |\n| `pivotX` | number | `0` |  |\n| `pivotY` | number | `0` |  |\n| `clip` | Shape | `null` |  |\n| `scrolls` | none | y | x | both | `\"none\"` |  |\n| `claim` | both | x | y | `\"both\"` |  |\n| `tip` | string | `\"\"` |  |\n| `scrollY` | number | `0` |  |\n| `scrollX` | number | `0` |  |\n| `textColor` | Color | `0x000000` | prevailing |\n| `fontSize` | number | `16` | prevailing |\n| `fontFamily` | Font | `\"sans-serif\"` | prevailing |\n| `fontWeight` | thin | extralight | light | regular | normal | medium | semibold | bold | extrabold | black | `\"normal\"` | prevailing |\n| `letterSpacing` | number | `0` | prevailing |\n| `headingColor` | Color | `null` | prevailing |\n| `headingWeight` | thin | extralight | light | regular | normal | medium | semibold | bold | extrabold | black | `\"bold\"` | prevailing |\n| `linkColor` | Color | `null` | prevailing |\n| `codeColor` | Color | `null` | prevailing |\n| `codeSize` | number | `0` | prevailing |\n| `codeFamily` | Font | `\"\"` | prevailing |\n| `codeBackground` | Color | `null` | prevailing |\n| `codeRule` | Color | `null` | prevailing |\n| `richTextLayout` | RichTextLayout | `null` | prevailing |\n| `theme` | Theme | `DEFAULT_THEME` | prevailing |\n| `selectable` | boolean | `false` | prevailing |\n| `styles` | Style[] | `null` |  |\n| `stylesheet` | Stylesheet | `null` | prevailing |\n| `layout` | Layout | `null` |  |\n| `datapath` | datapath | `null` |  |\n| `focusable` | boolean | `false` |  |\n| `focusTrap` | boolean | `false` |  |\n| `anchor` | string | `\"\"` |  |\n| `contentWidth` | Length |  | read-only |\n| `childViews` | array |  | read-only |\n| `virtualized` | boolean |  | read-only |\n| `virtualize` | boolean |  |  |\n| `contentHeight` | Length |  | read-only |\n\n**`x`** — The horizontal offset within the parent, in pixels. Honoured only while the parent\nimposes no `layout` — **a layout overwrites `x` every pass**, so use it for absolute\nplacement (the layout-none default) and switch to `layout` for arrangement; don't fight\none with the other.\n\n**`y`** — The vertical offset within the parent — the twin of `x`, and likewise overwritten by a\nparent `layout`.\n\n**`width`** — The box's width, in **pixels** (`Length`). Defaults to `0`, so a container with no\nwidth set collapses — give it one, a `{ }` constraint, or `100%` (parent-relative).\nSet it live and children constrained to it reflow in the same frame; there is no\nre-layout call. To size *to* content instead, constrain it: `width = { Math.min(contentWidth, 480) }`.\n\n**`height`** — The box's height in pixels (`Length`), mirroring `width`. `0` by default. A `Text`\nleft unsized takes its natural measured height, so you usually set `height` only to\nclip or to drive a layout.\n\n**`fill`** — What paints the box: a solid `Color` or a `gradient(…)` — the one slot, subsuming a\nplain background color. `null` (the default) paints **nothing** — an unfilled box is\ninvisible but still lays out and still catches clicks. In a `[ ]` literal a color is\n`#RRGGBB`; inside a `{ }` body it is `0xRRGGBB` (the one place the spelling differs).\n\n```declare\nView [ fill = { gradient(\"90deg\", 0x1E2A36, 0x0B141B) } ]\n```\n\n**`cornerRadius`** — Rounds the **painted** box by this many pixels (default `0`, square). It shapes fill,\nborder, and shadow — but not hit-testing or clipping: the box stays a rectangle for\nlayout and clicks. To clip children to the rounded shape, set `clip = true` as well.\n\n**`stroke`** — A border drawn **inside** the box (`stroke(width, color)`), so it never enlarges the\nlayout rectangle — the box stays the one geometry fact. `null` by default. Chosen over\nCSS's `border` precisely so a bordered view and an unbordered one occupy the same space.\n\n**`shadow`** — A drop shadow on the box (`shadow(dx, dy, blur, color)`), the CSS box-shadow shape\nminus spread. `null` by default. The glyph equivalent on `Text` is `textShadow`.\n\n**`visible`** — Whether the view renders and participates in layout-that-skips-invisibles (default\n`true`). A `false` view is fully inert — no paint, no hit-testing — but still\nconstructed, so toggling it is cheap and keeps its state.\n\n**`ignoreLayout`** — Opt this child out of its parent's `layout` — the arrangement skips it and it owns\nits own position on both axes (the decoration/overlay case: a badge floating over\na laid list). Its size still counts toward the parent's auto-extent.\n\n**`ignoreClip`** — Opt this child out of its parent's `clip`: outside the parent's frame it still\npaints *and* still hits — frame chrome that straddles the frame (a window's\nresize halo; a badge poking out of a clipped card). Parent-scoped — an ancestor's\nclip above still applies — and the child is exempt from the parent's auto-extent\n(frame geometry derives *from* the bounds, so it cannot also define them).\n\n**`ignoreScroll`** — The third member of the opt-out family (`ignoreLayout` — the parent arranges everyone\nbut me; `ignoreClip` — the parent clips everyone but me): **the scroll carries everyone\nbut me — I ride the frame.** The child stands still against its nearest enclosing scroll\nframe — the window when the page is the regime, the pane's frame inside a `scrolls`\nview — and contributes nothing to the scroll range. The fixed header, the pinned\ntoolbar, and the overlay layer that stages parked furniture are all this one attribute.\n\n**`opacity`** — Whole-view alpha, `0`…`1` (default `1`). Applies to the view **and its subtree** as a\ngroup, so a fading panel fades its contents with it. Not `prevailing`: its effect\nalready composes down the render tree, so a followed copy would apply it twice.\n\n**`scale`** — A uniform **paint** transform — the view's subtree renders scaled about its pivot, never\nre-laid-out (like `opacity`, it changes pixels, not geometry), and hit-testing follows the\nvisible result. Pair with `pivotX`/`pivotY` to choose the center; `1` is unscaled.\n\n**`pivotX`** — The horizontal center of `scale`, in the view's own coordinates. Defaults to the origin; set\nboth `pivotX`/`pivotY` to scale about the middle rather than the top-left.\n\n**`pivotY`** — The vertical pivot — the twin of `pivotX`.\n\n**`clip`** — Clips the subtree to a shape. `clip = true` clips to the view's **own box**\n(reactively on width/height) — the common case; a `Shape` value clips to an arbitrary\npath. `null`/unset (default) draws children unclipped, even outside the box. Kept\nexplicit (not implied by `cornerRadius`) so clipping is pay-per-use.\n\n**`scrolls`** — Which **axes** of interior overflow this view scrolls — `none` (the default), `y`, `x`,\nor `both`. A scrolling view clips to its box; overflow along a declared axis becomes its\nscroll range (live `scrollY`/`scrollX`), and overflow along any other axis is simply out\nof frame. The value is a token **string** in a `{ }` body — compare explicitly\n(`scrolls == \"y\"`), never truthily: `\"none\"` is a truthy string. Fixed chrome comes free — make it a **sibling** of the scroller, or a child that declares `ignoreScroll`.\nBoth backends present the same model; only the overscroll *feel* differs, where the\nplatform can do better. On DOM the OS owns the scroll — overlay scrollbar, momentum, and\nrubber-band overscroll *contained* to this pane, so it bounces on its own edges and never\nchains to the page, and sibling panes overscroll independently. On canvas the runtime\nmanages the offset (clip+translate+wheel), as a single element must.\n\n**`claim`** — The axis a declared drag claims (`claim = x | y | both`, default `both`): `x` keeps\nvertical pan with the enclosing scroll regime while the drag owns horizontal — a grid\ncolumn's header drag or edge-resize on touch. Scopes an existing drag declaration\n(`onPointerMove`); it never creates one. See claim-surface.md for the arbitration.\n\n**`tip`** — The tooltip text — the layer system's floor (one attribute at the use site): a non-empty\n`tip` makes this view hover-interactive, and after the theme's delay the auto-provided\n`Tooltip` singleton shows the text beside it. Placement, delay, and size are theme data\n(`tooltipPlacement` below | above | pointer, `tooltipDelay`, `tooltipSize`) — so Cupertino\ntips appear near the cursor after ~1s at 11px (the macOS help tag), Redmond's above the\ncontrol (WinUI), Mountain View's below at ~500ms (M3) — always flipped and clamped inside\nthe app. Moving between tip-carrying controls while a tip is up retargets instantly; a\npress dismisses. Look comes from `tooltipBg` / `tooltipText` / `tooltipLine`. `\"\"` (the\ndefault) = no tip.\n\n**`scrollY`** — The current vertical scroll offset in pixels of a `scrolls` view — **read it** for\nscroll-driven effects (a fading header, reveals, parallax): `opacity = { 1 - app.scrollY / 200 }`.\n\n**`scrollX`** — **Read it, don't set it** in practice: the live horizontal offset of a `scrolls = x`\n(or `both`) view, mirrored from the native scroll — `scrollY`'s twin. Use it for a\npaging strip's position, scroll-driven effects, or restoring a strip's place.\n\n**`textColor`** — The glyph color `Text` renders with — a `prevailing` styling slot declared on `View`\nso **any** container can provide it and the whole subtree inherits, live. Unset, it\nfollows the nearest ancestor that sets it (default `0x000000`). Set it on a panel to\nretint all text beneath without touching each `Text`.\n\n**`fontSize`** — Prevailing font size in pixels (default `16`), inherited by descendant `Text` exactly\nlike `textColor`. Set once on a container to size a whole region's text.\n\n**`fontFamily`** — The prevailing font **fallback list**, read at each descendant `Text` — `[Brand, \"system-ui\", \"sans-serif\"]`.\nA bare name resolves to a declared `font`; the first entry that resolves wins, so end\nwith a generic. Prevailing, so setting it on a container refaces the whole region.\n\n**`fontWeight`** — The prevailing weight — one of the `thin`…`black` tokens (`normal`/`bold` alias 400/700).\nThe token also **picks the matching face** when a `font` declares several, so weight and\nface never drift apart.\n\n**`letterSpacing`** — Prevailing tracking, in **px** (not em) — `0` is the font's natural advances. Prevailing,\nso a heading container can loosen all its text at once.\n\n**`headingColor`** — **Prevailing.** The color of `Markdown`/`RichText` headings, overriding `textColor` for heading\nruns only; absent, headings follow `textColor`.\n\n**`headingWeight`** — **Prevailing.** The font weight for rich-text headings — the heading-specific counterpart to\n`fontWeight`.\n\n**`linkColor`** — **Prevailing.** The color of links in rich text; absent, links use the theme's accent.\n\n**`codeColor`** — **Prevailing.** The text color of inline and fenced code in rich text.\n\n**`codeSize`** — **Prevailing.** The font size for code regions — one value driving inline code, fenced blocks,\nand `<pre>` alike, so a document's monospace stays uniform.\n\n**`codeFamily`** — **Prevailing.** The monospace family for code regions — a fallback list, like `fontFamily`.\n\n**`codeBackground`** — **Prevailing.** The fill behind fenced code blocks; absent, code carries no box.\n\n**`codeRule`** — **Prevailing.** The color of a fenced code block's left accent rule.\n\n**`richTextLayout`** — **Prevailing.** A per-block-type geometry map for `RichText`/`Markdown` — caller-controlled\nmeasure and spacing per block kind (prose narrower than code, say), so one base renders both\ntight code and wide prose.\n\n**`theme`** — A prevailing record of design tokens, read inside `{ }` as `theme.accent`, `theme.muted`,\netc. Provide it on a container and the subtree styles off it — the escape from hard-coded\ncolors when you don't want a full `stylesheet`.\n\n**`selectable`** — Opt this run back into native text selection / copy (default `false`). Off by default\nso an app doesn't feel like a document; turn it on for content a user should be able to\nselect and copy.\n\n**`styles`** — An ordered list of `style` bundles applied at **construction** — **static in v1**: unlike\n`stylesheet`, reassigning `styles` after build does nothing. For a reskin that changes\nlive, use `stylesheet` instead.\n\n**`stylesheet`** — The prevailing stylesheet: provide one anywhere and that whole subtree reskins; swap it\nand the subtree re-styles in a single settle. The reactive counterpart to the static\n`styles` list.\n\n**`layout`** — How this view arranges its children — a reactive `Layout` attribute, not a child and\nnot the container's type. Defaults to none (absolute `x`/`y`). Swap or animate it and\nthe arrangement transitions continuously: `layout: SimpleLayout [ axis = y, spacing = 10 ]`.\nSet `layout = null` for explicit none.\n\n**`datapath`** — The data cursor (language §9): sets the place in a dataset that this view and its\ndescendants read relative to. Write it as a `:path` (relative to the inherited\ncursor), `:arr[]` to **replicate** this view once per array element, or a `{ }`\nexpression yielding a place. Descendants read with their own relative `:paths`.\n\n**`focusable`** — Makes the view a keyboard **tab stop**. Traversal order is the view tree — there is no\nnumeric tabindex; override `tabOrder()` to reorder within a container.\n\n**`focusTrap`** — Marks a self-contained focus group: Tab cycles within it and escapes at the boundary\n(firing `escapeFocus`). For a modal or menu whose focus must not leak to the page behind.\n\n**`anchor`** — Names this view as a **reveal target** for a location's `@name` suffix\n(`#guide/04-tree@intro` scrolls to the view with `anchor = \"intro\"`). The `<a name>`\nlineage, reborn reactive: the anchor namespace is named views (this attribute) plus\nheading slugs inside rendered rich text — a heading needs nothing from you. Resolution\nprefers views over slugs, preorder-first.\n\n**`contentWidth`** — **Read-only** intrinsic: the width of this view's visible children's bounding box —\nthe auto-extent, surfaced. A constraint may read it (`width = { Math.min(contentWidth, 480) }`)\nto size to content with a cap; assigning it is a compile error.\n\n**`childViews`** — This view's child views, as a live collection — reading it re-runs when the child **set**\nchanges. It carries set membership only, not the children's own attributes: `.length` is\nlive, but `.map(c => c.width)` would wire half of what it reads, so aggregation over a node\ncollection is refused rather than answered wrongly.\n\n**On a virtualized block it answers with the instances that exist** — a subset of the\nrecords, and it changes as you scroll. That is a fact about the block, not a trap: check\n`virtualized` on this same container and you know which kind of answer you are holding\n(the flag is declared on the replicated child, but read on the container — see\n`virtualized`). The list also includes instances the recycler has parked\n(`visible = false`), because they are children.\n\n**For a count of the collection, count the data.** The records are complete by definition;\nthe instances never claimed to be.\n\n```declare-fragment\ncount: number = { (app.d.value.rows).length }\n```\n\nIf you want the window with its logical indices — an accessibility traversal, a diagnostic\n— that is kernel API (`blocksOf`, `realized()`, `materializationInfo`).\n\n**`virtualized`** — Whether **this view's replicated content** is virtualized right now — a content intrinsic,\nlike `contentWidth` and `contentHeight`, and read-only. `false` unless this view is the\ncontainer of a virtualized block, which is every view in a program that never asks for\nvirtualization.\n\n**Read it on the CONTAINER, not the template.** `virtualize` is declared on the replicated\nchild — beside its `datapath = :rows[]`, where `key` lives too — but the block belongs to\nthe *parent* that holds the instances, so the parent is what answers. A row instance reports\n`false`, and that is the honest answer: an instance has no replicated content of its own. In\nordinary speech the list is virtualized, not the row.\n\n```declare-fragment\nlist: View [ datapath = { app.d.value },                  // ← ask THIS one\n    Row [ datapath = :rows[], virtualize = true ]         // ← declared HERE\n    ]\n```\n\nIt is **tracked**, so a constraint reading it follows a block engaging or disengaging —\nwhich can happen mid-run, since the policy accepts a `{ }`. And it is what makes\n`childViews` legible on a virtualized block: the list is a subset, and this is how you know.\n\n**`virtualize`** — Virtualize this replicated collection: build the instances near the viewport and leave the\nrest logical, reconstructed indistinguishably as you scroll. **Replication metadata** — it\nbelongs on the node whose `datapath` matches many, beside that path, and it means nothing\nanywhere else (a node that replicates nothing has no collection to describe, and the checker\nsays so).\n\n**A boolean, off by default.** Below the threshold where construction hurts, materializing\neverything is simply faster and keeps `childViews` whole; above it, this is the one word that\nchanges. There is no automatic mode and no count to tune — a virtualized block costs a flat\n~0.06 ms per scroll tick at any size, so there is no cliff a threshold could protect, and\nwhat full materialization actually costs is construction, which depends on how rich a row is\nrather than how many there are.\n\nLike any boolean it takes a `{ }`, and the policy is read inside the replication match — so a\ncollection can start fully materialized and virtualize when it grows, engaging and\ndisengaging as the answer changes. What you never write is everything *around* the word: no\nrow heights, no scroll container, no keys, no overscan tuning, no memoization.\n\nVirtualization needs a scrolling ancestor (`scrolls = y`, or `both`) and — if the block's\nparent runs a layout — that layout must stack on `y`. A wrapping gallery, a horizontal strip,\na scatter of pins: those fully materialize instead, deliberately, with an inspectable reason.\nRead `virtualized` on the container to see whether it engaged.\n\n```declare-fragment\nRow [ datapath = :rows[], virtualize = true ]\n```\n\n**`contentHeight`** — **Read-only** intrinsic mirroring `contentWidth` on the vertical axis — the measured\nextent of the subtree, for sizing a container to its content.\n\n### Events\n\n- `onClick(e: PointerEvent)` — Fires when the pointer presses **and** releases on the same view (a true click, not a\nstray press) — answered by an `onClick()` handler. The primary interaction event;\n`pointerDown`/`pointerUp`/`pointerMove` are there when you need the raw phases.\n\n```declare\nView [ width = 80, height = 40, cornerRadius = 10, fill = gainsboro,\n    onClick() { fill = 0x4169E1 }\n    ]\n```\n- `onHold(e: PointerEvent)` — A press held in place for half a second — the tap-hold, equally available to a mouse.\nIt does **not** consume the gesture: the raw stream continues and the eventual click\nstill fires unless the pointer wanders, so a hold can open a menu, start a pick-up, or\nbe ignored. Declared **alongside the drag handlers** it changes who owns a touch\nfinger: the drag's claim engages *at the hold* instead of at touchdown, so a quick\nswipe still scrolls the surface underneath and a held finger picks the thing up — the\nhold-to-drag idiom for draggables on scrolling surfaces.\n- `onPointerDown(e: PointerEvent)` — The pointer pressed on the view — the raw press phase. Prefer `click` (press **and**\nrelease on the same view) unless you need the phases apart, e.g. to begin a drag.\n- `onPointerUp(e: PointerUpEvent)` — The pointer released. While a press is captured (it began on this view) `pointerUp` still\nfires **here even if the release lands off the box** — the drag-release guarantee, so a\nslider freezes its value wherever the finger lifts.\n- `onPointerMove(e: PointerEvent)` — The pointer moved over the view — and, once pressed on it, every move **while captured**\n(even outside the box), so a drag handler keeps getting positions. The event carries the\npointer in this view's own coordinates.\n- `onPointerOver(e: PointerEvent)` — The pointer entered the view (retained enter tracking) — the hover-in half. Set a\n`hovered` flag here and read it in a `fill`/`textColor` constraint.\n- `onPointerOut(e: PointerEvent)` — The pointer left the view — the hover-out half; also fires when a press is abandoned off\nthe box, so clear both `hovered` and `pressed` here.\n- `onWheel(e: WheelEvent)` — The wheel turned over the view — mouse wheel, trackpad scroll, or trackpad pinch, which\narrives on the same stream with `e.pinch` true (a ctrl+wheel zoom reports identically).\nThe event carries the point in this view's coordinates plus `deltaX`/`deltaY`. Declaring\nit **claims the wheel** over this view and its subtree — the browser stops scrolling or\nzooming the page with it — except over a nested `scrolls` pane, which keeps its own\nwheel. ⌘ +/− dispatches no event and stays out of reach.\n- `onInit()` — Fires once when the view has finished constructing and its subtree exists — the place\nfor setup that needs the built tree. Answered by `onInit()`.\n- `onRetire()` — The departure hook — fires once when this view's PRESENCE ends (its record leaves the\nreplicated match, or the subtree is discarded), children before parents, with everything\nstill alive. The exact symmetric of `onInit`'s membership rule: a windowed row's\ndematerialization is NOT a departure and never fires it.\n- `onFocus()` — The view gained keyboard focus (it is `focusable` and was tabbed or clicked to). Drive a\nfocus ring off it.\n- `onBlur()` — The view lost keyboard focus — the partner of `focus`.\n- `onEscapeFocus()` — Fired on a `focusTrap` when Tab reaches its boundary — your cue to move focus out (close\nthe modal, advance to the next group).\n- `onKeyDown(e: KeyEvent)` — A key was pressed while the view holds focus; the event carries the key. For app-wide\nshortcuts use a `Keys` subscription instead — this is for the focused view only.\n- `onKeyUp(e: KeyEvent)` — A key was released while the view holds focus — the partner of `keyDown`.\n\n### Methods\n\n- `rootOrigin(): { x: number; y: number }` — This view's origin in **root space** (the root's content coordinates — the same space\n`viewAt` takes and drag events carry), computed by the one scroll-aware walk the pointer\nitself is routed by: translate per level, minus every intermediate scroller's offset, the\nroot's own scroll back at the boundary. The anchor primitive for overlays — a menu opening\nat a pointer, a popover dropping under a control — so they land where the view is *seen*,\nat any scroll. Hand-accumulating ancestor `x`/`y` is scroll-blind; call this instead.\n- `scrollIntoView(align?: \"start\" | \"nearest\", smooth?: boolean): void` — Scrolls this view into the visible region of its nearest `scrolls` ancestor (or the page),\naligning its top to the viewport top — the imperative partner of the declarative jump-index\npattern. Both backends realize it natively (DOM `scrollIntoView`, canvas clamps the scroll\nancestor's `scrollOffset`). A no-op if nothing above it scrolls.\n",
+       "preview": "Moving pictures, declared the way a still one is. Set source to a URL; the clip loads in the background and, unless you constrain its size, adopts its natural pixel dimensions once the metadata arrives. Image's shape, with time added. There…"
       },
       {
        "name": "RichText",

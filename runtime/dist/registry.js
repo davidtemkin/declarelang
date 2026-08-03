@@ -14,6 +14,7 @@ import { View, App, DOMIsland } from "./view.js";
 import { Node } from "./node.js";
 import { Text } from "./text.js";
 import { Image } from "./image.js";
+import { Video } from "./video.js";
 import { TextInput } from "./text-input.js";
 import { Markdown, HTMLText } from "./markdown.js";
 import { Layout, TweenLayout } from "./layout.js";
@@ -27,7 +28,7 @@ import { State } from "./state.js";
 /** Tag → runtime View class (the tree tags). `Node` is registered so a user can
  *  subclass it for a non-visual node (`class Store [ … ]`). */
 export const TAGS = {
-    App, View, Text, Image, DOMIsland, TextInput, Markdown, HTMLText,
+    App, View, Text, Image, Video, DOMIsland, TextInput, Markdown, HTMLText,
     Node: Node,
 };
 /** Tag → buildable layout-strategy class (R7) — built only as a component-typed
@@ -77,6 +78,7 @@ export const REGISTRY_MANIFEST = [
     { name: "View", table: "TAGS", module: "view.js", export: "View" },
     { name: "Text", table: "TAGS", module: "text.js", export: "Text" },
     { name: "Image", table: "TAGS", module: "image.js", export: "Image" },
+    { name: "Video", table: "TAGS", module: "video.js", export: "Video" },
     { name: "DOMIsland", table: "TAGS", module: "view.js", export: "DOMIsland" },
     { name: "TextInput", table: "TAGS", module: "text-input.js", export: "TextInput" },
     { name: "Markdown", table: "TAGS", module: "markdown.js", export: "Markdown" },

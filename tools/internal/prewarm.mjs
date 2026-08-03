@@ -114,7 +114,8 @@ function writeArtifact(key, artifact) {
 // homepage crawl below (and the bake after it) reads this run's figures,
 // never last commit's.
 const stats = {};
-for (const rel of ["apps/homepage/homepage.declare", "apps/calendar/calendar.declare"]) {
+for (const rel of ["apps/homepage/homepage.declare", "apps/calendar/calendar.declare",
+                   "apps/tracker/tracker.declare", "apps/desktop/desktop.declare"]) {
   const src = readFileSync(path.join(ROOT, rel), "utf8");
   const name = path.basename(rel, ".declare");
   // the "over the wire" figure is the PRODUCTION build (declarec: app + runtime

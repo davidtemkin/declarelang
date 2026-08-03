@@ -1,0 +1,4 @@
+App [
+    reel: Video [ source = "shots/tour.mp4", stretches = both, loop = true,
+        playing = { app.scrollY + app.height > this.parent.y } ]
+]

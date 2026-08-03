@@ -718,6 +718,16 @@ class CanvasSurface {
         this.image = image;
         this.compositor.invalidate();
     }
+    /** A PLAYING video is the one content kind whose pixels change with no write
+     *  to the graph: nothing invalidates, so nothing would repaint. The paint
+     *  walk asks this after drawing and schedules the next frame while it is
+     *  true — the loop lives here rather than behind a new Surface call, because
+     *  the DOM backend needs no such thing (the element composites itself).
+     *  Duck-typed, not `instanceof`: HTMLVideoElement does not exist in Node. */
+    videoRunning() {
+        const v = this.image;
+        return v !== null && typeof v.paused === "boolean" && !v.paused && !v.ended;
+    }
     setImageStretch(stretch) {
         this.stretch = stretch;
         this.compositor.invalidate();
@@ -1325,9 +1335,17 @@ class CanvasSurface {
         this.paintBox(ctx);
         if (this.image !== null) {
             const st = this.stretch;
-            const w = st === "width" || st === "both" ? this.width : this.image.naturalWidth;
-            const h = st === "height" || st === "both" ? this.height : this.image.naturalHeight;
+            // an <img> reports naturalWidth, a <video> videoWidth — one fact, two spellings
+            const vid = this.image;
+            const natW = typeof vid.videoWidth === "number" ? vid.videoWidth : this.image.naturalWidth;
+            const natH = typeof vid.videoWidth === "number" ? vid.videoHeight : this.image.naturalHeight;
+            const w = st === "width" || st === "both" ? this.width : natW;
+            const h = st === "height" || st === "both" ? this.height : natH;
             ctx.drawImage(this.image, 0, 0, w, h);
+            // a running video changes pixels with no write to the graph: ask for the
+            // next frame here, or the picture would freeze on its first one
+            if (this.videoRunning())
+                this.compositor.invalidate();
         }
         if (this.drawing !== null)
             replay(ctx, this.drawing);

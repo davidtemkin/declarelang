@@ -18,7 +18,7 @@
 // is target → nearest sinked surface; the pairing/click rule is shared
 // (input.ts), so both backends decide clicks identically.
 
-import type { EditableSpec, InputSink, InputWants, RenderBackend, RichBlock, Stretch, Surface } from "./backend.js";
+import type { Bitmap, EditableSpec, InputSink, InputWants, RenderBackend, RichBlock, Stretch, Surface } from "./backend.js";
 import { colorToCss, isGradient, type Fill, type Shadow, type Stroke } from "./value.js";
 import { type BoxState } from "./boxpaint.js";
 import { fontMetrics, fontString, cssWeight, type TextStyle } from "./measure.js";
@@ -496,7 +496,7 @@ class DomSurface implements Surface {
   private richEl: HTMLDivElement | null = null;
   private richObserver: ResizeObserver | null = null;
   private onRichResize: ((height: number) => void) | undefined;
-  private imgEl: HTMLImageElement | null = null;
+  private imgEl: Bitmap | null = null;
   private drawEl: HTMLCanvasElement | null = null;
   private drawing: DisplayList | null = null;
   private stretch: Stretch = "none";
@@ -1516,7 +1516,7 @@ class DomSurface implements Surface {
     this.element.insertBefore(el, anchor);
   }
 
-  setImage(image: HTMLImageElement | null): void {
+  setImage(image: Bitmap | null): void {
     this.imgEl?.remove();
     this.imgEl = image;
     if (image !== null) {
@@ -1545,8 +1545,11 @@ class DomSurface implements Surface {
   private applyStretch(): void {
     const img = this.imgEl!;
     const s = img.style;
-    s.width = this.stretch === "width" || this.stretch === "both" ? "100%" : `${img.naturalWidth}px`;
-    s.height = this.stretch === "height" || this.stretch === "both" ? "100%" : `${img.naturalHeight}px`;
+    // an <img> reports naturalWidth, a <video> videoWidth — same fact, two
+    // spellings, and the un-stretched axis is pinned to it either way
+    const nat = naturalSize(img);
+    s.width = this.stretch === "width" || this.stretch === "both" ? "100%" : `${nat.width}px`;
+    s.height = this.stretch === "height" || this.stretch === "both" ? "100%" : `${nat.height}px`;
   }
 
   setDrawing(list: DisplayList | null): void {
@@ -1623,4 +1626,15 @@ class DomSurface implements Surface {
     CARVED.delete(this.element);
     this.element.remove();
   }
+}
+
+/** The intrinsic size of whatever crossed the bitmap seam. An <img> spells it
+ *  naturalWidth/Height; a <video> spells it videoWidth/Height. Before a
+ *  video's metadata lands both are 0, which is honest — the box keeps its
+ *  declared size until the real one is known. */
+function naturalSize(el: Bitmap): { width: number; height: number } {
+  const v = el as HTMLVideoElement;
+  if (typeof v.videoWidth === "number") return { width: v.videoWidth, height: v.videoHeight };
+  const i = el as HTMLImageElement;
+  return { width: i.naturalWidth, height: i.naturalHeight };
 }

@@ -17,6 +17,38 @@ import { View } from "./view.js";
 import type { RenderBackend, Stretch, Surface } from "./backend.js";
 import { defineAttributes, isSet, ownerOf, setBound } from "./attributes.js";
 
+/** THE ASSET BASE — the data.ts `provideTransport` shape, for bitmaps.
+ *
+ *  A relative `source` names a file beside the PROGRAM, exactly as a
+ *  DataSource's `url` does: `Image [ source = "shots/cal.webp" ]` is the
+ *  sibling of `DataSource [ url = "stats.json" ]` and has to mean the same
+ *  place. But an <img src> resolves against the DOCUMENT, and the two only
+ *  coincide when a program is browsed at its own path. An entry page that
+ *  boots a program from elsewhere in the tree — index.html at the root
+ *  running apps/homepage/homepage.declare — resolved every relative bitmap
+ *  against the wrong directory, silently, while its DataSources were fine.
+ *
+ *  So the host states the program's directory once and every Image resolves
+ *  through it. Absolute, protocol-relative, root-relative and data: sources
+ *  pass through untouched. The default is identity — exactly what a program
+ *  browsed at its own path already had. */
+let assetBase: string | null = null;
+
+/** Set the base that relative bitmap sources resolve against; returns the
+ *  previous one, so a scoped caller can restore it — the provideTransport
+ *  contract. */
+export function provideAssetBase(base: string | null): string | null {
+  const prev = assetBase;
+  assetBase = base;
+  return prev;
+}
+
+export function resolveAsset(source: string): string {
+  if (assetBase === null || source === "") return source;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(source) || source.startsWith("//") || source.startsWith("/")) return source;
+  try { return new URL(source, assetBase).href; } catch { return source; }
+}
+
 export class Image extends View {
   declare source: string;
   declare stretches: Stretch;
@@ -100,7 +132,7 @@ export class Image extends View {
       if (seq !== this.loadSeq || this.surface === null) return; // superseded or detached
       setBound(this, "failed", true);
     };
-    img.src = this.source;
+    img.src = resolveAsset(this.source);
   }
 }
 

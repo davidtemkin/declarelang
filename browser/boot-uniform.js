@@ -41,7 +41,7 @@ import { registerServiceWorker } from "./register-sw.js";
 import { loadCompiler, ensureLibrary } from "./compiler-client.js";
 import { loadPrewarm, relativize } from "./prewarm-cache.js";
 import { fnv1a, isUpToDate, lookupKey } from "../compiler/dist/closure.js";
-import { provideTransport } from "../runtime/dist/index.js";
+import { provideTransport, provideAssetBase } from "../runtime/dist/index.js";
 
 const ROOT = new URL("../", import.meta.url);
 
@@ -255,6 +255,10 @@ export default async function boot(cfg) {
   // second argument silently degraded every DataSource POST/PUT to a bare
   // GET (found 2026-07-30 by the network-browser transport tests).
   provideTransport((url, init) => fetch(new URL(url, mainDir), init));
+  // The same correction for BITMAPS: an <img src> resolves against the
+  // document, so a relative `source` meant the entry page's directory while
+  // the app's DataSources already meant the program's. One base, both.
+  provideAssetBase(mainDir.href);
   const props = { render: cfg.backend === "CanvasBackend" ? "canvas" : "dom" };
   const sVersion = perfStage("version");
   const build = await platformBuild();

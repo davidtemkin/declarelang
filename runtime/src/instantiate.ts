@@ -429,7 +429,15 @@ function synthesize(
   const B = base as new () => object;
   const cls = class extends B {};
   // The class's name carries into every diagnostic ("Tally.count is bound…").
-  Object.defineProperty(cls, "name", { value: name });
+  //
+  // `configurable: false` is load-bearing, not tidiness. defineProperty on an
+  // EXISTING property keeps whatever attributes you leave unspecified, and a
+  // class's own `name` arrives configurable — so `{ value: name }` alone wrote
+  // the name and left it indistinguishable from the one JS put there. That is
+  // exactly the test inspect.ts:stampedName() applies to tell an authored class
+  // from a minified one, so every user class read back as its base ("View")
+  // instead of `Shot`, `Ev`, `DockIcon` — the names introspection documents.
+  Object.defineProperty(cls, "name", { value: name, configurable: false });
   if (body.decls.length > 0) {
     const probe = new B();
     const specs: Record<string, AttrSpec<View, unknown>> = {};

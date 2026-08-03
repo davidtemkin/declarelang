@@ -26,7 +26,7 @@
 // seam's sink, derived from declared handlers).
 
 import { DeclareError } from "./errors.js";
-import type { EditableSpec, InputSink, RenderBackend, Stretch, Surface, InputWants } from "./backend.js";
+import type { Bitmap, EditableSpec, InputSink, RenderBackend, Stretch, Surface, InputWants } from "./backend.js";
 import { lockFocusZoom } from "./viewport-lock.js";
 import { colorToCss, isGradient, type Fill, type Gradient, type Shadow, type Stroke } from "./value.js";
 import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.js";
@@ -590,7 +590,7 @@ class CanvasSurface implements Surface {
   private wrap = false;
   private align: "left" | "center" | "right" = "left";
   private textLines: string[] | null = null;
-  private image: HTMLImageElement | null = null;
+  private image: Bitmap | null = null;
   private stretch: Stretch = "none";
   /** The view's input route; null = transparent to the pointer (hit walk). */
   private sink: InputSink | null = null;
@@ -686,9 +686,20 @@ class CanvasSurface implements Surface {
     this.compositor.invalidate();
   }
 
-  setImage(image: HTMLImageElement | null): void {
+  setImage(image: Bitmap | null): void {
     this.image = image;
     this.compositor.invalidate();
+  }
+
+  /** A PLAYING video is the one content kind whose pixels change with no write
+   *  to the graph: nothing invalidates, so nothing would repaint. The paint
+   *  walk asks this after drawing and schedules the next frame while it is
+   *  true — the loop lives here rather than behind a new Surface call, because
+   *  the DOM backend needs no such thing (the element composites itself).
+   *  Duck-typed, not `instanceof`: HTMLVideoElement does not exist in Node. */
+  private videoRunning(): boolean {
+    const v = this.image as HTMLVideoElement | null;
+    return v !== null && typeof v.paused === "boolean" && !v.paused && !v.ended;
   }
 
   setImageStretch(stretch: Stretch): void {
@@ -1265,9 +1276,16 @@ class CanvasSurface implements Surface {
     this.paintBox(ctx);
     if (this.image !== null) {
       const st = this.stretch;
-      const w = st === "width" || st === "both" ? this.width : this.image.naturalWidth;
-      const h = st === "height" || st === "both" ? this.height : this.image.naturalHeight;
+      // an <img> reports naturalWidth, a <video> videoWidth — one fact, two spellings
+      const vid = this.image as HTMLVideoElement;
+      const natW = typeof vid.videoWidth === "number" ? vid.videoWidth : (this.image as HTMLImageElement).naturalWidth;
+      const natH = typeof vid.videoWidth === "number" ? vid.videoHeight : (this.image as HTMLImageElement).naturalHeight;
+      const w = st === "width" || st === "both" ? this.width : natW;
+      const h = st === "height" || st === "both" ? this.height : natH;
       ctx.drawImage(this.image, 0, 0, w, h);
+      // a running video changes pixels with no write to the graph: ask for the
+      // next frame here, or the picture would freeze on its first one
+      if (this.videoRunning()) this.compositor.invalidate();
     }
     if (this.drawing !== null) replay(ctx, this.drawing);
     if (this.text !== "" && this.font !== "") {

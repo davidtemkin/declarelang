@@ -34,69 +34,103 @@
 <h1>Declare</h1>
 <h1>is the UI language for the AI era.</h1>
 <p>Just as SQL is a domain-specific language for database queries, <span>Declare</span> is a DSL for user interfaces. Its whole surface fits in your head — and inside an LLM’s context window.</p>
-<p>This page is written in it. By an LLM.</p>
+<h6>This page is written in it. By an LLM.</h6>
 <a href="#why"><p>Why a new language, now? →</p></a>
 <p>·</p>
 <a href="#language"><p>Declare, in one file, for you and your LLM →</p></a>
 <p>01</p>
-<h3>Declare Calendar: Concise. Clear. Continuous.</h3>
-<a href="apps/calendar/calendar.declare"><p>Run Declare Calendar →</p></a>
-<a href="apps/calendar/calendar.declare?viewer"><p>View source →</p></a>
+<h2>Three applications, written in Declare.</h2>
+<p>Complete programs — open one, read it end to end, and edit it live in the browser you're using.</p>
+<a href="apps/calendar/calendar.declare"><h6>Declare Calendar</h6></a>
 <p>It’s the kind of experience you’ll see in the best native apps — a view doesn’t switch so much as become the next one, where motion carries meaning, and everything is fast and interruptible.</p>
 <p>That’s always been specialist craft: bespoke motion code, one interaction at a time, locked to a platform. In Declare, it’s simply what the declarations do, and it works everywhere.</p>
-<h2>511</h2>
-<p>lines of Declare — four views, continuous zoom, drag, and edit</p>
-<h2>61 KB</h2>
-<p>over the wire, gzipped — the whole app and its runtime</p>
-<h2>0</h2>
-<p>lines written by hand — an LLM wrote it; the compiler kept it honest</p>
+<p>It runs on real data: open an event, drag it to another day, and it’s moved.</p>
+<h4>511</h4>
+<p>lines of code, plus 165 of comments — four views, zoom, drag and edit</p>
+<h4>61 KB</h4>
+<p>over the wire, gzipped — app and runtime</p>
+<h4>0</h4>
+<p>lines written by hand — an LLM wrote it</p>
+<a href="apps/calendar/calendar.declare"><p>Run Declare Calendar →</p></a>
+<a href="apps/calendar/calendar.declare?viewer"><p>View &amp; edit source →</p></a>
+<a href="apps/calendar/calendar.declare"><img src="apps/homepage/shots/calendar.webp"></a>
+<h6>Declare Tracker</h6>
+<h6>→</h6>
+<a href="apps/tracker/tracker.declare"><img src="apps/homepage/shots/tracker.webp"></a>
+<p>1,000,000 issues · search as you type · edit in place, with undo · not one line of virtualization code</p>
+<p>1652 lines — 1275 code, 187 comment · 87 KB over the wire, before its data · no dependencies · the same brief in idiomatic React: 2,703 lines, 9 dependencies</p>
+<a href="apps/tracker/tracker.declare?viewer"><p>View &amp; edit source →</p></a>
+<h6>Declare Desktop</h6>
+<h6>→</h6>
+<a href="apps/desktop/desktop.declare"><img src="apps/homepage/shots/desktop.webp"></a>
+<p>Windows that drag, resize, layer, and minimize into live dock thumbnails · a magnifying dock · menus that follow focus · the calendar running inside one of them</p>
+<p>2761 lines — 1617 code, 722 comment · 95 KB over the wire · every pixel drawn from shapes, no image assets</p>
+<a href="apps/desktop/desktop.declare?viewer"><p>View &amp; edit source →</p></a>
 <p>02</p>
-<h3>Read it. Generate it. Run it.</h3>
-<p>The relationships that matter — structure, data, reactivity — are explicit in the language, not hidden in imperative steps or a runtime graph.</p>
-<h6>Analyzable</h6>
-<p>A program’s whole structure — components, data, what reacts to what — is right there in the source. The compiler reads it statically; so can an LLM.</p>
-<h6>Predictable</h6>
-<p>One clear way to write each thing, and the compiler rejects the rest — no dependency arrays, no keys, no stale-value bugs. An LLM’s mistake is a compile error that names the fix — not an app that quietly runs wrong.</p>
-<h6>Runnable</h6>
-<p>The compiler runs in the browser, so code renders the moment it exists — no build, no deploy. Write it and it’s live.</p>
-<h5>Everything that makes it legible to an LLM makes it legible to you.</h5>
-<p>03</p>
-<h3>Declare it. It runs. It stays true.</h3>
+<h2>Declare it. It runs. It stays true.</h2>
 <p>A binding isn’t a callback you remember to re-run — it’s a standing relationship the runtime keeps true, re-derived the moment its inputs change.</p>
 <p>Three bindings track one value: the big number, the bar’s width, and its color. Click to bump v — all three update together, and the color crosses cool to warm at the halfway mark.</p>
 <p>LIVE · EDITABLE</p>
 <p>Revert</p>
-<p>04</p>
-<h3>Declare the shape, not the loop.</h3>
+<p>03</p>
+<h2>Declare the shape, not the loop.</h2>
 <p>A view can be built from data instead of laid out by hand — the shape written once, the data deciding how many there are and what each one says.</p>
 <p>One Bar, instanced once per row of the data. Edit a number or add a row and the list rebuilds itself — no loop, no keys. And Bar is auto-included: no import, no definition, just use it.</p>
 <p>LIVE · EDITABLE</p>
 <p>Revert</p>
-<p>05</p>
-<h3>Motion you declare, not schedule.</h3>
+<p>04</p>
+<h2>Motion you declare, not schedule.</h2>
 <p>You say where a thing belongs; a Spring finds the path there and settles by physics — motion you declare, not a timeline you sequence.</p>
 <p>Click to toggle the ball’s target between two positions. The Spring follows and settles by physics — no timeline, no frames driven by hand.</p>
 <p>LIVE · EDITABLE</p>
 <p>Revert</p>
-<p>06</p>
-<h3>Declared states, not manual wiring.</h3>
-<p>A State is a named bundle of overrides — a whole configuration you can apply as one. The mode is the unit of change, not each property by hand.</p>
-<p>Click to flip one boolean. The card’s height, its color, and an extra line of text swap in together — and revert the instant the mode turns off.</p>
-<p>LIVE · EDITABLE</p>
-<p>Revert</p>
-<p>07</p>
-<h3>Ask it why.</h3>
-<p>Every value in a Declare program knows where it came from — so the running program can be asked, rather than reasoned about from the source.</p>
-<p>One value moves; a width and two colors follow it through a Spring. Click the demo to raise the level, then open the Inspector and look at what any of them is made of.</p>
-<p>LIVE · EDITABLE</p>
-<p>Revert</p>
-<p>The bar’s width and colors are derived from one number that can change. Open the Inspector and see what expression produced the bar’s width and color.</p>
-<p>Try typing “level = 5” or any other Declare expression, and watch it take effect live.</p>
-<p>Try the Inspector</p>
-<h4>The web’s last generation of frameworks was built on the browser’s document model.
-
-Declare abstracts the renderer away — you declare what the UI is, and the runtime draws it.</h4>
-<p>The same program paints to the DOM or to a canvas today, WebGL next, with no rewrite. And you never touch the render layer — no DOM to poke, no paint loop to run — so the code stays small: what you write is the interface itself, not the machinery that shows it.</p>
+<h5>Everything that makes it legible to an LLM makes it legible to you.</h5>
+<p>When an LLM gets something wrong, the compiler names the rewrite — so it corrects itself instead of guessing, and you don’t inherit an app that quietly runs wrong.</p>
+<p>The language</p>
+<p>One tree — structure, style, behavior, data</p>
+<p>Constraints, not re-renders</p>
+<p>TypeScript inside { }</p>
+<p>Type-checked every compile</p>
+<p>No CSS, no cascade</p>
+<p>The standard library is written in Declare</p>
+<p>Data</p>
+<p>Load JSON, bind to it</p>
+<p>Views replicate over data — no loop, no keys</p>
+<p>Two-way edits with &lt;-&gt;</p>
+<p>SSE and WebSocket streams</p>
+<p>A million rows — virtualize on one word</p>
+<p>Motion and modes</p>
+<p>Springs on any attribute</p>
+<p>Named modes, reversible</p>
+<p>Layout is a value you set</p>
+<p>Input and touch</p>
+<p>The browser keeps every gesture you don't claim</p>
+<p>A card that drags still pinch-zooms</p>
+<p>Drag from a hold, so a quick swipe still pans</p>
+<p>No stuck hovers, no ghost clicks</p>
+<p>Still a web page</p>
+<p>Find-in-page and real selection</p>
+<p>Native fields, caret, IME</p>
+<p>Back button, deep links</p>
+<p>Real HTML for crawlers</p>
+<p>Markdown and rich text built in</p>
+<p>Debugging</p>
+<p>Ask any value where it came from</p>
+<p>Type Declare at a running program</p>
+<p>Verify boots it headlessly</p>
+<p>The Inspector is a Declare app</p>
+<p>Hosts</p>
+<p>Browser — DOM</p>
+<p>Browser — canvas</p>
+<p>Headless</p>
+<p>Mac native (prototype)</p>
+<p>For LLMs</p>
+<p>The whole language in one file</p>
+<p>~10k tokens — the spec fits in context</p>
+<p>Diagnostics that name the rewrite</p>
+<p>An installable agent skill</p>
+<p>Evals that feed back into the language</p>
+<h3>Small language. Short programs.</h3>
 <a href="#getstarted"><p>Get Started →</p></a>
 <p>Built in <span>Declare</span></p>
 <p>·</p>
@@ -115,7 +149,9 @@ Declare abstracts the renderer away — you declare what the UI is, and the runt
 <a href="#faq"><p>FAQ</p></a>
 <a href="apps/calendar/calendar.declare"><p>Calendar</p></a>
 <a href="apps/desktop/desktop.declare"><p>Desktop</p></a>
+<a href="apps/tracker/tracker.declare"><p>Tracker</p></a>
 <a href="apps/docs/docs.declare"><p>Docs</p></a>
+<a href="https://github.com/davidtemkin/declarelang"><p>GitHub</p></a>
 <section id="why">
 <p>WHY DECLARE</p>
 <h1>Why a new language, now?</h1>
@@ -153,7 +189,9 @@ Declare abstracts the renderer away — you declare what the UI is, and the runt
 <a href="#faq"><p>FAQ</p></a>
 <a href="apps/calendar/calendar.declare"><p>Calendar</p></a>
 <a href="apps/desktop/desktop.declare"><p>Desktop</p></a>
+<a href="apps/tracker/tracker.declare"><p>Tracker</p></a>
 <a href="apps/docs/docs.declare"><p>Docs</p></a>
+<a href="https://github.com/davidtemkin/declarelang"><p>GitHub</p></a>
 </section>
 <section id="language">
 <p>THE LANGUAGE</p>
@@ -431,7 +469,9 @@ Slider   [ value = { app.volume },
 <a href="#faq"><p>FAQ</p></a>
 <a href="apps/calendar/calendar.declare"><p>Calendar</p></a>
 <a href="apps/desktop/desktop.declare"><p>Desktop</p></a>
+<a href="apps/tracker/tracker.declare"><p>Tracker</p></a>
 <a href="apps/docs/docs.declare"><p>Docs</p></a>
+<a href="https://github.com/davidtemkin/declarelang"><p>GitHub</p></a>
 </section>
 <section id="getstarted">
 <p>GETTING STARTED</p>
@@ -478,7 +518,9 @@ Slider   [ value = { app.volume },
 <a href="#faq"><p>FAQ</p></a>
 <a href="apps/calendar/calendar.declare"><p>Calendar</p></a>
 <a href="apps/desktop/desktop.declare"><p>Desktop</p></a>
+<a href="apps/tracker/tracker.declare"><p>Tracker</p></a>
 <a href="apps/docs/docs.declare"><p>Docs</p></a>
+<a href="https://github.com/davidtemkin/declarelang"><p>GitHub</p></a>
 </section>
 <section id="faq">
 <p>FAQ</p>
@@ -518,8 +560,8 @@ Slider   [ value = { app.volume },
 <p>One program renders through managed DOM elements or directly to a single canvas — same tree, same layout, same input handling, verified pixel-for-pixel against each other in the test suite (append <code>?render=canvas</code> to any app URL to see it). What this buys: the language owns its semantics — no DOM assumptions leak into your program; the canvas path suits environments where a DOM isn't available or isn't fast enough; and future renderers can be added without rewriting applications. A third, headless renderer runs programs with no screen at all — it's what powers static extraction and testing.</p>
 <h2>Performance</h2>
 <h3>What should I expect in terms of performance — download size and interactive responsiveness?</h3>
-<p>Concretely, from the flagship comparison (a full-featured calendar built twice, once in Declare and once in React, measured side by side):</p>
-<ul><li><strong>Size</strong>: the entire Declare calendar — application <em>and</em> runtime — ships at about 61 KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte). The React equivalent is roughly twice the wire weight, with more than twice the source code.</li><li><strong>Responsiveness</strong>: measured input latency was several times lower in the Declare version. When you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.</li><li><strong>Startup</strong>: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.</li></ul>
+<p>Concretely, measured from the deployed production artifacts:</p>
+<ul><li><strong>Wire size</strong>: the entire Declare calendar — application <em>and</em> runtime — ships at about 61 KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).</li><li><strong>Source size</strong>: the tracker — a million issues, search as you type, editing in place with undo — is 1,652 lines: 1,275 of code and 187 of comments, and no dependencies. It ships at 87 KB gzipped before its data, which a <code>DataSource</code> fetches at run time.</li><li><strong>Responsiveness</strong>: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.</li><li><strong>Startup</strong>: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.</li></ul>
 <p>Live numbers are on the homepage, measured from the deployed artifacts themselves.</p>
 <h2>Declare and LLMs</h2>
 <h3>What benefits does Declare bring for LLM coding, where a human may never read or write the code?</h3>
@@ -556,7 +598,8 @@ npm start</code></pre>
 <h3>What do I need to learn in order to use it, with or without an LLM?</h3>
 <p>The shape of the language: <code>[ ]</code> declares structure, <code>{ }</code> holds TypeScript, attributes can be constraints, events get handlers. Then about twenty built-in classes and a standard library of controls. If you know TypeScript, the guide's tutorial has you productive in an afternoon; the entire language reference is one readable file. Working with an LLM, you hand it that file (or install the packaged agent skill) and describe what you want — the compiler's diagnostics keep the loop honest either way.</p>
 <h3>How do I get data into an app?</h3>
-<p>Declaratively, like everything else. A <code>Dataset</code> holds inline or computed data; a <code>DataSource</code> fetches JSON. UI binds to data with a cursor — set <code>datapath</code> on a view and its descendants read relative to it; bind it to an array and the view replicates per element. Two-way binding connects a text field to the data it edits. When data changes, everything bound to it updates — the same reactivity as the rest of the language. For large collections, bind a <em>computed</em> dataset — a derived window over the source — rather than replicating everything; replication builds what you bind.</p>
+<p>Declaratively, like everything else. A <code>Dataset</code> holds inline or computed data; a <code>DataSource</code> fetches JSON. UI binds to data with a cursor — set <code>datapath</code> on a view and its descendants read relative to it; bind it to an array and the view replicates per element. Two-way binding connects a text field to the data it edits. When data changes, everything bound to it updates — the same reactivity as the rest of the language.</p>
+<p>Large collections virtualize on one word. <code>virtualize = true</code> on a replicated node builds only the rows near the viewport and leaves the rest logical — same records, same paths, same behaviour, reconstructed indistinguishably as you scroll. There is nothing else to write: no row heights, no scroll wiring, no windowing library. It is a boolean and it is <strong>off by default</strong>, so that full replication keeps browser find-in-page working over every record — and like any other boolean it takes a <code>{ }</code> constraint, engaging and disengaging as the answer changes. The tracker on this site is a million issues on that one word.</p>
 <h3>How mature is Declare? Should I build on it today?</h3>
 <p>Declare is young and moving quickly. The language surface is deliberately small and increasingly settled; the toolchain — compiler, type-checker, dev server, production builds, docs, evals — is real and tested (this entire site ships on it). Expect evolution, and expect the repository to be the source of truth. If you're evaluating it for production, the honest advice is: try it on something real but bounded — and <a href="https://github.com/davidtemkin/declarelang/issues">open an issue on GitHub</a> with what you find; at this stage, that conversation shapes the language.</p>
 <h3>What browsers and devices does it support?</h3>
@@ -580,7 +623,9 @@ npm start</code></pre>
 <a href="#faq"><p>FAQ</p></a>
 <a href="apps/calendar/calendar.declare"><p>Calendar</p></a>
 <a href="apps/desktop/desktop.declare"><p>Desktop</p></a>
+<a href="apps/tracker/tracker.declare"><p>Tracker</p></a>
 <a href="apps/docs/docs.declare"><p>Docs</p></a>
+<a href="https://github.com/davidtemkin/declarelang"><p>GitHub</p></a>
 </section>
 </div><!--declare-static:end--></div>
 <script>document.getElementById("declare-static")?.remove()</script>
@@ -597,7 +642,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=f6ad05250b82";
+  import boot from "./bundles/declare-boot.js?v=370cd610af95";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().

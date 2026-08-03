@@ -29,6 +29,11 @@ export interface RichBlock { tag: string; runs: RichRun[]; gapBefore: number; li
 
 /** How an Image scales its bitmap into the view box — the language's
  *  `value Stretch = none | width | height | both` (§6). */
+/** What can cross the bitmap seam: a decoded still, or a video element whose
+ *  current frame is the picture. Both answer `drawImage`; both place as an
+ *  absolutely-positioned child on the DOM. */
+export type Bitmap = HTMLImageElement | HTMLVideoElement;
+
 export type Stretch = "none" | "width" | "height" | "both";
 
 /** The pointer events a view can answer at R5 (`onPointerDown` / `onPointerUp` /
@@ -319,7 +324,10 @@ export interface Surface {
   /** The view's image — a loaded element (the Image view owns loading, so
    *  the model sees natural size and load timing) — and how it stretches
    *  into the view box. */
-  setImage(image: HTMLImageElement | null): void;
+  /** The bitmap seam takes a VIDEO as readily as an image: a <video> places
+   *  like an <img> on the DOM and `drawImage` accepts it unchanged on canvas,
+   *  so a moving picture is the same content kind, not a second one. */
+  setImage(image: Bitmap | null): void;
   setImageStretch(stretch: Stretch): void;
 
   /** Route pointer input to this surface (null stops it). A surface with a

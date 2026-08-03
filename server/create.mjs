@@ -35,6 +35,8 @@ const MIME = {
   ".js": "text/javascript", ".mjs": "text/javascript", ".html": "text/html",
   ".json": "application/json", ".css": "text/css", ".svg": "image/svg+xml",
   ".png": "image/png", ".gif": "image/gif", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+  ".webp": "image/webp", ".avif": "image/avif",
+  ".mp4": "video/mp4", ".webm": "video/webm",
   ".woff2": "font/woff2", ".woff": "font/woff", ".ttf": "font/ttf",
   ".declare": "text/plain; charset=utf-8",
 };
@@ -45,6 +47,44 @@ const send = (res, code, body, type) => {
   res.writeHead(code, { "content-type": type ?? "text/html; charset=utf-8" });
   res.end(body);
 };
+
+// BYTE RANGES (RFC 9110 §14) — for every static file, not just media.
+//
+// A server that answers `Range: bytes=0-1` with 200-and-the-whole-body is
+// telling the client it cannot seek. Chrome shrugs and plays anyway; SAFARI
+// REFUSES — a <video> stays blank with no error, no console message and
+// nothing in the network tab that looks wrong. That asymmetry is why the gap
+// survived: everything works until someone opens the other browser.
+//
+// One range per request. `multipart/byteranges` buys a dev server nothing, and
+// a client that asks for several is happy with the whole file (200) instead.
+function sendFile(req, res, abs, body) {
+  const buf = body ?? readFileSync(abs);
+  const type = mime(abs);
+  const m = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? "").trim());
+  if (m === null) {
+    res.writeHead(200, { "content-type": type, "accept-ranges": "bytes", "content-length": buf.length });
+    return res.end(buf);
+  }
+  // `bytes=N-` runs to the end; `bytes=-N` is the LAST n bytes (suffix form)
+  const last = buf.length - 1;
+  const suffix = m[1] === "";
+  let start = suffix ? buf.length - Number(m[2]) : Number(m[1]);
+  let end = suffix || m[2] === "" ? last : Number(m[2]);
+  start = Math.max(0, start);
+  end = Math.min(last, end);
+  if (buf.length === 0 || !isFinite(start) || !isFinite(end) || start > end) {
+    res.writeHead(416, { "content-range": `bytes */${buf.length}`, "accept-ranges": "bytes" });
+    return res.end();
+  }
+  res.writeHead(206, {
+    "content-type": type,
+    "accept-ranges": "bytes",
+    "content-range": `bytes ${start}-${end}/${buf.length}`,
+    "content-length": end - start + 1,
+  });
+  res.end(buf.subarray(start, end + 1));
+}
 
 // Compress text responses when the client offers gzip. Production hosts all
 // compress; without this the dev server costs ~3× production's bytes on the
@@ -63,8 +103,15 @@ function enableGzip(req, res) {
   res.end = (body) => {
     const type = String(headers?.["content-type"] ?? "");
     const buf = body == null ? null : Buffer.isBuffer(body) ? body : Buffer.from(body);
-    if (buf !== null && buf.length >= 1024 && GZ_TYPES.test(type) && headers["content-encoding"] === undefined) {
-      writeHead(code, { ...headers, "content-encoding": "gzip", vary: "accept-encoding" });
+    // never on a 206: the range was computed against the IDENTITY bytes, so a
+    // compressed body would contradict its own content-range and content-length
+    if (code !== 206 && buf !== null && buf.length >= 1024 && GZ_TYPES.test(type) && headers["content-encoding"] === undefined) {
+      // DROP any content-length the caller set: it measured the IDENTITY bytes,
+      // and the body about to go out is the compressed ones. Keeping it is an
+      // ERR_CONTENT_LENGTH_MISMATCH — the response truncates, and for
+      // declare-boot.js that means nothing on the page boots at all.
+      const { "content-length": _drop, ...rest } = headers;
+      writeHead(code, { ...rest, "content-encoding": "gzip", vary: "accept-encoding" });
       return end(gzipSync(buf));
     }
     writeHead(code, headers ?? {});
@@ -251,13 +298,10 @@ bootHost(cfg);
     res.end(JSON.stringify({ source: out.source, deps: out.deps, etag }));
   }
 
-  function serveFrom(res, baseDir, rel) {
+  function serveFrom(req, res, baseDir, rel) {
     const abs = path.join(baseDir, rel.replace(/^\/+/, ""));
     if (!(abs === baseDir || abs.startsWith(baseDir + path.sep))) return send(res, 403, "forbidden", "text/plain");
-    if (existsSync(abs) && statSync(abs).isFile()) {
-      res.writeHead(200, { "content-type": mime(abs) });
-      return res.end(readFileSync(abs));
-    }
+    if (existsSync(abs) && statSync(abs).isFile()) return sendFile(req, res, abs);
     return send(res, 404, "not found", "text/plain");
   }
 
@@ -308,7 +352,9 @@ bootHost(cfg);
   // /build/<program-dir>/ — resolve the program url this mirrors, find its
   // <name>.declare, build and serve. The url after /build is a program-directory
   // url in the mount space, so it composes with every mount identically.
-  async function serveBuild(res, buildPath, urlPath, backend = "dom") {
+  // `req` rides along because everything static now goes out through sendFile,
+  // which answers byte ranges — and a range is a property of the REQUEST.
+  async function serveBuild(req, res, buildPath, urlPath, backend = "dom") {
     // buildPath = "/build/my-apps/lzx-weather/foo.js" → the PROGRAM directory is
     // the longest prefix holding its own <dir>/<dir>.declare (the directory-
     // program rule), and everything after it is the tail — which may be a
@@ -331,7 +377,7 @@ bootHost(cfg);
     const t = tail.replace(/^\/+/, "");
     if (t === "" || t === "index.html") {
       if (!urlPath.endsWith("/")) { res.writeHead(302, { location: urlPath + "/" }); return res.end(); }
-      return serveFrom(res, man.dir, "index.html");
+      return serveFrom(req, res, man.dir, "index.html");
     }
     if (t === "manifest.json") return send(res, 200, JSON.stringify(man.sizes, null, 2), "application/json");
     // A generated file from the artifact, else the app's OWN asset (data/…,
@@ -340,8 +386,8 @@ bootHost(cfg);
     // they live, so `/build/<app>/data/x.json` resolves like the dev page's.
     const gen = path.join(man.dir, t);
     if (gen.startsWith(man.dir + path.sep) && existsSync(gen) && statSync(gen).isFile())
-      return serveFrom(res, man.dir, t);
-    return serveFrom(res, path.dirname(hit.abs), t);
+      return serveFrom(req, res, man.dir, t);
+    return serveFrom(req, res, path.dirname(hit.abs), t);
   }
 
   // ── the request handler ────────────────────────────────────────────────────
@@ -438,7 +484,7 @@ bootHost(cfg);
       if (p === "/build" || p.startsWith("/build/")) {
         const q = new URL(req.url, "http://x").searchParams;
         const flags = parseFlags(q, DEFAULT_FLAGS);
-        serveBuild(res, p, p, flags.render).catch((e) => {
+        serveBuild(req, res, p, p, flags.render).catch((e) => {
           if (!res.headersSent) send(res, 500, String((e && e.stack) || e), "text/plain");
         });
         return;
@@ -513,8 +559,7 @@ bootHost(cfg);
       if (!hit) return send(res, 403, "forbidden", "text/plain");
       if (existsSync(hit.abs) && statSync(hit.abs).isFile()) {
         if (hit.abs.endsWith(".html")) return send(res, 200, withServerMarker(readFileSync(hit.abs, "utf8")));
-        res.writeHead(200, { "content-type": mime(hit.abs) });
-        return res.end(readFileSync(hit.abs));
+        return sendFile(req, res, hit.abs);
       }
     } catch (e) {
       return send(res, 500, String((e && e.stack) || e), "text/plain");
