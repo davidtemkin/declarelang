@@ -108,7 +108,7 @@ animated in-place expansion, design-reviewed chrome against ecosystem
 components. Zero dependencies and zero build configuration against nine
 runtime packages and a Vite/TypeScript toolchain. Smaller wire. Ingest is
 near-free because search has no index to build. And virtualization is **one
-word**: the Tracker's row template says `virtualize = auto` and that is the
+word**: the Tracker's row template says `virtualize = true` and that is the
 entire windowing story in the file — no row heights, no scroll container, no
 keys, no overscan tuning, no memoization discipline. The React app delegates
 windowing to TanStack Virtual and still pays the dynamic-measurement plumbing at
@@ -206,7 +206,7 @@ disciplined engineer correctly reached for.
 
 1. Half the code, zero dependencies, smaller wire — the three stable columns.
 2. We are 13 KB under React's floor before either app writes a line.
-3. Virtualization is **one word** — `virtualize = auto` on the row template is
+3. Virtualization is **one word** — `virtualize = true` on the row template is
    the Declare Tracker's entire windowing story — against TanStack Virtual plus
    dynamic-measurement plumbing at every call site, and that is React's
    *idiomatic* path. Arm 1 proved that hand-rolling it instead costs you the

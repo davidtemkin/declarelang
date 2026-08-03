@@ -357,7 +357,7 @@ await test("DataGrid: windowing composes — the header offsets the window (the 
     g: DataGrid [ x = 10, y = 10, width = 600, height = 300, datapath = { d.value },
       Column [ title = "ID", field = "id", width = 70 ],
       Column [ title = "Title", field = "title", width = 280 ],
-      GridRow [ datapath = :rows[], virtualize = always ],
+      GridRow [ datapath = :rows[], virtualize = true ],
     ],
   ]`);
   app.d.value = { rows: ROWS(10000) };
@@ -377,7 +377,7 @@ await test("DataGrid: a FOCUSED cell's row is never recycled — focus is touch 
     g: DataGrid [ x = 10, y = 10, width = 650, height = 300, datapath = { d.value },
       Column [ title = "ID", field = "id", width = 60 ],
       Column [ title = "State", field = "state", width = 120, kind = "select", options = { ["open", "done"] } ],
-      GridRow [ datapath = :rows[], virtualize = always ],
+      GridRow [ datapath = :rows[], virtualize = true ],
     ],
   ]`);
   app.d.value = { rows: Array.from({ length: 1000 }, (_, i) => ({ id: i, state: i % 2 ? "open" : "done" })) };

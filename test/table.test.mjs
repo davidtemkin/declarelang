@@ -117,7 +117,7 @@ await test("windowed: ranges cross the window and arrow travel materializes the 
     d: Dataset { { "rows": [] } },
     t: Table [ x = 10, y = 10, width = 300, height = 150, datapath = { d.value },
       selects = "multi",
-      TableRow [ datapath = :rows[], virtualize = always, height = 30,
+      TableRow [ datapath = :rows[], virtualize = true, height = 30,
         lab: Text [ x = 8, y = 8, text = :label ],
       ],
     ],

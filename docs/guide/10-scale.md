@@ -27,7 +27,7 @@ App [ width = 320, height = 240, fill = white,
         text = { (d.value.rows).length + " records, ~20 views" } ],
     list: View [ x = 16, y = 36, width = 288, height = 190, scrolls = y,
         inner: View [ width = 288, datapath = { d.value },
-            Row [ datapath = :rows[], virtualize = auto ]
+            Row [ datapath = :rows[], virtualize = true ]
             ]
         ]
     ]
@@ -36,7 +36,7 @@ App [ width = 320, height = 240, fill = white,
 
 Fifty thousand records; **eighteen views** in that viewport. Scroll it — the rows you
 can see are built, the rest are logical, and nothing in the source says how. Take
-`virtualize = auto` away and the same program tries to build fifty thousand views.
+`virtualize = true` away and the same program tries to build fifty thousand views.
 That one word is this chapter's subject.
 
 Two other things happened here that you did not write, and the next two sections are
@@ -85,19 +85,18 @@ is routinely a fifth of an app's code and the source of its worst bugs.
 Here it is one word on the row template:
 
 ```declare-fragment
-IssueRow [ datapath = :rows[], virtualize = auto ]
+IssueRow [ datapath = :rows[], virtualize = true ]
 ```
 
 That is the whole windowing story — the same line the Tracker uses to hold a million
-records. `auto` lets the platform's threshold decide; `always` virtualizes regardless; a
-bare number virtualizes above that many records; `never` is the default and fully
-materializes.
+records. It is a boolean, off by default, and like any other boolean it takes a
+constraint: `virtualize = { app.rows.length > 500 }` starts a collection fully
+materialized and virtualizes it when it grows, engaging and disengaging as the answer
+changes.
 
-**Be precise about the claim: it is one word, not zero.** The default is full
-materialization, so you opt into scale deliberately — which is right, because below the
-threshold a fully materialized list scrolls on the compositor with no JS at all, and
-windowing would only add work. What you never write is everything *around* the word: no
-row heights, no scroll plumbing, no keys, no overscan tuning, no memoization.
+It is off by default, so you turn it on deliberately. What you never write is everything
+*around* the word: no row heights, no scroll plumbing, no keys, no overscan tuning, no
+memoization.
 
 This works because the runtime owns the pieces a windowing library never gets: the
 scroll box, live scroll position, every instance's geometry, layout itself, focus, and
@@ -126,11 +125,10 @@ whole. Nothing fails silently — the fallback and its reason are inspectable, a
 program stays correct, just unwindowed. Replication itself carries none of these
 constraints; only the windowing of it does.
 
-**Which to write.** `auto` is the answer for a collection whose size you do not control
-— a search result, a feed, a table over a real dataset. Leave it off for a menu, a
-palette, a form: a handful of rows materialize faster than any window can be computed.
-Reach for `always` or an explicit count only when you have measured something `auto`
-got wrong. It is the only knob in this chapter, and one word is the whole of it.
+**When to turn it on.** Any collection whose size you do not control — a search result,
+a feed, a table over a real dataset. Leave it off for a menu, a palette, a form, where
+every record is going to be built anyway. Virtualizing a small collection is not harmful,
+just unnecessary; the cost of not virtualizing a large one is a stall at construction.
 
 ## Arriving and departing
 

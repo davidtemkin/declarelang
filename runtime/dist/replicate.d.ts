@@ -14,12 +14,24 @@ export interface Materialize {
         suppressInit: () => void;
     };
 }
-/** The virtualization policy (`virtualize = …` on the replicated element —
- *  D5 RULED 2026-07-30 as the permanent policy slot): `never` (full
- *  materialization — the v1 default), `auto` (virtualize above the platform
- *  threshold), `always`, or a count (virtualize above that many records).
- *  Only the DEFAULT is scheduled to change (never → auto, once the semantic
- *  differ proves invisibility); the vocabulary is forever.
+/** The virtualization policy — `virtualize` on the replicated element. A
+ *  BOOLEAN (default false: full materialization), or a thunk when the author
+ *  wrote a `{ }` constraint, called inside the match so its reads are tracked
+ *  and the block engages or disengages when the answer changes.
+ *
+ *  It was an enum — `all | auto | window | <count>` — until 2026-08-02. The
+ *  three-plus values existed to carry `auto`, a threshold on the RECORD COUNT
+ *  (64, tuned on one interaction). Measurement retired it: a windowed block
+ *  costs a flat ~0.03–0.09 ms per scroll tick regardless of N — 0.5% of a
+ *  frame — so there is no performance cliff for a threshold to guard. What
+ *  full materialization actually costs is O(N) CONSTRUCTION, up front, and
+ *  that is N × per-instance cost, which varies ~100× between a bare row and a
+ *  rich one. A record count cannot see the variable that matters, so `auto`
+ *  was answering a question it could not answer, and `<count>` was `auto` with
+ *  the number made honest — leaving nothing for either to do. The choice that
+ *  remains is semantic, and the author is the one who can make it: full
+ *  materialization keeps `childViews` answerable and browser find-in-page over
+ *  every record; virtualizing bounds construction.
  *
  *  NAMING (2026-08-02, superseding the 07-30 ruling's spelling). The slot was
  *  ruled as `windowed`, renamed the same day to `materialize` to clear the
@@ -32,7 +44,7 @@ export interface Materialize {
  *  what the runtime does; the authored slot is `virtualize`, because that is
  *  the decision the author is making. §1's doctrine is untouched — a matched
  *  record HAS an instance either way; the policy only governs construction. */
-export type VirtualizePolicy = "never" | "auto" | "always" | number;
+export type VirtualizePolicy = boolean | (() => boolean);
 /** The replication blocks under `view` — the kernel door for layout
  *  strategies, AT traversal, the inspector, and navigate-to-record. */
 export declare function blocksOf(view: View): readonly Replicator[];
@@ -133,6 +145,12 @@ export declare class Replicator {
     plan?: readonly PathSeg[] | null, 
     /** The virtualization policy (`virtualize = …`; D5). */
     policy?: VirtualizePolicy);
+    /** The live policy answer. A literal is itself; a `{ }` constraint is called
+     *  — and callers must only do that from inside match(), so the read lands in
+     *  the Constraint's dependency set. A throwing expression is NOT caught: every
+     *  other `{ }` in the language propagates, and swallowing this one would make
+     *  a broken policy look like a deliberate `false`. */
+    private wantsVirtual;
     /** First run (instantiate pass two — the tree is linked) + retire with the
      *  parent, so a discarded subtree's replicators can never wake again. */
     arm(): void;

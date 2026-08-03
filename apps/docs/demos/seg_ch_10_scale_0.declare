@@ -13,7 +13,7 @@ App [ width = 320, height = 240, fill = white,
         text = { (d.value.rows).length + " records, ~20 views" } ],
     list: View [ x = 16, y = 36, width = 288, height = 190, scrolls = y,
         inner: View [ width = 288, datapath = { d.value },
-            Row [ datapath = :rows[], virtualize = auto ]
+            Row [ datapath = :rows[], virtualize = true ]
             ]
         ]
     ]

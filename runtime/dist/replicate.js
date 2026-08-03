@@ -44,14 +44,6 @@ import { splitPath, isSelective } from "./datapath.js";
 import { Focus } from "./focus.js";
 import { arriveSubtree } from "./spring.js";
 import { selectNodes } from "./select.js";
-// The `auto` cutover, tuned by measurement (2026-08-01, the Tracker's filter
-// pick): a rich row instantiates in ~6–8ms, so full-materializing a 143-row
-// filter result priced a menu pick at 1.1–1.4s while the windowed path
-// recycled the standing instances in ~80ms. The honest threshold is "just
-// above what a viewport-ish window builds anyway" (~20 visible + overscan) —
-// below it full and windowed cost the same, above it full only loses. Small
-// authored lists (menus, palettes) stay comfortably under it.
-const AUTO_THRESHOLD = 64;
 const DEFAULT_UNIT = 24; // pre-measurement row-extent estimate (corrected by the first real row)
 const BUFFER_ROWS = 5; // rows materialized beyond each viewport edge (reconcile-latency hiding)
 // ── EXTENT COMPRESSION (the 2²⁵ layout ceiling) ──────────────────────────────
@@ -301,7 +293,7 @@ export class Replicator {
      *  `splitPath(path)` is the plan (pure names, today's fast path). */
     plan = null, 
     /** The virtualization policy (`virtualize = …`; D5). */
-    policy = "never") {
+    policy = false) {
         this.parent = parent;
         this.path = path;
         this.classroot = classroot;
@@ -321,6 +313,14 @@ export class Replicator {
                 a.name !== "virtualize"),
         };
         this.constraint = new Constraint(`${parent.constructor.name}'s replication (:${path}[])`, () => this.match(), (m) => this.reconcile(m));
+    }
+    /** The live policy answer. A literal is itself; a `{ }` constraint is called
+     *  — and callers must only do that from inside match(), so the read lands in
+     *  the Constraint's dependency set. A throwing expression is NOT caught: every
+     *  other `{ }` in the language propagates, and swallowing this one would make
+     *  a broken policy look like a deliberate `false`. */
+    wantsVirtual() {
+        return typeof this.policy === "function" ? !!this.policy() : this.policy;
     }
     /** First run (instantiate pass two — the tree is linked) + retire with the
      *  parent, so a discarded subtree's replicators can never wake again. */
@@ -419,7 +419,7 @@ export class Replicator {
         if (base === null)
             return none;
         if (this.plan !== null && isSelective(this.plan)) {
-            if (this.policy !== "never")
+            if (this.wantsVirtual())
                 this.fallback = "a selective path replicates its selection fully (windowing over selections is a later increment)";
             const nodes = selectNodes(base.data, base.path, this.plan);
             return { data: base.data, nodes, items: nodes.map((n) => n.value), arrayPath: null, logical: nodes.length, start: 0, unit: 0, windowed: false, dataChanged: true, leading: 0 };
@@ -435,10 +435,11 @@ export class Replicator {
         const dataChanged = arr !== this.lastArr || logical !== this.lastLen;
         this.lastArr = arr;
         this.lastLen = logical;
-        const wants = this.policy === "always" ? true
-            : this.policy === "never" ? false
-                : typeof this.policy === "number" ? logical > this.policy
-                    : logical > AUTO_THRESHOLD; // auto
+        // Reading the policy HERE is what makes `virtualize = { … }` reactive:
+        // match() is the Constraint's compute, so the thunk's reads are tracked
+        // and a changed answer re-runs this — engaging, or disengaging through
+        // the branch that returns rows to their declared placement.
+        const wants = this.wantsVirtual();
         const full = () => ({
             data: base.data,
             nodes: arr.map((value, i) => ({ path: [...arrayPath, String(i)], value })),
@@ -476,7 +477,7 @@ export class Replicator {
                 this.rowGap = gap;
             }
             else {
-                this.fallback = "the block's parent runs a layout windowing cannot predict (a vertical SimpleLayout composes; others fall back) — set virtualize = never or drop the layout";
+                this.fallback = "the block's parent runs a layout windowing cannot predict (a vertical SimpleLayout composes; others fall back) — set virtualize = false or drop the layout";
                 return full();
             }
         }

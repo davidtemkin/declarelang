@@ -58,12 +58,24 @@ export interface Materialize {
   (template: Element, classroot: View): { view: View; finish: () => void; suppressInit: () => void };
 }
 
-/** The virtualization policy (`virtualize = …` on the replicated element —
- *  D5 RULED 2026-07-30 as the permanent policy slot): `never` (full
- *  materialization — the v1 default), `auto` (virtualize above the platform
- *  threshold), `always`, or a count (virtualize above that many records).
- *  Only the DEFAULT is scheduled to change (never → auto, once the semantic
- *  differ proves invisibility); the vocabulary is forever.
+/** The virtualization policy — `virtualize` on the replicated element. A
+ *  BOOLEAN (default false: full materialization), or a thunk when the author
+ *  wrote a `{ }` constraint, called inside the match so its reads are tracked
+ *  and the block engages or disengages when the answer changes.
+ *
+ *  It was an enum — `all | auto | window | <count>` — until 2026-08-02. The
+ *  three-plus values existed to carry `auto`, a threshold on the RECORD COUNT
+ *  (64, tuned on one interaction). Measurement retired it: a windowed block
+ *  costs a flat ~0.03–0.09 ms per scroll tick regardless of N — 0.5% of a
+ *  frame — so there is no performance cliff for a threshold to guard. What
+ *  full materialization actually costs is O(N) CONSTRUCTION, up front, and
+ *  that is N × per-instance cost, which varies ~100× between a bare row and a
+ *  rich one. A record count cannot see the variable that matters, so `auto`
+ *  was answering a question it could not answer, and `<count>` was `auto` with
+ *  the number made honest — leaving nothing for either to do. The choice that
+ *  remains is semantic, and the author is the one who can make it: full
+ *  materialization keeps `childViews` answerable and browser find-in-page over
+ *  every record; virtualizing bounds construction.
  *
  *  NAMING (2026-08-02, superseding the 07-30 ruling's spelling). The slot was
  *  ruled as `windowed`, renamed the same day to `materialize` to clear the
@@ -76,16 +88,7 @@ export interface Materialize {
  *  what the runtime does; the authored slot is `virtualize`, because that is
  *  the decision the author is making. §1's doctrine is untouched — a matched
  *  record HAS an instance either way; the policy only governs construction. */
-export type VirtualizePolicy = "never" | "auto" | "always" | number;
-
-// The `auto` cutover, tuned by measurement (2026-08-01, the Tracker's filter
-// pick): a rich row instantiates in ~6–8ms, so full-materializing a 143-row
-// filter result priced a menu pick at 1.1–1.4s while the windowed path
-// recycled the standing instances in ~80ms. The honest threshold is "just
-// above what a viewport-ish window builds anyway" (~20 visible + overscan) —
-// below it full and windowed cost the same, above it full only loses. Small
-// authored lists (menus, palettes) stay comfortably under it.
-const AUTO_THRESHOLD = 64;
+export type VirtualizePolicy = boolean | (() => boolean);
 
 const DEFAULT_UNIT = 24;     // pre-measurement row-extent estimate (corrected by the first real row)
 const BUFFER_ROWS = 5;       // rows materialized beyond each viewport edge (reconcile-latency hiding)
@@ -380,7 +383,7 @@ export class Replicator {
      *  `splitPath(path)` is the plan (pure names, today's fast path). */
     private readonly plan: readonly PathSeg[] | null = null,
     /** The virtualization policy (`virtualize = …`; D5). */
-    private readonly policy: VirtualizePolicy = "never"
+    private readonly policy: VirtualizePolicy = false
   ) {
     this.keyPath = key === null ? null : splitPath(key);
     // The instances' element is the template MINUS its many-path attribute
@@ -401,6 +404,15 @@ export class Replicator {
       () => this.match(),
       (m) => this.reconcile(m as Match)
     );
+  }
+
+  /** The live policy answer. A literal is itself; a `{ }` constraint is called
+   *  — and callers must only do that from inside match(), so the read lands in
+   *  the Constraint's dependency set. A throwing expression is NOT caught: every
+   *  other `{ }` in the language propagates, and swallowing this one would make
+   *  a broken policy look like a deliberate `false`. */
+  private wantsVirtual(): boolean {
+    return typeof this.policy === "function" ? !!this.policy() : this.policy;
   }
 
   /** First run (instantiate pass two — the tree is linked) + retire with the
@@ -501,7 +513,7 @@ export class Replicator {
     const base = inheritedCursor(this.parent);
     if (base === null) return none;
     if (this.plan !== null && isSelective(this.plan)) {
-      if (this.policy !== "never") this.fallback = "a selective path replicates its selection fully (windowing over selections is a later increment)";
+      if (this.wantsVirtual()) this.fallback = "a selective path replicates its selection fully (windowing over selections is a later increment)";
       const nodes = selectNodes(base.data, base.path, this.plan);
       return { data: base.data, nodes, items: nodes.map((n) => n.value), arrayPath: null, logical: nodes.length, start: 0, unit: 0, windowed: false, dataChanged: true, leading: 0 };
     }
@@ -514,11 +526,11 @@ export class Replicator {
     const dataChanged = arr !== this.lastArr || logical !== this.lastLen;
     this.lastArr = arr;
     this.lastLen = logical;
-    const wants =
-      this.policy === "always" ? true
-      : this.policy === "never" ? false
-      : typeof this.policy === "number" ? logical > this.policy
-      : logical > AUTO_THRESHOLD; // auto
+    // Reading the policy HERE is what makes `virtualize = { … }` reactive:
+    // match() is the Constraint's compute, so the thunk's reads are tracked
+    // and a changed answer re-runs this — engaging, or disengaging through
+    // the branch that returns rows to their declared placement.
+    const wants = this.wantsVirtual();
     const full = (): Match => ({
       data: base.data,
       nodes: arr.map((value, i) => ({ path: [...arrayPath, String(i)], value })),
@@ -555,7 +567,7 @@ export class Replicator {
         gap = typeof lay.spacing === "number" ? lay.spacing : 0;
         this.rowGap = gap;
       } else {
-        this.fallback = "the block's parent runs a layout windowing cannot predict (a vertical SimpleLayout composes; others fall back) — set virtualize = never or drop the layout";
+        this.fallback = "the block's parent runs a layout windowing cannot predict (a vertical SimpleLayout composes; others fall back) — set virtualize = false or drop the layout";
         return full();
       }
     }

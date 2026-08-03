@@ -477,11 +477,13 @@ read the changed region.
 
 **A derived dataset recomputes from its inputs** — `cal: Dataset [ contents = { app.buildModel() } ]`.
 
-**Large collections virtualize on one word.** `virtualize = auto` on a replicated node builds
+**Large collections virtualize on one word.** `virtualize = true` on a replicated node builds
 only the rows near the viewport and leaves the rest logical — same records, same paths, same
-behaviour, reconstructed indistinguishably as you scroll. The default is `never`, full
-materialization, which below a few thousand rows is simply faster; `always` and a row count
-force it. There is nothing else to write: no row heights, no scroll wiring, no keys.
+behaviour, reconstructed indistinguishably as you scroll. It is a boolean, **off by
+default** — full materialization keeps `childViews` answerable and browser find over every
+record — and it takes a `{ }` constraint like any other boolean, engaging and disengaging
+as the answer changes. There is nothing else to write: no row heights, no scroll wiring,
+no keys.
 
 **When structure is genuinely imperative**, build it from a handler:
 `app.createView(tag, parent, props)` instantiates a component by name and inserts it as a live

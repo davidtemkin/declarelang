@@ -4203,10 +4203,9 @@ var DeclareMac = (() => {
         }
         if (attr.name === "virtualize" && replicated) {
           const v = attr.value;
-          const okIdent = v.kind === "ident" && (v.name === "never" || v.name === "auto" || v.name === "always");
-          const okNumber = v.kind === "number" && !v.hex && Number.isInteger(v.value) && v.value >= 0;
-          if (!okIdent && !okNumber) {
-            errors.push(new DeclareError(`virtualize = never | auto | always | <count> \u2014 the virtualization policy (never: full materialization, the default; auto: the platform threshold decides; always: virtualize regardless; a count: virtualize above that many records)`, v.pos));
+          const okIdent = v.kind === "ident" && (v.name === "true" || v.name === "false");
+          if (!okIdent && v.kind !== "code") {
+            errors.push(new DeclareError(`virtualize = true | false | { \u2026 } \u2014 virtualize this collection (default false: every record is constructed). The enum retired 2026-08-02: 'all' is false, 'window' is true, and 'auto'/<count> are gone \u2014 a record count could not see what full materialization actually costs (N \xD7 per-instance construction), and a windowed block is a flat ~0.06 ms/frame at any N, so there was no cliff to threshold`, v.pos));
           }
           continue;
         }
@@ -4726,7 +4725,7 @@ var DeclareMac = (() => {
         ignoreclip: "spelled 'ignoreClip' now (inner cap)",
         focustrap: "spelled 'focusTrap' now (inner cap)",
         scrollsX: "the scroll axes merged into one slot \u2014 write 'scrolls = x' (the axis enum: none | y | x | both)",
-        materialize: "spelled 'virtualize' now, and the values inverted with the verb \u2014 'materialize = all' is 'virtualize = never', 'window' is 'always', 'auto' and a count are unchanged"
+        materialize: "spelled 'virtualize' now, and it is a boolean \u2014 'materialize = all' is 'virtualize = false' (the default, so just drop it), 'window' is 'virtualize = true'; 'auto' and a count retired (no threshold: a windowed block is a flat ~0.06 ms/frame at any size)"
       };
     }
   });
@@ -9285,7 +9284,7 @@ var DeclareMac = (() => {
       return null;
     }
   }
-  var AUTO_THRESHOLD, DEFAULT_UNIT, BUFFER_ROWS, EXTENT_CAP, physicalExtent, BLOCKS, ExtentLedger, Replicator;
+  var DEFAULT_UNIT, BUFFER_ROWS, EXTENT_CAP, physicalExtent, BLOCKS, ExtentLedger, Replicator;
   var init_replicate = __esm({
     "runtime/dist/replicate.js"() {
       "use strict";
@@ -9297,7 +9296,6 @@ var DeclareMac = (() => {
       init_focus();
       init_spring();
       init_select();
-      AUTO_THRESHOLD = 64;
       DEFAULT_UNIT = 24;
       BUFFER_ROWS = 5;
       EXTENT_CAP = 16777216;
@@ -9492,7 +9490,7 @@ var DeclareMac = (() => {
          *  objects every recompute, so identity would rebuild all of them; a key
          *  pools by a stable field, so only genuinely changed records rebuild. */
         keyPath;
-        constructor(parent, element, path, classroot, make, prev, key = null, plan = null, policy = "never") {
+        constructor(parent, element, path, classroot, make, prev, key = null, plan = null, policy = false) {
           this.parent = parent;
           this.path = path;
           this.classroot = classroot;
@@ -9506,6 +9504,14 @@ var DeclareMac = (() => {
             attrs: element.attrs.filter((a) => !(a.name === "datapath" && a.value.kind === "path" && a.value.many) && !(a.name === "key" && a.value.kind === "path") && a.name !== "virtualize")
           };
           this.constraint = new Constraint(`${parent.constructor.name}'s replication (:${path}[])`, () => this.match(), (m) => this.reconcile(m));
+        }
+        /** The live policy answer. A literal is itself; a `{ }` constraint is called
+         *  — and callers must only do that from inside match(), so the read lands in
+         *  the Constraint's dependency set. A throwing expression is NOT caught: every
+         *  other `{ }` in the language propagates, and swallowing this one would make
+         *  a broken policy look like a deliberate `false`. */
+        wantsVirtual() {
+          return typeof this.policy === "function" ? !!this.policy() : this.policy;
         }
         /** First run (instantiate pass two — the tree is linked) + retire with the
          *  parent, so a discarded subtree's replicators can never wake again. */
@@ -9598,7 +9604,7 @@ var DeclareMac = (() => {
           if (base2 === null)
             return none;
           if (this.plan !== null && isSelective(this.plan)) {
-            if (this.policy !== "never")
+            if (this.wantsVirtual())
               this.fallback = "a selective path replicates its selection fully (windowing over selections is a later increment)";
             const nodes2 = selectNodes(base2.data, base2.path, this.plan);
             return { data: base2.data, nodes: nodes2, items: nodes2.map((n) => n.value), arrayPath: null, logical: nodes2.length, start: 0, unit: 0, windowed: false, dataChanged: true, leading: 0 };
@@ -9614,7 +9620,7 @@ var DeclareMac = (() => {
           const dataChanged = arr !== this.lastArr || logical !== this.lastLen;
           this.lastArr = arr;
           this.lastLen = logical;
-          const wants = this.policy === "always" ? true : this.policy === "never" ? false : typeof this.policy === "number" ? logical > this.policy : logical > AUTO_THRESHOLD;
+          const wants = this.wantsVirtual();
           const full = () => ({
             data: base2.data,
             nodes: arr.map((value, i) => ({ path: [...arrayPath, String(i)], value })),
@@ -9643,7 +9649,7 @@ var DeclareMac = (() => {
               gap = typeof lay.spacing === "number" ? lay.spacing : 0;
               this.rowGap = gap;
             } else {
-              this.fallback = "the block's parent runs a layout windowing cannot predict (a vertical SimpleLayout composes; others fall back) \u2014 set virtualize = never or drop the layout";
+              this.fallback = "the block's parent runs a layout windowing cannot predict (a vertical SimpleLayout composes; others fall back) \u2014 set virtualize = false or drop the layout";
               return full();
             }
           }
@@ -13513,11 +13519,19 @@ var DeclareMac = (() => {
         }
         const keyAttr = childEl.attrs.find((a) => a.name === "key" && a.value.kind === "path");
         const keyPath = keyAttr !== void 0 ? keyAttr.value.path : null;
-        const matAttr = childEl.attrs.find((a) => a.name === "virtualize");
-        let policy = "never";
-        if (matAttr !== void 0) {
-          const wv = matAttr.value;
-          policy = wv.kind === "number" ? wv.value : wv.name === "auto" ? "auto" : wv.name === "always" ? "always" : "never";
+        const vAttr = childEl.attrs.find((a) => a.name === "virtualize");
+        let policy = false;
+        if (vAttr !== void 0) {
+          const wv = vAttr.value;
+          if (wv.kind === "code") {
+            const c = compileExpr(wv.src ?? "");
+            if ("error" in c)
+              throw new DeclareError(`virtualize = { \u2026 } ${c.error}`, vAttr.value.pos);
+            const fn = c.fn;
+            policy = () => !!fn.call(parentView, parentView.parent, croot);
+          } else {
+            policy = wv.name === "true";
+          }
         }
         const replicator = new Replicator(parentView, childEl, many.value.path, croot, materializer(ctx), slot.prev, keyPath, many.value.plan ?? null, policy);
         ctx.pending.push({ replicator });

@@ -600,20 +600,19 @@ function checkElement(
         }
         continue;
       }
-      // `virtualize` is replication metadata like `key` (materialization.md,
-      // D5 RULED 2026-07-30; spelled `virtualize` since the 2026-08-02 naming
-      // ruling — the MECHANISM stays materialization, the KNOB takes the word
-      // its audience arrives with): the PERMANENT policy slot — `never` (full
-      // materialization — the default) | `auto` (platform threshold) |
-      // `always` | a count (virtualize above N). Magic only on a replication
-      // template; elsewhere `virtualize` is an ordinary attribute name.
+      // `virtualize` is replication metadata like `key` (materialization.md;
+      // spelled `virtualize` since the 2026-08-02 naming ruling — the
+      // MECHANISM stays materialization, the KNOB takes the word its audience
+      // arrives with). A BOOLEAN, default false, and a `{ }` constraint is
+      // legal: the policy is read inside the replication match, so it engages
+      // and disengages reactively. Magic only on a replication template;
+      // elsewhere `virtualize` is an ordinary attribute name.
       if (attr.name === "virtualize" && replicated) {
         const v = attr.value;
-        const okIdent = v.kind === "ident" && (v.name === "never" || v.name === "auto" || v.name === "always");
-        const okNumber = v.kind === "number" && !v.hex && Number.isInteger(v.value) && v.value >= 0;
-        if (!okIdent && !okNumber) {
+        const okIdent = v.kind === "ident" && (v.name === "true" || v.name === "false");
+        if (!okIdent && v.kind !== "code") {
           errors.push(new DeclareError(
-            `virtualize = never | auto | always | <count> — the virtualization policy (never: full materialization, the default; auto: the platform threshold decides; always: virtualize regardless; a count: virtualize above that many records)`,
+            `virtualize = true | false | { … } — virtualize this collection (default false: every record is constructed). The enum retired 2026-08-02: 'all' is false, 'window' is true, and 'auto'/<count> are gone — a record count could not see what full materialization actually costs (N × per-instance construction), and a windowed block is a flat ~0.06 ms/frame at any N, so there was no cliff to threshold`,
             v.pos
           ));
         }
@@ -1249,7 +1248,7 @@ const RENAMED_ATTRIBUTES: Readonly<Record<string, string>> = {
   ignoreclip: "spelled 'ignoreClip' now (inner cap)",
   focustrap: "spelled 'focusTrap' now (inner cap)",
   scrollsX: "the scroll axes merged into one slot — write 'scrolls = x' (the axis enum: none | y | x | both)",
-  materialize: "spelled 'virtualize' now, and the values inverted with the verb — 'materialize = all' is 'virtualize = never', 'window' is 'always', 'auto' and a count are unchanged",
+  materialize: "spelled 'virtualize' now, and it is a boolean — 'materialize = all' is 'virtualize = false' (the default, so just drop it), 'window' is 'virtualize = true'; 'auto' and a count retired (no threshold: a windowed block is a flat ~0.06 ms/frame at any size)",
 };
 
 /** The CSS-instinct hint for an unknown attribute name, or "" when the miss

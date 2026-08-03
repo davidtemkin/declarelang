@@ -11,7 +11,7 @@ windowed collection — the header drags are the forcing case the axis-scoped
         Column [ title = "ID",    field = "id",    width = 70 ],
         Column [ title = "Title", field = "title", width = 280 ],
         Column [ title = "State", field = "state", width = 110 ],
-        GridRow [ datapath = :rows[], virtualize = auto ] ]
+        GridRow [ datapath = :rows[], virtualize = true ] ]
 
 - **Columns are written members** (`Column` — selection-model §1b: permanent,
   authored, identity = the child): `title` heads the column, `field` names

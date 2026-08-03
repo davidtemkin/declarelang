@@ -65,16 +65,15 @@ reads the whole list as a value). Give the values a field server-side
 (`[{ "label": "new" }, …]`) and read `:label`. (A bare-scalar cursor is a known gap.)
 
 And replication scales past what it materializes. A replicated block accepts
-a **virtualization policy** — `virtualize = never | auto | always | <count>` —
+a **virtualization policy** — `virtualize = true` (a boolean, default false) —
 under which the runtime constructs only the rows in and around the viewport
 and everything else exists *logically*: same records, same paths, same
 behavior, reconstructed indistinguishably as you scroll (rows you actually
 touched are kept alive as-is). The scroll range reads the full logical
 extent, a screen reader hears "row N of 100,000," and `onInit` fires once
-per *record*, never per reconstruction. The default is `never` (below a few
-thousand rows, full materialization is simply faster); the policy word is
-permanent — it pins, forces, and lets tests compare both modes — while the
-default is slated to become `auto` once the invisibility proof settles.
+per *record*, never per reconstruction. It is off by default and opt-in, and
+it takes a `{ }` constraint like any other boolean, so a collection can start
+fully materialized and virtualize when it grows.
 
 ## Two kinds of source
 

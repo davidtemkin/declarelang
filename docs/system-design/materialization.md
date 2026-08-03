@@ -5,8 +5,8 @@
 > (attributes.ts — a WeakSet probe on the author-write path) + membership-
 > anchored `onInit` (suppressed reconstruction via the reconciler's
 > membership set, general — keyed re-derivations included); the windowed
-> match behind the virtualization policy slot (`virtualize = never | auto |
-> always | <count>`, default `never` — see the 2026-08-02 naming note in §8.2), uniform extents with estimate-then-correct measurement,
+> match behind the virtualization policy slot (`virtualize`, a boolean, default
+> false — see §8.2 for both 2026-08-02 revisions), uniform extents with estimate-then-correct measurement,
 > the block owning row placement and the parent's logical extent (yielding,
 > author-respecting); keep-alive retention of touched instances at their
 > logical places; the honest fallbacks (layout strategy present, no
@@ -536,24 +536,56 @@ be refused outright rather than partial (the honest-seam question, §2).
 >    once per PRESENCE EPISODE (apply → membership begins; unapply →
 >    ends; reapply → a new membership fires again), the same rule as
 >    leave-and-return in a match.
-> 2. **The virtualization policy is a permanent slot, not a boolean
->    opt-in** — spelled `virtualize = never | auto | always | <count>`
->    (RESPELLED 2026-08-02, superseding the below: the 07-30 options were
->    `windowed` and `materialize`, both naming the thing from the RUNTIME's
->    side. A knob belongs in its audience's vocabulary — the MECHANISM stays
->    materialization, this doc and `materializationInfo` included; the AUTHORED
->    slot is `virtualize`, the word a reader arrives with, and the values
->    inverted with the verb: `all`→`never`, `window`→`always`. §1's doctrine is
->    untouched — a matched record has an instance either way.)
->    (RULED as `windowed` 2026-07-30, RENAMED the same day in the naming ruling:
->    "window" stays the mechanism's term of art in prose but leaves the
->    author-facing surface, clearing the word for Window-the-component; the
+> 2. **The policy slot** — SUPERSEDED TWICE; current form first, history after.
+>
+>    **CURRENT (2026-08-02): `virtualize = true | false | { … }`, a BOOLEAN,
+>    default false.** Two changes on the same day, for two different reasons.
+>
+>    *The spelling.* The 07-30 options were `windowed` and `materialize`, both
+>    naming the thing from the RUNTIME's side — right for a mechanism, wrong for
+>    a knob. `virtualize` was never on the table, which makes this a gap in the
+>    option set rather than a reversal. The MECHANISM stays materialization
+>    (this doc, `materializationInfo`, replicate.ts's `Materialize`); the
+>    AUTHORED slot takes the word a reader arrives with. §1 is untouched: a
+>    matched record has an instance either way, and `virtualize = false`
+>    declines an optimization rather than denying an instance exists.
+>
+>    *The shape.* The enum carried `auto` (a threshold on the RECORD COUNT,
+>    64, tuned on one interaction) and `<count>`. Measurement retired both: a
+>    virtualized block costs a flat ~0.03–0.09 ms per scroll tick regardless of
+>    N — 0.5% of a frame — so there is no performance cliff for a threshold to
+>    guard. What full materialization actually costs is O(N) CONSTRUCTION, which
+>    is N × per-instance cost, and per-instance cost varies ~100× between a bare
+>    row and a rich one. **A record count cannot see the term that matters**, so
+>    `auto` was answering a question it could not answer and `<count>` was
+>    `auto` with the number made honest — leaving nothing for either to do. With
+>    the enum's third value gone, the slot is binary, and the D5 phrase "not a
+>    boolean opt-in" no longer describes anything: its stated reason was that
+>    both states stay expressible for pinning and the differ, which
+>    `true`/`false` does.
+>
+>    *Reactive.* Every other boolean in the language takes a `{ }`, so this one
+>    had to as well or it would be a boolean that lies about being one. The
+>    policy is read inside the replication match — the Constraint's compute — so
+>    its reads are tracked and the block engages and disengages as the answer
+>    changes. The disengage path already existed. Scope caveat: a block-level
+>    value has no instance, so `this` is the CONTAINER, unlike per-instance
+>    attributes on the same element. A throwing policy reads as false, full
+>    materialization being the safe side.
+>
+>    **THE DEFAULT NO LONGER MIGRATES.** v1 planned `all` → `auto` once the
+>    differ proved invisibility. There is no `auto` to migrate to, and the
+>    decision the flip represented — should virtualization happen unasked — is
+>    now a straight question about the default of a boolean, gated on ruling
+>    what `childViews` does on a virtualized block (it currently throws, which
+>    would become a breaking change for any program over the old threshold).
+>
+>    **HISTORY (07-30, superseded above).** RULED as `windowed`, RENAMED the
+>    same day: "window" stays the mechanism's term of art in prose but leaves
+>    the author-facing surface, clearing the word for Window-the-component; the
 >    values inverted with the noun — `all` forces full materialization, the
->    differ's forcing switch). The word stays in the language forever
->    (debugging, pinning, the differ); only the DEFAULT migrates: `all` in
->    v1, flipping to `auto` once the differ + bench prove invisibility. The
->    capstone's zero-vocabulary claim rides the default, not the word's
->    absence.
+>    differ's forcing switch. The capstone's zero-vocabulary claim rode the
+>    default, not the word's absence.
 > 3. **Touched instances keep-alive in v1** — no hibernation machinery;
 >    touched counts are human-bounded. Hibernation stays available as a
 >    later optimization if measurement asks.

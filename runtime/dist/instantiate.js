@@ -1214,18 +1214,27 @@ function appendChildren(from, parentView, croot, ctx, eff, slot) {
             // object identity, so a re-derived collection reuses instances by key.
             const keyAttr = childEl.attrs.find((a) => a.name === "key" && a.value.kind === "path");
             const keyPath = keyAttr !== undefined ? keyAttr.value.path : null;
-            // `materialize` — the materialization policy slot (D5 RULED
-            // 2026-07-30; renamed from `windowed` in the naming ruling):
-            // replication metadata like `key`, consumed here, stripped from the
-            // template by the Replicator. check() validated the vocabulary.
-            const matAttr = childEl.attrs.find((a) => a.name === "virtualize");
-            let policy = "never"; // the v1 default; flips to auto once the differ proves invisibility
-            if (matAttr !== undefined) {
-                const wv = matAttr.value;
-                policy = wv.kind === "number" ? wv.value
-                    : wv.name === "auto" ? "auto"
-                        : wv.name === "always" ? "always"
-                            : "never";
+            // `virtualize` — the policy slot: replication metadata like `key`,
+            // consumed here, stripped from the template by the Replicator. A
+            // literal is resolved now; a `{ }` becomes a thunk the Replicator calls
+            // from inside its match, so the reads are tracked and the block engages
+            // or disengages when the answer changes. Scope note: no instance exists
+            // for a block-level value, so `this` is the CONTAINER (the realistic
+            // expressions read `app.…` or `classroot.…`). check() validated the form.
+            const vAttr = childEl.attrs.find((a) => a.name === "virtualize");
+            let policy = false;
+            if (vAttr !== undefined) {
+                const wv = vAttr.value;
+                if (wv.kind === "code") {
+                    const c = compileExpr(wv.src ?? "");
+                    if ("error" in c)
+                        throw new DeclareError(`virtualize = { … } ${c.error}`, vAttr.value.pos);
+                    const fn = c.fn;
+                    policy = () => !!fn.call(parentView, parentView.parent, croot);
+                }
+                else {
+                    policy = wv.name === "true";
+                }
             }
             const replicator = new Replicator(parentView, childEl, many.value.path, croot, materializer(ctx), slot.prev, keyPath, many.value.plan ?? null, policy);
             ctx.pending.push({ replicator });

@@ -1344,7 +1344,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
 
     // ── THE LIST — a windowed Table over the projection ───────────────────
     //
-    // `virtualize = auto` is the whole virtualization story: the runtime
+    // `virtualize = true` is the whole virtualization story: the runtime
     // windows, recycles, and measures rows (including one springing open
     // into the editor card) with no further instruction from this file.
 
@@ -1372,7 +1372,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         input(sel: object) { app.takeSelection(sel) },
         deleteRequested() { app.deleteSelection() },
         activateRequested() { app.openDetail() },
-        IssueRow [ datapath = :rows[], virtualize = auto ]
+        IssueRow [ datapath = :rows[], virtualize = true ]
         ],
 
     // ── THE RAIL: an instrument, not a sidebar. Every number below is a
