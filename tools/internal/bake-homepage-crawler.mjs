@@ -24,13 +24,23 @@
 import path from "node:path";
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { compile, crawlDocument, diskDataResolver } from "../../compiler/dist/compile-node.js";
+import { compile, crawlExtract, diskDataResolver } from "../../compiler/dist/compile-node.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const HOMEPAGE = path.join(ROOT, "apps", "homepage", "homepage.declare");
 const INDEX = path.join(ROOT, "index.html");
 const BEGIN = "<!--declare-static:begin-->";
 const END = "<!--declare-static:end-->";
+// The head fields that RESTATE the page's own title. They were hand-copied, so
+// changing the hero left them behind — and because the runtime overwrites
+// document.title at boot, the drift was invisible to a visitor and visible only
+// to crawlers and LLMs, the readers this page exists for. They are derived now.
+// Everything outside these markers (og:image, og:url, dimensions, the card type,
+// the descriptions) is an AUTHORED fact with nothing to derive it from, and the
+// descriptions no longer embed the headline, so they cannot rot either.
+const HBEGIN = "<!--declare-head:begin-->";
+const HEND = "<!--declare-head:end-->";
+const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 
 const src = readFileSync(HOMEPAGE, "utf8");
 const compiled = compile(src, { originDir: path.dirname(HOMEPAGE) });
@@ -43,10 +53,15 @@ if (compiled.source === null) {
 // document (docs/system-design/location.md §7): the default page plus each reachable location's
 // content as a `<section id>` — so the Why article, invisible at t=0, is IN the
 // baked page and its `#why` link resolves right here in the static form.
-const html = await crawlDocument(compiled.source, {
+// crawlExtract, not crawlDocument: it returns the settled `appName` alongside
+// the fragment, which is the single source the <title> and the social cards are
+// stamped from. One boot, both answers.
+const ex = await crawlExtract(compiled.source, {
   deps: compiled.deps, links: compiled.links,
   data: diskDataResolver(path.dirname(HOMEPAGE)),
 });
+const html = ex === null ? null : ex.html;
+const title = (ex && ex.title) || "Declare";
 // The block ships hidden INLINE (`display:none` on the div itself): a
 // following <script> hider proved too late — Safari paints mid-parse on a
 // slow device, flashing the crawl text before any script runs (measured
@@ -85,7 +100,21 @@ if (i < 0 || j < 0 || j < i) {
   console.error(`bake-homepage-crawler: markers ${BEGIN} … ${END} not found in index.html`);
   process.exit(1);
 }
-const next = idx.slice(0, i) + block + idx.slice(j + END.length);
+let next = idx.slice(0, i) + block + idx.slice(j + END.length);
+
+// …and the derived head block, from the same settled title.
+const hi = next.indexOf(HBEGIN);
+const hj = next.indexOf(HEND);
+if (hi < 0 || hj < 0 || hj < hi) {
+  console.error(`bake-homepage-crawler: markers ${HBEGIN} … ${HEND} not found in index.html`);
+  process.exit(1);
+}
+const head = HBEGIN
+  + `<title>${esc(title)}</title>`
+  + `<meta property="og:title" content="${esc(title)}">`
+  + `<meta name="twitter:title" content="${esc(title)}">`
+  + HEND;
+next = next.slice(0, hi) + head + next.slice(hj + HEND.length);
 if (next === idx) { console.log("bake-homepage-crawler: unchanged"); process.exit(0); }
 writeFileSync(INDEX, next);
-console.log(`bake-homepage-crawler: baked ${(html?.length ?? 0)} chars of homepage static content into index.html`);
+console.log(`bake-homepage-crawler: baked ${(html?.length ?? 0)} chars + title "${title}" into index.html`);

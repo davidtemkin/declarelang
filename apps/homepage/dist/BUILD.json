@@ -1,0 +1,182 @@
+{
+ "closure": {
+  "entries": [
+   {
+    "id": "apps/homepage/homepage.declare",
+    "kind": "file",
+    "v": {
+     "mtime": 1785793923980.044,
+     "size": 87346
+    }
+   },
+   {
+    "id": "library/autoincludes.json",
+    "kind": "file",
+    "v": {
+     "mtime": 1785630476491.1423,
+     "size": 1475
+    }
+   },
+   {
+    "id": "library/simplelayout.declare",
+    "kind": "file",
+    "v": {
+     "mtime": 1785296770890.9666,
+     "size": 2104
+    }
+   },
+   {
+    "id": "library/responsive.declare",
+    "kind": "file",
+    "v": {
+     "mtime": 1785793954603.425,
+     "size": 7133
+    }
+   },
+   {
+    "id": "library/spacer.declare",
+    "kind": "file",
+    "v": {
+     "mtime": 1785296770546.4902,
+     "size": 995
+    }
+   },
+   {
+    "id": "library/wrappinglayout.declare",
+    "kind": "file",
+    "v": {
+     "mtime": 1785296770229.3699,
+     "size": 2480
+    }
+   },
+   {
+    "id": "library/appisland.declare",
+    "kind": "file",
+    "v": {
+     "mtime": 1785301573845.5837,
+     "size": 2057
+    }
+   },
+   {
+    "id": "apps/homepage/declare-faq.md",
+    "kind": "file",
+    "v": {
+     "mtime": 1785793930066.493,
+     "size": 23741
+    }
+   },
+   {
+    "id": "apps/homepage/demos/components.declare",
+    "kind": "file",
+    "v": {
+     "mtime": 1785296772104.2615,
+     "size": 457
+    }
+   },
+   {
+    "id": "apps/homepage/demos/derived.declare",
+    "kind": "file",
+    "v": {
+     "mtime": 1785348736594.3242,
+     "size": 1170
+    }
+   },
+   {
+    "id": "apps/homepage/demos/reactivity.declare",
+    "kind": "file",
+    "v": {
+     "mtime": 1785348736593.7766,
+     "size": 636
+    }
+   },
+   {
+    "id": "apps/homepage/demos/spring.declare",
+    "kind": "file",
+    "v": {
+     "mtime": 1785793956546.76,
+     "size": 664
+    }
+   },
+   {
+    "id": "apps/homepage/demos/states.declare",
+    "kind": "file",
+    "v": {
+     "mtime": 1785348736594.1143,
+     "size": 558
+    }
+   },
+   {
+    "id": "apps/homepage/demos.json",
+    "kind": "file",
+    "v": {
+     "mtime": 1785779483742.7346,
+     "size": 56
+    }
+   },
+   {
+    "id": "apps/homepage/getstarted.md",
+    "kind": "file",
+    "v": {
+     "mtime": 1785297577032.4321,
+     "size": 2509
+    }
+   },
+   {
+    "id": "apps/homepage/shots/calendar.webp",
+    "kind": "file",
+    "v": {
+     "mtime": 1785793925948.698,
+     "size": 39086
+    }
+   },
+   {
+    "id": "apps/homepage/shots/desktop.webp",
+    "kind": "file",
+    "v": {
+     "mtime": 1785783397501.1348,
+     "size": 40602
+    }
+   },
+   {
+    "id": "apps/homepage/shots/tracker.webp",
+    "kind": "file",
+    "v": {
+     "mtime": 1785783397501.2915,
+     "size": 40744
+    }
+   },
+   {
+    "id": "apps/homepage/shots/video/calendar.mp4",
+    "kind": "file",
+    "v": {
+     "mtime": 1785783397501.7302,
+     "size": 155995
+    }
+   },
+   {
+    "id": "apps/homepage/shots/video/record-calendar.mjs",
+    "kind": "file",
+    "v": {
+     "mtime": 1785783397501.8748,
+     "size": 10462
+    }
+   },
+   {
+    "id": "apps/homepage/stats.json",
+    "kind": "file",
+    "v": {
+     "mtime": 1785794399266.3984,
+     "size": 574
+    }
+   }
+  ],
+  "props": {
+   "render": "dom",
+   "slim": "true",
+   "stripPos": "true",
+   "typecheck": "true",
+   "crawler": "true"
+  }
+ },
+ "built": "apps/homepage"
+}

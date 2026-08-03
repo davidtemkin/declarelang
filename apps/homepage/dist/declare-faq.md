@@ -56,7 +56,7 @@ Side by side, yes; interleaved, no. A Declare app embeds in any page — includi
 
 ### How do I deep-link into an app? Is there a router?
 
-There's no router object — location is an attribute, like everything else. An app declares `location` on its root and the host wires it to the URL fragment: writing it navigates (one history entry per change), the back button writes it back, and a deep link is just an initial value — state *derives* from location the same way everything else derives. The documentation app on this site works this way: `#guide/27-data` opens that chapter directly, and a trailing anchor can scroll a specific heading into view. Apps opt in — a demo that declares no location simply has none — and static extraction follows an app's locations, so deep-linkable content is also crawlable content.
+There's no router object — location is an attribute, like everything else. An app declares `location` on its root and the host wires it to the URL fragment: writing it navigates (one history entry per change), the back button writes it back, and a deep link is just an initial value — state *derives* from location the same way everything else derives. The documentation app on this site works this way: `#guide/09-data` opens that chapter directly, and a trailing anchor can scroll a specific heading into view. Apps opt in — a demo that declares no location simply has none — and static extraction follows an app's locations, so deep-linkable content is also crawlable content.
 
 ### How do Declare-written sites handle crawlers and SEO without server-side rendering?
 
@@ -64,7 +64,7 @@ Through static extraction, which is built into the compiler. The compiler runs t
 
 ### What benefits does in-browser compilation bring? Can I ship a Declare site without the compiler?
 
-Because the compiler runs in the page, the page can edit and re-run itself: every sample on this site is live-editable — change the source and the app re-renders as you type. It restores view-source culture: "View and edit source" on any app here opens the viewer — a highlighted reader, the verbatim source, and a live-edit tab (`?view=edit` on the program's URL). And it means development needs no build step — the dev server and the browser use the *same* compiler with byte-identical output. For production you don't ship the compiler: the `declarec` build precompiles everything into a small artifact, no compiler aboard.
+Because the compiler runs in the page, the page can edit and re-run itself: every sample on this site is live-editable — change the source and the app re-renders as you type. It restores view-source culture: "View and edit source" on any app here opens the viewer — a highlighted reader, the verbatim source, and a live-edit tab (`?viewer=edit` on the program's URL). And it means development needs no build step — the dev server and the browser use the *same* compiler with byte-identical output. For production you don't ship the compiler: the `declarec` build precompiles everything into a small artifact, no compiler aboard.
 
 ### What does Declare's renderer-independence bring to the table?
 
@@ -74,10 +74,11 @@ One program renders through managed DOM elements or directly to a single canvas 
 
 ### What should I expect in terms of performance — download size and interactive responsiveness?
 
-Concretely, from the flagship comparison (a full-featured calendar built twice, once in Declare and once in React, measured side by side):
+Concretely, measured from the deployed production artifacts:
 
-- **Size**: the entire Declare calendar — application *and* runtime — ships at about 50 KB gzipped as served on this site (the homepage's number is measured live from the deployed artifacts, which is why it varies by a kilobyte); the `declarec` production build is smaller still, around 45 KB. The React equivalent is roughly twice the wire weight, with more than twice the source code.
-- **Responsiveness**: measured input latency was several times lower in the Declare version. When you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.
+- **Wire size**: the entire Declare calendar — application *and* runtime — ships at about <!--stat:calendar.wireKB-->61<!--/stat--> KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).
+- **Source size**: the tracker — a million issues, search as you type, editing in place with undo — is <!--stat:tracker.total-->1,652<!--/stat--> lines: <!--stat:tracker.code-->1,275<!--/stat--> of code and <!--stat:tracker.comment-->187<!--/stat--> of comments, and no dependencies. It ships at <!--stat:tracker.wireKB-->87<!--/stat--> KB gzipped before its data, which a `DataSource` fetches at run time.
+- **Responsiveness**: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.
 - **Startup**: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.
 
 Live numbers are on the homepage, measured from the deployed artifacts themselves.
@@ -157,7 +158,9 @@ The shape of the language: `[ ]` declares structure, `{ }` holds TypeScript, att
 
 ### How do I get data into an app?
 
-Declaratively, like everything else. A `Dataset` holds inline or computed data; a `DataSource` fetches JSON. UI binds to data with a cursor — set `datapath` on a view and its descendants read relative to it; bind it to an array and the view replicates per element. Two-way binding connects a text field to the data it edits. When data changes, everything bound to it updates — the same reactivity as the rest of the language. For large collections, bind a *computed* dataset — a derived window over the source — rather than replicating everything; replication builds what you bind.
+Declaratively, like everything else. A `Dataset` holds inline or computed data; a `DataSource` fetches JSON. UI binds to data with a cursor — set `datapath` on a view and its descendants read relative to it; bind it to an array and the view replicates per element. Two-way binding connects a text field to the data it edits. When data changes, everything bound to it updates — the same reactivity as the rest of the language.
+
+Large collections virtualize on one word. `virtualize = true` on a replicated node builds only the rows near the viewport and leaves the rest logical — same records, same paths, same behaviour, reconstructed indistinguishably as you scroll. There is nothing else to write: no row heights, no scroll wiring, no windowing library. It is a boolean and it is **off by default**, so that full replication keeps browser find-in-page working over every record — and like any other boolean it takes a `{ }` constraint, engaging and disengaging as the answer changes. The tracker on this site is a million issues on that one word.
 
 ### How mature is Declare? Should I build on it today?
 

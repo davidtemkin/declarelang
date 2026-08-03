@@ -1,9 +1,9 @@
 <!doctype html>
-<meta charset="utf-8">
-<title>Declare — the UI language for the AI era</title>
+<meta charset="utf-8"><!--declare-head:begin--><title>Declare — the UI language designed for the AI era</title><meta property="og:title" content="Declare — the UI language designed for the AI era"><meta name="twitter:title" content="Declare — the UI language designed for the AI era"><!--declare-head:end-->
+
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<meta name="description" content="Declare — the declarative UI language for the AI era. Reactive by construction, compiled live in the browser. This whole page is written in it.">
+<meta name="description" content="A declarative language for user interfaces — reactive by construction, compiled live in the browser. This whole page is written in it.">
 <!-- Real icon FILES (not a data: URI): link crawlers — iMessage/Slack/etc. — ignore
      data-URI SVG favicons and fall back to a cached domain icon, so ship actual files. -->
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
@@ -13,14 +13,14 @@
      one place coupled to the GitHub Pages path; update them if the deploy path moves. -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Declare">
-<meta property="og:title" content="Declare — the UI language for the AI era">
+
 <meta property="og:description" content="A declarative UI language — reactive by construction, compiled live in the browser. This whole page is written in it.">
 <meta property="og:url" content="https://davidtemkin.github.io/declarelang/">
 <meta property="og:image" content="https://davidtemkin.github.io/declarelang/assets/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Declare — the UI language for the AI era">
+
 <meta name="twitter:description" content="A declarative UI language, reactive by construction, that compiles live in the browser.">
 <meta name="twitter:image" content="https://davidtemkin.github.io/declarelang/assets/og-image.png">
 <style>html,body{margin:0;padding:0;background:#0B141B}</style>
@@ -32,7 +32,7 @@
      hydration), not a cloaking trick. See browser/serve-core.js for the full rationale. -->
 <div id="host"><!--declare-static:begin--><noscript><style>#declare-static{display:block !important}</style></noscript><div id="declare-static" style="display:none">
 <h1>Declare</h1>
-<h1>is the UI language for the AI era.</h1>
+<h1>is the UI language designed for the AI era.</h1>
 <p>Just as SQL is a domain-specific language for database queries, <span>Declare</span> is a DSL for user interfaces. Its whole surface fits in your head — and inside an LLM’s context window.</p>
 <h6>This page is written in it. By an LLM.</h6>
 <a href="#why"><p>Why a new language, now? →</p></a>
@@ -43,7 +43,6 @@
 <p>Complete programs — open one, read it end to end, and edit it live in the browser you're using.</p>
 <a href="apps/calendar/calendar.declare"><h6>Declare Calendar</h6></a>
 <p>It’s the kind of experience you’ll see in the best native apps — a view doesn’t switch so much as become the next one, where motion carries meaning, and everything is fast and interruptible.</p>
-<p>That’s always been specialist craft: bespoke motion code, one interaction at a time, locked to a platform. In Declare, it’s simply what the declarations do, and it works everywhere.</p>
 <p>It runs on real data: open an event, drag it to another day, and it’s moved.</p>
 <h4>511</h4>
 <p>lines of code, plus 165 of comments — four views, zoom, drag and edit</p>
@@ -642,7 +641,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=370cd610af95";
+  import boot from "./bundles/declare-boot.js?v=956d0ad1b6c0";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().

@@ -31348,6 +31348,14 @@
      "preview": "Provenance. Two independent agents were given the repo and asked to start from docs/declare.md, with no context about recent work: one assessing as an LLM that would have to write the language, one taking the POV of an experienced React dev…"
     },
     {
+     "name": "Findings — the 2026-08-03 agent round",
+     "subtitle": "",
+     "kind": "doc",
+     "label": "Markdown file",
+     "path": "docs/system-design/findings-2026-08-03.md",
+     "preview": "Provenance. Seven agents, all Opus, each given a frozen copy of the tree and a live server, none aware of the others. Three profiles: an LLM answering as itself about writing the language; a senior front-end developer with an architectural…"
+    },
+    {
      "name": "Hierarchical focus scopes (D9)",
      "subtitle": "",
      "kind": "doc",

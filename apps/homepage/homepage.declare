@@ -553,7 +553,16 @@ content natively; the chrome further down (header, cursor) are its
 **siblings**, not its children, so they never move.
 */
 
-App [ appName = "Declare",
+// THE HEADLINE LIVES HERE, ONCE. The hero reads it, and `appName` carries it
+// into `document.title` at boot (runtime/src/boot.ts — "the ONE place that
+// mapping lives"), which is also what the crawl extraction reports as the
+// page's title and what the bake stamps into index.html's <title> and social
+// cards. Before this, index.html restated the headline by hand in six places;
+// changing the hero left all six behind, and the drift was invisible to a
+// visitor — the runtime overwrites document.title at boot — so only crawlers
+// and LLMs ever read the stale copy. Exactly the readers this page is for.
+App [ tagline: string = "the UI language designed for the AI era",
+    appName = { "Declare — " + app.tagline },
     theme = { {
         // text, brightest to faintest
         text: 0xE7EEF2, lead: 0x9DB0BC, muted: 0x8A9BA6, dim: 0x6A7C89, faint: 0x556673,
@@ -786,7 +795,7 @@ App [ appName = "Declare",
                             Heading [ fontSize = { app.heroFont },
                                 textFill = { theme.brand }, text = "Declare" ],
                             Heading [ fontSize = { app.heroFont }, width = { parent.width },
-                                text = "is the UI language for the AI era." ]
+                                text = { "is " + app.tagline + "." } ]
                             ]
                         ],
                     paras: View [ width = { parent.width },
@@ -866,9 +875,6 @@ App [ appName = "Declare",
 
                         Lead [ fontSize = 17, width = { parent.width },
                             text = "It’s the kind of experience you’ll see in the best native apps — a view doesn’t switch so much as become the next one, where motion carries meaning, and everything is fast and interruptible." ],
-                        Lead [ fontSize = 17, width = { parent.width },
-                            text = "That’s always been specialist craft: bespoke motion code, one interaction at a time, locked to a platform. In Declare, it’s simply what the declarations do, and it works everywhere." ],
-
                         // The clip beside this shows a detail panel opening and an
                         // event being dragged to another day — operations, not
                         // motion. Nothing else in this column claimed that, so the

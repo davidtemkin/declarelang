@@ -12,8 +12,8 @@
 // can produce (and cache) the same artifact on demand.
 
 import { readFile, writeFile, mkdir, cp, rm, readdir } from "node:fs/promises";
-import { existsSync } from "node:fs";
-import { dirname, resolve, basename, join } from "node:path";
+import { existsSync, statSync } from "node:fs";
+import { dirname, resolve, basename, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
@@ -24,6 +24,7 @@ import { parseArgvFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
 import { highlight } from "../compiler/dist/highlight.js";
 import { compile as compileFull, crawlExtract, diskDataResolver, crawlerDocument } from "../compiler/dist/compile-node.js";
 import { parseLibrary } from "../runtime/dist/parser.js";
+import { statValidator } from "../compiler/dist/compile-node.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const RUNTIME = resolve(HERE, "../runtime/dist"); // the run-path lives here
@@ -531,7 +532,60 @@ export async function writeProduction({ source, name = "app", srcDir = null, out
   for (const f of out.files) await writeFile(join(outDir, f.name), f.contents);
   const assets = srcDir ? await copyAssets(srcDir, outDir) : [];
   const moduleName = out.files.find((f) => f.name.startsWith("app."))?.name;
+  if (srcDir) await writeBuildClosure({ outDir, srcDir, closure: out.closure, assets });
   return { ...out, outDir, moduleName, assets };
+}
+
+/* ── BUILD.json — what this dist was built from ────────────────────────────
+ *
+ * The compiler already tracks a dependency CLOSURE for every compile (the OL5
+ * DependencyTracker model, `compiler/src/closure.ts`): each file the compile
+ * read — source, includes, auto-included libraries, the manifest — with a cheap
+ * validator, and `isUpToDate(closure, props, probe)` answers "still fresh?".
+ * The dev server asks exactly that question (`toolchain-worker.mjs:54`). A
+ * production build computed the same closure and then threw it away, so a
+ * COMMITTED dist/ had no way to say what it was built from — and drifted
+ * silently: apps/homepage/dist was five days and a redesign behind its source,
+ * with no shots/ at all, and nothing anywhere could tell.
+ *
+ * Persisting it closes that. Two things the compile closure does NOT cover, so
+ * they are recorded here alongside it:
+ *   - the COPIED ASSETS. `copyAssets` runs after the compile, so a changed
+ *     screenshot or data file is invisible to the compiler's closure. Each
+ *     copied file gets a validator of its own.
+ *   - the PATHS. A closure entry's id is environment-local — absolute on disk.
+ *     Committed, that is machine-specific, so ids are stored REPO-RELATIVE and
+ *     resolved at check time (the same rewrite `prewarm.mjs` does to make a
+ *     disk closure browser-shaped).
+ */
+async function walkFiles(dir, base = "") {
+  const out = [];
+  for (const e of await readdir(dir, { withFileTypes: true })) {
+    const rel = base ? `${base}/${e.name}` : e.name;
+    if (e.isDirectory()) out.push(...await walkFiles(join(dir, e.name), rel));
+    else out.push(rel);
+  }
+  return out;
+}
+
+async function writeBuildClosure({ outDir, srcDir, closure, assets }) {
+  if (!closure) return;
+  const repoRoot = resolve(HERE, "..");
+  const rel = (abs) => relative(repoRoot, abs).split(sep).join("/");
+  const entries = closure.entries.map((e) => ({ ...e, id: rel(e.id) }));
+  // the copied assets, each with its own validator. An asset is a FILE
+  // (declare-faq.md, stats.json) or a DIRECTORY (shots/, data/, demos/) — walk
+  // the directories so a single changed screenshot invalidates the build.
+  for (const name of assets) {
+    const at = join(srcDir, name);
+    const files = statSync(at).isDirectory() ? await walkFiles(at, name) : [name];
+    for (const f of files) {
+      const abs = join(srcDir, f);
+      entries.push({ id: rel(abs), kind: "file", v: statValidator(abs) });
+    }
+  }
+  await writeFile(join(outDir, "BUILD.json"),
+    JSON.stringify({ closure: { entries, props: closure.props }, built: rel(srcDir) }, null, 1));
 }
 
 /** `declarec check <files…> [--json]` — the COMPILE without the build: parse,
