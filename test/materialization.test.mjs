@@ -128,11 +128,42 @@ await test("divergence retention + RECYCLING (D5 + the scrub bench): touched row
   assert.equal(materializationInfo(app.sc.content).retained, 0, "back in the window, nothing is retained");
 });
 
-await test("childViews on a windowed block refuses with the idiom named; full blocks are unchanged", () => {
+// TRANSPARENT, not abstracted (RULED 2026-08-02, superseding D5's refusal).
+// childViews used to throw on a windowed block, because a partial answer was
+// indistinguishable from a whole one. Virtualization is explicit at the source
+// now, and `virtualized` makes it legible at runtime — so the subset is a
+// readable fact rather than a trap, and the read answers.
+await test("childViews is transparent on a virtualized block, and `virtualized` says so", () => {
   const app = makeApp("true", 1000);
-  assert.throws(() => app.sc.content.childViews, /windowed block.*Derive counts and aggregates from the DATA/s);
+  const kids = app.sc.content.childViews;
+  assert.ok(Array.isArray(kids), "it answers rather than throwing");
+  assert.ok(kids.length > 0 && kids.length < 100,
+    `the instances that exist — a window, not 1000 (got ${kids.length})`);
+  assert.equal(app.sc.content.virtualized, true, "and the flag makes the subset legible");
+
   const small = makeApp("false", 20);
-  assert.equal(small.sc.content.childViews.length, 20, "a full block answers as always");
+  assert.equal(small.sc.content.childViews.length, 20, "a full block answers with everything");
+  assert.equal(small.sc.content.virtualized, false, "…and reports itself unvirtualized");
+});
+
+await test("`virtualized` is TRACKED: a constraint on it follows engage/disengage", () => {
+  const src = `App [ width = 400, height = 400,
+    big: boolean = false,
+    d: Dataset { { "rows": [] } },
+    sc: View [ scrolls = y, width = 300, height = 300,
+      content: View [ width = 300, datapath = { d.value },
+        View [ datapath = :rows[], virtualize = { app.big }, width = 300, height = 30 ] ] ],
+    flag: boolean = { app.sc.content.virtualized } ]`;
+  const r = compile(src);
+  assert.deepEqual(r.errors.map((e) => e.message), []);
+  const app = build(r.source);
+  app.d.value = { rows: rows(400) };
+  settle();
+  assert.equal(app.flag, false, "a constraint reads it before engaging");
+  app.big = true; settle();
+  assert.equal(app.flag, true, "…and re-runs when the block engages");
+  app.big = false; settle();
+  assert.equal(app.flag, false, "…and again when it disengages");
 });
 
 await test("navigate-to-logical-record (§3.5): the destination materializes on arrival", () => {

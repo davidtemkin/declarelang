@@ -104,14 +104,20 @@ the reactive graph. A React virtualizer must ask the developer for all of that, 
 is why its ergonomics are what they are. The burden is structural to the ownership
 boundary, not to the problem.
 
-What it costs you to know: **nothing about the window is observable from the app
-language.** `childViews` on a windowed block refuses rather than answering with
-whichever rows happen to be built — a scroll-dependent lie. Counts and aggregates come
-from the data, which is complete by definition:
+**The window is legible, not hidden.** `childViews` on a virtualized block answers with
+the instances that exist — a subset, changing as you scroll — and `virtualized` tells you
+that is what you are looking at. Note where each one lives: you *declare* `virtualize` on
+the replicated child, beside its `datapath`, but you *read* `virtualized` on the container
+holding the instances — the block belongs to the parent, so the parent is what answers. Nothing is abstracted away; you turned virtualization on,
+so you can see it.
+
+What you should not do is mistake the instances for the collection. Counts and aggregates
+come from the data, which is complete by definition:
 
 ```declare-fragment
-// the data is always whole; the instances are not the truth
-total: number = { (app.d.value.rows).length }
+total:  number  = { (app.d.value.rows).length },   // the collection
+onNow:  number  = { app.list.childViews.length },  // what is built right now
+subset: boolean = { app.list.virtualized }
 ```
 
 **What virtualization needs, and what it does when it cannot get it.** This is the one

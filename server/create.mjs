@@ -264,7 +264,7 @@ bootHost(cfg);
   // ── the BUILD request (declarec), ONE cache keyed by IDENTITY ───────────────
   // A build is addressed by the program's own URL path — /build/<program-dir>/ —
   // so it is unique by construction (urls are), fixing the basename collision
-  // where /my-apps/weather?build and /apps/weather?build both meant "weather".
+  // where /my-apps/lzx-weather?build and /apps/lzx-weather?build both meant "weather".
   // The cache is one machine-level store keyed by the source's ABSOLUTE PATH plus
   // the build props plus the toolchain fingerprint — not the basename, and not
   // the url (so distro mode's two aliases of one file share a single entry).
@@ -309,7 +309,7 @@ bootHost(cfg);
   // <name>.declare, build and serve. The url after /build is a program-directory
   // url in the mount space, so it composes with every mount identically.
   async function serveBuild(res, buildPath, urlPath, backend = "dom") {
-    // buildPath = "/build/my-apps/weather/foo.js" → the PROGRAM directory is
+    // buildPath = "/build/my-apps/lzx-weather/foo.js" → the PROGRAM directory is
     // the longest prefix holding its own <dir>/<dir>.declare (the directory-
     // program rule), and everything after it is the tail — which may be a
     // nested asset path ("data/events.json"), so a split at the last slash

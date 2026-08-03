@@ -73,7 +73,7 @@ to learn it, or jump to the chapter your task needs:
 | the standard library (buttons, inputs), the value pattern | `docs/guide/08-controls.md` |
 | lists, datasets, editing data, loading documents | `docs/guide/09-data.md` |
 | states, springs, animation | `docs/guide/11-motion-and-modes.md` |
-| touch, gesture ownership, pinch/wheel zoom, `Frames` | `docs/guide/13-gestures.md` |
+| touch, gesture ownership, pinch/wheel zoom, `Heartbeat` | `docs/guide/13-gestures.md` |
 | deep links, the URL, run / verify / ship | `docs/guide/14-loop.md` |
 
 (`docs/guide/` holds the full set; `15-with-an-llm.md` and `evals/declare-for-llms.md` are

@@ -1,7 +1,7 @@
-// Frames — the frame heartbeat as a component. A non-visual member that calls
+// Heartbeat — the frame heartbeat as a component. A non-visual member that calls
 // `onFrame(dt)` once per animation frame while it is running:
 //
-//     physics: Frames [ onFrame(dt) { classroot.step(dt) } ],
+//     physics: Heartbeat [ onFrame(dt) { classroot.step(dt) } ],
 //
 // WHY IT EXISTS. Springs and Animators cover declarative motion — say where a
 // thing belongs and the runtime finds the path. An app running its OWN
@@ -17,7 +17,7 @@
 // subscribable-source table — and it tree-shakes out of a production build like
 // any other component nobody instantiated.
 //
-// It rides the ONE shared clock (animate.ts), so a Frames member costs exactly
+// It rides the ONE shared clock (animate.ts), so a Heartbeat member costs exactly
 // what an animator costs: nothing at all until it runs, and no second rAF loop.
 // `dt` is seconds since the previous frame, clamped — a backgrounded tab
 // resumes with a plausible step instead of one enormous jump that would launch
@@ -29,13 +29,13 @@ import { defineAttributes } from "./attributes.js";
  *  a minute comes back with dt = 60, and any physics integrated against that
  *  explodes; ~4 frames at 60Hz is the standard clamp. */
 const MAX_DT = 1 / 15;
-export class Frames extends Node {
+export class Heartbeat extends Node {
     /** The previous frame's timestamp, or null before the first tick. */
     last = null;
     registered = false;
     constructor() {
         super();
-        // Lifetime is the node's: a discarded Frames leaves the clock, so a
+        // Lifetime is the node's: a discarded Heartbeat leaves the clock, so a
         // torn-down subtree cannot keep a loop alive (the leak that a hand-written
         // rAF always risks).
         onDiscard(this, () => this.leave());
@@ -78,16 +78,16 @@ export class Frames extends Node {
             fn.call(this, dt);
         return this.running;
     }
-    /** Construction-complete (instantiate.ts fires this on animators; Frames
+    /** Construction-complete (instantiate.ts fires this on animators; Heartbeat
      *  joins the same lifecycle) — start if `running` was left true. */
     autoStart() {
         this.sync();
     }
 }
-defineAttributes(Frames, {
+defineAttributes(Heartbeat, {
     running: {
         def: true,
         push: (f) => f.sync(),
     },
 });
-//# sourceMappingURL=frames.js.map
+//# sourceMappingURL=heartbeat.js.map

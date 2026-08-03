@@ -290,13 +290,20 @@ class IssueRow extends TableRow [
     isHdr: boolean = { ("" + :kind) == "hdr" },
 
     exp: boolean = { !isHdr && ("" + :id) == ("" + app.expandedId) },
-    // The open row simply IS its open height. An animated expansion reads
-    // well for one deliberate click and badly for everything else: walking
-    // the list with the arrows outruns it, so the row you are leaving is
-    // still tall while the row you are entering is still short — two rows
-    // mid-flight at once, which looks like one issue sliding rather than
-    // two rows changing. Browsing is not an occasion for motion.
-    height = { isHdr ? 42 : exp ? 356 : 44 },
+    // Opening and closing an issue ANIMATES — the one deliberate act in the
+    // list, and the motion is what says "this row became a pane" rather than
+    // "the list jumped". `targetH` is the resting height; the Spring carries
+    // the row to it.
+    //
+    // What must NOT animate is a row REVEALED by scrolling. That is the
+    // reconciler's business, not the author's: an instance presenting a record
+    // it was not presenting before takes its geometry outright (Spring.arrive,
+    // via replicate.ts), so an expanded row scrolled out and back returns at
+    // its open height with no motion, and a recycled row never slides from the
+    // departed record's geometry. Verified in materialization.test.mjs.
+    targetH: number = { isHdr ? 42 : exp ? 356 : 44 },
+    height = 44,
+    Spring [ attribute = height, to = { targetH }, stiffness = 320, damping = 34 ],
 
     // ── the group header face ─────────────────────────────────────────────
 
@@ -872,6 +879,16 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         if (clean != null && (clean as any).length > 1) editing = false
         selected = selection != null ? (selection as any)[(selection as any).length - 1] : null
         if (selection == null) this.closeDetail()
+        // The editor follows the selection: which issue is open is DERIVED from
+        // it, so the draft has to move with it or the open row shows another
+        // issue's fields. (It did, before this: only click/Enter reseeded, so
+        // arrowing left the first issue's text in every row you opened after.)
+        // NOTE — an in-flight edit is discarded here, and equally when you open
+        // a different issue. That is a real gap, not a decision: the draft is
+        // one slot, so there is nowhere to keep an edit you have navigated away
+        // from. Fixing it means a draft PER ISSUE (or a dirty guard), which is
+        // its own piece of work.
+        else if (editing && (clean as any).length == 1) this.seedDraft()
         },
 
     selCount: number = { (selection ?? []).length },
@@ -883,11 +900,23 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
     creating: boolean = false,
     draftRev: number = 0,
 
+    // Seed the working copy from the CURRENT record — a copy, so edits never
+    // reach the truth until Save. Every path that changes which issue is open
+    // goes through here, which is the whole point: the draft must follow the
+    // expanded row or the editor shows one issue's fields inside another
+    // issue's row. (It did. Arrow travel moved the selection and the expansion
+    // followed, but only click/Enter reseeded, so walking the list left the
+    // first issue's text sitting in every row you opened after it.)
+    seedDraft() {
+        if (selected == null) return
+        draft.set(["it"], ({ ...(selected as any), labels: [...((selected as any).labels ?? [])] }))
+        draftRev = draftRev + 1
+        },
+
     openDetail() {
         if (selected == null || selCount != 1) return
         creating = false
-        draft.set(["it"], ({ ...(selected as any), labels: [...((selected as any).labels ?? [])] }))
-        draftRev = draftRev + 1
+        this.seedDraft()
         editing = true
         setTimeout(() => this.revealOpen(), 380)
         },
@@ -913,7 +942,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         const inst = this.list.children.find((c) => (c as any).isTableRow && (c as any).exp)
         if (inst == null) return
         const top = (inst as any).y
-        const bottom = top + (inst as any).height
+        const bottom = top + (inst as any).targetH
         const viewTop = this.list.scrollY
         const viewBottom = viewTop + this.list.height
         if (bottom > viewBottom) this.list.scrollY = Math.min(top - 8, bottom - this.list.height + 8)

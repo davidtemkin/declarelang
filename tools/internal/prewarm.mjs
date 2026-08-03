@@ -49,6 +49,10 @@ const PROGRAMS = [
   { main: "apps/calendar/calendar.declare", props: { render: "dom" }, kinds: ["run"] },
   { main: "apps/docs/docs.declare", props: { render: "dom" }, kinds: ["run", "crawler"] },
   { main: "apps/desktop/desktop.declare", props: { render: "dom" }, kinds: ["run"] },
+  // the Tracker is the capstone — the program people are pointed at to judge the
+  // platform — and the heaviest in the corpus, so it has the most to gain from
+  // skipping the compiler on the way to first paint
+  { main: "apps/tracker/tracker.declare", props: { render: "dom" }, kinds: ["run"] },
   // every View Source / ?viewer= page boots the viewer — high-traffic on the
   // static deploy, so its first paint deserves the compiler-free path too
   { main: "apps/viewer/viewer.declare", props: { render: "dom" }, kinds: ["run"] },

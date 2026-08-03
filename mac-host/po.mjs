@@ -3,7 +3,7 @@ const CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const b=await puppeteer.launch({executablePath:CHROME,headless:true,args:["--no-sandbox"],
   defaultViewport:{width:1280,height:800,deviceScaleFactor:2}});
 const p=await b.newPage();
-await p.goto(process.argv[2]+"/apps/probe/blur.declare?render=dom",{waitUntil:"networkidle0"});
+await p.goto(process.argv[2]+"/test/probe/blur.declare?render=dom",{waitUntil:"networkidle0"});
 await new Promise(r=>setTimeout(r,2500));
 console.log(await p.evaluate(()=>{
   const root=document.querySelector("[data-declare-app]");

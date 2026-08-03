@@ -118,6 +118,12 @@ export function nearestName(name, candidates) {
     }
     return best !== null && !tie && bestD <= (name.length >= 5 ? 2 : 1) ? best : null;
 }
+/** Components that changed name: tag → the sentence a reader needs. Consulted
+ *  by `unknownComponent` before the near-miss guess, so a renamed tag names its
+ *  replacement instead of hoping the edit distance lands. */
+const RENAMED_COMPONENTS = {
+    Frames: "spelled 'Heartbeat' now — the per-frame member (`onFrame(dt)` and `running` are unchanged); the old plural read as a collection of frames, which it never was",
+};
 export const Diag = {
     // 1xxx syntax — the parser throws one at a time; a single family code, the
     // grammar message carrying the specifics.
@@ -126,6 +132,12 @@ export const Diag = {
     // appends a calibrated near-miss ("did you mean 'Text'?") — the fix, named
     // (diagnostics.md §4); the rule rides the hint.
     unknownComponent: (tag, pos, candidates = []) => {
+        // A RENAMED component says so by name rather than leaving the reader to a
+        // near-miss guess — the courtesy check.ts's RENAMED_ATTRIBUTES already pays
+        // for attribute spellings.
+        if (Object.hasOwn(RENAMED_COMPONENTS, tag)) {
+            return err(code4(2001), `unknown component '${tag}' — ${RENAMED_COMPONENTS[tag]}`, pos);
+        }
         const near = nearestName(tag, candidates);
         return near === null
             ? err(code4(2001), `unknown component '${tag}'`, pos)

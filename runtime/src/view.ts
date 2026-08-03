@@ -11,7 +11,6 @@
 // the full state once — literals cost no reactive machinery at all.
 
 import { Node, runRetire } from "./node.js";
-import { DeclareError } from "./errors.js";
 import { DEFAULT_THEME, fillEqual, shadowEqual, strokeEqual, type Color, type Fill, type Shadow, type Stroke, type Theme } from "./value.js";
 import type { FontWeight } from "./measure.js";
 import { disposeApplier, stylesheetArrived, stylesheetByName, type Stylesheet } from "./stylesheet.js";
@@ -26,7 +25,7 @@ export function provideViewCreator(fn: ViewCreator): void {
   viewCreator = fn;
 }
 import { record, type Draw, type DisplayList } from "./draw.js";
-import { Constraint } from "./reactive.js";
+import { Constraint, Cell } from "./reactive.js";
 import { initInteraction, readHovered, readPressed, hitAt, boxContains, rootFrameOrigin, type InteractionView } from "./interaction.js";
 import { bindDerived, defineAttributes, disposeBindings, isSet, ownerOf, percentOwned } from "./attributes.js";
 import { handlerName } from "./schema.js";
@@ -58,19 +57,35 @@ const INSTALLED = new WeakMap<View, () => void>();
 export { onDiscard } from "./node.js";
 
 // Views whose replicated content is currently WINDOWED (replicate.ts marks
-// and unmarks) — consulted by the childViews refusal above. Lives here so
-// view.ts needs no import of the replicator (the dependency runs the other
-// way).
+// and unmarks). Lives here so view.ts needs no import of the replicator (the
+// dependency runs the other way).
 const WINDOWED_BLOCKS = new WeakSet<View>();
-/** Is this view's replicated content currently windowed? Consulted by the
- *  layout kernel (the pass suspends while the windowing kernel owns
- *  placement) and by the childViews refusal. */
+// …and the cell behind the app-language read, so a constraint on `virtualized`
+// re-runs when a block engages or disengages — which it now can, since the
+// policy itself takes a constraint.
+const WINDOWED_CELLS = new WeakMap<View, Cell>();
+const windowedCell = (v: View): Cell => {
+  let c = WINDOWED_CELLS.get(v);
+  if (c === undefined) WINDOWED_CELLS.set(v, (c = new Cell()));
+  return c;
+};
+
+/** Is this view's replicated content currently windowed? The UNTRACKED read,
+ *  for the layout kernel (its pass suspends while windowing owns placement)
+ *  and other internals that must not subscribe. */
 export function isWindowedBlock(v: View): boolean {
   return WINDOWED_BLOCKS.has(v);
 }
+/** The tracked read behind `View.virtualized`. */
+export function readVirtualized(v: View): boolean {
+  windowedCell(v).track();
+  return WINDOWED_BLOCKS.has(v);
+}
 export function markWindowedBlock(v: View, on: boolean): void {
+  const was = WINDOWED_BLOCKS.has(v);
   if (on) WINDOWED_BLOCKS.add(v);
   else WINDOWED_BLOCKS.delete(v);
+  if (was !== on) windowedCell(v).changed();
 }
 
 // ── onRetire — the DEPARTURE hook (D5 ruled the semantics, D8 the name) ──
@@ -468,19 +483,28 @@ export class View extends Node {
    *  reads. Aggregation over a node collection is refused for exactly that
    *  reason (dep-extract); the number you want is usually in the data. */
   get childViews(): readonly View[] {
-    // The honest seam made loud (materialization.md §2, D5 RULED 2026-07-30):
-    // on a WINDOWED block the instance list is the runtime's business — a
-    // partial answer would be scroll-dependent, so the app-language read
-    // refuses and names the idiom. The live window is kernel API
-    // (replicate.ts blockOf/windowInfo); non-windowed blocks are unchanged.
-    if (WINDOWED_BLOCKS.has(this)) {
-      throw new DeclareError(
-        `childViews on a windowed block answers with whichever rows happen to be materialized — a scroll-dependent lie. Derive counts and aggregates from the DATA (:rows), which is complete by definition`
-      );
-    }
+    // TRANSPARENT, not abstracted (RULED 2026-08-02, superseding D5's refusal).
+    // On a virtualized block this answers with the instances that exist right
+    // now — a subset, and it changes as you scroll. That was the reason the
+    // read used to throw: a partial answer was indistinguishable from a whole
+    // one. It is distinguishable now, because virtualization is explicit at
+    // the source and legible at runtime through `virtualized`. So the honest
+    // move is to say what is there and let the reader see the flag, rather
+    // than refuse a question the program is entitled to ask.
     this.watchChildList();
     return this.children.filter((c): c is View => c instanceof View);
   }
+
+  /** Is this view's replicated content virtualized right now? Read-only, and
+   *  TRACKED — the policy takes a `{ }`, so a block can engage and disengage
+   *  while the program runs, and a constraint reading this follows it.
+   *
+   *  This is what makes `childViews` legible on a virtualized block: the list
+   *  is the instances that exist, which is a subset, and this says so. Counts
+   *  of the collection still come from the DATA, which is complete by
+   *  definition — but that is now a thing you can see rather than a rule the
+   *  runtime enforces by refusing to answer. */
+  get virtualized(): boolean { return readVirtualized(this); }
 
   /** Pointer-interaction intrinsics (interaction.ts): `hovered` is true while
    *  this view is on the live hit chain — the topmost visible view under the

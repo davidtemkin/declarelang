@@ -22,7 +22,7 @@
 // slot hold", "where did this scroll land" are the language's own answers, and
 // they must be IDENTICAL. A backend that disagrees is wrong, not different.
 //
-// The corpus is the seam probes (apps/probe/*.declare), which exist precisely
+// The corpus is the seam probes (test/probe/*.declare), which exist precisely
 // because each puts one Surface capability in a state where its absence shows.
 
 import assert from "node:assert/strict";
@@ -198,7 +198,7 @@ await test("conform: a press resolves to the same view on every renderer", async
   // geometry — which is exactly where this session's bugs lived (a missing
   // scroll term, chrome stranded in the wrong parent). explainHit answers with
   // a view PATH, so a disagreement names the view instead of a percentage.
-  const r = await conform("apps/probe/ignorescroll.declare", [],
+  const r = await conform("test/probe/ignorescroll.declare", [],
     `__declare.explainHit(200, 10).hit`, "press resolution");
   assert.equal(r.answers[0].value, "app.pane.chrome", "the pinned chrome takes the point");
   console.log(`    hosts agreeing: ${r.hosts.join(", ")}`);
@@ -209,7 +209,7 @@ await test("conform: a DECLARED scroll offset lands identically on every rendere
   // the same content in the same place whether a browser scroller, a canvas
   // compositor offset, or a CALayer bounds shift realizes it. (This is the slot
   // whose initial value never landed at all until 2026-07-31.)
-  await conform("apps/probe/ignorescroll.declare", [],
+  await conform("test/probe/ignorescroll.declare", [],
     `__declare.inspect("app.pane").attrs.scrollY ?? __declare.find("app.pane").scrollY`,
     "declared scroll offset");
 });
@@ -217,7 +217,7 @@ await test("conform: a DECLARED scroll offset lands identically on every rendere
 await test("conform: what a scroll MOVES is the same on every renderer", async () => {
   // Driving the platform's own scroll and then asking where the content ended
   // up — the routing question `parity.mjs` could only answer as a pixel count.
-  const r = await conform("apps/probe/ignorescroll.declare",
+  const r = await conform("test/probe/ignorescroll.declare",
     [["scroll", 200, 120, 200, 0], ["wait", 0.6]],
     `__declare.find("app.pane").scrollY`, "scroll routing");
   console.log(`    landed at: ${r.answers.map((a) => `${a.host}=${a.value}`).join("  ")}`);
@@ -227,7 +227,7 @@ await test("conform: the walk's REASONING agrees, not just its answer", async ()
   // Two backends can agree on the hit and disagree about why — one skipping a
   // view for being invisible where another never reached it. The narration is
   // the stronger assertion, and it is free now that all three hosts answer it.
-  await conform("apps/probe/ignorescroll.declare", [],
+  await conform("test/probe/ignorescroll.declare", [],
     `__declare.explainHit(200, 10).steps.map(s => s.path + " :: " + s.why)`,
     "hit-walk reasoning");
 });
@@ -260,7 +260,7 @@ await test("conform: the tree's SHAPE is identical on every renderer", async () 
   // Structure carries no measurement, so it admits no tolerance at all: same
   // paths, same kinds, same nesting, or a backend is building a different
   // program.
-  const hs = await hosts("apps/probe/ignorescroll.declare");
+  const hs = await hosts("test/probe/ignorescroll.declare");
   const shapes = [];
   for (const h of hs) {
     const t = await h.ask(TREE);
@@ -279,7 +279,7 @@ await test("conform: every box lands in the same place, within text-measurement 
   // auto-sized run, far too little to hide a layout bug — a wrong scroll term
   // or a missed offset moves things by tens or hundreds.
   const TOL = 2;
-  const hs = await hosts("apps/probe/ignorescroll.declare");
+  const hs = await hosts("test/probe/ignorescroll.declare");
   const snaps = [];
   for (const h of hs) snaps.push({ host: h.label, box: boxes(await h.ask(TREE)) });
   await close(hs);
@@ -313,7 +313,7 @@ await test("conform: keyboard focus advances identically on every renderer", asy
   // chain. Driving it there would test the injection seam, not the program.
   // Tab advancement runs through the language's own Focus service on every
   // host, which is the thing conformance is about.
-  const hs = await hosts("apps/probe/editable.declare");
+  const hs = await hosts("test/probe/editable.declare");
   const answers = [];
   for (const h of hs) {
     await h.focus?.();

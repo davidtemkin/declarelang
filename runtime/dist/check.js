@@ -754,14 +754,14 @@ function checkDataNode(el, schema, errors) {
  *  (guarded at instantiate, the runtime-member fact). The one animation
  *  compile check lives here, where the PARENT (the animator's target) is in
  *  context. */
-/** Is this one of the SOURCE components (sources.ts / frames.ts) — a non-visual
+/** Is this one of the SOURCE components (sources.ts / heartbeat.ts) — a non-visual
  *  member whose handlers are called from outside the tree? Named rather than
  *  chained because they share no base: what unites them is the shape checked
  *  below, not an inheritance relationship. */
 function isSourceSchema(schema) {
-    return schema.name === "Frames" || schema.name === "Keys" || schema.name === "Focus" || schema.name === "Tip";
+    return schema.name === "Heartbeat" || schema.name === "Keys" || schema.name === "Focus" || schema.name === "Tip";
 }
-/** A source node (`Keys [ onKeyUp(e) { … } ]`, `Frames [ onFrame(dt) { … } ]`):
+/** A source node (`Keys [ onKeyUp(e) { … } ]`, `Heartbeat [ onFrame(dt) { … } ]`):
  *  its own attributes and its handlers, nothing else. Deliberately NOT the
  *  animator path — a source drives no slot, so it has no `attribute`/`to` to
  *  validate. */
@@ -770,7 +770,7 @@ function checkSourceNode(el, schema, errors) {
         errors.push(new DeclareError(`only a Dataset carries a { } body — a ${el.tag}'s members go in [ ]`, el.raw.pos));
     }
     for (const d of el.decls) {
-        const builtIns = el.tag === "Frames" ? " and 'running'"
+        const builtIns = el.tag === "Heartbeat" ? " and 'running'"
             : descendsFrom(schema, "Stream") ? " and its built-in attributes (url, active, retry, …)"
                 : "";
         errors.push(new DeclareError(`a ${el.tag} declares no attributes of its own — it carries its handlers${builtIns}`, d.pos));

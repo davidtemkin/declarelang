@@ -32,7 +32,7 @@ const TARGETS = [                                        // the documented compo
   "View", "App", "Text", "Image", "RichText", "Markdown", "HTMLText", "DOMIsland", "TextInput",
   "Layout", "TweenLayout", "Editor",
   "Dataset", "DataSource",
-  "Animator", "AnimatorGroup", "Spring", "Frames", "Keys", "Focus", "Tip",
+  "Animator", "AnimatorGroup", "Spring", "Heartbeat", "Keys", "Focus", "Tip",
   "Stream", "EventStream", "Socket",
   "State", "Node",
 ];

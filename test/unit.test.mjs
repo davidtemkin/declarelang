@@ -6691,17 +6691,17 @@ await test("device profile: an app may not WRITE the profile (the runtime owns i
   }
 });
 
-// ── Frames: the frame heartbeat as a component (frames.ts) ──────────────────
+// ── Heartbeat: the frame heartbeat as a component (heartbeat.ts) ──────────────────
 
-await test("Frames: onFrame(dt) is called per frame, with dt in SECONDS", () => {
-  // the clock must be the fake one BEFORE the tree builds: a Frames member
+await test("Heartbeat: onFrame(dt) is called per frame, with dt in SECONDS", () => {
+  // the clock must be the fake one BEFORE the tree builds: a Heartbeat member
   // joins the clock at init (autoStart), like an animator
   const sched = fakeScheduler();
   setClock(new Clock(sched));
   const app = build(`App [ width = 100, height = 100,
     ticks: number = 0,
     elapsed: number = 0,
-    f: Frames [ onFrame(dt: number) { this.parent.ticks = this.parent.ticks + 1; this.parent.elapsed = this.parent.elapsed + dt } ],
+    f: Heartbeat [ onFrame(dt: number) { this.parent.ticks = this.parent.ticks + 1; this.parent.elapsed = this.parent.elapsed + dt } ],
     ]`);
   settle();
   sched.frame(0);      // the first frame only establishes the baseline
@@ -6713,12 +6713,12 @@ await test("Frames: onFrame(dt) is called per frame, with dt in SECONDS", () => 
   assert.equal(app.ticks, 2);
 });
 
-await test("Frames: `running` gates the heartbeat — a live slot, and dt never jumps on resume", () => {
+await test("Heartbeat: `running` gates the heartbeat — a live slot, and dt never jumps on resume", () => {
   const app = build(`App [ width = 100, height = 100,
     go: boolean = false,
     ticks: number = 0,
     biggest: number = 0,
-    f: Frames [ running = { this.parent.go },
+    f: Heartbeat [ running = { this.parent.go },
         onFrame(dt: number) { this.parent.ticks = this.parent.ticks + 1; if (dt > this.parent.biggest) this.parent.biggest = dt } ],
     ]`);
   const sched = fakeScheduler();

@@ -34,7 +34,18 @@ function findChrome() {
   throw new Error("no Chrome found — set PUPPETEER_EXECUTABLE_PATH");
 }
 
-const APPS = ["calendar", "controls", "settings-panel", "calendar-sample"];
+// Each entry is the program's PATH, not just a name: the smallest case is a
+// test fixture rather than an app, and parity at the floor — a 36-line program
+// whose bundle is almost all runtime — is worth covering beside the big ones.
+// It gets its own directory because /build/<dir>/ resolves by the
+// DIRECTORY-PROGRAM rule (<dir>/<dir>.declare), which a folder holding several
+// programs cannot satisfy.
+const APPS = [
+  { name: "calendar", dir: "apps/calendar", main: "calendar.declare" },
+  { name: "controls", dir: "apps/controls", main: "controls.declare" },
+  { name: "lzx-calendar", dir: "apps/lzx-calendar", main: "lzx-calendar.declare" },
+  { name: "settings-panel", dir: "test/probe/settings-panel", main: "settings-panel.declare" },
+];
 
 const server = createDeclareServer({
   mountSpecs: [{ prefix: "/", dir: ROOT }, { prefix: "/declare/", dir: ROOT, platform: true }],
@@ -59,9 +70,9 @@ async function shot(url) {
 }
 
 try {
-  for (const app of APPS) {
-    const devUrl = `${B}/apps/${app}/${app}.declare`;
-    const buildUrl = `${B}/build/apps/${app}/`;
+  for (const { name: app, dir, main } of APPS) {
+    const devUrl = `${B}/${dir}/${main}`;
+    const buildUrl = `${B}/build/${dir}/`;
 
     await test(`${app}: renders deterministically (two dev loads, identical bytes)`, async () => {
       const a = await shot(devUrl);

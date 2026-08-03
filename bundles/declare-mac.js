@@ -94,7 +94,7 @@ var DeclareMac = (() => {
     }
     return best !== null && !tie && bestD <= (name.length >= 5 ? 2 : 1) ? best : null;
   }
-  var CODE_PREFIX, code4, BASE, err, Diag, DIAGNOSTIC_CATALOG;
+  var CODE_PREFIX, code4, BASE, err, RENAMED_COMPONENTS, Diag, DIAGNOSTIC_CATALOG;
   var init_diagnostics = __esm({
     "runtime/dist/diagnostics.js"() {
       "use strict";
@@ -111,6 +111,9 @@ var DeclareMac = (() => {
         constraint: code4(7e3)
       };
       err = (code, message, pos, hint) => new DeclareError(message, pos, { code, hint });
+      RENAMED_COMPONENTS = {
+        Frames: "spelled 'Heartbeat' now \u2014 the per-frame member (`onFrame(dt)` and `running` are unchanged); the old plural read as a collection of frames, which it never was"
+      };
       Diag = {
         // 1xxx syntax — the parser throws one at a time; a single family code, the
         // grammar message carrying the specifics.
@@ -119,6 +122,9 @@ var DeclareMac = (() => {
         // appends a calibrated near-miss ("did you mean 'Text'?") — the fix, named
         // (diagnostics.md §4); the rule rides the hint.
         unknownComponent: (tag, pos, candidates = []) => {
+          if (Object.hasOwn(RENAMED_COMPONENTS, tag)) {
+            return err(code4(2001), `unknown component '${tag}' \u2014 ${RENAMED_COMPONENTS[tag]}`, pos);
+          }
           const near = nearestName(tag, candidates);
           return near === null ? err(code4(2001), `unknown component '${tag}'`, pos) : err(code4(2001), `unknown component '${tag}' \u2014 did you mean '${near}'?`, pos, `a tag names a built-in component or a class declared in the program`);
         },
@@ -2303,7 +2309,7 @@ var DeclareMac = (() => {
     }
     return out;
   }
-  var FONT_WEIGHT, NodeSchema, ViewSchema, AppSchema, TextSchema, ImageSchema, DOMIslandSchema, EditorSchema, TextInputSchema, RichTextSchema, MarkdownSchema, HTMLTextSchema, LayoutSchema, TweenLayoutSchema, DatasetSchema, DataSourceSchema, AnimatorSchema, AnimatorGroupSchema, SpringSchema, FramesSchema, KeysSchema, FocusSchema, TipSchema, StreamSchema, EventStreamSchema, SocketSchema, StateSchema, SCHEMAS, handlerName, EVENT_PAYLOAD, PAYLOAD_TYPE_NAMES;
+  var FONT_WEIGHT, NodeSchema, ViewSchema, AppSchema, TextSchema, ImageSchema, DOMIslandSchema, EditorSchema, TextInputSchema, RichTextSchema, MarkdownSchema, HTMLTextSchema, LayoutSchema, TweenLayoutSchema, DatasetSchema, DataSourceSchema, AnimatorSchema, AnimatorGroupSchema, SpringSchema, HeartbeatSchema, KeysSchema, FocusSchema, TipSchema, StreamSchema, EventStreamSchema, SocketSchema, StateSchema, SCHEMAS, handlerName, EVENT_PAYLOAD, PAYLOAD_TYPE_NAMES;
   var init_schema = __esm({
     "runtime/dist/schema.js"() {
       "use strict";
@@ -2486,10 +2492,11 @@ var DeclareMac = (() => {
           // runtime backs them with getters, not stored slots).
           contentWidth: { kind: "length" },
           childViews: { kind: "array" },
+          virtualized: { kind: "boolean" },
           contentHeight: { kind: "length" }
         },
         prevailing: ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing", "headingColor", "headingWeight", "linkColor", "codeColor", "codeSize", "codeFamily", "codeBackground", "codeRule", "richTextLayout", "theme", "stylesheet", "selectable"],
-        readOnly: ["contentWidth", "contentHeight", "childViews", "hovered", "pressed"],
+        readOnly: ["contentWidth", "contentHeight", "childViews", "virtualized", "hovered", "pressed"],
         // R5: the pointer trio (click = press and release on the same view — the
         // shared router's rule, input.ts) plus the construction-complete lifecycle
         // event `init` (Appendix A's onInit). Hover (pointerOver/Out) waits for its
@@ -2833,8 +2840,8 @@ var DeclareMac = (() => {
           epsilon: { kind: "number" }
         }
       };
-      FramesSchema = {
-        name: "Frames",
+      HeartbeatSchema = {
+        name: "Heartbeat",
         base: NodeSchema,
         attrs: {
           running: { kind: "boolean" }
@@ -2925,7 +2932,7 @@ var DeclareMac = (() => {
         Animator: AnimatorSchema,
         AnimatorGroup: AnimatorGroupSchema,
         Spring: SpringSchema,
-        Frames: FramesSchema,
+        Heartbeat: HeartbeatSchema,
         Keys: KeysSchema,
         Focus: FocusSchema,
         Tip: TipSchema,
@@ -2968,7 +2975,7 @@ var DeclareMac = (() => {
         link: "string",
         // RichText: the href
         frame: "number",
-        // Frames: dt, in SECONDS
+        // Heartbeat: dt, in SECONDS
         focusChange: "View",
         // Focus: the newly focused view
         geometry: "FocusGeometry",
@@ -3627,7 +3634,7 @@ var DeclareMac = (() => {
         continue;
       }
       const base2 = schemas[decl.base];
-      const NODE_ROOTS = ["Dataset", "DataSource", "Animator", "AnimatorGroup", "Frames", "Keys", "Focus", "Tip", "State"];
+      const NODE_ROOTS = ["Dataset", "DataSource", "Animator", "AnimatorGroup", "Heartbeat", "Keys", "Focus", "Tip", "State"];
       const wired = descendsFrom(base2, "View") || descendsFrom(base2, "Layout") || descendsFrom(base2, "Node") && !NODE_ROOTS.some((n) => descendsFrom(base2, n));
       if (!wired) {
         errors.push(new DeclareError(`subclassing '${decl.base}' is not wired yet \u2014 a class extends View, Layout, or Node today (Dataset/Animator want the same plumbing; State is declarative)`, decl.basePos));
@@ -4344,14 +4351,14 @@ var DeclareMac = (() => {
     }
   }
   function isSourceSchema(schema) {
-    return schema.name === "Frames" || schema.name === "Keys" || schema.name === "Focus" || schema.name === "Tip";
+    return schema.name === "Heartbeat" || schema.name === "Keys" || schema.name === "Focus" || schema.name === "Tip";
   }
   function checkSourceNode(el, schema, errors) {
     if (el.raw !== void 0) {
       errors.push(new DeclareError(`only a Dataset carries a { } body \u2014 a ${el.tag}'s members go in [ ]`, el.raw.pos));
     }
     for (const d of el.decls) {
-      const builtIns = el.tag === "Frames" ? " and 'running'" : descendsFrom(schema, "Stream") ? " and its built-in attributes (url, active, retry, \u2026)" : "";
+      const builtIns = el.tag === "Heartbeat" ? " and 'running'" : descendsFrom(schema, "Stream") ? " and its built-in attributes (url, active, retry, \u2026)" : "";
       errors.push(new DeclareError(`a ${el.tag} declares no attributes of its own \u2014 it carries its handlers${builtIns}`, d.pos));
     }
     for (const c of el.children) {
@@ -6275,11 +6282,18 @@ var DeclareMac = (() => {
   function isWindowedBlock(v) {
     return WINDOWED_BLOCKS.has(v);
   }
+  function readVirtualized(v) {
+    windowedCell(v).track();
+    return WINDOWED_BLOCKS.has(v);
+  }
   function markWindowedBlock(v, on) {
+    const was = WINDOWED_BLOCKS.has(v);
     if (on)
       WINDOWED_BLOCKS.add(v);
     else
       WINDOWED_BLOCKS.delete(v);
+    if (was !== on)
+      windowedCell(v).changed();
   }
   function markEvicting(v) {
     EVICTING.add(v);
@@ -6353,12 +6367,11 @@ var DeclareMac = (() => {
     }
     return null;
   }
-  var viewCreator, INSTALLED, WINDOWED_BLOCKS, EVICTING, RETIRED, EXTENT, AXIS_OF, View, pushScrolls, focusDiscardHook, App, EMPTY_ENV2, DOMIsland;
+  var viewCreator, INSTALLED, WINDOWED_BLOCKS, WINDOWED_CELLS, windowedCell, EVICTING, RETIRED, EXTENT, AXIS_OF, View, pushScrolls, focusDiscardHook, App, EMPTY_ENV2, DOMIsland;
   var init_view = __esm({
     "runtime/dist/view.js"() {
       "use strict";
       init_node();
-      init_errors();
       init_value();
       init_stylesheet();
       init_backend();
@@ -6374,6 +6387,13 @@ var DeclareMac = (() => {
       viewCreator = null;
       INSTALLED = /* @__PURE__ */ new WeakMap();
       WINDOWED_BLOCKS = /* @__PURE__ */ new WeakSet();
+      WINDOWED_CELLS = /* @__PURE__ */ new WeakMap();
+      windowedCell = (v) => {
+        let c = WINDOWED_CELLS.get(v);
+        if (c === void 0)
+          WINDOWED_CELLS.set(v, c = new Cell());
+        return c;
+      };
       EVICTING = /* @__PURE__ */ new WeakSet();
       RETIRED = /* @__PURE__ */ new WeakSet();
       EXTENT = /* @__PURE__ */ new WeakMap();
@@ -6550,11 +6570,20 @@ var DeclareMac = (() => {
          *  reads. Aggregation over a node collection is refused for exactly that
          *  reason (dep-extract); the number you want is usually in the data. */
         get childViews() {
-          if (WINDOWED_BLOCKS.has(this)) {
-            throw new DeclareError(`childViews on a windowed block answers with whichever rows happen to be materialized \u2014 a scroll-dependent lie. Derive counts and aggregates from the DATA (:rows), which is complete by definition`);
-          }
           this.watchChildList();
           return this.children.filter((c) => c instanceof _View);
+        }
+        /** Is this view's replicated content virtualized right now? Read-only, and
+         *  TRACKED — the policy takes a `{ }`, so a block can engage and disengage
+         *  while the program runs, and a constraint reading this follows it.
+         *
+         *  This is what makes `childViews` legible on a virtualized block: the list
+         *  is the instances that exist, which is a subset, and this says so. Counts
+         *  of the collection still come from the DATA, which is complete by
+         *  definition — but that is now a thing you can see rather than a rule the
+         *  runtime enforces by refusing to answer. */
+        get virtualized() {
+          return readVirtualized(this);
         }
         /** Pointer-interaction intrinsics (interaction.ts): `hovered` is true while
          *  this view is on the live hit chain — the topmost visible view under the
@@ -12093,16 +12122,16 @@ var DeclareMac = (() => {
     }
   });
 
-  // runtime/dist/frames.js
-  var MAX_DT, Frames;
-  var init_frames = __esm({
-    "runtime/dist/frames.js"() {
+  // runtime/dist/heartbeat.js
+  var MAX_DT, Heartbeat;
+  var init_heartbeat = __esm({
+    "runtime/dist/heartbeat.js"() {
       "use strict";
       init_node();
       init_animate();
       init_attributes();
       MAX_DT = 1 / 15;
-      Frames = class extends Node2 {
+      Heartbeat = class extends Node2 {
         /** The previous frame's timestamp, or null before the first tick. */
         last = null;
         registered = false;
@@ -12147,13 +12176,13 @@ var DeclareMac = (() => {
             fn.call(this, dt);
           return this.running;
         }
-        /** Construction-complete (instantiate.ts fires this on animators; Frames
+        /** Construction-complete (instantiate.ts fires this on animators; Heartbeat
          *  joins the same lifecycle) — start if `running` was left true. */
         autoStart() {
           this.sync();
         }
       };
-      defineAttributes(Frames, {
+      defineAttributes(Heartbeat, {
         running: {
           def: true,
           push: (f) => f.sync()
@@ -12500,7 +12529,7 @@ var DeclareMac = (() => {
         }
         /** `url` (or `listen`) changed: close and reopen at the new address — the
          *  Dataset.url discipline, push-driven (the attribute pushers below reach
-         *  these two private hooks the way Frames' pusher reaches its sync). */
+         *  these two private hooks the way Heartbeat' pusher reaches its sync). */
         readdressed() {
           if (!this.wired)
             return;
@@ -12668,7 +12697,7 @@ var DeclareMac = (() => {
       init_data();
       init_animator();
       init_spring();
-      init_frames();
+      init_heartbeat();
       init_sources();
       init_streams();
       init_state();
@@ -12688,7 +12717,7 @@ var DeclareMac = (() => {
       DATA = { Dataset, DataSource };
       ANIMATORS = { Animator, Spring };
       SOURCES = {
-        Frames,
+        Heartbeat,
         Keys: KeysSource,
         Focus: FocusSource,
         Tip: TipSource,

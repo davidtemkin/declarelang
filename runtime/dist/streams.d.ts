@@ -41,7 +41,7 @@ export declare abstract class Stream extends Node {
     autoStart(): void;
     /** `url` (or `listen`) changed: close and reopen at the new address — the
      *  Dataset.url discipline, push-driven (the attribute pushers below reach
-     *  these two private hooks the way Frames' pusher reaches its sync). */
+     *  these two private hooks the way Heartbeat' pusher reaches its sync). */
     protected readdressed(): void;
     /** `active` changed: the gate. */
     protected gated(): void;

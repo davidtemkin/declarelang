@@ -95,7 +95,7 @@ enum DrawReplay {
                     f.setValue(ci, forKey: kCIInputImageKey)
                     // CIGaussianBlur's inputRadius IS the standard deviation, which is
                     // also what CSS `blur(<length>)` means — so the radius carries
-                    // across unscaled. (Measured both ways with apps/probe/blur.declare
+                    // across unscaled. (Measured both ways with test/probe/blur.declare
                     // and blur2.declare: blur(20px) → sigma 20.35 in Chrome and in
                     // CoreImage, plain and under a 0.5 view scale.)
                     f.setValue(r * geom.scale, forKey: kCIInputRadiusKey)

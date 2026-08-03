@@ -126,24 +126,48 @@ expression yielding a place. Descendants read with their own relative `:paths`.
 
 ## childViews
 This view's child views, as a live collection — reading it re-runs when the child **set**
-changes. **Two things it deliberately is not.** It carries set membership only, not the
-children's own attributes: `.length` is live, but `.map(c => c.width)` would wire half of
-what it reads, so aggregation over a node collection is refused rather than answered
-wrongly. And on a **windowed block it throws** — a replicated collection past the
-materialization threshold has only the rows near the viewport actually constructed, so any
-answer would be scroll-dependent and would change under a user who did nothing but scroll.
+changes. It carries set membership only, not the children's own attributes: `.length` is
+live, but `.map(c => c.width)` would wire half of what it reads, so aggregation over a node
+collection is refused rather than answered wrongly.
 
-Both refusals point at the same idiom: **the number you want is in the data, which is
-complete by definition.** Count the records, not the instances rendering them.
+**On a virtualized block it answers with the instances that exist** — a subset of the
+records, and it changes as you scroll. That is a fact about the block, not a trap: check
+`virtualized` on this same container and you know which kind of answer you are holding
+(the flag is declared on the replicated child, but read on the container — see
+`virtualized`). The list also includes instances the recycler has parked
+(`visible = false`), because they are children.
+
+**For a count of the collection, count the data.** The records are complete by definition;
+the instances never claimed to be.
 
 ```declare-fragment
 count: number = { (app.d.value.rows).length }
 ```
 
-If you genuinely need the live window — an accessibility traversal, a diagnostic — that is
-kernel API (`blocksOf`, `realized()`, `materializationInfo`), not app language. The split is
-deliberate: the app language must not be able to observe whether the runtime built a row,
-because not having to care is the whole promise of invisible materialization.
+If you want the window with its logical indices — an accessibility traversal, a diagnostic
+— that is kernel API (`blocksOf`, `realized()`, `materializationInfo`).
+
+## virtualized
+Whether **this view's replicated content** is virtualized right now — a content intrinsic,
+like `contentWidth` and `contentHeight`, and read-only. `false` unless this view is the
+container of a virtualized block, which is every view in a program that never asks for
+virtualization.
+
+**Read it on the CONTAINER, not the template.** `virtualize` is declared on the replicated
+child — beside its `datapath = :rows[]`, where `key` lives too — but the block belongs to
+the *parent* that holds the instances, so the parent is what answers. A row instance reports
+`false`, and that is the honest answer: an instance has no replicated content of its own. In
+ordinary speech the list is virtualized, not the row.
+
+```declare-fragment
+list: View [ datapath = { app.d.value },                  // ← ask THIS one
+    Row [ datapath = :rows[], virtualize = true ]         // ← declared HERE
+    ]
+```
+
+It is **tracked**, so a constraint reading it follows a block engaging or disengaging —
+which can happen mid-run, since the policy accepts a `{ }`. And it is what makes
+`childViews` legible on a virtualized block: the list is a subset, and this is how you know.
 
 ## textColor
 The glyph color `Text` renders with — a `prevailing` styling slot declared on `View`

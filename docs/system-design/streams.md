@@ -12,7 +12,7 @@
 
 ## 1. The shape is already in the language
 
-A stream is a **source** — the ch. 7 family (`Keys`, `Frames`, `Tip`,
+A stream is a **source** — the ch. 7 family (`Keys`, `Heartbeat`, `Tip`,
 `Dataset`): a non-visual member whose handlers are called by something
 outside the tree, whose lifetime is its node's, with nothing to unsubscribe.
 Nothing new is needed in the reactive model: a message arrives, a handler

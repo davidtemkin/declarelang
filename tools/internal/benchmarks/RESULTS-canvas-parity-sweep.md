@@ -132,8 +132,8 @@ _none_
 |---|---|
 | apps/amazon/amazon.lzx | Amazon ECS web service (dead) |
 | apps/amazon-soap/amazon.lzx | Amazon SOAP web service (dead) |
-| apps/weather/weather.lzx | weather XML feed (dead) |
-| apps/weatherblox/wrapper.lzx | weather XML feed (dead) |
+| apps/lzx-weather/lzx-weather.lzx | weather XML feed (dead) |
+| apps/lzx-weatherblox/wrapper.lzx | weather XML feed (dead) |
 | apps/vacation-survey/vacation-survey.lzx | survey POST backend (dead) |
 | apps/youtube/youtube.lzx | YouTube data API (dead) |
 | apps/chat/chat.lzx | chat server / LzConnection (dead) |

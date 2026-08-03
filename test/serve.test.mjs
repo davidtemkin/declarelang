@@ -26,7 +26,7 @@ const D = (p) => path.join(ROOT, p);
 // ── mounts: resolution ───────────────────────────────────────────────────────
 await test("mounts resolve a url in the root mount to its file", () => {
   const m = createMounts([{ prefix: "/", dir: ROOT }, { prefix: "/declare/", dir: ROOT, platform: true }]);
-  assert.equal(m.resolve("/apps/weather/weather.declare").rel, "apps/weather/weather.declare");
+  assert.equal(m.resolve("/apps/lzx-weather/lzx-weather.declare").rel, "apps/lzx-weather/lzx-weather.declare");
 });
 await test("mounts resolve the platform prefix to the platform dir", () => {
   const m = createMounts([{ prefix: "/", dir: D("apps") }, { prefix: "/declare/", dir: ROOT, platform: true }]);
@@ -44,7 +44,7 @@ await test("mounts: a url escaping the mount dir with .. is rejected", () => {
 });
 await test("mounts.urlFor maps an absolute path back to its url", () => {
   const m = createMounts([{ prefix: "/", dir: ROOT }, { prefix: "/declare/", dir: ROOT, platform: true }]);
-  assert.equal(m.urlFor(D("apps/weather/weather.declare")), "/apps/weather/weather.declare");
+  assert.equal(m.urlFor(D("apps/lzx-weather/lzx-weather.declare")), "/apps/lzx-weather/lzx-weather.declare");
 });
 await test("mounts.platformPrefix is the platform mount's prefix", () => {
   const m = createMounts([{ prefix: "/", dir: ROOT }, { prefix: "/declare/", dir: ROOT, platform: true }]);
@@ -132,15 +132,15 @@ await (async () => {
   const { s, port } = await listen(server);
   try {
     await test("distro: a program runs (200) and its page carries the no-SW marker", async () => {
-      const r = await GET(port, "/apps/weather/weather.declare");
+      const r = await GET(port, "/apps/lzx-weather/lzx-weather.declare");
       assert.equal(r.status, 200);
       assert.match(await r.text(), /__declareServer/);
     });
     await test("distro: a static asset serves", async () => {
-      assert.equal((await GET(port, "/apps/weather/data/weather.json")).status, 200);
+      assert.equal((await GET(port, "/apps/lzx-weather/data/weather.json")).status, 200);
     });
     await test("distro: the platform prefix serves the same tree", async () => {
-      assert.equal((await GET(port, "/declare/apps/weather/data/weather.json")).status, 200);
+      assert.equal((await GET(port, "/declare/apps/lzx-weather/data/weather.json")).status, 200);
     });
     await test("distro: /__sse streams a deterministic text/event-stream fixture", async () => {
       const r = await GET(port, "/__sse?data=Hel,lo&interval=5&event=delta");
@@ -150,12 +150,12 @@ await (async () => {
       assert.equal(body, "event: delta\nid: 1\ndata: Hel\n\nevent: delta\nid: 2\ndata: lo\n\n");
     });
     await test("distro: ?build redirects to a path-shaped build url", async () => {
-      const r = await GET(port, "/apps/weather/weather.declare?build");
+      const r = await GET(port, "/apps/lzx-weather/lzx-weather.declare?build");
       assert.equal(r.status, 302);
-      assert.equal(new URL(r.headers.get("location"), "http://x").pathname, "/build/apps/weather/");
+      assert.equal(new URL(r.headers.get("location"), "http://x").pathname, "/build/apps/lzx-weather/");
     });
     await test("distro: POST /compile?main= resolves originDir (no crash on a relative include world)", async () => {
-      const r = await fetch(`http://127.0.0.1:${port}/compile?main=${encodeURIComponent("/apps/weather/weather.declare")}`,
+      const r = await fetch(`http://127.0.0.1:${port}/compile?main=${encodeURIComponent("/apps/lzx-weather/lzx-weather.declare")}`,
         { method: "POST", body: "App [ label: Text [ text = \"hi\" ] ]" });
       const j = await r.json();
       assert.ok(j.source, "expected a compiled source back");
@@ -179,7 +179,7 @@ await (async () => {
       assert.equal((await GET(port, "/shop/shop.declare")).status, 200);
     });
     await test("workspace: the platform is served from the installation via /declare/", async () => {
-      assert.equal((await GET(port, "/declare/apps/weather/weather.declare")).status, 200);
+      assert.equal((await GET(port, "/declare/apps/lzx-weather/lzx-weather.declare")).status, 200);
     });
     await test("workspace: the run page boots the platform from the /declare/ prefix", async () => {
       const html = await (await GET(port, "/shop/shop.declare")).text();

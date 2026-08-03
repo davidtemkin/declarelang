@@ -50,8 +50,8 @@ const VALUE_ACCESSORS = new Set(["value","status","error","loading","loaded","fa
 
 const DEFAULT_CORPUS = [
   "apps/calendar/calendar.declare",
-  "apps/calendar-sample/calendar-sample.declare",
-  "apps/weather/weather.declare",
+  "apps/lzx-calendar/lzx-calendar.declare",
+  "apps/lzx-weather/lzx-weather.declare",
   "apps/homepage/homepage.declare",
   "apps/docs/docs.declare",
 ];

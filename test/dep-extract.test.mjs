@@ -293,7 +293,7 @@ App [ v: number = 10, onClick() { v = bump(this) }, b: View [ width = { app.v } 
 // ── B. corpus: every real app extracts with zero residue ──
 console.log("─ B. corpus: 0 residue across all apps ─");
 test("all five apps: 700 constraints, 0 residue errors", () => {
-  const apps = ["calendar/calendar", "calendar-sample/calendar-sample", "weather/weather", "homepage/homepage", "docs/docs"];
+  const apps = ["calendar/calendar", "lzx-calendar/lzx-calendar", "lzx-weather/lzx-weather", "homepage/homepage", "docs/docs"];
   let tot = 0, errs = 0;
   for (const a of apps) {
     const r = extract(readFileSync(resolve(HERE, `../apps/${a}.declare`), "utf8"));

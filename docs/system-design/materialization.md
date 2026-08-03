@@ -11,7 +11,7 @@
 > author-respecting); keep-alive retention of touched instances at their
 > logical places; the honest fallbacks (layout strategy present, no
 > scroller, selective plans → full materialization, reason inspectable);
-> `childViews` refusal on windowed blocks with the live window as kernel API
+> `childViews` refusal on windowed blocks (SUPERSEDED 2026-08-02 — see the transparency note below) with the live window as kernel API
 > (`blocksOf`/`realized()`/`navigateTo`/`materializationInfo`, replicate.ts —
 > the API speaks materialization words, never the Window noun);
 > navigate-to-logical-record; windowing-aware AT (aria-rowcount/rowindex via
@@ -64,6 +64,28 @@
 > and the reception forecast; its editor's note flags the one live design
 > pressure (browser find/selection/AT over uninstantiated rows on the DOM
 > backend) that §2's contract should answer explicitly.
+
+> **TRANSPARENCY OVER ABSTRACTION — the `childViews` refusal is RETIRED
+> (RULED 2026-08-02, superseding D5).** The refusal existed because a partial
+> answer was indistinguishable from a whole one: a windowed block would hand
+> back whichever rows happened to be built, and nothing in the program said so.
+> Two things changed. Virtualization became EXPLICIT at the source — a boolean
+> the author writes, never something that happens unasked — and it became
+> LEGIBLE at runtime through `View.virtualized`, a tracked read-only intrinsic.
+> With the flag knowable, the subset is a readable fact rather than a trap, so
+> `childViews` answers: these are the instances that exist. The list includes
+> parked recycler spares (`visible = false`), because they are children; at
+> steady state that is a handful (21 window + 2 spares over 400 records in the
+> bench fixture), spiking transiently after a mass engage while the pool fills.
+>
+> The corpus evidence made the call easy: **not one `.declare` file in `apps/`
+> or `library/` reads `childViews`**, and no runtime or library internal calls
+> it either — every reference in the tree was the accessor's own definition or
+> a test of the refusal. The refusal was protecting against a misuse nobody
+> commits, on an accessor nobody uses, at the cost of refusing a question a
+> program is entitled to ask. Counting the collection still means counting the
+> DATA, which is complete by definition — but that is now a thing a reader can
+> see rather than a rule the runtime enforces by throwing.
 
 > **THE EXTENT-SATURATION CEILING — found 2026-08-01 by the React
 > control-arm experiment, re-verified against Chrome 150, FIXED 2026-08-02.**
@@ -233,8 +255,10 @@ machinery:**
 - **The crawler / headless boot** materializes everything (it already walks
   every location; virtualization off is one flag).
 - **Imperative reach-in.** Code that walks `childViews` of a virtualized
-  block sees materialized instances only. This is the one honest seam. The
-  idiom already points away from it — derive from data, not from views — but
+  block sees materialized instances only — and since 2026-08-02 it SAYS so
+  rather than refusing, because `View.virtualized` makes the partiality a
+  readable fact. This is the one honest seam. The
+  idiom still points away from it — derive from data, not from views — but
   the limitation must be documented on the block, not discovered.
 
 ### The observer boundary (ruled with David, 2026-07-30)
@@ -519,8 +543,9 @@ What that doc must answer, noted here so the seam is explicit:
 Open questions for the ruling: the opt-in spelling; the threshold (fixed
 count vs. measured construct budget); whether hibernation (suspend + keep
 cells) ships in v1 or touched instances simply stay fully alive (simpler, and
-touched counts are small); whether `childViews` on a virtualized block should
-be refused outright rather than partial (the honest-seam question, §2).
+touched counts are small). (`childViews` on a virtualized block — refuse
+outright, or answer partially — was the third open question here. ANSWERED
+2026-08-02: it answers, because `virtualized` makes the partiality legible.)
 
 > **RULED 2026-07-30 (David — the D5 gate; B5 is unblocked), with two
 > refinements made in the ruling conversation:**
@@ -576,9 +601,10 @@ be refused outright rather than partial (the honest-seam question, §2).
 >    **THE DEFAULT NO LONGER MIGRATES.** v1 planned `all` → `auto` once the
 >    differ proved invisibility. There is no `auto` to migrate to, and the
 >    decision the flip represented — should virtualization happen unasked — is
->    now a straight question about the default of a boolean, gated on ruling
->    what `childViews` does on a virtualized block (it currently throws, which
->    would become a breaking change for any program over the old threshold).
+>    now a straight question about the default of a boolean. The `childViews`
+>    gate is DISCHARGED: it no longer throws, so flipping the default cannot
+>    break a program through that door. What remains is judgement about
+>    maturity, not a blocking design question.
 >
 >    **HISTORY (07-30, superseded above).** RULED as `windowed`, RENAMED the
 >    same day: "window" stays the mechanism's term of art in prose but leaves
@@ -589,8 +615,13 @@ be refused outright rather than partial (the honest-seam question, §2).
 > 3. **Touched instances keep-alive in v1** — no hibernation machinery;
 >    touched counts are human-bounded. Hibernation stays available as a
 >    later optimization if measurement asks.
-> 4. **`childViews` on a windowed block refuses** (app-language read) with a
->    pointed error naming the derive-from-data idiom — a partial answer
+> 4. **`childViews` on a windowed block** — RULED as a refusal; **RETIRED
+>    2026-08-02, see the transparency note at the top of this file.** The
+>    refusal held only while virtualization could happen unasked: a partial
+>    answer was indistinguishable from a whole one. It is explicit at the source
+>    and legible at runtime through `View.virtualized` now, so the read answers
+>    with the instances that exist and the reader can tell. The original
+>    reasoning, for the record: a partial answer
 >    would be scroll-dependent, the exact observable-difference class §2
 >    abolishes. The LIVE WINDOW (realized instances + logical positions) is
 >    first-class RUNTIME/LIBRARY API on the windowing kernel — the door the

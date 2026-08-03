@@ -2,7 +2,7 @@
 import { execFileSync } from "node:child_process";
 import puppeteer from "puppeteer-core";
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const URLBASE = "http://127.0.0.1:8260/apps/probe/blur2.declare";
+const URLBASE = "http://127.0.0.1:8260/test/probe/blur2.declare";
 
 async function webProfile(render) {
   const b = await puppeteer.launch({ executablePath: CHROME, headless: true,

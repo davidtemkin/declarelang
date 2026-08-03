@@ -255,7 +255,7 @@ so gate shortcuts on app state where that matters.
 
 The other sources work the same way: `Focus` (`onFocusChange`, `onGeometry` — how the
 library's focus ring follows focus), `Tip` (`onTip` — what the tooltip renders), and
-`Frames` (`onFrame(dt)` — the frame heartbeat, in
+`Heartbeat` (`onFrame(dt)` — the frame heartbeat, in
 [the Gestures chapter](declare-docs:guide:gestures)). Fan-out is by instance, which is
 the point of their being members: a menu, a dialog, and a menubar each holding a `Keys`
 member all hear the keyboard at once.

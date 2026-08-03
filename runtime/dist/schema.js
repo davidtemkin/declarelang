@@ -30,7 +30,7 @@ const FONT_WEIGHT = enumType("FontWeight", "thin", "extralight", "light", "regul
 // explicit `clip` (the recorded lean).
 // Node is the root of the whole tree — the plain atom every other kind of
 // member descends from at RUNTIME (`class View extends Node`, and likewise
-// Layout / Dataset / Animator / AnimatorGroup / Frames / State / the Sources).
+// Layout / Dataset / Animator / AnimatorGroup / Heartbeat / State / the Sources).
 // Declared first so those schemas can name it as their base: the chain the
 // runtime has always had, finally recorded here too (2026-07-28) — before
 // this, every one of them was a schema ROOT and Node's members were
@@ -212,10 +212,11 @@ const ViewSchema = {
         // runtime backs them with getters, not stored slots).
         contentWidth: { kind: "length" },
         childViews: { kind: "array" },
+        virtualized: { kind: "boolean" },
         contentHeight: { kind: "length" },
     },
     prevailing: ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing", "headingColor", "headingWeight", "linkColor", "codeColor", "codeSize", "codeFamily", "codeBackground", "codeRule", "richTextLayout", "theme", "stylesheet", "selectable"],
-    readOnly: ["contentWidth", "contentHeight", "childViews", "hovered", "pressed"],
+    readOnly: ["contentWidth", "contentHeight", "childViews", "virtualized", "hovered", "pressed"],
     // R5: the pointer trio (click = press and release on the same view — the
     // shared router's rule, input.ts) plus the construction-complete lifecycle
     // event `init` (Appendix A's onInit). Hover (pointerOver/Out) waits for its
@@ -636,15 +637,15 @@ const SpringSchema = {
         epsilon: { kind: "number" },
     },
 };
-// Frames (frames.ts) — the frame heartbeat as a component: a non-visual member
+// Heartbeat (heartbeat.ts) — the frame heartbeat as a component: a non-visual member
 // that calls `onFrame(dt)` once per animation frame while `running`. Springs and
 // Animators are the DECLARATIVE half of motion (say where a thing belongs); this
 // is the raw heartbeat an app running its own integrator needs — custom gesture
 // physics, a simulation, a game loop. A component rather than a new subscription
 // operator: an event is just a member that gets called, and non-visual members
 // are a category the language already has.
-const FramesSchema = {
-    name: "Frames",
+const HeartbeatSchema = {
+    name: "Heartbeat",
     base: NodeSchema,
     attrs: {
         running: { kind: "boolean" },
@@ -759,7 +760,7 @@ export const SCHEMAS = {
     Animator: AnimatorSchema,
     AnimatorGroup: AnimatorGroupSchema,
     Spring: SpringSchema,
-    Frames: FramesSchema,
+    Heartbeat: HeartbeatSchema,
     Keys: KeysSchema,
     Focus: FocusSchema,
     Tip: TipSchema,
@@ -851,7 +852,7 @@ export const EVENT_PAYLOAD = {
     input: "string", // TextInput: the new text
     navClaim: "boolean", // Keys: an overlay took/released the nav keys
     link: "string", // RichText: the href
-    frame: "number", // Frames: dt, in SECONDS
+    frame: "number", // Heartbeat: dt, in SECONDS
     focusChange: "View", // Focus: the newly focused view
     geometry: "FocusGeometry",
     tip: "TipEvent",

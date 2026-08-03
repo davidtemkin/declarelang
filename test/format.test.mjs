@@ -38,7 +38,7 @@ import { test, summarize } from "./harness.mjs";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
 
-// ── corpus: apps/**/[a-z]*.declare + library/*.declare ─────────────
+// ── corpus: apps/**/[a-z]*.declare + test/probe/** + library/*.declare ────
 
 function walk(dir, out = []) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -50,6 +50,9 @@ function walk(dir, out = []) {
 }
 const corpus = [
   ...walk(resolve(ROOT, "apps")),
+  // the probe fixtures live under test/ (they were never apps — no
+  // <dir>/<dir>.declare), but they are Declare sources and stay formatted
+  ...walk(resolve(ROOT, "test", "probe")),
   ...readdirSync(resolve(ROOT, "library"))
     .filter((n) => n.endsWith(".declare"))
     .map((n) => resolve(ROOT, "library", n)),

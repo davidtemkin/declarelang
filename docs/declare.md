@@ -480,8 +480,7 @@ read the changed region.
 **Large collections virtualize on one word.** `virtualize = true` on a replicated node builds
 only the rows near the viewport and leaves the rest logical — same records, same paths, same
 behaviour, reconstructed indistinguishably as you scroll. It is a boolean, **off by
-default** — full materialization keeps `childViews` answerable and browser find over every
-record — and it takes a `{ }` constraint like any other boolean, engaging and disengaging
+default** — full materialization keeps browser find working over every record — and it takes a `{ }` constraint like any other boolean, engaging and disengaging
 as the answer changes. There is nothing else to write: no row heights, no scroll wiring,
 no keys.
 
@@ -680,7 +679,7 @@ interruption needs no code.
 slide: Spring [ attribute = x, to = { on ? 340 : 20 }, stiffness = 170, damping = 20 ]
 ```
 
-`Animator` is the time-based sibling for the cases that want a clock, and `Frames` is the raw
+`Animator` is the time-based sibling for the cases that want a clock, and `Heartbeat` is the raw
 per-frame heartbeat for when the app integrates motion itself. Springs are the house idiom.
 Deferred work is plain TypeScript — `setTimeout` behaves in a handler as it always does — but
 unlike a source member, a timer does not die with its node, so cancel it yourself.
@@ -688,7 +687,7 @@ unlike a source member, a timer does not die with its node, so cancel it yoursel
 Because states, springs, and layout all sit on one reactive core, *arrangement* animates: spring
 a few geometry scalars and every constraint derived from them moves in lock-step.
 
-→ `State`, `Spring`, `Animator`, `Frames` attributes: the model reference · the idiom at scale:
+→ `State`, `Spring`, `Animator`, `Heartbeat` attributes: the model reference · the idiom at scale:
 `apps/calendar/calendar.declare`
 
 ## 11. The standard library

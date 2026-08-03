@@ -71,7 +71,7 @@ export function programSchemas(classes) {
         // real runtime chain) — so the three are named directly, which is what the
         // rule always meant: View (visual), Layout (a strategy), and Node itself
         // (the plain atom). Dataset/Animator remain a wiring gap, not a law.
-        const NODE_ROOTS = ["Dataset", "DataSource", "Animator", "AnimatorGroup", "Frames", "Keys", "Focus", "Tip", "State"];
+        const NODE_ROOTS = ["Dataset", "DataSource", "Animator", "AnimatorGroup", "Heartbeat", "Keys", "Focus", "Tip", "State"];
         const wired = descendsFrom(base, "View") || descendsFrom(base, "Layout") ||
             (descendsFrom(base, "Node") && !NODE_ROOTS.some((n) => descendsFrom(base, n)));
         if (!wired) {

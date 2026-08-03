@@ -21,10 +21,12 @@ export interface LayoutStrategy {
     rearm(): void;
 }
 export { onDiscard } from "./node.js";
-/** Is this view's replicated content currently windowed? Consulted by the
- *  layout kernel (the pass suspends while the windowing kernel owns
- *  placement) and by the childViews refusal. */
+/** Is this view's replicated content currently windowed? The UNTRACKED read,
+ *  for the layout kernel (its pass suspends while windowing owns placement)
+ *  and other internals that must not subscribe. */
 export declare function isWindowedBlock(v: View): boolean;
+/** The tracked read behind `View.virtualized`. */
+export declare function readVirtualized(v: View): boolean;
 export declare function markWindowedBlock(v: View, on: boolean): void;
 export declare function markEvicting(v: View): void;
 export declare function fireRetireTree(v: View): void;
@@ -283,6 +285,16 @@ export declare class View extends Node {
      *  reads. Aggregation over a node collection is refused for exactly that
      *  reason (dep-extract); the number you want is usually in the data. */
     get childViews(): readonly View[];
+    /** Is this view's replicated content virtualized right now? Read-only, and
+     *  TRACKED — the policy takes a `{ }`, so a block can engage and disengage
+     *  while the program runs, and a constraint reading this follows it.
+     *
+     *  This is what makes `childViews` legible on a virtualized block: the list
+     *  is the instances that exist, which is a subset, and this says so. Counts
+     *  of the collection still come from the DATA, which is complete by
+     *  definition — but that is now a thing you can see rather than a rule the
+     *  runtime enforces by refusing to answer. */
+    get virtualized(): boolean;
     /** Pointer-interaction intrinsics (interaction.ts): `hovered` is true while
      *  this view is on the live hit chain — the topmost visible view under the
      *  pointer and its ancestors, occlusion-correct, false on touch; `pressed`

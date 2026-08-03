@@ -38,16 +38,16 @@ const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
 // test/seam.test.mjs). A capability with no probe is a capability this gate
 // cannot report on.
 const CORPUS = [
-  "apps/probe/arc.declare",
-  "apps/probe/blend.declare",
-  "apps/probe/blur.declare",
-  "apps/probe/roundrect.declare",
-  "apps/probe/vignette.declare",
-  "apps/probe/ignorescroll.declare",
-  "apps/probe/richtext.declare",
-  "apps/probe/editable.declare",
+  "test/probe/arc.declare",
+  "test/probe/blend.declare",
+  "test/probe/blur.declare",
+  "test/probe/roundrect.declare",
+  "test/probe/vignette.declare",
+  "test/probe/ignorescroll.declare",
+  "test/probe/richtext.declare",
+  "test/probe/editable.declare",
   "apps/calendar/calendar.declare",
-  "apps/weather/weather.declare",
+  "apps/lzx-weather/lzx-weather.declare",
   "apps/controls/controls.declare",
   "apps/desktop/desktop.declare",
 ];

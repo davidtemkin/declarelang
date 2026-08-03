@@ -21,7 +21,7 @@ import { Layout, TweenLayout } from "./layout.js";
 import { Dataset, DataSource } from "./data.js";
 import { Animator, AnimatorGroup } from "./animator.js";
 import { Spring } from "./spring.js";
-import { Frames } from "./frames.js";
+import { Heartbeat } from "./heartbeat.js";
 import { KeysSource, FocusSource, TipSource } from "./sources.js";
 import { EventStream, Socket } from "./streams.js";
 import { State } from "./state.js";
@@ -58,7 +58,7 @@ export const ANIMATORS: Readonly<Record<string, new () => Animator>> = { Animato
  *  checking applies, and because being ordinary components is what lets an app
  *  that never listens drop the service code entirely (slim-registry). */
 export const SOURCES: Readonly<Record<string, new () => Node>> = {
-  Frames,
+  Heartbeat,
   Keys: KeysSource,
   Focus: FocusSource,
   Tip: TipSource,
@@ -110,7 +110,7 @@ export const REGISTRY_MANIFEST: readonly RegistryEntry[] = [
   { name: "DataSource", table: "DATA", module: "data.js", export: "DataSource" },
   { name: "Animator", table: "ANIMATORS", module: "animator.js", export: "Animator" },
   { name: "Spring", table: "ANIMATORS", module: "spring.js", export: "Spring" },
-  { name: "Frames", table: "SOURCES", module: "frames.js", export: "Frames" },
+  { name: "Heartbeat", table: "SOURCES", module: "heartbeat.js", export: "Heartbeat" },
   { name: "Keys", table: "SOURCES", module: "sources.js", export: "KeysSource" },
   { name: "Focus", table: "SOURCES", module: "sources.js", export: "FocusSource" },
   { name: "Tip", table: "SOURCES", module: "sources.js", export: "TipSource" },

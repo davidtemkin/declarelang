@@ -175,14 +175,14 @@ sits below the 16px line and names the fix.
 ## The heartbeat
 
 The other half is time — the heartbeat that integrates what the fingers report.
-`Frames` is a member, like a `Spring` or a `Dataset`, that calls `onFrame(dt)`
+`Heartbeat` is a member, like a `Spring` or a `Dataset`, that calls `onFrame(dt)`
 once per animation frame with the real elapsed time in seconds:
 
 ```declare
 App [ width = 240, height = 120, fill = midnightblue, textColor = whitesmoke,
     x0: number = 20,
     v: number = 60,
-    physics: Frames [ onFrame(dt: number) { app.x0 = (app.x0 + app.v * dt) % 200 }
+    physics: Heartbeat [ onFrame(dt: number) { app.x0 = (app.x0 + app.v * dt) % 200 }
         ],
     dot: View [ x = { app.x0 }, y = 40, width = 40, height = 40, cornerRadius = 20, fill = turquoise ]
     ]
