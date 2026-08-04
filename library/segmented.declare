@@ -11,9 +11,9 @@ Viewer's mode switch and Calendar's theme switch are this pattern by hand;
 this is the component form.
 
     Segmented [ value = { app.page }, input(v: object) { app.page = "" + v },
-        Segment [ choice = "controls", lbl = "Controls" ],
-        Segment [ choice = "table", lbl = "Table" ],
-        Segment [ choice = "grid", lbl = "DataGrid" ] ]
+        Segment [ choice = { "controls" }, lbl = "Controls" ],
+        Segment [ choice = { "table" }, lbl = "Table" ],
+        Segment [ choice = { "grid" }, lbl = "DataGrid" ] ]
 
 - **Value pattern** (Contract 1): `value` holds the active CHOICE; `input(v)`
   is the delivery — the default writes the slot, a use-site override owns it.

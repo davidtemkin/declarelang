@@ -44,13 +44,18 @@ in `inspect().path`, so a result can be fed straight back as a query.
 { kind, name, path,
   x, y, width, height,        // local
   rootX, rootY,               // root-space — what you click
-  visible, text?,
+  visible, shown,              // own slot / effective (ancestors too)
+  text?,
   attrs,                      // own values, JSON-reduced
   children[] }
 ```
 
 `kind` is the authored component name (`DockIcon`, `App`) — resolved so it survives
 minification, which a bare `constructor.name` does not.
+
+`visible` is what the program says about *this* node; `shown` is whether it actually
+appears, folding in every ancestor. Read `shown` when you are asking "why can't I see
+it" — a node inside a hidden panel reports `visible: true`, truthfully and uselessly.
 
 ### Provenance — the `explain` answer
 

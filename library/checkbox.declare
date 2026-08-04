@@ -9,7 +9,7 @@ destination is the checkbox itself, so it works standalone with zero wiring:
 
 Hand the value to its real owner by overriding `input` and constraining down:
 
-    Checkbox [ label = "Mute", checked = { app.muted }, input(v) { app.muted = v } ]
+    Checkbox [ label = "Mute", checked = { app.muted }, input(v: boolean) { app.muted = v } ]
 
 `press()` never writes `checked` directly — it only delivers — so a bound checkbox
 never fights its constraint.

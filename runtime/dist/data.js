@@ -285,6 +285,20 @@ defineAttributes(Dataset, {
     contents: { def: null, push: (d, v) => { d.value = v; } },
 });
 let transport = (url, init) => globalThis.fetch(url, init);
+/** A refusal's body, made readable. JSON is the common shape (RFC 7807 and
+ *  every hand-rolled `{ "error": … }`), so it is parsed when it parses —
+ *  otherwise the raw text is handed back untouched rather than swallowed. An
+ *  empty body is null: nothing was said, and "" would read as if it had been. */
+function parseProblem(raw) {
+    if (raw === "")
+        return null;
+    try {
+        return JSON.parse(raw);
+    }
+    catch {
+        return raw;
+    }
+}
 /** Swap the transport (headless installs a refuser; tests install stubs).
  *  Returns the PREVIOUS transport so a scoped caller can restore it. */
 export function provideTransport(fn) {
@@ -339,12 +353,39 @@ export class DataSource extends Dataset {
      *  opt-in for reactive addresses (above). A non-GET `method` sends `body`. */
     async fetch() {
         const seq = ++this.seq;
+        // The address is read ONCE and carried: `url` is a slot like any other, so a
+        // constraint may re-settle it while this request is in flight, and a message
+        // that re-read `this.url` after the await named an address that was never
+        // requested — the failure reports a different server than it talked to.
+        const url = this.url;
         setBound(this, "status", "loading");
         setBound(this, "error", null);
+        setBound(this, "statusCode", 0);
+        setBound(this, "errorBody", null);
         try {
-            const res = await transport(this.url, this.requestInit());
-            if (!res.ok)
-                throw new Error(`HTTP ${res.status} for ${this.url}`);
+            const res = await transport(url, this.requestInit());
+            if (seq === this.seq)
+                setBound(this, "statusCode", res.status);
+            if (!res.ok) {
+                // The BODY of a refusal is the part that says why — the field that
+                // failed, the rate-limit reset, the validation list. Throwing on the
+                // status line alone discarded it, leaving `.error` with a number and
+                // the author with nothing to act on. Read it before raising.
+                // Reading the body is best-effort: it may be absent, already consumed,
+                // or truncated mid-flight, and none of that may be allowed to replace
+                // the real failure — an unreadable body must still report `HTTP 404`,
+                // never `res.text is not a function`.
+                let raw = "";
+                try {
+                    raw = typeof res.text === "function" ? await res.text() : "";
+                }
+                catch {
+                    raw = "";
+                }
+                if (seq === this.seq)
+                    setBound(this, "errorBody", parseProblem(raw));
+                throw new Error(`HTTP ${res.status} for ${url}`);
+            }
             const value = this.format === "text" ? await res.text() : await res.json();
             if (seq !== this.seq)
                 return; // superseded
@@ -377,6 +418,8 @@ export class DataSource extends Dataset {
         this.seq++;
         setBound(this, "value", null);
         setBound(this, "error", null);
+        setBound(this, "statusCode", 0);
+        setBound(this, "errorBody", null);
         setBound(this, "status", "idle");
     }
 }
@@ -390,6 +433,10 @@ defineAttributes(DataSource, {
     body: { def: null },
     status: { def: "idle" },
     error: { def: null },
+    // 0 = no reply yet (or none ever arrived) — distinct from every real HTTP
+    // code, so a constraint can tell "not asked" from "asked and refused".
+    statusCode: { def: 0 },
+    errorBody: { def: null },
 });
 /** Turn a `datapath = { expr }` result into a place. The value must be a
  *  container that belongs to a dataset (its adoption tag says which, and

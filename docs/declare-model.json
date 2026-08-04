@@ -929,6 +929,8 @@
     "  readonly failed: boolean;",
     "  readonly status: string;",
     "  readonly error: any;",
+    "  readonly statusCode: number;",
+    "  readonly errorBody: any;",
     "  fetch(): Promise<void>;",
     "  clear(): void;"
    ],

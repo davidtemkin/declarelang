@@ -143,6 +143,17 @@ export function inspect(node, path = "app") {
             rootY += n.y;
         }
     }
+    // effective visibility is inherited, so it is walked from THIS node up
+    // rather than threaded down — inspect() is entered at arbitrary depth
+    // (`inspect(app.pane.b)`), and a subtree-only fold would report a node
+    // inside a hidden panel as shown.
+    let shown = true;
+    for (let n = node; n !== null; n = n.parent) {
+        if (isView(n) && !n.visible) {
+            shown = false;
+            break;
+        }
+    }
     const record = {
         kind: kindName(node),
         name: nameOf(node),
@@ -150,6 +161,7 @@ export function inspect(node, path = "app") {
         x: v?.x ?? 0, y: v?.y ?? 0, width: v?.width ?? 0, height: v?.height ?? 0,
         rootX, rootY,
         visible: v?.visible ?? true,
+        shown,
         attrs: safeAttr(ownValues(node)),
         children: node.children.map((c, i) => {
             const childName = nameOf(c);

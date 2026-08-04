@@ -443,6 +443,13 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
     `  readonly failed: boolean;`,
     `  readonly status: string;`,
     `  readonly error: any;`,
+    // What the server ANSWERED, kept apart from whether it worked: the HTTP
+    // status (0 before a reply / when the request never reached one) and the
+    // refusal's payload, parsed when it is JSON. A failure that reports only
+    // `error` throws away the part that says WHY — the field that failed, the
+    // rate-limit reset — so both are read-only surface here.
+    `  readonly statusCode: number;`,
+    `  readonly errorBody: any;`,
     `  fetch(): Promise<void>;`,
     `  clear(): void;`,
   ],

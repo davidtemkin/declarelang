@@ -47,6 +47,29 @@ await test("inspect: tree as data — kinds, names, paths, geometry, root-space"
   app.discard();
 });
 
+await test("shown: EFFECTIVE visibility, folding in every ancestor", () => {
+  // reported 2026-08-03: a node inside a hidden panel read back `visible: true`
+  // — true of its own slot, and useless to a reader asking why nothing is on
+  // screen. Both facts are now present and neither is guessed from the other.
+  const app = boot(`App [ width = 300, height = 120,
+      pane: View [ visible = false, width = 200, height = 60,
+          b: View [ width = 80, height = 24,
+              deep: View [ width = 10, height = 10 ] ] ] ]`);
+  const pane = find(app, "app.pane");
+  assert.equal(inspect(pane).visible, false);
+  assert.equal(inspect(pane).shown, false);
+  const b = inspect(find(app, "app.pane.b"));
+  assert.equal(b.visible, true, "its OWN slot is untouched");
+  assert.equal(b.shown, false, "but it is not on screen — the panel above it is hidden");
+  // entered at arbitrary depth: the chain is walked UP, not folded down
+  assert.equal(inspect(find(app, "app.pane.b.deep")).shown, false, "two levels down, still hidden");
+  assert.equal(b.children[0].shown, false, "and the same node reached by recursion agrees");
+  pane.visible = true;
+  settle();
+  assert.equal(inspect(find(app, "app.pane.b.deep")).shown, true, "revealing the ancestor shows it");
+  app.discard();
+});
+
 await test("find: dotted paths resolve names and indices; misses are null", () => {
   const app = boot(APP);
   assert.equal(find(app, "app.panel.lbl").text, "hello");

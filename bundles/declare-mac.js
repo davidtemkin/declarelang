@@ -8555,6 +8555,15 @@ var DeclareMac = (() => {
       return [];
     throw new DeclareError(`'${path}' \u2014 paths are segments (["${path.split(".").join('", "')}"]) or an RFC 6901 pointer ("/${path.split(".").join("/")}"); the dot-string form retired with Pointer writes (data-paths.md \xA711)`);
   }
+  function parseProblem(raw) {
+    if (raw === "")
+      return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return raw;
+    }
+  }
   function provideTransport(fn) {
     const prev = transport;
     transport = fn;
@@ -8872,12 +8881,26 @@ var DeclareMac = (() => {
          *  opt-in for reactive addresses (above). A non-GET `method` sends `body`. */
         async fetch() {
           const seq = ++this.seq;
+          const url = this.url;
           setBound(this, "status", "loading");
           setBound(this, "error", null);
+          setBound(this, "statusCode", 0);
+          setBound(this, "errorBody", null);
           try {
-            const res = await transport(this.url, this.requestInit());
-            if (!res.ok)
-              throw new Error(`HTTP ${res.status} for ${this.url}`);
+            const res = await transport(url, this.requestInit());
+            if (seq === this.seq)
+              setBound(this, "statusCode", res.status);
+            if (!res.ok) {
+              let raw = "";
+              try {
+                raw = typeof res.text === "function" ? await res.text() : "";
+              } catch {
+                raw = "";
+              }
+              if (seq === this.seq)
+                setBound(this, "errorBody", parseProblem(raw));
+              throw new Error(`HTTP ${res.status} for ${url}`);
+            }
             const value = this.format === "text" ? await res.text() : await res.json();
             if (seq !== this.seq)
               return;
@@ -8903,6 +8926,8 @@ var DeclareMac = (() => {
           this.seq++;
           setBound(this, "value", null);
           setBound(this, "error", null);
+          setBound(this, "statusCode", 0);
+          setBound(this, "errorBody", null);
           setBound(this, "status", "idle");
         }
       };
@@ -8915,7 +8940,11 @@ var DeclareMac = (() => {
         method: { def: "GET" },
         body: { def: null },
         status: { def: "idle" },
-        error: { def: null }
+        error: { def: null },
+        // 0 = no reply yet (or none ever arrived) — distinct from every real HTTP
+        // code, so a constraint can tell "not asked" from "asked and refused".
+        statusCode: { def: 0 },
+        errorBody: { def: null }
       });
     }
   });
@@ -14672,6 +14701,13 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
         rootY += n.y;
       }
     }
+    let shown = true;
+    for (let n = node; n !== null; n = n.parent) {
+      if (isView2(n) && !n.visible) {
+        shown = false;
+        break;
+      }
+    }
     const record2 = {
       kind: kindName(node),
       name: nameOf(node),
@@ -14683,6 +14719,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       rootX,
       rootY,
       visible: v?.visible ?? true,
+      shown,
       attrs: safeAttr(ownValues(node)),
       children: node.children.map((c, i) => {
         const childName = nameOf(c);

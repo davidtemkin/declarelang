@@ -16,7 +16,13 @@ export interface InspectNode {
     /** Root-space position — the parent chain's offsets summed. */
     rootX: number;
     rootY: number;
+    /** This node's OWN `visible` slot — what the program says about it. */
     visible: boolean;
+    /** Whether it is actually SHOWN: its own `visible` and every ancestor's.
+     *  These differ exactly when a node is hidden by something above it, which
+     *  is the case a reader is usually chasing — `visible: true` on a node
+     *  inside a hidden panel is true and useless on its own. */
+    shown: boolean;
     text?: string;
     /** The node's OWN attribute values (instance writes and bound results —
      *  the overlay over class defaults). A snapshot. */

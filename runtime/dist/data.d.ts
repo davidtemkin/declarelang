@@ -92,6 +92,14 @@ export declare class DataSource extends Dataset {
     /** The lifecycle, as one fact; the four doc-named booleans derive below. */
     status: "idle" | "loading" | "loaded" | "failed";
     error: string | null;
+    /** What the server ANSWERED, kept apart from whether it worked. `statusCode`
+     *  is the HTTP status (0 before a reply, or when the request never reached
+     *  one); `errorBody` is the refusal's payload — parsed when it is JSON, the
+     *  raw text otherwise. `error` stays the one-line message, `value` stays the
+     *  success value: a failed fetch never writes `value`, so a retry-vs-report
+     *  decision can read the code without any of the three fighting. */
+    statusCode: number;
+    errorBody: unknown;
     get idle(): boolean;
     get loading(): boolean;
     get loaded(): boolean;

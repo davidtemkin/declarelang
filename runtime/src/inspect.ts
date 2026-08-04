@@ -32,7 +32,13 @@ export interface InspectNode {
   x: number; y: number; width: number; height: number;
   /** Root-space position — the parent chain's offsets summed. */
   rootX: number; rootY: number;
+  /** This node's OWN `visible` slot — what the program says about it. */
   visible: boolean;
+  /** Whether it is actually SHOWN: its own `visible` and every ancestor's.
+   *  These differ exactly when a node is hidden by something above it, which
+   *  is the case a reader is usually chasing — `visible: true` on a node
+   *  inside a hidden panel is true and useless on its own. */
+  shown: boolean;
   text?: string;
   /** The node's OWN attribute values (instance writes and bound results —
    *  the overlay over class defaults). A snapshot. */
@@ -155,6 +161,14 @@ export function inspect(node: Node, path = "app"): InspectNode {
   for (let n: Node | null = node; n !== null && n.parent !== null; n = n.parent) {
     if (isView(n)) { rootX += n.x; rootY += n.y; }
   }
+  // effective visibility is inherited, so it is walked from THIS node up
+  // rather than threaded down — inspect() is entered at arbitrary depth
+  // (`inspect(app.pane.b)`), and a subtree-only fold would report a node
+  // inside a hidden panel as shown.
+  let shown = true;
+  for (let n: Node | null = node; n !== null; n = n.parent) {
+    if (isView(n) && !n.visible) { shown = false; break; }
+  }
   const record: InspectNode = {
     kind: kindName(node),
     name: nameOf(node),
@@ -162,6 +176,7 @@ export function inspect(node: Node, path = "app"): InspectNode {
     x: v?.x ?? 0, y: v?.y ?? 0, width: v?.width ?? 0, height: v?.height ?? 0,
     rootX, rootY,
     visible: v?.visible ?? true,
+    shown,
     attrs: safeAttr(ownValues(node)) as Record<string, unknown>,
     children: node.children.map((c, i) => {
       const childName = nameOf(c);

@@ -6,7 +6,7 @@ bindable `value`; radios deliver to it, the `ViewTab` → `app.mode` shape). Rad
 are written as the group's DIRECT children — the group's layout arranges them,
 and each radio reaches its group as `parent`:
 
-    RadioGroup [ value = "m", input(v) { app.size = v },
+    RadioGroup [ value = "m", input(v: string) { app.size = v },
         Radio [ choice = "s", label = "Small" ],
         Radio [ choice = "m", label = "Medium" ],
         Radio [ choice = "l", label = "Large" ],

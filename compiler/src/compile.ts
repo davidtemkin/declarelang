@@ -428,6 +428,7 @@ export function compile(source: string, opts: CompileOptions = {}): Compiled {
   // Resolve EVERY body — the main tree's and every included class/stylesheet/
   // style's — so no unresolved bare name reaches the self-contained output.
   const r = new Resolver(merged, program);
+  r.checkScripts(program);
   for (const cls of program.classes) r.resolveElement(cls.body, [], null);
   for (const s of program.stylesheets) r.resolveStylesheet(s.body);
   for (const s of program.styles) r.resolveBundle(s.body);
@@ -652,6 +653,69 @@ class Resolver {
         if (c.name !== null) { members.add(c.name); declared.add(c.name); }
       }
       this.classExtras.set(cls.name, { members, declared });
+    }
+  }
+
+  /** `export`/`import` at the top of a `script { … }` block, refused WHERE IT
+   *  IS WRITTEN.
+   *
+   *  A script block's source is appended to the typecheck scaffold, and in
+   *  TypeScript a single top-level `export` turns that whole file from a script
+   *  into a MODULE — at which point every ambient declaration the scaffold made
+   *  (every component, every one of the program's own members) stops being a
+   *  global and resolves to nothing. One `export` therefore produced a spray of
+   *  unresolved-name errors naming innocent symbols at unrelated lines, with
+   *  nothing at all pointing at the cause. Eighteen of them, into library source,
+   *  in the report that prompted this.
+   *
+   *  It is refused rather than quietly stripped: a script block is not a module
+   *  and has no importers. Its top-level names are ALREADY visible to every
+   *  body in the program — that is what the block is for — so `export` is not
+   *  merely redundant, it describes a mechanism that does not exist here.
+   *  Accepting it silently would teach the wrong model of where these names go. */
+  checkScripts(program: Program): void {
+    for (const b of program.scripts) {
+      // the body's start offset in the merged source: the span ends at the
+      // closing brace, so backing up over the raw source and that brace lands
+      // just past the `{` — the same arithmetic the transpile pass uses.
+      const bodyOpen = b.span.end - b.src.length - 1;
+      let sf: ts.SourceFile;
+      try {
+        sf = ts.createSourceFile("script.ts", b.src, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS);
+      } catch { continue; }
+      for (const st of sf.statements) {
+        const pos = (n: ts.Node): Pos => this.posAt(bodyOpen + n.getStart(sf));
+        if (ts.isImportDeclaration(st) || ts.isImportEqualsDeclaration(st)) {
+          // NOT the same case as `export`. ES import inside a script block is
+          // the RULED mechanism for pulling in JS modules (composition.md §2:
+          // `include` moves Declare declarations, `import` moves JS bindings) —
+          // it is unbuilt, not unwanted, so the message says "not yet" and
+          // names the door that IS open rather than denying the design.
+          //
+          // Two things are missing, and the second is the deeper one:
+          // resolution is deferred with the dev-env rung (§3), AND a block is
+          // emitted as a `new Function` body with a `return { … }` bindings
+          // tail, where an import statement is illegal outright.
+          this.errors.push(new DeclareError(
+            `a script { } block cannot import yet — the block is evaluated as a function body, where an import statement has nowhere to go, and module resolution is unbuilt (docs/system-design/composition.md §2); for now inline what you need, or bring in Declare source with a top-level include [ "file.declare" ]`,
+            pos(st)));
+          continue;
+        }
+        if (ts.isExportDeclaration(st) || ts.isExportAssignment(st)) {
+          this.errors.push(new DeclareError(
+            `a script { } block cannot export — nothing imports it; drop the export, its top-level names are already visible to every { } in the program`,
+            pos(st)));
+          continue;
+        }
+        const mod = ts.canHaveModifiers(st)
+          ? ts.getModifiers(st)?.find((m) => m.kind === ts.SyntaxKind.ExportKeyword)
+          : undefined;
+        if (mod !== undefined) {
+          this.errors.push(new DeclareError(
+            `'export' has no meaning in a script { } block — drop the keyword; a top-level name here is already visible to every { } in the program`,
+            pos(mod)));
+        }
+      }
     }
   }
 

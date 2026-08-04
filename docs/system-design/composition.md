@@ -16,6 +16,10 @@ Ruled by the human, 2026-07-03. **Compiled libraries are deliberately out of
 scope** (source-merge only — §1); **module resolution plumbing is deferred to
 the dev-env rung** (§3).
 
+> **`import` is not accepted yet** (as of 2026-08-03) — it is ruled in and
+> wanted, but blocked on two things (§2). The compiler refuses it with a
+> positioned error that says so. `include` is unaffected and works today.
+
 
 ## 1. `include` — composing Declare declarations
 
@@ -167,7 +171,7 @@ Declare does **not** invent a module system; it rides ES modules.
   module scope. Declare's own output is already zero-dep ESM (`dist/index.js`), so a
   compiled app sits in the module graph naturally: it imports and is imported.
 
-The worked case:
+The worked case — **the intended shape, not yet accepted** (see the refusal below):
 
 ```
 script {
@@ -178,7 +182,43 @@ script {
 ```
 
 There is no Declare-specific module story to design — "how do they work / what do
-they do" is the standard ES answer. The only real work is **resolution** (§3).
+they do" is the standard ES answer. The work is **resolution** (§3) and the
+**emission shape** (below).
+
+### What actually blocks it today (2026-08-03)
+
+Two things, and the second was not previously recorded here — it is the deeper
+one, because no amount of resolution infra removes it:
+
+1. **Resolution** (§3), as written below.
+2. **The emission shape.** A `script { }` block is not emitted at module top
+   level. `compile.ts` transpiles it and splices it back with a trailing
+   `return { … }` bindings tail, and the runtime evaluates that with
+   `new Function` — there is no other way to enumerate a function's scope, and
+   doing it this way is what keeps the artifact self-contained. An `import`
+   statement is illegal in a function body, so it has nowhere to go regardless
+   of whether the specifier could be resolved. Item 2 of §4's *To build* — the
+   full Declare-file-as-one-ES-module emission — is what removes this.
+
+   The tractable path, if this is picked up before that lands: rewrite static
+   imports to dynamic ones in the transpile pass already running
+   (`import { f } from "m"` → `const { f } = await import("m")`), harvest the
+   import bindings into the `return { … }` tail, and evaluate a block that has
+   imports as an *async* function. The typecheck scaffold (`typecheck.ts`)
+   needs the same rewritten form appended rather than the raw source — a
+   top-level `import` there turns the scaffold from a script into a module and
+   every ambient declaration stops being a global at once. Browser runtime
+   parity then needs a server-emitted import map; browser *typecheck* fidelity
+   does not follow, since in-browser tsc has no `node_modules`, and whether
+   that asymmetry is acceptable is what the same-experience ruling below
+   decides.
+
+**Until then the compiler refuses it, by name.** An `import` in a script block
+is a positioned error reading *"cannot import yet"* and citing this section —
+deliberately worded as unbuilt rather than unwanted, since this document rules
+the feature in. Before that check existed, the module-ification described above
+sprayed unresolved-name errors across the whole program with nothing pointing at
+the import; `test/script-block.test.mjs` pins both the refusal and its wording.
 
 
 ## 3. Module resolution — deferred with the dev-env
@@ -228,3 +268,8 @@ surprise.
      half; this is the back half.
 - **Deferred:** module-resolution infra (with the dev-env rung, §3); compiled
   libraries (§1, indefinitely).
+- **Interim (2026-08-03):** `import` in a `script { }` block is a positioned
+  compile error naming itself as unbuilt (§2). It replaced a whole-program spray
+  of unresolved-name errors that pointed nowhere near the cause. The stance is
+  unchanged — the feature is ruled in, wanted for ecosystem reach, and blocked
+  on §4's item 2 plus §3.
