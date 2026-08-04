@@ -329,16 +329,40 @@ function collectLocals(sf: ts.Node, params: readonly string[]): Set<string> {
  *  *through* the result (`f(x).title`) — what makes a callee that returns one of
  *  its own parameters unsafe. */
 type Call =
-  | { kind: "method"; name: string; receiver: string; args: (string | null)[]; projected: boolean }
-  | { kind: "script"; name: string; args: (string | null)[]; projected: boolean }
+  | { kind: "method"; name: string; receiver: string; args: (string | null)[]; projected: boolean; tail: string | null }
+  | { kind: "script"; name: string; args: (string | null)[]; projected: boolean; tail: string | null }
   | { kind: "scriptValue"; name: string };
 
 /** Does the call site read through this expression's result? */
 function isProjected(n: ts.Node): boolean {
+  return projectionTail(n) !== null;
+}
+
+/** WHAT the call site reads off the result — `pickBox().width` → "width",
+ *  `pickBox().a.b` → "a.b" — or null when the result is not read through.
+ *
+ *  The boolean was enough while the only question was whether to REFUSE (a
+ *  callee handing back one of its parameters). To WIRE a returned node's
+ *  attribute the tail is the other half of the path: the callee supplies
+ *  `<receiver>.box`, this supplies `.width`. Property and literal-index steps
+ *  only — a computed index is a runtime choice and stops the chain, which is
+ *  the same line nameablePath() draws. */
+function projectionTail(n: ts.Node): string | null {
   const p: ts.Node | undefined = n.parent;
-  if (p === undefined) return false;
-  if (ts.isNonNullExpression(p) || ts.isParenthesizedExpression(p) || ts.isAsExpression(p)) return isProjected(p);
-  return (ts.isPropertyAccessExpression(p) || ts.isElementAccessExpression(p)) && p.expression === n;
+  if (p === undefined) return null;
+  if (ts.isNonNullExpression(p) || ts.isParenthesizedExpression(p) || ts.isAsExpression(p)) return projectionTail(p);
+  if (ts.isPropertyAccessExpression(p) && p.expression === n) {
+    const rest = projectionTail(p);
+    return rest === null ? p.name.text : `${p.name.text}.${rest}`;
+  }
+  if (ts.isElementAccessExpression(p) && p.expression === n) {
+    const idx = p.argumentExpression;
+    if (idx === undefined || !(ts.isNumericLiteral(idx) || ts.isStringLiteral(idx))) return null;
+    const rest = projectionTail(p);
+    const head = `[${idx.getText()}]`;
+    return rest === null ? head : `${head}.${rest}`;
+  }
+  return null;
 }
 
 interface BodyDeps { reads: Set<string>; calls: Call[]; errors: DepError[] }
@@ -385,7 +409,7 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
   const noteScriptCall = (call: ts.CallExpression): void => {
     const callee = call.expression;
     if (!ts.isIdentifier(callee) || locals.has(callee.text) || !SCRIPT_FUNCTIONS.has(callee.text)) return;
-    calls.push({ kind: "script", name: callee.text, args: call.arguments.map((a) => nameablePath(a)), projected: isProjected(call) });
+    calls.push({ kind: "script", name: callee.text, args: call.arguments.map((a) => nameablePath(a)), projected: isProjected(call), tail: projectionTail(call) });
   };
 
   const classifyChain = (top: ts.Node): void => {
@@ -423,7 +447,7 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
         // than recording the slot itself (which has no cell to fire).
         // A computed default takes no arguments and is inlined at the read, so it
         // is never "projected through a returned parameter" — there are none.
-        calls.push({ kind: "method", name: s.name.text, receiver: pathTextOf(s.expression), args: [], projected: false });
+        calls.push({ kind: "method", name: s.name.text, receiver: pathTextOf(s.expression), args: [], projected: false, tail: null });
         pathEnd = base;
         break;
       }
@@ -480,7 +504,7 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
           } else if (ITER.has(m)) {
             if (recvName && NODE_COLLECTIONS.has(recvName)) errors.push(new DepError(`aggregation over a reactive node collection (.${recvName}.${m}) — a data-dependent number of slots; derive from data`, s.getStart()));
           } else if (PURE_METHODS.has(m)) { /* pure projection */ }
-          else if (USER_METHODS.has(m)) calls.push({ kind: "method", name: m, receiver: pathTextOf(recv), args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s) });
+          else if (USER_METHODS.has(m)) calls.push({ kind: "method", name: m, receiver: pathTextOf(recv), args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s) });
           else if (LANGUAGE_METHOD_EFFECTS.has(m)) {
             // A language-supplied method with a DECLARED reactive effect
             // (effects.ts): union its read-paths, rebased to this receiver — as
@@ -491,7 +515,7 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
         } else if (ts.isIdentifier(callee)) {
           const nm = callee.text;
           if (CONSTRUCTORS.has(nm) || GLOBALS.has(nm) || locals.has(nm) || SCRIPT_FUNCTIONS.has(nm)) { /* pure, or already recorded by noteScriptCall */ }
-          else if (USER_METHODS.has(nm)) calls.push({ kind: "method", name: nm, receiver: "this", args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s) });
+          else if (USER_METHODS.has(nm)) calls.push({ kind: "method", name: nm, receiver: "this", args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s) });
           else if (LANGUAGE_METHOD_EFFECTS.has(nm)) { for (const rp of LANGUAGE_METHOD_EFFECTS.get(nm)!) reads.add(rebase(rp, "this")); }
           else errors.push(new DepError(`unresolved call target ${nm}() — its reads can't be analyzed`, s.getStart()));
         }
@@ -534,7 +558,7 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
   return { reads, calls, errors };
 }
 
-let USER_METHODS = new Map<string, { params: string[]; body: string }>();
+let USER_METHODS = new Map<string, { params: string[]; body: string; returns?: string }>();
 
 // The program's `script { }` module scope, split by what the extractor can do
 // with each name: FUNCTIONS are followed (phase 4 — the fourth analyzable callee
@@ -658,7 +682,87 @@ function checkParams(
 
 /** One callable's own (un-closed) deps, plus what a caller needs to know to
  *  rebase them: the parameter names, and which of those leave through the return. */
-type Summary = BodyDeps & { params: string[] | null; returned: Set<string> };
+type Summary = BodyDeps & { params: string[] | null; returned: Set<string>; ret: ReturnShape; returns?: string };
+
+/** The STATIC paths a body hands back — `return this.box` → ["this.box"], and
+ *  both arms of `return c ? this.a : this.b`.
+ *
+ *  This is what makes `pickBox().width` wirable. Following into the body records
+ *  `this.box` — the node — and a node reference never changes; `.width` is a
+ *  different cell entirely, so the constraint was subscribed to the folder while
+ *  caring about a file inside it, and went silently stale. With the path in hand
+ *  the call site can append its own tail and wire `<receiver>.box.width`.
+ *
+ *  Only nameable paths qualify. `return this.children.filter(…)[0]` picks a node
+ *  at runtime and yields null here — which is correct, and leaves that shape to
+ *  the refusal below rather than wiring something untrue. Collecting BOTH arms of
+ *  a conditional over-approximates on purpose: an extra dependency costs a
+ *  recomputation, a missing one costs correctness. */
+function returnedPaths(sf: ts.SourceFile, locals: ReadonlySet<string>, params: readonly string[] = []): ReturnShape {
+  const out: string[] = [];
+  const viaParam: string[] = [];
+  let opaque = false;
+  const take = (e: ts.Expression | undefined): void => {
+    if (e === undefined) return;
+    if (ts.isParenthesizedExpression(e) || ts.isNonNullExpression(e) || ts.isAsExpression(e)) return take(e.expression);
+    if (ts.isConditionalExpression(e)) { take(e.whenTrue); take(e.whenFalse); return; }
+    const path = nameablePath(e);
+    if (path === null) { opaque = true; return; }
+    const head = path.split(/[.[]/)[0];
+    // A PARAMETER is resolvable after all — not here, but at the call site, which
+    // knows what it passed. Recorded by name so the join can map it onto the
+    // argument. This is the case the old gate refused as "not knowable"; it is
+    // knowable, as a finite candidate set, exactly like a conditional's arms.
+    if (params.includes(head)) { viaParam.push(path); return; }
+    // any other local is a name the call site never wrote — unrebasable
+    if (locals.has(head)) { opaque = true; return; }
+    out.push(path);
+  };
+  const walk = (n: ts.Node): void => {
+    if (ts.isFunctionDeclaration(n) || ts.isFunctionExpression(n)) return;   // a nested function's return is its own
+    if (ts.isReturnStatement(n)) take(n.expression);
+    if (ts.isArrowFunction(n) && !ts.isBlock(n.body)) return;                // concise body belongs to that arrow
+    ts.forEachChild(n, walk);
+  };
+  walk(sf);
+  return { paths: [...new Set(out)], viaParam: [...new Set(viaParam)], opaque };
+}
+
+/** What a body hands back, split by how the call site can resolve it: static
+ *  scope paths, paths rooted at a PARAMETER (resolved against the argument), and
+ *  whether any return is neither — a runtime selection with no static answer. */
+interface ReturnShape { paths: string[]; viaParam: string[]; opaque: boolean }
+
+/** Could a projection off this return type reach a CELL?
+ *
+ *  The rule is determinability — every cell a constraint can reach must be
+ *  nameable at compile time — and this is the EVIDENCE for whether any cell is
+ *  reachable at all. It is not a special case for nodes; it is the only static
+ *  signal there is.
+ *
+ *  Measured before it was written this way. The stricter reading — refuse unless
+ *  the return is provably a snapshot — refuses correct code at scale: the tracker
+ *  and calendar do `issuesOf(rev).length`, `eventsOn(d).map`, `collapsedSet().includes`,
+ *  and `.length`/`.map`/`.find` on an array reach no cell whatever the array holds.
+ *  `array` and `object` are simply too coarse to separate data from a carrier, so
+ *  treating them as suspicious costs four refusals of working code and buys
+ *  nothing.
+ *
+ *  So: a capitalized type names a component, whose attributes are cells; the
+ *  lowercase value types and `Color` are data. That is the language's own naming
+ *  rule, not a list to maintain.
+ *
+ *  KNOWN LIMIT, and the honest cost of this being the only evidence available:
+ *  `wrap(): object { return { box: this.box } }` with `wrap().box.width` reaches
+ *  a cell through a value type and is NOT refused. Narrower than the hole this
+ *  replaced, and it wants a real answer — the reachability of a cell through a
+ *  composite — rather than a wider guess here. */
+function mayCarryCells(returns: string | undefined): boolean {
+  if (returns === undefined) return false;          // unannotated: no evidence, no refusal
+  const t = returns.replace(/\?$/, "").trim();
+  if (t === "Color") return false;                  // capitalized, but data
+  return /^[A-Z]/.test(t);
+}
 
 interface Summaries {
   own: Map<string, Summary>;
@@ -666,13 +770,21 @@ interface Summaries {
   follow: (c: Call) => { reads: Set<string>; errors: DepError[] };
 }
 
+const NO_RET: ReturnShape = { paths: [], viaParam: [], opaque: false };
 const NO_PARAMS = { params: [] as string[], returned: new Set<string>() };
 
 function buildMethodSummaries(): Summaries {
   const own = new Map<string, Summary>();
   // A METHOD's parameters stay opaque locals, so its frame is the receiver alone.
   //
-  // KNOWN HOLE, deliberately left: pass a node to a method and the body's
+  // KNOWN HOLE, deliberately left — and it is the PARAMETER door only. The
+  // RETURN door (a method hands back a node and the caller reads an attribute
+  // off it) was silently open beside it until 2026-08-03; it is closed now, by
+  // returnedPaths() above and the projection join in follow1. Naming both here
+  // because this comment read as though the whole subject had been considered,
+  // and a cold reader found the other half in under an hour.
+  //
+  // The remaining hole: pass a node to a method and the body's
   // `node.title` is a real edge the extractor drops — the same missed edge phase 4
   // closes for `script { }`, in the older door
   // (`{ app.vOf(app) + app.w }` with `vOf(n) { return n.v }` wires only `w`, and
@@ -684,8 +796,11 @@ function buildMethodSummaries(): Summaries {
   // this door is a migration of its own, not a side effect of phase 4.
   for (const [name, { params, body }] of USER_METHODS) {
     const sf = parseBody(body, false);
-    if (!sf) { own.set(name, { reads: new Set(), calls: [], errors: [], ...NO_PARAMS }); continue; }
-    own.set(name, { ...extractBody(sf, collectLocals(sf, params)), ...NO_PARAMS });
+    if (!sf) { own.set(name, { reads: new Set(), calls: [], errors: [], ...NO_PARAMS, ret: NO_RET }); continue; }
+    const locals = collectLocals(sf, params);
+    // params are real here: a returned parameter resolves against the argument
+    own.set(name, { ...extractBody(sf, locals), params, returned: new Set<string>(),
+                    ret: returnedPaths(sf, locals, params), returns: USER_METHODS.get(name)?.returns });
   }
   // Computed `{ }` defaults join the same callable graph — a default's body is an
   // EXPRESSION (parseBody expr-mode), and same-named defaults union into one summary.
@@ -703,7 +818,7 @@ function buildMethodSummaries(): Summaries {
       const d: BodyDeps = sf ? extractBody(sf, collectLocals(sf, []), inlinable) : { reads: new Set(), calls: [], errors: [] };
       const ex = own.get(name);
       if (ex) { for (const r of d.reads) ex.reads.add(r); ex.calls.push(...d.calls); ex.errors.push(...d.errors); }
-      else own.set(name, { ...d, ...NO_PARAMS });
+      else own.set(name, { ...d, ...NO_PARAMS, ret: sf ? returnedPaths(sf, collectLocals(sf, [])) : NO_RET });
     }
   }
   // `script { }` functions join the same callable graph. Their bodies are
@@ -721,7 +836,11 @@ function buildMethodSummaries(): Summaries {
     const d = extractBody(fn.body, locals, undefined, roots);
     const { errors, returned } = checkParams(fn.body, [...roots], locals, roots, `script function ${name}()`);
     d.errors.push(...errors);
-    scriptOwn.set(name, { ...d, params, returned });
+    // A script body has no scope nouns (no `this`, no `classroot`), so it cannot
+    // return a receiver-relative PATH — only a value built from what it was
+    // handed. That is the shape the tracker's `issuesOf(rev).length` already
+    // wires correctly through its reads, so there is nothing extra to publish.
+    scriptOwn.set(name, { ...d, params, returned, ret: NO_RET });
   }
 
   const memo = new Map<string, { reads: Set<string>; errors: DepError[] }>();
@@ -780,19 +899,73 @@ function buildMethodSummaries(): Summaries {
     const args = asValue ? null : c.args;
     const receiver = c.kind === "method" ? c.receiver : null;
     const key = `${tag}@${receiver ?? ""}(${args === null ? "*" : args.join(",")})`;
+    // THE PROJECTION JOIN. The callee says what it hands back (`this.box`); the
+    // call site says what it reads off it (`width`). Neither half is a dependency
+    // on its own — following the body records the NODE, whose reference never
+    // changes — so the two are joined here into the cell that actually moves:
+    // `<receiver>.box.width`. Rebased through the receiver like every other read,
+    // so a helper on a class works from any instance.
+    // THE PROJECTION JOIN. The callee says what it hands back; the call site says
+    // what it reads off it. Neither is a dependency alone — following the body
+    // records the object, whose reference never changes, while the projection
+    // reaches a cell — so the two are joined into the path that actually moves.
+    //
+    // The test is DETERMINABILITY, not what kind of thing came back: a constraint
+    // is legal when every cell it can reach is nameable at compile time. Three
+    // ways that holds, and one way it doesn't:
+    //
+    //   • a static path   `return this.box`         → <receiver>.box.<tail>
+    //   • a conditional   `return c ? this.a : b`   → BOTH arms; over-approximating
+    //                                                 costs a recomputation, under-
+    //                                                 approximating costs correctness
+    //   • a parameter     `return x`                → the ARGUMENT this call passed,
+    //                                                 which the call site knows
+    //   • anything else   `return kids[app.i]`      → the cell's identity depends on
+    //                                                 runtime state; no finite set of
+    //                                                 paths exists, so it is refused
+    const projected = new Set<string>();
+    let unnameable = false;
+    if (c.kind !== "scriptValue" && c.tail !== null) {
+      for (const rp of o.ret.paths) projected.add(`${rebase(rp, receiver)}.${c.tail}`);
+      for (const rp of o.ret.viaParam) {
+        // `x` or `x.inner` → the argument that was passed, plus the rest of the path
+        const head = rp.split(/[.[]/)[0];
+        const i = (o.params ?? []).indexOf(head);
+        const arg = i >= 0 && args !== null ? args[i] ?? null : null;
+        if (arg === null) { unnameable = true; continue; }
+        projected.add(`${rebase(arg + rp.slice(head.length), receiver)}.${c.tail}`);
+      }
+      if (o.ret.opaque) unnameable = true;
+    }
+    // A body that returns a plain VALUE reaches no cell through the projection —
+    // `listOf(k).length` is arithmetic on data the body already computed from its
+    // reads, so those reads are the whole dependency and there is nothing to name.
+    // Only a return that can carry reactive state can strand a cell.
+    const carriesCells = c.kind !== "scriptValue" && mayCarryCells(o.returns);
+    const projectionErrors: DepError[] =
+      unnameable && carriesCells && c.tail !== null
+        ? [new DepError(`${c.name}(…) returns a value chosen at run time, and this reads '.${c.tail}' off it — the dependency cannot be named at compile time, so it would silently stop updating. Read the attribute where the path is known (at the call site), or return the attribute itself rather than the object carrying it`)]
+        : [];
+    const withProjection = (r: { reads: Set<string>; errors: DepError[] }) =>
+      ({ reads: projected.size === 0 ? r.reads : new Set([...r.reads, ...projected]), errors: r.errors });
+
     const cached = memo.get(key);
-    if (cached !== undefined) return { reads: cached.reads, errors: [...cached.errors, ...projectionGate(o, c)] };
+    if (cached !== undefined) {
+      const r = withProjection(cached);
+      return { reads: r.reads, errors: [...cached.errors, ...projectionGate(o, c), ...projectionErrors] };
+    }
     const map = new Map<string, string | null>();
     o.params.forEach((p, i) => map.set(p, args === null ? null : (args[i] ?? null)));
     stack.add(tag);
     const res = close(o, { who: c.name, receiver, map, asValue }, stack);
     stack.delete(tag);
-    memo.set(key, res);
-    return { reads: res.reads, errors: [...res.errors, ...projectionGate(o, c)] };
+    memo.set(key, res);   // memo holds the UNPROJECTED reads: the tail varies per call site
+    const out = withProjection(res);
+    return { reads: out.reads, errors: [...res.errors, ...projectionGate(o, c), ...projectionErrors] };
   };
 
   const trans = (name: string, receiver: string): { reads: Set<string>; errors: DepError[] } =>
-    follow1({ kind: "method", name, receiver, args: [], projected: false }, new Set());
+    follow1({ kind: "method", name, receiver, args: [], projected: false, tail: null }, new Set());
 
   const follow = (c: Call): { reads: Set<string>; errors: DepError[] } => follow1(c, new Set());
 
@@ -820,7 +993,7 @@ export function extractProgram(program: Program): ExtractedConstraint[] {
   type Owned = { tag: string; name: string | null; attr: string; src: string; offset: number; node: CodeValue; owner: unknown; classRoot: unknown };
   const constraints: Owned[] = [];
   const collect = (el: Element, classRoot: unknown): void => {
-    for (const m of el.methods as Method[]) USER_METHODS.set(m.name, { params: m.params.map((p) => p.name), body: m.body ?? "" });
+    for (const m of el.methods as Method[]) USER_METHODS.set(m.name, { params: m.params.map((p) => p.name), body: m.body ?? "", returns: m.returns });
     for (const a of el.attrs as Attr[]) { const v = asCode(a.value); if (v) constraints.push({ tag: el.tag, name: el.name ?? null, attr: a.name, src: v.src, offset: v.pos?.offset ?? 0, node: v, owner: el, classRoot }); }
     for (const d of el.decls as AttrDecl[]) {
       const v = asCode(d.def);
