@@ -698,7 +698,7 @@ type Summary = BodyDeps & { params: string[] | null; returned: Set<string>; ret:
  *  the refusal below rather than wiring something untrue. Collecting BOTH arms of
  *  a conditional over-approximates on purpose: an extra dependency costs a
  *  recomputation, a missing one costs correctness. */
-function returnedPaths(sf: ts.SourceFile, locals: ReadonlySet<string>, params: readonly string[] = []): ReturnShape {
+function returnedPaths(sf: ts.Node, locals: ReadonlySet<string>, params: readonly string[] = []): ReturnShape {
   const out: string[] = [];
   const viaParam: string[] = [];
   let opaque = false;
@@ -837,10 +837,10 @@ function buildMethodSummaries(): Summaries {
     const { errors, returned } = checkParams(fn.body, [...roots], locals, roots, `script function ${name}()`);
     d.errors.push(...errors);
     // A script body has no scope nouns (no `this`, no `classroot`), so it cannot
-    // return a receiver-relative PATH — only a value built from what it was
-    // handed. That is the shape the tracker's `issuesOf(rev).length` already
-    // wires correctly through its reads, so there is nothing extra to publish.
-    scriptOwn.set(name, { ...d, params, returned, ret: NO_RET });
+    // return a receiver-relative PATH — but it CAN hand back a parameter, and the
+    // call site knows what it passed. Same join as a method's, so a script and a
+    // method behave alike; before this a method resolved and a script refused.
+    scriptOwn.set(name, { ...d, params, returned, ret: returnedPaths(fn.body, locals, params ?? []) });
   }
 
   const memo = new Map<string, { reads: Set<string>; errors: DepError[] }>();
@@ -881,10 +881,14 @@ function buildMethodSummaries(): Summaries {
    *  while the caller doesn't read *through* that result: `pick(a, b)` is fine,
    *  `pick(a, b).title` reads an attribute of whichever node came back, and the
    *  extractor cannot know which. */
-  const projectionGate = (o: Summary, c: Call): DepError[] =>
-    (c.kind !== "scriptValue" && c.projected && o.returned.size > 0)
-      ? [new DepError(`${c.name}(…) can return the value passed as '${[...o.returned].join("' or '")}', and this call reads through the result — which node's attribute that is isn't knowable here; read the attribute off the argument you passed, or give ${c.name} a return value that isn't one of its parameters`)]
-      : [];
+  /** RETIRED 2026-08-03, kept as a note. This refused every projected call whose
+   *  callee handed back a parameter — "which node's attribute that is isn't
+   *  knowable here". It is knowable: the call site passed the arguments, so the
+   *  candidates are finite, and wiring all of them is the same over-approximation
+   *  a conditional's arms already get. The join below wires what resolves and
+   *  refuses only an argument that is not a nameable path, which is the case this
+   *  gate was actually protecting against. */
+  const projectionGate = (_o: Summary, _c: Call): DepError[] => [];
 
   const follow1 = (c: Call, stack: Set<string>): { reads: Set<string>; errors: DepError[] } => {
     const script = c.kind !== "method";
@@ -924,7 +928,13 @@ function buildMethodSummaries(): Summaries {
     //                                                 runtime state; no finite set of
     //                                                 paths exists, so it is refused
     const projected = new Set<string>();
-    let unnameable = false;
+    // TWO causes, and they answer differently. An unresolved PARAMETER is always
+    // refused: the callee hands back one of its arguments, and if that argument
+    // was not a nameable path there is no candidate set at all — the judgment the
+    // old projectionGate made, kept. An OPAQUE return is refused only where a cell
+    // could be reached, because `issuesOf(rev).length` is opaque and correct.
+    let unresolvedParam = false;
+    let opaqueReturn = false;
     if (c.kind !== "scriptValue" && c.tail !== null) {
       for (const rp of o.ret.paths) projected.add(`${rebase(rp, receiver)}.${c.tail}`);
       for (const rp of o.ret.viaParam) {
@@ -932,20 +942,21 @@ function buildMethodSummaries(): Summaries {
         const head = rp.split(/[.[]/)[0];
         const i = (o.params ?? []).indexOf(head);
         const arg = i >= 0 && args !== null ? args[i] ?? null : null;
-        if (arg === null) { unnameable = true; continue; }
+        if (arg === null) { unresolvedParam = true; continue; }
         projected.add(`${rebase(arg + rp.slice(head.length), receiver)}.${c.tail}`);
       }
-      if (o.ret.opaque) unnameable = true;
+      if (o.ret.opaque) opaqueReturn = true;
     }
     // A body that returns a plain VALUE reaches no cell through the projection —
     // `listOf(k).length` is arithmetic on data the body already computed from its
     // reads, so those reads are the whole dependency and there is nothing to name.
     // Only a return that can carry reactive state can strand a cell.
     const carriesCells = c.kind !== "scriptValue" && mayCarryCells(o.returns);
-    const projectionErrors: DepError[] =
-      unnameable && carriesCells && c.tail !== null
-        ? [new DepError(`${c.name}(…) returns a value chosen at run time, and this reads '.${c.tail}' off it — the dependency cannot be named at compile time, so it would silently stop updating. Read the attribute where the path is known (at the call site), or return the attribute itself rather than the object carrying it`)]
-        : [];
+    const tail = c.kind === "scriptValue" ? null : c.tail;
+    const refuse = tail !== null && (unresolvedParam || (opaqueReturn && carriesCells));
+    const projectionErrors: DepError[] = refuse
+      ? [new DepError(`${c.name}(…) returns a value chosen at run time, and this reads '.${tail}' off it — the dependency cannot be named at compile time, so it would silently stop updating. Read the attribute where the path is known (at the call site), or return the attribute itself rather than the object carrying it`)]
+      : [];
     const withProjection = (r: { reads: Set<string>; errors: DepError[] }) =>
       ({ reads: projected.size === 0 ? r.reads : new Set([...r.reads, ...projected]), errors: r.errors });
 

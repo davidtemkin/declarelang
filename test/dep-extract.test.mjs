@@ -253,13 +253,19 @@ App [ v: number = 10, b: View [ width = { [app].map(vOf).length } ] ]`);
   assert.ok(e.some((x) => /passed as a value/.test(x.message)), JSON.stringify(e.map((x) => x.message)));
 });
 
-test("refused — reading THROUGH a result that may be a parameter handed back", () => {
-  // `pick` can return either argument; `pick(a, b).title` reads an attribute of
-  // whichever node came back, and which one is not knowable here.
-  const e = residueErrors(`script { function pick(a: any, b: any) { return a.n > b.n ? a : b } }
+test("WIRED — reading through a result that may be a parameter handed back", () => {
+  // Was refused, on the reasoning that "which node came back is not knowable
+  // here". It is knowable — not which ONE, but the finite set the call site
+  // passed — so both candidates are wired, the same over-approximation a
+  // conditional's arms already get. An extra dependency costs a recomputation;
+  // the refusal cost correct code. (Changed 2026-08-03 with findings §A1.)
+  const r = extract(`script { function pick(a: any, b: any) { return a.n > b.n ? a : b } }
 App [ cardA: View [ n: number = 1, label: string = "a" ], cardB: View [ n: number = 2, label: string = "b" ],
   b: Text [ text = { pick(app.cardA, app.cardB).label } ] ]`);
-  assert.ok(e.some((x) => /reads through the result/.test(x.message)), JSON.stringify(e.map((x) => x.message)));
+  assert.equal(errsOf(r, "text").length, 0, JSON.stringify(errsOf(r, "text")));
+  const deps = readsOf(r, "text");
+  assert.ok(deps.includes("this.root.cardA.label") && deps.includes("this.root.cardB.label"),
+    `expected BOTH candidates; got ${JSON.stringify(deps)}`);
 });
 
 test("a script function that returns a parameter is fine when the result is NOT projected", () => {
