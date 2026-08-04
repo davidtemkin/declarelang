@@ -17,7 +17,7 @@
 import { fireEvent, onDiscard } from "./view.js";
 import type { RenderBackend, Surface, EditableSpec } from "./backend.js";
 import { bindDerived, defineAttributes, isSet, ownerOf } from "./attributes.js";
-import { Constraint } from "./reactive.js";
+import { Constraint, settle } from "./reactive.js";
 import { Focus } from "./focus.js";
 import type { TextStyle } from "./measure.js";
 import { isTwoWay, edited, commitDraft, Editor } from "./editor.js";
@@ -144,6 +144,21 @@ export class TextInput extends Editor {
   private onNativeInput(v: string): void {
     const owner = ownerOf(this, "text");
     if (owner !== null && !owner.yielding) {
+      // CONTROLLED — the constraint owns the slot, so the keystroke does NOT
+      // land in `text`. That much is right: a `{ }` is the value's source and an
+      // edit cannot overwrite it. But the attempt is still the only news the
+      // program gets, and this path used to revert and return without firing —
+      // so `text = { app.who }` plus an `onInput` handler was a DEAD field: no
+      // edit, no event, no error at any rung, and no way for the app to drive
+      // the field at all (it could not even clear a form). The event is the
+      // whole mechanism of the controlled pattern — the handler writes the slot
+      // the constraint reads, and the new value arrives back through it.
+      //
+      // Fire, settle, THEN reconcile: if the handler moved the model the
+      // element lands on the new value directly, rather than flashing the old
+      // one and correcting a beat later.
+      fireEvent(this, "input", v);
+      settle();
       this.syncEditable();
       return;
     }

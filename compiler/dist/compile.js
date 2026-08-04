@@ -713,9 +713,26 @@ class Resolver {
             e.children.some((c) => c.attrs.some((a) => a.name === "datapath"));
         if (levels.some(supplies))
             return;
+        // The write-back spelling differs by family and the message must name the
+        // one that exists on THIS component: an Editor (TextInput) delivers through
+        // the `input` EVENT (`onInput(v: string)`), a Control (Checkbox, Slider,
+        // RadioGroup) through the `input` METHOD (`input(v: …)`, Contract 1). Naming
+        // the wrong one sends the reader to a member that is legal to declare, never
+        // called, and silent — which is the failure this whole check exists to end.
+        const schema = this.schemas[el.tag];
+        const hasInputEvent = (s) => {
+            for (let c = s; c !== undefined && c !== null; c = c.base ?? undefined) {
+                if (c.events?.includes("input") === true)
+                    return true;
+            }
+            return false;
+        };
+        const writeBack = hasInputEvent(schema)
+            ? `'onInput(v: string) { app.slot = v }'`
+            : `'input(v: …) { app.slot = v }'`;
         for (const a of twoWay) {
             const wrote = a.value.kind === "path" ? `:${a.value.path}` : "{ … }";
-            this.errors.push(new DeclareError(`'${a.name} <-> ${wrote}' has no data to edit — a two-way binding writes into a dataset through the nearest enclosing 'datapath', and nothing above this declares one, so the binding would do nothing in either direction. Put the editor inside a view with 'datapath = { … }' over a Dataset — or, to drive an ordinary slot, use the value pattern instead: '${a.name} = { app.slot }' one-way plus 'input(v: …) { app.slot = v }' to write back`, a.pos));
+            this.errors.push(new DeclareError(`'${a.name} <-> ${wrote}' has no data to edit — a two-way binding writes into a dataset through the nearest enclosing 'datapath', and nothing above this declares one, so the binding would do nothing in either direction. Put the editor inside a view with 'datapath = { … }' over a Dataset — or, to drive an ordinary slot, use the value pattern instead: '${a.name} = { app.slot }' one-way plus ${writeBack} to write back`, a.pos));
         }
     }
     /** Walk one body root (a class body, or the main tree — `mainRoot` set

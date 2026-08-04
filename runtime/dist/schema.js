@@ -468,9 +468,12 @@ const TextInputSchema = {
         padding: { kind: "number" },
         // The UNCONTROLLED seed (cf. React's defaultValue vs value): `text` follows
         // `initial` until the user edits, then holds the edit — for a field started
-        // from a value (a pristine source) that must stay writable. A bound `text`
-        // stays the CONTROLLED form (edits revert). Prefer `text <-> :path` for a
-        // field editing a dataset record.
+        // from a value (a pristine source) that must stay writable. Being one-shot
+        // is the point AND the limit: once edited it stops following, so an app
+        // cannot reset a field this way. A bound `text` is the CONTROLLED form —
+        // the edit reverts and arrives as `onInput` instead, and a handler writing
+        // the bound slot closes the loop (that is the shape that CAN clear a
+        // field). Prefer `text <-> :path` for a field editing a dataset record.
         initial: { kind: "string" },
     },
     events: ["input", "enter"],

@@ -185,7 +185,7 @@ test("a `<->` with no enclosing datapath is refused, not silently inert", () => 
   const msg = errorsOf(`App [ note: string = "s", f: TextInput [ text <-> { app.note } ] ]`);
   assert.match(msg, /has no data to edit/);
   assert.match(msg, /datapath = \{ … \}/, "it names the fix that makes the arrow work");
-  assert.match(msg, /input\(v: …\)/, "and the value pattern, for driving an ordinary slot");
+  assert.match(msg, /onInput\(v: string\)/, "and the value pattern, for driving an ordinary slot");
 });
 
 test("a datapath ABOVE the editor still passes — the check is scope, not shape", () => {
@@ -205,6 +205,41 @@ test("a CLASS BODY is exempt — its cursor arrives from the use site", () => {
       View [ datapath = :rows[], Row [ ] ] ]`));
   assert.ok(!rejects(`class Row extends View [ TextInput [ text <-> :name ] ]
     App [ Row [ ] ]`), "still exempt even when the use site supplies nothing — unknowable, so never guessed");
+});
+
+// ── the CONTROLLED field (report of 2026-08-03, found by the A2 fix) ────────
+// `text = { app.who }` plus a write-back is what the A2 diagnostic recommends,
+// and on a TextInput it produced a DEAD field: the constraint owns the slot, so
+// onNativeInput reverted the element and RETURNED — never firing `input`. No
+// edit, no event, no error at any rung, and no way for the app to drive the
+// field at all. An app could not clear its own form.
+//
+// The keystroke still must not land in `text` (a `{ }` is the value's source).
+// What was missing is that the attempt is the only news the program gets: the
+// event is the entire mechanism of the controlled pattern, since the handler
+// writes the slot the constraint reads and the value returns through it.
+test("a CONTROLLED text field still delivers the edit as an event", () => {
+  const app = build(`App [ who: string = "seeded",
+      f: TextInput [ text = { app.who }, onInput(v: string) { app.who = v } ] ]`);
+  assert.equal(app.f.text, "seeded", "the constraint seeds it");
+  edited(app.f, "text", app.f.commitOn);           // what a native keystroke triggers
+  assert.equal(app.f.text, "seeded", "an edit does NOT overwrite the constraint");
+  // and the loop closes: the handler writes the slot, the constraint follows
+  app.who = "Ada";
+  settle();
+  assert.equal(app.f.text, "Ada", "the app can drive the field");
+  app.who = "";
+  settle();
+  assert.equal(app.f.text, "", "and can CLEAR it — the case that had no spelling");
+});
+
+test("the A2 message names the write-back that exists on THAT component", () => {
+  // an Editor delivers through the `input` EVENT, a Control through the `input`
+  // METHOD; naming the wrong one sends the reader to a member that is legal to
+  // declare, never called, and silent — the exact failure this check ends
+  const editor = errorsOf(`App [ n: string = "s", f: TextInput [ text <-> { app.n } ] ]`);
+  assert.match(editor, /onInput\(v: string\)/, `TextInput is an Editor; got: ${editor}`);
+  assert.ok(!/plus 'input\(v: …\)/.test(editor), "it must not offer the Control spelling here");
 });
 
 console.log(`\ndatabinding: ${pass} passed, ${fail} failed`);

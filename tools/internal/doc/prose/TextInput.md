@@ -26,8 +26,20 @@ App [ fill = white, textColor = black,
 ## text
 The field's contents. With `text <-> :path` it is the **draft** of a two-way edit session over
 a dataset record (see the intro). Otherwise: **bind** it (`text = { model }`) for a
-**controlled** field — an edit that diverges from the binding reverts — or leave it unbound
-(or seed it with `initial`) for a field the user edits freely.
+**controlled** field, or leave it unbound (or seed it with `initial`) for a field the user
+edits freely.
+
+A controlled field is the way an app **drives** a text field — the shape to reach for when
+something other than the keyboard must be able to change it (a reset button, a preset, a
+value arriving from elsewhere):
+
+    who: string = "",
+    f: TextInput [ text = { app.who }, onInput(v: string) { app.who = v } ],
+
+The keystroke never writes `text` directly — the binding is the value's source, so an edit
+that diverges from it reverts. It arrives as **`onInput`** instead, and the handler writes
+the slot the binding reads; the value returns through the constraint. That round trip is
+what makes `app.who = ""` clear the field, which nothing else can do.
 
 ## placeholder
 The grey prompt shown while the field is empty.
