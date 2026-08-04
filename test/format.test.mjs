@@ -28,6 +28,7 @@
 // conversion, opaque `{ }` bodies, `"""` blocks, literal spellings.
 
 import { readFileSync, readdirSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve, join, basename } from "node:path";
 import { formatSource, comparableTokens, commentRaws } from "../tools/format.mjs";
@@ -323,6 +324,26 @@ await test("the removed `<-` operator fails the formatter with the rewrite named
 await test("a one-line top-level declaration stays one line", () => {
   const src = 'font Sans [ family = "system-ui" ]\n\nApp [ w = 1 ]\n';
   if (fmt(src) !== src) throw new Error("one-line top-level rewritten:\n" + fmt(src));
+});
+
+await test("the whole corpus is canon (docs/system-design excluded)", () => {
+  // The formatter defines the style; this is the gate that the corpus obeys it.
+  // The pre-commit hook runs --write, so drift should never reach here — but a
+  // hook is per-clone and skippable, and 29 files had drifted before it existed.
+  //
+  // docs/system-design/ is excluded deliberately: it is the design record, and
+  // weather.declare there showcases unlanded grammar (`state … when { }`) the
+  // formatter cannot parse. Gating it would either block forever or pressure
+  // someone to rewrite the artifact the formatting spec is derived FROM.
+  const files = execFileSync("git", ["ls-files", "*.declare"], { encoding: "utf8" })
+    .split("\n").filter((f) => f && !f.startsWith("docs/system-design/"));
+  const bad = files.filter((f) => {
+    const before = readFileSync(f, "utf8");
+    let after; try { after = execFileSync("node", ["tools/format.mjs", f], { encoding: "utf8", maxBuffer: 1 << 28 }); }
+    catch { return true; }
+    return after !== before;
+  });
+  if (bad.length) throw new Error(`not canon — run:\n      node tools/format.mjs --write ${bad.join(" ")}`);
 });
 
 summarize("format");

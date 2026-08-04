@@ -33,5 +33,18 @@ node tools/internal/doc/assemble.mjs || exit 0
 node tools/internal/bake-homepage-crawler.mjs || exit 0
 node tools/internal/bake-app-stubs.mjs || exit 0
 node tools/internal/stamp-version.mjs || exit 0
+# (3) canon the .declare files THIS COMMIT touches — the formatter is the style
+# definition (docs/guide/19-style.md describes it; tools/format.mjs decides it),
+# so a commit canonicalizes its own work. Written, not checked: nothing else in
+# this chain blocks, and rejecting a commit over whitespace the tool can fix is
+# the wrong trade. STAGED ONLY, deliberately — formatting the whole corpus here
+# would let an unrelated one-line commit silently reformat and stage files the
+# author never touched, which is worse than the drift it prevents. Whole-corpus
+# enforcement is `npm test`, which REPORTS rather than rewrites.
+# docs/system-design/ is EXCLUDED: it is the design record, and weather.declare
+# there deliberately showcases unlanded grammar the formatter cannot parse.
+DECLARE_FILES=$(git diff --cached --name-only --diff-filter=ACM -- '*.declare' | grep -v '^docs/system-design/')
+[ -n "$DECLARE_FILES" ] && node tools/format.mjs --write $DECLARE_FILES >/dev/null 2>&1
 git add service-worker.js bundles index.html apps/*/index.html README.md docs/declare.md apps/homepage/declare-faq.md 2>/dev/null
+[ -n "$DECLARE_FILES" ] && git add $DECLARE_FILES 2>/dev/null
 exit 0
