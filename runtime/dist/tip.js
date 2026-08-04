@@ -10,6 +10,7 @@
 // fact to subscribers: the active tip (text + the target's root-space box),
 // or null. The library Tooltip singleton renders it (`Tip [ onTip(e) { … } ]`),
 // the same wiring contract as Focus/Keys (sources.ts).
+import { rootFrameOrigin } from "./interaction.js";
 // The default show delay; a theme overrides per platform (`tooltipDelay` —
 // macOS help tags and Windows tooltips both wait ~1s, Material ~500ms).
 const SHOW_DELAY_MS = 500;
@@ -74,23 +75,22 @@ class TipService {
         const text = String(view.tip ?? "");
         if (text === "")
             return;
-        let x = 0;
-        let y = 0;
+        // THE one scroll-aware walk (interaction.ts), not a hand-rolled sum. A plain
+        // accumulation of ancestor x/y anchors the tip where the view WOULD be if
+        // nothing had scrolled: inside a pane scrolled 300px, a target SEEN at y=140
+        // put its tooltip at y=309. The renderer places against the app frame, so
+        // this has to be the frame position — the same fact `inspect()` reports and
+        // the Inspector highlights, from the same function, so the three agree.
+        const o = rootFrameOrigin(view);
+        // the topmost link, which the event carries so a renderer can size itself
+        // against the app; the chain may pass through non-visual nodes.
         let root = view;
-        // The parent chain may pass through non-visual nodes (typed Node); sum
-        // the geometry of whatever carries it and remember the last link as root.
-        let n = view;
-        while (n !== null && typeof n === "object") {
-            const v = n;
-            if (typeof v.x === "number")
-                x += v.x;
-            if (typeof v.y === "number")
-                y += v.y;
+        for (let n = view; n !== null && typeof n === "object";) {
             root = n;
-            n = v.parent ?? null;
+            n = n.parent ?? null;
         }
         this.shown = true;
-        this.emit({ text, x, y, w: view.width, h: view.height, root });
+        this.emit({ text, x: o.x, y: o.y, w: view.width, h: view.height, root });
     }
     emit(e) {
         for (const fn of [...this.handlers])

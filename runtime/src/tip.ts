@@ -12,6 +12,7 @@
 // the same wiring contract as Focus/Keys (sources.ts).
 
 import type { View } from "./view.js";
+import { rootFrameOrigin, type InteractionView } from "./interaction.js";
 
 export interface TipEvent {
   readonly text: string;
@@ -92,21 +93,22 @@ class TipService {
   private publish(view: View): void {
     const text = String((view as unknown as { tip?: unknown }).tip ?? "");
     if (text === "") return;
-    let x = 0;
-    let y = 0;
+    // THE one scroll-aware walk (interaction.ts), not a hand-rolled sum. A plain
+    // accumulation of ancestor x/y anchors the tip where the view WOULD be if
+    // nothing had scrolled: inside a pane scrolled 300px, a target SEEN at y=140
+    // put its tooltip at y=309. The renderer places against the app frame, so
+    // this has to be the frame position — the same fact `inspect()` reports and
+    // the Inspector highlights, from the same function, so the three agree.
+    const o = rootFrameOrigin(view as unknown as InteractionView);
+    // the topmost link, which the event carries so a renderer can size itself
+    // against the app; the chain may pass through non-visual nodes.
     let root: View = view;
-    // The parent chain may pass through non-visual nodes (typed Node); sum
-    // the geometry of whatever carries it and remember the last link as root.
-    let n: unknown = view;
-    while (n !== null && typeof n === "object") {
-      const v = n as { x?: unknown; y?: unknown; parent?: unknown };
-      if (typeof v.x === "number") x += v.x;
-      if (typeof v.y === "number") y += v.y;
+    for (let n: unknown = view; n !== null && typeof n === "object"; ) {
       root = n as View;
-      n = v.parent ?? null;
+      n = (n as { parent?: unknown }).parent ?? null;
     }
     this.shown = true;
-    this.emit({ text, x, y, w: view.width, h: view.height, root });
+    this.emit({ text, x: o.x, y: o.y, w: view.width, h: view.height, root });
   }
 
   private emit(e: TipEvent | null): void {

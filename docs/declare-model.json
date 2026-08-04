@@ -32300,6 +32300,14 @@
      "preview": "Provenance. Seven agents, all Opus, each given a frozen copy of the tree and a live server, none aware of the others. Three profiles: an LLM answering as itself about writing the language; a senior front-end developer with an architectural…"
     },
     {
+     "name": "Findings — 2026-08-04",
+     "subtitle": "",
+     "kind": "doc",
+     "label": "Markdown file",
+     "path": "docs/system-design/findings-2026-08-04.md",
+     "preview": "A1. A derived Dataset does not recompute when its source region is written Status: OPEN. Blocking the tracker's clock removal (§A2 below). A Dataset contents = { … } whose body reads another dataset's region is statically wired to that regi…"
+    },
+    {
      "name": "Hierarchical focus scopes (D9)",
      "subtitle": "",
      "kind": "doc",

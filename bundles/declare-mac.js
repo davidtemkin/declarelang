@@ -5720,11 +5720,212 @@ var DeclareMac = (() => {
     }
   });
 
+  // runtime/dist/interaction.js
+  function traceHitAt(root, x, y, pierce = false) {
+    const notes = [];
+    if (!isView(root))
+      return { hit: null, notes };
+    return { hit: leafAt(root, x, y, pierce, notes), notes };
+  }
+  function initInteraction(test) {
+    isView = test;
+  }
+  function toChildLocal(v, c, lx, ly) {
+    if (v.scrolls !== "none" && !c.ignoreScroll) {
+      lx += v.scrollX;
+      ly += v.scrollY;
+    }
+    let cx = lx - c.x;
+    let cy = ly - c.y;
+    const s = c.scale;
+    if (s !== 1 && s !== 0) {
+      cx = (cx - c.pivotX) / s + c.pivotX;
+      cy = (cy - c.pivotY) / s + c.pivotY;
+    }
+    return [cx, cy];
+  }
+  function leafAt(v, lx, ly, pierce = false, trace) {
+    if (!v.visible) {
+      if (trace !== void 0)
+        trace.push({ view: v, why: "skipped \u2014 visible = false", x: Math.round(lx), y: Math.round(ly) });
+      return null;
+    }
+    if (!pierce && v.pointerEvents === "none") {
+      if (trace !== void 0)
+        trace.push({ view: v, why: 'skipped \u2014 pointerEvents = "none" (the subtree is pointer-transparent)', x: Math.round(lx), y: Math.round(ly) });
+      return null;
+    }
+    const inside = lx >= 0 && ly >= 0 && lx <= v.width && ly <= v.height;
+    if (v.scrolls !== "none" && !inside) {
+      if (trace !== void 0)
+        trace.push({ view: v, why: "skipped \u2014 outside a scroller's FRAME, so its whole subtree is out of view", x: Math.round(lx), y: Math.round(ly) });
+      return null;
+    }
+    const clipping = v.clip !== null && v.clip !== false && v.clip !== "";
+    const kids = v.children;
+    if (v.scrolls !== "none") {
+      for (let i = kids.length - 1; i >= 0; i--) {
+        const c = kids[i];
+        if (!isView(c) || !c.ignoreScroll)
+          continue;
+        if (clipping && !inside && !c.ignoreClip)
+          continue;
+        const [cx, cy] = toChildLocal(v, c, lx, ly);
+        const hit = leafAt(c, cx, cy, pierce, trace);
+        if (hit !== null)
+          return hit;
+      }
+    }
+    for (let i = kids.length - 1; i >= 0; i--) {
+      const c = kids[i];
+      if (!isView(c))
+        continue;
+      if (v.scrolls !== "none" && c.ignoreScroll)
+        continue;
+      if (clipping && !inside && !c.ignoreClip)
+        continue;
+      const [cx, cy] = toChildLocal(v, c, lx, ly);
+      const hit = leafAt(c, cx, cy, pierce, trace);
+      if (hit !== null)
+        return hit;
+    }
+    if (!inside) {
+      if (trace !== void 0)
+        trace.push({ view: v, why: "missed \u2014 the point is outside this view's own box", x: Math.round(lx), y: Math.round(ly) });
+      return null;
+    }
+    if (trace !== void 0)
+      trace.push({ view: v, why: "HIT \u2014 the deepest box containing the point", x: Math.round(lx), y: Math.round(ly) });
+    return v;
+  }
+  function chainAt(app, x, y) {
+    const chain = /* @__PURE__ */ new Set();
+    let leaf = leafAt(app, x, y);
+    while (leaf !== null) {
+      chain.add(leaf);
+      leaf = isView(leaf.parent) ? leaf.parent : null;
+    }
+    return chain;
+  }
+  function ensureApp(app) {
+    let state = APPS.get(app);
+    if (state !== void 0)
+      return state;
+    const press = { wasDown: false, chain: /* @__PURE__ */ new Set() };
+    const recs = /* @__PURE__ */ new Map();
+    const driver = new Constraint("App.$interaction", () => {
+      const x = app.pointerX;
+      const y = app.pointerY;
+      const down = app.pointerDown;
+      const hovering = app.hovering;
+      const chain = hovering ? chainAt(app, x, y) : /* @__PURE__ */ new Set();
+      if (down && !press.wasDown)
+        press.chain = hovering ? new Set(chain) : chainAt(app, x, y);
+      if (!down)
+        press.chain.clear();
+      press.wasDown = down;
+      return { chain, down, hovering };
+    }, (v) => {
+      const { chain, down, hovering } = v;
+      for (const [view, rec] of recs) {
+        if (view.parent === null && view !== app) {
+          recs.delete(view);
+          continue;
+        }
+        const h = chain.has(view);
+        const p = down && press.chain.has(view) && (hovering ? chain.has(view) : true);
+        if (h !== rec.hovered) {
+          rec.hovered = h;
+          rec.hCell.changed();
+        }
+        if (p !== rec.pressed) {
+          rec.pressed = p;
+          rec.pCell.changed();
+        }
+      }
+    });
+    state = { recs, press, driver };
+    APPS.set(app, state);
+    return state;
+  }
+  function recOf(view) {
+    const root = view.root;
+    if (root !== null && root !== void 0 && isView(root)) {
+      const state = ensureApp(root);
+      let r2 = state.recs.get(view);
+      if (r2 === void 0) {
+        r2 = ORPHANS.get(view) ?? { hovered: false, pressed: false, hCell: new Cell(), pCell: new Cell() };
+        state.recs.set(view, r2);
+        state.driver.run();
+      }
+      return r2;
+    }
+    let r = ORPHANS.get(view);
+    if (r === void 0) {
+      r = { hovered: false, pressed: false, hCell: new Cell(), pCell: new Cell() };
+      ORPHANS.set(view, r);
+    }
+    return r;
+  }
+  function hitAt(root, x, y, pierce = false) {
+    if (!isView(root))
+      return null;
+    return leafAt(root, x, y, pierce);
+  }
+  function boxContains(view, x, y) {
+    const chain = [];
+    for (let n = view; isView(n); n = n.parent)
+      chain.push(n);
+    const rootV = chain[chain.length - 1];
+    let lx = x - rootV.scrollX;
+    let ly = y - rootV.scrollY;
+    for (let i = chain.length - 2; i >= 0; i--) {
+      [lx, ly] = toChildLocal(chain[i + 1], chain[i], lx, ly);
+    }
+    return lx >= 0 && ly >= 0 && lx <= view.width && ly <= view.height;
+  }
+  function rootFrameOrigin(view) {
+    let x = 0;
+    let y = 0;
+    for (let n = view; n !== null; ) {
+      x += n.x;
+      y += n.y;
+      const p = isView(n.parent) ? n.parent : null;
+      if (p !== null && p.scrolls !== "none" && !n.ignoreScroll) {
+        x -= p.scrollX;
+        y -= p.scrollY;
+      }
+      n = p;
+    }
+    return { x, y };
+  }
+  function readHovered(view) {
+    const r = recOf(view);
+    r.hCell.track();
+    return r.hovered;
+  }
+  function readPressed(view) {
+    const r = recOf(view);
+    r.pCell.track();
+    return r.pressed;
+  }
+  var isView, APPS, ORPHANS;
+  var init_interaction = __esm({
+    "runtime/dist/interaction.js"() {
+      "use strict";
+      init_reactive();
+      isView = (_n) => false;
+      APPS = /* @__PURE__ */ new WeakMap();
+      ORPHANS = /* @__PURE__ */ new WeakMap();
+    }
+  });
+
   // runtime/dist/tip.js
   var SHOW_DELAY_MS, WARM_MS, TipService, Tip;
   var init_tip = __esm({
     "runtime/dist/tip.js"() {
       "use strict";
+      init_interaction();
       SHOW_DELAY_MS = 500;
       WARM_MS = 300;
       TipService = class {
@@ -5783,21 +5984,14 @@ var DeclareMac = (() => {
           const text = String(view.tip ?? "");
           if (text === "")
             return;
-          let x = 0;
-          let y = 0;
+          const o = rootFrameOrigin(view);
           let root = view;
-          let n = view;
-          while (n !== null && typeof n === "object") {
-            const v = n;
-            if (typeof v.x === "number")
-              x += v.x;
-            if (typeof v.y === "number")
-              y += v.y;
+          for (let n = view; n !== null && typeof n === "object"; ) {
             root = n;
-            n = v.parent ?? null;
+            n = n.parent ?? null;
           }
           this.shown = true;
-          this.emit({ text, x, y, w: view.width, h: view.height, root });
+          this.emit({ text, x: o.x, y: o.y, w: view.width, h: view.height, root });
         }
         emit(e) {
           for (const fn of [...this.handlers])
@@ -6197,206 +6391,6 @@ var DeclareMac = (() => {
           this.ink = union(this.ink, Math.min(xa, xb, xc, xd), Math.min(ya, yb, yc, yd), Math.max(xa, xb, xc, xd), Math.max(ya, yb, yc, yd));
         }
       };
-    }
-  });
-
-  // runtime/dist/interaction.js
-  function traceHitAt(root, x, y, pierce = false) {
-    const notes = [];
-    if (!isView(root))
-      return { hit: null, notes };
-    return { hit: leafAt(root, x, y, pierce, notes), notes };
-  }
-  function initInteraction(test) {
-    isView = test;
-  }
-  function toChildLocal(v, c, lx, ly) {
-    if (v.scrolls !== "none" && !c.ignoreScroll) {
-      lx += v.scrollX;
-      ly += v.scrollY;
-    }
-    let cx = lx - c.x;
-    let cy = ly - c.y;
-    const s = c.scale;
-    if (s !== 1 && s !== 0) {
-      cx = (cx - c.pivotX) / s + c.pivotX;
-      cy = (cy - c.pivotY) / s + c.pivotY;
-    }
-    return [cx, cy];
-  }
-  function leafAt(v, lx, ly, pierce = false, trace) {
-    if (!v.visible) {
-      if (trace !== void 0)
-        trace.push({ view: v, why: "skipped \u2014 visible = false", x: Math.round(lx), y: Math.round(ly) });
-      return null;
-    }
-    if (!pierce && v.pointerEvents === "none") {
-      if (trace !== void 0)
-        trace.push({ view: v, why: 'skipped \u2014 pointerEvents = "none" (the subtree is pointer-transparent)', x: Math.round(lx), y: Math.round(ly) });
-      return null;
-    }
-    const inside = lx >= 0 && ly >= 0 && lx <= v.width && ly <= v.height;
-    if (v.scrolls !== "none" && !inside) {
-      if (trace !== void 0)
-        trace.push({ view: v, why: "skipped \u2014 outside a scroller's FRAME, so its whole subtree is out of view", x: Math.round(lx), y: Math.round(ly) });
-      return null;
-    }
-    const clipping = v.clip !== null && v.clip !== false && v.clip !== "";
-    const kids = v.children;
-    if (v.scrolls !== "none") {
-      for (let i = kids.length - 1; i >= 0; i--) {
-        const c = kids[i];
-        if (!isView(c) || !c.ignoreScroll)
-          continue;
-        if (clipping && !inside && !c.ignoreClip)
-          continue;
-        const [cx, cy] = toChildLocal(v, c, lx, ly);
-        const hit = leafAt(c, cx, cy, pierce, trace);
-        if (hit !== null)
-          return hit;
-      }
-    }
-    for (let i = kids.length - 1; i >= 0; i--) {
-      const c = kids[i];
-      if (!isView(c))
-        continue;
-      if (v.scrolls !== "none" && c.ignoreScroll)
-        continue;
-      if (clipping && !inside && !c.ignoreClip)
-        continue;
-      const [cx, cy] = toChildLocal(v, c, lx, ly);
-      const hit = leafAt(c, cx, cy, pierce, trace);
-      if (hit !== null)
-        return hit;
-    }
-    if (!inside) {
-      if (trace !== void 0)
-        trace.push({ view: v, why: "missed \u2014 the point is outside this view's own box", x: Math.round(lx), y: Math.round(ly) });
-      return null;
-    }
-    if (trace !== void 0)
-      trace.push({ view: v, why: "HIT \u2014 the deepest box containing the point", x: Math.round(lx), y: Math.round(ly) });
-    return v;
-  }
-  function chainAt(app, x, y) {
-    const chain = /* @__PURE__ */ new Set();
-    let leaf = leafAt(app, x, y);
-    while (leaf !== null) {
-      chain.add(leaf);
-      leaf = isView(leaf.parent) ? leaf.parent : null;
-    }
-    return chain;
-  }
-  function ensureApp(app) {
-    let state = APPS.get(app);
-    if (state !== void 0)
-      return state;
-    const press = { wasDown: false, chain: /* @__PURE__ */ new Set() };
-    const recs = /* @__PURE__ */ new Map();
-    const driver = new Constraint("App.$interaction", () => {
-      const x = app.pointerX;
-      const y = app.pointerY;
-      const down = app.pointerDown;
-      const hovering = app.hovering;
-      const chain = hovering ? chainAt(app, x, y) : /* @__PURE__ */ new Set();
-      if (down && !press.wasDown)
-        press.chain = hovering ? new Set(chain) : chainAt(app, x, y);
-      if (!down)
-        press.chain.clear();
-      press.wasDown = down;
-      return { chain, down, hovering };
-    }, (v) => {
-      const { chain, down, hovering } = v;
-      for (const [view, rec] of recs) {
-        if (view.parent === null && view !== app) {
-          recs.delete(view);
-          continue;
-        }
-        const h = chain.has(view);
-        const p = down && press.chain.has(view) && (hovering ? chain.has(view) : true);
-        if (h !== rec.hovered) {
-          rec.hovered = h;
-          rec.hCell.changed();
-        }
-        if (p !== rec.pressed) {
-          rec.pressed = p;
-          rec.pCell.changed();
-        }
-      }
-    });
-    state = { recs, press, driver };
-    APPS.set(app, state);
-    return state;
-  }
-  function recOf(view) {
-    const root = view.root;
-    if (root !== null && root !== void 0 && isView(root)) {
-      const state = ensureApp(root);
-      let r2 = state.recs.get(view);
-      if (r2 === void 0) {
-        r2 = ORPHANS.get(view) ?? { hovered: false, pressed: false, hCell: new Cell(), pCell: new Cell() };
-        state.recs.set(view, r2);
-        state.driver.run();
-      }
-      return r2;
-    }
-    let r = ORPHANS.get(view);
-    if (r === void 0) {
-      r = { hovered: false, pressed: false, hCell: new Cell(), pCell: new Cell() };
-      ORPHANS.set(view, r);
-    }
-    return r;
-  }
-  function hitAt(root, x, y, pierce = false) {
-    if (!isView(root))
-      return null;
-    return leafAt(root, x, y, pierce);
-  }
-  function boxContains(view, x, y) {
-    const chain = [];
-    for (let n = view; isView(n); n = n.parent)
-      chain.push(n);
-    const rootV = chain[chain.length - 1];
-    let lx = x - rootV.scrollX;
-    let ly = y - rootV.scrollY;
-    for (let i = chain.length - 2; i >= 0; i--) {
-      [lx, ly] = toChildLocal(chain[i + 1], chain[i], lx, ly);
-    }
-    return lx >= 0 && ly >= 0 && lx <= view.width && ly <= view.height;
-  }
-  function rootFrameOrigin(view) {
-    let x = 0;
-    let y = 0;
-    for (let n = view; n !== null; ) {
-      x += n.x;
-      y += n.y;
-      const p = isView(n.parent) ? n.parent : null;
-      if (p !== null && p.scrolls !== "none" && !n.ignoreScroll) {
-        x -= p.scrollX;
-        y -= p.scrollY;
-      }
-      n = p;
-    }
-    return { x, y };
-  }
-  function readHovered(view) {
-    const r = recOf(view);
-    r.hCell.track();
-    return r.hovered;
-  }
-  function readPressed(view) {
-    const r = recOf(view);
-    r.pCell.track();
-    return r.pressed;
-  }
-  var isView, APPS, ORPHANS;
-  var init_interaction = __esm({
-    "runtime/dist/interaction.js"() {
-      "use strict";
-      init_reactive();
-      isView = (_n) => false;
-      APPS = /* @__PURE__ */ new WeakMap();
-      ORPHANS = /* @__PURE__ */ new WeakMap();
     }
   });
 
