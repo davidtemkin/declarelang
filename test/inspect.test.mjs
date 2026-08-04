@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
 import { compile } from "../compiler/dist/compile-node.js";
 import { parseProgram } from "../runtime/dist/parser.js";
-import { instantiate, settle, inspect, find, explain, stats, clock } from "../runtime/dist/index.js";
+import { instantiate, settle, inspect, find, explain, stats, clock, pickAt } from "../runtime/dist/index.js";
 import { applyDeps } from "../runtime/dist/deps.js";
 
 function boot(src) {
@@ -67,6 +67,48 @@ await test("shown: EFFECTIVE visibility, folding in every ancestor", () => {
   pane.visible = true;
   settle();
   assert.equal(inspect(find(app, "app.pane.b.deep")).shown, true, "revealing the ancestor shows it");
+  app.discard();
+});
+
+await test("geometry under scroll: rootX/rootY is where the view is SEEN", () => {
+  // Reported 2026-08-03: a driver could not reach anything below a scrolled
+  // pane's fold and had to subtract scrollY by hand. inspect() summed ancestor
+  // x/y directly — the exact defect rootFrameOrigin() was built to end for the
+  // Inspector's highlight ("accumulated x/y by hand and was blind to every
+  // scroll regime"), still living in a second walk here. The sum is right until
+  // something scrolls, which is why it survived so long.
+  const app = boot(`App [ width = 200, height = 100,
+      pane: View [ y = 10, width = 200, height = 100, scrolls = y, clip = true,
+          a: View [ y = 0, width = 50, height = 20 ],
+          b: View [ y = 300, width = 50, height = 20 ]
+          ]
+      ]`);
+  const at = (p) => inspect(find(app, p));
+  assert.equal(at("app.pane.b").rootY, 310, "unscrolled: the plain sum is correct");
+  find(app, "app.pane").scrollY = 280;
+  settle();
+  assert.equal(at("app.pane.b").rootY, 30, "scrolled: b is SEEN 30px down");
+  assert.equal(at("app.pane.a").rootY, -270, "and a has gone off the top");
+  app.discard();
+});
+
+await test("a point from inspect() resolves back through the introspection at()", () => {
+  // The round-trip that makes the number usable: the same coordinates a driver
+  // clicks are the ones `at(x, y)` takes. NOTE these are NOT View.viewAt's
+  // coordinates — that method takes the root's CONTENT space and converts at the
+  // boundary, while the introspection pickAt (inspect.ts) is the raw hit walk.
+  // Two functions, one name, different spaces; this pins which one the reported
+  // geometry belongs to.
+  const app = boot(`App [ width = 200, height = 100, scrolls = y,
+      top: View [ y = 10,  width = 200, height = 20 ],
+      mid: View [ y = 360, width = 200, height = 20 ]
+      ]`);
+  const seen = (p) => { const g = inspect(find(app, p)); return pickAt(app, g.rootX + 5, g.rootY + 5); };
+  assert.equal(seen("app.top"), find(app, "app.top"), "unscrolled, the visible one round-trips");
+  app.scrollY = 350;
+  settle();
+  assert.equal(inspect(find(app, "app.mid")).rootY, 10, "mid has scrolled into view");
+  assert.equal(seen("app.mid"), find(app, "app.mid"), "and the point it reports resolves to it");
   app.discard();
 });
 

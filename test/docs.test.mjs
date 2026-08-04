@@ -7,9 +7,11 @@
 //   - ```declare fences are complete programs and MUST compile clean;
 //   - ```declare-fragment fences are member/expression excerpts and are skipped.
 //
-// Covered files: evals/declare-for-llms.md (the eval control-arm brief — it
-// lives under evals/ because that is its only remaining role; its fences must
-// stay compiling for as long as it is the yardstick). The guide's runnable fences are validated separately by
+// NOT covered, deliberately: evals/baselines/declare-for-llms-2026-07.md. It is a
+// FROZEN eval baseline, and compiling its fences here was a trap — as the language
+// moves the test goes red, and the repair is to edit the baseline, which silently
+// invalidates every measurement ever taken against it. A frozen artifact must be
+// allowed to rot; that is what makes it a control. The guide's runnable fences are validated separately by
 // tools/internal/prebuild.mjs (they become apps/docs/demos/seg_*.declare); folding
 // that path into `npm test` is tracked in docs/system-design/verify-and-evals.md.
 import { readFileSync } from "node:fs";
@@ -25,7 +27,6 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const COVERED = [
   "docs/declare.md",
   "apps/homepage/getstarted.md",
-  "evals/declare-for-llms.md",
 ];
 
 for (const rel of COVERED) {

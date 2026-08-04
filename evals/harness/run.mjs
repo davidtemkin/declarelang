@@ -51,7 +51,12 @@ const budgetOverride = val("budget", null);
 // unified core doc docs/declare.md measured WORSE as a generation context —
 // 0/9 vs 2/9 green, 531K vs 463K tok — so it did NOT earn retirement of the
 // brief. The flag stays so future candidates can be re-measured the same way.)
-const briefDocPath = val("brief-doc", "evals/declare-for-llms.md");
+// The default is a FROZEN BASELINE (evals/baselines/, banner at its head): it is
+// not documentation, it is not maintained, and it states rules that have since
+// been reversed. That is deliberate — it is the text July's numbers were taken
+// against, so it must not move. Measure a candidate by passing --brief-doc; do
+// not "fix" the baseline to make a comparison look better.
+const briefDocPath = val("brief-doc", "evals/baselines/declare-for-llms-2026-07.md");
 // corpus mode (the docs-accessibility arm): the sandbox carries the category-B
 // docs TREE instead of one brief file, and the solver reads its way in
 // (claude-docs). Pair with --solver claude-docs.

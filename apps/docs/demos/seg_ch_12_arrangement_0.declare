@@ -7,6 +7,7 @@ class Cell extends View [ cornerRadius = 10, fill = darkslategray, clip = true,
     n: Text [ x = 10, y = 5, fontSize = 12, textColor = gainsboro, text = :n ]
     ]
 
+
 App [ width = 420, height = 240, fill = black,
     mode: string = "month",
     anchorRow: number = 0,

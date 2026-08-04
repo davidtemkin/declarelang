@@ -1,11 +1,12 @@
 // The browser-tier socket fixture (test/streams-browser.test.mjs): a real
 // WebSocket against the test-owned /__ws echo — dial, the onOpen send, the
 // echo arriving through onMessage, a constraint carrying it to the screen.
+
 App [ width = 320, height = 120, fill = white, textColor = black,
     got: string = "",
     live: Socket [ url = "/__ws",
         onOpen() { this.send("ping") },
-        onMessage(e: StreamMessage) { app.got = e.data },
+        onMessage(e: StreamMessage) { app.got = e.data }
         ],
     out: Text [ x = 10, y = 10, text = { `ws:${got}` } ]
     ]

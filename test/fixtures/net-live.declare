@@ -4,16 +4,19 @@
 // DataSource POST (object body → JSON) to the test-owned /__echo, and an
 // Image loading a served bitmap. Each lands its state in a Text the test
 // reads off the screen.
+
 App [ width = 340, height = 160, fill = white, textColor = black,
     got: DataSource [ url = "net-live.json", auto = true ],
     sent: DataSource [ url = "/__echo", method = "POST", body = { ({ q: "ping" }) } ],
     pic: Image [ x = 10, y = 100, width = 24, height = 24, source = "dot.png" ],
+
     // a 200 that is not an image: decode fails, `failed` derives the fallback
     // (a 404 would work too, but would muddy the suite's no-failed-requests check)
+
     bad: Image [ x = 44, y = 100, width = 24, height = 24, source = "net-live.json" ],
     onInit() { sent.fetch() },
     g: Text [ x = 10, y = 10, text = { got.loaded ? `get:${got.value.msg}` : "get:..." } ],
     p: Text [ x = 10, y = 40, text = { sent.loaded ? `post:${sent.value.method}:${sent.value.q}` : "post:..." } ],
     i: Text [ x = 10, y = 70, text = { pic.loaded ? "img:loaded" : "img:..." } ],
-    f: Text [ x = 120, y = 70, text = { bad.failed ? "imgfail:yes" : "imgfail:..." } ],
+    f: Text [ x = 120, y = 70, text = { bad.failed ? "imgfail:yes" : "imgfail:..." } ]
     ]

@@ -3,11 +3,13 @@ class BCard extends View [ width = { parent.width }, height = 30, cornerRadius =
     t: Text [ x = 10, y = 10, fontSize = 12, wrap = false, text = :t ]
     ]
 
+
 class Column extends View [ width = 130,
     layout: SimpleLayout [ axis = y, spacing = 8 ],
     name: Text [ fontSize = 12, fontWeight = bold, textColor = lightslategray, text = :name ],
     BCard [ datapath = :cards[], key = :id ]
     ]
+
 
 App [ width = 470, height = 250, fill = black, textColor = whitesmoke,
     raw: Dataset {

@@ -718,6 +718,7 @@ class HelpSearch extends View [ height = 40,
         stroke = { stroke(1, this.sf.focused ? theme.accent : theme.line) },
 
         // chrome off: the capsule draws it. The x IS the glyph's room.
+
         sf: TextInput [ x = 28, y = 0, width = { parent.width - 36 }, height = { parent.height },
             padding = 0, fill = null, stroke = null, cornerRadius = 0,
             placeholder = "Search" ],

@@ -3,4 +3,4 @@ App [
         Animator [ attribute = opacity, to = 1 ],
         Animator [ attribute = y,       to = 0 ]
         ]
-]
+    ]

@@ -162,25 +162,31 @@ class Shot extends View [
     // `pic` shows until the clip has a frame, which is the composition a
     // `poster` attribute would have hard-coded. `live` gates playback, so a
     // clip below the fold is not decoding while nobody is looking.
+
     motion: string = "",
     live: boolean = true,
 
     // an outside hover — the card's own title — lights the plate too, so the
     // picture and the words behave as the single target they are
+
     hot: boolean = false,
 
     cornerRadius = 12, clip = true, fill = { theme.stage },
     height = { this.width / 1.6 },
+
     // A GLOW, not a drop shadow. On a near-black ground a black shadow has
     // nothing to darken — it reads as almost nothing. A light halo does the
     // same job in the other direction: zero offset so it sits evenly around the
     // plate, and a low alpha so it separates the shot from the page without
     // announcing itself. The 1px stroke is still the crisp edge; this is the
     // separation behind it.
+
     stroke = { stroke(1, hovered || hot ? theme.pointRule : theme.line) },
+
     // colours here are RRGGBBAA (the theme's own spelling — `scrim` is
     // 0x0B141BB3), so the alpha is the LOW byte: a cool off-white at 0x1C
     // resting, 0x33 when the card is hot.
+
     shadow = { shadow(0, 0, 26, hovered || hot ? 0xBFD8EA8C : 0xBFD8EA4D) },
 
     onClick() { if (classroot.url != "") app.navigate(classroot.url) },
@@ -254,21 +260,25 @@ class AppCard extends View [
     // the plate. The plate reads `titleHot` and the words read `hot`, so a
     // pointer anywhere on either lights BOTH — and there is no cycle, because
     // each derives from the raw `hovered` of the other, never from its styling.
+
     titleHot: boolean = { this.head.name.hovered || this.head.arrow.hovered },
     hot: boolean = { this.frame.hovered || this.titleHot },
 
     // the name LEADS: you read what the thing is, then look at it. The plate
     // under a title also gives the row a left edge to hang from, which three
     // pictures of different interiors do not.
+
     head: View [ width = { parent.width }, height = { this.contentHeight },
         layout: SimpleLayout [ axis = x, spacing = 10 ],
         name: Heading [ fontSize = 22, wrap = false, selectable = false,
             textColor = { classroot.hot ? theme.accent : theme.text },
             text = { classroot.title },
-            onClick() { app.navigate(classroot.url) } ],
+            onClick() { app.navigate(classroot.url) }
+            ],
         arrow: Text [ y = 3, fontSize = 16, fontWeight = semibold, wrap = false,
             textColor = { classroot.hot ? theme.accent : theme.dim }, text = "→",
-            onClick() { app.navigate(classroot.url) } ]
+            onClick() { app.navigate(classroot.url) }
+            ]
         ],
 
     frame: Shot [ width = { parent.width }, src = { classroot.shot }, url = { classroot.url },
@@ -377,8 +387,10 @@ teal hover and the brighter pressed tap feedback, navigating on click.
 
 class FootLink extends FootLabel [
     to: string = "",
+
     // A navigating link is a control, not copy — FootLabel's `selectable`
     // is for the static footer text and must not ride along here.
+
     selectable = false,
     textColor = { pressed ? theme.accent2Press : hovered ? theme.accent2 : theme.muted },
     onClick()     { app.navigate(to) }
@@ -393,6 +405,7 @@ class FootSep extends FootLabel [ text = "·", textColor = { theme.faint }, visi
 class Footer extends View [ width = { parent.width },
     // its own bottom margin — the page has no trailing spacer, because the
     // flow's section spacing applied to that too and left a large dead band
+
     height = { this.contentHeight + 36 },
     layout: SimpleLayout [ axis = y, spacing = 16 ],
 
@@ -561,6 +574,7 @@ content natively; the chrome further down (header, cursor) are its
 // changing the hero left all six behind, and the drift was invisible to a
 // visitor — the runtime overwrites document.title at boot — so only crawlers
 // and LLMs ever read the stale copy. Exactly the readers this page is for.
+
 App [ tagline: string = "the UI language designed for the AI era",
     appName = { "Declare — " + app.tagline },
     theme = { {
@@ -601,6 +615,7 @@ App [ tagline: string = "the UI language designed for the AI era",
     // destination change must not inherit the previous view's scroll offset.
     // (Every location write below pairs with this; the write stays a LITERAL
     // assignment so the static crawl keeps discovering the destinations.)
+
     toTop() { this.scrollIntoView("start") },
 
     // the page’s textual material, fetched DIRECTLY as text (format = "text"):
@@ -645,9 +660,11 @@ App [ tagline: string = "the UI language designed for the AI era",
         // mid-row would split the three apps from the Docs they belong beside
         ({ label: "GitHub",   to: "", url: "https://github.com/davidtemkin/declarelang" }),
         ] },
+
     // the closing enumeration's content, as DATA — so the section is a shape
     // written once rather than eight hand-built rows. A Dataset's literal body
     // is strict JSON (language §7), which is why the quoting is fussy here.
+
     features: Dataset {
         {
                 "rows": [
@@ -744,6 +761,7 @@ App [ tagline: string = "the UI language designed for the AI era",
     // the front page's content — carried by the PAGE's own scroll (the App
     // scrolls by default, and its scroller is the browser's): taller than the
     // window, so the document scrolls, with the full native gesture tier
+
     scroller: View [ width = { app.width }, visible = { app.location == "home" },
 
         // full-bleed blueprint behind the column, sized to the page's full
@@ -766,6 +784,7 @@ App [ tagline: string = "the UI language designed for the AI era",
             // 5412 over six trips). Reading the content's extent is what the
             // document-tall version did too, and it is not a cycle: the
             // content never reads the backdrop.
+
             y = { Math.max(0, Math.min(Math.floor(app.scrollY / 32) * 32,
                     parent.page.y + parent.page.height - this.height)) },
             height = { app.height + 32 } ],
@@ -803,9 +822,11 @@ App [ tagline: string = "the UI language designed for the AI era",
                         HTMLText [ width = { Math.min(680, parent.width) }, fontSize = 19, lineHeight = 1.2, bodyColor = { theme.lead }, selectable = true,
                             accents = { ({ g: theme.brand }) },
                             html = "Just as SQL is a domain-specific language for database queries, <span class='g'>Declare</span> is a DSL for user interfaces. Its whole surface fits in your head — and inside an LLM’s context window." ],
+
                         // The page's most arresting fact, and the only claim on it a
                         // visitor can falsify in their own browser in three clicks —
                         // so it reads as a statement, not a caption under the one above.
+
                         Lead [ width = { Math.min(680, parent.width) }, fontWeight = semibold,
                             textColor = { theme.text },
                             text = "This page is written in it. By an LLM." ]
@@ -839,9 +860,11 @@ App [ tagline: string = "the UI language designed for the AI era",
             apps: View [ width = { parent.width }, opacity = 0,
                 reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
                     to = { app.scrollY + app.height > parent.parent.y + parent.y + 90 ? 1 : 0 } ],
+
                 // 72, not the page's usual 40: the three applications are three
                 // separate things, and the calendar's own caption sits inside its
                 // row — too little air here and the button reads as the tracker's
+
                 layout: SimpleLayout [ axis = y, spacing = 72 ],
 
                 SectionHead [ num = "01", head = "Three applications, written in Declare.",
@@ -870,17 +893,20 @@ App [ tagline: string = "the UI language designed for the AI era",
                             name: Heading [ fontSize = 22, wrap = false, selectable = false,
                                 textColor = { this.parent.parent.parent.hot ? theme.accent : theme.text },
                                 text = "Declare Calendar",
-                                onClick() { app.navigate("apps/calendar/calendar.declare") } ]
+                                onClick() { app.navigate("apps/calendar/calendar.declare") }
+                                ]
                             ],
 
                         Lead [ fontSize = 17, width = { parent.width },
                             text = "It’s the kind of experience you’ll see in the best native apps — a view doesn’t switch so much as become the next one, where motion carries meaning, and everything is fast and interruptible." ],
+
                         // The clip beside this shows a detail panel opening and an
                         // event being dragged to another day — operations, not
                         // motion. Nothing else in this column claimed that, so the
                         // strongest beat of the clip was going unnamed. It answers
                         // the doubt a video invites — is this the thing, or a
                         // recording of it — with what the drag actually commits.
+
                         Lead [ fontSize = 17, width = { parent.width },
                             text = "It runs on real data: open an event, drag it to another day, and it’s moved." ],
 
@@ -889,6 +915,7 @@ App [ tagline: string = "the UI language designed for the AI era",
 
                         stat: View [ width = { parent.width }, height = { this.contentHeight },
                             layout: SimpleLayout [ axis = x, spacing = 20 ],
+
                             // CODE lines, and the note says so. The file is longer
                             // than this — open it and you count ~800 — so a bare
                             // "lines of Declare" reads as caught out rather than
@@ -896,6 +923,7 @@ App [ tagline: string = "the UI language designed for the AI era",
                             // smaller number legible as the honest one. Each figure
                             // is its own read: a helper taking the record would put
                             // the reads inside a body the extractor cannot see.
+
                             MiniMetric [ value = { "" + (app.stats.read(["calendar", "code"]) ?? "—") },
                                 note = { "lines of code, plus "
                                     + (app.stats.read(["calendar", "comment"]) ?? "—")
@@ -920,12 +948,14 @@ App [ tagline: string = "the UI language designed for the AI era",
                     // other. It runs once the section has revealed — `parent.parent`
                     // is the apps band, whose opacity is that reveal — so a visitor
                     // who never scrolls here never decodes a frame.
+
                     plate: Shot [ src = "shots/calendar.webp", url = "apps/calendar/calendar.declare",
                         // Its last frame IS its first, so the loop has no seam to
                         // notice. What it shows is the app being USED — a detail
                         // panel opening on a real record, an event dragged to
                         // another day — not a view transforming for its own sake.
                         // shots/video/ holds the clip and the script that cuts it
+
                         motion = "shots/video/calendar.mp4",
                         live = { parent.parent.opacity > 0.9 },
                         hot = { this.parent.tell.head.name.hovered } ]
@@ -944,11 +974,13 @@ App [ tagline: string = "the UI language designed for the AI era",
                         url    = "apps/tracker/tracker.declare",
                         srcUrl = "apps/tracker/tracker.declare?viewer",
                         blurb = "1,000,000 issues · search as you type · edit in place, with undo · not one line of virtualization code",
+
                         // the wire figure is the production BUILD — app, runtime and
                         // library slices. The tracker's 3 MB issues.json is fetched by a
                         // DataSource at run time and is not in it, so the line says so:
                         // "before its data" is the difference between a small app and a
                         // small download.
+
                         figures = { hpLines(app.stats.read(["tracker","total"]), app.stats.read(["tracker","code"]), app.stats.read(["tracker","comment"]))
                               + hpWire(app.stats.read(["tracker","wireGzip"])) + ", before its data"
                               + " · no dependencies · the same brief in idiomatic React: 2,703 lines, 9 dependencies" } ],
@@ -1044,6 +1076,7 @@ App [ tagline: string = "the UI language designed for the AI era",
                 // capability; what a reader wants to know is what it buys them —
                 // an LLM that converges instead of guessing, and no app that
                 // compiles clean and quietly does the wrong thing.
+
                 Lead [ fontSize = 17, width = { Math.min(700, parent.width) },
                     x = { (parent.width - Math.min(700, parent.width)) / 2 }, textAlign = center,
                     text = "When an LLM gets something wrong, the compiler names the rewrite — so it corrects itself instead of guessing, and you don’t inherit an app that quietly runs wrong." ]
@@ -1082,6 +1115,7 @@ App [ tagline: string = "the UI language designed for the AI era",
                 // that happened to land near each other. Centered, they read as one
                 // block. Below the breakpoint this is `parent.width` and x is 0, so
                 // the stacked phone layout is untouched.
+
                 rows: View [ width = { Math.min(800, parent.width) },
                     x = { (parent.width - Math.min(800, parent.width)) / 2 },
                     layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 56, share: ({ colA: 50, colB: 50 }) }),
@@ -1133,6 +1167,7 @@ App [ tagline: string = "the UI language designed for the AI era",
             // No trailing spacer: the page flow's 112px spacing applies BEFORE it
             // too, so a 28px tail cost 140px of dead space under the footer. The
             // footer carries its own bottom margin instead.
+
             footer: Footer [ width = { parent.width } ]
             ]
         ],
@@ -1160,6 +1195,7 @@ App [ tagline: string = "the UI language designed for the AI era",
             // 5412 over six trips). Reading the content's extent is what the
             // document-tall version did too, and it is not a cycle: the
             // content never reads the backdrop.
+
             y = { Math.max(0, Math.min(Math.floor(app.scrollY / 32) * 32,
                     parent.body.y + parent.body.height - this.height)) },
             height = { app.height + 32 } ],
@@ -1301,6 +1337,7 @@ App [ tagline: string = "the UI language designed for the AI era",
 
     languageView: View [ visible = { app.location == "language" }, width = { app.width }, fill = { theme.ink },
         // TEST: viewport-height backdrop instead of document-height
+
         grid: GridBg [ x = 0, width = { app.width },
             // Follows the scroll rather than spanning the document. `ignoreScroll`
             // would lift it out of paint order and composite it OVER the content;
@@ -1314,6 +1351,7 @@ App [ tagline: string = "the UI language designed for the AI era",
             // 5412 over six trips). Reading the content's extent is what the
             // document-tall version did too, and it is not a cycle: the
             // content never reads the backdrop.
+
             y = { Math.max(0, Math.min(Math.floor(app.scrollY / 32) * 32,
                     parent.body.y + parent.body.height - this.height)) },
             height = { app.height + 32 } ],
@@ -1356,6 +1394,7 @@ App [ tagline: string = "the UI language designed for the AI era",
             // 5412 over six trips). Reading the content's extent is what the
             // document-tall version did too, and it is not a cycle: the
             // content never reads the backdrop.
+
             y = { Math.max(0, Math.min(Math.floor(app.scrollY / 32) * 32,
                     parent.body.y + parent.body.height - this.height)) },
             height = { app.height + 32 } ],
@@ -1391,6 +1430,7 @@ App [ tagline: string = "the UI language designed for the AI era",
             // 5412 over six trips). Reading the content's extent is what the
             // document-tall version did too, and it is not a cycle: the
             // content never reads the backdrop.
+
             y = { Math.max(0, Math.min(Math.floor(app.scrollY / 32) * 32,
                     parent.body.y + parent.body.height - this.height)) },
             height = { app.height + 32 } ],
@@ -1446,6 +1486,7 @@ App [ tagline: string = "the UI language designed for the AI era",
                 ({ from: 0,   flow: "row", share: ({ nav: 0 }) })] } ],
 
             // wordmark — the product name in the brand gradient, in the hero's typeface
+
             brand: View [ y = 18, height = 22,
                 layout: SimpleLayout [ axis = x, spacing = 0 ],
                 onClick() { app.location = "home"; app.toTop() },
@@ -1456,6 +1497,7 @@ App [ tagline: string = "the UI language designed for the AI era",
 
             // primary nav — one NavLink per navItems entry; the padded pills carry
             // their own spacing
+
             nav: View [ y = 11,
                 layout: SimpleLayout [ axis = x, spacing = 2 ],
                 datapath = { app.navSource.value },
@@ -1464,6 +1506,7 @@ App [ tagline: string = "the UI language designed for the AI era",
 
             // the kebab — three stacked dots (the page's dot motif), the pill's own
             // press feedback, toggling the sheet
+
             kebab: View [ y = 11, width = 34, height = 33, cornerRadius = 8,
                 fill = { pressed ? theme.pillPress : hovered ? theme.pillHover : null },
                 onClick()     { app.menuOpen = !app.menuOpen },
@@ -1473,7 +1516,6 @@ App [ tagline: string = "the UI language designed for the AI era",
                 ]
             ]
         ],
-
 
     // pointer dot — a 10px accent-2 dot in VIEWPORT space that SPRINGS after the
     // pointer (loose + low-mass = the slower, longer trail). Two position

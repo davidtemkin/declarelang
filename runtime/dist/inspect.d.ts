@@ -13,7 +13,12 @@ export interface InspectNode {
     y: number;
     width: number;
     height: number;
-    /** Root-space position — the parent chain's offsets summed. */
+    /** Where the view IS, relative to the app's root — as seen, with every
+     *  enclosing scroll taken out. This is the one position worth reporting: it is
+     *  what `at(x, y)` resolves, what a synthetic pointer must aim at, and what the
+     *  Inspector's highlight draws. A naive sum of ancestor x/y is scroll-blind and
+     *  reports where a view WOULD have been unscrolled — the same answer until
+     *  something scrolls, and then silently wrong. */
     rootX: number;
     rootY: number;
     /** This node's OWN `visible` slot — what the program says about it. */
@@ -98,23 +103,27 @@ export declare const clock: {
  *  whole inspect API bound to that app's root. What verify's rung 5 drives,
  *  and what a human pokes in the console. */
 export declare function bridgeFor(root: Node): Record<string, unknown>;
-/** The VIEW under a point in the subject's FRAME space (its viewport — the
- *  space the picker's own pointer lives in, since the overlay is fixed) — THE
- *  hit walk (interaction.ts leafAt), the same one the pointer is routed by and
- *  `View.viewAt` exposes (that wrapper converts from content space; the picker
- *  needs no conversion), so the picker highlights exactly what a press would
- *  reach, at any scroll. `pierce` is the picker's one deviation: a
+/** PICK the view under a point — what a press at that point would reach.
+ *
+ *  NOT the same coordinates as `View.viewAt`, and the two used to share a name,
+ *  which cost a reader three wrong conclusions before the difference surfaced.
+ *  `View.viewAt` takes the root's CONTENT space (drag events carry those, and it
+ *  converts at the boundary); this takes the subject's viewport — the space the
+ *  picker's own pointer lives in, since the overlay is fixed, so no conversion is
+ *  wanted. Both run THE hit walk (interaction.ts leafAt), the one the pointer is
+ *  routed by, so a pick highlights exactly what a press would reach, at any
+ *  scroll. `pierce` is the picker's one deviation: a
  *  pointer-transparent view is still selectable,
  *  because a developer asking "what is this?" means the thing they can see.
  *  (This used to be a second, cruder implementation — plain rectangle
  *  containment, blind to clip, scale, and pivot — which is precisely the
  *  duplication that produced a mis-hit window corner elsewhere.) */
-export declare function viewAt(root: Node, x: number, y: number): View | null;
+export declare function pickAt(root: Node, x: number, y: number): View | null;
 /** WHY the point resolved the way it did — the hit walk's own decisions, in
  *  order: what it descended into, what it skipped and for which reason, and
  *  what finally took the point.
  *
- *  `viewAt` answers *what*, which is enough when the answer is right and
+ *  `pickAt` answers *what*, which is enough when the answer is right and
  *  useless when it is wrong. Every interaction bug of the 2026-07 run was a
  *  disagreement between where a view PAINTS and where the walk THINKS it is —
  *  a scroll term missing from the transform, a cursor-following dot silently
@@ -125,7 +134,7 @@ export declare function viewAt(root: Node, x: number, y: number): View | null;
  *  traceHitAt), so it can never drift from the router's real answer, and it is
  *  backend-neutral: the same question, identically answered, over the DOM
  *  bridge, the canvas host, and the native control channel's `eval`. Takes a
- *  point in the root's FRAME space, like `viewAt`. `pierce` defaults false —
+ *  point in the root's viewport, like `pickAt`. `pierce` defaults false —
  *  the router's own rule — so a pointer-transparent view reports as skipped
  *  rather than silently being the answer. */
 export declare function explainHit(root: Node, x: number, y: number, pierce?: boolean): {

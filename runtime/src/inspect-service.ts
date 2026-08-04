@@ -15,7 +15,7 @@
 import { Node } from "./node.js";
 import { View, App, inheritedCursor } from "./view.js";
 import { rootFrameOrigin } from "./interaction.js";
-import { inspect, find, explain, stats, viewAt, explainHit, dependentsOf, expandValue, slotsOf, clock, kindName, nameOf, type ValueSlice } from "./inspect.js";
+import { inspect, find, explain, stats, pickAt, explainHit, dependentsOf, expandValue, slotsOf, clock, kindName, nameOf, type ValueSlice } from "./inspect.js";
 import { compileExpr, validateExpr } from "./expr.js";
 import { scanDatapaths } from "./datapath.js";
 import { parseProgram } from "./parser.js";
@@ -429,7 +429,7 @@ export const Inspect = {
   },
   at: (x: number, y: number): string => {
     const o = ORIGIN();
-    const v = viewAt(needTarget(), x - o.x, y - o.y);
+    const v = pickAt(needTarget(), x - o.x, y - o.y);
     return v === null ? "" : pathOfNode(v);
   },
   /** WHY the point resolved that way — the hit walk's own decisions in order.

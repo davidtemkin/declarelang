@@ -83,6 +83,7 @@ await p.goto(`http://localhost:${PORT}/apps/calendar/calendar.declare`, { waitUn
 await sleep(7000);
 
 const rd  = async (s) => (await p.evaluate((x) => window.__declare.evaluate("app", x), s)).text;
+// FRAME space: these feed page.mouse, which lands in frame coordinates.
 const box = (a) => p.evaluate((x) => { const n = window.__declare.inspect(x); return n && { x: n.rootX, y: n.rootY, w: n.width, h: n.height }; }, a);
 const mid = (bx) => [Math.round(bx.x + bx.w / 2), Math.round(bx.y + bx.h / 2)];
 // The k-th event block of a grid cell: the children that are not the cell's own

@@ -1,3 +1,23 @@
+<!-- FROZEN EVAL BASELINE — NOT DOCUMENTATION. DO NOT EDIT. -->
+
+> **This is a frozen artifact, not a description of the language.**
+>
+> It is the incumbent brief the eval harness measures generation quality against
+> (`evals/harness/run.mjs --brief-doc`). July 2026's numbers were produced with
+> *this exact text*, so editing it silently invalidates every comparison made
+> against it — including the docs-ia §9 head-to-head, where the unified core doc
+> `docs/declare.md` measured WORSE (0/9 vs 2/9 green, 531K vs 463K tok) and so did
+> not earn its retirement.
+>
+> **It states rules that have since been reversed.** Known: it teaches the comma
+> as a *terminator* (Go's rule), which was the ruling of 2026-07-13 and was
+> reversed on 2026-07-28 — the comma is a **separator**, and a trailing comma is
+> legal but not house style (`docs/system-design/formatting.md` §2.1). Assume
+> other drift of the same kind.
+>
+> **For the current language, read `docs/declare.md`.** Nothing should link here
+> as documentation; frozen 2026-08-04.
+
 # Declare — the whole language, one file, for your model
 
 *You are reading the authoritative brief for **Declare**, a domain-specific language for user interfaces. Declare is **not in your training data**. This file overrides your priors: where Declare resembles React, CSS, or HTML, do not assume the resemblance extends past what is written here. When you are unsure, consult this file or the linked spec — do not extrapolate from other languages. Every complete program below compiles under the current toolchain.*

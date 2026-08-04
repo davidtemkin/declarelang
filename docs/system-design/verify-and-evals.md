@@ -30,7 +30,7 @@ _Original design follows._
 | production build (esbuild bundle, slim registry) | `tools/declarec.mjs` | shipped |
 | dev server: `POST /compile`, `?render=canvas`, build cache | `server/index.mjs` | shipped |
 | framework-neutral app brief format | `docs/system-design/site-spec.md` | exemplar exists |
-| LLM brief with compile-validated examples | `docs/declare-for-llms.md` | shipped (validation script ad hoc) |
+| LLM brief with compile-validated examples | `docs/declare.md` | shipped (fences compiled by `test/docs.test.mjs`) |
 
 Missing, and designed below: runtime **introspection**, an **assertion surface**, **deterministic time**, the **verify** command that composes it all, and the **eval harness** that consumes it.
 
@@ -139,7 +139,7 @@ Declare has a strong, opinionated style canon ([`formatting.md`](formatting.md) 
 
 ### 2.10 Also in Part A (cheap, high-leverage)
 
-- **CI truth-maintenance**: promote the ad-hoc brief-validation script into `test/docs.test.mjs` — every ```declare fence in `docs/declare-for-llms.md`, the guide, and `docs/system-design/declare-language.md` must compile (known offender to fix on landing: spec §9's unquoted-JSON Dataset example). This is the no-drift invariant, mechanized.
+- **CI truth-maintenance**: promote the ad-hoc brief-validation script into `test/docs.test.mjs` — every ```declare fence in the living docs (`docs/declare.md`, the guide, `docs/system-design/declare-language.md`) must compile. NOT the frozen baseline: compiling a frozen artifact's fences makes the suite go red as the language moves, and the repair is to edit the baseline — which destroys the thing it exists to be (known offender to fix on landing: spec §9's unquoted-JSON Dataset example). This is the no-drift invariant, mechanized.
 - **`verify` on the examples in CI**: rungs 1–4 for every example on every commit (fast); rungs 5–6 for calendar + site nightly or pre-release.
 
 ---
@@ -164,7 +164,7 @@ evals/
 
 ### 3.2 Hermetic sessions
 
-Each eval run gets a sandbox dir containing **only**: `docs/declare-for-llms.md`, the task brief + fixtures, and a `run.md` tool contract ("write app.declare; run `verify` (wrapped); read errors; repeat"). No repo access, no guide, no spec (v1 measures the brief *alone* — the artifact we claim suffices; a later arm adds spec-on-request to measure the escalation path). Driver: `claude -p` headless (Agent SDK later if we need finer control), which also reports token usage for free. Model matrix: one frontier + one small model — **the small model is the canary**; if it can't learn the language from the brief, the brief (or the language) is too clever.
+Each eval run gets a sandbox dir containing **only**: the brief under measurement (`--brief-doc`; default = the frozen baseline, see the note ending this section), the task brief + fixtures, and a `run.md` tool contract ("write app.declare; run `verify` (wrapped); read errors; repeat"). No repo access, no guide, no spec (v1 measures the brief *alone* — the artifact we claim suffices; a later arm adds spec-on-request to measure the escalation path). Driver: `claude -p` headless (Agent SDK later if we need finer control), which also reports token usage for free. Model matrix: one frontier + one small model — **the small model is the canary**; if it can't learn the language from the brief, the brief (or the language) is too clever.
 
 ### 3.3 Task suite v1 (eight, spanning the domain)
 
@@ -198,11 +198,40 @@ Mechanical oracles decide everything they can (verify's JSON report **is** the s
 
 Every failure gets exactly one label, with a mandated escalation order:
 
-1. **docs gap** — the model couldn't have known → patch `declare-for-llms.md` (usually §9/§10) → rerun the task.
+1. **docs gap** — the model couldn't have known → patch **the brief under measurement** → rerun
+   the task. (Originally written as "patch `declare-for-llms.md`", when that file *was* the
+   living brief. It is now a frozen baseline — see the note at the end of this section — and
+   patching it invalidates every comparison taken against it. Patch the candidate, never the
+   control.)
 2. **diagnostic gap** — it erred and the error failed to teach the repair → patch the `Diag` catalog message → rerun. (Feeds diagnostics.md §4's standard directly; a diagnostic whose named fix models don't follow is a bug by definition.)
 3. **language footgun** — persists across models *after* 1 and 2 → an entry in the footgun register (extend `docs/system-design/language-learnings.md` with an `E-series`: evidence, tasks affected, models affected, docs/diagnostic attempts). Only E-series entries with ≥2 models and ≥2 cycles of evidence earn a language-change discussion — the language stays stable while the mutable surfaces absorb the churn, and changes that do happen arrive with receipts.
 
 Regression rule: any edit to the brief, a diagnostic, or the language reruns the affected tasks before merging. The suite is CI for teachability.
+
+### 3.7a The frozen brief baseline (2026-08-04)
+
+The generation brief the July numbers were taken against is
+**`evals/baselines/declare-for-llms-2026-07.md`**, frozen in place and carrying a banner
+saying so. It was `evals/declare-for-llms.md` (and `docs/declare-for-llms.md` before that,
+which is why older references here name paths that no longer resolve).
+
+It is **not documentation and is not maintained** — it states rules that have since been
+reversed, the comma-as-terminator rule of 2026-07-13 among them. It is kept because it
+*won* the retirement head-to-head that was supposed to end it: docs-ia §9 step 1, n=3
+Sonnet one-shot, the unified core doc `docs/declare.md` measured **0/9 vs 2/9 green at
+531K vs 463K tok** — worse on both axes — so the merge did not earn the retirement, and
+the harness still defaults to the incumbent (`run.mjs --brief-doc` overrides it).
+
+Three rules follow, and they are why it moved: **nothing links to it as documentation**
+(it was reachable from `skill/SKILL.md`, which is the likeliest route by which a reversed
+rule reached a 2026-08 eval run); **nothing compiles its fences** (`test/docs.test.mjs`
+deliberately excludes it — a frozen artifact must be allowed to rot, or the suite goes red
+and the repair is to edit the control); and **nothing patches it** — when triage says
+"docs gap", patch the candidate under measurement, never the baseline.
+
+Retiring it for real means beating it on the numbers above, not deleting it.
+
+---
 
 ### 3.7 Baseline (phase 2, explicitly deferred)
 

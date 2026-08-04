@@ -1,5 +1,9 @@
 # Declare formatting — the canonical spec
 
+> **The product statement of the style is [the guide's style appendix](../guide/19-style.md).**
+> This file is the internal record: the reasoning, the dated rulings and reversals, and the
+> formatter's implementation contract. Where the two ever differ, the guide is what ships.
+
 This is the canon: the human style the language is written in, and the
 implementation contract for the tool that enforces it. It **supersedes**
 the earlier `indent.txt` sketch (since removed).

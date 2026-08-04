@@ -99,7 +99,7 @@ export { forEachElement, serializeLinks, applyLinks, type SerializedLink } from 
 // Precompiled production entry + render glue (compiler-free) — see boot.ts.
 export { renderProgram, renderProgramAsync, mountApp, disposeApp, loadFonts, reflectAppName } from "./boot.js";
 export { Inspect, setInspectionTarget, inspectionTarget } from "./inspect-service.js";
-export { viewAt, dependentsOf, expandValue, slotsOf } from "./inspect.js";
+export { pickAt, dependentsOf, expandValue, slotsOf } from "./inspect.js";
 export type { FontSpec } from "./boot.js";
 export { Node } from "./node.js";
 export { View, App, DOMIsland, inheritedCursor, onDiscard } from "./view.js";

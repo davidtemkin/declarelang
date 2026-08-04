@@ -2,6 +2,7 @@ class Row extends View [ width = 288, height = 24,
     t: Text [ y = 4, width = 260, text = :task ]
     ]
 
+
 App [ width = 320, height = 240, fill = white,
     d: Dataset [ contents = { ({ rows: app.make(50000) }) } ],
     make(n: number) -> array {

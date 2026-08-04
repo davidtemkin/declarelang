@@ -14538,7 +14538,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
         },
         at: (x, y) => {
           const o = ORIGIN();
-          const v = viewAt(needTarget(), x - o.x, y - o.y);
+          const v = pickAt(needTarget(), x - o.x, y - o.y);
           return v === null ? "" : pathOfNode(v);
         },
         /** WHY the point resolved that way — the hit walk's own decisions in order.
@@ -14700,11 +14700,10 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
   function inspect(node, path = "app") {
     const v = isView2(node) ? node : null;
     let rootX = 0, rootY = 0;
-    for (let n = node; n !== null && n.parent !== null; n = n.parent) {
-      if (isView2(n)) {
-        rootX += n.x;
-        rootY += n.y;
-      }
+    if (v !== null) {
+      const o = rootFrameOrigin(v);
+      rootX = o.x;
+      rootY = o.y;
     }
     let shown = true;
     for (let n = node; n !== null; n = n.parent) {
@@ -14817,7 +14816,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
         return n === null ? null : expandValue(n, attr, trail);
       },
       at: (x, y) => {
-        const v = viewAt(root, x, y);
+        const v = pickAt(root, x, y);
         return v === null ? null : { path: pathOf(root, v), kind: kindName(v) };
       },
       /** WHY that point resolved so — the hit walk's own decisions in order.
@@ -14848,7 +14847,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     }
     return ["app", ...parts].join(".");
   }
-  function viewAt(root, x, y) {
+  function pickAt(root, x, y) {
     return hitAt(root, x, y, true);
   }
   function explainHit(root, x, y, pierce = false) {

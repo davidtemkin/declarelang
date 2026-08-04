@@ -47,13 +47,28 @@ export const LANGUAGE_METHOD_EFFECTS: ReadonlyMap<string, readonly string[]> = n
   // View.scrollIntoView(align?) — the imperative reveal (backend.ts). Writes
   // scroll state, reads no reactive cell → pure for analysis.
   ["scrollIntoView", []],
-  // View.rootOrigin() — the view's origin in root space via THE scroll-aware
-  // walk (interaction.ts rootFrameOrigin). It READS geometry (ancestor x/y,
-  // scroll offsets) — but callers so far are handlers anchoring an overlay at
-  // gesture time (Menu.openAt/openFor), where a snapshot is the semantics; a
-  // constraint that wants live geometry declares the reads it derives from.
-  // Registered with no modeled reads: pure for dependency analysis.
-  ["rootOrigin", []],
+  // View.rootOrigin() is DELIBERATELY ABSENT — do not add it back.
+  //
+  // It was registered here as pure, and that was untrue: it walks the ancestor
+  // chain reading every level's x/y and each scroller's scrollX/scrollY, all of
+  // them reactive cells. This header's own rule calls that out — "a missing read
+  // is UNSOUND" — and the cost was exactly the unsoundness described: a
+  // constraint reading `v.rootOrigin().y` wired the NODE and none of the scroll
+  // cells, so it showed its first value forever, at every rung, with no error.
+  // The entry did not help analysis; it switched analysis OFF.
+  //
+  // Its true reads cannot be declared here in any case. A signature is read-paths
+  // relative to `this`, and this walk's reads are an ancestor chain of unknown
+  // depth — not nameable at compile time, which is precisely the condition the
+  // residue rule exists to catch. So absence is not a gap: it lets the GENERAL
+  // §3 path do its job, and it splits the two uses correctly on its own — a
+  // constraint refuses (DECLARE7001), while a handler anchoring an overlay at
+  // gesture time (Menu.openAt/openFor, FocusRing) keeps working, which is where
+  // a snapshot was the right semantics all along.
+  //
+  // Live geometry in a constraint is already expressible, and statically: name
+  // the scroller and subtract it — `{ pane.y + row.y - pane.scrollY }` wires
+  // this.root.pane.y, this.root.row.y, this.root.pane.scrollY and stays true.
   // Keys.navClaim(owner, on) — claim/release the navigation keys from the
   // browser's scroll defaults (keys.ts). Mutates a plain claim set, reads no
   // reactive cell → pure for analysis. A Menu claims at open, releases at close.

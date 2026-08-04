@@ -17,7 +17,16 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, unlinkSync, mkdir
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
+import { formatSource } from "../../format.mjs";
 import { SCHEMAS, RichTextSchema, EVENT_PAYLOAD } from "../../../runtime/dist/schema.js";
+
+/** Canon a generated demo, or leave it exactly as-is if the formatter cannot take
+ *  it. A guide fence may legitimately use surface the formatter's grammar does not
+ *  cover yet; that is a reason to skip the file, never to fail the extract — the
+ *  demo's job is to run, and `format --check` is the place that reports drift. */
+function canonize(src) {
+  try { return formatSource(src); } catch { return src; }
+}
 import { TAGS, LAYOUTS, DATA, ANIMATORS, SOURCES, ANIMATOR_GROUPS, STATES } from "../../../runtime/dist/registry.js";
 import { compile } from "../../../compiler/dist/compile-node.js";
 import { settleHeadless } from "../../../compiler/dist/headless.js";
@@ -583,8 +592,13 @@ const tenets = readTenets();
 if (!CHECK) for (const f of readdirSync(DEMOS)) {
   if (/^seg_.*\.declare$/.test(f)) unlinkSync(path.join(DEMOS, f));
 }
+// Written through the FORMATTER. A guide fence is prose-shaped — the author packs
+// it for the page, not for canon — so emitting it verbatim produced generated files
+// that failed `format --check` the moment they were regenerated. Hand-formatting them
+// is futile: the next extract undoes it. Canon has to be produced at the source, so
+// the one place these files come from is the one place it is applied.
 if (!CHECK) for (const [id, src] of Object.entries(genFiles)) {
-  writeFileSync(path.join(DEMOS, id + ".declare"), src + "\n");
+  writeFileSync(path.join(DEMOS, id + ".declare"), canonize(src + "\n"));
 }
 
 // ── per-chapter content files (apps/docs/chapters/<id>.json) ──

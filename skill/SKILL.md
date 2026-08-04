@@ -76,8 +76,8 @@ to learn it, or jump to the chapter your task needs:
 | touch, gesture ownership, pinch/wheel zoom, `Heartbeat` | `docs/guide/13-gestures.md` |
 | deep links, the URL, run / verify / ship | `docs/guide/14-loop.md` |
 
-(`docs/guide/` holds the full set; `15-with-an-llm.md` and `evals/declare-for-llms.md` are
-written for an agent in particular.)
+(`docs/guide/` holds the full set; `15-with-an-llm.md` is written for an agent in
+particular.)
 
 **For an exact fact** — an attribute's name, an enum's tokens, a flag, a diagnostic code,
 a standard-library component — go to `docs/declare-model.json`. It is the whole

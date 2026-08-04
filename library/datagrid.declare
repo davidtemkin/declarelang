@@ -268,8 +268,10 @@ class DataGrid extends Table [
     hdr: View [ height = { classroot.headerH },
         x = { classroot.escaped ? classroot.x : 0 },
         y = { classroot.escaped ? classroot.y - classroot.headerH : -classroot.headerH },
+
         // escaped chrome leaves the grid's display subtree, so the grid's
         // own visibility no longer reaches it through the platform — mirror it
+
         visible = { classroot.visible },
         width = { classroot.width },
         ignoreLayout = true,

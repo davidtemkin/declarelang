@@ -452,7 +452,7 @@ class CalButton extends View [
     caption: Text [ fontSize = 10, fontWeight = bold, textColor = #FFFFFF,
         x = { (parent.width - this.width) / 2 }, y = 3,
         textShadow = shadow(0, -1, 0, #33555577),
-        text = { label } ],
+        text = { label } ]
 
     ]
 

@@ -28,7 +28,7 @@ window.__declare.explain("app.dock.row.calIcon", "width")
 | `explain(path, attr)` | **why** a slot holds its value — see **Provenance** |
 | `slots(path)` | every slot with its live value and origin (`constraint` / `set` / `default`) |
 | `expand(path, attr, trail?)` | one level of a record/array/`Dataset` value — lazy, for deep data |
-| `at(x, y)` | `{ path, kind }` of the topmost visible view at a root-space point |
+| `at(x, y)` | `{ path, kind }` of the topmost view at a point — the same coordinates `rootX`/`rootY` report, so `at(rootX, rootY)` names the node back |
 | `dependents(attr)` | every `(path, attr)` whose constraint reads that name |
 | `evaluate(path, src)` | evaluate Declare in a node's scope — read, set, bind, or add a view |
 | `stats()` | `{ nodes, ownedSlots, motionBusy }` — leak and perf canaries |
@@ -43,7 +43,7 @@ in `inspect().path`, so a result can be fed straight back as a query.
 ```
 { kind, name, path,
   x, y, width, height,        // local
-  rootX, rootY,               // root-space — what you click
+  rootX, rootY,               // where it is SEEN, relative to the root
   visible, shown,              // own slot / effective (ancestors too)
   text?,
   attrs,                      // own values, JSON-reduced
@@ -52,6 +52,11 @@ in `inspect().path`, so a result can be fed straight back as a query.
 
 `kind` is the authored component name (`DockIcon`, `App`) — resolved so it survives
 minification, which a bare `constructor.name` does not.
+
+`rootX/rootY` is where the view is **seen**, with every enclosing scroll taken out — so
+`at(rootX, rootY)` finds the node again, and a synthetic pointer aimed there lands on it.
+(It is not a sum of ancestor `x`/`y`: that reports where a view *would* be if nothing had
+scrolled, which is the same answer right up until something does.)
 
 `visible` is what the program says about *this* node; `shown` is whether it actually
 appears, folding in every ancestor. Read `shown` when you are asking "why can't I see

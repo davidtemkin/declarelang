@@ -28,6 +28,7 @@ class Checkbox extends Control [
 
     // the box's size: the theme fact by default, one attribute to override
     // (a toolbar checkbox can shrink to its neighbors without a subclass)
+
     size: number = 0,             // 0 = theme.checkboxSize (else 20)
 
     input(v: boolean) { checked = v },
@@ -73,6 +74,7 @@ class Checkbox extends Control [
     // (the App's default is theme.text, so nothing changes anywhere) — and a
     // use site restyles it with ordinary attributes, no subclass:
     //     Checkbox [ label = "Grouped", fontSize = 12.5, textColor = { theme.textMuted }, size = 16 ]
+
     cap: Text [ x = { parent.box.width + 8 }, y = center, wrap = false,
         visible = { label != "" }, text = { label } ]
     ]

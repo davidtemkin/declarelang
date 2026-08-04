@@ -184,7 +184,7 @@ script {
         if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
         return (parts[0][0] + parts[1][0]).toUpperCase()
     }
-}
+    }
 
 
 // ── small pieces: the tracker's ICON VOCABULARY ───────────────────────────
@@ -262,6 +262,7 @@ class Chip extends Control [ height = 28, cornerRadius = 8,
     // the tally is a SPRUNG NUMBER — `Spring [ attribute = … ]` animates any
     // slot, data included, so a bulk move rolls the counts over instead of
     // snapping them. One declaration; no other wiring anywhere.
+
     anim: number = 0,
     Spring [ attribute = anim, to = { count < 0 ? 0 : count }, stiffness = 170, damping = 26 ],
 
@@ -290,6 +291,7 @@ class IssueRow extends TableRow [
     isHdr: boolean = { ("" + :kind) == "hdr" },
 
     exp: boolean = { !isHdr && ("" + :id) == ("" + app.expandedId) },
+
     // Opening and closing an issue ANIMATES — the one deliberate act in the
     // list, and the motion is what says "this row became a pane" rather than
     // "the list jumped". `targetH` is the resting height; the Spring carries
@@ -301,6 +303,7 @@ class IssueRow extends TableRow [
     // via replicate.ts), so an expanded row scrolled out and back returns at
     // its open height with no motion, and a recycled row never slides from the
     // departed record's geometry. Verified in materialization.test.mjs.
+
     targetH: number = { isHdr ? 42 : exp ? 356 : 44 },
     height = 44,
     Spring [ attribute = height, to = { targetH }, stiffness = 320, damping = 34 ],
@@ -558,6 +561,7 @@ class EditorCard extends View [
         // the same-sized labels (the buttons' and Delete's) share a baseline
         // by construction; only the small meta line needs the cap-difference
         // correction that `trkBaselineNudge` names.
+
         foot: View [ width = { parent.width }, height = { app.footRowH },
             layout: SimpleLayout [ axis = x, spacing = 10 ],
             save: Button [ width = 96, height = { app.footRowH }, label = { app.creating ? "Create" : "Save" }, primary = true,
@@ -571,8 +575,10 @@ class EditorCard extends View [
                 y = { (parent.height - this.height) / 2 + trkBaselineNudge(app.footLabelPx, this.fontSize) },
                 text = { "Created " + trkDate(:it.created ?? 0) + " · Updated " + trkDate(:it.updated ?? 0) + " · " + ("" + (:it.comments ?? 0)) + " comments" } ],
             sp: Spacer [ ],
+
             // the destructive action wears the same button as its neighbours —
             // same box, same label size — and says what it is in outline only
+
             del: Control [ width = 84, visible = { !app.creating },
                 height = { app.footRowH },
                 cornerRadius = { typeof theme.buttonRadius == "number" ? Math.min(theme.buttonRadius, this.height / 2) : theme.controlRadius },
@@ -688,6 +694,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
     // yanks the reader); a rearrangement is the one case where that
     // stability is wrong, so the reset is written twice: once now, and
     // once after the new projection has settled under the anchor logic.
+
     rearranged() {
         this.list.scrollY = 0
         setTimeout(() => { this.list.scrollY = 0 }, 0)
@@ -697,6 +704,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
     // shortcut must never steal a keystroke from one. `placeholder` is
     // declared by TextInput alone, so its presence identifies an editor
     // without the App needing to know where every field in the tree is.
+
     typing() -> boolean {
         const f = Focus.getFocus()
         return f != null && (f as any).placeholder !== undefined
@@ -907,6 +915,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
     // issue's row. (It did. Arrow travel moved the selection and the expansion
     // followed, but only click/Enter reseeded, so walking the list left the
     // first issue's text sitting in every row you opened after it.)
+
     seedDraft() {
         if (selected == null) return
         draft.set(["it"], ({ ...(selected as any), labels: [...((selected as any).labels ?? [])] }))
@@ -935,6 +944,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
 
     // best effort: once the card has sprung open, scroll so its full extent
     // sits inside the pane — top-aligned when it cannot all fit
+
     revealOpen() {
         const rows = (this.shown.value.rows ?? [])
         const idx = rows.findIndex((r) => ("" + (r as any).id) == ("" + this.expandedId))
@@ -1003,12 +1013,14 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
     // in the file mutates data; everything else derives.
 
     // the people who actually hold work — the truth decides who is listed
+
     assignees(r: number) -> array {
         return [...new Set(this.issuesOf(r).map((it) => (it as any).assignee).filter((a) => a != null))].sort()
         },
 
     // No confirmation dialog: the undo toast is the safety net, and a modal
     // in front of it taxes every delete to save the rare one.
+
     deleteSelection() {
         if (selection == null) return
         this.performDelete()
@@ -1127,8 +1139,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
             ({ id: "s:closed", label: "Set closed" }),
             ({ divider: true }),
             ({ id: "delete", label: "Delete…" }),
-        ] }
-        ],
+        ] } ],
 
     rowMenu(row: View, e: PointerEvent) {
         const rec = (row as TableRow).member()
@@ -1201,6 +1212,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         // "/" moves focus on key UP, not down: a printable shortcut handled on
         // the way down would still be delivered as text to the field it just
         // focused, and the search box would open holding a stray "/".
+
         onKeyUp(e: KeyEvent) {
             if (e.key == "/" && !app.typing()) Focus.focus(app.bar.omni as any)
             }
@@ -1278,11 +1290,14 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
 
     // compact wraps the tools into two rows — chips (countless), then acts —
     // instead of letting the clusters collide in the middle
+
     tools: View [ x = 0, y = { app.barH }, width = { app.width },
         height = { app.compact ? 96 : 56 }, fill = { theme.bg },
         hairB: View [ x = 0, y = { parent.height - 1 }, width = { parent.width }, height = 1, fill = { theme.line } ],
+
         // on compact the strip keeps every filter reachable by scrolling
         // sideways (the phone chip-row idiom) instead of spilling off-screen
+
         chips: View [ x = 24, y = 14, height = 28,
             width = { app.compact ? app.width - 32 : this.contentWidth },
             scrolls = { app.compact ? "x" : "none" }, clip = true,
@@ -1383,6 +1398,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
     // which row is OPEN IN PLACE: an issue edits where it lives — the
     // row's height springs open and the kernel's measured ladder carries
     // the animation through the windowed list
+
     expandedId: number = { app.editing && !app.creating && app.selCount == 1 && app.selected != null ? ((app.selected as any).id ?? -1) : -1 },
 
     // THE LIST. Rows over the projection; every hard thing about scale is
@@ -1450,19 +1466,23 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
                 r1: RailStat [ width = { parent.width }, facet = "status", value = "open", cap = "Open",
                     n = { (app.counts as any).open ?? 0 }, peak = { app.issuesOf(app.rev).length }, tint = { trkStatusColor("open") },
                     on = { app.fStatus == "open" },
-                    ic: StatusIcon [ x = 8, y = 8, s = "open" ] ],
+                    ic: StatusIcon [ x = 8, y = 8, s = "open" ]
+                    ],
                 r2: RailStat [ width = { parent.width }, facet = "status", value = "in-progress", cap = "In Progress",
                     n = { (app.counts as any)["in-progress"] ?? 0 }, peak = { app.issuesOf(app.rev).length }, tint = { trkStatusColor("in-progress") },
                     on = { app.fStatus == "in-progress" },
-                    ic: StatusIcon [ x = 8, y = 8, s = "in-progress" ] ],
+                    ic: StatusIcon [ x = 8, y = 8, s = "in-progress" ]
+                    ],
                 r3: RailStat [ width = { parent.width }, facet = "status", value = "blocked", cap = "Blocked",
                     n = { (app.counts as any).blocked ?? 0 }, peak = { app.issuesOf(app.rev).length }, tint = { trkStatusColor("blocked") },
                     on = { app.fStatus == "blocked" },
-                    ic: StatusIcon [ x = 8, y = 8, s = "blocked" ] ],
+                    ic: StatusIcon [ x = 8, y = 8, s = "blocked" ]
+                    ],
                 r4: RailStat [ width = { parent.width }, facet = "status", value = "closed", cap = "Closed",
                     n = { (app.counts as any).closed ?? 0 }, peak = { app.issuesOf(app.rev).length }, tint = { trkStatusColor("closed") },
                     on = { app.fStatus == "closed" },
-                    ic: StatusIcon [ x = 8, y = 8, s = "closed" ] ]
+                    ic: StatusIcon [ x = 8, y = 8, s = "closed" ]
+                    ]
                 ],
 
             work: View [ width = { parent.width },
@@ -1508,15 +1528,18 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
                 l1: View [ width = { parent.width }, height = 16,
                     a: Text [ x = 0, y = 0, fontSize = 11.5, wrap = false, textColor = { theme.textMuted }, text = "Initial load" ],
                     b: Text [ y = 0, fontSize = 11.5, wrap = false, textAlign = right, width = 70, x = { parent.width - 70 },
-                        textColor = { theme.text }, text = { app.loadMs + " ms" } ] ],
+                        textColor = { theme.text }, text = { app.loadMs + " ms" } ]
+                    ],
                 l2: View [ width = { parent.width }, height = 16,
                     a: Text [ x = 0, y = 0, fontSize = 11.5, wrap = false, textColor = { theme.textMuted }, text = "Ingest" ],
                     b: Text [ y = 0, fontSize = 11.5, wrap = false, textAlign = right, width = 70, x = { parent.width - 70 },
-                        textColor = { theme.text }, text = { app.adoptMs + " ms" } ] ],
+                        textColor = { theme.text }, text = { app.adoptMs + " ms" } ]
+                    ],
                 l3: View [ width = { parent.width }, height = 16, visible = { app.query != "" },
                     a: Text [ x = 0, y = 0, fontSize = 11.5, wrap = false, textColor = { theme.textMuted }, text = "Last search" ],
                     b: Text [ y = 0, fontSize = 11.5, wrap = false, textAlign = right, width = 70, x = { parent.width - 70 },
-                        textColor = { theme.text }, text = { (app.shown.value.searchMs ?? 0) + " ms" } ] ]
+                        textColor = { theme.text }, text = { (app.shown.value.searchMs ?? 0) + " ms" } ]
+                    ]
                 ],
 
             keys: View [ width = { parent.width },
@@ -1525,16 +1548,20 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
                     textColor = { theme.textFaint }, text = "KEYBOARD" ],
                 k1: View [ width = { parent.width }, height = 18,
                     k: Text [ x = 0, y = 1, fontSize = 10.5, textColor = { theme.textMuted }, text = "⌘K" ],
-                    v: Text [ x = 44, y = 1, fontSize = 11.5, wrap = false, textColor = { theme.textFaint }, text = "Search" ] ],
+                    v: Text [ x = 44, y = 1, fontSize = 11.5, wrap = false, textColor = { theme.textFaint }, text = "Search" ]
+                    ],
                 k2: View [ width = { parent.width }, height = 18,
                     k: Text [ x = 0, y = 1, fontSize = 10.5, textColor = { theme.textMuted }, text = "↵" ],
-                    v: Text [ x = 44, y = 1, fontSize = 11.5, wrap = false, textColor = { theme.textFaint }, text = "Open selected row" ] ],
+                    v: Text [ x = 44, y = 1, fontSize = 11.5, wrap = false, textColor = { theme.textFaint }, text = "Open selected row" ]
+                    ],
                 k3: View [ width = { parent.width }, height = 18,
                     k: Text [ x = 0, y = 1, fontSize = 10.5, textColor = { theme.textMuted }, text = "⌫" ],
-                    v: Text [ x = 44, y = 1, fontSize = 11.5, wrap = false, textColor = { theme.textFaint }, text = "Delete selection" ] ],
+                    v: Text [ x = 44, y = 1, fontSize = 11.5, wrap = false, textColor = { theme.textFaint }, text = "Delete selection" ]
+                    ],
                 k4: View [ width = { parent.width }, height = 18,
                     k: Text [ x = 0, y = 1, fontSize = 10.5, textColor = { theme.textMuted }, text = "esc" ],
-                    v: Text [ x = 44, y = 1, fontSize = 11.5, wrap = false, textColor = { theme.textFaint }, text = "Close · clear" ] ],
+                    v: Text [ x = 44, y = 1, fontSize = 11.5, wrap = false, textColor = { theme.textFaint }, text = "Close · clear" ]
+                    ],
                 tail: View [ width = 1, height = 8 ]
                 ]
             ]
@@ -1573,7 +1600,8 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         layout: SimpleLayout [ axis = y, spacing = 12 ],
         ring: View [ x = 122, width = 36, height = 36, cornerRadius = 18,
             stroke = { stroke(2, theme.line) },
-            g: Text [ x = 0, y = center, width = 36, textAlign = center, fontSize = 15, textColor = { theme.textFaint }, text = "?" ] ],
+            g: Text [ x = 0, y = center, width = 36, textAlign = center, fontSize = 15, textColor = { theme.textFaint }, text = "?" ]
+            ],
         cap: Text [ width = 280, textAlign = center, fontSize = 14.5, fontWeight = semibold,
             text = { app.issuesOf(app.rev).length == 0 ? "No issues yet" : "No issues match" } ],
         sub: Text [ width = 280, textAlign = center, fontSize = 12.5, textColor = { theme.textMuted },
@@ -1592,8 +1620,10 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
 
     bulk: View [ height = 44, cornerRadius = 12,
         visible = { app.selCount > 1 || this.lift > 0.02 },
+
         // the bar inverts to the tooltip surface; its interior inks are its
         // own facts, named here where they are used
+
         inkLine: number = 0x666B72,      // dividers on the dark surface
         inkHover: number = 0x3A4048,     // button hover wash
         inkDanger: number = 0xFF9D9D,    // destructive label at rest
@@ -1618,24 +1648,29 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
                 fill = { hot ? app.bulk.inkHover : null },
                 t: Text [ x = 10, y = center, fontSize = 12.5, wrap = false,
                     textColor = { theme.tooltipText }, text = "Set status ▾" ],
-                press() { app.openBulk(this) }, onClick() { if (!disabled) press() } ],
+                press() { app.openBulk(this) },
+                onClick() { if (!disabled) press() }
+                ],
             del: Control [ height = 28, cornerRadius = 7, width = { this.t.width + 20 },
                 fill = { hot || down ? trkRed() : null },
                 t: Text [ x = 10, y = center, fontSize = 12.5, fontWeight = semibold, wrap = false,
                     textColor = { this.parent.hot || this.parent.down ? trkWhite() : app.bulk.inkDanger }, text = "Delete…" ],
-                press() { app.deleteSelection() }, onClick() { if (!disabled) press() } ],
+                press() { app.deleteSelection() },
+                onClick() { if (!disabled) press() }
+                ],
             div2: View [ width = 1, height = 20, y = 4, fill = { app.bulk.inkLine } ],
             clr: Control [ height = 28, cornerRadius = 7, width = 28,
                 fill = { hot ? app.bulk.inkHover : null },
                 t: Text [ x = 0, y = center, width = 28, textAlign = center, fontSize = 13,
                     textColor = { theme.tooltipText }, text = "×" ],
-                press() { app.takeSelection(null) }, onClick() { if (!disabled) press() } ]
+                press() { app.takeSelection(null) },
+                onClick() { if (!disabled) press() }
+                ]
             ]
         ],
 
     toast: Toast [ x = { (app.width - this.width) / 2 },
-        y = { app.height - 84 + (1 - this.lift) * 20 }
-        ],
+        y = { app.height - 84 + (1 - this.lift) * 20 } ],
 
     // the ENTRY SCREEN — honest states for the one fetch
 

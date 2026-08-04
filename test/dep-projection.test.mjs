@@ -139,4 +139,36 @@ await test("the refusal explains DETERMINABILITY, not types", async () => {
   assert.ok(!/node|component/i.test(msg), `it should not talk about node-ness; got:\n${msg}`);
 });
 
+await test("a language method registered as PURE when it is not switches analysis off", async () => {
+  // `View.rootOrigin()` walks the ancestor chain reading every level's x/y and
+  // each scroller's scrollX/scrollY. It was declared pure in the effects table,
+  // so a constraint reading it wired the NODE and none of the scroll cells —
+  // the §A1 shape exactly, showing its first value forever with no error at any
+  // rung. The table's own rule already names this: "a missing read is UNSOUND".
+  //
+  // The repair was a DELETION, not a case: absence makes it a §3 residue and the
+  // general path refuses it. Nothing about rootOrigin is special-cased anywhere.
+  const r = compile(`App [ width = 200, height = 100,
+      pane: View [ y = 10, width = 200, height = 100, scrolls = y, clip = true,
+          b: View [ y = 300, width = 50, height = 20 ] ],
+      probe: Text [ text = { "y=" + app.pane.b.rootOrigin().y } ] ]`,
+    { originDir: process.cwd() });
+  const msg = (r.errors ?? []).map((e) => e.message).join("\n");
+  assert.ok(/rootOrigin\(\)/.test(msg) && /can't be analyzed/.test(msg),
+    `a constraint must refuse it rather than freeze; got:\n${msg}`);
+});
+
+await test("the same call in a HANDLER is untouched — a snapshot is correct there", async () => {
+  // Menu.openAt and FocusRing anchor an overlay at gesture time; the position
+  // wanted is the one at the moment of the gesture, which is what a snapshot IS.
+  // The split falls out of the residue rule; it is not written anywhere.
+  const r = compile(`App [ width = 200, height = 100,
+      pane: View [ y = 10, width = 200, height = 100,
+          b: View [ y = 30, width = 50, height = 20 ] ],
+      at: number = 0,
+      onClick() { at = this.pane.b.rootOrigin().y } ]`, { originDir: process.cwd() });
+  assert.deepEqual((r.errors ?? []).map((e) => e.message), [],
+    "a handler may take the snapshot");
+});
+
 summarize("dep-projection");

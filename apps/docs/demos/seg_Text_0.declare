@@ -2,4 +2,4 @@ App [
     View [ textColor = royalblue, fontSize = 15,
         Text [ text = "inherits the panel's style" ]
         ]
-]
+    ]

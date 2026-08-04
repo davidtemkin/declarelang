@@ -100,6 +100,10 @@ bootHost(cfg);
         if (n === null) throw new VerifyAssertion(`no node at '${path}'`);
         return n;
       };
+      // rootX/rootY is where the view is SEEN (inspect.ts takes every enclosing
+      // scroll out). It used to be a plain sum of ancestor x/y, so driving
+      // anything below a scrolled pane's fold aimed at the position the view
+      // would have had unscrolled, and missed.
       const center = async (path) => {
         const n = await node(path);
         return { x: n.rootX + n.width / 2, y: n.rootY + n.height / 2 };

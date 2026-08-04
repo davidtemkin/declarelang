@@ -92,6 +92,7 @@ class Segment extends Control [
     bg: View [ x = 2, y = 2, width = { parent.width - 4 }, height = { parent.height - 4 }, cornerRadius = 6,
         // three states, three depths: chosen wears the raised surface, a
         // PRESS is visibly deeper than a hover
+
         fill = { parent.on ? theme.surface : parent.down ? theme.line : parent.hovered ? theme.control : null },
         stroke = { parent.on ? stroke(1, theme.line) : null } ],
 

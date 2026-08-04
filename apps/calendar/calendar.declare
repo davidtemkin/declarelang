@@ -49,10 +49,12 @@ class Ev extends View [ clip = true,
     onPointerDown(e: PointerEvent) { app.startDrag(:id, :title, :category, :timeLabel, this.width, this.height, e.x, e.y) },
     onPointerMove()  { app.dragMove() },
     onPointerUp(e: PointerUpEvent)   { app.dropDrag(e.x, e.y, e.canceled) },
+
     // The hold moves this chip's touch claim to the press-and-hold (a drag view
     // that also holds claims nothing at touchdown) — a quick swipe over a chip
     // pans the page; press-and-hold picks the event up, and the hold itself
     // lifts the ghost so the pickup is visible before the finger moves.
+
     onHold()       { app.armDrag() },
     onClick()      { app.selectEvent(:id, :y + "-" + :m + "-" + :d) }
     ]
@@ -299,6 +301,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     // Where the user has paged to — the only date cells, and all navigation
     // writes. `0` / `""` mean "today"; a bare-literal default owns a cell, so
     // writing one wakes every reader.
+
     navYear: number = 0,
     navMonth: number = 0,      // month is 1-based
     navKey: string = "",
@@ -306,6 +309,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     // The visible date, derived. A sentinel rather than a literal date keeps the
     // declaration true at construction, where the focus rectangle's springs
     // take their snap.
+
     year: number = { app.navYear == 0 ? CAL_BOOT.getFullYear() : app.navYear },
     month: number = { app.navMonth == 0 ? CAL_BOOT.getMonth() + 1 : app.navMonth },
     todayKey: string = { app.keyOf(CAL_BOOT) },
@@ -382,12 +386,14 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     colW: number = { (app.bodyW - 2 * app.pad - app.gutter) / app.nc },
     rowH: number = { (app.bodyH - app.headH) / app.nr },
     blockness: number = { app.clamp(2 - app.nr, 0, 1) },   // 0 = month chips, 1 = time blocks — keyed on the FOCUS SPAN
+
     // (one focused row IS a time view), never on pixel height: a short-landscape
     // day still resolves to blocks (rowH-keyed, it stalled at 0.27 there — chips
     // posing as a day view, with in-day rescheduling silently dead), and a tall
     // monitor's month can never start half-morphing its chips. Riding `nr`
     // keeps the morph continuous: chips hold shape while the focus zooms,
     // then resolve into blocks over the last row of travel.
+
     gutter: number = { app.blockness * 52 },                             // hour-label gutter, opens in time views
 
     /* Year zoom: `yearZoom` (0→1) shrinks the month surface into its slot in the 4×3 year
@@ -446,10 +452,12 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
              + (s.getMonth() == e.getMonth() ? "" : app.monthName(e.getMonth() + 1) + " ") + e.getDate()
         },
     dayLabel(k: string) -> string { const d = app.parseKey(k); return app.dowLong(d.getDay()) + ", " + app.monthName(d.getMonth() + 1) + " " + d.getDate() },
+
     // -> number, not Color: these return a CONCRETE 0xRRGGBB (theme slots are
     // never null at read time), and number is what mix() blends — the
     // nullable Color return would refuse every mix(catFill(…), …) call site.
     // (Surfaced when compile-time path plans made datapath bodies typecheckable.)
+
     catFill(c: string) -> number { const t = this.theme; return c == "holiday" ? t.holidayBg : c == "astro" ? t.astroBg : c == "milestone" ? t.milestoneBg : t.defaultBg },
     catText(c: string) -> number { const t = this.theme; return c == "holiday" ? t.holidayText : c == "astro" ? t.astroText : c == "milestone" ? t.milestoneText : t.defaultText },
 
@@ -771,6 +779,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
         // clusters — and the clamp can never invert (the max is floored at the
         // min, so a squeezed bar pins the nav left rather than flinging it
         // off-frame, the bug the 480 floor used to paint).
+
         nav: View [ height = 34, y = { app.barNarrow ? 56 : 13 }, width = { app.navW },
             x = { app.barNarrow
                 ? (app.width - app.navW) / 2

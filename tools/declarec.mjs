@@ -313,7 +313,7 @@ export const Inspect = new Proxy({ ready: () => false }, {
   // index.js re-exports inspect's query surface by name; a stub must export
   // every name (esbuild resolves named re-exports even when unused downstream).
   const bridgeStub = `export function bridgeFor() { return {}; }
-export function viewAt() { return null; }
+export function pickAt() { return null; }
 export function dependentsOf() { return []; }
 export function expandValue() { return null; }
 export function slotsOf() { return []; }
