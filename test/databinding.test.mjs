@@ -156,12 +156,55 @@ function rejects(src) {
   const r = compileProgram(src);
   return r.errors.length > 0;
 }
+const errorsOf = (src) => compileProgram(src).errors.map((e) => e.message).join("\n");
 test("check rejects `<->` misuse (non-editor, literal, many-path)", () => {
   assert.ok(rejects(`App [ box: View [ width <-> :w ] ]`), "<-> on a non-editor");
   assert.ok(rejects(`App [ f: TextInput [ text <-> "hi" ] ]`), "<-> to a literal");
   assert.ok(rejects(`App [ s: Dataset { {"a":[]} }, form: View [ datapath = { app.s.value }, f: TextInput [ text <-> :a[] ] ] ]`), "<-> to a many-path");
   // and a valid one still compiles
   assert.ok(!rejects(`App [ s: Dataset { {"r":{"n":"x"}} }, form: View [ datapath = { app.s.value.r }, f: TextInput [ text <-> :n ] ] ]`));
+});
+
+// ── a `<->` with NOTHING TO EDIT (findings A2, 2026-08-03) ──────────────────
+// The arrow's right-hand side names a place in DATA — a static `:field`, or a
+// `{ }` yielding the field's name at runtime — and both resolve against the
+// nearest enclosing `datapath`. With no datapath above it there is no place to
+// write, and the binding was inert SILENTLY: clean through all six rungs of
+// verify, doing nothing in either direction.
+//
+// The likeliest way to write one is `text <-> { app.note }`, which reads as if
+// it two-way binds an ordinary slot. It does not: the `{ }` is evaluated for a
+// field NAME, so this binds to a dataset field literally called "start" (the
+// slot's value), finds nothing, and moves nothing. `declare.md` carries that
+// line as an example, which is how it reached the report.
+test("a `<->` with no enclosing datapath is refused, not silently inert", () => {
+  assert.ok(rejects(`App [ f: TextInput [ text <-> :name ] ]`),
+    "a static path with no datapath above it");
+  assert.ok(rejects(`App [ note: string = "s", f: TextInput [ text <-> { app.note } ] ]`),
+    "the { } form — the shape declare.md's example invites");
+  const msg = errorsOf(`App [ note: string = "s", f: TextInput [ text <-> { app.note } ] ]`);
+  assert.match(msg, /has no data to edit/);
+  assert.match(msg, /datapath = \{ … \}/, "it names the fix that makes the arrow work");
+  assert.match(msg, /input\(v: …\)/, "and the value pattern, for driving an ordinary slot");
+});
+
+test("a datapath ABOVE the editor still passes — the check is scope, not shape", () => {
+  assert.ok(!rejects(`App [ s: Dataset { {"r":{"n":"x"}} },
+      form: View [ datapath = { app.s.value.r }, f: TextInput [ text <-> :n ] ] ]`));
+  assert.ok(!rejects(`App [ s: Dataset { {"r":{"n":"x"}} }, w: string = "n",
+      form: View [ datapath = { app.s.value.r }, f: TextInput [ text <-> { app.w } ] ] ]`),
+    "the generic-editor form is untouched");
+});
+
+test("a CLASS BODY is exempt — its cursor arrives from the use site", () => {
+  // a component written to be dropped into a datapath'd context has no
+  // datapath of its own and is entirely correct; the use site is not visible
+  // from inside the class, so only the main tree can say nothing supplies one
+  assert.ok(!rejects(`class Row extends View [ TextInput [ text <-> :name ] ]
+    App [ d: Dataset { {"rows":[{"name":"a"}]} },
+      View [ datapath = :rows[], Row [ ] ] ]`));
+  assert.ok(!rejects(`class Row extends View [ TextInput [ text <-> :name ] ]
+    App [ Row [ ] ]`), "still exempt even when the use site supplies nothing — unknowable, so never guessed");
 });
 
 console.log(`\ndatabinding: ${pass} passed, ${fail} failed`);

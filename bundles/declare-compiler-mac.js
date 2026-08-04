@@ -378,7 +378,7 @@ var DeclareCompilerMac = (() => {
           else if (this.peek().kind === "bindtwo") {
             this.next();
             let W = this.parseLiteral();
-            if (W.kind !== "path" && W.kind !== "code") for (this.errors.push(new qt(`'${T.text} <-> \u2026' binds a DATAPATH \u2014 write a :path (${T.text} <-> :field), or a { } expression yielding a place. To wire an attribute to another attribute, derive down with a { } constraint and deliver up in an onInput() handler`, W.pos)); this.peek().kind === "dot"; ) this.next(), this.peek().kind === "ident" && this.next();
+            if (W.kind !== "path" && W.kind !== "code") for (this.errors.push(new qt(`'${T.text} <-> \u2026' binds a DATAPATH \u2014 write a :path (${T.text} <-> :field), or a { } expression yielding a field NAME. To wire an attribute to another attribute, derive down with a { } constraint and deliver up in an onInput() handler`, W.pos)); this.peek().kind === "dot"; ) this.next(), this.peek().kind === "ident" && this.next();
             else p.attrs.push({ name: T.text, value: W, pos: T.pos, bind: "two" });
           } else if (this.peek().kind === "colon") {
             if (this.next(), this.peek().kind === "lbracket") {
@@ -100418,8 +100418,19 @@ ${W.join(`
         }
       }
     }
+    checkTwoWayScope(p, T, A) {
+      if (A === null) return;
+      let F = p.attrs.filter((W) => W.bind === "two");
+      if (F.length === 0) return;
+      let B = (W) => W.attrs.some((ue) => ue.name === "datapath") || W.children.some((ue) => ue.attrs.some((_e) => _e.name === "datapath"));
+      if (!T.some(B)) for (let W of F) {
+        let ue = W.value.kind === "path" ? `:${W.value.path}` : "{ \u2026 }";
+        this.errors.push(new qt(`'${W.name} <-> ${ue}' has no data to edit \u2014 a two-way binding writes into a dataset through the nearest enclosing 'datapath', and nothing above this declares one, so the binding would do nothing in either direction. Put the editor inside a view with 'datapath = { \u2026 }' over a Dataset \u2014 or, to drive an ordinary slot, use the value pattern instead: '${W.name} = { app.slot }' one-way plus 'input(v: \u2026) { app.slot = v }' to write back`, W.pos));
+      }
+    }
     resolveElement(p, T, A) {
       let F = A === null ? "class" : "app", B = [p, ...T];
+      this.checkTwoWayScope(p, B, A);
       for (let W of p.attrs) W.value.kind === "code" && this.resolveBody(W.value.src, W.value.pos, true, [], B, A, F);
       for (let W of p.decls) W.def?.kind === "code" && this.resolveBody(W.def.src, W.def.pos, true, [], B, A, F);
       for (let W of p.methods) this.resolveBody(W.body, W.bodyPos, false, W.params.map((ue) => ue.name), B, A, F);

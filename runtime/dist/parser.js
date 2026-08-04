@@ -549,13 +549,15 @@ class Parser {
             else if (this.peek().kind === "bindtwo") {
                 // `name <-> :path` — two-way: the slot reads the datapath AND writes
                 // edits back to it. The value is a `:path` (or a `{ }` expression
-                // yielding a place — the dynamic form); anything else gets the rule
+                // yielding a FIELD NAME — the generic-editor form, evaluated for a
+                // string and resolved against the enclosing datapath, NOT a reference
+                // to the slot it names); anything else gets the rule
                 // named HERE (E-7: `text <-> classroot.field` otherwise dies
                 // downstream as an opaque "expected ']', got '.'").
                 this.next();
                 const bv = this.parseLiteral();
                 if (bv.kind !== "path" && bv.kind !== "code") {
-                    this.errors.push(new DeclareError(`'${name.text} <-> …' binds a DATAPATH — write a :path (${name.text} <-> :field), or a { } expression yielding a place. To wire an attribute to another attribute, derive down with a { } constraint and deliver up in an onInput() handler`, bv.pos));
+                    this.errors.push(new DeclareError(`'${name.text} <-> …' binds a DATAPATH — write a :path (${name.text} <-> :field), or a { } expression yielding a field NAME. To wire an attribute to another attribute, derive down with a { } constraint and deliver up in an onInput() handler`, bv.pos));
                     // consume a stray dotted chain (`<-> classroot.field`), drop the member
                     while (this.peek().kind === "dot") {
                         this.next();

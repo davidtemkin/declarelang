@@ -167,7 +167,7 @@ App [ width = 420, height = 260, fill = midnightblue, textColor = gainsboro,
 - An optional `schema = [ field: type, arr[]: [ … ] ]` (brackets, never braces — a shape declares, it doesn't run) makes the compiler validate responses at the boundary and check every `:path` statically.
 - Reads inside constraints: `data.read(["events"])` is a tracked read of a region (literal path). Mutation: `data.set("events.3.d", 14)` — writes wake exactly what derives from them.
 - **Structural edits** (from handlers) are the four verbs: `data.set(path, v)` · `data.insert(path, index, v)` · `data.removeAt(path, index)` · `data.move(path, from, to)`. Growing a list — the pattern verbatim: `addTask(t) { tasks.insert(["rows"], tasks.read(["rows"]).length, ({ label: t, done: false })) }`. Toggling a row's field from its replicated view: `tasks.set("rows." + i + ".done", !done)`. Replication follows the edit — no list rebuilding, no re-render calls.
-- **Two-way** is opt-in with `<->`, for leaf inputs: `TextInput [ text <-> :title ]` or `value <-> zip`. One-way `:path` everywhere else.
+- **Two-way** is opt-in with `<->`, for leaf inputs, and it edits DATA: `TextInput [ text <-> :title ]`. The right side is a `:path` (or a `{ }` yielding a field *name*), always resolved against the nearest enclosing `datapath` — a bare name (`value <-> zip`) is refused, and so is an editor with no datapath above it. To drive an ordinary slot, use the value pattern instead: `text = { app.note }` plus `input(v: string) { app.note = v }`. One-way `:path` everywhere else.
 - A derived dataset recomputes from its inputs: `cal: Dataset [ contents = { app.buildModel() } ]`.
 
 ## 7. States and motion

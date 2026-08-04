@@ -719,6 +719,42 @@ class Resolver {
     }
   }
 
+  /** A `<->` needs a DATASET to edit. The arrow's right-hand side names a place
+   *  in data — a static `:field`, or a `{ }` that yields the field's name at
+   *  runtime (the generic-editor form) — and both resolve against the nearest
+   *  enclosing `datapath`. With no datapath anywhere above it, there is no place
+   *  to write: the binding is inert, and it was inert SILENTLY, clean through
+   *  every rung of verify.
+   *
+   *  That silence is the whole bug. It is also how `text <-> { app.note }` reads
+   *  as if it two-way binds an ordinary slot — the `{ }` is evaluated for a field
+   *  NAME, so `{ app.note }` binds to a dataset field literally called "start",
+   *  finds nothing, and does nothing in either direction. declare.md carries that
+   *  exact line as an example, so it is the shape an author is most likely to
+   *  write first.
+   *
+   *  CLASS BODIES ARE EXEMPT. A component written to be dropped into a datapath'd
+   *  context (`class Row extends View [ TextInput [ text <-> :name ] ]`) has no
+   *  datapath of its own and is entirely correct — its cursor arrives from the use
+   *  site, which is not visible here. Only the main tree, where the whole chain up
+   *  to `App` is in hand, can say for certain that nothing supplies one. */
+  checkTwoWayScope(el: Element, levels: Element[], mainRoot: Element | null): void {
+    if (mainRoot === null) return;                       // class body — unknowable, see above
+    const twoWay = el.attrs.filter((a) => a.bind === "two");
+    if (twoWay.length === 0) return;
+    // a datapath anywhere up the chain, including one a State applies to a level
+    const supplies = (e: Element): boolean =>
+      e.attrs.some((a) => a.name === "datapath") ||
+      e.children.some((c) => c.attrs.some((a) => a.name === "datapath"));
+    if (levels.some(supplies)) return;
+    for (const a of twoWay) {
+      const wrote = a.value.kind === "path" ? `:${a.value.path}` : "{ … }";
+      this.errors.push(new DeclareError(
+        `'${a.name} <-> ${wrote}' has no data to edit — a two-way binding writes into a dataset through the nearest enclosing 'datapath', and nothing above this declares one, so the binding would do nothing in either direction. Put the editor inside a view with 'datapath = { … }' over a Dataset — or, to drive an ordinary slot, use the value pattern instead: '${a.name} = { app.slot }' one-way plus 'input(v: …) { app.slot = v }' to write back`,
+        a.pos));
+    }
+  }
+
   /** Walk one body root (a class body, or the main tree — `mainRoot` set
    *  there enables the lexical `App` self-name). `ancestors` is innermost
    *  first and ends at the body root. `scope` names WHICH kind of body this is,
@@ -726,6 +762,7 @@ class Resolver {
   resolveElement(el: Element, ancestors: Element[], mainRoot: Element | null): void {
     const scope: ScopeKind = mainRoot === null ? "class" : "app";
     const levels = [el, ...ancestors];
+    this.checkTwoWayScope(el, levels, mainRoot);
     for (const a of el.attrs) {
       if (a.value.kind === "code") this.resolveBody(a.value.src, a.value.pos, true, [], levels, mainRoot, scope);
     }

@@ -685,7 +685,7 @@ var DeclareMac = (() => {
               this.next();
               const bv = this.parseLiteral();
               if (bv.kind !== "path" && bv.kind !== "code") {
-                this.errors.push(new DeclareError(`'${name.text} <-> \u2026' binds a DATAPATH \u2014 write a :path (${name.text} <-> :field), or a { } expression yielding a place. To wire an attribute to another attribute, derive down with a { } constraint and deliver up in an onInput() handler`, bv.pos));
+                this.errors.push(new DeclareError(`'${name.text} <-> \u2026' binds a DATAPATH \u2014 write a :path (${name.text} <-> :field), or a { } expression yielding a field NAME. To wire an attribute to another attribute, derive down with a { } constraint and deliver up in an onInput() handler`, bv.pos));
                 while (this.peek().kind === "dot") {
                   this.next();
                   if (this.peek().kind === "ident")

@@ -465,10 +465,12 @@ than `undefined` three bindings deep — and lets every `:path` be checked again
 compile time. Without one, paths are dynamic: an unresolved `:path` yields null and the bound
 attribute falls back to its default.
 
-**Two-way binding is opt-in, with `<->`, and for leaf editors only** — `TextInput [ text <-> :title ]`
-against data, or `text <-> { app.note }` against a slot: the right-hand side names a *place* to
-write, either a datapath or a `{ }` yielding one. One-way `:path` everywhere else. It is the only
-arrow in the language.
+**Two-way binding is opt-in, with `<->`, and for leaf editors only** — `TextInput [ text <-> :title ]`:
+the right-hand side names a *place in data*, either a datapath or a `{ }` yielding a field name,
+resolved against the nearest enclosing `datapath` — an editor with none is a compile error. To
+drive an ordinary slot, use the value pattern: `text = { app.note }` plus
+`input(v: string) { app.note = v }`. One-way `:path` everywhere else. It is the only arrow in the
+language.
 
 **Datasets are mutable from handlers** — `d.set(path, v)`, with `insert`, `removeAt` and `move`
 for collections. A path is a segments array (`["rows", 0, "name"]`) or a JSON Pointer string
