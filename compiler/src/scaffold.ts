@@ -429,27 +429,17 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
     // welcome) or an RFC 6901 POINTER string ("/events/3/y" — the interop
     // spelling; "/rows/-" appends on set). Dot-strings are refused. Edits
     // drive bindings and replication through the ordinary settle.
-    `  readonly value: any;`,
     `  read(path: string | readonly (string | number)[]): any;`,
     `  set(path: string | readonly (string | number)[], v: any): void;`,
     `  insert(path: string | readonly (string | number)[], index: number, v: any): void;`,
     `  removeAt(path: string | readonly (string | number)[], index: number): any;`,
     `  move(path: string | readonly (string | number)[], from: number, to: number): void;`,
   ],
+  // NOTE: the lifecycle (value/status/error/statusCode/errorBody and the four
+  // booleans) is NOT listed here — it is declared in the schema now, so it
+  // flows into the typed surface and the generated reference from one place.
+  // Only the VERBS need naming, since a method is not an attribute.
   DataSource: [
-    `  readonly idle: boolean;`,
-    `  readonly loading: boolean;`,
-    `  readonly loaded: boolean;`,
-    `  readonly failed: boolean;`,
-    `  readonly status: string;`,
-    `  readonly error: any;`,
-    // What the server ANSWERED, kept apart from whether it worked: the HTTP
-    // status (0 before a reply / when the request never reached one) and the
-    // refusal's payload, parsed when it is JSON. A failure that reports only
-    // `error` throws away the part that says WHY — the field that failed, the
-    // rate-limit reset — so both are read-only surface here.
-    `  readonly statusCode: number;`,
-    `  readonly errorBody: any;`,
     `  fetch(): Promise<void>;`,
     `  clear(): void;`,
   ],
@@ -478,7 +468,18 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
  *  is why `parent.width - 8` is the corpus-wide idiom and works). Model it as
  *  divergent accessors: `get(): number; set(v: Length)`. Symmetric kinds stay
  *  plain members. */
-export function memberSig(name: string, t: AttrType, nonNullColor = false): string[] {
+export function memberSig(name: string, t: AttrType, nonNullColor = false, readOnly = false): string[] {
+  // A schema `readOnly` slot is computed — a constraint READS it, nothing sets
+  // it. checkAttr already refuses `hovered = true` written as an attribute, but
+  // an assignment inside a `{ }` body is TypeScript's to catch, and it could not
+  // while this emitted a plain mutable member: `onClick() { this.hovered = true }`
+  // typechecked clean. The two halves of one rule now agree.
+  if (readOnly) {
+    // a length's divergent get/set collapses to the getter — there is no setter
+    if (t.kind === "length") return [`  readonly ${name}: number;`];
+    if (t.kind === "color" && nonNullColor) return [`  readonly ${name}: number;`];
+    return [`  readonly ${name}: ${tsType(t)};`];
+  }
   if (t.kind === "length") return [`  get ${name}(): number;`, `  set ${name}(v: Length);`];
   // A color declared with a concrete (non-null) default is a plain color —
   // reads never see null — so it is typed non-null. A `= null` (or absent)
@@ -510,8 +511,9 @@ function emitClass(
       if (d.def !== null && !(d.def.kind === "ident" && d.def.name === "null")) nonNullColors.add(d.name);
     }
   }
+  const readOnlyHere = new Set(s.readOnly ?? []);
   for (const [name, t] of Object.entries(s.attrs)) {
-    lines.push(...memberSig(name, t, t.kind === "color" && nonNullColors.has(name)));
+    lines.push(...memberSig(name, t, t.kind === "color" && nonNullColors.has(name), readOnlyHere.has(name)));
   }
   if (s.base === null) {
     // The tree nouns (language §11) — on EVERY root class, not View alone:

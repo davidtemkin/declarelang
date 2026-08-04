@@ -62,3 +62,9 @@ is state-driven; call `start()` for a one-shot fired from a handler (`onClick() 
 Halts the run where it is and leaves the attribute at its current value — it does **not**
 snap back to `from`. Pair with `start()` for handler-driven control, or drive `started`
 reactively instead.
+
+## settled
+Arrival as a reactive fact: true only at an uninterrupted destination — the animation twin
+of a `DataSource`'s `.loaded`. Read it to sequence what should happen *after* motion
+(revealing a detail panel once its container has finished opening) instead of guessing with
+a timer that a retarget would invalidate. Read-only; `start()` and `stop()` move it.

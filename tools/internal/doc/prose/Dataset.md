@@ -55,3 +55,10 @@ for it is torn down in the same settle.
 ## move()
 Reorders the array at `path`, moving the element at `from` to `to` — the replicated views
 follow the new order (a reorder, not a destroy-and-rebuild), so their state rides along.
+
+## value
+The parsed data. `contents` is the slot you *write* (or a JSON body, or a fetch); this is
+the one you read, and it is read-only — a dataset changes through the structural verbs
+(`set`, `insert`, `removeAt`, `move`) or by a `DataSource` fetch landing, never by
+assignment. `:path` reads resolve against it, and a write wakes exactly the bindings that
+read the region that changed.

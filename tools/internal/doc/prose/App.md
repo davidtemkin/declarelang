@@ -87,3 +87,42 @@ App [ location = "home",
     why: View [ visible = { app.location == "why" } ]
     ]
 ```
+
+## pointerDown
+True while a pointer is held anywhere in the app — read-only, alongside `pointerX`/
+`pointerY`. It is the app-wide fact, not a per-view one: use `View.pressed` to style the
+thing being pressed, and this to suppress something globally for the duration of a drag.
+
+## touchDevice
+Whether touch is the **primary** input, live — so it re-settles if the input changes rather
+than being sampled once at boot. This is the one to size from: hit targets, spacing,
+whether a hover reveal exists at all (`visible = { !app.touchDevice }`). Distinct from
+`hasTouch`: a touch laptop *has* touch while its primary input is still the pointer.
+
+## hasTouch
+Whether the device **has** a touch input at all (`any-pointer`), regardless of which is
+primary. Use it for a hit-target *floor* on hybrids — a machine someone might reach out and
+tap even though they are mostly using a trackpad. Size from `touchDevice`; raise the floor
+from this.
+
+## hasPointer
+Whether the device has a fine pointer at all, the mirror of `hasTouch`. Both can be true at
+once; neither tells you which the user is holding right now — `lastPointerType` does.
+
+## lastPointerType
+What the user *just* used: `"mouse"`, `"touch"`, or `"pen"`, live. On a hybrid the honest
+answer changes per gesture, which is exactly what makes this the right input for hover-only
+affordances — and the wrong one for layout, which must not reflow because someone reached
+past their trackpad.
+
+## env
+Whatever the host passed in, as a record — the clean pass-through for a desktop hosting a
+child app and pushing appearance or configuration down. `{}` when top-level or when the
+host passes nothing, so a read never null-crashes. Read-only: it is the host's channel, and
+`app.dark` is the ready-made one most apps want.
+
+## appName
+What this app calls itself — the host reflects it into the window or document title. An
+ordinary reactive attribute, so a title that tracks the open document is a binding rather
+than a mechanism: `appName = { "Viewer — " + app.fileName }`. `""` (the default) means no
+opinion, and the host keeps whatever title it served.

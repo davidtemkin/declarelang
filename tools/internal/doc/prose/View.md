@@ -426,3 +426,27 @@ The departure hook — fires once when this view's PRESENCE ends (its record lea
 replicated match, or the subtree is discarded), children before parents, with everything
 still alive. The exact symmetric of `onInit`'s membership rule: a windowed row's
 dematerialization is NOT a departure and never fires it.
+
+## hovered
+True while the pointer is over this view — read-only, maintained by the same hit walk that
+routes presses, so it agrees with what a click would reach. Read it in a constraint rather
+than tracking enter/leave by hand: `fill = { hovered ? theme.control : null }`. On a touch
+device there is no hovering, so gate mouse-only affordances on `app.touchDevice`.
+
+## pressed
+True while the pointer is down *and* this view was on the chain captured at pointer-down —
+read-only. It stays true if the finger slides off and comes back, which is what makes a
+button feel like a button; `hovered` alone flickers. The pair is the whole of press
+styling: `fill = { pressed ? theme.line : hovered ? theme.control : null }`.
+
+## cursor
+The pointer cursor shown over this view, as a CSS cursor keyword (`"col-resize"`,
+`"grab"`); `""` inherits. This is how a resize edge or a drag handle announces itself
+before anything is pressed. Meaningful on views that take input — the cursor follows the
+hit target, so a view with `pointerEvents = "none"` never shows its own.
+
+## pointerEvents
+Whether this view and its subtree take pointer events: `"auto"` (the default) or `"none"`.
+`"none"` is for a view that is pure decoration over live content — a highlight rectangle,
+a full-viewport chrome overlay — so presses reach what is beneath it. It is the fix for
+the invisible-lid bug: an overlay sized to the frame that silently swallows every click.

@@ -587,8 +587,12 @@ const LayoutSchema: ComponentSchema = {
 // TweenLayout (R7) — the animated-reflow base a custom layout extends to glide
 // its children between two whole layouts through one scalar `t` (layout.ts). A
 // subclass supplies place() and its own state attributes; `from`/`to` are
-// runtime-internal (arrays, set by retarget — no author-settable kind, so not
-// surface here), leaving `t` and `duration` as the settable knobs. The primary
+// MACHINERY, not surface: `retarget()` overwrites both from the children's live
+// geometry on every transition, and no program reads them — they live in cells so
+// the layout can react, which is not the same as being an attribute. (Not for want
+// of a kind: `array` would express them. The test is whether an author reads it —
+// which is where DataSource's lifecycle differed, being taught in the guide and
+// read across the corpus while declared nowhere.) `t` and `duration` are the knobs. The primary
 // forcing case for user-written layouts (§5 "…and ones you write").
 const TweenLayoutSchema: ComponentSchema = {
   name: "TweenLayout",
@@ -604,8 +608,12 @@ const TweenLayoutSchema: ComponentSchema = {
 // constraint over other reactive state (a derived collection: recompute is
 // dep-gated, and keyed replication turns the new value into O(changed) view
 // work). A DataSource is a Dataset whose value arrives from `url`. Their
-// lifecycle state (value, status, error) is runtime surface read from
-// bindings, not author-settable — hence absent here. Neither is a View: they
+// lifecycle state is DECLARED, and marked `readOnly` — read-only is exactly
+// what that field is for (View.hovered, App.dark and Stream.status all do
+// this). It was once omitted instead, reasoning that "not author-settable"
+// meant "absent"; the cost was that `.value`, `.loaded` and the rest reached
+// no generated reference at all, so declare-model.json denied attributes the
+// guide teaches. Neither is a View: they
 // sit in the tree as named members with no visual incarnation (descendsFrom
 // "Dataset" is the checker's data-node test, like "Layout" for strategies).
 const DatasetSchema: ComponentSchema = {
@@ -623,7 +631,12 @@ const DatasetSchema: ComponentSchema = {
     // `:path`s statically, declare the identity field. Presence is the only
     // switch — the `:path` surface never changes.
     schema: { kind: "dataschema" },
+    // The parsed data itself. `contents` is the author's WRITE slot; this is
+    // the read one, and the structural verbs (set/insert/removeAt/move) are
+    // how it changes.
+    value: { kind: "object" },
   },
+  readOnly: ["value"],
 };
 
 // Node — the plain object-graph atom, exposed as a user-subclassable base. A
@@ -647,7 +660,24 @@ const DataSourceSchema: ComponentSchema = {
     // auto-fetch on url arrival/change (data.ts maybeAuto) — the opt-in for
     // REACTIVE addresses; explicit fetch() stays the default discipline.
     auto: { kind: "boolean" },
+    // ── the lifecycle, read-only (see the note above DatasetSchema) ────────
+    // One fact, four spellings: `status` is the state and the booleans derive
+    // from it, so they can never disagree. Constraints read these — an entry
+    // screen is `visible = { !data.loaded }`, not a flag someone remembers to
+    // flip.
+    status: enumType("DataStatus", "idle", "loading", "loaded", "failed"),
+    idle: { kind: "boolean" },
+    loading: { kind: "boolean" },
+    loaded: { kind: "boolean" },
+    failed: { kind: "boolean" },
+    // What went wrong as one line, and what the SERVER said, kept apart:
+    // `statusCode` is 0 until a reply arrives (distinct from every real code),
+    // `errorBody` is the refusal's payload, parsed when it is JSON.
+    error: { kind: "string" },
+    statusCode: { kind: "number" },
+    errorBody: { kind: "object" },
   },
+  readOnly: ["status", "idle", "loading", "loaded", "failed", "error", "statusCode", "errorBody"],
   // fired when a fetch lands, after value+status settle — the imperative
   // arrival hook (constraints keep deriving from .loaded)
   events: ["load"],

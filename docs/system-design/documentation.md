@@ -127,6 +127,50 @@ framing, and the sequencing. "Derivative" ≠ "generated" and ≠ "adds nothing.
 - **evals as the teaching gate** — "can a model do the task from the docs alone?" A
   docs-gap E-series finding is a prose bug with a location.
 
+### 4a. Coverage, as actually enforced (2026-08-04)
+
+`test/schema-completeness.test.mjs` is the gate. Three checks, and one standing debt.
+
+**Enforced now.** Every reactive slot a RUNTIME component publishes — `defineAttributes`
+keys plus public getters — must be declared in its schema; every declared runtime
+attribute must carry prose; and every entry on the machinery `EXEMPT` list must still be
+both published and undeclared, so an exemption cannot outlive its reason and become the
+place real omissions hide.
+
+This exists because `DataSource` published its whole lifecycle — `value`, `status`,
+`error`, `loaded` and the rest — while declaring only its five settable attributes, so
+`declare-model.json` denied attributes `declare.md` §7 and `guide/09-data.md` teach. The
+defect is specific to runtime components, which are described twice (the runtime table
+creates the cells, the schema declares the surface) with nothing comparing them.
+
+**Structurally out of scope: classes written in Declare.** A `.declare` class declares its
+attributes in exactly one place, its own source — assigning to an undeclared slot is a
+compile error — so there is no second table to fall out of step with. The library cannot
+have this defect.
+
+**TO DO — the library prose pass.** ~130 library attributes have no prose, concentrated in
+`FocusRing`, `Menu`, `DataGrid`, `Tooltip`, `Dialog`, `Combobox` and `Slider`. The prose
+gate is exempted for them until that lands, and the exemption is a dated decision, not a
+view that library prose matters less.
+
+It needs **no mechanism**, which is the point of deferring it this way. About ten of those
+are internal markers (`isSegmented`, `isTable`, `isDataGrid` — the wrap-probe discipline):
+a `.declare` class cannot hold a reactive cell without declaring it, so machinery is
+necessarily declared and necessarily reaches the reference, where it currently shows as a
+public attribute with an empty description. Mark those in the prose file rather than the
+grammar — whether something is API is an editorial judgment, not a runtime fact, and the
+compiler should not carry it:
+
+    ## isSegmented
+    **Internal.** The marker a `Segment` reads to identify its parent — not API.
+
+Keep that opening phrase FIXED. It costs nothing now, it makes the real debt countable
+against the marked-internal at any moment, and if the reference should later omit these
+rather than show them, `extract.mjs` can key on the one string — no retrofit, no grammar
+change. Free text forecloses that.
+
+When the count reaches zero, drop the library exemption from the gate.
+
 ## 5. Linking — the connective tissue (author once, resolve many)
 
 **Scheme:** `declare-docs:` — deliberately its own namespace, walled off from a future

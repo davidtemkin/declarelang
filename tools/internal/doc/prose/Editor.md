@@ -29,3 +29,9 @@ field that is not `<->`-bound.
 
 ## revert()
 Discard edits — reset the field to the committed dataset value.
+
+## focused
+True while this editor holds keyboard focus — read-only in practice: assigning it does not
+move platform focus, `Focus.focus(view)` does. It is published so an author who displaces
+the default field chrome (by assigning `fill` or `stroke`) can still draw the focus
+affordance themselves.

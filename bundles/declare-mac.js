@@ -2809,8 +2809,13 @@ var DeclareMac = (() => {
           // The optional data shape (B4, language §9): validate on receipt, check
           // `:path`s statically, declare the identity field. Presence is the only
           // switch — the `:path` surface never changes.
-          schema: { kind: "dataschema" }
-        }
+          schema: { kind: "dataschema" },
+          // The parsed data itself. `contents` is the author's WRITE slot; this is
+          // the read one, and the structural verbs (set/insert/removeAt/move) are
+          // how it changes.
+          value: { kind: "object" }
+        },
+        readOnly: ["value"]
       };
       DataSourceSchema = {
         name: "DataSource",
@@ -2825,8 +2830,25 @@ var DeclareMac = (() => {
           body: { kind: "object" },
           // auto-fetch on url arrival/change (data.ts maybeAuto) — the opt-in for
           // REACTIVE addresses; explicit fetch() stays the default discipline.
-          auto: { kind: "boolean" }
+          auto: { kind: "boolean" },
+          // ── the lifecycle, read-only (see the note above DatasetSchema) ────────
+          // One fact, four spellings: `status` is the state and the booleans derive
+          // from it, so they can never disagree. Constraints read these — an entry
+          // screen is `visible = { !data.loaded }`, not a flag someone remembers to
+          // flip.
+          status: enumType("DataStatus", "idle", "loading", "loaded", "failed"),
+          idle: { kind: "boolean" },
+          loading: { kind: "boolean" },
+          loaded: { kind: "boolean" },
+          failed: { kind: "boolean" },
+          // What went wrong as one line, and what the SERVER said, kept apart:
+          // `statusCode` is 0 until a reply arrives (distinct from every real code),
+          // `errorBody` is the refusal's payload, parsed when it is JSON.
+          error: { kind: "string" },
+          statusCode: { kind: "number" },
+          errorBody: { kind: "object" }
         },
+        readOnly: ["status", "idle", "loading", "loaded", "failed", "error", "statusCode", "errorBody"],
         // fired when a fetch lands, after value+status settle — the imperative
         // arrival hook (constraints keep deriving from .loaded)
         events: ["load"]

@@ -78,3 +78,38 @@ focusing the first result, chaining a follow-up fetch, announcing to a screen re
 Returns the source to the idle state — drops `value`, `error`, and the loaded/failed flags,
 as if it had never fetched. For resetting a search field's results, or releasing a large
 response you no longer need.
+
+## status
+The lifecycle as one fact: `"idle"` before anything is asked, `"loading"` in flight, then
+`"loaded"` or `"failed"`. Read-only — `fetch()` and `clear()` move it. The four booleans
+below derive from it, so they can never disagree with it or with each other.
+
+## idle
+Nothing has been asked for yet, or `clear()` returned it here. `= { status == "idle" }`.
+
+## loading
+A request is in flight. `= { status == "loading" }` — the slot to hang a spinner on.
+
+## loaded
+The value arrived and validated. `= { status == "loaded" }`. This is the usual one: a
+screen derives from it (`visible = { data.loaded }`) rather than being toggled by hand.
+
+## failed
+The request, or the schema check, refused. `= { status == "failed" }`. Read `error` for
+the one-line reason, `statusCode` and `errorBody` for what the server actually said.
+
+## error
+Why the last fetch failed, as one line — an HTTP status, a transport message, or the
+schema mismatch with its pointed path. `null` when nothing has gone wrong. It is the
+*message*; the server's own account is `errorBody`.
+
+## statusCode
+The HTTP status of the last reply — `404`, `422`, `200`. **`0` means no reply arrived**:
+nothing asked yet, or the request never reached a server at all. That distinction is the
+point of the slot, since it separates "retry" from "report" without parsing `error`.
+
+## errorBody
+What the server said when it refused — parsed if it was JSON, the raw text otherwise,
+`null` if the body was empty. This is the part that names *which* field failed or *when*
+the rate limit resets; a refusal reported as a status number alone throws it away.
+`value` is untouched by a failure, so the last good data is still there.

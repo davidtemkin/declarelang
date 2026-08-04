@@ -154,4 +154,23 @@ await test("a transport that never reaches a server leaves statusCode 0", async 
   } finally { provideTransport(prev); }
 });
 
+await test("the lifecycle is DECLARED surface: readable, refused on assignment", () => {
+  // findings 2026-08-04: DataSource declared only its five settable attrs, so
+  // its whole lifecycle reached no generated reference — declare-model.json
+  // denied attributes declare.md §7 and guide/09-data.md teach. The stated
+  // reason was a comment saying read-only means omit, which is false for every
+  // other class in the file: `readOnly` exists so a computed slot can be BOTH
+  // declared and unsettable, exactly as View.hovered and Stream.status are.
+  const errs = (src) => (compile(src, {}).errors ?? []).map((e) => e.message).join("\n");
+  for (const slot of ["status", "loaded", "failed", "idle", "loading", "error", "statusCode", "errorBody"]) {
+    const m = errs(`App [ width=1, height=1, d: DataSource [ url = "/x", ${slot} = 1 ] ]`);
+    assert.match(m, new RegExp(`DataSource\\.${slot} is read-only`), `${slot} must refuse assignment`);
+  }
+  assert.match(errs(`App [ width=1, height=1, s: Dataset [ value = 1 ] ]`), /Dataset\.value is read-only/);
+  // …and every one of them still READS clean
+  assert.deepEqual(errs(`App [ width=1, height=1, d: DataSource [ url = "/x" ],
+      t: Text [ text = { "" + d.status + d.idle + d.loading + d.loaded + d.failed
+                          + d.error + d.statusCode + JSON.stringify(d.errorBody) + JSON.stringify(d.value) } ] ]`), "");
+});
+
 summarize("datasource-failure");

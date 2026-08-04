@@ -4,7 +4,7 @@
     "code": 824,
     "comment": 487,
     "blank": 256,
-    "wireGzip": 78749,
+    "wireGzip": 78816,
     "programGzip": 15179
   },
   "calendar": {
@@ -12,7 +12,7 @@
     "code": 511,
     "comment": 165,
     "blank": 130,
-    "wireGzip": 62809,
+    "wireGzip": 62883,
     "programGzip": 11736
   },
   "tracker": {
@@ -20,7 +20,7 @@
     "code": 1291,
     "comment": 187,
     "blank": 209,
-    "wireGzip": 88976,
+    "wireGzip": 89050,
     "programGzip": 33156
   },
   "desktop": {
@@ -28,7 +28,7 @@
     "code": 1625,
     "comment": 744,
     "blank": 427,
-    "wireGzip": 97660,
+    "wireGzip": 97728,
     "programGzip": 33245
   }
 }

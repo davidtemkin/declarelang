@@ -13,3 +13,8 @@ preview: DOMIsland [ width = { parent.width }, height = 300, slot = "run:demo" ]
 The host key — reflected onto the element as `data-declare-slot`, so the host can locate this box
 and mount foreign content into it. Set it to `""` to mount nothing (a closed island); flip it
 to show or swap the tenant reactively.
+
+## childName
+The name a hosted child app reports up — host-fed, so a hosting window can title itself by
+what it is showing (the viewer names its window by the open file). `""` until a child is
+up. It is the inbound twin of the child's own `appName`.
