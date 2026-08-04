@@ -3033,6 +3033,105 @@ var DeclareMac = (() => {
     }
   });
 
+  // runtime/dist/include.js
+  function exciseSpans(source, spans) {
+    let out = source;
+    for (const s of [...spans].sort((a, b) => b.start - a.start)) {
+      out = out.slice(0, s.start) + out.slice(s.end);
+    }
+    return out;
+  }
+  function resolveIncludes(program, host2, originDir) {
+    const errors = [];
+    const classes = [...program.classes];
+    const stylesheets = [...program.stylesheets];
+    const styles = [...program.styles];
+    const fonts = [...program.fonts];
+    const uses = [...program.uses];
+    const scripts = [...program.scripts];
+    const sources = [];
+    const MAIN = "the app";
+    const origin = /* @__PURE__ */ new Map();
+    for (const c of program.classes)
+      origin.set(c.name, MAIN);
+    for (const s of program.stylesheets)
+      origin.set(s.name, MAIN);
+    for (const s of program.styles)
+      origin.set(s.name, MAIN);
+    for (const f of program.fonts)
+      origin.set(f.name, MAIN);
+    const visited = /* @__PURE__ */ new Set();
+    const fold = (name, pos, from) => {
+      const prev = origin.get(name);
+      if (prev !== void 0) {
+        errors.push(Diag.includeCollision(`'${name}' is declared twice \u2014 in "${from}" and "${prev}"`, pos));
+        return false;
+      }
+      origin.set(name, from);
+      return true;
+    };
+    const walk = (includes, fromDir) => {
+      for (const inc of includes) {
+        const resolved = host2.resolve(fromDir, inc.path);
+        if (resolved === null) {
+          errors.push(Diag.missingInclude(inc.path, inc.pos));
+          continue;
+        }
+        if (visited.has(resolved.canonical))
+          continue;
+        visited.add(resolved.canonical);
+        let lib;
+        try {
+          lib = parseLibrary(resolved.source);
+        } catch (e) {
+          if (e instanceof DeclareError) {
+            errors.push(e);
+            continue;
+          }
+          throw e;
+        }
+        walk(lib.includes, resolved.dir);
+        const from = inc.path;
+        for (const c of lib.classes)
+          if (fold(c.name, c.pos, from))
+            classes.push(c);
+        for (const s of lib.stylesheets)
+          if (fold(s.name, s.pos, from))
+            stylesheets.push(s);
+        for (const s of lib.styles)
+          if (fold(s.name, s.pos, from))
+            styles.push(s);
+        for (const f of lib.fonts)
+          if (fold(f.name, f.pos, from))
+            fonts.push(f);
+        uses.push(...lib.uses);
+        scripts.push(...lib.scripts);
+        sources.push(exciseSpans(resolved.source, lib.includeSpans));
+      }
+    };
+    walk(program.includes, originDir);
+    return {
+      program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], scripts, root: program.root },
+      sources,
+      errors,
+      visited
+    };
+  }
+  function autoIncludableNames() {
+    return autoIncludable;
+  }
+  var NO_INCLUDES, autoIncludable;
+  var init_include = __esm({
+    "runtime/dist/include.js"() {
+      "use strict";
+      init_parser();
+      init_errors();
+      init_diagnostics();
+      NO_INCLUDES = { resolve: () => null };
+      autoIncludable = [];
+    }
+  });
+
   // runtime/dist/datapath.js
   function staticSegs(plan) {
     const out = [];
@@ -3463,6 +3562,11 @@ var DeclareMac = (() => {
     if (hash && /invalid character|private identifier/i.test(raw)) {
       return `${head} \u2014 inside { } a color is written ${hashToOx(hash[1])}, not ${hash[0]} (the #\u2026 and named-color forms work only in bare slots)`;
     }
+    const pct = src.match(/(?:^|[^\w.])(\d+(?:\.\d+)?)\s*%(?!\s*[\w(])/);
+    if (pct && /expression expected|unexpected|invalid/i.test(raw)) {
+      const frac = Number((Number(pct[1]) / 100).toFixed(6));
+      return `${head} \u2014 there are no percentages: read the parent and scale, so ${pct[1]}% is { parent.width * ${frac} }`;
+    }
     if (expression && looksLikeStatements(src, raw)) {
       return `${head} \u2014 an attribute value is one expression, not statements; move the logic into a method and call it (e.g. { classroot.compute() })`;
     }
@@ -3868,6 +3972,9 @@ var DeclareMac = (() => {
   });
 
   // runtime/dist/check.js
+  function tagCandidates(schemas) {
+    return [.../* @__PURE__ */ new Set([...Object.keys(schemas), ...autoIncludableNames()])];
+  }
   function check(input) {
     const program = "root" in input ? input : { classes: [], stylesheets: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], scripts: [], root: input };
     const { infos, schemas, errors } = programSchemas(program.classes);
@@ -4138,7 +4245,7 @@ var DeclareMac = (() => {
       seen.set(a.name, a.pos);
       const type = attrType(schema, a.name);
       if (type === null) {
-        errors.push(new DeclareError(`${where}: ${entry.tag} has no attribute '${a.name}'${cssAttributeHint(a.name)}`, a.pos));
+        errors.push(new DeclareError(`${where}: ${entry.tag} has no attribute '${a.name}'${attributeMiss(schema, a.name)}`, a.pos));
         continue;
       }
       const bad = UNSTYLABLE[type.kind];
@@ -4197,7 +4304,7 @@ var DeclareMac = (() => {
     const schema = Object.hasOwn(schemas, el.tag) ? schemas[el.tag] : null;
     const consumed = /* @__PURE__ */ new Set();
     if (schema === null) {
-      errors.push(Diag.unknownComponent(el.tag, el.pos, Object.keys(schemas)));
+      errors.push(Diag.unknownComponent(el.tag, el.pos, tagCandidates(schemas)));
     } else if (descendsFrom(schema, "Layout") && !classRoot) {
       errors.push(new DeclareError(`'${el.tag}' is a layout \u2014 a layout is an attribute, not a child: write 'layout: ${el.tag} [ \u2026 ]' on the view it arranges`, el.pos));
       return;
@@ -4561,7 +4668,7 @@ var DeclareMac = (() => {
   function checkComponentValue(schemas, owner, attrName, of, el) {
     const schema = Object.hasOwn(schemas, el.tag) ? schemas[el.tag] : null;
     if (schema === null)
-      return [Diag.unknownComponent(el.tag, el.pos, Object.keys(schemas))];
+      return [Diag.unknownComponent(el.tag, el.pos, tagCandidates(schemas))];
     if (!descendsFrom(schema, of)) {
       return [new DeclareError(`${owner}.${attrName} expects a ${of} \u2014 '${el.tag}' is not one`, el.pos)];
     }
@@ -4617,10 +4724,29 @@ var DeclareMac = (() => {
     const h = Object.hasOwn(CSS_ATTRIBUTE_HINTS, name) ? CSS_ATTRIBUTE_HINTS[name] : "";
     return h ? ` \u2014 the CSS instinct: ${h}` : "";
   }
+  function attrNames(schema) {
+    const out = [];
+    for (let sc = schema; sc !== null; sc = sc.base) {
+      out.push(...Object.keys(sc.attrs));
+      for (const e of sc.events ?? [])
+        out.push(handlerName(e));
+    }
+    return [...new Set(out)];
+  }
+  function attributeMiss(schema, name) {
+    const hint = cssAttributeHint(name);
+    if (hint !== "")
+      return hint;
+    const hinted = name.length >= 5 ? nearestName(name, [...Object.keys(CSS_ATTRIBUTE_HINTS), ...Object.keys(RENAMED_ATTRIBUTES)]) : null;
+    if (hinted !== null)
+      return cssAttributeHint(hinted);
+    const near = nearestName(name, attrNames(schema));
+    return near === null ? "" : ` \u2014 did you mean '${near}'?`;
+  }
   function checkAttr(schema, attr) {
     const type = attrType(schema, attr.name);
     if (type === null) {
-      return { ok: false, error: new DeclareError(`${schema.name} has no attribute '${attr.name}'${cssAttributeHint(attr.name)}`, attr.pos) };
+      return { ok: false, error: new DeclareError(`${schema.name} has no attribute '${attr.name}'${attributeMiss(schema, attr.name)}`, attr.pos) };
     }
     if (isReadOnly(schema, attr.name)) {
       return { ok: false, error: new DeclareError(`${schema.name}.${attr.name} is read-only \u2014 it is computed, so a constraint may read it but nothing may set it`, attr.pos) };
@@ -4734,6 +4860,7 @@ var DeclareMac = (() => {
       init_errors();
       init_schema();
       init_diagnostics();
+      init_include();
       init_value();
       init_expr();
       init_datapath();
@@ -4766,7 +4893,20 @@ var DeclareMac = (() => {
         gap: "spacing rides the layout \u2014 'layout: SimpleLayout [ axis = y, spacing = 8 ]'",
         margin: "there is no margin \u2014 position with x/y, a layout's spacing, or a wrapping View",
         padding: "there is no padding \u2014 inset children with x/y or an inner View",
-        onChange: "the edit event is 'onInput()'"
+        onChange: "the edit event is 'onInput()'",
+        // CSS names for capabilities Declare HAS, reached through the wrong door: the
+        // answer is a draw() member, not a view attribute. These earn their place by
+        // the table's own rule — one true equivalent each — and they matter because
+        // "no such attribute" ends the search at exactly the wrong moment. A cold
+        // reader concluded rotation was impossible, and only found draw() later by
+        // reading the desktop's wallpaper source.
+        rotate: "a view does not rotate, but drawn content does \u2014 take a 'draw(d: Draw)' member and d.rotate(rad); it is reactive, so a Spring on the angle works",
+        rotation: "a view does not rotate, but drawn content does \u2014 take a 'draw(d: Draw)' member and d.rotate(rad); it is reactive, so a Spring on the angle works",
+        transform: "there is no transform: position is x/y, size is width/height, 'scale' scales about a pivot, and arbitrary geometry is a 'draw(d: Draw)' member",
+        filter: "blur and friends are drawing ops \u2014 take a 'draw(d: Draw)' member and set d.filter",
+        blur: "blur is a drawing op \u2014 take a 'draw(d: Draw)' member and set d.filter = 'blur(4px)'",
+        mixBlendMode: "compositing is a drawing op \u2014 take a 'draw(d: Draw)' member and set d.globalCompositeOperation",
+        mask: "masking is 'clip' \u2014 true for the box, or a path for an arbitrary shape"
       };
       RENAMED_ATTRIBUTES = {
         ignorelayout: "spelled 'ignoreLayout' now (inner cap)",
@@ -14956,96 +15096,8 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     });
   }
 
-  // runtime/dist/include.js
-  init_parser();
-  init_errors();
-  init_diagnostics();
-  function exciseSpans(source, spans) {
-    let out = source;
-    for (const s of [...spans].sort((a, b) => b.start - a.start)) {
-      out = out.slice(0, s.start) + out.slice(s.end);
-    }
-    return out;
-  }
-  var NO_INCLUDES = { resolve: () => null };
-  function resolveIncludes(program, host2, originDir) {
-    const errors = [];
-    const classes = [...program.classes];
-    const stylesheets = [...program.stylesheets];
-    const styles = [...program.styles];
-    const fonts = [...program.fonts];
-    const uses = [...program.uses];
-    const scripts = [...program.scripts];
-    const sources = [];
-    const MAIN = "the app";
-    const origin = /* @__PURE__ */ new Map();
-    for (const c of program.classes)
-      origin.set(c.name, MAIN);
-    for (const s of program.stylesheets)
-      origin.set(s.name, MAIN);
-    for (const s of program.styles)
-      origin.set(s.name, MAIN);
-    for (const f of program.fonts)
-      origin.set(f.name, MAIN);
-    const visited = /* @__PURE__ */ new Set();
-    const fold = (name, pos, from) => {
-      const prev = origin.get(name);
-      if (prev !== void 0) {
-        errors.push(Diag.includeCollision(`'${name}' is declared twice \u2014 in "${from}" and "${prev}"`, pos));
-        return false;
-      }
-      origin.set(name, from);
-      return true;
-    };
-    const walk = (includes, fromDir) => {
-      for (const inc of includes) {
-        const resolved = host2.resolve(fromDir, inc.path);
-        if (resolved === null) {
-          errors.push(Diag.missingInclude(inc.path, inc.pos));
-          continue;
-        }
-        if (visited.has(resolved.canonical))
-          continue;
-        visited.add(resolved.canonical);
-        let lib;
-        try {
-          lib = parseLibrary(resolved.source);
-        } catch (e) {
-          if (e instanceof DeclareError) {
-            errors.push(e);
-            continue;
-          }
-          throw e;
-        }
-        walk(lib.includes, resolved.dir);
-        const from = inc.path;
-        for (const c of lib.classes)
-          if (fold(c.name, c.pos, from))
-            classes.push(c);
-        for (const s of lib.stylesheets)
-          if (fold(s.name, s.pos, from))
-            stylesheets.push(s);
-        for (const s of lib.styles)
-          if (fold(s.name, s.pos, from))
-            styles.push(s);
-        for (const f of lib.fonts)
-          if (fold(f.name, f.pos, from))
-            fonts.push(f);
-        uses.push(...lib.uses);
-        scripts.push(...lib.scripts);
-        sources.push(exciseSpans(resolved.source, lib.includeSpans));
-      }
-    };
-    walk(program.includes, originDir);
-    return {
-      program: { classes, stylesheets, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], scripts, root: program.root },
-      sources,
-      errors,
-      visited
-    };
-  }
-
   // runtime/dist/index.js
+  init_include();
   init_view();
   init_font();
   init_errors();
@@ -15236,6 +15288,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
 
   // runtime/dist/index.js
   init_parser();
+  init_include();
   init_check();
   init_program_schema();
   init_instantiate();

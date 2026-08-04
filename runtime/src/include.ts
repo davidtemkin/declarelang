@@ -152,6 +152,13 @@ export function resolveIncludes(
     visited,
   };
 }
+/** The tags the auto-include manifest COULD supply, published for the checker's
+ *  near-miss suggestion (see the note at the assignment below). Empty until an
+ *  auto-include pass has run — a program compiled without the seam simply gets
+ *  the runtime names, which is the behaviour that was there before. */
+let autoIncludable: readonly string[] = [];
+export function autoIncludableNames(): readonly string[] { return autoIncludable; }
+
 
 /** A host that ALSO auto-includes component libraries by bare tag — the LZX
  *  `lzx-autoincludes` mechanism, ported (composition.md §1a). Using `Bar [ … ]`
@@ -221,6 +228,15 @@ export function resolveAutoIncludes(
     return { program, sources: [], errors: [] };
   }
   const manifest = auto.autoincludes();
+  // Record what COULD have been auto-included, for the checker's near-miss.
+  // A misspelled tag never matches the manifest, so it is never pulled, so it
+  // never reaches `schemas` — which is why `Tex` used to suggest `Text` (a
+  // runtime schema, always present) while `Buton` suggested nothing at all.
+  // Every control lives in the library, so that was every name an author is
+  // most likely to fumble. The checker cannot ask the host itself — `check()`
+  // takes only the program — so the manifest's keys are published here, the
+  // same module-level seam shape the runtime already uses for its providers.
+  autoIncludable = Object.keys(manifest);
   const errors: DeclareError[] = [];
   const classes: ClassDecl[] = [...program.classes];
   const stylesheets: TopDecl[] = [...program.stylesheets];

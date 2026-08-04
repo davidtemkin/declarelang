@@ -28,7 +28,8 @@
 import { CSS_COLORS } from "./css-colors.js";
 import { DeclareError } from "./errors.js";
 import { attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName, PAYLOAD_TYPE_NAMES, EVENT_PAYLOAD } from "./schema.js";
-import { Diag } from "./diagnostics.js";
+import { Diag, nearestName } from "./diagnostics.js";
+import { autoIncludableNames } from "./include.js";
 import { coerce, describeLiteral, declaredType, DECLARED_TYPE_NAMES } from "./value.js";
 import { validateExpr, validateBody } from "./expr.js";
 import { isSelective, staticSegs } from "./datapath.js";
@@ -52,6 +53,14 @@ const UNSTYLABLE = {
 /** Typecheck a parsed tree — a whole Program (classes + root) or a bare
  *  Element fragment. Returns every error found, in source order — an empty
  *  array means the tree is well-typed and safe to instantiate. */
+/** Candidates for the unknown-component near-miss: everything that RESOLVED,
+ *  plus everything the auto-include manifest could have supplied. Without the
+ *  second half a misspelled library tag has no candidate at all — it was never
+ *  pulled, precisely because it was misspelled. Deduped; nearestName rejects
+ *  ties, so a larger pool cannot lower confidence. */
+function tagCandidates(schemas) {
+    return [...new Set([...Object.keys(schemas), ...autoIncludableNames()])];
+}
 export function check(input) {
     const program = "root" in input ? input : { classes: [], stylesheets: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], scripts: [], root: input };
     const { infos, schemas, errors } = programSchemas(program.classes);
@@ -394,7 +403,7 @@ export function checkEntry(where, entry, schema) {
         seen.set(a.name, a.pos);
         const type = attrType(schema, a.name);
         if (type === null) {
-            errors.push(new DeclareError(`${where}: ${entry.tag} has no attribute '${a.name}'${cssAttributeHint(a.name)}`, a.pos));
+            errors.push(new DeclareError(`${where}: ${entry.tag} has no attribute '${a.name}'${attributeMiss(schema, a.name)}`, a.pos));
             continue;
         }
         const bad = UNSTYLABLE[type.kind];
@@ -474,7 +483,7 @@ classRoot = false) {
     // are checked by checkComponentValue, not as tree children.
     const consumed = new Set();
     if (schema === null) {
-        errors.push(Diag.unknownComponent(el.tag, el.pos, Object.keys(schemas)));
+        errors.push(Diag.unknownComponent(el.tag, el.pos, tagCandidates(schemas)));
     }
     else if (descendsFrom(schema, "Layout") && !classRoot) {
         // A layout reached as an element in the tree — anonymous, mis-named, or
@@ -1001,7 +1010,7 @@ function checkTargetSlot(animSchema, slot, parentSchema, pos, errors) {
 export function checkComponentValue(schemas, owner, attrName, of, el) {
     const schema = Object.hasOwn(schemas, el.tag) ? schemas[el.tag] : null;
     if (schema === null)
-        return [Diag.unknownComponent(el.tag, el.pos, Object.keys(schemas))];
+        return [Diag.unknownComponent(el.tag, el.pos, tagCandidates(schemas))];
     if (!descendsFrom(schema, of)) {
         return [new DeclareError(`${owner}.${attrName} expects a ${of} — '${el.tag}' is not one`, el.pos)];
     }
@@ -1084,6 +1093,19 @@ const CSS_ATTRIBUTE_HINTS = {
     margin: "there is no margin — position with x/y, a layout's spacing, or a wrapping View",
     padding: "there is no padding — inset children with x/y or an inner View",
     onChange: "the edit event is 'onInput()'",
+    // CSS names for capabilities Declare HAS, reached through the wrong door: the
+    // answer is a draw() member, not a view attribute. These earn their place by
+    // the table's own rule — one true equivalent each — and they matter because
+    // "no such attribute" ends the search at exactly the wrong moment. A cold
+    // reader concluded rotation was impossible, and only found draw() later by
+    // reading the desktop's wallpaper source.
+    rotate: "a view does not rotate, but drawn content does — take a 'draw(d: Draw)' member and d.rotate(rad); it is reactive, so a Spring on the angle works",
+    rotation: "a view does not rotate, but drawn content does — take a 'draw(d: Draw)' member and d.rotate(rad); it is reactive, so a Spring on the angle works",
+    transform: "there is no transform: position is x/y, size is width/height, 'scale' scales about a pivot, and arbitrary geometry is a 'draw(d: Draw)' member",
+    filter: "blur and friends are drawing ops — take a 'draw(d: Draw)' member and set d.filter",
+    blur: "blur is a drawing op — take a 'draw(d: Draw)' member and set d.filter = 'blur(4px)'",
+    mixBlendMode: "compositing is a drawing op — take a 'draw(d: Draw)' member and set d.globalCompositeOperation",
+    mask: "masking is 'clip' — true for the box, or a path for an arbitrary shape",
 };
 /** Retired spellings (the 2026-07-29 camelCase ruling and the `scrolls` axis
  *  enum) — each names its exact rewrite, so a program written against the old
@@ -1103,13 +1125,60 @@ export function cssAttributeHint(name) {
     const h = Object.hasOwn(CSS_ATTRIBUTE_HINTS, name) ? CSS_ATTRIBUTE_HINTS[name] : "";
     return h ? ` — the CSS instinct: ${h}` : "";
 }
+/** Every attribute name a schema answers to, its base chain included — the
+ *  candidate pool for the near-miss below. Same walk `attrType` does, so the
+ *  suggestion can only name something the very next compile would accept. */
+function attrNames(schema) {
+    const out = [];
+    for (let sc = schema; sc !== null; sc = sc.base) {
+        out.push(...Object.keys(sc.attrs));
+        // Handlers are declared as events, not attrs, but they are WRITTEN in the
+        // same position and misspelled the same way — `onclick` was the second of
+        // the four names the cold reads called out. handlerName() is the one naming
+        // rule, so the pool spells them exactly as the next compile would accept.
+        for (const e of sc.events ?? [])
+            out.push(handlerName(e));
+    }
+    return [...new Set(out)];
+}
+/** The suffix for an unknown attribute: a retired spelling names its rewrite, a
+ *  CSS name names the Declare slot, and otherwise a calibrated near-miss.
+ *
+ *  The near-miss is last on purpose — the two tables know the reader's INTENT
+ *  ('padding' is not a typo for anything, it is a concept that does not exist
+ *  here), while edit distance only knows the letters. It was also the gap the
+ *  cold-read rounds kept finding: `fontsize`, `onclick`, `labl` and `colour`
+ *  each got a bare "has no attribute", with the whole legal list in hand and
+ *  the fix one character away. Those are precisely the errors a model makes. */
+function attributeMiss(schema, name) {
+    const hint = cssAttributeHint(name);
+    if (hint !== "")
+        return hint;
+    // A near-miss on a HINTED name answers with the hint, not the spelling:
+    // `colour` is one edit from `color`, and what that reader needs is
+    // "text color is 'textColor'", not "did you mean 'color'?" — which names an
+    // attribute that does not exist either. The tables know intent; reaching them
+    // through a typo is worth more than reaching a nearby letter-string.
+    // …but only for a name long enough for the miss to mean something. Routing to
+    // a hint asserts what the author was THINKING, which is a longer reach than
+    // naming a spelling, so it wants more evidence than a short string can carry:
+    // `zap` is one edit from `gap` and is a typo for nothing at all. Five is the
+    // same floor nearestName already uses to widen its own budget.
+    const hinted = name.length >= 5
+        ? nearestName(name, [...Object.keys(CSS_ATTRIBUTE_HINTS), ...Object.keys(RENAMED_ATTRIBUTES)])
+        : null;
+    if (hinted !== null)
+        return cssAttributeHint(hinted);
+    const near = nearestName(name, attrNames(schema));
+    return near === null ? "" : ` — did you mean '${near}'?`;
+}
 /** Validate one attribute against a schema. check() collects the errors and
  *  instantiate() throws them — one message source, so the reporting and the
  *  running paths cannot drift apart. */
 export function checkAttr(schema, attr) {
     const type = attrType(schema, attr.name);
     if (type === null) {
-        return { ok: false, error: new DeclareError(`${schema.name} has no attribute '${attr.name}'${cssAttributeHint(attr.name)}`, attr.pos) };
+        return { ok: false, error: new DeclareError(`${schema.name} has no attribute '${attr.name}'${attributeMiss(schema, attr.name)}`, attr.pos) };
     }
     if (isReadOnly(schema, attr.name)) {
         return { ok: false, error: new DeclareError(`${schema.name}.${attr.name} is read-only — it is computed, so a constraint may read it but nothing may set it`, attr.pos) };

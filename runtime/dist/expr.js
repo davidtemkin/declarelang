@@ -172,6 +172,18 @@ function refineBodyError(src, raw, expression) {
     if (hash && /invalid character|private identifier/i.test(raw)) {
         return `${head} — inside { } a color is written ${hashToOx(hash[1])}, not ${hash[0]} (the #… and named-color forms work only in bare slots)`;
     }
+    // A CSS percentage. `width = { 100% }` is the mistake the language map itself
+    // highlights, and TS answers it with "Expression expected" — true, and useless.
+    // A fraction of the parent is arithmetic here, because a constraint can read
+    // the parent directly; there is no percentage unit to reach for.
+    const pct = src.match(/(?:^|[^\w.])(\d+(?:\.\d+)?)\s*%(?!\s*[\w(])/);
+    if (pct && /expression expected|unexpected|invalid/i.test(raw)) {
+        // trimmed, or 33.3 arrives as 0.33299999999999996 and the fix reads worse
+        // than the error. The example says `width` without claiming the slot IS
+        // width — refineBodyError sees the body, never the attribute it belongs to.
+        const frac = Number((Number(pct[1]) / 100).toFixed(6));
+        return `${head} — there are no percentages: read the parent and scale, so ${pct[1]}% is { parent.width * ${frac} }`;
+    }
     if (expression && looksLikeStatements(src, raw)) {
         return `${head} — an attribute value is one expression, not statements; move the logic into a method and call it (e.g. { classroot.compute() })`;
     }

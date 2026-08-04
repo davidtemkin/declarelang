@@ -44,6 +44,7 @@ export declare function resolveIncludes(program: Program, host: IncludeHost, ori
     errors: DeclareError[];
     visited: Set<string>;
 };
+export declare function autoIncludableNames(): readonly string[];
 /** A host that ALSO auto-includes component libraries by bare tag — the LZX
  *  `lzx-autoincludes` mechanism, ported (composition.md §1a). Using `Bar [ … ]`
  *  with no `include` and no inline `class Bar` pulls in the library that

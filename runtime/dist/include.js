@@ -146,6 +146,12 @@ export function resolveIncludes(program, host, originDir) {
         visited,
     };
 }
+/** The tags the auto-include manifest COULD supply, published for the checker's
+ *  near-miss suggestion (see the note at the assignment below). Empty until an
+ *  auto-include pass has run — a program compiled without the seam simply gets
+ *  the runtime names, which is the behaviour that was there before. */
+let autoIncludable = [];
+export function autoIncludableNames() { return autoIncludable; }
 /** The component TAGS a tree references — every child element's tag (named and
  *  anonymous alike live in `children`), plus each class's `extends` base.
  *  Attribute declarations (`decls`) carry value-type names, not component tags,
@@ -201,6 +207,15 @@ export function resolveAutoIncludes(program, root, host, visited) {
         return { program, sources: [], errors: [] };
     }
     const manifest = auto.autoincludes();
+    // Record what COULD have been auto-included, for the checker's near-miss.
+    // A misspelled tag never matches the manifest, so it is never pulled, so it
+    // never reaches `schemas` — which is why `Tex` used to suggest `Text` (a
+    // runtime schema, always present) while `Buton` suggested nothing at all.
+    // Every control lives in the library, so that was every name an author is
+    // most likely to fumble. The checker cannot ask the host itself — `check()`
+    // takes only the program — so the manifest's keys are published here, the
+    // same module-level seam shape the runtime already uses for its providers.
+    autoIncludable = Object.keys(manifest);
     const errors = [];
     const classes = [...program.classes];
     const stylesheets = [...program.stylesheets];

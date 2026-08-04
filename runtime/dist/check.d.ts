@@ -16,9 +16,6 @@ export interface StyleEnv {
     /** (bundle, schema) pairs already validated — one report per pairing. */
     readonly validated: Set<string>;
 }
-/** Typecheck a parsed tree — a whole Program (classes + root) or a bare
- *  Element fragment. Returns every error found, in source order — an empty
- *  array means the tree is well-typed and safe to instantiate. */
 export declare function check(input: Element | Program): DeclareError[];
 export declare function checkStyleDecls(program: Program, schemas: Readonly<Record<string, ComponentSchema>>, errors: DeclareError[]): StyleEnv;
 /** One class-keyed entry: attribute sets only, each an attribute the class
