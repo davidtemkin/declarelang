@@ -47,7 +47,12 @@ const CACHE_DIR = path.join(ROOT, "bundles", "cache");
 const PROGRAMS = [
   { main: "apps/homepage/homepage.declare", props: { render: "dom" }, kinds: ["run", "crawler"] },
   { main: "apps/calendar/calendar.declare", props: { render: "dom" }, kinds: ["run"] },
-  { main: "apps/docs/docs.declare", props: { render: "dom" }, kinds: ["run", "crawler"] },
+  // NO crawler artifact: measured 2026-08-04 at 124.7s, against 0.9s for the
+  // homepage — 97% of this script's entire cost, and therefore of every commit,
+  // for one page. The homepage is the crawlable surface; the docs app is a
+  // browsing UI over declare-model.json, and its extraction walked every
+  // reachable location to produce a 529KB document nothing was reading.
+  { main: "apps/docs/docs.declare", props: { render: "dom" }, kinds: ["run"] },
   { main: "apps/desktop/desktop.declare", props: { render: "dom" }, kinds: ["run"] },
   // the Tracker is the capstone — the program people are pointed at to judge the
   // platform — and the heaviest in the corpus, so it has the most to gain from
@@ -133,6 +138,20 @@ if (!existsSync(statsFile) || readFileSync(statsFile, "utf8") !== statsJson) {
 }
 
 console.log(`prewarm: generating committed cache for ${PROGRAMS.length} program(s) → bundles/cache/`);
+// `--timing`: a line per STEP as it happens, with its own cost. This script is the
+// slowest thing in the commit path — it recompiles every program and executes the
+// crawler pages to t=0 (in Node; no browser is involved) — and it printed only a
+// per-program summary AFTER the work, so a long run was indistinguishable from a
+// hang. Real-time visibility is worth one flag.
+const TIMING = process.argv.includes("--timing");
+let stepT0 = Date.now();
+const step = (label) => {
+  if (!TIMING) return;
+  const dt = Date.now() - stepT0;
+  stepT0 = Date.now();
+  process.stdout.write(`  ${String(dt).padStart(6)}ms  ${label}\n`);
+};
+
 for (const prog of PROGRAMS) {
   const absMain = path.join(ROOT, prog.main);
   if (!existsSync(absMain)) throw new Error(`prewarm: ${prog.main} does not exist`);
@@ -154,6 +173,7 @@ for (const prog of PROGRAMS) {
     });
     sizes.push(`run ${(gzipSync(Buffer.from(JSON.stringify({ program: tracked.source }))).length / 1024).toFixed(1)}KB gz`);
   }
+  step(`${prog.main} · compile + run artifact`);
   if (prog.kinds.includes("crawler")) {
     // The CRAWLED document — every reachable location's content in the one page
     // (location.md §7). Data resolves from the program's own directory only (the
@@ -171,6 +191,7 @@ for (const prog of PROGRAMS) {
       closure: browserClosure(tracked.closure, {}),   // backend-independent
     });
     sizes.push(`crawler ${((document.length) / 1024).toFixed(1)}KB`);
+    step(`${prog.main} · CRAWLER extraction (headless, in Node)`);
   }
   {
     // The VIEWER artifacts — every prebaked app ships its reader too: the
@@ -186,6 +207,7 @@ for (const prog of PROGRAMS) {
     });
     sizes.push(`segments ${(gzipSync(Buffer.from(JSON.stringify(payload))).length / 1024).toFixed(1)}KB gz`);
   }
+  step(`${prog.main} · segments`);
   console.log(`  ${prog.main.padEnd(38)} ${closureRun.entries.length} dep(s) · ${sizes.join(" · ")}`);
 }
 

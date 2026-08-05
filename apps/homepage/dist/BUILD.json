@@ -5,8 +5,8 @@
     "id": "apps/homepage/homepage.declare",
     "kind": "file",
     "v": {
-     "mtime": 1785900023770.822,
-     "size": 98648
+     "mtime": 1785902718130.3674,
+     "size": 98730
     }
    },
    {
@@ -61,7 +61,7 @@
     "id": "apps/homepage/declare-faq.md",
     "kind": "file",
     "v": {
-     "mtime": 1785896385960.9885,
+     "mtime": 1785906396047.398,
      "size": 23954
     }
    },
@@ -165,7 +165,7 @@
     "id": "apps/homepage/stats.json",
     "kind": "file",
     "v": {
-     "mtime": 1785877892931.1074,
+     "mtime": 1785903598541.1006,
      "size": 574
     }
    },
@@ -615,7 +615,7 @@
    "slim": "true",
    "stripPos": "true",
    "typecheck": "true",
-   "crawler": "false"
+   "crawler": "true"
   }
  },
  "built": "apps/homepage"

@@ -11,9 +11,9 @@ that; this source just declares rows over data.
 
 The architecture, end to end:
 
-- **One truth.** `db` holds the issues. Every mutation writes `db` and
-  bumps `rev` — the one clock every derivation listens to. Nothing
-  anywhere keeps view-side state about data.
+- **One truth.** `db` holds the issues. Every mutation writes `db`, and
+  every derivation re-runs because it READ `db` — no clock, no ticking,
+  nothing anywhere keeping view-side state about data.
 - **Views are derivations.** `shown` — the projected dataset the list
   renders — derives from the truth plus the view facts (filters, query,
   sort, grouping). So do the rail's counts, the workload bars, and the
@@ -634,15 +634,22 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
     darkUI: boolean = { themeMode == "dark" || (themeMode == "auto" && app.dark) },
     theme = { app.darkUI ? Themes.sanFrancisco(true) : Themes.sanFrancisco(false) },
 
-    // ── THE TRUTH, and its one clock ───────────────────────────────────────
+    // ── THE TRUTH ──────────────────────────────────────────────────────────
     //
-    // `db` holds the issues; `rev` is the mutation clock every projection
-    // hangs from (a method's reads are not tracked — the ARGUMENTS are the
-    // wiring, so the clock rides in as one). Every verb below writes db,
-    // then ticks. Nothing else anywhere holds data.
+    // `db` holds the issues, and that is the whole of it: a verb writes db and
+    // every projection that read db re-runs. Nothing else anywhere holds data.
+    //
+    // This used to hang off a `rev` counter every verb bumped, threaded through
+    // nine method parameters, on the stated grounds that "a method's reads are
+    // not tracked — the ARGUMENTS are the wiring". That reason was FALSE: the
+    // compiler reads through method bodies (declare.md §5), and a method here
+    // wires `this.root.db.read(["issues"])` with no help. What the clock was
+    // really covering for is one line — `issuesOf` used to read
+    // `db.value.issues`, a raw property walk off the value with no cell to
+    // subscribe to, so the projection never woke. `read([…])` is the region
+    // read the language tracks. One spelling, and the clock was redundant.
 
     db: Dataset { { "issues": [] } },
-    rev: number = 0,
 
     src: DataSource [ url = "issues.json" ],
 
@@ -665,7 +672,6 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         for (const it of issues as any) {
             }
         db.set(["issues"], issues)
-        rev = rev + 1
         this.takeSelection(null)
         this.closeDetail()
         },
@@ -733,8 +739,11 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         this.rearranged()
         },
 
-    // collapsed groups — a plain set behind a change clock (the same
-    // arguments-are-wiring discipline as rev)
+    // collapsed groups — a plain array behind a change clock. This clock is
+    // REAL, unlike the data one that used to sit above: `_collapsed` is an
+    // ordinary JS array stashed on the instance, not a reactive slot, so
+    // nothing can notice it change and something has to say so. The honest fix
+    // is to make it a slot; until then the counter is doing actual work.
 
     groupRev: number = 0,
     collapsedSet() -> array { return (this as any)._collapsed ?? ((this as any)._collapsed = []) },
@@ -748,16 +757,20 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
 
     // ── THE PROJECTION — the one derived dataset the list renders.
     //    filter → sort → (group); group headers are records too ({ kind:
-    //    "hdr" }) — non-uniform rows are just rows. The method's ARGUMENTS
-    //    are the reactive wiring (bodies are unanalyzed by design); `rev`
-    //    stands for the data, the rest are the view facts. ─────────────────
+    //    "hdr" }) — non-uniform rows are just rows.
+    //
+    //    The arguments are the VIEW FACTS, and they are arguments because that
+    //    reads well, not because the wiring needs them: the body could read
+    //    `app.query` directly and wire identically. The DATA is not among them
+    //    — `project` reaches it through `issuesOf`, and the compiler follows
+    //    the call. ─────────────────────────────────────────────────────────
 
-    shown: Dataset [ contents = { app.project(app.rev, app.fStatus, app.fAssignee, app.fLabel, app.query, app.sortOn, app.sortDir, app.groupBy, app.groupRev) } ],
+    shown: Dataset [ contents = { app.project(app.fStatus, app.fAssignee, app.fLabel, app.query, app.sortOn, app.sortDir, app.groupBy, app.groupRev) } ],
 
-    issuesOf(r: number) -> array { return db.value.issues ?? [] },
+    issuesOf() -> array { return db.read(["issues"]) ?? [] },
 
-    project(rev: number, byStatus: string, byAssignee: string, byLabel: string, query: string, sortOn: string, sortDir: string, grouping: string, groupClock: number) -> object {
-        let rows = this.issuesOf(rev)
+    project(byStatus: string, byAssignee: string, byLabel: string, query: string, sortOn: string, sortDir: string, grouping: string, groupClock: number) -> object {
+        let rows = this.issuesOf()
         if (byStatus != "" || byAssignee != "" || byLabel != "") {
             rows = rows.filter((it) =>
                 (byStatus == "" || (it as any).status == byStatus) &&
@@ -803,13 +816,13 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         return ({ rows: out, total: rows.length, searchMs: searchMs })
         },
 
-    counts: object = { app.countStatuses(app.rev) },
+    counts: object = { app.countStatuses() },
 
-    closedSeries: Dataset [ contents = { app.closedPerDay(app.rev) } ],
-    closedPerDay(r: number) -> object {
+    closedSeries: Dataset [ contents = { app.closedPerDay() } ],
+    closedPerDay() -> object {
         const DAY = 86400000
         let maxU = 0
-        const issues = this.issuesOf(r)
+        const issues = this.issuesOf()
         for (const it of issues) if (((it as any).updated ?? 0) > maxU) maxU = (it as any).updated
         const today = Math.floor(maxU / DAY)
         const days = new Array(14).fill(0)
@@ -821,19 +834,19 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
             }
         return ({ days: days, peak: Math.max(1, ...days) })
         },
-    countStatuses(r: number) -> object {
+    countStatuses() -> object {
         const c = ({ open: 0, "in-progress": 0, blocked: 0, closed: 0 })
-        for (const it of this.issuesOf(r)) (c as any)[(it as any).status] = ((c as any)[(it as any).status] ?? 0) + 1
+        for (const it of this.issuesOf()) (c as any)[(it as any).status] = ((c as any)[(it as any).status] ?? 0) + 1
         return c
         },
 
     shownTotal: number = { (app.shown.value.total ?? 0) },
 
-    workload: Dataset [ contents = { app.workloadOf(app.rev) } ],
-    workloadOf(r: number) -> object {
+    workload: Dataset [ contents = { app.workloadOf() } ],
+    workloadOf() -> object {
         const m = new Map()
         let un = 0
-        for (const it of this.issuesOf(r)) {
+        for (const it of this.issuesOf()) {
             if (("" + (it as any).status) == "closed") continue
             const a = (it as any).assignee
             if (a == null) un = un + 1
@@ -933,7 +946,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
     newIssue() {
         this.takeSelection(null)
         creating = true
-        const maxId = this.issuesOf(rev).reduce((m, it) => Math.max(m, (it as any).id), 0)
+        const maxId = this.issuesOf().reduce((m, it) => Math.max(m, (it as any).id), 0)
         draft.set(["it"], ({ id: maxId + 1, title: "", description: "", status: "open", priority: "P2", labels: [], assignee: null, created: 1735689600000, updated: 1735689600000, comments: 0 }))
         draftRev = draftRev + 1
         editing = true
@@ -959,12 +972,12 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         else if (top < viewTop) this.list.scrollY = top - 8
         },
 
-    draftDirty: boolean = { app.draftRev >= 0 && app.editing && app.draftDiffers(app.draftRev, app.rev) },
-    draftDiffers(dr: number, r: number) -> boolean {
+    draftDirty: boolean = { app.draftRev >= 0 && app.editing && app.draftDiffers(app.draftRev) },
+    draftDiffers(dr: number) -> boolean {
         const d = draft.value.it
         if (d == null) return false
         if (creating) return true
-        const t = this.issuesOf(r).find((it) => (it as any).id == (d as any).id)
+        const t = this.issuesOf().find((it) => (it as any).id == (d as any).id)
         if (t == null) return true
         return (d as any).title != (t as any).title || (d as any).description != (t as any).description ||
             (d as any).status != (t as any).status || (d as any).priority != (t as any).priority ||
@@ -978,14 +991,13 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         if (creating) {
             const rec0 = ({ ...(d as any) })
             db.insert(["issues"], 0, rec0)
-            rev = rev + 1
-            const rec = this.issuesOf(rev)[0]
+            const rec = this.issuesOf()[0]
             this.takeSelection([rec])
             creating = false
             editing = false
             return
             }
-        const issues = this.issuesOf(rev)
+        const issues = this.issuesOf()
         const i = issues.findIndex((it) => (it as any).id == (d as any).id)
         if (i < 0) return
         db.set(["issues", i, "title"], (d as any).title)
@@ -997,7 +1009,6 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         const up2 = ((d as any).updated ?? 0) + 1
         db.set(["issues", i, "updated"], up2)
         db.set(["issues", i, "closedAt"], ("" + (d as any).status) == "closed" ? up2 : null)
-        rev = rev + 1
         editing = false
         },
 
@@ -1008,14 +1019,15 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
 
     // ── MUTATION VERBS — every write to the truth lives here ──────────────
     //
-    // Each verb writes `db`, keeps the derived display fields honest
-    // (closedAt), and bumps `rev`. Nothing else
-    // in the file mutates data; everything else derives.
+    // Each verb writes `db` and keeps the derived display fields honest
+    // (closedAt). That is all a verb does — there is nothing to notify, because
+    // every projection already read `db`. Nothing else in the file mutates
+    // data; everything else derives.
 
     // the people who actually hold work — the truth decides who is listed
 
-    assignees(r: number) -> array {
-        return [...new Set(this.issuesOf(r).map((it) => (it as any).assignee).filter((a) => a != null))].sort()
+    assignees() -> array {
+        return [...new Set(this.issuesOf().map((it) => (it as any).assignee).filter((a) => a != null))].sort()
         },
 
     // No confirmation dialog: the undo toast is the safety net, and a modal
@@ -1029,7 +1041,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
     performDelete() {
         const sel = selection ?? []
         const ids = (sel as any).map((r) => (r as any).id)
-        const issues = this.issuesOf(rev)
+        const issues = this.issuesOf()
         const removed = []
         for (const id of ids) {
             const i = issues.findIndex((it) => (it as any).id == id)
@@ -1037,7 +1049,6 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
             }
         removed.sort((a, b) => (b as any).index - (a as any).index)
         for (const r of removed) db.removeAt(["issues"], (r as any).index)
-        rev = rev + 1
         ;(this as any)._undo = removed
         this.takeSelection(null)
         this.toast.show((removed as any).length == 1 ? "Deleted 1 issue" : "Deleted " + (removed as any).length + " issues")
@@ -1047,8 +1058,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         const u = (this as any)._undo
         if (u == null) return
         const back = [...(u as any)].sort((a, b) => (a as any).index - (b as any).index)
-        for (const r of back) db.insert(["issues"], Math.min((r as any).index, this.issuesOf(rev).length), (r as any).rec)
-        rev = rev + 1
+        for (const r of back) db.insert(["issues"], Math.min((r as any).index, this.issuesOf().length), (r as any).rec)
         ;(this as any)._undo = null
         this.takeSelection((back as any).map((r) => (r as any).rec))
         this.toast.hide()
@@ -1056,7 +1066,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
 
     bulkSet(field: string, v: object) {
         const sel = selection ?? []
-        const issues = this.issuesOf(rev)
+        const issues = this.issuesOf()
         for (const r of sel as any) {
             const i = issues.findIndex((it) => (it as any).id == (r as any).id)
             if (i < 0) continue
@@ -1071,7 +1081,6 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
             db.set(["issues", i, "updated"], up)
             if (field == "status") db.set(["issues", i, "closedAt"], v == "closed" ? up : null)
             }
-        rev = rev + 1
         },
 
     // ── the shared MENUS (one instance each — the record-driven door) ──────
@@ -1083,7 +1092,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         const m = this.facetMenu as any
         if (field == "assignee") {
             m.items = [({ id: "null", label: "Unassigned", checked: cur == null }), ({ id: "d", divider: true }),
-                ...this.assignees(rev).map((p) => ({ id: p, label: p, iconKind: "PersonIcon", props: ({ name: p }), checked: cur == p }))]
+                ...this.assignees().map((p) => ({ id: p, label: p, iconKind: "PersonIcon", props: ({ name: p }), checked: cur == p }))]
             }
         else {
             const opts = field == "status" ? ["open", "in-progress", "blocked", "closed"] : ["P0", "P1", "P2", "P3"]
@@ -1168,7 +1177,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
     gaugeMenu: Menu [ width = 230 ],
 
     openGauge(anchor: View) {
-        const n = this.issuesOf(rev).length
+        const n = this.issuesOf().length
         const m = this.gaugeMenu as any
         m.items = [
             ({ id: "10000", label: "10,000 issues", checked: n == 10000 }),
@@ -1256,7 +1265,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         views: Segmented [ y = 12,
             x = { app.width - this.width - 100 },
             pad = 22,
-            value = { app.issuesOf(app.rev).length >= 1000000 ? "1M" : app.issuesOf(app.rev).length >= 100000 ? "100k" : "10k" },
+            value = { app.issuesOf().length >= 1000000 ? "1M" : app.issuesOf().length >= 100000 ? "100k" : "10k" },
             input(v: object) { app.regenerate(("" + v) == "1M" ? 1000000 : ("" + v) == "100k" ? 100000 : 10000) },
             Segment [ choice = { "10k" }, lbl = "10K" ],
             Segment [ choice = { "100k" }, lbl = "100K" ],
@@ -1371,7 +1380,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
 
     openAssigneeFilter(anchor: View) {
         const m = this.facetMenu as any
-        const names = this.assignees(rev)
+        const names = this.assignees()
         m.items = [({ id: "", label: "Anyone", checked: app.fAssignee == "" }), ({ id: "d", divider: true }),
             ...names.map((p) => ({ id: p, label: p, iconKind: "PersonIcon", props: ({ name: p }), checked: app.fAssignee == p }))]
         m.picked = (id) => { app.fAssignee = id; app.rearranged() }
@@ -1439,9 +1448,9 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
                     textFill = { gradient("90deg", theme.accent, trkTeal()) },
                     n = { app.shownTotal } ],
                 cap: Text [ x = 2, y = 48, fontSize = 11.5, wrap = false, textColor = { theme.textFaint },
-                    text = { app.shownTotal == app.issuesOf(app.rev).length
+                    text = { app.shownTotal == app.issuesOf().length
                         ? "issues · nothing filtered out"
-                        : "matching · of " + app.issuesOf(app.rev).length.toLocaleString() + " issues" } ]
+                        : "matching · of " + app.issuesOf().length.toLocaleString() + " issues" } ]
                 ],
 
             byStatus: View [ width = { parent.width },
@@ -1451,35 +1460,35 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
                 gap: View [ width = 1, height = 6 ],
                 dist: View [ width = { parent.width }, height = 6, cornerRadius = 3, clip = true,
                     s1: View [ x = 0, y = 0, height = 6, fill = { trkStatusColor("open") },
-                        width = { parent.width * ((app.counts as any).open ?? 0) / Math.max(1, app.issuesOf(app.rev).length) } ],
+                        width = { parent.width * ((app.counts as any).open ?? 0) / Math.max(1, app.issuesOf().length) } ],
                     s2: View [ y = 0, height = 6, fill = { trkStatusColor("in-progress") },
                         x = { this.parent.s1.width },
-                        width = { parent.width * ((app.counts as any)["in-progress"] ?? 0) / Math.max(1, app.issuesOf(app.rev).length) } ],
+                        width = { parent.width * ((app.counts as any)["in-progress"] ?? 0) / Math.max(1, app.issuesOf().length) } ],
                     s3: View [ y = 0, height = 6, fill = { trkStatusColor("blocked") },
                         x = { this.parent.s2.x + this.parent.s2.width },
-                        width = { parent.width * ((app.counts as any).blocked ?? 0) / Math.max(1, app.issuesOf(app.rev).length) } ],
+                        width = { parent.width * ((app.counts as any).blocked ?? 0) / Math.max(1, app.issuesOf().length) } ],
                     s4: View [ y = 0, height = 6, fill = { trkStatusColor("closed") },
                         x = { this.parent.s3.x + this.parent.s3.width },
                         width = { Math.max(0, parent.width - this.parent.s3.x - this.parent.s3.width) } ]
                     ],
                 gap2: View [ width = 1, height = 8 ],
                 r1: RailStat [ width = { parent.width }, facet = "status", value = "open", cap = "Open",
-                    n = { (app.counts as any).open ?? 0 }, peak = { app.issuesOf(app.rev).length }, tint = { trkStatusColor("open") },
+                    n = { (app.counts as any).open ?? 0 }, peak = { app.issuesOf().length }, tint = { trkStatusColor("open") },
                     on = { app.fStatus == "open" },
                     ic: StatusIcon [ x = 8, y = 8, s = "open" ]
                     ],
                 r2: RailStat [ width = { parent.width }, facet = "status", value = "in-progress", cap = "In Progress",
-                    n = { (app.counts as any)["in-progress"] ?? 0 }, peak = { app.issuesOf(app.rev).length }, tint = { trkStatusColor("in-progress") },
+                    n = { (app.counts as any)["in-progress"] ?? 0 }, peak = { app.issuesOf().length }, tint = { trkStatusColor("in-progress") },
                     on = { app.fStatus == "in-progress" },
                     ic: StatusIcon [ x = 8, y = 8, s = "in-progress" ]
                     ],
                 r3: RailStat [ width = { parent.width }, facet = "status", value = "blocked", cap = "Blocked",
-                    n = { (app.counts as any).blocked ?? 0 }, peak = { app.issuesOf(app.rev).length }, tint = { trkStatusColor("blocked") },
+                    n = { (app.counts as any).blocked ?? 0 }, peak = { app.issuesOf().length }, tint = { trkStatusColor("blocked") },
                     on = { app.fStatus == "blocked" },
                     ic: StatusIcon [ x = 8, y = 8, s = "blocked" ]
                     ],
                 r4: RailStat [ width = { parent.width }, facet = "status", value = "closed", cap = "Closed",
-                    n = { (app.counts as any).closed ?? 0 }, peak = { app.issuesOf(app.rev).length }, tint = { trkStatusColor("closed") },
+                    n = { (app.counts as any).closed ?? 0 }, peak = { app.issuesOf().length }, tint = { trkStatusColor("closed") },
                     on = { app.fStatus == "closed" },
                     ic: StatusIcon [ x = 8, y = 8, s = "closed" ]
                     ]
@@ -1584,7 +1593,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         fill = { theme.surface },
         hair: View [ x = 0, y = 0, width = { parent.width }, height = 1, fill = { theme.line } ],
         stats: Text [ x = 24, y = center, fontSize = 11.5, wrap = false, textColor = { theme.textFaint },
-            text = { app.issuesOf(app.rev).length.toLocaleString() + " issues   ·   " + app.shownTotal.toLocaleString() + " shown" } ],
+            text = { app.issuesOf().length.toLocaleString() + " issues   ·   " + app.shownTotal.toLocaleString() + " shown" } ],
         perf: Text [ y = center, fontSize = 10.5, wrap = false, visible = { app.booted && !app.railOn },
             x = { app.width - this.width - 16 },
             textColor = { theme.textFaint },
@@ -1603,13 +1612,13 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
             g: Text [ x = 0, y = center, width = 36, textAlign = center, fontSize = 15, textColor = { theme.textFaint }, text = "?" ]
             ],
         cap: Text [ width = 280, textAlign = center, fontSize = 14.5, fontWeight = semibold,
-            text = { app.issuesOf(app.rev).length == 0 ? "No issues yet" : "No issues match" } ],
+            text = { app.issuesOf().length == 0 ? "No issues yet" : "No issues match" } ],
         sub: Text [ width = 280, textAlign = center, fontSize = 12.5, textColor = { theme.textMuted },
-            text = { app.issuesOf(app.rev).length == 0
+            text = { app.issuesOf().length == 0
                 ? "Create the first one — N is waiting."
                 : "Try a different search, or clear the filters." } ],
         clear: Control [ x = 90, height = 30, cornerRadius = 8, width = 100,
-            visible = { app.issuesOf(app.rev).length > 0 },
+            visible = { app.issuesOf().length > 0 },
             fill = { hot || down ? theme.control : null },
             stroke = { stroke(1, theme.line) },
             t: Text [ x = 0, y = center, width = 100, textAlign = center, fontSize = 12.5, textColor = { theme.textMuted }, text = "Clear all" ],

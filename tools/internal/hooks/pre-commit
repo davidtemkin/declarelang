@@ -32,6 +32,17 @@ node tools/internal/stamp-stats.mjs || exit 0
 node tools/internal/doc/assemble.mjs || exit 0
 node tools/internal/bake-homepage-crawler.mjs || exit 0
 node tools/internal/bake-app-stubs.mjs || exit 0
+# (2b) rebuild every committed app dist. It must come AFTER prewarm, which
+# rewrites apps/homepage/stats.json — a file inside the dist's own closure, so
+# prewarm invalidates the dist every time it moves a measured figure. Until this
+# step existed the only repair was someone remembering the command, and the gate
+# caught it after the fact rather than the chain preventing it. ~1s per app.
+for d in apps/*/dist; do
+  [ -f "$d/BUILD.json" ] || continue
+  a=$(basename "$(dirname "$d")")
+  node tools/declarec.mjs "apps/$a/$a.declare" -o "$d" --crawler >/dev/null 2>&1
+  git add "$d" 2>/dev/null
+done
 node tools/internal/stamp-version.mjs || exit 0
 # (3) canon the .declare files THIS COMMIT touches — the formatter is the style
 # definition (docs/guide/19-style.md describes it; tools/format.mjs decides it),

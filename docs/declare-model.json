@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "fa5c82ef0965",
+  "buildId": "9017a4656685",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -32305,7 +32305,7 @@
      "kind": "doc",
      "label": "Markdown file",
      "path": "docs/system-design/findings-2026-08-04.md",
-     "preview": "A1. A derived Dataset does not recompute when its source region is written Status: OPEN. Blocking the tracker's clock removal (§A2 below). A Dataset contents = { … } whose body reads another dataset's region is statically wired to that regi…"
+     "preview": "A1. A region read spelled .value.<field is not reactive — RESOLVED What it looked like. A Dataset contents = { … } reading another dataset's region never recomputed when that region was written. Reported twice independently — once here, onc…"
     },
     {
      "name": "Hierarchical focus scopes (D9)",

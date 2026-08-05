@@ -532,7 +532,7 @@ export async function writeProduction({ source, name = "app", srcDir = null, out
   for (const f of out.files) await writeFile(join(outDir, f.name), f.contents);
   const assets = srcDir ? await copyAssets(srcDir, outDir) : [];
   const moduleName = out.files.find((f) => f.name.startsWith("app."))?.name;
-  if (srcDir) await writeBuildClosure({ outDir, srcDir, closure: out.closure, assets });
+  if (srcDir) await writeBuildClosure({ outDir, srcDir, closure: out.closure, assets, metafile: out.metafile });
   return { ...out, outDir, moduleName, assets };
 }
 
@@ -568,7 +568,7 @@ async function walkFiles(dir, base = "") {
   return out;
 }
 
-async function writeBuildClosure({ outDir, srcDir, closure, assets }) {
+async function writeBuildClosure({ outDir, srcDir, closure, assets, metafile }) {
   if (!closure) return;
   const repoRoot = resolve(HERE, "..");
   const rel = (abs) => relative(repoRoot, abs).split(sep).join("/");
@@ -583,6 +583,25 @@ async function writeBuildClosure({ outDir, srcDir, closure, assets }) {
       const abs = join(srcDir, f);
       entries.push({ id: rel(abs), kind: "file", v: statValidator(abs) });
     }
+  }
+  // …and the PLATFORM this bundle EMBEDS. `app.<hash>.js` is the runtime and the
+  // program in one file, so the runtime is as much an input as the source is —
+  // but the compile closure only ever knew about what the COMPILER read, and the
+  // runtime is what esbuild read. The gap was invisible because it is masked: a
+  // runtime change moves the bundle's bytes, which moves its content hash, so a
+  // BROWSER can never be served a stale build. What could go stale, silently, is
+  // the committed dist relative to the repo — a flawlessly cache-invalidated
+  // build of an old runtime. It was caught once, by luck, because the change also
+  // moved a figure in stats.json, which IS in the closure.
+  //
+  // Taken from esbuild's own metafile rather than a hand-kept list, so it cannot
+  // drift from what was actually bundled — including the slim plugin's stubbing,
+  // which changes the input set per app.
+  for (const id of Object.keys(metafile?.inputs ?? {})) {
+    if (id.startsWith("<")) continue;                       // the stdin entry, not a file
+    const abs = resolve(process.cwd(), id);
+    if (!existsSync(abs)) continue;
+    entries.push({ id: rel(abs), kind: "file", v: statValidator(abs) });
   }
   await writeFile(join(outDir, "BUILD.json"),
     JSON.stringify({ closure: { entries, props: closure.props }, built: rel(srcDir) }, null, 1));
