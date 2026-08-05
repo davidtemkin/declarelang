@@ -1,0 +1,7 @@
+App [
+    col: View [ x = 20, y = 20,
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        vol: Slider [ value = 40 ],
+        Text [ text = { `volume ${Math.round(vol.value)}` } ]
+        ]
+    ]

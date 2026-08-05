@@ -1,0 +1,12 @@
+App [ width = 380, height = 120,
+    chose: string = "",
+    bar: MenuBar [ x = 12, y = 8,
+        menus = { [ ({ id: "file", label: "File", items: [ ({ id: "new", label: "New", key: "⌘N" }),
+                                                          ({ id: "open", label: "Open…" }) ] }),
+                    ({ id: "edit", label: "Edit", items: [ ({ id: "undo", label: "Undo" }),
+                                                           ({ divider: true }),
+                                                           ({ id: "cut", label: "Cut" }) ] }) ] },
+        picked(id: string) { app.chose = id }
+        ],
+    Text [ x = 20, y = 70, text = { app.chose == "" ? "nothing picked" : "picked: " + app.chose } ]
+    ]

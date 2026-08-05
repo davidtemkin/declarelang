@@ -39,6 +39,84 @@ keyboard behavior specified at design time, not retrofitted (the Focus
 machinery — focusTrap, `onEscapeFocus`, contained Tab — already carries most
 of it).
 
+### 2a. Nothing is privileged — audited 2026-08-05
+
+The standing promise (tenet OPERA-5): the library is written in Declare with **no
+privileged component API underneath**, and a user class must be able to do literally
+everything a library class does, through supported APIs. Directory placement and
+auto-include are the only sanctioned differences. Audited, with the result split
+because the two halves do not agree.
+
+**Mechanism — the promise holds.** Three independent checks:
+
+1. **No name is special-cased.** `Button`, `Checkbox`, `Slider`, `Menu`, `Dialog`,
+   `Table`, `DataGrid`, `Combobox`, `Segmented`, `Tooltip`, `FocusRing`, `Accordion`,
+   `Control`, `Icon`, `Spacer` — **zero occurrences** across all of `compiler/src` and
+   `runtime/src`. The compiler cannot tell a library class from yours because it never
+   asks.
+2. **Auto-arrival is data, not a code path.** `$provide` in `autoincludes.json` states
+   associations; the compiler runs **one generic rule** over a two-word trigger
+   vocabulary (`baseUsed`, `attributeUsed`), and a provided singleton is suppressed the
+   moment the author declares that name themselves — which is the documented
+   customization path, not an escape hatch.
+3. **Every API the library calls is in the typechecked surface user code gets.** The
+   service statics live in `scaffold.ts` `LANGUAGE_STATICS` (`Keys.isDown` / `held` /
+   `navClaim`; `Focus.focus` / `blur` / `next` / `prev` / `byKeyboard` / `getFocus`) and
+   are emitted as statics into the check block for **every** program. `Menu` claiming
+   the nav keys and `Control` claiming focus use exactly the call any app can write.
+   Library `.declare` files compile through the same compiler with no flag — which
+   `verify --wrap` now proves per component on every run.
+
+**Documentation — the promise fails, and this is the real finding.** A user cannot do
+what a library component does, not because it is forbidden but because it is
+**undiscoverable**: the APIs the library leans on are missing from the reference.
+Measured against `declare-model.json`:
+
+| API | who needs it | status |
+|---|---|---|
+| `App.createView` | `Menu`, `Combobox`, `DataGrid`, `MenuBar`, `IconHost` | `api:false`, no prose — **while `declare.md` teaches it in four places** |
+| `View.raise()` | `Menu`, `MenuBar`, `Dialog`, `Tooltip`, `FocusRing`, `DataGrid` | `api:false`, no prose — required by *any* user-written overlay |
+| `Layout.laid()` | every layout's `place()` | **absent from the model entirely** — the documented extension point depends on an undocumented call |
+| `View.$data` / `$setData` | `Table`, `GridRow` — and `apps/homepage` | `api:false`, no prose |
+| `View.travelWith()` | `DataGrid` header, `FocusRing` | `api:false`, no prose |
+| `View.tabOrder()` / `tabDefault()` | `Pane` | absent / `api:false` |
+| `Focus.*`, `Keys.*` statics | `Control`, `Dialog`, `Slider`, `Table`, `Menu`, `Segmented` | only their **events** are documented; the callable surface is projected nowhere |
+
+The cause is structural, not neglect: `extract.mjs` builds the reference from `SCHEMAS`
+(attributes and events) plus prose, and **`LANGUAGE_STATICS`/`LANGUAGE_API` are separate
+registries it never projects** — so a method can be fully typechecked, fully supported,
+and invisible. For built-ins, prose gates `@api`, so an undocumented method is not merely
+undescribed, it is *absent*.
+
+This is the un-taught-component-library failure one level down, and the same shape the
+backlink gate now catches for classes (documentation.md §4b) — a member-level twin of it
+is the obvious follow-on.
+
+**CLOSED 2026-08-05, same session.** `extract.mjs` now projects both registries, and the
+gate that keeps them projected is `test/docs.test.mjs` — *"every callable-surface member is
+documented"*, blocking. Three things changed:
+
+- **Membership in the check block makes a method `@api`.** Prose describes a member; it no
+  longer decides whether the member *exists*. Everything outside the registries stays
+  structural-only, as before.
+- **Two causes of absence, both fixed.** `METHODS` is read from tsc's *public* surface, so
+  a `protected` runtime member the scaffold declares public for check blocks (`Layout.laid`,
+  `TweenLayout.laid`) was invisible; and a service **static** is an instance method of
+  nothing, so `Focus` and `Keys` published their events and not one call.
+- **26 entries written**: `View.raise` / `rootOrigin` / `travelWith` / `$data` / `$setData` /
+  `insertChild` / `removeChild` / `discard` / `tabOrder` / `tabDefault` / `lookupStylesheet`;
+  `App.createView` / `openWindow` / `inspect`; `Layout.laid` / `attachTo` / `rearm`;
+  `TweenLayout.laid` / `retarget`; the whole `Focus.*` and `Keys.*` callable surface.
+
+Two judgments worth keeping: a `readonly` entry (`App.demoSources`, `liveReport` — the
+interim live-demo channels scaffold.ts rules will dissolve) and a property signature
+(`Layout.view`) are **not** calls, so they are not projected as methods; `Layout.view`'s
+meaning lives in `laid()`'s prose, where an author actually meets it.
+
+So OPERA-5 now holds in both halves: no privileged mechanism, and no privileged knowledge.
+The remaining asymmetries are the two the charter always allowed — directory placement and
+auto-include.
+
 ## 3. The component set
 
 **Tier 0 — unblocked, build immediately:**
@@ -264,6 +342,83 @@ imperative "show error"); submit/disabled patterns (a form's submittability
 DERIVES from its fields); error and empty states as first-class layout
 states. One reference form in the docs becomes the canonical example all
 Tier-0/1 components appear in.
+
+### 7a. The edit session stops at `TextInput` — measured 2026-08-05, OPEN
+
+Raised by David while reviewing the reference pass, and worth a decision: `Editor`
+buffers a draft, validates it with author code, and commits into the dataset
+conditionally — **so why does none of that reach `Checkbox`, `Radio`, `Slider`?**
+
+**What is actually true** (verified against the source, not inferred):
+
+- `Editor` is abstract — in `SCHEMAS` so the reference can document it and
+  `TextInput` can inherit checkably, deliberately **not** in the tag registry, so
+  `Editor [ ]` reports "unknown component". `TextInput` is its only subclass; the
+  repo contains zero direct uses.
+- **`<->` is gated on the class, hard**: `check.ts:1361` refuses the two-way arrow
+  on anything that is not `descendsFrom(schema, "Editor")`. So `checked <-> :done`
+  is a compile error, not a degraded one-way.
+- The session surface is `commitOn` (`"input"` | `"blur"` | `"enter"` | `"manual"`),
+  `valid` / `error` / `dirty`, and `commit()` / `revert()`. `validate(v)` is an
+  **author-declared method hook** (`editor.ts` `runValidate`): `false` → invalid,
+  a string → the message, `true`/null/`""` → valid.
+- **The machinery is not text-specific.** `editor.ts` is parameterised by slot name
+  (`edited(view, name, commitOn)`, `sessionOf(view, name)`) and publishes
+  `error`/`valid`/`dirty` pay-per-use, only when the editor declares them. Its own
+  comment names "a native edit, **a picker selection**" as edit sources. The
+  restriction lives in the class hierarchy and that one checker gate — not in the
+  mechanism.
+
+**Why the restriction is defensible.** Contract 1 (components-baseline.md, ruled
+2026-07-13) says components are **data-system-agnostic**: a control declares a plain
+reactive attribute and knows nothing about datasets or paths. `Editor` is the one
+class that does know. Extending the session to `Control` would make every control
+data-aware and break that ruling. Underneath it there is a real principle: **a draft
+only means something where the in-progress value is unrepresentable in the model** —
+half-typed text (`"12/3"` in a date field) has to live somewhere outside the data.
+There is no half-checked checkbox; a `Radio`'s domain is its declared choices, and a
+`Slider`'s is clamped by `quant()`.
+
+**Where the objection still lands.** Three gaps the above does not answer:
+
+1. **Transactionality is not validation, and `commitOn` conflates them.** What a
+   buffered checkbox is wanted for is "write nothing until Save" — a need that
+   applies to every control, served today for exactly one. In one form a text field
+   can hold an uncommitted draft while the checkbox beside it has already written
+   through. That asymmetry is real and visible to users.
+2. **Non-editor controls have nowhere to put a validity fact.** A `Slider` with a
+   cross-field constraint ("must be ≥ the other one") has no `valid`/`error` slot,
+   so there is no reactive fact for a `Field` to render — which is precisely what §7
+   above promises.
+3. **There is no form-level construct.** `editor.ts` states the position outright:
+   *"Form-wide validity is not special-cased: it is an ordinary constraint over
+   fields' `valid` slots."* That works, but only across `TextInput`s, and it cannot
+   aggregate — node-collection aggregation is `DECLARE7001` — so every field must be
+   named by hand (`{ a.valid && b.valid }`). `Field` also cannot render an error line
+   yet; its own header defers that to the §13 slots/`placement` design.
+
+**What works today, and is currently taught nowhere.** Move the buffer into the
+**data**: point the form at a working-copy `Dataset`, let every control write into it
+freely, and copy it into the real record on Save. This gives transactionality for
+checkboxes and sliders *because* controls are data-agnostic — they write wherever
+they are pointed. `Editor`'s own prose gestures at it ("point the datapath at the
+real record for autosave, or at a working copy you commit on a Save button"), but
+nothing in the corpus presents it as the general pattern. Likewise form validity:
+the Declare-shaped answer is to **validate the model, not the widgets** — a
+`canSave: boolean = { … }` over the data, with `disabled = { !app.canSave }`. Same
+move as "count the data, not the tree", and it sidesteps the Editor/Control split
+because the model does not care which widget wrote a field.
+
+**The open decision** (David's, deferred — he wants to return to it): whether the
+edit session should be available to non-text controls (a mixin, or `Control` gaining
+a pay-per-use session), whether a `Form` construct should exist at all, or whether
+the working-copy-dataset pattern is the answer and simply needs documenting and a
+`Field` error line. The evidence above is the input; nothing here is ruled.
+
+**Closed by this pass:** components-baseline.md §1c asked whether attribute-target
+two-way (`checked <-> app.muted`) works and said "the contract assumes it works". It
+does not, by construction — the checker refuses every non-`Editor` target
+unconditionally. Corrected there.
 
 ## 8. Definition of done: the real-app eval family
 

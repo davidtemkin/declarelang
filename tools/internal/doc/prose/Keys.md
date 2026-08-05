@@ -28,3 +28,24 @@ App [ width = 240, height = 100, fill = white, textColor = black,
 
 ## keyUp
 `onKeyUp(e)` — a key came up, same payload.
+
+## isDown()
+Whether a key is physically down right now, by `code` (`"ShiftLeft"`, `"MetaLeft"`) — for
+**modifier state at the moment of a gesture**, which is not carried on a pointer event.
+How a table decides whether a click extends a range or toggles one member.
+
+```declare-fragment
+onClick() { (parent as Table).rowClick(this.rowIndex(), this.member(),
+    Keys.isDown("MetaLeft") || Keys.isDown("ControlLeft"),
+    Keys.isDown("ShiftLeft")) }
+```
+
+## held()
+Every key currently down, as `code` strings.
+
+## navClaim()
+Claims the navigation keys — arrows, Space, Home/End, Page — away from the browser's
+scroll defaults while an overlay is roving, and releases them when passed `false`. **An
+open menu owns the arrow keys**; without the claim the page scrolls underneath it. Claim
+on open, release on close, always in pairs — a claim that outlives its overlay leaves the
+page unscrollable.

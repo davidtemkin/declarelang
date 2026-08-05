@@ -119,7 +119,8 @@ framing, and the sequencing. "Derivative" ≠ "generated" and ≠ "adds nothing.
 - **structural** — the generated model matches the extracted surface.
 - **dangling links** — every `declare:` link (§5) resolves to a real target.
 - **backlink coverage** — reference nodes with no inbound guide link are flagged holes.
-  *(This is what would have caught the un-taught component library.)*
+  *(This is what would have caught the un-taught component library.)* **Implemented and
+  blocking 2026-08-05** — `test/docs.test.mjs`, see §4b.
 - **executable examples** — every runnable fence in a category-B doc compiles **and**
   behavior-asserts where it claims behavior (reuse `verify` rung 5).
 - **surface cross-checks** — attribute / component / diagnostic / flag names in prose are
@@ -170,6 +171,55 @@ rather than show them, `extract.mjs` can key on the one string — no retrofit, 
 change. Free text forecloses that.
 
 When the count reaches zero, drop the library exemption from the gate.
+
+**DONE, 2026-08-05.** The library prose pass landed: all **356** library reference
+entries carry prose — 305 API entries plus 51 marked `**Internal.**`. The named
+concentrations (`FocusRing`, `Menu`, `DataGrid`, `Tooltip`, `Dialog`, `Combobox`,
+`Slider`) are written, and `Control` — the base every control inherits, and the one
+whose absence made the others unreadable — is written with it. The exemption can come
+off the prose gate.
+
+Three extractor defects surfaced while writing it, all fixed in the same pass, because
+each one silently discarded prose that *was* written:
+
+1. **Only a file's first block comment was read**, so every class in a shared file
+   rendered the same lead — `IconHost`'s reference page was `Icon`'s essay, and six
+   core icons were six copies of one paragraph. `extract.mjs` now claims each
+   `/* # Name … */` block for the class its heading names, falling back to the first
+   block, so a compound heading (`# Table / TableRow`) still serves both.
+2. **A prose subheading collided with the member convention.** `## Writing one` in
+   `Icon`'s essay parsed as a member section, which both dropped it and *truncated the
+   class lead at that point* — `Icon` was publishing 1 paragraph of a 4,515-character
+   document. Prose subheadings inside a doc block are `###`.
+3. **`verify --wrap` decided "is this already a program?" with a raw regex**, so an
+   `App [ … ]` example inside a doc comment made the probe skip its wrapper and die at
+   eof — and a `class … extends` example would have had it instantiate a class that
+   exists only inside a comment. It strips comments before both probe decisions now.
+
+### 4b. Backlink coverage, as enforced (2026-08-05)
+
+`test/docs.test.mjs` is the gate, and it is **blocking**. §4 asserted this check was
+CI-blocking while nothing implemented it, and the failure it names in its own
+parenthetical then happened: one merge landed `Segmented`, `SegmentedItem` and the
+entire `Icon` family with zero guide coverage, and nothing noticed.
+
+Three decisions make it hold without pushing the catalog into the narrative:
+
+- **Granularity is the class, not the member.** The guide teaches concepts and names
+  the components that carry them; the reference carries every attribute. A per-member
+  backlink requirement would demand the guide enumerate — exactly what §4a's residency
+  rule forbids.
+- **Families.** Teaching the base teaches the set: the guide says icons are drawn and
+  shows how to write one, and does not enumerate ten marks. A family member's coverage
+  is its head's, so the icon set is one debt to pay and one line to delete.
+- **A dated `UNTAUGHT` list** carries the present debt, so a hole stays countable
+  rather than invisible. The list only shrinks, and the gate fails **both** ways — a
+  new untaught class fails, and an entry the guide has since taught fails until it is
+  removed, so the debt list can never become the place real holes hide.
+
+Standing debt at 2026-08-05, which the guide's component pass is the worklist for:
+`Combobox`, `ContextMenu`, `DataGrid`, `Segmented`, `Icon`, and the media/rich-text
+set `Video`, `RichText`, `HTMLText`, `Editor`, `AnimatorGroup`.
 
 ## 5. Linking — the connective tissue (author once, resolve many)
 
@@ -264,7 +314,9 @@ here, not to the one-time bootstrap out of drift.
    - **2 behavioral (block after examples prepared)** — executable examples (behavior-assert,
      verify rung 5) + surface cross-checks (names vs schema/registry/`Diag`/`FLAG_SPECS`).
    - **3 completeness (block after the rewrite)** — coverage + backlink coverage. Can't be
-     blocking earlier — they gate *on* the rewrite being done.
+     blocking earlier — they gate *on* the rewrite being done. **Both are on as of
+     2026-08-05** (§4a, §4b); each absorbs its remaining debt in an explicit dated list
+     rather than waiting for zero, which is what let them start blocking now.
    - **4 teaching (periodic, not a per-commit wall)** — evals-as-gate: non-deterministic +
      budgeted; a tracked quality bar, not red/green CI.
    Independent of the distro reorg (checks are about content + links, not layout) → ratify

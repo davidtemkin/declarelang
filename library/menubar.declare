@@ -17,6 +17,63 @@ a click opens (and highlights) a title; while any menu is open, moving
 across another title switches to it; clicking the open title closes.
 
 Delivery is the one seam: `picked(id)` — override at the use site.
+
+```declare
+App [ width = 380, height = 120, chose: string = "",
+    bar: MenuBar [ x = 12, y = 8,
+        menus = { [ ({ id: "file", label: "File", items: [ ({ id: "new", label: "New", key: "⌘N" }),
+                                                          ({ id: "open", label: "Open…" }) ] }),
+                    ({ id: "edit", label: "Edit", items: [ ({ id: "undo", label: "Undo" }),
+                                                           ({ divider: true }),
+                                                           ({ id: "cut", label: "Cut" }) ] }) ] },
+        picked(id: string) { app.chose = id }
+        ],
+    Text [ x = 20, y = 70, text = { app.chose == "" ? "nothing picked" : "picked: " + app.chose } ]
+    ]
+```
+
+## menus
+The whole bar as **data**: `[ { id, label, bold?, kind?, items: [ …menu records… ] } ]`,
+where `items` is exactly `Menu`'s record shape. **One internal `Menu` serves every
+title**, deriving its rows from the open one — so item state stays live while a menu is
+up, and there is nothing to keep in step. Because the records are the single
+declaration, an app can derive its keyboard-shortcut registry from the same array the
+bar renders.
+
+## picked()
+**The delivery seam — override it at the use site.** Receives the picked item's `id`
+from any menu in the bar; the id is the whole message.
+
+## ink
+Overrides the *titles'* colour, for a bar drawn straight over a wallpaper where the
+platform text turns light. `null` uses the theme's text colour. **The dropdown menus
+stay themed either way** — this is the bar's own ink, not the menu's.
+
+## openId
+Which title's menu is open, by id — `""` when none is.
+
+## shown
+Whether any menu in the bar is currently open.
+
+## openMenu()
+Opens a title's menu and keeps the bar itself above the menu's backdrop, which is what
+lets tracking continue while a menu is up.
+
+## trackMenu()
+Switches to another title while a menu is already open — **macOS tracking**: titles do
+not highlight on mere hover, but once a menu is open, crossing another title opens that
+one.
+
+## stepMenu()
+Moves to the adjacent title's menu — Left/Right while a menu is open, yielding to the
+open menu when a submenu is up or the rover sits on one.
+
+## hasSub()
+**Internal.** Whether a roved row cascades, so ArrowRight enters it rather than walking
+the bar.
+
+## rowsOf()
+**Internal.** The bar's title views.
 */
 
 include [ "menu.declare" ]

@@ -1,0 +1,7 @@
+App [
+    col: View [ x = 20, y = 20, width = 260,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        Bar [ width = 260, label = "Storage", value = 72 ],
+        Bar [ width = 260, label = "Memory",  value = 38, tint = #37E0C8 ]
+        ]
+    ]

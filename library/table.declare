@@ -30,6 +30,130 @@ written) collection, carrying the RULED selection model
         selects = "multi", input(sel: object) { app.chosen = sel },
         TableRow [ datapath = :rows[], height = 30,
             t: Text [ x = 8, y = center, text = :label ] ] ]
+
+```declare
+App [ width = 320, height = 200,
+    d: Dataset { { "rows": [ { "id": 1, "label": "Ada" },
+                             { "id": 2, "label": "Grace" },
+                             { "id": 3, "label": "Alan" } ] } },
+    t: Table [ x = 20, y = 20, width = 200, height = 100, datapath = { d.value },
+        selects = "multi",
+        TableRow [ datapath = :rows[], height = 26,
+            Text [ x = 8, y = center, text = :label ]
+            ]
+        ],
+    Text [ x = 20, y = 140, text = { (t.selection ?? []).length + " selected" } ]
+    ]
+```
+
+## selected
+On a **`Table`**, the primary selected *member* — the record most recently selected, or
+`null`. On a **`TableRow`**, whether this row's member is in that selection, derived
+from the table and never stored. Both are members-not-views: **selection survives sorts,
+filters, and windowing** because it was never a set of instances.
+
+## selection
+Every selected member, in presented order — `null` when nothing is selected. Records
+for a replicated table, the row views themselves for a written one. **Never assign it;
+deliver through `input`.**
+
+## active
+On a **`Table`**, the member the keyboard stands on — moved by arrows, and distinct from
+the selection, which is what makes ⌘-walk-then-Space possible. On a **`TableRow`**,
+whether this row is that one.
+
+## selects
+The mode: `"none"`, `"single"` (the default), or `"multi"`. Multi is what enables
+shift-ranges, ⌘-toggles, and the ⌘-walk.
+
+## input()
+**Where the selection goes.** The default writes `selected` and `selection`; override
+it to own the value (`input(sel: object) { app.chosen = sel }`) and every gesture —
+click, range, keyboard — routes through your override, because they all land here.
+
+## clearSelection()
+Delivers an empty selection through `input`.
+
+## deleteRequested()
+**Delivery seam — the app declares what deleting is.** Fires on Delete or Backspace
+while there is a selection *and the table itself holds focus*, so a text field's
+Backspace is never mistaken for it. Does nothing by default: refusal by inertness.
+
+## activateRequested()
+**Delivery seam — the app declares what opening is.** Fires on Enter on the walked row,
+under the same focus condition. The list idiom's other half.
+
+## rowClick()
+The click protocol: plain click selects exactly one member, ⌘/Ctrl toggles, Shift
+extends from the anchor. Called by a `TableRow`; override to change what a click means.
+
+## step()
+Arrow-key travel: plain moves and selects, Shift extends the range, ⌘ moves the
+position alone so Space can toggle it. Scrolls the destination into view.
+
+## showRow()
+Scrolls a row into view by index — **using its instance when one exists, and arithmetic
+when it does not**, so arrow travel into unmaterialized rows works and materializes on
+arrival.
+
+## memberArray()
+The full member universe, read from the **data** through any row's cursor — never from
+instances. This is the windowing contract: a table over a virtualized collection can
+range-select rows that have never been built.
+
+## memberAt()
+The member at a logical index.
+
+## memberCount()
+How many members there are — the full logical count, not what is materialized.
+
+## isSelected()
+Whether a member is in the selection, by identity.
+
+## isActive()
+Whether a member is the keyboard position, by identity.
+
+## idOf()
+A member's identity: its scalar `id` field by convention, else the object itself — the
+same ladder the reconciler uses, so **nothing needs declaring for selection to survive
+a re-sort**.
+
+## same()
+Whether two members are the same one, by `idOf`.
+
+## member()
+The member this row presents: its **record** when replicated, the row view itself when
+written by hand.
+
+## rowIndex()
+This row's logical index in data order — read from the cursor when replicated, so it is
+true under windowing. A method rather than a slot because its consumers are gestures,
+and the written-row fallback walks children, which no constraint may do.
+
+## anchorIndex
+**Internal.** Where a shift-range extends from.
+
+## activeIndex
+**Internal.** The keyboard position as a logical index.
+
+## onKeyDown
+Arrows, Home/End, Space (multi), Delete/Backspace and Enter. An override should call
+through or the table loses its keyboard.
+
+## onPointerDown
+Focuses the **table**, not the row — rows are never tab stops, so the arrow keys must
+land on the container.
+
+## onClick
+Delivers the click to the table's `rowClick` with the modifier state. Override
+`rowClick` on the table rather than this, unless a particular row needs to opt out.
+
+## isTable
+**Internal.** The marker rows guard on, so a bare `TableRow` under a plain parent boots
+rather than crashing into a missing protocol — not API.
+
+## isTableRow
+**Internal.** The marker the table's walks key on — not API.
 */
 
 include [ "control.declare" ]

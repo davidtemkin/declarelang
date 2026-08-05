@@ -1,7 +1,35 @@
-// Bar — a horizontal value bar: an optional label, then a rounded track that
-// fills to `value` (0–100). A PLACEHOLDER component (see composition.md §1a):
-// coherent and restyleable — override `tint` for the fill — but not the final
-// widget; the real component library is a later, dedicated effort.
+/*
+# Bar
+
+A labeled horizontal value bar: an optional caption, then a rounded track filled to
+`value`. A **placeholder component** (composition.md §1a) — coherent and restyleable,
+but not the final widget. For a themed, theme-tracking meter reach for `ProgressBar`
+instead; `Bar` exists for demos and dashboards that want a caption and their own colour.
+
+```declare
+col: View [ x = 20, y = 20, width = 260,
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    Bar [ width = 260, label = "Storage", value = 72 ],
+    Bar [ width = 260, label = "Memory",  value = 38, tint = #37E0C8 ]
+    ]
+```
+
+## value
+How full the track reads, **0–100 always** — a percentage, not your own units. This is
+the difference from `ProgressBar`, which takes `min`/`max` and lets you pass raw counts.
+
+## label
+The caption to the left of the track. `""` drops the caption column entirely and the
+track takes the full width.
+
+## tint
+The fill colour. **The one restyling knob** — `Bar` predates the theme tokens and
+carries literal defaults, so it does not follow a theme the way library controls do.
+
+## lead
+The caption column's width, derived from whether there is a `label` at all. Set it to
+align several bars whose captions differ in length.
+*/
 
 class Bar extends View [ height = 28,
     label: string = "",

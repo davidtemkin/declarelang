@@ -1,0 +1,12 @@
+App [ width = 440, height = 220,
+    d: Dataset { { "rows": [ { "id": 1, "title": "Fix the rail",      "state": "open" },
+                             { "id": 2, "title": "Draft the chapter", "state": "done" },
+                             { "id": 3, "title": "Measure the grid",  "state": "open" } ] } },
+    DataGrid [ x = 20, y = 50, width = 400, height = 130, datapath = { d.value },
+        selects = "multi",
+        Column [ title = "ID",    field = "id",    width = 50 ],
+        Column [ title = "Title", field = "title", width = 220 ],
+        Column [ title = "State", field = "state", width = 110 ],
+        GridRow [ datapath = :rows[] ]
+        ]
+    ]

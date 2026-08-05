@@ -25,6 +25,92 @@ match count is free and no rendered row is ever scanned.
   focus-scope ascent). The list is never a tab stop of its own.
 - The list is a collection like any other — bind 100k options and
   `virtualize` applies to it the same way (via the Menu it composes).
+
+```declare
+App [ width = 320, height = 160, picked: string = "",
+    people: array = { ["Ada Lovelace", "Grace Hopper", "Alan Turing", "Barbara Liskov"] },
+    Combobox [ x = 20, y = 20, width = 240, placeholder = "Assignee",
+        items = { app.people },
+        input(v: object) { app.picked = "" + v }
+        ],
+    Text [ x = 20, y = 80, text = { app.picked == "" ? "—" : app.picked } ]
+    ]
+```
+
+## items
+The options, as **members**: records — shown by their `label`, else `id` — or plain
+strings. The currency of the selection model, so whatever you put in is what comes back
+out of `input`.
+
+## value
+The **chosen member**, not the typed text — the whole record when you supplied records.
+`null` until something is picked. Standalone the combobox owns it; bound, override
+`input` beside it.
+
+## input()
+**Where the choice goes.** Receives the chosen member. The default writes `value`; an
+override redirects it and leaves the slot untouched.
+
+## placeholder
+The entry's placeholder text while empty.
+
+## query
+What the user has typed since the last pick. **Not the value** — the draft that filters
+the list.
+
+## matches
+The filtered options, as a **derived collection**: a constraint over `items`, so the
+live match count is free and **no rendered row is ever scanned**. Case-insensitive
+substring against each member's label.
+
+## matchCount
+How many options currently match — read it straight, rather than counting list rows,
+which is both wrong under virtualization and refused by the compiler.
+
+## filtering
+Whether the user has typed since the last pick. False means a bare disclosure, which
+**shows the whole list** rather than filtering against a stale query — the difference
+between clicking the chevron and typing.
+
+## labelOf()
+How a member is displayed: a record's `label`, else its `id`, else the value itself.
+Override to display members your own way.
+
+## open()
+Opens the full list unfiltered — the disclosure-button path.
+
+## toggle()
+Opens the list, or closes it if it is already open.
+
+## closeList()
+Closes the list without picking.
+
+## pickIndex()
+Picks the *n*th current match: echoes its label into the entry, closes the list, and
+delivers the member through `input`. The index is into `matches`, never into `items`.
+
+## list
+The option list — **a `Menu` created at the app layer on first open**, not a child of
+the combobox, so it paints over everything rather than only over later siblings. All the
+overlay behaviour arrives with it: light dismiss, Escape, the arrow rover, the viewport
+flip, the long-list scroll.
+
+## ensureList()
+Creates the shared list on first use and wires its delivery back to `pickIndex`.
+
+## syncList()
+Pushes the current matches into the list — called on every keystroke.
+
+## listShown()
+Whether the list is currently up.
+
+## listRoved()
+Whether the keyboard rover is sitting on a row. **This is what makes Enter mean two
+things**: pick the roved row when there is one, else take the first match — the
+type-then-Enter path.
+
+## isCombobox
+**Internal.** The marker identifying this control — not API.
 */
 
 include [ "control.declare", "menu.declare" ]

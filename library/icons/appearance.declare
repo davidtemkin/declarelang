@@ -27,6 +27,26 @@ include [ "icon.declare" ]
 // half-disc already sits at ×1.03 of `circle.lefthalf.filled` — which says the
 // half-disc was never the problem and the other two are carrying the weight.
 
+/*
+# SunIcon
+
+"Light" in the appearance triad — a disc with rays, sharing its radius and stroke with
+`MoonIcon` and `AutoIcon` so the three read as one family at 14px, which three font
+glyphs never did.
+
+## rays
+How many rays surround the disc. Eight by default; lowering it reads lighter at small
+sizes.
+
+## solid
+`false` (the default) draws Apple's ring; `true` fills the disc. **The ring is drawn a
+touch smaller than the filled disc on purpose** — a stroke straddles its path, so an
+outline at the filled radius reads as the larger mark.
+
+## draw()
+Renders the disc and its rays.
+*/
+
 class SunIcon extends Icon [
     rays: number = 8,
     solid: boolean = false,         // true = the original filled disc; false is Apple's ring
@@ -63,6 +83,23 @@ class SunIcon extends Icon [
 // closed path and you get Apple's, where the horns taper because the two arcs
 // meet at a point. Nothing about the geometry changes — only what is done with it.
 
+/*
+# MoonIcon
+
+"Dark" in the appearance triad. The crescent is **the region between two equal
+circles**, the second offset by (3, −3) — so both arcs meet exactly at the circles'
+intersection points and the horns close to a point instead of leaving the ragged tail
+an arc pair leaves.
+
+## solid
+`false` (the default) strokes the closed path, giving Apple's tapered horns; `true`
+fills it for a solid crescent. **One path, two renditions** — nothing about the geometry
+changes, only what is done with it.
+
+## draw()
+Renders the crescent.
+*/
+
 class MoonIcon extends Icon [
     solid: boolean = false,         // true = the original filled crescent; false is Apple's
     draw(d: Draw) {
@@ -82,8 +119,17 @@ class MoonIcon extends Icon [
     ]
 
 
-// "System" — the same disc, half of it taken away. The ring stays so the empty
-// half still reads as part of one object rather than as a gap.
+/*
+# AutoIcon
+
+"System" in the appearance triad — the same disc, half of it taken away. **The ring
+stays around the empty half** so it reads as part of one object rather than as a gap.
+The one mark of the three whose meaning *is* its fill, which is why Apple's own triad
+mixes outline and filled here too.
+
+## draw()
+Renders the half-filled disc.
+*/
 
 class AutoIcon extends Icon [
     draw(d: Draw) {

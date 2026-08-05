@@ -44,6 +44,158 @@ windowed collection — the header drags are the forcing case the axis-scoped
   wired, in v1.
 - Narrow widths: v1 clips (`clip` on the cell); the deliberate degrade
   (priority, not squish) is a designed later increment per the brief.
+
+Selection, keyboard travel and windowing are `Table`'s, documented there. What follows
+is only the column model.
+
+```declare
+App [ width = 440, height = 220,
+    d: Dataset { { "rows": [ { "id": 1, "title": "Fix the rail",      "state": "open" },
+                             { "id": 2, "title": "Draft the chapter", "state": "done" },
+                             { "id": 3, "title": "Measure the grid",  "state": "open" } ] } },
+    DataGrid [ x = 20, y = 50, width = 400, height = 130, datapath = { d.value },
+        selects = "multi",
+        Column [ title = "ID",    field = "id",    width = 50 ],
+        Column [ title = "Title", field = "title", width = 220 ],
+        Column [ title = "State", field = "state", width = 110 ],
+        GridRow [ datapath = :rows[] ]
+        ]
+    ]
+```
+
+Drag a header sideways to reorder; drag the divider between two headers to resize;
+click a header to sort.
+
+## title
+The column's heading text. Also its identity when `field` is empty.
+
+## field
+The record key this column shows, and the column's id. **A cell renders
+`record[field]`** — there is no per-cell template to write.
+
+## kind
+What a cell *is*: `"text"` (the default, a static label), `"edit"` (a `TextInput`
+committing every keystroke into the record), `"check"` (a `Checkbox` over a boolean
+field), or `"select"` (the value plus a chevron, opening the shared options menu).
+
+## options
+The choices a `"select"` cell offers — records or strings. **Read at gesture time, not
+baked into the column model**, so it may be a constraint that changes with app state.
+
+## order
+The presented column order, as column ids — `null` means authored order. Part of the
+grid's value-pattern state: delivered through `arrangeInput`, so an app that overrides
+that owns the order and can persist it.
+
+## widths
+Per-column width overrides, `{ id: width }` — `null` means authored widths. **A width of
+`0` drops the column entirely**, which is the deliberate narrow-screen degrade: priority,
+not squish. `widths = { app.narrow ? ({ notes: 0 }) : null }` is a responsive layout.
+
+## sortOn
+The column id the sort *names* — `""` when unsorted. **Sorting names a derivation; it
+does not reorder anything.** The truth stays in the data: your app derives the sorted
+dataset from this, and the grid displays the order its collection already has.
+
+## sortDir
+`"asc"` or `"desc"`, alongside `sortOn`.
+
+## sortInput()
+**Delivery seam for sorting.** The default writes `sortOn`/`sortDir`; override it to own
+the sort — which is what you do when the sorted collection is derived app-side, or when
+the sort belongs to a server query.
+
+## arrangeInput()
+**Delivery seam for reordering**, receiving the new column-id order. Override it to
+persist a user's column layout.
+
+## resizeInput()
+**Delivery seam for resizing**, receiving a column id and its new width. Widths are
+plain values — **nothing measures cells** — so an override is free to clamp, snap, or
+store them.
+
+## headerClick()
+Toggles the sort on a column: same column flips direction, a new column starts
+ascending. Routes through `sortInput`.
+
+## headerH
+The header row's height.
+
+## editStep()
+Moves an active `"edit"` cell's focus one row up or down in the same column — the
+spreadsheet expectation. Scrolls the destination into existence first, so it works over
+a windowed collection.
+
+## openSelect()
+Opens the shared options menu for a `"select"` cell and writes the picked value into the
+record through the row's cursor. **One menu serves every select cell in the grid.**
+
+## columnRecords()
+The derived column model — the authored `Column` children, ordered and widthed by state,
+with running x offsets. **The one truth every header cell and grid cell positions from.**
+State arrives as arguments precisely so the deriving constraint tracks it.
+
+## currentOrder()
+The column ids in their present order.
+
+## colId()
+A column's id: its `field`, falling back to its `title`.
+
+## colWidthOf()
+The present width of a column by id.
+
+## colVersion
+Bump this to rebuild the column model when columns are **added or removed at runtime**.
+The model derives through a children walk, which no constraint can track — so this is
+the manual nudge that stands in for one.
+
+## rec
+The row's record, as a derived slot. **A slot rather than a method call, so cells
+re-derive when the record's fields change** — a method read would go stale. `null` on a
+written (unreplicated) row.
+
+## onInit
+Starts the header's escape from the scroll box (see `escaped`), retrying briefly until
+the backend has surfaces to work with.
+
+## escaped
+Whether the header surface has left the grid's scrolling box for its parent. **The
+grid's box is the rows' scroll region exactly** — the scrollbar spans rows only, and no
+row ever slides under the header. Backends without the ride keep an in-box header.
+
+## tryEscape()
+**Internal.** Retries the header's re-homing until the backend attaches.
+
+## dragCol
+**Internal.** The column id currently being dragged.
+
+## dropAt
+**Internal.** The index the insertion bar marks, or −1.
+
+## dropIndexFor()
+**Internal.** Which slot a dragged header's centre would land in.
+
+## dropBarX()
+**Internal.** The insertion bar's x for a drop index.
+
+## commitDrop()
+**Internal.** Commits a reorder at release — drop-commit, since swapping under the
+pointer re-derives the spans mid-drag and flickers.
+
+## prevColId()
+**Internal.** The column left of a given one, for the resize grip.
+
+## selMenu
+**Internal.** The lazily-created menu shared by every `"select"` cell.
+
+## isDataGrid
+**Internal.** The marker rows and headers guard on — not API.
+
+## isColumn
+**Internal.** The marker the column walk keys on — not API.
+
+## isGridRow
+**Internal.** The marker identifying a generated grid row — not API.
 */
 
 include [ "table.declare", "menu.declare" ]

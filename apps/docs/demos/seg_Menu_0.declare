@@ -1,0 +1,11 @@
+App [ width = 320, height = 130,
+    chose: string = "",
+    edit: Menu [ items = { [ ({ id: "cut", label: "Cut", key: "⌘X" }),
+                            ({ id: "copy", label: "Copy", key: "⌘C", checked: true }),
+                            ({ divider: true }),
+                            ({ id: "paste", label: "Paste", enabled: false }) ] },
+        picked(id: string) { app.chose = id }
+        ],
+    Button [ x = 20, y = 20, label = "Edit", menu = { app.edit } ],
+    Text [ x = 20, y = 74, text = { app.chose == "" ? "nothing picked" : "picked: " + app.chose } ]
+    ]

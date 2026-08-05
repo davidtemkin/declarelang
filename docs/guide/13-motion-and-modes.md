@@ -50,7 +50,9 @@ a new target. There is no tween to cancel, no animation queue, no completion han
 — **interruption requires no code**, which is why everything built this way stays
 interruptible by default. That is the continuity argument's third point, delivered
 by construction. (`Animator [ attribute = x, to = 0, duration = 333 ]` is the
-time-based sibling for the rare clock-shaped case; springs are the house idiom.)
+time-based sibling for the rare clock-shaped case, and `AnimatorGroup` runs several
+in step when a sequence genuinely has to be choreographed rather than derived;
+springs are the house idiom.)
 
 > **From SwiftUI:** `withAnimation` animates the *transaction* — changes made inside
 > the block. A `Spring` here is a standing declaration on the attribute itself:

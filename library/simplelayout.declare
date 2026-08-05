@@ -12,6 +12,30 @@ each side centers the run).
 
 Written in Declare over the Layout kernel: the whole strategy is this one
 pure place() — one box per laid child, aligned by index.
+
+```declare
+col: View [ x = 20, y = 20,
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    View [ width = 160, height = 24, cornerRadius = 6, fill = steelblue ],
+    View [ width = 120, height = 24, cornerRadius = 6, fill = cadetblue ],
+    View [ width = 190, height = 24, cornerRadius = 6, fill = slategray ]
+    ]
+```
+
+## axis
+Which way children stack: `y` (the default) or `x`. **A bare literal, not a string** —
+`axis = x`, and note that `x` here is the axis token, not the position attribute.
+
+## spacing
+The gap between adjacent children. **Negative overlaps them**, which is how a stack of
+cards or avatars is built.
+
+## place()
+The whole strategy: one box per laid child, positioned along the axis in child order.
+**The cross axis and every size stay the children's own** — a child centres itself
+across a row with the ordinary `y = center`. Override it in a subclass for custom
+geometry; a `Layout`'s `place()` **may** aggregate over children, which is the one place
+that is allowed.
 */
 
 class SimpleLayout extends Layout [

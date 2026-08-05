@@ -21,6 +21,48 @@ Theming (the four cities carry the tokens): `tooltipBg` / `tooltipText` /
 `tooltipLine` (null = no border) / `tooltipSize` (11 on macOS, 12
 elsewhere). Cupertino and Redmond wear bordered surface chips; San
 Francisco and Mountain View the inverse chip.
+
+**You do not instantiate this.** Set `tip` on any view and the singleton appears; the
+members below exist for a subclass that replaces the rendition.
+
+```declare
+View [ x = 20, y = 20, width = 130, height = 38, cornerRadius = 8, fill = steelblue,
+    tip = "Saves your changes",
+    Text [ x = center, y = center, textColor = white, text = "Save" ]
+    ]
+```
+
+## tipText
+The text currently displayed, pushed in by the `Tip` service from the hovered view's
+`tip`. **A subclass reads this; nothing writes it from app code.**
+
+## shown
+Whether a tip is currently up. Driven by the service's delay, retarget and hide rules —
+not by you.
+
+## placement
+Where the chip sits, elected by `theme.tooltipPlacement`: `"below"` (the default,
+centred under the target, flipping above at the edge), `"above"` (the Fluent default,
+flipping below), or `"pointer"` (the macOS help tag, offset below-right of the resting
+cursor). Always clamped inside the app.
+
+## ex
+**Internal.** The target's root-space x, for placement.
+
+## ey
+**Internal.** The target's root-space y.
+
+## ew
+**Internal.** The target's width.
+
+## eh
+**Internal.** The target's height.
+
+## px
+**Internal.** The pointer's x where it came to rest, for `"pointer"` placement.
+
+## py
+**Internal.** The pointer's y where it came to rest.
 */
 
 class Tooltip extends View [ visible = { shown && tipText != "" },

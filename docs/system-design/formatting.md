@@ -1,6 +1,6 @@
 # Declare formatting — the canonical spec
 
-> **The product statement of the style is [the guide's style appendix](../guide/19-style.md).**
+> **The product statement of the style is [the guide's style appendix](../guide/21-style.md).**
 > This file is the internal record: the reasoning, the dated rulings and reversals, and the
 > formatter's implementation contract. Where the two ever differ, the guide is what ships.
 

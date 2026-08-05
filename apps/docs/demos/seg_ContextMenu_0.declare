@@ -1,0 +1,15 @@
+App [ width = 320, height = 130,
+    chose: string = "",
+    rowMenu: ContextMenu [ items = { [ ({ id: "open", label: "Open" }),
+                                      ({ id: "rename", label: "Rename" }),
+                                      ({ divider: true }),
+                                      ({ id: "delete", label: "Delete" }) ] },
+        picked(id: string) { app.chose = id }
+        ],
+    card: View [ x = 20, y = 20, width = 200, height = 44, cornerRadius = 8, fill = darkslategray,
+        onContextMenu(e: PointerEvent) { app.rowMenu.open(this, e) },
+        onHold(e: PointerEvent) { app.rowMenu.open(this, e) },
+        Text [ x = 12, y = center, text = "Right-click or hold me" ]
+        ],
+    Text [ x = 20, y = 80, text = { app.chose == "" ? "—" : app.chose } ]
+    ]

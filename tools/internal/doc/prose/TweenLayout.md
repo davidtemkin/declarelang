@@ -12,3 +12,11 @@ transition is continuous.
 ## duration
 The duration, in ms, of the built-in retarget animation the base runs when the layout
 switches its `from`/`to` targets.
+
+## laid()
+The children this layout manages — `Layout.laid()`, restated here because a tweening
+strategy reads it while animating between arrangements.
+
+## retarget()
+Re-aims the in-flight tween at the current arrangement, so a change mid-animation becomes
+a new destination rather than a restart — the same interruption model a `Spring` has.

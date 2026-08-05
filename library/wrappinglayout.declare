@@ -15,6 +15,33 @@ that reflow by fitting. Managing NAMED regions per width tier is
 ResponsiveLayout's.
 
 Written in Declare over the Layout kernel — the whole strategy is place().
+
+```declare
+box: View [ x = 20, y = 20, width = 260,
+    layout: WrappingLayout [ spacing = 8, lineSpacing = 8 ],
+    View [ width = 70, height = 26, cornerRadius = 6, fill = steelblue ],
+    View [ width = 110, height = 26, cornerRadius = 6, fill = cadetblue ],
+    View [ width = 90, height = 26, cornerRadius = 6, fill = slategray ],
+    View [ width = 120, height = 26, cornerRadius = 6, fill = darkslateblue ]
+    ]
+```
+
+## spacing
+The horizontal gap between children in a row.
+
+## lineSpacing
+The vertical gap between rows. **`-1` (the default) means "same as `spacing`"**, so a
+uniform grid needs one number rather than two kept in step.
+
+## align
+How a finished row is justified: `start` (the default, left) or `center`, which centres
+a row that does not fill the width. A bare literal.
+
+## place()
+Runs the flow, wrapping when the next child would overflow the view's width. **It owns
+both axes of each child** — a flow is 2-D — while sizes stay the children's own. A child
+never wraps when it is first in its row, so one over-wide child overflows rather than
+looping forever.
 */
 
 class WrappingLayout extends Layout [

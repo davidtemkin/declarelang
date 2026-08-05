@@ -1,0 +1,24 @@
+class Stepper extends Control [ width = 96, height = 28, cornerRadius = 7,
+    value: number = 0,
+    step:  number = 1,
+
+    input(v: number) { value = v },
+    press() { input(value + step) },
+    onClick() { if (!disabled) press() },
+
+    fill = { down ? theme.controlPressed : hot ? theme.controlHover : theme.control },
+    t: Text [ x = center, y = center, fontSize = 13, textColor = { theme.text },
+        text = { "" + classroot.value } ]
+    ]
+
+
+App [ width = 320, height = 130,
+    n: number = 0,
+    col: View [ x = 20, y = 20,
+        layout: SimpleLayout [ axis = y, spacing = 12 ],
+        Stepper [ value = { app.n },
+            input(v: number) { app.n = v }
+            ],
+        Text [ textColor = { theme.text }, text = { `count: ${app.n}` } ]
+        ]
+    ]

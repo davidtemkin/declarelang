@@ -79,10 +79,18 @@ try {
 // abstract base or a child-requiring component may not boot from an empty tag —
 // that's rung 4's honest report; rungs 1–3 are the real win here.)
 let probeNote = null;
-if (flags.wrap && !/^\s*App\s*\[/m.test(source)) {
+// Both probe decisions below read the SOURCE, so they must not read the doc
+// comments: a library file's header block carries runnable examples, and an
+// example is not the program. Unstripped, a `App [ … ]` example made the probe
+// believe the file was already a whole program (it then parsed a class-only file
+// and died at eof), and a `class Spark extends Icon` example would have had the
+// probe instantiate a class that exists only inside a comment. Stripped text is
+// used for these two regexes ONLY, never for compiling, so the crude strip is safe.
+const bare = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+if (flags.wrap && !/^\s*App\s*\[/m.test(bare)) {
   // A layout strategy is an ATTRIBUTE, not a child (language §5) — probe it in
   // the `layout:` slot of a view with a couple of children to arrange.
-  const decls = [...source.matchAll(/^\s*class\s+([A-Za-z_]\w*)\s+extends\s+([A-Za-z_]\w*)/gm)]
+  const decls = [...bare.matchAll(/^\s*class\s+([A-Za-z_]\w*)\s+extends\s+([A-Za-z_]\w*)/gm)]
     .map((m) => ({ name: m[1], base: m[2] }));
   if (decls.length === 0) {
     console.error(`verify --wrap: no top-level 'class … extends' found in ${file}`);

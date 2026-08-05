@@ -474,3 +474,142 @@ landing mark. The FAQ's "Who was crazy enough to do this?" links to plain
 `#why` — a location, which works — and its answer says in words that the note
 is at the end of that essay. When §12.1 lands the link becomes `#why@story`;
 when §12.2 lands, every other link in the FAQ starts working too.
+
+## 13. Proposal — one reference, declared links (draft, 2026-08-05)
+
+**Status: discussion draft.** Motivated by §12's findings and by the controls
+standardization, which broke the handler-inference model §13.3 replaces. Not
+chartered; the fork in §13.7 is unsettled. This section records the shape so
+the refinement happens against a text instead of a memory.
+
+The scheme in four sentences:
+
+1. **One reference string** names anything linkable: `#location` for a state,
+   `#location@name` for a place inside it.
+2. **One declaration** makes a view a link: `link = <reference>` — authored,
+   not inferred from its handler.
+3. **One operation** follows a reference: make the target observable —
+   rendered *and* in the viewport — owned end to end by the runtime.
+4. **The crawler reads declarations**, never handler bodies.
+
+### 13.1 The from/to matrix
+
+Sources: a Declare view with a handler · a library control · a link in
+authored prose · an off-site URL · the URL bar and back/forward · the crawler
+following extracted HTML. Destinations: the front door · a location · a named
+view inside a location · a stretch of prose inside rich text · off-site.
+
+Measured against today (§12), the failures cluster on exactly two axes:
+
+- **The prose row is dead entirely** — no href in a rendered `.md` reaches the
+  app at all (§12.2). Five destination kinds, one defect.
+- **The fine-grained columns split by temperature** — off-site and URL-bar
+  arrivals at `#L@N` land correctly; same-session arrivals land against the
+  outgoing view's layout (§12.1). Cold and warm are different code paths, and
+  only one is correct.
+
+Everything else already works. The scheme is four gap-closings, not a rewrite.
+
+### 13.2 One reference, six encoders
+
+`location` keeps its meaning and its opaque state grammar; `@` stays the one
+shared character (§6). What changes is that every source encodes the same
+string:
+
+| source | spelling | produces |
+|---|---|---|
+| handler | `app.location = "why@story"` | `#why@story` |
+| library control | the same write, wherever it lives | `#why@story` |
+| authored prose | `[the note](#why@story)` | `#why@story` |
+| off-site | `https://…/#why@story` | `#why@story` |
+| URL bar / history | replayed fragment | `#why@story` |
+| crawler | `<a href="#why@story">` in extracted HTML | `#why@story` |
+
+Nothing downstream knows which source produced the reference — which is what
+makes the from-axis disappear from the problem.
+
+### 13.3 Declared links — the step up from onClick inference
+
+Today the navigation relation is INFERRED: `compiler/src/links.ts` walks
+activation-handler bodies (`ACTIVATION = {onClick}`) for `app.location =`
+writes and `navigate(to)` calls, attributes `el.link` to the carrying element,
+the runtime stamps `_navLink`, and static-html.ts wraps the subtree in
+`<a href>`. Three structural limits, all now bitten:
+
+- **Only `onClick` counts.** A control whose activation lives in its class — a
+  library Button, a keyboard activation, a gesture — carries the navigate in a
+  place the walker never attributes to the use site. The controls
+  standardization moved exactly this way.
+- **`classroot` reads resolve only at a class root** (links.ts's own comment:
+  descendants are "left unlinked"). The homepage's data-driven pills —
+  `app.location = classroot.to` — are invisible to it.
+- **The inference and the behavior are two artifacts.** The author writes the
+  handler; the extractor guesses the link. When they drift, the crawler lies.
+
+The proposal inverts it: `link` becomes an AUTHORED attribute — the reference
+string of §13.2, constraint-capable, `""` meaning no link (the existing
+value-carries-the-conditionality rule, kept). One declaration, three
+consumers:
+
+- **The runtime** makes the view activatable and follows the reference on
+  activation — the author writes no handler for the common case. A pill is
+  `link = "#why"`; the homepage's `to`/`at`/`url` triple collapses to one slot.
+- **The extractor** reads the attribute. No handler walking, no ACTIVATION
+  set, no classroot blindness — a data-driven link is a constraint like any
+  other, and the crawler evaluates it over the program's material exactly as
+  it already evaluates `visible`.
+- **Prose interoperates for free**: the markdown href and the `link` attribute
+  carry the same string, so §12.2's fix routes rich-text clicks into the same
+  follow operation.
+
+The carrier half-exists — `el.link` / `_navLink` is already the extractor's
+channel. The change is who writes it: the author, not a guesser. links.ts then
+demotes to a MIGRATION LINT (a handler that writes `location` on a view with
+no `link` is flagged), or retires.
+
+### 13.4 Following is one operation
+
+Today the app writes `location` and the runtime separately polls for the
+anchor — two half-operations with no owner, which is the §12.1 race stated
+structurally. Under the proposal, following `#L@N` is one runtime-owned
+operation: set `location = L`; make `N` observable. Not finished until the
+target is rendered AND in the viewport — so "how many frames the measurement
+took" stops being anyone's business, and cold and warm arrivals are the same
+path. The reveal offset behaves like the site's uncontrolled editors: the
+reference SEEDS the scroll position; the user's first touch takes ownership.
+
+### 13.5 Destinations enumerate from the graph
+
+A destination is a value of `location` something derives from —
+`visible = { app.location == "why" }` is the declaration, already extracted as
+a dependency. Enumerating the literal comparisons yields the static
+destination set with no handler evidence at all; `link` attributes yield the
+edges. Non-equality families (`location.startsWith("guide/")`) and compound
+grammars remain the existing seam: the graph gives the static set, data-driven
+members still come from running the program over its material (§7 unchanged).
+
+### 13.6 The stability ruling (open)
+
+A reference is only as good as its target's name. Three target kinds are
+authored and stable: a location (the `visible` comparison), a named view
+(`anchor = "story"`), and — new — an AUTHORED MARKER in prose (the assembler
+markers the `.md` files already carry are the precedent: invisible in render,
+stable under rewording). The fourth, auto-slugged headings, is derived and
+breaks on rename — today it shares one namespace with the authored kinds under
+a silently weaker guarantee. RULING NEEDED: authored names are the contract;
+slugs are a convenience tier, documented as such — or slugs are dropped from
+the addressable set entirely.
+
+### 13.7 The flagged fork: is all location state a place?
+
+`location` today means "app state you can link to," and some of that is not a
+place — a filter, a sort, a mode. A path addresses places well and modes
+badly. The candidate ruling: a reference always targets a PLACE (you can only
+link to something a reader ends up looking at); non-place state rides along in
+the location string under the app's own grammar, unaddressed. The deeper
+version — visibility derives from a declared address tree instead of being
+tested against `location` — would delete the `visible = { location == … }`
+boilerplate and make enumeration a tree walk, but it is a second construct and
+this proposal deliberately adds none. Deferred with the bare-`#name` tier
+(resolve the name, derive the location from its gating ancestors), which needs
+the runtime to reason backwards and is not v1.

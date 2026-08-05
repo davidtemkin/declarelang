@@ -1,0 +1,9 @@
+App [ width = 340, height = 140,
+    said: string = "",
+    dlg: Dialog [ ],
+    Button [ x = 20, y = 20, label = "Delete…",
+        onClick() { app.dlg.ask("Delete this file?", "This cannot be undone.",
+                                (id) => { app.said = id }) }
+        ],
+    Text [ x = 20, y = 80, text = { app.said == "" ? "—" : "you chose: " + app.said } ]
+    ]

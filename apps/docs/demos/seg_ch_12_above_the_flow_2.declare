@@ -1,0 +1,10 @@
+App [ width = 340, height = 160,
+    picked: string = "",
+    people: array = { ["Ada Lovelace", "Grace Hopper", "Alan Turing", "Barbara Liskov"] },
+    Combobox [ x = 20, y = 20, width = 260, placeholder = "Assignee",
+        items = { app.people },
+        input(v: object) { app.picked = "" + v }
+        ],
+    Text [ x = 20, y = 84, textColor = { theme.text },
+        text = { app.picked == "" ? "—" : app.picked } ]
+    ]

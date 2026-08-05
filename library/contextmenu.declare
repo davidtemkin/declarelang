@@ -25,6 +25,37 @@ root space) and clamps inside the app — Menu's own placement discipline. Items
 are the standard Menu records — written lists or derived from the opener
 (`items = { … opener … }` for per-row menus with zero per-row instances);
 picking delivers through `picked(id)` and closes.
+
+Everything else — `items`, `opener`, `picked`, the rover, the cascade, dismissal — is
+`Menu`'s, documented there.
+
+```declare
+App [ width = 320, height = 130, chose: string = "",
+    rowMenu: ContextMenu [ items = { [ ({ id: "open", label: "Open" }),
+                                      ({ id: "rename", label: "Rename" }),
+                                      ({ divider: true }),
+                                      ({ id: "delete", label: "Delete" }) ] },
+        picked(id: string) { app.chose = id }
+        ],
+    card: View [ x = 20, y = 20, width = 200, height = 44, cornerRadius = 8, fill = darkslategray,
+        onContextMenu(e: PointerEvent) { app.rowMenu.open(this, e) },
+        onHold(e: PointerEvent) { app.rowMenu.open(this, e) },
+        Text [ x = 12, y = center, text = "Right-click or hold me" ]
+        ],
+    Text [ x = 20, y = 80, text = { app.chose == "" ? "—" : app.chose } ]
+    ]
+```
+
+## open()
+Opens the menu **anchored at the pointer**, given the serving view and the pointer
+event — `Menu.openAt` under the name the two-line wiring reads best with. **The serving
+view declares the gesture, and that declaration is what routes it**: `onContextMenu`
+engages the right-click and two-finger path, `onHold` the touch long-press. Neither
+engages anywhere a handler is not declared, so a context menu costs nothing on views
+that do not offer one.
+
+## isContextMenu
+**Internal.** The marker that identifies this as a context menu — not API.
 */
 
 include [ "menu.declare" ]

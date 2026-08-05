@@ -50,3 +50,36 @@ already bound is a pointed error, not a silent fight).
 
 For animated reflow, extend `TweenLayout` instead — the same `place()`
 contract, interpolated through its scalar `t`.
+
+## laid()
+The children this layout manages, in order — **the one definition of what a strategy is
+responsible for**, and the list your `place()` must return boxes for, aligned by index.
+Invisible children are included so a skipped child still gets the slot it would occupy;
+that is what makes re-showing one need no special case.
+
+**This is the method a custom layout is written against.** A `Layout` subclass overriding
+`place()` is the sanctioned extension point, and `laid()` is how it reaches the children —
+notably, a layout strategy *may* aggregate over them, which constraints may not. The other
+half is `this.view`, the view being arranged: read it for the extent to divide up
+(`this.view.width`), because **a layout answers to the view it is attached to, never to the
+window**, which is what makes nested responsive layouts compose.
+
+```declare-fragment
+place() {
+    let pos = 0
+    return this.laid().map((c) => {
+        const box = ({ y: pos })
+        if (c.visible) pos = pos + c.height + this.spacing
+        return box
+        })
+    }
+```
+
+## attachTo()
+Binds this strategy to a view. Setting a `layout:` member does it for you; a strategy
+swapped in at runtime is attached by the slot assignment, not by hand.
+
+## rearm()
+Requests a fresh arrangement pass. The layout re-runs on its own when anything `place()`
+read changes — call this only when a strategy depends on something outside the reactive
+graph.

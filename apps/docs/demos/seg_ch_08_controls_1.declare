@@ -1,0 +1,8 @@
+App [ width = 340, height = 130, fill = { theme.bg },
+    page: string = "list",
+    Segmented [ x = 20, y = 20, width = 300, value = { app.page },
+        choices = { [ ({ id: "list", label: "List" }), ({ id: "grid", label: "Grid" }) ] },
+        input(v: object) { app.page = "" + v }
+        ],
+    Text [ x = 20, y = 74, textColor = { theme.text }, text = { "showing: " + app.page } ]
+    ]

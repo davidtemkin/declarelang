@@ -37,6 +37,148 @@ RAISE the menu (promotion — order is a slot) and clamp inside the app.
 Dismissal: the BACKDROP (a full-app child under the panel) — a press
 outside closes AND is swallowed, the Mac rule (planes.md §12.1, resolved
 for v1); Escape closes; pick closes after delivery.
+
+```declare
+App [ width = 320, height = 130,
+    chose: string = "",
+    edit: Menu [ items = { [ ({ id: "cut", label: "Cut", key: "⌘X" }),
+                            ({ id: "copy", label: "Copy", key: "⌘C", checked: true }),
+                            ({ divider: true }),
+                            ({ id: "paste", label: "Paste", enabled: false }) ] },
+        picked(id: string) { app.chose = id }
+        ],
+    Button [ x = 20, y = 20, label = "Edit", menu = { app.edit } ],
+    Text [ x = 20, y = 74, text = { app.chose == "" ? "nothing picked" : "picked: " + app.chose } ]
+    ]
+```
+
+## items
+The rows, as **records — never children**. A menu arranges its own rows, so handing it
+views is not merely discouraged, there is nowhere to put them. The record is
+`{ id, label, key?, icon?, enabled?, checked?, divider?, submenu?, kind?, props? }`;
+a plain array is fine (no `Dataset` required). Because it is an ordinary attribute it
+can be a constraint — **derive it from `opener` and one menu serves every row of a
+table**, live while it is open.
+
+## opener
+The view this menu was opened for, set by `openAt`/`openFor` and cleared on close.
+**The key to declaring one menu and opening it from many places**: read it in the
+`items` constraint to vary the rows per opener, with no per-opener instance.
+
+## shown
+Whether the menu is up. Read it; **open through `openAt`/`openFor` rather than
+assigning it**, or the menu appears unplaced, unraised, and without its keyboard claim.
+Closing by assignment skips the cascade teardown for the same reason.
+
+## picked()
+**The delivery seam — override it at the use site.** Receives the picked row's `id`,
+and the id is the whole message. Called *after* the menu has left the screen, so a slow
+action can never freeze an open menu.
+
+## openFor()
+Opens the menu **anchored below a control**, flipping above it when there is not room
+below and more room above — the native select discipline. The attached-menu rule; what
+`Control.menu` uses.
+
+## openAt()
+Opens the menu **at the pointer**, given the serving view and the pointer event — the
+context-menu rule. Clamped inside the app like any placement. `ContextMenu` wraps this
+as `open`.
+
+## close()
+Takes the menu down, closes any cascade under it, and releases the keyboard claim.
+
+## pick()
+Delivers a row: **dismisses first, then delivers**, one painted frame later — the
+native menu contract, and the reason a long-running action cannot leave a menu stranded
+on screen. A submenu routes to the root so the whole chain closes as one.
+
+## activeRow
+The row the keyboard rover currently highlights, or null when the pointer is driving.
+Read-only in practice.
+
+## hasIcons
+Whether any row carries an `icon` — which is what decides the icon gutter exists at
+all. **A menu with no icons has no gutter**, and the text edge moves accordingly.
+
+## textEdge
+The x every row's label starts at — one line for the whole menu, icons or not, and what
+a `kind` row must align its own content to.
+
+## expectedHeight()
+The panel's height *before it has been laid out*, measured when it exists and estimated
+from the record count when it does not. The flip-above decision cannot wait for a
+settle, which is why this exists.
+
+## place()
+Positions the panel from **root-space** coordinates, converting into the parent's space
+and clamping inside the app — so a menu works declared at App level or inside a
+component. The chain offset is snapshotted at open: menu chrome does not move while a
+menu is up.
+
+## isRoot
+False on a cascade child. The root owns the backdrop, the deferred delivery, and the
+Escape-closes-everything behaviour; a submenu delegates all three upward.
+
+## rootMenu
+The root of this menu's cascade chain — null on the root itself.
+
+## child
+The one lazily-created submenu instance, reused across every row that cascades. **A
+`Menu` cannot declare a `Menu` child** (it would recurse), so the cascade is built by
+name at first use.
+
+## openSub()
+Opens a row's `submenu`, creating the shared child menu on first use and placing it
+alongside the row.
+
+## closeSub()
+Closes the cascade under this menu, if any.
+
+## rootClose()
+Closes the entire chain from wherever it is called — what Escape and an outside press
+both do.
+
+## step()
+Moves the keyboard rover by ±1 over the pickable rows, skipping dividers, disabled rows
+and custom-content rows, and scrolls the landing row into view.
+
+## pickActive()
+Picks the roved row — Enter's action. On a row with a `submenu` it enters the cascade
+instead.
+
+## enterSub()
+Enters the roved row's submenu and puts the rover on its first row — ArrowRight's action.
+
+## driveSub()
+**Internal.** Pushes items, placement and delivery into the shared child menu.
+
+## closeIt()
+**Internal.** Null-safe close, the untyped seam across files.
+
+## subShown()
+**Internal.** Whether a cascade child is currently up, so the deeper menu takes the keys.
+
+## rowsOf()
+**Internal.** The row views of a panel body, for the rover's walk.
+
+## revealRow()
+**Internal.** Scrolls a roved row into view in a menu long enough to scroll.
+
+## pickRow()
+**Internal.** Picks or enters a specific row view.
+
+## enterRow()
+**Internal.** Enters a specific row's submenu.
+
+## stepIn()
+**Internal.** Puts the rover on a freshly opened cascade's first row.
+
+## offX
+**Internal.** The parent chain's x offset, snapshotted at open.
+
+## offY
+**Internal.** The parent chain's y offset, snapshotted at open.
 */
 
 include [ "control.declare" ]

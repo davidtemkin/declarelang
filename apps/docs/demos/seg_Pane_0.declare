@@ -1,0 +1,11 @@
+App [
+    Accordion [ x = 20, y = 20, width = 260,
+        Pane [ label = "Account", initial = true,
+            Text [ x = 12, y = 8, width = 230, wrap = true,
+                text = "Panes slide on a spring; the content rides the whole way." ]
+            ],
+        Pane [ label = "Privacy",
+            Text [ x = 12, y = 8, width = 230, text = "One pane open at a time." ]
+            ]
+        ]
+    ]

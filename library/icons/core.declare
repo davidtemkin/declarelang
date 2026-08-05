@@ -14,10 +14,26 @@ row inverts its check on the hot row, a checkbox always uses `accentText`.
 
 include [ "icon.declare" ]
 
-// A chevron. `angle` is the primitive so it can be SPRUNG — a disclosure twisty
-// rotating with its pane rather than snapping between two states — and `dir` is
-// the name for the four resting orientations. Rotation lives in the recording
-// because there is no `rotation` View attribute; `d.rotate` is a draw op.
+/*
+# ChevronIcon
+
+The **disclosure** mark: a menu drops, a pane opens, a select expands. Every
+disclosure in the chrome is this one class turned by its `dir`, which is what makes
+them agree. For a direction that is itself the state — a sort order, a trend — reach
+for `ArrowIcon` instead; the two must not look alike.
+
+## dir
+The resting orientation: `"down"` (the default), `"up"`, `"left"` or `"right"`. Sugar
+over `angle`.
+
+## angle
+The rotation in radians, and **the primitive, so it can be sprung** — an `Accordion`
+twisty turns in step with its pane sliding open rather than snapping between two
+states. Rotation lives in the recording because there is no `rotation` View attribute.
+
+## draw()
+Renders the chevron. Override to replace the mark while keeping the class's role.
+*/
 
 class ChevronIcon extends Icon [
     dir: string = "down",                       // down | up | left | right
@@ -44,11 +60,24 @@ class ChevronIcon extends Icon [
     ]
 
 
-// An ARROW, not a chevron — the two mean different things and must not look
-// alike. A chevron DISCLOSES (a menu drops, a pane opens); an arrow points at a
-// direction that is itself the state (sort ascending, a trend, a transfer).
-// Tracker had them adjacent — a sort-direction control beside a sort-menu
-// popper — and one shape for both read as a mistake.
+/*
+# ArrowIcon
+
+An arrow, **not a chevron** — the two mean different things and must not look alike.
+A chevron *discloses*; an arrow points at a direction that **is itself the state**:
+sort ascending, a trend, a transfer. The shaft is what a chevron lacks. Tracker had
+the two adjacent — a sort-direction control beside a sort-menu popper — and one shape
+for both read as a mistake.
+
+## dir
+Which way it points: `"up"` (the default), `"down"`, `"left"` or `"right"`.
+
+## angle
+The rotation in radians, sprungable like `ChevronIcon`'s.
+
+## draw()
+Renders the arrow.
+*/
 
 class ArrowIcon extends Icon [
     dir: string = "up",                         // up | down | left | right
@@ -74,6 +103,18 @@ class ArrowIcon extends Icon [
     ]
 
 
+/*
+# CheckIcon
+
+The tick — a checked menu row, a `Checkbox`'s mark, a confirmation. **Ink stays
+local**: a menu row inverts its check on the highlighted row while a checkbox always
+uses the accent text colour, so the host sets `ink` rather than the icon assuming it.
+
+## draw()
+Renders the tick. Before this class the corpus drew a checkmark two ways — stroke 2.5
+mitered in `Checkbox`, 1.8 round in `Menu` — which is the drift one shape ends.
+*/
+
 class CheckIcon extends Icon [
     draw(d: Draw) {
         d.scale(unit, unit)
@@ -90,6 +131,15 @@ class CheckIcon extends Icon [
     ]
 
 
+/*
+# CloseIcon
+
+The dismiss mark: a window close box, a chip's remove affordance, a dialog's corner.
+
+## draw()
+Renders the cross.
+*/
+
 class CloseIcon extends Icon [
     draw(d: Draw) {
         d.scale(unit, unit)
@@ -103,6 +153,15 @@ class CloseIcon extends Icon [
         }
     ]
 
+
+/*
+# PlusIcon
+
+Add. Pairs with `MinusIcon` at the same stroke and cap, so a stepper's two ends match.
+
+## draw()
+Renders the plus.
+*/
 
 class PlusIcon extends Icon [
     draw(d: Draw) {
@@ -118,6 +177,15 @@ class PlusIcon extends Icon [
     ]
 
 
+/*
+# MinusIcon
+
+Remove, and the partially-checked state of a tri-state box. Pairs with `PlusIcon`.
+
+## draw()
+Renders the bar.
+*/
+
 class MinusIcon extends Icon [
     draw(d: Draw) {
         d.scale(unit, unit)
@@ -131,7 +199,21 @@ class MinusIcon extends Icon [
     ]
 
 
-// The macOS Help affordance — Apple's own `lightbulb`, ported EXACTLY. Not
+/*
+# LightbulbIcon
+
+The macOS Help affordance — **Apple's own `lightbulb`, ported exactly** rather than
+redrawn: the outline was lifted from the live symbol at 1024pt and normalised to the
+16-box.
+
+## draw()
+Renders the bulb. **This one mark is filled, and does not answer to `weight`** — an SF
+Symbol is a filled contour with the stroke baked into the outline, so matching Apple
+means adopting a shape, not a stroke. There is no stroke here to widen. The set's own
+drawn bulb is the alternative; this is the port.
+*/
+
+// Ported EXACTLY. Not
 // redrawn from a screenshot and not approximated: the outline was lifted from
 // the live symbol (`NSSymbolImageRep.outlinePath` at 1024pt, 29 elements,
 // bounds 1338 × 2327), normalised so the mark is 16 units tall — 9.20 wide,

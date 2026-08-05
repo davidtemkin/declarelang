@@ -461,3 +461,79 @@ Whether this view and its subtree take pointer events: `"auto"` (the default) or
 `"none"` is for a view that is pure decoration over live content — a highlight rectangle,
 a full-viewport chrome overlay — so presses reach what is beneath it. It is the fix for
 the invisible-lid bug: an overlay sized to the frame that silently swallows every click.
+
+## raise()
+Moves this view to the **top of its parent's children**, so it paints over its siblings —
+stacking is declaration order, and this is the runtime verb for changing it. **The
+primitive every overlay needs**: a menu, a popover, or a dialog raises itself on open so
+it is not occluded by whatever was declared after it. Pass a sibling to be raised *below*
+that view instead, which is how chrome stays above content while staying under an even
+higher layer.
+
+```declare-fragment
+onPointerDown() { this.raise() }        // click-to-front, e.g. a window in a desktop
+```
+
+## rootOrigin()
+This view's origin in **root space**, as `{ x, y }` — the one scroll-aware walk up the
+parent chain. Reach for it when positioning something in a different coordinate system
+from the thing that anchored it: an overlay declared at the App that must appear beside a
+control nested inside a scrolled pane. **The scroll-awareness is the point** — a naive sum
+of `x`/`y` anchors where the view *would* be if nothing had scrolled.
+
+## travelWith()
+Re-hosts this view's surface inside `scroller`'s scrolling content, so the **platform**
+carries the two together with no per-scroll re-derive — and returns `false` on a backend
+that cannot. The view tree does not move: hit testing and layout see nothing change, only
+the surface is re-homed. This is a specialist tool for chrome that must track scrolled
+content exactly (the focus ring following a control inside a pane); pass `null` to return
+it to the root.
+
+## $data()
+Reads the datum at a path **relative to this view's cursor** — the compiled form every
+`:path` lowers to, callable by hand. `$data("")` is the whole record at the cursor, which
+is what a replicated row calls to hand its own record to a method. Reach for the `:path`
+spelling in ordinary code; reach for this when the path is computed, or when you need the
+record itself rather than a field of it.
+
+```declare-fragment
+member() -> object { return this.datapath != null ? this.$data("") : this }
+```
+
+## $setData()
+Writes a value at a path relative to this view's cursor — **the write half of `$data`**,
+and how a replicated row edits its own record without knowing where in the dataset it
+sits. The write wakes exactly the bindings that read the changed region, so a grid cell
+committing an edit re-derives everything downstream and nothing else.
+
+## insertChild()
+Inserts a view you already hold as a child at `index` — the placement half of
+`app.createView`. Prefer replication over data for collections; this is for genuinely
+imperative structure.
+
+## removeChild()
+Detaches a child from this view. The child is **not** torn down — use `discard()` for
+that; a removed view you keep a reference to can be inserted somewhere else.
+
+## discard()
+Tears a view down for good: unwires its constraints and drops its surface. **The pair of
+`app.createView`** — a view you built imperatively is yours to destroy, while a replicated
+instance is the runtime's and leaves when its record does.
+
+## tabOrder()
+The members keyboard traversal descends into from this view. **Override it to gate
+traversal** — a closed `Accordion` pane returns none, which is what stops Tab from
+reaching content the user cannot see, since a closed pane is clip-occluded rather than
+hidden. Compose with `tabDefault()` rather than rebuilding the list.
+
+```declare-fragment
+tabOrder() { return open ? this.tabDefault() : [] }
+```
+
+## tabDefault()
+The default traversal list — visible children in source order. **The thing a `tabOrder()`
+override calls** when it wants the ordinary answer under a condition of its own.
+
+## lookupStylesheet()
+Resolves a stylesheet by name to the handle the `stylesheet` slot accepts — for choosing a
+skin whose name is computed at runtime. A `stylesheet = Dark` literal needs none of this.

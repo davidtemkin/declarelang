@@ -30,6 +30,104 @@ Platform STRUCTURE is data (the scheme): `dialogWidth`,
 `dialogTitleSize` / `dialogBodySize`. Plus scrimColor + scrimOpacity
 (macOS barely dims — alerts separate by SHADOW; Material's spec scrim is
 32%; Fluent's smoke 30%), the menuShadow family, errorColor.
+
+**Declare one and call it.** A `Dialog` is not a view you show and hide around your
+content — it is a standing member you open with a verb, so the same instance serves
+every prompt in the program.
+
+```declare
+App [ width = 340, height = 140, said: string = "",
+    dlg: Dialog [ ],
+    Button [ x = 20, y = 20, label = "Delete…",
+        onClick() { app.dlg.ask("Delete this file?", "This cannot be undone.",
+                                (id) => { app.said = id }) }
+        ],
+    Text [ x = 20, y = 80, text = { app.said == "" ? "—" : "you chose: " + app.said } ]
+    ]
+```
+
+## shown
+Whether the dialog is up. Read it; **open through a verb** (`ask`, `notice`, `error`,
+`open`) rather than assigning it, or you get a panel with no buttons, no saved focus,
+and no focus trap engaged.
+
+## picked()
+**The declarative delivery seam — override it at the use site.** Receives the picked
+button's `id`. Fires after the dialog has left the screen, and *in addition to* any
+callback passed to the verb, so you may use either or both.
+
+## ask()
+The three-way prompt: Cancel / No / Yes, with Yes as the default. Delivers `"cancel"`,
+`"no"` or `"yes"`.
+
+## notice()
+A single-OK acknowledgement. Delivers `"ok"`.
+
+## error()
+A single-OK acknowledgement with the title in the theme's error colour. Delivers `"ok"`.
+
+## open()
+The general form the three idioms are built on: title, message, your own button
+records, a tone (`"error"` or `""`), and an optional callback. Reach for it when the
+three idioms do not spell your choices — **button records are `{ id, label, default?,
+cancel? }`**, and the two flags are what Return and Escape key off.
+
+## close()
+Takes the dialog down without delivering anything, and restores focus to whatever held
+it before. **Focus is restored one turn later, deliberately** — an immediate restore
+hands the in-flight keystroke back to the opener, which re-activates and reopens.
+
+## pick()
+Delivers a button by id: **dismisses first, then delivers**, one painted frame later —
+the same contract as `Menu.pick`, so a slow action cannot freeze the dialog on screen.
+Guarded against double activation, so a focused default button answering Space *and*
+Return is harmless.
+
+## pickDefault()
+Picks whichever button record carries `default: true` — Return's action, the macOS rule.
+
+## pickCancel()
+Picks the `cancel: true` record when there is one, else just closes — Escape's action.
+**A dialog with no cancel record still dismisses on Escape**, it simply delivers
+nothing.
+
+## title
+The heading. Set by the verbs; read it if you are restyling.
+
+## message
+The body text under the title. `""` hides the line entirely rather than leaving a gap.
+
+## buttons
+The button records currently rendered, in authored order. The `"stack"` arrangement
+reorders them for display — default on top, cancel at the bottom — without touching
+this.
+
+## tone
+`"error"` tints the title with the theme's error colour; `""` is the ordinary tone.
+
+## arrangement
+How the buttons lay out, elected by `theme.dialogButtons`: `"end"` (a right-aligned
+row), `"stack"` (full-width buttons stacked, macOS-style, default on top), or `"fill"`
+(equal-width buttons filling the row). **Platform structure is data, not a fork.**
+
+## centered
+Whether the title and message are centre-aligned, elected by `theme.dialogAlign`.
+
+## focusDefault()
+Puts keyboard focus on the default button when the dialog opens — or the last button
+when no record is marked default.
+
+## saved
+**Internal.** The view that held focus when the dialog opened, restored on close.
+
+## cb
+**Internal.** The callback handed to the opening verb.
+
+## callCb()
+**Internal.** Invokes the stored callback.
+
+## kidsOf()
+**Internal.** The rendered button views of an arrangement, for `focusDefault`.
 */
 
 include [ "control.declare" ]

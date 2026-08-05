@@ -1,0 +1,11 @@
+App [
+    form: View [ x = 20, y = 20,
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        Field [ label = "Name",
+            TextInput [ width = 200, height = 28 ]
+            ],
+        Field [ label = "Notify",
+            Switch [ ]
+            ]
+        ]
+    ]

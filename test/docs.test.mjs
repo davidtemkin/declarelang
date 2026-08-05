@@ -14,7 +14,7 @@
 // allowed to rot; that is what makes it a control. The guide's runnable fences are validated separately by
 // tools/internal/prebuild.mjs (they become apps/docs/demos/seg_*.declare); folding
 // that path into `npm test` is tracked in docs/system-design/verify-and-evals.md.
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
@@ -105,6 +105,116 @@ await test("reference: every runtime schema and library class is documented and 
   walk(model.browse);
   const missing = expected.filter((n) => !(n in model.reference) || !railed.has(n));
   if (missing.length) throw new Error("undocumented components: " + missing.join(", "));
+});
+
+// The CALLABLE-SURFACE gate (library-charter.md §2a): everything a `{ }` body may
+// call must be documented. `LANGUAGE_API`/`LANGUAGE_STATICS` is the authoritative
+// statement of that surface — the scaffold emits it into every program's check
+// block — so a member there is supported for an app exactly as for a library
+// component. Until 2026-08-05 the reference never read those registries, and the
+// result was the charter's own promise failing quietly: `App.createView` taught
+// four times in declare.md, `View.raise` called by every overlay in library/, and
+// `Layout.laid` the thing every `place()` is written against — none of them in the
+// reference at all. Supported, typechecked, undiscoverable.
+await test("reference: every callable-surface member is documented", async () => {
+  const { LANGUAGE_API, LANGUAGE_STATICS } = await import("../compiler/dist/scaffold.js");
+  const model = JSON.parse(readFileSync(resolve(HERE, "..", "docs/declare-model.json"), "utf8"));
+  const nameOf = (l) => (l.trim().match(/^(?:static\s+)?([A-Za-z_$][\w$]*)\s*[<(]/) ?? [])[1];
+  const holes = [];
+  for (const [reg, isStatic] of [[LANGUAGE_API, false], [LANGUAGE_STATICS, true]]) {
+    for (const [cls, lines] of Object.entries(reg)) {
+      for (const line of lines) {
+        if (!isStatic && (/^\s*readonly\b/.test(line) || !line.includes("("))) continue;
+        const n = nameOf(line.replace(/^\s*static\s+/, ""));
+        if (!n) continue;
+        const node = model.reference[`${cls}.method.${n}`];
+        if (!node) holes.push(`${cls}.${n} — absent from the reference`);
+        else if (!node.doc) holes.push(`${cls}.${n} — present but undocumented`);
+      }
+    }
+  }
+  if (holes.length) {
+    throw new Error(
+      `these are callable from any { } body but a reader cannot find them:\n      ` +
+      holes.join("\n      ") +
+      `\n      write prose in tools/internal/doc/prose/<Class>.md — a supported API that is\n` +
+      `      undiscoverable is the privileged-library failure the charter promises against`);
+  }
+});
+
+// The BACKLINK gate (docs/system-design/documentation.md §4): "reference nodes with
+// no inbound guide link are flagged holes. (This is what would have caught the
+// un-taught component library.)" §4 claimed this was CI-blocking for a year while
+// nothing implemented it, and the predicted failure happened exactly as written —
+// one merge landed Segmented, SegmentedItem and the whole Icon family with zero
+// guide coverage and nothing noticed. This is that check.
+//
+// GRANULARITY IS THE CLASS, not the member. The guide teaches concepts and names the
+// components that carry them; the reference carries every attribute. Demanding a
+// guide mention per member would drive the catalog into the narrative, which is the
+// failure the residency rule exists to prevent (documentation.md §4a).
+//
+// FAMILIES — teaching the base teaches the set. The guide says "icons are drawn
+// rather than typed, here is how to write one"; it must not enumerate ten marks. A
+// family member is covered when its family head is taught, and only heads that are
+// genuinely a *kind* belong here — not every base class, or `View` would cover the
+// world.
+const FAMILY = {
+  Icon: ["ChevronIcon", "ArrowIcon", "CheckIcon", "CloseIcon", "PlusIcon", "MinusIcon",
+         "LightbulbIcon", "SunIcon", "MoonIcon", "AutoIcon", "IconHost"],
+  Segmented: ["SegmentedItem"],
+  DataGrid: ["GridRow"],
+  Table: ["TableRow"],
+  Accordion: ["Pane"],
+  RadioGroup: ["Radio"],
+};
+
+// UNTAUGHT — what the guide does not cover yet, dated, so a hole stays COUNTABLE
+// instead of invisible; the same discipline §4a uses for library prose. This list
+// only shrinks. Adding a name to it is a decision someone makes on purpose, which
+// is the whole point: a new component that lands untaught fails this test instead
+// of passing unnoticed.
+// EMPTY as of 2026-08-05, and that is the point: the guide's component pass closed
+// every hole this list was opened to carry. `Segmented` and `Icon` went with
+// guide/11-make-your-own.md (Icon as a FAMILY head, clearing its ten marks with it);
+// `Combobox`/`ContextMenu` with 12-above-the-flow; `DataGrid` with 10-scale;
+// `Video`/`RichText`/`HTMLText` with 06-style; `Editor` with 09-data's forms section.
+// Keep it empty. An entry here should be a deliberate, dated decision to defer — not
+// a parking space for something nobody wanted to write.
+const UNTAUGHT = new Set([]);
+
+await test("backlink: every reference class is taught somewhere in the guide", () => {
+  const model = JSON.parse(readFileSync(resolve(HERE, "..", "docs/declare-model.json"), "utf8"));
+  const dir = resolve(HERE, "..", "docs/guide");
+  const guide = readdirSync(dir).filter((f) => f.endsWith(".md"))
+    .map((f) => readFileSync(resolve(dir, f), "utf8")).join("\n");
+  // a mention is the bare class name on a word boundary (prose, a table row, or a
+  // fence) or a `declare-docs:` link to it — the guide names components both ways
+  const mentions = (name) =>
+    new RegExp(`(^|[^A-Za-z0-9_])${name}([^A-Za-z0-9_]|$)`).test(guide);
+  const headOf = {};
+  for (const [head, kin] of Object.entries(FAMILY)) for (const k of kin) headOf[k] = head;
+  // a family member's coverage is its HEAD's — so the icon set is one debt to pay
+  // and one line to delete, never twelve
+  const subject = (n) => headOf[n] ?? n;
+
+  const classes = Object.values(model.reference).filter((n) => n.kind === "class" && n.api !== false);
+  const holes = [...new Set(classes.map((c) => subject(c.name)))]
+    .filter((n) => !mentions(n) && !UNTAUGHT.has(n));
+  if (holes.length) {
+    throw new Error(
+      `these classes are in the reference but nothing in docs/guide/ names them: ${holes.join(", ")}\n` +
+      `      teach each in the guide, add it to FAMILY under the base that teaches its kind,\n` +
+      `      or — deliberately, dated — add it to UNTAUGHT in this file`);
+  }
+  // the debt list must not outlive its reason: an entry that IS now taught has to
+  // leave, or the list quietly becomes the place real holes hide (§4a's rule for
+  // the EXEMPT list, applied here)
+  const stale = [...UNTAUGHT].filter((n) => mentions(n));
+  if (stale.length) {
+    throw new Error(
+      `UNTAUGHT lists ${stale.join(", ")}, but the guide now teaches them — remove them from the list`);
+  }
 });
 
 summarize("docs");

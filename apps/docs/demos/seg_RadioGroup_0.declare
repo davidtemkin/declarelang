@@ -1,0 +1,7 @@
+App [
+    size: RadioGroup [ x = 20, y = 20, value = "m",
+        Radio [ choice = "s", label = "Small" ],
+        Radio [ choice = "m", label = "Medium" ],
+        Radio [ choice = "l", label = "Large" ]
+        ]
+    ]

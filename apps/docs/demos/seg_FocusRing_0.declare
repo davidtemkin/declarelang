@@ -1,0 +1,8 @@
+App [
+    row: View [ x = 20, y = 20,
+        layout: SimpleLayout [ axis = x, spacing = 12 ],
+        Button [ label = "One" ],
+        Button [ label = "Two" ],
+        Checkbox [ label = "Three" ]
+        ]
+    ]

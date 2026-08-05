@@ -1,0 +1,20 @@
+App [ width = 460, height = 240, fill = white, textColor = black,
+    d: Dataset [ contents = { ({ rows: app.make(2000) }) } ],
+    make(n: number) -> array {
+        const out = []
+        const st = ["open", "done", "held"]
+        for (let i = 0; i < n; i++) out.push({ id: i, title: "Issue " + i, state: st[i % 3] })
+        return out
+        },
+    chosen: number = 0,
+    head: Text [ x = 20, y = 12, textColor = 0x666666,
+        text = { app.chosen + " selected of " + (d.value.rows).length } ],
+    g: DataGrid [ x = 20, y = 66, width = 420, height = 150, datapath = { d.value },
+        selects = "multi",
+        input(sel: object) { app.chosen = (sel ?? []).length },
+        Column [ title = "ID",    field = "id",    width = 60 ],
+        Column [ title = "Title", field = "title", width = 220 ],
+        Column [ title = "State", field = "state", width = 120 ],
+        GridRow [ datapath = :rows[], virtualize = true ]
+        ]
+    ]

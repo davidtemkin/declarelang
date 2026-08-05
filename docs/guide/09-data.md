@@ -192,6 +192,95 @@ way. A path is a segments array — numbers welcome, no escaping ever — or an 
 pointer string (`"/rows/0/name"`; `set("/rows/-", v)` appends), so any key a JSON
 document can hold is addressable.
 
+## Forms: the draft, and when it lands
+
+`<->` above committed on every keystroke. Often that is what you want — but a form usually
+is not: you want a **draft** the user is editing, validated, that lands in the data only
+when it is good and only when they say so. That is what an editor's *edit session* is, and
+it is four attributes and two verbs:
+
+```declare
+App [ width = 400, height = 220, fill = white, textColor = black,
+    rec: Dataset { { "name": "Ada", "email": "ada@example.com" } },
+
+    canSave: boolean = { app.col.nameF.valid && app.col.mailF.valid
+                      && (app.col.nameF.dirty || app.col.mailF.dirty) },
+
+    col: View [ x = 20, y = 20, width = 360, datapath = { rec.value },
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+
+        nameF: TextInput [ width = 250, height = 28, padding = 5, cornerRadius = 6, fill = gainsboro,
+            commitOn = "manual", text <-> :name,
+            validate(v: string) -> string { return v.length > 0 ? "" : "Name is required" }
+            ],
+        mailF: TextInput [ width = 250, height = 28, padding = 5, cornerRadius = 6, fill = gainsboro,
+            commitOn = "manual", text <-> :email,
+            validate(v: string) -> string { return v.includes("@") ? "" : "That is not an address" }
+            ],
+
+        msg: Text [ width = 340, textColor = firebrick,
+            text = { app.col.nameF.error != "" ? app.col.nameF.error : app.col.mailF.error } ],
+
+        row: View [ height = 30,
+            layout: SimpleLayout [ axis = x, spacing = 8 ],
+            Button [ label = "Save", primary = true, disabled = { !app.canSave },
+                onClick() { app.col.nameF.commit(); app.col.mailF.commit() }
+                ],
+            Button [ label = "Revert",
+                onClick() { app.col.nameF.revert(); app.col.mailF.revert() }
+                ]
+            ]
+        ]
+    ]
+```
+
+Empty a field and Save disables itself; fix it and Save returns. Nothing was wired to make
+that happen.
+
+**`commitOn` decides when a valid draft lands**: `"input"` (live, the default), `"blur"`,
+`"enter"`, or `"manual"` — never automatically, only on `commit()`. **`validate(v)` is a
+method you declare**, returning `""` for valid or the message otherwise. From those two,
+three reactive facts follow — `valid`, `error`, and `dirty` (does the draft differ from
+what is committed) — and **an invalid draft never reaches the dataset**; the error just
+sits in the session waiting to be shown.
+
+Then note what `canSave` is: an ordinary constraint over the fields' `valid` and `dirty`.
+There is no form object, no validation schema, no submit handler. *Submittability derives*,
+like everything else.
+
+### The boundary, stated plainly
+
+The edit session belongs to **editors** — it lives on `Editor`, the abstract base, and
+`TextInput` is the only class that extends it today. A `Checkbox`, a `Slider`, a
+`Segmented` cannot two-way bind at all: the compiler refuses `<->` on them and names the
+value pattern as the fix. They use derive-down/deliver-up, and they **write immediately**.
+
+(`Editor` is one of four classes you never write but will meet in the reference — with
+`Layout`, `Stream`, and `RichText`. Each exists so its concrete forms inherit one
+documented surface; writing the base itself reports "unknown component.")
+
+There is a reason: a draft only means something when the in-progress value is
+unrepresentable in the model. `"12/3"` is not a date and `"abc"` is not a number, so those
+have to live somewhere outside the data — but there is no half-checked checkbox, and a
+slider's value is clamped into range by construction.
+
+That leaves one real question: what if you want *nothing* to be written until Save,
+checkboxes included? The answer is not a per-control buffer — it is to **move the buffer
+into the data**. Point the form at a working copy, let every control write into it freely,
+and copy it across on Save:
+
+```declare-fragment
+draft: Dataset [ contents = { app.record.value } ],   // a copy to edit
+…
+Button [ label = "Save", onClick() { app.record.set([], app.draft.value) } ]
+```
+
+Every control works with that, precisely *because* controls know nothing about datasets —
+they write wherever you point them. And it generalizes the same way validation does:
+**validate the model, not the widgets.** A `canSave` computed over your data covers
+checkboxes and sliders that have no `valid` slot of their own — the same move as
+[chapter 10](declare-docs:guide:scale)'s *count the data, not the tree*.
+
 ## The board — everything at once
 
 Here is the pattern that carries real applications, the same one the calendar runs

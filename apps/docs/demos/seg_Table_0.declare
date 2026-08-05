@@ -1,0 +1,12 @@
+App [ width = 320, height = 200,
+    d: Dataset { { "rows": [ { "id": 1, "label": "Ada" },
+                             { "id": 2, "label": "Grace" },
+                             { "id": 3, "label": "Alan" } ] } },
+    t: Table [ x = 20, y = 20, width = 200, height = 100, datapath = { d.value },
+        selects = "multi",
+        TableRow [ datapath = :rows[], height = 26,
+            Text [ x = 8, y = center, text = :label ]
+            ]
+        ],
+    Text [ x = 20, y = 140, text = { (t.selection ?? []).length + " selected" } ]
+    ]

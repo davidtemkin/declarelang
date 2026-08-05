@@ -32,6 +32,83 @@ to replace it. Pure chrome: never focusable, never a pointer target.
 a scrolled container is not compensated; the silhouette is the target's
 `cornerRadius` — a `focusShape()` override protocol arrives with the
 emulation passes.)
+
+**You do not instantiate this, and you do not position it.** Tab between the controls
+below and watch it fly; the members exist for a subclass that replaces the rendition,
+and for the theme tokens that elect its behaviour.
+
+```declare
+row: View [ x = 20, y = 20,
+    layout: SimpleLayout [ axis = x, spacing = 12 ],
+    Button [ label = "One" ],
+    Button [ label = "Two" ],
+    Checkbox [ label = "Three" ]
+    ]
+```
+
+## shown
+Whether the ring is visible. **A pointer focus parks it silently** — geometry current,
+ring hidden — so the next Tab departs from the control the user just clicked rather
+than from a stale perch.
+
+## placed
+Whether the ring has ever had a target to park on. **The first appearance never flies**,
+because a flight from nowhere is a streak across the app.
+
+## ringRole()
+The theme's election, from `theme.focusRing`: `"both"` (the default), `"travel"`
+(flight plus the OpenLaszlo idle fade), `"rest"` (appears in place and stays, no
+flight), or `"off"`. **`"off"` is legitimate only when the theme's own controls carry
+an at-rest focus indication** — the invariant belongs to the theme-and-components pair,
+not to the ring alone.
+
+## restRole()
+Whether the elected role includes resting — a resting ring does not idle-fade.
+
+## travelRole()
+Whether the elected role includes the flight.
+
+## snapTo()
+Lands the ring on its target immediately, skipping the flight. What a pointer focus, a
+first appearance, and `theme.focusAnimate = false` all use — **and what a target moving
+under a resting ring uses**, so a dragged slider thumb carries the ring rigidly instead
+of springing after it.
+
+## overlayUp
+True while an overlay owns the keyboard (an open `Menu`). **The ring stands down** —
+the menu's own rover is the focus story, and a page ring poking around a panel reads as
+chrome fighting chrome.
+
+## idle
+True once a travel-role ring has sat still long enough to fade out — the OpenLaszlo
+idle behaviour. A resting ring never sets it.
+
+## draw()
+Renders the outline: four corner arcs with arms whose length is a pure function of
+distance from the target, so the physics does the choreography. Override to replace the
+rendition entirely. `theme.focusSights = true` restores the open-bracket "target
+sights" reading; `theme.focusRingInnerWidth` adds the Fluent two-tone band.
+
+## tx
+**Internal.** The target x the springs chase.
+
+## ty
+**Internal.** The target y.
+
+## tw
+**Internal.** The target width.
+
+## th
+**Internal.** The target height.
+
+## trad
+**Internal.** The target corner radius — the silhouette reshapes as the ring travels.
+
+## rad
+**Internal.** The ring's current corner radius, sprung toward `trad`.
+
+## gen
+**Internal.** The idle-fade generation counter, so a retarget cancels the pending fade.
 */
 
 class FocusRing extends View [ opacity = 0,

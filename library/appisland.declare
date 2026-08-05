@@ -12,19 +12,26 @@ host's mount key from structured inputs, so callers never hand-splice the
 resolves the program on its boot ladder — prewarm → cache → in-browser compile,
 identical on the dev server and a static host — and renders the child.
 
-- `program` — what to run: a program name, or a relative path
-  (`"../../calendar/calendar"` reaches the real app, no copy), or the reserved
-  `"__raw__"` live-edit channel (the running program is the host app's
-  `liveSource`, recompiled on change). `""` detaches the island — nothing mounts.
-- `env` — the embedding environment, in query form (`"dark=1&base=../x/"`),
-  delivered to the child's reactive `app.env` at mount and on every change.
-  Empty sends none, so the child keeps its own defaults (e.g. system appearance).
-- `childName` (inherited from `DOMIsland`) — the reverse channel: the running
-  child's `appName` reflected back up, so a host can title itself by what it shows.
+`childName` (inherited from `DOMIsland`) is the reverse channel: the running child's
+`appName` reflected back up, so a host can title itself by what it shows.
 
 The window frame, activation, and titling belong to the caller — a desktop window
 adds an `onPointerDown` that raises itself and reads `childName` for its title; the
 homepage and the viewer just size the box. This primitive is only the embedding.
+
+## program
+What to run: a program name, a relative path (`"../../calendar/calendar"` reaches the
+real app — **no copy of the source, ever**), or the reserved `"__raw__"` live-edit
+channel, where the running program is the host app's `liveSource` and recompiles as it
+changes. **`""` detaches the island** and nothing mounts, which is how a closed panel
+stops paying for its tenant — and what bounds the recursion when a program embeds a
+view of itself.
+
+## env
+The embedding environment in query form (`"dark=1&base=../x/"`), delivered to the
+child's reactive `app.env` at mount **and on every change**. Empty sends none, so the
+child keeps its own defaults — leave it alone unless the host genuinely overrides
+something, or you will pin the child's appearance against the system's.
 */
 
 class AppIsland extends DOMIsland [

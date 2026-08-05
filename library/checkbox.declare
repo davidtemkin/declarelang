@@ -13,6 +13,45 @@ Hand the value to its real owner by overriding `input` and constraining down:
 
 `press()` never writes `checked` directly — it only delivers — so a bound checkbox
 never fights its constraint.
+
+```declare
+row: View [ x = 20, y = 20,
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    mute: Checkbox [ label = "Mute" ],
+    Text [ text = { mute.checked ? "muted" : "audible" } ]
+    ]
+```
+
+## checked
+Whether the box is ticked. Standalone it owns this and you read it back by name; bound
+(`checked = { app.muted }`) it needs an `input` override to go with it — **a one-way
+binding with no `input` leaves the checkbox's own edit assigning to a constrained slot,
+which is refused at runtime.**
+
+## label
+The text beside the box. `""` renders the box alone — the form for a checkbox inside a
+table cell, where the column heading is the label.
+
+## size
+The box's edge length. Defaults to the theme's figure, so a toolbar checkbox can shrink
+to match its neighbours without a subclass.
+
+## input()
+**Where the value goes.** The default writes `checked`; override it and the checkbox
+becomes a delivery channel for state you own (`input(v: boolean) { app.muted = v }`).
+This is the one member to override when the value lives elsewhere.
+
+## press()
+Toggles by delivering the flipped value through `input` — **never by writing `checked`**,
+which is what keeps a bound checkbox from fighting its constraint. Called by a click and
+by Space/Enter.
+
+## focusShape()
+Rings the box alone, not the box-plus-label — the Radio rule, so a long label does not
+drag a wide ring across the row.
+
+## onClick
+Runs `press()` when enabled. Override `input` instead if what you want is the value.
 */
 
 include [ "control.declare" ]

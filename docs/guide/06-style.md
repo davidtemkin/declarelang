@@ -100,6 +100,67 @@ listener, no reload. The named presets (`Themes.sanFrancisco`, `Themes.cupertino
 `Themes.mountainView`, `Themes.redmond`) are each a function of that one boolean —
 platform-fidelity looks, authored in Declare itself, in the library's own source.
 
+## When text stops being a label
+
+`Text` is a styled run. Once content has *structure* — headings, paragraphs, lists, code,
+links — you want the other family: `Markdown` and `HTMLText`. Both parse their source into
+the same block engine and render it as real flowing prose; they differ **only** in the
+format they read. (They share an abstract base, `RichText`, which holds the prose tuning
+and the link event. You never write `RichText` itself — like `Layout`, it exists so its
+two concrete forms inherit one documented surface.)
+
+```declare
+App [ width = 380, height = 210, fill = white,
+    note: Markdown [ x = 20, y = 16, width = 340, lineHeight = 1.35,
+        text = """
+            ## Rich text, from a string
+
+            Headings, **bold**, `code`, and lists arrive as *structure* —
+            not as a pile of styled `Text` views:
+
+            - one source string
+            - one component
+            """
+        ]
+    ]
+```
+
+The reason this matters beyond convenience: **a document can be your app's material**.
+Fetch a `.md` file with `format = "text"` and bind it — that is how this site serves its
+FAQ and the language reference, with no JSON wrapper and no generated copy to drift
+([chapter 9](declare-docs:guide:data)). `text` is an ordinary reactive attribute, so
+Markdown streaming in token by token renders as it arrives.
+
+Three tuning attributes carry across both: `lineHeight` (a leading multiplier),
+`bodyColor` (the running-text colour), and `scale` (a font-size zoom a reader control can
+drive). Body size and weight follow the ambient text style, exactly like a `Text`.
+
+Links are the one thing rich text will not decide for you. **It raises the href rather
+than navigating** — `onLink(href)` — because whether a link scrolls, switches an in-app
+location, or leaves the site is app policy:
+
+```declare-fragment
+doc: Markdown [ text = { app.article.value || "" },
+    onLink(href: string) {
+        if (href.startsWith("#")) app.location = href.slice(1)
+        else app.navigate(href)
+        }
+    ]
+```
+
+`HTMLText` is the sibling for content authored — or loaded — as HTML. It parses against a
+**fixed whitelist** rather than trusting the input, and `unsupported` decides what a tag
+outside the set does: `"strip"` unwraps it and keeps the text, `"error"` throws. So
+loaded or untrusted content is never silently mangled. Its `accents` map is the one
+styling hook — content names a fill (`<span class='g'>`) that your app defines, and never
+carries CSS itself.
+
+**Media is the same shape.** `Image` and `Video` are leaves whose lifecycle is reactive
+state, like every source in the language: `loaded` and `failed` are read-only facts you
+derive from rather than callbacks you wire. `Video` adds `playing` — a boolean you
+constrain, not a method you call, so "stop decoding when this is off-screen" is
+`playing = { app.visible }` and nothing else.
+
 ## Same program, no DOM — try it
 
 Here is what "styling is part of the language" buys beyond convenience. Because a

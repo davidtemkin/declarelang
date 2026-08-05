@@ -14,7 +14,7 @@ Segmented [ width = 300, value = { app.page },
     ]
 ```
 
-## Why data, and not `Segment` children
+### Why data, and not `Segment` children
 
 Because the sliding highlight cannot be built any other way. The pill has to know
 which choice is selected and how wide each one is, and a constraint may not ask
@@ -29,7 +29,7 @@ the item at all, and both compound it. A bare `Segment` class was the minority
 pattern — and bare enough that two apps in this corpus had taken the name for a
 paragraph of prose.
 
-## Equal widths — a choice, not a limitation
+### Equal widths — a choice, not a limitation
 
 Segments divide the control's width evenly. This is a DESIGN decision and it
 could be otherwise: a `Layout`'s `place()` may aggregate over children — that is
@@ -53,7 +53,7 @@ tree, not the layout strategy whose job that is. Three reasons not to:
 The cost is real and worth stating plainly: **a `Segmented` does not self-size to
 its labels.** Set `width`, or accept `segMin × choices.length`.
 
-## The pill
+### The pill
 
 The highlight springs a NORMALIZED LANE — a float index — not pixels. `x` is then
 `lane × segW`, so a resize recomputes `segW` and the pill **snaps** to the right
@@ -64,6 +64,18 @@ library, and it is now here.
 The look is the library's: the chosen segment wears a raised `surface` pill with
 a hairline. The motion is calendar's. Neither app was wrong about the half it got
 right (`chrome-divergences.md` D9).
+
+```declare
+App [ width = 340, height = 130, page: string = "one",
+    Segmented [ x = 20, y = 20, width = 300, value = { app.page },
+        choices = { [ ({ id: "one", label: "One" }),
+                     ({ id: "two", label: "Two" }),
+                     ({ id: "three", label: "Three" }) ] },
+        input(v: object) { app.page = "" + v }
+        ],
+    Text [ x = 20, y = 74, text = { "showing: " + app.page } ]
+    ]
+```
 
 ## value
 The active choice. Bind it to your own state and override `input` to own the
@@ -76,6 +88,97 @@ works.
 `.declare` class cannot hold a reactive cell without declaring it, so a marker is
 necessarily surface — that does not make it API.
 
+## choices
+The segments, as **records**: `{ id, label }` or `{ id, icon }` — the same vocabulary
+`Menu`'s items use. A choice shows a label **or** an icon, never both. A choice may also
+carry a `location`, which makes that segment a real link (see `SegmentedItem.location`).
+
+## input()
+**Where the choice goes**, receiving the picked `id`. The default writes `value`;
+override it to own the destination.
+
+## pick()
+Selects a choice by id, routing through `input`. The seam a segment calls.
+
+## disabled
+Disables the whole control. **A segment is not separately disable-able** — a disabled
+group leaves the tab order entirely rather than offering unreachable stops.
+
+## segMin
+The per-segment width used when you set no `width` on the control. Because a
+`Segmented` **does not self-size to its labels**, this is what decides the default
+width: `segMin × choices.length`.
+
+## count
+How many choices there are, floored at 1 so the width arithmetic never divides by zero.
+
+## segW
+One segment's width — the control's width divided by the count. What the pill and every
+segment position from.
+
+## idx
+Which choice is live, as an index into `choices`, from the **data** — the only place the
+question can be asked. `−1` (nothing selected) parks the pill at 0 and hides it rather
+than springing to a phantom slot.
+
+## lane
+The pill's position as a **float index**, sprung toward `idx`. The whole reason the pill
+is correct at any size: `x` is `lane × segW`, so a resize recomputes the width and the
+pill **snaps** to the right place instead of skating across the bar on every layout
+change.
+
+## segs()
+The segment views, for the keyboard rove. A handler-only walk — a constraint may not
+aggregate the view tree.
+
+## roveFrom()
+Moves keyboard focus to the adjacent segment. Arrows rove; Space or Enter picks where
+they land, so **an inactive choice is reachable and selectable entirely from the
+keyboard**.
+
+*/
+
+/*
+# SegmentedItem
+
+One choice of a `Segmented`, **materialized from that control's `choices` data — never
+authored directly**, which is why it carries almost nothing of its own. It is a full
+`Control`: its own tab stop, activated by Space or Enter, so a user can tab to an
+inactive choice and select it.
+
+It renders rest, hover and press only. **The chosen state is the sliding pill behind
+these, not a fill of its own** — which is exactly what lets the pill travel between
+segments instead of popping.
+
+## on
+Whether this segment is the group's current choice, derived from the parent by identity.
+
+## ink
+This segment's text and icon colour, brightening when it is on or hot. One slot, so a
+label and an icon can never disagree.
+
+## location
+Makes this segment a **real link**: give a choice a `location` and the segment navigates
+there in its own `onClick`. This is what keeps a view-switching control visible to link
+extraction — the crawler reads `app.location = …` out of activation handlers, and
+`input(v)` is not one, since its destination depends on a value that does not exist at
+extraction time. Empty for an ordinary segmented control, and an empty read emits no
+anchor.
+
+## press()
+Delivers this segment's id to the group.
+
+## onClick
+Navigates if the choice carries a `location`, then presses.
+
+## onKeyDown
+Space and Enter pick; arrows rove to the adjacent segment.
+
+## focusShape()
+Rings the segment's pill inset, not its whole box.
+
+## isSegment
+**Internal.** The marker a `Segmented` reads to find its own segments — not API.
 */
 
 include [ "control.declare", "icons/icon.declare" ]

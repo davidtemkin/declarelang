@@ -204,7 +204,7 @@ they serve exactly one navigation per visitor: the cold one.
 
 **Conventions** (for contributors):
 - **Format** every `.declare` to the house style — `node tools/format.mjs --write`. The style
-  is [docs/guide/19-style.md](docs/guide/19-style.md); the tool is
+  is [docs/guide/21-style.md](docs/guide/21-style.md); the tool is
   [docs/operational/format.md](docs/operational/format.md).
 - **Never rebuild the platform bundles by hand**: the pre-commit hook rebuilds a stale
   one before stamping the build id, and the dev server rebuilds on demand

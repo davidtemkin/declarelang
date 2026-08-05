@@ -1,0 +1,6 @@
+App [
+    View [ x = 20, y = 20, width = 130, height = 38, cornerRadius = 8, fill = steelblue,
+        tip = "Saves your changes",
+        Text [ x = center, y = center, textColor = white, text = "Save" ]
+        ]
+    ]

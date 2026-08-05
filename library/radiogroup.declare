@@ -11,6 +11,48 @@ and each radio reaches its group as `parent`:
         Radio [ choice = "m", label = "Medium" ],
         Radio [ choice = "l", label = "Large" ],
         ]
+
+```declare
+size: RadioGroup [ x = 20, y = 20, value = "m",
+    Radio [ choice = "s", label = "Small" ],
+    Radio [ choice = "m", label = "Medium" ],
+    Radio [ choice = "l", label = "Large" ]
+    ]
+```
+
+## value
+**The group's value — the chosen `choice`, and the only value slot in the pair.** A
+`Radio` has none of its own; it derives `on` from this. Standalone the group owns it;
+bound, override `input` beside it as with any control.
+
+## input()
+Where the choice goes. The default writes `value`; override it to own the destination
+(`input(v: string) { app.size = v }`) and the radios keep working untouched, because
+they deliver rather than store.
+
+## pick()
+Selects a choice by name — the seam a `Radio` calls on its group. Call it to move the
+selection from code without bypassing `input`.
+
+## choice
+This radio's identity within its group, compared against the group's `value` by string.
+**Required and unique per group** — two radios sharing a `choice` light together.
+
+## label
+The text beside the dot. `""` renders the dot alone.
+
+## on
+Whether this radio is the group's current choice. **Derived from the group, never
+stored** — which is why turning one on cannot leave another stale.
+
+## press()
+Delivers this radio's `choice` to the group. Called by a click and by Space/Enter.
+
+## focusShape()
+Rings the round dot rather than the dot-plus-label row — Apple's rendition, adopted.
+
+## onClick
+Runs `press()` when enabled.
 */
 
 include [ "control.declare" ]

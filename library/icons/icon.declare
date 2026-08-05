@@ -8,7 +8,7 @@ text baseline and reads like a square-root sign, not like a checkmark. The house
 already knew this in three places before it had a name for it (`Checkbox.mark`,
 `Menu.check`, `Combobox.disc` are all drawn); this is that decision, stated once.
 
-## Writing one
+### Writing one
 
 Subclass and override `draw`. Author the shape in a **16×16 box** — `unit`
 converts it to whatever size the host asked for:
@@ -27,7 +27,7 @@ Overriding a **method** is the refinement path that works — re-opening an
 inherited child is not (`cap:` on a `Button` subclass fails at instantiate), so
 the shape lives in `draw` and everything adjustable is a slot.
 
-## Size changes the drawing, not the shape
+### Size changes the drawing, not the shape
 
 Every icon is ONE path. There are no per-size variants, no thresholds, nothing
 redrawn at a breakpoint: `unit` scales the 16-box to whatever the host asked for,
@@ -50,7 +50,7 @@ undertaking than this set needs.
 `test/probe/iconbook.declare` shows the ramp — the same chevron and bulb at 16,
 24, 32, 48 and 64 — if the tradeoff ever needs re-judging.
 
-## What is NOT an Icon
+### What is NOT an Icon
 
 Application art. The desktop's dock icons are the case to look at before
 reaching for this class: they rest at 56px and grow under the magnification
@@ -69,7 +69,7 @@ the identity.
 Desktop has both, which is what makes it the clarifying example: its menu rows
 take `WindowIcon` and `CodeIcon` from this set, while its dock keeps `DockIcon`.
 
-## Two rules
+### Two rules
 
 **Scale inside the body, never with the View's `scale`.** A recording rasterizes
 into a canvas sized to its own ink bounds at device resolution
@@ -88,9 +88,30 @@ frame-bound at 16.6ms, cheaper than the 120 text glyphs they replace.
 Colour is not a rule — `ink` follows the prevailing text colour, so an icon beside
 a muted label goes muted on its own, and a host that needs a different ink (a
 menu row's check inverting on the hot row) simply sets it.
+
+## ink
+The mark's colour. Follows the **prevailing `textColor`**, so an icon beside a muted
+label goes muted on its own. **The trap: that slot falls back to black platform-wide**,
+so an icon in a context that never states a text colour renders black and vanishes on a
+dark surface. State `ink` unless you know the context sets one — `IconHost` does it for
+every icon built by name.
+
+## weight
+Stroke width in **final device pixels, not authored ones**. Divide by `unit` inside
+`draw` (`d.lineWidth = weight / unit`) and the scale cancels, so the line lands at a
+constant weight at every size and matches the 1px rules and text it sits among.
+
+## unit
+The 16-box-to-host-size scale factor. **Multiply the path by it; divide the stroke by
+it.** Every icon is one path at one size, scaled — there are no per-size variants.
+
+## isIcon
+**Internal.** The marker a layout keys on to place an icon without knowing which shape
+it is — not API.
 */
 
-/* ## IconHost — a named icon, materialized
+/*
+# IconHost — a named icon, materialized
 
    A control names its icon (`iconLeft = TrashIcon`) rather than nesting one,
    because a control is a leaf and everything else about it is an attribute — and
@@ -106,7 +127,23 @@ menu row's check inverting on the hot row) simply sets it.
    A control whose icon must CHANGE at runtime (a play/pause toggle) is not
    served by this yet — that needs a name-valued slot the runtime re-materializes
    on change, which is a runtime feature, not a library one. Every site in this
-   corpus names its icon statically. */
+   corpus names its icon statically.
+
+## kind
+The icon **class name** to build (`"TrashIcon"`). `""` builds nothing and the host
+collapses to zero width, so an icon-less control needs no special case. **Consumed once,
+at construction** — assigning a new name later does not re-materialize the icon. A name
+that is only ever computed needs `use [ Name ]` to survive the build.
+
+## ink
+The colour handed to the icon this host builds. **`createView` cannot pass attributes,
+so a prevailing slot is the only channel that reaches it** — this publishes `textColor`
+for exactly that. Defaults to `theme.text` rather than the platform's inherited black,
+which is what stops a host-built icon from rendering invisibly on a dark surface.
+
+## onInit
+Builds the named icon. Fires once.
+*/
 
 class IconHost extends View [
     kind: string = "",

@@ -28,6 +28,7 @@ function canonize(src) {
   try { return formatSource(src); } catch { return src; }
 }
 import { TAGS, LAYOUTS, DATA, ANIMATORS, SOURCES, ANIMATOR_GROUPS, STATES } from "../../../runtime/dist/registry.js";
+import { LANGUAGE_API, LANGUAGE_STATICS } from "../../../compiler/dist/scaffold.js";
 import { compile } from "../../../compiler/dist/compile-node.js";
 import { settleHeadless } from "../../../compiler/dist/headless.js";
 import { parseProgram } from "../../../runtime/dist/parser.js";
@@ -279,8 +280,14 @@ function auditProse(cls, prose, schema, clsMethods) {
     if (attrs.has(head) || handlers.has(head) || events.has(head)) continue;
     unboundProse.push(`${prose.file}: '## ${head}' binds to no attribute or event of ${cls}`);
   }
+  // A method reaches the reference from EITHER source — tsc's public surface, or
+  // the check block (CALLABLE, below): a `protected` runtime member and a service
+  // static are both real, documented API that `clsMethods` alone cannot see.
+  const callable = CALLABLE[cls] ?? new Map();
   for (const head of Object.keys(prose.methods)) {
-    if (clsMethods?.[head] === undefined) unboundProse.push(`${prose.file}: '## ${head}()' binds to no method of ${cls}`);
+    if (clsMethods?.[head] === undefined && !callable.has(head)) {
+      unboundProse.push(`${prose.file}: '## ${head}()' binds to no method of ${cls}`);
+    }
   }
 }
 
@@ -304,6 +311,56 @@ const METHODS = readMethods([
 // Derived from the registries rather than a hand list, so it cannot drift.
 const INSTANTIABLE = new Set([TAGS, LAYOUTS, DATA, ANIMATORS, SOURCES, ANIMATOR_GROUPS, STATES]
   .flatMap((r) => Object.keys(r)));
+
+// ── THE CALLABLE SURFACE — what a `{ }` body may actually call ───────────────
+// `LANGUAGE_API` and `LANGUAGE_STATICS` (compiler/src/scaffold.ts) are the
+// AUTHORITATIVE statement of what user code can call: the scaffold emits them
+// into every program's check block, so they are typechecked for an app exactly
+// as they are for a library component. Until 2026-08-05 the reference did not
+// read them, and the consequence was the thing the library charter promises
+// against (§2a): `App.createView` is taught four times in declare.md, `View.raise`
+// is what every overlay in `library/` calls, `Layout.laid` is what every `place()`
+// is written against — and none of them appeared in the reference at all. Fully
+// supported, fully typechecked, undiscoverable.
+//
+// Two gaps to close, and they have different causes:
+//   1. METHODS is read from tsc's PUBLIC surface, so a member the runtime marks
+//      `protected` (Layout.laid, TweenLayout.laid) is absent even though the
+//      scaffold declares it public for check blocks — a subclass's `place()`
+//      cannot be written without it.
+//   2. A service STATIC (`Focus.focus`, `Keys.isDown`) is not an instance method
+//      of anything, so it is in no class's METHODS at all. `Focus` and `Keys`
+//      published their events and nothing else.
+// So membership here MAKES a method @api — prose describes a member, it should
+// not decide whether the member exists. `test/docs.test.mjs` then requires prose
+// for every one, so nothing surfaces blank.
+const sigName = (line) => {
+  const m = line.trim().match(/^(?:static\s+)?(?:readonly\s+)?([A-Za-z_$][\w$]*)\s*[<(:]/);
+  return m ? m[1] : null;
+};
+const CALLABLE = {};                                    // class → Map(name → { signature, static })
+for (const [cls, lines] of Object.entries(LANGUAGE_API)) {
+  CALLABLE[cls] ??= new Map();
+  for (const line of lines) {
+    // `readonly` entries are host-fed PROPERTIES, not calls (App.demoSources /
+    // liveReport — the interim live-demo channels scaffold.ts rules will dissolve
+    // into a per-instance component). Projecting them as methods would document
+    // the wrong kind of thing, and they are not authoring surface either way.
+    // …and a PROPERTY signature (`view: View;`) is not a call either. Only real
+    // call signatures become method nodes; a property's meaning belongs in the
+    // prose of whatever method reads it (Layout.view, in `laid()`).
+    if (/^\s*readonly\b/.test(line) || !line.includes("(")) continue;
+    const n = sigName(line);
+    if (n) CALLABLE[cls].set(n, { signature: line.trim().replace(/;$/, ""), isStatic: false });
+  }
+}
+for (const [cls, lines] of Object.entries(LANGUAGE_STATICS)) {
+  CALLABLE[cls] ??= new Map();
+  for (const line of lines) {
+    const n = sigName(line);
+    if (n) CALLABLE[cls].set(n, { signature: line.trim().replace(/^static\s+/, "").replace(/;$/, ""), isStatic: true });
+  }
+}
 
 const RUNTIME_NAME = {};                                // doc id → runtime class name (no mismatches since the DOMIsland rename)
 
@@ -359,12 +416,32 @@ for (const name of TARGETS) {
   // methods: OWN public methods (signature is authoritative, from tsc). A method with
   // prose becomes @api and shows in the reference; the rest are recorded structural-only
   // for the object browser.
+  // The callable surface for THIS class, plus any of its members tsc could not
+  // see (a `protected` runtime member the scaffold declares public — Layout.laid).
+  const callable = CALLABLE[clsId] ?? new Map();
+  for (const [cname, c] of callable) {
+    if (clsMethods[cname]) continue;                     // tsc already has it; the loop below wins
+    const doc = prose.methods[cname] ?? null;
+    const id = `${clsId}.method.${cname}`;
+    nodes[id] = {
+      id, name: cname, kind: "method",
+      doc, docSegs: segmentize(doc, id), api: true,      // in the check block ⇒ callable ⇒ API
+      source: { file: "compiler/src/scaffold.ts", line: 0 },
+      parent: clsId, seeAlso: [], signature: c.signature, returns: null,
+      ...(c.isStatic ? { isStatic: true } : {}),
+    };
+    methods.push(id);
+  }
+
   for (const [mname, m] of Object.entries(clsMethods)) {
     const doc = prose.methods[mname] ?? null;
     const id = `${clsId}.method.${mname}`;
     nodes[id] = {
       id, name: mname, kind: "method",
-      doc, docSegs: segmentize(doc, id), api: doc !== null,
+      doc, docSegs: segmentize(doc, id),
+      // Prose describes a member; it does not decide whether the member exists.
+      // Membership in the check block does — everything else stays structural-only.
+      api: doc !== null || callable.has(mname),
       source: { file: m.file, line: m.line },
       parent: clsId, seeAlso: [],
       signature: m.signature,
@@ -452,10 +529,26 @@ const renderDefault = (def) =>
 // editorial judgment, not a runtime fact, so it lives here and not in the grammar.
 // Recorded so a coverage gate can tell "marked not-API" from "nobody wrote it":
 // silence and a decision must not look the same.
-const headerProse = (src) => {
-  const m = src.match(/^\s*\/\*([\s\S]*?)\*\//);
-  if (!m) return { class: null, members: {}, methods: {}, internal: new Set() };
-  const text = m[1].replace(/^\s*#\s*\S[^\n]*\n/, "");           // drop the leading "# Name" line
+//
+// A file may hold SEVERAL classes (icons/icon.declare is Icon + IconHost;
+// icons/core.declare is six marks). Each `/* # Name … */` block is claimed by the
+// class its heading names, so those classes stop sharing one lead — before this,
+// every class in a shared file rendered the FIRST block's prose, so `IconHost`'s
+// page was Icon's essay and six icon classes were six copies of one paragraph.
+// A compound heading (`# Table / TableRow`, `# RadioGroup / Radio`) names both and
+// is claimed by both, which is what those files already meant; a class no heading
+// names falls back to the first block, so single-class files are unchanged.
+const headingNames = (block) => {
+  const h = block.match(/^\s*#\s+([^\n]+)/);
+  if (!h) return [];
+  return h[1].split(/[—–-]/)[0].split("/").map((s) => s.trim()).filter(Boolean);
+};
+const blocksOf = (src) => [...src.matchAll(/\/\*([\s\S]*?)\*\//g)].map((m) => m[1]);
+const headerProse = (src, cls) => {
+  const blocks = blocksOf(src);
+  if (!blocks.length) return { class: null, members: {}, methods: {}, internal: new Set() };
+  const own = cls ? blocks.find((b) => headingNames(b).includes(cls)) : null;
+  const text = (own ?? blocks[0]).replace(/^\s*#\s*\S[^\n]*\n/, "");   // drop the leading "# Name" line
   const parts = text.split(/^## +(.+)$/m);
   const members = {}, methods = {}, internal = new Set();
   for (let i = 1; i < parts.length; i += 2) {
@@ -477,7 +570,7 @@ for (const [tag, file] of Object.entries(LIBRARY)) {
   let cls;
   try { cls = parseProgram(src + "\nApp [ ]\n").classes.find((c) => c.name === tag); } catch { cls = null; }
   if (!cls) continue;
-  const prose = headerProse(src);
+  const prose = headerProse(src, tag);
   const attributes = [], methods = [], events = [];
   for (const d of cls.body.decls) {
     const id = `${tag}.${d.name}`;

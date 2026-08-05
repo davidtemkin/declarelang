@@ -13,6 +13,26 @@ aggregation, which the constraint system forbids by design).
 A note/error line under the control is DEFERRED: routing use-site children into
 named regions is the §13 slots/`placement` open — this component is Tier 1's
 concrete evidence for that item's priority.
+
+```declare
+form: View [ x = 20, y = 20,
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    Field [ label = "Name",  TextInput [ width = 200, height = 28 ] ],
+    Field [ label = "Notify", Switch [ ] ]
+    ]
+```
+
+## label
+The caption in the left column. It is a `Text`, not a control's own label — **a `Field`
+labels whatever you nest, so the nested control's own `label` should usually be empty**
+or you will render the words twice.
+
+## labelWidth
+The label column's width, and the knob that aligns a form. **Every row in a form sets
+the same plain number** — one value, repeated or read from a shared attribute
+(`labelWidth = { app.formLabels }`). It is deliberately not measured from the widest
+label: aggregating over sibling rows is exactly what the constraint system refuses, so
+the shared column is a value you state rather than one the form discovers.
 */
 
 class Field extends View [

@@ -65,6 +65,25 @@ constraint on the card.
 Whole alternate configurations beyond geometry are a `State` applied on a
 width condition; fully custom geometry is a subclass overriding `place()` —
 the same seam every layout in the library is built on.
+
+## plan
+The storyboard: a list of `{ from, flow, share?, gap? }` entries. **`from` means "use
+this plan when the view is at least this wide"** — the largest `from` that fits wins,
+wherever it sits in the list, and `from: 0` is the fallback. `flow` is `"row"` or
+`"stack"`. `share` divides the width among the children it **names by their own child
+names**, checked when the layout first arranges — a name with no child is a loud error.
+**A share of `0` hides that child while the plan is active**, so "the actions disappear
+on small screens" is one number, and they return by themselves when the view widens. A
+child a plan does not name keeps its natural width.
+
+## gap
+The default space between children, overridable per plan entry.
+
+## place()
+Selects the active plan from the **view's own width — never the window's** — and
+arranges accordingly. That is what makes nesting work: the parent's plan decides how much
+room a child gets, and the child's own plan answers to the room it got, automatically. A
+plan can only name direct children; managing a grandchild is the child's plan's business.
 */
 
 class ResponsiveLayout extends Layout [

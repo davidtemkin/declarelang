@@ -8,6 +8,81 @@ destination** (default: itself) — and the delivery is CONTINUOUS during a drag
 coalescing). Pressing the track jumps to that position (local coordinates);
 the drag then follows the pointer by root-space delta (`app.pointerX` — the
 captured-move pattern the calendar's drag uses). Arrow keys nudge by `step`.
+
+```declare
+col: View [ x = 20, y = 20,
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    vol: Slider [ value = 40 ],
+    Text [ text = { `volume ${Math.round(vol.value)}` } ]
+    ]
+```
+
+## value
+Where the handle sits, in your own units. Standalone the slider owns it; bound
+(`value = { app.volume }`) it needs an `input` override with it, or the drag's own
+delivery is refused against the constraint.
+
+## min
+The value at the left end.
+
+## max
+The value at the right end.
+
+## step
+The quantum every delivered value snaps to, and the distance one arrow key moves.
+`step = 0.01` for a fine continuous control; **it is never zero** — the quantizer
+divides by it.
+
+## input()
+**Where the value goes**, and it fires **continuously through a drag**, not once at
+release: the owner decides what to do with the stream, and the data layer owns any
+coalescing. Override it to redirect the value (`input(v: number) { app.volume = v }`);
+the default writes `value`.
+
+## quant()
+Snaps a raw value to `step` and clamps it into `min`…`max`. Every delivery routes
+through it, so an override changes what the slider can produce — logarithmic scales,
+detents, a magnetic centre.
+
+## frac
+The handle's position as 0…1, derived from the value and the range. What the track,
+fill, and thumb all position from; read it to hang your own decoration off the handle.
+
+## dragging
+True from pointer-down until the captured release. **The `pressed` intrinsic
+deliberately will not do here** — it is hit-chain-based, so it goes false the moment the
+pointer leaves the thumb, while a drag must survive exactly that.
+
+## x0
+**Internal.** The root-space pointer anchor captured at drag start.
+
+## v0
+**Internal.** The value at drag start, that the pointer delta is applied to.
+
+## focusShape()
+Rings the circular grabber — the part the arrow keys move — rather than the whole track.
+
+## barStyle()
+True when the theme asks for the Material-3 rendition: a vertical bar handle with the
+track shortened either side of it rather than drawn through. One theme token
+(`theme.sliderHandle`) selects a rendition — **data, not a fork**.
+
+## dotStyle()
+True for the Fluent rendition: a round grabber with an accent dot inside that grows
+under hover and press. The other value of the same token.
+
+## onPointerDown
+Jumps the value to the pressed position, claims focus, and latches the drag.
+
+## onPointerMove
+Tracks the drag by **root-space** pointer delta, so the handle keeps up with a pointer
+that has left the control.
+
+## onPointerUp
+Ends the drag.
+
+## onKeyDown
+Left and Right nudge by one `step`, delivered through `input` like any other change.
 */
 
 include [ "control.declare" ]

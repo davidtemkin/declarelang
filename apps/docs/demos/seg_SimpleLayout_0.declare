@@ -1,0 +1,8 @@
+App [
+    col: View [ x = 20, y = 20,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        View [ width = 160, height = 24, cornerRadius = 6, fill = steelblue ],
+        View [ width = 120, height = 24, cornerRadius = 6, fill = cadetblue ],
+        View [ width = 190, height = 24, cornerRadius = 6, fill = slategray ]
+        ]
+    ]

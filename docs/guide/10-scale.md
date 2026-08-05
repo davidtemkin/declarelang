@@ -180,6 +180,58 @@ Three facts travel together in a collection: the **selection**, the **anchor** a
 extends from, and `active`, the keyboard position. `selects` declares the mode —
 `none`, `single` (the default), or `multi`.
 
+## Columns are declarations too
+
+`Table` gives a collection selection and keyboard travel. `DataGrid` adds the other half a
+real data table needs — headers that sort, columns you can drag to reorder and resize —
+and it does it by making **columns members of the tree** rather than a configuration
+object:
+
+```declare
+App [ width = 460, height = 240, fill = white, textColor = black,
+    d: Dataset [ contents = { ({ rows: app.make(2000) }) } ],
+    make(n: number) -> array {
+        const out = []
+        const st = ["open", "done", "held"]
+        for (let i = 0; i < n; i++) out.push({ id: i, title: "Issue " + i, state: st[i % 3] })
+        return out
+        },
+    chosen: number = 0,
+    head: Text [ x = 20, y = 12, textColor = 0x666666,
+        text = { app.chosen + " selected of " + (d.value.rows).length } ],
+    g: DataGrid [ x = 20, y = 66, width = 420, height = 150, datapath = { d.value },
+        selects = "multi",
+        input(sel: object) { app.chosen = (sel ?? []).length },
+        Column [ title = "ID",    field = "id",    width = 60 ],
+        Column [ title = "Title", field = "title", width = 220 ],
+        Column [ title = "State", field = "state", width = 120 ],
+        GridRow [ datapath = :rows[], virtualize = true ]
+        ]
+    ]
+```
+
+Two thousand records, three column declarations, one bare `GridRow`. **Drag a header
+sideways to reorder; drag the divider between two headers to resize; click a header to
+sort.** Then select a range and scroll — selection holds, because it is records.
+
+The row template is empty on purpose: **cells generate from the column model**, each
+showing `record[field]`. A column's `kind` chooses what a cell *is* — `"text"`, `"edit"`
+(a field that commits into the record as you type), `"check"`, or `"select"` — so an
+editable grid is a word per column, not a cell renderer per column.
+
+Two things here are worth carrying to your own work.
+
+**Sorting names a derivation; it does not reorder anything.** Clicking a header writes
+`sortOn`/`sortDir` and stops. The grid displays the order its collection already has, and
+*you* derive the sorted dataset — which is why sorting a virtualized million rows is a
+data operation, not a view operation, and why a server-side sort needs no special case.
+
+**Order and widths are the value pattern again.** `order` and `widths` are the grid's
+state, delivered through `arrangeInput` and `resizeInput` — override those and you own the
+column layout, which is how you persist a user's arrangement. Widths are plain values;
+nothing measures cells. And a width of `0` **drops** a column, so a responsive table is a
+constraint: `widths = { app.narrow ? ({ notes: 0 }) : null }` — priority, not squish.
+
 ## What you did not write
 
 Worth naming, because the absence is the point. No list component. No `key` prop
@@ -192,5 +244,5 @@ runtime that owns enough of the stack to keep the rest invisible.
 
 ---
 
-Next: [motion and modes](declare-docs:guide:motion-and-modes) — how a value gets from
-one number to another, and how a set of them moves together.
+Next: [make your own](declare-docs:guide:make-your-own) — everything you have been handed
+so far, built the way you would build it.

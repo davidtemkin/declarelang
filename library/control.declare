@@ -28,6 +28,122 @@ It also owns the two things every labelled control was improvising:
   `MenuBar` and `DataGrid`). Nobody chose those differences. Setting `menu` gets
   the mark, the anchored open, the held-open styling, and Down-to-open together,
   which is the part a hand-rolled copy gets wrong one piece at a time.
+
+Extend it to make your own control a first-class one — focusable, keyboard-activated,
+and styled off the same state pair as everything the library ships:
+
+```declare
+class Stepper extends Control [ width = 90, height = 26, cornerRadius = 6,
+    n: number = 0,
+    fill = { down ? theme.controlPressed : hot ? theme.controlHover : theme.control },
+    press() { n = n + 1 },
+    onClick() { if (!disabled) press() },
+    t: Text [ x = center, y = center, fontSize = 13, text = { "" + classroot.n } ]
+    ]
+
+
+App [ Stepper [ x = 20, y = 20 ] ]
+```
+
+## disabled
+Inert: not focusable, no activation, and the gate folded into `hot`/`down` so a
+disabled control never lights up. **Constrain it rather than assigning it**
+(`disabled = { app.muted }`) — it is ordinary derived state. Concrete controls also
+dim themselves against `theme.disabledOpacity`.
+
+## hot
+Hover under control policy — `hovered` gated by `disabled`. **Style against this, not
+the raw `hovered` intrinsic**, or a disabled control lights up under the pointer. Always
+false on touch, since `hovered` is.
+
+## down
+The pressed look — the `pressed` intrinsic gated by `disabled`, **with keyboard
+activation folded in**, so Space/Enter flashes the same appearance a pointer press
+gives. The other half of the styling pair with `hot`.
+
+## focused
+True while this control holds keyboard focus. For the *ring*, you want nothing: the
+app-level `FocusRing` indicates focus for you. Read this only for a control's own
+focus styling.
+
+## focusVisible
+Focused **and** the focus arrived by keyboard — the web's `:focus-visible` channel.
+Cleared by blur and by a pointer press on this control, so a clicked control shows no
+keyboard edge while a tabbed one does. What a `Pane` header's focus edge reads.
+
+## iconLeft
+A decorative icon for the leading slot, **named by class** (`iconLeft = "TrashIcon"`),
+not nested as a child — a control is a leaf, and a name is the one form where authored
+and data-bound are the same mechanism (`iconLeft = { "" + :icon }` in a replicated
+toolbar). Control only declares the slot; the concrete control lays it out. A
+**computed** name needs `use [ Name ]` to survive the build, since no static reference
+reaches it.
+
+## iconRight
+The trailing icon slot, same vocabulary as `iconLeft`. Setting it **wins over the
+chevron a `menu` would imply** — see `rightIcon`.
+
+## menu
+The menu this control drops — an instance, not a name (`menu = { app.optionsMenu }`).
+Setting it is a *role*, not decoration: the disclosure mark, the anchored open below
+the control, the held-open fill, and ArrowDown-to-open all follow together. **Declare
+one menu and point many controls at it** rather than one per opener; the menu reads
+`opener` to vary its items.
+
+## menuOpen
+True while `menu` is showing *and* this control is what opened it. **Derived, never
+written** — a flag set on open goes stale the moment the menu closes some other way
+(Escape, a pick, a press on the backdrop) and strands the control in its held-open
+look forever.
+
+## rightIcon
+What actually renders on the right: `iconRight` when set, else the disclosure chevron
+implied by `menu`, else nothing. One place decides, so every menu-dropping control in
+the corpus wears the same mark.
+
+## flash
+The keyboard-activation pulse — the control's own state, since the `pressed` intrinsic
+is the pointer's truth and is read-only. Folded into `down`, so styling needs to read
+only the pair.
+
+## flashMs
+How long `flashPress()` holds the pressed look.
+
+## openMenu()
+Opens `menu` anchored to this control, unless there is none or the control is disabled.
+The seam a concrete control calls from its own `press()`.
+
+## press()
+**The activation seam — override this, not the handlers.** Pointer and keyboard both
+land here, so one override serves a click, Space, and Enter. The base opens `menu` when
+there is one. A value control delivers through `input` from here and **never writes its
+own value slot directly**, which is what lets a bound control avoid fighting its
+constraint.
+
+## focusShape()
+The focus silhouette the ring hugs, `{ x, y, w, h, rad }` in this control's own
+coordinates. `null` (the default) rings the whole bounds at its `cornerRadius`. Override
+to ring the part that means something — a `Radio` rings its dot, a `Slider` its thumb.
+
+## flashPress()
+Flashes the pressed look to acknowledge keyboard activation — the platform convention
+for buttons and menu items. **Value controls whose state change is itself the feedback
+(Checkbox, Switch, Radio) deliberately do not call it.**
+
+## onFocus
+Records focus and captures the keyboard modality into `focusVisible`. An override must
+keep both or the focus channel goes dark.
+
+## onBlur
+Clears `focused` and `focusVisible`.
+
+## onPointerDown
+Claims focus, clears the `:focus-visible` channel, and opens `menu` if there is one —
+menus open on **press**, not release, as the platform does. **An override must keep the
+`Focus.focus(this)` call**, or clicking the control strands the keyboard elsewhere.
+
+## onKeyDown
+Space and Enter run `press()`; ArrowDown opens `menu`. Ignores auto-repeat.
 */
 
 class Control extends View [
