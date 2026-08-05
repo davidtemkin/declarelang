@@ -1,7 +1,26 @@
-App [ fill = white, fontFamily = ["Helvetica Neue", "sans-serif"], fontSize = 15, fontWeight = bold, textColor = black,
-    topBar: View [ x = 20, y = 20,
-        layout: SimpleLayout [ axis = y, spacing = 6 ],
-        Text [ text = "Rain or Shine?" ],
-        Text [ text = "94110", textColor = royalblue ]   // overrides only the color
+App [ width = 340, height = 200, fill = white, textColor = black,
+    level: number = 62,
+
+    gauge: View [ x = 20, y = 16, width = 160, height = 92,
+        draw(d: Draw) {
+            const frac = app.level / 100
+            d.lineWidth = 12
+            d.lineCap = "round"
+            d.strokeStyle = 0xD6DCE2
+            d.beginPath()
+            d.arc(80, 84, 62, Math.PI, Math.PI * 2, false)
+            d.stroke()
+            d.strokeStyle = frac > 0.8 ? 0xC23528 : 0x2E6FE0
+            d.beginPath()
+            d.arc(80, 84, 62, Math.PI, Math.PI * (1 + frac), false)
+            d.stroke()
+            }
+        ],
+
+    pct: Text [ x = 20, y = 74, width = 160, textAlign = center, fontSize = 22, fontWeight = bold,
+        text = { "" + Math.round(app.level) + "%" } ],
+
+    Slider [ x = 20, y = 130, width = 300, value = { app.level },
+        input(v: number) { app.level = v }
         ]
     ]

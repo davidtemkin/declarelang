@@ -142,6 +142,52 @@ await test("reference: every callable-surface member is documented", async () =>
   }
 });
 
+// The SHARED-VOCABULARY gate: everything the scaffold's PRELUDE declares into a
+// program's check block — `Draw`, the event payloads, the value types, the global
+// constructors — is typechecked for user code, so a reader must be able to find it.
+// It was projected NOWHERE before 2026-08-05: `draw(d: Draw)` is a first-class
+// member kind whose only specification was four examples and an ellipsis, and the
+// reference documented `onKeyDown(e: KeyEvent)` while nothing said what is on `e`.
+// The projection is parsed from the PRELUDE text, so this also catches a parser
+// that silently stops matching when the prelude's shape changes.
+await test("vocabulary: every shared type and global function is projected", () => {
+  const model = JSON.parse(readFileSync(resolve(HERE, "..", "docs/declare-model.json"), "utf8"));
+  const src = readFileSync(resolve(HERE, "..", "compiler/src/scaffold.ts"), "utf8");
+  const prelude = src.split("const PRELUDE = `")[1]?.split("\n`;")[0] ?? "";
+  const want = {
+    interfaces: [...prelude.matchAll(/^interface\s+([A-Za-z]\w*)/gm)].map((m) => m[1]),
+    aliases: [...prelude.matchAll(/^type\s+([A-Za-z]\w*)/gm)].map((m) => m[1]),
+    functions: [...prelude.matchAll(/^declare function\s+([A-Za-z]\w*)/gm)].map((m) => m[1]),
+  };
+  const got = model.spine?.types?.shared;
+  if (!got) throw new Error("spine.types.shared is missing — the PRELUDE projection did not run");
+  const holes = [];
+  for (const kind of ["interfaces", "aliases", "functions"]) {
+    for (const n of want[kind]) if (!got[kind].some((x) => x.name === n)) holes.push(`${kind}: ${n}`);
+  }
+  // an interface that parsed to nothing means the parser lost its shape
+  for (const i of got.interfaces) if (!i.members.length) holes.push(`interfaces: ${i.name} parsed with no members`);
+  if (holes.length) throw new Error("the check block declares these, but the reference does not carry them:\n      " + holes.join("\n      "));
+});
+
+// The THEME-TOKEN gate: the token vocabulary is measured from the library sources,
+// so it cannot drift — but the measurement itself can rot (a comment-stripping bug
+// silently reclassified nine tokens as required during the pass that added this).
+// Assert the shape and the invariant that matters: every REQUIRED token — one read
+// with no fallback — is stated by the shipped preset, or an app built on that preset
+// meets an undefined token at runtime.
+await test("theme: every required token is stated by the default preset", () => {
+  const model = JSON.parse(readFileSync(resolve(HERE, "..", "docs/declare-model.json"), "utf8"));
+  const t = model.spine?.themeTokens;
+  if (!t?.required?.length) throw new Error("spine.themeTokens.required is empty — the measurement broke");
+  const unstated = t.required.filter((r) => !r.stated).map((r) => r.name);
+  if (unstated.length) {
+    throw new Error(
+      `these tokens are read with no fallback but the SanFrancisco preset does not state them: ${unstated.join(", ")}\n` +
+      `      add them to library/themes/*.declare, or give the reader a guarded default`);
+  }
+});
+
 // The BACKLINK gate (docs/system-design/documentation.md §4): "reference nodes with
 // no inbound guide link are flagged holes. (This is what would have caught the
 // un-taught component library.)" §4 claimed this was CI-blocking for a year while

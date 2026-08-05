@@ -10,7 +10,7 @@ programming here, and why the palette of a whole app can live in one place:
 
 > **Styling is attributes; the palette lives once.**
 
-## Drawing a view
+## Painting a view
 
 A view's paint is a handful of attributes you set like any others:
 
@@ -33,6 +33,72 @@ App [ width = 300, height = 160, fill = whitesmoke,
 a border *is* a stroke. (`scale` with `pivotX`/`pivotY`, and `visible`, round out the
 set.) Because `stroke`/`shadow` values are `{ }` bodies, their colors are `0x…` — the
 seam rule from [chapter 2](declare-docs:guide:two-brackets), holding steady.
+
+## Drawing what attributes cannot say
+
+Boxes, rounding, strokes and shadows cover most of an interface. For the rest — a gauge
+arc, a tick, a sparkline, a mark no font will give you — a view can declare a **`draw`**
+member, and it is a first-class member kind, not an escape hatch:
+
+```declare
+App [ width = 340, height = 200, fill = white, textColor = black,
+    level: number = 62,
+
+    gauge: View [ x = 20, y = 16, width = 160, height = 92,
+        draw(d: Draw) {
+            const frac = app.level / 100
+            d.lineWidth = 12
+            d.lineCap = "round"
+            d.strokeStyle = 0xD6DCE2
+            d.beginPath()
+            d.arc(80, 84, 62, Math.PI, Math.PI * 2, false)
+            d.stroke()
+            d.strokeStyle = frac > 0.8 ? 0xC23528 : 0x2E6FE0
+            d.beginPath()
+            d.arc(80, 84, 62, Math.PI, Math.PI * (1 + frac), false)
+            d.stroke()
+            }
+        ],
+
+    pct: Text [ x = 20, y = 74, width = 160, textAlign = center, fontSize = 22, fontWeight = bold,
+        text = { "" + Math.round(app.level) + "%" } ],
+
+    Slider [ x = 20, y = 130, width = 300, value = { app.level },
+        input(v: number) { app.level = v } ]
+    ]
+```
+
+Drag the slider. The arc follows, the label follows, and the colour crosses to red past
+80% — and **you wrote no redraw call**, because:
+
+> **A drawing is a tracked computation, not a paint callback. It re-runs when what it
+> *read* changes — never per frame.**
+
+That is the whole idea, and it is why drawing *composes* here instead of escaping. The
+body read `app.level`, so `app.level` is a wired dependency exactly as it would be inside
+a `{ }` constraint ([chapter 3](declare-docs:guide:relationships)). Sitting still, this
+gauge costs nothing; there is no animation loop and nothing to invalidate.
+
+What it records is a **display list** of plain operations, which both renderers replay —
+so a drawing is not a canvas dependency, and the same view paints identically through DOM
+elements or on a canvas ([chapter 20](declare-docs:guide:renderers)).
+
+Three things worth knowing before you reach for it:
+
+- **It pairs with attributes rather than replacing them.** The view above still has `x`,
+  `y`, `width` and `height`, still lays out, still takes clicks. Draw the part that is
+  genuinely a shape; leave the box, the rounding and the shadow as attributes.
+- **`d` is Canvas2D-shaped** — `fillStyle`, `strokeStyle`, `lineWidth`, `beginPath`,
+  `moveTo`, `arc`, `bezierCurveTo`, `fill`, `stroke`, the transforms — and `d.x` / `d.y` /
+  `d.w` / `d.h` are the view's own box. The full surface is in the reference under
+  **Types and functions**.
+- **Never animate a drawing's size.** Reading `width` inside the body makes the recording
+  size-dependent, so an animated width re-records *and* reallocates its backing store every
+  frame. Animate position, opacity or colour freely; leave the extent alone.
+
+This is how the standard library draws every mark a font cannot be trusted with — a
+`Checkbox`'s tick, the whole icon set. [Chapter 11](declare-docs:guide:make-your-own)
+shows the `Icon` base and the 16-box convention that keeps a drawn mark crisp at any size.
 
 ## Type, and the prevailing rule
 
@@ -82,6 +148,42 @@ want are plain TypeScript: `theme = { { ...app.theme, accent: 0xE05252 } }` re-s
 subtree partially, and `theme = { app.dark ? app.darkTheme() : app.lightTheme() }`
 swaps the whole record — which is all dark mode *is*. **Style is state.** The title of
 this chapter is not a metaphor.
+
+### Your tokens are free; the library's are a vocabulary
+
+The record above invents its own names, and for your own components that is exactly
+right — `theme.muted` means whatever your components read it to mean. But the standard
+library reads **specific token names**, so the moment a `Button` or a `Menu` is on screen,
+the record has a contract to meet:
+
+> **An empty record is not a theme.** Start from a preset and spread to change a token;
+> do not build one from scratch.
+
+```declare-fragment
+theme = { Themes.sanFrancisco(app.dark) },                // a preset, light or dark
+theme = { { ...app.theme, accent: 0xCC3333 } }           // one token changed, below
+```
+
+`Themes.sanFrancisco` / `.cupertino` / `.mountainView` / `.redmond` each take a dark
+flag and are available with no include. The vocabulary splits in two, and the split is
+worth knowing:
+
+- **12 required tokens**, read bare with no fallback — `accent`, `accentText`, `control`,
+  `controlHover`, `controlPressed`, `controlRadius`, `controlSelected`, `focusRing`,
+  `line`, `surface`, `text`, `textMuted`. Omit one and the components that read it break.
+  This is the actual contract, and it is small.
+- **37 optional tokens**, each read behind a guard with a built-in default — button
+  geometry, menu material, focus-ring behaviour, dialog arrangement, tooltip placement.
+  These are the tuning surface: set what you care about, ignore the rest.
+
+The reference's **Theme tokens** page lists both sets with the components that read each
+one, generated from the library sources — so it states what the components actually
+consult rather than what someone remembered to write down.
+
+Two consequences worth internalizing. A theme is a **plain record**, so composing one is
+ordinary TypeScript — spread a preset, override, and hand the result down. And because
+the slot is prevailing, a subtree can carry its own: a dialog, a preview pane, or an
+embedded app can run a different theme from the page around it without either knowing.
 
 ## Dark mode is an opt-in, deliberately
 

@@ -196,6 +196,53 @@ each one silently discarded prose that *was* written:
    eof — and a `class … extends` example would have had it instantiate a class that
    exists only inside a comment. It strips comments before both probe decisions now.
 
+### 4c. The shared vocabulary and the theme tokens (2026-08-05)
+
+Raised by David reviewing the reference pass: `draw()` reads as interstitial, agents keep
+finding it and calling it a key feature, and *"is the theme object documented — the actual
+tokens, how to make your own?"* Both were holes, and both were the §2a defect again — a
+supported, typechecked surface that no projection carried.
+
+**The shared vocabulary.** `scaffold.ts`'s `PRELUDE` declares into every program's check
+block: `Draw` and `DrawGradient`, the nine event payloads, the value types (`Color`,
+`Length`, `Fill`, `Stroke`, `Shadow`, `Gradient`, `Theme`, `Cursor`, `MotionCurve`,
+`Percent`, `Shape`), and thirteen global functions. **All 22 types and 10 of the functions
+were absent from the reference.** Two consequences were concrete: `draw(d: Draw)` is a
+first-class member kind whose entire specification was four examples and an ellipsis in
+declare.md §3, and the reference documented `onKeyDown(e: KeyEvent)` while nothing
+anywhere said what is *on* `e`. Now parsed from the PRELUDE text into `spine.types.shared`
+and rendered as **Vocabulary → Types and functions**, with `Draw` given the treatment its
+role warrants (a tracked computation, not a paint callback; a display list both renderers
+replay; never animate a drawing's size).
+
+**The theme tokens.** `View.theme` was the only theme entry in the reference; `Theme` was
+not in `spine.types`; the token vocabulary existed **only** in `library/themes/*.declare`,
+and declare.md's guidance was literally "that file names them all" — a pointer to source,
+not documentation. Now measured from the library sources into `spine.themeTokens` and
+rendered as **Vocabulary → Theme tokens**, split the way it actually behaves:
+
+- **12 required** — read bare, no fallback (`accent`, `accentText`, `control`,
+  `controlHover`, `controlPressed`, `controlRadius`, `controlSelected`, `focusRing`,
+  `line`, `surface`, `text`, `textMuted`). This is the real contract, and it is small.
+- **37 optional** — always behind a `typeof`/null guard with a built-in default. The
+  tuning surface a city preset reaches for.
+
+Measured, not asserted, and each token lists the components that read it — so the page
+states what the library actually consults. **Method note worth keeping:** the first
+measurement counted `theme.x` mentions inside doc comments as usage and reported nine
+required tokens missing from the preset — a drift bug that did not exist. Strip comments
+before measuring source. The corrected result: the preset omits nothing required, and the
+preset file's "a record is COMPLETE, not a delta" claim holds.
+
+Both are gated in `test/docs.test.mjs` — one asserting every PRELUDE declaration is
+projected (and that no interface parsed to zero members, which is how a silently-broken
+parser announces itself), one asserting every required token is stated by the shipped
+preset.
+
+Guide: chapter 6's "Drawing a view" was renamed **"Painting a view"** — it was about
+paint *attributes* and had been standing in for the drawing story — and a real
+`draw()` section now sits beside it, plus the token vocabulary in the theme section.
+
 ### 4b. Backlink coverage, as enforced (2026-08-05)
 
 `test/docs.test.mjs` is the gate, and it is **blocking**. §4 asserted this check was

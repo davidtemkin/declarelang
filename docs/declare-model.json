@@ -1052,6 +1052,757 @@
     "shadow",
     "stop",
     "stroke"
+   ],
+   "shared": {
+    "interfaces": [
+     {
+      "name": "Gradient",
+      "extends": null,
+      "members": [
+       "angle: number",
+       "stops: readonly { offset: number | null",
+       "color: Color }[]"
+      ]
+     },
+     {
+      "name": "Stroke",
+      "extends": null,
+      "members": [
+       "width: number",
+       "color: Color"
+      ]
+     },
+     {
+      "name": "Shadow",
+      "extends": null,
+      "members": [
+       "dx: number",
+       "dy: number",
+       "blur: number",
+       "color: Color"
+      ]
+     },
+     {
+      "name": "Cursor",
+      "extends": null,
+      "members": [
+       "readonly data: any",
+       "readonly path: readonly string[]"
+      ]
+     },
+     {
+      "name": "DrawGradient",
+      "extends": null,
+      "members": [
+       "addColorStop(offset: number, color: string | Color): void"
+      ]
+     },
+     {
+      "name": "Draw",
+      "extends": null,
+      "members": [
+       "x: number",
+       "y: number",
+       "w: number",
+       "h: number",
+       "fillStyle: string | Color | DrawGradient",
+       "strokeStyle: string | Color | DrawGradient",
+       "lineWidth: number",
+       "lineCap: string",
+       "lineJoin: string",
+       "miterLimit: number",
+       "lineDashOffset: number",
+       "globalAlpha: number",
+       "globalCompositeOperation: string",
+       "shadowBlur: number",
+       "shadowColor: string | Color",
+       "shadowOffsetX: number",
+       "shadowOffsetY: number",
+       "filter: string",
+       "imageSmoothingEnabled: boolean",
+       "imageSmoothingQuality: string",
+       "font: string",
+       "textAlign: string",
+       "textBaseline: string",
+       "direction: string",
+       "letterSpacing: string",
+       "wordSpacing: string",
+       "fontKerning: string",
+       "arc(x: number, y: number, r: number, a0: number, a1: number, ccw?: boolean): void",
+       "arcTo(x1: number, y1: number, x2: number, y2: number, r: number): void",
+       "beginPath(): void",
+       "bezierCurveTo(cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number): void",
+       "clearRect(x: number, y: number, w: number, h: number): void",
+       "clip(rule?: string): void",
+       "closePath(): void",
+       "createConicGradient(startAngle: number, x: number, y: number): DrawGradient",
+       "createLinearGradient(x0: number, y0: number, x1: number, y1: number): DrawGradient",
+       "createRadialGradient(x0: number, y0: number, r0: number, x1: number, y1: number, r1: number): DrawGradient",
+       "ellipse(x: number, y: number, rx: number, ry: number, rot: number, a0: number, a1: number, ccw?: boolean): void",
+       "fill(rule?: string): void",
+       "fillRect(x: number, y: number, w: number, h: number): void",
+       "fillText(text: string, x: number, y: number, maxWidth?: number): void",
+       "lineTo(x: number, y: number): void",
+       "list(): any",
+       "moveTo(x: number, y: number): void",
+       "quadraticCurveTo(cpx: number, cpy: number, x: number, y: number): void",
+       "rect(x: number, y: number, w: number, h: number): void",
+       "resetTransform(): void",
+       "restore(): void",
+       "rotate(angle: number): void",
+       "roundRect(x: number, y: number, w: number, h: number, radii: number | number[]): void",
+       "save(): void",
+       "scale(x: number, y: number): void",
+       "setLineDash(segments: number[]): void",
+       "setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void",
+       "stroke(): void",
+       "strokeRect(x: number, y: number, w: number, h: number): void",
+       "strokeText(text: string, x: number, y: number, maxWidth?: number): void",
+       "transform(a: number, b: number, c: number, d: number, e: number, f: number): void",
+       "translate(x: number, y: number): void"
+      ]
+     },
+     {
+      "name": "Touch",
+      "extends": null,
+      "members": [
+       "id: number",
+       "x: number",
+       "y: number"
+      ]
+     },
+     {
+      "name": "PointerEvent",
+      "extends": null,
+      "members": [
+       "x: number",
+       "y: number"
+      ]
+     },
+     {
+      "name": "PointerUpEvent",
+      "extends": "PointerEvent",
+      "members": [
+       "canceled: boolean"
+      ]
+     },
+     {
+      "name": "TouchEvent",
+      "extends": "PointerEvent",
+      "members": [
+       "touches: readonly Touch[]",
+       "changed: readonly Touch[]"
+      ]
+     },
+     {
+      "name": "WheelEvent",
+      "extends": "PointerEvent",
+      "members": [
+       "deltaX: number",
+       "deltaY: number",
+       "pinch: boolean"
+      ]
+     },
+     {
+      "name": "KeyEvent",
+      "extends": null,
+      "members": [
+       "code: string",
+       "key: string",
+       "shift: boolean",
+       "ctrl: boolean",
+       "alt: boolean",
+       "meta: boolean",
+       "repeat: boolean"
+      ]
+     },
+     {
+      "name": "FocusGeometry",
+      "extends": null,
+      "members": [
+       "x: number",
+       "y: number",
+       "w: number",
+       "h: number",
+       "rad: number",
+       "view: View",
+       "root: View",
+       "scroller: View",
+       "homeX: number",
+       "homeY: number"
+      ]
+     },
+     {
+      "name": "TipEvent",
+      "extends": null,
+      "members": [
+       "readonly text: string",
+       "readonly x: number",
+       "readonly y: number",
+       "readonly w: number",
+       "readonly h: number",
+       "readonly root: View"
+      ]
+     },
+     {
+      "name": "StreamMessage",
+      "extends": null,
+      "members": [
+       "readonly data: string",
+       "readonly type: string",
+       "readonly id: string"
+      ]
+     }
+    ],
+    "aliases": [
+     {
+      "name": "Percent",
+      "type": "{ percent: number }"
+     },
+     {
+      "name": "Length",
+      "type": "number | Percent"
+     },
+     {
+      "name": "Color",
+      "type": "number | null"
+     },
+     {
+      "name": "Shape",
+      "type": "string | null"
+     },
+     {
+      "name": "Fill",
+      "type": "Color | Gradient"
+     },
+     {
+      "name": "Theme",
+      "type": "Readonly<Record<string, any>>"
+     },
+     {
+      "name": "MotionCurve",
+      "type": "{ readonly __motion: true }"
+     }
+    ],
+    "functions": [
+     {
+      "name": "gradient",
+      "signature": "gradient(...args: (Color | string | { offset: number | null; color: Color })[]): Gradient"
+     },
+     {
+      "name": "stroke",
+      "signature": "stroke(width: number, color: Color): Stroke"
+     },
+     {
+      "name": "stop",
+      "signature": "stop(offset: number, color: Color): { offset: number; color: Color }"
+     },
+     {
+      "name": "shadow",
+      "signature": "shadow(dx: number, dy: number, blur: number, color: Color): Shadow"
+     },
+     {
+      "name": "colorWithAlpha",
+      "signature": "colorWithAlpha(rgb: number, a: number): number"
+     },
+     {
+      "name": "cubicBezier",
+      "signature": "cubicBezier(x1: number, y1: number, x2: number, y2: number): MotionCurve"
+     },
+     {
+      "name": "back",
+      "signature": "back(overshoot: number): MotionCurve"
+     },
+     {
+      "name": "steps",
+      "signature": "steps(n: number, jump?: \"jumpStart\" | \"jumpEnd\"): MotionCurve"
+     },
+     {
+      "name": "laszlo",
+      "signature": "laszlo(beginPole: number, endPole: number): MotionCurve"
+     },
+     {
+      "name": "setTimeout",
+      "signature": "setTimeout(fn: (...args: any[]) => void, ms?: number): number"
+     },
+     {
+      "name": "clearTimeout",
+      "signature": "clearTimeout(id: number): void"
+     },
+     {
+      "name": "setInterval",
+      "signature": "setInterval(fn: (...args: any[]) => void, ms?: number): number"
+     },
+     {
+      "name": "clearInterval",
+      "signature": "clearInterval(id: number): void"
+     }
+    ]
+   }
+  },
+  "themeTokens": {
+   "required": [
+    {
+     "name": "accent",
+     "required": true,
+     "read": [
+      "button",
+      "checkbox",
+      "datagrid",
+      "focusring",
+      "menu",
+      "progressbar",
+      "radiogroup",
+      "slider",
+      "switch",
+      "table"
+     ],
+     "stated": true
+    },
+    {
+     "name": "accentText",
+     "required": true,
+     "read": [
+      "button",
+      "checkbox",
+      "menu"
+     ],
+     "stated": true
+    },
+    {
+     "name": "control",
+     "required": true,
+     "read": [
+      "accordion",
+      "button",
+      "checkbox",
+      "datagrid",
+      "progressbar",
+      "segmented",
+      "slider",
+      "switch"
+     ],
+     "stated": true
+    },
+    {
+     "name": "controlHover",
+     "required": true,
+     "read": [
+      "button",
+      "segmented",
+      "table"
+     ],
+     "stated": true
+    },
+    {
+     "name": "controlPressed",
+     "required": true,
+     "read": [
+      "button",
+      "segmented"
+     ],
+     "stated": true
+    },
+    {
+     "name": "controlRadius",
+     "required": true,
+     "read": [
+      "accordion",
+      "button",
+      "checkbox"
+     ],
+     "stated": true
+    },
+    {
+     "name": "controlSelected",
+     "required": true,
+     "read": [
+      "accordion",
+      "button",
+      "menubar",
+      "switch",
+      "table"
+     ],
+     "stated": true
+    },
+    {
+     "name": "focusRing",
+     "required": true,
+     "read": [
+      "focusring"
+     ],
+     "stated": true
+    },
+    {
+     "name": "line",
+     "required": true,
+     "read": [
+      "checkbox",
+      "datagrid",
+      "dialog",
+      "menu",
+      "radiogroup",
+      "segmented",
+      "slider",
+      "switch"
+     ],
+     "stated": true
+    },
+    {
+     "name": "surface",
+     "required": true,
+     "read": [
+      "datagrid",
+      "dialog",
+      "focusring",
+      "menu",
+      "radiogroup",
+      "segmented",
+      "slider",
+      "switch"
+     ],
+     "stated": true
+    },
+    {
+     "name": "text",
+     "required": true,
+     "read": [
+      "accordion",
+      "button",
+      "dialog",
+      "icons/icon",
+      "menu",
+      "menubar",
+      "radiogroup",
+      "segmented"
+     ],
+     "stated": true
+    },
+    {
+     "name": "textMuted",
+     "required": true,
+     "read": [
+      "accordion",
+      "checkbox",
+      "combobox",
+      "datagrid",
+      "dialog",
+      "field",
+      "menu",
+      "radiogroup",
+      "segmented"
+     ],
+     "stated": true
+    }
+   ],
+   "optional": [
+    {
+     "name": "buttonBorder",
+     "required": false,
+     "read": [
+      "button"
+     ],
+     "stated": false
+    },
+    {
+     "name": "buttonHeight",
+     "required": false,
+     "read": [
+      "button"
+     ],
+     "stated": false
+    },
+    {
+     "name": "buttonRadius",
+     "required": false,
+     "read": [
+      "button"
+     ],
+     "stated": false
+    },
+    {
+     "name": "checkboxRadius",
+     "required": false,
+     "read": [
+      "checkbox"
+     ],
+     "stated": false
+    },
+    {
+     "name": "checkboxSize",
+     "required": false,
+     "read": [
+      "checkbox"
+     ],
+     "stated": false
+    },
+    {
+     "name": "dialogAlign",
+     "required": false,
+     "read": [
+      "dialog"
+     ],
+     "stated": false
+    },
+    {
+     "name": "dialogBodySize",
+     "required": false,
+     "read": [
+      "dialog"
+     ],
+     "stated": false
+    },
+    {
+     "name": "dialogButtons",
+     "required": false,
+     "read": [
+      "dialog"
+     ],
+     "stated": false
+    },
+    {
+     "name": "dialogTitleSize",
+     "required": false,
+     "read": [
+      "dialog"
+     ],
+     "stated": false
+    },
+    {
+     "name": "dialogWidth",
+     "required": false,
+     "read": [
+      "dialog"
+     ],
+     "stated": false
+    },
+    {
+     "name": "disabledOpacity",
+     "required": false,
+     "read": [
+      "checkbox",
+      "menu",
+      "slider",
+      "switch"
+     ],
+     "stated": false
+    },
+    {
+     "name": "errorColor",
+     "required": false,
+     "read": [
+      "dialog"
+     ],
+     "stated": true
+    },
+    {
+     "name": "focusAnimate",
+     "required": false,
+     "read": [
+      "focusring"
+     ],
+     "stated": false
+    },
+    {
+     "name": "focusColor",
+     "required": false,
+     "read": [
+      "focusring"
+     ],
+     "stated": false
+    },
+    {
+     "name": "focusRingGap",
+     "required": false,
+     "read": [
+      "focusring"
+     ],
+     "stated": false
+    },
+    {
+     "name": "focusRingInnerColor",
+     "required": false,
+     "read": [
+      "focusring"
+     ],
+     "stated": false
+    },
+    {
+     "name": "focusRingInnerWidth",
+     "required": false,
+     "read": [
+      "focusring"
+     ],
+     "stated": false
+    },
+    {
+     "name": "focusRingWidth",
+     "required": false,
+     "read": [
+      "focusring"
+     ],
+     "stated": false
+    },
+    {
+     "name": "focusSights",
+     "required": false,
+     "read": [
+      "focusring"
+     ],
+     "stated": false
+    },
+    {
+     "name": "menuHl",
+     "required": false,
+     "read": [
+      "menu"
+     ],
+     "stated": true
+    },
+    {
+     "name": "menuHlText",
+     "required": false,
+     "read": [
+      "menu"
+     ],
+     "stated": false
+    },
+    {
+     "name": "menuMaterial",
+     "required": false,
+     "read": [
+      "menu"
+     ],
+     "stated": false
+    },
+    {
+     "name": "menuRadius",
+     "required": false,
+     "read": [
+      "dialog",
+      "menu"
+     ],
+     "stated": true
+    },
+    {
+     "name": "menuRow",
+     "required": false,
+     "read": [
+      "menu"
+     ],
+     "stated": false
+    },
+    {
+     "name": "menuShadow",
+     "required": false,
+     "read": [
+      "dialog",
+      "menu"
+     ],
+     "stated": true
+    },
+    {
+     "name": "menuTitleHl",
+     "required": false,
+     "read": [
+      "menubar"
+     ],
+     "stated": false
+    },
+    {
+     "name": "scrimColor",
+     "required": false,
+     "read": [
+      "dialog"
+     ],
+     "stated": true
+    },
+    {
+     "name": "scrimOpacity",
+     "required": false,
+     "read": [
+      "dialog"
+     ],
+     "stated": true
+    },
+    {
+     "name": "sliderHandle",
+     "required": false,
+     "read": [
+      "slider"
+     ],
+     "stated": false
+    },
+    {
+     "name": "switchHeight",
+     "required": false,
+     "read": [
+      "switch"
+     ],
+     "stated": false
+    },
+    {
+     "name": "switchThumbOff",
+     "required": false,
+     "read": [
+      "switch"
+     ],
+     "stated": false
+    },
+    {
+     "name": "switchWidth",
+     "required": false,
+     "read": [
+      "switch"
+     ],
+     "stated": false
+    },
+    {
+     "name": "tooltipBg",
+     "required": false,
+     "read": [
+      "tooltip"
+     ],
+     "stated": true
+    },
+    {
+     "name": "tooltipLine",
+     "required": false,
+     "read": [
+      "tooltip"
+     ],
+     "stated": false
+    },
+    {
+     "name": "tooltipPlacement",
+     "required": false,
+     "read": [
+      "tooltip"
+     ],
+     "stated": false
+    },
+    {
+     "name": "tooltipSize",
+     "required": false,
+     "read": [
+      "tooltip"
+     ],
+     "stated": false
+    },
+    {
+     "name": "tooltipText",
+     "required": false,
+     "read": [
+      "tooltip"
+     ],
+     "stated": true
+    }
+   ],
+   "presets": [
+    "cupertino",
+    "mountainview",
+    "redmond",
+    "sanfrancisco"
    ]
   },
   "enums": {
@@ -5172,6 +5923,9 @@
    "docs/guide/06-style.md": [
     "guide:data",
     "guide:interaction",
+    "guide:make-your-own",
+    "guide:relationships",
+    "guide:renderers",
     "guide:two-brackets"
    ],
    "docs/guide/07-interaction.md": [
@@ -38759,6 +39513,22 @@
    "subtitle": "",
    "kind": "category",
    "children": [
+    {
+     "name": "Types and functions",
+     "subtitle": "",
+     "kind": "reference",
+     "label": "Reference",
+     "doc": "# Types and functions\n\n*The shared vocabulary every `{ }` body can name. The scaffold declares all of it into\neach program's check block, so it is typechecked for your code exactly as for the\nstandard library's.*\n\n## `Draw` — drawing as a tracked computation\n\nA `draw(d: Draw)` member is **not** a paint callback and not an escape hatch. It records a\n**display list** that both renderers replay, and it is a tracked computation like any\nconstraint: it re-runs when what it *read* changes, **never per frame**. So a drawing composes\nwith attributes and constraints instead of escaping them — `ink`, `width` and state are\nordinary reads, and changing one re-records.\n\nThis is how the library draws every mark a font cannot give it: a `Checkbox`'s tick and the\nwhole `Icon` set are recorded paths, not glyphs. Author an icon in a 16×16 box and scale it\ninside the body (see `Icon`); **never animate a drawing's size** — reading size inside `draw`\nmakes the recording size-dependent, so an animated size re-records and reallocates its backing\ncanvas every frame.\n\n```declare-fragment\ndraw(d: Draw) {\n    d.fillStyle = theme.accent\n    d.beginPath()\n    d.arc(width / 2, height / 2, 6, 0, Math.PI * 2, false)\n    d.fill()\n    }\n```\n\n`d.x` / `d.y` / `d.w` / `d.h` are the view's own box, so a drawing can size itself.\n\n**State you set:** `x: number` · `y: number` · `w: number` · `h: number` · `fillStyle: string \\| Color \\| DrawGradient` · `strokeStyle: string \\| Color \\| DrawGradient` · `lineWidth: number` · `lineCap: string` · `lineJoin: string` · `miterLimit: number` · `lineDashOffset: number` · `globalAlpha: number` · `globalCompositeOperation: string` · `shadowBlur: number` · `shadowColor: string \\| Color` · `shadowOffsetX: number` · `shadowOffsetY: number` · `filter: string` · `imageSmoothingEnabled: boolean` · `imageSmoothingQuality: string` · `font: string` · `textAlign: string` · `textBaseline: string` · `direction: string` · `letterSpacing: string` · `wordSpacing: string` · `fontKerning: string`\n\n**Calls:** `arc(x: number, y: number, r: number, a0: number, a1: number, ccw?: boolean): void` · `arcTo(x1: number, y1: number, x2: number, y2: number, r: number): void` · `beginPath(): void` · `bezierCurveTo(cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number): void` · `clearRect(x: number, y: number, w: number, h: number): void` · `clip(rule?: string): void` · `closePath(): void` · `createConicGradient(startAngle: number, x: number, y: number): DrawGradient` · `createLinearGradient(x0: number, y0: number, x1: number, y1: number): DrawGradient` · `createRadialGradient(x0: number, y0: number, r0: number, x1: number, y1: number, r1: number): DrawGradient` · `ellipse(x: number, y: number, rx: number, ry: number, rot: number, a0: number, a1: number, ccw?: boolean): void` · `fill(rule?: string): void` · `fillRect(x: number, y: number, w: number, h: number): void` · `fillText(text: string, x: number, y: number, maxWidth?: number): void` · `lineTo(x: number, y: number): void` · `list(): any` · `moveTo(x: number, y: number): void` · `quadraticCurveTo(cpx: number, cpy: number, x: number, y: number): void` · `rect(x: number, y: number, w: number, h: number): void` · `resetTransform(): void` · `restore(): void` · `rotate(angle: number): void` · `roundRect(x: number, y: number, w: number, h: number, radii: number | number[]): void` · `save(): void` · `scale(x: number, y: number): void` · `setLineDash(segments: number[]): void` · `setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void` · `stroke(): void` · `strokeRect(x: number, y: number, w: number, h: number): void` · `strokeText(text: string, x: number, y: number, maxWidth?: number): void` · `transform(a: number, b: number, c: number, d: number, e: number, f: number): void` · `translate(x: number, y: number): void`\n\n\n## Event payloads\n\n*What a handler's argument carries.*\n\n| type | what it is | members |\n|---|---|---|\n| `PointerEvent` | a pointer went down, moved, or a view was clicked | `x: number` · `y: number` |\n| `PointerUpEvent` | a pointer release — carries **`canceled`**, true when the browser reclaimed the gesture | `x: number` · `y: number` · `canceled: boolean` |\n| `WheelEvent` | a wheel or trackpad gesture — carries **`pinch`**, true for a trackpad pinch | `x: number` · `y: number` · `deltaX: number` · `deltaY: number` · `pinch: boolean` |\n| `TouchEvent` | the multi-finger stream — carries the finger list | `x: number` · `y: number` · `touches: readonly Touch[]` · `changed: readonly Touch[]` |\n| `Touch` | one finger within a `TouchEvent` | `id: number` · `x: number` · `y: number` |\n| `KeyEvent` | a key went down or up — `key`, `code`, and modifier flags; never a numeric code | `code: string` · `key: string` · `shift: boolean` · `ctrl: boolean` · `alt: boolean` · `meta: boolean` · `repeat: boolean` |\n| `FocusGeometry` | the focused control's live silhouette, for a focus indicator | `x: number` · `y: number` · `w: number` · `h: number` · `rad: number` · `view: View` · `root: View` · `scroller: View` · `homeX: number` · `homeY: number` |\n| `TipEvent` | a tooltip request from the `Tip` service | `readonly text: string` · `readonly x: number` · `readonly y: number` · `readonly w: number` · `readonly h: number` · `readonly root: View` |\n| `StreamMessage` | one arrival from an `EventStream` or `Socket` | `readonly data: string` · `readonly type: string` · `readonly id: string` |\n\n## Value types\n\n| type | what it is | shape |\n|---|---|---|\n| `Percent` | what a bare `50%` literal becomes; you never write the type | `{ percent: number }` |\n| `Length` | a number of pixels, or a `Percent` from a bare `50%` literal | `number \\| Percent` |\n| `Color` | a packed `0xRRGGBB` number in a `{ }` body — `null` means *no paint*, not black | `number \\| null` |\n| `Shape` | a clip shape | `string \\| null` |\n| `Fill` | what paints a box: a `Color` or a `Gradient` | `Color \\| Gradient` |\n| `Theme` | the prevailing token record; see **Theme tokens** for the vocabulary components read | `Readonly<Record<string, any>>` |\n| `MotionCurve` | an easing curve for an `Animator` | `{ readonly __motion: true }` |\n| `Gradient` | an angle plus colour stops — build it with `gradient(…)` | `angle: number` · `stops: readonly { offset: number \\| null` · `color: Color }[]` |\n| `Stroke` | a width and a colour — build it with `stroke(w, c)`. A border *is* a stroke | `width: number` · `color: Color` |\n| `Shadow` | offset, blur and colour — build it with `shadow(dx, dy, blur, c)` | `dx: number` · `dy: number` · `blur: number` · `color: Color` |\n| `Cursor` | a datapath's resolved position — `.data` and `.path` | `readonly data: any` · `readonly path: readonly string[]` |\n| `DrawGradient` | a gradient built inside a drawing, via `d.createLinearGradient(…)` | `addColorStop(offset: number, color: string \\| Color): void` |\n\n## Global functions\n\n| call | what it does |\n|---|---|\n| `gradient(...args: (Color \\| string \\| { offset: number \\| null; color: Color })[]): Gradient` | build a `Gradient` from an angle and colours |\n| `stroke(width: number, color: Color): Stroke` | build a `Stroke` |\n| `stop(offset: number, color: Color): { offset: number; color: Color }` | one colour stop, for `gradient(…)` |\n| `shadow(dx: number, dy: number, blur: number, color: Color): Shadow` | build a `Shadow` |\n| `colorWithAlpha(rgb: number, a: number): number` | an `0xRRGGBB` plus an alpha, as the packed form the paint slots take |\n| `cubicBezier(x1: number, y1: number, x2: number, y2: number): MotionCurve` | a custom easing curve |\n| `back(overshoot: number): MotionCurve` | an overshooting easing curve |\n| `steps(n: number, jump?: \"jumpStart\" \\| \"jumpEnd\"): MotionCurve` | a stepped easing curve |\n| `laszlo(beginPole: number, endPole: number): MotionCurve` | the OpenLaszlo easing curve, kept |\n| `setTimeout(fn: (...args: any[]) => void, ms?: number): number` | deferred work — **a timer does not die with its node; cancel it yourself** |\n| `clearTimeout(id: number): void` | cancel a `setTimeout` |\n| `setInterval(fn: (...args: any[]) => void, ms?: number): number` | repeating work — same caveat as `setTimeout` |\n| `clearInterval(id: number): void` | cancel a `setInterval` |",
+     "preview": "The shared vocabulary every { } body can name. The scaffold declares all of it into each program's check block, so it is typechecked for your code exactly as for the standard library's. Draw — drawing as a tracked computation A draw(d: Draw…"
+    },
+    {
+     "name": "Theme tokens",
+     "subtitle": "",
+     "kind": "reference",
+     "label": "Reference",
+     "doc": "# Theme tokens\n\n*The vocabulary the standard library reads off the prevailing `theme` record. Measured from\nthe library sources, so it cannot drift from what the components actually consult.*\n\nA `theme` is a plain record on a **prevailing** slot: set it high in the tree and every\ndescendant follows until one overrides it. Start from a preset and spread to change a token —\n**an empty record is not a theme**, because the library reads specific names:\n\n```declare-fragment\ntheme = { Themes.sanFrancisco(app.dark) },                 // on the App\ntheme = { { ...app.theme, accent: 0xCC3333 } }            // override one token below\n```\n\nPresets, each taking a dark flag: `cupertino` · `mountainview` · `redmond` · `sanfrancisco`.\n\n## Required — the contract\n\n**12 tokens are read bare**, with no fallback. A record missing one of these\nbreaks the components that read it, which is why a theme is built from a preset rather than\nfrom scratch.\n\n| token | read by |\n|---|---|\n| `accent` | button, checkbox, datagrid, focusring, menu, progressbar, … |\n| `accentText` | button, checkbox, menu |\n| `control` | accordion, button, checkbox, datagrid, progressbar, segmented, … |\n| `controlHover` | button, segmented, table |\n| `controlPressed` | button, segmented |\n| `controlRadius` | accordion, button, checkbox |\n| `controlSelected` | accordion, button, menubar, switch, table |\n| `focusRing` | focusring |\n| `line` | checkbox, datagrid, dialog, menu, radiogroup, segmented, … |\n| `surface` | datagrid, dialog, focusring, menu, radiogroup, segmented, … |\n| `text` | accordion, button, dialog, icons/icon, menu, menubar, … |\n| `textMuted` | accordion, checkbox, combobox, datagrid, dialog, field, … |\n\n## Optional — the tuning surface\n\n**37 tokens are read behind a guard** and fall back to a built-in default.\nThese are what a city preset reaches for to change platform character — button geometry,\nmenu material, focus-ring behaviour, dialog arrangement — and what your own theme can set\nwithout stating the whole set.\n\n| token | read by |\n|---|---|\n| `buttonBorder` | button |\n| `buttonHeight` | button |\n| `buttonRadius` | button |\n| `checkboxRadius` | checkbox |\n| `checkboxSize` | checkbox |\n| `dialogAlign` | dialog |\n| `dialogBodySize` | dialog |\n| `dialogButtons` | dialog |\n| `dialogTitleSize` | dialog |\n| `dialogWidth` | dialog |\n| `disabledOpacity` | checkbox, menu, slider, switch |\n| `errorColor` | dialog |\n| `focusAnimate` | focusring |\n| `focusColor` | focusring |\n| `focusRingGap` | focusring |\n| `focusRingInnerColor` | focusring |\n| `focusRingInnerWidth` | focusring |\n| `focusRingWidth` | focusring |\n| `focusSights` | focusring |\n| `menuHl` | menu |\n| `menuHlText` | menu |\n| `menuMaterial` | menu |\n| `menuRadius` | dialog, menu |\n| `menuRow` | menu |\n| `menuShadow` | dialog, menu |\n| `menuTitleHl` | menubar |\n| `scrimColor` | dialog |\n| `scrimOpacity` | dialog |\n| `sliderHandle` | slider |\n| `switchHeight` | switch |\n| `switchThumbOff` | switch |\n| `switchWidth` | switch |\n| `tooltipBg` | tooltip |\n| `tooltipLine` | tooltip |\n| `tooltipPlacement` | tooltip |\n| `tooltipSize` | tooltip |\n| `tooltipText` | tooltip |\n",
+     "preview": "The vocabulary the standard library reads off the prevailing theme record. Measured from the library sources, so it cannot drift from what the components actually consult. A theme is a plain record on a prevailing slot: set it high in the t…"
+    },
     {
      "name": "Enums",
      "subtitle": "",

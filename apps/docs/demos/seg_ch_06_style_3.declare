@@ -1,12 +1,9 @@
-App [ width = 380, height = 210, fill = white,
-    note: Markdown [ x = 20, y = 16, width = 340, lineHeight = 1.35,
-        text = """
-            ## Rich text, from a string
+class Heading extends Text [ fontWeight = bold, textColor = { theme.text } ]
 
-            Headings, **bold**, `code`, and lists arrive as *structure* —
-            not as a pile of styled `Text` views:
-
-            - one source string
-            - one component
-            """ ]
+App [ fill = { theme.surface }, theme = { ({ text: 0xE7EEF2, muted: 0x8A9BA6, accent: 0x4C8DFF, surface: 0x101E28 }) },
+    col: View [ x = 20, y = 20,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        Heading [ text = "Signals" ],
+        Text [ textColor = { theme.muted }, text = "muted subtitle" ]
+        ]
     ]

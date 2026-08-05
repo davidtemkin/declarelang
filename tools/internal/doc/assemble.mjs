@@ -139,7 +139,97 @@ function eventSpine() {
  *  generated attribute or class name must avoid. (A component class in the
  *  program is also legal — that part is per-program, not projectable.) */
 function typeSpine() {
-  return { declarable: [...DECLARED_TYPE_NAMES].sort(), reserved: [...RESERVED].sort() };
+  return { declarable: [...DECLARED_TYPE_NAMES].sort(), reserved: [...RESERVED].sort(), shared: sharedTypes() };
+}
+
+/** The SHARED VOCABULARY a `{ }` body may name — every type and global function
+ *  the scaffold's PRELUDE declares into each program's check block: `Draw` and
+ *  its gradient, the event payloads a handler receives (`PointerEvent`,
+ *  `KeyEvent`, …), the value types (`Color`, `Length`, `Fill`, `Stroke`,
+ *  `Shadow`, `Gradient`, `Theme`, `Cursor`), and the constructors (`stroke()`,
+ *  `shadow()`, `gradient()`, the motion curves, the timers).
+ *
+ *  These are typechecked for every program and were in the reference NOWHERE —
+ *  the same defect the callable surface had (library-charter §2a), one layer
+ *  down and larger: `draw(d: Draw)` is a first-class member kind, and the only
+ *  statement of what `d` offers was four examples and an ellipsis in declare.md.
+ *  A handler's payload was worse — the reference documented `onKeyDown(e: KeyEvent)`
+ *  while nothing said what is ON `e`.
+ *
+ *  Parsed from the PRELUDE text rather than re-declared here, so the reference
+ *  cannot drift from what the compiler actually emits. */
+function sharedTypes() {
+  const src = readFileSync(join(ROOT, "compiler/src/scaffold.ts"), "utf8");
+  const prelude = src.split("const PRELUDE = `")[1]?.split("\n`;")[0] ?? "";
+  const out = { interfaces: [], aliases: [], functions: [] };
+  // Line-based, because the PRELUDE mixes forms: block interfaces, one-liners
+  // (`interface Touch { id: number; x: number }`), and `extends` (`interface
+  // WheelEvent extends PointerEvent { … }`). A block regex swallowed every
+  // one-liner into the next `^}` it could find, which made `Touch` report the
+  // remainder of the file as its members.
+  const lines = prelude.split("\n");
+  const splitMembers = (s) => s.split(";").map((x) => x.trim()).filter((x) => x && !x.startsWith("//"));
+  for (let i = 0; i < lines.length; i++) {
+    const head = lines[i].match(/^interface\s+([A-Za-z]\w*)(?:\s+extends\s+([A-Za-z]\w*))?\s*\{(.*)$/);
+    if (!head) continue;
+    const [, name, base, rest] = head;
+    let members = [];
+    if (rest.includes("}")) members = splitMembers(rest.slice(0, rest.lastIndexOf("}")));
+    else {
+      members = splitMembers(rest);
+      for (i++; i < lines.length && !/^\}/.test(lines[i]); i++) {
+        const l = lines[i].trim();
+        if (!l || l.startsWith("//") || l.startsWith("*") || l.startsWith("/*")) continue;
+        members.push(...splitMembers(l));
+      }
+    }
+    out.interfaces.push({ name, extends: base ?? null, members });
+  }
+  for (const m of prelude.matchAll(/^type\s+([A-Za-z]\w*)\s*=\s*([^\n]+?);?$/gm)) {
+    out.aliases.push({ name: m[1], type: m[2].trim().replace(/;$/, "") });
+  }
+  for (const m of prelude.matchAll(/^declare function\s+([A-Za-z]\w*)([^\n]*?);?$/gm)) {
+    out.functions.push({ name: m[1], signature: (m[1] + m[2]).replace(/;$/, "").trim() });
+  }
+  return out;
+}
+
+/** The THEME TOKEN vocabulary, measured rather than asserted. Library components
+ *  read `theme.<token>`; a token read BARE is required (miss it and the component
+ *  breaks), a token always behind a `typeof`/null guard has a built-in fallback
+ *  and is tuning. The preset states the required set; the guarded ones are the
+ *  extension surface a city theme reaches for.
+ *
+ *  Derived from the library sources and the SanFrancisco preset — the authored
+ *  truth (gen-themes.mjs projects the same presets into the runtime) — so the
+ *  documented vocabulary cannot drift from what the components actually consult. */
+function themeTokenSpine() {
+  const files = [...readdirSync(join(ROOT, "library")).filter((f) => f.endsWith(".declare")).map((f) => "library/" + f),
+                 ...readdirSync(join(ROOT, "library/icons")).filter((f) => f.endsWith(".declare")).map((f) => "library/icons/" + f)];
+  const bare = new Set(), guarded = new Set(), readers = {};
+  for (const f of files) {
+    // comments carry `theme.x` in prose — strip them, or documentation counts as usage
+    const code = readFileSync(join(ROOT, f), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+    const who = f.replace(/^library\//, "").replace(/\.declare$/, "");
+    for (const line of code.split("\n")) {
+      for (const mm of line.matchAll(/theme\.([a-zA-Z][A-Za-z0-9]*)/g)) {
+        const t = mm[1];
+        (readers[t] ??= new Set()).add(who);
+        const g = new RegExp(`typeof\\s+theme\\.${t}\\b|theme\\.${t}\\s*!=\\s*null|theme\\.${t}\\s*==`).test(line);
+        (g ? guarded : bare).add(t);
+      }
+    }
+  }
+  for (const t of bare) guarded.delete(t);            // read bare anywhere ⇒ required
+  const presetSrc = readFileSync(join(ROOT, "library/themes/sanfrancisco.declare"), "utf8");
+  const body = presetSrc.split("stylesheet SanFrancisco [")[1]?.split("]")[0] ?? "";
+  const stated = [...body.matchAll(/([a-zA-Z][\w]*)\s*=/g)].map((m) => m[1]);
+  const row = (t) => ({ name: t, required: bare.has(t), read: [...(readers[t] ?? [])].sort(), stated: stated.includes(t) });
+  return {
+    required: [...bare].sort().map(row),
+    optional: [...guarded].sort().map(row),
+    presets: readdirSync(join(ROOT, "library/themes")).filter((f) => f.endsWith(".declare")).map((f) => f.replace(/\.declare$/, "")).sort(),
+  };
 }
 
 function enumVocabularies() {
@@ -183,6 +273,7 @@ function buildSpine() {
     api: LANGUAGE_API,
     events: eventSpine(),
     types: typeSpine(),
+    themeTokens: themeTokenSpine(),
     enums: enumVocabularies(),
     flags: FLAG_SPECS.map((f) => ({ ...f, default: DEFAULT_FLAGS[f.name] })),
     requests: REQ,
@@ -303,6 +394,138 @@ const diagnosticsDoc = (spine) => ["# Diagnostic codes", "", `*Every compiler di
 const requestsDoc = (spine) => ["# Request types", "", "*The addressable request surface of a program URL.*", "",
   Object.keys(spine.requests).map((r) => "`" + r + "`").join(" · ")].join("\n");
 
+// One line per shared type/function: what it is, and the thing a signature does
+// not say. Keyed by name so the page stays generated — a type added to the
+// PRELUDE appears here immediately, with an empty note rather than silently.
+const VOCAB_NOTE = {
+  Draw: "the recorder a `draw(d: Draw)` body receives — Canvas2D-shaped",
+  DrawGradient: "a gradient built inside a drawing, via `d.createLinearGradient(…)`",
+  Color: "a packed `0xRRGGBB` number in a `{ }` body — `null` means *no paint*, not black",
+  Length: "a number of pixels, or a `Percent` from a bare `50%` literal",
+  Percent: "what a bare `50%` literal becomes; you never write the type",
+  Shape: "a clip shape",
+  Gradient: "an angle plus colour stops — build it with `gradient(…)`",
+  Fill: "what paints a box: a `Color` or a `Gradient`",
+  Stroke: "a width and a colour — build it with `stroke(w, c)`. A border *is* a stroke",
+  Shadow: "offset, blur and colour — build it with `shadow(dx, dy, blur, c)`",
+  Theme: "the prevailing token record; see **Theme tokens** for the vocabulary components read",
+  Cursor: "a datapath's resolved position — `.data` and `.path`",
+  MotionCurve: "an easing curve for an `Animator`",
+  PointerEvent: "a pointer went down, moved, or a view was clicked",
+  PointerUpEvent: "a pointer release — carries **`canceled`**, true when the browser reclaimed the gesture",
+  TouchEvent: "the multi-finger stream — carries the finger list",
+  Touch: "one finger within a `TouchEvent`",
+  WheelEvent: "a wheel or trackpad gesture — carries **`pinch`**, true for a trackpad pinch",
+  KeyEvent: "a key went down or up — `key`, `code`, and modifier flags; never a numeric code",
+  FocusGeometry: "the focused control's live silhouette, for a focus indicator",
+  TipEvent: "a tooltip request from the `Tip` service",
+  StreamMessage: "one arrival from an `EventStream` or `Socket`",
+  gradient: "build a `Gradient` from an angle and colours",
+  stroke: "build a `Stroke`",
+  shadow: "build a `Shadow`",
+  stop: "one colour stop, for `gradient(…)`",
+  colorWithAlpha: "an `0xRRGGBB` plus an alpha, as the packed form the paint slots take",
+  cubicBezier: "a custom easing curve",
+  back: "an overshooting easing curve",
+  steps: "a stepped easing curve",
+  laszlo: "the OpenLaszlo easing curve, kept",
+  setTimeout: "deferred work — **a timer does not die with its node; cancel it yourself**",
+  clearTimeout: "cancel a `setTimeout`",
+  setInterval: "repeating work — same caveat as `setTimeout`",
+  clearInterval: "cancel a `setInterval`",
+};
+
+const sharedTypesDoc = (spine) => {
+  const t = spine.types.shared;
+  // a union type (`number | Percent`) inside a table cell would end the column —
+  // escape the pipe, or every value type renders truncated
+  const cell = (s) => "`" + String(s).replace(/\|/g, "\\|") + "`";
+  const note = (n) => (VOCAB_NOTE[n] ? " — " + VOCAB_NOTE[n] : "");
+  const iface = (n) => t.interfaces.find((i) => i.name === n);
+  const PAYLOADS = ["PointerEvent", "PointerUpEvent", "WheelEvent", "TouchEvent", "Touch", "KeyEvent", "FocusGeometry", "TipEvent", "StreamMessage"];
+  const draw = iface("Draw");
+  const props = (draw?.members ?? []).filter((m) => !m.includes("("));
+  const calls = (draw?.members ?? []).filter((m) => m.includes("("));
+  const out = ["# Types and functions", "",
+    "*The shared vocabulary every `{ }` body can name. The scaffold declares all of it into",
+    "each program's check block, so it is typechecked for your code exactly as for the",
+    "standard library's.*", ""];
+
+  out.push("## `Draw` — drawing as a tracked computation", "",
+    "A `draw(d: Draw)` member is **not** a paint callback and not an escape hatch. It records a",
+    "**display list** that both renderers replay, and it is a tracked computation like any",
+    "constraint: it re-runs when what it *read* changes, **never per frame**. So a drawing composes",
+    "with attributes and constraints instead of escaping them — `ink`, `width` and state are",
+    "ordinary reads, and changing one re-records.",
+    "",
+    "This is how the library draws every mark a font cannot give it: a `Checkbox`'s tick and the",
+    "whole `Icon` set are recorded paths, not glyphs. Author an icon in a 16×16 box and scale it",
+    "inside the body (see `Icon`); **never animate a drawing's size** — reading size inside `draw`",
+    "makes the recording size-dependent, so an animated size re-records and reallocates its backing",
+    "canvas every frame.", "",
+    "```declare-fragment",
+    "draw(d: Draw) {",
+    "    d.fillStyle = theme.accent",
+    "    d.beginPath()",
+    "    d.arc(width / 2, height / 2, 6, 0, Math.PI * 2, false)",
+    "    d.fill()",
+    "    }",
+    "```", "",
+    "`d.x` / `d.y` / `d.w` / `d.h` are the view's own box, so a drawing can size itself.", "");
+  if (props.length) out.push("**State you set:** " + props.map(cell).join(" · "), "");
+  if (calls.length) out.push("**Calls:** " + calls.map((m) => "`" + m.replace(/\s*\{.*$/, "") + "`").join(" · "), "");
+
+  out.push("", "## Event payloads", "",
+    "*What a handler's argument carries.*", "",
+    "| type | what it is | members |", "|---|---|---|");
+  for (const n of PAYLOADS) {
+    const i = iface(n);
+    // an `extends` payload carries its base's members too — show them, or a
+    // reader concludes a WheelEvent has no x/y
+    const inherited = i?.extends ? (iface(i.extends)?.members ?? []) : [];
+    const all = [...inherited, ...(i?.members ?? [])];
+    const shape = all.length ? all.map(cell).join(" · ") : "—";
+    out.push(`| \`${n}\` | ${VOCAB_NOTE[n] ?? ""} | ${shape} |`);
+  }
+
+  const valueIfaces = t.interfaces.filter((i) => !PAYLOADS.includes(i.name) && i.name !== "Draw");
+  out.push("", "## Value types", "", "| type | what it is | shape |", "|---|---|---|");
+  for (const a of t.aliases) out.push(`| \`${a.name}\` |${note(a.name).replace(/^ — /, " ")} | ${cell(a.type)} |`);
+  for (const i of valueIfaces) out.push(`| \`${i.name}\` |${note(i.name).replace(/^ — /, " ")} | ${i.members.map(cell).join(" · ")} |`);
+
+  out.push("", "## Global functions", "", "| call | what it does |", "|---|---|");
+  for (const f of t.functions) out.push(`| ${cell(f.signature)} | ${VOCAB_NOTE[f.name] ?? ""} |`);
+  return out.join("\n");
+};
+
+const themeTokensDoc = (spine) => {
+  const t = spine.themeTokens;
+  const row = (r) => `| \`${r.name}\` | ${r.read.slice(0, 6).join(", ")}${r.read.length > 6 ? ", …" : ""} |`;
+  return ["# Theme tokens", "",
+    "*The vocabulary the standard library reads off the prevailing `theme` record. Measured from",
+    "the library sources, so it cannot drift from what the components actually consult.*", "",
+    "A `theme` is a plain record on a **prevailing** slot: set it high in the tree and every",
+    "descendant follows until one overrides it. Start from a preset and spread to change a token —",
+    "**an empty record is not a theme**, because the library reads specific names:", "",
+    "```declare-fragment",
+    "theme = { Themes.sanFrancisco(app.dark) },                 // on the App",
+    "theme = { { ...app.theme, accent: 0xCC3333 } }            // override one token below",
+    "```", "",
+    `Presets, each taking a dark flag: ${spine.themeTokens.presets.map((p) => "`" + p + "`").join(" · ")}.`, "",
+    "## Required — the contract", "",
+    `**${t.required.length} tokens are read bare**, with no fallback. A record missing one of these`,
+    "breaks the components that read it, which is why a theme is built from a preset rather than",
+    "from scratch.", "",
+    "| token | read by |", "|---|---|", ...t.required.map(row), "",
+    "## Optional — the tuning surface", "",
+    `**${t.optional.length} tokens are read behind a guard** and fall back to a built-in default.`,
+    "These are what a city preset reaches for to change platform character — button geometry,",
+    "menu material, focus-ring behaviour, dialog arrangement — and what your own theme can set",
+    "without stating the whole set.", "",
+    "| token | read by |", "|---|---|", ...t.optional.map(row), "",
+  ].join("\n");
+};
+
 // ── the BROWSE tree: the single walkable IA. Every leaf is a DOCUMENT — either
 // an authored .md (a `path`) or a page hydrated from the structured model above
 // (an inline `doc`). Folders drill; documents open. One family, no special case.
@@ -330,6 +553,8 @@ function buildBrowse(dm, spine) {
       cat("Standard library", library.map(elementLeaf)),
     ]),
     cat("Vocabulary", [
+      hydrated("Types and functions", sharedTypesDoc(spine)),
+      hydrated("Theme tokens", themeTokensDoc(spine)),
       hydrated("Enums", enumsDoc(spine)),
       hydrated("Flags", flagsDoc(spine)),
       hydrated("Diagnostics", diagnosticsDoc(spine)),
