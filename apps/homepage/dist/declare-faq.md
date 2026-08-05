@@ -114,6 +114,10 @@ It's tested, not assumed. Declare's development runs an evaluation harness: a la
 
 Declare is a from-the-ground-up modern successor to OpenLaszlo, the open-source rich-internet-application platform first released in 2002. OpenLaszlo had the core ideas remarkably early: interfaces declared as trees, attributes connected by live constraints, declarative data binding, compiled applications running in the browser — a decade before today's declarative frameworks. Declare  keeps those convictions — the declarative tree, constraint-based reactivity, a real compiler — while rebuilding everything else for the modern era: a clean keyword-free syntax, TypeScript for logic, DOM and canvas renderers, in-browser compilation, and a design shaped from day one for the LLM era.
 
+### Who was crazy enough to do this?
+
+David Temkin, who co-founded Laszlo Systems and led the team behind OpenLaszlo. He writes about [what led from one to the other](#why) at the end of the "Why Declare" essay.
+
 ### Can I try it without installing anything?
 
 Yes. Every sample on this site is live-editable in your browser — open one, change the source, and watch it re-render. The whole-page editor will even let you edit the homepage you're standing on. Nothing to install; the compiler is already in the page.

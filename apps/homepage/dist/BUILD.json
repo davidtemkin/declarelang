@@ -5,8 +5,8 @@
     "id": "apps/homepage/homepage.declare",
     "kind": "file",
     "v": {
-     "mtime": 1785865909244.0317,
-     "size": 87441
+     "mtime": 1785900023770.822,
+     "size": 98648
     }
    },
    {
@@ -37,7 +37,7 @@
     "id": "library/spacer.declare",
     "kind": "file",
     "v": {
-     "mtime": 1785296770546.4902,
+     "mtime": 1785876217725.0396,
      "size": 995
     }
    },
@@ -61,8 +61,8 @@
     "id": "apps/homepage/declare-faq.md",
     "kind": "file",
     "v": {
-     "mtime": 1785869485752.4346,
-     "size": 23741
+     "mtime": 1785896385960.9885,
+     "size": 23954
     }
    },
    {
@@ -165,8 +165,448 @@
     "id": "apps/homepage/stats.json",
     "kind": "file",
     "v": {
-     "mtime": 1785873903625.259,
+     "mtime": 1785877892931.1074,
      "size": 574
+    }
+   },
+   {
+    "id": "runtime/dist/datapath.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785630492934.1697,
+     "size": 18624
+    }
+   },
+   {
+    "id": "runtime/dist/css-colors.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1783641034308.0857,
+     "size": 3831
+    }
+   },
+   {
+    "id": "runtime/dist/shape.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1783484922780.0305,
+     "size": 2324
+    }
+   },
+   {
+    "id": "runtime/dist/animate.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1784210736690.935,
+     "size": 12112
+    }
+   },
+   {
+    "id": "runtime/dist/themes-data.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1784953554932.2625,
+     "size": 8961
+    }
+   },
+   {
+    "id": "runtime/dist/value.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785630492965.9587,
+     "size": 25075
+    }
+   },
+   {
+    "id": "runtime/dist/expr.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785801807746.366,
+     "size": 13842
+    }
+   },
+   {
+    "id": "runtime/dist/keys.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785630493024.2512,
+     "size": 9948
+    }
+   },
+   {
+    "id": "runtime/dist/themes.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1784346394737.994,
+     "size": 2453
+    }
+   },
+   {
+    "id": "runtime/dist/errors.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1784174505574.0217,
+     "size": 1823
+    }
+   },
+   {
+    "id": "runtime/dist/reactive.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785643589082.911,
+     "size": 13648
+    }
+   },
+   {
+    "id": "runtime/dist/node.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785254279622.8303,
+     "size": 5391
+    }
+   },
+   {
+    "id": "runtime/dist/attributes.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785630492913.7502,
+     "size": 24073
+    }
+   },
+   {
+    "id": "runtime/dist/stylesheet.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1784210736731.1648,
+     "size": 7527
+    }
+   },
+   {
+    "id": "runtime/dist/backend.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785778613961.2136,
+     "size": 1212
+    }
+   },
+   {
+    "id": "runtime/dist/tip.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785894124024.329,
+     "size": 4441
+    }
+   },
+   {
+    "id": "runtime/dist/draw.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1784573841376.753,
+     "size": 20200
+    }
+   },
+   {
+    "id": "runtime/dist/interaction.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785597325994.5247,
+     "size": 15656
+    }
+   },
+   {
+    "id": "runtime/dist/schema.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785872729370.8525,
+     "size": 53729
+    }
+   },
+   {
+    "id": "runtime/dist/select.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785630492987.2126,
+     "size": 5779
+    }
+   },
+   {
+    "id": "runtime/dist/view.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785727983575.9814,
+     "size": 53155
+    }
+   },
+   {
+    "id": "runtime/dist/focus.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785630493027.5833,
+     "size": 14733
+    }
+   },
+   {
+    "id": "runtime/dist/inspect-service.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785868528687.0566,
+     "size": 22136
+    }
+   },
+   {
+    "id": "runtime/dist/services.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785704927066.779,
+     "size": 1771
+    }
+   },
+   {
+    "id": "runtime/dist/animator.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1784506352094.9246,
+     "size": 21091
+    }
+   },
+   {
+    "id": "runtime/dist/layout.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785630493002.8142,
+     "size": 22394
+    }
+   },
+   {
+    "id": "runtime/dist/spring.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785647706582.6611,
+     "size": 9801
+    }
+   },
+   {
+    "id": "runtime/dist/state.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1784210736751.5042,
+     "size": 10253
+    }
+   },
+   {
+    "id": "runtime/dist/check.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785801866027.9265,
+     "size": 79208
+    }
+   },
+   {
+    "id": "runtime/dist/program-schema.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785766610146.5774,
+     "size": 16254
+    }
+   },
+   {
+    "id": "runtime/dist/font.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1784210736753.2976,
+     "size": 6011
+    }
+   },
+   {
+    "id": "runtime/dist/data-schema.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785630492978.0784,
+     "size": 3703
+    }
+   },
+   {
+    "id": "runtime/dist/data.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785810790062.8423,
+     "size": 25933
+    }
+   },
+   {
+    "id": "runtime/dist/bind.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785895831112.3997,
+     "size": 9359
+    }
+   },
+   {
+    "id": "runtime/dist/editor.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785630493021.2048,
+     "size": 7198
+    }
+   },
+   {
+    "id": "runtime/dist/replicate.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785725201084.9524,
+     "size": 57863
+    }
+   },
+   {
+    "id": "runtime/dist/measure.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1784438269666.6226,
+     "size": 5797
+    }
+   },
+   {
+    "id": "runtime/dist/text.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1784759884711.29,
+     "size": 6974
+    }
+   },
+   {
+    "id": "runtime/dist/image.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785783397537.267,
+     "size": 6077
+    }
+   },
+   {
+    "id": "runtime/dist/video.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785783397540.2065,
+     "size": 7376
+    }
+   },
+   {
+    "id": "runtime/dist/text-input.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785817334940.8877,
+     "size": 9756
+    }
+   },
+   {
+    "id": "runtime/dist/md.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1784599109623.3657,
+     "size": 18184
+    }
+   },
+   {
+    "id": "runtime/dist/slug.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1784170046197.518,
+     "size": 1157
+    }
+   },
+   {
+    "id": "runtime/dist/html.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1783829285154.4558,
+     "size": 10958
+    }
+   },
+   {
+    "id": "runtime/dist/markdown.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785630493050.2522,
+     "size": 52850
+    }
+   },
+   {
+    "id": "runtime/dist/registry.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785783397539.0195,
+     "size": 6353
+    }
+   },
+   {
+    "id": "runtime/dist/instantiate.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785783397538.5063,
+     "size": 71564
+    }
+   },
+   {
+    "id": "runtime/dist/inspect.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785868528704.3882,
+     "size": 24126
+    }
+   },
+   {
+    "id": "runtime/dist/boot.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785555648364.3337,
+     "size": 19593
+    }
+   },
+   {
+    "id": "runtime/dist/hydrate.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1784955242306.533,
+     "size": 1725
+    }
+   },
+   {
+    "id": "runtime/dist/boxpaint.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1784564452253.202,
+     "size": 6580
+    }
+   },
+   {
+    "id": "runtime/dist/dpr.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1783484922813.7534,
+     "size": 873
+    }
+   },
+   {
+    "id": "runtime/dist/input.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785630493072.679,
+     "size": 21662
+    }
+   },
+   {
+    "id": "runtime/dist/viewport-lock.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785179374928.0022,
+     "size": 3677
+    }
+   },
+   {
+    "id": "runtime/dist/dom-backend.js",
+    "kind": "file",
+    "v": {
+     "mtime": 1785783397535.0908,
+     "size": 87732
     }
    }
   ],
@@ -175,7 +615,7 @@
    "slim": "true",
    "stripPos": "true",
    "typecheck": "true",
-   "crawler": "true"
+   "crawler": "false"
   }
  },
  "built": "apps/homepage"

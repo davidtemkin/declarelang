@@ -95,17 +95,19 @@ class NavLink extends View [ height = 33, cornerRadius = 8,
     label:   string = "",
     url:     string = "",
     to:      string = "",
+    at:      string = "",
 
     // pressed deepens the pill + lights the label — the tap feedback a touch
     // device gets in place of hover (mouseDown/Up fire on a tap, hover does not).
 
     fill = { pressed ? theme.pillPress : hovered ? theme.pillHover : null },
 
-    // A pill goes one of two ways: `to` is an in-app location (a fragment — write
-    // `app.location`); `url` is an out-of-app target (the `navigate` service action,
-    // capabilities.md §6). One or the other, never both.
+    // A pill goes one of three ways: `to` is an in-app location (a fragment —
+    // write `app.location`); `at` names a SECTION of that location's flow, and
+    // lands on it instead of the top; `url` is an out-of-app target (the
+    // `navigate` service action, capabilities.md §6). Never more than one door.
 
-    onClick()     { if (classroot.to != "") { app.location = classroot.to; app.toTop() } else if (classroot.url != "") app.navigate(classroot.url) },
+    onClick()     { if (classroot.to != "") { app.location = classroot.to; if (classroot.at != "") app.toSection(classroot.at); else app.toTop() } else if (classroot.url != "") app.navigate(classroot.url) },
     lbl: Text [ x = 12, y = 8, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14,
         text = { classroot.label },
         textColor = { classroot.hovered || classroot.pressed ? theme.text : theme.muted } ],
@@ -119,18 +121,52 @@ class NavLink extends View [ height = 33, cornerRadius = 8,
 At phone width the pill row would ride the wordmark, so it collapses to a kebab
 (the page's dot motif) that opens this sheet: a thumb-height row per destination,
 drawn from the same `navItems` as the pills. Same press feedback as a pill.
+
+The sheet is the one surface that can afford STRUCTURE. The pill row is bounded
+by the window's width, so a destination with children shows there as a single
+pill; the sheet is already open by the time it is read and vertical space is
+free, so the children get their own rows under the parent — no second tap to
+reach the thing you came for. One `navItems` list, two renditions, which is
+what these two surfaces already were.
 */
 
 class MobileNavRow extends View [ width = { parent.width }, height = 44, cornerRadius = 8,
     label:   string = "",
     url:     string = "",
     to:      string = "",
-    fill = { pressed ? theme.pillPress : hovered ? theme.pillHover : null },
-    onClick()     { app.menuOpen = false; if (classroot.to != "") { app.location = classroot.to; app.toTop() } else if (classroot.url != "") app.navigate(classroot.url) },
+    at:      string = "",
 
-    lbl: Text [ x = 14, y = center, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 16, fontWeight = medium,
+    // a child row: same type size and the same thumb height as its parent —
+    // these are destinations, not annotations, and shrinking them would say
+    // otherwise. The INDENT alone carries the hierarchy, with the quieter
+    // tone behind it.
+
+    sub:     boolean = false,
+
+    fill = { pressed ? theme.pillPress : hovered ? theme.pillHover : null },
+    onClick()     { app.menuOpen = false; if (classroot.to != "") { app.location = classroot.to; if (classroot.at != "") app.toSection(classroot.at); else app.toTop() } else if (classroot.url != "") app.navigate(classroot.url) },
+
+    lbl: Text [ x = { classroot.sub ? 30 : 14 }, y = center, fontFamily = [Sans, "system-ui", "sans-serif"],
+        fontSize = 16, fontWeight = medium,
         text = { classroot.label },
-        textColor = { classroot.hovered || classroot.pressed ? theme.text : theme.lead } ]
+        textColor = { classroot.hovered || classroot.pressed ? theme.text : classroot.sub ? theme.muted : theme.lead } ]
+    ]
+
+
+// one navItems entry as it appears in the sheet: its own row, then a row per
+// child. `:children[]` on an entry whose list is empty resolves to no records,
+// so a childless destination is simply its own row — there is no branch here
+// and no second rendition to keep in step.
+
+class MobileNavGroup extends View [ width = { parent.width },
+    height = { this.contentHeight },
+    layout: SimpleLayout [ axis = y, spacing = 0 ],
+    MobileNavRow [ label = { :label }, to = { :to }, at = { :at }, url = { :url } ],
+    kids: View [ width = { parent.width }, height = { this.contentHeight },
+        layout: SimpleLayout [ axis = y, spacing = 0 ],
+        MobileNavRow [ datapath = :children[], sub = true,
+            label = { :label }, to = { :to }, at = { :at }, url = { :url } ]
+        ]
     ]
 
 
@@ -575,7 +611,7 @@ content natively; the chrome further down (header, cursor) are its
 // visitor — the runtime overwrites document.title at boot — so only crawlers
 // and LLMs ever read the stale copy. Exactly the readers this page is for.
 
-App [ tagline: string = "the UI language designed for the AI era",
+App [ tagline: string = "a UI language for you and your AI",
     appName = { "Declare — " + app.tagline },
     theme = { {
         // text, brightest to faintest
@@ -618,6 +654,50 @@ App [ tagline: string = "the UI language designed for the AI era",
 
     toTop() { this.scrollIntoView("start") },
 
+    // A nav destination may name a SECTION of the front page rather than its
+    // top — `at` on a navItems entry. The section is a named node of the page
+    // flow, so both surfaces aim at the same one: the `Apps` pill, and the
+    // `Apps` header row in the sheet. "start" and not "nearest", because a
+    // section already partly on screen must still come to the top.
+
+    // Deferred by a turn, ALWAYS. `location` is written in the same handler that
+    // calls this, and until that write lands the front page is still hidden — a
+    // hidden view has no geometry, so revealing it there scrolls nothing (from
+    // the essay the page simply stayed at the top; from home it worked, which is
+    // what made the bug look like a path error). One turn later both arrivals
+    // are laid out, so there is a single path rather than a visible/hidden
+    // branch. The timer outlives no node — it hangs off the App, which is the
+    // whole program — so there is nothing to cancel (declare.md §10).
+
+    toSection(name: string) {
+        if (name != "apps") return
+        setTimeout(() => { this.scroller.page.appsMark.scrollIntoView("start") }, 0)
+        },
+
+    /* A link inside the authored Markdown — the FAQ, the guide, the language
+       document. `Markdown` never navigates on its own: it RAISES the href
+       (RichText's `link` event) and the app decides, which is what lets a
+       document written in plain .md reach an in-app destination at all.
+
+       A leading `#` is this app's own location — the fragment IS `app.location`
+       (location.md), so writing it navigates, deep-links and back-buttons with
+       nothing else wired. Anything else leaves through the `navigate` service
+       action.
+
+       Locations only, no `@name` anchors. The language has them (location.md
+       §6) and they are the right tool for landing inside a long page — but the
+       reveal resolves in the same frame as the location write, while rendered
+       prose is still being measured (its heights arrive a frame later, through
+       the DOM backend's ResizeObserver), so an anchor into this essay lands
+       against a half-built page. Measured: the target's y read 711 on the
+       arriving frame and 2053 from the next frame on. A link that has to be
+       right is a link to a location. */
+
+    openLink(href: string) {
+        if (href.startsWith("#")) { app.location = href.slice(1); app.toTop(); return }
+        app.navigate(href)
+        },
+
     // the page’s textual material, fetched DIRECTLY as text (format = "text"):
     // the core doc itself (docs/declare.md — up the tree, but still the
     // deployed repo’s own material), the getting-started guide, and the FAQ.
@@ -648,17 +728,28 @@ App [ tagline: string = "the UI language designed for the AI era",
     // `navData` is the datapath wrapper both surfaces replicate from; `menuOpen`
     // is the sheet's toggle.
 
+    // The three applications ride under one `Apps` entry. Standing alone in a
+    // nav row, "Calendar", "Desktop" and "Tracker" name nothing a first-time
+    // reader can act on — and beside a GitHub link two of them read as
+    // something else entirely (a desktop build; an issue tracker). The parent
+    // supplies the category the labels can't, and lands on §01, which is the
+    // page that actually answers what they are: three shots, each with its
+    // line count and wire size. The children keep their direct doors in the
+    // sheet, where there is room for both.
+
     navItems: array = { [
-        ({ label: "Getting Started", to: "getstarted", url: "" }),
-        ({ label: "Why Declare",     to: "why",        url: "" }),
-        ({ label: "FAQ",             to: "faq",        url: "" }),
-        ({ label: "Calendar", to: "", url: "apps/calendar/calendar.declare" }),
-        ({ label: "Desktop",  to: "", url: "apps/desktop/desktop.declare" }),
-        ({ label: "Tracker",  to: "", url: "apps/tracker/tracker.declare" }),
-        ({ label: "Docs",     to: "", url: "apps/docs/docs.declare" }),
+        ({ label: "Getting Started", to: "getstarted", at: "", url: "", children: [] }),
+        ({ label: "Why Declare",     to: "why",        at: "", url: "", children: [] }),
+        ({ label: "FAQ",             to: "faq",        at: "", url: "", children: [] }),
+        ({ label: "Apps", to: "home", at: "apps", url: "", children: [
+            ({ label: "Calendar", to: "", at: "", url: "apps/calendar/calendar.declare", children: [] }),
+            ({ label: "Desktop",  to: "", at: "", url: "apps/desktop/desktop.declare",  children: [] }),
+            ({ label: "Tracker",  to: "", at: "", url: "apps/tracker/tracker.declare",  children: [] }),
+            ] }),
+        ({ label: "Docs",     to: "", at: "", url: "apps/docs/docs.declare", children: [] }),
         // last, and the only item that leaves the site — an off-site link placed
-        // mid-row would split the three apps from the Docs they belong beside
-        ({ label: "GitHub",   to: "", url: "https://github.com/davidtemkin/declarelang" }),
+        // mid-row would split the applications from the Docs they belong beside
+        ({ label: "GitHub",   to: "", at: "", url: "https://github.com/davidtemkin/declarelang", children: [] }),
         ] },
 
     // the closing enumeration's content, as DATA — so the section is a shape
@@ -843,11 +934,26 @@ App [ tagline: string = "the UI language designed for the AI era",
                         ],
                     Dot [ y = 1, visible = { parent.width >= 600 } ],
                     onefile: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 15, fontWeight = medium, wrap = false,
-                        textColor = { this.pressed ? theme.linkPress : this.hovered ? theme.linkHover : theme.accent }, text = "Declare, in one file, for you and your LLM →",
+                        textColor = { this.pressed ? theme.linkPress : this.hovered ? theme.linkHover : theme.accent }, text = "The whole language, in one file →",
                         onClick() { app.location = "language"; app.toTop() }
                         ]
                     ]
                 ],
+
+            /* The `Apps` nav destination's landing mark. `scrollIntoView` pins a
+               view's top to the VIEWPORT's top, and the header is 56px of fixed
+               chrome over that — aimed at the section itself, the arrival buries
+               the "01" and cuts the headline in half. So the nav aims here
+               instead: a zero-size mark riding 80px above the section, which
+               puts the eyebrow a comfortable 24px clear of the header.
+
+               `ignoreLayout` is what makes it free — the page's flow skips it
+               entirely, so it claims no slot and adds no spacing, and its y
+               derives from the section it marks rather than restating the
+               flow's arithmetic. */
+
+            appsMark: View [ ignoreLayout = true, width = 1, height = 1,
+                y = { parent.apps.y - 80 } ],
 
             /* ### 01 — Three applications. The calendar leads at full width; the
                tracker and the desktop share the row beneath, and stack on a
@@ -1214,7 +1320,7 @@ App [ tagline: string = "the UI language designed for the AI era",
                 Para [ html = """
                     That argument gets its facts right and its conclusion backwards.
                     Producing code is now nearly free; trusting it costs what it always
-                    did. A model writing React verifies its work by resemblance — this
+                    did. An LLM writing React verifies its work by resemblance — this
                     looks like the billion lines it trained on — and resemblance is not
                     correctness. Meanwhile, less and less of the code passes under human
                     eyes, which leaves the language and its compiler as the one reviewer
@@ -1223,7 +1329,7 @@ App [ tagline: string = "the UI language designed for the AI era",
                     """ ],
                 Heading [ fontSize = 24, width = { parent.width }, text = "Two kinds of leverage" ],
                 Para [ html = """
-                    What a model gets from a mainstream stack is corpus leverage: fluency
+                    What an LLM gets from a mainstream stack is corpus leverage: fluency
                     by imitation — broad, shallow, self-contradictory, unverifiable. The
                     other kind is comprehension leverage: a language small enough to hand
                     to a model whole, regular enough that its programs can be analyzed
@@ -1233,7 +1339,7 @@ App [ tagline: string = "the UI language designed for the AI era",
                     the only kind a new language can compete on.
                     """ ],
                 Para [ html = """
-                    This is a measured bet, not a hunch. Models can learn a language they
+                    This is a measured bet, not a hunch. LLMs can learn a language they
                     never trained on from a spec in context — in recent studies, a small
                     language purpose-designed for LLM use, with zero training exposure,
                     beat the same model writing Python, its best-trained language. And
@@ -1272,7 +1378,7 @@ App [ tagline: string = "the UI language designed for the AI era",
                     reasons about is exactly what the compiler verifies, and its errors
                     are written for that loop — each one states the rule and names the
                     rewrite that fixes it, because the primary reader of a compiler
-                    message, now, is a model deciding what to do next.
+                    message, now, is an LLM deciding what to do next.
                     """ ],
                 Para [ html = """
                     Indexable content is there from the start: the compiler runs your
@@ -1304,11 +1410,11 @@ App [ tagline: string = "the UI language designed for the AI era",
                     hardest part of ambitious UX becomes the part a model is best at.
                     """ ],
                 Para [ html = """
-                    And that is the forward-looking wager. We believe there is another
-                    generation of experiences past the carefully crafted ones we point to
-                    today — built on a foundation with continuity at its core, enabled at
-                    the language level, deployed as universally as a URL, and iterated by
-                    imaginative designer-developers working with a model at their side.
+                    And that is the forward-looking wager. There is another generation of
+                    experiences beyond the hand-crafted best-in-class interfaces of
+                    today — built on a foundation with continuity at its core, enabled
+                    at the language level, deployed as universally as a URL, and iterated
+                    by imaginative designer-developers working with an LLM at their side.
                     Declare is built to find that out.
                     """ ],
                 Para [ html = """
@@ -1318,6 +1424,78 @@ App [ tagline: string = "the UI language designed for the AI era",
                     examples. You hand it the language and let the compiler keep it
                     honest. The corpus will come; the language doesn’t need it first.
                     """ ],
+
+                /* ### Where this came from
+
+                   A second movement, not a postscript: the essay above answers "why a
+                   new language, now?", and this answers "where did this one come
+                   from?" — a different question, in the first person. Marked as its
+                   own section (breath, hairline, eyebrow) rather than run on from the
+                   last paragraph, so the essay's closing line still reads as an
+                   ending. Set a step smaller and in the muted tone: quieter than the
+                   argument it follows, without the fatigue of a long italic run.
+
+                   One `Para` per paragraph, the way the essay does it — the column's
+                   22px `SimpleLayout` spacing IS the paragraph rule, so there is no
+                   block markup to keep consistent with the prose above. */
+
+                breath: View [ width = 8, height = 18 ],
+                rule:   View [ width = { parent.width }, height = 1, fill = { theme.line } ],
+                Marker [ text = "WHERE THIS CAME FROM" ],
+                Para [ fontSize = 16, bodyColor = { theme.muted }, html = """
+                    I co-founded Laszlo Systems and led the team behind OpenLaszlo — a
+                    declarative UI language, first shipped in 2002, that pushed right to
+                    the edge of what that era’s web browsers could handle.
+                    """ ],
+
+                // the note's one outbound link. `link` is a RichText event, so the href
+                // routes through the app rather than the document — same `navigate`
+                // service action every other off-site link on the page uses — and
+                // `linkColor` puts it on the page's own accent instead of the rich
+                // flow's built-in blue.
+
+                Para [ fontSize = 16, bodyColor = { theme.muted }, linkColor = { theme.accent },
+                    onLink(href: string) { app.navigate(href) },
+                    html = """
+                    What brought me back to UI development was
+                    <a href="https://davidtemkin.com/about-mesa/">Mesa</a>, a zoomable
+                    canvas app I built without using a browser framework, toolkit, or
+                    higher-level language. Mesa renders a thousand live objects at a
+                    60fps floor, even on a phone. It’s been positively amazing to see how
+                    fast today’s browsers have become — and how powerful and flexible
+                    today’s web platform is.
+                    """
+                    ],
+                Para [ fontSize = 16, bodyColor = { theme.muted }, html = """
+                    And yet the web as it actually stands is still, mostly, slow and
+                    clunky. Even brand-new sites. How can that be?
+                    """ ],
+                Para [ fontSize = 16, bodyColor = { theme.muted }, html = """
+                    It turns out the browser isn’t what makes the web feel worse than a
+                    good native app. It’s what we’ve built on top of it. A lot of
+                    accumulated code — and a lot of accumulated habits — take their toll,
+                    and the interfaces that do escape them are hand-crafted, one at a
+                    time, by specialists.
+                    """ ],
+                Para [ fontSize = 16, bodyColor = { theme.muted }, html = """
+                    In June I handed the original OpenLaszlo compiler to an LLM and got
+                    back a modern port that compiles any OpenLaszlo program perfectly,
+                    byte-for-byte.
+                    """ ],
+                Para [ fontSize = 16, bodyColor = { theme.muted }, html = """
+                    Seeing those programs again through fresh eyes — and seeing how small
+                    and how fast the sites built with them are — I decided the language
+                    deserved to be modernized. Declare is what came out of that: a direct
+                    descendant of OpenLaszlo, with the core ideas intact, built on an
+                    entirely new foundation, and shaped to be written with an LLM.
+                    """ ],
+                Para [ fontSize = 16, bodyColor = { theme.muted }, html = """
+                    Enjoy!
+                    """ ],
+                sig: Para [ fontSize = 16, bodyColor = { theme.dim }, html = """
+                    <em>— David Temkin</em>
+                    """ ],
+
                 gap: View [ width = 8, height = 64 ],
                 Footer [ width = { parent.width } ],
                 tail: View [ width = 8, height = 40 ]
@@ -1363,7 +1541,9 @@ App [ tagline: string = "the UI language designed for the AI era",
                 failed:  Text [ visible = { app.lang.failed }, fontSize = 15, textColor = { theme.faint }, wrap = true, width = { parent.width },
                     text = { "The language file did not load — " + (app.lang.error || "") } ],
                 doc: Markdown [ visible = { app.lang.loaded }, width = { parent.width }, lineHeight = 1.35, bodyColor = { theme.lead }, dark = true,
-                    text = { app.lang.value || "" } ],
+                    text = { app.lang.value || "" },
+                    onLink(href: string) { app.openLink(href) }
+                    ],
                 gap: View [ width = 8, height = 64 ],
                 Footer [ width = { parent.width } ],
                 tail: View [ width = 8, height = 40 ]
@@ -1406,7 +1586,9 @@ App [ tagline: string = "the UI language designed for the AI era",
                 failed:  Text [ visible = { app.guide.failed }, fontSize = 15, textColor = { theme.faint }, wrap = true, width = { parent.width },
                     text = { "The guide did not load — " + (app.guide.error || "") } ],
                 doc: Markdown [ visible = { app.guide.loaded }, width = { parent.width }, lineHeight = 1.35, bodyColor = { theme.lead }, dark = true,
-                    text = { app.guide.value || "" } ],
+                    text = { app.guide.value || "" },
+                    onLink(href: string) { app.openLink(href) }
+                    ],
                 gap: View [ width = 8, height = 64 ],
                 Footer [ width = { parent.width } ],
                 tail: View [ width = 8, height = 40 ]
@@ -1442,7 +1624,9 @@ App [ tagline: string = "the UI language designed for the AI era",
                 failed:  Text [ visible = { app.faq.failed }, fontSize = 15, textColor = { theme.faint }, wrap = true, width = { parent.width },
                     text = { "The FAQ did not load — " + (app.faq.error || "") } ],
                 doc: Markdown [ visible = { app.faq.loaded }, width = { parent.width }, lineHeight = 1.35, bodyColor = { theme.lead }, dark = true,
-                    text = { app.faq.value || "" } ],
+                    text = { app.faq.value || "" },
+                    onLink(href: string) { app.openLink(href) }
+                    ],
                 gap: View [ width = 8, height = 64 ],
                 Footer [ width = { parent.width } ],
                 tail: View [ width = 8, height = 40 ]
@@ -1472,9 +1656,12 @@ App [ tagline: string = "the UI language designed for the AI era",
            trimmed pill row.
 
            The threshold is the row's OWN width, not the window's (a plan watches
-           its view), and it is measured: the wordmark runs 53 and the pills 656,
-           so 772 leaves 63 between them. It is also the one number that moves
+           its view), and it is measured: the wordmark runs 53 and the pills 477,
+           so 593 leaves 63 between them. It is also the one number that moves
            when `navItems` gains an entry — which is why it is stated once.
+           (Was 772 against a 656px pill run, when the three applications each
+           had a pill of their own; folding them under `Apps` took 179 out of
+           the row, so the pills now survive to a much narrower window.)
 
            The Spacer is what right-aligns the run: it absorbs the slack between
            the wordmark and whatever follows. Shares fill; naturals align. */
@@ -1482,7 +1669,7 @@ App [ tagline: string = "the UI language designed for the AI era",
         bar: View [ x = { app.gutter }, y = 0, height = 56,
             width = { app.width - app.gutter * 2 },
             layout: ResponsiveLayout [ gap = 0, plan = { [
-                ({ from: 772, flow: "row", share: ({ kebab: 0 }) }),
+                ({ from: 593, flow: "row", share: ({ kebab: 0 }) }),
                 ({ from: 0,   flow: "row", share: ({ nav: 0 }) })] } ],
 
             // wordmark — the product name in the brand gradient, in the hero's typeface
@@ -1501,7 +1688,7 @@ App [ tagline: string = "the UI language designed for the AI era",
             nav: View [ y = 11,
                 layout: SimpleLayout [ axis = x, spacing = 2 ],
                 datapath = { app.navSource.value },
-                NavLink [ datapath = :items[], label = { :label }, to = { :to }, url = { :url } ]
+                NavLink [ datapath = :items[], label = { :label }, to = { :to }, at = { :at }, url = { :url } ]
                 ],
 
             // the kebab — three stacked dots (the page's dot motif), the pill's own
@@ -1556,11 +1743,16 @@ App [ tagline: string = "the UI language designed for the AI era",
             ],
         panel: View [ x = { app.width - app.gutter - this.width }, y = 62, width = 236, cornerRadius = 12,
             fill = { theme.surface }, shadow = { shadow(0, 12, 40, theme.shade) },
-            height = { app.navItems.length * 44 + 12 },
-            list: View [ x = 6, y = 6, width = { parent.width - 12 },
+
+            // DERIVED from the list, not counted: rows and group children are
+            // no longer one uniform height, so `navItems.length * 44` stated a
+            // relationship the sheet had already stopped having.
+
+            height = { this.list.contentHeight + 12 },
+            list: View [ x = 6, y = 6, width = { parent.width - 12 }, height = { this.contentHeight },
                 layout: SimpleLayout [ axis = y, spacing = 0 ],
                 datapath = { app.navSource.value },
-                MobileNavRow [ datapath = :items[], label = { :label }, to = { :to }, url = { :url } ]
+                MobileNavGroup [ datapath = :items[] ]
                 ]
             ]
         ]
