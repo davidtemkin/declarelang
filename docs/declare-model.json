@@ -40137,7 +40137,7 @@
      "kind": "doc",
      "label": "Markdown file",
      "path": "docs/system-design/location.md",
-     "preview": "0. PROPOSAL — one scheme for links, locations, and the crawl (2026-08-05) Status: draft under review. Written after the 2026-08-04 field findings (§12) and the from/to analysis (§13); supersedes §13 where they differ. Everything from §1 onw…"
+     "preview": "0. PROPOSAL — one scheme for links, locations, and the crawl (v2, 2026-08-05) Status: draft, revised after adversarial review. v1 was reviewed by an independent agent against the language doc, links.ts, the runtime's reveal machinery, and t…"
     },
     {
      "name": "Row materialization in the Apple lineage",
