@@ -1072,15 +1072,29 @@ await test("a declared attribute may be typed by a COMPONENT CLASS", () => {
 await test("scaffold: the Draw surface mirrors draw.ts — every member, no drift", async () => {
   // `draw(d: Draw)` is only as good as this mirror. The prelude is a hand-written
   // string (the scaffold runs in the browser and cannot read the filesystem), so
-  // the ONE failure mode is a member added to draw.ts and forgotten here — which
-  // silently makes a correct program a type error. Assert the surfaces agree.
+  // it can drift from the runtime in EITHER direction, and the two fail differently:
+  //
+  //   draw.ts has it, the scaffold does not  → a correct program is a type error.
+  //     Loud, and what this test originally checked.
+  //   the scaffold has it, draw.ts does not  → the program COMPILES, reads
+  //     `undefined` at runtime, and the arithmetic goes NaN. Silent.
+  //
+  // Only the first was asserted, which is exactly how `d.x`/`d.y`/`d.w`/`d.h` came
+  // to be typed here and absent from the runtime for as long as draw() has been
+  // typed: `d.w - 20` compiled, went NaN, bounded the recording to nothing, and the
+  // drawing vanished with no error at any rung (found by a cold agent run,
+  // 2026-08-05). The silent direction is the one worth gating; both are gated now.
   const { readFileSync } = await import("node:fs");
   const src = readFileSync(new URL("../runtime/src/draw.ts", import.meta.url), "utf8");
   const body = src.slice(src.indexOf("export class Draw {"));
   const real = new Set();
   for (const m of body.matchAll(/^  (?:get|set) ([a-zA-Z]\w*)\(/gm)) real.add(m[1]);
   for (const m of body.matchAll(/^  ([a-z]\w*)\(/gm)) real.add(m[1]);
-  for (const skip of ["constructor", "readOnly", "extend", "fn", "list"]) real.delete(skip);
+  // Internal to the recording, not author surface. Applied to BOTH sides: these
+  // are excluded from the comparison, not absent from the runtime, so the reverse
+  // check must not read them as phantoms.
+  const INTERNAL = ["constructor", "readOnly", "extend", "fn", "list"];
+  for (const skip of INTERNAL) real.delete(skip);
 
   const { generateScaffold } = await import("../compiler/dist/scaffold.js");
   const { parseProgram } = await import("../runtime/dist/parser.js");
@@ -1092,6 +1106,14 @@ await test("scaffold: the Draw surface mirrors draw.ts — every member, no drif
 
   const missing = [...real].filter((n) => !declared.has(n));
   assert.deepEqual(missing, [], `draw.ts members absent from the scaffold prelude: ${missing.join(", ")}`);
+
+  // …and the silent direction. A scaffold member the runtime does not supply reads
+  // `undefined` in every program that touches it.
+  const phantom = [...declared].filter((n) => !real.has(n) && !INTERNAL.includes(n));
+  assert.deepEqual(phantom, [],
+    `the scaffold prelude declares Draw members the runtime does not supply: ${phantom.join(", ")}\n` +
+    `      A program can reference these, typecheck, and read undefined at runtime.\n` +
+    `      Either implement them on class Draw (runtime/src/draw.ts) or delete them from the prelude.`);
 });
 
 await test("parse() reads a TYPED signature — language §4's canonical form", () => {

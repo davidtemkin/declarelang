@@ -191,6 +191,26 @@ export interface DisplayList {
  *  attribute inside draw is what re-triggers recording. */
 export declare class Draw {
     private readonly ops;
+    /** THE VIEW'S OWN SIZE, for a drawing that sizes itself — `d.w` / `d.h`.
+     *
+     *  The scaffold has typed these since draw() was typed at all, so arithmetic
+     *  on them compiled; the runtime never supplied them, so they read `undefined`,
+     *  the arithmetic went NaN, the recording bounded to nothing and the drawing
+     *  silently vanished. Typechecked, documented, and absent — found by a cold
+     *  agent run, 2026-08-05.
+     *
+     *  GETTERS, not fields, and that is the whole design. `record()` runs inside a
+     *  tracked computation, so reading the view's width here registers a dependency
+     *  — meaning a plain field would make EVERY drawing re-record on resize, which
+     *  is exactly the size-dependent recording the icon guidance warns costs a
+     *  reallocation per frame. A getter is read only if the body reads it, so the
+     *  dependency is pay-per-use: `d.w` opts a drawing into re-recording on resize,
+     *  and a drawing that never mentions it never pays. */
+    private readonly boxW;
+    private readonly boxH;
+    get w(): number;
+    get h(): number;
+    constructor(boxW?: () => number, boxH?: () => number);
     /** Everything painted so far; null until the first paint op. */
     private ink;
     /** Extent of the current path; reset by beginPath, kept by fill/stroke
@@ -307,7 +327,7 @@ export declare class Draw {
     private mark;
 }
 /** Run a draw method against a fresh recorder and return its display list. */
-export declare function record(fn: (d: Draw) => void): DisplayList;
+export declare function record(fn: (d: Draw) => void, boxW?: () => number, boxH?: () => number): DisplayList;
 /** Replay a recording into a real 2D context — the one interpreter both
  *  backends share, so a recording renders identically wherever it lands.
  *  Style state is saved/restored; the path is cleared on both sides (save/

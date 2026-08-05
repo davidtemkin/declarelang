@@ -601,7 +601,11 @@ export class View extends Node {
     }
     /** Stand up the draw method as a tracked, re-recording computation. */
     bindDraw() {
-        this.drawing = new Constraint(`${this.constructor.name}.draw`, () => record((d) => this.draw(d)), 
+        this.drawing = new Constraint(`${this.constructor.name}.draw`, 
+        // The box arrives as THUNKS so `d.w`/`d.h` register a dependency only when
+        // the body actually reads one (draw.ts) — a drawing that ignores its size
+        // must not re-record on every resize.
+        () => record((d) => this.draw(d), () => this.width, () => this.height), 
         // Constraint is deliberately untyped across compute→apply (reactive.ts);
         // this apply's input is exactly its compute's output.
         (list) => this.surface?.setDrawing(list), 1);

@@ -210,6 +210,18 @@ function explainTs(d: TsDiag, u: Unit, synthTags: ReadonlyMap<string, string>): 
     case 2339:
       m = msg.match(/Property '(.+?)' does not exist on type '(.+?)'/s);
       if (m !== null) {
+        // A `:path` LOWERS to `this.$data(…)`, so a path written on a non-view
+        // node surfaces here as a missing `$data` member — and the generic advice
+        // ("declare it: $data: <type> = …") is nonsense the author cannot act on.
+        // Two independent agents followed it. The real fact is that a cursor
+        // belongs to a VIEW; a State, Spring or Animator is a non-visual member
+        // with no datapath of its own, so the path has to be read on the view and
+        // pointed at from here.
+        if (m[1] === "$data" || m[1] === "$setData") {
+          const t = quoteType(m[2]);
+          return `a ':path' reads the enclosing VIEW's datapath, and ${t} is not a view — it has no cursor. ` +
+            `Declare an attribute on the enclosing view that reads the path ('n: number = { :field }'), and read that attribute here.`;
+        }
         // "declare it" is only advice on a COMPONENT, where a declaration is
         // the fix. On a primitive (a typed parameter's `number`, a `string`)
         // there is nothing to declare — the name is simply wrong, or the

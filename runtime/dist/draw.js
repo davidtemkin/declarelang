@@ -53,6 +53,29 @@ const isGradient = (v) => v instanceof DrawGradient;
  *  attribute inside draw is what re-triggers recording. */
 export class Draw {
     ops = [];
+    /** THE VIEW'S OWN SIZE, for a drawing that sizes itself — `d.w` / `d.h`.
+     *
+     *  The scaffold has typed these since draw() was typed at all, so arithmetic
+     *  on them compiled; the runtime never supplied them, so they read `undefined`,
+     *  the arithmetic went NaN, the recording bounded to nothing and the drawing
+     *  silently vanished. Typechecked, documented, and absent — found by a cold
+     *  agent run, 2026-08-05.
+     *
+     *  GETTERS, not fields, and that is the whole design. `record()` runs inside a
+     *  tracked computation, so reading the view's width here registers a dependency
+     *  — meaning a plain field would make EVERY drawing re-record on resize, which
+     *  is exactly the size-dependent recording the icon guidance warns costs a
+     *  reallocation per frame. A getter is read only if the body reads it, so the
+     *  dependency is pay-per-use: `d.w` opts a drawing into re-recording on resize,
+     *  and a drawing that never mentions it never pays. */
+    boxW;
+    boxH;
+    get w() { return this.boxW(); }
+    get h() { return this.boxH(); }
+    constructor(boxW = () => 0, boxH = () => 0) {
+        this.boxW = boxW;
+        this.boxH = boxH;
+    }
     // ── bounds bookkeeping (recording-internal, never exposed) ──
     /** Everything painted so far; null until the first paint op. */
     ink = null;
@@ -296,8 +319,8 @@ function union(b, x0, y0, x1, y1) {
     return { x: nx, y: ny, w: Math.max(b.x + b.w, x1) - nx, h: Math.max(b.y + b.h, y1) - ny };
 }
 /** Run a draw method against a fresh recorder and return its display list. */
-export function record(fn) {
-    const d = new Draw();
+export function record(fn, boxW, boxH) {
+    const d = new Draw(boxW, boxH);
     fn(d);
     return d.list();
 }

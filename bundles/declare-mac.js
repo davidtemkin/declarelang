@@ -4881,6 +4881,9 @@ var DeclareMac = (() => {
     if (RESERVED.includes(m.name)) {
       return err2(`'${m.name}' is a value constructor (gradient/stroke/shadow/stop) \u2014 it cannot be a member name`, m.pos);
     }
+    if (eventsOf(schema).includes(m.name)) {
+      return err2(`${schema.name}.${m.name}(\u2026) is never called \u2014 '${m.name}' is an EVENT here, delivered to '${handlerName(m.name)}'. Rename it to '${handlerName(m.name)}(\u2026)'. (The 'input(v)' value pattern belongs to CONTROLS \u2014 Checkbox, Slider, Segmented \u2014 which fire no such event; an editor delivers through its event instead.)`, m.pos);
+    }
     const event = eventOfHandler(m.name);
     if (event !== null && !eventsOf(schema).includes(event)) {
       const known2 = eventsOf(schema).map(handlerName);
@@ -6037,8 +6040,8 @@ var DeclareMac = (() => {
     const ny = Math.min(b.y, y0);
     return { x: nx, y: ny, w: Math.max(b.x + b.w, x1) - nx, h: Math.max(b.y + b.h, y1) - ny };
   }
-  function record(fn) {
-    const d = new Draw();
+  function record(fn, boxW, boxH) {
+    const d = new Draw(boxW, boxH);
     fn(d);
     return d.list();
   }
@@ -6062,6 +6065,33 @@ var DeclareMac = (() => {
       isGradient2 = (v) => v instanceof DrawGradient;
       Draw = class {
         ops = [];
+        /** THE VIEW'S OWN SIZE, for a drawing that sizes itself — `d.w` / `d.h`.
+         *
+         *  The scaffold has typed these since draw() was typed at all, so arithmetic
+         *  on them compiled; the runtime never supplied them, so they read `undefined`,
+         *  the arithmetic went NaN, the recording bounded to nothing and the drawing
+         *  silently vanished. Typechecked, documented, and absent — found by a cold
+         *  agent run, 2026-08-05.
+         *
+         *  GETTERS, not fields, and that is the whole design. `record()` runs inside a
+         *  tracked computation, so reading the view's width here registers a dependency
+         *  — meaning a plain field would make EVERY drawing re-record on resize, which
+         *  is exactly the size-dependent recording the icon guidance warns costs a
+         *  reallocation per frame. A getter is read only if the body reads it, so the
+         *  dependency is pay-per-use: `d.w` opts a drawing into re-recording on resize,
+         *  and a drawing that never mentions it never pays. */
+        boxW;
+        boxH;
+        get w() {
+          return this.boxW();
+        }
+        get h() {
+          return this.boxH();
+        }
+        constructor(boxW = () => 0, boxH = () => 0) {
+          this.boxW = boxW;
+          this.boxH = boxH;
+        }
         // ── bounds bookkeeping (recording-internal, never exposed) ──
         /** Everything painted so far; null until the first paint op. */
         ink = null;
@@ -7070,7 +7100,10 @@ var DeclareMac = (() => {
         bindDraw() {
           this.drawing = new Constraint(
             `${this.constructor.name}.draw`,
-            () => record((d) => this.draw(d)),
+            // The box arrives as THUNKS so `d.w`/`d.h` register a dependency only when
+            // the body actually reads one (draw.ts) — a drawing that ignores its size
+            // must not re-record on every resize.
+            () => record((d) => this.draw(d), () => this.width, () => this.height),
             // Constraint is deliberately untyped across compute→apply (reactive.ts);
             // this apply's input is exactly its compute's output.
             (list) => this.surface?.setDrawing(list),

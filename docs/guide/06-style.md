@@ -89,8 +89,9 @@ Three things worth knowing before you reach for it:
   `y`, `width` and `height`, still lays out, still takes clicks. Draw the part that is
   genuinely a shape; leave the box, the rounding and the shadow as attributes.
 - **`d` is Canvas2D-shaped** — `fillStyle`, `strokeStyle`, `lineWidth`, `beginPath`,
-  `moveTo`, `arc`, `bezierCurveTo`, `fill`, `stroke`, the transforms — and `d.x` / `d.y` /
-  `d.w` / `d.h` are the view's own box. The full surface is in the reference under
+  `moveTo`, `arc`, `bezierCurveTo`, `fill`, `stroke`, the transforms — and `d.w` / `d.h`
+  are the view's own size, for a drawing that sizes itself (reading one is what opts that
+  drawing into re-recording on resize). The full surface is in the reference under
   **Types and functions**.
 - **Never animate a drawing's size.** Reading `width` inside the body makes the recording
   size-dependent, so an animated width re-records *and* reallocates its backing store every

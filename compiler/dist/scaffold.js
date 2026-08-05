@@ -107,7 +107,14 @@ interface DrawGradient { addColorStop(offset: number, color: string | Color): vo
  *  shaped recorder. Mirrors runtime/src/draw.ts; every \`draw(d)\` in the corpus
  *  was \`any\` until this was declared. */
 interface Draw {
-  x: number; y: number; w: number; h: number;
+  // The view's own SIZE, for a drawing that sizes itself. Reading one opts this
+  // drawing into re-recording when the view resizes (draw.ts explains why that
+  // is a getter and not a field). There is no \`x\`/\`y\`: a recording's origin IS
+  // the view's top-left, so they could only ever be 0 — they were typed here and
+  // unsupplied by the runtime, which made \`d.w - 20\` compile, read undefined,
+  // go NaN, and silently erase the drawing.
+  w: number;
+  h: number;
   fillStyle: string | Color | DrawGradient;
   strokeStyle: string | Color | DrawGradient;
   lineWidth: number;

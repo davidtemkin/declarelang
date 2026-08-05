@@ -135,6 +135,31 @@ export interface DisplayList {
 export class Draw {
   private readonly ops: DrawOp[] = [];
 
+  /** THE VIEW'S OWN SIZE, for a drawing that sizes itself — `d.w` / `d.h`.
+   *
+   *  The scaffold has typed these since draw() was typed at all, so arithmetic
+   *  on them compiled; the runtime never supplied them, so they read `undefined`,
+   *  the arithmetic went NaN, the recording bounded to nothing and the drawing
+   *  silently vanished. Typechecked, documented, and absent — found by a cold
+   *  agent run, 2026-08-05.
+   *
+   *  GETTERS, not fields, and that is the whole design. `record()` runs inside a
+   *  tracked computation, so reading the view's width here registers a dependency
+   *  — meaning a plain field would make EVERY drawing re-record on resize, which
+   *  is exactly the size-dependent recording the icon guidance warns costs a
+   *  reallocation per frame. A getter is read only if the body reads it, so the
+   *  dependency is pay-per-use: `d.w` opts a drawing into re-recording on resize,
+   *  and a drawing that never mentions it never pays. */
+  private readonly boxW: () => number;
+  private readonly boxH: () => number;
+  get w(): number { return this.boxW(); }
+  get h(): number { return this.boxH(); }
+
+  constructor(boxW: () => number = () => 0, boxH: () => number = () => 0) {
+    this.boxW = boxW;
+    this.boxH = boxH;
+  }
+
   // ── bounds bookkeeping (recording-internal, never exposed) ──
   /** Everything painted so far; null until the first paint op. */
   private ink: Bounds | null = null;
@@ -416,8 +441,8 @@ function union(b: Bounds | null, x0: number, y0: number, x1: number, y1: number)
 }
 
 /** Run a draw method against a fresh recorder and return its display list. */
-export function record(fn: (d: Draw) => void): DisplayList {
-  const d = new Draw();
+export function record(fn: (d: Draw) => void, boxW?: () => number, boxH?: () => number): DisplayList {
+  const d = new Draw(boxW, boxH);
   fn(d);
   return d.list();
 }

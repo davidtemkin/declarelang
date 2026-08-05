@@ -498,7 +498,10 @@ const sharedTypesDoc = (spine) => {
     "    d.fill()",
     "    }",
     "```", "",
-    "`d.x` / `d.y` / `d.w` / `d.h` are the view's own box, so a drawing can size itself.", "");
+    "`d.w` / `d.h` are the view's own size, for a drawing that sizes itself. Reading one is",
+    "what opts a drawing into re-recording when the view resizes — a body that never mentions",
+    "them never pays for the resize. (There is no `d.x`/`d.y`: a recording's origin IS the",
+    "view's top-left, so they could only be 0.)", "");
   if (props.length) out.push("**State you set:** " + props.map(cell).join(" · "), "");
   if (calls.length) out.push("**Calls:** " + calls.map((m) => "`" + m.replace(/\s*\{.*$/, "") + "`").join(" · "), "");
 

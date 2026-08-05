@@ -95,13 +95,19 @@ Two brackets carry the entire syntax. **`[ … ]` holds a component's members** 
 declarations, methods, children — and the bracket nesting *is* the tree. **`{ … }` is
 TypeScript**, type-checked against every component's real API.
 
-A value slot accepts three things, and the spelling tells you which:
+A value slot accepts four things, and the spelling tells you which:
 
 | you write | it is | example |
 |---|---|---|
 | a **bare** value | a literal, set once | `width = 100%`, `fill = navy` |
+| a **bare list** | a literal list, for an array-typed slot | `listenTo = ["delta", "done"]` |
 | a **`{ … }`** value | a live expression — a **constraint** | `width = { parent.width - 10 }` |
 | a **`:`-prefixed** path | a read from bound data — a **datapath** | `text = :title` |
+
+A bare literal is the value itself, so a `script { }` constant is *not* one: `tint = SEAT_FREE`
+reads the bare slot's own vocabulary and fails ("not a CSS color name"). Reach a constant
+through a constraint — `tint = { SEAT_FREE }` — which is where identifiers mean what
+TypeScript says they mean.
 
 ### The vocabulary stops at the brace
 
@@ -123,7 +129,10 @@ A body is TypeScript at full expression strength: ternaries, template literals, 
 closures, and casts (`x as T`, `x!`), which are type-checked and then stripped. Two limits, each
 a compile error naming the rewrite. **A value body is a single expression** — statements live in
 methods. **Type annotations do not live in bodies** — a declared type belongs on the attribute,
-as `name: type = …`.
+as `name: type = …`. That covers local bindings and lambda parameters too, not just
+attributes: `const xs: number[] = …` inside a method is refused; narrow with `x as T`
+instead. (A top-level `script { }` is different — it is plain TypeScript and takes
+annotations everywhere, so the same line is legal there and illegal in a body.)
 
 **A `:path` may also appear inside a `{ }` body**, and this is central rather than exotic: it is
 how anything conditional over replicated data gets written. `text = { :on ? :title : "—" }` reads

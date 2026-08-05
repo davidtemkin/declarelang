@@ -25,7 +25,7 @@ nothing below is "a control and a component."
 | `Switch [ checked ]` | `checked: boolean` | sliding-thumb boolean |
 | `RadioGroup [ value ]` + `Radio [ choice, label ]` | `value: string` on the group | one-of-N |
 | `Slider [ value, min, max, step ]` | `value: number` | drag or arrow keys |
-| `Segmented [ choices, value ]` | `value` matching a choice's `id` | one-of-N shown all at once |
+| `Segmented [ choices, value ]` | `value` matching a choice's `id` | one-of-N shown all at once — **set `width`**: it divides evenly and does not self-size to its labels |
 | `Combobox [ items, value ]` | the chosen **member** | filter-as-you-type over a collection |
 | `TextInput [ text, placeholder ]` | `text: string` | the one editor — see [chapter 9](declare-docs:guide:data) |
 

@@ -66,6 +66,13 @@ takes exactly what the handler needs in order to fire, and not one gesture more:
 | `onDblClick` | the double tap | nothing — a double click was always yours |
 | `onWheel` | — | the wheel over this view, trackpad pinch included |
 | the `onTouch*` family | **every finger** | — |
+| `claim = x` (or `y`, `both`) | *narrows* a claim to one axis — the page keeps the other | — |
+
+**`claim` is the knob for "drag horizontally on a page that scrolls vertically."** It
+scopes a claim you already have rather than making one: declare the drag handler, then
+`claim = x`, and a finger travelling sideways is yours while a finger travelling down
+still scrolls the page. A `DataGrid` header drags this way. It cannot help once the
+`onTouch*` family has taken **every** finger, because there is nothing left to narrow.
 
 `onClick`, `onPointerDown`, and `onHold` alone claim nothing. A tap coexists with every
 browser gesture — that is the resolved layer's whole point — and when the browser
@@ -147,8 +154,10 @@ App [
 
 Every finger now arrives with a stable `id` for the life of its contact;
 `e.touches` is every finger currently down, `e.changed` the one this event is
-about, and coordinates are root-space throughout — a gesture engine wants one
-fixed frame. `onWheel` is the desktop half of the same ownership: a trackpad
+about, and **the touch family's coordinates are root-space throughout** — a gesture
+engine wants one fixed frame. (`onWheel` is the exception to keep straight: its
+coordinates are **view-local**, like `onPointerDown`'s. Only the multi-finger stream is
+root-space.) `onWheel` is the desktop half of the same ownership: a trackpad
 pinch arrives on the wheel stream (with `e.pinch` true), so the app that
 integrates its own zoom hears mouse wheels, trackpad scrolls, and trackpad
 pinches through one handler.

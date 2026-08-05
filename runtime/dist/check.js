@@ -1301,6 +1301,24 @@ export function checkMethod(schema, m) {
     if (RESERVED.includes(m.name)) {
         return err(`'${m.name}' is a value constructor (gradient/stroke/shadow/stop) — it cannot be a member name`, m.pos);
     }
+    // A METHOD named exactly like one of this component's EVENTS is a dead member:
+    // the runtime fires the event, which resolves to the `on…` handler, and nothing
+    // ever calls the bare name. It compiles, typechecks, and silently does nothing.
+    //
+    // The case that found this (cold agent run, 2026-08-05): `TextInput` fires
+    // `input`, and the value pattern the guide teaches for CONTROLS is `value = { … }`
+    // + `input(v)`. That is right for Checkbox/Slider/Segmented — which have no
+    // `input` event and really do take an `input` METHOD — and wrong for an editor,
+    // where the same spelling is a field that saves nothing, forever. Nothing named
+    // the difference, so it shipped into a finished app and was caught end-to-end.
+    //
+    // Keyed on the schema's own event list rather than on a hardcoded name, so it
+    // covers every such collision and cannot fire where the event does not exist.
+    if (eventsOf(schema).includes(m.name)) {
+        return err(`${schema.name}.${m.name}(…) is never called — '${m.name}' is an EVENT here, delivered to '${handlerName(m.name)}'. ` +
+            `Rename it to '${handlerName(m.name)}(…)'. (The 'input(v)' value pattern belongs to CONTROLS — Checkbox, Slider, ` +
+            `Segmented — which fire no such event; an editor delivers through its event instead.)`, m.pos);
+    }
     const event = eventOfHandler(m.name);
     if (event !== null && !eventsOf(schema).includes(event)) {
         const known = eventsOf(schema).map(handlerName);
