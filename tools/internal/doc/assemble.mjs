@@ -160,8 +160,13 @@ function typeSpine() {
  *  cannot drift from what the compiler actually emits. */
 function sharedTypes() {
   const src = readFileSync(join(ROOT, "compiler/src/scaffold.ts"), "utf8");
-  const prelude = src.split("const PRELUDE = `")[1]?.split("\n`;")[0] ?? "";
-  const out = { interfaces: [], aliases: [], functions: [] };
+  // The template literal closes with a backtick-semicolon at the END of its last
+  // line, not on a line of its own — splitting on "\n`;" therefore ran to EOF and
+  // scanned the whole of scaffold.ts. The three forms parsed here happen not to
+  // appear after the prelude, so it produced correct output by luck; the
+  // form-agnostic gate is what exposed it.
+  const prelude = src.split("const PRELUDE = `")[1]?.split(/`;\s*$/m)[0] ?? "";
+  const out = { interfaces: [], aliases: [], functions: [], namespaces: [] };
   // Line-based, because the PRELUDE mixes forms: block interfaces, one-liners
   // (`interface Touch { id: number; x: number }`), and `extends` (`interface
   // WheelEvent extends PointerEvent { … }`). A block regex swallowed every
@@ -184,6 +189,26 @@ function sharedTypes() {
       }
     }
     out.interfaces.push({ name, extends: base ?? null, members });
+  }
+  // `declare const NAME: { … }` — the namespaced objects (`Themes.sanFrancisco(dark)`,
+  // `Inspect.…`). A fourth declaration form the first pass skipped silently, which is
+  // how `Themes` stayed absent from the reference while the theme page told readers to
+  // call it. Same one-liner-or-block shape as the interfaces above.
+  for (let i = 0; i < lines.length; i++) {
+    const head = lines[i].match(/^declare const\s+([A-Za-z]\w*)\s*:\s*\{(.*)$/);
+    if (!head) continue;
+    const [, name, rest] = head;
+    let members = [];
+    if (rest.includes("}")) members = splitMembers(rest.slice(0, rest.lastIndexOf("}")));
+    else {
+      members = splitMembers(rest);
+      for (i++; i < lines.length && !/^\}/.test(lines[i]); i++) {
+        const l = lines[i].trim();
+        if (!l || l.startsWith("//") || l.startsWith("*") || l.startsWith("/*")) continue;
+        members.push(...splitMembers(l.replace(/^\{|\}$/g, "")));
+      }
+    }
+    out.namespaces.push({ name, members: members.filter(Boolean) });
   }
   for (const m of prelude.matchAll(/^type\s+([A-Za-z]\w*)\s*=\s*([^\n]+?);?$/gm)) {
     out.aliases.push({ name: m[1], type: m[2].trim().replace(/;$/, "") });
@@ -409,6 +434,8 @@ const VOCAB_NOTE = {
   Stroke: "a width and a colour — build it with `stroke(w, c)`. A border *is* a stroke",
   Shadow: "offset, blur and colour — build it with `shadow(dx, dy, blur, c)`",
   Theme: "the prevailing token record; see **Theme tokens** for the vocabulary components read",
+  Themes: "The shipped theme presets — each takes a dark flag and returns a complete token record. **This is what you build a theme from**; an empty record is not a theme. Available without an include.",
+  Inspect: "The running program's introspection surface, behind the same door as `__declare.explain` — dev tooling, stubbed in a production build unless you pass `declarec --debug`.",
   Cursor: "a datapath's resolved position — `.data` and `.path`",
   MotionCurve: "an easing curve for an `Animator`",
   PointerEvent: "a pointer went down, moved, or a view was clicked",
@@ -495,6 +522,13 @@ const sharedTypesDoc = (spine) => {
 
   out.push("", "## Global functions", "", "| call | what it does |", "|---|---|");
   for (const f of t.functions) out.push(`| ${cell(f.signature)} | ${VOCAB_NOTE[f.name] ?? ""} |`);
+
+  for (const ns of t.namespaces ?? []) {
+    if (ns.name === "console") continue;                        // the platform's own, not ours
+    out.push("", `## \`${ns.name}\``, "", VOCAB_NOTE[ns.name] ?? "", "",
+      "| call | |", "|---|---|",
+      ...ns.members.map((m) => `| ${cell(ns.name + "." + m)} | ${VOCAB_NOTE[ns.name + "." + m.replace(/[(:].*$/, "")] ?? ""} |`));
+  }
   return out.join("\n");
 };
 

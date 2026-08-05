@@ -153,18 +153,22 @@ await test("reference: every callable-surface member is documented", async () =>
 await test("vocabulary: every shared type and global function is projected", () => {
   const model = JSON.parse(readFileSync(resolve(HERE, "..", "docs/declare-model.json"), "utf8"));
   const src = readFileSync(resolve(HERE, "..", "compiler/src/scaffold.ts"), "utf8");
-  const prelude = src.split("const PRELUDE = `")[1]?.split("\n`;")[0] ?? "";
-  const want = {
-    interfaces: [...prelude.matchAll(/^interface\s+([A-Za-z]\w*)/gm)].map((m) => m[1]),
-    aliases: [...prelude.matchAll(/^type\s+([A-Za-z]\w*)/gm)].map((m) => m[1]),
-    functions: [...prelude.matchAll(/^declare function\s+([A-Za-z]\w*)/gm)].map((m) => m[1]),
-  };
+  // the literal closes with `; at the END of a line — see the same note in assemble.mjs
+  const prelude = src.split("const PRELUDE = `")[1]?.split(/`;\s*$/m)[0] ?? "";
+  if (!prelude.includes("interface Draw")) throw new Error("the PRELUDE boundary no longer matches — this gate is scanning the wrong text");
+  // FORM-AGNOSTIC on purpose. The first version of this gate enumerated the three
+  // forms the parser happened to handle, so it passed while `declare const` — i.e.
+  // `Themes`, the thing the theme docs tell you to call — was skipped entirely. A
+  // gate that only checks what its parser already understands cannot catch the
+  // parser's blind spot. So: scan EVERY top-level declaration, whatever its keyword,
+  // and demand the projection carries the name. A new form fails here loudly.
+  const declared = [...prelude.matchAll(/^(?:declare\s+)?(?:interface|type|function|const|var|let|class|enum|namespace)\s+([A-Za-z]\w*)/gm)]
+    .map((m) => m[1]);
   const got = model.spine?.types?.shared;
   if (!got) throw new Error("spine.types.shared is missing — the PRELUDE projection did not run");
-  const holes = [];
-  for (const kind of ["interfaces", "aliases", "functions"]) {
-    for (const n of want[kind]) if (!got[kind].some((x) => x.name === n)) holes.push(`${kind}: ${n}`);
-  }
+  const projected = new Set(Object.values(got).flat().map((x) => x.name));
+  const holes = declared.filter((n) => n !== "console" && !projected.has(n))
+    .map((n) => `${n} — declared in the check block, absent from the projection`);
   // an interface that parsed to nothing means the parser lost its shape
   for (const i of got.interfaces) if (!i.members.length) holes.push(`interfaces: ${i.name} parsed with no members`);
   if (holes.length) throw new Error("the check block declares these, but the reference does not carry them:\n      " + holes.join("\n      "));

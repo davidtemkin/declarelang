@@ -172,6 +172,15 @@ change. Free text forecloses that.
 
 When the count reaches zero, drop the library exemption from the gate.
 
+**EXEMPTION RETIRED, 2026-08-05.** The count reached zero and the gate was widened to
+cover both tiers — `test/schema-completeness.test.mjs`, *"every attribute in the reference
+carries prose — runtime AND library"*, with `**Internal.**`-marked members excluded because
+a marker is a decision on the record and silence is what the gate is for. Caught late, and
+worth recording why: the pass below reported the debt as closed while the exemption stayed
+in the test, so library prose was unguarded and could have eroded straight back. **Closing
+a debt and retiring its exemption are two separate acts**; the second is the one that
+holds.
+
 **DONE, 2026-08-05.** The library prose pass landed: all **356** library reference
 entries carry prose — 305 API entries plus 51 marked `**Internal.**`. The named
 concentrations (`FocusRing`, `Menu`, `DataGrid`, `Tooltip`, `Dialog`, `Combobox`,
@@ -238,6 +247,18 @@ Both are gated in `test/docs.test.mjs` — one asserting every PRELUDE declarati
 projected (and that no interface parsed to zero members, which is how a silently-broken
 parser announces itself), one asserting every required token is stated by the shipped
 preset.
+
+**The vocabulary gate is FORM-AGNOSTIC, and that is the whole lesson.** Its first version
+enumerated the three declaration forms the parser happened to handle — so it passed while
+`declare const` was skipped entirely, leaving `Themes` (the thing the theme page tells you
+to call) out of the reference. *A gate that checks only what its parser already understands
+cannot catch the parser's blind spot.* It now scans every top-level declaration whatever
+its keyword, so a new form fails loudly. Tightening it immediately exposed a second defect:
+the PRELUDE's template literal closes with a backtick-semicolon at the **end** of its last
+line, so splitting on `"\n\`;"` ran to EOF and both the parser and the gate had been
+scanning the whole of `scaffold.ts` — correct output by luck, since the three original
+forms happen not to appear afterwards. Both now split on `` /`;\s*$/m ``, and the gate
+asserts its own boundary still contains `interface Draw` before trusting what it read.
 
 Guide: chapter 6's "Drawing a view" was renamed **"Painting a view"** — it was about
 paint *attributes* and had been standing in for the drawing story — and a real

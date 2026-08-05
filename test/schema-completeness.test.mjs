@@ -102,30 +102,42 @@ await test("no EXEMPT entry has gone stale", () => {
   assert.deepEqual(stale, [], `stale exemptions: ${stale.join("; ")}`);
 });
 
-await test("every RUNTIME attribute carries prose (library exempt for now)", () => {
+await test("every attribute in the reference carries prose — runtime AND library", () => {
   // The second half of "reaches the reference": declared is not the same as
   // documented, and an attribute that lands there blank is only marginally more
-  // use than one that is missing. The runtime surface — what `declare.md` and
-  // `SKILL.md` point at as the authority — is now complete, so this holds it.
+  // use than one that is missing.
   //
-  // The LIBRARY is exempt deliberately, and it is the larger number: ~130 of its
-  // attributes have no prose. That is real debt, but it is not this bug, and
-  // gating it today would only mean turning the gate off. Ratchet it when the
-  // components are written up; the exemption is a dated decision, not an opinion
-  // that library prose does not matter.
+  // THE LIBRARY EXEMPTION IS RETIRED (2026-08-05). It was a dated decision taken
+  // when ~130 library attributes had no prose; the library prose pass closed that
+  // to zero (documentation.md §4a), and an exemption that outlives its reason is
+  // exactly where real omissions go to hide. So the gate now covers both tiers —
+  // which is the ratchet the original comment asked for, and it is what stops the
+  // pass from quietly eroding one component at a time.
+  //
+  // `**Internal.**`-marked members are excluded: whether something is API is an
+  // editorial judgment (§4a), and a marker is a decision on the record — unlike
+  // silence, which is what this gate exists to catch.
   const model = JSON.parse(readFileSync("docs/declare-model.json", "utf8"));
   const blank = [];
   for (const [id, e] of Object.entries(model.reference)) {
     if (e.kind !== "attribute") continue;
-    const cls = id.split(".")[0];
-    if (SCHEMAS[cls] === undefined) continue;                 // library class — exempt
+    if (e.api === false || e.internal === true) continue;     // structural-only / marked Internal
     if (typeof e.doc === "string" && e.doc.trim() !== "") continue;
     blank.push(id);
   }
+  // The two tiers keep their prose in different places, so the fix has to name the
+  // right one — a message that sends a library author to prose/<Class>.md is a
+  // diagnostic that fails its own standard.
+  const where = (id) => {
+    const cls = id.split(".")[0];
+    return SCHEMAS[cls] !== undefined
+      ? `${id} → add '## ${id.split(".").pop()}' to tools/internal/doc/prose/${cls}.md`
+      : `${id} → add '## ${id.split(".").pop()}' to the /* # ${cls} … */ header block in library/`;
+  };
   assert.deepEqual(blank, [],
-    `these runtime attributes are declared but undocumented, so the reference shows them blank.\n` +
-    `      Add a '## <name>' section to tools/internal/doc/prose/<Class>.md and re-run extract+assemble.\n` +
-    `      Blank: ${blank.join(", ")}`);
+    `these attributes are declared but undocumented, so the reference shows them blank.\n` +
+    `      Then re-run: node tools/internal/derive.mjs\n` +
+    `      ${blank.map(where).join("\n      ")}`);
 });
 
 summarize("schema-completeness");
