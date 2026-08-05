@@ -49,6 +49,11 @@ final class Node {
     var clipPath: CGPath?
     /// This surface opts out of its PARENT's box clip (`ignoreclip`).
     var ignoresClip = false
+    /// This child does not ride its parent's scroll — fixed chrome. Realized by
+    /// hosting the layer on the scroller's OWN layer rather than on the content
+    /// layer the scroll translates, which is the same shape `ignoresClip` uses
+    /// to escape the clip: stay beside the thing that moves, not inside it.
+    var ignoresScroll = false
     /// This surface hosts an EMBEDDED app (an island). Its interior belongs to
     /// the tenant, so it clips to the box like the web's island element does.
     var isEmbedHost = false
@@ -435,6 +440,18 @@ final class LayerTree {
             guard let n = nodes[id] else { return }
             n.ignoresClip = num(a(0)) != 0
             if let p = n.parent { restack(p); applyClip(p) }
+        case 34: // RICHWIDTH — a rich flow adopts a new width WITHOUT re-flowing
+            guard let n = nodes[id], let r = n.rich else { return }
+            r.adoptWidth(num(a(0)))
+        case 33: // IGNORESCROLL — this surface is pinned to its scroller's frame
+            guard let n = nodes[id] else { return }
+            let on = num(a(0)) != 0
+            guard on != n.ignoresScroll else { return }
+            n.ignoresScroll = on
+            // Re-host: restack decides content-layer vs own-layer per child, and
+            // the layer must be re-placed because its parent-relative y is now
+            // measured against a box that no longer scrolls under it.
+            if let p = n.parent { restack(p); place(n) }
         default:
             break
         }
@@ -501,11 +518,26 @@ final class LayerTree {
             return
         }
 
-        let childLayers = n.children.map { $0.layer }
-        for c in childLayers { if c.superlayer !== host { host.addSublayer(c) } }
-        // Enforce order explicitly (CALayer keeps insertion order).
-        n.layer.sublayers = order + (n.content === n.layer ? childLayers : []) + top
-        if n.content !== n.layer { n.content.sublayers = childLayers }
+        // PINNED children (ignoreScroll) host on the scroller's own layer, which
+        // does not translate, while the rest ride the content layer that does.
+        // Only meaningful when this surface actually scrolls — on a non-scrolling
+        // parent `content === layer`, so the split is a no-op and the flag simply
+        // waits for an ancestor that scrolls. (v1 scope: the pin is against the
+        // DIRECT parent's scroll, which is every use in the corpus — chrome is
+        // declared inside the scroller it pins to. A pinned node nested deeper
+        // still rides the intervening boxes; the DOM backend resolves that by
+        // walking to the nearest scrolling ancestor, and matching it needs
+        // re-homing across nodes, not just a different host layer here.)
+        let scrolling = n.content !== n.layer
+        let pinned = scrolling ? n.children.filter { $0.ignoresScroll }.map { $0.layer } : []
+        let flowing = scrolling ? n.children.filter { !$0.ignoresScroll }.map { $0.layer }
+                                : n.children.map { $0.layer }
+        for c in flowing { if c.superlayer !== host { host.addSublayer(c) } }
+        for c in pinned { if c.superlayer !== n.layer { n.layer.addSublayer(c) } }
+        // Enforce order explicitly (CALayer keeps insertion order). Pinned chrome
+        // sits after the content layer, so it paints over what scrolls beneath it.
+        n.layer.sublayers = order + (scrolling ? [] : flowing) + pinned + top
+        if scrolling { n.content.sublayers = flowing }
     }
 
     /// A surface that scrolls on EITHER axis carries its children on a content

@@ -67,6 +67,25 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
     /// that changes neither can be answered from the cache.
     private var lastJSON: String = ""
     private var lastWidth: CGFloat = -1
+    /// WIDTH ONLY — the `setRichWidth` seam. An all-`pre` flow cannot re-wrap,
+    /// so a width change alters nothing about its lines or its height; what it
+    /// MUST still do is adopt the width, because the host box bounds the pre's
+    /// native horizontal scroller and a box stuck at its boot-time width clips
+    /// the flow to nothing. (On the DOM backend that same absence rendered the
+    /// Viewer's Source tab blank.) No blocks cross the bridge for this.
+    func adoptWidth(_ width: CGFloat) {
+        let w = max(1, width)
+        guard w != flowWidth else { return }
+        flowWidth = w
+        text.frame = CGRect(x: 0, y: 0, width: w, height: max(1, lastHeight))
+        text.textContainer?.containerSize = NSSize(width: w, height: .greatestFiniteMagnitude)
+        lastWidth = width
+        // The rastered band is as wide as the flow; leaving it behind would clip
+        // the newly revealed columns to the old width.
+        contentLayer.bounds = CGRect(x: 0, y: 0, width: w, height: contentLayer.bounds.height)
+        redraw()
+    }
+
     /// Can this re-set be answered without parsing the JSON at all? The parse
     /// itself was 4.3 MB per resize drag, so the check has to come first.
     func cachedHeight(json: String, width: CGFloat, selectable: Bool) -> CGFloat? {
@@ -129,6 +148,8 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
         if !json.isEmpty, json == lastJSON, width == lastWidth, selectable == self.selectable {
             return lastHeight
         }
+        // The width-only entry (setRichWidth) reaches the same adoption without
+        // carrying the blocks across the bridge at all — see `adoptWidth`.
         // SAME CONTENT, NEW WIDTH, AND NOTHING WRAPS — the lines are identical,
         // so only the container needs the new width. This is every code block:
         // rebuilding the attributed string for them was the bulk of a resize

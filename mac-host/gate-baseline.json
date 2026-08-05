@@ -20,8 +20,9 @@
     "structural": 0.01
   },
   "calendar": {
-    "differing": 0.75,
-    "structural": 0.3
+    "differing": 0.62,
+    "structural": 0.26,
+    "blessedIn": "2026-08"
   },
   "weather": {
     "differing": 0.05,
@@ -29,23 +30,27 @@
   },
   "controls": {
     "differing": 1.17,
-    "structural": 0.78
+    "structural": 0.79
   },
   "desktop": {
-    "differing": 8.77,
-    "structural": 1.88
+    "differing": 8.73,
+    "structural": 1.91
   },
   "richtext": {
-    "differing": 0.9,
-    "structural": 0.83
+    "differing": 0.86,
+    "structural": 0.4
   },
   "editable": {
     "differing": 0.26,
-    "structural": 0.22
+    "structural": 0.18
   },
   "ignorescroll": {
-    "differing": 1.18,
-    "structural": 1.17,
-    "note": "KNOWN GAP, not agreement: the native backend has no setIgnoreScroll (test/seam.test.mjs), so this probe's pinned chrome scrolls away with the content and this figure IS the size of that hole. Implementing it should DROP the number \u2014 the gate will report an improvement and the baseline should be re-blessed then."
+    "differing": 0.01,
+    "structural": 0,
+    "note": "CLOSED 2026-08-05. This was the recorded hole: with no setIgnoreScroll on the native backend the probe pinned chrome scrolled away, and the figure WAS the size of that absence (1.18% differing / 1.17% structural). The seam landed and the number fell to agreement, which is the improvement this note predicted. Kept as the record of what the probe is FOR — it is the one program here whose diff is a capability check rather than a rasterization check, so a regression in it means the pin broke, not that text moved."
+  },
+  "lzx-weather": {
+    "differing": 0.05,
+    "structural": 0.03
   }
 }

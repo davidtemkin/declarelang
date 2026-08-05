@@ -15721,7 +15721,9 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     IGNORECLIP: 29,
     SCROLLX: 30,
     SCROLLXPOS: 31,
-    PAGEFILL: 32
+    PAGEFILL: 32,
+    IGNORESCROLL: 33,
+    RICHWIDTH: 34
   };
   function host() {
     const h = globalThis.__declareMacHost;
@@ -15873,6 +15875,18 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       this.ignoresClip = on;
       emit(OP.IGNORECLIP, this.id, on ? 1 : 0);
     }
+    /** Fixed chrome: this surface does not ride its scroller's content. The host
+     *  realizes it by hosting the layer on the scroller's OWN layer rather than
+     *  the content layer that translates — the same escape shape `setIgnoreClip`
+     *  uses, one property over.
+     *
+     *  Was absent entirely until 2026-08-05, which the seam table (test/seam.test.mjs)
+     *  had recorded as a GAP and gate-baseline.json had sized: `ignorescroll`'s
+     *  1.17% structural figure WAS this hole, since no pixel test can see an
+     *  absence unless something is actually scrolled under the pinned thing. */
+    setIgnoreScroll(on) {
+      emit(OP.IGNORESCROLL, this.id, on ? 1 : 0);
+    }
     /** An app ROOT (top-level or an island tenant) — roots keep to their frame
      *  and never self-scroll (the DOM's applyScrollStyle root branch). Stamped by
      *  attachRoot / mountEmbed, which run AFTER attach's scrolls push — so the
@@ -15997,6 +16011,14 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
       richCallbacks.set(this.id, { onResize, onLink });
       this.richHeight = host().richLayout(this.id, JSON.stringify(blocks), selectable, width);
       return this.richHeight;
+    }
+    /** Width-only: an all-`pre` flow cannot re-wrap, so its lines and height are
+     *  unchanged — but the host box must still adopt the width, because it bounds
+     *  the pre's native horizontal scroller and a box left at its boot-time width
+     *  clips the flow to nothing. No blocks cross the bridge: the host holds the
+     *  laid-out state and only re-sizes its container. */
+    setRichWidth(width) {
+      emit(OP.RICHWIDTH, this.id, width);
     }
     /** Called from the host when a rich flow's laid-out height is known. */
     applyRichHeight(h) {
@@ -16149,6 +16171,27 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
     /** Content extent for scrolling: the furthest child bottom. */
     /** The DOM's `scrollHeight`: where the content ends, descendants included
      *  (see contentExtentX for why the walk has to go deeper than the children). */
+    /** A windowed block's LOGICAL extent — the DOM backend's strut, as a floor.
+     *
+     *  A virtualized collection materializes ~a viewport of rows, so the walk
+     *  below measures the WINDOW and the scroller's range would cover only the
+     *  rows currently realized: dragging the thumb to the end lands mid-collection.
+     *  The DOM realizes the floor as an inert zero-width strut child whose height
+     *  IS the range; there is no reason to fake a child here, because the extent
+     *  is computed rather than measured — a floor says the same thing directly.
+     *  `null` clears it (the block stopped virtualizing). */
+    virtualExtent = null;
+    setVirtualExtent(h) {
+      if (h === this.virtualExtent)
+        return;
+      this.virtualExtent = h;
+      for (let sc = this.parent; sc !== null; sc = sc.parent) {
+        if (!sc.scrolls)
+          continue;
+        emit(OP.SCROLLPOS, sc.id, sc.scrollOffset, sc.contentExtent());
+        break;
+      }
+    }
     contentExtent() {
       let max = 0;
       for (const c of this.children) {
@@ -16161,7 +16204,7 @@ Replace the constraint instead:  ${attr} = { \u2026 }`);
         if (b > max)
           max = b;
       }
-      return max;
+      return this.virtualExtent !== null ? Math.max(max, this.virtualExtent) : max;
     }
     /** Hit-test a point in this surface's parent coordinates. The canvas
      *  backend's walk, kept identical so the two renderers resolve the same

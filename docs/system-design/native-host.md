@@ -30,10 +30,10 @@ same view; a declared scroll offset lands identically (dom 320 · canvas 320 · 
 320); the hit walk's **reasoning** matches node for node (6 nodes); the tree's shape
 matches (6 boxes within 2 px); and keyboard focus advances in the same order.
 
-Perceptual gate figures (% differing / % structural): `arc` 0.02/0 · `roundrect`
-0.02/0 · `vignette` 0.01/0.01 · `blend` 0.26/0 · `editable` 0.26/0.18 · `calendar`
-0.62/0.26 · `richtext` 0.86/0.4 · `controls` 1.17/0.79 · `ignorescroll` 1.18/1.17 ·
-`blur` 2.75/0.27 · `desktop` 8.77/1.96.
+Perceptual gate figures after this pass (% differing / % structural): `ignorescroll`
+0.01/0 · `vignette` 0.01/0.01 · `arc` 0.02/0 · `roundrect` 0.02/0 · `lzx-weather`
+0.05/0.03 · `blend` 0.26/0 · `editable` 0.26/0.18 · `calendar` 0.62/0.26 · `richtext`
+0.86/0.4 · `controls` 1.17/0.79 · `blur` 2.75/0.27 · `desktop` 8.73/1.91.
 
 ### What exists
 
@@ -56,20 +56,34 @@ substantially real:
 **Not present:** `NSAccessibility` (phase 5, untouched) and `WKWebView` (no web-content
 island, so `DOMIsland` has no native tenant).
 
-### The seam held while the runtime moved
+### The seam held while the runtime moved — and the drift is now mostly closed
 
-`mac-backend.ts` was last touched **2026-07-30**. The runtime kept going. Five Surface
-methods now exist in **both** web backends and not in the Mac one:
+`mac-backend.ts` was last touched **2026-07-30**. The runtime kept going, and six
+Surface methods existed in the web backends and not in the Mac one. **Three were closed
+on 2026-08-05**; the rest are scoped here.
 
-| method | landed | what the Mac host therefore lacks |
+| method | landed | status |
 |---|---|---|
-| `setIgnoreScroll` | 07-29 | pinned chrome scrolls away with the content |
-| `setPageExtent` | 07-29 | the App-as-page scroll extent is not published |
-| `setVirtualExtent` | 08-01 | a virtualized list's scroll range reflects only materialized rows |
-| `travelWith` / `isTraveling` | 08-01 | the focus ring cannot re-home into a scroller; a `DataGrid` header cannot escape its scroll box |
+| `setIgnoreScroll` | 07-29 | **closed** — pinned children host on the scroller's own layer instead of the content layer that translates. The `ignorescroll` probe went **1.18 % → 0.01 %** differing, **1.17 % → 0 %** structural |
+| `setVirtualExtent` | 08-01 | **closed** — the logical extent lands as a floor on `contentExtent()`, which says what the DOM's strut says without inventing a child to carry it |
+| `setRichWidth` | — | **closed** — `RichOverlay.adoptWidth`; no blocks cross the bridge, because the host already holds the laid-out state |
+| `setPageExtent` | 07-29 | **open** — needs the root to scroll, and this host deliberately pins it (*a root never self-scrolls*). Not a missing setter but a design call: does a tall app scroll its window, or does the root get a content layer? |
+| `travelWith` / `isTraveling` | 08-01 | **open** — surface re-homing. Cheap in principle, since scrolling here *is* a content-layer translation and re-homing is a reparent — but it touches `place()`, the one part of this backend built so that insertion order cannot matter |
 
-(`setRowCount` / `setRowIndex`, the windowing-aware AT projection, are DOM-only and so
-not drift — there is no Mac accessibility tree to project into yet.)
+(`setRowCount` / `setRowIndex`, the windowing-aware AT projection, are DOM-only and out
+of scope until the language has accessibility to project — see §8.)
+
+**Read the three closures as one lesson.** Each was already *named* — by the seam table
+with a reason, and for `ignoreScroll` by a baseline note stating the size of the hole in
+advance. Implementing it moved the number to exactly where the note said it would go.
+Written-down gaps converge; inferred ones do not.
+
+**One hazard the closure exposed.** `gate.mjs --bless` preserves a program's `note`
+across a re-bless so context survives — but it preserves it *unconditionally*. After the
+fix, `ignorescroll` carried a note reading "KNOWN GAP, not agreement" above a figure that
+now reads agreement. The note has been rewritten as a record of the closure. The general
+shape — a note outliving its reason becomes a lie in the record — is the same failure the
+`EXEMPT` and `UNTAUGHT` lists are gated against elsewhere, and this one is not gated.
 
 **This did not break anything, and that is the finding.** Every one of those calls is
 optional-chained at the call site — `s.setIgnoreScroll?.(true)`,
@@ -79,12 +93,6 @@ reference documents as the supported answer). **The Surface protocol is
 capability-negotiated, not versioned.** A backend five days behind the runtime keeps
 passing conformance and degrades in named, inspectable ways rather than failing. That
 is the thesis of §2 surviving contact.
-
-The gate already knows: `gate-baseline.json` carries a `note` on `ignorescroll`
-recording that its 1.17 % structural figure **is the size of the missing
-`setIgnoreScroll`**, not an agreement — and that implementing it should *drop* the
-number and prompt a re-bless. A hole with its measurement attached is the right way to
-carry this.
 
 Going the other way, the Mac backend has 16 methods neither web backend has —
 `commit`, `flushOps`, `measure`, `contentExtent`, `imageSize`, `cursorAt`, `glide`,

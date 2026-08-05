@@ -36,6 +36,8 @@ export declare const OP: {
     readonly SCROLLX: 30;
     readonly SCROLLXPOS: 31;
     readonly PAGEFILL: 32;
+    readonly IGNORESCROLL: 33;
+    readonly RICHWIDTH: 34;
 };
 /** The host side of the bridge — provided by the Swift shell before boot. */
 export interface MacHost {
@@ -116,6 +118,16 @@ declare class MacSurface implements Surface {
     setClip(pathData: string | null): void;
     setBoxClip(on: boolean): void;
     setIgnoreClip(on: boolean): void;
+    /** Fixed chrome: this surface does not ride its scroller's content. The host
+     *  realizes it by hosting the layer on the scroller's OWN layer rather than
+     *  the content layer that translates — the same escape shape `setIgnoreClip`
+     *  uses, one property over.
+     *
+     *  Was absent entirely until 2026-08-05, which the seam table (test/seam.test.mjs)
+     *  had recorded as a GAP and gate-baseline.json had sized: `ignorescroll`'s
+     *  1.17% structural figure WAS this hole, since no pixel test can see an
+     *  absence unless something is actually scrolled under the pinned thing. */
+    setIgnoreScroll(on: boolean): void;
     /** An app ROOT (top-level or an island tenant) — roots keep to their frame
      *  and never self-scroll (the DOM's applyScrollStyle root branch). Stamped by
      *  attachRoot / mountEmbed, which run AFTER attach's scrolls push — so the
@@ -149,6 +161,12 @@ declare class MacSurface implements Surface {
      *  backend's measured height. `selectable` mounts a real NSTextView so
      *  selection is the platform's own. */
     setRichContent(blocks: RichBlock[], selectable: boolean, width: number, onResize: (height: number) => void, onLink: (href: string) => void): number;
+    /** Width-only: an all-`pre` flow cannot re-wrap, so its lines and height are
+     *  unchanged — but the host box must still adopt the width, because it bounds
+     *  the pre's native horizontal scroller and a box left at its boot-time width
+     *  clips the flow to nothing. No blocks cross the bridge: the host holds the
+     *  laid-out state and only re-sizes its container. */
+    setRichWidth(width: number): void;
     /** Called from the host when a rich flow's laid-out height is known. */
     applyRichHeight(h: number): void;
     /** The write half of scrollY/scrollX — clamped like every other write, and
@@ -178,6 +196,17 @@ declare class MacSurface implements Surface {
     /** Content extent for scrolling: the furthest child bottom. */
     /** The DOM's `scrollHeight`: where the content ends, descendants included
      *  (see contentExtentX for why the walk has to go deeper than the children). */
+    /** A windowed block's LOGICAL extent — the DOM backend's strut, as a floor.
+     *
+     *  A virtualized collection materializes ~a viewport of rows, so the walk
+     *  below measures the WINDOW and the scroller's range would cover only the
+     *  rows currently realized: dragging the thumb to the end lands mid-collection.
+     *  The DOM realizes the floor as an inert zero-width strut child whose height
+     *  IS the range; there is no reason to fake a child here, because the extent
+     *  is computed rather than measured — a floor says the same thing directly.
+     *  `null` clears it (the block stopped virtualizing). */
+    private virtualExtent;
+    setVirtualExtent(h: number | null): void;
     contentExtent(): number;
     /** Hit-test a point in this surface's parent coordinates. The canvas
      *  backend's walk, kept identical so the two renderers resolve the same

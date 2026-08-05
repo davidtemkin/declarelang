@@ -50,9 +50,15 @@ const TABLE = {
   setScroll:  { dom: true, canvas: true, mac: true, headless: true },
   setScrollX: { dom: true, canvas: true, mac: true, headless: true },
 
+  // FILLED 2026-08-05. The realization is the `ignoresClip` shape one property
+  // over: a pinned child hosts on the scroller's OWN layer instead of the content
+  // layer that translates. gate.mjs measured the close — `ignorescroll` went
+  // 1.18% → 0.01% differing, 1.17% → 0% structural, i.e. exactly the hole the
+  // baseline note had sized. v1 pins against the DIRECT parent's scroll, which is
+  // every use in the corpus; a pinned node nested deeper still rides the
+  // intervening boxes (the DOM walks to the nearest scrolling ancestor).
   setIgnoreScroll: {
-    dom: true, canvas: true,
-    mac: "GAP (found 2026-07-31, not yet fixed) — `ignoreScroll` is a real language attribute and the native host simply has no realization for it: no seam method, and nothing in the Swift LayerTree. Fixed headers, pinned toolbars and the parked-furniture overlay layer are all silently ordinary children there. Found by diffing the backends' seam coverage, not by any render test",
+    dom: true, canvas: true, mac: true,
     headless: NOT_APPLICABLE,
   },
   setPageExtent: {
@@ -75,9 +81,15 @@ const TABLE = {
     mac: "GAP (not yet built) — the twin of setRowCount; both land together or neither is useful",
     headless: NOT_APPLICABLE,
   },
+  // FILLED 2026-08-05. The native extent is COMPUTED (contentExtent walks the
+  // children) rather than measured off a layout box, so the logical extent lands
+  // as a floor on that computation — the same statement the DOM's strut makes,
+  // without inventing a child to carry it. Setting it also pushes a fresh
+  // SCROLLPOS at the owning scroller, because the extent only crosses the bridge
+  // on a scroll and a windowed list may be dragged by the bar before it is ever
+  // scrolled.
   setVirtualExtent: {
-    dom: true, canvas: true,
-    mac: "GAP (not yet built) — the windowed block publishes its LOGICAL extent so the scroller's range spans every row from the first frame, materialized or not. Without it a windowed list on the native host would give the platform a scroll range covering only the rows currently realized, and dragging the thumb 'to the end' would land mid-collection",
+    dom: true, canvas: true, mac: true,
     headless: NOT_APPLICABLE,
   },
   travelWith: {
@@ -93,7 +105,12 @@ const TABLE = {
   setRichWidth: {
     dom: true,
     canvas: "deliberate — canvas does not use the native rich-text path at all (its setRichContent returns -1, which is the signal for 'lay the runs out yourself'), so RichText re-flows through its own manual layout on every width change. There is no host box to re-size, and nothing to skip",
-    mac: "GAP (not yet built) — the native host DOES implement setRichContent, so it has the same host box and the same optimization available: an all-`pre` flow (which cannot re-wrap) skips the re-flow but must still adopt the new width, or the flow stays clipped to its width at first layout. On DOM that absence rendered the Viewer's Source tab blank",
+    // FILLED 2026-08-05 — `RichOverlay.adoptWidth`. The host already held the
+    // laid-out state, so the width-only path carries NO blocks across the bridge:
+    // it re-sizes the text container and the rastered band and redraws. The Swift
+    // side had the same fast path inside richLayout already (same JSON, new width,
+    // nothing wraps); this is that adoption reachable without the JSON.
+    mac: true,
     headless: NOT_APPLICABLE,
   },
 
