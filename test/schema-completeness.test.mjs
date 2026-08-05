@@ -102,42 +102,11 @@ await test("no EXEMPT entry has gone stale", () => {
   assert.deepEqual(stale, [], `stale exemptions: ${stale.join("; ")}`);
 });
 
-await test("every attribute in the reference carries prose — runtime AND library", () => {
-  // The second half of "reaches the reference": declared is not the same as
-  // documented, and an attribute that lands there blank is only marginally more
-  // use than one that is missing.
-  //
-  // THE LIBRARY EXEMPTION IS RETIRED (2026-08-05). It was a dated decision taken
-  // when ~130 library attributes had no prose; the library prose pass closed that
-  // to zero (documentation.md §4a), and an exemption that outlives its reason is
-  // exactly where real omissions go to hide. So the gate now covers both tiers —
-  // which is the ratchet the original comment asked for, and it is what stops the
-  // pass from quietly eroding one component at a time.
-  //
-  // `**Internal.**`-marked members are excluded: whether something is API is an
-  // editorial judgment (§4a), and a marker is a decision on the record — unlike
-  // silence, which is what this gate exists to catch.
-  const model = JSON.parse(readFileSync("docs/declare-model.json", "utf8"));
-  const blank = [];
-  for (const [id, e] of Object.entries(model.reference)) {
-    if (e.kind !== "attribute") continue;
-    if (e.api === false || e.internal === true) continue;     // structural-only / marked Internal
-    if (typeof e.doc === "string" && e.doc.trim() !== "") continue;
-    blank.push(id);
-  }
-  // The two tiers keep their prose in different places, so the fix has to name the
-  // right one — a message that sends a library author to prose/<Class>.md is a
-  // diagnostic that fails its own standard.
-  const where = (id) => {
-    const cls = id.split(".")[0];
-    return SCHEMAS[cls] !== undefined
-      ? `${id} → add '## ${id.split(".").pop()}' to tools/internal/doc/prose/${cls}.md`
-      : `${id} → add '## ${id.split(".").pop()}' to the /* # ${cls} … */ header block in library/`;
-  };
-  assert.deepEqual(blank, [],
-    `these attributes are declared but undocumented, so the reference shows them blank.\n` +
-    `      Then re-run: node tools/internal/derive.mjs\n` +
-    `      ${blank.map(where).join("\n      ")}`);
-});
+// The attribute-prose check MOVED (2026-08-05) to the completeness registry,
+// tools/internal/doc/surfaces.mjs, where every "is the public surface documented"
+// question now lives in one enumerable list. It is not lost and not weakened — it
+// covers both tiers there. What stays HERE is the different invariant this file was
+// built for: the runtime's published surface being fully DECLARED in its schema,
+// which is upstream of documentation and fails even when the docs are perfect.
 
 summarize("schema-completeness");

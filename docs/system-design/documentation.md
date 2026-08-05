@@ -205,6 +205,45 @@ each one silently discarded prose that *was* written:
    eof — and a `class … extends` example would have had it instantiate a class that
    exists only inside a comment. It strips comments before both probe decisions now.
 
+### 4d. One registry owns "public surface" (2026-08-05)
+
+David asked whether a test now ensures every public interface reaches the reference. It
+did not — there were five completeness tests in `docs.test` plus two in
+`schema-completeness`, each organized around **whichever registry it happened to read**.
+So the honest answer was "several tests, and I would have to go look," and that shape had
+already failed twice in one week the same way: a gate enumerates the sources somebody
+remembered, so the source nobody listed goes ungated and green.
+
+`tools/internal/doc/surfaces.mjs` is now the one place that defines what a public surface
+*is*, and the tests iterate it. This is `derive.mjs`'s pattern moved up a level — there,
+one command owns the build order; here, one registry owns the coverage definition.
+
+**What is unified is the enumeration, not the checks.** Each row keeps its own `check`,
+because "documented" genuinely differs by kind: a class needs an entry *and* a rail
+position, an attribute needs prose, the shared vocabulary needs projection, a theme token
+needs the preset to state it. Collapsing those into one predicate would blunt exactly the
+failure messages that make a gate actionable. The list was the part that kept going
+missing, so the list is what got centralized.
+
+Six gated rows — components, attributes, callables, vocabulary, theme tokens, guide
+coverage — and five **ungated** rows (enums, flags, diagnostics, requests, commands), each
+of which must state *why*. An ungated row with no reason fails, so the registry cannot
+quietly become the new hiding place; that is the `EXEMPT`/`UNTAUGHT` discipline of §4a
+applied to the coverage definition itself.
+
+The load-bearing addition is `everySpineSectionHasASurface`: **every spine section must be
+claimed by a row**, gated or not. A new public registry that reaches the spine without
+anyone deciding whether it needs documenting now fails — which is precisely how the
+callable surface and `declare const` were both missed.
+
+Accounting, since a refactor is where checks go to die: 27 + 3 assertions before, 30 + 2
+after. The five old completeness tests plus the attribute-prose check that moved out of
+`schema-completeness` became the six gated rows; the two new ones are the registry's own
+invariants. Each of the six was verified to still bite by damaging the model and
+confirming the failure. `schema-completeness` keeps the different invariant it was built
+for — the runtime's published surface being fully *declared* in its schema, which is
+upstream of documentation and fails even when the docs are perfect.
+
 ### 4c. The shared vocabulary and the theme tokens (2026-08-05)
 
 Raised by David reviewing the reference pass: `draw()` reads as interstitial, agents keep

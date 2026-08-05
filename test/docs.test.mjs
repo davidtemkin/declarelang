@@ -21,6 +21,7 @@ import { dirname, resolve } from "node:path";
 import { compile } from "../compiler/dist/compile-node.js";
 import { parseProgram } from "../runtime/dist/parser.js";
 import { test, summarize } from "./harness.mjs";
+import { SURFACES, everySpineSectionHasASurface } from "../tools/internal/doc/surfaces.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -89,181 +90,48 @@ await test("spine: assembled projections are fresh (assemble.mjs --check)", () =
   if (r.status !== 0) throw new Error((r.stdout + r.stderr).trim());
 });
 
-// The COMPLETENESS gate: every component the platform exposes — the runtime's
-// SCHEMAS registry and every class in the library's autoinclude manifest —
-// must have a reference entry AND appear in the browse rail. This is what
-// keeps a schema move or a new library class from silently vanishing from the
-// documentation (the layout migration did exactly that to the rail's old
-// readers: present in the model, but only where nobody was looking).
-await test("reference: every runtime schema and library class is documented and browsable", async () => {
-  const { SCHEMAS } = await import("../runtime/dist/schema.js");
-  const model = JSON.parse(readFileSync(resolve(HERE, "..", "docs/declare-model.json"), "utf8"));
-  const manifest = JSON.parse(readFileSync(resolve(HERE, "..", "library/autoincludes.json"), "utf8"));
-  const expected = [...Object.keys(SCHEMAS), ...Object.keys(manifest).filter((k) => !k.startsWith("$"))];
-  const railed = new Set();
-  const walk = (nodes) => { for (const n of nodes) n.kind === "category" ? walk(n.children ?? []) : n.kind === "element" && railed.add(n.name); };
-  walk(model.browse);
-  const missing = expected.filter((n) => !(n in model.reference) || !railed.has(n));
-  if (missing.length) throw new Error("undocumented components: " + missing.join(", "));
-});
-
-// The CALLABLE-SURFACE gate (library-charter.md §2a): everything a `{ }` body may
-// call must be documented. `LANGUAGE_API`/`LANGUAGE_STATICS` is the authoritative
-// statement of that surface — the scaffold emits it into every program's check
-// block — so a member there is supported for an app exactly as for a library
-// component. Until 2026-08-05 the reference never read those registries, and the
-// result was the charter's own promise failing quietly: `App.createView` taught
-// four times in declare.md, `View.raise` called by every overlay in library/, and
-// `Layout.laid` the thing every `place()` is written against — none of them in the
-// reference at all. Supported, typechecked, undiscoverable.
-await test("reference: every callable-surface member is documented", async () => {
-  const { LANGUAGE_API, LANGUAGE_STATICS } = await import("../compiler/dist/scaffold.js");
-  const model = JSON.parse(readFileSync(resolve(HERE, "..", "docs/declare-model.json"), "utf8"));
-  const nameOf = (l) => (l.trim().match(/^(?:static\s+)?([A-Za-z_$][\w$]*)\s*[<(]/) ?? [])[1];
-  const holes = [];
-  for (const [reg, isStatic] of [[LANGUAGE_API, false], [LANGUAGE_STATICS, true]]) {
-    for (const [cls, lines] of Object.entries(reg)) {
-      for (const line of lines) {
-        if (!isStatic && (/^\s*readonly\b/.test(line) || !line.includes("("))) continue;
-        const n = nameOf(line.replace(/^\s*static\s+/, ""));
-        if (!n) continue;
-        const node = model.reference[`${cls}.method.${n}`];
-        if (!node) holes.push(`${cls}.${n} — absent from the reference`);
-        else if (!node.doc) holes.push(`${cls}.${n} — present but undocumented`);
-      }
+// ── COMPLETENESS: is every public surface reachable in the documentation? ────
+// One question, one answer. These used to be five tests here plus two in
+// schema-completeness, each organized around whichever registry it happened to
+// read — so "is every public interface exposed?" had no single place to look, and
+// twice in one week a surface nobody had listed went ungated and green.
+//
+// The enumeration now lives in tools/internal/doc/surfaces.mjs and this iterates
+// it. Each surface keeps its own check, because "documented" genuinely differs by
+// kind and a shared predicate would blunt the failure messages; what is unified is
+// the LIST, which is the part that kept going missing.
+for (const s of SURFACES.filter((s) => s.gated)) {
+  await test(`completeness: ${s.label}`, async () => {
+    const model = JSON.parse(readFileSync(resolve(HERE, "..", "docs/declare-model.json"), "utf8"));
+    const holes = await s.check(model);
+    if (holes.length) {
+      throw new Error(
+        `${holes.length} hole(s) — source: ${s.source}; docs live in ${s.docsLive}\n      ` +
+        holes.join("\n      ") +
+        `\n      Then re-run: node tools/internal/derive.mjs`);
     }
-  }
+  });
+}
+
+// An ungated surface must SAY why. Without this the registry becomes the new place
+// to hide an omission — the same failure the EXEMPT and UNTAUGHT lists are shaped
+// to prevent (documentation.md §4a).
+await test("completeness: every ungated surface states its reason", () => {
+  const mute = SURFACES.filter((s) => !s.gated && !(s.why ?? "").trim()).map((s) => s.id);
+  if (mute.length) throw new Error(`ungated with no reason given: ${mute.join(", ")}`);
+});
+
+// And the registry must cover the spine. A new public registry that reaches the
+// spine without a surfaces.mjs row means nobody decided whether it needs
+// documenting — which is precisely how the callable surface and `declare const`
+// were missed. Form-agnostic, one level up.
+await test("completeness: every spine section is claimed by a surface", () => {
+  const model = JSON.parse(readFileSync(resolve(HERE, "..", "docs/declare-model.json"), "utf8"));
+  const holes = everySpineSectionHasASurface(model);
   if (holes.length) {
     throw new Error(
-      `these are callable from any { } body but a reader cannot find them:\n      ` +
       holes.join("\n      ") +
-      `\n      write prose in tools/internal/doc/prose/<Class>.md — a supported API that is\n` +
-      `      undiscoverable is the privileged-library failure the charter promises against`);
-  }
-});
-
-// The SHARED-VOCABULARY gate: everything the scaffold's PRELUDE declares into a
-// program's check block — `Draw`, the event payloads, the value types, the global
-// constructors — is typechecked for user code, so a reader must be able to find it.
-// It was projected NOWHERE before 2026-08-05: `draw(d: Draw)` is a first-class
-// member kind whose only specification was four examples and an ellipsis, and the
-// reference documented `onKeyDown(e: KeyEvent)` while nothing said what is on `e`.
-// The projection is parsed from the PRELUDE text, so this also catches a parser
-// that silently stops matching when the prelude's shape changes.
-await test("vocabulary: every shared type and global function is projected", () => {
-  const model = JSON.parse(readFileSync(resolve(HERE, "..", "docs/declare-model.json"), "utf8"));
-  const src = readFileSync(resolve(HERE, "..", "compiler/src/scaffold.ts"), "utf8");
-  // the literal closes with `; at the END of a line — see the same note in assemble.mjs
-  const prelude = src.split("const PRELUDE = `")[1]?.split(/`;\s*$/m)[0] ?? "";
-  if (!prelude.includes("interface Draw")) throw new Error("the PRELUDE boundary no longer matches — this gate is scanning the wrong text");
-  // FORM-AGNOSTIC on purpose. The first version of this gate enumerated the three
-  // forms the parser happened to handle, so it passed while `declare const` — i.e.
-  // `Themes`, the thing the theme docs tell you to call — was skipped entirely. A
-  // gate that only checks what its parser already understands cannot catch the
-  // parser's blind spot. So: scan EVERY top-level declaration, whatever its keyword,
-  // and demand the projection carries the name. A new form fails here loudly.
-  const declared = [...prelude.matchAll(/^(?:declare\s+)?(?:interface|type|function|const|var|let|class|enum|namespace)\s+([A-Za-z]\w*)/gm)]
-    .map((m) => m[1]);
-  const got = model.spine?.types?.shared;
-  if (!got) throw new Error("spine.types.shared is missing — the PRELUDE projection did not run");
-  const projected = new Set(Object.values(got).flat().map((x) => x.name));
-  const holes = declared.filter((n) => n !== "console" && !projected.has(n))
-    .map((n) => `${n} — declared in the check block, absent from the projection`);
-  // an interface that parsed to nothing means the parser lost its shape
-  for (const i of got.interfaces) if (!i.members.length) holes.push(`interfaces: ${i.name} parsed with no members`);
-  if (holes.length) throw new Error("the check block declares these, but the reference does not carry them:\n      " + holes.join("\n      "));
-});
-
-// The THEME-TOKEN gate: the token vocabulary is measured from the library sources,
-// so it cannot drift — but the measurement itself can rot (a comment-stripping bug
-// silently reclassified nine tokens as required during the pass that added this).
-// Assert the shape and the invariant that matters: every REQUIRED token — one read
-// with no fallback — is stated by the shipped preset, or an app built on that preset
-// meets an undefined token at runtime.
-await test("theme: every required token is stated by the default preset", () => {
-  const model = JSON.parse(readFileSync(resolve(HERE, "..", "docs/declare-model.json"), "utf8"));
-  const t = model.spine?.themeTokens;
-  if (!t?.required?.length) throw new Error("spine.themeTokens.required is empty — the measurement broke");
-  const unstated = t.required.filter((r) => !r.stated).map((r) => r.name);
-  if (unstated.length) {
-    throw new Error(
-      `these tokens are read with no fallback but the SanFrancisco preset does not state them: ${unstated.join(", ")}\n` +
-      `      add them to library/themes/*.declare, or give the reader a guarded default`);
-  }
-});
-
-// The BACKLINK gate (docs/system-design/documentation.md §4): "reference nodes with
-// no inbound guide link are flagged holes. (This is what would have caught the
-// un-taught component library.)" §4 claimed this was CI-blocking for a year while
-// nothing implemented it, and the predicted failure happened exactly as written —
-// one merge landed Segmented, SegmentedItem and the whole Icon family with zero
-// guide coverage and nothing noticed. This is that check.
-//
-// GRANULARITY IS THE CLASS, not the member. The guide teaches concepts and names the
-// components that carry them; the reference carries every attribute. Demanding a
-// guide mention per member would drive the catalog into the narrative, which is the
-// failure the residency rule exists to prevent (documentation.md §4a).
-//
-// FAMILIES — teaching the base teaches the set. The guide says "icons are drawn
-// rather than typed, here is how to write one"; it must not enumerate ten marks. A
-// family member is covered when its family head is taught, and only heads that are
-// genuinely a *kind* belong here — not every base class, or `View` would cover the
-// world.
-const FAMILY = {
-  Icon: ["ChevronIcon", "ArrowIcon", "CheckIcon", "CloseIcon", "PlusIcon", "MinusIcon",
-         "LightbulbIcon", "SunIcon", "MoonIcon", "AutoIcon", "IconHost"],
-  Segmented: ["SegmentedItem"],
-  DataGrid: ["GridRow"],
-  Table: ["TableRow"],
-  Accordion: ["Pane"],
-  RadioGroup: ["Radio"],
-};
-
-// UNTAUGHT — what the guide does not cover yet, dated, so a hole stays COUNTABLE
-// instead of invisible; the same discipline §4a uses for library prose. This list
-// only shrinks. Adding a name to it is a decision someone makes on purpose, which
-// is the whole point: a new component that lands untaught fails this test instead
-// of passing unnoticed.
-// EMPTY as of 2026-08-05, and that is the point: the guide's component pass closed
-// every hole this list was opened to carry. `Segmented` and `Icon` went with
-// guide/11-make-your-own.md (Icon as a FAMILY head, clearing its ten marks with it);
-// `Combobox`/`ContextMenu` with 12-above-the-flow; `DataGrid` with 10-scale;
-// `Video`/`RichText`/`HTMLText` with 06-style; `Editor` with 09-data's forms section.
-// Keep it empty. An entry here should be a deliberate, dated decision to defer — not
-// a parking space for something nobody wanted to write.
-const UNTAUGHT = new Set([]);
-
-await test("backlink: every reference class is taught somewhere in the guide", () => {
-  const model = JSON.parse(readFileSync(resolve(HERE, "..", "docs/declare-model.json"), "utf8"));
-  const dir = resolve(HERE, "..", "docs/guide");
-  const guide = readdirSync(dir).filter((f) => f.endsWith(".md"))
-    .map((f) => readFileSync(resolve(dir, f), "utf8")).join("\n");
-  // a mention is the bare class name on a word boundary (prose, a table row, or a
-  // fence) or a `declare-docs:` link to it — the guide names components both ways
-  const mentions = (name) =>
-    new RegExp(`(^|[^A-Za-z0-9_])${name}([^A-Za-z0-9_]|$)`).test(guide);
-  const headOf = {};
-  for (const [head, kin] of Object.entries(FAMILY)) for (const k of kin) headOf[k] = head;
-  // a family member's coverage is its HEAD's — so the icon set is one debt to pay
-  // and one line to delete, never twelve
-  const subject = (n) => headOf[n] ?? n;
-
-  const classes = Object.values(model.reference).filter((n) => n.kind === "class" && n.api !== false);
-  const holes = [...new Set(classes.map((c) => subject(c.name)))]
-    .filter((n) => !mentions(n) && !UNTAUGHT.has(n));
-  if (holes.length) {
-    throw new Error(
-      `these classes are in the reference but nothing in docs/guide/ names them: ${holes.join(", ")}\n` +
-      `      teach each in the guide, add it to FAMILY under the base that teaches its kind,\n` +
-      `      or — deliberately, dated — add it to UNTAUGHT in this file`);
-  }
-  // the debt list must not outlive its reason: an entry that IS now taught has to
-  // leave, or the list quietly becomes the place real holes hide (§4a's rule for
-  // the EXEMPT list, applied here)
-  const stale = [...UNTAUGHT].filter((n) => mentions(n));
-  if (stale.length) {
-    throw new Error(
-      `UNTAUGHT lists ${stale.join(", ")}, but the guide now teaches them — remove them from the list`);
+      `\n      Add a row to tools/internal/doc/surfaces.mjs — gated with a check, or ungated with a reason.`);
   }
 });
 

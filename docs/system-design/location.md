@@ -1,213 +1,283 @@
 # Location — addressable app state, history, and the extraction crawl
 
-## 0. PROPOSAL — one scheme for links, locations, and the crawl (2026-08-05)
+## 0. PROPOSAL — one scheme for links, locations, and the crawl (v2, 2026-08-05)
 
-**Status: draft under review.** Written after the 2026-08-04 field findings
-(§12) and the from/to analysis (§13); **supersedes §13 where they differ**.
-Everything from §1 onward is the historical record — the ratified 07-15 design,
-its findings, and the superseded first draft — kept for context. Where §0
-conflicts with it, §0 is the current intent.
+**Status: draft, revised after adversarial review.** v1 was reviewed by an
+independent agent against the language doc, links.ts, the runtime's reveal
+machinery, and the homepage's real nav; every hole it confirmed is resolved
+below or listed in §0.11. **Supersedes §13.** Everything from §1 onward is the
+historical record; where §0 conflicts with §1–§6, §0 is the current intent.
+Emission (§7) is deliberately NOT touched by this proposal — see §0.8.
 
-*Terminology note: this section says **location** — never "state" — for what
-the URL fragment names. `State` is a language construct; the collision muddled
-every explanation below it.*
+*Terminology: this section says **location** — never "state" — for what the
+URL fragment names. `State` is a language construct; the collision muddled
+every earlier explanation.*
 
 ### 0.1 What broke (the motivating evidence)
 
 - **Link extraction infers from handlers.** `compiler/src/links.ts` walks
-  activation bodies (`ACTIVATION = {onClick}`) for `navigate()` calls and
-  `app.location =` writes. A control whose activation lives in its class is
-  invisible to it; `classroot` reads on descendants are "left unlinked" (its
-  own comment) — so the homepage's data-driven nav pills were never seen. The
+  activation bodies (`ACTIVATION = {onClick}`, links.ts:28) for `navigate()`
+  calls and `app.location =` writes. A control whose activation lives in its
+  class is invisible; `classroot` reads on descendants are "left unlinked"
+  (links.ts:42–44) — the homepage's data-driven pills were never seen. The
   controls standardization broke the model, not an edge of it.
-- **No href in rendered `.md` reaches the app at all** (§12.2) — the FAQ's 14
-  links and the docs app's 100 are dead on a plain click.
-- **The `@name` reveal races measurement on warm arrivals** (§12.1) — correct
-  from a cold URL, wrong from inside the app.
-- **The location↔view tie is invisible to the compiler.** It lives inside
-  expression bodies (`visible = { app.location == "why" }`); pattern-matching
-  those is a heuristic, and it broke within an hour of real use
-  (`app.location.split("@")[0] == …`). The compiler needs ground truth: the
-  destination of a link, and how to manifest what it names.
+- **No href in rendered `.md` reaches the app** (§12.2) — 114 dead links
+  across two apps on a plain click.
+- **The `@name` reveal races measurement on warm arrivals** (§12.1) — right
+  from a cold URL, wrong from inside the app, because attachment is checked
+  and settledness is not (view.ts:952).
+- **The location↔view tie is invisible to the compiler** — it lives inside
+  `visible = { app.location == "why" }` expression bodies, and pattern-
+  matching those broke within an hour of real use.
 
 ### 0.2 The design, in five sentences
 
 1. **One reference string** — an href: `#name` for an authored destination or
    anchor, `#app/grammar/here` for computed locations, a full URL for
    off-site.
-2. **`shows = "name"`** declares that a view manifests a location — visibility
-   falls out of the declaration, and the compiler gains ground truth.
+2. **`shows = "name"`** declares that a view manifests a location —
+   visibility falls out, and the compiler gains ground truth.
 3. **`anchor = "name"`** names a place inside a destination; **`link =
    <reference>`** makes any view a link.
 4. **`follow(ref)`** is the one runtime operation behind every arrival —
    click, prose link, pasted URL, back/forward.
 5. **`App.onFollow(ref) → ref′`** is the one imperative hook — transform,
-   veto, side-effect — applied to all of them.
+   veto, side-effect — applied once to each of them.
 
-The bias is deliberate: something that **really works, with escape hatches**,
-over maximal declarativeness. The declarative core is three attributes; the
-imperative floor (`onClick`, raw `app.location =` writes) stays fully open.
+Bias, stated: something that **really works, with escape hatches**, over
+maximal declarativeness. The imperative floor (`onClick`, raw
+`app.location =` writes) stays fully open and uninspected.
 
-### 0.3 References
+### 0.3 References, and what checks them
 
-| form | means | verified? |
+| form | means | checked by |
 |---|---|---|
-| `#why` | an authored destination (a `shows` name) | build-checked |
-| `#story` | an authored anchor; its location is *derived* from the registry — the author never writes a compound | build-checked |
-| `#deck/q3/47` | a computed location — the app's own grammar, opaque to the runtime (§6's rule, kept) | traversed |
-| `#faq@licensing` | a content-derived target: a heading slug inside runtime-fetched prose the compiler cannot see | best-effort |
-| `https://…`, `mailto:…`, relative paths | out of the app, via the `navigate` service action | scheme-allowlisted |
+| `#why` | an authored destination (a `shows` name) | **build** — registry |
+| `#story` | an authored anchor; its location derived from the registry — the author never writes a compound | **build** — registry |
+| `#deck/q3/47` | a computed location — the app's own grammar, opaque to the runtime (§6's rule, kept) | **crawl** — traversal |
+| `#faq@licensing` | a content-derived target: a heading slug inside runtime-fetched prose | best-effort |
+| `https://…`, `mailto:…`, relative | out of the app via `navigate` | scheme allowlist |
 
-Authored names — every `shows` and every `anchor` — share **one global
-namespace, compiler-enforced unique**. Every *literal* reference in a `link`
-or an authored `.md` the build can reach is resolved against the registry:
-a typo'd `#stroy` is a **build error**. Link integrity the web never had.
-The `@` compound form survives only for the content-derived tier, and is
-documented as the weaker promise (a heading rename breaks it).
+Three tiers, honestly: **build-checked** covers literal references — bare
+slots AND string literals inside `link` constraints
+(`{ ok ? "#review" : "" }` registers `#review`). **Crawl-checked** covers the
+data tier: every link value *evaluated during extraction* must resolve
+against the registry or the build fails — so `link = { :to }` over nav data
+is checked, one stage later. **Best-effort** covers content slugs only.
+
+The registry: every `shows` name and every App-tree-authored `anchor`, one
+namespace per program, duplicates a build error (except §0.4's sanctioned
+split). Writing the compound form for a registered anchor (`#why@story` when
+`story` is registered) is a **compile error** naming the rewrite (`#story`) —
+the negative rule made mechanical, because style guidance is what an LLM
+drops.
 
 ### 0.4 Declaring destinations, anchors, links
 
 ```declare-fragment
 App [ location = "home",
-
     homeView: View [ shows = "home", … ],
     whyView:  View [ shows = "why",
-        …
         note: View [ anchor = "story", … ]
         ],
-
-    // any view can be a link — no handler; "" = inert (no cursor, no focus
-    // stop, nothing emitted for the crawl)
     pill: Text [ text = "Why Declare", link = "#why" ],
-    faq:  Text [ text = "The note",    link = "#story" ],       // location derived
+    faq:  Text [ text = "The note",    link = "#story" ],      // location derived
     next: Text [ text = "Continue →",  link = { app.form.valid ? "#review" : "" } ],
     repo: Text [ text = "GitHub",      link = "https://github.com/…" ]
     ]
 ```
 
-`shows` implies the visibility (`location == name`); `visible` remains free
-and ANDs on top (the auth gate in §0.7). On the DOM renderer a linked view is
-realized as a **real `<a href>`** — status-bar preview, ⌘/middle-click,
-copy-link, keyboard focus, and the crawler's edge, all the native contract.
-Prose interoperates because the strings are the same: `[the note](#story)` in
-a rendered `.md` follows identically.
+**`shows` semantics, ruled.** Visible when the location's **destination
+part** equals the name — the runtime strips its own trailing `@name` before
+comparing; the app never writes the split (`location == name` naive equality
+is exactly the drift §0.1 indicts, and it is wrong the moment an anchor
+arrives). `shows` takes a **literal** name and is legal **only on a view
+declared in the App's own tree** — not in a class body, not on a replicated
+node. A destination is an app-level, singular fact; data-driven detail pages
+are computed locations, the tier built for them. Several App-tree views may
+share one `shows` name — that is the §0.7 gate split — and the name registers
+once. `visible` remains free and ANDs on top; `shows` alone implies the
+visibility. Views stay mounted (visibility, not existence — today's model).
+
+**Anchor registration, ruled.** A name joins the registry only when authored
+in the App tree — including `anchor = "story"` set at a component's **use
+site**. An `anchor` inside a class body is per-instance and unregistered (a
+library card's internal name cannot poison the namespace); unregistered names
+remain reachable under the `@` form via the runtime's existing
+duplicate-suffix resolution (§6) — best-effort, like content slugs. The
+registry replaces suffixing for registered names: a duplicate is an error at
+both sites, never a silent `-2`.
+
+**`link` realization, ruled.** On the DOM renderer a linked view in the
+**top-level app** realizes as a real `<a href>` — status-bar preview,
+⌘/middle-click, copy-link, focus, the crawler's edge (embedded apps: §0.9).
+The scheme allowlist (`#…`, `http(s)`, `mailto:`, relative — never
+`javascript:`/`data:`) is enforced **where the href is emitted**, not only at
+follow — copy-link and middle-click are native paths that never enter follow.
+Nested links: nearest wins. A linked **container** realizes as an overlay
+anchor (a sibling, not a wrapper), so interactive children stay valid HTML —
+the card pattern, ruled once here instead of hacked per site. A linked view
+with no text descendant requires an accessible label (compile-checked). On
+canvas, linked views are focus stops, Enter activates, and an AT link node is
+synthesized — parity is a requirement, not an aspiration.
+
+**`link` + `onClick` coexist, ruled.** The handler runs first, then the
+follow; the handler cannot cancel (veto belongs to `onFollow`, or to the
+value: `link = ""` is inert — no cursor, no focus stop, nothing for the
+crawl). `""` means *not a link*; there is no disabled-link affordance in v1 —
+an unavailable action is a disabled control, not a dead link.
 
 ### 0.5 `follow` — the one operation
 
-Every arrival reduces to `follow(ref)`:
-
-1. `ref` goes through `App.onFollow` (§0.6); the result proceeds ("" stops).
-2. External → the `navigate` channel. Done.
-3. `#…` → write `app.location`; if the reference names an anchor, the
-   operation is **not finished until the target is rendered, measured, and in
-   the viewport**. Cold and warm arrivals are one path; §12.1's race is
-   unstateable because "how many frames measurement took" is follow's private
-   business.
-4. The reveal *seeds* the scroll offset; the user's first scroll or touch
-   takes ownership and cancels any still-held intent (the uncontrolled-editor
-   rule, made normative). Following a reference equal to the current location
-   re-runs step 3 (no dead clicks).
+1. `ref` passes through `App.onFollow` **once** (§0.6); `""` stops; the
+   result proceeds.
+2. External → the `navigate` channel, allowlisted. Done.
+3. `#…` → write `app.location`. **No anchor:** the destination's scroll seeds
+   to the top. **Anchor:** a retained intent, resolved only when the target
+   can answer with a **measured** position — a target's fire is refused (held,
+   retried) while any rich-text flow between it and the scroll root still
+   carries a provisional height. This is §12.1's component-sourced veto made
+   normative; view attachment alone never claims success (the view.ts:952
+   bug, closed by specification). **Virtualized targets:** a replicator
+   answers a reveal by materializing the indexed row — it knows its logical
+   records — so a reveal into a `virtualize = true` region materializes, then
+   aims; it cannot deadlock waiting for a row the viewport never approaches.
+4. The reveal honors **`App.revealInset`** — the `scroll-margin` analogue for
+   fixed chrome (default 0). Measured need: the 56px header cost two
+   hand-built marker views in one week without it.
+5. The intent is cancelled by the user's first scroll or touch (the
+   uncontrolled-editor rule: the reference *seeds*, the user owns) and by any
+   later location change. Following a reference equal to the current location
+   re-runs step 3 — no dead clicks.
+6. **History, ruled** (settles §10.1): a user-initiated follow pushes one
+   entry (§2's per-settle rule unchanged). `replace = true` beside `link`
+   replaces instead — required practice for fine-grained locations (a slide
+   deck's arrows must not make Back a 40-press escape). A follow initiated by
+   **history traversal never pushes**; if `onFollow` redirects it, the
+   redirect **replaces** the current entry — so Back can never loop through a
+   redirect rule. A **cold-arrival** redirect replaces the URL bar; no entry
+   is minted.
 
 Source requests, runtime delivers, destination decides. A raw
-`app.location =` write remains the uninspected floor beneath all of this —
-the paved road is `follow`; the trapdoor stays.
+`app.location =` write remains the uninspected floor beneath all of this.
 
-### 0.6 `App.onFollow` — the escape hatch
+### 0.6 `App.onFollow` — the escape hatch, bounded
 
 ```declare-fragment
 onFollow(ref: string) -> string {
-    app.log("nav", ref)                                          // effects
-    if (ref == "#pricing") return "#plans"                       // legacy URLs
-    if (ref.startsWith("#account") && !app.authed) return "#login"   // edge gate
-    return ref                                                   // "" = veto
+    app.log("nav", ref)                                            // effects
+    if (ref == "#pricing") return "#plans"                         // legacy URLs
+    if (ref.startsWith("#admin") && !app.staff) return "#home"     // edge gate
+    return ref                                                     // "" = veto
     }
 ```
 
-Runs for **every** follow — linked views, prose links, cold URL arrivals,
-back/forward — and during extraction (§0.8), so the crawl sees the same
-redirects users do. This is the SPA middleware slot (`router.beforeEach`) in
-its familiar place: one app-scoped interception point, arbitrary TypeScript.
+Runs for **every** follow — linked views, prose links, cold URLs,
+back/forward — and during extraction. Bounds, ruled:
+
+- **Applied once, never to fixpoint.** A redirect whose result itself needs
+  redirecting is two bugs, not a loop.
+- **Cold arrivals run it at t=0** — declared initials, before any data loads.
+  An edge rule may therefore depend only on values correct at t=0; an
+  auth-shaped gate written here silently misfires on the deep link (the user's
+  session hasn't loaded), which is why gating's airtight tool is §0.7, not
+  this. The doc says so; the guide must say so louder.
+- **At crawl time** it runs under the extraction env vector, clock included
+  (§0.8) — a `#today` redirect is deterministic because the crawl's clock is
+  pinned.
 
 ### 0.7 Gating — two tools, honestly ranked
 
-- **Edge redirect** (`onFollow`): redirect semantics, convenient, *bypassable*
-  by a raw location write and by nothing else.
-- **Destination derivation**: airtight — the URL bar can request any location;
-  what a request *produces* is derived:
+Edge redirect (`onFollow`): redirect *semantics*, convenient, bypassable by a
+raw write, blind at t=0. Destination derivation: airtight — anyone can
+*request* any location; what a request *produces* is derived:
 
 ```declare-fragment
 account: View [ shows = "account", visible = { app.authed } ],
 login:   View [ shows = "account", visible = { !app.authed } ]
 ```
 
-An unauthenticated arrival renders login **with the location preserved** —
-finishing auth re-derives and lands where the user aimed. (Two views sharing a
-`shows` name is permitted exactly for this split; the name stays unique as a
-*destination*.)
+The unauthenticated deep link renders login **with the location preserved**;
+finishing auth re-derives and lands where the user aimed. The shared `shows`
+name is the sanctioned duplicate.
 
 ### 0.8 The crawl, specified
 
-**Mechanism, in one paragraph:** extraction runs the real program headless —
-same compiler, same renderer — over **fixture material only** (§9's
-no-network rule: a `DataSource` unmet by fixtures fails the build loudly,
-never a partial page). For each location it visits, it writes `app.location`,
-lets the program settle, serializes the rendered tree to HTML, and collects
-the outgoing links that rendering realized. What a visitor sees and what the
-crawler emits cannot drift, because they are the same render.
+**Mechanism, one paragraph.** Extraction runs the real program headless —
+same compiler, same renderer — over **fixture material only** (§9: a
+`DataSource` unmet by fixtures fails the build loudly, never a partial page),
+under a **fixed env vector that includes the clock**. For each location
+visited it writes `app.location`, settles, serializes the rendered tree, and
+collects the outgoing links that rendering realized. Visitor and crawler
+cannot drift: they are the same render.
 
-The procedure:
+1. **Registry** (compile time): names unique; every literal reference
+   resolved; the compound-for-registered-anchor error (§0.3).
+2. **Seeds**: the declared initial location, every registry destination, plus
+   **`crawlSeeds`** — an ordinary App attribute (an array of references, read
+   at t=0) for wanted-but-unreachable locations. No new syntax; the extractor
+   reads an attribute.
+3. **Traversal** (computed families): worklist — pop; apply `onFollow`;
+   settle over fixtures; serialize; collect every realized `<a href>`
+   (declared links and rich-text links are the same artifact); **crawl-check**
+   each internal reference against the registry — an evaluated `link` naming
+   an unknown authored name fails the build; enqueue unseen; repeat.
+4. **Termination is the app's obligation, enforced.** The reachable set over
+   fixtures must be finite; an arithmetic family (a calendar's next-month,
+   forever) violates it. Budget overflow is a build **error** naming the
+   abandoned frontier — not a warning, which a team learns to ignore in a
+   week. The app fixes it by bounding what its links emit over fixture data,
+   or by declaring the family via `crawlSeeds` and capping the emission.
+5. **Authored-`.md` checking, scoped**: build-time dead-link checks apply to
+   files reached by a *literal* `DataSource.url` flowing literally into a
+   rendered content slot; `#`-scheme references only; a file's references to
+   its **own** heading slugs are exempt; a file consumed by several apps
+   validates per consuming app. Non-literal chains fall to crawl-checking.
 
-1. **Registry** (compile time): all `shows` and `anchor` names — uniqueness
-   enforced; every literal reference dead-link-checked. This is the compiler's
-   ground truth: for `#story` it knows the manifesting location without
-   executing anything.
-2. **Seeds**: the declared initial location plus every registry destination.
-   The authored surface of the app requires no discovery at all.
-3. **Traversal** (for computed families like `#deck/q3/…`): worklist — pop a
-   location; apply `onFollow`; settle over fixtures; serialize; **key the
-   document** by the canonicalized location (anchors stripped, the declared
-   default folded, §7's output-hash aliasing — all unchanged); collect every
-   realized `<a href>` (declared links and rich-text links are the same
-   artifact by §0.4); enqueue unseen internal references; repeat.
-4. **Termination is declared, never inferred.** A crawl **budget**, with
-   overflow a build *warning that names the abandoned frontier* — silent
-   truncation forbidden. An app with an unbounded family (a calendar's
-   next-month, forever) declares the canonical set for it (a dataset the
-   crawler reads); only the app knows 100 slides exist but infinite months do.
-5. **Evaluation condition**: derivations from declared initials. A
-   conditional link yielding `""` emits nothing — the same gate governs users
-   and crawlers, so gated content is uncrawled by construction.
+**Emission is out of scope.** Documents, identity, dedup, and addressing
+remain §7's ratified rules, unchanged — §0 governs *discovery and integrity*
+only. (v1 of this proposal specified emission cardinality and thereby
+contradicted §7; that was error, not intent.)
 
-Output: one document per canonical location (§7's identity rules), with its
-`<a href="#…">` edges preserved verbatim — so the emitted static HTML is
-itself traversable by real search crawlers. The extraction is a crawl that
-produces a crawlable thing.
+### 0.9 Embedded apps, ruled
 
-### 0.9 Known costs and open items (from the adversarial pass)
+Registries are **per program**. Only the **top-level** app realizes native
+fragment hrefs — a real `<a href="#why">` inside an embedded app would target
+the *host page's* fragment, and copy-link would copy a lie. An embedded app's
+linked views realize `<a>` with **its own program URL + fragment** (copy-link
+and ⌘-click are then true), while a plain same-frame click is intercepted
+into the embedded app's own `follow`. The same interception rule holds at
+top level: plain left-clicks on realized anchors route through `follow`
+(veto-capable, §12.2's rich-text model); modified clicks belong to the
+browser.
 
-- **`shows`/`visible` overlap** — two ways to gate one thing; ruled above
-  (`shows` gates by location, `visible` ANDs) but it is a genuine second way.
-- **Links containing interactive content.** A linked card holding a Button is
-  invalid HTML if realized as a wrapping `<a>`. Ruling needed: nearest-wins
-  for nested links; linked *containers* realize as an overlay anchor, not a
-  wrapper.
-- **Reveal inset.** "In the viewport" must respect fixed chrome — the 56px
-  header cost two hand-built marks in one week. Needs the `scroll-margin`
-  equivalent: a per-app (or per-anchor) reveal inset.
-- **History granularity.** Fine-grained locations (slide arrows) need a
-  replace-form write or Back becomes a 40-press escape (§10.1, promoted from
-  open to required).
-- **Inert vs unavailable.** `link = ""` removes the view from focus and crawl —
-  right for "not a link," wrong for "unavailable right now" (it vanishes for
-  keyboard and screen-reader users). Needs an explicit second affordance.
-- **Scheme allowlist.** `link = { :url }` over remote data must never realize
-  `javascript:` — enforced at follow, the single entry point.
-- **Arrival effects, per-view.** `onFollow` covers app-scoped arrival logic.
-  A per-destination hook for always-mounted views (whose `onInit` fires at
-  boot, not on arrival) remains open — a `State` apply-edge is the candidate.
-- **Bare names for content headings** stay unresolved: heading slugs live in
-  runtime-fetched prose, so they cannot join the build-checked registry; they
-  remain `@`-tier.
+### 0.10 Diagnostics that ship with this
+
+Per the language's contract (each error states the rule and names the
+rewrite): unknown reference (build; names the nearest registered name);
+duplicate registered name (both sites); compound reference to a registered
+anchor (rewrite: the bare form); linked view without an accessible name;
+`javascript:` in a link value; **migration lint** — `onClick` writing
+`app.location` on a view with no `link` (the pre-migration idiom saturates
+this repo's corpus, which is the corpus LLMs imitate); **double-gate lint** —
+`visible` testing location equality alongside `shows` (after the `@`-strip
+ruling the two silently disagree on anchor arrivals).
+
+### 0.11 Open items and pending rulings
+
+- **Pending DT ruling — replace-form history** (§0.5.6): settles flagged
+  §10.1; spelled `replace = true` beside `link`.
+- **Pending DT ruling — `shows` narrowness** (§0.4): literal + App-tree only
+  forecloses `shows = { :slug }` detail routing; computed locations are the
+  offered answer.
+- **Pending DT ruling — no disabled links in v1** (§0.4).
+- **Open — per-destination arrival hook.** `onFollow` is app-scoped;
+  `onInit` fires at boot for always-mounted views, so it is NOT route-enter.
+  A `State` apply-edge is the candidate construct; undesigned.
+- **Open — the pinned reveal contract.** `test/unit.test.mjs:6578` asserts
+  first-call resolution; restate as veto-based (headless settles
+  synchronously with synthetic metrics, so headless remains first-call) when
+  §0.5.3 lands.
 
 ---
 
