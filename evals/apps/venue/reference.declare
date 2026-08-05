@@ -1,0 +1,313 @@
+/*
+# The Venue — the reference solution
+
+Not the eval's answer key: the eval's *instrument check*. Its job is to prove
+`evals/apps/venue/accept.mjs` measures what it claims and that the brief is
+buildable at all. The solving agent never sees it.
+
+Written from `evals/apps/venue/brief.md`, data → states → views.
+*/
+
+script {
+    const API = "http://127.0.0.1:8310"
+
+    // The season arrives as one array and is filtered here rather than at the
+    // service, because the brief asks for search that feels immediate and a
+    // round trip per keystroke is not that.
+    function matches(p: any, q: string, hall: string): boolean {
+        if (hall !== "" && p.hallId !== hall) return false
+        if (q === "") return true
+        return String(p.title).toLowerCase().indexOf(q.toLowerCase()) >= 0
+    }
+
+    function whenText(iso: string): string {
+        const d = new Date(iso)
+        const day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getUTCDay()]
+        const mon = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()]
+        const hh = d.getUTCHours(), mm = d.getUTCMinutes()
+        const ampm = hh >= 12 ? "pm" : "am"
+        const h12 = hh % 12 === 0 ? 12 : hh % 12
+        return `${day} ${d.getUTCDate()} ${mon} · ${h12}:${mm < 10 ? "0" : ""}${mm}${ampm}`
+    }
+    }
+
+
+// ── a performance in the season list ─────────────────────────────────────────
+
+class PerfRow extends View [ height = 52, width = { parent.width },
+    fill = { hovered ? theme.hover : theme.surface },
+    onClick() { app.choose(pid) },
+
+    pid: string = { :id },
+
+    title: Text [ x = 14, y = 10, fontSize = 15, fontWeight = medium, text = :title ],
+    when:  Text [ x = 14, y = 30, fontSize = 12, textColor = { theme.muted },
+        text = { whenText(:startsAt) } ],
+    hall:  Text [ x = { parent.width - 210 }, y = 30, fontSize = 12, textColor = { theme.muted },
+        text = :hall ],
+    from:  Text [ x = { parent.width - 70 }, y = 18, fontSize = 13, textColor = { theme.muted },
+        text = { `from $${:priceFrom}` } ]
+    ]
+
+
+// ── one seat in the hall ─────────────────────────────────────────────────────
+// A seat is the smallest thing in the app and the most numerous, so it holds no
+// state of its own: whether it is chosen is a question about the app's
+// selection, asked fresh, and the fill follows.
+
+class Seat extends View [ width = 16, height = 16, cornerRadius = 3,
+    sid:  string = { :id },
+    sold: boolean = { :status === "sold" },
+    mine: boolean = { app.holds(sid) },
+
+    fill = { sold ? theme.sold : mine ? theme.accent : hovered ? theme.seatHot : theme.seat },
+    onClick() { if (!sold) app.toggle(sid) }
+    ]
+
+
+// ── a row of seats, and a section of rows ────────────────────────────────────
+
+class SeatRow extends View [ height = 18,
+    layout: SimpleLayout [ axis = x, spacing = 3 ],
+    letter: Text [ width = 16, fontSize = 10, y = center, textColor = { theme.muted }, text = :name ],
+    Seat [ datapath = :seats[] ]
+    ]
+
+
+class Section extends View [ width = { parent.width },
+    layout: SimpleLayout [ axis = y, spacing = 3 ],
+    head: Text [ fontSize = 12, fontWeight = medium, textColor = { theme.muted },
+        text = { `${:name} · $${:price}` } ],
+    SeatRow [ datapath = :rows[] ]
+    ]
+
+
+App [ fill = { theme.bg }, textColor = { theme.ink }, fontFamily = ["system-ui"],
+
+    // ── the theme ────────────────────────────────────────────────────────────
+
+    theme = { { ...Themes.sanFrancisco(app.dark),
+        bg: 0x14161A, surface: 0x1B1E24, hover: 0x232830, ink: 0xF2F4F7,
+        muted: 0x9AA3B2, line: 0x2A2F38, accent: 0x4C8DFF,
+        seat: 0x3A4150, seatHot: 0x596478, sold: 0x22262D } },
+
+    // ── data ─────────────────────────────────────────────────────────────────
+
+    season: DataSource [ url = { `${API}/api/performances` } ],
+
+    // `auto`, not a fetch() in the handler that picks the performance: calling
+    // fetch() there sends the URL from BEFORE the cascade — the empty chosenId
+    // — while the error it eventually reports names the URL the source holds by
+    // then, pointing the reader at a perfectly healthy address. A reactive
+    // address is exactly what `auto` is for.
+
+    seats: DataSource [ auto = true,
+        url = { app.chosenId === "" ? "" : `${API}/api/performances/${app.chosenId}/seats` } ],
+    booking: DataSource [ url = { `${API}/api/bookings` }, method = "POST",
+        body = { { performanceId: app.chosenId, seatIds: app.picked,
+                   name: app.who, email: app.email } } ],
+
+    onInit() { this.season.fetch() },
+
+    // The visible season: a derived dataset, recomputed from the query and the
+    // hall the moment either changes — no refetch, no debounce, no effect.
+
+    shown: Dataset [ contents = { app.visibleSeason() } ],
+
+    visibleSeason() -> object {
+        const all = (this.season.value as any)?.performances ?? []
+        return { rows: all.filter((p) => matches(p, this.query, this.hall)) }
+        },
+
+    // ── state ────────────────────────────────────────────────────────────────
+
+    mode:      string   = "season",        // season · seats · checkout · done
+    query:     string   = "",
+    hall:      string   = "",
+    chosenId:  string   = "",
+    picked:    string[] = [],
+    who:       string   = "",
+    email:     string   = "",
+    note:      string   = "",
+    code:      string   = "",
+
+    count:   number  = { ((this.shown.value as any)?.rows ?? []).length },
+    total:   number  = { this.picked.reduce((n, id) => n + this.priceOf(id), 0) },
+    ready:   boolean = { this.who.trim() !== "" && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(this.email) },
+    hallOf:  string  = { ((this.seats.value as any)?.hall ?? "") },
+
+    holds(id: string) -> boolean { return this.picked.indexOf(id) >= 0 },
+
+    // Seat ids are section-key-prefixed (`ORCH-C-14`), so a seat's price is its
+    // section's price — no second lookup structure to keep in step.
+
+    priceOf(id: string) -> number {
+        const secs = (this.seats.value as any)?.sections ?? []
+        for (const s of secs) if (id.indexOf(s.key + "-") === 0) return s.price
+        return 0
+        },
+
+    // ── what the person does ─────────────────────────────────────────────────
+
+    choose(id: string) {
+        chosenId = id
+        picked = []
+        note = ""
+        mode = "seats"
+        },
+
+    toggle(id: string) {
+        picked = this.holds(id) ? picked.filter((s) => s !== id) : picked.concat([id])
+        note = ""
+        },
+
+    toCheckout() { if (picked.length > 0) { note = ""; mode = "checkout" } },
+
+    confirm() {
+        if (!ready) { note = "Add a name and an email address."; return }
+        note = ""
+        this.booking.fetch().then(() => { app.settled() })
+        },
+
+    // A failed write tells us only THAT it failed: DataSource throws away the
+    // body of a non-2xx, so the service's sentence and the seat ids it names
+    // never reach the app. Which means we cannot release just the seats that
+    // went — we release all of them, because we can no longer claim any.
+
+    settled() {
+        if (this.booking.failed) {
+            picked = []
+            note = "Someone else took those seats first."
+            return
+            }
+        code = ((this.booking.value as any)?.code ?? "")
+        mode = "done"
+        },
+
+    againAll() {
+        mode = "season"
+        picked = []
+        chosenId = ""
+        code = ""
+        note = ""
+        who = ""
+        email = ""
+        this.booking.clear()
+        },
+
+    // ── the season ───────────────────────────────────────────────────────────
+
+    seasonPane: View [ width = { parent.width }, height = { parent.height },
+        visible = { app.mode === "season" },
+
+        head: View [ width = { parent.width }, height = 96, fill = { theme.surface },
+            Text [ x = 20, y = 18, fontSize = 20, fontWeight = bold, text = "The Venue" ],
+            tally: Text [ x = 20, y = 46, fontSize = 13, textColor = { theme.muted },
+                text = { `${app.count.toLocaleString()} performance${app.count === 1 ? "" : "s"}` } ],
+
+            search: TextInput [ x = { parent.width - 420 }, y = 40, width = 240, height = 30,
+                fontSize = 16, padding = 8, placeholder = "Search by title",
+                onInput(v: string) { app.query = v }
+                ],
+
+            halls: Segmented [ x = { parent.width - 168 }, y = 40, width = 160,
+                value = { app.hall },
+                choices = { [ ({ id: "", label: "All" }),
+                             ({ id: "grand", label: "Grand" }),
+                             ({ id: "playhouse", label: "Play" }),
+                             ({ id: "studio", label: "Studio" }) ] },
+                input(v: object) { app.hall = "" + v }
+                ]
+            ],
+
+        list: View [ y = 96, width = { parent.width }, height = { parent.height - 96 },
+            scrolls = y, datapath = { app.shown.value },
+            layout: SimpleLayout [ axis = y, spacing = 1 ],
+            PerfRow [ datapath = :rows[], virtualize = true ]
+            ],
+
+        empty: Text [ x = 20, y = 130, fontSize = 14, textColor = { theme.muted },
+            visible = { app.count === 0 },
+            text = { `Nothing matches “${app.query}”.` } ]
+        ],
+
+    // ── the hall ─────────────────────────────────────────────────────────────
+
+    seatsPane: View [ width = { parent.width }, height = { parent.height },
+        visible = { app.mode === "seats" },
+
+        head: View [ width = { parent.width }, height = 72, fill = { theme.surface },
+            back: Text [ x = 20, y = 26, fontSize = 14, textColor = { theme.accent },
+                text = "‹ the season",
+                onClick() { app.mode = "season" }
+                ],
+            Text [ x = 140, y = 24, fontSize = 17, fontWeight = medium, text = { app.hallOf } ]
+            ],
+
+        room: View [ x = 20, y = { 92 - app.rise }, width = { parent.width - 40 },
+            opacity = { app.seats.loaded ? 1 : 0 },
+            datapath = { app.seats.value },
+            layout: SimpleLayout [ axis = y, spacing = 18 ],
+            Section [ datapath = :sections[] ]
+            ],
+
+        bar: View [ y = { parent.height - 64 }, width = { parent.width }, height = 64,
+            fill = { theme.surface }, visible = { app.picked.length > 0 },
+            summary: Text [ x = 20, y = center, fontSize = 16,
+                text = { `${app.picked.length} seat${app.picked.length === 1 ? "" : "s"} · $${app.total}` } ],
+            go: Button [ x = { parent.width - 160 }, y = 16, label = "Book seats", primary = true,
+                onClick() { app.toCheckout() }
+                ]
+            ]
+        ],
+
+    // The hall does not cut in — it rises the last few pixels as it arrives, so
+    // the room reads as having come from somewhere.
+
+    rise: number = 0,
+    lift: Spring [ attribute = rise, to = { app.mode === "seats" && app.seats.loaded ? 0 : 24 },
+        stiffness = 210, damping = 26 ],
+
+    // ── booking ──────────────────────────────────────────────────────────────
+
+    checkoutPane: View [ width = { parent.width }, height = { parent.height },
+        visible = { app.mode === "checkout" },
+
+        Text [ x = 20, y = 28, fontSize = 20, fontWeight = bold, text = "Who is coming?" ],
+        recap: Text [ x = 20, y = 60, fontSize = 14, textColor = { theme.muted },
+            text = { `${app.picked.length} seat${app.picked.length === 1 ? "" : "s"} · $${app.total}` } ],
+
+        nameField: TextInput [ x = 20, y = 100, width = 320, height = 34, fontSize = 16, padding = 8,
+            placeholder = "Name",
+            onInput(v: string) { app.who = v }
+            ],
+        mailField: TextInput [ x = 20, y = 146, width = 320, height = 34, fontSize = 16, padding = 8,
+            placeholder = "Email",
+            onInput(v: string) { app.email = v }
+            ],
+
+        hint: Text [ x = 20, y = 194, width = 420, fontSize = 13, wrap = true,
+            textColor = { theme.muted }, text = { app.note } ],
+
+        confirm: Button [ x = 20, y = 232, label = "Confirm booking", primary = true,
+            onClick() { app.confirm() }
+            ],
+        cancel: Text [ x = 190, y = 240, fontSize = 14, textColor = { theme.muted },
+            text = "Back to the seats",
+            onClick() { app.mode = "seats" }
+            ]
+        ],
+
+    // ── done ─────────────────────────────────────────────────────────────────
+
+    donePane: View [ width = { parent.width }, height = { parent.height },
+        visible = { app.mode === "done" },
+        Text [ x = 20, y = 28, fontSize = 20, fontWeight = bold, text = "You're going." ],
+        codeText: Text [ x = 20, y = 66, fontSize = 16, text = { `Confirmation ${app.code}` } ],
+        what: Text [ x = 20, y = 94, fontSize = 14, textColor = { theme.muted },
+            text = { `${app.picked.length} seat${app.picked.length === 1 ? "" : "s"} · $${app.total}` } ],
+        again: Button [ x = 20, y = 134, label = "Book something else",
+            onClick() { app.againAll() }
+            ]
+        ]
+    ]

@@ -1,0 +1,1523 @@
+/*
+# Cadence — a training log
+
+Ink, paper, and one accent that means EFFORT. Three surfaces, one program:
+
+- **Today** — the week's volume, the streak, the week's shape, the last
+  session (or the one still running). Numbers are the whole design; the
+  labels are 10px monospaced caps and the numerals are 6–8× that.
+- **The year** — fourteen months as one strip you handle. A finger, a
+  trackpad, a wheel or the arrow keys push it through the months; a pinch
+  or a wheel-zoom pulls a fortnight open. Every frame, no waiting for
+  release. Whatever is on screen, the header says what it is and what
+  happened in it.
+- **A session** — picked from the strip or from Today: what it was, and
+  where it sits against every other session of that sport.
+
+The data is the service's; `db` is the local truth seeded from it. Adding,
+correcting and deleting write the service AND `db`, so every derived number
+— this week, the streak, the week's shape, the strip, the period summary —
+re-derives in the same settle. Nothing is refreshed because nothing is
+stale.
+*/
+
+font Sans [ family = "system-ui" ]
+
+font Mono [ family = "ui-monospace, SFMono-Regular, Menlo, monospace" ]
+
+script {
+    const CAD_API = "http://127.0.0.1:8320"
+
+    // Day 0 of the strip's coordinate system. Every date in the app is an
+    // integer day from here, which is what lets the strip pan and zoom with
+    // pure arithmetic and no date math per frame.
+    const CAD_EPOCH = Date.UTC(2025, 5, 1)
+
+    const CAD_MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const CAD_MONL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    const CAD_DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const CAD_LETTER = ["M", "T", "W", "T", "F", "S", "S"]
+    const CAD_SPORTS = ["run", "ride", "lift", "swim"]
+
+    function cadPad2(n: number): string { return n < 10 ? "0" + n : "" + n }
+
+    function cadMs(d: string): number {
+        const p = d.split("-")
+        return Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2]))
+    }
+
+    // date string -> day index, and back
+    function cadDay(d: string): number { return Math.round((cadMs(d) - CAD_EPOCH) / 86400000) }
+
+    function cadKey(day: number): string {
+        const t = new Date(CAD_EPOCH + Math.round(day) * 86400000)
+        return t.getUTCFullYear() + "-" + cadPad2(t.getUTCMonth() + 1) + "-" + cadPad2(t.getUTCDate())
+    }
+
+    // Monday = 0 … Sunday = 6
+    function cadDow(day: number): number { return (((Math.round(day) + 6) % 7) + 7) % 7 }
+
+    function cadMonth(day: number): number { return new Date(CAD_EPOCH + Math.round(day) * 86400000).getUTCMonth() }
+    function cadYear(day: number): number { return new Date(CAD_EPOCH + Math.round(day) * 86400000).getUTCFullYear() }
+    function cadDom(day: number): number { return new Date(CAD_EPOCH + Math.round(day) * 86400000).getUTCDate() }
+
+    // ── the house formats ────────────────────────────────────────────────
+    // durations read `3h 40m` and `45m`; distances `12.4 km`; heart `148 bpm`
+
+    function cadDur(min: number): string {
+        const m = Math.max(0, Math.round(min))
+        const h = Math.floor(m / 60)
+        const r = m % 60
+        return h > 0 ? (r > 0 ? h + "h " + r + "m" : h + "h") : r + "m"
+    }
+
+    function cadKm(km: number): string { return (Math.round(km * 10) / 10).toFixed(1) + " km" }
+
+    function cadBpm(n: number): string { return Math.round(n) + " bpm" }
+
+    // a live clock is not a logged duration — it keeps its seconds
+    function cadClock(sec: number): string {
+        const s = Math.max(0, Math.floor(sec))
+        if (s >= 3600) return cadDur(s / 60)
+        if (s < 60) return s + "s"
+        return Math.floor(s / 60) + "m " + cadPad2(s % 60) + "s"
+    }
+
+    function cadSportName(s: string): string {
+        return s == "run" ? "Run" : s == "ride" ? "Ride" : s == "lift" ? "Lift" : s == "swim" ? "Swim" : s
+    }
+
+    // plural of the noun, so `1 session · 45m` reads as written too
+    function cadCount(n: number, one: string, many: string): string {
+        return Math.round(n) + " " + (Math.round(n) == 1 ? one : many)
+    }
+
+    function cadDateLong(day: number): string {
+        return CAD_DOW[new Date(CAD_EPOCH + Math.round(day) * 86400000).getUTCDay()]
+             + " " + cadDom(day) + " " + CAD_MON[cadMonth(day)]
+    }
+
+    function cadMix(a: number, b: number, t: number): number {
+        const u = Math.max(0, Math.min(1, t))
+        const c = (x: number, y: number) => Math.round(x + (y - x) * u)
+        return (c((a >> 16) & 255, (b >> 16) & 255) << 16)
+             | (c((a >> 8) & 255, (b >> 8) & 255) << 8)
+             | c(a & 255, b & 255)
+    }
+
+    function cadClamp(v: number, a: number, b: number): number { return Math.max(a, Math.min(b, v)) }
+
+    function cadMedian(xs: number[]): number {
+        if (xs.length == 0) return 0
+        const s = xs.slice().sort((p, q) => p - q)
+        return s[Math.floor(s.length / 2)]
+    }
+    }
+
+
+/* ## The marks
+   Two families and nothing between them: Mono for the 10px caps that name a
+   thing, Sans for every numeral. The gap between them IS the hierarchy —
+   there are no rules, boxes or shadows anywhere in the Today column. */
+
+class Cap extends Text [ fontFamily = [Mono, "ui-monospace", "monospace"], wrap = false,
+    fontSize = { app.capSize }, fontWeight = medium, letterSpacing = { 0.12 * fontSize },
+    textColor = { theme.textFaint }
+    ]
+
+
+class Big extends Text [ wrap = false, fontWeight = bold, letterSpacing = { -0.035 * fontSize },
+    textColor = { theme.text }
+    ]
+
+
+// the small word riding a big numeral's baseline
+
+class Unit extends Text [ wrap = false, fontWeight = medium, textColor = { theme.textMuted },
+    base: number = 40,
+    y = { (classroot.base - this.fontSize) * 0.76 }
+    ]
+
+
+/* A duration as `3h 40m`, set so the NUMBERS are the hero and the units
+   recede — one object, used by the week total, the last session, the live
+   clock, the period summary and the detail. */
+
+class Dur extends View [
+    minutes: number = 0,
+    size:    number = 40,
+    tint:    Color  = null,
+    hrs:  number = { Math.floor(Math.max(0, Math.round(classroot.minutes)) / 60) },
+    mins: number = { Math.max(0, Math.round(classroot.minutes)) % 60 },
+    showH: boolean = { classroot.hrs > 0 },
+    gap:   number = { classroot.size * 0.20 },
+
+    // Four runs placed off each other's measured ink — no nested layout, so
+    // there is nothing here that has to settle in a particular order.
+
+    hn: Big  [ x = 0, visible = { classroot.showH }, fontSize = { classroot.size },
+        textColor = { classroot.tint ?? theme.text }, text = { "" + classroot.hrs } ],
+    hu: Unit [ visible = { classroot.showH }, base = { classroot.size },
+        fontSize = { classroot.size * 0.30 },
+        x = { classroot.hn.width + classroot.size * 0.01 }, text = "h" ],
+    mn: Big  [ visible = { classroot.mins > 0 || !classroot.showH }, fontSize = { classroot.size },
+        textColor = { classroot.tint ?? theme.text },
+        x = { classroot.showH ? classroot.hu.x + classroot.hu.width + classroot.gap : 0 },
+        text = { "" + classroot.mins } ],
+    mu: Unit [ visible = { classroot.mn.visible }, base = { classroot.size },
+        fontSize = { classroot.size * 0.30 },
+        x = { classroot.mn.x + classroot.mn.width + classroot.size * 0.01 }, text = "m" ],
+
+    width  = { classroot.mn.visible ? classroot.mu.x + classroot.mu.width
+                                    : classroot.hu.x + classroot.hu.width },
+    height = { classroot.size * 1.18 }
+    ]
+
+
+// every tappable thing in the app: a Control, so Tab, Space and Enter all
+// work and the traveling focus ring is provided
+
+class Push extends Control [ cornerRadius = 12,
+    on: boolean = false,
+    act: string = "",
+    press() { app.pushed(classroot.act) },
+    onClick() { if (!disabled) press() }
+    ]
+
+
+/* ## One day of the week's shape
+   A column per day; the bar's height is the day's minutes against a FIXED
+   reference drawn from the last three months, so a light week and a heavy
+   one are told apart at a glance — the scale does not rescale itself under
+   them. The height is sprung, so a session added to Tuesday grows Tuesday. */
+
+class WeekDay extends View [
+    width  = { app.dayColW },
+    height = { app.shapeH },
+    x = { :i * (app.dayColW + app.dayGap) },
+
+    dayMins: number = { Number(:mins ?? 0) },
+    grown: number = 0,
+    Spring [ attribute = grown, to = { Math.min(1, classroot.dayMins / app.dayRef) }, stiffness = 190, damping = 24 ],
+
+    rest: View [ y = { parent.height - 20 }, width = { Math.min(parent.width, 92) }, height = 2,
+        cornerRadius = 1, fill = { theme.line } ],
+    bar: View [ width = { Math.min(parent.width, 92) }, cornerRadius = 3,
+        height = { Math.max(2, classroot.grown * (app.shapeH - 24)) },
+        y = { parent.height - 20 - this.height },
+        fill = { (:mins ?? 0) > 0 ? app.effortColor(:eff) : theme.line },
+        opacity = { :future ? 0.35 : 1 } ],
+    l: Cap [ y = { parent.height - 13 }, width = { parent.width }, textAlign = center, letterSpacing = 0,
+        textColor = { :today ? theme.accent : theme.textFaint },
+        fontWeight = { :today ? "bold" : "medium" },
+        text = { "" + :letter } ]
+    ]
+
+
+/* ## One session on the year strip
+   Height is duration, colour is effort. `x` is the day index times the
+   current pixels-per-day — panning moves the STRIP (one constraint), so a
+   pan costs nothing per bar; only a zoom re-solves these. */
+
+class YearBar extends View [
+    x = { :day * app.ppd },
+    width  = { app.barW },
+    height = { Math.max(2, (:mins ?? 0) / app.plotMax * app.chartH) },
+    y = { app.chartH - this.height },
+    cornerRadius = { Math.min(3, app.barW / 2) },
+    fill = { app.effortColor(:effort) },
+    opacity = { app.selectedId == "" || app.selectedId == :id ? 1 : 0.42 },
+
+    g: SportGlyph [ visible = { app.barW > 12 }, opacity = { cadClamp((app.barW - 12) / 7, 0, 1) },
+        width = 15, height = 15, x = { (parent.width - this.width) / 2 }, y = -20,
+        sport = { "" + :sport }, ink = { app.effortColor(:effort) } ],
+
+    mark: View [ ignoreClip = true, visible = { app.selectedId == :id },
+        x = { (parent.width - this.width) / 2 }, y = -11, width = 5, height = 5, cornerRadius = 3,
+        fill = { theme.accent } ]
+    ]
+
+
+// the strip's month rules — one hairline and one label per month, panning
+// with the data because they live in the same strip
+
+class MonthTick extends View [
+    x = { :day * app.ppd },
+    y = 0, width = 1, height = { app.chartH },
+    fill = { theme.line },
+    opacity = { :first ? Math.max(0.75, app.monthLabels) : 0.8 * app.monthLabels }
+    ]
+
+
+// the axis rides its own clipped band under the plot, panning on the same
+// transform — a label outside the window is cut by the band, not by luck
+
+class MonthLabel extends Cap [
+    x = { :day * app.ppd + 5 },
+    fontSize = { app.capSize - 0.5 },
+    textColor = { :first ? theme.textMuted : theme.textFaint },
+    fontWeight = { :first ? "bold" : "medium" },
+    opacity = { :first ? 1 : app.monthLabels },
+    text = { "" + :label }
+    ]
+
+
+// a sport in the add sheet: four of them, one row, thumb-sized
+
+class SportTile extends Push [ height = 70, cornerRadius = 14,
+    sport: string = "",
+    width = { app.tileW },
+    on = { app.dSport == classroot.sport },
+    fill = { on ? theme.accent : down ? theme.controlPressed : hot ? theme.controlHover : theme.control },
+    press() { app.setSport(classroot.sport) },
+
+    g: SportGlyph [ x = { (parent.width - this.width) / 2 }, y = 14,
+        sport = { classroot.sport },
+        ink = { classroot.on ? 0xFFFFFF : theme.text } ],
+    l: Text [ y = 46, width = { parent.width }, textAlign = center, fontSize = 12.5, fontWeight = semibold,
+        wrap = false, textColor = { classroot.on ? 0xFFFFFF : theme.textMuted },
+        text = { cadSportName(classroot.sport) } ]
+    ]
+
+
+/* The four sports are told apart by DRAWN MARKS, not by four colours —
+   colour in this app means effort and nothing else. Each is one stroked
+   path in a 22-box. */
+
+class SportGlyph extends View [ width = 22, height = 22,
+    sport: string = "run",
+    ink: Color = null,
+
+    draw(d: Draw) {
+        const c = this.ink ?? 0x1A1712
+        const k = Math.max(0.2, this.width / 22)      // authored in a 22-box, drawn at any size
+        d.scale(k, k)
+        d.strokeStyle = "#" + ("000000" + (c as any).toString(16)).slice(-6)
+        d.lineWidth = 1.9 / Math.sqrt(k)
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        const s = this.sport
+        d.beginPath()
+        if (s == "run") {                       // a stride
+            d.moveTo(3, 19); d.lineTo(8, 12); d.lineTo(12, 14); d.lineTo(15, 8)
+            d.moveTo(12, 14); d.lineTo(13, 19)
+            d.moveTo(15, 8); d.lineTo(19, 9)
+            d.stroke()
+            d.beginPath(); d.arc(14.5, 4.5, 2.2, 0, 6.2832); d.stroke()
+        } else if (s == "ride") {               // two wheels and a crank
+            d.arc(5.5, 15, 4.2, 0, 6.2832); d.stroke()
+            d.beginPath(); d.arc(16.5, 15, 4.2, 0, 6.2832); d.stroke()
+            d.beginPath(); d.moveTo(5.5, 15); d.lineTo(10, 7); d.lineTo(16.5, 15); d.moveTo(10, 7); d.lineTo(14, 7)
+            d.stroke()
+        } else if (s == "lift") {               // a bar and two plates
+            d.moveTo(2, 11); d.lineTo(20, 11)
+            d.moveTo(6, 6); d.lineTo(6, 16)
+            d.moveTo(16, 6); d.lineTo(16, 16)
+            d.moveTo(3.2, 8); d.lineTo(3.2, 14)
+            d.moveTo(18.8, 8); d.lineTo(18.8, 14)
+            d.stroke()
+        } else {                                 // swim — a swell
+            d.moveTo(2, 15); d.bezierCurveTo(5, 11.5, 8, 18.5, 11, 15); d.bezierCurveTo(14, 11.5, 17, 18.5, 20, 15)
+            d.moveTo(2, 9); d.bezierCurveTo(5, 5.5, 8, 12.5, 11, 9); d.bezierCurveTo(14, 5.5, 17, 12.5, 20, 9)
+            d.stroke()
+            }
+        }
+    ]
+
+
+// one of the ten effort marks — the tap target is the whole column, the
+// mark is the small bar inside it
+
+class EffortDot extends Push [ cornerRadius = 8,
+    n: number = 1,
+    width = { app.dotW }, height = 46,
+    x = { (classroot.n - 1) * (app.dotW + 3) },
+    on = { app.dEffort >= classroot.n },
+    fill = { down || hot ? theme.controlHover : null },
+    press() { app.dEffort = classroot.n },
+
+    m: View [ x = { (parent.width - this.width) / 2 }, width = { Math.min(18, app.dotW - 8) },
+        cornerRadius = 3,
+        height = { 8 + classroot.n * 2.2 },
+        y = { 34 - this.height },
+        fill = { classroot.on ? app.effortColor(app.dEffort) : theme.line } ]
+    ]
+
+
+// a date to log against — the last days, newest first, so "today" is one tap
+
+class DayChip extends Push [ height = 54, cornerRadius = 12,
+    day: number = 0,
+    width = { app.chipW },
+    x = { :i * (app.chipW + 6) },
+    on = { app.dDay == classroot.day },
+    fill = { on ? theme.accent : down ? theme.controlPressed : hot ? theme.controlHover : theme.control },
+    press() { app.dDay = classroot.day },
+
+    a: Text [ y = 10, width = { parent.width }, textAlign = center, fontSize = 11, wrap = false,
+        fontWeight = medium, textColor = { classroot.on ? 0xFFFFFF : theme.textMuted },
+        text = { app.chipTop(classroot.day) } ],
+    b: Text [ y = 24, width = { parent.width }, textAlign = center, fontSize = 19, wrap = false,
+        fontWeight = semibold, letterSpacing = { -0.03 * fontSize },
+        textColor = { classroot.on ? 0xFFFFFF : theme.text },
+        text = { app.chipBottom(classroot.day) } ]
+    ]
+
+
+// a stepper cheek: a big round -/+ that never needs the keyboard
+
+class Nudge extends Push [ width = 46, height = 46, cornerRadius = 23,
+    delta: number = 0,
+    field: string = "min",
+    minus: boolean = false,
+    fill = { down ? theme.controlPressed : hot ? theme.controlHover : theme.control },
+    press() { app.nudge(classroot.field, classroot.delta) },
+
+    draw(d: Draw) {
+        d.strokeStyle = "#5A5245"
+        d.lineWidth = 2.2
+        d.lineCap = "round"
+        d.beginPath()
+        d.moveTo(15, 23); d.lineTo(31, 23)
+        if (!this.minus) { d.moveTo(23, 15); d.lineTo(23, 31) }
+        d.stroke()
+        }
+    ]
+
+
+/* ## Where a session sits
+   One rail per axis: the track is every session of that sport, the mark is
+   this one. The sentence under it says the same thing in words, because a
+   rail alone is a picture. */
+
+class Rail extends View [
+    frac:  number = 0,
+    line:  string = "",
+    width = { parent.width }, height = 34,
+
+    grown: number = 0,
+    Spring [ attribute = grown, to = { classroot.frac }, stiffness = 150, damping = 22 ],
+
+    track: View [ y = 0, width = { parent.width }, height = 5, cornerRadius = 3, fill = { theme.line } ],
+    fillbar: View [ y = 0, height = 5, cornerRadius = 3, fill = { app.detailTint },
+        width = { Math.max(4, classroot.grown * parent.width) } ],
+    txt: Text [ y = 13, fontSize = 12.5, wrap = false, textColor = { theme.textMuted },
+        text = { classroot.line } ]
+    ]
+
+
+/* Below the floor the design would start dropping answers rather than
+   adapting, so it declares one and lets the stage pan — the honest
+   degradation, not a fifth arrangement nobody would ever see. */
+
+App [ appName = "Cadence", minWidth = 340, minHeight = 690,
+    fill = { theme.bg }, fontFamily = [Sans, "system-ui", "sans-serif"],
+
+    /* Ink and warm paper, with ONE accent. It is not decoration: it is the
+       effort scale's top end, so anything hot on this screen is something
+       that was hard. The record extends the house preset, so the library's
+       own controls (Slider, Button, the focus ring) find every token. */
+
+    theme = { ({ ...Themes.sanFrancisco(false),
+        bg: 0xF7F4EE, surface: 0xFFFDF8, line: 0xE2DBCD,
+        text: 0x1A1712, textMuted: 0x6E6558, textFaint: 0x9E9484,
+        accent: 0xE2431F, accentText: 0xFFFFFF,
+        control: 0xEBE4D8, controlHover: 0xE3DBCC, controlPressed: 0xD7CDBA,
+        controlSelected: 0xF7DACF, controlRadius: 11,
+        errorColor: 0xB3301A }) },
+
+    // ── the service ──────────────────────────────────────────────────────
+
+    todaySrc: DataSource [ url = { CAD_API + "/api/today" },
+        onLoad() { app.seedToday() }
+        ],
+    allSrc: DataSource [ url = { CAD_API + "/api/sessions" },
+        onLoad() { app.seedSessions() }
+        ],
+    liveSrc: DataSource [ url = { CAD_API + "/api/live" },
+        onLoad() { app.seedLive() }
+        ],
+
+    // the local truth — seeded once, then written by every edit, so nothing
+    // downstream ever waits for a refetch
+
+    db: Dataset { { "sessions": [] } },
+
+    todayKey: string = "",
+    booted: boolean = { app.todayKey != "" && app.allSrc.loaded },
+    today:  number = { app.todayKey == "" ? 0 : cadDay(app.todayKey) },
+
+    onInit() {
+        this.todaySrc.fetch()
+        this.allSrc.fetch()
+        this.liveSrc.fetch()
+        setInterval(() => { app.liveSrc.fetch() }, 4000)
+        },
+
+    seedToday()    { const v = this.todaySrc.value as any; if (v != null) this.todayKey = "" + v.today },
+    seedSessions() { const v = this.allSrc.value as any; if (v != null) this.db.set(["sessions"], v.sessions) },
+    seedLive()     { const r = this.liveRec() as any; if (r != null) { this.liveBase = Number(r.startedSecondsAgo); this.liveT = 0 } },
+
+    sessions() -> array { return (this.db.read(["sessions"]) ?? []) as any[] },
+
+    // ── the live session ─────────────────────────────────────────────────
+
+    liveBase: number = 0,
+    liveT:    number = 0,
+    pulseT:   number = 0,
+    liveRec() -> object { const v = this.liveSrc.value as any; return v != null && v.session != null ? v.session : null },
+    hasLive: boolean = { app.liveRec() != null },
+    liveSecs: number = { app.liveBase + app.liveT },
+
+    beat: Heartbeat [ running = { app.hasLive },
+        onFrame(dt: number) { app.liveT = app.liveT + dt; app.pulseT = (app.pulseT + dt) % 2.4 }
+        ],
+    pulse: number = { 0.32 + 0.68 * (0.5 + 0.5 * Math.cos(app.pulseT / 2.4 * 6.2832)) },
+
+    // ── this week, the streak, the shape ────────────────────────────────
+
+    weekStart: number = { app.today - cadDow(app.today) },
+
+    weekCount: number = { app.sessions().filter((s) => cadDay(s.date) >= app.weekStart && cadDay(s.date) < app.weekStart + 7).length },
+    weekMins:  number = { app.sessions().filter((s) => cadDay(s.date) >= app.weekStart && cadDay(s.date) < app.weekStart + 7)
+                              .reduce((a, s) => a + s.minutes, 0) },
+
+    /* The streak: consecutive days with a session, counted back from today
+       — or from yesterday, because a day that has not happened yet cannot
+       break one. */
+
+    streak() -> number {
+        const days = new Set(this.sessions().map((s) => cadDay(s.date)))
+        let d = this.today
+        if (!days.has(d)) d = d - 1
+        let n = 0
+        while (days.has(d)) { n = n + 1; d = d - 1 }
+        return n
+        },
+    streakN: number = { app.streak() },
+
+    // the week's seven days, and the FIXED reference the bars are drawn
+    // against (the heaviest day of the last three months)
+
+    week: Dataset [ contents = { app.buildWeek() } ],
+    dayRef: number = { Math.max(75, app.heaviestDay()) },
+
+    // Not the single heaviest day — one outlier would flatten every week
+    // after it. The mean of the six heaviest days of the last quarter is a
+    // stable ceiling, so two weeks drawn a month apart are comparable.
+
+    heaviestDay() -> number {
+        const by = new Map()
+        for (const s of this.sessions() as any[]) {
+            const d = cadDay(s.date)
+            if (d > this.today - 90) by.set(d, (by.get(d) ?? 0) + s.minutes)
+            }
+        const xs = Array.from(by.values()).map((v) => v as number).sort((p, q) => p - q)
+        return xs.length == 0 ? 0 : xs[Math.floor(xs.length * 0.75)]
+        },
+
+    buildWeek() -> object {
+        const all = this.sessions() as any[]
+        const days = []
+        for (let i = 0; i < 7; i++) {
+            const d = this.weekStart + i
+            const on = all.filter((s) => cadDay(s.date) == d)
+            const mins = on.reduce((a, s) => a + s.minutes, 0)
+            const eff = on.length == 0 ? 0 : Math.round(on.reduce((a, s) => a + s.effort * s.minutes, 0) / Math.max(1, mins))
+            days.push({ i: i, day: d, letter: CAD_LETTER[i], mins: mins, eff: eff,
+                        today: d == this.today, future: d > this.today })
+            }
+        return ({ days: days })
+        },
+
+    lastRec() -> object {
+        const all = this.sessions() as any[]
+        return all.length > 0 ? all[0] : null
+        },
+    lastId: string = { app.lastRec() != null ? "" + (app.lastRec() as any).id : "" },
+
+    // ── the year strip ───────────────────────────────────────────────────
+
+    totalDays: number = { app.today + 1 },
+    minSpan:   number = 10,
+
+    // `spanDays <= 0` and `startDay < 0` are the "fit everything" sentinels,
+    // so the strip is correct before the service's date has landed
+
+    spanDays: number = 0,
+    startDay: number = -1,
+    span:  number = { app.spanDays <= 0 ? Math.max(app.minSpan, app.totalDays) : app.spanDays },
+    start: number = { app.startDay < 0 ? Math.max(0, app.totalDays - app.span) : app.startDay },
+    ppd:   number = { app.chartW / Math.max(1, app.span) },
+    barW:  number = { Math.max(2, Math.min(app.ppd * 0.68, 26)) },
+    monthLabels: number = { cadClamp((app.ppd * 30 - 34) / 22, 0, 1) },
+
+    bars: Dataset [ contents = { app.buildBars() } ],
+    plotMax: number = 175,
+
+    buildBars() -> object {
+        const rows = (this.sessions() as any[]).map((s) => ({
+            id: s.id, day: cadDay(s.date), mins: s.minutes, effort: s.effort, sport: s.sport }))
+        const months = []
+        const last = this.today
+        for (let d = 0; d <= last; d++) if (cadDom(d) == 1)
+            months.push({ day: d, first: cadMonth(d) == 0,
+                          label: cadMonth(d) == 0 ? "" + cadYear(d) : CAD_MON[cadMonth(d)].toUpperCase() })
+        return ({ rows: rows, months: months })
+        },
+
+    setView(s: number, sp: number) {
+        const span = cadClamp(sp, this.minSpan, Math.max(this.minSpan, this.totalDays))
+        this.spanDays = span
+        this.startDay = cadClamp(s, 0, Math.max(0, this.totalDays - span))
+        },
+    zoomAt(fx: number, k: number) {
+        const sp0 = this.span
+        const focal = this.start + fx / (this.chartW / Math.max(1, sp0))
+        const sp1 = cadClamp(sp0 / k, this.minSpan, Math.max(this.minSpan, this.totalDays))
+        this.setView(focal - fx / (this.chartW / Math.max(1, sp1)), sp1)
+        },
+    resetView() { this.spanDays = 0; this.startDay = -1 },
+    zoomed: boolean = { app.spanDays > 0 || app.startDay >= 0 },
+
+    // pan / pinch bookkeeping. `fingers` is the arbitration between the two
+    // streams: a fingertip raises BOTH the pointer and the touch handlers,
+    // so the pointer path stands down whenever a finger is down.
+
+    fingers: number = 0,
+    panX:    number = 0,
+    panFrom: number = 0,
+    pinchD:  number = 1,
+    pinchX:  number = 0,
+
+    touchSpread(t: array) -> number {
+        const ts = t as any[]
+        return Math.max(8, Math.abs(ts[0].x - ts[1].x))
+        },
+    touchMid(t: array) -> number {
+        const ts = t as any[]
+        return (ts[0].x + ts[1].x) / 2
+        },
+
+    beginPan(x: number) { this.panX = x; this.panFrom = this.start },
+    movePan(x: number)  { this.setView(this.panFrom - (x - this.panX) / this.ppd, this.span) },
+
+    // what the strip is looking at, and what happened in it
+
+    winFrom: number = { Math.round(app.start) },
+    winTo:   number = { Math.round(app.start + app.span) - 1 },
+    inWindow() -> array {
+        const a = this.winFrom
+        const b = this.winTo
+        return (this.sessions() as any[]).filter((s) => { const d = cadDay(s.date); return d >= a && d <= b })
+        },
+    winCount: number = { app.inWindow().length },
+    winMins:  number = { (app.inWindow() as any[]).reduce((a, s) => a + s.minutes, 0) },
+    winKm:    number = { (app.inWindow() as any[]).reduce((a, s) => a + (s.distanceKm ?? 0), 0) },
+
+    periodLabel: string = {
+        app.span > 150
+            ? CAD_MON[cadMonth(app.winFrom)] + " " + cadYear(app.winFrom) + " – " + CAD_MON[cadMonth(app.winTo)] + " " + cadYear(app.winTo)
+        : app.span > 45
+            ? CAD_MONL[cadMonth(app.winFrom)] + " – " + CAD_MONL[cadMonth(app.winTo)] + " " + cadYear(app.winTo)
+        : cadMonth(app.winFrom) == cadMonth(app.winTo)
+            ? cadDom(app.winFrom) + " – " + cadDom(app.winTo) + " " + CAD_MONL[cadMonth(app.winTo)] + " " + cadYear(app.winTo)
+            : cadDom(app.winFrom) + " " + CAD_MON[cadMonth(app.winFrom)] + " – " + cadDom(app.winTo) + " " + CAD_MON[cadMonth(app.winTo)] + " " + cadYear(app.winTo) },
+
+    // Every summary figure is SPRUNG, so a period move or a new session
+    // rolls the number to its new value instead of cutting to it. Stiff
+    // enough to stay with the hand while the strip is being dragged.
+
+    aWeekN: number = 0,
+    aWeekM: number = 0,
+    aStreak: number = 0,
+    aWinN: number = 0,
+    aWinM: number = 0,
+    aWinKm: number = 0,
+    Spring [ attribute = aWeekN, to = { app.weekCount }, stiffness = 190, damping = 26 ],
+    Spring [ attribute = aWeekM, to = { app.weekMins }, stiffness = 190, damping = 26 ],
+    Spring [ attribute = aStreak, to = { app.streakN }, stiffness = 190, damping = 26 ],
+    Spring [ attribute = aWinN, to = { app.winCount }, stiffness = 420, damping = 34 ],
+    Spring [ attribute = aWinM, to = { app.winMins }, stiffness = 420, damping = 34 ],
+    Spring [ attribute = aWinKm, to = { app.winKm }, stiffness = 420, damping = 34 ],
+
+    // ── selection, and the two overlays ─────────────────────────────────
+    //
+    // Both live in `location`, so the phone's back gesture closes a sheet
+    // and a session has an address.
+
+    selectedId: string = { app.location.startsWith("s/") ? app.location.slice(2) : "" },
+    sheetOpen:  boolean = { app.location == "add" || app.location.startsWith("e/") },
+    editId:     string = { app.location.startsWith("e/") ? app.location.slice(2) : "" },
+    overlay:    boolean = { app.selectedId != "" || app.sheetOpen },
+
+    detailIn: number = 0,
+    sheetIn:  number = 0,
+    Spring [ attribute = detailIn, to = { app.selectedId != "" ? 1 : 0 }, stiffness = 260, damping = 30 ],
+    Spring [ attribute = sheetIn, to = { app.sheetOpen ? 1 : 0 }, stiffness = 230, damping = 28 ],
+
+    findSession(id: string) -> object {
+        if (id == "") return null
+        const f = (this.sessions() as any[]).filter((s) => s.id == id)
+        return f.length > 0 ? f[0] : null
+        },
+    selRec() -> object { return this.findSession(this.selectedId) },
+    selEffort: number = { app.selRec() != null ? Number((app.selRec() as any).effort) : 5 },
+    detailTint: Color = { app.effortColor(app.selEffort) },
+
+    select(id: string) { this.location = "s/" + id },
+    closeAll() { this.location = "" },
+
+    pickAt(px: number) {
+        // one hit test for every zoom: the nearest bar to the finger, which
+        // is what makes a 2px bar in the full-year view tappable at all
+        const day = this.start + px / this.ppd
+        const rows = this.sessions() as any[]
+        let bestId = ""
+        let bd = 1e9
+        for (const s of rows) {
+            const d = Math.abs(cadDay(s.date) - day)
+            if (d < bd) { bd = d; bestId = "" + s.id }
+            }
+        if (bestId != "" && bd * this.ppd < 26) this.select(bestId)
+        else this.closeAll()
+        },
+
+    // ── where a session sits against everything else ────────────────────
+
+    peers(sport: string) -> array { return (this.sessions() as any[]).filter((s) => s.sport == sport) },
+    rank(vals: array, v: number) -> number {
+        const xs = vals as number[]
+        if (xs.length < 2) return 1
+        return xs.filter((x) => x < v).length / (xs.length - 1)
+        },
+    pctMins(id: string) -> number {
+        const r = this.findSession(id) as any
+        if (r == null) return 0
+        return this.rank((this.peers(r.sport) as any[]).map((s) => s.minutes), r.minutes)
+        },
+    pctKm(id: string) -> number {
+        const r = this.findSession(id) as any
+        if (r == null || r.distanceKm == null) return 0
+        return this.rank((this.peers(r.sport) as any[]).filter((s) => s.distanceKm != null).map((s) => s.distanceKm), r.distanceKm)
+        },
+    pctEff(id: string) -> number {
+        const r = this.findSession(id) as any
+        if (r == null) return 0
+        return this.rank((this.peers(r.sport) as any[]).map((s) => s.effort), r.effort)
+        },
+    plural(sport: string) -> string { return sport == "run" ? "runs" : sport == "ride" ? "rides" : sport == "lift" ? "lifts" : "swims" },
+    railLine(word: string, frac: number, sport: string) -> string {
+        return word + " than " + Math.round(frac * 100) + "% of your " + this.plural(sport)
+        },
+
+    // ── the accent scale ────────────────────────────────────────────────
+    //
+    // -> number, not Color: a concrete 0xRRGGBB is what mixes.
+
+    effortColor(e: number) -> number {
+        const t = cadClamp((Number(e) - 1) / 9, 0, 1)
+        return cadMix(0xC8BFAE, 0xE2431F, Math.pow(t, 0.85))
+        },
+
+    // ── the draft, for adding and correcting ────────────────────────────
+
+    dSport:  string  = "run",
+    dDay:    number  = 0,
+    dMin:    number  = 45,
+    dKm:     number  = 0,
+    dEffort: number  = 5,
+    dNote:   string  = "",
+    noteOpen: boolean = false,
+    saving:  boolean = { app.writer.loading },
+
+    hasDist: boolean = { app.dSport != "lift" },
+    canSave: boolean = { app.dMin > 0 && app.dDay <= app.today && app.dEffort >= 1 && app.dEffort <= 10 },
+    missing: string = { app.dMin <= 0 ? "Set a duration to save" : "" },
+
+    // what they most likely mean: the sport they have been doing, at the
+    // duration and distance they usually do it
+
+    usualSport() -> string {
+        const recent = (this.sessions() as any[]).filter((s) => cadDay(s.date) > this.today - 28)
+        let best = "run"
+        let bn = -1
+        for (const sp of CAD_SPORTS) {
+            const n = recent.filter((s) => s.sport == sp).length
+            if (n > bn) { bn = n; best = sp }
+            }
+        return best
+        },
+    usualMin(sport: string) -> number {
+        const xs = (this.peers(sport) as any[]).slice(0, 12).map((s) => s.minutes)
+        return xs.length == 0 ? 45 : Math.round(cadMedian(xs as number[]) / 5) * 5
+        },
+    usualKm(sport: string) -> number {
+        const xs = (this.peers(sport) as any[]).slice(0, 12).filter((s) => s.distanceKm != null).map((s) => s.distanceKm)
+        return xs.length == 0 ? 0 : Math.round(cadMedian(xs as number[]) * 2) / 2
+        },
+    maxMin: number = { app.dSport == "ride" ? 240 : 150 },
+    maxKm:  number = { app.dSport == "ride" ? 160 : app.dSport == "swim" ? 6 : 42 },
+    kmStep: number = { app.dSport == "swim" ? 0.1 : 0.5 },
+
+    setSport(sp: string) {
+        this.dSport = sp
+        this.dMin = this.usualMin(sp)
+        this.dKm = sp == "lift" ? 0 : this.usualKm(sp)
+        },
+    nudge(field: string, d: number) {
+        if (field == "min") this.dMin = cadClamp(this.dMin + d, 0, 600)
+        else this.dKm = Math.round(cadClamp(this.dKm + d, 0, 400) * 10) / 10
+        },
+
+    openAdd() {
+        const sp = this.usualSport()
+        this.dSport = sp
+        this.dDay = this.today
+        this.dMin = this.usualMin(sp)
+        this.dKm = sp == "lift" ? 0 : this.usualKm(sp)
+        this.dEffort = 5
+        this.dNote = ""
+        this.noteOpen = false
+        this.chipEnd = this.today
+        this.location = "add"
+        },
+    openEdit(id: string) {
+        const r = this.findSession(id) as any
+        if (r == null) return
+        this.dSport = "" + r.sport
+        this.dDay = cadDay(r.date)
+        this.dMin = Number(r.minutes)
+        this.dKm = r.distanceKm == null ? 0 : Number(r.distanceKm)
+        this.dEffort = Number(r.effort)
+        this.dNote = r.note == null ? "" : "" + r.note
+        this.noteOpen = r.note != null
+        this.chipEnd = Math.min(this.today, cadDay(r.date) + 3)
+        this.location = "e/" + id
+        },
+
+    // the date chips' window — walking it back is a tap, never a keyboard
+
+    chipEnd: number = 0,
+    chipDays: Dataset [ contents = { app.buildChips() } ],
+    buildChips() -> object {
+        const end = this.chipEnd == 0 ? this.today : this.chipEnd
+        const rows = []
+        for (let i = 0; i < 6; i++) rows.push({ i: i, day: end - i })
+        return ({ rows: rows })
+        },
+    chipTop(day: number) -> string {
+        return day == this.today ? "TODAY" : day == this.today - 1 ? "YEST"
+             : CAD_DOW[new Date(CAD_EPOCH + day * 86400000).getUTCDay()].toUpperCase()
+        },
+
+    // the number alone; the full date is spelled out in the line above Save
+
+    chipBottom(day: number) -> string { return "" + cadDom(day) },
+    draftLine: string = {
+        cadSportName(app.dSport) + " · " + cadDateLong(app.dDay) + " · " + cadDur(app.dMin)
+        + (app.hasDist && app.dKm > 0 ? " · " + cadKm(app.dKm) : "") + " · effort " + app.dEffort },
+
+    // ── writing to the service ──────────────────────────────────────────
+    //
+    // One source carries all three verbs. Its url/method/body are ordinary
+    // constraints, so the fetch is armed on the settle AFTER they are set —
+    // hence the deferred call.
+
+    pendUrl: string = "",
+    pendMethod: string = "GET",
+    pendBody: object = null,
+    pendOp: string = "",
+    pendId: string = "",
+
+    writer: DataSource [ url = { app.pendUrl }, method = { app.pendMethod }, body = { app.pendBody },
+        onLoad() { app.afterWrite() }
+        ],
+
+    save() {
+        if (!this.canSave || this.saving) return
+        const editing = this.editId != ""
+        this.pendBody = ({ sport: this.dSport, date: cadKey(this.dDay), minutes: Math.round(this.dMin),
+            distanceKm: this.hasDist && this.dKm > 0 ? Math.round(this.dKm * 10) / 10 : null,
+            effort: Math.round(this.dEffort),
+            note: this.dNote.trim() == "" ? null : this.dNote.trim() })
+        this.pendMethod = editing ? "PUT" : "POST"
+        this.pendUrl = CAD_API + "/api/sessions" + (editing ? "/" + this.editId : "")
+        this.pendOp = editing ? "edit" : "add"
+        this.pendId = this.editId
+        setTimeout(() => { app.writer.fetch() }, 0)
+        },
+    remove(id: string) {
+        if (this.saving) return
+        this.pendBody = null
+        this.pendMethod = "DELETE"
+        this.pendUrl = CAD_API + "/api/sessions/" + id
+        this.pendOp = "del"
+        this.pendId = id
+        setTimeout(() => { app.writer.fetch() }, 0)
+        },
+    afterWrite() {
+        const all = (this.sessions() as any[]).slice()
+        if (this.pendOp == "del") {
+            const i = all.findIndex((s) => s.id == this.pendId)
+            if (i >= 0) all.splice(i, 1)
+        } else {
+            const rec = this.writer.value as any
+            if (rec == null) return
+            const i = all.findIndex((s) => s.id == rec.id)
+            if (i >= 0) all[i] = rec
+            else all.push(rec)
+            }
+        all.sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0)
+        this.db.set(["sessions"], all)
+        this.pendOp = ""
+        this.location = ""
+        },
+    writeFailed: boolean = { app.writer.failed },
+    failMsg: string = { app.serverMessage() },
+    serverMessage() -> string {
+        const b = this.writer.errorBody as any
+        return b != null && b.message != null ? "" + b.message : "Could not reach the log"
+        },
+
+    // ── responsive geometry — constraints, not breakpoints ──────────────
+
+    wide: boolean = { app.width >= 900 },
+    pad:  number  = { app.wide ? 34 : 18 },
+    capSize: number = { app.wide ? 11 : 10.5 },
+    gapY: number = { app.wide ? 26 : Math.max(10, Math.min(30, Math.round(app.todayH * 0.042))) },
+
+    colW: number = { app.wide ? Math.min(510, Math.round(app.width * 0.42)) : app.width },
+    innerW: number = { app.colW - 2 * app.pad },
+    addBarH: number = { app.wide ? 0 : (app.height < 720 ? 74 : 82) },
+    yearH: number = { app.wide ? app.height
+        : Math.max(150, Math.min(330, Math.round((app.height - app.addBarH) * 0.36))) },
+    todayH: number = { app.wide ? app.height : app.height - app.addBarH - app.yearH },
+    cg: number = { app.wide ? 24 : Math.max(14, Math.round(app.todayH * 0.042)) },
+
+    /* The hero size is bounded on BOTH axes, and the bounds are the real
+       ones rather than a guess: `weekUnits()` is the quoted line measured in
+       multiples of its own size, and `todayFixed` is everything in the
+       column that is not a numeral. The floor is 6.2 × the smallest text on
+       the screen, so the biggest number can never fall under it. */
+
+    weekUnits() -> number {
+        const n = ("" + Math.round(this.weekCount)).length
+        const mm = Math.max(0, Math.round(this.weekMins))
+        const h = Math.floor(mm / 60)
+        const m = mm % 60
+        const dur = (h > 0 ? ("" + h).length * 0.62 + 0.20 + 0.22 : 0)
+                  + ((m > 0 || h == 0) ? ("" + m).length * 0.62 + 0.28 : 0)
+        const word = (Math.round(this.weekCount) == 1 ? 7 : 8) * 0.118
+        return n * 0.62 + 0.17 + word + 0.17 + 0.12 + 0.17 + dur + 0.10
+        },
+    todayFixed: number = { 34 + 4 * app.gapY + 4 * app.cg + 20 + (app.showAlso ? 4 : 0) },
+    heroDiv: number = { app.showAlso ? 3.35 : 3.13 },
+    heroCap: number = { app.wide ? 104 : Math.max(78, Math.min(112, app.innerW * 0.13)) },
+    hero: number = { Math.max(6.2 * app.capSize, Math.min(app.heroCap,
+        app.innerW / app.weekUnits(), (app.todayH - app.todayFixed) / app.heroDiv)) },
+    hero2: number = { app.hero * 0.56 },
+    showAlso: boolean = { app.hasLive && app.lastRec() != null && (app.wide || app.todayH >= 430) },
+
+    dayGap: number = 7,
+    dayColW: number = { (app.innerW - 6 * app.dayGap) / 7 },
+    shapeH:  number = { Math.max(54, Math.min(84, app.hero * 0.92)) },
+
+    /* The year pane. On a desk the detail panel does not cover the strip —
+       the strip YIELDS, continuously, because `panelIn` is sprung: the
+       window keeps its period and only its scale travels. */
+
+    paneX: number = { app.wide ? app.colW : 0 },
+    paneY: number = { app.wide ? 0 : app.todayH },
+    paneW: number = { (app.wide ? app.width - app.colW : app.width) - (app.wide ? app.panelW * app.detailIn : 0) },
+    paneH: number = { app.wide ? app.height : app.yearH },
+    headH: number = { app.wide ? 104 : 72 },
+    footH: number = { app.wide ? 62 : 40 },
+    chartX: number = { app.paneX + app.pad },
+    chartW: number = { Math.max(120, app.paneW - 2 * app.pad) },
+    chartH: number = { Math.max(100, Math.min(app.paneH - app.headH - app.footH, app.wide ? 430 : 400)) },
+    blockY: number = { app.paneY + Math.max(0, (app.paneH - app.headH - app.chartH - app.footH) / 2) },
+    chartY: number = { app.blockY + app.headH },
+
+    // the overlays
+
+    panelW: number = { app.wide ? Math.min(430, Math.round(app.width * 0.40)) : app.width },
+    panelH: number = { app.wide ? app.height : Math.min(app.height - 40, 520) },
+    sheetW: number = { app.wide ? Math.min(660, app.width - 80) : app.width },
+
+    // the sheet is exactly as tall as what it holds, up to the room there
+    // is — so on a phone the whole task is on one screen and Save needs no
+    // scrolling to reach
+
+    sheetNeed: number = { 64 + 92 + 18 + 76 + 18 + 120 + (app.hasDist ? 138 : 0)
+                        + 18 + 72 + 18 + (app.noteOpen ? 92 : 44) + 8 + 92 },
+    sheetH: number = { Math.min(app.height - (app.wide ? 60 : 20), app.sheetNeed) },
+    sheetX: number = { app.wide ? (app.width - app.sheetW) / 2 : 0 },
+    sheetPad: number = { app.wide ? 30 : 18 },
+    sheetInner: number = { app.sheetW - 2 * app.sheetPad },
+    tileW: number = { (app.sheetInner - 3 * 8) / 4 },
+    chipW: number = { (app.sheetInner - 5 * 6) / 6 },
+    dotW:  number = { (app.sheetInner - 9 * 3) / 10 },
+    statW: number = { (app.panelW - 2 * app.pad - 16) / 2 },
+
+    pushed(act: string) {
+        if (act == "add") this.openAdd()
+        else if (act == "close") this.closeAll()
+        else if (act == "save") this.save()
+        else if (act == "edit") this.openEdit(this.selectedId)
+        else if (act == "delete") this.remove(this.selectedId)
+        else if (act == "note") this.noteOpen = true
+        else if (act == "reset") this.resetView()
+        else if (act == "last") { if (this.lastId != "") this.select(this.lastId) }
+        else if (act == "backdays") this.chipEnd = Math.max(6, this.chipEnd - 7)
+        },
+
+    /* ## Keyboard — the desk's half of the same app
+       Arrows push the strip, +/− pull it open and shut, `n` starts a
+       session, Enter saves, Escape backs out. Letters stand down while a
+       sheet is up, so the note field owns its own keys. */
+
+    keys: Keys [
+        onKeyDown(e: KeyEvent) {
+            if (e.key == "Escape") { app.closeAll(); return }
+            if (app.sheetOpen) { if (e.key == "Enter") app.save(); return }
+            if (e.key == "ArrowLeft") app.setView(app.start - app.span * 0.22, app.span)
+            else if (e.key == "ArrowRight") app.setView(app.start + app.span * 0.22, app.span)
+            else if (e.key == "-" || e.key == "_") app.zoomAt(app.chartW / 2, 1 / 1.5)
+            else if (e.key == "=" || e.key == "+") app.zoomAt(app.chartW / 2, 1.5)
+            else if (e.key == "n" || e.key == "N") app.openAdd()
+            else if (e.key == "0") app.resetView()
+            }
+        ],
+
+    /* ══ TODAY ══════════════════════════════════════════════════════════
+       The first thing on screen, and the only thing on a phone above the
+       fold: four answers, no chrome around any of them. */
+
+    todayCol: View [ x = 0, y = 0, width = { app.colW }, height = { app.todayH }, clip = true,
+        opacity = { app.booted ? 1 : 0 },
+
+        stack: View [ x = { app.pad }, y = { app.wide ? app.pad + 6 : app.pad - 2 }, width = { app.innerW },
+            layout: SimpleLayout [ axis = y, spacing = { app.gapY } ],
+
+            brand: View [ width = { parent.width }, height = 16,
+                n: Cap [ letterSpacing = { 0.34 * fontSize }, fontWeight = bold,
+                    textColor = { theme.text }, text = "CADENCE" ],
+                d: Cap [ x = { parent.width - this.width }, textColor = { theme.textFaint },
+                    text = { app.todayKey == "" ? "" : cadDateLong(app.today).toUpperCase() } ]
+                ],
+
+            // THIS WEEK — the line the brief quotes, set so the numbers
+            // arrive before the words do
+
+            weekBlock: View [ width = { parent.width }, height = { app.cg + app.hero * 1.06 },
+                c: Cap [ text = "THIS WEEK" ],
+                row: View [ y = { app.cg },
+                    layout: SimpleLayout [ axis = x, spacing = { app.hero * 0.16 } ],
+                    n: Big [ fontSize = { app.hero }, text = { "" + Math.round(app.aWeekN) } ],
+                    w: Unit [ base = { app.hero }, fontSize = { Math.max(12, app.hero * 0.21) },
+                        text = { Math.round(app.aWeekN) == 1 ? "session" : "sessions" } ],
+                    s: Unit [ base = { app.hero }, fontSize = { Math.max(12, app.hero * 0.21) },
+                        textColor = { theme.textFaint }, text = "·" ],
+                    t: Dur [ minutes = { app.aWeekM }, size = { app.hero } ]
+                    ]
+                ],
+
+            // THE STREAK
+
+            streakBlock: View [ width = { parent.width }, height = { app.cg + app.hero2 * 1.1 },
+                c: Cap [ text = "THE STREAK" ],
+                row: View [ y = { app.cg }, visible = { app.streakN > 0 },
+                    layout: SimpleLayout [ axis = x, spacing = { app.hero2 * 0.18 } ],
+                    n: Big [ fontSize = { app.hero2 }, textColor = { theme.accent },
+                        text = { "" + Math.round(app.aStreak) } ],
+                    w: Unit [ base = { app.hero2 }, fontSize = { Math.max(12, app.hero2 * 0.30) },
+                        text = { Math.round(app.aStreak) == 1 ? "day" : "days" } ]
+                    ],
+                none: Text [ y = { app.cg + app.hero2 * 0.30 }, visible = { app.streakN == 0 },
+                    fontSize = { Math.max(15, app.hero2 * 0.40) }, wrap = false, fontWeight = medium,
+                    textColor = { theme.textFaint }, text = "no streak" ]
+                ],
+
+            // THE WEEK'S SHAPE
+
+            shapeBlock: View [ width = { parent.width }, height = { app.cg + app.shapeH },
+                c: Cap [ text = "THE WEEK" ],
+                g: View [ y = { app.cg }, width = { parent.width }, height = { app.shapeH },
+                    datapath = { app.week.value },
+                    WeekDay [ datapath = :days[], key = :day ]
+                    ]
+                ],
+
+            /* THE LAST SESSION — and, while one is running, the running one
+               above it. A session in progress takes the top of this slot and
+               says so in the accent with a pulse; the last finished session
+               steps down to one line rather than being displaced, because it
+               is one of the four things a glance is for. */
+
+            lastBlock: View [ width = { parent.width },
+                height = { app.showAlso ? app.cg + app.hero2 * 1.34 + 20 : app.cg + app.hero2 * 0.94 + 17 },
+
+                c: Cap [ visible = { !app.hasLive }, text = "LAST SESSION" ],
+                liveCap: View [ visible = { app.hasLive }, height = 14,
+                    dot: View [ x = 0, y = 2, width = 8, height = 8, cornerRadius = 4, fill = { theme.accent },
+                        opacity = { app.pulse } ],
+                    t: Cap [ x = 15, textColor = { theme.accent }, fontWeight = bold, text = "RUNNING NOW" ]
+                    ],
+
+                rest: View [ y = { app.cg }, visible = { !app.hasLive && app.lastRec() != null },
+                    onClick() { app.pushed("last") },
+                    row: View [ height = { app.hero2 * 1.18 },
+                        g: SportGlyph [ x = 0, y = { app.hero2 * 0.30 }, width = { app.hero2 * 0.62 }, height = { app.hero2 * 0.62 },
+                            sport = { app.lastRec() != null ? "" + (app.lastRec() as any).sport : "run" },
+                            ink = { theme.text } ],
+                        d: Dur [ x = { app.hero2 * 0.84 }, size = { app.hero2 },
+                            minutes = { app.lastRec() != null ? Number((app.lastRec() as any).minutes) : 0 } ]
+                        ],
+                    meta: Text [ y = { app.hero2 * 0.94 }, fontSize = 12.5, wrap = false,
+                        textColor = { theme.textMuted }, text = { app.lastLine() } ]
+                    ],
+
+                live: View [ y = { app.cg }, visible = { app.hasLive },
+                    row: View [ height = { app.hero2 * 1.18 },
+                        g: SportGlyph [ x = 0, y = { app.hero2 * 0.30 }, width = { app.hero2 * 0.62 }, height = { app.hero2 * 0.62 },
+                            sport = { app.liveRec() != null ? "" + (app.liveRec() as any).sport : "run" },
+                            ink = { theme.accent } ],
+                        t: Big [ x = { app.hero2 * 0.84 }, fontSize = { app.hero2 }, textColor = { theme.accent },
+                            text = { cadClock(app.liveSecs) } ]
+                        ],
+                    meta: Text [ y = { app.hero2 * 0.94 }, fontSize = 12.5, wrap = false,
+                        textColor = { theme.textMuted }, text = { app.liveLine() } ]
+                    ],
+
+                also: View [ y = { app.cg + app.hero2 * 1.34 }, visible = { app.showAlso },
+                    width = { parent.width }, height = 20,
+                    onClick() { app.pushed("last") },
+                    k: Cap [ text = "LAST" ],
+                    v: Text [ x = 44, fontSize = 12.5, wrap = false, textColor = { theme.textMuted },
+                        text = { app.lastLine() } ]
+                    ]
+                ],
+
+            // the desk's add button lives in the column; the phone's rides
+            // the bottom of the frame, under the thumb
+
+            deskAdd: Push [ visible = { app.wide }, width = 168, height = 50, cornerRadius = 25, act = "add",
+                fill = { down ? theme.controlPressed : hot ? theme.controlHover : theme.control },
+                l: Text [ width = { parent.width }, textAlign = center, y = center, fontSize = 15,
+                    fontWeight = semibold, wrap = false, textColor = { theme.text }, text = "＋  Add a session" ]
+                ]
+            ]
+        ],
+
+    lastLine() -> string {
+        const r = this.lastRec() as any
+        if (r == null) return ""
+        const d = cadDay(r.date)
+        const when = d == this.today ? "Today" : d == this.today - 1 ? "Yesterday" : cadDateLong(d)
+        return when + " · " + cadSportName(r.sport)
+             + (r.distanceKm != null ? " · " + cadKm(r.distanceKm) : "")
+             + " · effort " + r.effort
+        },
+    liveLine() -> string {
+        const r = this.liveRec() as any
+        if (r == null) return ""
+        return cadSportName(r.sport)
+             + (r.distanceKm != null ? " · " + cadKm(r.distanceKm) : "")
+             + " · " + cadBpm(r.heartNow)
+        },
+
+    // the hairline between the two halves — the only rule in the app
+
+    seam: View [ visible = { app.booted },
+        x = { app.wide ? app.colW : 0 }, y = { app.wide ? 0 : app.todayH },
+        width = { app.wide ? 1 : app.width }, height = { app.wide ? app.height : 1 },
+        fill = { theme.line } ],
+
+    /* ══ THE YEAR ═══════════════════════════════════════════════════════
+       Fourteen months as one strip. The header names the window and says
+       what happened in it; both re-derive every frame of a drag. */
+
+    yearHead: View [ x = { app.chartX }, y = { app.blockY + (app.wide ? 6 : 8) },
+        width = { app.chartW }, opacity = { app.booted ? 1 : 0 }, clip = true, height = { app.headH - 12 },
+
+        c: Cap [ text = "THE YEAR" ],
+        p: Text [ y = 18, width = { parent.width - 90 }, wrap = false,
+            fontSize = { app.wide ? 27 : 20 }, fontWeight = bold, letterSpacing = { -0.02 * fontSize },
+            textColor = { theme.text }, text = { app.periodLabel } ],
+
+        s: View [ y = { app.wide ? 58 : 46 },
+            layout: SimpleLayout [ axis = x, spacing = 6 ],
+            n: Text [ fontSize = 13, wrap = false, fontWeight = semibold, textColor = { theme.textMuted },
+                text = { cadCount(app.aWinN, "session", "sessions") } ],
+            d1: Text [ fontSize = 13, wrap = false, textColor = { theme.textFaint }, text = "·" ],
+            t: Text [ fontSize = 13, wrap = false, fontWeight = semibold, textColor = { theme.textMuted },
+                text = { cadDur(app.aWinM) } ],
+            d2: Text [ fontSize = 13, wrap = false, textColor = { theme.textFaint }, text = "·",
+                visible = { app.winKm > 0.05 } ],
+            k: Text [ fontSize = 13, wrap = false, fontWeight = semibold, textColor = { theme.textMuted },
+                visible = { app.winKm > 0.05 }, text = { cadKm(app.aWinKm) } ]
+            ],
+
+        // an escape hatch that only exists when it is needed
+
+        reset: Push [ act = "reset", height = 30, width = 96, cornerRadius = 15,
+            x = { parent.width - this.width }, y = 16,
+            visible = { app.zoomed }, opacity = { app.zoomed ? 1 : 0 },
+            fill = { down ? theme.controlPressed : hot ? theme.controlHover : theme.control },
+            l: Cap [ width = { parent.width }, textAlign = center, y = center, letterSpacing = { 0.1 * fontSize },
+                textColor = { theme.textMuted }, text = "14 MONTHS" ]
+            ]
+        ],
+
+    /* The plot claims the finger. It is the one surface in the app that is
+       handled rather than read, so it takes the whole touch stream over its
+       own box — a drag pushes the months past, two fingers pull the window
+       open — and owes the user the zoom it took, which is exactly what the
+       pinch does here. Everything outside it is left to the browser. */
+
+    plot: View [ x = { app.chartX }, y = { app.chartY }, width = { app.chartW }, height = { app.chartH },
+        clip = true, cursor = "grab", opacity = { app.booted ? 1 : 0 },
+
+        base: View [ y = { app.chartH - 1 }, width = { parent.width }, height = 1, fill = { theme.line } ],
+
+        strip: View [ x = { -app.start * app.ppd }, ignoreClip = false,
+            ticks: View [ datapath = { app.bars.value },
+                MonthTick [ datapath = :months[], key = :day ]
+                ],
+            rows: View [ datapath = { app.bars.value },
+                YearBar [ datapath = :rows[], key = :id ]
+                ]
+            ],
+
+        onPointerDown() { if (app.fingers == 0) app.beginPan(app.pointerX) },
+        onPointerMove() { if (app.fingers == 0) app.movePan(app.pointerX) },
+        onPointerUp()   { },
+        onClick(e: PointerEvent) { app.pickAt(e.x) },
+
+        onTouchStart(e: TouchEvent) {
+            app.fingers = e.touches.length
+            if (e.touches.length == 1) app.beginPan((e.touches as any[])[0].x)
+            else if (e.touches.length >= 2) {
+                app.pinchD = app.touchSpread(e.touches as any)
+                app.pinchX = app.touchMid(e.touches as any) - app.chartX
+                app.beginPan(app.touchMid(e.touches as any))
+                }
+            },
+        onTouchMove(e: TouchEvent) {
+            if (e.touches.length == 1) app.movePan((e.touches as any[])[0].x)
+            else if (e.touches.length >= 2) {
+                const d = app.touchSpread(e.touches as any)
+                app.zoomAt(app.pinchX, d / app.pinchD)
+                app.pinchD = d
+                app.panFrom = app.start
+                app.panX = app.touchMid(e.touches as any)
+                }
+            },
+        onTouchEnd(e: TouchEvent) {
+            app.fingers = e.touches.length
+            if (e.touches.length == 1) app.beginPan((e.touches as any[])[0].x)
+            },
+        onTouchCancel() { app.fingers = 0 },
+
+        // the desk's half of the same ownership: a trackpad pinch and a
+        // mouse wheel both zoom, a two-finger swipe pans
+
+        onWheel(e: WheelEvent) {
+            const fx = app.pointerX - app.chartX
+            if (e.pinch) app.zoomAt(fx, Math.exp(-e.deltaY * 0.012))
+            else if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) app.setView(app.start + e.deltaX / app.ppd, app.span)
+            else app.zoomAt(fx, Math.exp(-e.deltaY * 0.0022))
+            }
+        ],
+
+    axis: View [ x = { app.chartX }, y = { app.chartY + app.chartH + 6 },
+        width = { app.chartW }, height = 15, clip = true, visible = { app.booted },
+        strip: View [ x = { -app.start * app.ppd }, datapath = { app.bars.value },
+            MonthLabel [ datapath = :months[], key = :day ]
+            ]
+        ],
+
+    hint: Cap [ visible = { app.booted && !app.zoomed }, x = { app.chartX },
+        y = { app.chartY + app.chartH + 24 }, textColor = { theme.textFaint },
+        opacity = 0.85,
+        text = { app.touchDevice ? "DRAG TO MOVE · PINCH TO PULL OPEN" : "DRAG TO MOVE · SCROLL TO PULL OPEN" } ],
+
+    // the phone's add button — thumb-height, edge to edge, always there
+
+    addBar: View [ visible = { !app.wide && app.booted }, y = { app.height - app.addBarH },
+        width = { app.width }, height = { app.addBarH }, fill = { theme.bg },
+        rule: View [ width = { parent.width }, height = 1, fill = { theme.line } ],
+        b: Push [ act = "add", x = { app.pad }, y = 16, width = { app.width - 2 * app.pad }, height = 54, cornerRadius = 27,
+            fill = { down ? 0xB8351A : theme.accent },
+            l: Text [ width = { parent.width }, textAlign = center, y = center, fontSize = 16.5,
+                fontWeight = semibold, wrap = false, textColor = 0xFFFFFF, text = "＋  Add a session" ]
+            ]
+        ],
+
+    // ── the entry state: hold the frame, say nothing ────────────────────
+
+    boot: View [ visible = { !app.booted }, x = 0, y = 0, width = { app.width }, height = { app.height },
+        fill = { theme.bg },
+        n: Cap [ x = { (parent.width - this.width) / 2 }, y = { parent.height * 0.44 },
+            letterSpacing = { 0.34 * fontSize }, fontWeight = bold, textColor = { theme.textFaint },
+            text = "CADENCE" ]
+        ],
+
+    // ══ the overlays — declared last, so they sit above everything ══════
+
+    scrim: View [ x = 0, y = 0, width = { app.width }, height = { app.height }, fill = 0x1A1712,
+        visible = { app.sheetIn + (app.wide ? 0 : app.detailIn) > 0.01 },
+        opacity = { 0.34 * Math.max(app.wide ? 0 : app.detailIn, app.sheetIn) },
+        onClick() { app.closeAll() }
+        ],
+
+    /* ## A session
+       Grows in from the edge the room has to spare — the side on a desk,
+       the bottom under a thumb. A hard session looks hard: the band across
+       the top, the effort numeral and the rails all take the effort colour,
+       so an 8 arrives red and a 3 arrives sand. */
+
+    detail: View [ visible = { app.detailIn > 0.005 },
+        width  = { app.panelW },
+        height = { app.panelH },
+        x = { app.wide ? app.width - app.panelW * app.detailIn : 0 },
+        y = { app.wide ? 0 : app.height - app.panelH * app.detailIn },
+        fill = { theme.surface },
+        cornerRadius = { app.wide ? 0 : 24 }, clip = true,
+        shadow = { shadow(0, -2, 44, 0x00000022) },
+        datapath = { app.selRec() },
+
+        // the band IS the effort — a 9 arrives red across the top, a 3 sand
+
+        band: View [ width = { parent.width }, height = 6, fill = { app.detailTint } ],
+
+        head: View [ x = { app.pad }, y = 30, width = { parent.width - 2 * app.pad },
+            g: SportGlyph [ y = 3, width = 30, height = 30, sport = { "" + :sport }, ink = { theme.text } ],
+            t: Text [ x = 42, y = 0, fontSize = 28, fontWeight = bold, wrap = false,
+                letterSpacing = { -0.03 * fontSize }, textColor = { theme.text },
+                text = { cadSportName("" + :sport) } ],
+            d: Cap [ x = 43, y = 36,
+                text = { app.selRec() != null ? cadDateLong(cadDay("" + :date)).toUpperCase() + " " + cadYear(cadDay("" + :date)) : "" } ],
+            shut: Push [ act = "close", width = 40, height = 40, cornerRadius = 20,
+                x = { parent.width - this.width }, y = -4,
+                fill = { down || hot ? theme.control : null },
+                m: CloseIcon [ x = 12, y = 12, iconSize = 16, ink = { theme.textMuted } ]
+                ]
+            ],
+
+        col: View [ x = { app.pad }, y = 96, width = { parent.width - 2 * app.pad },
+            layout: SimpleLayout [ axis = y, spacing = 26 ],
+
+            figures: View [ width = { parent.width }, height = 62,
+                layout: SimpleLayout [ axis = x, spacing = 28 ],
+                d: Dur [ minutes = { Number(:minutes ?? 0) }, size = 54 ],
+                sp: View [ width = 14, height = 2 ],
+                e: View [ visible = { (:distanceKm ?? null) != null }, height = 64,
+                    width = { this.u.x + this.u.width },
+                    n: Big [ x = 0, fontSize = 54,
+                        text = { "" + (Math.round(Number(:distanceKm ?? 0) * 10) / 10).toFixed(1) } ],
+                    u: Unit [ x = { this.parent.n.width + 11 }, base = 54, fontSize = 16, text = "km" ]
+                    ]
+                ],
+
+            // a hard session LOOKS hard: the numeral is the panel's biggest
+            // mark after the duration, and it is the effort colour
+
+            eff: View [ width = { parent.width }, height = 74,
+                c: Cap [ text = "EFFORT" ],
+                n: Big [ y = 14, fontSize = 50, textColor = { app.detailTint }, text = { "" + (:effort ?? "") } ],
+                w: Text [ x = { this.parent.n.width + 12 }, y = 44, fontSize = 14, wrap = false,
+                    fontWeight = semibold, textColor = { app.detailTint },
+                    text = { app.effortWordOnly(Number(:effort ?? 5)) } ],
+                h: View [ x = { app.statW + 16 }, width = { app.statW }, height = 74,
+                    c: Cap [ text = "AVERAGE HEART" ],
+                    v: Text [ y = 16, fontSize = 26, fontWeight = semibold, wrap = false,
+                        textColor = { theme.text },
+                        text = { (:heartAvg ?? null) != null ? cadBpm(Number(:heartAvg)) : "—" } ]
+                    ]
+                ],
+
+            note: Text [ visible = { (:note ?? null) != null }, width = { parent.width },
+                height = { this.contentHeight }, wrap = true,
+                fontSize = 16, italic = true, textColor = { theme.textMuted },
+                text = { "" + (:note ?? "") } ],
+
+            railCap: Cap [ width = { parent.width }, height = 12, text = "AGAINST EVERY OTHER" ],
+
+            rails: View [ width = { parent.width }, height = { (:distanceKm ?? null) != null ? 112 : 74 },
+                layout: SimpleLayout [ axis = y, spacing = 6 ],
+                a: Rail [ frac = { app.pctMins(app.selectedId) },
+                    line = { app.selRec() != null ? app.railLine("Longer", app.pctMins(app.selectedId), "" + :sport) : "" } ],
+                b: Rail [ visible = { (:distanceKm ?? null) != null }, frac = { app.pctKm(app.selectedId) },
+                    line = { app.selRec() != null ? app.railLine("Farther", app.pctKm(app.selectedId), "" + :sport) : "" } ],
+                c: Rail [ frac = { app.pctEff(app.selectedId) },
+                    line = { app.selRec() != null ? app.railLine("Harder", app.pctEff(app.selectedId), "" + :sport) : "" } ]
+                ]
+            ],
+
+        acts: View [ x = { app.pad }, y = { parent.height - 78 }, width = { this.contentWidth },
+            layout: SimpleLayout [ axis = x, spacing = 10 ],
+            e: Push [ act = "edit", width = 122, height = 48, cornerRadius = 24,
+                fill = { down ? theme.controlPressed : hot ? theme.controlHover : theme.control },
+                l: Text [ width = { parent.width }, textAlign = center, y = center, fontSize = 15,
+                    fontWeight = semibold, wrap = false, textColor = { theme.text }, text = "Correct" ]
+                ],
+            d: Push [ act = "delete", width = 122, height = 48, cornerRadius = 24,
+                fill = { down ? theme.controlPressed : hot ? theme.controlHover : null },
+                stroke = { stroke(1, theme.line) },
+                l: Text [ width = { parent.width }, textAlign = center, y = center, fontSize = 15,
+                    fontWeight = semibold, wrap = false, textColor = { theme.errorColor }, text = "Delete" ]
+                ]
+            ]
+        ],
+
+    /* ## Adding one
+       Five decisions, none of them typed: which sport, which day, how long,
+       how far, how it felt. Every one arrives already answered with what
+       they most likely mean, so the common case is confirming. The note is
+       the only keyboard in the app, and it is behind a tap. */
+
+    sheet: View [ visible = { app.sheetIn > 0.005 },
+        width = { app.sheetW }, height = { app.sheetH },
+        x = { app.sheetX },
+        y = { app.height - app.sheetH * app.sheetIn - (app.wide ? (app.height - app.sheetH) * app.sheetIn * 0.5 : 0) },
+        fill = { theme.surface }, cornerRadius = 24, clip = true,
+        shadow = { shadow(0, -4, 50, 0x00000028) },
+
+        head: View [ x = { app.sheetPad }, y = 22, width = { app.sheetInner },
+            t: Text [ fontSize = 22, fontWeight = bold, wrap = false, letterSpacing = { -0.03 * fontSize },
+                textColor = { theme.text }, text = { app.editId == "" ? "Add a session" : "Correct this session" } ],
+            shut: Push [ act = "close", width = 38, height = 38, cornerRadius = 19,
+                x = { parent.width - this.width }, y = -8,
+                fill = { down || hot ? theme.control : null },
+                m: CloseIcon [ x = 11, y = 11, iconSize = 16, ink = { theme.textMuted } ]
+                ]
+            ],
+
+        body: View [ x = 0, y = 64, width = { parent.width }, height = { parent.height - 64 - 92 },
+            scrolls = y, clip = true,
+
+            col: View [ x = { app.sheetPad }, y = 4, width = { app.sheetInner },
+                layout: SimpleLayout [ axis = y, spacing = 18 ],
+
+                sportBlock: View [ width = { parent.width }, height = 92,
+                    c: Cap [ text = "SPORT" ],
+                    r: View [ y = 20,
+                        layout: SimpleLayout [ axis = x, spacing = 8 ],
+                        SportTile [ sport = "run" ],
+                        SportTile [ sport = "ride" ],
+                        SportTile [ sport = "lift" ],
+                        SportTile [ sport = "swim" ]
+                        ]
+                    ],
+
+                dayBlock: View [ width = { parent.width }, height = 76,
+                    c: Cap [ text = "WHEN" ],
+                    back: Push [ act = "backdays", x = { parent.width - 64 }, y = -6, width = 64, height = 22,
+                        cornerRadius = 11, fill = { down || hot ? theme.control : null },
+                        l: Cap [ width = { parent.width }, textAlign = center, y = center,
+                            textColor = { theme.textMuted }, text = "EARLIER" ]
+                        ],
+                    r: View [ y = 20, width = { parent.width }, height = 54,
+                        datapath = { app.chipDays.value },
+                        DayChip [ datapath = :rows[], key = :day, day = { Number(:day) } ]
+                        ]
+                    ],
+
+                minBlock: View [ width = { parent.width }, height = 120,
+                    c: Cap [ text = "HOW LONG" ],
+                    r: View [ y = 18, width = { parent.width }, height = 58,
+                        d: Dur [ minutes = { app.dMin }, size = 42 ],
+                        minus: Nudge [ field = "min", delta = -5, minus = true, x = { parent.width - 104 }, y = 4 ],
+                        plus:  Nudge [ field = "min", delta = 5, x = { parent.width - 46 }, y = 4 ]
+                        ],
+                    s: Slider [ y = 82, width = { parent.width }, min = 0, max = { app.maxMin }, step = 5,
+                        value = { app.dMin },
+                        input(v: number) { app.dMin = v }
+                        ]
+                    ],
+
+                kmBlock: View [ width = { parent.width }, height = 120, visible = { app.hasDist },
+                    c: Cap [ text = "HOW FAR" ],
+                    r: View [ y = 18, width = { parent.width }, height = 58,
+                        g: View [ height = 52, width = { this.u.x + this.u.width },
+                            n: Big [ x = 0, fontSize = 42, textColor = { app.dKm > 0 ? theme.text : theme.textFaint },
+                                text = { "" + (Math.round(app.dKm * 10) / 10).toFixed(1) } ],
+                            u: Unit [ x = { this.parent.n.width + 9 }, base = 42, fontSize = 13, text = "km" ]
+                            ],
+                        minus: Nudge [ field = "km", delta = { -app.kmStep }, minus = true, x = { parent.width - 104 }, y = 4 ],
+                        plus:  Nudge [ field = "km", delta = { app.kmStep }, x = { parent.width - 46 }, y = 4 ]
+                        ],
+                    s: Slider [ y = 82, width = { parent.width }, min = 0, max = { app.maxKm }, step = { app.kmStep },
+                        value = { app.dKm },
+                        input(v: number) { app.dKm = Math.round(v * 10) / 10 }
+                        ]
+                    ],
+
+                effBlock: View [ width = { parent.width }, height = 72,
+                    c: Cap [ text = "HOW IT FELT" ],
+                    v: Text [ x = { parent.width - this.width }, y = -3, fontSize = 14, wrap = false,
+                        fontWeight = semibold, textColor = { app.effortColor(app.dEffort) },
+                        text = { app.effortWord(app.dEffort) } ],
+                    r: View [ y = 20, width = { parent.width }, height = 46,
+                        EffortDot [ n = 1 ],
+                        EffortDot [ n = 2 ],
+                        EffortDot [ n = 3 ],
+                        EffortDot [ n = 4 ],
+                        EffortDot [ n = 5 ],
+                        EffortDot [ n = 6 ],
+                        EffortDot [ n = 7 ],
+                        EffortDot [ n = 8 ],
+                        EffortDot [ n = 9 ],
+                        EffortDot [ n = 10 ]
+                        ]
+                    ],
+
+                noteBlock: View [ width = { parent.width }, height = { app.noteOpen ? 92 : 44 },
+                    ask: Push [ act = "note", visible = { !app.noteOpen }, width = 150, height = 40, cornerRadius = 20,
+                        fill = { down ? theme.controlPressed : hot ? theme.controlHover : theme.control },
+                        l: Text [ width = { parent.width }, textAlign = center, y = center, fontSize = 14,
+                            fontWeight = medium, wrap = false, textColor = { theme.textMuted }, text = "＋  Add a note" ]
+                        ],
+                    field: TextInput [ visible = { app.noteOpen }, width = { parent.width }, height = 86,
+                        multiline = true, wrap = true, padding = 12, cornerRadius = 12,
+                        fontSize = 16, textColor = { theme.text }, fill = { theme.bg },
+                        stroke = { stroke(1, this.focused ? theme.accent : theme.line) },
+                        placeholder = "How did it go?",
+                        text = { app.dNote },
+                        input(v: string) { app.dNote = v }
+                        ]
+                    ],
+
+                tail: View [ width = { parent.width }, height = 8 ]
+                ]
+            ],
+
+        // Save never tells them they got it wrong: what is missing is
+        // stated the whole time, and the line above the button says exactly
+        // what will be written.
+
+        foot: View [ y = { parent.height - 92 }, width = { parent.width }, height = 92, fill = { theme.surface },
+            rule: View [ width = { parent.width }, height = 1, fill = { theme.line } ],
+            line: Text [ x = { app.sheetPad }, y = 10, width = { app.sheetInner }, wrap = false, fontSize = 12,
+                textColor = { app.writeFailed || app.missing != "" ? theme.errorColor : theme.textFaint },
+                text = { app.writeFailed ? app.failMsg : app.missing != "" ? app.missing : app.draftLine } ],
+            b: Push [ act = "save", x = { app.sheetPad }, y = 28, width = { app.sheetInner }, height = 52, cornerRadius = 26,
+                disabled = { !app.canSave || app.saving },
+                opacity = { app.canSave ? 1 : 0.45 },
+                fill = { down ? 0xB8351A : theme.accent },
+                l: Text [ width = { parent.width }, textAlign = center, y = center, fontSize = 16.5,
+                    fontWeight = semibold, wrap = false, textColor = 0xFFFFFF,
+                    text = { app.saving ? "Saving…" : app.editId == "" ? "Save session" : "Save changes" } ]
+                ]
+            ]
+        ],
+
+    effortWordOnly(e: number) -> string {
+        const n = Math.round(e)
+        return n <= 2 ? "easy" : n <= 4 ? "steady" : n <= 6 ? "solid" : n <= 8 ? "hard" : "all out"
+        },
+    effortWord(e: number) -> string { return Math.round(e) + " · " + this.effortWordOnly(e) }
+
+    ]

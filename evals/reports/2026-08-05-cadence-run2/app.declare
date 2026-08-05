@@ -1,0 +1,1617 @@
+/*
+# Cadence — a training log
+
+Fourteen months of sessions behind a local service. Three surfaces, one data
+truth:
+
+- **Today** — the week's volume, the streak, the week's shape, the last session,
+  and the session in progress if there is one. Every figure is sprung, so a
+  number that changes *travels* to its new value.
+- **The year** — one continuous day-by-day surface, handled rather than looked
+  at: a finger (or a mouse) pushes it through the months, a pinch (or a wheel)
+  pulls it open to a fortnight or shuts it onto a season. The window is two
+  plain scalars, `tlCenter` and `tlSpan`, written directly by the hand — never
+  a spring chasing the finger — and a `Heartbeat` carries the fling and the
+  glide after the hand lets go.
+- **A session** — what it was, and where it sits against every other session of
+  its sport.
+
+`store` is the raw truth (a Dataset seeded from the service and written by every
+edit); the week, the streak, the period stats and the year are all derived from
+it, so adding a session is one write and everything downstream re-derives.
+
+Colour is earned by ONE thing: effort. Every mark in the app is ink, paper, or
+somewhere on the ramp from quiet stone to the accent, and how far along that
+ramp it sits *is* how hard the session was.
+*/
+
+font Sans [ family = "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, sans-serif" ]
+
+font Mono [ family = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" ]
+
+script {
+    const CAD_MONS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const CAD_MONL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    const CAD_DOWS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const CAD_DOWL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    const CAD_SPORTS = ["run", "ride", "lift", "swim"]
+
+    function cadPad2(n: number): string { return n < 10 ? "0" + Math.round(n) : "" + Math.round(n) }
+
+    // A date is the person's own — an integer count of days, no zone, no clock.
+
+    function cadDay(s: string): number {
+        if (s == null || ("" + s).length < 10) return 0
+        const t = "" + s
+        return Math.round(Date.UTC(Number(t.slice(0, 4)), Number(t.slice(5, 7)) - 1, Number(t.slice(8, 10))) / 86400000)
+        }
+
+    function cadDate(n: number): string {
+        const d = new Date(Math.round(n) * 86400000)
+        return d.getUTCFullYear() + "-" + cadPad2(d.getUTCMonth() + 1) + "-" + cadPad2(d.getUTCDate())
+        }
+
+    function cadYear(n: number): number { return new Date(Math.round(n) * 86400000).getUTCFullYear() }
+
+    function cadMon(n: number): number { return new Date(Math.round(n) * 86400000).getUTCMonth() }
+
+    function cadDom(n: number): number { return new Date(Math.round(n) * 86400000).getUTCDate() }
+
+    function cadDow(n: number): number { return ((Math.round(n) + 4) % 7 + 7) % 7 }
+
+    // The first of the month containing day n, and the month n months on.
+
+    function cadMonthStart(n: number): number { return cadDay(cadYear(n) + "-" + cadPad2(cadMon(n) + 1) + "-01") }
+
+    function cadAddMonths(n: number, k: number): number {
+        const y = cadYear(n), m = cadMon(n) + k
+        return cadDay((y + Math.floor(m / 12)) + "-" + cadPad2(((m % 12) + 12) % 12 + 1) + "-01")
+        }
+
+    // ── the four formats the brief fixes ──
+
+    function cadHM(min: number): string {
+        const m = Math.max(0, Math.round(min))
+        const h = Math.floor(m / 60), r = m % 60
+        return h == 0 ? r + "m" : r == 0 ? h + "h" : h + "h " + cadPad2(r) + "m"
+        }
+
+    function cadKm(v: number): string { return (Math.round(v * 10) / 10).toFixed(1) + " km" }
+
+    function cadBpm(v: number): string { return Math.round(v) + " bpm" }
+
+    function cadCount(n: number, one: string, many: string): string { return Math.round(n) + " " + (Math.round(n) == 1 ? one : many) }
+
+    function cadClock(sec: number): string {
+        const s = Math.max(0, Math.floor(sec))
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60
+        return h > 0 ? h + ":" + cadPad2(m) + ":" + cadPad2(r) : m + ":" + cadPad2(r)
+        }
+
+    function cadShortDate(n: number): string { return cadDom(n) + " " + CAD_MONS[cadMon(n)] }
+
+    function cadLongDate(n: number): string { return CAD_DOWL[cadDow(n)] + " " + cadDom(n) + " " + CAD_MONL[cadMon(n)] + " " + cadYear(n) }
+
+    function cadRelDay(n: number, today: number): string {
+        const k = Math.round(today - n)
+        return k == 0 ? "Today" : k == 1 ? "Yesterday" : k > 1 && k < 7 ? CAD_DOWL[cadDow(n)] : cadShortDate(n)
+        }
+
+    function cadSportName(s: string): string {
+        return s == "run" ? "Run" : s == "ride" ? "Ride" : s == "lift" ? "Lift" : s == "swim" ? "Swim" : "—"
+        }
+
+    // Blend two 0xRRGGBB colours channel-wise — the one ramp the app owns.
+
+    function cadMix(a: number, b: number, t: number): number {
+        const u = Math.max(0, Math.min(1, t))
+        const c = (x: number, y: number) => Math.round(x + (y - x) * u)
+        return (c((a >> 16) & 255, (b >> 16) & 255) << 16) | (c((a >> 8) & 255, (b >> 8) & 255) << 8) | c(a & 255, b & 255)
+        }
+
+    function cadClamp(v: number, a: number, b: number): number { return Math.max(a, Math.min(b, v)) }
+
+    // A display line's size is a CONSTRAINT on the column it has to live in, so
+    // a long figure never overruns and a short one takes all the room it can.
+
+    function cadFit(s: string, w: number, cap: number, floor: number): number {
+        const n = Math.max(1, ("" + (s == null ? "" : s)).length)
+        return Math.max(floor, Math.min(cap, w / (n * 0.575)))
+        }
+
+    function cadMedian(xs: number[]): number {
+        if (xs.length == 0) return 0
+        const a = xs.slice().sort((p, q) => p - q)
+        return a[Math.floor(a.length / 2)]
+        }
+    }
+
+
+/*
+## Type as tokens
+
+Two families and nothing else: the sans carries every figure and every word, the
+mono carries the small tracked labels that name them. The scale between them is
+the design — an eyebrow is 10px, a hero is over eighty.
+*/
+
+class Eyebrow extends Text [ fontFamily = [Mono], fontWeight = medium, wrap = false,
+    fontSize = { app.t0 }, letterSpacing = { app.t0 * 0.16 }, textColor = { theme.muted }
+    ]
+
+
+class Figure extends Text [ fontWeight = extrabold, wrap = false,
+    letterSpacing = { -0.035 * fontSize }, textColor = { theme.ink }
+    ]
+
+
+class Note extends Text [ fontSize = { app.t1 }, textColor = { theme.muted }, wrap = false ]
+
+class Rule extends View [ height = 1, fill = { theme.rule } ]
+
+/*
+## The week's shape
+
+Seven columns, one per day, each springing to its own minutes. Heights are
+measured against a stable reference (the person's own heavy day), never against
+the week's own maximum — so a light week looks light.
+*/
+
+class DayBar extends View [ width = { app.dayW }, x = { :i * (app.dayW + app.dayGap) }, height = { parent.height },
+
+    mins: number = { :minutes },
+    v: number = 0,
+    Spring [ attribute = v, to = { classroot.mins }, stiffness = 200, damping = 26 ],
+
+    barH: number = { Math.max(:minutes > 0 ? 4 : 0, Math.min(1, classroot.v / app.dayRef) * (parent.height - 20)) },
+
+    trough: View [ y = { parent.height - 21 }, width = { parent.width }, height = 2, fill = { theme.rule } ],
+
+    bar: View [ y = { parent.height - 20 - classroot.barH }, width = { parent.width }, height = { classroot.barH },
+        cornerRadius = 3, fill = { app.effortColor(:effort) } ],
+
+    lbl: Text [ y = { parent.height - 13 }, width = { parent.width }, textAlign = center, wrap = false,
+        fontFamily = [Mono], fontSize = { app.t0 }, fontWeight = { :today ? "bold" : "medium" },
+        textColor = { :today ? theme.ink : theme.faint }, text = :dow ],
+
+    onClick() { app.pickDay(:date) }
+    ]
+
+
+/*
+## A session, as a row
+
+The list under the year holds exactly the sessions in the visible period, so
+pulling the year open filters it.
+*/
+
+class SessionRow extends View [ width = { parent.width }, height = 46,
+
+    chosen: boolean = { ("" + :id) == app.sel },
+
+    tick: View [ y = 12, width = 4, height = 22, cornerRadius = 2, fill = { app.effortColor(:effort) } ],
+
+    sport: Text [ x = 16, y = 8, wrap = false, fontSize = { app.t2 }, fontWeight = semibold,
+        textColor = { theme.ink }, text = { cadSportName(:sport) } ],
+
+    when: Text [ x = 16, y = { app.t2 + 12 }, wrap = false, fontFamily = [Mono], fontSize = { app.t0 },
+        letterSpacing = { app.t0 * 0.1 }, textColor = { theme.faint }, text = { cadRelDay(cadDay(:date), app.todayNum) } ],
+
+    dur: Text [ x = { parent.width - 128 }, y = 8, width = 76, textAlign = right, wrap = false,
+        fontSize = { app.t2 }, fontWeight = semibold, textColor = { theme.ink }, text = { cadHM(:minutes) } ],
+
+    dist: Text [ x = { parent.width - 128 }, y = { app.t2 + 12 }, width = 76, textAlign = right, wrap = false,
+        fontFamily = [Mono], fontSize = { app.t0 }, textColor = { theme.faint },
+        text = { :distanceKm == null ? "" : cadKm(:distanceKm) } ],
+
+    eff: Text [ x = { parent.width - 40 }, y = 11, width = 40, textAlign = right, wrap = false,
+        fontSize = { app.t2 + 4 }, fontWeight = extrabold, textColor = { app.effortColor(:effort) },
+        text = { "" + :effort } ],
+
+    hairline: Rule [ y = 45, width = { parent.width } ],
+
+    hot: State [ applied = { hovered || classroot.chosen }, fill = { theme.wash } ],
+
+    onClick() { app.select("" + :id) }
+    ]
+
+
+/*
+## Compose — the parts a thumb touches
+
+Every one of these is a tap target sized from `app.touchy`, so the phone gets
+48px+ and the desk gets something denser without a second implementation.
+*/
+
+class SportTile extends View [ width = { app.tileW }, height = { app.touchy + 8 }, cornerRadius = 10,
+    x = { :i * (app.tileW + 8) },
+    fill = { :id == app.cSport ? theme.ink : theme.wash },
+
+    name: Text [ y = center, width = { parent.width }, textAlign = center, wrap = false,
+        fontSize = { app.t2 }, fontWeight = semibold,
+        textColor = { :id == app.cSport ? theme.paper : theme.ink }, text = { cadSportName(:id) } ],
+
+    down: State [ applied = { pressed }, opacity = 0.7 ],
+
+    onClick() { app.pickSport("" + :id) }
+    ]
+
+
+class DayChip extends View [ width = { app.chipW }, height = { app.touchy }, cornerRadius = 10,
+    x = { :i * (app.chipW + 6) },
+    fill = { :date == app.cDate ? theme.ink : theme.wash },
+
+    top: Text [ y = 7, width = { parent.width }, textAlign = center, wrap = false, fontFamily = [Mono],
+        fontSize = { app.t0 }, textColor = { :date == app.cDate ? theme.paper : theme.faint }, text = :dow ],
+
+    num: Text [ y = { app.t0 + 10 }, width = { parent.width }, textAlign = center, wrap = false,
+        fontSize = { app.t1 + 1 }, fontWeight = semibold,
+        textColor = { :date == app.cDate ? theme.paper : theme.ink }, text = :num ],
+
+    down: State [ applied = { pressed }, opacity = 0.7 ],
+
+    onClick() { app.cDate = "" + :date }
+    ]
+
+
+class EffortPad extends View [ width = { app.effW }, height = { app.touchy }, cornerRadius = 8,
+    x = { (:n - 1) * (app.effW + 4) },
+    fill = { :n <= app.cEffort ? app.effortColor(:n) : theme.wash },
+
+    num: Text [ y = center, width = { parent.width }, textAlign = center, wrap = false,
+        fontFamily = [Mono], fontSize = { app.t0 },
+        textColor = { :n <= app.cEffort ? theme.paper : theme.faint }, text = { "" + :n } ],
+
+    down: State [ applied = { pressed }, opacity = 0.7 ],
+
+    onClick() { app.cEffort = :n }
+    ]
+
+
+class Stepper extends View [ width = { app.touchy + 6 }, height = { app.touchy + 6 }, cornerRadius = { (app.touchy + 6) / 2 },
+    y = { (parent.height - this.height) / 2 }, fill = { theme.wash },
+    glyph: string = "+",
+    step: number = 5,
+    field: string = "min",
+
+    g: Text [ y = center, width = { parent.width }, textAlign = center, wrap = false,
+        fontSize = { app.t2 + 6 }, fontWeight = bold, textColor = { theme.ink }, text = { classroot.glyph } ],
+
+    down: State [ applied = { pressed }, fill = { theme.rule } ],
+
+    onClick() { app.bump(classroot.field, classroot.step) }
+    ]
+
+
+// A comparison strip: where one session sits against every other of its sport.
+
+class Standing extends View [ width = { parent.width }, height = 44,
+    label: string = "",
+    caption: string = "",
+    frac: number = 0,
+
+    f: number = 0,
+    Spring [ attribute = f, to = { classroot.frac }, stiffness = 180, damping = 26 ],
+
+    lbl: Eyebrow [ text = { classroot.label } ],
+
+    track: View [ y = { app.t0 + 8 }, width = { parent.width }, height = 6, cornerRadius = 3, fill = { theme.wash },
+        fillbar: View [ width = { Math.max(3, parent.width * classroot.f) }, height = 6, cornerRadius = 3,
+            fill = { theme.ink } ]
+        ],
+
+    cap: Note [ y = { app.t0 + 20 }, fontSize = { app.t0 + 1 }, text = { classroot.caption } ]
+    ]
+
+
+/*
+## The app
+
+`store` is the truth; everything else derives. The service's frozen clock is
+what "today" means, so every aggregate is stable.
+*/
+
+App [ appName = "Cadence", minWidth = 320,
+
+    fill = { theme.paper }, textColor = { theme.ink }, fontFamily = [Sans, "sans-serif"],
+    fontSize = { app.t2 }, selectable = false,
+
+    /* One palette: ink, paper, and one accent that means EFFORT. The house
+       preset sits underneath so any library control (the note field, the
+       sliders) finds every token it consults. */
+
+    theme = { ({ ...Themes.sanFrancisco(false), ...app.palette() }) },
+
+    palette() { return ({
+        paper: 0xF6F3EC, card: 0xFFFFFF, wash: 0xEBE6DC, rule: 0xE0D9CD,
+        ink: 0x171310, muted: 0x8A8073, faint: 0xB3AA9C,
+        accent: 0xD8431E, quiet: 0xBDB4A5,
+        surface: 0xFFFFFF, text: 0x171310, textMuted: 0x8A8073, line: 0xE0D9CD,
+        control: 0xEBE6DC, controlHover: 0xE0D9CD, controlPressed: 0xD5CCBD,
+        controlSelected: 0x171310, accentText: 0xFFFFFF, focusRing: 0xD8431E }) },
+
+    // Effort is the only thing in the app that earns colour. 1 is quiet stone;
+    // 10 is the accent at full voice, and the curve keeps the middle honest.
+
+    effortColor(e: number) -> number {
+        const t = cadClamp((Math.round(e) - 1) / 9, 0, 1)
+        return cadMix(this.theme.quiet, this.theme.accent, Math.pow(t, 1.45))
+        },
+
+    // ── the room ──────────────────────────────────────────────────────────
+
+    phone: boolean = { app.width < 860 },
+    pad: number = { app.phone ? 20 : 40 },
+    gx: number = { app.pad },
+    gw: number = { app.width - 2 * app.pad },
+    touchy: number = { app.phone ? 48 : 40 },
+
+    t0: number = { app.phone ? 10 : 11 },
+    t1: number = { app.phone ? 13 : 14 },
+    t2: number = { app.phone ? 16 : 17 },
+
+    // ── the service ───────────────────────────────────────────────────────
+
+    api: string = "http://127.0.0.1:8320",
+
+    store: Dataset { { "sessions": [] } },
+
+    clockSrc: DataSource [ url = { app.api + "/api/today" },
+        onLoad() { app.arrived() }
+        ],
+
+    hist: DataSource [ url = { app.api + "/api/sessions" },
+        onLoad() { app.store.set(["sessions"], app.hist.value.sessions); app.arrived() }
+        ],
+
+    liveSrc: DataSource [ url = { app.api + "/api/live" },
+        onLoad() { app.liveArrived() }
+        ],
+
+    poster: DataSource [ method = "POST", url = { app.api + "/api/sessions" }, body = { app.composeBody() },
+        onLoad() { app.afterCreate() }
+        ],
+
+    putter: DataSource [ method = "PUT", url = { app.api + "/api/sessions/" + app.cId }, body = { app.composeBody() },
+        onLoad() { app.afterUpdate() }
+        ],
+
+    /* The address reads `sel` — the value that is ALREADY settled when the
+       button is pressed. Routing it through a slot written in the same handler
+       (`delId = sel; deleter.fetch()`) sent `/api/sessions/` with no id: a
+       constraint set in a handler has not propagated by the time that handler
+       calls fetch(). Every request slot here derives from settled state for
+       that reason. */
+
+    deleter: DataSource [ method = "DELETE", url = { app.api + "/api/sessions/" + app.sel },
+        onLoad() { app.afterDelete() }
+        ],
+
+    today: string = { app.clockSrc.loaded && app.clockSrc.value != null ? "" + app.clockSrc.value.today : "" },
+    todayNum: number = { app.today == "" ? 0 : cadDay(app.today) },
+    ready: boolean = { app.clockSrc.loaded && app.hist.loaded },
+
+    sessions() -> array { const v = this.store.read(["sessions"]); return v == null ? [] : (v as any[]) },
+
+    // ── this week ─────────────────────────────────────────────────────────
+    // Weeks run Monday to Sunday. Day 0 of the epoch was a Thursday, hence +3.
+
+    weekStart: number = { app.todayNum - ((app.todayNum + 3) % 7) },
+
+    weekModel() -> object {
+        const all = this.sessions()
+        const days = []
+        let mins = 0, count = 0
+        for (let i = 0; i < 7; i++) {
+            const n = this.weekStart + i
+            const ds = cadDate(n)
+            const on = all.filter(s => s.date == ds)
+            const m = on.reduce((a, b) => a + b.minutes, 0)
+            mins = mins + m
+            count = count + on.length
+            days.push({ id: ds, date: ds, i: i, minutes: m,
+                        effort: on.length == 0 ? 0 : Math.max(...on.map(s => s.effort)),
+                        dow: ["M", "T", "W", "T", "F", "S", "S"][i],
+                        today: n == this.todayNum, future: n > this.todayNum })
+            }
+        return ({ days: days, minutes: mins, count: count })
+        },
+
+    week: Dataset [ contents = { app.weekModel() } ],
+
+    weekMinutes: number = { app.week.value == null ? 0 : app.week.value.minutes },
+    weekCount: number = { app.week.value == null ? 0 : app.week.value.count },
+
+    // Every figure the person watches is SPRUNG toward its truth, so adding a
+    // session moves the week's total rather than cutting it.
+
+    wkM: number = 0,
+    Spring [ attribute = wkM, to = { app.weekMinutes }, stiffness = 150, damping = 24 ],
+    wkC: number = 0,
+    Spring [ attribute = wkC, to = { app.weekCount }, stiffness = 150, damping = 24 ],
+
+    weekLine: string = { cadCount(Math.round(app.wkC), "session", "sessions") + " · " + cadHM(app.wkM) },
+
+    // The reference a day's bar is measured against: the person's own heavy
+    // day, so a light week reads light without anyone reading a number.
+
+    dayRef: number = { Math.max(60, app.heavyDay()) },
+
+    heavyDay() -> number {
+        const byDay = new Map()
+        for (const s of this.sessions()) byDay.set(s.date, (byDay.get(s.date) ?? 0) + s.minutes)
+        const xs = Array.from(byDay.values()).sort((a, b) => b - a)
+        return xs.length == 0 ? 120 : xs[Math.floor(xs.length * 0.08)]
+        },
+
+    dayGap: number = { app.phone ? 6 : 8 },
+    dayW: number = { (app.weekW - 6 * app.dayGap) / 7 },
+
+    // ── the streak ────────────────────────────────────────────────────────
+
+    streakTrue: number = {
+        app.streakFrom(app.todayNum) },
+
+    streakFrom(t: number) -> number {
+        const on = new Set(this.sessions().map(s => s.date))
+        let n = t
+        if (!on.has(cadDate(n))) n = n - 1
+        let k = 0
+        while (on.has(cadDate(n)) && k < 900) { k = k + 1; n = n - 1 }
+        return k
+        },
+
+    stk: number = 0,
+    Spring [ attribute = stk, to = { app.streakTrue }, stiffness = 150, damping = 24 ],
+
+    // Reads from the TRUTH whether there is a streak, and from the sprung value
+    // how long it is — so a figure travelling up from zero never passes through
+    // "no streak" on its way.
+
+    streakLine: string = { app.streakTrue <= 0 ? "no streak" : cadCount(Math.max(1, Math.round(app.stk)), "day", "days") },
+
+    // ── the last session ──────────────────────────────────────────────────
+
+    lastSession() -> object {
+        const a = this.sessions()
+        return a.length == 0 ? null : a[0]
+        },
+
+    // ── the session in progress ───────────────────────────────────────────
+
+    liveOn: boolean = false,
+    liveSport: string = "",
+    liveSecs: number = 0,
+    liveKm: number = 0,
+    liveHr: number = 0,
+    livePoll: number = 0,
+
+    liveArrived() {
+        const v = this.liveSrc.value
+        const s = v == null ? null : v.session
+        if (s == null) { this.liveOn = false; return }
+        this.liveOn = true
+        this.liveSport = "" + s.sport
+        this.liveSecs = Number(s.startedSecondsAgo)
+        this.liveKm = s.distanceKm == null ? 0 : Number(s.distanceKm)
+        this.liveHr = s.heartNow == null ? 0 : Number(s.heartNow)
+        },
+
+    // A once-a-second timer rather than a Heartbeat: a clock that never stops
+    // would hold the frame loop open forever, and the elapsed figure is the
+    // whole signal that this session is RUNNING rather than finished.
+
+    tickLive() {
+        if (this.liveOn) this.liveSecs = this.liveSecs + 1
+        this.livePoll = this.livePoll + 1
+        if (this.livePoll >= 15) { this.livePoll = 0; this.liveSrc.fetch() }
+        setTimeout(() => app.tickLive(), 1000)
+        },
+
+    // ── the year: two scalars the hand writes directly ────────────────────
+
+    tlSpan: number = 90,
+    tlCenter: number = 0,
+    tlVel: number = 0,
+    gliding: boolean = false,
+    glideC: number = 0,
+    glideS: number = 0,
+
+    dataFrom: number = { app.firstDay() },
+    firstDay() -> number {
+        const a = this.sessions()
+        return a.length == 0 ? this.todayNum - 60 : cadDay(a[a.length - 1].date)
+        },
+
+    spanMax: number = { Math.max(60, app.todayNum - app.dataFrom + 20) },
+    tlFrom: number = { app.tlCenter - app.tlSpan / 2 },
+    tlTo: number = { app.tlCenter + app.tlSpan / 2 },
+    tlPx: number = { app.tlW / Math.max(1, app.tlSpan) },
+
+    clampSpan(s: number) -> number { return cadClamp(s, 12, this.spanMax) },
+    clampCenter(c: number) -> number {
+        const half = this.tlSpan / 2
+        const lo = this.dataFrom - 10 + half, hi = this.todayNum + 10 - half
+        return hi < lo ? (this.dataFrom + this.todayNum) / 2 : cadClamp(c, lo, hi)
+        },
+
+    dayAt(lx: number) -> number { return this.tlFrom + lx / Math.max(1, this.tlW) * this.tlSpan },
+
+    // Zoom about a point: the day under the finger stays under the finger.
+
+    zoomAt(lx: number, k: number) {
+        const anchor = this.dayAt(lx)
+        const s = this.clampSpan(this.tlSpan * k)
+        this.tlSpan = s
+        this.tlCenter = this.clampCenter(anchor + (this.tlW / 2 - lx) / Math.max(1, this.tlW) * s)
+        },
+
+    glide(c: number, s: number) {
+        this.tlVel = 0
+        this.glideS = this.clampSpan(s)
+        this.glideC = c
+        this.gliding = true
+        },
+
+    goToday() { this.glide(this.todayNum - 26, 90) },
+
+    goDay(n: number, span: number) { this.glide(n, span) },
+
+    // The motor: fling after the hand lets go, and the eased glide when the app
+    // moves the surface itself. It runs only while there is something to move.
+
+    motor: Heartbeat [ running = { app.gliding || app.tlVel != 0 },
+        onFrame(dt: number) { app.motorFrame(dt) }
+        ],
+
+    // `dt` is clamped at BOTH ends. The runtime caps a backgrounded tab's
+    // resume, but a frame that straddles a clock handover (`__declare.clock
+    // .manual()`, which every verify rung-5 settleMotion performs) arrives
+    // NEGATIVE — and an unclamped negative step runs the fling backwards into
+    // the far end of the range.
+
+    motorFrame(dt: number) {
+        const d = cadClamp(dt, 0, 0.05)
+        if (this.gliding) {
+            const k = 1 - Math.pow(0.0022, d)
+            const c = this.tlCenter + (this.glideC - this.tlCenter) * k
+            const s = this.tlSpan + (this.glideS - this.tlSpan) * k
+            this.tlSpan = s
+            this.tlCenter = c
+            if (Math.abs(this.glideC - c) < 0.08 && Math.abs(this.glideS - s) < 0.08) {
+                this.tlSpan = this.glideS
+                this.tlCenter = this.clampCenter(this.glideC)
+                this.gliding = false
+                }
+            return
+            }
+        const before = this.tlCenter
+        this.tlCenter = this.clampCenter(this.tlCenter + this.tlVel * d)
+        if (Math.abs(this.tlCenter - before) < Math.abs(this.tlVel * d) - 0.001) this.tlVel = 0
+        this.tlVel = this.tlVel * Math.pow(0.05, d)
+        if (Math.abs(this.tlVel) < 0.8) this.tlVel = 0
+        },
+
+    // ── the gesture ───────────────────────────────────────────────────────
+    // The raw touch family, on the band and nothing else. It is the smallest
+    // view that needs it, and taking every finger there is what buys the pinch
+    // the brief asks for — so this surface owes the user its own zoom, and pays.
+
+    tMoved: boolean = false,
+    tFingers: number = 0,
+    tLast: number = 0,
+    tStart: number = 0,
+    tTime: number = 0,
+    flingV: number = 0,
+    pinchD: number = 0,
+    pinchSpan: number = 0,
+    pinchDay: number = 0,
+
+    tlDown(e: TouchEvent) {
+        this.gliding = false
+        this.tlVel = 0
+        this.flingV = 0
+        this.tFingers = e.touches.length
+        this.pinchD = 0
+        if (e.touches.length == 1) {
+            this.tMoved = false
+            this.tStart = e.touches[0].x
+            this.tLast = e.touches[0].x
+            this.tTime = Date.now()
+            }
+        },
+
+    tlMove(e: TouchEvent) {
+        if (!this.ready) return
+        const now = Date.now()
+        if (e.touches.length >= 2) {
+            const a = e.touches[0], b = e.touches[1]
+            const dist = Math.max(14, Math.abs(a.x - b.x))
+            const mid = (a.x + b.x) / 2 - this.gx
+            this.tMoved = true
+            this.tFingers = 2
+            if (this.pinchD == 0) { this.pinchD = dist; this.pinchSpan = this.tlSpan; this.pinchDay = this.dayAt(mid); return }
+            const s = this.clampSpan(this.pinchSpan * this.pinchD / dist)
+            this.tlSpan = s
+            this.tlCenter = this.clampCenter(this.pinchDay + (this.tlW / 2 - mid) / Math.max(1, this.tlW) * s)
+            return
+            }
+        if (e.touches.length != 1) return
+        const x = e.touches[0].x
+        const dx = x - this.tLast
+        this.tLast = x
+        if (!this.tMoved && Math.abs(x - this.tStart) > 5) this.tMoved = true
+        if (!this.tMoved) return
+        const days = -dx / Math.max(1, this.tlW) * this.tlSpan
+        this.tlCenter = this.clampCenter(this.tlCenter + days)
+        const dt = Math.max(0.008, (now - this.tTime) / 1000)
+        this.tTime = now
+        this.flingV = this.flingV * 0.6 + (days / dt) * 0.4
+        },
+
+    tlUp(e: TouchEvent) {
+        if (e.touches.length >= 1) { this.pinchD = 0; this.tLast = e.touches[0].x; this.tMoved = true; return }
+        if (!this.tMoved && this.tFingers == 1) this.pickAt(e.x - this.gx)
+        else if (this.tFingers == 1 && Math.abs(this.flingV) > 6) this.tlVel = cadClamp(this.flingV, -600, 600)
+        this.pinchD = 0
+        this.tFingers = 0
+        },
+
+    tlCancel() { this.pinchD = 0; this.tFingers = 0; this.tMoved = false; this.flingV = 0 },
+
+    tlWheel(e: WheelEvent) {
+        if (!this.ready) return
+        this.gliding = false
+        this.tlVel = 0
+        if (e.pinch) { this.zoomAt(e.x, Math.exp(e.deltaY * 0.012)); return }
+        if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+            this.tlCenter = this.clampCenter(this.tlCenter + e.deltaX / Math.max(1, this.tlW) * this.tlSpan)
+            return
+            }
+        this.zoomAt(e.x, Math.exp(e.deltaY * 0.0035))
+        },
+
+    pickAt(lx: number) {
+        const day = this.dayAt(lx)
+        let best = null
+        let bd = 1e9
+        for (const s of this.sessions()) {
+            const d = Math.abs(cadDay(s.date) + 0.5 - day)
+            if (d < bd) { bd = d; best = s }
+            }
+        if (best != null && bd * this.tlPx < 26) this.select("" + best.id)
+        },
+
+    // ── what the visible period is, and what happened in it ───────────────
+
+    periodStats() -> object {
+        const a = this.sessions().filter(s => { const d = cadDay(s.date); return d >= this.tlFrom && d <= this.tlTo })
+        return ({ count: a.length,
+                  minutes: a.reduce((x, y) => x + y.minutes, 0),
+                  km: a.reduce((x, y) => x + (y.distanceKm ?? 0), 0) })
+        },
+
+    period: Dataset [ contents = { app.periodStats() } ],
+
+    pdC: number = 0,
+    Spring [ attribute = pdC, to = { app.period.value == null ? 0 : app.period.value.count }, stiffness = 260, damping = 30 ],
+    pdM: number = 0,
+    Spring [ attribute = pdM, to = { app.period.value == null ? 0 : app.period.value.minutes }, stiffness = 260, damping = 30 ],
+
+    periodLine: string = { cadCount(Math.round(app.pdC), "session", "sessions") + " · " + cadHM(app.pdM) },
+
+    periodLabel: string = {
+        !app.ready                                     ? ""
+      : app.tlSpan <= 20 && cadMon(app.tlFrom) == cadMon(app.tlTo)
+                                                       ? cadDom(app.tlFrom) + " – " + cadDom(app.tlTo) + " " + CAD_MONL[cadMon(app.tlTo)] + " " + cadYear(app.tlTo)
+      : app.tlSpan <= 70                               ? cadShortDate(app.tlFrom) + " – " + cadShortDate(app.tlTo) + " " + cadYear(app.tlTo)
+      : cadYear(app.tlFrom) == cadYear(app.tlTo)       ? CAD_MONL[cadMon(app.tlFrom)] + " – " + CAD_MONL[cadMon(app.tlTo)] + " " + cadYear(app.tlTo)
+      :                                                  CAD_MONS[cadMon(app.tlFrom)] + " " + cadYear(app.tlFrom) + " – " + CAD_MONS[cadMon(app.tlTo)] + " " + cadYear(app.tlTo) },
+
+    // The month and week rules are built ONCE over the whole history; each one
+    // then places itself by constraint, so scrubbing rebuilds no model at all.
+
+    axisModel() -> object {
+        const months = []
+        let m = cadMonthStart(this.dataFrom)
+        for (let i = 0; i < 30 && m <= this.todayNum + 40; i++) {
+            months.push({ id: "m" + m, day: m, label: CAD_MONS[cadMon(m)], year: "" + cadYear(m), jan: cadMon(m) == 0 })
+            m = cadAddMonths(m, 1)
+            }
+        const weeks = []
+        let w = this.dataFrom - ((this.dataFrom + 3) % 7)
+        for (let i = 0; i < 90 && w <= this.todayNum + 14; i++) {
+            weeks.push({ id: "w" + w, day: w, label: cadShortDate(w) })
+            w = w + 7
+            }
+        return ({ months: months, weeks: weeks })
+        },
+
+    axis: Dataset [ contents = { app.axisModel() } ],
+
+    // ── the year, painted ─────────────────────────────────────────────────
+    // A tracked drawing: it re-records when the window, the data, or the
+    // selection changes, and never once per frame otherwise.
+
+    barRef: number = { Math.max(45, app.heavyOne()) },
+    heavyOne() -> number {
+        const xs = this.sessions().map(s => s.minutes).sort((a, b) => b - a)
+        return xs.length == 0 ? 120 : xs[Math.floor(xs.length * 0.04)]
+        },
+
+    // NOTE: the box arrives as arguments. `d.w`/`d.h` are documented as the
+    // view's own box and are typed by the compiler, but the runtime recorder
+    // never sets them — they read `undefined`, and every extent computed from
+    // one comes out NaN, so the recording bounds to nothing and the canvas is
+    // never sized. Reading `this.width`/`this.height` at the call site is the
+    // form that works.
+
+    paintYear(d: Draw, w: number, h: number) {
+        if (w <= 2 || !this.ready) return
+        const from = this.tlFrom, span = Math.max(1, this.tlSpan), px = w / span
+        const base = h - 22, top = 8, maxH = base - top
+        d.fillStyle = this.theme.rule
+        d.fillRect(0, base, w, 1)
+
+        // the month rules, and the fortnight's day ticks when it is open wide
+        d.fillStyle = cadMix(this.theme.rule, this.theme.paper, 0.35)
+        let m = cadMonthStart(from - 32)
+        for (let i = 0; i < 24 && m < from + span + 32; i++) {
+            const x = (m - from) * px
+            if (x > -1 && x < w + 1) d.fillRect(Math.round(x), top - 4, 1, base - top + 4)
+            m = cadAddMonths(m, 1)
+            }
+        if (px > 9) {
+            d.fillStyle = cadMix(this.theme.rule, this.theme.paper, 0.6)
+            for (let n = Math.ceil(from); n <= from + span; n++) {
+                const x = (n - from) * px
+                if (cadDow(n) == 1) d.fillRect(Math.round(x), base - 6, 1, 6)
+                }
+            }
+
+        // today
+        const tx = (this.todayNum + 0.5 - from) * px
+        if (tx > -2 && tx < w + 2) {
+            d.fillStyle = this.theme.faint
+            d.fillRect(Math.round(tx), top - 4, 1, base - top + 8)
+            }
+
+        // the sessions
+        const bw = Math.max(1.6, Math.min(30, px * 0.66))
+        const r = Math.min(3, bw / 2)
+        for (const s of this.sessions()) {
+            const dd = cadDay(s.date) - from
+            if (dd < -1 || dd > span + 1) continue
+            const x = (dd + 0.5) * px
+            const bh = Math.max(2.5, Math.min(1.12, s.minutes / this.barRef) * maxH)
+            const on = ("" + s.id) == this.sel
+            d.fillStyle = on ? this.theme.ink : this.effortColor(s.effort)
+            d.beginPath()
+            d.roundRect(x - bw / 2, base - bh, bw, bh, r)
+            d.fill()
+            if (on) {
+                d.fillStyle = this.theme.ink
+                d.beginPath()
+                d.roundRect(x - Math.max(3, bw / 2), base + 4, Math.max(6, bw), 3, 1.5)
+                d.fill()
+                }
+            }
+        },
+
+    // ── selection, and the sheets ─────────────────────────────────────────
+
+    sel: string = "",
+    mode: string = "",
+
+    findSession(id: string) -> object {
+        if (id == "") return null
+        const a = this.sessions().filter(s => ("" + s.id) == id)
+        return a.length == 0 ? null : a[0]
+        },
+
+    selected: Dataset [ contents = { app.selectedModel() } ],
+    selectedModel() -> object {
+        const s = this.findSession(this.sel)
+        return s == null ? ({ has: false }) : ({ has: true, s: s })
+        },
+
+    select(id: string) {
+        this.forget()
+        this.sel = id
+        this.mode = "detail"
+        const s = this.findSession(id)
+        if (s != null) {
+            const n = cadDay(s.date)
+            if (n < this.tlFrom + 2 || n > this.tlTo - 2) this.glide(n, Math.min(this.tlSpan, 60))
+            }
+        },
+
+    pickDay(date: string) {
+        const on = this.sessions().filter(s => s.date == date)
+        if (on.length > 0) this.select("" + on[0].id)
+        },
+
+    closeSheets() { this.mode = ""; this.sel = "" },
+
+    sheetT: number = 0,
+    Spring [ attribute = sheetT, to = { app.mode == "" ? 0 : 1 }, stiffness = 260, damping = 30 ],
+
+    sheetW: number = { app.phone ? app.hostWidth : Math.min(500, app.hostWidth) },
+    sheetH: number = { app.phone ? Math.min(app.hostHeight - 10, 780) : app.hostHeight },
+    sheetX: number = { app.phone ? 0 : app.hostWidth - app.sheetW * app.sheetT },
+    sheetY: number = { app.phone ? app.hostHeight - app.sheetH * app.sheetT : 0 },
+    sheetPad: number = { app.phone ? 22 : 30 },
+    sheetInner: number = { app.sheetW - 2 * app.sheetPad },
+
+    // ── where a session stands ────────────────────────────────────────────
+
+    // A midpoint rank, so a session that ties most of its kind lands in the
+    // middle rather than reading "harder than 0%".
+
+    standing(sport: string, kind: number, v: number) -> number {
+        const a = this.sessions().filter(s => s.sport == sport)
+        const xs = a.map(s => kind == 0 ? s.minutes : kind == 1 ? (s.distanceKm ?? -1) : s.effort).filter(x => x >= 0)
+        if (xs.length < 2) return 0
+        const below = xs.filter(x => x < v).length
+        const same = xs.filter(x => x == v).length
+        return cadClamp((below + same / 2) / xs.length, 0, 1)
+        },
+
+    standingWord(f: number, word: string, sport: string) -> string {
+        return word + " than " + Math.round(f * 100) + "% of your " + sport + "s"
+        },
+
+    // ── composing a session ───────────────────────────────────────────────
+
+    cId: string = "",
+    cSport: string = "run",
+    cDate: string = "",
+    cMin: number = 45,
+    cKm: number = 8,
+    cEffort: number = 5,
+    cNote: string = "",
+
+    numX: number = { app.touchy + 14 },
+    numW: number = { app.sheetInner - 2 * (app.touchy + 14) },
+    kmNum: string = { (Math.round(app.cKm * 10) / 10).toFixed(1) },
+
+    tileW: number = { (app.sheetInner - 24) / 4 },
+    chipW: number = { (app.sheetInner - 5 * 6) / 6 },
+    effW: number = { (app.sheetInner - 9 * 4) / 10 },
+
+    // What they are most likely to mean is already there: the sport they do on
+    // this weekday, a duration near what they usually do, the effort they
+    // usually give it, and today's date.
+
+    guessSport() -> string {
+        const a = this.sessions()
+        if (a.length == 0) return "run"
+        const dow = cadDow(this.todayNum)
+        const recent = a.slice(0, 90)
+        let best = "" + recent[0].sport
+        let bestN = -1
+        for (const sp of CAD_SPORTS) {
+            const n = recent.filter(s => s.sport == sp && cadDow(cadDay(s.date)) == dow).length * 3
+                    + recent.filter(s => s.sport == sp).length
+            if (n > bestN) { bestN = n; best = sp }
+            }
+        return best
+        },
+
+    usualMinutes(sport: string) -> number {
+        const xs = this.sessions().filter(s => s.sport == sport).slice(0, 40).map(s => s.minutes)
+        const m = cadMedian(xs)
+        return m == 0 ? 45 : Math.round(m / 5) * 5
+        },
+
+    usualEffort(sport: string) -> number {
+        const xs = this.sessions().filter(s => s.sport == sport).slice(0, 40).map(s => s.effort)
+        const m = cadMedian(xs)
+        return m == 0 ? 5 : Math.round(m)
+        },
+
+    usualKm(sport: string, minutes: number) -> number {
+        if (sport == "lift") return 0
+        const xs = this.sessions().filter(s => s.sport == sport && s.distanceKm != null && s.minutes > 0)
+                       .slice(0, 40).map(s => s.distanceKm / s.minutes)
+        const rate = cadMedian(xs)
+        return Math.round((rate == 0 ? 0.15 : rate) * minutes * 10) / 10
+        },
+
+    pickSport(sp: string) {
+        this.cSport = sp
+        if (this.cId != "") return
+        this.cMin = this.usualMinutes(sp)
+        this.cEffort = this.usualEffort(sp)
+        this.cKm = this.usualKm(sp, this.cMin)
+        },
+
+    bump(field: string, step: number) {
+        if (field == "min") {
+            const before = this.cMin
+            this.cMin = cadClamp(Math.round((this.cMin + step) / 5) * 5, 5, 600)
+            if (this.cSport != "lift" && before > 0) this.cKm = Math.round(this.cKm * (this.cMin / before) * 10) / 10
+            }
+        else this.cKm = Math.max(0, Math.round((this.cKm + step) * 10) / 10)
+        },
+
+    // A refusal is a fact about the LAST request, so a new sheet starts by
+    // returning the sources to idle — otherwise yesterday's error would sit
+    // under today's button.
+
+    forget() { this.poster.clear(); this.putter.clear(); this.deleter.clear() },
+
+    openNew() {
+        this.forget()
+        this.cId = ""
+        this.cDate = this.today
+        this.cNote = ""
+        this.pickSport(this.guessSport())
+        this.mode = "compose"
+        },
+
+    openEdit() {
+        const s = this.findSession(this.sel)
+        if (s == null) return
+        this.forget()
+        this.cId = "" + s.id
+        this.cSport = "" + s.sport
+        this.cDate = "" + s.date
+        this.cMin = s.minutes
+        this.cKm = s.distanceKm == null ? 0 : s.distanceKm
+        this.cEffort = s.effort
+        this.cNote = s.note == null ? "" : "" + s.note
+        this.mode = "compose"
+        },
+
+    dayChips: Dataset [ contents = { app.chipModel() } ],
+    chipModel() -> object {
+        const rows = []
+        for (let i = 0; i < 6; i++) {
+            const n = this.todayNum - (5 - i)
+            rows.push({ id: "c" + n, i: i, date: cadDate(n), num: "" + cadDom(n),
+                        dow: i == 5 ? "TDY" : ["S", "M", "T", "W", "T", "F", "S"][cadDow(n)] })
+            }
+        return ({ rows: rows })
+        },
+
+    effortPads: Dataset { { "rows": [ { "id": 1, "n": 1 }, { "id": 2, "n": 2 }, { "id": 3, "n": 3 }, { "id": 4, "n": 4 }, { "id": 5, "n": 5 },
+                                      { "id": 6, "n": 6 }, { "id": 7, "n": 7 }, { "id": 8, "n": 8 }, { "id": 9, "n": 9 }, { "id": 10, "n": 10 } ] } },
+
+    sportTiles: Dataset { { "rows": [ { "id": "run", "i": 0 }, { "id": "ride", "i": 1 }, { "id": "lift", "i": 2 }, { "id": "swim", "i": 3 } ] } },
+
+    composeBody() -> object {
+        return ({ sport: this.cSport, date: this.cDate, minutes: Math.round(this.cMin),
+                  distanceKm: this.cSport == "lift" ? null : Math.round(this.cKm * 10) / 10,
+                  effort: Math.round(this.cEffort),
+                  note: this.cNote == "" ? null : this.cNote })
+        },
+
+    // Saving is never the thing that tells them they got it wrong: the same
+    // rules the service enforces are checked here, live, and named above the
+    // button before it is pressed.
+
+    missing: string = {
+        app.cSport == ""                                ? "Choose a sport"
+      : app.cDate == ""                                 ? "Choose a day"
+      : cadDay(app.cDate) > app.todayNum                ? "That day hasn't happened yet"
+      : app.cMin <= 0                                   ? "Set how long it was"
+      : app.cEffort < 1 || app.cEffort > 10             ? "Set how it felt"
+      :                                                   "" },
+
+    canSave: boolean = { app.missing == "" },
+    saving: boolean = { app.poster.loading || app.putter.loading || app.deleter.loading },
+
+    save() {
+        if (!this.canSave || this.saving) return
+        if (this.cId == "") this.poster.fetch()
+        else this.putter.fetch()
+        },
+
+    afterCreate() {
+        const s = this.poster.value
+        if (s == null) return
+        this.insertSession(s)
+        this.mode = ""
+        this.sel = ""
+        this.goDay(cadDay("" + s.date), Math.min(this.tlSpan, 70))
+        },
+
+    afterUpdate() {
+        const s = this.putter.value
+        if (s == null) return
+        const a = this.sessions().map(x => ("" + x.id) == ("" + s.id) ? s : x)
+        a.sort((x, y) => app.byNewest(x, y))
+        this.store.set(["sessions"], a)
+        this.mode = "detail"
+        this.sel = "" + s.id
+        },
+
+    afterDelete() {
+        const v = this.deleter.value
+        const gone = v == null ? this.sel : "" + v.deleted
+        this.store.set(["sessions"], this.sessions().filter(x => ("" + x.id) != gone))
+        this.mode = ""
+        this.sel = ""
+        },
+
+    insertSession(s: object) {
+        const a = this.sessions().slice()
+        a.push(s)
+        a.sort((x, y) => app.byNewest(x, y))
+        this.store.set(["sessions"], a)
+        },
+
+    byNewest(x: object, y: object) -> number {
+        return x.date < y.date ? 1 : x.date > y.date ? -1 : (("" + x.id) < ("" + y.id) ? 1 : -1)
+        },
+
+    removeSelected() {
+        if (this.sel == "" || this.saving) return
+        this.deleter.fetch()
+        },
+
+    failure: string = {
+        app.poster.failed  ? app.problem(app.poster.errorBody, app.poster.error)
+      : app.putter.failed  ? app.problem(app.putter.errorBody, app.putter.error)
+      : app.deleter.failed ? app.problem(app.deleter.errorBody, app.deleter.error)
+      :                      "" },
+
+    problem(body: object, fallback: string) -> string {
+        return body != null && body.message != null ? "" + body.message : "" + (fallback ?? "That didn't save")
+        },
+
+    // ── the page's vertical arithmetic ────────────────────────────────────
+    // Phone: one column, the page scrolls. Desk: the three answers sit in a
+    // row across the top and the year takes the whole width beneath them.
+
+    headH: number = { app.phone ? 58 : 96 },
+
+    /* `wide` is a SEPARATE question from `phone`: how dense the controls are is
+       decided by the pointer (`phone`), whether the three answers sit across
+       one row is decided by whether three columns actually fit. Between them
+       is a real arrangement — desk density, stacked band — not a compromise. */
+
+    wide: boolean = { app.width >= 980 },
+
+    weekW: number = { app.wide ? Math.min(app.gw * 0.38, 470) : app.gw },
+    weekX: number = 0,
+    weekY: number = { app.headH + (app.liveOn ? app.liveH + 22 : 0) },
+    weekH: number = { app.t0 + 12 + app.wkSize + 14 + app.barsH },
+    wkSize: number = { cadFit(app.weekLine, app.weekW, app.phone ? 40 : app.wide ? 66 : 52, 22) },
+    barsH: number = { app.phone ? 104 : 116 },
+
+    liveH: number = { app.phone ? 100 : 104 },
+    liveRight: number = { Math.min(180, app.gw * 0.42) },
+    liveY: number = { app.headH },
+
+    stkX: number = { app.wide ? app.weekW + 40 : 0 },
+    stkW: number = { app.wide ? Math.max(Math.min(app.gw * 0.28, 340), 252) : app.gw },
+    stkY: number = { app.wide ? app.weekY : app.weekY + app.weekH + 30 },
+
+    // The hero's floor is the §6 rule made arithmetic: six times the smallest
+    // text on the screen. "no streak" is not a number, so it is free to be
+    // smaller rather than shoulder its way into the next column.
+
+    stkSize: number = { app.streakTrue <= 0
+        ? cadFit("no streak", app.stkW, app.phone ? 62 : 78, 28)
+        : cadFit(app.streakLine, app.stkW, app.phone ? 96 : 132, 6 * app.t0 + 4) },
+    stkH: number = { app.t0 + 12 + app.stkSize + 6 },
+
+    lastX: number = { app.wide ? app.stkX + app.stkW + 40 : 0 },
+    lastW: number = { app.wide ? app.gw - app.lastX : app.gw },
+    lastY: number = { app.wide ? app.weekY : app.stkY + app.stkH + 30 },
+
+    bandBottom: number = { app.wide ? app.weekY + Math.max(app.weekH, app.stkH, 104) : app.lastY + 86 },
+
+    yearY: number = { app.bandBottom + (app.phone ? 26 : 34) },
+    tlY: number = { app.yearY + (app.phone ? 96 : 74) },
+    tlW: number = { app.gw },
+    tlH: number = { app.phone ? 200 : Math.max(230, app.hostHeight - app.tlY - 180) },
+
+    listY: number = { app.tlY + app.tlH + 52 },
+    listW: number = { app.phone ? app.gw : Math.min((app.gw - 56) / 2, 620) },
+    listCap: number = { app.phone ? 10 : 20 },
+
+    periodList: Dataset [ contents = { app.periodListModel() } ],
+    periodListModel() -> object {
+        const all = this.sessions().filter(s => { const d = cadDay(s.date); return d >= this.tlFrom && d <= this.tlTo })
+        const rows = all.slice(0, this.listCap)
+        const half = this.phone ? rows.length : Math.ceil(rows.length / 2)
+        return ({ a: rows.slice(0, half), b: rows.slice(half),
+                  lines: half, more: Math.max(0, all.length - this.listCap) })
+        },
+
+    pageH: number = { app.listY + 46 * (app.periodList.value == null ? 0 : app.periodList.value.lines) + 140 },
+
+    onInit() {
+        this.clockSrc.fetch()
+        this.hist.fetch()
+        this.liveSrc.fetch()
+        setTimeout(() => app.tickLive(), 1000)
+        },
+
+    arrived() {
+        if (!this.ready) return
+        if (this.tlCenter == 0) { this.tlSpan = 90; this.tlCenter = this.clampCenter(this.todayNum - 26) }
+        },
+
+    /* ## The keyboard — the desk's half of §7
+       n opens a new session, t brings the year home, ← → page it, [ ] open and
+       shut it, Escape closes, Enter saves. Gated off while a text field holds
+       the keyboard (Keys is the raw stream). */
+
+    typing: boolean = false,
+
+    keys: Keys [
+        onKeyUp(e: KeyEvent) {
+            if (e.key == "Escape") { app.closeSheets(); return }
+            if (app.typing) return
+            if (app.mode == "compose" && (e.key == "Enter" || e.key == "s")) { app.save(); return }
+            if (app.mode != "") return
+            if (e.key == "n") app.openNew()
+            else if (e.key == "t") app.goToday()
+            else if (e.key == "ArrowLeft") app.glide(app.clampCenter(app.tlCenter - app.tlSpan * 0.4), app.tlSpan)
+            else if (e.key == "ArrowRight") app.glide(app.clampCenter(app.tlCenter + app.tlSpan * 0.4), app.tlSpan)
+            else if (e.key == "[") app.glide(app.tlCenter, app.tlSpan * 1.8)
+            else if (e.key == "]") app.glide(app.tlCenter, app.tlSpan / 1.8)
+            }
+        ],
+
+    // ── the page ──────────────────────────────────────────────────────────
+
+    page: View [ width = { app.width }, height = { app.pageH },
+
+        // masthead
+
+        brand: Text [ x = { app.gx }, y = { app.phone ? 22 : 40 }, wrap = false, fontFamily = [Mono],
+            fontSize = { app.t0 }, fontWeight = bold, letterSpacing = { app.t0 * 0.28 },
+            textColor = { theme.ink }, text = "CADENCE" ],
+
+        stamp: Text [ x = { app.gx }, y = { app.phone ? 22 : 40 }, width = { app.phone ? app.gw : app.gw - 212 },
+            textAlign = right, wrap = false,
+            fontFamily = [Mono], fontSize = { app.t0 }, letterSpacing = { app.t0 * 0.12 },
+            textColor = { theme.faint }, text = { app.today == "" ? "" : cadLongDate(app.todayNum).toUpperCase() } ],
+
+        headRule: Rule [ x = { app.gx }, y = { app.headH - 22 }, width = { app.gw } ],
+
+        /* ## In progress
+           Not a finished session and never mistakable for one: it is the only
+           filled block on the page, and its clock is counting while you look. */
+
+        live: View [ x = { app.gx }, y = { app.liveY }, width = { app.gw }, height = { app.liveH },
+            cornerRadius = 14, fill = { theme.ink }, visible = { app.liveOn },
+
+            tag: Text [ x = 20, y = 17, wrap = false, fontFamily = [Mono], fontSize = { app.t0 },
+                letterSpacing = { app.t0 * 0.2 }, textColor = { theme.accent },
+                text = { "● RUNNING NOW · " + cadSportName(app.liveSport).toUpperCase() } ],
+
+            clock: Text [ x = 20, y = { app.t0 + 28 }, wrap = false, fontWeight = extrabold, letterSpacing = -1.2,
+                fontSize = { cadFit(cadClock(app.liveSecs), parent.width - app.liveRight - 46, app.phone ? 38 : 42, 22) },
+                textColor = { theme.paper }, text = { cadClock(app.liveSecs) } ],
+
+            hr: Text [ x = { parent.width - app.liveRight - 20 }, y = { app.t0 + 26 }, width = { app.liveRight },
+                textAlign = right, wrap = false, letterSpacing = -0.8, fontWeight = extrabold,
+                fontSize = { cadFit(cadBpm(app.liveHr), app.liveRight, app.phone ? 28 : 32, 17) },
+                textColor = { theme.accent }, text = { cadBpm(app.liveHr) } ],
+
+            km: Text [ x = { parent.width - app.liveRight - 20 }, y = { app.t0 + 62 }, width = { app.liveRight },
+                textAlign = right, wrap = false,
+                fontFamily = [Mono], fontSize = { app.t0 + 1 }, textColor = { theme.faint },
+                text = { cadKm(app.liveKm) } ]
+            ],
+
+        /* ## This week — the volume, then its shape */
+
+        weekBlock: View [ x = { app.gx + app.weekX }, y = { app.weekY }, width = { app.weekW }, height = { app.weekH },
+
+            eb: Eyebrow [ text = "THIS WEEK" ],
+
+            line: Figure [ y = { app.t0 + 10 }, width = { parent.width }, fontSize = { app.wkSize },
+                text = { app.weekLine } ],
+
+            bars: View [ y = { app.t0 + 12 + app.wkSize + 12 }, width = { parent.width }, height = { app.barsH },
+                datapath = { app.week.value },
+                DayBar [ datapath = :days[], key = :id ]
+                ]
+            ],
+
+        /* ## The streak — the figure you can read from across the room */
+
+        stkBlock: View [ x = { app.gx + app.stkX }, y = { app.stkY }, width = { app.stkW }, height = { app.stkH },
+
+            eb: Eyebrow [ text = "STREAK" ],
+
+            line: Figure [ y = { app.t0 + 8 }, width = { parent.width }, fontSize = { app.stkSize },
+                textColor = { app.streakTrue > 0 ? theme.ink : theme.faint }, text = { app.streakLine } ]
+            ],
+
+        /* ## The last session */
+
+        lastBlock: View [ x = { app.gx + app.lastX }, y = { app.lastY }, width = { app.lastW }, height = 86,
+            datapath = { app.store.value },
+
+            eb: Eyebrow [ text = "LAST SESSION" ],
+
+            what: Text [ y = { app.t0 + 10 }, width = { parent.width }, wrap = false, fontSize = { app.t2 + 5 },
+                fontWeight = bold, textColor = { theme.ink },
+                text = { cadSportName(:sessions[0].sport) + " · " + cadHM(:sessions[0].minutes) } ],
+
+            sub: Note [ y = { app.t0 + app.t2 + 20 }, width = { parent.width }, wrap = true, fontSize = { app.t1 },
+                text = { :sessions[0] == null ? "" :
+                    cadRelDay(cadDay(:sessions[0].date), app.todayNum)
+                    + (:sessions[0].distanceKm == null ? "" : "  ·  " + cadKm(:sessions[0].distanceKm))
+                    + "  ·  effort " + :sessions[0].effort
+                    + "  ·  " + cadBpm(:sessions[0].heartAvg) } ],
+
+            hot: State [ applied = { hovered }, opacity = 0.65 ],
+
+            onClick() { app.pickLast() }
+            ],
+
+        /* ## The year
+           One continuous surface. The band itself is the only view in the app
+           that declares the raw touch family — the smallest view that needs it. */
+
+        yearHead: View [ x = { app.gx }, y = { app.yearY }, width = { app.gw }, height = { app.phone ? 84 : 60 },
+
+            eb: Eyebrow [ text = "THE YEAR" ],
+
+            label: Text [ y = { app.t0 + 8 }, width = { parent.width - 96 }, wrap = false,
+                fontSize = { app.phone ? app.t2 + 4 : app.t2 + 9 },
+                fontWeight = bold, letterSpacing = -0.4, textColor = { theme.ink }, text = { app.periodLabel } ],
+
+            stats: Text [ y = { app.phone ? app.t0 + 40 : app.t0 + 14 }, width = { app.phone ? parent.width : parent.width - 100 },
+                textAlign = { app.phone ? "left" : "right" }, wrap = false,
+                fontSize = { app.phone ? app.t1 + 2 : app.t2 + 2 }, fontWeight = medium,
+                textColor = { theme.muted }, text = { app.periodLine } ],
+
+            home: View [ y = { app.phone ? -6 : app.t0 + 8 }, x = { parent.width - 84 }, width = 84,
+                height = { app.phone ? 36 : 34 }, cornerRadius = 8, fill = { theme.wash },
+                t: Text [ y = center, width = { parent.width }, textAlign = center, wrap = false,
+                    fontFamily = [Mono], fontSize = { app.t0 }, letterSpacing = 1, textColor = { theme.ink }, text = "TODAY" ],
+                down: State [ applied = { pressed }, fill = { theme.rule } ],
+                onClick() { app.goToday() }
+                ]
+            ],
+
+        tl: View [ x = { app.gx }, y = { app.tlY }, width = { app.tlW }, height = { app.tlH }, clip = true,
+            cursor = "grab", tip = "Drag to move · pinch or wheel to open it out",
+
+            chart: View [ width = { parent.width }, height = { parent.height },
+                draw(d: Draw) { app.paintYear(d, this.width, this.height) }
+                ],
+
+            axis: View [ width = { parent.width }, height = { parent.height }, datapath = { app.axis.value },
+
+                months: View [ width = { parent.width }, height = { parent.height },
+                    View [ datapath = :months[], key = :id, width = 90, height = 20,
+                        x = { (:day - app.tlFrom) * app.tlPx + 5 }, y = { parent.height - 19 },
+                        visible = { app.tlSpan > 34 && (:day - app.tlFrom) * app.tlPx > -4
+                                 && (:day - app.tlFrom) * app.tlPx < app.tlW - 18 },
+                        t: Text [ wrap = false, fontFamily = [Mono], fontSize = { app.t0 },
+                            letterSpacing = { app.t0 * 0.1 },
+                            textColor = { :jan ? theme.ink : theme.faint },
+                            text = { :jan ? :label + " " + :year : :label } ]
+                        ]
+                    ],
+
+                weeks: View [ width = { parent.width }, height = { parent.height },
+                    View [ datapath = :weeks[], key = :id, width = 70, height = 20,
+                        x = { (:day - app.tlFrom) * app.tlPx + 4 }, y = { parent.height - 19 },
+                        visible = { app.tlSpan <= 34 && (:day - app.tlFrom) * app.tlPx > -4
+                                 && (:day - app.tlFrom) * app.tlPx < app.tlW - 34 },
+                        t: Text [ wrap = false, fontFamily = [Mono], fontSize = { app.t0 },
+                            textColor = { theme.faint }, text = :label ]
+                        ]
+                    ]
+                ],
+
+            onTouchStart(e: TouchEvent) { app.tlDown(e) },
+            onTouchMove(e: TouchEvent) { app.tlMove(e) },
+            onTouchEnd(e: TouchEvent) { app.tlUp(e) },
+            onTouchCancel() { app.tlCancel() },
+            onWheel(e: WheelEvent) { app.tlWheel(e) }
+            ],
+
+        /* ## What happened in the period on screen */
+
+        listHead: View [ x = { app.gx }, y = { app.listY - 26 }, width = { app.gw }, height = 20,
+            eb: Eyebrow [ text = "IN THIS PERIOD" ],
+            more: Text [ width = { parent.width }, textAlign = right, wrap = false, fontFamily = [Mono],
+                fontSize = { app.t0 }, textColor = { theme.faint },
+                text = { app.periodList.value == null || app.periodList.value.more == 0 ? ""
+                       : "+ " + app.periodList.value.more + " MORE" } ]
+            ],
+
+        listA: View [ x = { app.gx }, y = { app.listY }, width = { app.listW },
+            datapath = { app.periodList.value },
+            layout: SimpleLayout [ axis = y, spacing = 0 ],
+            SessionRow [ datapath = :a[], key = :id ]
+            ],
+
+        listB: View [ x = { app.gx + app.listW + 56 }, y = { app.listY }, width = { app.listW },
+            visible = { !app.phone },
+            datapath = { app.periodList.value },
+            layout: SimpleLayout [ axis = y, spacing = 0 ],
+            SessionRow [ datapath = :b[], key = :id ]
+            ],
+
+        empty: Note [ x = { app.gx }, y = { app.listY + 8 }, width = { app.gw }, wrap = true, fontSize = { app.t1 },
+            visible = { app.ready && app.period.value != null && app.period.value.count == 0 },
+            text = "Nothing here — push the year sideways to find a busier fortnight." ]
+        ],
+
+    /* ## Chrome that rides the frame
+       The one thing a thumb must always reach. Declared after the page so it
+       paints over it, and `ignoreScroll` keeps it against the window. */
+
+    /* On a phone it rides the frame — a thumb must reach it from anywhere. At a
+       desk the pointer travels, so it sits in the masthead where it belongs and
+       never covers what is underneath; the keyboard's `n` is the quicker way in
+       either case. */
+
+    add: View [ ignoreScroll = { app.phone }, cornerRadius = { app.phone ? 32 : 22 },
+        width = { app.phone ? 60 : 190 }, height = { app.phone ? 60 : 44 },
+        x = { app.phone ? app.hostWidth - 80 : app.gx + app.gw - 190 },
+        y = { app.phone ? app.hostHeight - 80 : 30 },
+        fill = { theme.accent }, shadow = { shadow(0, 6, 18, 0x00000026) },
+        opacity = { 1 - app.sheetT },
+        visible = { app.sheetT < 0.99 },
+
+        plus: Text [ y = center, width = { parent.width }, textAlign = center, wrap = false,
+            fontSize = { app.phone ? 32 : app.t1 + 1 }, fontWeight = { app.phone ? "regular" : "bold" },
+            letterSpacing = { app.phone ? 0 : 1 },
+            textColor = { theme.paper }, text = { app.phone ? "+" : "+  LOG A SESSION" } ],
+
+        down: State [ applied = { pressed }, opacity = 0.75 ],
+
+        onClick() { app.openNew() }
+        ],
+
+    /* ## The sheets
+       A frame-sized layer with the panel parked beyond its edge — up from the
+       bottom on a phone, in from the right at a desk. One spring carries the
+       scrim, the travel and the fade, so an interrupted open reverses. */
+
+    overlay: View [ ignoreScroll = true, width = { app.hostWidth }, height = { app.hostHeight },
+        visible = { app.sheetT > 0.002 },
+
+        scrim: View [ width = { parent.width }, height = { parent.height }, fill = { theme.ink },
+            opacity = { 0.38 * app.sheetT },
+            onClick() { app.closeSheets() }
+            ],
+
+        sheet: View [ x = { app.sheetX }, y = { app.sheetY }, width = { app.sheetW }, height = { app.sheetH },
+            fill = { theme.card }, cornerRadius = { app.phone ? 22 : 0 }, clip = true,
+            shadow = { shadow(0, -6, 26, 0x0000001F) },
+
+            grip: View [ x = center, y = 10, width = 44, height = 4, cornerRadius = 2, fill = { theme.rule },
+                visible = { app.phone } ],
+
+            close: View [ x = { parent.width - 54 }, y = { app.phone ? 20 : 22 }, width = 40, height = 40,
+                cornerRadius = 20, fill = { theme.wash },
+                g: Text [ y = center, width = { parent.width }, textAlign = center, wrap = false,
+                    fontSize = { app.t2 }, textColor = { theme.ink }, text = "✕" ],
+                onClick() { app.closeSheets() }
+                ],
+
+            /* ### A session
+               Sport, when, how long, how far, how it felt, the note — and where
+               it sits against every other session of its sport. */
+
+            detail: View [ x = { app.sheetPad }, y = { app.phone ? 34 : 34 }, width = { app.sheetInner },
+                height = { parent.height - (app.phone ? 46 : 46) }, scrolls = y,
+                datapath = { app.selected.value },
+
+                o: number = 0,
+                Spring [ attribute = o, to = { app.mode == "detail" ? 1 : 0 }, stiffness = 300, damping = 32 ],
+                opacity = { o },
+                visible = { o > 0.01 },
+
+                col: View [ width = { parent.width },
+                    layout: SimpleLayout [ axis = y, spacing = 14 ],
+
+                    eb: Eyebrow [ text = { :has ? cadSportName(:s.sport).toUpperCase() + " · " + cadLongDate(cadDay(:s.date)).toUpperCase() : "" } ],
+
+                    hero: Figure [ width = { parent.width },
+                        fontSize = { cadFit(:has ? cadHM(:s.minutes) : "", app.sheetInner, 110, 68) },
+                        text = { :has ? cadHM(:s.minutes) : "" } ],
+
+                    facts: View [ width = { parent.width }, height = 54,
+                        d1: Eyebrow [ text = "DISTANCE" ],
+                        v1: Text [ y = { app.t0 + 8 }, wrap = false, fontSize = { app.t2 + 3 }, fontWeight = semibold,
+                            text = { :has && :s.distanceKm != null ? cadKm(:s.distanceKm) : "—" } ],
+                        d2: Eyebrow [ x = { parent.width * 0.36 }, text = "AVG HEART" ],
+                        v2: Text [ x = { parent.width * 0.36 }, y = { app.t0 + 8 }, wrap = false,
+                            fontSize = { app.t2 + 3 }, fontWeight = semibold,
+                            text = { :has && :s.heartAvg != null ? cadBpm(:s.heartAvg) : "—" } ],
+                        d3: Eyebrow [ x = { parent.width * 0.72 }, text = "EFFORT" ],
+                        v3: Text [ x = { parent.width * 0.72 }, y = { app.t0 + 8 }, wrap = false,
+                            fontSize = { app.t2 + 3 }, fontWeight = extrabold,
+                            textColor = { app.effortColor(:has ? :s.effort : 1) },
+                            text = { :has ? :s.effort + " / 10" : "—" } ]
+                        ],
+
+                    // A hard session LOOKS hard: ten blocks up the effort ramp,
+                    // filled to where this one sits.
+
+                    meter: View [ width = { parent.width }, height = 12, datapath = { app.effortPads.value },
+                        View [ datapath = :rows[], key = :id, height = 12, cornerRadius = 3,
+                            width = { (parent.width - 9 * 3) / 10 },
+                            x = { (:n - 1) * ((parent.width - 9 * 3) / 10 + 3) },
+                            fill = { :n <= app.detailEffort ? app.effortColor(:n) : theme.wash } ]
+                        ],
+
+                    note: Text [ width = { parent.width }, wrap = true, italic = true,
+                        fontSize = { app.t2 + 1 }, textColor = { theme.muted }, selectable = true,
+                        visible = { :has && :s.note != null },
+                        text = { :has && :s.note != null ? "“" + :s.note + "”" : "" } ],
+
+                    r1: Rule [ width = { parent.width } ],
+
+                    where: Eyebrow [ text = "WHERE IT SITS" ],
+
+                    s1: Standing [ label = "DURATION",
+                        frac = { app.standing(app.detailSport, 0, app.detailMinutes) },
+                        caption = { app.standingWord(app.standing(app.detailSport, 0, app.detailMinutes), "Longer", app.detailSport) } ],
+
+                    s2: Standing [ label = "DISTANCE", visible = { app.detailKm > 0 },
+                        frac = { app.standing(app.detailSport, 1, app.detailKm) },
+                        caption = { app.standingWord(app.standing(app.detailSport, 1, app.detailKm), "Further", app.detailSport) } ],
+
+                    s3: Standing [ label = "EFFORT",
+                        frac = { app.standing(app.detailSport, 2, app.detailEffort) },
+                        caption = { app.standingWord(app.standing(app.detailSport, 2, app.detailEffort), "Harder", app.detailSport) } ],
+
+                    r2: Rule [ width = { parent.width } ],
+
+                    acts: View [ width = { parent.width }, height = { app.touchy + 8 },
+
+                        edit: View [ width = { parent.width * 0.62 }, height = { app.touchy + 8 }, cornerRadius = 10,
+                            fill = { theme.ink },
+                            t: Text [ y = center, width = { parent.width }, textAlign = center, wrap = false,
+                                fontSize = { app.t2 }, fontWeight = semibold, textColor = { theme.paper }, text = "Correct it" ],
+                            down: State [ applied = { pressed }, opacity = 0.75 ],
+                            onClick() { app.openEdit() }
+                            ],
+
+                        del: View [ x = { parent.width * 0.66 }, width = { parent.width * 0.34 },
+                            height = { app.touchy + 8 }, cornerRadius = 10, fill = { theme.wash },
+                            t: Text [ y = center, width = { parent.width }, textAlign = center, wrap = false,
+                                fontSize = { app.t2 }, fontWeight = semibold, textColor = { theme.accent }, text = "Delete" ],
+                            down: State [ applied = { pressed }, opacity = 0.75 ],
+                            onClick() { app.removeSelected() }
+                            ]
+                        ],
+
+                    oops: Text [ width = { parent.width }, wrap = true, fontFamily = [Mono],
+                        fontSize = { app.t0 }, letterSpacing = { app.t0 * 0.1 }, textColor = { theme.accent },
+                        visible = { app.failure != "" }, text = { app.failure.toUpperCase() } ],
+
+                    tail: View [ width = { parent.width }, height = 40 ]
+                    ]
+                ],
+
+            /* ### Recording one
+               Everything here is a tap. The keyboard is only ever asked for by
+               the note, and only if they want to leave one. */
+
+            compose: View [ x = { app.sheetPad }, y = { app.phone ? 34 : 34 }, width = { app.sheetInner },
+                height = { parent.height - (app.phone ? 46 : 46) - app.saveH }, scrolls = y,
+
+                o: number = 0,
+                Spring [ attribute = o, to = { app.mode == "compose" ? 1 : 0 }, stiffness = 300, damping = 32 ],
+                opacity = { o },
+                visible = { o > 0.01 },
+
+                col: View [ width = { parent.width },
+                    layout: SimpleLayout [ axis = y, spacing = 13 ],
+
+                    eb: Eyebrow [ text = { app.cId == "" ? "RECORD A SESSION" : "CORRECT THIS SESSION" } ],
+
+                    l1: Eyebrow [ textColor = { theme.faint }, text = "SPORT" ],
+                    sports: View [ width = { parent.width }, height = { app.touchy + 8 },
+                        datapath = { app.sportTiles.value },
+                        SportTile [ datapath = :rows[], key = :id ]
+                        ],
+
+                    l2: Eyebrow [ textColor = { theme.faint }, text = "WHEN" ],
+                    days: View [ width = { parent.width }, height = { app.touchy },
+                        datapath = { app.dayChips.value },
+                        DayChip [ datapath = :rows[], key = :id ]
+                        ],
+
+                    l3: Eyebrow [ textColor = { theme.faint }, text = "HOW LONG" ],
+                    dur: View [ width = { parent.width }, height = { app.touchy + 28 },
+                        minus: Stepper [ glyph = "−", step = -5, field = "min" ],
+                        big: Figure [ x = { app.numX }, width = { app.numW }, y = 4, textAlign = center,
+                            fontSize = { cadFit(cadHM(app.cMin), app.numW, app.phone ? 66 : 72, 60) },
+                            text = { cadHM(app.cMin) } ],
+                        plus: Stepper [ x = { parent.width - app.touchy - 6 }, glyph = "+", step = 5, field = "min" ]
+                        ],
+                    durSlide: Slider [ width = { parent.width }, claim = x, min = 5, max = 240, step = 5,
+                        value = { app.cMin },
+                        input(v: number) { app.bump("min", v - app.cMin) }
+                        ],
+
+                    l4: Eyebrow [ textColor = { theme.faint }, visible = { app.cSport != "lift" }, text = "HOW FAR" ],
+                    dist: View [ width = { parent.width }, height = { app.touchy + 28 }, visible = { app.cSport != "lift" },
+                        minus: Stepper [ glyph = "−", step = -0.5, field = "km" ],
+                        big: Figure [ x = { app.numX }, width = { app.numW - 48 }, y = 4, textAlign = right,
+                            fontSize = { cadFit(app.kmNum, app.numW - 48, app.phone ? 62 : 68, 60) }, text = { app.kmNum } ],
+                        unit: Text [ x = { app.numX + app.numW - 42 }, y = { app.phone ? 42 : 46 }, wrap = false,
+                            fontSize = { app.t2 + 4 }, fontWeight = bold, textColor = { theme.faint }, text = "km" ],
+                        plus: Stepper [ x = { parent.width - app.touchy - 6 }, glyph = "+", step = 0.5, field = "km" ]
+                        ],
+
+                    l5: Eyebrow [ textColor = { theme.faint }, text = "HOW IT FELT" ],
+                    eff: View [ width = { parent.width }, height = { app.touchy },
+                        datapath = { app.effortPads.value },
+                        EffortPad [ datapath = :rows[], key = :id ]
+                        ],
+
+                    l6: Eyebrow [ textColor = { theme.faint }, text = "NOTE — OPTIONAL" ],
+                    noteF: TextInput [ width = { parent.width }, height = { app.touchy + 10 }, padding = 12,
+                        cornerRadius = 10, fill = { theme.wash }, fontSize = { app.t2 },
+                        placeholder = "Anything worth remembering",
+
+                        // `onInput`, not `input`: the library CONTROLS take an
+                        // `input(v)` method, but TextInput is an editor and
+                        // delivers its edits as an EVENT. `input(v)` on one
+                        // compiles clean and never fires.
+
+                        text = { app.cNote },
+                        onInput(v: string) { app.cNote = v },
+                        onFocus() { app.typing = true },
+                        onBlur() { app.typing = false }
+                        ],
+
+                    tail: View [ width = { parent.width }, height = 30 ]
+                    ]
+                ],
+
+            /* The save bar rides the sheet's bottom edge: on a phone that is
+               exactly where the thumb already is. */
+
+            saveBar: View [ y = { parent.height - app.saveH }, width = { parent.width }, height = { app.saveH },
+                fill = { theme.card }, visible = { app.mode == "compose" },
+
+                topRule: Rule [ width = { parent.width } ],
+
+                why: Text [ x = { app.sheetPad }, y = 10, wrap = false, fontFamily = [Mono], fontSize = { app.t0 },
+                    letterSpacing = { app.t0 * 0.1 },
+                    textColor = { app.failure != "" ? theme.accent : app.canSave ? theme.faint : theme.accent },
+                    text = { app.failure != "" ? app.failure.toUpperCase()
+                           : app.canSave ? (app.cId == "" ? "READY — TAP TO ADD IT" : "READY — TAP TO CORRECT IT")
+                           : app.missing.toUpperCase() } ],
+
+                btn: View [ x = { app.sheetPad }, y = { app.t0 + 18 }, width = { app.sheetInner },
+                    height = { app.touchy + 10 }, cornerRadius = 12,
+                    fill = { app.canSave ? theme.accent : theme.wash },
+                    t: Text [ y = center, width = { parent.width }, textAlign = center, wrap = false,
+                        fontSize = { app.t2 + 2 }, fontWeight = bold,
+                        textColor = { app.canSave ? theme.paper : theme.faint },
+                        text = { app.saving ? "Saving…" : app.cId == "" ? "Add it" : "Save the correction" } ],
+                    down: State [ applied = { pressed && app.canSave }, opacity = 0.78 ],
+                    onClick() { app.save() }
+                    ]
+                ]
+            ]
+        ],
+
+    saveH: number = { app.touchy + 10 + app.t0 + 30 },
+
+    // Reading the selected session's fields once, so the standings and the
+    // meter do not each re-walk the datapath.
+
+    detailSport: string = { app.selected.value != null && app.selected.value.has ? "" + app.selected.value.s.sport : "run" },
+    detailMinutes: number = { app.selected.value != null && app.selected.value.has ? app.selected.value.s.minutes : 0 },
+    detailKm: number = { app.selected.value != null && app.selected.value.has && app.selected.value.s.distanceKm != null ? app.selected.value.s.distanceKm : 0 },
+    detailEffort: number = { app.selected.value != null && app.selected.value.has ? app.selected.value.s.effort : 0 },
+
+    pickLast() {
+        const s = this.lastSession()
+        if (s != null) this.select("" + s.id)
+        }
+    ]

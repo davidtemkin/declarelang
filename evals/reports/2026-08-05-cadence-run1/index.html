@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Cadence — Opus run 1 · Declare eval report</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../style.css">
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="kicker">Declare eval · app-scale · design-led · 2026-08-05</div>
+  <h1>Cadence — cold run, Opus</h1>
+  <p class="lede">A training log, briefed for <em>bold, differentiated typography and interaction</em>
+  and for working properly on a phone as well as a desk. The first eval to push on how a program looks
+  rather than only on what it does.</p>
+</header>
+
+<div class="facts">
+  <div class="fact"><div class="k">Ladder</div><div class="v">R1–R5 <small>clean</small></div></div>
+  <div class="fact"><div class="k">Program</div><div class="v">1,487 <small>lines</small></div></div>
+  <div class="fact"><div class="k">Constraints</div><div class="v">576 <small>wired</small></div></div>
+  <div class="fact"><div class="k">Nodes</div><div class="v">297</div></div>
+  <div class="fact"><div class="k">Wall time</div><div class="v">~50 <small>min</small></div></div>
+  <div class="fact"><div class="k">Tokens</div><div class="v">348k</div></div>
+</div>
+
+<div class="note">
+<p><strong>The run stalled once and was resumed.</strong> It hung for ten minutes driving the app through a
+hand-rolled browser harness and the watchdog interrupted it. Nothing was lost — the program was already on
+disk and compiling. It was resumed from its own transcript, told to drive through <code>verify --assert</code>
+instead, and finished. It re-expressed the whole check as a 98-line assert script that does the same work
+in under a minute. Its own verdict: <em>“that's on me: the supported path was documented and I went around it.”</em></p>
+</div>
+
+<h2>The condition</h2>
+<table>
+  <tr><th>Tree</th><td>Fresh <code>git clone</code> at <code>11fddc1</code>, built, nothing else staged</td></tr>
+  <tr><th>Given</th><td><code>evals/apps/cadence/brief.md</code> and <code>api/</code> only; no acceptance existed at the time of the run</td></tr>
+  <tr><th>Service</th><td>Deterministic fixture on :8320 — 248 sessions over fourteen months, a frozen clock, and a session that is genuinely running</td></tr>
+  <tr><th>Mobile</th><td>No device or simulator. Headless Chrome emulation only, and the brief said so — layout, reach and touch routing are testable; real gesture arbitration is not</td></tr>
+</table>
+
+<h2>What it built</h2>
+<p>One local <code>Dataset</code> seeded from the service; every figure — this week, the streak, the week's
+shape, the strip, the visible-period summary — is a constraint over it. Add, correct and delete write the
+service <em>and</em> the dataset, so nothing waits for a refetch. The service's frozen clock is the app's clock.</p>
+
+<p>The year is 431 days as one strip: height is duration, colour is effort. It is handled rather than looked at —
+drag, one-finger drag, pinch, trackpad pinch, wheel and keys all move it, every frame. Panning moves a single
+constraint and 248 bars follow, which is the language's whole argument in one interaction.</p>
+
+<h2>Desktop</h2>
+<div class="shots">
+  <figure><img src="shots/1-desk-today.png" alt="Cadence on desktop: big numerals for the week, streak, week shape, running session, and the year strip">
+    <figcaption><strong>Today.</strong> Numerals are the hero and units recede beside them; section labels are
+    monospace caps. One accent, and it <em>means effort</em> — a continuous ramp from sand at 1 to hot at 10,
+    used on the bars, the streak and the effort ladder. Sports are told apart by drawn marks, not by more hues.
+    A session is genuinely in progress, in the accent, with a running clock.</figcaption></figure>
+
+  <figure><img src="shots/2-desk-year-open.png" alt="The year pulled open to a three-month window">
+    <figcaption><strong>The year, pulled open.</strong> The header always names the window and says what happened
+    in it — both sprung, so moving the period rolls the figures rather than cutting them.</figcaption></figure>
+
+  <figure><img src="shots/3-desk-session.png" alt="A session detail panel beside the strip, showing a ride with percentile rails">
+    <figcaption><strong>A session.</strong> Picked by nearest-bar hit test, so a 2px bar in the full-year view is
+    still tappable. Three rails place it against every other session of that sport. <em>A hard session looks
+    hard</em> — the band, the effort numeral and the rails all take the effort colour. Note that the strip
+    <strong>yields</strong> rather than being covered: the pane narrows as the panel arrives and keeps its period.</figcaption></figure>
+</div>
+
+<h2>Phone</h2>
+<p>Not a shrunken desktop. The same app rearranged: the columns stack, the hero resizes against both the measured
+line width and the remaining vertical budget, and the primary action becomes a full-width accent pill at the
+bottom of the screen where a thumb is. The strip's own hint changes with the input available —
+<code>SCROLL TO PULL OPEN</code> on a desk, <code>PINCH TO PULL OPEN</code> on a phone.</p>
+
+<div class="pair">
+  <figure class="phone"><img src="shots/4-phone-today.png" alt="Cadence on a phone, 390 by 844">
+    <figcaption><strong>Today, at 390×844.</strong> Everything on one screen, never a scrolling page.</figcaption></figure>
+  <figure class="phone"><img src="shots/5-phone-add.png" alt="The add-a-session sheet on a phone">
+    <figcaption><strong>Adding a session.</strong> Five decisions, none of them typed — sport tiles, date chips,
+    steppers and a slider, an effort ladder — all pre-filled from habit, so the common case is confirming rather
+    than filling in. The keyboard appears only for an optional note, behind a tap.</figcaption></figure>
+</div>
+
+<h2>The design requirement, measured</h2>
+<p>The brief made one design demand mechanically checkable: <em>the largest number on a screen is at least six
+times the size of the smallest text on that same screen.</em> The agent's own assert script walks every visible
+<code>Text</code> and fails below that ratio.</p>
+<pre>measured: 7.3× on a phone · 8.7× on a desk — at every state (today, detail, sheet, no-streak)</pre>
+<p class="lede" style="font-size:15px">Self-measured by the program's own assert. Not independently re-measured here.</p>
+
+<p>It also read the counterweight in the brief — <em>restraint; something that moves for no reason is worse than
+something that doesn't move</em> — and answered it explicitly: every figure that can change is sprung, and
+nothing else moves. It declined dark mode on the grounds that the brief did not ask and the docs say following
+the system is an opt-in you should not ship unseen. That is the over-steer guard working.</p>
+
+<h2>Findings — validated and triaged</h2>
+<p>Re-tested here against <code>11fddc1</code> with minimal reproductions.</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>#</th><th>Finding</th><th>Validation</th><th>Recommendation</th></tr></thead>
+<tbody>
+
+<tr><td>C1</td>
+<td><strong>Set-then-fetch on a <code>DataSource</code> in one handler requests the old address.</strong>
+The same defect the Venue run hit, found independently. This agent stopped and wrote a twelve-line probe app
+plus an assert script purely to answer it.</td>
+<td><span class="tag t-bad">Confirmed</span><br><small>Reproduced here: settled url <code>…/performances</code>, actual request <code>…/halls</code>.</small></td>
+<td><span class="tag t-bad">Fix bug</span><br><small>Two independent sightings, one round. The highest-priority item from this round.</small></td></tr>
+
+<tr><td>C2</td>
+<td><strong>A <code>:path</code> inside a <code>Spring</code>'s <code>to</code> gives advice that is nonsense if followed.</strong>
+<pre>'$data' is not a member of Spring — declare it
+($data: &lt;type&gt; = …) or fix the name  [DECLARE6001]</pre>
+The real rule is that a datapath needs a view cursor and a <code>Spring</code> is not a view.</td>
+<td><span class="tag t-bad">Confirmed</span><br><small>Reproduced verbatim.</small></td>
+<td><span class="tag t-bad">Fix bug</span><br><small>A dedicated diagnostic: “a <code>:path</code> resolves against a view's datapath; <code>Spring</code> has none — read it into an attribute on the enclosing view.” <code>Animator</code> and <code>State</code> likely share the edge.</small></td></tr>
+
+<tr><td>C3</td>
+<td><strong><code>draw()</code> is sold as first-class and has no reference entry at all.</strong>
+The agent authored four sport marks and found <code>d.scale()</code> by grepping
+<code>runtime/dist/draw.d.ts</code>. Nothing says the display list is in unscaled local coordinates.</td>
+<td><span class="tag t-bad">Confirmed</span><br><small><code>Draw</code> and <code>Draw.scale</code> both absent from <code>declare-model.json</code>.</small></td>
+<td><span class="tag t-warn">Docs update</span><br><small>Charts are the obvious reach for a dashboard, and this is the surface they need.</small></td></tr>
+
+<tr><td>C4</td>
+<td><strong>Theme tokens are not in the machine model.</strong> The library's looks are determined entirely by
+names — <code>control</code>, <code>controlHover</code>, <code>controlPressed</code>, <code>controlSelected</code>,
+<code>sliderHandle</code> — that appear only in source. On warm paper the defaults are wrong, and the fix
+became findable only after reading <code>library/themes/sanfrancisco.declare</code>.</td>
+<td><span class="tag t-bad">Confirmed</span><br><small><code>Theme</code>, <code>Theme.control</code>, <code>Theme.controlHover</code> all absent from the reference.</small></td>
+<td><span class="tag t-warn">Docs update</span><br><small>A <code>Theme</code> reference entry listing every token and which components consult it turns “restyle the library to my palette” from a read into a lookup.</small></td></tr>
+
+<tr><td>C5</td>
+<td><strong>“Type annotations do not live in bodies” is read too narrowly.</strong> The rule bans local
+<code>const</code>/<code>let</code> annotations and lambda parameter annotations in every method and value body —
+while <code>script { }</code> accepts full TypeScript. The identical syntax is legal three lines up and illegal
+three lines down.</td>
+<td><span class="tag t-warn">Confirmed</span><br><small><code>script { function f(n: number): number[] }</code> compiles; <code>const xs: number[]</code> in a method body is <code>DECLARE2000</code>.</small></td>
+<td><span class="tag t-warn">Docs update</span><br><small>One clause: “including local bindings and lambda parameters; narrow with <code>x as T</code> instead.”</small></td></tr>
+
+<tr><td>C6</td>
+<td><strong><code>explain()</code> is silent on layout-owned geometry.</strong> For a slot written by a layout it
+returns <code>deps: null, source: null, pos: null</code> — so the one tool that answers “why is this value what it
+is” says nothing precisely where the agent needed it.</td>
+<td><span class="tag t-bad">Confirmed</span><br><small>Reproduced: <code>explain(view,"x") → {"static":false,"live":false,"deps":null,"source":null,"pos":null}</code>.</small></td>
+<td><span class="tag t-bad">Fix bug</span><br><small>Saying “written by <code>SimpleLayout</code> on &lt;parent&gt;” would have pointed at the cause in one query. Cheap, and <code>explain()</code> is the project's best-praised affordance.</small></td></tr>
+
+<tr><td>C7</td>
+<td><strong>An auto-sizing view nested in a <code>SimpleLayout</code> produced overlapping glyphs, then
+<code>x: NaN</code>.</strong> The agent's single most expensive bug — about 40% of its time.</td>
+<td><span class="tag t-mute">Not reproduced</span><br><small>A minimal nested auto-size case lays out correctly, with and without <code>width = { contentWidth }</code>. The failing structure has not been isolated.</small></td>
+<td><span class="tag t-mute">Investigate</span><br><small>Needs the original structure before any change. A NaN in a computed layout box is a detectable condition and would be worth refusing outright if the cycle is real.</small></td></tr>
+
+<tr><td>C8</td>
+<td><strong>A fingertip raises the pointer handlers <em>and</em> the touch handlers</strong>, so an app
+implementing pan on both paths applies it twice. §8 states the fact; the consequence is not drawn.</td>
+<td><span class="tag t-mute">Not tested</span><br><small>Emulation cannot settle this; it needs a device.</small></td>
+<td><span class="tag t-warn">Docs update</span><br><small>One sentence in the gestures chapter — which the agent otherwise called the clearest thing in the corpus.</small></td></tr>
+
+<tr><td>C9</td>
+<td><strong>“Pinch a sub-surface inside a scrolling page” has no good answer.</strong> <code>View.claim</code>
+scopes an existing pointer claim, so it is unavailable once you have taken the fingers for pinch — and pinch is
+why you took them.</td>
+<td><span class="tag t-mute">Not tested</span></td>
+<td><span class="tag t-warn">New feature</span><br><small>The agent dissolved it by making the app one fixed screen — a better design anyway — but the gap is real and the chapter's ladder implies otherwise.</small></td></tr>
+
+<tr><td>C10</td>
+<td><strong>The primary action could not be activated by scripted pointer input</strong> during screenshot
+capture, while the keyboard path worked.</td>
+<td><span class="tag t-ok">Rejected</span><br><small><code>drive.click</code> — the supported driver, which computes its point from <code>inspect</code> — opens the sheet correctly. The failure was this report's own raw coordinate arithmetic.</small></td>
+<td><span class="tag t-ok">Ignore</span><br><small>Harness error, not a program or platform defect.</small></td></tr>
+
+</tbody>
+</table>
+</div>
+
+<h2>The component library</h2>
+<p>This run was briefed partly to press on the library, and the answer is precise. Finding <em>what ships</em> was
+easy — the listing plus the guide's tables told it within a minute that there is no Tabs, Select or Stepper, and
+that composing is the expected answer rather than a gap. Finding <em>documented attributes</em> was easy.</p>
+
+<p>The single best thing it used was <code>class Push extends Control</code>: hover, press, focus order,
+Space/Enter activation and the travelling ring, for free, across sport tiles, date chips, effort marks and
+steppers. Its reason is the self-hosting thesis stated back at us:</p>
+<blockquote>“That the base is itself written in Declare and readable in 140 lines is what made it usable —
+I copied its contract rather than guessing at it.”</blockquote>
+
+<p>Where it had to read source instead of docs was <strong>how a control's look is overridden</strong> — finding C4
+above, felt from the use site.</p>
+
+<footer>
+Run: <code>declarelang-run-cadence</code> (left on disk and live) · commit <code>11fddc1</code> · Opus ·
+fresh clone, brief and fixture only · stalled once and resumed.
+Screenshots captured from the running program at 1440×900 and 390×844. Findings re-tested at the same commit.
+</footer>
+
+</div>
+</body>
+</html>

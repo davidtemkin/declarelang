@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Cadence — Opus run 2 · Declare eval report</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="../style.css">
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="kicker">Declare eval · app-scale · design-led · 2026-08-05</div>
+  <h1>Cadence — second cold run, Opus</h1>
+  <p class="lede">The same brief as run 1, against a materially better documentation corpus —
+  the library reference filled in from 0 to 166 attributes, two new guide chapters, theme
+  tokens in the model. The question this run answers is what better docs actually buy.</p>
+</header>
+
+<div class="facts">
+  <div class="fact"><div class="k">Ladder</div><div class="v">R1–R5 <small>clean</small></div></div>
+  <div class="fact"><div class="k">Program</div><div class="v">1,617 <small>lines</small></div></div>
+  <div class="fact"><div class="k">Constraints</div><div class="v">579 <small>wired</small></div></div>
+  <div class="fact"><div class="k">Driven steps</div><div class="v">21</div></div>
+  <div class="fact"><div class="k">Wall time</div><div class="v">56 <small>min</small></div></div>
+  <div class="fact"><div class="k">Tokens</div><div class="v">451k</div></div>
+</div>
+
+<h2>The condition</h2>
+<table>
+  <tr><th>Tree</th><td>Fresh clone at <code>2de9c3a</code> — the build after the documentation pass</td></tr>
+  <tr><th>Given</th><td>The same <code>brief.md</code> and <code>api/</code> as run 1, unchanged</td></tr>
+  <tr><th>Shape of the run</th><td>19 minutes reading with nothing written, then the whole 1,532-line program in a single write, then ~35 minutes driving and fixing. No stall.</td></tr>
+</table>
+
+<h2>The app</h2>
+<div class="shots">
+  <figure><img src="shots/desk.png" alt="Cadence run 2 on desktop">
+    <figcaption><strong>Desktop.</strong> A live session as an ink-filled block, the week, the streak as the
+    hero numeral, the year band, and a session list for the visible period — which run 1 did not have.</figcaption></figure>
+  <figure><img src="shots/desk-03-detail.png" alt="A session detail on desktop">
+    <figcaption><strong>A session,</strong> with midpoint-rank strips against every other session of that sport.</figcaption></figure>
+  <div class="pair">
+    <figure class="phone"><img src="shots/phone.png" alt="Cadence run 2 on a phone">
+      <figcaption><strong>Phone.</strong> Two independent thresholds rather than one breakpoint —
+      <code>phone</code> (&lt; 860) decides density and tap targets, <code>wide</code> (≥ 980) decides whether
+      the three answers sit in one row.</figcaption></figure>
+    <figure class="phone"><img src="shots/phone-05-compose.png" alt="The add-a-session sheet on a phone">
+      <figcaption><strong>Adding a session.</strong> One screen, no scroll, no keyboard — sport pre-selected
+      from what they usually do on this weekday, duration seeded from their median for that sport, distance
+      derived from their own typical pace.</figcaption></figure>
+  </div>
+</div>
+
+<h2>What better docs bought — and what they didn't</h2>
+<p>The agent confirmed the retrieval design works as intended: <em>“<code>declare.md</code> for the model,
+<code>docs/guide/NN</code> for a concept, <code>declare-model.json</code> for exact names — I queried the JSON
+with <code>node -e</code> perhaps twenty times and it always answered.”</em> It grepped rather than read whole,
+which is the behaviour the residency rule asks for, and the always-loaded map did not grow by a single byte
+across the documentation pass.</p>
+
+<p>What the better docs did <strong>not</strong> buy is a better application. Against run 1 this program is
+more ambitious — real pinch and fling through the raw touch family, a <code>Heartbeat</code>-carried glide,
+wheel handling, a session list, edit and delete — and weaker on the brief's central design demand.</p>
+
+<div class="note">
+<p><strong>The §6 collision, which is a defect in the brief rather than the run.</strong> The brief requires the
+literal copy <code>4 sessions · 3h 40m</code> <em>and</em> that the largest number be six times the smallest text
+on the same screen. This run reasoned that nineteen characters cannot satisfy both at 390px without wrapping into
+illegibility, so it demoted the week line and made the streak the hero numeral. Run 1 dissolved the same tension
+by setting the line as differently-sized runs — numerals large, units small — which is the better answer, but
+nothing in the brief said that was permitted. <strong>Fix the brief before running this task again.</strong></p>
+</div>
+
+<h2>Findings</h2>
+<p>Full detail and reproductions in <a href="../2026-08-05-bugs.md"><code>2026-08-05-bugs.md</code></a>.
+This run produced the strongest single finding of the programme so far.</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>#</th><th>Finding</th><th>Validation</th><th>Recommendation</th></tr></thead>
+<tbody>
+<tr><td>1</td>
+<td><strong><code>d.w</code> / <code>d.h</code> are documented, typechecked, and do not exist.</strong>
+<code>guide/06-style.md:93</code> promises “the view's own box”; the runtime <code>Draw</code> class has no such
+members (<code>w</code>/<code>h</code> belong to <code>interface Bounds</code>, and <code>record()</code> builds a
+<code>Draw</code> with no box). A drawing sized from them silently paints nothing.</td>
+<td><span class="tag t-bad">Confirmed</span><br><small>Reproduced four ways: the doc, the runtime source, a clean R1–R4, and a two-rect render where only the literal-width rect appears.</small></td>
+<td><span class="tag t-bad">Fix bug</span><br><small>Cost this run ~40 minutes. The one failure mode the language's pitch says is impossible: a documented, type-checked name that is a silent no-op.</small></td></tr>
+
+<tr><td>2</td>
+<td><strong><code>input(v)</code> on a <code>TextInput</code> compiles clean and never fires.</strong>
+<code>TextInput</code> is an <code>Editor</code> and delivers through the event <code>onInput(v)</code>; the docs
+teach one value pattern without saying which family a component belongs to.</td>
+<td><span class="tag t-bad">Confirmed</span><br><small>Typed “Ada”; <code>app.who</code> stayed <code>""</code>.</small></td>
+<td><span class="tag t-bad">Fix bug</span><br><small>Warn on an <code>input</code> member declared on an <code>Editor</code>. It is a dead member, and the language otherwise makes that unrepresentable.</small></td></tr>
+
+<tr><td>3</td>
+<td><strong>Set-then-fetch in one handler requests the old address.</strong> Third independent sighting,
+third distinct shape — here a <code>DELETE /api/sessions/</code> sent with no id.</td>
+<td><span class="tag t-bad">Confirmed</span></td>
+<td><span class="tag t-bad">Fix bug</span></td></tr>
+
+<tr><td>4</td>
+<td><strong>A <code>:path</code> inside a <code>State</code> leaks <code>'$data' is not a member of State</code></strong>
+— the same misleading diagnostic run 1 hit on <code>Spring</code>.</td>
+<td><span class="tag t-bad">Confirmed</span></td>
+<td><span class="tag t-warn">Fix bug</span><br><small>Diagnostic only.</small></td></tr>
+
+<tr><td>5</td>
+<td><strong><code>Heartbeat.onFrame(dt)</code> delivers a negative <code>dt</code> across a clock handover</strong>
+— under <code>settleMotion</code> the first frame's <code>dt</code> was −0.72 s and an integrated fling ran backwards.</td>
+<td><span class="tag t-mute">Not reproduced</span><br><small>Mechanism is specific; included because it affects any app integrating motion and then driven at rung 5.</small></td>
+<td><span class="tag t-warn">Fix bug</span><br><small>Clamp both ends, or reset the previous timestamp on a clock-mode change.</small></td></tr>
+
+<tr><td>6</td>
+<td><strong><code>inspect().attrs</code> reports only slots that have been written</strong>, so an attribute is
+<code>undefined</code> on a fresh load and defined after a gesture — a silent false negative in a test.
+<code>find(path).&lt;attr&gt;</code> is the reliable read and nothing points there.</td>
+<td><span class="tag t-mute">Not tested</span></td>
+<td><span class="tag t-warn">Docs update</span></td></tr>
+</tbody>
+</table>
+</div>
+
+<h2>Two documentation gaps it named precisely</h2>
+<p><code>onWheel</code>'s coordinates are <strong>view-local</strong> while the touch family is
+<strong>root-space</strong> — the gestures chapter says “coordinates are root-space throughout” about touch and
+never mentions the wheel's frame; the reference has it right. And <code>View.claim = x | y | both</code>, the
+axis-scoped drag claim, is in the reference and in the design notes but not in the gestures chapter's ownership
+table — which is the page you read when deciding what to claim, and precisely the knob a “drag horizontally on a
+scrolling page” case wants.</p>
+
+<footer>
+Run: <code>declarelang-run-cadence2</code> · commit <code>2de9c3a</code> · Opus · fresh clone, brief and fixture only.
+Program preserved beside this report as <code>app.declare</code> with its <code>app.assert.mjs</code>.
+</footer>
+
+</div>
+</body>
+</html>

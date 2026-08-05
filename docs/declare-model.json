@@ -40177,7 +40177,7 @@
      "kind": "doc",
      "label": "Markdown file",
      "path": "docs/system-design/native-host.md",
-     "preview": "Status: DESIGN, exploratory, from discussion 2026-07-25 (David + assistant). Pre-implementation; no code exists. A complete analysis of what a wholly native Declare runtime would involve — first target: a native Mac app host — written again…"
+     "preview": "Status: BUILT AND RUNNING. The design below was written 2026-07-25 as exploratory analysis and opened \"pre-implementation; no code exists.\" That has not been true for some time: there is a Mac host, it renders the app corpus, and it holds a…"
     },
     {
      "name": "Open items",

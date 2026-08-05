@@ -1,0 +1,71 @@
+/* Shared styling for eval run reports. Self-contained, theme-aware, printable. */
+:root {
+  --bg: #FBFAF7; --ink: #16181C; --muted: #6B7280; --line: #E3E0D9;
+  --card: #FFFFFF; --accent: #B4441E; --ok: #1F7A4D; --warn: #9A6B00; --bad: #A32020;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #14161A; --ink: #F2F4F7; --muted: #9AA3B2; --line: #2A2F38;
+          --card: #1B1E24; --accent: #FF8B5E; --ok: #4ADE80; --warn: #FBBF24; --bad: #F87171; }
+}
+:root[data-theme="dark"] {
+  --bg: #14161A; --ink: #F2F4F7; --muted: #9AA3B2; --line: #2A2F38;
+  --card: #1B1E24; --accent: #FF8B5E; --ok: #4ADE80; --warn: #FBBF24; --bad: #F87171;
+}
+:root[data-theme="light"] {
+  --bg: #FBFAF7; --ink: #16181C; --muted: #6B7280; --line: #E3E0D9;
+  --card: #FFFFFF; --accent: #B4441E; --ok: #1F7A4D; --warn: #9A6B00; --bad: #A32020;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 0 24px 96px; background: var(--bg); color: var(--ink);
+  font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1080px; margin: 0 auto; }
+header.top { padding: 56px 0 28px; border-bottom: 1px solid var(--line); margin-bottom: 36px; }
+.kicker { font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .14em;
+          text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+h1 { font-size: clamp(30px, 5vw, 44px); line-height: 1.1; margin: 0 0 12px; letter-spacing: -.02em; }
+h2 { font-size: 22px; margin: 48px 0 14px; letter-spacing: -.01em; }
+h3 { font-size: 16px; margin: 30px 0 8px; }
+p, li { color: var(--ink); }
+.lede { font-size: 18px; color: var(--muted); max-width: 68ch; }
+a { color: var(--accent); }
+
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px;
+         background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin: 28px 0; }
+.fact { background: var(--card); padding: 14px 16px; }
+.fact .k { font: 600 10.5px/1 ui-monospace, Menlo, monospace; letter-spacing: .12em;
+           text-transform: uppercase; color: var(--muted); }
+.fact .v { font-size: 21px; font-weight: 650; margin-top: 6px; letter-spacing: -.01em; }
+.fact .v small { font-size: 13px; font-weight: 500; color: var(--muted); }
+
+table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 14.5px; }
+.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+th, td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 600 11px/1.3 ui-monospace, Menlo, monospace; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+td code, p code, li code { font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+                           background: color-mix(in srgb, var(--muted) 14%, transparent);
+                           padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px;
+      overflow-x: auto; font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.tag { display: inline-block; font: 600 10.5px/1 ui-monospace, Menlo, monospace; letter-spacing: .08em;
+       text-transform: uppercase; padding: 4px 7px; border-radius: 5px; white-space: nowrap;
+       border: 1px solid currentColor; }
+.t-ok { color: var(--ok); } .t-warn { color: var(--warn); } .t-bad { color: var(--bad); }
+.t-mute { color: var(--muted); }
+
+figure { margin: 0 0 30px; }
+figure img { width: 100%; height: auto; display: block; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
+figcaption { font-size: 13.5px; color: var(--muted); margin-top: 9px; }
+.shots { display: grid; gap: 30px; }
+.pair { display: grid; grid-template-columns: 1fr; gap: 30px; }
+@media (min-width: 900px) { .pair { grid-template-columns: 1fr 1fr; align-items: start; } }
+.phone img { max-width: 330px; margin: 0 auto; }
+
+blockquote { margin: 16px 0; padding: 2px 0 2px 18px; border-left: 3px solid var(--line); color: var(--muted); }
+.note { background: var(--card); border: 1px solid var(--line); border-left: 3px solid var(--accent);
+        border-radius: 0 8px 8px 0; padding: 14px 18px; margin: 22px 0; }
+footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13.5px; }

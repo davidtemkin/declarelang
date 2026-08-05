@@ -1,10 +1,149 @@
 # The native host — the fastest possible runtime environment for Declare
 
-**Status: DESIGN, exploratory, from discussion 2026-07-25 (David + assistant).
-Pre-implementation; no code exists.** A complete analysis of what a wholly
-native Declare runtime would involve — first target: a native Mac app host —
-written against the measured baseline of the two web renderers (guide ch. 15,
-same-day measurements). Background, not truth: nothing here is promised.
+**Status: BUILT AND RUNNING.** The design below was written 2026-07-25 as
+exploratory analysis and opened "pre-implementation; no code exists." That has not
+been true for some time: there is a Mac host, it renders the app corpus, and it
+holds a three-way conformance oracle with the two web renderers. §0 records the
+measured state as of **2026-08-05**; §1–§9 remain the design argument that produced
+it and are left as written, annotated where reality has answered them. §10 (phasing)
+and §11 (open questions) carry live status.
+
+---
+
+## 0. As built — measured 2026-08-05
+
+Everything in this section was run, not recalled.
+
+### It builds and it passes
+
+| step | result |
+|---|---|
+| `swift build -c release` | clean in **9.4 s**, warnings only (Swift 6.3.3, `arm64-apple-macosx26.0`, package targets `.macOS(.v14)`) |
+| `tools/internal/build-mac.mjs` | `declare-mac.js` **655 KB raw / 168 KB gzipped**; `declare-compiler-mac.js` 5.8 MB / 1.28 MB gzipped (on-demand) |
+| `mac-host/bundle.sh` | assembles `Declare Mac.app` — Swift shell + `mac-env.js` + the runtime bundle in Resources |
+| `test/conform/conform.test.mjs --mac` | **7 passed, 0 failed**, three hosts agreeing: `dom`, `canvas`, `mac` |
+| `mac-host/gate.mjs` | **12 programs, 0 failing**, 1 without a baseline (`lzx-weather`) |
+
+The conformance run is the interesting one, because it is not a screenshot
+comparison — it asserts that the three renderers *agree*: a press resolves to the
+same view; a declared scroll offset lands identically (dom 320 · canvas 320 · mac
+320); the hit walk's **reasoning** matches node for node (6 nodes); the tree's shape
+matches (6 boxes within 2 px); and keyboard focus advances in the same order.
+
+Perceptual gate figures (% differing / % structural): `arc` 0.02/0 · `roundrect`
+0.02/0 · `vignette` 0.01/0.01 · `blend` 0.26/0 · `editable` 0.26/0.18 · `calendar`
+0.62/0.26 · `richtext` 0.86/0.4 · `controls` 1.17/0.79 · `ignorescroll` 1.18/1.17 ·
+`blur` 2.75/0.27 · `desktop` 8.77/1.96.
+
+### What exists
+
+**4,752 lines of Swift** across 10 files, plus `runtime/src/mac-backend.ts`,
+`browser/mac-boot.js` (586) and `browser/mac-env.js` (390). The §4 inventory is
+substantially real:
+
+- **CALayer** tree (6 files) with **CATransaction** batching (4) — the command-buffer
+  discipline §4 called the one performance risk that matters.
+- **CADisplayLink** as the frame clock (`Bridge.swift`), **URLSession** for the
+  network shim.
+- **Core Text** measurement and rendering (`TextEngine.swift`, `TextLayer.swift`);
+  **CGContext** `draw()` replay (`DrawReplay.swift`, 632 lines) plus an SVG path
+  parser.
+- **Platform overlays, as designed**: `NSTextField` / `NSTextView` / `NSScrollView`
+  (`Overlays.swift`, 617 lines).
+- **Embed markers** are handled (`setEmbed` → island views), so `AppIsland` has a
+  native path.
+
+**Not present:** `NSAccessibility` (phase 5, untouched) and `WKWebView` (no web-content
+island, so `DOMIsland` has no native tenant).
+
+### The seam held while the runtime moved
+
+`mac-backend.ts` was last touched **2026-07-30**. The runtime kept going. Five Surface
+methods now exist in **both** web backends and not in the Mac one:
+
+| method | landed | what the Mac host therefore lacks |
+|---|---|---|
+| `setIgnoreScroll` | 07-29 | pinned chrome scrolls away with the content |
+| `setPageExtent` | 07-29 | the App-as-page scroll extent is not published |
+| `setVirtualExtent` | 08-01 | a virtualized list's scroll range reflects only materialized rows |
+| `travelWith` / `isTraveling` | 08-01 | the focus ring cannot re-home into a scroller; a `DataGrid` header cannot escape its scroll box |
+
+(`setRowCount` / `setRowIndex`, the windowing-aware AT projection, are DOM-only and so
+not drift — there is no Mac accessibility tree to project into yet.)
+
+**This did not break anything, and that is the finding.** Every one of those calls is
+optional-chained at the call site — `s.setIgnoreScroll?.(true)`,
+`this.parent.surface?.setVirtualExtent?.(…)` — and `travelWith` is explicitly
+feature-detected (`typeof s.travelWith !== "function"` → return false, which the
+reference documents as the supported answer). **The Surface protocol is
+capability-negotiated, not versioned.** A backend five days behind the runtime keeps
+passing conformance and degrades in named, inspectable ways rather than failing. That
+is the thesis of §2 surviving contact.
+
+The gate already knows: `gate-baseline.json` carries a `note` on `ignorescroll`
+recording that its 1.17 % structural figure **is the size of the missing
+`setIgnoreScroll`**, not an agreement — and that implementing it should *drop* the
+number and prompt a re-bless. A hole with its measurement attached is the right way to
+carry this.
+
+Going the other way, the Mac backend has 16 methods neither web backend has —
+`commit`, `flushOps`, `measure`, `contentExtent`, `imageSize`, `cursorAt`, `glide`,
+`richLayout`, `trace` and kin. That is the command-buffer-and-measurement seam §4
+predicted: the native Surface *records* and only `flush()` transmits.
+
+### Fixed in this pass
+
+`bundle.sh` did `cd "$(dirname "$0")"` and then used `$(dirname "$0")` again for the
+icon, which resolved relative to the directory it had already entered. Invoked as
+`mac-host/bundle.sh` from the repo root it looked for `mac-host/mac-host/Declare.icns`,
+found nothing, and its `|| echo` reported "no Declare.icns — run make-icon.mjs" — so a
+path bug read as a missing asset, and the app shipped icon-less depending only on where
+you stood when you ran it.
+
+### What "run the gates on the native host" actually takes
+
+`npm run test:mac` is the chain, and it needs one thing the other suites do not: **a
+running host**. `conform --mac` refuses with the command to start one rather than
+launching it itself. In full:
+
+```
+npm run build && node tools/internal/build-mac.mjs
+bash mac-host/bundle.sh /tmp
+DECLARE_CONTROL=1 '/tmp/Declare Mac.app/Contents/MacOS/Declare Mac' &
+node test/conform/conform.test.mjs --mac && node mac-host/gate.mjs
+```
+
+`DECLARE_CONTROL=1` is what opens the control channel the harness drives; the run
+navigates the host to its own ephemeral server. This is why the Mac gates are not in
+`run-gates.mjs`: they need a GUI session and a live app, which the 43-suite run
+deliberately does not assume.
+
+**Three operational traps, all of which make a working host look broken.** Each cost
+time on this pass, and none is a defect in the host:
+
+1. **Never pipe the launch into `head`.** `… 'Declare Mac' | head -5` kills the app by
+   SIGPIPE as soon as the reader closes — it boots, serves a few log lines, and
+   vanishes, so the next command reports "no reply — is the app running with
+   `DECLARE_CONTROL=1`?" and the answer looks like no. Redirect to a file or let it run
+   attached.
+2. **Exactly one host.** Two instances put two windows at identical geometry; the
+   harness drives one and captures the other, and the gate reports catastrophic
+   nonsense — `desktop` at 80.76 % differing, `+64.14pt` "REGRESSED", 8 of 12 failing.
+   Nothing was wrong. `pgrep -f '/tmp/Declare Mac.app' | wc -l` before believing a
+   regression, and note that `mac-host/winb` printing two lines is the tell.
+3. **`conform --mac` leaves the host exited**, so a `conform && gate` chain fails at
+   the gate with the same "no reply" message. Launch once per harness, not once per
+   session.
+
+Liveness is a **window**, not a process: `macLive()` shells out to `mac-host/winb` and
+checks for a non-empty window list, so `pgrep` returning a pid proves nothing. Poll
+`winb` before driving anything:
+
+```
+until [ -n "$(./mac-host/winb)" ]; do sleep 1; done
+```
+
+---
 
 ## 1. Why, and why now
 
@@ -435,6 +574,13 @@ surface.**
 
 ## 8. Accessibility — projection from the model
 
+> **Status 2026-08-05: entirely unbuilt.** There is no `NSAccessibility` anywhere in
+> `mac-host/Sources`. Everything below is still design. It is the largest gap between
+> the host as built and the host as argued, and it is the one that decides whether the
+> native renderer is a peer of the DOM renderer or a fast second — the DOM backend's
+> accessibility is *inherited from the platform*, while the native host's has to be
+> *authored*, and none of it has been.
+
 The web renderers recover semantics from realizations (DOM: real text and
 elements; canvas: nearly nothing). The native host inverts this: **the
 Declare tree is itself the semantic model**, and NSAccessibility is a
@@ -497,41 +643,68 @@ extraction, applied to assistive technology.
 ## 10. Phasing — the ladder, again
 
 Each phase gates on the oracle before the next begins, mirroring
-runtime-first perf-proof:
+runtime-first perf-proof. **Status as of 2026-08-05 (§0):**
 
-1. **Existence proof.** Mac shell + JSC + unmodified runtime + CALayer
+1. ✅ **Existence proof.** Mac shell + JSC + unmodified runtime + CALayer
    Surface; component sampler renders; screenshots ride the perceptual
-   harness against DOM baselines. Success = the sampler within tolerance
-   and a measured cold start.
-2. **Fidelity.** Text metrics decision executed; box decoration
-   (shadow/gradient/corner) pixel-held; `draw()` replay + adaptive cache;
-   the app corpus renders.
-3. **Interaction.** NSEvent router, editable + scroll overlays, focus;
-   controls assert-scripts pass natively; input-latency measured against
-   the ~1 ms web baseline.
-4. **Motion offload.** Animator/Spring → CA hand-off with the equality
-   contract (a settle mid-animation reads back the platform's current
-   value, or the offload is scoped to fire-and-forget motion — ruling
-   needed, §11).
-5. **Accessibility.** The projection registry + the `label`/`role` language
-   design; VoiceOver walkthrough of the corpus as the acceptance test; ARIA
-   back-projection to the DOM backend.
-6. **Distribution.** `declare build --host mac`; the desktop demo as a real
-   Mac app is the flagship proof (with the irony fully intended).
+   harness against DOM baselines. — *Done, and past its own bar: the gate
+   runs 12 programs including `calendar`, `controls` and `desktop`.*
+2. ✅ **Fidelity**, substantially. Core Text measurement and rendering,
+   `draw()` replay on CGContext, box decoration held to baselines. — *The
+   text-metrics decision (§9, §11.3) was settled in practice rather than by
+   ruling: Core Text plus per-host baselines, which is option (b). Worth
+   ratifying or revisiting deliberately, since it is now load-bearing.*
+3. ✅ **Interaction.** NSEvent router, editable + scroll overlays, focus. —
+   *Conformance asserts the hit walk's reasoning, scroll landing and focus
+   order agree with both web renderers. Input latency against the ~1 ms web
+   baseline is still unmeasured.*
+4. ⬜ **Motion offload.** Animator/Spring → CA hand-off. — *Not started; no
+   `CABasicAnimation` anywhere. Motion runs in JS on the CADisplayLink,
+   which is the honest default and defers the §11.1 equality question.*
+5. ⬜ **Accessibility.** — *Untouched: no `NSAccessibility` in the tree. This
+   is the largest remaining gap and the one that most affects whether the
+   native host is a peer of the DOM renderer or a fast second.*
+6. 🟡 **Distribution.** — *`bundle.sh` produces a real, icon-bearing
+   `Declare Mac.app` today. `declare build --host mac` — the toolchain verb —
+   does not exist; bundling is a shell script beside the host, not a
+   first-class build target.*
+
+**The standing maintenance item this ladder does not capture:** the Surface
+protocol keeps growing, and the Mac backend is not on the path that notices.
+Five methods drifted in three days (§0) without a red test, because optional
+chaining means absence is legal. That is the right runtime behaviour and the
+wrong *reporting* behaviour — the gap should be visible without someone
+diffing three backends by hand. A capability manifest (each backend declaring
+what it implements, with a test that diffs the sets and prints the delta)
+would make drift a report rather than an archaeology exercise.
 
 ## 11. Open questions (the register)
 
+*Answered by the build where it is; still open where it is not (2026-08-05).*
+
 1. Animator offload semantics: can JS read a mid-flight offloaded value, or
    is offload restricted to motion with no readers? (Constraint purity vs
-   render-server ownership.)
+   render-server ownership.) — **Still open, and deferred in practice:** no
+   motion is offloaded to CA at all, so the question has not had to be
+   answered. Motion runs in JS on the display link.
 2. The `label`/`role` semantic surface: shape, vocabulary size, and whether
    `role` is ever author-facing or purely component-supplied.
 3. Text measurement: pretext everywhere vs Core Text + re-baseline (#14
-   feeds this).
+   feeds this). — **Settled in practice, not by ruling:** the host measures
+   and renders through Core Text, with per-host perceptual baselines
+   absorbing the difference. That is option (b). It works, and it is now
+   load-bearing enough to deserve ratification rather than inheritance.
 4. Hit-walk hoisting: move the canvas backend's model walk into the runtime
-   as the one shared implementation before the third consumer exists?
+   as the one shared implementation before the third consumer exists? —
+   **Answered by the oracle:** the third consumer exists and conformance
+   asserts all three agree node-for-node on the walk's reasoning, not just
+   its answer. Whether the code is hoisted is now a tidiness question, since
+   the behaviour is pinned by test either way.
 5. NSViewIsland scope: arbitrary NSViews, or a curated set (web view, map,
-   video) mirroring the sanctioned-escape philosophy of DOMIsland?
+   video) mirroring the sanctioned-escape philosophy of DOMIsland? — **Open.**
+   The embed marker is handled (so `AppIsland` has a path) but there is no
+   `WKWebView`, so `DOMIsland` has no native tenant and the scope question is
+   still entirely unforced.
 6. iOS: nothing above is Mac-specific except the overlays (UIKit
    equivalents exist) — but touch input, the keyboard, and scroll gestures
    are their own fidelity project. Out of scope here; the architecture

@@ -26,7 +26,13 @@ cp "$ROOT/bundles/declare-mac.js" "$OUT/Contents/Resources/"
 # app icon cannot drift from the one the program draws. Regenerate with
 # `node make-icon.mjs` (needs a dev server); the .icns is committed so a build
 # never depends on a running server.
-cp "$(dirname "$0")/Declare.icns" "$OUT/Contents/Resources/" 2>/dev/null || echo "  (no Declare.icns — run: node make-icon.mjs)"
+# `./Declare.icns`, not `$(dirname "$0")/…`: the script already cd'd into its own
+# directory above, so the second dirname resolved relative to there — correct only
+# when invoked as `./bundle.sh` from inside mac-host, and silently icon-less when
+# invoked as `mac-host/bundle.sh` from the repo root (it looked for
+# mac-host/mac-host/Declare.icns, found nothing, and the `|| echo` made that read
+# as "the icon was never generated" rather than "this script cannot find it").
+cp ./Declare.icns "$OUT/Contents/Resources/" 2>/dev/null || echo "  (no Declare.icns — run: node make-icon.mjs)"
 
 cat > "$OUT/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>

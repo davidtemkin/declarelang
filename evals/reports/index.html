@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Declare eval reports</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="style.css">
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="kicker">Declare · app-scale evals</div>
+  <h1>Eval run reports</h1>
+  <p class="lede">Each run: a fresh clone, a brief, a fixture service, and nothing else. An agent that has
+  never seen the language builds a real application; the program is then scored against an acceptance it
+  never saw, and every claim it makes is re-tested before it is written down.</p>
+</header>
+
+<h2>Runs</h2>
+<div class="scroll">
+<table>
+<thead><tr><th>Date</th><th>Task</th><th>Model</th><th>Outcome</th><th>Report</th></tr></thead>
+<tbody>
+<tr>
+  <td>2026-08-05</td>
+  <td><strong>Cadence</strong><br><small>training log — second run, post-docs-pass</small></td>
+  <td>Opus</td>
+  <td><span class="tag t-ok">R1–R5 clean</span><br><small>1,617 lines · 579 constraints</small></td>
+  <td><a href="2026-08-05-cadence-run2/index.html">Read →</a></td>
+</tr>
+<tr>
+  <td>2026-08-05</td>
+  <td><strong>Cadence</strong><br><small>training log — design-led, phone + desk</small></td>
+  <td>Opus</td>
+  <td><span class="tag t-ok">R1–R5 clean</span><br><small>1,487 lines · 576 constraints</small></td>
+  <td><a href="2026-08-05-cadence-run1/index.html">Read →</a></td>
+</tr>
+<tr>
+  <td>2026-08-05</td>
+  <td><strong>The Venue</strong><br><small>seat booking — third run of this brief</small></td>
+  <td>Opus</td>
+  <td><span class="tag t-warn">9 / 12 phases</span><br><small>837 lines · R1–R4 clean</small></td>
+  <td><a href="2026-08-05-venue-run3/index.html">Read →</a></td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<h2>How a run is scored</h2>
+<p>The acceptance is written <em>before</em> a solution exists and is never shown to the solving agent —
+an acceptance authored afterwards grades on a curve. It addresses the program by what is on screen and what
+happens when you click it, never by the identifiers a particular solution chose, so any implementation shaped
+to the brief can pass. The service is deterministic, and the harness resets it before each run.</p>
+
+<h2>How findings are handled</h2>
+<p>An agent's report is <strong>evidence, not a conclusion</strong>. Every claim is reproduced here against the
+same commit before it is recorded, and each carries one of four dispositions:</p>
+<p>
+  <span class="tag t-bad">Fix bug</span>
+  <span class="tag t-warn">Docs update</span>
+  <span class="tag t-warn">New feature</span>
+  <span class="tag t-ok">Ignore</span>
+</p>
+<p>Claims that fail re-testing are kept in the report, marked <span class="tag t-ok">Rejected</span> or
+<span class="tag t-mute">Not reproduced</span>, so nobody chases them twice. Both runs on this page contain
+examples of each — including defects in the eval harness itself, which are recorded rather than quietly fixed.</p>
+
+<div class="note">
+<p><strong>The findings of this round.</strong> Three agents independently hit the same defect: a
+<code>DataSource</code> whose URL is set in the same handler that fetches it requests the <em>old</em>
+address, and the documentation says the opposite. And the second Cadence run found the sharpest defect the
+programme has produced — <code>d.w</code> / <code>d.h</code>, documented and type-checked, silently drawing
+nothing. Validated reproductions for everything are in
+<a href="2026-08-05-bugs.md"><code>2026-08-05-bugs.md</code></a>.</p>
+</div>
+
+<footer>
+Reports are generated per run and kept with their screenshots. Source apps and briefs live under
+<code>evals/apps/</code>; the run trees themselves are disposable.
+</footer>
+
+</div>
+</body>
+</html>
