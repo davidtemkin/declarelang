@@ -4,6 +4,17 @@
 Display-only bounded number — the read-only sibling of Slider (same `value`/
 `min`/`max` vocabulary, no interaction, no `input`). Restyle by theme; impose a
 width per the interior contract.
+
+## value
+Where the bar sits, in the units you choose. Clamped into `min`…`max` for display,
+so a value outside the range renders full or empty rather than overflowing.
+
+## min
+The value that reads as empty. Defaults to 0.
+
+## max
+The value that reads as full. Defaults to 100 — set it to your own total and pass
+raw counts as `value` rather than converting to a percentage yourself.
 */
 
 class ProgressBar extends View [ width = 220, height = 8, cornerRadius = 4,

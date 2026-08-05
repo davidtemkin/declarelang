@@ -29,9 +29,20 @@ export interface Diagnostic {
 export declare const CODE_PREFIX = "DECLARE";
 /** The phase a code belongs to (its thousands digit, just past the prefix). */
 export declare function phaseOfCode(code: string): DiagPhase;
+/** Names that EXTEND what was written — `Segment` against `SegmentedItem`.
+ *
+ *  Edit distance cannot see these: `Segment` → `SegmentedItem` is eight edits, far
+ *  outside any sane budget, while `Segment` → `Segmented` is two and wins
+ *  confidently. That is the worst shape a suggestion can take, because the close
+ *  name is the CONTAINER and the far one is the member — an author who follows it
+ *  nests a Segmented inside a Segmented and lands somewhere stranger than they
+ *  started. Prefixes are checked first, and all of them are offered rather than
+ *  one being picked, because choosing between `Segmented` and `SegmentedItem`
+ *  requires knowing what the author meant. */
+export declare function extensionsOf(name: string, candidates: readonly string[]): readonly string[];
 /** The single high-confidence near-miss among `candidates`, or null (no match
  *  in budget, or an ambiguous tie — ambiguity is below suggestion confidence). */
-export declare function nearestName(name: string, candidates: readonly string[]): string | null;
+export declare function nearestName(name: string, candidates: readonly string[], budget?: number): string | null;
 export declare const Diag: {
     syntax: (message: string, pos?: Pos) => DeclareError;
     unknownComponent: (tag: string, pos: Pos, candidates?: readonly string[]) => DeclareError;

@@ -22,6 +22,37 @@ The fill walks the four-rung ladder — `control` at rest, `controlHover`,
 `controlPressed`, and `controlSelected` while its menu is open. Before the ladder
 existed this read `down || hot ? controlActive : control`, which meant **hovering
 a button looked exactly like pressing it**.
+
+## label
+The button's text. `""` (the default) leaves it iconless-and-wordless, which is
+only useful with an `icon` — a button with neither has nothing to press.
+
+## primary
+Marks this as the affirmative action: it fills with the accent and takes
+`theme.accentText` for its ink. One per group of choices — a dialog's Save, not
+its Cancel. Purely a style decision; it changes nothing about behaviour.
+
+## gap
+Space between the icon and the label, when both are present.
+
+## padH
+Horizontal padding inside the button, each side. The button sizes to its content
+plus twice this, so widening it is how you make a short label less cramped.
+
+## inkColor
+The one ink decision, so a button's icon and its label always agree: the accent
+text colour when `primary`, the ordinary text colour otherwise. `textColor`
+follows it. Override this rather than `textColor` alone, or the icon and the
+words drift apart.
+
+## press()
+The activation path, called by a click and by Space/Enter. It flashes the press
+tint, opens an attached `menu` if there is one, then calls `onClick`. Override
+`onClick` for ordinary use; override this only to change what activation *means*.
+
+## onClick
+Your handler. Fires after the press is delivered, so the affordance has already
+run — put the work here, not in `press()`.
 */
 
 include [ "control.declare", "icons/icon.declare" ]

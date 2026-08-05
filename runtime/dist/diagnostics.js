@@ -99,12 +99,26 @@ function editDistance(a, b) {
     }
     return prev[b.length];
 }
+/** Names that EXTEND what was written — `Segment` against `SegmentedItem`.
+ *
+ *  Edit distance cannot see these: `Segment` → `SegmentedItem` is eight edits, far
+ *  outside any sane budget, while `Segment` → `Segmented` is two and wins
+ *  confidently. That is the worst shape a suggestion can take, because the close
+ *  name is the CONTAINER and the far one is the member — an author who follows it
+ *  nests a Segmented inside a Segmented and lands somewhere stranger than they
+ *  started. Prefixes are checked first, and all of them are offered rather than
+ *  one being picked, because choosing between `Segmented` and `SegmentedItem`
+ *  requires knowing what the author meant. */
+export function extensionsOf(name, candidates) {
+    const lower = name.toLowerCase();
+    return candidates.filter((c) => c.toLowerCase() !== lower && c.toLowerCase().startsWith(lower));
+}
 /** The single high-confidence near-miss among `candidates`, or null (no match
  *  in budget, or an ambiguous tie — ambiguity is below suggestion confidence). */
-export function nearestName(name, candidates) {
+export function nearestName(name, candidates, budget) {
     const lower = name.toLowerCase();
     let best = null;
-    let bestD = 3;
+    let bestD = budget === undefined ? 3 : budget + 1;
     let tie = false;
     for (const c of candidates) {
         const d = editDistance(lower, c.toLowerCase());
@@ -116,14 +130,9 @@ export function nearestName(name, candidates) {
         else if (d === bestD)
             tie = true;
     }
-    return best !== null && !tie && bestD <= (name.length >= 5 ? 2 : 1) ? best : null;
+    const cap = budget ?? (name.length >= 5 ? 2 : 1);
+    return best !== null && !tie && bestD <= cap ? best : null;
 }
-/** Components that changed name: tag → the sentence a reader needs. Consulted
- *  by `unknownComponent` before the near-miss guess, so a renamed tag names its
- *  replacement instead of hoping the edit distance lands. */
-const RENAMED_COMPONENTS = {
-    Frames: "spelled 'Heartbeat' now — the per-frame member (`onFrame(dt)` and `running` are unchanged); the old plural read as a collection of frames, which it never was",
-};
 export const Diag = {
     // 1xxx syntax — the parser throws one at a time; a single family code, the
     // grammar message carrying the specifics.
@@ -132,11 +141,19 @@ export const Diag = {
     // appends a calibrated near-miss ("did you mean 'Text'?") — the fix, named
     // (diagnostics.md §4); the rule rides the hint.
     unknownComponent: (tag, pos, candidates = []) => {
-        // A RENAMED component says so by name rather than leaving the reader to a
-        // near-miss guess — the courtesy check.ts's RENAMED_ATTRIBUTES already pays
-        // for attribute spellings.
-        if (Object.hasOwn(RENAMED_COMPONENTS, tag)) {
-            return err(code4(2001), `unknown component '${tag}' — ${RENAMED_COMPONENTS[tag]}`, pos);
+        // A name that other names EXTEND is offered whole — see extensionsOf. This
+        // replaces a table of former spellings: the language ships one current
+        // surface, so a diagnostic states what IS, never what a name used to be.
+        // A ONE-EDIT miss is a typo, and a typo wants the correction, not a menu:
+        // `Tex` extends both `Text` and `TextInput`, but it is a single keystroke
+        // from `Text` and nobody meant the other. Only past that budget does the
+        // extension rule take over, which is where `Segment` lives — two edits from
+        // its own container, and not a typo at all.
+        const typo = nearestName(tag, candidates, 1);
+        const ext = typo === null ? extensionsOf(tag, candidates) : [];
+        if (ext.length > 0) {
+            const list = ext.length === 1 ? `'${ext[0]}'` : ext.map((e) => `'${e}'`).join(" or ");
+            return err(code4(2001), `unknown component '${tag}' — did you mean ${list}?`, pos);
         }
         const near = nearestName(tag, candidates);
         return near === null

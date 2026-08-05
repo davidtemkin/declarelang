@@ -436,10 +436,36 @@ const renderDefault = (def) =>
   : def.kind === "number" ? String(def.value)
   : def.kind === "ident"  ? def.name              // false / true / null
   : null;                                         // computed/complex — omit
+// The header block is the class's doc surface, and it uses the SAME `## name`
+// convention as tools/internal/doc/prose/<Class>.md — one shape for both halves of
+// the corpus, and for a .declare class the prose sits in the file the member is
+// declared in, which is where the author is already looking.
+//
+// Until this existed, every declared library member was `doc: null` BY
+// CONSTRUCTION: 295 members across 44 classes, blank not because nobody wrote the
+// prose but because there was nowhere to put it.
+//
+// A section whose body opens with `**Internal.**` is DELIBERATELY undocumented —
+// the marker (`isSegmented`, `isTable`: the wrap-probe discipline) that lets a
+// sibling identify its parent, and which a .declare class cannot avoid declaring
+// because it has no undeclared reactive cells. Whether something is API is an
+// editorial judgment, not a runtime fact, so it lives here and not in the grammar.
+// Recorded so a coverage gate can tell "marked not-API" from "nobody wrote it":
+// silence and a decision must not look the same.
 const headerProse = (src) => {
   const m = src.match(/^\s*\/\*([\s\S]*?)\*\//);
-  if (!m) return null;
-  return m[1].replace(/^\s*#\s*\S[^\n]*\n/, "").trim() || null;   // drop the leading "# Name" line
+  if (!m) return { class: null, members: {}, methods: {}, internal: new Set() };
+  const text = m[1].replace(/^\s*#\s*\S[^\n]*\n/, "");           // drop the leading "# Name" line
+  const parts = text.split(/^## +(.+)$/m);
+  const members = {}, methods = {}, internal = new Set();
+  for (let i = 1; i < parts.length; i += 2) {
+    const head = parts[i].trim(), body = (parts[i + 1] ?? "").trim();
+    const asMethod = head.match(/^([A-Za-z_$][\w$]*)\(\)$/);
+    const name = asMethod ? asMethod[1] : head;
+    if (/^\*\*Internal\.\*\*/.test(body)) internal.add(name);
+    (asMethod ? methods : members)[name] = body;
+  }
+  return { class: parts[0].trim() || null, members, methods, internal };
 };
 const LIBRARY = JSON.parse(readFileSync(path.join(ROOT, "library/autoincludes.json"), "utf8"));
 for (const [tag, file] of Object.entries(LIBRARY)) {
@@ -451,10 +477,13 @@ for (const [tag, file] of Object.entries(LIBRARY)) {
   let cls;
   try { cls = parseProgram(src + "\nApp [ ]\n").classes.find((c) => c.name === tag); } catch { cls = null; }
   if (!cls) continue;
+  const prose = headerProse(src);
   const attributes = [], methods = [], events = [];
   for (const d of cls.body.decls) {
     const id = `${tag}.${d.name}`;
-    nodes[id] = { id, name: d.name, kind: "attribute", doc: null, docSegs: [], api: true,
+    const pd = prose.members[d.name] ?? null;
+    nodes[id] = { id, name: d.name, kind: "attribute", doc: pd, docSegs: segmentize(pd, id),
+      api: !prose.internal.has(d.name), internal: prose.internal.has(d.name),
       source: { file: rel, line: 0 }, parent: tag, seeAlso: [],
       type: d.type, default: renderDefault(d.def),
       prevailing: !!d.prevailing, readOnly: !!d.readOnly, inheritedFrom: null };
@@ -463,16 +492,17 @@ for (const [tag, file] of Object.entries(LIBRARY)) {
   for (const m of cls.body.methods) {
     const isEvent = /^on[A-Z]/.test(m.name);
     const id = `${tag}.${isEvent ? "event" : "method"}.${m.name}`;
-    nodes[id] = { id, name: m.name, kind: isEvent ? "event" : "method", doc: null, docSegs: [], api: true,
+    const pm = prose.methods[m.name] ?? prose.members[m.name] ?? null;
+    nodes[id] = { id, name: m.name, kind: isEvent ? "event" : "method", doc: pm, docSegs: segmentize(pm, id),
+      api: !prose.internal.has(m.name), internal: prose.internal.has(m.name),
       source: { file: rel, line: 0 }, parent: tag, seeAlso: [],
       signature: `${m.name}(${(m.params ?? []).map((p) => p.name ?? p).join(", ")})` };
     (isEvent ? events : methods).push(id);
   }
   const baseName = cls.base ?? null;
   if (baseName) (subclassIndex[baseName] ??= []).push(tag);
-  const prose = headerProse(src);
   nodes[tag] = { id: tag, name: tag, kind: "class",
-    doc: prose, docSegs: segmentize(prose, tag), api: true,
+    doc: prose.class, docSegs: segmentize(prose.class, tag), api: true,
     source: { file: rel, line: 0 }, parent: null, seeAlso: [],
     extends: baseName, subclasses: [], origin: "library",
     attributes, methods, events, example: [] };

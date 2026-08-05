@@ -78,10 +78,14 @@ var DeclareMac = (() => {
     }
     return prev[b.length];
   }
-  function nearestName(name, candidates) {
+  function extensionsOf(name, candidates) {
+    const lower = name.toLowerCase();
+    return candidates.filter((c) => c.toLowerCase() !== lower && c.toLowerCase().startsWith(lower));
+  }
+  function nearestName(name, candidates, budget) {
     const lower = name.toLowerCase();
     let best = null;
-    let bestD = 3;
+    let bestD = budget === void 0 ? 3 : budget + 1;
     let tie = false;
     for (const c of candidates) {
       const d = editDistance(lower, c.toLowerCase());
@@ -92,9 +96,10 @@ var DeclareMac = (() => {
       } else if (d === bestD)
         tie = true;
     }
-    return best !== null && !tie && bestD <= (name.length >= 5 ? 2 : 1) ? best : null;
+    const cap = budget ?? (name.length >= 5 ? 2 : 1);
+    return best !== null && !tie && bestD <= cap ? best : null;
   }
-  var CODE_PREFIX, code4, BASE, err, RENAMED_COMPONENTS, Diag, DIAGNOSTIC_CATALOG;
+  var CODE_PREFIX, code4, BASE, err, Diag, DIAGNOSTIC_CATALOG;
   var init_diagnostics = __esm({
     "runtime/dist/diagnostics.js"() {
       "use strict";
@@ -111,9 +116,6 @@ var DeclareMac = (() => {
         constraint: code4(7e3)
       };
       err = (code, message, pos, hint) => new DeclareError(message, pos, { code, hint });
-      RENAMED_COMPONENTS = {
-        Frames: "spelled 'Heartbeat' now \u2014 the per-frame member (`onFrame(dt)` and `running` are unchanged); the old plural read as a collection of frames, which it never was"
-      };
       Diag = {
         // 1xxx syntax — the parser throws one at a time; a single family code, the
         // grammar message carrying the specifics.
@@ -122,8 +124,11 @@ var DeclareMac = (() => {
         // appends a calibrated near-miss ("did you mean 'Text'?") — the fix, named
         // (diagnostics.md §4); the rule rides the hint.
         unknownComponent: (tag, pos, candidates = []) => {
-          if (Object.hasOwn(RENAMED_COMPONENTS, tag)) {
-            return err(code4(2001), `unknown component '${tag}' \u2014 ${RENAMED_COMPONENTS[tag]}`, pos);
+          const typo = nearestName(tag, candidates, 1);
+          const ext = typo === null ? extensionsOf(tag, candidates) : [];
+          if (ext.length > 0) {
+            const list = ext.length === 1 ? `'${ext[0]}'` : ext.map((e) => `'${e}'`).join(" or ");
+            return err(code4(2001), `unknown component '${tag}' \u2014 did you mean ${list}?`, pos);
           }
           const near = nearestName(tag, candidates);
           return near === null ? err(code4(2001), `unknown component '${tag}'`, pos) : err(code4(2001), `unknown component '${tag}' \u2014 did you mean '${near}'?`, pos, `a tag names a built-in component or a class declared in the program`);
@@ -4405,7 +4410,7 @@ var DeclareMac = (() => {
           const v = attr.value;
           const okIdent = v.kind === "ident" && (v.name === "true" || v.name === "false");
           if (!okIdent && v.kind !== "code") {
-            errors.push(new DeclareError(`virtualize = true | false | { \u2026 } \u2014 virtualize this collection (default false: every record is constructed). The enum retired 2026-08-02: 'all' is false, 'window' is true, and 'auto'/<count> are gone \u2014 a record count could not see what full materialization actually costs (N \xD7 per-instance construction), and a windowed block is a flat ~0.06 ms/frame at any N, so there was no cliff to threshold`, v.pos));
+            errors.push(new DeclareError(`virtualize = true | false | { \u2026 } \u2014 virtualize this collection (default false: every record is constructed). It is a boolean because there is no threshold to tune: a windowed block is a flat ~0.06 ms/frame at any size, while constructing every record costs N \xD7 per-instance construction`, v.pos));
           }
           continue;
         }
@@ -4764,8 +4769,6 @@ var DeclareMac = (() => {
     }
   }
   function cssAttributeHint(name) {
-    if (Object.hasOwn(RENAMED_ATTRIBUTES, name))
-      return ` \u2014 ${RENAMED_ATTRIBUTES[name]}`;
     const h = Object.hasOwn(CSS_ATTRIBUTE_HINTS, name) ? CSS_ATTRIBUTE_HINTS[name] : "";
     return h ? ` \u2014 the CSS instinct: ${h}` : "";
   }
@@ -4782,7 +4785,7 @@ var DeclareMac = (() => {
     const hint = cssAttributeHint(name);
     if (hint !== "")
       return hint;
-    const hinted = name.length >= 5 ? nearestName(name, [...Object.keys(CSS_ATTRIBUTE_HINTS), ...Object.keys(RENAMED_ATTRIBUTES)]) : null;
+    const hinted = name.length >= 5 ? nearestName(name, Object.keys(CSS_ATTRIBUTE_HINTS)) : null;
     if (hinted !== null)
       return cssAttributeHint(hinted);
     const near = nearestName(name, attrNames(schema));
@@ -4897,7 +4900,7 @@ var DeclareMac = (() => {
     }
     return { ok: true };
   }
-  var EMPTY_ENV, UNSTYLABLE, CSS_ATTRIBUTE_HINTS, RENAMED_ATTRIBUTES;
+  var EMPTY_ENV, UNSTYLABLE, CSS_ATTRIBUTE_HINTS;
   var init_check = __esm({
     "runtime/dist/check.js"() {
       "use strict";
@@ -4952,13 +4955,6 @@ var DeclareMac = (() => {
         blur: "blur is a drawing op \u2014 take a 'draw(d: Draw)' member and set d.filter = 'blur(4px)'",
         mixBlendMode: "compositing is a drawing op \u2014 take a 'draw(d: Draw)' member and set d.globalCompositeOperation",
         mask: "masking is 'clip' \u2014 true for the box, or a path for an arbitrary shape"
-      };
-      RENAMED_ATTRIBUTES = {
-        ignorelayout: "spelled 'ignoreLayout' now (inner cap)",
-        ignoreclip: "spelled 'ignoreClip' now (inner cap)",
-        focustrap: "spelled 'focusTrap' now (inner cap)",
-        scrollsX: "the scroll axes merged into one slot \u2014 write 'scrolls = x' (the axis enum: none | y | x | both)",
-        materialize: "spelled 'virtualize' now, and it is a boolean \u2014 'materialize = all' is 'virtualize = false' (the default, so just drop it), 'window' is 'virtualize = true'; 'auto' and a count retired (no threshold: a windowed block is a flat ~0.06 ms/frame at any size)"
       };
     }
   });

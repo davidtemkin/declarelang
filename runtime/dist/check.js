@@ -575,7 +575,7 @@ classRoot = false) {
                 const v = attr.value;
                 const okIdent = v.kind === "ident" && (v.name === "true" || v.name === "false");
                 if (!okIdent && v.kind !== "code") {
-                    errors.push(new DeclareError(`virtualize = true | false | { … } — virtualize this collection (default false: every record is constructed). The enum retired 2026-08-02: 'all' is false, 'window' is true, and 'auto'/<count> are gone — a record count could not see what full materialization actually costs (N × per-instance construction), and a windowed block is a flat ~0.06 ms/frame at any N, so there was no cliff to threshold`, v.pos));
+                    errors.push(new DeclareError(`virtualize = true | false | { … } — virtualize this collection (default false: every record is constructed). It is a boolean because there is no threshold to tune: a windowed block is a flat ~0.06 ms/frame at any size, while constructing every record costs N × per-instance construction`, v.pos));
                 }
                 continue;
             }
@@ -1110,18 +1110,9 @@ const CSS_ATTRIBUTE_HINTS = {
 /** Retired spellings (the 2026-07-29 camelCase ruling and the `scrolls` axis
  *  enum) — each names its exact rewrite, so a program written against the old
  *  surface dies with the fix in hand, never with a shrug. */
-const RENAMED_ATTRIBUTES = {
-    ignorelayout: "spelled 'ignoreLayout' now (inner cap)",
-    ignoreclip: "spelled 'ignoreClip' now (inner cap)",
-    focustrap: "spelled 'focusTrap' now (inner cap)",
-    scrollsX: "the scroll axes merged into one slot — write 'scrolls = x' (the axis enum: none | y | x | both)",
-    materialize: "spelled 'virtualize' now, and it is a boolean — 'materialize = all' is 'virtualize = false' (the default, so just drop it), 'window' is 'virtualize = true'; 'auto' and a count retired (no threshold: a windowed block is a flat ~0.06 ms/frame at any size)",
-};
 /** The CSS-instinct hint for an unknown attribute name, or "" when the miss
  *  isn't a known CSS name. */
 export function cssAttributeHint(name) {
-    if (Object.hasOwn(RENAMED_ATTRIBUTES, name))
-        return ` — ${RENAMED_ATTRIBUTES[name]}`;
     const h = Object.hasOwn(CSS_ATTRIBUTE_HINTS, name) ? CSS_ATTRIBUTE_HINTS[name] : "";
     return h ? ` — the CSS instinct: ${h}` : "";
 }
@@ -1165,7 +1156,7 @@ function attributeMiss(schema, name) {
     // `zap` is one edit from `gap` and is a typo for nothing at all. Five is the
     // same floor nearestName already uses to widen its own budget.
     const hinted = name.length >= 5
-        ? nearestName(name, [...Object.keys(CSS_ATTRIBUTE_HINTS), ...Object.keys(RENAMED_ATTRIBUTES)])
+        ? nearestName(name, Object.keys(CSS_ATTRIBUTE_HINTS))
         : null;
     if (hinted !== null)
         return cssAttributeHint(hinted);

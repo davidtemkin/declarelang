@@ -64,6 +64,18 @@ library, and it is now here.
 The look is the library's: the chosen segment wears a raised `surface` pill with
 a hairline. The motion is calendar's. Neither app was wrong about the half it got
 right (`chrome-divergences.md` D9).
+
+## value
+The active choice. Bind it to your own state and override `input` to own the
+destination, or leave it alone and read `value` back — a `Segmented` works
+standalone. Compared against each item's `choice` by identity, so any value type
+works.
+
+## isSegmented
+**Internal.** The marker a `SegmentedItem` reads to recognize its parent. A
+`.declare` class cannot hold a reactive cell without declaring it, so a marker is
+necessarily surface — that does not make it API.
+
 */
 
 include [ "control.declare", "icons/icon.declare" ]

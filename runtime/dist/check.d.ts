@@ -58,6 +58,9 @@ export type CheckedAttr = {
     ok: false;
     error: DeclareError;
 };
+/** Retired spellings (the 2026-07-29 camelCase ruling and the `scrolls` axis
+ *  enum) — each names its exact rewrite, so a program written against the old
+ *  surface dies with the fix in hand, never with a shrug. */
 /** The CSS-instinct hint for an unknown attribute name, or "" when the miss
  *  isn't a known CSS name. */
 export declare function cssAttributeHint(name: string): string;

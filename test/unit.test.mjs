@@ -1948,12 +1948,17 @@ await test("compile(): full gesture control (raw touch on the App) exempts the 1
   assert.deepEqual([r.errors, r.warnings], [[], []]);
 });
 
-await test("compile(): retired spellings die naming their exact rewrite (the camelCase ruling + the scrolls axis enum)", () => {
+// `scrollsX` was removed with the rename tables: a suggestion keys on the priors
+// a newcomer ARRIVES with — CSS and React instincts — never on our own rolling
+// deprecations, which serve a population that does not exist and leak history
+// into a surface that should read as one current design. What remains is not
+// deprecation: an inner-cap miss is an ordinary typo, and `scrolls = true` is a
+// wrong VALUE for a live enum.
+await test("compile(): a miss names its exact rewrite (the camelCase ruling + the scrolls axis enum)", () => {
   const cases = [
     [`App [ width=100, height=100, View [ ignorelayout = true ] ]`, /ignoreLayout/],
     [`App [ width=100, height=100, View [ ignoreclip = true ] ]`, /ignoreClip/],
     [`App [ width=100, height=100, View [ focustrap = true ] ]`, /focusTrap/],
-    [`App [ width=100, height=100, View [ scrollsX = true ] ]`, /scrolls = x/],
     [`App [ width=100, height=100, View [ scrolls = true ] ]`, /scrolls = y/],
     [`App [ width=100, height=100, View [ scrolls = false ] ]`, /scrolls = none/],
   ];

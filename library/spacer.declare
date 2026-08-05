@@ -15,6 +15,12 @@ The layout owns a Spacer's flow-axis size (a percent-family constraint, so
 a container deriving its extent from its children never counts one); the
 `flexes` marker is what a flow layout looks for. An empty view otherwise —
 it paints nothing and has no size of its own.
+
+## flexes
+The marker a flow layout looks for. True (the default) means the layout owns this
+Spacer's size along the flow axis and expands it to take up the slack — which is
+what makes `Spacer [ ]` push its siblings apart. Set it false for a fixed gap you
+size yourself.
 */
 
 class Spacer extends View [

@@ -78,11 +78,14 @@ await test("hint-routing does not fire on a short string", async () => {
   silent(`App [ zap = 1 ]`, "spacing rides the layout");
 });
 
-await test("a retired spelling names its exact rewrite", async () => {
-  says(`App [ View [ materialize = 1 ] ]`, "spelled 'virtualize' now");
-});
+// REMOVED: "a retired spelling names its exact rewrite". Suggestions key on
+// PRE-EXISTING priors — the CSS and React instincts a newcomer actually arrives
+// with — never on our own rolling deprecations. A table of former Declare
+// spellings serves a population that does not exist (nothing is written in this
+// language yet, and no model has it in training data) while leaking history into
+// a surface that should read as one current design. `materialize` now reports
+// plainly that View has no such attribute.
 
-// ── capabilities reached through the wrong door ──────────────────────────────
 await test("rotation/blur/transform point at draw(), not into a wall", async () => {
   says(`App [ View [ rotation = 45 ] ]`, "draw(d: Draw)");
   says(`App [ View [ blur = 4 ] ]`, "d.filter");

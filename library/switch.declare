@@ -4,6 +4,24 @@
 A boolean control with a sliding thumb — same value contract as Checkbox (`checked`,
 `input` owns the destination), different body language: the thumb SPRINGS between
 its two rest points, so toggling moves rather than jumps.
+
+## checked
+Whether the switch is on. Bind it (`checked = { app.muted }`) and override `input`
+to own the destination, or leave it and read it back — a `Switch` works standalone
+with no wiring.
+
+## input()
+Where the value goes. The default writes `checked`; override it and the switch
+becomes a delivery mechanism for state you own. `press()` never writes `checked`
+directly, so a bound switch never fights its constraint.
+
+## press()
+Toggles, by delivering the flipped value through `input`. Called by a click and by
+Space/Enter.
+
+## onClick
+Fires on click when the switch is enabled. `press()` is the activation path;
+prefer overriding `input` if what you want is the value.
 */
 
 include [ "control.declare" ]
