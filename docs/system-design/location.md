@@ -359,3 +359,118 @@ the merge's enemy); any docs-content work beyond §11.2's list.
   `.declare` sources (this arc rewrites their navigation; the eval track does
   not touch them), guide ch31 + operational pages (§11.2), and nothing else —
   parser/check/harness belong to the other track.
+
+## 12. Field findings — 2026-08-04 (anchors into rendered prose)
+
+Found while adding a signed closing note to the homepage's `#why` essay and a
+link to it from the FAQ. Both findings are OPEN; the homepage ships around them
+(§12.3). Recorded here rather than in a findings file because both contradict
+statements this document makes.
+
+### 12.1 The `@name` reveal resolves against an unmeasured tree
+
+**§6 says the intent is held "until the name appears in a settled tree." The
+view branch checks appearance, never settledness.**
+
+`findAnchor` (`runtime/src/view.ts:937`) builds two kinds of target:
+
+- a **named view** — `fire = () => { if (v.surface === null) return false;
+  v.scrollIntoView(); return true; }`
+- a **rich-text heading slug** — the component's own `anchorSlugs()` /
+  `revealAnchor(slug)` pair
+
+The second is correct by construction: `revealRichAnchor`
+(`dom-backend.ts:829`) returns false while the heading is not yet in the flow,
+so the retained intent holds and retries. The component that owns the content
+performs the reveal and can answer *not yet*.
+
+The view branch has no such veto. `v.surface === null` goes false the instant
+the view is attached, whether or not anything around it has been measured, so
+`fire()` always claims success and `resolveReveal` clears the intent — once,
+against whatever layout existed that frame.
+
+**Measured.** Target: a 1×1 `anchor = "story"` mark riding 80px above the
+note's rule in the `#why` column. Arrivals at `#why@story`:
+
+| from | outgoing document | landed at | correct |
+|---|---|---|---|
+| `#faq` | 9185 | 224 | 2007 |
+| home | 4653 | 224 | 2007 |
+| `#why` | 2846 (already the essay) | 1946 | 1946 ✓ |
+| cold load | — | 2007 ✓ | 2007 |
+
+Per-frame trace after a same-session switch — the essay is attached but its
+rich-text heights have not arrived:
+
+| frame | document height | eyebrow page-y |
+|---|---|---|
+| 0 | 1124 | 711 |
+| 1 … 23 | 2846 | 2053 |
+
+Wrong for exactly one frame, then stable forever. The cold deep link works
+because the tree genuinely does not exist yet, which is the case the retained
+intent already covers.
+
+**Why one frame.** Rich-text height returns through the DOM backend's
+`ResizeObserver` (`dom-backend.ts:1097-1103`), delivered after layout and
+before paint. `settle()` (`reactive.ts:286`) drains the constraint queue only —
+there is no synchronous state that knows a measurement is outstanding, so
+nothing the reveal could consult on the arriving frame would report the truth.
+
+**Direction, not a patch.** Deferring the reveal a fixed number of frames is a
+timing guess and was rejected. The shape that matches the working branch: give
+the view branch the same veto, sourced from the components that know —
+`fire()` returns false while any RichText between the target and the scroll
+root still carries a provisional rather than a measured height. The retry loop
+already exists; nothing counts frames.
+
+**Cost to the contract.** `test/unit.test.mjs:6578` and its three siblings
+assert `resolveReveal()` resolves on the *first* call after a settle. Headless
+has synthetic metrics and settles synchronously, so a readiness veto leaves
+those green — but any fix built on comparing two observations (geometry
+stability, scroll-offset stability) cannot, and would require restating the
+contract as "resolves within N passes." Prefer the veto for that reason.
+
+**Note on shape.** Had the note been a heading inside one rendered Markdown
+document, this would already work — the slug branch is what the docs app
+exercises. The failing case is a hand-built column of `Para` (HTMLText) nodes
+with a bare `anchor` mark in it, which no existing app produces.
+
+### 12.2 A Markdown link's `onLink` does not reach the app
+
+**§5 says a fragment href is a location link. In an authored `.md` rendered by
+`Markdown`, no href of any kind currently reaches the app.**
+
+The homepage's FAQ renders 14 anchors (7 to github.com). A plain left click on
+one produces no navigation, no new tab, and — under request interception — **no
+outbound request at all**. That last point matters: absence of a native
+navigation proves `preventDefault()` ran (`dom-backend.ts:1060`), so the
+runtime *is* intercepting the click and then calling an `onLink` that is not
+the app's.
+
+Bisect, same page, same URL:
+
+| path | result |
+|---|---|
+| footer link — a Declare view calling `app.navigate` | navigates ✓ |
+| FAQ link — `Markdown` link event → app method → `app.navigate` | no request |
+
+Declaring `onLink(href: string) { app.openLink(href) }` on the `Markdown` node
+compiles (both symbols are present in the emitted bundle) and matches the shape
+the docs app uses (`apps/docs/docs.declare:346`). The **docs app shows the same
+symptom**: 100 anchors, and clicking one does not change `location`.
+
+**Unproven next step.** Determine whether a declared `onLink` handler installs
+the `this.onLink` *property* that `markdown.ts:454` reads when it flows content
+(`const link = this.onLink ?? (() => {})`), or whether it registers a listener
+for RichText's declared `link` event that nothing dispatches. The closure is
+captured per run at flow time, so a handler installed after the first flow
+would also never be seen — worth checking in the same pass.
+
+### 12.3 What the homepage does meanwhile
+
+The closing note stays at the end of the `#why` essay, with no `anchor` and no
+landing mark. The FAQ's "Who was crazy enough to do this?" links to plain
+`#why` — a location, which works — and its answer says in words that the note
+is at the end of that essay. When §12.1 lands the link becomes `#why@story`;
+when §12.2 lands, every other link in the FAQ starts working too.
