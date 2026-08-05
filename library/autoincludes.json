@@ -46,5 +46,17 @@
   "Column": "datagrid.declare",
   "GridRow": "datagrid.declare",
   "Segmented": "segmented.declare",
-  "Segment": "segmented.declare"
+  "ChevronIcon": "icons/core.declare",
+  "CheckIcon": "icons/core.declare",
+  "CloseIcon": "icons/core.declare",
+  "PlusIcon": "icons/core.declare",
+  "MinusIcon": "icons/core.declare",
+  "LightbulbIcon": "icons/core.declare",
+  "SunIcon": "icons/appearance.declare",
+  "MoonIcon": "icons/appearance.declare",
+  "AutoIcon": "icons/appearance.declare",
+  "Icon": "icons/icon.declare",
+  "IconHost": "icons/icon.declare",
+  "SegmentedItem": "segmented.declare",
+  "ArrowIcon": "icons/core.declare"
 }

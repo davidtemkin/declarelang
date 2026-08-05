@@ -401,7 +401,7 @@ class Button extends View [ height = 46, cornerRadius = 9,
     primary: boolean = true,
     fill = { primary ? (pressed ? theme.accentPress : hovered ? theme.accentHover : theme.accent)
                      : (pressed ? theme.press       : hovered ? theme.hover       : theme.surface) },
-    stroke = { primary ? stroke(0, theme.accent) : stroke(1, pressed ? theme.accent2 : theme.line) },
+    stroke = { primary ? stroke(0, theme.accent) : stroke(1, pressed ? theme.accentSecondary : theme.line) },
 
     // label centered in the button box (textAlign over the full width)
 
@@ -428,7 +428,7 @@ class FootLink extends FootLabel [
     // is for the static footer text and must not ride along here.
 
     selectable = false,
-    textColor = { pressed ? theme.accent2Press : hovered ? theme.accent2 : theme.muted },
+    textColor = { pressed ? theme.accentSecondaryPress : hovered ? theme.accentSecondary : theme.muted },
     onClick()     { app.navigate(to) }
     ]
 
@@ -620,8 +620,8 @@ App [ tagline: string = "a UI language for you and your AI",
         // (hover), then flash brighter still at the press — the same direction
         // FootLink's teal takes, so every text link answers a tap the same way
         accent: 0x4C8DFF, accentHover: 0x63A0FF, accentPress: 0x3D7BE0, linkHover: 0x7FB0FF, linkPress: 0xB2CFFF,
-        // the teal second accent; the brand gradient runs accent → accent2
-        accent2: 0x37E0C8, accent2Press: 0x9BF2E4,
+        // the teal second accent; the brand gradient runs accent → accentSecondary
+        accentSecondary: 0x37E0C8, accentSecondaryPress: 0x9BF2E4,
         brand: gradient("90deg", 0x4C8DFF, 0x37E0C8),
         // grounds, darkest to lightest, and their interaction shades
         ink: 0x0B141B, panel: 0x0C1620, press: 0x0C1922, surfaceDeep: 0x0D1922,
@@ -1708,8 +1708,8 @@ App [ tagline: string = "a UI language for you and your AI",
     // pointer (loose + low-mass = the slower, longer trail). Two position
     // Springs; the native cursor stays visible and leads, the dot follows.
 
-    pointerDot: View [ ignoreScroll = true, width = 10, height = 10, cornerRadius = 5, fill = { theme.accent2 }, opacity = 0.9,
-        shadow = { shadow(0, 0, 12, theme.accent2) },
+    pointerDot: View [ ignoreScroll = true, width = 10, height = 10, cornerRadius = 5, fill = { theme.accentSecondary }, opacity = 0.9,
+        shadow = { shadow(0, 0, 12, theme.accentSecondary) },
 
         // Decoration, not a target: the dot settles exactly under a resting
         // cursor, and the hit chain is occlusion-correct — without this line

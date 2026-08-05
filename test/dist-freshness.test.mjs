@@ -56,8 +56,7 @@ for (const { app, dir } of dists) {
     const probe = (e) => diskProbe({ ...e, id: join(ROOT, e.id) });
     const fresh = isUpToDate(build.closure, build.closure.props, probe);
     assert.ok(fresh,
-      `stale committed dist apps/${app}/dist — rebuild with ` +
-      `\`node tools/declarec.mjs apps/${app}/${app}.declare -o apps/${app}/dist --crawler\``);
+      `stale committed dist apps/${app}/dist — run \`node tools/internal/derive.mjs\` (it owns the order: prewarm writes the stats.json this dist embeds)`);
   });
 }
 

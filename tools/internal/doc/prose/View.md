@@ -207,6 +207,17 @@ retint all text beneath without touching each `Text`.
 Prevailing font size in pixels (default `16`), inherited by descendant `Text` exactly
 like `textColor`. Set once on a container to size a whole region's text.
 
+## iconSize
+Prevailing icon size in pixels (default `16`), inherited exactly like `fontSize` and
+`textColor`. A drawn icon takes its box from this, so setting it once on a container
+sizes every mark in a region — a menu row asks for 16, a button for 18 — without each
+icon carrying a number of its own.
+
+It sizes the BOX, not the stroke: an icon's `weight` is in final pixels, so the same
+mark at a larger `iconSize` reads proportionally lighter rather than simply scaling up.
+That is deliberate — a hairline should stay a hairline — but it means a set drawn for
+16 will not hold its density at 32 without redrawing.
+
 ## contentWidth
 **Read-only** intrinsic: the width of this view's visible children's bounding box —
 the auto-extent, surfaced. A constraint may read it (`width = { Math.min(contentWidth, 480) }`)

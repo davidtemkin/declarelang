@@ -119,13 +119,13 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
         bg:      0x12161C, panel:   0x171C24, raised:  0x1C232D, bar:     0x1A202A,
         line:    0x2A313C, hover:   0x222B37, field:   0x0D1117, seamOn:  0x3A4453, selBg: 0x2C3E5C,
         text:    0xE6EDF3, muted:   0x9AA5B4, faint:   0x6B7684,
-        accent:  0x4C8DFF, accent2: 0x2DD4BF, amber:   0xE0A54F, danger:  0xFF7B72,
+        accent:  0x4C8DFF, accentSecondary: 0x2DD4BF, amber:   0xE0A54F, danger:  0xFF7B72,
         str:     0x9ECE6A, num:     0xE0A54F, onAccent: 0xFFFFFF,
         }) : ({
         bg:      0xFFFFFF, panel:   0xF5F6F8, raised:  0xFFFFFF, bar:     0xEDEEF1,
         line:    0xD9DCE1, hover:   0xEBEFF5, field:   0xFFFFFF, seamOn:  0xC3C8D0, selBg: 0xD3E1FA,
         text:    0x1A1D23, muted:   0x59616E, faint:   0x8C95A1,
-        accent:  0x2563EB, accent2: 0x0D8F86, amber:   0xB45309, danger:  0xD03434,
+        accent:  0x2563EB, accentSecondary: 0x0D8F86, amber:   0xB45309, danger:  0xD03434,
         str:     0x15803D, num:     0xA85A0B, onAccent: 0xFFFFFF,
         }) },
 
@@ -433,9 +433,9 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
         width = { app.hoverRect != null ? app.hoverRect.width : 0 },
         height = { app.hoverRect != null ? app.hoverRect.height : 0 },
         fill = #4C8DFF22,
-        stroke = { stroke(1, app.c.accent2) },
+        stroke = { stroke(1, app.c.accentSecondary) },
         tag: View [ visible = { app.picking }, x = 0, y = -17, height = 16, cornerRadius = 3,
-            width = { this.t.width + 12 }, fill = { app.c.accent2 },
+            width = { this.t.width + 12 }, fill = { app.c.accentSecondary },
             t: Text [ x = 6, y = center, fontSize = 10, fontWeight = medium, wrap = false,
                 textColor = 0x08201E, text = { app.aimPath } ]
             ]
@@ -447,7 +447,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
         width = { app.depRect != null ? app.depRect.width : 0 },
         height = { app.depRect != null ? app.depRect.height : 0 },
         fill = #2DD4BF1F,
-        stroke = { stroke(1.5, app.c.accent2) } ],
+        stroke = { stroke(1.5, app.c.accentSecondary) } ],
 
     // ── the window ───────────────────────────────────────────────────────────
 
@@ -516,7 +516,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                 width = { this.t.width + 12 }, fill = #2DD4BF22,
                 stroke = { stroke(1, 0x2DD4BF66) },
                 t: Text [ x = 6, y = center, fontSize = 10, fontWeight = medium, wrap = false,
-                    textColor = { app.c.accent2 }, text = "has data" ]
+                    textColor = { app.c.accentSecondary }, text = "has data" ]
                 ],
             rule: View [ x = 0, y = 33, width = { parent.width }, height = 1, fill = { app.c.line } ]
             ],
@@ -563,7 +563,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                                 text = { "" + :kind } ],
                             dot: View [ visible = { :constrained == true }, width = 4, height = 4,
                                 cornerRadius = 2, x = { parent.width - 14 }, y = center,
-                                fill = { parent.on ? 0xFFFFFF : app.c.accent2 } ],
+                                fill = { parent.on ? 0xFFFFFF : app.c.accentSecondary } ],
                             mo: Text [ visible = { :motion == true }, x = { parent.width - 26 }, y = center,
                                 fontSize = 9, wrap = false, textColor = { app.c.amber }, text = "◈" ]
                             ]
@@ -579,7 +579,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                 head: Label [ x = 12, y = 8, fontSize = 10, fontWeight = semibold,
                     letterSpacing = 0.8, textColor = { app.c.faint }, text = "OBJECT" ],
                 sig: Text [ x = 12, y = 24, fontSize = 11.5, fontFamily = [Mono, "monospace"], wrap = false,
-                    textColor = { app.c.accent2 },
+                    textColor = { app.c.accentSecondary },
                     text = { app.selKind + " [" } ],
                 body: View [ x = 0, y = 42, width = { parent.width }, height = { parent.height - 60 },
                     scrolls = y,
@@ -605,7 +605,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                                 ],
                             nm: Text [ x = { 29 + :depth * 12 }, y = center, fontSize = 11.5, wrap = false,
                                 fontFamily = [Mono, "monospace"],
-                                textColor = { :origin == "data" ? app.c.accent2 : (:origin == "value" ? app.c.muted : app.c.text) },
+                                textColor = { :origin == "data" ? app.c.accentSecondary : (:origin == "value" ? app.c.muted : app.c.text) },
                                 text = { "" + :label } ],
                             eq: Text [ x = { 29 + :depth * 12 + parent.nm.width + 6 }, y = center,
                                 fontSize = 11.5, wrap = false, fontFamily = [Mono, "monospace"],
@@ -635,7 +635,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                                 ],
                             mark: Text [ x = { parent.width - this.width - 12 }, y = center,
                                 fontSize = 9.5, wrap = false, fontFamily = [Mono, "monospace"],
-                                textColor = { :origin == "constraint" ? app.c.accent2
+                                textColor = { :origin == "constraint" ? app.c.accentSecondary
                                     : :origin == "set" ? app.c.amber : app.c.faint },
                                 text = { :origin == "constraint" ? "⟵ constraint"
                                     : :origin == "set" ? "← set"
@@ -647,7 +647,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                 close: Text [ visible = { 46 + this.parent.body.list.height < this.parent.height },
                     x = 12, y = { 46 + this.parent.body.list.height },
                     fontSize = 11.5,
-                    fontFamily = [Mono, "monospace"], textColor = { app.c.accent2 }, text = "]" ],
+                    fontFamily = [Mono, "monospace"], textColor = { app.c.accentSecondary }, text = "]" ],
                 edge: View [ x = { parent.width - 1 }, y = 0, width = 1, height = { parent.height }, fill = { app.c.line } ]
                 ],
 
@@ -674,7 +674,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                             text = { app.selAttr + " = " + app.whyValue } ],
 
                         origin: Text [ width = { parent.width }, wrap = true, fontSize = 10.5,
-                            textColor = { app.whyLive ? app.c.amber : (app.whyStatic ? app.c.accent2 : app.c.muted) },
+                            textColor = { app.whyLive ? app.c.amber : (app.whyStatic ? app.c.accentSecondary : app.c.muted) },
                             text = { app.whyOrigin + (app.whyLabel != "" ? "  ·  " + app.whyLabel : "")
                                 + (app.whyHow != "" ? "  ·  " + app.whyHow : "") } ],
 

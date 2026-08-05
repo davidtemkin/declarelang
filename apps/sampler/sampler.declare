@@ -16,7 +16,7 @@ styling rig, off the page and into the menu. The Controls page reads as
 CARDS, two columns wide, one below the breakpoint the cards actually need.
 */
 
-use [ TintRow ]
+use [ TintRow, SunIcon, AutoIcon, MoonIcon ]   // the door and the menu name their icons in data
 
 font Roboto [
     Face [ src = "../../assets/fonts/roboto/roboto-400.woff2" ],
@@ -111,7 +111,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320,
         // "both" — and the two-tone rectangle FLIES. The theme file stays
         // faithful; the demo overrides one token.
         ...(style == "redmond" && animateFocus ? ({ focusRing: "both" }) : ({})),
-        ...(accentPick != 0 ? ({ accent: accentPick, controlActive: Themes.tint(accentPick, darkUI) }) : ({})),
+        ...(accentPick != 0 ? ({ accent: accentPick, controlSelected: Themes.tint(accentPick, darkUI) }) : ({})),
     }) },
 
     // the type stack is part of the emulation: Roboto for Mountain View, SF for Cupertino
@@ -178,9 +178,9 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320,
     appearanceMenu: Menu [
         width = 240,
         items = { [
-            ({ id: "mode:light", label: "Light", icon: "☀︎", checked: app.themeMode == "light" }),
-            ({ id: "mode:auto", label: "System", icon: "◐", checked: app.themeMode == "auto" }),
-            ({ id: "mode:dark", label: "Dark", icon: "☾", checked: app.themeMode == "dark" }),
+            ({ id: "mode:light", label: "Light", icon: "SunIcon", checked: app.themeMode == "light" }),
+            ({ id: "mode:auto", label: "System", icon: "AutoIcon", checked: app.themeMode == "auto" }),
+            ({ id: "mode:dark", label: "Dark", icon: "MoonIcon", checked: app.themeMode == "dark" }),
             ({ divider: true }),
             ({ id: "style:sanFrancisco", label: "San Francisco", checked: app.style == "sanFrancisco" }),
             ({ id: "style:mountainView", label: "Mountain View", checked: app.style == "mountainView" }),
@@ -266,12 +266,12 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320,
 
         pageSwitch: Segmented [ y = 11,
             x = { Math.max(app.compact ? 104 : 200, (app.width - this.width) / 2) },
-            pad = { app.compact ? 22 : 34 },
+            segMin = { app.compact ? 74 : 92 },
             value = { app.page },
             input(v: object) { app.page = "" + v },
-            Segment [ choice = { "controls" }, lbl = "Controls" ],
-            Segment [ choice = { "table" }, lbl = "Table" ],
-            Segment [ choice = { "grid" }, lbl = "DataGrid" ]
+            choices = { [ ({ id: "controls", label: "Controls" }),
+                          ({ id: "table",    label: "Table" }),
+                          ({ id: "grid",     label: "DataGrid" }) ] }
             ],
 
         // the appearance DOOR — reads as a menu popper: the mode glyph and a
@@ -283,22 +283,14 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320,
             cornerRadius = 8, tip = "Appearance",
             fill = { hot || down ? theme.control : null },
             stroke = { stroke(1, theme.line) },
-            g: Text [ x = 10, y = center, fontSize = 14,
-                text = { app.themeMode == "light" ? "☀︎" : app.themeMode == "dark" ? "☾" : "◐" } ],
-            arrow: View [ width = 9, height = 6,
-                x = { parent.width - 17 }, y = { (parent.height - this.height) / 2 + 1 },
-                draw(d: Draw) {
-                    d.strokeStyle = theme.textMuted
-                    d.lineWidth = 1.6
-                    d.lineCap = "round"
-                    d.lineJoin = "round"
-                    d.beginPath()
-                    d.moveTo(0.5, 1)
-                    d.lineTo(4.5, 5)
-                    d.lineTo(8.5, 1)
-                    d.stroke()
-                    }
-                ],
+
+            // the mode's own mark, and the disclosure — both from the set. The
+            // chevron here was a sixth private copy, in its own 9×6 box.
+
+            g: IconHost [ x = 9, y = center, iconSize = 15,
+                kind = { app.themeMode == "light" ? "SunIcon" : app.themeMode == "dark" ? "MoonIcon" : "AutoIcon" } ],
+            arrow: ChevronIcon [ iconSize = 12, ink = { theme.textMuted },
+                x = { parent.width - 18 }, y = { (parent.height - this.height) / 2 } ],
             press() { app.appearanceMenu.openFor(this) },
             onClick() { if (!disabled) press() }
             ]
@@ -398,9 +390,15 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320,
                     Card [ label = "Menu",
                         row: View [ x = 16, y = 44,
                             layout: SimpleLayout [ axis = x, spacing = 14 ],
-                            Button [ width = 130, label = "Options ▾",
-                                onClick() { app.optionsMenu.openFor(this) }
-                                ],
+
+                            // `menu` is the ROLE — the chevron, the anchored open,
+                            // the held-open styling and Down-to-open come with
+                            // it. The mark used to be a character inside the
+                            // label string, which is why five sites drew five
+                            // different ones.
+
+                            Button [ width = 130, label = "Options",
+                                menu = { app.optionsMenu } ],
                             last: Text [ y = center, fontSize = 12, textColor = { theme.textFaint },
                                 text = { "picked: " + app.lastPick } ]
                             ]

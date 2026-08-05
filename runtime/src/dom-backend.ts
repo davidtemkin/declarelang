@@ -1345,6 +1345,8 @@ class DomSurface implements Surface {
     el.style.zIndex = "1";
   }
 
+  isTraveling(): boolean { return this.travelHomeEl !== null; }
+
   setEditable(spec: EditableSpec | null): void {
     if (spec === null) {
       this.editEl?.remove();

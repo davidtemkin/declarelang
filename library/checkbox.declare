@@ -49,21 +49,17 @@ class Checkbox extends Control [
         // the mark is DRAWN (reactive draw(), not a glyph): pixel-identical on
         // both backends, independent of any font
 
-        mark: View [ visible = { checked },
-            x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 },
-            width = { parent.width * 0.7 }, height = { this.width },
-            scale = { this.width / 14 },                 // the path below is authored at 14
+        // The tick, from the shared set. This was drawn here at stroke 2.5
+        // with mitered joins while the menu drew the same tick at 1.8 with
+        // round ones — one shape, two hands. Sized from the BOX, which is a
+        // theme fact (14 in Cupertino, 20 in Redmond), so `iconSize` is
+        // overridden here rather than inherited: the prevailing value is a
+        // default, not a rule.
 
-            draw(d: Draw) {
-                d.strokeStyle = theme.accentText
-                d.lineWidth = 2.5
-                d.beginPath()
-                d.moveTo(2, 7.5)
-                d.lineTo(5.5, 11)
-                d.lineTo(12, 3.5)
-                d.stroke()
-                }
-            ]
+        mark: CheckIcon [ visible = { checked },
+            iconSize = { parent.width * 0.72 },
+            x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 },
+            ink = { theme.accentText } ]
         ],
 
     // the label rides the BOX, not a constant: its gap is box-relative (the

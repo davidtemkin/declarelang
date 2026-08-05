@@ -243,15 +243,36 @@ await test("criterion 12: the differ — the same script, windowed vs full, iden
     out.push(app.issuesOf(app.rev).length);
     return out;
   };
-  // windowed (auto at 10k) vs virtualization OFF (virtualize = false)
-  const a = boot(10000);
+  // Windowed vs virtualization OFF: the same script drives both and their
+  // observable state must AGREE. The claim is parity, not scale.
+  //
+  // `N` is the DATA size, and it lands very differently on the two arms. The
+  // windowed arm holds ~38 live rows and 3,002 nodes whether N is 300, 2,000 or
+  // 10,000 — flat, which is the property being relied on. The OFF arm
+  // materializes every record, so it is linear: 20k nodes at 300, 133k at 2,000,
+  // ~670k and roughly 4.0 GB at 10,000.
+  //
+  // It ran at 10,000, which put the OFF arm within 35 MB of V8's 4,048 MB default
+  // ceiling — under 1% of headroom. A gate that close is not measuring its
+  // subject, it is measuring the machine, and it duly failed with an unnamed
+  // out-of-memory when the row grew 10% (60.3 → 66.3 nodes, a text glyph becoming
+  // a drawn icon: an IconHost plus its Icon where a glyph was one Text). Worse,
+  // the abort took the whole `npm test` chain down with it, hiding four suites.
+  //
+  // 500 proves the identical claim. The viewport is ~38 rows, so 500 is thirteen
+  // windows deep — the script scrolls, filters, sorts, and deletes across window
+  // boundaries either way — and the OFF arm costs 259 MB instead of 4 GB. Scale
+  // belongs to criteria 1–11, which still boot at 10,000 against the windowed
+  // path, the one that ships.
+  const N = 500;
+  const a = boot(N);
   const wa = script(a);
   const SRC_ALL = SRC.replace("virtualize = true ]", "virtualize = false ]");
   const b = compileProgram(SRC_ALL, { originDir: process.cwd() + "/library", stripPos: false });
   assert.equal(b.errors.length, 0);
   const appB = instantiate(b.program);
   appB.width = 1200; appB.height = 800;
-  appB.adopt(generate(10000));
+  appB.adopt(generate(N));
   appB.booted = true;
   settle();
   const wb = script(appB);

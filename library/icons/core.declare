@@ -1,0 +1,190 @@
+/*
+# Core icons
+
+The marks the chrome uses everywhere: a chevron, a check, a close, plus/minus,
+and the menu's help bulb. Each is authored in a 16×16 box and scaled to the
+host's `iconSize` inside its recording (see `icon.declare`).
+
+Geometry is a property of the SET, not of the site: one stroke weight, round caps
+and joins throughout, one path per shape. Before this, the corpus drew a
+checkmark two ways (stroke 2.5 mitered in `Checkbox`, 1.8 round in `Menu`) and a
+chevron at least six, three of them inside the library. Ink stays local — a menu
+row inverts its check on the hot row, a checkbox always uses `accentText`.
+*/
+
+include [ "icon.declare" ]
+
+// A chevron. `angle` is the primitive so it can be SPRUNG — a disclosure twisty
+// rotating with its pane rather than snapping between two states — and `dir` is
+// the name for the four resting orientations. Rotation lives in the recording
+// because there is no `rotation` View attribute; `d.rotate` is a draw op.
+
+class ChevronIcon extends Icon [
+    dir: string = "down",                       // down | up | left | right
+    angle: number = { classroot.dir == "up" ? Math.PI
+                    : classroot.dir == "left" ? Math.PI / 2
+                    : classroot.dir == "right" ? -Math.PI / 2 : 0 },
+
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.save()
+        d.translate(8, 8)
+        d.rotate(angle)
+        d.beginPath()
+        d.moveTo(-3.5, -1.75)
+        d.lineTo(0, 1.75)
+        d.lineTo(3.5, -1.75)
+        d.stroke()
+        d.restore()
+        }
+    ]
+
+
+// An ARROW, not a chevron — the two mean different things and must not look
+// alike. A chevron DISCLOSES (a menu drops, a pane opens); an arrow points at a
+// direction that is itself the state (sort ascending, a trend, a transfer).
+// Tracker had them adjacent — a sort-direction control beside a sort-menu
+// popper — and one shape for both read as a mistake.
+
+class ArrowIcon extends Icon [
+    dir: string = "up",                         // up | down | left | right
+    angle: number = { classroot.dir == "down" ? Math.PI
+                    : classroot.dir == "left" ? Math.PI / 2
+                    : classroot.dir == "right" ? -Math.PI / 2 : 0 },
+
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.save()
+        d.translate(8, 8)
+        d.rotate(angle)
+        d.beginPath()
+        d.moveTo(0, 5.2); d.lineTo(0, -5.2)     // the shaft is what a chevron lacks
+        d.moveTo(-3.6, -1.6); d.lineTo(0, -5.2); d.lineTo(3.6, -1.6)
+        d.stroke()
+        d.restore()
+        }
+    ]
+
+
+class CheckIcon extends Icon [
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        d.moveTo(3, 8.5)
+        d.lineTo(6.5, 12)
+        d.lineTo(13, 4.5)
+        d.stroke()
+        }
+    ]
+
+
+class CloseIcon extends Icon [
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.beginPath()
+        d.moveTo(4.5, 4.5); d.lineTo(11.5, 11.5)
+        d.moveTo(11.5, 4.5); d.lineTo(4.5, 11.5)
+        d.stroke()
+        }
+    ]
+
+
+class PlusIcon extends Icon [
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.beginPath()
+        d.moveTo(8, 3.5); d.lineTo(8, 12.5)
+        d.moveTo(3.5, 8); d.lineTo(12.5, 8)
+        d.stroke()
+        }
+    ]
+
+
+class MinusIcon extends Icon [
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.beginPath()
+        d.moveTo(3.5, 8); d.lineTo(12.5, 8)
+        d.stroke()
+        }
+    ]
+
+
+// The macOS Help affordance — Apple's own `lightbulb`, ported EXACTLY. Not
+// redrawn from a screenshot and not approximated: the outline was lifted from
+// the live symbol (`NSSymbolImageRep.outlinePath` at 1024pt, 29 elements,
+// bounds 1338 × 2327), normalised so the mark is 16 units tall — 9.20 wide,
+// centred at x + 3.40. No y-flip: `outlinePath` already counts DOWN, like this
+// canvas — flipping it stood the bulb on its head, which the overlay caught and
+// a glance would not have. `test/probe/ref/render.swift` regenerates the
+// reference it was measured against.
+//
+// It is FILLED, and that is not a lapse in a stroked set: an SF Symbol IS a
+// filled contour, with the stroke baked into the outline at a chosen weight.
+// Matching Apple exactly therefore means adopting a shape, not a stroke — so
+// this one mark does not answer to `weight`, and cannot, because there is no
+// stroke to widen. The set's own bulb is the alternative; this is the port.
+//
+// What the port changes, measured against the drawing it replaces: the filament
+// is gone (Apple has none), the glass is a continuous teardrop rather than an
+// arc with a gap, and the base is three tapering bars at 11.48 / 13.19 / 14.68
+// rather than three equal rules.
+
+class LightbulbIcon extends Icon [
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.fillStyle = ink
+        d.beginPath()
+        d.moveTo(3.4, 4.235)
+        d.bezierCurveTo(3.4, 6.876, 4.982, 7.529, 5.422, 12.115)
+        d.bezierCurveTo(5.449, 12.363, 5.587, 12.521, 5.848, 12.521)
+        d.lineTo(10.152, 12.521)
+        d.bezierCurveTo(10.42, 12.521, 10.558, 12.363, 10.585, 12.115)
+        d.bezierCurveTo(11.025, 7.529, 12.6, 6.876, 12.6, 4.235)
+        d.bezierCurveTo(12.6, 1.863, 10.572, 0.0, 8.0, 0.0)
+        d.bezierCurveTo(5.428, 0.0, 3.4, 1.863, 3.4, 4.235)
+        d.closePath()
+        d.moveTo(4.438, 4.235)
+        d.bezierCurveTo(4.438, 2.379, 6.068, 1.038, 8.0, 1.038)
+        d.bezierCurveTo(9.932, 1.038, 11.562, 2.379, 11.562, 4.235)
+        d.bezierCurveTo(11.562, 6.209, 10.255, 6.676, 9.636, 11.483)
+        d.lineTo(6.37, 11.483)
+        d.bezierCurveTo(5.745, 6.676, 4.438, 6.209, 4.438, 4.235)
+        d.closePath()
+        d.moveTo(5.827, 14.006)
+        d.lineTo(10.18, 14.006)
+        d.bezierCurveTo(10.407, 14.006, 10.578, 13.827, 10.578, 13.6)
+        d.bezierCurveTo(10.578, 13.38, 10.407, 13.202, 10.18, 13.202)
+        d.lineTo(5.827, 13.202)
+        d.bezierCurveTo(5.6, 13.202, 5.422, 13.38, 5.422, 13.6)
+        d.bezierCurveTo(5.422, 13.827, 5.6, 14.006, 5.827, 14.006)
+        d.closePath()
+        d.moveTo(8.0, 16.0)
+        d.bezierCurveTo(9.066, 16.0, 9.953, 15.477, 10.021, 14.687)
+        d.lineTo(5.985, 14.687)
+        d.bezierCurveTo(6.034, 15.477, 6.927, 16.0, 8.0, 16.0)
+        d.closePath()
+        d.fill()
+        }
+    ]

@@ -164,10 +164,14 @@ await test("Menu: a long list caps at the viewport and its body scrolls (the rov
 });
 
 await test("Menu: the ruled COLUMN model — check space always, icon column iff icons, ONE text edge", () => {
-  // icons present: check col 7.., icon col 25.., every label at 46
-  const app = boot(`App [ width = 400, height = 400,
+  // icons present: check col 7.., icon col 25.., every label at 50
+  // `icon` names an ICON CLASS now, not a text glyph — the three mechanisms the
+  // row used to carry (glyph, the "lightbulb" special case, iconKind) collapsed
+  // into one when the drawn set landed. A computed name needs `use [ … ]`.
+  const app = boot(`use [ CheckIcon ]
+  App [ width = 400, height = 400,
     m: Menu [ items = { [
-      ({ id: "a", label: "Light", icon: "A", checked: true }),
+      ({ id: "a", label: "Light", icon: "CheckIcon", checked: true }),
       ({ id: "b", label: "Plain" }),
     ] } ],
     btn: View [ x = 40, y = 10, width = 100, height = 24 ],
@@ -176,9 +180,9 @@ await test("Menu: the ruled COLUMN model — check space always, icon column iff
   settle();
   assert.equal(app.m.hasIcons, true);
   const rows = app.m.panel.body.children.filter((r) => r.lbl !== undefined);
-  for (const r of rows) assert.equal(r.lbl.x, 46, "one text edge for iconed and plain rows alike");
+  for (const r of rows) assert.equal(r.lbl.x, 50, "one text edge for iconed and plain rows alike");
   assert.equal(rows[0].check.x, 7, "the check column leads");
-  assert.equal(rows[0].ico.x, 25, "icons get their own column");
+  assert.equal(rows[0].icoHost.x, 25, "icons get their own column");
   app.m.close();
   // no icons anywhere: the icon column does not exist — text at 24, but the
   // CHECK column is still reserved (no row text ever starts at the inset)
@@ -408,9 +412,7 @@ await test("Segmented: every segment is a STOP — tab to an inactive choice, Sp
     s: Segmented [ x = 20, y = 20,
       value = { app.page },
       input(v: object) { app.page = "" + v },
-      Segment [ choice = { "a" }, lbl = "Alpha" ],
-      Segment [ choice = { "b" }, lbl = "Beta" ],
-      Segment [ choice = { "c" }, lbl = "Gamma" ],
+      choices = { [ ({ id: "a", label: "Alpha" }), ({ id: "b", label: "Beta" }), ({ id: "c", label: "Gamma" }) ] },
     ],
   ]`);
   const s = app.s;

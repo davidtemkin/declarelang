@@ -19,12 +19,16 @@
 
 font Mono [ family = "ui-monospace" ]
 
+// the appearance switch names its icons in data — see calendar for the rule
+
+use [ SunIcon, AutoIcon, MoonIcon ]
+
 // one segment: prose (Markdown) OR code (colored, monospace <pre>). Exactly one
 // child is visible, so the segment's auto-height is that child's height. Prose is
 // inset (a narrower reading column); code spans the full width, so the two read as
 // distinct — commentary vs. program — and code gets the room.
 
-class Segment extends View [ kind: string = "",
+class Block extends View [ kind: string = "",
     md: string = "",
     html: string = "",
 
@@ -46,7 +50,7 @@ class Segment extends View [ kind: string = "",
         fill = { app.theme.codeBg }, cornerRadius = 8, clip = true,
         height = { this.body.height + 32 },
 
-        spine: View [ x = 0, y = 0, width = 2, height = { parent.height }, fill = { app.theme.accentTeal } ],
+        spine: View [ x = 0, y = 0, width = 2, height = { parent.height }, fill = { app.theme.accentSecondary } ],
         body: View [ x = 20, y = 16, width = { parent.width - 40 }, scrolls = x, height = { this.contentHeight },
             HTMLText [ x = 0, y = 0, width = { parent.width },
                 html = { classroot.html }, scale = { app.fontScale },
@@ -62,47 +66,13 @@ class SizeBtn extends View [ width = 34, height = 30, cornerRadius = 6,
 
     glyph: number = 14,
     delta: number = 0,
-    fill = { hovered ? app.theme.hover : null },
+    fill = { hovered ? app.theme.controlHover : null },
     onClick() { app.fontScale = classroot.delta == 0 ? 0.9
         : Math.max(0.7, Math.min(1.6, Math.round((app.fontScale + classroot.delta) * 100) / 100)) },
 
-    lbl: Text [ fontWeight = semibold, fontSize = { classroot.glyph }, textColor = { app.theme.muted },
+    lbl: Text [ fontWeight = semibold, fontSize = { classroot.glyph }, textColor = { app.theme.textMuted },
         text = "A", wrap = false,
         x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 } ]
-    ]
-
-
-// one segment of the Reader / Source / Edit switch (styled like the theme one);
-// the active segment wears the pill.
-
-class ModeSeg extends View [ m: string = "",
-    lbl: string = "",
-    width = 80, height = { parent.height },
-
-    bg: View [ x = 2, y = 2, width = { parent.width - 4 }, height = { parent.height - 4 }, cornerRadius = 6,
-        fill = { app.mode == classroot.m ? app.theme.pill : null } ],
-    t: Text [ width = { parent.width }, textAlign = center, wrap = false, fontSize = 13, fontWeight = medium,
-        y = { (parent.height - this.height) / 2 },
-        textColor = { app.mode == classroot.m ? app.theme.text : classroot.hovered ? app.theme.text : app.theme.muted },
-        text = { classroot.lbl } ],
-    onClick() { app.location = classroot.m }
-    ]
-
-
-// one segment of the Light / System / Dark switch (calendar's ThemeSeg); the
-// glyph is centred vertically in its box.
-
-class ThemeSeg extends View [ m: string = "",
-    glyph: string = "",
-    width = 30, height = { parent.height },
-
-    bg: View [ x = 2, y = 2, width = { parent.width - 4 }, height = { parent.height - 4 }, cornerRadius = 6,
-        fill = { app.themeMode == classroot.m ? app.theme.pill : null } ],
-    g: Text [ width = { parent.width }, textAlign = center, wrap = false, fontSize = 14,
-        y = { (parent.height - this.height) / 2 },
-        textColor = { app.themeMode == classroot.m ? app.theme.text : classroot.hovered ? app.theme.text : app.theme.muted },
-        text = { classroot.glyph } ],
-    onClick() { app.themeMode = classroot.m }
     ]
 
 
@@ -155,7 +125,15 @@ App [ fill = { app.theme.bg },
     isDark: boolean = { app.themeMode == "auto"
         ? (app.env.dark != null ? app.env.dark == true : app.dark)
         : app.themeMode == "dark" },
-    theme = { app.isDark ? app.darkTheme() : app.lightTheme() },
+
+    // The HOUSE preset, plus this app's two domain names — and no private values
+    // for the standard tokens. It used to carry a full second palette (GitHub's,
+    // ported) over the top, which is why the same markdown read one color here
+    // and another in the desktop's reader window: two houses, one document.
+    // A reader's page is a SHEET, so it paints `surface` — the token the
+    // desktop's window paints — and the chrome around it recedes to `bg`.
+
+    theme = { ({ ...Themes.sanFrancisco(app.isDark), ...app.domainTheme() }) },
 
     // The highlight() segments, seeded by the server as a JSON string on the
     // host→app channel; parse + normalise so every record has kind/md/html.
@@ -282,15 +260,17 @@ App [ fill = { app.theme.bg },
             : ({ k: 0xCF222E, t: 0x8250DF, a: 0xB5452B, s: 0x1A7F37, n: 0x9A6700, h: 0x0E7490, p: 0x0550AE, o: 0xCF222E, b: 0x6B7280, c: 0x8A919C })
         },
 
-    darkTheme() {
-        return ({ bg: 0x0D1117, surface: 0x161B22, codeBg: 0x1A2029, codeLine: 0x21262D, line: 0x30363D,
-            text: 0xC9D1D9, muted: 0x8B949E, hover: 0x21262D, track: 0x010409, pill: 0x274B74,
-            accent: 0x4C8DFF, accentTeal: 0x37E0C8 })
-        },
-    lightTheme() {
-        return ({ bg: 0xFFFFFF, surface: 0xF6F8FA, codeBg: 0xF4F6F9, codeLine: 0xD8DEE4, line: 0xD0D7DE,
-            text: 0x1F2328, muted: 0x656D76, hover: 0xEAEEF2, track: 0xEEF1F4, pill: 0xDDEEFF,
-            accent: 0x2E6FE0, accentTeal: 0x12A594 })
+    // What this app adds to the house palette, and nothing more.
+    //
+    // `codeBg` is the house BACKDROP showing through the page — a code well is
+    // recessed, which is the same relationship in both modes and needs no value
+    // of its own. `accentSecondary` is the far end of the brand gradient (the
+    // wordmark, a card's spine, the live grip); the house has one accent, and a
+    // second hue is this app's, not the platform's.
+
+    domainTheme() {
+        return ({ codeBg: Themes.sanFrancisco(app.isDark).bg,
+            accentSecondary: app.isDark ? 0x37E0C8 : 0x12A594 })
         },
 
     // scrolling reader; the column fills the window between fixed 48px gutters, so
@@ -299,7 +279,7 @@ App [ fill = { app.theme.bg },
 
     content: View [ x = 0, y = { app.barH }, width = { app.hostWidth }, height = { app.hostHeight - app.barH },
         visible = { app.mode != "edit" },
-        scrolls = y, selectable = true, fill = { app.theme.bg },
+        scrolls = y, selectable = true, fill = { app.theme.surface },
 
         // the filename as a page title — the directory muted, the file bold — with
         // a rule under it; the body starts below (headH)
@@ -307,21 +287,21 @@ App [ fill = { app.theme.bg },
         head: View [ y = { app.topM }, width = { app.hostWidth - 96 },
             x = { Math.max(24, (parent.width - this.width) / 2) },
             title: View [ layout: SimpleLayout [ axis = x, spacing = 0 ],
-                d: Text [ fontSize = { 21 * app.fontScale }, wrap = false, textColor = { app.theme.muted }, text = { app.dirName() } ],
+                d: Text [ fontSize = { 21 * app.fontScale }, wrap = false, textColor = { app.theme.textMuted }, text = { app.dirName() } ],
                 n: Text [ fontSize = { 21 * app.fontScale }, fontWeight = bold, wrap = false, textColor = { app.theme.text }, text = { app.baseName() } ],
 
                 // the size of the thing, quietly: the compiler's own count
 
                 gapm: View [ width = 10, height = 1 ],
                 m: Text [ y = { 8 * app.fontScale }, fontSize = { 13 * app.fontScale }, wrap = false,
-                    textColor = { app.theme.muted }, text = { app.metaLabel() } ]
+                    textColor = { app.theme.textMuted }, text = { app.metaLabel() } ]
                 ],
 
             // a blue→teal thread of the brand accent, the origin of the code spine
 
             rule: View [ y = { 34 * app.fontScale }, width = { parent.width }, height = 2, cornerRadius = 1,
                 opacity = { app.isDark ? 0.72 : 1 },
-                fill = { gradient("90deg", app.theme.accent, app.theme.accentTeal) } ]
+                fill = { gradient("90deg", app.theme.accent, app.theme.accentSecondary) } ]
             ],
 
         // highlighted view: prose + colored code segments
@@ -330,7 +310,7 @@ App [ fill = { app.theme.bg },
             x = { Math.max(24, (parent.width - this.width) / 2) },
             datapath = { app.doc.value },
             layout: SimpleLayout [ axis = y, spacing = 12 ],
-            Segment [ datapath = :segments[], kind = :kind, md = :md, html = :html ]
+            Block [ datapath = :segments[], kind = :kind, md = :md, html = :html ]
             ],
 
         // plain view: the verbatim source as one monospace flow (same size/theme)
@@ -339,7 +319,7 @@ App [ fill = { app.theme.bg },
             x = { Math.max(24, (parent.width - this.width) / 2) },
             fill = { app.theme.codeBg }, cornerRadius = 8, clip = true,
             height = { this.body.height + 32 },
-            spine: View [ x = 0, y = 0, width = 2, height = { parent.height }, fill = { app.theme.accentTeal } ],
+            spine: View [ x = 0, y = 0, width = 2, height = { parent.height }, fill = { app.theme.accentSecondary } ],
 
             // verbatim source at the house code rendition — the same face and size
             // as the reader's highlighted code, so the two views read identically.
@@ -367,7 +347,7 @@ App [ fill = { app.theme.bg },
 
     live: View [ visible = { app.mode == "edit" }, x = 0, y = { app.barH },
         width = { app.hostWidth }, height = { app.hostHeight - app.barH },
-        fill = { app.theme.bg },
+        fill = { app.theme.surface },
 
         // the divider y: 0 = not dragged yet (a 42% default); the grip writes it
 
@@ -391,7 +371,7 @@ App [ fill = { app.theme.bg },
             width = { this.lbl.width + 18 },
             opacity = { parent.edited ? 1 : 0.35 },
             stroke = { stroke(1, app.theme.line) },
-            fill = { hovered && parent.edited ? app.theme.hover : app.theme.surface },
+            fill = { hovered && parent.edited ? app.theme.controlHover : app.theme.control },
             onClick() {
                 if (!parent.edited) return
                 const raw = app.demoSources["__raw__"] || app.rawSrc.value || ""
@@ -400,7 +380,7 @@ App [ fill = { app.theme.bg },
                 app.liveCard = "__raw__"; app.liveSource = raw
                 },
             lbl: Text [ x = 9, y = 5, fontSize = 11, fontWeight = semibold, wrap = false,
-                textColor = { app.theme.muted }, text = "Revert" ]
+                textColor = { app.theme.textMuted }, text = "Revert" ]
             ],
 
         // the divider: the press captures the pointer to this view (the router's
@@ -412,7 +392,7 @@ App [ fill = { app.theme.bg },
 
         grip: View [ x = 0, y = { parent.editorH }, width = { parent.width }, height = 6,
             dragging: boolean = false,
-            fill = { dragging || hovered ? app.theme.accentTeal : app.theme.line },
+            fill = { dragging || hovered ? app.theme.accentSecondary : app.theme.line },
             drag(y: number) { parent.split = Math.max(120, Math.min(parent.height - 160, y)) },
             onPointerDown()  { dragging = true },
             onPointerMove()  { if (dragging) drag(app.pointerY - app.barH) },
@@ -454,7 +434,7 @@ App [ fill = { app.theme.bg },
     // stepper + theme (right). The brand is the house rendition — gradient
     // "Declare", solid app name — sized and placed as in Calendar and Docs.
 
-    bar: View [ x = 0, y = 0, width = { app.hostWidth }, height = { app.barH }, fill = { app.theme.surface },
+    bar: View [ x = 0, y = 0, width = { app.hostWidth }, height = { app.barH }, fill = { app.theme.bg },
 
         hair: View [ x = 0, y = { app.barH - 1 }, width = { parent.width }, height = 1, fill = { app.theme.line } ],
 
@@ -465,19 +445,31 @@ App [ fill = { app.theme.bg },
             // root, so this works on either host at any mount point
 
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
-                textFill = { gradient("90deg", app.theme.accent, app.theme.accentTeal) }, text = "Declare",
+                textFill = { gradient("90deg", app.theme.accent, app.theme.accentSecondary) }, text = "Declare",
                 onClick() { app.navigate("apps/homepage/homepage.declare") }
                 ],
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
                 textColor = { app.theme.text }, text = "Viewer" ]
             ],
 
-        modeSwitch: View [ y = { (app.barH - 30) / 2 }, height = 30, width = 244,
+        // Reader / Source / Edit. The tab writes `app.location`, and `app.mode`
+        // derives back from it — so the switch stays a single source of truth
+        // that back/forward walk for free, which is what the location comment
+        // above already wanted. `Segmented` keeps that seam intact: `value` reads
+        // the derived mode, `input` writes the location.
+
+        modeSwitch: Segmented [ y = { (app.barH - 30) / 2 }, height = 30, width = 244,
             x = { Math.max(200, (app.hostWidth - 244) / 2) },
-            cornerRadius = 8, fill = { app.theme.track },
-            r: ModeSeg [ x = 2,   m = "reader", lbl = "Reader" ],
-            s: ModeSeg [ x = 82,  m = "source", lbl = "Source" ],
-            e: ModeSeg [ x = 162, m = "edit",   lbl = "Edit" ]
+            value = { app.mode },
+            input(v: object) { app.location = "" + v },
+
+            // each tab states its location, which is what makes the switch a LINK
+            // the crawler can follow — without it this app emits one document
+            // (the default) and Source and Edit are unreachable to extraction
+
+            choices = { [ ({ id: "reader", label: "Reader", location: "reader" }),
+                          ({ id: "source", label: "Source", location: "source" }),
+                          ({ id: "edit",   label: "Edit",   location: "edit"   }) ] }
             ],
 
         size: View [ y = { (app.barH - 30) / 2 }, x = { parent.themeSwitch.x - this.width - 8 }, height = 30,
@@ -491,11 +483,13 @@ App [ fill = { app.theme.bg },
             SizeBtn [ glyph = 19, delta = 0.1 ]
             ],
 
-        themeSwitch: View [ y = { (app.barH - 30) / 2 }, x = { app.hostWidth - 94 - 16 }, height = 30, width = 94,
-            cornerRadius = 8, fill = { app.theme.track },
-            s1: ThemeSeg [ x = 2, m = "light", glyph = "☀︎" ],
-            s2: ThemeSeg [ x = 32, m = "auto", glyph = "◐" ],
-            s3: ThemeSeg [ x = 62, m = "dark", glyph = "☾" ]
+        themeSwitch: Segmented [ y = { (app.barH - 30) / 2 }, x = { app.hostWidth - 94 - 16 },
+            height = 30, width = 94, iconSize = 15,
+            value = { app.themeMode },
+            input(v: object) { app.themeMode = "" + v },
+            choices = { [ ({ id: "light", icon: "SunIcon" }),
+                          ({ id: "auto",  icon: "AutoIcon" }),
+                          ({ id: "dark",  icon: "MoonIcon" }) ] }
             ]
         ]
     ]

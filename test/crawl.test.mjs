@@ -33,28 +33,24 @@ await test("crawl: homepage emits the #why and #language documents, linked from 
   assert.ok(lang.html.includes("language, in one file"), "the language document carries the rendered core doc");
 });
 
-await test("crawl: docs emits a document per chapter AND per reference class (data-driven, over its material)", async () => {
-  // The docs app's material is the spine model PLUS a per-chapter content file
-  // (chapters/<id>.json) fetched eagerly per instance — the disk resolver serves
-  // them all, exactly as the deployed same-origin fetches do.
-  const r = compileAt("apps/docs/docs.declare");
-  const docs = await crawlLocations(r.source, { deps: r.deps, links: r.links,
-    data: diskDataResolver(path.join(ROOT, "apps/docs")) });
-  const guide = docs.filter((d) => d.key.startsWith("guide/")).map((d) => d.key);
-  const ref = docs.filter((d) => d.key.startsWith("reference/")).map((d) => d.key);
-  // guide/01-thinking-in-declare is the DEFAULT (canonicalized to ""), so it is the "" doc — every
-  // OTHER chapter has its own key. The whole guide + reference is reached from the rails.
-  assert.ok(guide.includes("guide/04-tree"), "a mid chapter is reached from the rail");
-  assert.ok(guide.includes("guide/18-renderers"), "the last chapter is reached too");
-  assert.ok(guide.length >= 17, `most chapters emitted (got ${guide.length})`);   // 18 chapters − the default ("" doc)
-  assert.ok(ref.includes("reference/View") && ref.includes("reference/Text"), "reference classes are reached");
-  const tree = docs.find((d) => d.key === "guide/04-tree");
-  assert.ok(tree.html.includes("keeps Declare code flat"),
-    "the chapter PROSE is in its section — the per-chapter content file arrived through the crawl's resolver");
-  assert.ok(ref.length >= 15, `most reference classes emitted (got ${ref.length})`);
-  const shape = docs.find((d) => d.key === "");
-  assert.ok(shape.html.includes('href="#guide/04-tree"'), "the default page links the other chapters (the rail is the sitemap)");
-});
+// REMOVED 2026-08-05 — the docs-app crawl, for cost. It extracted
+// apps/docs/docs.declare, which walks every reachable location (one per guide
+// chapter and per reference class) and took 124.7s against 0.9s for the
+// homepage. Two cases here did it, so this suite alone was 380s — 85% of a full
+// gate run, for one page.
+//
+// WHAT WAS LOST, so it can be restored deliberately rather than forgotten: the
+// data-driven half of the crawl. It asserted a document per guide chapter and
+// per reference class, that a mid-rail and last-rail chapter are both reached,
+// that per-chapter content files arrive through the crawl's own disk resolver,
+// and that the default page links the others (the rail as sitemap). The homepage
+// cases below still cover the mechanism — multi-location emission, one-document
+// assembly, fragment links, dedup, and the loud-failure rule for a network
+// DataSource — but nothing now covers crawling a page whose locations come from
+// DATA rather than from markup.
+//
+// Restoring it wants a fixture app with a handful of data-driven locations
+// rather than the real docs app; the assertions transfer directly.
 
 await test("crawl: canonical key strips the anchor and canonicalizes the declared default (dedup rules 1–2)", () => {
   assert.equal(canonKey("guide/04-tree@components-are-classes", "guide/01-thinking-in-declare"), "guide/04-tree", "anchor stripped");
@@ -112,8 +108,8 @@ await test("crawl: a network DataSource fails LOUDLY — never a silently partia
 });
 
 await test("crawl: deterministic — byte-identical across runs (the browser↔Node oracle discipline)", async () => {
-  const r = compileAt("apps/docs/docs.declare");
-  const opts = { deps: r.deps, links: r.links, data: diskDataResolver(path.join(ROOT, "apps/docs")) };
+  const r = compileAt("apps/homepage/homepage.declare");
+  const opts = { deps: r.deps, links: r.links, data: diskDataResolver(path.join(ROOT, "apps/homepage")) };
   const a = await crawlLocations(r.source, opts);
   const b = await crawlLocations(r.source, opts);
   const key = (docs) => JSON.stringify(docs.map((d) => [d.key, d.html]));

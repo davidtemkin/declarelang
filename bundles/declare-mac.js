@@ -1575,7 +1575,9 @@ var DeclareMac = (() => {
         accent: 31487,
         accentText: 16777215,
         control: 16777215,
-        controlActive: 15266046,
+        controlHover: 15987699,
+        controlPressed: 15066597,
+        controlSelected: 15266046,
         depth: 1,
         focusRing: true,
         controlRadius: 6,
@@ -1622,7 +1624,9 @@ var DeclareMac = (() => {
         accent: 689407,
         accentText: 16777215,
         control: 3815996,
-        controlActive: 1850719,
+        controlHover: 4408133,
+        controlPressed: 5197649,
+        controlSelected: 1850719,
         depth: 1,
         focusRing: true,
         controlRadius: 6,
@@ -1669,7 +1673,9 @@ var DeclareMac = (() => {
         accent: 6770852,
         accentText: 16777215,
         control: 15196396,
-        controlActive: 15261432,
+        controlHover: 14472673,
+        controlPressed: 13551571,
+        controlSelected: 15261432,
         depth: 1,
         focusRing: true,
         controlRadius: 4,
@@ -1709,7 +1715,9 @@ var DeclareMac = (() => {
         accent: 13679871,
         accentText: 3677810,
         control: 4801871,
-        controlActive: 4867160,
+        controlHover: 5394008,
+        controlPressed: 6183525,
+        controlSelected: 4867160,
         depth: 1,
         focusRing: true,
         controlRadius: 4,
@@ -1749,7 +1757,9 @@ var DeclareMac = (() => {
         accent: 26560,
         accentText: 16777215,
         control: 16514043,
-        controlActive: 13098737,
+        controlHover: 15724527,
+        controlPressed: 14803425,
+        controlSelected: 13098737,
         depth: 0.5,
         focusRing: "rest",
         controlRadius: 4,
@@ -1797,7 +1807,9 @@ var DeclareMac = (() => {
         accent: 5030655,
         accentText: 0,
         control: 3421236,
-        controlActive: 2835795,
+        controlHover: 4013373,
+        controlPressed: 4737096,
+        controlSelected: 2835795,
         depth: 0.5,
         focusRing: "rest",
         controlRadius: 4,
@@ -1845,7 +1857,9 @@ var DeclareMac = (() => {
         accent: 3043296,
         accentText: 16777215,
         control: 15199217,
-        controlActive: 13886204,
+        controlHover: 14475494,
+        controlPressed: 13554391,
+        controlSelected: 13886204,
         depth: 1,
         focusRing: true,
         controlRadius: 7,
@@ -1868,7 +1882,9 @@ var DeclareMac = (() => {
         accent: 5017087,
         accentText: 16777215,
         control: 2240576,
-        controlActive: 2046804,
+        controlHover: 2832713,
+        controlPressed: 3556437,
+        controlSelected: 2046804,
         depth: 1,
         focusRing: true,
         controlRadius: 7,
@@ -2400,6 +2416,10 @@ var DeclareMac = (() => {
           // Tracking (canvas-native: ctx.letterSpacing / CSS letter-spacing), in px;
           // 0 = the browser's natural advances (the Flash auto-tracking stays shed).
           letterSpacing: { kind: "number" },
+          // The size an Icon takes from its context — prevailing, so a HOST states
+          // it once (a menu row 16, a button 18) and every icon beneath answers.
+          // A use site may still override it; this is a default, not a rule.
+          iconSize: { kind: "number" },
           // Rich-text STRUCTURE overrides (the prose-specific styling slots — the twin
           // of the text-style slots above, for the parts a `Text` doesn't have). A
           // `Markdown`/`HTMLText` renders its headings/links/inline-code from these;
@@ -2509,7 +2529,7 @@ var DeclareMac = (() => {
           virtualize: { kind: "boolean" },
           contentHeight: { kind: "length" }
         },
-        prevailing: ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing", "headingColor", "headingWeight", "linkColor", "codeColor", "codeSize", "codeFamily", "codeBackground", "codeRule", "richTextLayout", "theme", "stylesheet", "selectable"],
+        prevailing: ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing", "headingColor", "headingWeight", "linkColor", "codeColor", "codeSize", "codeFamily", "codeBackground", "codeRule", "richTextLayout", "theme", "stylesheet", "selectable", "iconSize"],
         readOnly: ["contentWidth", "contentHeight", "childViews", "virtualized", "hovered", "pressed"],
         // R5: the pointer trio (click = press and release on the same view — the
         // shared router's rule, input.ts) plus the construction-complete lifecycle
@@ -6977,17 +6997,24 @@ var DeclareMac = (() => {
          *  child — stacking is source order); `raise(below)` moves it to just BENEATH
          *  a sibling instead, so a pinned band above it (e.g. the dock's minimized
          *  windows) stays on top. Same parent only — the verb form of z-order, no
-         *  numbers. A Menu raises at open; a Window raises on activation. */
+         *  numbers. A Menu raises at open; a Window raises on activation.
+         *
+         *  A TRAVELING surface (travelWith) keeps its host: its parentage is the
+         *  travel host's business, and re-seating it under the model parent would
+         *  drag it home while its position slots still read the host's CONTENT
+         *  coordinates — the ring painting a scroller's origin above its target.
+         *  The MODEL order still moves; only the surface seat is left alone. */
         raise(below) {
           const p = this.parent;
           if (!(p instanceof _View))
             return;
+          const away = this.surface?.isTraveling?.() === true;
           if (below == null || below === this || below.parent !== p) {
             if (p.children[p.children.length - 1] === this)
               return;
             p.removeChild(this);
             p.insertChild(this, p.children.length);
-            if (this.surface !== null && p.surface !== null)
+            if (!away && this.surface !== null && p.surface !== null)
               p.surface.insertChild(this.surface, null);
             return;
           }
@@ -6996,7 +7023,7 @@ var DeclareMac = (() => {
           p.removeChild(this);
           const at = p.children.indexOf(below);
           p.insertChild(this, at < 0 ? p.children.length : at);
-          if (this.surface !== null && p.surface !== null && below.surface !== null) {
+          if (!away && this.surface !== null && p.surface !== null && below.surface !== null) {
             p.surface.insertChild(this.surface, below.surface);
           }
         }
@@ -7149,6 +7176,7 @@ var DeclareMac = (() => {
         fontFamily: { def: "sans-serif", prevailing: true },
         fontWeight: { def: "normal", prevailing: true },
         letterSpacing: { def: 0, prevailing: true },
+        iconSize: { def: 16, prevailing: true },
         // Rich-text structure overrides — consumed by Markdown/HTMLText (null color =
         // the theme-aware house token; headingWeight = the house bold).
         headingColor: { def: null, prevailing: true },

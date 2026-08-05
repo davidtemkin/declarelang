@@ -335,11 +335,17 @@ class DataGrid extends Table [
                 textColor = { theme.textMuted },
                 text = { "" + :title } ],
 
-            sortMark: Text [ y = center, fontSize = 9,
+            // The sort direction, DRAWN. This shipped `▼`/`▲` as font glyphs
+            // INSIDE the library — the one place the corpus's own rule was
+            // broken by the code that sets it. One chevron class, turned by its
+            // `dir`, so a sort header agrees with every other disclosure mark in
+            // the chrome.
+
+            sortMark: ChevronIcon [ y = center, iconSize = 11,
                 x = { parent.width - this.width - 14 },
                 visible = { (classroot as DataGrid).sortOn == parent.colid },
-                textColor = { theme.textMuted },
-                text = { (classroot as DataGrid).sortDir == "desc" ? "▼" : "▲" } ],
+                ink = { theme.textMuted },
+                dir = { (classroot as DataGrid).sortDir == "desc" ? "down" : "up" } ],
 
             // the resize grip: the LEFT-edge sliver, resizing the PREVIOUS
             // column — the boundary region belongs to this cell (later
@@ -463,10 +469,9 @@ class GridRow extends TableRow [
                 onClick() { if (!this.disabled) this.press() },
                 v: Text [ x = 6, y = center, fontSize = 13, wrap = false,
                     text = { "" + ((classroot.rec ?? ({}) as any)["" + :field] ?? "") } ],
-                arrow: Text [ y = center, fontSize = 9,
+                arrow: ChevronIcon [ y = center, iconSize = 11,
                     x = { parent.width - this.width - 6 },
-                    textColor = { theme.textMuted },
-                    text = "▾" ]
+                    ink = { theme.textMuted } ]
                 ]
             ]
         ]

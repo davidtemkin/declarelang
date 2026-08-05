@@ -88,9 +88,23 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // the whole point: parser + checker are NOT in the shipped bundle
   const appJs = out.files.find((f) => f.name.startsWith("app.")).contents;
   assert.ok(!/parseProgram|programSchemas/.test(appJs), "compiler leaked into the production bundle");
-  // wire weight sanity: comfortably under React's ~97 KB gzip, above an empty shell
+  // Wire weight sanity: comfortably under React's ~97 KB gzip, above an empty
+  // shell. The calendar is the flagship, so it is the app whose weight is worth
+  // watching — and the ceiling moves only with the accounting.
+  //
+  // 70 → 80 KB (2026-08-03, the chrome standardization). Measured, at the
+  // checkpoints: 61.2 KB pristine → 62.6 KB once the theme split and the icon
+  // set existed → 70.2 KB once the calendar itself moved onto the shared
+  // components, where it stayed. The step that costs is the migration, not the
+  // library: private tabs, a private theme switch, and text glyphs became
+  // `Segmented`, the icon set, and Control's menu role. Checked for dead weight
+  // rather than assumed — the three icons in `core.declare` the calendar does
+  // not use (Check, Arrow, Lightbulb, along for the file) are 0.3 KB of the 9,
+  // so file-granular shaking is not what to fix here. On one app a shared
+  // component costs more than the bespoke one it replaces; the return is across
+  // the corpus and in behavior, and it was taken deliberately.
   const gz = out.sizes.totalGzip;
-  assert.ok(gz > 20 * 1024 && gz < 70 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
+  assert.ok(gz > 20 * 1024 && gz < 80 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
 });
 
 await test("closure freshness: an edit to an INCLUDED file invalidates the build (the prod-cache rule)", async () => {

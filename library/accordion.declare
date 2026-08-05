@@ -15,7 +15,7 @@ the group's direct children; each names itself (`name`, defaulting to its
 ordinary children — the Pane stacks its header then the content, and clips.
 */
 
-include [ "control.declare" ]
+include [ "control.declare", "icons/core.declare" ]
 
 class Accordion extends View [
     value: string = "",
@@ -61,11 +61,23 @@ class Pane extends Control [ width = { parent.width }, clip = true,
     // :focus-visible rule), a darker-than-fill edge appears. A pointer click
     // focuses silently — the click is its own feedback, no edge.
 
+    // The twisty ROTATES rather than swapping between two marks, and it does it
+    // on a spring — so it turns in step with the pane sliding open instead of
+    // snapping while the height animates. `ChevronIcon` takes an `angle` for
+    // exactly this: `dir` is the sugar for four resting orientations, the angle
+    // underneath is a number, and a number can be sprung.
+
+    twist: number = 0,
+    Spring [ attribute = twist, to = { classroot.open ? 0 : -Math.PI / 2 },
+        stiffness = 220, damping = 26, epsilon = 0.004 ],
+
     header: View [ width = { parent.width }, height = 34,
         cornerRadius = { theme.controlRadius },
-        fill = { classroot.open || classroot.hot || classroot.down ? theme.controlActive : theme.control },
+        fill = { classroot.open || classroot.hot || classroot.down ? theme.controlSelected : theme.control },
         stroke = { classroot.focusVisible ? stroke(1, theme.textMuted) : null },
-        t: Text [ x = 12, y = center, fontSize = 14, fontWeight = { classroot.open ? "semibold" : "medium" },
+        chev: ChevronIcon [ x = 11, y = center, iconSize = 14,
+            angle = { classroot.twist }, ink = { theme.textMuted } ],
+        t: Text [ x = 32, y = center, fontSize = 14, fontWeight = { classroot.open ? "semibold" : "medium" },
             textColor = { theme.text }, text = { classroot.label } ]
         ]
     ]

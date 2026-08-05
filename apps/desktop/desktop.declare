@@ -39,7 +39,7 @@ bitmap is a certain music-video still, and it earns its keep.)
 // is invisible to that analysis. `use` is the explicit bridge: keep these
 // classes registered for creation by name.
 
-use [ FilesWindow, ViewerWindow, AppWindow, AboutWindow, JotWindow, BrandMark, HelpSearch, AppGlyph, CautionBadge ]
+use [ BracketIcon, CodeIcon, AutoIcon, LightbulbIcon, FilesWindow, ViewerWindow, AppWindow, AboutWindow, JotWindow, BrandMark, HelpSearch, AppGlyph, CautionBadge ]
 
 /*
 ## Window — chrome once, contents per subclass
@@ -617,6 +617,53 @@ class BrandMark extends View [ width = 18, height = 18, cornerRadius = 9,
 
     Text [ x = center, y = center, fontSize = 9, fontWeight = bold,
         textColor = #000000, text = "[ ]" ]
+    ]
+
+
+/*
+## The desktop's own menu marks
+
+Two icons that belong to THIS app rather than the library, by the closed-set
+rule (`library/icons/icon.declare`): one is Declare's identity, the other names
+a thing only this desktop offers. Both are `Icon` subclasses, so they take their
+size from the host and their ink from the prevailing text colour like every
+other mark in the chrome — what changes is that they are drawn instead of typed.
+
+`BracketIcon` restores the `[ ]` the About row used to set as a text glyph. That
+mark is referenced elsewhere as a thing the reader can find (the welcome note
+points at "the [ ] icon in the dock"), so it stays visible; only its rendering
+changes. `CodeIcon` restores the `‹›` on View & Edit Source the same way.
+*/
+
+class BracketIcon extends Icon [
+    weight = 1.5,
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        d.moveTo(5.4, 3.4); d.lineTo(3.0, 3.4); d.lineTo(3.0, 12.6); d.lineTo(5.4, 12.6)
+        d.moveTo(10.6, 3.4); d.lineTo(13.0, 3.4); d.lineTo(13.0, 12.6); d.lineTo(10.6, 12.6)
+        d.stroke()
+        }
+    ]
+
+
+class CodeIcon extends Icon [
+    weight = 1.5,
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        d.moveTo(6.4, 4.2); d.lineTo(2.6, 8.0); d.lineTo(6.4, 11.8)
+        d.moveTo(9.6, 4.2); d.lineTo(13.4, 8.0); d.lineTo(9.6, 11.8)
+        d.stroke()
+        }
     ]
 
 
@@ -1470,7 +1517,20 @@ class DockIcon extends View [
     // resting center (cx0) feeds the distance, so the swell never reads its own
     // magnified output.
 
-    magTarget: number = { 1 + (app.dockMag(app.pointerX - this.cx0) - 1) * this.parent.parent.hotGate },
+    // The dock's enter/exit gate, asked for rather than assumed. This class is
+    // hosted in two places: the dock row, whose grandparent carries `hotGate`,
+    // and a MiniTile, whose grandparent is the minis row and carries nothing.
+    // In the second case the gate reads `undefined`, `1 + (w - 1) * undefined`
+    // is NaN, and a spring can never arrive at NaN — so six of them chased it
+    // for the life of the session. It cost no pixels (a badge takes its size
+    // from its tile, not from `mag`) and no correctness, only a frame loop that
+    // never parked. A host that states no gate is a host with no wave, which
+    // is 0 — the value the arithmetic already produces for every icon the
+    // pointer is nowhere near.
+
+    gate(): number { const g = this.parent.parent.hotGate; return typeof g == "number" ? g : 0 },
+
+    magTarget: number = { 1 + (app.dockMag(app.pointerX - this.cx0) - 1) * this.gate() },
     mag: number = 1,
     magSpring: Spring [ attribute = mag, to = { classroot.magTarget }, stiffness = 1300, damping = 62, epsilon = 0.002 ],
     width  = { this.rest * this.mag },
@@ -2508,11 +2568,11 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
 
     menus: array = { [
         ({ id: "brand", label: "Declare", kind: "BrandMark", items: [
-            ({ id: "about-desktop", label: "About Declare Desktop", icon: "[ ]" }),
+            ({ id: "about-desktop", label: "About Declare Desktop", icon: "BracketIcon" }),
             ({ divider: true }),
-            ({ id: "dark", label: app.darkMode ? "Light Mode" : "Dark Mode", key: "⌘K", icon: "◐" }),
+            ({ id: "dark", label: app.darkMode ? "Light Mode" : "Dark Mode", key: "⌘K", icon: "AutoIcon" }),
             ({ divider: true }),
-            ({ id: "source-desktop", label: "View & Edit Source", icon: "‹›" }),
+            ({ id: "source-desktop", label: "View & Edit Source", icon: "CodeIcon" }),
             ({ id: "home", label: "Declare Home" }),
         ] }),
         ({ id: "app", label: this.nameOf(this.activeApp), bold: true,
@@ -2540,7 +2600,7 @@ It's built with **Declare**, a new language for user interfaces. A Declare progr
         ({ id: "window", label: "Window", items: this.windowItems(this.winSeq, app.frontWin) }),
         ({ id: "help", label: "Help", items: [
             ({ id: "hsearch", kind: "HelpSearch" }),
-            ({ id: "help-app", label: this.nameOf(this.activeApp) + " Help", icon: "lightbulb" }),
+            ({ id: "help-app", label: this.nameOf(this.activeApp) + " Help", icon: "LightbulbIcon" }),
         ] }),
     ] },
 

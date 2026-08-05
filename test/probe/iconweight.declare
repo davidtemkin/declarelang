@@ -1,0 +1,154 @@
+/* STROKE WEIGHT AND RENDITION, against the reference.
+
+   `ref/sf-*.png` are rendered by macOS itself (SF Symbols, Regular, 13pt — what
+   a menu actually uses) by `ref/render.swift`, so the reference is Apple's real
+   output rather than a screenshot someone measured off a display. Everything to
+   the right of it is a LIVE Declare render, at the same row pitch, so each row
+   sits beside its own target and its own label.
+
+   Captured at dpr 2 (verify's `dpr` state option): the subject here IS the
+   rendering, and a 1× raster of a 1.05px stroke is a picture of the antialiaser,
+   not of the design.
+
+   Measured before building this (13pt / 16px box, ink integrated per mark):
+
+       stroke thickness    ours 1.60px · SF Medium 1.34 · SF REGULAR 1.05 · Light 0.79
+       set ink mass        ours ×1.36 of SF Regular
+       worst offenders     Sun ×2.18 · Lightbulb ×1.66 · Minus ×1.61 · Arrow ×1.48
+       already matching    Chevron ×1.02 · Auto ×1.03 · Close ×1.19 · Moon ×1.21
+
+   Two variables, deliberately separated:
+
+   WEIGHT is the four rungs, a scale on each icon's own declared weight — so
+   Lightbulb, already the set's thinnest at 1.25, keeps its relative lightness at
+   every rung rather than being flattened to one number.
+
+   RENDITION is the `solid` pair on Sun and Moon. Apple's triad is outline sun,
+   outline crescent, HALF-FILLED disc; ours filled all three. Since our half-disc
+   already measures ×1.03 of Apple's, the half-disc was never the problem — so the
+   sheet shows our filled and outline versions of the other two as separate rows,
+   against the same Apple mark.
+
+   The Lightbulb rows do not change across the rungs, and that is the finding
+   rather than a fault in the sheet: it is now Apple's own outline, ported
+   exactly (97.96% ink IoU against the live symbol), and an SF Symbol is a
+   FILLED contour with the stroke baked in — so there is no stroke to widen.
+
+   The bottom block magnifies the contested marks to 32px. SF scales its stroke
+   with point size, so a 32pt symbol is the same DESIGN as a 13pt one: the large
+   rendering is where SHAPE is judged — the sun's disc against its rays, the taper
+   of the crescent's horns, how much detail the bulb carries.
+
+   Nothing here changes what ships. To adopt a rung, set `weight` in
+   `library/icons/icon.declare` — one line. To adopt a rendition, set `solid` in
+   `library/icons/appearance.declare`. To revert either, put the old value back.
+*/
+
+font Sans [ family = "system-ui" ]
+
+// The four rungs, as a multiplier on each icon's declared weight.
+// k=1.00 → 1.60px (today) · 0.88 → 1.41 · 0.78 → 1.25 · 0.66 → 1.05 (SF Regular)
+
+class Rung extends View [
+    k: number = 1,
+    tint: Color = #1B2733,
+    width = 40, height = 322,
+
+    ChevronIcon   [ x = 12, y = 10,  iconSize = 16, weight = { 1.6 * classroot.k },  ink = { classroot.tint } ],
+    ArrowIcon     [ x = 12, y = 36,  iconSize = 16, weight = { 1.6 * classroot.k },  ink = { classroot.tint } ],
+    CheckIcon     [ x = 12, y = 62,  iconSize = 16, weight = { 1.6 * classroot.k },  ink = { classroot.tint } ],
+    CloseIcon     [ x = 12, y = 88,  iconSize = 16, weight = { 1.6 * classroot.k },  ink = { classroot.tint } ],
+    PlusIcon      [ x = 12, y = 114, iconSize = 16, weight = { 1.6 * classroot.k },  ink = { classroot.tint } ],
+    MinusIcon     [ x = 12, y = 140, iconSize = 16, weight = { 1.6 * classroot.k },  ink = { classroot.tint } ],
+    LightbulbIcon [ x = 12, y = 166, iconSize = 16, weight = { 1.25 * classroot.k }, ink = { classroot.tint } ],
+    sunF: SunIcon  [ x = 12, y = 192, iconSize = 16, weight = { 1.6 * classroot.k }, ink = { classroot.tint }, solid = true ],
+    sunO: SunIcon  [ x = 12, y = 218, iconSize = 16, weight = { 1.6 * classroot.k }, ink = { classroot.tint }, solid = false ],
+    AutoIcon      [ x = 12, y = 244, iconSize = 16, weight = { 1.6 * classroot.k },  ink = { classroot.tint } ],
+    moonF: MoonIcon [ x = 12, y = 270, iconSize = 16, weight = { 1.6 * classroot.k }, ink = { classroot.tint }, solid = true ],
+    moonO: MoonIcon [ x = 12, y = 296, iconSize = 16, weight = { 1.6 * classroot.k }, ink = { classroot.tint }, solid = false ]
+    ]
+
+
+// The five contested marks at 32px — geometry, not weight.
+
+class BigRung extends View [
+    k: number = 1,
+    width = 46, height = 238,
+
+    LightbulbIcon [ x = 7, y = 11,  iconSize = 32, weight = { 1.25 * classroot.k }, ink = #212121 ],
+    sunF:  SunIcon  [ x = 7, y = 57,  iconSize = 32, weight = { 1.6 * classroot.k }, ink = #212121, solid = true ],
+    sunO:  SunIcon  [ x = 7, y = 103, iconSize = 32, weight = { 1.6 * classroot.k }, ink = #212121, solid = false ],
+    moonF: MoonIcon [ x = 7, y = 149, iconSize = 32, weight = { 1.6 * classroot.k }, ink = #212121, solid = true ],
+    moonO: MoonIcon [ x = 7, y = 195, iconSize = 32, weight = { 1.6 * classroot.k }, ink = #212121, solid = false ]
+    ]
+
+
+// One appearance: Apple's menu, then our four rungs on the same panel colour, so
+// the ONLY variable across the strip is the mark.
+
+class Panel extends View [
+    dark: boolean = false,
+    width = 372, height = 350,
+    ref: string = "",
+    tint: Color = #1B2733,
+    dim: Color = #8A93A0,
+
+    fill = { classroot.dark ? 0x2C2C2E : 0xFFFFFF },
+    cornerRadius = 10,
+
+    apple: Image [ x = 0, y = 20, width = 200, height = 322, stretches = both, source = { classroot.ref } ],
+
+    // headings — `classroot` here IS the Panel, which is what carries `dim`
+
+    hA: Text [ x = 10,  y = 2, fontSize = 10, fontWeight = semibold, wrap = false,
+        textColor = { classroot.dim }, text = "APPLE · SF REGULAR" ],
+    h0: Text [ x = 206, y = 2, fontSize = 10, fontWeight = semibold, wrap = false,
+        textColor = { classroot.dim }, text = "1.60" ],
+    h1: Text [ x = 246, y = 2, fontSize = 10, fontWeight = semibold, wrap = false,
+        textColor = { classroot.dim }, text = "1.41" ],
+    h2: Text [ x = 286, y = 2, fontSize = 10, fontWeight = semibold, wrap = false,
+        textColor = { classroot.dim }, text = "1.25" ],
+    h3: Text [ x = 326, y = 2, fontSize = 10, fontWeight = semibold, wrap = false,
+        textColor = { classroot.dim }, text = "1.05" ],
+
+    r0: Rung [ x = 200, y = 20, k = 1,    tint = { classroot.tint } ],
+    r1: Rung [ x = 240, y = 20, k = 0.88, tint = { classroot.tint } ],
+    r2: Rung [ x = 280, y = 20, k = 0.78, tint = { classroot.tint } ],
+    r3: Rung [ x = 320, y = 20, k = 0.66, tint = { classroot.tint } ]
+    ]
+
+
+App [ width = 800, height = 690, fill = { theme.bg },
+    theme = { Themes.sanFrancisco(false) },
+
+    title: Text [ x = 20, y = 12, fontSize = 13, fontWeight = semibold,
+        textColor = { theme.text },
+        text = "Icon weight and rendition — live renders beside SF Symbols Regular, 13pt" ],
+
+    onLight: Panel [ x = 20, y = 34, dark = false, ref = "ref/sf-menu-light.png",
+        tint = #1B2733, dim = #8A93A0 ],
+
+    onDark: Panel [ x = 408, y = 34, dark = true, ref = "ref/sf-menu-dark.png",
+        tint = #E7EEF2, dim = #7C8794 ],
+
+    t2: Text [ x = 20, y = 402, fontSize = 13, fontWeight = semibold,
+        textColor = { theme.text },
+        text = "The contested marks at 32px — shape, at a size where shape is visible" ],
+
+    big: View [ x = 20, y = 424, width = 400, height = 238,
+        fill = #FFFFFF, cornerRadius = 10,
+
+        apple: Image [ x = 0, y = 0, width = 190, height = 238, stretches = both, source = "ref/sf-big.png" ],
+
+        b0: BigRung [ x = 200, y = 0, k = 1 ],
+        b1: BigRung [ x = 250, y = 0, k = 0.78 ],
+        b2: BigRung [ x = 300, y = 0, k = 0.66 ],
+
+        c0: Text [ x = 208, y = 222, fontSize = 9.5, fontWeight = semibold, wrap = false,
+            textColor = #8A93A0, text = "1.60" ],
+        c1: Text [ x = 258, y = 222, fontSize = 9.5, fontWeight = semibold, wrap = false,
+            textColor = #8A93A0, text = "1.25" ],
+        c2: Text [ x = 308, y = 222, fontSize = 9.5, fontWeight = semibold, wrap = false,
+            textColor = #8A93A0, text = "1.05" ]
+        ]
+    ]

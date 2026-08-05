@@ -269,6 +269,11 @@ export interface Surface {
      *  restores the natural parent. DOM realizes it by reparenting; a backend
      *  without it leaves callers on reactive root-space positioning. */
     travelWith?(host: Surface | null): void;
+    /** OPTIONAL — is this surface AWAY FROM HOME (travelWith'd)? A traveled
+     *  surface's parentage belongs to its travel host, not to the model tree, so
+     *  anything that reasserts model order (View.raise) must leave it where it
+     *  is. Absent = this backend never travels = always home. */
+    isTraveling?(): boolean;
     /** Set this scrolling surface's own offset — the write half of the
      *  `scrollY`/`scrollX` attributes (setScroll's callback is the read half:
      *  user scrolling mirrors in; a program write pushes out through these).

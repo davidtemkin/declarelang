@@ -144,19 +144,14 @@ class Combobox extends Control [
         y = { (classroot.height - this.height) / 2 },
         height = { classroot.height - 4 },
         onClick() { classroot.toggle() },
-        draw(d: Draw) {
-            d.strokeStyle = theme.textMuted
-            d.lineWidth = 1.6
-            d.lineCap = "round"
-            d.lineJoin = "round"
-            const cx = this.width / 2
-            const cy = this.height / 2
-            d.beginPath()
-            d.moveTo(cx - 4, cy - 2)
-            d.lineTo(cx, cy + 2.5)
-            d.lineTo(cx + 4, cy - 2)
-            d.stroke()
-            }
+
+        // The disclosure chevron, from the shared set. The wrapper keeps the
+        // 22px tap area (the touch path: tap opens, tap picks) — an icon is a
+        // mark, not a hit target, so the two stay separate objects.
+
+        mark: ChevronIcon [ iconSize = 13, ink = { theme.textMuted },
+            x = { (parent.width - this.width) / 2 },
+            y = { (parent.height - this.height) / 2 } ]
         ]
 
     // (the Menu machinery arrives whole with the app-level instance above:

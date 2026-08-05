@@ -148,6 +148,10 @@ const ViewSchema: ComponentSchema = {
     // Tracking (canvas-native: ctx.letterSpacing / CSS letter-spacing), in px;
     // 0 = the browser's natural advances (the Flash auto-tracking stays shed).
     letterSpacing: { kind: "number" },
+    // The size an Icon takes from its context — prevailing, so a HOST states
+    // it once (a menu row 16, a button 18) and every icon beneath answers.
+    // A use site may still override it; this is a default, not a rule.
+    iconSize: { kind: "number" },
     // Rich-text STRUCTURE overrides (the prose-specific styling slots — the twin
     // of the text-style slots above, for the parts a `Text` doesn't have). A
     // `Markdown`/`HTMLText` renders its headings/links/inline-code from these;
@@ -257,7 +261,7 @@ const ViewSchema: ComponentSchema = {
     virtualize: { kind: "boolean" },
     contentHeight: { kind: "length" },
   },
-  prevailing: ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing", "headingColor", "headingWeight", "linkColor", "codeColor", "codeSize", "codeFamily", "codeBackground", "codeRule", "richTextLayout", "theme", "stylesheet", "selectable"],
+  prevailing: ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing", "headingColor", "headingWeight", "linkColor", "codeColor", "codeSize", "codeFamily", "codeBackground", "codeRule", "richTextLayout", "theme", "stylesheet", "selectable", "iconSize"],
   readOnly: ["contentWidth", "contentHeight", "childViews", "virtualized", "hovered", "pressed"],
   // R5: the pointer trio (click = press and release on the same view — the
   // shared router's rule, input.ts) plus the construction-complete lifecycle

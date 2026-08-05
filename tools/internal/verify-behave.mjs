@@ -85,11 +85,40 @@ bootHost(cfg);
   const browser = await puppeteer.launch({ executablePath: findChrome(), headless: true, args: ["--no-sandbox"] });
   try {
     /** A fresh page with the app booted and the language-altitude API bound. */
-    const openApp = async ({ width = 1024, height = 768 } = {}) => {
+    const openApp = async ({ width = 1024, height = 768, clock = null, scheme = "light", dpr = 1 } = {}) => {
       const page = await browser.newPage();
-      await page.setViewport({ width, height });
+      // `dpr` rasterizes at device pixels per CSS pixel — a specimen sheet whose
+      // subject IS the rendering (stroke weight, a 1px hairline) needs the real
+      // pixels, not a 1× approximation of them. Layout is unchanged; only the
+      // raster grid is finer, so the baseline is dpr× the clip in each axis.
+      await page.setViewport({ width, height, deviceScaleFactor: dpr });
+      // A PINNED COLOUR SCHEME, for the same reason as the pinned clock: an app
+      // that follows `prefers-color-scheme` renders whatever the HOST MACHINE
+      // happens to be wearing, so baselines blessed in daylight fail when macOS
+      // turns itself dark in the evening. Measured exactly that, mid-session.
+      // Default light; a state asks for dark with `scheme: "dark"`.
+      await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: scheme }]);
       const pageErrors = [];
       page.on("pageerror", (e) => pageErrors.push(String(e?.message ?? e)));
+      // A PINNED WALL CLOCK, installed before any page script runs. An app whose
+      // initial state derives from today — the calendar's month grid, a "3 days
+      // ago" label — otherwise photographs a different program every day, and
+      // its baselines rot with nobody having changed a line. `clock` is an ISO
+      // string given by the state; `Date.now()` and `new Date()` answer from it,
+      // while the DRIVEN animation clock (window.__declare.clock) is untouched,
+      // so motion still settles frame-exactly.
+      if (clock !== null) {
+        await page.evaluateOnNewDocument((iso) => {
+          const fixed = new Date(iso).getTime();
+          const Real = Date;
+          const Pinned = function (...a) { return a.length === 0 ? new Real(fixed) : new Real(...a); };
+          Pinned.prototype = Real.prototype;
+          Pinned.now = () => fixed;
+          Pinned.parse = Real.parse;
+          Pinned.UTC = Real.UTC;
+          globalThis.Date = Pinned;
+        }, clock);
+      }
       await page.goto(`http://127.0.0.1:${port}/__verify__/`, { waitUntil: "networkidle0", timeout: 30000 });
       await page.waitForFunction("!!window.__declare", { timeout: 10000 });
 
@@ -222,9 +251,18 @@ async function shootApp(page) {
 }
 
 /** In-page strict pixel diff (per-channel tolerance): the browser's own PNG
- *  decode — the perceptual suite's technique. Returns { over, max, total }. */
-async function diffPng(page, aBase64, bBase64, tolerance = 4) {
-  return page.evaluate(async (a, b, tol) => {
+ *  decode — the perceptual suite's technique. Returns { over, max, total }.
+ *
+ *  `mask` excludes rectangles from the comparison — for regions that measure
+ *  the MACHINE rather than the design. The tracker's `loadMs`/`adoptMs` readouts
+ *  are the case in point: they render `performance.now()` deltas, so they differ
+ *  every run by construction, and no amount of settling or clock-pinning makes
+ *  them stable (the animation clock IS performance.now, so freezing it would
+ *  stop motion instead). Masking states the truth — this rectangle is not part
+ *  of the visual contract — rather than loosening the tolerance everywhere and
+ *  going blind to the 1px shifts a chrome change actually produces. */
+async function diffPng(page, aBase64, bBase64, tolerance = 4, mask = []) {
+  return page.evaluate(async (a, b, tol, boxes) => {
     const load = async (b64) => {
       const img = new Image();
       img.src = "data:image/png;base64," + b64;
@@ -237,18 +275,35 @@ async function diffPng(page, aBase64, bBase64, tolerance = 4) {
     };
     const A = await load(a), B = await load(b);
     if (A.w !== B.w || A.h !== B.h) return { over: -1, max: 0, total: 0, note: `size ${A.w}x${A.h} vs ${B.w}x${B.h}` };
+    const masked = new Uint8Array(A.w * A.h);
+    for (const r of boxes || []) {
+      for (let y = Math.max(0, r.y); y < Math.min(A.h, r.y + r.h); y++) {
+        for (let x = Math.max(0, r.x); x < Math.min(A.w, r.x + r.w); x++) masked[y * A.w + x] = 1;
+      }
+    }
     let over = 0, max = 0;
-    for (let i = 0; i < A.d.length; i++) {
-      const d = Math.abs(A.d[i] - B.d[i]);
-      if (d > max) max = d;
-      if (d > tol) { over++; i |= 3; } // skip to next pixel boundary-ish on a hit
+    for (let p = 0; p < masked.length; p++) {
+      if (masked[p]) continue;
+      const i = p * 4;
+      for (let k = 0; k < 3; k++) {
+        const d = Math.abs(A.d[i + k] - B.d[i + k]);
+        if (d > max) max = d;
+        if (d > tol) { over++; break; }
+      }
     }
     return { over, max, total: A.d.length / 4 };
-  }, aBase64, bBase64, tolerance);
+  }, aBase64, bBase64, tolerance, mask);
 }
 
 /** Run a states module: capture each named state, bless or compare.
- *  States module default export: [{ name, viewport?, route?: async ({drive, expect, page}) }] */
+ *  States module default export:
+ *    [{ name, viewport?, clock?, scheme?, dpr?, mask?, route?: async ({drive, expect, page}) }]
+ *  `clock` (ISO string) pins the wall clock before the app boots — required by
+ *  any app whose initial state derives from today, or its baselines rot on
+ *  their own. `scheme` pins `prefers-color-scheme` ("light" default, "dark" to
+ *  capture a dark state) so a capture never depends on the host machine's own
+ *  appearance. `mask` is a list of {x,y,w,h} rectangles excluded from the diff,
+ *  for regions that measure the machine (see diffPng). */
 export async function runStates({ compiled, appDir, statesPath, baselinesDir, bless = false, fixturesDir = null, backendClass = "DomBackend", tolerance = 4 }) {
   const mod = await import(pathToFileURL(resolve(statesPath)).href);
   const states = mod.default;
@@ -260,7 +315,7 @@ export async function runStates({ compiled, appDir, statesPath, baselinesDir, bl
     const results = [];
     for (const st of states) {
       const viewport = st.viewport ?? { width: 1024, height: 768 };
-      const app = await openApp(viewport);
+      const app = await openApp({ ...viewport, clock: st.clock ?? null, scheme: st.scheme ?? "light", dpr: st.dpr ?? 1 });
       try {
         if (typeof st.route === "function") await st.route({ drive: app.drive, expect: app.expect, page: app.page });
         const shot = await shootApp(app.page);
@@ -273,7 +328,7 @@ export async function runStates({ compiled, appDir, statesPath, baselinesDir, bl
           failures.push(`${st.name}: no baseline (${relative(ROOT, file)}) — run with --bless to create it`);
         } else {
           const baseline = readFileSync(file).toString("base64");
-          const d = await diffPng(app.page, baseline, shot, tolerance);
+          const d = await diffPng(app.page, baseline, shot, tolerance, st.mask ?? []);
           if (d.over !== 0) {
             const actual = file.replace(/\.png$/, ".actual.png");
             writeFileSync(actual, Buffer.from(shot, "base64"));

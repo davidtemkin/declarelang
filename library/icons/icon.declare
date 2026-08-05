@@ -1,0 +1,162 @@
+/*
+# Icon — the drawn mark
+
+A small monochrome mark, **drawn** rather than typed. Fonts are not UI objects:
+their glyphs are not guaranteed to be present, they rasterize differently on
+every platform, and the ones that exist are the wrong shapes — a `✓` sits on the
+text baseline and reads like a square-root sign, not like a checkmark. The house
+already knew this in three places before it had a name for it (`Checkbox.mark`,
+`Menu.check`, `Combobox.disc` are all drawn); this is that decision, stated once.
+
+## Writing one
+
+Subclass and override `draw`. Author the shape in a **16×16 box** — `unit`
+converts it to whatever size the host asked for:
+
+```declare-fragment
+class SparkIcon extends Icon [
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink; d.lineWidth = weight / unit
+        d.beginPath(); d.moveTo(8, 1); d.lineTo(8, 15); d.stroke()
+        }
+    ]
+```
+
+Overriding a **method** is the refinement path that works — re-opening an
+inherited child is not (`cap:` on a `Button` subclass fails at instantiate), so
+the shape lives in `draw` and everything adjustable is a slot.
+
+## Size changes the drawing, not the shape
+
+Every icon is ONE path. There are no per-size variants, no thresholds, nothing
+redrawn at a breakpoint: `unit` scales the 16-box to whatever the host asked for,
+so a 64px icon is the 16px icon at 4×, exactly.
+
+The **stroke** is the deliberate exception. `d.lineWidth = weight / unit` sits
+*inside* `d.scale(unit, unit)`, so the two cancel and the line lands at a constant
+`weight` in **device pixels at every size**. An icon's line therefore matches the
+1px rules and text weights it sits among, instead of fattening as it grows.
+
+The cost is that the stroke-to-size ratio falls: 1.6px is 10% of a 16px icon, 5%
+at 32, 2.5% at 64. Across 14–18px, which is every site in this corpus, that is
+invisible. Past ~32 an icon starts reading as a fine-line drawing rather than a
+mark — so **this set is built for chrome sizes**, and a large display icon (an
+empty-state mark, an about-box graphic) would want the opposite: `d.lineWidth =
+weight` *outside* the scale, so the line grows with the drawing. Real icon
+systems take a third road and redraw per optical size range; that is a bigger
+undertaking than this set needs.
+
+`test/probe/iconbook.declare` shows the ramp — the same chevron and bulb at 16,
+24, 32, 48 and 64 — if the tradeoff ever needs re-judging.
+
+## What is NOT an Icon
+
+Application art. The desktop's dock icons are the case to look at before
+reaching for this class: they rest at 56px and grow under the magnification
+swell, they are polychrome (`gradient(hue1, hue2)` behind a hue-parameterised
+drawing), and their **width animates every frame**. Each of those alone rules
+them out — the constant stroke that suits a 16px mark is 2.9% of a 56px one and
+reads spindly; `ink` is a single colour; and an animated width is the one thing
+this set forbids.
+
+The line is not "drawn versus not drawn" — dock art is drawn too. It is
+**chrome vocabulary versus identity**. A mark that says *close*, *expand*,
+*checked*, *this is the dark theme* belongs here, at a size the host states.
+A mark that says *this is Calendar* does not, and belongs to the app that owns
+the identity.
+
+Desktop has both, which is what makes it the clarifying example: its menu rows
+take `WindowIcon` and `CodeIcon` from this set, while its dock keeps `DockIcon`.
+
+## Two rules
+
+**Scale inside the body, never with the View's `scale`.** A recording rasterizes
+into a canvas sized to its own ink bounds at device resolution
+(`dom-backend.ts` `rasterize()`), while `scale` is a CSS transform applied
+*after* — so `scale = { width / 16 }` would rasterize 16 pixels and stretch them.
+Crisp at exactly 16, soft at every other size, which is most of them. Scaling
+inside the recording allocates the raster at true size instead.
+
+**Never animate an icon's `width`.** Reading size inside `draw` makes the
+recording size-dependent: an animated size re-records AND reallocates the backing
+canvas every frame, which is what dragged the dock's magnification from 60 to
+~25fps (`adaptive-draw-cache.md`). A static size re-records once and costs
+nothing after. Measured: 120 icons re-recording their *content* every frame runs
+frame-bound at 16.6ms, cheaper than the 120 text glyphs they replace.
+
+Colour is not a rule — `ink` follows the prevailing text colour, so an icon beside
+a muted label goes muted on its own, and a host that needs a different ink (a
+menu row's check inverting on the hot row) simply sets it.
+*/
+
+/* ## IconHost — a named icon, materialized
+
+   A control names its icon (`iconLeft = TrashIcon`) rather than nesting one,
+   because a control is a leaf and everything else about it is an attribute — and
+   because an attribute is the one form where AUTHORED and BOUND are the same
+   mechanism. `IconHost` is what turns that name into a live view, through the
+   same `app.createView` seam the menu's `iconKind` already uses.
+
+   It reserves no space when empty, so a control's `contentWidth` measures only
+   the slots that are actually filled and an icon-less button needs no special
+   case.
+
+   LIMITATION, deliberate for now: the name is consumed once, at construction.
+   A control whose icon must CHANGE at runtime (a play/pause toggle) is not
+   served by this yet — that needs a name-valued slot the runtime re-materializes
+   on change, which is a runtime feature, not a library one. Every site in this
+   corpus names its icon statically. */
+
+class IconHost extends View [
+    kind: string = "",
+    width  = { classroot.kind == "" ? 0 : iconSize },
+    height = { iconSize },
+    y = center,
+    visible = { classroot.kind != "" },
+
+    // THE INK CHANNEL. `createView` cannot pass attributes, so the only way to
+    // reach the icon it builds is a PREVAILING slot — and the one `Icon.ink`
+    // reads is `textColor`. Publishing it here is what lets a host state its
+    // ink at all.
+    //
+    // The default matters more than it looks: prevailing `textColor` falls back
+    // to 0x000000 platform-wide, so an icon that inherited it rendered BLACK —
+    // fine on a light surface by luck, invisible on a dark one. Every
+    // host-created icon in the corpus was doing that. `theme.text` is a floor
+    // that is never invisible in either palette.
+
+    ink: Color = { theme.text },
+    textColor = { classroot.ink },
+
+    onInit() { if (this.kind != "") app.createView(this.kind, this, ({ })) }
+    ]
+
+
+class Icon extends View [
+    // The marker a layout keys on, so a control can place its icon without
+    // caring which shape it is (the Segment/Segmented discipline).
+
+    isIcon: boolean = true,
+
+    // Size comes from the CONTEXT: `iconSize` is prevailing, so a menu states 16
+    // once and every icon in every row answers. A use site may override it.
+
+    width  = { iconSize },
+    height = { this.width },
+    y = center,
+
+    // Follows the PREVAILING text colour, so an icon beside a muted label goes
+    // muted on its own. The trap: that slot falls back to 0x000000 platform-wide,
+    // so an icon in a context which never states a text colour renders BLACK and
+    // disappears on a dark surface. State `ink` unless you know the context sets
+    // one — `IconHost` does it for every icon built by name.
+
+    ink: Color = { textColor },
+    weight: number = 1.6,        // stroke width in FINAL pixels, not authored ones
+
+    // 16-box → host size. Multiply the path by this; divide the stroke by it, so
+    // the line keeps its true weight instead of scaling with the drawing.
+
+    unit: number = { this.width / 16 }
+    ]

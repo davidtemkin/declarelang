@@ -38,7 +38,7 @@ kept in sync by hand (the seed and the pools are the contract). Every
 millisecond the rail reports is measured in this file, not asserted.
 */
 
-use [ Menu ]
+use [ Menu, SunIcon, AutoIcon, MoonIcon ]   // the appearance menu names its icons in data
 
 // ── script land: plain TypeScript helpers, zero reactive machinery ────────
 //
@@ -201,8 +201,8 @@ class StatusIcon extends View [ width = 14, height = 14,
         stroke = { stroke(1.5, trkStatusColor(classroot.s)) } ],
     dot: View [ visible = { s == "in-progress" }, x = 4.5, y = 4.5, width = 5, height = 5, cornerRadius = 2.5,
         fill = { trkStatusColor(classroot.s) } ],
-    chk: Text [ visible = { s == "closed" }, x = 3, y = 1.5, fontSize = 8.5, fontWeight = bold, wrap = false,
-        textColor = { trkWhite() }, text = "✓" ],
+    chk: CheckIcon [ visible = { s == "closed" }, x = 1.5, y = 1.5, iconSize = 11, weight = 1.9,
+        ink = { trkWhite() } ],
     bang: Text [ visible = { s == "blocked" }, x = 5.5, y = 1, fontSize = 9, fontWeight = bold, wrap = false,
         textColor = { trkWhite() }, text = "!" ]
     ]
@@ -257,7 +257,7 @@ class Chip extends Control [ height = 28, cornerRadius = 8,
     count: number = -1,         // -1 hides the count
     on: boolean = false,
     width = { this.row.contentWidth + 24 },
-    fill = { on ? theme.controlActive : hot ? theme.control : null },
+    fill = { on ? theme.controlSelected : hot ? theme.control : null },
 
     // the tally is a SPRUNG NUMBER — `Spring [ attribute = … ]` animates any
     // slot, data included, so a bulk move rolls the counts over instead of
@@ -311,8 +311,12 @@ class IssueRow extends TableRow [
     // ── the group header face ─────────────────────────────────────────────
 
     hdrRow: View [ visible = { parent.isHdr }, x = 0, y = 12, width = { parent.width }, height = 24,
-        chev: Text [ x = 24, y = 4, fontSize = 9, textColor = { theme.textFaint },
-            text = { app.isCollapsed("" + :status, app.groupRev) ? "▶" : "▼" } ],
+        // collapsed points right, open points down — one class, turned. `▶`/`▼`
+        // were solid triangles from two different Unicode blocks; this is the
+        // same chevron the rest of the chrome discloses with.
+
+        chev: ChevronIcon [ x = 23, y = 3, iconSize = 11, ink = { theme.textFaint },
+            dir = { app.isCollapsed("" + :status, app.groupRev) ? "right" : "down" } ],
         d: StatusIcon [ x = 42, y = 3, s = { "" + :status } ],
         cap: Text [ x = 64, y = 2, fontSize = 13, fontWeight = semibold, wrap = false,
             text = { trkStatusLabel("" + :status) } ],
@@ -398,7 +402,7 @@ class IssueRow extends TableRow [
     onHold(e: PointerEvent) { if (!isHdr) app.rowMenu(this, e) },
 
     fill = { isHdr ? theme.bg
-           : selected ? theme.controlActive
+           : selected ? theme.controlSelected
            : hot ? theme.surface : null },
     stroke = { active && (parent as Table).focusVisible ? stroke(1, theme.accent) : null }
     ]
@@ -440,7 +444,7 @@ class RailStat extends Control [ height = 30, cornerRadius = 7,
     hueName: string = "",
     tintUse: number = { hueName != "" ? trkHue(hueName) : tint },
     on: boolean = false,
-    fill = { on ? theme.controlActive : hot ? theme.control : null },
+    fill = { on ? theme.controlSelected : hot ? theme.control : null },
     name: Text [ x = 30, y = center, fontSize = 12.5, wrap = false, clip = true, width = 92,
         fontWeight = { classroot.on ? "semibold" : "normal" },
         textColor = { classroot.on ? theme.text : theme.textMuted },
@@ -610,7 +614,7 @@ class Facet extends Control [ height = 28, cornerRadius = 7,
     v: Text [ y = center, fontSize = 12.5, wrap = false,
         x = { tint != 0 ? 22 : 10 },
         text = { value } ],
-    arr: Text [ y = center, fontSize = 9, x = { parent.width - 15 }, textColor = { theme.textMuted }, text = "▾" ],
+    arr: ChevronIcon [ y = center, iconSize = 11, x = { parent.width - 15 }, ink = { theme.textMuted } ],
     press() { app.openFacet(this, field) },
     onClick() { if (!disabled) press() }
     ]
@@ -1092,7 +1096,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         const m = this.facetMenu as any
         if (field == "assignee") {
             m.items = [({ id: "null", label: "Unassigned", checked: cur == null }), ({ id: "d", divider: true }),
-                ...this.assignees().map((p) => ({ id: p, label: p, iconKind: "PersonIcon", props: ({ name: p }), checked: cur == p }))]
+                ...this.assignees().map((p) => ({ id: p, label: p, icon: "PersonIcon", props: ({ name: p }), checked: cur == p }))]
             }
         else {
             const opts = field == "status" ? ["open", "in-progress", "blocked", "closed"] : ["P0", "P1", "P2", "P3"]
@@ -1190,9 +1194,9 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
 
     appearanceMenu: Menu [ width = 190,
         items = { [
-            ({ id: "light", label: "Light", icon: "☀︎", checked: app.themeMode == "light" }),
-            ({ id: "auto", label: "System", icon: "◐", checked: app.themeMode == "auto" }),
-            ({ id: "dark", label: "Dark", icon: "☾", checked: app.themeMode == "dark" }),
+            ({ id: "light", label: "Light", icon: "SunIcon", checked: app.themeMode == "light" }),
+            ({ id: "auto", label: "System", icon: "AutoIcon", checked: app.themeMode == "auto" }),
+            ({ id: "dark", label: "Dark", icon: "MoonIcon", checked: app.themeMode == "dark" }),
         ] },
         picked(id: string) { app.themeMode = id }
         ],
@@ -1264,32 +1268,20 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
 
         views: Segmented [ y = 12,
             x = { app.width - this.width - 100 },
-            pad = 22,
+            segMin = 62,
             value = { app.issuesOf().length >= 1000000 ? "1M" : app.issuesOf().length >= 100000 ? "100k" : "10k" },
             input(v: object) { app.regenerate(("" + v) == "1M" ? 1000000 : ("" + v) == "100k" ? 100000 : 10000) },
-            Segment [ choice = { "10k" }, lbl = "10K" ],
-            Segment [ choice = { "100k" }, lbl = "100K" ],
-            Segment [ choice = { "1M" }, lbl = "1M" ]
+            choices = { [ ({ id: "10k", label: "10K" }), ({ id: "100k", label: "100K" }), ({ id: "1M", label: "1M" }) ] }
             ],
 
         appear: Control [ y = 12, height = 32, width = 54, cornerRadius = 8, tip = "Appearance",
             x = { app.width - this.width - 14 },
             fill = { hot || down ? theme.control : null },
             stroke = { stroke(1, theme.line) },
-            g: Text [ x = 10, y = center, fontSize = 14,
-                text = { app.themeMode == "light" ? "☀︎" : app.themeMode == "dark" ? "☾" : "◐" } ],
-            arrow: View [ width = 9, height = 6, x = { parent.width - 17 }, y = { (parent.height - this.height) / 2 + 1 },
-                draw(d: Draw) {
-                    d.strokeStyle = theme.textMuted
-                    d.lineWidth = 1.6
-                    d.lineCap = "round"
-                    d.beginPath()
-                    d.moveTo(0.5, 1)
-                    d.lineTo(4.5, 5)
-                    d.lineTo(8.5, 1)
-                    d.stroke()
-                    }
-                ],
+            g: IconHost [ x = 9, y = center, iconSize = 15,
+                kind = { app.themeMode == "light" ? "SunIcon" : app.themeMode == "dark" ? "MoonIcon" : "AutoIcon" } ],
+            arrow: ChevronIcon [ iconSize = 12, ink = { theme.textMuted },
+                x = { parent.width - 18 }, y = { (parent.height - this.height) / 2 } ],
             press() { app.appearanceMenu.openFor(this) },
             onClick() { if (!disabled) press() }
             ]
@@ -1297,19 +1289,26 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
 
     // ── the TOOLBAR: filters on the left, actions on the right ────────────
 
-    // compact wraps the tools into two rows — chips (countless), then acts —
-    // instead of letting the clusters collide in the middle
+    // The tools row wraps into two — chips (countless), then acts — instead of
+    // letting the clusters collide in the middle. It wraps when they WOULD
+    // collide, which is a measurement, not a breakpoint: the left group's
+    // content, the right group's content, and the margins between and around
+    // them. A fixed width cannot know this, because both groups size to their
+    // own text — a long assignee name or a wider locale moves the meeting point
+    // without moving the window.
 
     tools: View [ x = 0, y = { app.barH }, width = { app.width },
-        height = { app.compact ? 96 : 56 }, fill = { theme.bg },
+        wrap: boolean = { app.compact
+            || this.chips.contentWidth + this.acts.contentWidth + 64 > app.width },
+        height = { this.wrap ? 96 : 56 }, fill = { theme.bg },
         hairB: View [ x = 0, y = { parent.height - 1 }, width = { parent.width }, height = 1, fill = { theme.line } ],
 
-        // on compact the strip keeps every filter reachable by scrolling
-        // sideways (the phone chip-row idiom) instead of spilling off-screen
+        // wrapped, the strip keeps every filter reachable by scrolling sideways
+        // (the phone chip-row idiom) instead of spilling off-screen
 
         chips: View [ x = 24, y = 14, height = 28,
-            width = { app.compact ? app.width - 32 : this.contentWidth },
-            scrolls = { app.compact ? "x" : "none" }, clip = true,
+            width = { parent.wrap ? app.width - 32 : this.contentWidth },
+            scrolls = { parent.wrap ? "x" : "none" }, clip = true,
             layout: SimpleLayout [ axis = x, spacing = 8 ],
             Chip [ facet = "status", value = "open", count = { (app.counts as any).open ?? 0 }, on = { app.fStatus == "open" } ],
             Chip [ facet = "status", value = "in-progress", count = { (app.counts as any)["in-progress"] ?? 0 }, on = { app.fStatus == "in-progress" } ],
@@ -1317,30 +1316,32 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
             Chip [ facet = "status", value = "closed", count = { (app.counts as any).closed ?? 0 }, on = { app.fStatus == "closed" } ],
             gap1: View [ width = 6, height = 1 ],
             assigneeBtn: Control [ height = 28, cornerRadius = 8,
-                width = { this.t.width + 26 },
-                fill = { app.fAssignee != "" ? theme.controlActive : hot ? theme.control : null },
+                width = { this.t.width + 36 },   // 26 as before, plus the mark that left the label string
+                fill = { app.fAssignee != "" ? theme.controlSelected : hot ? theme.control : null },
                 t: Text [ x = 13, y = center, fontSize = 12.5, wrap = false,
                     fontWeight = { app.fAssignee != "" ? "semibold" : "normal" },
                     textColor = { app.fAssignee != "" ? theme.text : theme.textMuted },
-                    text = { app.fAssignee != "" ? "@" + app.fAssignee : "Assignee ▾" } ],
+                    text = { app.fAssignee != "" ? "@" + app.fAssignee : "Assignee" } ],
+                c: ChevronIcon [ iconSize = 11, ink = { theme.textMuted }, y = center, x = { parent.width - 15 } ],
                 press() { app.openAssigneeFilter(this) },
                 onClick() { if (!disabled) press() }
                 ],
             labelBtn: Control [ height = 28, cornerRadius = 8,
-                width = { this.t.width + 26 },
-                fill = { app.fLabel != "" ? theme.controlActive : hot ? theme.control : null },
+                width = { this.t.width + 36 },   // 26 as before, plus the mark that left the label string
+                fill = { app.fLabel != "" ? theme.controlSelected : hot ? theme.control : null },
                 t: Text [ x = 13, y = center, fontSize = 12.5, wrap = false,
                     fontWeight = { app.fLabel != "" ? "semibold" : "normal" },
                     textColor = { app.fLabel != "" ? theme.text : theme.textMuted },
-                    text = { app.fLabel != "" ? app.fLabel : "Label ▾" } ],
+                    text = { app.fLabel != "" ? app.fLabel : "Label" } ],
+                c: ChevronIcon [ iconSize = 11, ink = { theme.textMuted }, y = center, x = { parent.width - 15 } ],
                 press() { app.openLabelFilter(this) },
                 onClick() { if (!disabled) press() }
                 ]
             ],
 
         acts: View [ height = 30,
-            y = { app.compact ? 54 : 13 },
-            x = { app.compact ? 16 : app.width - this.contentWidth - 24 },
+            y = { parent.wrap ? 54 : 13 },
+            x = { parent.wrap ? 16 : app.width - this.contentWidth - 24 },
             layout: SimpleLayout [ axis = x, spacing = 4 ],
             groupCheck: Checkbox [ y = 3, height = 24, size = 15, fontSize = 12.5, x = 0,
                 label = "Grouped",
@@ -1350,17 +1351,19 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
                 ],
             gapSort: View [ width = 8, height = 1 ],
             sortBtn: Control [ height = 28, cornerRadius = 8, y = 1,
-                width = { this.t.width + 26 },
+                width = { this.t.width + 36 },   // 26 as before, plus the mark that left the label string
                 fill = { hot ? theme.control : null },
                 t: Text [ x = 13, y = center, fontSize = 12.5, wrap = false, textColor = { theme.textMuted },
-                    text = { "Sort: " + app.sortOn.charAt(0).toUpperCase() + app.sortOn.slice(1) + " ▾" } ],
+                    text = { "Sort: " + app.sortOn.charAt(0).toUpperCase() + app.sortOn.slice(1) } ],
+                c: ChevronIcon [ iconSize = 11, ink = { theme.textMuted }, y = center, x = { parent.width - 15 } ],
                 press() { app.openSort(this) },
                 onClick() { if (!disabled) press() }
                 ],
             dirBtn: Control [ height = 28, width = 28, cornerRadius = 8, y = 1, tip = "Toggle sort direction",
                 fill = { hot || down ? theme.control : null },
-                t: Text [ x = 0, y = center, width = 28, textAlign = center, fontSize = 13, textColor = { theme.textMuted },
-                    text = { app.sortDir == "desc" ? "↓" : "↑" } ],
+                t: ArrowIcon [ iconSize = 13, ink = { theme.textMuted },
+                    x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 },
+                    dir = { app.sortDir == "desc" ? "down" : "up" } ],
                 press() { app.toggleSortDir() },
                 onClick() { if (!disabled) press() }
                 ],
@@ -1382,7 +1385,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
         const m = this.facetMenu as any
         const names = this.assignees()
         m.items = [({ id: "", label: "Anyone", checked: app.fAssignee == "" }), ({ id: "d", divider: true }),
-            ...names.map((p) => ({ id: p, label: p, iconKind: "PersonIcon", props: ({ name: p }), checked: app.fAssignee == p }))]
+            ...names.map((p) => ({ id: p, label: p, icon: "PersonIcon", props: ({ name: p }), checked: app.fAssignee == p }))]
         m.picked = (id) => { app.fAssignee = id; app.rearranged() }
         m.openFor(anchor)
         },
@@ -1401,7 +1404,7 @@ App [ fill = { theme.bg }, textColor = { theme.text }, minWidth = 320, appName =
     // windows, recycles, and measures rows (including one springing open
     // into the editor card) with no further instruction from this file.
 
-    contentY: number = { app.barH + (app.compact ? 96 : 56) },
+    contentY: number = { app.barH + app.tools.height },
     mainW: number = { Math.min(app.width - (app.railOn ? app.railW : 0), 1460) },
 
     // which row is OPEN IN PLACE: an issue edits where it lives — the

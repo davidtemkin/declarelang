@@ -1,7 +1,11 @@
 # Chrome standardization — segmented controls, buttons, icons, themes
 
-**Status: assessed 2026-08-01, not started.** Scope settled with David across
-the assessment; the work below is ready to begin when it is picked up.
+**Status: BUILT, 2026-08-03.** All four phases landed, plus three things the
+assessment did not foresee. The plan below is kept as written — it was accurate
+— with what actually happened recorded against it in §8.
+
+Evidence and the decisions taken along the way are in the companion register,
+[chrome-divergences.md](chrome-divergences.md).
 
 The trigger was a small question — *can the Calendar's sliding tab highlight
 become standard behaviour on `Segmented`?* — and the answer turned out to
@@ -243,3 +247,52 @@ No new components, no new abstractions.
 `verify-apps` tier plus screenshot comparison before/after. Tracker and Sampler
 already use `Segmented`, so the sliding highlight changes their look too —
 intended, but worth naming.
+
+---
+
+## 8. What actually happened
+
+The four phases landed as planned. Three things the assessment did not foresee
+changed the shape of the work.
+
+**`Segmented` had to become data-driven.** The sliding pill needs to know which
+choice is selected and how wide each is, and a constraint may not ask the view
+tree that — `childViews` is set-membership only, and the compiler names the
+alternative outright: *"a data-dependent number of slots; derive from data."*
+So `choices` is an array and the `Segment` child class is gone. That turned out
+to be the mainstream shape anyway (UIKit takes titles, SwiftUI a `ForEach`, Ant
+`options`), and it dissolved a name collision: two apps had taken `Segment` for
+a paragraph of prose, now `Block`.
+
+**The interaction ladder was incoherent, not just unnamed.** Three components
+tinted four states with four borrowed tokens, and two of them were inverted:
+`control` was `Segment`'s hover and `TableRow`'s SELECTED; `surface` was the
+reverse. `Button` could not tell hover from press at all. Fixed by naming all
+four rungs — `control` / `controlHover` / `controlPressed` / `controlSelected`.
+
+**The pixel baselines had to be built first, and they kept being wrong.** The
+corpus had one instrumented app; it now has seven, 27 states. Three times the
+instrument was green while something was broken — a `Segmented` rewrite that
+silently dropped `focusShape` and keyboard activation, a menu API change that
+moved a member, and a desktop state that clicked a path which did not exist and
+photographed a plain desk for several passes. Every one was caught by
+`components.test.mjs`, not by pixels. **Baselines do not photograph behaviour.**
+
+### Beyond the plan
+
+- The appearance triad, the checkmark and the chevron are drawn once each
+  (`library/icons/`), replacing six chevron renderings and two checkmarks — three
+  of which shipped inside the library itself.
+- `Menu`'s three icon mechanisms collapsed to one.
+- Calendar lost `ViewTab`, `TabPill` and `ThemeSeg`; viewer lost `ModeSeg` and
+  `ThemeSeg`; docs lost `ModeTab` and `ThemeBtn`.
+- Palette drift fixed: one hex digit in the docs accent, and a teal that was two
+  names and four values.
+
+### Not done, deliberately
+
+- **`Button.labelColor` / `labelWeight`** — superseded. `inkColor` does the job
+  for both the label and the icon, which was the actual requirement.
+- **`Disclosure`, reduced motion** — rejected in the assessment, still rejected.
+- **F1, the dock's NaN springs** — a defect the instrument found, left for the
+  dock's owner. See the register.

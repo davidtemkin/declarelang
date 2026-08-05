@@ -1,0 +1,113 @@
+/* The icon set as a specimen sheet — and, for the appearance triad, a direct
+   comparison against the font glyphs it replaces. The triad is the only part of
+   the set with nothing to port: five apps built this switch and all five reached
+   for ☀︎ ◐ ☾, so the drawn versions are new work and need judging on sight. */
+
+font Sans [ family = "system-ui" ]
+
+class Lab extends Text [
+    x = 0, y = center, width = 132, fontSize = 11.5, wrap = false,
+    textColor = { theme.textMuted }
+    ]
+
+
+class Drawn extends View [
+    height = { parent.height }, width = 130,
+    layout: SimpleLayout [ axis = x, spacing = 24 ],
+    SunIcon [ ],
+    AutoIcon [ ],
+    MoonIcon [ ]
+    ]
+
+
+class Glyphs extends View [
+    height = { parent.height }, width = 130,
+    size: number = 14,
+    layout: SimpleLayout [ axis = x, spacing = 24 ],
+    a: Text [ y = center, wrap = false, fontSize = { classroot.size }, textColor = { theme.text }, text = "☀︎" ],
+    b: Text [ y = center, wrap = false, fontSize = { classroot.size }, textColor = { theme.text }, text = "◐" ],
+    c: Text [ y = center, wrap = false, fontSize = { classroot.size }, textColor = { theme.text }, text = "☾" ]
+    ]
+
+
+class Pair extends View [
+    height = 46, width = { parent.width },
+    label: string = "",
+    px: number = 14,
+    Lab [ text = { classroot.label } ],
+    g: Glyphs [ x = 140, size = { classroot.px } ],
+    d: Drawn [ x = 320, iconSize = { classroot.px } ]
+    ]
+
+
+class Strip extends View [
+    height = 46, width = { parent.width },
+    label: string = "",
+    Lab [ text = { classroot.label } ],
+    s: View [ x = 140, height = { parent.height },
+        layout: SimpleLayout [ axis = x, spacing = 24 ],
+        ChevronIcon [ ],
+        ChevronIcon [ dir = "right" ],
+        ChevronIcon [ dir = "up" ],
+        CheckIcon [ ],
+        CloseIcon [ ],
+        PlusIcon [ ],
+        MinusIcon [ ],
+        LightbulbIcon [ ]
+        ]
+    ]
+
+
+App [ width = 760, height = 640, fill = { theme.bg },
+    theme = { Themes.sanFrancisco(app.dark) },
+
+    t1: Text [ x = 24, y = 18, fontSize = 14, fontWeight = semibold,
+        textColor = { theme.text }, text = "Appearance triad — font glyph vs drawn" ],
+    h1: Text [ x = 164, y = 42, fontSize = 10.5, textColor = { theme.textFaint }, text = "font" ],
+    h2: Text [ x = 344, y = 42, fontSize = 10.5, textColor = { theme.textFaint }, text = "drawn" ],
+
+    compare: View [ x = 24, y = 58, width = { app.width - 48 },
+        layout: SimpleLayout [ axis = y, spacing = 0 ],
+        Pair [ label = "14px  (sampler's door)", px = 14 ],
+        Pair [ label = "16px  (menu row)", px = 16 ],
+        Pair [ label = "18px  (button)", px = 18 ],
+        Pair [ label = "28px", px = 28 ]
+        ],
+
+    t2: Text [ x = 24, y = 268, fontSize = 14, fontWeight = semibold,
+        textColor = { theme.text }, text = "The rest of the set" ],
+
+    rest: View [ x = 24, y = 300, width = { app.width - 48 },
+        layout: SimpleLayout [ axis = y, spacing = 0 ],
+        Strip [ label = "16px", iconSize = 16 ],
+        Strip [ label = "18px", iconSize = 18 ],
+        Strip [ label = "32px  (crispness)", iconSize = 32, height = 54 ],
+        Strip [ label = "ink follows text", iconSize = 18, textColor = { theme.accent } ]
+        ],
+
+    /* Does the SHAPE change with size? The geometry does not — every icon is one
+       path authored in a 16-box and scaled by `unit`. The STROKE does not scale
+       with it: `weight / unit` inside that scale lands a constant `weight` in
+       device pixels at every size. So the line holds still while the drawing
+       grows, and the stroke-to-size ratio falls: 10% of a 16px icon, 5% at 32,
+       2.5% at 64. Across the range the chrome actually uses (16 → 18) that is
+       invisible; past ~32 an icon starts reading as a fine-line drawing. */
+
+    t3: Text [ x = 24, y = 512, fontSize = 14, fontWeight = semibold,
+        textColor = { theme.text }, text = "Size ramp — same path, constant stroke" ],
+
+    ramp: View [ x = 30, y = 540, height = 72,
+        layout: SimpleLayout [ axis = x, spacing = 18 ],
+        ChevronIcon [ iconSize = 16 ],
+        ChevronIcon [ iconSize = 24 ],
+        ChevronIcon [ iconSize = 32 ],
+        ChevronIcon [ iconSize = 48 ],
+        ChevronIcon [ iconSize = 64 ],
+        gap: View [ width = 20, height = 1 ],
+        LightbulbIcon [ iconSize = 16 ],
+        LightbulbIcon [ iconSize = 24 ],
+        LightbulbIcon [ iconSize = 32 ],
+        LightbulbIcon [ iconSize = 48 ],
+        LightbulbIcon [ iconSize = 64 ]
+        ]
+    ]

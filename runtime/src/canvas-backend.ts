@@ -1179,6 +1179,8 @@ class CanvasSurface implements Surface {
     h.insertChild(this, null);
   }
 
+  isTraveling(): boolean { return this.travelHomeSurface !== null; }
+
   insertChild(child: Surface, before: Surface | null): void {
     const c = child as CanvasSurface;
     const existing = this.children.indexOf(c);

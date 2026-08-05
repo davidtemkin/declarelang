@@ -1230,6 +1230,7 @@ class CanvasSurface {
         }
         h.insertChild(this, null);
     }
+    isTraveling() { return this.travelHomeSurface !== null; }
     insertChild(child, before) {
         const c = child;
         const existing = this.children.indexOf(c);

@@ -15,6 +15,19 @@ the CONTROL policy on top of them, as derivations every concrete control reads:
 - `disabled` — inert: not focusable, no activation; concrete controls gate on it.
 - keyboard — Space or Enter on the focused control activates it, the same `press()`
   path a pointer uses, acknowledged by flashing the pressed look.
+
+It also owns the two things every labelled control was improvising:
+
+- `iconLeft` / `iconRight` — decoration, by class name. A concrete control lays
+  them out; Control only declares that they exist, so `Button` and `Segment`
+  answer to one vocabulary.
+- `menu` — the ROLE of dropping a menu. Not decoration: fifteen sites across the
+  corpus call `someMenu.openFor(control)`, and the disclosure mark for that one
+  role was drawn five different ways or omitted (a glyph inside the label string
+  in five places, a private chevron in two, a separate `Text` in one, nothing in
+  `MenuBar` and `DataGrid`). Nobody chose those differences. Setting `menu` gets
+  the mark, the anchored open, the held-open styling, and Down-to-open together,
+  which is the part a hand-rolled copy gets wrong one piece at a time.
 */
 
 class Control extends View [
@@ -46,9 +59,47 @@ class Control extends View [
     // one traveling indicator, declared once in the App), not a per-control
     // ring; `focused` stays declared here for controls' own styling.
 
+    // ── content slots ──────────────────────────────────────────────────────
+    //
+    // Icons by CLASS NAME, resolved through the tag registry. A name rather than
+    // a child because a control is a leaf — everything else about it is an
+    // attribute — and because an attribute is the one form where authored and
+    // bound are the same mechanism: `iconLeft = TrashIcon` and
+    // `iconLeft = { "" + :icon }` in a replicated toolbar are one slot.
+
+    iconLeft:  string = "",
+    iconRight: string = "",
+
+    // The menu this control drops. Set it and the disclosure mark, the anchored
+    // open, and the open-state styling all follow; `openMenu()` is the seam a
+    // concrete control calls from its own `press()`.
+
+    menu: View = null,
+
+    // DERIVED, not written. A flag set on open goes stale the moment the menu
+    // closes some other way — Escape, a pick, a click on the backdrop — and the
+    // button keeps its held-open fill for the rest of the session. Reading the
+    // menu's own state cannot drift: it is open if the menu is shown AND this
+    // control is what opened it (one menu serves many openers).
+
+    menuOpen: boolean = { this.menu != null
+                       && (this.menu as any).shown === true
+                       && (this.menu as any).opener === this },
+
+    // What a control SHOWS on the right: an explicit icon wins, else the
+    // disclosure chevron a `menu` implies. One place decides, so the five
+    // improvised indicators become one.
+
+    rightIcon: string = { this.iconRight != "" ? this.iconRight : this.menu != null ? "ChevronIcon" : "" },
+
+    openMenu() {
+        if (this.menu == null || this.disabled) return
+        ;(this.menu as any).openFor(this)
+        },
+
     // the activation seam — concrete controls override; pointer and keyboard both land here
 
-    press() { },
+    press() { if (this.menu != null) this.openMenu() },
 
     // the control's FOCUS SILHOUETTE — override to ring something other than
     // the whole bounds (a Radio rings its dot). null = bounds + cornerRadius.
@@ -76,6 +127,28 @@ class Control extends View [
 
     // a click is also a focus claim — the keyboard picks up where the pointer left
 
-    onPointerDown() { if (!disabled) { focusVisible = false; Focus.focus(this) } },
-    onKeyDown(e: KeyEvent) { if (!disabled && !e.repeat && (e.key == "Enter" || e.key == " ")) press() }
+    // A MENU opens here, not from `onClick`. Every other control routes the
+    // pointer through `press()` (`onClick() { if (!disabled) press() }`), but
+    // Button inverts that — its `onClick` is the USE SITE's action slot — so a
+    // menu hung off `press()` opened from the keyboard and never from a click.
+    // Pointer-down is also what the platform does: menus open on press, not
+    // release. The keyboard keeps its own path through `press()`, and the two
+    // cannot double-fire because a key press raises no pointer event.
+
+    onPointerDown() {
+        if (disabled) return
+        focusVisible = false
+        Focus.focus(this)
+        if (this.menu != null) this.openMenu()
+        },
+
+    // Down opens a menu control — the platform convention, and the reason `menu`
+    // is a role rather than an icon: an author who wired a chevron by hand never
+    // got this.
+
+    onKeyDown(e: KeyEvent) {
+        if (disabled || e.repeat) return
+        if (e.key == "Enter" || e.key == " ") press()
+        else if (e.key == "ArrowDown" && this.menu != null) this.openMenu()
+        }
     ]

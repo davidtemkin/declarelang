@@ -85,6 +85,11 @@ const TABLE = {
     mac: "GAP (not yet built) — surface re-homing: chrome that must ride a scroller's content (the focus ring) or escape one (the DataGrid's header). The callers all check the RETURN value and keep a reactive root-space fallback, so the native host degrades to correct-but-lagging geometry rather than breaking — which is exactly why this absence could go unnoticed without this table",
     headless: NOT_APPLICABLE,
   },
+  isTraveling: {
+    dom: true, canvas: true,
+    mac: "GAP (not yet built) — the read half of travelWith, and absent for the same reason: no re-homing there means nothing is ever away from home, so the optional-call default (undefined, read as false) is the right answer on that backend rather than a silent wrong one",
+    headless: NOT_APPLICABLE,
+  },
   setRichWidth: {
     dom: true,
     canvas: "deliberate — canvas does not use the native rich-text path at all (its setRichContent returns -1, which is the signal for 'lay the runs out yourself'), so RichText re-flows through its own manual layout on every width change. There is no host box to re-size, and nothing to skip",
@@ -174,9 +179,15 @@ for (const member of members) {
 // the same reason the original seven are: a backend without it degrades to a
 // defined fallback rather than failing to compile. Each therefore also carries
 // its own row above, which is the price of that optionality.
+//
+// 12 → 13 (2026-08-03): isTraveling, the READ half of travelWith. View.raise()
+// was re-seating a traveled surface under its model parent — dragging the focus
+// ring out of the scroller it rides while its coordinates still read that
+// scroller's content space, so the first Tab of a session painted the ring a
+// scroller-origin above its target. Raise now asks before it moves.
 await test("the size of the silent-failure surface is stated, not drifting", () => {
   const total = [...src("backend.ts").matchAll(/^ {2}[a-zA-Z][a-zA-Z0-9]*\??\(/gm)].length;
-  assert.equal(members.length, 12,
+  assert.equal(members.length, 13,
     `Surface's optional-member count changed (${members.length} of ~${total}). That is the ` +
     `set of capabilities a backend can omit in total silence — update the number here ` +
     `deliberately, with the row that justifies it.`);

@@ -251,6 +251,12 @@ class TableRow extends Control [
     // quiet defaults, styled against the theme; use sites override freely
 
     width = { (parent as Table).width },
-    fill = { selected ? theme.control : hot ? theme.surface : null },
+
+    // On the shared ladder. This read `control` as SELECTED and `surface` as
+    // hover — exactly inverted from Segment, which read `control` as hover and
+    // `surface` as selected. Two components, two opposite meanings for one pair
+    // of tokens: neither wrong alone, incoherent together.
+
+    fill = { selected ? theme.controlSelected : hot ? theme.controlHover : null },
     stroke = { active && (parent as Table).focusVisible ? stroke(1, theme.accent) : null }
     ]

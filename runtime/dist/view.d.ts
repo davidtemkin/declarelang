@@ -123,6 +123,8 @@ export declare class View extends Node {
     fontWeight: FontWeight;
     /** Letter tracking in px (canvas-native), 0 = natural advances. */
     letterSpacing: number;
+    /** The size an Icon takes from its context (prevailing; schema.ts). */
+    iconSize: number;
     /** Rich-text STRUCTURE style, prevailing: a `Markdown`/`HTMLText` renders its
      *  headings/links/inline-code from these; a plain View just carries them for
      *  its rich-text descendants. Colors are `null` = the theme-aware house token;
@@ -396,7 +398,13 @@ export declare class View extends Node {
      *  child — stacking is source order); `raise(below)` moves it to just BENEATH
      *  a sibling instead, so a pinned band above it (e.g. the dock's minimized
      *  windows) stays on top. Same parent only — the verb form of z-order, no
-     *  numbers. A Menu raises at open; a Window raises on activation. */
+     *  numbers. A Menu raises at open; a Window raises on activation.
+     *
+     *  A TRAVELING surface (travelWith) keeps its host: its parentage is the
+     *  travel host's business, and re-seating it under the model parent would
+     *  drag it home while its position slots still read the host's CONTENT
+     *  coordinates — the ring painting a scroller's origin above its target.
+     *  The MODEL order still moves; only the surface seat is left alone. */
     raise(below?: View | null): void;
     /** This view's input route, or null when it answers no pointer event —
      *  interactivity *derives* from declared handlers (Decisions §R5): a view

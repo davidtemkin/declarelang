@@ -1,45 +1,96 @@
 /*
-# Segmented / Segment
+# Segmented
 
-The SEGMENTED CONTROL — the platform pattern behind every "Controls · Table ·
-DataGrid" switch (macOS/iOS call it NSSegmentedControl / UISegmentedControl;
-Material calls it the segmented button): N mutually exclusive choices in one
-pill, the active segment raised. Button ANATOMY with radio-shaped STATE:
-every segment is its own tab stop (tab to an inactive choice, Space/Enter
-picks it), arrows rove focus across the group, a click picks directly. The
-Viewer's mode switch and Calendar's theme switch are this pattern by hand;
-this is the component form.
+A row of mutually exclusive choices — the control you reach for when the options
+are few, named, and worth showing all at once. Its choices are **data**, like
+`Menu`'s items and `DataGrid`'s columns:
 
-    Segmented [ value = { app.page }, input(v: object) { app.page = "" + v },
-        Segment [ choice = { "controls" }, lbl = "Controls" ],
-        Segment [ choice = { "table" }, lbl = "Table" ],
-        Segment [ choice = { "grid" }, lbl = "DataGrid" ] ]
+```declare-fragment
+Segmented [ width = 300, value = { app.page },
+    choices = { [ ({ id: "controls", label: "Controls" }),
+                 ({ id: "table",    label: "Table" }),
+                 ({ id: "grid",     label: "DataGrid" }) ] },
+    input(v: object) { app.page = "" + v }
+    ]
+```
 
-- **Value pattern** (Contract 1): `value` holds the active CHOICE; `input(v)`
-  is the delivery — the default writes the slot, a use-site override owns it.
-- Segments are written members (the RadioGroup practice): `choice` is the
-  member's identity, `lbl` its face. A segment sizes to its label plus the
-  control's `pad`.
-- **Every segment is a TAB STOP** — the user tabs to an inactive segment and
-  picks it with Space/Enter (the Control activation path); arrows rove focus
-  across the group's segments. The ring hugs the focused segment's pill.
+## Why data, and not `Segment` children
+
+Because the sliding highlight cannot be built any other way. The pill has to know
+which choice is selected and how wide each one is, and a constraint may not ask
+the view tree that: `childViews` carries **set membership only**, so `.length` is
+live while anything reaching into the collection is refused —
+`aggregation over a reactive node collection … derive from data [DECLARE7001]`.
+The compiler names the answer.
+
+It is also the mainstream shape. UIKit's segments are titles in an array, SwiftUI
+picks from a `ForEach`, Ant Design takes `options`; only Material and WinUI name
+the item at all, and both compound it. A bare `Segment` class was the minority
+pattern — and bare enough that two apps in this corpus had taken the name for a
+paragraph of prose.
+
+## Equal widths — a choice, not a limitation
+
+Segments divide the control's width evenly. This is a DESIGN decision and it
+could be otherwise: a `Layout`'s `place()` may aggregate over children — that is
+how `SimpleLayout` sizes a variable-width row — so a strategy that placed each
+segment by its own label and interpolated the pill between neighbours is
+buildable. The `DECLARE7001` refusal binds constraints reaching into the view
+tree, not the layout strategy whose job that is. Three reasons not to:
+
+- **The systems that call this a segmented control agree.** UIKit divides evenly
+  by default (`apportionsSegmentWidthByContent` is opt-in), as does SwiftUI's
+  segmented `Picker`. The ones that size to content — Bootstrap, Ant — are really
+  styling a row of buttons.
+- **Apple's guidance makes it a content rule**: keep segment labels short and
+  similar in length. Equal width enforces that rather than tolerating it. One long
+  label makes the whole control look wrong, which is the feedback you want.
+- **The sliding pill.** At equal widths it translates at constant width. At
+  variable widths it would have to morph its width WHILE travelling, which reads
+  as rubbery and worsens the more the labels differ. Most platforms never meet
+  this, because their highlight pops.
+
+The cost is real and worth stating plainly: **a `Segmented` does not self-size to
+its labels.** Set `width`, or accept `segMin × choices.length`.
+
+## The pill
+
+The highlight springs a NORMALIZED LANE — a float index — not pixels. `x` is then
+`lane × segW`, so a resize recomputes `segW` and the pill **snaps** to the right
+place instead of skating across the bar on every layout change. Calendar's tab
+strip discovered this; it is the one thing the bespoke copies did better than the
+library, and it is now here.
+
+The look is the library's: the chosen segment wears a raised `surface` pill with
+a hairline. The motion is calendar's. Neither app was wrong about the half it got
+right (`chrome-divergences.md` D9).
 */
 
-include [ "control.declare" ]
+include [ "control.declare", "icons/icon.declare" ]
 
 class Segmented extends View [
     // the marker (the wrap-probe discipline)
 
     isSegmented: boolean = true,
 
+    choices: array = [],           // a BARE literal: it owns a cell, so a use-site value wires
     value: object = null,
     disabled: boolean = false,
-    pad: number = 34,            // per-segment horizontal padding (label + pad)
 
     height = 30,
     cornerRadius = 8,
     fill = { theme.control },
-    width = { this.contentWidth + 2 },
+
+    segMin: number = 96,            // per-segment width when the author sets none
+    count:  number = { Math.max(1, ((this.choices ?? []) as any).length) },
+    width  = { this.count * this.segMin },
+    segW:   number = { (this.width - 4) / this.count },
+
+    // Which choice is live, as an INDEX — from the data, which is the only place
+    // this question can be asked. −1 (nothing selected) parks the pill at 0 and
+    // hides it rather than springing to a phantom slot.
+
+    idx: number = { ((this.choices ?? []) as any).findIndex((c) => c.id === this.value) },
 
     // ── the delivery seam ─────────────────────────────────────────────────
 
@@ -50,7 +101,7 @@ class Segmented extends View [
 
     segs() -> array {
         const out = []
-        for (const c of this.children) { if ((c as Segment).isSegment === true) out.push(c) }
+        for (const c of this.children) { if ((c as SegmentedItem).isSegment === true) out.push(c) }
         return out
         },
 
@@ -66,56 +117,117 @@ class Segmented extends View [
         if (n != i) Focus.focus(ss[n] as any)
         },
 
-    layout: SimpleLayout [ axis = x, spacing = 0 ],
+    // THE PILL. `lane` is a float index the spring drives; `x` multiplies it by
+    // the CURRENT segment width, so the pill is correct at any size the moment
+    // layout changes and only animates when the selection does.
 
-    lead: View [ width = 2, height = 1 ]
+    lane: number = 0,
+    Spring [ attribute = lane, to = { classroot.idx < 0 ? 0 : classroot.idx },
+        stiffness = 260, damping = 30, mass = 0.9, epsilon = 0.002 ],
+
+    pill: View [ y = 2, height = { parent.height - 4 }, cornerRadius = 6,
+        x = { 2 + (parent as Segmented).lane * (parent as Segmented).segW },
+        width = { (parent as Segmented).segW },
+        visible = { (parent as Segmented).idx >= 0 },
+        fill = { theme.surface },
+        stroke = { stroke(1, theme.line) } ],
+
+    // The index rides IN the data — replication has no ordinal of its own, and
+    // the pill needs one to place each segment.
+
+    items: Dataset [ contents = { ({ rows: ((classroot.choices ?? []) as any).map((c, i) => ({ ...c, i: i })) }) } ],
+
+    // Replicated as DIRECT children, so a segment's `parent` is the control
+    // itself — the pill and the segments are siblings over one cursor.
+
+    datapath = { this.items.value },
+    SegmentedItem [ datapath = :rows[] ]
     ]
 
 
-// Every segment is a CONTROL — its own tab stop, Space/Enter activating the
-// pick (so the user tabs to an INACTIVE segment and selects it), the ring
-// hugging its pill.
+// One choice. A CONTROL — its own tab stop, Space/Enter activating the pick, so
+// the user tabs to an inactive choice and selects it. Materialized from the
+// data; not authored directly, which is why it carries no attributes of its own
+// beyond what the record gives it.
 
-class Segment extends Control [
-    // the marker Segmented's walks key on
-
+class SegmentedItem extends Control [
     isSegment: boolean = true,
 
-    choice: object = null,
-    lbl: string = "",
-
     height = { parent.height },
-    width = { this.t.width + ((parent as Segmented).isSegmented === true ? (parent as Segmented).pad : 34) },
+    width  = { (parent as Segmented).segW },
+    x      = { 2 + :i * (parent as Segmented).segW },
 
-    on: boolean = { (parent as Segmented).isSegmented === true && (parent as Segmented).value === choice },
+    on: boolean = { (parent as Segmented).value === :id },
 
-    bg: View [ x = 2, y = 2, width = { parent.width - 4 }, height = { parent.height - 4 }, cornerRadius = 6,
-        // three states, three depths: chosen wears the raised surface, a
-        // PRESS is visibly deeper than a hover
+    // Rest, hover and press only — the CHOSEN state is the sliding pill behind
+    // these, not a fill of their own. That is what lets it travel between them.
 
-        fill = { parent.on ? theme.surface : parent.down ? theme.line : parent.hovered ? theme.control : null },
-        stroke = { parent.on ? stroke(1, theme.line) : null } ],
+    bg: View [ x = 2, y = 2, width = { parent.width - 4 }, height = { parent.height - 4 },
+        cornerRadius = 6,
+        fill = { parent.on ? null
+               : parent.down ? theme.controlPressed
+               : parent.hot ? theme.controlHover
+               : null } ],
+
+    // A choice shows a LABEL or an ICON, whichever the record carries. Every
+    // segmented control in this corpus is one or the other — page switches are
+    // labelled, appearance switches are the sun/half-disc/moon — so a segment
+    // that showed both would be inventing a case nobody has. The record shape is
+    // `Menu`'s, so adding it later is additive.
+
+    ink: Color = { this.on || this.hot ? theme.text : theme.textMuted },
 
     t: Text [ wrap = false, fontSize = 13, fontWeight = medium,
+        visible = { :label != null && :icon == null },
         x = { (parent.width - this.width) / 2 },
         y = { (parent.height - this.height) / 2 },
-        textColor = { parent.on || parent.hovered ? theme.text : theme.textMuted },
-        text = { parent.lbl } ],
+        textColor = { parent.ink },
+        text = { "" + (:label ?? "") } ],
 
-    press() {
-        if ((parent as Segmented).isSegmented === true && !(parent as Segmented).disabled) (parent as Segmented).pick(choice)
+    ico: IconHost [ kind = { "" + (:icon ?? "") }, ink = { parent.ink },
+        x = { (parent.width - this.width) / 2 },
+        y = { (parent.height - this.height) / 2 } ],
+
+    // The control's own disabled flag follows the GROUP's — a segment is not
+    // separately disable-able, and a disabled group takes itself out of the tab
+    // order rather than offering unreachable stops.
+
+    disabled = { (parent as Segmented).disabled },
+
+    // A segment MAY be a location. Give a choice a `location` and this segment
+    // navigates there itself, in its own `onClick` — which is what makes it
+    // visible to link extraction (compiler/src/links.ts reads `app.location = …`
+    // out of activation handlers, and `input(v)` is not one; nor could it be,
+    // since the destination there depends on `v`, which does not exist at t=0).
+    //
+    // The docs app is the case that named this: its Guide/Reference switch was
+    // the ONLY edge into the reference half of the crawl graph — the class rail
+    // is `visible = { mode == "reference" }`, so at the default location its 58
+    // links are not in the settled tree at all. When the switch stopped being a
+    // link, 58 documents left the static build silently. A second on-page index
+    // would be duplicate content; the switch IS the index's front door, so the
+    // front door is what had to say where it goes.
+    //
+    // Empty for every other Segmented in the corpus, and an empty read emits no
+    // anchor, so this is inert unless a choice asks for it.
+
+    location: string = { "" + (:location ?? "") },
+
+    press()   { if (!disabled) (this.parent as Segmented).pick(:id) },
+    onClick() {
+        if (disabled) return
+        if (classroot.location != "") app.location = classroot.location
+        press()
         },
-
-    onClick() { if (!disabled) press() },
 
     onKeyDown(e: KeyEvent) {
         if (disabled) return
-        if (e.key == "ArrowRight" || e.key == "ArrowDown") { if ((parent as Segmented).isSegmented === true) (parent as Segmented).roveFrom(this, 1) }
-        else if (e.key == "ArrowLeft" || e.key == "ArrowUp") { if ((parent as Segmented).isSegmented === true) (parent as Segmented).roveFrom(this, -1) }
-        else if (!e.repeat && (e.key == "Enter" || e.key == " ")) press()
+        if (e.key == "Enter" || e.key == " ") press()
+        else if (e.key == "ArrowRight" || e.key == "ArrowDown") (this.parent as Segmented).roveFrom(this, 1)
+        else if (e.key == "ArrowLeft" || e.key == "ArrowUp") (this.parent as Segmented).roveFrom(this, -1)
         },
 
-    // the ring hugs the segment's PILL, not the raw box
+    // the ring hugs the segment's pill, not its whole box
 
     focusShape() { return { x: 2, y: 2, w: this.width - 4, h: this.height - 4, rad: 6 } }
     ]

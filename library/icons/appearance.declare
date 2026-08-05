@@ -1,0 +1,102 @@
+/*
+# Appearance icons — sun, moon, and the half-disc
+
+The Light / System / Dark triad. Five apps built this switch independently and
+all five reached for `☀︎ ◐ ☾`, which is the worst case for glyphs: three marks
+that must read as ONE family at 14px, drawn by three unrelated parts of whatever
+font the platform happens to have. The sun is a heavy sunburst, the moon a thin
+crescent, the half-disc a geometric shape — they never matched.
+
+Drawn, they share a circle of the same radius and the same stroke, so they read
+as a set: a disc with rays, a disc bitten by a shadow, a disc half filled.
+*/
+
+include [ "icon.declare" ]
+
+// The three share a disc of one radius. What they do NOT yet share is settled:
+// `solid` picks the rendition, and the two are worth comparing on sight rather
+// than in prose (test/probe/iconweight.declare puts both against Apple's).
+//
+// The original argument for filling all three: at 14–18px a 1.6px ring reads far
+// lighter than a filled crescent, so filling is what makes them siblings and the
+// difference between them is what is SUBTRACTED from the disc — nothing, half, a
+// bite. The argument against: Apple's own triad is outline sun, outline crescent,
+// HALF-FILLED disc — a mixed language on purpose, because a half-filled disc is
+// the one of the three whose meaning IS its fill. Measured, our filled sun runs
+// ×2.18 the ink of `sun.max` and our filled moon ×1.21 of `moon`, while our
+// half-disc already sits at ×1.03 of `circle.lefthalf.filled` — which says the
+// half-disc was never the problem and the other two are carrying the weight.
+
+class SunIcon extends Icon [
+    rays: number = 8,
+    solid: boolean = false,         // true = the original filled disc; false is Apple's ring
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.fillStyle = ink
+        d.strokeStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        // The ring is drawn a touch smaller than the solid disc: a stroke straddles
+        // its path, so an outline at the filled radius reads as the larger mark.
+        d.beginPath()
+        d.arc(8, 8, classroot.solid ? 3.5 : 3.15, 0, Math.PI * 2, false)
+        if (classroot.solid) d.fill()
+        else d.stroke()
+        for (let i = 0; i < classroot.rays; i++) {
+            const a = (i / classroot.rays) * Math.PI * 2
+            const c = Math.cos(a), s = Math.sin(a)
+            d.beginPath()
+            d.moveTo(8 + c * 5.3, 8 + s * 5.3)
+            d.lineTo(8 + c * 6.9, 8 + s * 6.9)
+            d.stroke()
+            }
+        }
+    ]
+
+
+// A crescent built as the region between two equal circles — the outer edge from
+// one, the bite from a second offset by (3, -3). Both arcs meet exactly at the
+// circles' two intersection points, so the horns close to a point instead of
+// leaving the tail an arc pair leaves.
+//
+// One path, two renditions: FILL it and you get a solid crescent; STROKE the same
+// closed path and you get Apple's, where the horns taper because the two arcs
+// meet at a point. Nothing about the geometry changes — only what is done with it.
+
+class MoonIcon extends Icon [
+    solid: boolean = false,         // true = the original filled crescent; false is Apple's
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.beginPath()
+        d.arc(8, 8, 5.5, 0.389, 4.323, false)      // outer edge, the long way round
+        d.arc(11, 5, 5.5, 3.531, 1.181, true)      // the bite, back to the first horn
+        d.closePath()
+        if (classroot.solid) { d.fillStyle = ink; d.fill() }
+        else {
+            d.strokeStyle = ink
+            d.lineWidth = weight / unit
+            d.lineJoin = "round"
+            d.stroke()
+            }
+        }
+    ]
+
+
+// "System" — the same disc, half of it taken away. The ring stays so the empty
+// half still reads as part of one object rather than as a gap.
+
+class AutoIcon extends Icon [
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = weight / unit
+        d.beginPath()
+        d.arc(8, 8, 5.4, Math.PI * 0.5, Math.PI * 1.5, false)
+        d.closePath()
+        d.fill()
+        d.beginPath()
+        d.arc(8, 8, 5.4, 0, Math.PI * 2, false)
+        d.stroke()
+        }
+    ]

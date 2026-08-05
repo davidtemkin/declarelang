@@ -5,9 +5,26 @@ A labeled action control. The action is its `onClick` — write it at the use si
 exactly as on any View; `Button` adds the interaction states, the themed look, and
 keyboard activation (Space/Enter drives the same `onClick`). `primary = true` fills
 with the accent; the default is the quiet control look.
+
+```declare-fragment
+Button [ label = "Save" ]
+Button [ label = "Delete", iconLeft = "TrashIcon" ]
+Button [ label = "Options", menu = { app.optionsMenu } ]      // chevron implied
+Button [ iconLeft = "CloseIcon" ]                             // icon only
+```
+
+Three slots in a row — `iconLeft`, the label, `iconRight` — laid out by
+`SimpleLayout` and sized from `contentWidth`, so an absent label or icon costs
+nothing and needs no special case: an invisible child is skipped and its space
+reclaimed. A `menu` supplies the right icon on its own (`control.declare`).
+
+The fill walks the four-rung ladder — `control` at rest, `controlHover`,
+`controlPressed`, and `controlSelected` while its menu is open. Before the ladder
+existed this read `down || hot ? controlActive : control`, which meant **hovering
+a button looked exactly like pressing it**.
 */
 
-include [ "control.declare" ]
+include [ "control.declare", "icons/icon.declare" ]
 
 class Button extends Control [
     height = { typeof theme.buttonHeight == "number" ? theme.buttonHeight : 40 },
@@ -15,18 +32,51 @@ class Button extends Control [
     label:   string = "",
     primary: boolean = false,
 
-    onClick() { },
-    press()   { flashPress(); onClick() },     // keyboard activation shows the press
+    iconSize = 18,
+    gap:  number = 8,
+    padH: number = 16,
 
-    width   = { this.cap.width + 32 },
-    opacity = { disabled ? 0.45 : down ? 0.72 : 1 },
-    fill    = { primary ? theme.accent : down || hot ? theme.controlActive : theme.control },
+    onClick() { },
+    press()   { flashPress(); if (menu != null) openMenu(); onClick() },
+
+    // one ink decision, so a primary button's icon and its label agree
+
+    inkColor: Color = { primary ? theme.accentText : theme.text },
+    textColor = { inkColor },
+
+    // The RUN sizes to its own content and centres itself in the button; the
+    // button's default width is the run plus symmetric padding. Two objects, so
+    // the two facts stay independent: a button given an explicit `width` (a
+    // dialog's equal-width row, a toolbar's fixed slot) still centres what it
+    // holds, which a packed layout on the button itself would not.
+    //
+    // Not flexing Spacers: SimpleLayout reads the view's own extent to divide
+    // slack, and the extent here is derived FROM the content — that closes a
+    // cycle. A self-sizing child breaks it, because the run's width never looks
+    // outward.
+
+    width   = { this.run.width + this.padH * 2 },
+    opacity = { disabled ? 0.45 : 1 },
+
+    fill = { primary   ? theme.accent
+           : menuOpen  ? theme.controlSelected
+           : down      ? theme.controlPressed
+           : hot       ? theme.controlHover
+           :             theme.control },
 
     // platforms whose secondary buttons are BORDERED say so in the theme
     // (Cupertino's hairline, Fluent's 1px) — flat systems leave it null
 
     stroke  = { !primary && theme.buttonBorder != null ? stroke(1, theme.buttonBorder) : null },
 
-    cap: Text [ x = center, y = center, wrap = false, fontWeight = semibold,
-        textColor = { primary ? theme.accentText : theme.text }, text = { label } ]
+    run: View [ height = { parent.height },
+        x = { (parent.width - this.width) / 2 },
+        width = { this.contentWidth },
+        layout: SimpleLayout [ axis = x, spacing = { classroot.gap } ],
+
+        ico:   IconHost [ kind = { classroot.iconLeft },  ink = { classroot.inkColor } ],
+        cap:   Text [ y = center, wrap = false, fontWeight = semibold,
+            visible = { classroot.label != "" }, text = { classroot.label } ],
+        trail: IconHost [ kind = { classroot.rightIcon }, ink = { classroot.inkColor } ]
+        ]
     ]

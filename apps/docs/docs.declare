@@ -16,6 +16,8 @@ prevailing record on the App (see it there), so the whole document reskins
 from one place.
 */
 
+use [ SunIcon, AutoIcon, MoonIcon ]
+
 font Sans [ family = "system-ui" ]
 
 font Code [ family = "ui-monospace, SFMono-Regular, monospace" ]   // matches the runtime house code face (PROSE.mono)
@@ -35,7 +37,7 @@ class Title extends Text [ fontFamily = [Sans, "system-ui", "sans-serif"],
 
 
 class Muted extends Text [ fontFamily = [Sans, "system-ui", "sans-serif"],
-    textColor = { theme.muted }
+    textColor = { theme.textMuted }
     ]
 
 
@@ -47,7 +49,7 @@ class Mono extends Text [ fontFamily = [Code, "ui-monospace", "monospace"] ]
 
 class ClassTab extends View [ width = { parent.width }, height = 32, cornerRadius = 6,
     cname:   string = "",
-    fill = { app.selected == classroot.cname ? theme.sel : hovered ? theme.hover : null },
+    fill = { app.selected == classroot.cname ? theme.sel : hovered ? theme.control : null },
     onClick()     { app.refAt = classroot.cname; app.location = "reference/" + classroot.cname; app.showPage() },
     lbl: Mono [ x = 12, y = 8, fontSize = 14, wrap = false,
         text = { classroot.cname },
@@ -75,7 +77,7 @@ class AttrRow extends View [ width = { parent.width },
     sig: View [ width = { parent.width },
         layout: SimpleLayout [ axis = x, spacing = 8 ],
         Mono [ fontSize = { 15 * app.fontScale }, fontWeight = semibold, textColor = { theme.text }, text = { :name } ],
-        Mono [ fontSize = { 15 * app.fontScale }, textColor = { theme.accent2 }, text = { ": " + :type } ],
+        Mono [ fontSize = { 15 * app.fontScale }, textColor = { theme.accentSecondary }, text = { ": " + :type } ],
         Mono [ fontSize = { 14 * app.fontScale }, textColor = { theme.sigDim },
             text = { :default != null ? "= " + :default : "" } ]
         ],
@@ -88,7 +90,7 @@ class AttrRow extends View [ width = { parent.width },
 
     // the captured doc — prose + any inline runnable islands; dimmed for the reference
 
-    Segment [ datapath = :docSegs[], width = { parent.width },
+    Block [ datapath = :docSegs[], width = { parent.width },
         live = { classroot.live }, tone = { theme.refDim }, lead = 1.6 ]
     ]
 
@@ -111,7 +113,7 @@ class MethodRow extends View [ width = { parent.width },
         Mono [ fontSize = { 15 * app.fontScale }, textColor = { theme.mtail }, text = { classroot.tailtext } ]
         ],
 
-    Segment [ datapath = :docSegs[], width = { parent.width },
+    Block [ datapath = :docSegs[], width = { parent.width },
         live = { classroot.live }, tone = { theme.refDim }, lead = 1.6 ]
     ]
 
@@ -123,7 +125,7 @@ class EventRow extends View [ width = { parent.width },
 
     sig: Mono [ fontSize = { 15 * app.fontScale }, fontWeight = semibold, textColor = { theme.text }, text = { :signature } ],
 
-    Segment [ datapath = :docSegs[], width = { parent.width },
+    Block [ datapath = :docSegs[], width = { parent.width },
         live = { classroot.live }, tone = { theme.refDim }, lead = 1.6 ]
     ]
 
@@ -166,7 +168,7 @@ class Example extends View [ width = { parent.width },
     estage: number = { :stageH || 250 },   // extractor-measured stage height — the frame FITS the settled app
     live:   boolean = false,             // the parent gates the preview: it mounts only when this is true
 
-    // this island's edit failed to compile (host publishes the report; see RunBlock)
+    // this island's edit failed to compile (host publishes the report; see RunIsland)
 
     broken: boolean = { app.liveCard == cname && app.liveReport != "" },
     layout: SimpleLayout [ axis = y, spacing = 0 ],   // the preview frame abuts the code block below, no gap
@@ -199,17 +201,17 @@ class Example extends View [ width = { parent.width },
             width = { this.lbl.width + 14 }
             ],
 
-        // Revert — restore the pristine source and republish (see RunBlock)
+        // Revert — restore the pristine source and republish (see RunIsland)
 
         rev: View [ y = 5, height = 20, cornerRadius = 6, stroke = { stroke(1, theme.line) },
             x = { parent.tag.x - this.width - 10 },
             width = { this.rlbl.width + 16 },
-            fill = { hovered ? theme.hover : null },
+            fill = { hovered ? theme.control : null },
             onClick() { classroot.panel.field.text = classroot.esrc
                         app.liveCard = classroot.cname
                         app.liveSource = classroot.esrc },
             rlbl: Text [ x = 8, y = 3, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 11, fontWeight = semibold,
-                textColor = { parent.hovered ? theme.text : theme.muted }, text = "Revert" ]
+                textColor = { parent.hovered ? theme.text : theme.textMuted }, text = "Revert" ]
             ],
 
         // a line of breathing room below the label before the code starts
@@ -219,7 +221,7 @@ class Example extends View [ width = { parent.width },
             editName = { classroot.cname }, src = { classroot.esrc } ]
         ],
 
-    // the compile report at the island (see RunBlock — same teaching surface)
+    // the compile report at the island (see RunIsland — same teaching surface)
 
     err: View [ width = { parent.width }, fill = { theme.errBg },
         visible = { classroot.broken },
@@ -252,7 +254,7 @@ class Example extends View [ width = { parent.width },
 ## Inline examples, woven through the prose
 
 Every `declare` code fence in any prose that compiles (as-is, or wrapped in
-`App […]`) becomes a `RunBlock`: the source above, its live preview below —
+`App […]`) becomes a `RunIsland`: the source above, its live preview below —
 edit and it re-runs. The extractor wrote its source to
 `apps/docs/demos/<id>.declare`, so the host seeds and mounts it exactly
 like the homepage's demos. `live` (threaded from the page) keeps the
@@ -260,7 +262,7 @@ preview's slot empty until its page is the one on screen, so only the visible
 page's islands ever compile.
 */
 
-class RunBlock extends View [ width = { parent.width },
+class RunIsland extends View [ width = { parent.width },
     rid:    string  = { :id },
     rsrc:   string  = { :source },
     rlines: number  = { :lines },
@@ -295,12 +297,12 @@ class RunBlock extends View [ width = { parent.width },
         rev: View [ y = 5, height = 20, cornerRadius = 6, stroke = { stroke(1, theme.line) },
             x = { parent.width - this.width - 10 },
             width = { this.rlbl.width + 16 },
-            fill = { hovered ? theme.hover : null },
+            fill = { hovered ? theme.control : null },
             onClick() { classroot.editor.field.text = classroot.rsrc
                         app.liveCard = classroot.rid
                         app.liveSource = classroot.rsrc },
             rlbl: Text [ x = 8, y = 3, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 11, fontWeight = semibold,
-                textColor = { parent.hovered ? theme.text : theme.muted }, text = "Revert" ]
+                textColor = { parent.hovered ? theme.text : theme.textMuted }, text = "Revert" ]
             ],
         hint: Muted [ y = 9, fontSize = { 11 * app.fontScale }, italic = true, text = "runs live below ↓",
             x = { parent.rev.x - this.width - 12 } ],
@@ -336,7 +338,7 @@ class RunBlock extends View [ width = { parent.width },
 // block that didn't compile stays folded into the Markdown as a static code fence.
 // `tone`/`lead` let a caller dim the prose (the reference runs dimmer than the guide).
 
-class Segment extends View [ width = { parent.width },
+class Block extends View [ width = { parent.width },
     live: boolean = false,
     tone: Color   = { theme.body },
     lead: number  = 1.6,
@@ -345,7 +347,7 @@ class Segment extends View [ width = { parent.width },
         visible = { :md != "" }, text = { :md },
         onLink(href: string) { app.openDocLink(href) }
         ],
-    RunBlock [ datapath = :code[], width = { parent.width }, live = { classroot.live } ]
+    RunIsland [ datapath = :code[], width = { parent.width }, live = { classroot.live } ]
     ]
 
 
@@ -428,7 +430,7 @@ class ClassDetail extends View [ width = { parent.width },
 
     // the class prose — dimmed, with any inline runnable examples woven in
 
-    Segment [ datapath = :docSegs[], width = { parent.width },
+    Block [ datapath = :docSegs[], width = { parent.width },
         live = { classroot.pageLive }, tone = { theme.refDim }, lead = 1.6 ],
 
     // attributes (hidden for a class that documents none — e.g. Dataset)
@@ -498,17 +500,6 @@ switching back lands where you left.
 // size. Nav chrome does NOT ride app.fontScale: the A-stepper is a reading-comfort
 // control for the content pane; the rail keeps its designed sizes.
 
-class ModeTab extends View [ height = 30, cornerRadius = 8,
-    label: string = "",
-    m: string = "",
-    fill = { app.mode == classroot.m ? theme.modeOn : hovered ? theme.hover : null },
-    onClick()     { app.location = classroot.m == "guide" ? "guide/" + app.guideAt : "reference/" + app.refAt; app.showPage() },
-    lbl: Text [ y = 7, fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 13, fontWeight = semibold, wrap = false,
-        x = { (parent.width - this.width) / 2 },
-        text = { classroot.label },
-        textColor = { app.mode == classroot.m ? theme.text : theme.modeOff } ]
-    ]
-
 
 // one chapter link in the guide rail — lights when it is the current chapter
 
@@ -516,7 +507,7 @@ class ChapterTab extends View [ width = { parent.width }, height = 32, cornerRad
     cid: string = { :id },
     cnum: number = { :num },
     ctitle: string = { :short },
-    fill = { app.chapter == classroot.cid ? theme.sel : hovered ? theme.hover : null },
+    fill = { app.chapter == classroot.cid ? theme.sel : hovered ? theme.control : null },
     onClick()     { app.guideAt = classroot.cid; app.location = "guide/" + classroot.cid; app.showPage() },
 
     // numbered, because the chapters cite each other by number ("chapter 3")
@@ -533,7 +524,7 @@ class PartGroup extends View [ width = { parent.width },
     layout: SimpleLayout [ axis = y, spacing = 3 ],
     p: string = { :part },
     g:       View [ height = 14 ],
-    eyebrow: Mono [ fontSize = 12, letterSpacing = 1.4, fontWeight = semibold, textColor = { theme.muted }, text = { classroot.p.toUpperCase() } ],
+    eyebrow: Mono [ fontSize = 12, letterSpacing = 1.4, fontWeight = semibold, textColor = { theme.textMuted }, text = { classroot.p.toUpperCase() } ],
     g2:      View [ height = 4 ],
     ChapterTab [ datapath = :chapters[] ]
     ]
@@ -559,16 +550,16 @@ class ChapterDetail extends View [ width = { parent.width },
     src: DataSource [ ],
     onInit() { this.src.url = "chapters/" + :id + ".json"; this.src.fetch() },
 
-    loading: Text [ visible = { classroot.src.loading }, fontSize = { 14 * app.fontScale }, textColor = { theme.muted }, text = "Loading the chapter…" ],
-    failed:  Text [ visible = { classroot.src.failed }, fontSize = { 14 * app.fontScale }, textColor = { theme.muted }, wrap = true, width = { parent.width },
+    loading: Text [ visible = { classroot.src.loading }, fontSize = { 14 * app.fontScale }, textColor = { theme.textMuted }, text = "Loading the chapter…" ],
+    failed:  Text [ visible = { classroot.src.failed }, fontSize = { 14 * app.fontScale }, textColor = { theme.textMuted }, wrap = true, width = { parent.width },
         text = { "The chapter did not load — " + (classroot.src.error || "") } ],
 
-    // the guide is the primary reading surface: brighter body, looser leading (Segment defaults)
+    // the guide is the primary reading surface: brighter body, looser leading (Block defaults)
 
     content: View [ width = { parent.width }, visible = { classroot.src.loaded }, datapath = { classroot.src.value },
         layout: SimpleLayout [ axis = y, spacing = 20 ],
 
-        Segment [ datapath = :segs[], width = { parent.width }, live = { classroot.pageLive } ],
+        Block [ datapath = :segs[], width = { parent.width }, live = { classroot.pageLive } ],
 
         // a flagship runnable example the chapter opts into with `<!-- demo: <Class> -->`
 
@@ -594,11 +585,11 @@ zooms the whole document.
 class SizeBtn extends View [ width = 32, height = 30, cornerRadius = 6,
     glyph: number = 14,
     delta: number = 0,          // delta 0 = reset to the default
-    fill = { hovered ? theme.hover : null },
+    fill = { hovered ? theme.control : null },
     onClick() { app.fontScale = classroot.delta == 0 ? 1.0
                     : Math.max(0.7, Math.min(1.6, Math.round((app.fontScale + classroot.delta) * 100) / 100)) },
     lbl: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontWeight = semibold,
-        fontSize = { classroot.glyph }, textColor = { theme.muted }, text = "A",
+        fontSize = { classroot.glyph }, textColor = { theme.textMuted }, text = "A",
         x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 } ]
     ]
 
@@ -606,17 +597,6 @@ class SizeBtn extends View [ width = 32, height = 30, cornerRadius = 6,
 // the theme switch — ☀ light · ◐ follow the system · ☾ dark. Selection is one
 // App attribute (`themeMode`); the theme record derives from it, so the whole
 // app (and every island's chrome) reskins from this row.
-
-class ThemeBtn extends View [ width = 32, height = 30, cornerRadius = 6,
-    m:     string = "",
-    glyph: string = "",
-    fill = { app.themeMode == m ? theme.modeOn : hovered ? theme.hover : null },
-    onClick() { app.themeMode = classroot.m },
-    lbl: Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 14,
-        text = { classroot.glyph },
-        textColor = { app.themeMode == classroot.m ? theme.text : theme.muted },
-        x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 } ]
-    ]
 
 
 /*
@@ -678,9 +658,16 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
        live-preview canvas stays a fixed dark in both themes (the demos are
        dark-authored examples). */
 
-    theme = { darkUI
-        ? ({ bg: 0x0B141B, rail: 0x0D1922, surface: 0x0C1620, chipBg: 0x14232E, hover: 0x152633, sel: 0x1C2D39, mchipBg: 0x172436, echipBg: 0x241F12, modeOn: 0x1F3B54, chipHov: 0x1C3243, mchipHov: 0x213649, echipHov: 0x332B18, line: 0x1E313C, rule: 0x345B84, edge: 0x1B2C39, accent: 0x4C8DFF, accent2: 0x37E0C8, chipTeal: 0x9FD9CE, chipBlue: 0xA9C7FF, chipAmber: 0xE7C98A, text: 0xE7EEF2, body: 0xC4CFD8, code: 0xC7D3DC, strong: 0xB7C6D2, mtail: 0x9FB3C2, tabIdle: 0x9BB0BE, refDim: 0x98A7B1, muted: 0x8A9BA6, modeOff: 0x7C93A2, sigDim: 0x6E8494, eyebrow: 0x55707F, tag: 0x4F6472, errBg: 0x2A1518, errBar: 0xE0525E, errText: 0xF2A0A6 })
-        : ({ bg: 0xF6F8FA, rail: 0xECF0F4, surface: 0xFFFFFF, chipBg: 0xE9EFF4, hover: 0xE4EBF1, sel: 0xDBE5EE, mchipBg: 0xE7EDF6, echipBg: 0xF5EFE0, modeOn: 0xD1DFF0, chipHov: 0xD9E4ED, mchipHov: 0xD4DEEF, echipHov: 0xECE3CD, line: 0xDCE3E9, rule: 0xB6C8DA, edge: 0xE0E6EC, accent: 0x2F6FE0, accent2: 0x12A08D, chipTeal: 0x15806E, chipBlue: 0x3355C2, chipAmber: 0x8F6F28, text: 0x172530, body: 0x2E3B46, code: 0x2B3843, strong: 0x3A4A56, mtail: 0x4F5F6B, tabIdle: 0x55636F, refDim: 0x51606C, muted: 0x6A7883, modeOff: 0x74828D, sigDim: 0x84929D, eyebrow: 0x93A0AA, tag: 0xA2AEB8, errBg: 0xFBE9EA, errBar: 0xC93B47, errText: 0x8E2830 }) },
+    // The HOUSE preset extended, not replaced: the standard tokens underneath,
+    // this app's own values over them, and its many domain names (chipBg, rail,
+    // modeOn, errBar …) alongside. A standard control dropped in here finds every
+    // token it consults; the docs palette is untouched.
+
+    theme = { ({ ...Themes.sanFrancisco(darkUI), ...app.docsTokens(darkUI) }) },
+
+    docsTokens(dark: boolean) -> object { return dark
+        ? ({ bg: 0x0B141B, rail: 0x0D1922, surface: 0x0C1620, chipBg: 0x14232E, control: 0x152633, sel: 0x1C2D39, mchipBg: 0x172436, echipBg: 0x241F12, modeOn: 0x1F3B54, chipHov: 0x1C3243, mchipHov: 0x213649, echipHov: 0x332B18, line: 0x1E313C, rule: 0x345B84, edge: 0x1B2C39, accent: 0x4C8DFF, accentSecondary: 0x37E0C8, chipTeal: 0x9FD9CE, chipBlue: 0xA9C7FF, chipAmber: 0xE7C98A, text: 0xE7EEF2, body: 0xC4CFD8, code: 0xC7D3DC, strong: 0xB7C6D2, mtail: 0x9FB3C2, tabIdle: 0x9BB0BE, refDim: 0x98A7B1, textMuted: 0x8A9BA6, modeOff: 0x7C93A2, sigDim: 0x6E8494, eyebrow: 0x55707F, tag: 0x4F6472, errBg: 0x2A1518, errBar: 0xE0525E, errText: 0xF2A0A6 })
+        : ({ bg: 0xF6F8FA, rail: 0xECF0F4, surface: 0xFFFFFF, chipBg: 0xE9EFF4, control: 0xE4EBF1, sel: 0xDBE5EE, mchipBg: 0xE7EDF6, echipBg: 0xF5EFE0, modeOn: 0xD1DFF0, chipHov: 0xD9E4ED, mchipHov: 0xD4DEEF, echipHov: 0xECE3CD, line: 0xDCE3E9, rule: 0xB6C8DA, edge: 0xE0E6EC, accent: 0x2E6FE0, accentSecondary: 0x12A594, chipTeal: 0x15806E, chipBlue: 0x3355C2, chipAmber: 0x8F6F28, text: 0x172530, body: 0x2E3B46, code: 0x2B3843, strong: 0x3A4A56, mtail: 0x4F5F6B, tabIdle: 0x55636F, refDim: 0x51606C, textMuted: 0x6A7883, modeOff: 0x74828D, sigDim: 0x84929D, eyebrow: 0x93A0AA, tag: 0xA2AEB8, errBg: 0xFBE9EA, errBar: 0xC93B47, errText: 0x8E2830 }) },
 
     /* Code-vs-prose coherence, matching the source-viewer reader: prose (and
        every non-code block) wraps to a reading measure while code fills the
@@ -690,7 +677,7 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
 
     richTextLayout = { { default: { maxWidth: 560 * app.fontScale }, code: { maxWidth: 0 } } },
     codeBackground = { theme.chipBg },
-    codeRule = { theme.accent2 },
+    codeRule = { theme.accentSecondary },
 
     docs: DataSource [ url = "../../docs/declare-model.json" ],
     datapath = { docs.value },                 // root every :path below into the model
@@ -758,7 +745,7 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
 
                     Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 18,
                         fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
-                        textFill = { gradient("90deg", theme.accent, theme.accent2) }, text = "Declare",
+                        textFill = { gradient("90deg", theme.accent, theme.accentSecondary) }, text = "Declare",
                         onClick() { app.navigate("apps/homepage/homepage.declare") }
                         ],
                     Text [ fontFamily = [Sans, "system-ui", "sans-serif"], fontSize = 18,
@@ -767,10 +754,28 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
                     ]
                 ],
             g0:    View [ height = 12 ],
-            modes: View [ width = { parent.width },
-                layout: SimpleLayout [ axis = x, spacing = 6 ],
-                ModeTab [ label = "Guide", m = "guide", width = { (parent.width - 6) / 2 } ],
-                ModeTab [ label = "Reference", m = "reference", width = { (parent.width - 6) / 2 } ]
+
+            // Guide / Reference. This was a segmented control in every respect
+            // except being one: two hand-styled `View`s, so no focus, no tab
+            // stop, no keyboard, no press state (register D10). The delivery
+            // seam already fit — the pair's value is `app.mode`, deriving from
+            // `app.location`, so a pick writes the location and the value comes
+            // back round, which is the single source of truth the location
+            // comment above asks for.
+
+            modes: Segmented [ width = { parent.width }, height = 30,
+                value = { app.mode },
+                input(v: object) {
+                    app.location = ("" + v) == "guide" ? "guide/" + app.guideAt : "reference/" + app.refAt
+                    app.showPage()
+                    },
+
+                // each half declares WHERE it goes, so the switch is a link the
+                // crawler can follow — without it the reference half of the docs
+                // is unreachable from the default location (see SegmentedItem)
+
+                choices = { [ ({ id: "guide",     label: "Guide",     location: "guide/" + app.guideAt }),
+                              ({ id: "reference", label: "Reference", location: "reference/" + app.refAt }) ] }
                 ],
 
             // font-size stepper — small / reset / large "A" glyphs zoom every text size
@@ -787,14 +792,12 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
                     SizeBtn [ glyph = 19, delta = 0.1 ],
                     width = { this.contentWidth }
                     ],
-                mode: View [ height = 30, cornerRadius = 8, fill = { theme.surface }, stroke = { stroke(1, theme.line) },
-                    layout: SimpleLayout [ axis = x, spacing = 0 ],
-                    ThemeBtn [ glyph = "☀︎", m = "light" ],
-                    div1: View [ width = 1, height = 18, y = 6, fill = { theme.line } ],
-                    ThemeBtn [ glyph = "◐", m = "system" ],
-                    div2: View [ width = 1, height = 18, y = 6, fill = { theme.line } ],
-                    ThemeBtn [ glyph = "☾", m = "dark" ],
-                    width = { this.contentWidth }
+                mode: Segmented [ height = 30, width = 96, iconSize = 15,
+                    value = { app.themeMode },
+                    input(v: object) { app.themeMode = "" + v },
+                    choices = { [ ({ id: "light",  icon: "SunIcon" }),
+                                  ({ id: "system", icon: "AutoIcon" }),
+                                  ({ id: "dark",   icon: "MoonIcon" }) ] }
                     ]
                 ],
 
@@ -810,7 +813,7 @@ App [ fill = { theme.bg }, appName = "Declare Docs",
             refNav: View [ width = { parent.width }, visible = { app.mode == "reference" },
                 layout: SimpleLayout [ axis = y, spacing = 4 ],
                 g1:    View [ height = 14 ],
-                eyebrow: Mono [ fontSize = 12, letterSpacing = 1.4, fontWeight = semibold, textColor = { theme.muted }, text = "COMPONENTS" ],
+                eyebrow: Mono [ fontSize = 12, letterSpacing = 1.4, fontWeight = semibold, textColor = { theme.textMuted }, text = "COMPONENTS" ],
                 g2:    View [ height = 4 ],
                 ClassTab [ datapath = :tree[], cname = :name ]
                 ]

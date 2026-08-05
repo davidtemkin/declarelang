@@ -13,7 +13,7 @@
 //     mismatch / a missing-then-present dependency all fall through;
 //   • INTEGRATION: every artifact actually committed under bundles/cache/ still
 //     validates against the current tree — a stale committed file fails loudly
-//     (run `node tools/internal/prewarm.mjs`), which is the drift guard itself.
+//     (run `node tools/internal/derive.mjs`), which is the drift guard itself.
 
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
@@ -136,7 +136,7 @@ await test("a stored-missing dependency: absent → fresh, present → stale", a
 // committed program is stale. That's caught (not shipped) — the guarantee working.
 if (existsSync(CACHE_DIR)) {
   const files = readdirSync(CACHE_DIR).filter((f) => f.endsWith(".json"));
-  assert.ok(files.length > 0, "the committed cache is non-empty (run `node tools/internal/prewarm.mjs`)");
+  assert.ok(files.length > 0, "the committed cache is non-empty (run `node tools/internal/derive.mjs`)");
   for (const f of files) {
     const art = JSON.parse(readFileSync(join(CACHE_DIR, f), "utf8"));
     await test(`committed ${art.kind} artifact for ${art.main} validates against the tree`, async () => {

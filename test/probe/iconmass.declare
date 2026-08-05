@@ -1,0 +1,52 @@
+/* A MEASUREMENT rig, not a specimen sheet: every icon in the set at one size,
+   in black on white, each in its own 16×16 box at a known offset, so a script
+   can integrate the ink and compare marks that are stroked against marks that
+   are filled on a single scale.
+
+   Boxes are at x = 12 + i·40, y = 12, 16×16. Row two repeats the set at 24px
+   (boxes at x = 8 + i·40, y = 52, 24×24) because `weight` is in FINAL pixels —
+   a mark drawn at 24 carries the same 1.6px stroke it carried at 16, so it is
+   proportionally LIGHTER, and the rig has to be able to see that. */
+
+font Sans [ family = "system-ui" ]
+
+App [ width = 560, height = 96, fill = #FFFFFF,
+    theme = { Themes.sanFrancisco(false) },
+
+    // 16px — the menu row's size
+
+    ChevronIcon   [ x = 12,  y = 12, iconSize = 16, ink = 0x000000 ],
+    ArrowIcon     [ x = 52,  y = 12, iconSize = 16, ink = 0x000000 ],
+    CheckIcon     [ x = 92,  y = 12, iconSize = 16, ink = 0x000000 ],
+    CloseIcon     [ x = 132, y = 12, iconSize = 16, ink = 0x000000 ],
+    PlusIcon      [ x = 172, y = 12, iconSize = 16, ink = 0x000000 ],
+    MinusIcon     [ x = 212, y = 12, iconSize = 16, ink = 0x000000 ],
+    LightbulbIcon [ x = 252, y = 12, iconSize = 16, ink = 0x000000 ],
+    SunIcon       [ x = 292, y = 12, iconSize = 16, ink = 0x000000 ],
+    AutoIcon      [ x = 332, y = 12, iconSize = 16, ink = 0x000000 ],
+    MoonIcon      [ x = 372, y = 12, iconSize = 16, ink = 0x000000 ],
+
+    // The OUTLINE renditions of the two contested marks, at the current weight and
+    // at SF Regular's — because outline alone turned out not to lighten anything
+    // (a stroked ring carries nearly the ink of the disc it replaces, and a
+    // stroked crescent carries MORE than the thin lune it replaces). Rendition and
+    // weight are separate levers and the rig has to be able to separate them.
+
+    SunIcon       [ x = 412, y = 12, iconSize = 16, ink = 0x000000, solid = false ],
+    MoonIcon      [ x = 452, y = 12, iconSize = 16, ink = 0x000000, solid = false ],
+    SunIcon       [ x = 412, y = 52, iconSize = 24, ink = 0x000000, solid = false, weight = 1.05 ],
+    MoonIcon      [ x = 452, y = 52, iconSize = 24, ink = 0x000000, solid = false, weight = 1.05 ],
+
+    // 24px — the same marks, the same stroke, a bigger box
+
+    ChevronIcon   [ x = 8,   y = 52, iconSize = 24, ink = 0x000000 ],
+    ArrowIcon     [ x = 48,  y = 52, iconSize = 24, ink = 0x000000 ],
+    CheckIcon     [ x = 88,  y = 52, iconSize = 24, ink = 0x000000 ],
+    CloseIcon     [ x = 128, y = 52, iconSize = 24, ink = 0x000000 ],
+    PlusIcon      [ x = 168, y = 52, iconSize = 24, ink = 0x000000 ],
+    MinusIcon     [ x = 208, y = 52, iconSize = 24, ink = 0x000000 ],
+    LightbulbIcon [ x = 248, y = 52, iconSize = 24, ink = 0x000000 ],
+    SunIcon       [ x = 288, y = 52, iconSize = 24, ink = 0x000000 ],
+    AutoIcon      [ x = 328, y = 52, iconSize = 24, ink = 0x000000 ],
+    MoonIcon      [ x = 368, y = 52, iconSize = 24, ink = 0x000000 ]
+    ]

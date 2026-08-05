@@ -5,12 +5,19 @@ The record-driven menu (planes.md §4–§6): items are DATA — the component
 arranges; the author never composes rows. The standard record covers real OS
 menus:
 
-    { id, label, key?, icon?, iconKind?, enabled?, checked?, divider?, submenu?, kind?, props? }
+    { id, label, key?, icon?, enabled?, checked?, divider?, submenu?, kind?, props? }
 
 - `key` renders right-aligned (display only — registration is the Keys
   service's, later).
-- `icon` is a leading text glyph (⚙, ⌂, …), the macOS menu convention —
-  the label shifts right to make its column.
+- `icon: "ClassName"` names an icon class for the leading column, and the label
+  shifts right to make room — the same vocabulary `Segmented`'s choices use.
+
+  This was THREE mechanisms before the icon set landed: a text glyph (`"◐"`), a
+  hardcoded `"lightbulb"` that special-cased its way to a drawn bulb because no
+  glyph matched, and `iconKind` naming a class. The middle one was the tell —
+  somebody needed a mark the fonts could not give, and the escape hatch already
+  existed. One field now; a COMPUTED name needs its class kept with
+  `use [ Name ]`, since no static reference reaches it.
 - `enabled: false` dims the row (theme.disabledOpacity) and refuses pick.
 - `{ divider: true }` is a separator line.
 - `submenu: [ …records… ]` marks a cascade (the ▸ arrow; the cascade itself
@@ -48,10 +55,18 @@ class Menu extends View [ visible = { shown }, width = 220,
     // and the TEXT LEFT EDGE is one line for every row, icons or not.
     // Custom (kind) rows align their content to the same text edge.
     //   check col: x 7..24   ·   icon col (iff hasIcons): x 24..44
-    //   text edge: 46 with icons, 24 without
+    //   text edge: 50 with icons, 24 without
+    //
+    // The 6px between the icon column and the text edge is measured, not picked
+    // (2026-08-03). The Mac leaves about 7.5pt from its icon BOX to its text,
+    // but its symbols carry side bearing — only the widest glyph in a menu comes
+    // within 8.5pt of the label, while a padlock or a power mark sits 10–11pt
+    // clear. Ours are drawn to fill their 16px box, so every row landed at that
+    // tight extreme at once, uniformly, which is what read as crowding: the
+    // right number to match is the Mac's AVERAGE air (≈9.5pt), not its minimum.
 
-    hasIcons: boolean = { (this.items || []).some((r) => r.icon != null || r.iconKind != null) },
-    textEdge: number = { hasIcons ? 46 : 24 },
+    hasIcons: boolean = { (this.items || []).some((r) => r.icon != null) },
+    textEdge: number = { hasIcons ? 50 : 24 },
 
     // the cascade: ONE lazily-created child Menu (app.createView — a Menu
     // cannot declare a Menu child without recursing), reused across rows;
@@ -293,7 +308,7 @@ class Menu extends View [ visible = { shown }, width = 220,
 
                 onInit() {
                     if (custom != "") app.createView(custom, this.host, ({ datapath: :props }))
-                    if (typeof :iconKind == "string") app.createView("" + :iconKind, this.icoHost, ({ datapath: :props }))
+                    if (typeof :icon == "string") app.createView("" + :icon, this.icoHost, ({ datapath: :props }))
                     },
 
                 // the hover highlight — inset, rounded, accent (the Mac read)
@@ -305,69 +320,29 @@ class Menu extends View [ visible = { shown }, width = 220,
                 rule: View [ x = 10, y = 5, width = { parent.width - 20 }, height = 1,
                     visible = { parent.divider }, fill = { theme.line } ],
 
-                // the check is DRAWN (the Checkbox rule): pixel-identical on
-                // both backends, independent of any font's ✓ glyph
+                // The check, from the shared set. This was one of two private
+                // checkmarks in this library — the other in `Checkbox`, drawn at
+                // a different weight with different joins, the same tick twice.
+                // The INK stays local: a checked row inverts on the hot row,
+                // which is the row's business, not the icon's.
 
-                check: View [ x = 7, y = center, width = 12, height = 12,
+                check: CheckIcon [ x = 7, y = center, iconSize = 12,
                     visible = { !parent.divider && !!:checked },
-                    draw(d: Draw) {
-                        const on = parent.hot || classroot.activeRow == parent
-                        d.strokeStyle = on ? (typeof theme.menuHlText == "number" ? theme.menuHlText : theme.accentText) : theme.text
-                        d.lineWidth = 1.8
-                        d.lineCap = "round"
-                        d.lineJoin = "round"
-                        d.beginPath()
-                        d.moveTo(1.5, 6.5)
-                        d.lineTo(4.5, 9.5)
-                        d.lineTo(10.5, 2.5)
-                        d.stroke()
-                        }
-                    ],
+                    ink = { parent.hot || classroot.activeRow == parent
+                          ? (typeof theme.menuHlText == "number" ? theme.menuHlText : theme.accentText)
+                          : theme.text } ],
 
-                // an authored icon-column cell (`iconKind`): the class renders
+                // an authored icon-column cell (`icon`): the class renders
                 // the icon; the ROW stays standard — check, text edge, pick
 
+                // the row's ink reaches the created icon through the prevailing
+                // text colour — the same channel IconHost publishes
+
                 icoHost: View [ x = 25, y = center, width = 16, height = 16,
-                    visible = { !parent.divider && :iconKind != null } ],
-
-                ico: Text [ x = 25, y = center, fontSize = 13, visible = { !parent.divider && parent.custom == "" && :icon != null && :icon != "lightbulb" },
-                    textColor = { (parent.hot || classroot.activeRow == parent) ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.text },
-                    text = { "" + (:icon || "") } ],
-
-                // `icon: "lightbulb"` renders a DRAWN bulb (the macOS Help
-                // affordance) — a monochrome outline no text glyph matches,
-                // in the same slot and color as a glyph icon would take
-
-                bulb: View [ x = 23, y = center, width = 13, height = 16,
-                    visible = { !parent.divider && parent.custom == "" && :icon == "lightbulb" },
-                    draw(d: Draw) {
-                        const on = parent.hot || classroot.activeRow == parent
-                        const c = on ? (typeof theme.menuHlText == "number" ? theme.menuHlText : theme.accentText) : theme.text
-                        d.strokeStyle = c
-                        d.lineWidth = 1.25
-                        d.lineCap = "round"
-                        d.lineJoin = "round"
-                        // the glass — a near-full circle, open at the base
-                        d.beginPath()
-                        d.arc(6.5, 5.6, 4.6, Math.PI * 0.72, Math.PI * 0.28, false)
-                        d.stroke()
-                        // neck shoulders down to the base
-                        d.beginPath()
-                        d.moveTo(3.6, 8.6); d.lineTo(4.1, 10.4)
-                        d.moveTo(9.4, 8.6); d.lineTo(8.9, 10.4)
-                        d.stroke()
-                        // the screw base — two thread lines and a rounded foot
-                        d.beginPath()
-                        d.moveTo(4.1, 10.7); d.lineTo(8.9, 10.7)
-                        d.moveTo(4.5, 12.3); d.lineTo(8.5, 12.3)
-                        d.moveTo(5.4, 13.9); d.lineTo(7.6, 13.9)
-                        d.stroke()
-                        // the filament, a small hanging loop
-                        d.beginPath()
-                        d.moveTo(5.3, 5.2); d.lineTo(6.5, 7.1); d.lineTo(7.7, 5.2)
-                        d.stroke()
-                        }
-                    ],
+                    textColor = { parent.hot || classroot.activeRow == parent
+                                ? (typeof theme.menuHlText == "number" ? theme.menuHlText : theme.accentText)
+                                : theme.text },
+                    visible = { !parent.divider && :icon != null } ],
 
                 lbl: Text [ y = center, fontSize = 13, visible = { !parent.divider && parent.custom == "" },
                     x = { classroot.textEdge },
@@ -383,20 +358,16 @@ class Menu extends View [ visible = { shown }, width = 220,
                 // the submenu chevron is DRAWN (the macOS rendition — larger and
                 // more legible than any glyph; reactive draw, both backends)
 
-                arrow: View [ width = 7, height = 11, visible = { parent.sub },
+                // The cascade arrow, from the shared set — a chevron turned
+                // right. It was the third private chevron in this library
+                // (`Combobox.disc` and `DataGrid`'s sort glyph were the others),
+                // each at its own weight.
+
+                arrow: ChevronIcon [ iconSize = 12, dir = "right", visible = { parent.sub },
                     x = { parent.width - 17 }, y = { (parent.height - this.height) / 2 },
-                    draw(d: Draw) {
-                        const hov = this.parent.hot || classroot.activeRow == this.parent
-                        const c = hov ? (typeof theme.menuHlText == "number" ? theme.menuHlText : theme.accentText) : theme.textMuted
-                        d.strokeStyle = c
-                        d.lineWidth = 1.8
-                        d.beginPath()
-                        d.moveTo(1, 1.5)
-                        d.lineTo(5.8, 5.5)
-                        d.lineTo(1, 9.5)
-                        d.stroke()
-                        }
-                    ],
+                    ink = { this.parent.hot || classroot.activeRow == this.parent
+                          ? (typeof theme.menuHlText == "number" ? theme.menuHlText : theme.accentText)
+                          : theme.textMuted } ],
 
                 // a `kind` row's author-rendered content region
 

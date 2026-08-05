@@ -237,6 +237,8 @@ export class View extends Node {
   declare fontWeight: FontWeight;
   /** Letter tracking in px (canvas-native), 0 = natural advances. */
   declare letterSpacing: number;
+  /** The size an Icon takes from its context (prevailing; schema.ts). */
+  declare iconSize: number;
   /** Rich-text STRUCTURE style, prevailing: a `Markdown`/`HTMLText` renders its
    *  headings/links/inline-code from these; a plain View just carries them for
    *  its rich-text descendants. Colors are `null` = the theme-aware house token;
@@ -692,22 +694,29 @@ export class View extends Node {
    *  child — stacking is source order); `raise(below)` moves it to just BENEATH
    *  a sibling instead, so a pinned band above it (e.g. the dock's minimized
    *  windows) stays on top. Same parent only — the verb form of z-order, no
-   *  numbers. A Menu raises at open; a Window raises on activation. */
+   *  numbers. A Menu raises at open; a Window raises on activation.
+   *
+   *  A TRAVELING surface (travelWith) keeps its host: its parentage is the
+   *  travel host's business, and re-seating it under the model parent would
+   *  drag it home while its position slots still read the host's CONTENT
+   *  coordinates — the ring painting a scroller's origin above its target.
+   *  The MODEL order still moves; only the surface seat is left alone. */
   raise(below?: View | null): void {
     const p = this.parent;
     if (!(p instanceof View)) return;
+    const away = (this.surface as (Surface & { isTraveling?(): boolean }) | null)?.isTraveling?.() === true;
     if (below == null || below === this || below.parent !== p) {
       if (p.children[p.children.length - 1] === this) return;         // already frontmost
       p.removeChild(this);
       p.insertChild(this, p.children.length);
-      if (this.surface !== null && p.surface !== null) p.surface.insertChild(this.surface, null);
+      if (!away && this.surface !== null && p.surface !== null) p.surface.insertChild(this.surface, null);
       return;
     }
     if (p.children[p.children.indexOf(below) - 1] === this) return;   // already just beneath `below`
     p.removeChild(this);
     const at = p.children.indexOf(below);
     p.insertChild(this, at < 0 ? p.children.length : at);
-    if (this.surface !== null && p.surface !== null && below.surface !== null) {
+    if (!away && this.surface !== null && p.surface !== null && below.surface !== null) {
       p.surface.insertChild(this.surface, below.surface);
     }
   }
@@ -861,6 +870,7 @@ defineAttributes(View, {
   fontFamily: { def: "sans-serif", prevailing: true },
   fontWeight: { def: "normal", prevailing: true },
   letterSpacing: { def: 0, prevailing: true },
+  iconSize: { def: 16, prevailing: true },
   // Rich-text structure overrides — consumed by Markdown/HTMLText (null color =
   // the theme-aware house token; headingWeight = the house bold).
   headingColor: { def: null, prevailing: true },

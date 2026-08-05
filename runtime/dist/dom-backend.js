@@ -1364,6 +1364,7 @@ class DomSurface {
         target.appendChild(el);
         el.style.zIndex = "1";
     }
+    isTraveling() { return this.travelHomeEl !== null; }
     setEditable(spec) {
         if (spec === null) {
             this.editEl?.remove();
