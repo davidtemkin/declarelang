@@ -38,7 +38,18 @@ const browser = await puppeteer.launch({ executablePath: findChrome(), headless:
 const page = await browser.newPage();
 const errs = [];
 page.on("pageerror", (e) => errs.push(String(e).slice(0, 140)));
-page.on("requestfailed", (r) => { if (!r.url().endsWith("favicon.ico")) errs.push("REQFAIL " + r.url().slice(-60)); });
+page.on("requestfailed", (r) => {
+  if (r.url().endsWith("favicon.ico")) return;
+  // A browser ABORTS media requests as normal Range behaviour: it opens a probe
+  // for a video, learns what it needs, and cancels. `requestfailed` reports that
+  // like any other failure, so this suite failed intermittently on
+  // shots/video/calendar.mp4 while the page was working perfectly. Narrow to
+  // aborted MEDIA rather than all aborts — an aborted script or fetch is still a
+  // real signal, and this test's whole value is being the one place a genuinely
+  // broken request surfaces.
+  if (r.failure()?.errorText === "net::ERR_ABORTED" && r.resourceType() === "media") return;
+  errs.push("REQFAIL " + r.url().slice(-60));
+});
 
 try {
   await page.goto(`${B}/`, { waitUntil: "networkidle2", timeout: 60000 });
