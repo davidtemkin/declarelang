@@ -743,7 +743,23 @@ for (const ch of guide) {
 }
 const spine = guide.map(({ id, num, title, short, part }) => ({ id, num, title, short, part }));
 
-const model = { version: 1, buildId, reference: nodes, roots, tree, guide: spine, guideParts, tenets };
+// CARRY FORWARD the sections assemble owns (`meta`, `spine`, `links`, `browse`).
+// This file is written twice per pipeline — extract writes the doc tree, assemble
+// augments the SAME file — so a bare `extract` used to DELETE assemble's half and
+// leave a model with no browse tree at all: structurally invalid, not merely stale.
+// The docs app renders `browse`, so the artifact was broken until someone
+// remembered to run assemble; `assemble --check` then failed with "STALE", which
+// reads as "regenerate me" rather than "you destroyed half the file". Derive owns
+// the order and always runs both, so this only bites a hand-run extract — which is
+// exactly when the tree looks fine and is not.
+//
+// Preserving them keeps the artifact VALID and merely stale in assemble's half,
+// which `assemble --check` then reports correctly: it recomputes the spine and
+// compares, so a carried-forward section that has genuinely drifted still fails.
+const prior = existsSync(OUT) ? (() => { try { return JSON.parse(readFileSync(OUT, "utf8")); } catch { return {}; } })() : {};
+const carried = {};
+for (const k of ["meta", "spine", "links", "browse"]) if (prior[k] !== undefined) carried[k] = prior[k];
+const model = { version: 1, buildId, reference: nodes, roots, tree, guide: spine, guideParts, tenets, ...carried };
 if (!CHECK) writeFileSync(OUT, JSON.stringify(model, null, 2) + "\n");
 
 // ── report ──
@@ -756,6 +772,14 @@ console.log(`  guide:   ${guide.length} chapters in ${guideParts.length} parts (
 console.log(`  tenets:  ${tenets.length} (${tenets.map((t) => t.title).join(" · ")})`);
 console.log(`  islands: ${Object.keys(genFiles).length} inline runnable examples written to apps/docs/demos/seg_*.declare`);
 console.log(`  @api:    ${documented} documented / ${Object.keys(nodes).length - documented} structural-only`);
+// This tool writes HALF the model. Say so, every time — the failure it prevents is
+// a hand-run extract that leaves assemble's sections stale, which then surfaces
+// three suites away as "STALE docs/declare-model.json" with nothing pointing back
+// here. Derive owns the order; this line is for the person who bypassed it.
+if (!CHECK && Object.keys(carried).length > 0) {
+  console.log(`  NOTE:    spine/links/browse are assemble's and were carried forward UNCHANGED.`);
+  console.log(`           This model is half-current — run \`node tools/internal/derive.mjs\`.`);
+}
 
 // The prose-binding gate: a `## heading` nobody claimed is prose the reference
 // silently drops. Always reported; fatal under `--check` (the ops gate).
