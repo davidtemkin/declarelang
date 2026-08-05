@@ -23,7 +23,7 @@ import { execFileSync } from "node:child_process";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
-import { isUpToDate, diskProbe } from "../compiler/dist/compile-node.js";
+import { isUpToDate, hashValidator } from "../compiler/dist/compile-node.js";
 import { test, summarize } from "./harness.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -53,7 +53,11 @@ await test("every committed app dist carries a BUILD.json", async () => {
 for (const { app, dir } of dists) {
   await test(`committed dist for ${app} validates against the tree`, async () => {
     const build = JSON.parse(readFileSync(join(dir, "BUILD.json"), "utf8"));
-    const probe = (e) => diskProbe({ ...e, id: join(ROOT, e.id) });
+    // probe with the SAME kind of validator the closure stores. `validatorsEqual`
+    // compares only fields present in both, so probing mtime against a stored hash
+    // would silently degrade to a size-only comparison — a content change of equal
+    // length would pass. Hash against hash, or the gate is theatre.
+    const probe = (e) => hashValidator(join(ROOT, e.id));
     const fresh = isUpToDate(build.closure, build.closure.props, probe);
     assert.ok(fresh,
       `stale committed dist apps/${app}/dist — run \`node tools/internal/derive.mjs\` (it owns the order: prewarm writes the stats.json this dist embeds)`);

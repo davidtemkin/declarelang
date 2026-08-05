@@ -24,7 +24,7 @@ import { parseArgvFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
 import { highlight } from "../compiler/dist/highlight.js";
 import { compile as compileFull, crawlExtract, diskDataResolver, crawlerDocument } from "../compiler/dist/compile-node.js";
 import { parseLibrary } from "../runtime/dist/parser.js";
-import { statValidator } from "../compiler/dist/compile-node.js";
+import { hashValidator } from "../compiler/dist/compile-node.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const RUNTIME = resolve(HERE, "../runtime/dist"); // the run-path lives here
@@ -572,7 +572,11 @@ async function writeBuildClosure({ outDir, srcDir, closure, assets, metafile }) 
   if (!closure) return;
   const repoRoot = resolve(HERE, "..");
   const rel = (abs) => relative(repoRoot, abs).split(sep).join("/");
-  const entries = closure.entries.map((e) => ({ ...e, id: rel(e.id) }));
+  // rewritten to CONTENT validators: this file is committed, so it must be
+  // reproducible (an mtime moves on every rebuild) and survive a clone (a fresh
+  // checkout moves every mtime). The compile records mtime+size, which is right
+  // for the live cache and wrong the moment the closure is written to disk.
+  const entries = closure.entries.map((e) => ({ ...e, id: rel(e.id), v: hashValidator(e.id) }));
   // the copied assets, each with its own validator. An asset is a FILE
   // (declare-faq.md, stats.json) or a DIRECTORY (shots/, data/, demos/) — walk
   // the directories so a single changed screenshot invalidates the build.
@@ -581,7 +585,7 @@ async function writeBuildClosure({ outDir, srcDir, closure, assets, metafile }) 
     const files = statSync(at).isDirectory() ? await walkFiles(at, name) : [name];
     for (const f of files) {
       const abs = join(srcDir, f);
-      entries.push({ id: rel(abs), kind: "file", v: statValidator(abs) });
+      entries.push({ id: rel(abs), kind: "file", v: hashValidator(abs) });
     }
   }
   // …and the PLATFORM this bundle EMBEDS. `app.<hash>.js` is the runtime and the
@@ -601,7 +605,7 @@ async function writeBuildClosure({ outDir, srcDir, closure, assets, metafile }) 
     if (id.startsWith("<")) continue;                       // the stdin entry, not a file
     const abs = resolve(process.cwd(), id);
     if (!existsSync(abs)) continue;
-    entries.push({ id: rel(abs), kind: "file", v: statValidator(abs) });
+    entries.push({ id: rel(abs), kind: "file", v: hashValidator(abs) });
   }
   await writeFile(join(outDir, "BUILD.json"),
     JSON.stringify({ closure: { entries, props: closure.props }, built: rel(srcDir) }, null, 1));

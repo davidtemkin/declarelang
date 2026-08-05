@@ -33,7 +33,7 @@ export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, crawlerDocu
 export { crawlLocations, crawlDocument, crawlExtract, fragmentHrefs, canonKey } from "./crawl.js";
 export { highlight, lineMetrics } from "./highlight.js";
 export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
-export { DiskTracker, diskProbe, statValidator } from "./cache-node.js";
+export { DiskTracker, diskProbe, statValidator, hashValidator } from "./cache-node.js";
 export { isUpToDate, validatorsEqual, lookupKey, contentTag, fnv1a } from "./closure.js";
 /** The bundled component library root (`declarelang/library`) — its `autoincludes.json`
  *  + `src/*.declare` are what make bare tags like `Bar [ … ]` resolve with no
