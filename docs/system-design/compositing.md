@@ -7,6 +7,13 @@ sampling with blur), realized on DOM, canvas, and the native Mac host, with the
 headless renderer a declared no-op. Two semantic rulings are called out in §4;
 everything else is buildable as specified. Phasing in §7.
 
+**Handoff contract.** This document is written to be self-contained for an
+implementing agent that has not seen the conversation behind it. Two things bind:
+(1) **phase 1 blocks on David** — the §4 leans are analysis, not authorization; do
+not build on them without his word ("we'll come back to this" is the standing
+state); (2) the wiring inventory in §5.0 is the end-to-end touch list — follow it
+rather than rediscovering the chain, and let the gates name anything it missed.
+
 ---
 
 ## 0. Why this is one plan and not two features
@@ -121,6 +128,17 @@ which is what an author means. This matches CSS closely enough that DOM realizes
 almost for free, while staying statable in Declare's own terms (no `isolation`
 attribute in v1; add one later only if a real program needs to *force* a group).
 
+Two clauses that are part of this ruling, stated so no implementer has to guess:
+
+- **A blending view blends as a unit, children included** — its subtree composites
+  internally first (normal operators), and the finished group lands with the blend
+  op, exactly CSS's `mix-blend-mode` behavior. On canvas this is the existing
+  opacity-group path (§5.2); a blending *leaf* skips the group. Leaf-only blending
+  would pass a naive probe and be wrong in real programs — the probe in §6 includes
+  a with-children case for exactly this.
+- **Compositing is paint, never input.** Neither `blend` nor `backdrop` changes hit
+  testing, focus, or the crawler document in any way.
+
 ### 4.2 What a backdrop samples (same ruling, same list)
 
 `backdrop` samples everything painted beneath the view within the same isolating
@@ -143,6 +161,37 @@ a theme that wants *platform-true* vibrancy can still say so with its own tokens
 material-as-data, the city-preset philosophy, rather than a semantic fork.
 
 ## 5. Per-renderer implementation
+
+### 5.0 The wiring inventory — every file a new attribute and constructor touch
+
+The chain below is the platform's standing pattern (walked and verified 2026-08-05
+during the seam work); following it is faster than rediscovering it, and the gates
+enforce the docs half automatically.
+
+For **`blend`** (a new View enum attribute):
+
+1. `runtime/src/schema.ts` — the attr on `ViewSchema` via `enumType(…)`; the enum
+   reaches the spine's vocabulary page with no further work.
+2. `runtime/src/view.ts` — the attribute table entry with its push:
+   `blend: { def: "normal", push: (v, b) => v.surface?.setBlend?.(b) }` (the
+   `ignoreScroll` pattern — optional-chained, so backends adopt independently).
+3. Backends: `dom-backend.ts`, `canvas-backend.ts`, `mac-backend.ts` (+ a new `OP`
+   code in its numeric table and the matching `LayerTree.swift` `applyOne` arm —
+   ops are `[opcode, id, …args]`, batched per settle). Headless: nothing.
+4. `test/seam.test.mjs` — a `setBlend` row for all four backends, gaps with reasons.
+5. Prose: `tools/internal/doc/prose/View.md` gains `## blend` (schema-completeness
+   will demand it); the guide names it (backlink gate) — ch. 6 is the home.
+
+For **`frost()`** (a new value constructor) additionally:
+
+6. `runtime/src/value.ts` — the constructor + its value type, and the **RESERVED
+   list**: value-constructor names are refused as member names by `checkMethod`, so
+   `frost` must join `gradient/stroke/stop/shadow` there or the guard has a hole.
+7. `compiler/src/scaffold.ts` — the PRELUDE `declare function frost(…)` (the
+   shared-vocabulary projection gate fails until it is projected — that is the gate
+   doing its job) and the `typeFor` arm for the schema's new value kind.
+8. `tools/internal/doc/assemble.mjs` — a `VOCAB_NOTE` line so the Types-and-functions
+   page says what it is rather than only its signature.
 
 New Surface members, **optional, with seam-table rows for all four backends from day
 one** — declared gaps, never inferred silence (the `setIgnoreScroll` lesson):
@@ -203,7 +252,9 @@ unaffected (compositing is paint, never content).
 - **Probes where the absence shows** (the `ignorescroll` lesson — a likeness test is
   blind to a missing feature unless the scene makes it visible):
   - `blendview.declare` — a `multiply` view over a gradient *sibling* (not its own
-    drawing), so a backend that ignores `setBlend` renders visibly flat-wrong;
+    drawing), so a backend that ignores `setBlend` renders visibly flat-wrong — and
+    a with-children case (a blending view containing a child), so leaf-only
+    blending fails too (§4.1's group clause);
   - `frost.declare` — a frosted panel over a high-contrast field, offset so the
     panel's region is unambiguous; no-frost renders as plain translucency, a large
     localized diff.
@@ -231,7 +282,10 @@ unaffected (compositing is paint, never content).
    `backdrop-filter` on DOM; sample-under on canvas with the measured cost figure
    recorded; `frost` probe; seam rows say the Mac gap out loud.
 4. **`backdrop` on Mac.** NSVisualEffectView overlay + mask; mac gate baseline;
-   the §4.3 baseline policy exercised for real.
+   the §4.3 baseline policy exercised for real. **Before driving the mac gate, read
+   `native-host.md` §0's operational traps** — piping the launch into `head`
+   SIGPIPEs the app, two instances stack two windows and fake a catastrophic
+   regression, and liveness is a *window* (`mac-host/winb`), never a pid.
 5. **Adoption.** `Menu` reads `theme.menuBackdrop` (the "pending" comments come
    out); Cupertino elects true frost; `Dialog` scrim and the desktop's windows
    follow as design wants them; guide ch. 20's gap paragraph is rewritten to the
