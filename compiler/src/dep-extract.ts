@@ -513,6 +513,11 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
             // analyzable as following a user method's body, not a residue.
             for (const rp of LANGUAGE_METHOD_EFFECTS.get(m)!) reads.add(rebase(rp, pathTextOf(recv)));
           }
+          else if (roots !== undefined && recv !== undefined && roots.has(pathTextOf(recv).split(/[.[]/, 1)[0])) {
+            // A member call on a PARAMETER (the phase-4 half-close): its reads
+            // stay untracked, exactly as before params became roots — the
+            // lenient tier, matching close()'s frame.lenient.
+          }
           else errors.push(new DepError(`unresolved call target .${m}() — its reads can't be analyzed; call an in-program method or a pure builtin`, s.getStart()));
         } else if (ts.isIdentifier(callee)) {
           const nm = callee.text;
@@ -616,6 +621,12 @@ interface Frame {
   receiver: string | null;                 // null ⇒ a script function: no scope nouns
   map: Map<string, string | null>;         // parameter → the call site's argument path
   asValue: boolean;                        // named but not called, so no arguments exist
+  /** METHOD frames degrade instead of refusing (the phase-4 half-close,
+   *  2026-08-06): a param read whose argument is not a nameable path is
+   *  DROPPED — exactly the pre-close silence, confined to the sites where
+   *  wiring is impossible anyway — while script frames keep their refusal
+   *  (script authors wrote under the strict contract from day one). */
+  lenient?: boolean;
 }
 
 type Rebased = { ok: true; path: string } | { ok: false; error: DepError };
@@ -804,8 +815,21 @@ function buildMethodSummaries(): Summaries {
     const sf = parseBody(body, false);
     if (!sf) { own.set(name, { reads: new Set(), calls: [], errors: [], ...NO_PARAMS, ret: NO_RET }); continue; }
     const locals = collectLocals(sf, params);
-    // params are real here: a returned parameter resolves against the argument
-    own.set(name, { ...extractBody(sf, locals), params, returned: new Set<string>(),
+    // PHASE-4 HOLE, HALF-CLOSED (2026-08-06; found 2026-07-27): parameters
+    // are reactive ROOTS, as script summaries below — `vOf(n){ return n.v }`
+    // now wires `n.v` through the frame instead of silently dropping it (the
+    // constraint went permanently stale before). The script tier's ESCAPE
+    // refusal is deliberately NOT applied to methods: six shipped files
+    // (desktop, inspector, sampler, tracker, datagrid, table) pass params
+    // through closures/builders in ways the tracer can't follow, and refusing
+    // them is a migration of its own (measured 2026-08-06 — the full refusal
+    // list is in that day's session notes). An escaped param's reads stay
+    // exactly as untracked as before this change; the COMMON shape — plain
+    // property reads off a parameter — is what now wires.
+    const roots = new Set<string>(params);
+    for (const par of roots) locals.delete(par);
+    const d = extractBody(sf, locals, undefined, roots);
+    own.set(name, { ...d, params, returned: new Set<string>(),
                     ret: returnedPaths(sf, locals, params), returns: USER_METHODS.get(name)?.returns });
   }
   // Computed `{ }` defaults join the same callable graph — a default's body is an
@@ -858,7 +882,8 @@ function buildMethodSummaries(): Summaries {
     const errors = [...o.errors];
     for (const r of o.reads) {
       const m = rebaseIn(r, frame);
-      if (m.ok) reads.add(m.path); else errors.push(m.error);
+      if (m.ok) reads.add(m.path);
+      else if (frame.lenient !== true) errors.push(m.error);
     }
     // An argument path moved one frame out. Unnameable there is not yet an error —
     // it only becomes one if the callee actually reads through that parameter.
@@ -974,7 +999,7 @@ function buildMethodSummaries(): Summaries {
     const map = new Map<string, string | null>();
     o.params.forEach((p, i) => map.set(p, args === null ? null : (args[i] ?? null)));
     stack.add(tag);
-    const res = close(o, { who: c.name, receiver, map, asValue }, stack);
+    const res = close(o, { who: c.name, receiver, map, asValue, lenient: c.kind === "method" }, stack);
     stack.delete(tag);
     memo.set(key, res);   // memo holds the UNPROJECTED reads: the tail varies per call site
     const out = withProjection(res);

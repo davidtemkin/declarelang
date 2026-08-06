@@ -34,6 +34,30 @@ test("direct reads — union of the slots the expression names", () => {
   assert.deepEqual(readsOf(r, "width"), ["this.root.m", "this.root.n"]);
 });
 
+test("phase-4 half-close: a method's parameter reads wire through the call site (found 2026-07-27)", () => {
+  // `vOf(n){ return n.v }` in `{ app.vOf(app) + app.w }` used to wire only
+  // `w` — the constraint went permanently stale on `v`. Params are roots now.
+  const r = extract(`App [ w: number = 2,
+    src: View [ width = 40, height = 10 ],
+    vOf(n: View): number { return n.width },
+    box: View [ width = { app.vOf(app.src) + app.w } ] ]`);
+  // the argument node itself rides along (reference read — harmless
+  // over-approximation); the CELL that used to go stale is the point:
+  assert.deepEqual(readsOf(r, "width", "box"), ["this.root.src", "this.root.src.width", "this.root.w"]);
+  assert.deepEqual(errsOf(r, "width", "box"), [], "and nothing refuses");
+});
+
+test("phase-4 half-close: an UNNAMEABLE argument degrades to the old silence, never a refusal", () => {
+  const r = extract(`App [ total: number = 0,
+    vOf(n: object): number { return (n as { width: number }).width },
+    box: View [ width = 10, height = 10 ],
+    sum: View [ width = { app.vOf({ width: app.box.width * 2 }) + app.total } ] ]`);
+  // the filter result is unnameable — its read is dropped (pre-close behavior),
+  // the nameable read still wires, and the app compiles
+  assert.deepEqual(errsOf(r, "width", "sum"), []);
+  assert.ok(readsOf(r, "width", "sum").includes("this.root.total"));
+});
+
 test("ternary takes the union of ALL branches (over-subscription, by design)", () => {
   const r = extract(`App [ a: boolean = true, b: number = 1, c: number = 2, v: View [ width = { app.a ? app.b : app.c } ] ]`);
   assert.deepEqual(readsOf(r, "width"), ["this.root.a", "this.root.b", "this.root.c"]);

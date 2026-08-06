@@ -568,6 +568,11 @@ function extractBody(sf, locals, inlinable, extraRoots) {
                         for (const rp of LANGUAGE_METHOD_EFFECTS.get(m))
                             reads.add(rebase(rp, pathTextOf(recv)));
                     }
+                    else if (roots !== undefined && recv !== undefined && roots.has(pathTextOf(recv).split(/[.[]/, 1)[0])) {
+                        // A member call on a PARAMETER (the phase-4 half-close): its reads
+                        // stay untracked, exactly as before params became roots — the
+                        // lenient tier, matching close()'s frame.lenient.
+                    }
                     else
                         errors.push(new DepError(`unresolved call target .${m}() — its reads can't be analyzed; call an in-program method or a pure builtin`, s.getStart()));
                 }
@@ -859,8 +864,22 @@ function buildMethodSummaries() {
             continue;
         }
         const locals = collectLocals(sf, params);
-        // params are real here: a returned parameter resolves against the argument
-        own.set(name, { ...extractBody(sf, locals), params, returned: new Set(),
+        // PHASE-4 HOLE, HALF-CLOSED (2026-08-06; found 2026-07-27): parameters
+        // are reactive ROOTS, as script summaries below — `vOf(n){ return n.v }`
+        // now wires `n.v` through the frame instead of silently dropping it (the
+        // constraint went permanently stale before). The script tier's ESCAPE
+        // refusal is deliberately NOT applied to methods: six shipped files
+        // (desktop, inspector, sampler, tracker, datagrid, table) pass params
+        // through closures/builders in ways the tracer can't follow, and refusing
+        // them is a migration of its own (measured 2026-08-06 — the full refusal
+        // list is in that day's session notes). An escaped param's reads stay
+        // exactly as untracked as before this change; the COMMON shape — plain
+        // property reads off a parameter — is what now wires.
+        const roots = new Set(params);
+        for (const par of roots)
+            locals.delete(par);
+        const d = extractBody(sf, locals, undefined, roots);
+        own.set(name, { ...d, params, returned: new Set(),
             ret: returnedPaths(sf, locals, params), returns: USER_METHODS.get(name)?.returns });
     }
     // Computed `{ }` defaults join the same callable graph — a default's body is an
@@ -921,7 +940,7 @@ function buildMethodSummaries() {
             const m = rebaseIn(r, frame);
             if (m.ok)
                 reads.add(m.path);
-            else
+            else if (frame.lenient !== true)
                 errors.push(m.error);
         }
         // An argument path moved one frame out. Unnameable there is not yet an error —
@@ -1049,7 +1068,7 @@ function buildMethodSummaries() {
         const map = new Map();
         o.params.forEach((p, i) => map.set(p, args === null ? null : (args[i] ?? null)));
         stack.add(tag);
-        const res = close(o, { who: c.name, receiver, map, asValue }, stack);
+        const res = close(o, { who: c.name, receiver, map, asValue, lenient: c.kind === "method" }, stack);
         stack.delete(tag);
         memo.set(key, res); // memo holds the UNPROJECTED reads: the tail varies per call site
         const out = withProjection(res);
