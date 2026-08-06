@@ -275,19 +275,45 @@ class MiniMetric extends View [
 
 The three applications are the page’s one enumerated set, and the layout around
 them is busy enough that the set reads as three unrelated rows. A number pins
-each title to the sequence: the ordinal in the page’s ink, on an accent disc.
-The disc is CAP-HEIGHT to the title it fronts — the 22px semibold caps run
-≈16px — so it reads as part of the title’s line, not a bullet floating beside
-it. Ink-on-accent is the page’s existing convention for “text on the accent”
-(the primary Button’s label), so the badge introduces no new pairing.
+each title to the sequence: the ordinal AT THE TITLE’S OWN SIZE — a `Heading`,
+so font, weight and tracking are the title’s exactly, and the baselines match
+by construction (same metrics, boxes top-aligned in the same row) — in the
+page’s ink on a white disc. White, not accent: the discs must read as counters
+against the noise, not as three more accent-colored controls.
 */
 
-class AppNum extends View [ width = 16, height = 16, cornerRadius = 8,
+class AppNum extends View [ width = 30,
     n: string = "",
-    fill = { theme.accent },
+    url: string = "",
+
+    // the row's hover fact, bound in by the use site — the disc answers the
+    // SAME state the title answers, so the pair lights as one target
+
+    hot: boolean = false,
     visible = { n != "" },
-    num: Text [ x = center, y = center, fontSize = 11, fontWeight = bold, wrap = false,
-        selectable = false, textColor = { theme.ink }, text = { classroot.n } ]
+    onClick() { if (classroot.url != "") app.navigate(classroot.url) },
+
+    // BASELINE BY CONSTRUCTION, because there is no metrics read to do it by
+    // arithmetic: the numeral is a `Heading` at the title's own size, so it
+    // shares the title's font, weight and tracking exactly — and this box's
+    // height IS the numeral's line box, top-aligned in the head row beside the
+    // title's. Same metrics, same box top, same baseline, no font constants.
+
+    height = { this.num.height },
+
+    // the disc paints first (under the digit): white at rest, the accent while
+    // the row is hot or the badge itself is pressed — the title's own change,
+    // answered in fill rather than ink. The NUMERAL stays ink in every state:
+    // ink-on-accent is already the page's text-on-accent pairing (Button).
+    // Centered on the line box — a disc has no baseline of its own, so the box
+    // center is the honest anchor.
+
+    disc: View [ width = 30, height = 30, cornerRadius = 15,
+        fill = { classroot.hot || classroot.pressed ? theme.accent : theme.badge },
+        y = { (parent.height - this.height) / 2 } ],
+    num: Heading [ fontSize = 22, wrap = false, selectable = false, textColor = { theme.ink },
+        x = { (parent.width - this.width) / 2 },
+        text = { classroot.n } ]
     ]
 
 
@@ -315,7 +341,7 @@ class AppCard extends View [
     // pointer anywhere on either lights BOTH — and there is no cycle, because
     // each derives from the raw `hovered` of the other, never from its styling.
 
-    titleHot: boolean = { this.head.name.hovered || this.head.arrow.hovered },
+    titleHot: boolean = { this.head.seq.hovered || this.head.name.hovered || this.head.arrow.hovered },
     hot: boolean = { this.frame.hovered || this.titleHot },
 
     // the name LEADS: you read what the thing is, then look at it. The plate
@@ -325,11 +351,7 @@ class AppCard extends View [
     head: View [ width = { parent.width }, height = { this.contentHeight },
         layout: SimpleLayout [ axis = x, spacing = 10 ],
 
-        // centered against the row rather than pinned to the cap band: the
-        // heading's descent pulls the row's center a hair below the caps',
-        // which reads correctly for a disc (it has no baseline of its own)
-
-        seq: AppNum [ n = { classroot.num }, y = { (parent.height - this.height) / 2 } ],
+        seq: AppNum [ n = { classroot.num }, hot = { classroot.hot }, url = { classroot.url } ],
         name: Heading [ fontSize = 22, wrap = false, selectable = false,
             textColor = { classroot.hot ? theme.accent : theme.text },
             text = { classroot.title },
@@ -648,6 +670,9 @@ App [ tagline: string = "a UI language for you and your AI",
         // the teal second accent; the brand gradient runs accent → accentSecondary
         accentSecondary: 0x37E0C8, accentSecondaryPress: 0x9BF2E4,
         brand: gradient("90deg", 0x4C8DFF, 0x37E0C8),
+        // the sequence badges' disc — true white, not the off-white text tone:
+        // a solid counter can take full white where text-on-dark cannot
+        badge: 0xFFFFFF,
         // grounds, darkest to lightest, and their interaction shades
         ink: 0x0B141B, panel: 0x0C1620, press: 0x0C1922, surfaceDeep: 0x0D1922,
         surface: 0x101E28, hover: 0x162A36, pillHover: 0x1C2D39, pillPress: 0x24384A,
@@ -965,7 +990,7 @@ App [ tagline: string = "a UI language for you and your AI",
                    no cycle. */
 
                 cal: View [ width = { parent.width },
-                    hot: boolean = { this.plate.hovered || this.tell.head.name.hovered },
+                    hot: boolean = { this.plate.hovered || this.tell.head.name.hovered || this.tell.head.seq.hovered },
                     layout: ResponsiveLayout [ plan = { [({ from: 860, flow: "row", gap: 40, share: ({ tell: 50, plate: 50 }) }),
                                                          ({ from: 0, flow: "stack", gap: 26, share: ({ tell: 100, plate: 100 }) })] } ],
 
@@ -973,7 +998,8 @@ App [ tagline: string = "a UI language for you and your AI",
 
                         head: View [ width = { parent.width }, height = { this.contentHeight },
                             layout: SimpleLayout [ axis = x, spacing = 10 ],
-                            seq: AppNum [ n = "1", y = { (parent.height - this.height) / 2 } ],
+                            seq: AppNum [ n = "1", url = "apps/calendar/calendar.declare",
+                                hot = { this.parent.parent.parent.hot } ],
                             name: Heading [ fontSize = 22, wrap = false, selectable = false,
                                 textColor = { this.parent.parent.parent.hot ? theme.accent : theme.text },
                                 text = "Declare Calendar",
